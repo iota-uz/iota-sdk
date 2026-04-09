@@ -396,18 +396,6 @@ func (app *application) EventPublisher() eventbus.EventBus {
 	return app.eventPublisher
 }
 
-// CreateAppletControllers creates controllers for all registered applets without
-// starting long-lived runtime processes.
-func (app *application) CreateAppletControllers(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) ([]Controller, error) {
-	return app.buildAppletControllers(host, sessionConfig, logger, metrics, opts...)
-}
-
 func (app *application) Controllers() []Controller {
 	if app.runtimeSource == nil {
 		return nil

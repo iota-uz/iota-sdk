@@ -61,13 +61,6 @@ type Application interface {
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
 	AppletRegistry() AppletRegistry
-	CreateAppletControllers(
-		host applets.HostServices,
-		sessionConfig applets.SessionConfig,
-		logger *logrus.Logger,
-		metrics applets.MetricsRecorder,
-		opts ...applets.BuilderOption,
-	) ([]Controller, error)
 }
 
 type Seeder interface {

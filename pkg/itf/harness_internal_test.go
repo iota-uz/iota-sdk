@@ -13,7 +13,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/applets"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -23,7 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 )
 
 func TestRunMigrationPolicy_Scenarios(t *testing.T) {
@@ -205,18 +203,9 @@ func (a *testApp) GraphSchemas() []application.GraphSchema         { return nil 
 func (a *testApp) Bundle() *i18n.Bundle                            { return nil }
 func (a *testApp) GetSupportedLanguages() []string                 { return nil }
 func (a *testApp) AppletRegistry() application.AppletRegistry      { return nil }
-func (a *testApp) CreateAppletControllers(
-	host applets.HostServices,
-	sessionConfig applets.SessionConfig,
-	logger *logrus.Logger,
-	metrics applets.MetricsRecorder,
-	opts ...applets.BuilderOption,
-) ([]application.Controller, error) {
-	return nil, nil
-}
-func (a *testApp) Session() session.Session                 { return nil }
-func (a *testApp) SetSession(session session.Session)       {}
-func (a *testApp) Migrations() application.MigrationManager { return a.migrations }
+func (a *testApp) Session() session.Session                        { return nil }
+func (a *testApp) SetSession(session session.Session)              {}
+func (a *testApp) Migrations() application.MigrationManager        { return a.migrations }
 
 func TestTenantIDHelper(t *testing.T) {
 	t.Parallel()

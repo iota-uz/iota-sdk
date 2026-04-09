@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/applets"
+	compositionapplet "github.com/iota-uz/iota-sdk/pkg/composition/applet"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -81,17 +82,34 @@ func (h *rpcTestHostServices) ExtractPageLocale(context.Context) language.Tag {
 	return language.English
 }
 
-func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
-	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
-	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
-
-	controllers, err := app.CreateAppletControllers(
+func buildRPCAppletControllers(t *testing.T, app Application) ([]Controller, error) {
+	t.Helper()
+	controllers, err := compositionapplet.BuildControllersForTest(
+		t,
+		app.AppletRegistry().All(),
+		app.DB(),
+		app.Bundle(),
 		&rpcTestHostServices{},
 		applets.DefaultSessionConfig,
 		logrus.New(),
 		nil,
 	)
+	if err != nil {
+		return nil, err
+	}
+	typed := make([]Controller, 0, len(controllers))
+	for _, controller := range controllers {
+		typed = append(typed, controller.(Controller))
+	}
+	return typed, nil
+}
+
+func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
+	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
+	require.NoError(t, err)
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
+
+	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
 
 	hasAppletRPC := false
@@ -143,12 +161,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	controllers, err := app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
 
 	r := mux.NewRouter()
@@ -187,12 +200,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	controllers, err := app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
 
 	r := mux.NewRouter()
@@ -230,12 +238,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
-	controllers, err := app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
 
 	r := mux.NewRouter()
@@ -271,12 +274,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	_, err = app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "redis.url is required")
 }
@@ -303,12 +301,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	_, err = app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure postgres db store for bichat")
 }
@@ -335,12 +328,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	_, err = app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure postgres jobs store for bichat")
 }
@@ -372,12 +360,7 @@ master_key_file = %q
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	_, err = app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure postgres secrets store for bichat")
 }
@@ -404,12 +387,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	_, err = app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure postgres files store for bichat")
 }
@@ -439,12 +417,7 @@ required = ["OPENAI_API_KEY"]
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	_, err = app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "required secrets missing for bichat")
 }
@@ -477,12 +450,7 @@ secret_key_env = "APPLET_S3_SECRET_KEY"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
-	_, err = app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "configure s3 files store for bichat")
 }
@@ -500,12 +468,7 @@ hosts = ["demo.example.com"]
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
-	controllers, err := app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
 
 	r := mux.NewRouter()
@@ -546,12 +509,7 @@ secrets = "env"
 	require.NoError(t, err)
 	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
-	controllers, err := app.CreateAppletControllers(
-		&rpcTestHostServices{},
-		applets.DefaultSessionConfig,
-		logrus.New(),
-		nil,
-	)
+	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
 
 	r := mux.NewRouter()
