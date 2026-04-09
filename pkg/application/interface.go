@@ -26,6 +26,24 @@ type GraphSchema struct {
 	ExecutorCb func(*executor.Executor)
 }
 
+type RuntimeSource interface {
+	Controllers() []Controller
+	Middleware() []mux.MiddlewareFunc
+	Assets() []*embed.FS
+	HashFSAssets() []*hashfs.FS
+	LocaleFiles() []*embed.FS
+	GraphSchemas() []GraphSchema
+	Applets() []Applet
+	NavItems() []types.NavigationItem
+	QuickLinks() []*spotlight.QuickLink
+	SpotlightProviders() []spotlight.SearchProvider
+}
+
+type RuntimeBinder interface {
+	AttachRuntimeSource(source RuntimeSource) error
+	DetachRuntimeSource()
+}
+
 // Application exposes the runtime services consumed by modules, controllers, and servers.
 type Application interface {
 	DB() *pgxpool.Pool

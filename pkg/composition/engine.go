@@ -349,7 +349,6 @@ func (c *Container) AppendControllers(controllers ...application.Controller) {
 		return
 	}
 	c.controllers = append(c.controllers, filtered...)
-	appendControllersToApp(c.context.App, filtered)
 }
 
 func (c *Container) AppendHashFSAssets(fs ...*hashfs.FS) {
@@ -367,7 +366,6 @@ func (c *Container) AppendHashFSAssets(fs ...*hashfs.FS) {
 		return
 	}
 	c.hashFSAssets = append(c.hashFSAssets, filtered...)
-	appendHashFSAssetsToApp(c.context.App, filtered)
 }
 
 func (c *Container) AppendMiddleware(middleware ...mux.MiddlewareFunc) {
@@ -375,7 +373,6 @@ func (c *Container) AppendMiddleware(middleware ...mux.MiddlewareFunc) {
 		return
 	}
 	c.middleware = append(c.middleware, middleware...)
-	appendMiddlewareToApp(c.context.App, middleware)
 }
 
 func Resolve[T any](container *Container) (T, error) {

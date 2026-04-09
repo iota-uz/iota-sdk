@@ -21,8 +21,10 @@ func Attach(app application.Application, container *Container) error {
 			return nil
 		}
 	}
-	if err := syncApplication(app, container); err != nil {
-		return err
+	if binder, ok := app.(application.RuntimeBinder); ok {
+		if err := binder.AttachRuntimeSource(container); err != nil {
+			return err
+		}
 	}
 	appContainers.Store(app, container)
 	return nil
@@ -31,6 +33,9 @@ func Attach(app application.Application, container *Container) error {
 func Detach(app application.Application) {
 	if app == nil {
 		return
+	}
+	if binder, ok := app.(application.RuntimeBinder); ok {
+		binder.DetachRuntimeSource()
 	}
 	appContainers.Delete(app)
 }

@@ -84,7 +84,7 @@ func (h *rpcTestHostServices) ExtractPageLocale(context.Context) language.Tag {
 func TestCreateAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -141,7 +141,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	controllers, err := app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -185,7 +185,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	controllers, err := app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -228,7 +228,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -269,7 +269,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -301,7 +301,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -333,7 +333,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -370,7 +370,7 @@ master_key_file = %q
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -402,7 +402,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -437,7 +437,7 @@ required = ["OPENAI_API_KEY"]
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -475,7 +475,7 @@ secret_key_env = "APPLET_S3_SECRET_KEY"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -498,7 +498,7 @@ hosts = ["demo.example.com"]
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := app.CreateAppletControllers(
 		&rpcTestHostServices{},
@@ -544,7 +544,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	require.NoError(t, requireAppletRegistrar(t, app).RegisterApplet(&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}))
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := app.CreateAppletControllers(
 		&rpcTestHostServices{},

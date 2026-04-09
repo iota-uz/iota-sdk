@@ -259,7 +259,6 @@ func New(opts *ApplicationOptions) (Application, error) {
 		pool:               opts.Pool,
 		eventPublisher:     opts.EventBus,
 		websocket:          opts.Huber,
-		controllers:        make(map[string]Controller),
 		quickLinks:         quickLinks,
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
@@ -275,18 +274,13 @@ type application struct {
 	pool               *pgxpool.Pool
 	eventPublisher     eventbus.EventBus
 	websocket          Huber
-	controllers        map[string]Controller
-	middleware         []mux.MiddlewareFunc
-	hashFsAssets       []*hashfs.FS
-	assets             []*embed.FS
-	graphSchemas       []GraphSchema
 	bundle             *i18n.Bundle
 	spotlight          spotlight.Service
 	quickLinks         *spotlight.QuickLinks
 	migrations         MigrationManager
-	navItems           []types.NavigationItem
 	supportedLanguages []string
 	appletRegistry     applets.Registry
+	runtimeSource      RuntimeSource
 }
 
 func (app *application) Spotlight() spotlight.Service {
@@ -302,28 +296,10 @@ func (app *application) QuickLinks() *spotlight.QuickLinks {
 }
 
 func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationItem {
-	return translate(localizer, app.navItems)
-}
-
-func (app *application) RegisterNavItems(items ...types.NavigationItem) {
-	app.navItems = append(app.navItems, items...)
-	app.registerNavQuickLinks(items...)
-}
-
-// AppendNavChildren finds a registered NavigationItem by name (recursively)
-// and appends the given children to it. If the parent item has an Href, it is
-// preserved as the first child so that the original link remains accessible
-// from the dropdown.
-func (app *application) AppendNavChildren(parentName string, children ...types.NavigationItem) {
-	appendChildren(&app.navItems, parentName, children)
-	app.registerNavQuickLinks(children...)
-}
-
-func (app *application) registerNavQuickLinks(items ...types.NavigationItem) {
-	if app.quickLinks == nil {
-		return
+	if app.runtimeSource == nil {
+		return nil
 	}
-	app.quickLinks.Add(navItemsToQuickLinks(items...)...)
+	return translate(localizer, app.runtimeSource.NavItems())
 }
 
 func navItemsToQuickLinks(items ...types.NavigationItem) []*spotlight.QuickLink {
@@ -405,26 +381,11 @@ func splitKeywordTokens(value string) []string {
 	return keywords
 }
 
-func appendChildren(items *[]types.NavigationItem, parentName string, children []types.NavigationItem) bool {
-	for i := range *items {
-		if (*items)[i].Name == parentName {
-			(*items)[i].Children = append((*items)[i].Children, children...)
-			if (*items)[i].Href != "" {
-				(*items)[i].Href = ""
-			}
-			return true
-		}
-		if len((*items)[i].Children) > 0 {
-			if appendChildren(&(*items)[i].Children, parentName, children) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
 func (app *application) Middleware() []mux.MiddlewareFunc {
-	return app.middleware
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.Middleware()
 }
 
 func (app *application) DB() *pgxpool.Pool {
@@ -448,10 +409,10 @@ func (app *application) CreateAppletControllers(
 }
 
 func (app *application) Controllers() []Controller {
-	controllers := make([]Controller, 0, len(app.controllers))
-	for _, c := range app.controllers {
-		controllers = append(controllers, c)
+	if app.runtimeSource == nil {
+		return nil
 	}
+	controllers := append([]Controller(nil), app.runtimeSource.Controllers()...)
 	// Register applet controllers first so their asset routes (e.g. /admin/ali/chat/assets)
 	// are added before other controllers that might match /admin/... and return 404 for
 	// dev proxy requests (@vite/client, /src/*, etc.).
@@ -468,11 +429,17 @@ func (app *application) Controllers() []Controller {
 }
 
 func (app *application) Assets() []*embed.FS {
-	return app.assets
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.Assets()
 }
 
 func (app *application) HashFsAssets() []*hashfs.FS {
-	return app.hashFsAssets
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.HashFSAssets()
 }
 
 func (app *application) Migrations() MigrationManager {
@@ -480,38 +447,10 @@ func (app *application) Migrations() MigrationManager {
 }
 
 func (app *application) GraphSchemas() []GraphSchema {
-	return app.graphSchemas
-}
-
-func (app *application) RegisterControllers(controllers ...Controller) {
-	for _, c := range controllers {
-		if c == nil {
-			continue
-		}
-		app.controllers[c.Key()] = c
+	if app.runtimeSource == nil {
+		return nil
 	}
-}
-
-func (app *application) RegisterMiddleware(middleware ...mux.MiddlewareFunc) {
-	app.middleware = append(app.middleware, middleware...)
-}
-
-func (app *application) RegisterHashFsAssets(fs ...*hashfs.FS) {
-	app.hashFsAssets = append(app.hashFsAssets, fs...)
-}
-
-func (app *application) RegisterAssets(fs ...*embed.FS) {
-	app.assets = append(app.assets, fs...)
-}
-
-func (app *application) RegisterGraphSchema(schema GraphSchema) {
-	app.graphSchemas = append(app.graphSchemas, schema)
-}
-
-func (app *application) RegisterLocaleFiles(fs ...*embed.FS) {
-	for _, localeFs := range fs {
-		loadLocaleFSIntoBundle(app.bundle, localeFs)
-	}
+	return app.runtimeSource.GraphSchemas()
 }
 
 // Bundle returns the translation bundle registered with the application.
@@ -523,10 +462,35 @@ func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
 }
 
-func (app *application) RegisterApplet(a Applet) error {
-	return app.appletRegistry.Register(a)
-}
-
 func (app *application) AppletRegistry() AppletRegistry {
 	return app.appletRegistry
+}
+
+func (app *application) AttachRuntimeSource(source RuntimeSource) error {
+	app.runtimeSource = source
+	if source == nil {
+		app.appletRegistry = applets.NewRegistry()
+		return nil
+	}
+	for _, localeFS := range source.LocaleFiles() {
+		loadLocaleFSIntoBundle(app.bundle, localeFS)
+	}
+	app.quickLinks.Add(navItemsToQuickLinks(source.NavItems()...)...)
+	app.quickLinks.Add(source.QuickLinks()...)
+	for _, provider := range source.SpotlightProviders() {
+		app.spotlight.RegisterProvider(provider)
+	}
+	registry := applets.NewRegistry()
+	for _, applet := range source.Applets() {
+		if err := registry.Register(applet); err != nil {
+			return err
+		}
+	}
+	app.appletRegistry = registry
+	return nil
+}
+
+func (app *application) DetachRuntimeSource() {
+	app.runtimeSource = nil
+	app.appletRegistry = applets.NewRegistry()
 }
