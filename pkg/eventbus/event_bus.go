@@ -113,7 +113,7 @@ func (p *publisherImpl) Subscribe(handler interface{}) {
 
 func (p *publisherImpl) Unsubscribe(handler interface{}) {
 	for i, subscriber := range p.Subscribers {
-		if subscriber.Handler == handler {
+		if sameHandler(subscriber.Handler, handler) {
 			p.Subscribers = append(p.Subscribers[:i], p.Subscribers[i+1:]...)
 			return
 		}
@@ -126,4 +126,32 @@ func (p *publisherImpl) Clear() {
 
 func (p *publisherImpl) SubscribersCount() int {
 	return len(p.Subscribers)
+}
+
+func sameHandler(left interface{}, right interface{}) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+
+	leftType := reflect.TypeOf(left)
+	rightType := reflect.TypeOf(right)
+	if leftType != rightType {
+		return false
+	}
+
+	if leftType.Comparable() {
+		return left == right
+	}
+
+	if leftType.Kind() != reflect.Func {
+		return false
+	}
+
+	leftValue := reflect.ValueOf(left)
+	rightValue := reflect.ValueOf(right)
+	if leftValue.IsNil() || rightValue.IsNil() {
+		return leftValue.IsNil() == rightValue.IsNil()
+	}
+
+	return leftValue.Pointer() == rightValue.Pointer()
 }

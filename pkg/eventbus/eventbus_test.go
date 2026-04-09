@@ -57,6 +57,32 @@ func TestPublisher_Subscribe(t *testing.T) {
 	}
 }
 
+func TestPublisher_Unsubscribe(t *testing.T) {
+	t.Run("removes plain function handlers", func(t *testing.T) {
+		publisher := NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
+		handler := func(e *args) {}
+
+		publisher.Subscribe(handler)
+		publisher.Unsubscribe(handler)
+
+		if got := publisher.SubscribersCount(); got != 0 {
+			t.Fatalf("expected no subscribers after unsubscribe, got %d", got)
+		}
+	})
+
+	t.Run("removes method handlers without panicking", func(t *testing.T) {
+		publisher := NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
+		handler := &methodHandler{}
+
+		publisher.Subscribe(handler.onEvent)
+		publisher.Unsubscribe(handler.onEvent)
+
+		if got := publisher.SubscribersCount(); got != 0 {
+			t.Fatalf("expected no subscribers after unsubscribe, got %d", got)
+		}
+	})
+}
+
 func TestMatchSignature(t *testing.T) {
 	type args struct {
 	}
@@ -264,3 +290,7 @@ func TestPublisher_PanicWithNilHandler(t *testing.T) {
 		}
 	})
 }
+
+type methodHandler struct{}
+
+func (h *methodHandler) onEvent(e *args) {}
