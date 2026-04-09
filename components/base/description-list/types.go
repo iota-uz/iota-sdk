@@ -140,7 +140,6 @@ func WithItemText(text string) DLItemOption {
 func WithItemLink(href string) DLItemOption {
 	return func(dt *dlItemImpl) {
 		dt.href = href
-		dt.text = href
 		if dt.text == "" {
 			dt.text = href
 		}

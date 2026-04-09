@@ -1079,12 +1079,12 @@
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
       "Permissions": "Foydalanuvchi ruxsatlari",
-      "Details": "Тафсилотлар",
-      "LastAction": "Охирги фаолlik",
-      "CreatedAt": "Яратилган сана",
-      "UpdatedAt": "Янгиланган сана",
-      "Roles": "Роллар",
-      "Access": "Кириш"
+      "Details": "Tafsilotlar",
+      "LastAction": "Oxirgi faollik",
+      "CreatedAt": "Yaratilgan sana",
+      "UpdatedAt": "Yangilangan sana",
+      "Roles": "Rollar",
+      "Access": "Ruxsat"
     },
     "Blocked": "Bloklangan",
     "Block": {
