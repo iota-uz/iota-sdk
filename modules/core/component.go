@@ -52,6 +52,7 @@ type ModuleOptions struct {
 	LoginControllerOptions   *controllers.LoginControllerOptions
 	DashboardLinkPermissions []permission.Permission
 	SettingsLinkPermissions  []permission.Permission
+	UserControllerOptions    []controllers.UserControllerOption
 }
 
 func NewComponent(opts *ModuleOptions) composition.Component {
@@ -475,6 +476,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			if err != nil {
 				return nil, err
 			}
+			userControllerOpts := []controllers.UserControllerOption{
+				controllers.WithUserControllerBasePath("/users"),
+				controllers.WithUserControllerPermissionSchema(c.options.PermissionSchema),
+			}
+			userControllerOpts = append(userControllerOpts, c.options.UserControllerOptions...)
 			controllersToRegister := []application.Controller{
 				controllers.NewHealthController(app),
 				controllers.NewDashboardController(app),
@@ -485,10 +491,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewAccountController(app, resolvedUserService, resolvedTenantService, resolvedUploadService, resolvedSessionService),
 				controllers.NewLogoutController(app),
 				controllers.NewUploadController(app, resolvedUploadService),
-				controllers.NewUsersController(app, resolvedUserService, &controllers.UsersControllerOptions{
-					BasePath:         "/users",
-					PermissionSchema: c.options.PermissionSchema,
-				}),
+				controllers.NewUsersController(app, resolvedUserService, userControllerOpts...),
 				controllers.NewRolesController(app, &controllers.RolesControllerOptions{
 					BasePath:         "/roles",
 					PermissionSchema: c.options.PermissionSchema,
