@@ -52,6 +52,7 @@ type BuildResult struct {
 }
 
 type RuntimeRegistration struct {
+	Name            string
 	Manager         *appletengineruntime.Manager
 	HasPostgresJobs bool
 }
@@ -572,10 +573,19 @@ func (b *AppletEngineBuilder) buildRuntimeRegistrations(state *buildState) error
 		return nil
 	}
 	state.runtimeRegistrations = append(state.runtimeRegistrations, RuntimeRegistration{
+		Name:            runtimeRegistrationName(state.runtimeEnabled),
 		Manager:         state.runtimeManager,
 		HasPostgresJobs: state.hasPostgresJobs,
 	})
 	return nil
+}
+
+func runtimeRegistrationName(enabled map[string]appletsconfig.AppletEngineConfig) string {
+	names := sortedAppletNames(enabled)
+	if len(names) == 0 {
+		return "applet-runtime"
+	}
+	return "applet-runtime:" + strings.Join(names, ",")
 }
 
 type appletOverride struct {

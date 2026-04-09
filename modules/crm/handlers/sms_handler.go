@@ -14,6 +14,7 @@ type SMSHandler struct {
 	pool        *pgxpool.Pool
 	publisher   eventbus.EventBus
 	chatService *services.ChatService
+	unsubscribe func()
 }
 
 func RegisterSMSHandlers(app application.Application, chatService *services.ChatService) *SMSHandler {
@@ -22,7 +23,7 @@ func RegisterSMSHandlers(app application.Application, chatService *services.Chat
 		publisher:   app.EventPublisher(),
 		chatService: chatService,
 	}
-	app.EventPublisher().Subscribe(handler.onSMSReceived)
+	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onSMSReceived)
 	return handler
 }
 
@@ -30,7 +31,10 @@ func (h *SMSHandler) Unregister() {
 	if h == nil || h.publisher == nil {
 		return
 	}
-	h.publisher.Unsubscribe(h.onSMSReceived)
+	if h.unsubscribe != nil {
+		h.unsubscribe()
+		h.unsubscribe = nil
+	}
 }
 
 func (h *SMSHandler) onSMSReceived(event *cpassproviders.ReceivedMessageEvent) {

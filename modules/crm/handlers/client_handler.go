@@ -23,6 +23,7 @@ type ClientHandler struct {
 	publisher     eventbus.EventBus
 	chatService   *crmservices.ChatService
 	tenantService *services.TenantService
+	unsubscribe   func()
 }
 
 func RegisterClientHandler(
@@ -36,7 +37,7 @@ func RegisterClientHandler(
 		chatService:   chatService,
 		tenantService: tenantService,
 	}
-	app.EventPublisher().Subscribe(handler.onCreated)
+	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onCreated)
 	return handler
 }
 
@@ -44,7 +45,10 @@ func (h *ClientHandler) Unregister() {
 	if h == nil || h.publisher == nil {
 		return
 	}
-	h.publisher.Unsubscribe(h.onCreated)
+	if h.unsubscribe != nil {
+		h.unsubscribe()
+		h.unsubscribe = nil
+	}
 }
 
 func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context {

@@ -560,9 +560,8 @@ func buildHarnessKey(cfg HarnessConfig) string {
 	}
 
 	return fmt.Sprintf(
-		"name=%s|mods=%v|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
+		"name=%s|components=%v|prov=%s|migrate=%s|iso=%s|cleanup=%s|seed=%s|pool=%d/%d/%s/%s|tx=%s/%s/%s|tenant=%s|locales=%v",
 		cfg.Name,
-		nil,
 		componentTypes,
 		cfg.Database.Provisioning,
 		cfg.Migration.Policy,
@@ -755,9 +754,13 @@ func closeApplication(app application.Application, container *composition.Contai
 	stopCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	controllers := app.Controllers()
 	var closeErr error
 	if container != nil {
 		closeErr = composition.Stop(stopCtx, container)
 	}
-	return mergeCloseErrors(closeErr, closeControllers(app.Controllers()))
+	if binder, ok := app.(application.RuntimeBinder); ok {
+		binder.DetachRuntimeSource()
+	}
+	return mergeCloseErrors(closeErr, closeControllers(controllers))
 }

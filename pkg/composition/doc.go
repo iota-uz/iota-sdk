@@ -47,14 +47,11 @@
 //
 // Engine.Compile accepts zero or more capability tags that gate which parts of
 // the graph materialize. A component may choose to contribute controllers only
-// when CapabilityAPI is present, run migrations only when CapabilityMigrate is
-// present, and so on. The defined capabilities are:
+// when CapabilityAPI is present, or worker-only hooks when CapabilityWorker is
+// present. The defined capabilities are:
 //
 //   - CapabilityAPI      - HTTP server is active
 //   - CapabilityWorker   - background worker process
-//   - CapabilityMigrate  - database migration run
-//   - CapabilitySeed     - database seed run
-//   - CapabilityCLI      - CLI command execution
 //
 // # Lifecycle
 //

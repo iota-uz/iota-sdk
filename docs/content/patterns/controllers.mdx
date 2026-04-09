@@ -601,7 +601,7 @@ func TestExpenseController_Create(t *testing.T) {
 	defer env.Teardown()
 
 	t.Run("create expense", func(t *testing.T) {
-		suite := itf.HTTP(t, modules.Components()...)
+		suite := itf.NewSuiteBuilder(t).WithComponents(modules.Components()...).Build()
 		// Create test account and category in fixture data (replace with project IDs as needed)
 		accountID := "00000000-0000-0000-0000-000000000001"
 		categoryID := "00000000-0000-0000-0000-000000000002"

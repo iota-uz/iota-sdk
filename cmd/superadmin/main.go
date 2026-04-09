@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 )
@@ -58,7 +59,7 @@ func run() error {
 		context.Background(),
 		bootstrap.InstallComponents(
 			[]composition.Capability{composition.CapabilityAPI},
-			core.NewComponent(&core.ModuleOptions{}),
+			core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}),
 			superadmin.NewComponent(&superadmin.ModuleOptions{}),
 		),
 		bootstrap.InstallHashFS(internalassets.HashFS),

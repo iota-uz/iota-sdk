@@ -22,7 +22,7 @@ func newCheckTrKeysCmd() *cobra.Command {
 		Long:  `Validates that all translation keys are present across all configured locales and reports any missing translations.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			allComponents := append(modules.Components(), superadmin.NewComponent(&superadmin.ModuleOptions{}))
-			return CheckTrKeysComponents(nil, allComponents...)
+			return CheckTrKeys(nil, allComponents...)
 		},
 	}
 }

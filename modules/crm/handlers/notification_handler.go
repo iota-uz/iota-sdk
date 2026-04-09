@@ -14,9 +14,10 @@ import (
 )
 
 type NotificationHandler struct {
-	pool      *pgxpool.Pool
-	publisher eventbus.EventBus
-	tgBot     *telegram.Bot
+	pool        *pgxpool.Pool
+	publisher   eventbus.EventBus
+	tgBot       *telegram.Bot
+	unsubscribe func()
 }
 
 func RegisterNotificationHandler(app application.Application, botToken string) *NotificationHandler {
@@ -29,7 +30,7 @@ func RegisterNotificationHandler(app application.Application, botToken string) *
 		publisher: app.EventPublisher(),
 		tgBot:     bot,
 	}
-	app.EventPublisher().Subscribe(handler.onNewMessage)
+	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onNewMessage)
 	return handler
 }
 
@@ -37,7 +38,10 @@ func (h *NotificationHandler) Unregister() {
 	if h == nil || h.publisher == nil {
 		return
 	}
-	h.publisher.Unsubscribe(h.onNewMessage)
+	if h.unsubscribe != nil {
+		h.unsubscribe()
+		h.unsubscribe = nil
+	}
 }
 
 func (h *NotificationHandler) onNewMessage(event *chat.MessagedAddedEvent) {

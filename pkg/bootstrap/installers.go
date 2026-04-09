@@ -147,6 +147,7 @@ func InstallApplets(opts AppletsOptions) Installer {
 		if opts.WithRuntime {
 			for _, registration := range result.RuntimeRegistrations {
 				runtimeHook := &appletRuntimeHook{
+					name:            registration.Name,
 					manager:         registration.Manager,
 					pool:            rt.Pool,
 					logger:          logger,

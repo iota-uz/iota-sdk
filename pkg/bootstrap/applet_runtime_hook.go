@@ -13,6 +13,7 @@ import (
 )
 
 type appletRuntimeHook struct {
+	name            string
 	manager         *appletengineruntime.Manager
 	pool            *pgxpool.Pool
 	logger          *logrus.Logger
@@ -21,7 +22,10 @@ type appletRuntimeHook struct {
 }
 
 func (h *appletRuntimeHook) Name() string {
-	return "applet-runtime"
+	if h.name == "" {
+		return "applet-runtime"
+	}
+	return h.name
 }
 
 func (h *appletRuntimeHook) Start(ctx context.Context) error {

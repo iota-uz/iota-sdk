@@ -62,8 +62,8 @@ func TestPublisher_Unsubscribe(t *testing.T) {
 		publisher := NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
 		handler := func(e *args) {}
 
-		publisher.Subscribe(handler)
-		publisher.Unsubscribe(handler)
+		unsubscribe := publisher.Subscribe(handler)
+		unsubscribe()
 
 		if got := publisher.SubscribersCount(); got != 0 {
 			t.Fatalf("expected no subscribers after unsubscribe, got %d", got)
@@ -74,8 +74,8 @@ func TestPublisher_Unsubscribe(t *testing.T) {
 		publisher := NewEventPublisher(logging.ConsoleLogger(logrus.WarnLevel))
 		handler := &methodHandler{}
 
-		publisher.Subscribe(handler.onEvent)
-		publisher.Unsubscribe(handler.onEvent)
+		unsubscribe := publisher.Subscribe(handler.onEvent)
+		unsubscribe()
 
 		if got := publisher.SubscribersCount(); got != 0 {
 			t.Fatalf("expected no subscribers after unsubscribe, got %d", got)
