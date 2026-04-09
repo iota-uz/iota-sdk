@@ -453,6 +453,7 @@ func (c *UsersController) GetSingle(
 	sessionService *services.SessionService,
 ) {
 	ctx := r.Context()
+	pageCtx := composables.UsePageCtx(ctx)
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing user ID: %v", err)
@@ -483,6 +484,7 @@ func (c *UsersController) GetSingle(
 				}
 				return users.BlockedBanner(&vm), nil
 			},
+			slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
 		)
 	}
 	if composables.CanUser(ctx, permissions.SessionRead) == nil {
@@ -493,14 +495,13 @@ func (c *UsersController) GetSingle(
 		slots.Async(
 			users.SingleSlotSessions,
 			func(ctx context.Context) (templ.Component, error) {
-				time.Sleep(time.Second * 5)
 				sessionList, err := sessionService.GetByUserID(ctx, targetID)
 				if err != nil {
 					return nil, err
 				}
 				return sfui.EmbeddedContent(buildSessionsTable(ctx, targetVM.ID, sessionList, canDelete)), nil
 			},
-			slot.WithSlotSourceFallback(templ.Raw("Loading sessions...")),
+			slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
 		)
 	}
 	if c.configureSingleSlots != nil {

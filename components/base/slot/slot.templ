@@ -5,42 +5,46 @@ import "time"
 
 templ Slot(s SlotSource) {
 	if !s.Empty() {
+		{{ targetID := string(s.Name()) + "-target" }}
 		<div class="contents">
 			@templ.Flush() {
 				<template shadowrootmode="open">
-					<slot name={ string(s.Name()) }>
-						{{ fallback := s.Fallback() }}
-						if fallback != nil {
-							@fallback
-						}
-					</slot>
+					<slot name={ string(s.Name()) }></slot>
 				</template>
-			}
-			{{ targetID := fmt.Sprintf("%s-target-%d", s.Name(), time.Now().UnixNano()) }}
-			{{ tempID := fmt.Sprintf("%s-temp-%d", s.Name(), time.Now().UnixNano()) }}
-			<div id={ targetID } slot={ string(s.Name()) }></div>
-			for chunk := range s.Stream(ctx) {
-				@templ.Flush() {
-					<template id={ tempID }>
-						@chunk
-					</template>
-					<script>
-						(function(){
-							let targetId = "{{ targetID }}"
-							let tempId = "{{ tempID }}"
-							queueMicrotask(() => {
-								let target = document.getElementById(targetId);
-								let temp = document.getElementById(tempId);
-								if (target && temp) {
-									target.innerHTML = "";
-									target.appendChild(temp.content.cloneNode(true));
-									temp.remove();
-								}
-							});
-						})()
-					</script>
-				}
+				<div id={ targetID } slot={ string(s.Name()) }>
+					{{ fallback := s.Fallback() }}
+					if fallback != nil {
+						@fallback
+					}
+				</div>
 			}
 		</div>
+	}
+}
+
+templ Streamer(m Manager) {
+	for tagged := range m.Stream(ctx) {
+		@templ.Flush() {
+			{{ targetID := string(tagged.Name) + "-target" }}
+			{{ tempID := fmt.Sprintf("%s-temp-%d", tagged.Name, time.Now().UnixNano()) }}
+			<template id={ tempID }>
+				@tagged.Chunk
+			</template>
+			<script>
+				(function(){
+					let targetId = "{{ targetID }}"
+					let tempId = "{{ tempID }}"
+					queueMicrotask(() => {
+						let target = document.getElementById(targetId);
+						let temp = document.getElementById(tempId);
+						if (target && temp) {
+							target.innerHTML = "";
+							target.appendChild(temp.content.cloneNode(true));
+							temp.remove();
+						}
+					});
+				})()
+			</script>
+		}
 	}
 }

@@ -14,6 +14,11 @@ type Chunk struct {
 	templ.Component
 }
 
+type TaggedChunk struct {
+	Name  Key
+	Chunk Chunk
+}
+
 type RenderFunc func(ctx context.Context, push func(templ.Component))
 
 type SlotSource interface {
@@ -28,6 +33,8 @@ type Manager interface {
 	Define(name Key, render RenderFunc, opts ...SlotSourceOption)
 	Async(name Key, fn func(ctx context.Context) (templ.Component, error), opts ...SlotSourceOption)
 	Get(name Key) SlotSource
+	All() []SlotSource
+	Stream(ctx context.Context) <-chan TaggedChunk
 }
 
 func NewManager() Manager {
@@ -58,6 +65,42 @@ func (m *manager) Get(name Key) SlotSource {
 		return s
 	}
 	return &noopSlotSource{name: name}
+}
+
+func (m *manager) All() []SlotSource {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	out := make([]SlotSource, 0, len(m.slots))
+	for _, s := range m.slots {
+		out = append(out, s)
+	}
+	return out
+}
+
+func (m *manager) Stream(ctx context.Context) <-chan TaggedChunk {
+	out := make(chan TaggedChunk)
+	var wg sync.WaitGroup
+	for _, s := range m.All() {
+		if s.Empty() {
+			continue
+		}
+		wg.Add(1)
+		go func(s SlotSource) {
+			defer wg.Done()
+			for chunk := range s.Stream(ctx) {
+				select {
+				case out <- TaggedChunk{Name: s.Name(), Chunk: chunk}:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}(s)
+	}
+	go func() {
+		wg.Wait()
+		close(out)
+	}()
+	return out
 }
 
 func (m *manager) Add(s SlotSource) {

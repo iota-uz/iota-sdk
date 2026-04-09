@@ -94,6 +94,7 @@ templ Single(props *SingleProps) {
 				@UserAccessInfo(props.User, props.ResourcePermissionGroups)
 				@slot.Slot(props.Slots.Get(SingleSlotSessions))
 				@slot.Slot(props.Slots.Get(SingleSlotContent))
+				@slot.Streamer(props.Slots)
 			</div>
 		</div>
 	}
