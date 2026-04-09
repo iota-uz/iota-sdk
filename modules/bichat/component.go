@@ -96,19 +96,8 @@ func (c *component) Build(builder *composition.Builder) error {
 	})
 
 	if moduleConfig.KBSearcher != nil {
-		agent := spotlight.NewBIChatAgent(moduleConfig.KBSearcher)
-		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
-			return []composition.Hook{{
-				Name: "bichat-spotlight-agent",
-				Start: func(context.Context, *composition.Container) error {
-					app.Spotlight().SetAgent(agent)
-					return nil
-				},
-			}}, nil
+		composition.ContributeSpotlightAgent(builder, func(*composition.Container) (spotlight.Agent, error) {
+			return spotlight.NewBIChatAgent(moduleConfig.KBSearcher), nil
 		})
 	}
 	if builder.Context().HasCapability(composition.CapabilityWorker) {

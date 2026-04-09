@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/stretchr/testify/require"
 )
 
@@ -150,4 +151,33 @@ func TestCapabilityFilteringGatesProvidersAndHooks(t *testing.T) {
 	err = engine.Stop(context.Background(), container)
 	require.NoError(t, err)
 	require.Equal(t, []string{"api"}, stopped)
+}
+
+func TestEngineCompileRejectsDuplicateSpotlightAgents(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(
+		testComponent{
+			descriptor: Descriptor{Name: "bichat"},
+			build: func(builder *Builder) error {
+				ContributeSpotlightAgent(builder, func(*Container) (spotlight.Agent, error) {
+					return spotlight.NewHeuristicAgent(), nil
+				})
+				return nil
+			},
+		},
+		testComponent{
+			descriptor: Descriptor{Name: "second-agent"},
+			build: func(builder *Builder) error {
+				ContributeSpotlightAgent(builder, func(*Container) (spotlight.Agent, error) {
+					return spotlight.NewHeuristicAgent(), nil
+				})
+				return nil
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "duplicate spotlight agent contribution")
 }

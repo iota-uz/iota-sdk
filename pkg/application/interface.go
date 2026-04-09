@@ -37,6 +37,7 @@ type RuntimeSource interface {
 	NavItems() []types.NavigationItem
 	QuickLinks() []*spotlight.QuickLink
 	SpotlightProviders() []spotlight.SearchProvider
+	SpotlightAgent() spotlight.Agent
 }
 
 type RuntimeBinder interface {

@@ -468,6 +468,7 @@ func (app *application) AttachRuntimeSource(source RuntimeSource) error {
 	for _, provider := range source.SpotlightProviders() {
 		app.spotlight.RegisterProvider(provider)
 	}
+	app.spotlight.SetAgent(source.SpotlightAgent())
 	registry := applets.NewRegistry()
 	for _, applet := range source.Applets() {
 		if err := registry.Register(applet); err != nil {
@@ -480,5 +481,6 @@ func (app *application) AttachRuntimeSource(source RuntimeSource) error {
 
 func (app *application) DetachRuntimeSource() {
 	app.runtimeSource = nil
+	app.spotlight.SetAgent(nil)
 	app.appletRegistry = applets.NewRegistry()
 }

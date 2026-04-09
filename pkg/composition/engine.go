@@ -243,17 +243,18 @@ type Container struct {
 	providerOrder      []*providerEntry
 	resolutionPath     []string
 
-	controllerFactories []namedFactory[[]application.Controller]
-	navItemFactories    []namedFactory[[]types.NavigationItem]
-	localeFactories     []namedFactory[[]*embed.FS]
-	schemaFactories     []namedFactory[[]application.GraphSchema]
-	appletFactories     []namedFactory[[]application.Applet]
-	assetFactories      []namedFactory[[]*embed.FS]
-	hashFSFactories     []namedFactory[[]*hashfs.FS]
-	quickLinkFactories  []namedFactory[[]*spotlight.QuickLink]
-	spotlightFactories  []namedFactory[[]spotlight.SearchProvider]
-	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
-	hookFactories       []namedFactory[[]Hook]
+	controllerFactories   []namedFactory[[]application.Controller]
+	navItemFactories      []namedFactory[[]types.NavigationItem]
+	localeFactories       []namedFactory[[]*embed.FS]
+	schemaFactories       []namedFactory[[]application.GraphSchema]
+	appletFactories       []namedFactory[[]application.Applet]
+	assetFactories        []namedFactory[[]*embed.FS]
+	hashFSFactories       []namedFactory[[]*hashfs.FS]
+	quickLinkFactories    []namedFactory[[]*spotlight.QuickLink]
+	spotlightFactories    []namedFactory[[]spotlight.SearchProvider]
+	spotlightAgentFactory *namedFactory[spotlight.Agent]
+	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
+	hookFactories         []namedFactory[[]Hook]
 
 	controllers        []application.Controller
 	navItems           []types.NavigationItem
@@ -264,6 +265,7 @@ type Container struct {
 	hashFSAssets       []*hashfs.FS
 	quickLinks         []*spotlight.QuickLink
 	spotlightProviders []spotlight.SearchProvider
+	spotlightAgent     spotlight.Agent
 	middleware         []mux.MiddlewareFunc
 	hooks              []Hook
 	started            bool
@@ -322,6 +324,10 @@ func (c *Container) QuickLinks() []*spotlight.QuickLink {
 
 func (c *Container) SpotlightProviders() []spotlight.SearchProvider {
 	return append([]spotlight.SearchProvider(nil), c.spotlightProviders...)
+}
+
+func (c *Container) SpotlightAgent() spotlight.Agent {
+	return c.spotlightAgent
 }
 
 func (c *Container) Middleware() []mux.MiddlewareFunc {
@@ -493,6 +499,12 @@ func (c *Container) addBuilder(builder *Builder) error {
 	c.hashFSFactories = append(c.hashFSFactories, builder.hashFSFactories...)
 	c.quickLinkFactories = append(c.quickLinkFactories, builder.quickLinkFactories...)
 	c.spotlightFactories = append(c.spotlightFactories, builder.spotlightFactories...)
+	if builder.spotlightAgent != nil {
+		if c.spotlightAgentFactory != nil {
+			return fmt.Errorf("composition: duplicate spotlight agent contribution from %q", builder.descriptor.Name)
+		}
+		c.spotlightAgentFactory = builder.spotlightAgent
+	}
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
 	return nil
@@ -535,12 +547,30 @@ func (c *Container) materialize() error {
 	if err := collectInto(c, c.spotlightFactories, &c.spotlightProviders); err != nil {
 		return err
 	}
+	if err := collectOneInto(c, c.spotlightAgentFactory, &c.spotlightAgent); err != nil {
+		return err
+	}
 	if err := collectInto(c, c.middlewareFactories, &c.middleware); err != nil {
 		return err
 	}
 	if err := collectInto(c, c.hookFactories, &c.hooks); err != nil {
 		return err
 	}
+	return nil
+}
+
+func collectOneInto[T any](container *Container, factory *namedFactory[T], target *T) error {
+	if factory == nil {
+		return nil
+	}
+	previousPath := container.resolutionPath
+	container.resolutionPath = []string{factory.component, factory.label}
+	value, err := factory.factory(container)
+	container.resolutionPath = previousPath
+	if err != nil {
+		return fmt.Errorf("composition: %s contribution for %q: %w", factory.label, factory.component, err)
+	}
+	*target = value
 	return nil
 }
 

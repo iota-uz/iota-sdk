@@ -31,6 +31,7 @@ func (s *testRuntimeSource) QuickLinks() []*spotlight.QuickLink { return nil }
 func (s *testRuntimeSource) SpotlightProviders() []spotlight.SearchProvider {
 	return nil
 }
+func (s *testRuntimeSource) SpotlightAgent() spotlight.Agent { return nil }
 
 func attachRuntimeSource(t *testing.T, app Application, source RuntimeSource) {
 	t.Helper()

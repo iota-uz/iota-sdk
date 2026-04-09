@@ -106,6 +106,7 @@ type Builder struct {
 	hashFSFactories     []namedFactory[[]*hashfs.FS]
 	quickLinkFactories  []namedFactory[[]*spotlight.QuickLink]
 	spotlightFactories  []namedFactory[[]spotlight.SearchProvider]
+	spotlightAgent      *namedFactory[spotlight.Agent]
 	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories       []namedFactory[[]Hook]
 }
@@ -188,6 +189,20 @@ func ContributeQuickLinks(builder *Builder, factory func(*Container) ([]*spotlig
 
 func ContributeSpotlightProviders(builder *Builder, factory func(*Container) ([]spotlight.SearchProvider, error)) {
 	appendFactory(builder, "spotlight", factory, &builder.spotlightFactories)
+}
+
+func ContributeSpotlightAgent(builder *Builder, factory func(*Container) (spotlight.Agent, error)) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if factory == nil {
+		return
+	}
+	builder.spotlightAgent = &namedFactory[spotlight.Agent]{
+		component: builder.descriptor.Name,
+		label:     "spotlight-agent",
+		factory:   factory,
+	}
 }
 
 func ContributeMiddleware(builder *Builder, factory func(*Container) ([]mux.MiddlewareFunc, error)) {
