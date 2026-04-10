@@ -189,7 +189,7 @@ func NewUsersController(
 		panic("UsersController requires explicit BasePath in options")
 	}
 
-	controller := &UsersController{
+	return &UsersController{
 		app:                  app,
 		basePath:             o.basePath,
 		permissionSchema:     o.permissionSchema,
