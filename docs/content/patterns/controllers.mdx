@@ -21,24 +21,22 @@ Controllers in IOTA SDK handle:
 
 ### Basic Controller Setup
 
-Controllers are plain structs whose constructor receives typed services.
-There is no `application.Application` field anymore — global services such
-as the i18n bundle, pool, event bus, and user session are installed as
-request-scoped middleware by the server bootstrap (`pkg/server/builder.go`)
-and resolved per request via `composables.*`.
+Controllers are plain structs with a zero-argument constructor. Services
+are **not** stored on the struct — they arrive as typed parameters on each
+handler method via the `di.H` wrapper. Global services (i18n bundle, pool,
+event bus, user session) are installed as request-scoped middleware by
+`pkg/server/builder.go` and resolved per request via `composables.*`.
 
 ```go
 // modules/finance/presentation/controllers/expense_controller.go
 
 type ExpenseController struct {
-	basePath       string
-	expenseService *services.ExpenseService
+	basePath string
 }
 
-func NewExpensesController(expenseService *services.ExpenseService) application.Controller {
+func NewExpensesController() application.Controller {
 	return &ExpenseController{
-		basePath:       "/finance/expenses",
-		expenseService: expenseService,
+		basePath: "/finance/expenses",
 	}
 }
 
@@ -624,38 +622,23 @@ func TestExpenseController_Create(t *testing.T) {
 }
 ```
 
-### Unit Test with Mock Services
+### Unit Test with ITF Suite
 
-After the composition refactor, controllers are constructed via their
-public constructor and no longer hold an `application.Application` field.
-Mock the typed services you care about and inject them via the
-constructor — per-handler dependencies (`di.H`-style) arrive through
-the handler's function parameters at request time.
+After the composition refactor, controllers have zero-argument constructors
+and handler dependencies arrive via `di.H` parameter injection at request
+time. Use the ITF suite to wire the full composition container and exercise
+the HTTP surface end-to-end:
 
 ```go
 func TestExpenseController_List(t *testing.T) {
-	mockService := new(MockExpenseService)
-
-	// Call the real constructor — same shape the component uses.
-	ctrl := controllers.NewExpensesController(mockService, "/finance/expenses")
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		Build()
 
 	t.Run("returns list", func(t *testing.T) {
-		mockService.On("GetPaginated", mock.Anything, mock.Anything).
-			Return([]expense.Expense{testExpense}, nil)
-		mockService.On("Count", mock.Anything, mock.Anything).
-			Return(int64(1), nil)
-
-		// Register the controller on a throwaway router so we can
-		// exercise the HTTP surface end-to-end.
-		r := mux.NewRouter()
-		ctrl.Register(r)
-
-		req := httptest.NewRequest(http.MethodGet, "/finance/expenses", nil)
-		w := httptest.NewRecorder()
-		r.ServeHTTP(w, req)
-
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), "Test Expense")
+		suite.GET("/finance/expenses").
+			Expect(t).
+			Status(http.StatusOK)
 	})
 }
 ```

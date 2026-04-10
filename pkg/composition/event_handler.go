@@ -34,6 +34,9 @@ func ContributeEventHandler(builder *Builder, handler any) {
 	if handler == nil {
 		panic("composition: ContributeEventHandler: handler is nil")
 	}
+	if t := reflect.TypeOf(handler); t == nil || t.Kind() != reflect.Func {
+		panic(fmt.Sprintf("composition: ContributeEventHandler: handler must be a function, got %T", handler))
+	}
 	builder.eventHandlerSeq++
 	name := fmt.Sprintf("event-handler/%s/%T/%d", builder.descriptor.Name, handler, builder.eventHandlerSeq)
 	ContributeHooks(builder, func(container *Container) ([]Hook, error) {
@@ -96,6 +99,9 @@ func ContributeEventHandlerFunc[T any](builder *Builder, factory func(T) any) {
 		handler := factory(svc)
 		if handler == nil {
 			return nil, fmt.Errorf("composition: ContributeEventHandlerFunc: factory returned nil handler")
+		}
+		if t := reflect.TypeOf(handler); t.Kind() != reflect.Func {
+			return nil, fmt.Errorf("composition: ContributeEventHandlerFunc: factory must return a function, got %T", handler)
 		}
 		return []Hook{{
 			Name: name,
