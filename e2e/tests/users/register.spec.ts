@@ -33,8 +33,8 @@ test.describe('user auth and registration flow', () => {
 		await page.locator('a[href="/users/new"]').filter({ hasText: /.+/ }).first().click();
 
 		// Fill in the form
-		await page.locator('[name=FirstName]').fill('Test');
-		await page.locator('[name=LastName]').fill('User');
+		await page.locator('[name=FirstName]').fill('Regspec');
+		await page.locator('[name=LastName]').fill('Newuser');
 		await page.locator('[name=MiddleName]').fill('Mid');
 		await page.locator('[name=Email]').fill('test1@gmail.com');
 		await page.locator('[name=Phone]').fill('+998901234567');
@@ -80,7 +80,7 @@ test.describe('user auth and registration flow', () => {
 		const initialRowCount = await page.locator('tbody tr').count();
 
 		// Find and click the edit link for the user created in test 1
-		const userRow = page.locator('tbody tr').filter({ hasText: 'Test User' });
+		const userRow = page.locator('tbody tr').filter({ hasText: 'Regspec Newuser' });
 		await userRow.locator('td a[href$="/edit"]').click();
 
 		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
