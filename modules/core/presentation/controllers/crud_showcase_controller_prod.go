@@ -3,7 +3,11 @@
 // Package controllers provides this package.
 package controllers
 
-import "github.com/iota-uz/iota-sdk/pkg/application"
+import (
+	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
 
 type CrudShowcaseController struct{}
 
@@ -11,10 +15,10 @@ type CrudShowcaseController struct{}
 type ShowcaseEntity interface{}
 
 func NewCrudShowcaseController(
-	_ application.Application,
+	_ eventbus.EventBus,
 	_ ...CrudOption[ShowcaseEntity],
 ) application.Controller {
 	return nil
 }
 
-func InitCrudShowcase(_ application.Application) {}
+func InitCrudShowcase(_ *pgxpool.Pool) {}

@@ -11,7 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -21,7 +20,6 @@ import (
 
 // ChatController handles HTTP endpoints for chat operations.
 type ChatController struct {
-	app               application.Application
 	sessionCommands   services.SessionCommands
 	sessionQueries    services.SessionQueries
 	turnCommands      services.TurnCommands
@@ -36,7 +34,6 @@ type ChatController struct {
 // NewChatController creates a new chat controller.
 // Services can be nil - they're optional for legacy REST endpoints.
 func NewChatController(
-	app application.Application,
 	sessionCommands services.SessionCommands,
 	sessionQueries services.SessionQueries,
 	turnCommands services.TurnCommands,
@@ -48,7 +45,6 @@ func NewChatController(
 	opts ...ControllerOption,
 ) *ChatController {
 	return &ChatController{
-		app:               app,
 		sessionCommands:   sessionCommands,
 		sessionQueries:    sessionQueries,
 		turnCommands:      turnCommands,
@@ -107,7 +103,6 @@ func (c *ChatController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

@@ -61,7 +61,14 @@ func (g *GraphQLController) Register(r *mux.Router) {
 	router.Use(
 		middleware.Authorize(),
 		middleware.ProvideUser(),
-		middleware.ProvideLocalizer(g.app, middleware.LocaleOptions{AcceptLanguageHighPriority: true}),
+		// Override the global ProvideLocalizer with the AcceptLanguageHighPriority
+		// variant — GraphQL clients always send Accept-Language and we want to
+		// honour it over the user's saved UI language.
+		middleware.ProvideLocalizer(
+			g.app.Bundle(),
+			g.app.GetSupportedLanguages(),
+			middleware.LocaleOptions{AcceptLanguageHighPriority: true},
+		),
 	)
 
 	router.Handle("/query", srv)

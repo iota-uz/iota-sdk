@@ -58,7 +58,7 @@ func TestExpenseController_List_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -132,7 +132,7 @@ func TestExpenseController_List_HTMX_Request(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -190,7 +190,7 @@ func TestExpenseController_GetNew_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	moneyAccountService := itf.GetService[services.MoneyAccountService](env)
@@ -243,7 +243,7 @@ func TestExpenseController_Create_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -302,7 +302,7 @@ func TestExpenseController_Create_ValidationError(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -364,7 +364,7 @@ func TestExpenseController_GetEdit_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -432,7 +432,7 @@ func TestExpenseController_GetEdit_NotFound(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -457,7 +457,7 @@ func TestExpenseController_Update_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -527,7 +527,7 @@ func TestExpenseController_Update_ValidationError(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -601,7 +601,7 @@ func TestExpenseController_Delete_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -664,7 +664,7 @@ func TestExpenseController_Delete_NotFound(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -687,7 +687,7 @@ func TestExpenseController_InvalidUUID(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.GET(ExpenseBasePath + "/invalid-uuid").
@@ -710,7 +710,7 @@ func TestExpenseController_Export_Excel_Success(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	expenseService := itf.GetService[services.ExpenseService](env)
@@ -785,7 +785,7 @@ func TestExpenseController_Export_InvalidFormat(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.POST(ExpenseBasePath + "/export?format=invalid-format").
@@ -808,7 +808,7 @@ func TestExpenseController_Export_MissingFormat(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.POST(ExpenseBasePath + "/export").
@@ -829,7 +829,7 @@ func TestExpenseController_Export_Forbidden(t *testing.T) {
 	env := suite.Environment()
 	createCurrencies(t, env, currency.USD)
 
-	controller := controllers.NewExpensesController(env.App)
+	controller := controllers.NewExpensesController()
 	suite.Register(controller)
 
 	suite.POST(ExpenseBasePath + "/export?format=excel").

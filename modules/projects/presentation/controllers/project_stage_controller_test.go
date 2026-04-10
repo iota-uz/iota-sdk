@@ -44,7 +44,7 @@ func TestProjectStageController_List_Success(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -112,7 +112,7 @@ func TestProjectStageController_List_HTMX_Request(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -167,7 +167,7 @@ func TestProjectStageController_ListByProject_Success(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -250,9 +250,7 @@ func TestProjectStageController_ListByProject_InvalidUUID(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	suite.GET(ProjectStageBasePath + "/by-project/invalid-uuid").
@@ -266,9 +264,7 @@ func TestProjectStageController_GetNewDrawer_Success(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	response := suite.GET(ProjectStageBasePath + "/new/drawer").
@@ -292,7 +288,7 @@ func TestProjectStageController_Create_Success(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -351,7 +347,7 @@ func TestProjectStageController_Create_ValidationError(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -383,7 +379,7 @@ func TestProjectStageController_GetEditDrawer_Success(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -442,9 +438,7 @@ func TestProjectStageController_GetEditDrawer_NotFound(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -459,9 +453,7 @@ func TestProjectStageController_GetEditDrawer_InvalidUUID(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	suite.GET(ProjectStageBasePath + "/invalid-uuid/drawer").
@@ -477,7 +469,7 @@ func TestProjectStageController_Update_Success(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -543,7 +535,7 @@ func TestProjectStageController_Update_ValidationError(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -607,9 +599,7 @@ func TestProjectStageController_Update_NotFound(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -631,9 +621,7 @@ func TestProjectStageController_Update_InvalidUUID(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -655,7 +643,7 @@ func TestProjectStageController_Delete_Success(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)
@@ -715,9 +703,7 @@ func TestProjectStageController_Delete_NotFound(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -732,9 +718,7 @@ func TestProjectStageController_Delete_InvalidUUID(t *testing.T) {
 
 	suite := newProjectStageSuiteBuilder(t).Build().AsUser(adminUser)
 
-	env := suite.Environment()
-
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	suite.DELETE(ProjectStageBasePath + "/invalid-uuid").
@@ -750,7 +734,7 @@ func TestProjectStageController_Create_WithDates(t *testing.T) {
 
 	env := suite.Environment()
 
-	controller := controllers.NewProjectStageController(env.App)
+	controller := controllers.NewProjectStageController()
 	suite.Register(controller)
 
 	projectStageService := itf.GetService[services.ProjectStageService](env)

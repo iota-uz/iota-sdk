@@ -35,7 +35,6 @@ import (
 )
 
 type MoneyAccountController struct {
-	app                 application.Application
 	moneyAccountService *services.MoneyAccountService
 	transactionService  *services.TransactionService
 	currencyService     *coreservices.CurrencyService
@@ -45,7 +44,6 @@ type MoneyAccountController struct {
 }
 
 func NewMoneyAccountController(
-	app application.Application,
 	moneyAccountService *services.MoneyAccountService,
 	transactionService *services.TransactionService,
 	currencyService *coreservices.CurrencyService,
@@ -64,7 +62,6 @@ func NewMoneyAccountController(
 		Build()
 
 	return &MoneyAccountController{
-		app:                 app,
 		moneyAccountService: moneyAccountService,
 		transactionService:  transactionService,
 		currencyService:     currencyService,
@@ -84,7 +81,6 @@ func (c *MoneyAccountController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

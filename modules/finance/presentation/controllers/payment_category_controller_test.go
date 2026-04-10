@@ -32,7 +32,7 @@ func TestPaymentCategoryController_List_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	category1 := paymentCategoryEntity.New(
@@ -75,7 +75,7 @@ func TestPaymentCategoryController_List_HTMX_Request(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	category := paymentCategoryEntity.New(
@@ -105,7 +105,7 @@ func TestPaymentCategoryController_GetNewDrawer_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	response := suite.GET(PaymentCategoryBasePath + "/new/drawer").
@@ -132,7 +132,7 @@ func TestPaymentCategoryController_Create_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -166,7 +166,7 @@ func TestPaymentCategoryController_Create_ValidationError(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -200,7 +200,7 @@ func TestPaymentCategoryController_GetEditDrawer_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	category := paymentCategoryEntity.New(
@@ -242,7 +242,7 @@ func TestPaymentCategoryController_GetEditDrawer_NotFound(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -264,7 +264,7 @@ func TestPaymentCategoryController_Update_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	category := paymentCategoryEntity.New(
@@ -311,7 +311,7 @@ func TestPaymentCategoryController_Update_ValidationError(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	category := paymentCategoryEntity.New(
@@ -359,7 +359,7 @@ func TestPaymentCategoryController_Delete_Success(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	category := paymentCategoryEntity.New(
@@ -401,7 +401,7 @@ func TestPaymentCategoryController_Delete_NotFound(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -422,7 +422,7 @@ func TestPaymentCategoryController_InvalidUUID(t *testing.T) {
 	env := suite.Environment()
 
 	service := itf.GetService[services.PaymentCategoryService](env)
-	controller := controllers.NewPaymentCategoriesController(env.App, service)
+	controller := controllers.NewPaymentCategoriesController(service)
 	suite.Register(controller)
 
 	suite.GET(PaymentCategoryBasePath + "/invalid-uuid").

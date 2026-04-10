@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
+	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -160,6 +162,14 @@ func ProvideUser() mux.MiddlewareFunc {
 					return
 				}
 
+				// Refresh the localizer early so that the user's saved UI
+				// language takes precedence over the header-based locale
+				// that the global ProvideLocalizer middleware installed
+				// earlier in the chain. This must run before the
+				// blocked-user check so the error message is rendered in
+				// the user's preferred language.
+				ctx = refreshLocalizerForUser(ctx, container, string(u.UILanguage()))
+
 				// Check if user is blocked
 				if u.IsBlocked() {
 					// Clear session cookie
@@ -171,10 +181,10 @@ func ProvideUser() mux.MiddlewareFunc {
 						MaxAge: -1,
 					})
 					// Redirect to login with localized error
-					errorMsg := intl.MustT(r.Context(), "Login.Errors.AccountBlocked")
+					errorMsg := intl.MustT(ctx, "Login.Errors.AccountBlocked")
 					escapedError := url.QueryEscape(errorMsg)
 					redirectURL := fmt.Sprintf("/login?error=%s", escapedError)
-					http.Redirect(w, r, redirectURL, http.StatusFound)
+					http.Redirect(w, r.WithContext(ctx), redirectURL, http.StatusFound)
 					return
 				}
 
@@ -191,6 +201,35 @@ func ProvideUser() mux.MiddlewareFunc {
 			},
 		)
 	}
+}
+
+// refreshLocalizerForUser rebuilds the localizer on the context using the
+// user's saved UI language as the primary source, falling back to whatever
+// was already in context if the user's preference cannot be parsed or the
+// bundle cannot be resolved. Called from ProvideUser after the user has
+// been loaded, so the authenticated request rendering uses the user's
+// preferred language — not the Accept-Language header the global
+// ProvideLocalizer middleware selected pre-auth.
+//
+// Resolves the bundle lazily through the composition container rather
+// than capturing it at install time because ProvideUser has no access to
+// a captured bundle.
+func refreshLocalizerForUser(ctx context.Context, container *composition.Container, uiLanguage string) context.Context {
+	code := strings.TrimSpace(uiLanguage)
+	if code == "" {
+		return ctx
+	}
+	tag, err := language.Parse(code)
+	if err != nil {
+		return ctx
+	}
+	bundle, err := composition.Resolve[*i18n.Bundle](container)
+	if err != nil || bundle == nil {
+		return ctx
+	}
+	ctx = intl.WithLocalizer(ctx, i18n.NewLocalizer(bundle, tag.String()))
+	ctx = intl.WithLocale(ctx, tag)
+	return ctx
 }
 
 func RedirectNotAuthenticated() mux.MiddlewareFunc {

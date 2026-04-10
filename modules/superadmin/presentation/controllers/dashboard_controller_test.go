@@ -52,7 +52,7 @@ func TestDashboardController_Index(t *testing.T) {
 		Build()
 
 	// Register dashboard controller
-	controller := controllers.NewDashboardController(suite.Env().App)
+	controller := controllers.NewDashboardController()
 	suite.Register(controller)
 
 	// Test GET /
@@ -71,7 +71,7 @@ func TestDashboardController_GetMetrics(t *testing.T) {
 		WithUser(createSuperAdminUser()).
 		Build()
 
-	controller := controllers.NewDashboardController(suite.Env().App)
+	controller := controllers.NewDashboardController()
 	suite.Register(controller)
 
 	// Test GET /metrics without date filters
@@ -89,7 +89,7 @@ func TestDashboardController_GetMetrics_WithDateFilter(t *testing.T) {
 		WithUser(createSuperAdminUser()).
 		Build()
 
-	controller := controllers.NewDashboardController(suite.Env().App)
+	controller := controllers.NewDashboardController()
 	suite.Register(controller)
 
 	// Test with valid date range
@@ -114,7 +114,7 @@ func TestDashboardController_GetMetrics_InvalidDateFormat(t *testing.T) {
 		WithUser(createSuperAdminUser()).
 		Build()
 
-	controller := controllers.NewDashboardController(suite.Env().App)
+	controller := controllers.NewDashboardController()
 	suite.Register(controller)
 
 	// Test invalid startDate format
@@ -145,7 +145,7 @@ func TestDashboardController_GetMetrics_EdgeCases(t *testing.T) {
 		WithUser(createSuperAdminUser()).
 		Build()
 
-	controller := controllers.NewDashboardController(suite.Env().App)
+	controller := controllers.NewDashboardController()
 	suite.Register(controller)
 
 	cases := itf.Cases(
@@ -229,7 +229,7 @@ func TestDashboardController_Permissions(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			suite := tc.setupSuite(t)
-			controller := controllers.NewDashboardController(suite.Env().App)
+			controller := controllers.NewDashboardController()
 			suite.Register(controller)
 
 			suite.GET("/").
@@ -268,7 +268,7 @@ func TestDashboardController_SuperAdminOnly(t *testing.T) {
 				WithUser(createSuperAdminUser()).
 				Build()
 
-			controller := controllers.NewDashboardController(suite.Env().App)
+			controller := controllers.NewDashboardController()
 			suite.Register(controller)
 
 			suite.GET(tc.endpoint).
@@ -283,7 +283,7 @@ func TestDashboardController_SuperAdminOnly(t *testing.T) {
 				WithUser(createRegularUser()).
 				Build()
 
-			controller := controllers.NewDashboardController(suite.Env().App)
+			controller := controllers.NewDashboardController()
 			suite.Register(controller)
 
 			suite.GET(tc.endpoint).
@@ -302,7 +302,7 @@ func TestDashboardController_Routes(t *testing.T) {
 		WithUser(createSuperAdminUser()).
 		Build()
 
-	controller := controllers.NewDashboardController(suite.Env().App)
+	controller := controllers.NewDashboardController()
 	suite.Register(controller)
 
 	cases := itf.Cases(

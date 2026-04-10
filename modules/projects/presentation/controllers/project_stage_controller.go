@@ -23,12 +23,11 @@ import (
 )
 
 type ProjectStageController struct {
-	app             application.Application
 	basePath        string
 	tableDefinition table.TableDefinition
 }
 
-func NewProjectStageController(app application.Application) application.Controller {
+func NewProjectStageController() application.Controller {
 	basePath := "/project-stages"
 
 	tableDefinition := table.NewTableDefinition("", basePath).
@@ -36,7 +35,6 @@ func NewProjectStageController(app application.Application) application.Controll
 		Build()
 
 	return &ProjectStageController{
-		app:             app,
 		basePath:        basePath,
 		tableDefinition: tableDefinition,
 	}
@@ -52,7 +50,6 @@ func (c *ProjectStageController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

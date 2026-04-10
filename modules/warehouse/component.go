@@ -4,13 +4,6 @@ package warehouse
 import (
 	"embed"
 
-	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
-	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/interfaces/graph"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/assets"
@@ -22,7 +15,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -44,195 +36,79 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	ctx := builder.Context()
+	composition.AddLocales(builder, &localeFiles)
+	composition.AddNavItems(builder, NavItems...)
+	composition.AddAssets(builder, &assets.FS)
+	composition.AddQuickLinks(builder,
+		spotlight.NewQuickLink(ProductsItem.Name, ProductsItem.Href),
+		spotlight.NewQuickLink(PositionsItem.Name, PositionsItem.Href),
+		spotlight.NewQuickLink(OrdersItem.Name, OrdersItem.Href),
+		spotlight.NewQuickLink(UnitsItem.Name, UnitsItem.Href),
+		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
+		spotlight.NewQuickLink("WarehousePositions.List.New", "/warehouse/positions/new"),
+		spotlight.NewQuickLink("Products.List.New", "/warehouse/products/new"),
+		spotlight.NewQuickLink("WarehouseOrders.List.New", "/warehouse/orders/new"),
+		spotlight.NewQuickLink("WarehouseUnits.List.New", "/warehouse/units/new"),
+	)
 
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&localeFiles}, nil
-	})
-	composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
-		app, err := composition.RequireApplication(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedOrderService, err := composition.Resolve[*orderservice.OrderService](container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedProductService, err := composition.Resolve[*productservice.ProductService](container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedPositionService, err := composition.Resolve[*positionservice.PositionService](container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedInventoryService, err := composition.Resolve[*services.InventoryService](container)
-		if err != nil {
-			return nil, err
-		}
-		return []application.GraphSchema{
-			{
-				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app, resolvedOrderService, resolvedProductService, resolvedPositionService, resolvedInventoryService),
-				}),
-				BasePath: "/warehouse",
-			},
-		}, nil
-	})
-	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
-		return NavItems, nil
-	})
-	composition.ContributeAssets(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&assets.FS}, nil
-	})
-	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
-		return []*spotlight.QuickLink{
-			spotlight.NewQuickLink(ProductsItem.Name, ProductsItem.Href),
-			spotlight.NewQuickLink(PositionsItem.Name, PositionsItem.Href),
-			spotlight.NewQuickLink(OrdersItem.Name, OrdersItem.Href),
-			spotlight.NewQuickLink(UnitsItem.Name, UnitsItem.Href),
-			spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
-			spotlight.NewQuickLink("WarehousePositions.List.New", "/warehouse/positions/new"),
-			spotlight.NewQuickLink("Products.List.New", "/warehouse/products/new"),
-			spotlight.NewQuickLink("WarehouseOrders.List.New", "/warehouse/orders/new"),
-			spotlight.NewQuickLink("WarehouseUnits.List.New", "/warehouse/units/new"),
-		}, nil
-	})
+	composition.ProvideFunc(builder, persistence.NewUnitRepository)
+	composition.ProvideFunc(builder, persistence.NewPositionRepository)
+	composition.ProvideFunc(builder, persistence.NewProductRepository)
+	composition.ProvideFunc(builder, persistence.NewOrderRepository)
+	composition.ProvideFunc(builder, persistence.NewInventoryRepository)
+	composition.ProvideFunc(builder, services.NewUnitService)
+	composition.ProvideFunc(builder, productservice.NewProductService)
+	composition.ProvideFunc(builder, positionservice.NewPositionService)
+	composition.ProvideFunc(builder, orderservice.NewOrderService)
+	composition.ProvideFunc(builder, services.NewInventoryService)
 
-	userRepo := composition.Use[coreuser.Repository]()
-	unitRepo := composition.Use[unit.Repository]()
-	positionRepo := composition.Use[position.Repository]()
-	productRepo := composition.Use[product.Repository]()
-	orderRepo := composition.Use[order.Repository]()
-	inventoryRepo := composition.Use[inventory.Repository]()
-	unitService := composition.Use[*services.UnitService]()
-	productService := composition.Use[*productservice.ProductService]()
-
-	composition.Provide[unit.Repository](builder, func() unit.Repository {
-		return persistence.NewUnitRepository()
-	})
-	composition.Provide[position.Repository](builder, func() position.Repository {
-		return persistence.NewPositionRepository()
-	})
-	composition.Provide[product.Repository](builder, func() product.Repository {
-		return persistence.NewProductRepository()
-	})
-	composition.Provide[order.Repository](builder, func(container *composition.Container) (order.Repository, error) {
-		resolvedProductRepo, err := productRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return persistence.NewOrderRepository(resolvedProductRepo), nil
-	})
-	composition.Provide[inventory.Repository](builder, func(container *composition.Container) (inventory.Repository, error) {
-		resolvedUserRepo, err := userRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedPositionRepo, err := positionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return persistence.NewInventoryRepository(resolvedUserRepo, resolvedPositionRepo), nil
-	})
-	composition.Provide[*services.UnitService](builder, func(container *composition.Container) (*services.UnitService, error) {
-		resolvedUnitRepo, err := unitRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewUnitService(resolvedUnitRepo, ctx.EventPublisher()), nil
-	})
-	composition.Provide[*productservice.ProductService](builder, func(container *composition.Container) (*productservice.ProductService, error) {
-		resolvedProductRepo, err := productRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return productservice.NewProductService(resolvedProductRepo, ctx.EventPublisher()), nil
-	})
-	composition.Provide[*positionservice.PositionService](builder, func(container *composition.Container) (*positionservice.PositionService, error) {
-		uploadService, err := composition.Resolve[*coreservices.UploadService](container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedPositionRepo, err := positionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedUnitService, err := unitService.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedProductService, err := productService.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return positionservice.NewPositionService(
-			resolvedPositionRepo,
-			ctx.EventPublisher(),
-			uploadService,
-			resolvedUnitService,
-			resolvedProductService,
-		), nil
-	})
-	composition.Provide[*orderservice.OrderService](builder, func(container *composition.Container) (*orderservice.OrderService, error) {
-		resolvedOrderRepo, err := orderRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedProductRepo, err := productRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return orderservice.NewOrderService(ctx.EventPublisher(), resolvedOrderRepo, resolvedProductRepo), nil
-	})
-	composition.Provide[*services.InventoryService](builder, func(container *composition.Container) (*services.InventoryService, error) {
-		resolvedInventoryRepo, err := inventoryRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedPositionRepo, err := positionRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		resolvedProductRepo, err := productRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewInventoryService(resolvedInventoryRepo, resolvedPositionRepo, resolvedProductRepo, ctx.EventPublisher()), nil
-	})
-
+	// Controllers and GraphQL schemas are HTTP-layer concerns — skip them in
+	// worker-only builds that boot the warehouse module without routing.
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedUnitService, err := composition.Resolve[*services.UnitService](container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedProductService, err := composition.Resolve[*productservice.ProductService](container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedPositionService, err := composition.Resolve[*positionservice.PositionService](container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedOrderService, err := composition.Resolve[*orderservice.OrderService](container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedInventoryService, err := composition.Resolve[*services.InventoryService](container)
-			if err != nil {
-				return nil, err
-			}
+		composition.ContributeControllersFunc(builder, func(
+			unitService *services.UnitService,
+			productService *productservice.ProductService,
+			positionService *positionservice.PositionService,
+			orderService *orderservice.OrderService,
+			inventoryService *services.InventoryService,
+		) []application.Controller {
 			return []application.Controller{
-				controllers.NewProductsController(app, resolvedProductService, resolvedPositionService),
-				controllers.NewPositionsController(app),
-				controllers.NewUnitsController(app, resolvedUnitService),
-				controllers.NewOrdersController(app, resolvedOrderService, resolvedPositionService, resolvedProductService),
-				controllers.NewInventoryController(app, resolvedInventoryService, resolvedPositionService),
+				controllers.NewProductsController(productService, positionService),
+				controllers.NewPositionsController(),
+				controllers.NewUnitsController(unitService),
+				controllers.NewOrdersController(orderService, positionService, productService),
+				controllers.NewInventoryController(inventoryService, positionService),
+			}
+		})
+
+		composition.ContributeSchemas(builder, func(container *composition.Container) ([]application.GraphSchema, error) {
+			app, err := composition.Resolve[application.Application](container)
+			if err != nil {
+				return nil, err
+			}
+			orderSvc, err := composition.Resolve[*orderservice.OrderService](container)
+			if err != nil {
+				return nil, err
+			}
+			productSvc, err := composition.Resolve[*productservice.ProductService](container)
+			if err != nil {
+				return nil, err
+			}
+			positionSvc, err := composition.Resolve[*positionservice.PositionService](container)
+			if err != nil {
+				return nil, err
+			}
+			inventorySvc, err := composition.Resolve[*services.InventoryService](container)
+			if err != nil {
+				return nil, err
+			}
+			return []application.GraphSchema{
+				{
+					Value: graph.NewExecutableSchema(graph.Config{
+						Resolvers: graph.NewResolver(app, orderSvc, productSvc, positionSvc, inventorySvc),
+					}),
+					BasePath: "/warehouse",
+				},
 			}, nil
 		})
 	}

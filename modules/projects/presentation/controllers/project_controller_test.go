@@ -31,12 +31,10 @@ func TestProjectController_List_Success(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -90,12 +88,10 @@ func TestProjectController_List_HTMX_Request(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -135,12 +131,10 @@ func TestProjectController_GetNewDrawer_Success(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
 	counterparty1 := counterparty.New(
@@ -173,12 +167,10 @@ func TestProjectController_Create_Success(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -227,12 +219,10 @@ func TestProjectController_Create_ValidationError(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -274,12 +264,10 @@ func TestProjectController_GetEditDrawer_Success(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -322,10 +310,7 @@ func TestProjectController_GetEditDrawer_NotFound(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -342,12 +327,10 @@ func TestProjectController_Update_Success(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -398,12 +381,10 @@ func TestProjectController_Update_ValidationError(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -454,12 +435,10 @@ func TestProjectController_Delete_Success(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
+	env := suite.Environment()
 	projectService := itf.GetService[services.ProjectService](env)
 	counterpartyService := itf.GetService[financeServices.CounterpartyService](env)
 
@@ -504,10 +483,7 @@ func TestProjectController_Delete_NotFound(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -524,10 +500,7 @@ func TestProjectController_InvalidUUID(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	}), finance.NewComponent(), projects.NewComponent()).Build().
 		AsUser(adminUser)
-
-	env := suite.Environment()
-
-	controller := controllers.NewProjectController(env.App)
+	controller := controllers.NewProjectController()
 	suite.Register(controller)
 
 	suite.GET(ProjectBasePath + "/invalid-uuid/drawer").

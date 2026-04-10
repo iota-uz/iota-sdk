@@ -25,7 +25,6 @@ import (
 )
 
 type UnitsController struct {
-	app         application.Application
 	unitService *services.UnitService
 	basePath    string
 }
@@ -35,9 +34,8 @@ type UnitPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewUnitsController(app application.Application, unitService *services.UnitService) application.Controller {
+func NewUnitsController(unitService *services.UnitService) application.Controller {
 	return &UnitsController{
-		app:         app,
 		unitService: unitService,
 		basePath:    "/warehouse/units",
 	}
@@ -53,7 +51,6 @@ func (c *UnitsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

@@ -59,7 +59,10 @@ func run() error {
 		context.Background(),
 		bootstrap.InstallComponents(
 			[]composition.Capability{composition.CapabilityAPI},
-			core.NewComponent(&core.ModuleOptions{PermissionSchema: defaults.PermissionSchema()}),
+			core.NewComponent(&core.ModuleOptions{
+				PermissionSchema:     defaults.PermissionSchema(),
+				SkipAdminControllers: true,
+			}),
 			superadmin.NewComponent(&superadmin.ModuleOptions{}),
 		),
 		bootstrap.InstallHashFS(internalassets.HashFS),

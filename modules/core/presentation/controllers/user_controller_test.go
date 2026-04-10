@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
-	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 )
@@ -64,11 +63,9 @@ func TestUsersController_Delete_SelfDeletionPrevention(t *testing.T) {
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
-	userService := itf.GetService[coreservices.UserService](suite.Env())
 	// Register the users controller
 	controller := controllers.NewUsersController(
 		suite.Env().App,
-		userService,
 		controllers.WithUserControllerBasePath("/users"),
 		controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
 	)
@@ -141,10 +138,8 @@ func TestUsersController_Delete_Permissions(t *testing.T) {
 				AsUser(tc.permissions...).
 				Build()
 
-			userService := itf.GetService[coreservices.UserService](suite.Env())
 			controller := controllers.NewUsersController(
 				suite.Env().App,
-				userService,
 				controllers.WithUserControllerBasePath("/users"),
 				controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
 			)
@@ -169,10 +164,8 @@ func TestUsersController_Delete_EdgeCases(t *testing.T) {
 		AsUser(permissions.UserDelete, permissions.UserRead).
 		Build()
 
-	userService := itf.GetService[coreservices.UserService](suite.Env())
 	controller := controllers.NewUsersController(
 		suite.Env().App,
-		userService,
 		controllers.WithUserControllerBasePath("/users"),
 		controllers.WithUserControllerPermissionSchema(&rbac.PermissionSchema{}),
 	)

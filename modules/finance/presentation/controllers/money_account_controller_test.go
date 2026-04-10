@@ -65,7 +65,7 @@ func TestMoneyAccountController_List_Success(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create test accounts
@@ -116,7 +116,7 @@ func TestMoneyAccountController_List_HTMX_Request(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	balance := money.NewFromFloat(500.00, "USD")
@@ -151,7 +151,7 @@ func TestMoneyAccountController_GetNew_Success(t *testing.T) {
 	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, moneyAccSvc, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(moneyAccSvc, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	response := suite.GET(MoneyAccountBasePath + "/new/drawer").
@@ -186,7 +186,7 @@ func TestMoneyAccountController_Create_Success(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -229,7 +229,7 @@ func TestMoneyAccountController_Create_ValidationError(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -269,7 +269,7 @@ func TestMoneyAccountController_GetEdit_Success(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	balance := money.NewFromFloat(1000.00, "USD")
@@ -316,7 +316,7 @@ func TestMoneyAccountController_GetEdit_NotFound(t *testing.T) {
 	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, moneyAccSvc, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(moneyAccSvc, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -341,7 +341,7 @@ func TestMoneyAccountController_Update_Success(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	balance := money.NewFromFloat(500.00, "USD")
@@ -394,7 +394,7 @@ func TestMoneyAccountController_Update_ValidationError(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	balance := money.NewFromFloat(500.00, "USD")
@@ -444,7 +444,7 @@ func TestMoneyAccountController_Delete_Success(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	balance := money.NewFromFloat(100.00, "USD")
@@ -485,7 +485,7 @@ func TestMoneyAccountController_Delete_NotFound(t *testing.T) {
 	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, moneyAccSvc, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(moneyAccSvc, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -509,7 +509,7 @@ func TestMoneyAccountController_InvalidUUID(t *testing.T) {
 	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, moneyAccSvc, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(moneyAccSvc, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	suite.GET(MoneyAccountBasePath + "/invalid-uuid").
@@ -532,7 +532,7 @@ func TestMoneyAccountController_GetTransferDrawer_Success(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create source account
@@ -609,7 +609,7 @@ func TestMoneyAccountController_GetTransferDrawer_NotFound(t *testing.T) {
 	moneyAccSvc := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, moneyAccSvc, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(moneyAccSvc, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -633,7 +633,7 @@ func TestMoneyAccountController_CreateTransfer_Success(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create source account with initial balance
@@ -707,7 +707,7 @@ func TestMoneyAccountController_CreateTransfer_ValidationError(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create source account with unique account number
@@ -823,7 +823,7 @@ func TestMoneyAccountController_CreateTransfer_SameAccount(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create account with unique account number
@@ -877,7 +877,7 @@ func TestMoneyAccountController_CreateTransfer_LargeAmount(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create accounts with specific balances and unique account numbers
@@ -941,7 +941,7 @@ func TestMoneyAccountController_CreateTransfer_WithComment(t *testing.T) {
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create accounts with unique account numbers
@@ -1007,7 +1007,7 @@ func TestMoneyAccountController_CreateTransfer_DifferentCurrencies(t *testing.T)
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create accounts with different currencies
@@ -1107,7 +1107,7 @@ func TestMoneyAccountController_GetTransferDrawer_DifferentCurrencies(t *testing
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create accounts with different currencies
@@ -1177,7 +1177,7 @@ func TestMoneyAccountController_CreateTransfer_SameCurrencyDifferentAmounts(t *t
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create EUR accounts with different amounts
@@ -1243,7 +1243,7 @@ func TestMoneyAccountController_CreateTransfer_DifferentCurrencies_ValidationErr
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create accounts with different currencies
@@ -1303,7 +1303,7 @@ func TestMoneyAccountController_CreateTransfer_ExchangeWithSameCurrency(t *testi
 	service := itf.GetService[services.MoneyAccountService](env)
 	transactionSvc := itf.GetService[services.TransactionService](env)
 	currencySvc := itf.GetService[coreservices.CurrencyService](env)
-	controller := controllers.NewMoneyAccountController(env.App, service, transactionSvc, currencySvc)
+	controller := controllers.NewMoneyAccountController(service, transactionSvc, currencySvc)
 	suite.Register(controller)
 
 	// Create accounts with same currency

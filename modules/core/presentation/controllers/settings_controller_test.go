@@ -56,7 +56,7 @@ func setupSettingsControllerTest(t *testing.T) (*itf.Suite, *services.TenantServ
 	tenantService := itf.GetService[services.TenantService](suite.Environment())
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
 
-	controller := controllers.NewSettingsController(suite.Environment().App, tenantService, uploadService)
+	controller := controllers.NewSettingsController(tenantService, uploadService)
 	suite.Register(controller)
 
 	return suite, tenantService, uploadService

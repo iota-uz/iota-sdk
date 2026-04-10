@@ -946,46 +946,32 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	productRepo := composition.Use[product.Repository]()
-	productService := composition.Use[*services.ProductService]()
+	// Static contributions: zero closures for constant data.
+	composition.AddLocales(builder, &localeFiles)
+	composition.AddNavItems(builder, NavItems...)
+	composition.AddQuickLinks(builder, spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href))
 
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&localeFiles}, nil
-	})
-	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
-		return NavItems, nil
-	})
-	composition.ContributeQuickLinks(builder, func(*composition.Container) ([]*spotlight.QuickLink, error) {
-		return []*spotlight.QuickLink{
-			spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href),
-		}, nil
-	})
+	// ProvideFuncAs registers both an interface key (product.Repository)
+	// and the constructor's concrete return type as provider keys, so
+	// consumers depending on either resolve the exact same instance. Use
+	// this when persistence.NewProductRepository returns a concrete type
+	// like *persistence.ProductRepositoryImpl — if the constructor already
+	// returns the interface, plain ProvideFunc is the right helper
+	// (ProvideFuncAs rejects an identical concrete+interface at
+	// registration time to prevent a redundant bridge).
+	composition.ProvideFuncAs[product.Repository](builder, persistence.NewProductRepository)
 
-	composition.Provide[product.Repository](builder, func() product.Repository {
-		return persistence.NewProductRepository()
-	})
-	composition.Provide[*services.ProductService](builder, func(container *composition.Container) (*services.ProductService, error) {
-		resolvedRepo, err := productRepo.Resolve(container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewProductService(resolvedRepo, builder.Context().EventPublisher()), nil
-	})
+	// ProvideFunc inspects NewProductService's signature, resolves each
+	// parameter from the container by type (product.Repository and
+	// eventbus.EventBus — the latter comes from the engine's auto-providers),
+	// and registers *services.ProductService as a provider.
+	composition.ProvideFunc(builder, services.NewProductService)
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-			app, err := composition.RequireApplication(container)
-			if err != nil {
-				return nil, err
-			}
-			resolvedService, err := productService.Resolve(container)
-			if err != nil {
-				return nil, err
-			}
-			return []application.Controller{
-				controllers.NewProductController(app, resolvedService),
-			}, nil
-		})
+		// ContributeControllersFunc uses the same reflection injector for
+		// controller factories. Types in the parameter list are resolved
+		// from the container at materialization time.
+		composition.ContributeControllersFunc(builder, controllers.NewProductController)
 	}
 
 	return nil

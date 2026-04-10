@@ -25,22 +25,12 @@ type HealthUIControllerOptions struct {
 
 // HealthUIController renders the system information UI endpoints.
 type HealthUIController struct {
-	app     application.Application
 	options *HealthUIControllerOptions
 }
 
 // NewHealthUIController builds a system info controller from a dependency map.
-// Required dependency: "app" (application.Application). Optional: "options" (*HealthUIControllerOptions).
+// Optional dependency: "options" (*HealthUIControllerOptions).
 func NewHealthUIController(deps map[string]any) application.Controller {
-	rawApp, ok := deps["app"]
-	if !ok {
-		panic("health ui controller requires dependency \"app\" (application.Application)")
-	}
-	app, ok := rawApp.(application.Application)
-	if !ok {
-		panic("health ui controller dependency \"app\" has invalid type")
-	}
-
 	options, _ := deps["options"].(*HealthUIControllerOptions)
 	if options == nil {
 		options = &HealthUIControllerOptions{}
@@ -50,7 +40,6 @@ func NewHealthUIController(deps map[string]any) application.Controller {
 	}
 
 	return &HealthUIController{
-		app:     app,
 		options: options,
 	}
 }
@@ -67,7 +56,6 @@ func (c *HealthUIController) Register(r *mux.Router) {
 		middleware.Authorize(),
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 		middleware.ProvideDynamicLogo(),

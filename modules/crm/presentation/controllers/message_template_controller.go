@@ -27,17 +27,14 @@ import (
 
 type MessageTemplateController struct {
 	basePath        string
-	app             application.Application
 	templateService *services.MessageTemplateService
 }
 
 func NewMessageTemplateController(
-	app application.Application,
 	templateService *services.MessageTemplateService,
 	basePath string,
 ) application.Controller {
 	return &MessageTemplateController{
-		app:             app,
 		basePath:        basePath,
 		templateService: templateService,
 	}
@@ -53,7 +50,6 @@ func (c *MessageTemplateController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

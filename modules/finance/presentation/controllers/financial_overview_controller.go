@@ -13,7 +13,6 @@ import (
 )
 
 type FinancialOverviewController struct {
-	app                    application.Application
 	basePath               string
 	paymentService         *services.PaymentService
 	moneyAccountService    *services.MoneyAccountService
@@ -23,7 +22,6 @@ type FinancialOverviewController struct {
 }
 
 func NewFinancialOverviewController(
-	app application.Application,
 	paymentService *services.PaymentService,
 	moneyAccountService *services.MoneyAccountService,
 	counterpartyService *services.CounterpartyService,
@@ -31,7 +29,6 @@ func NewFinancialOverviewController(
 	transactionService *services.TransactionService,
 ) application.Controller {
 	return &FinancialOverviewController{
-		app:                    app,
 		basePath:               "/finance",
 		paymentService:         paymentService,
 		moneyAccountService:    moneyAccountService,
@@ -47,9 +44,9 @@ func (c *FinancialOverviewController) Key() string {
 
 func (c *FinancialOverviewController) Register(r *mux.Router) {
 	// Register all the existing routes but delegate to this controller
-	expenseController := NewExpensesController(c.app)
-	paymentController := NewPaymentsController(c.app, c.paymentService, c.moneyAccountService, c.counterpartyService, c.paymentCategoryService)
-	transactionController := NewTransactionController(c.app, c.transactionService)
+	expenseController := NewExpensesController()
+	paymentController := NewPaymentsController(c.paymentService, c.moneyAccountService, c.counterpartyService, c.paymentCategoryService)
+	transactionController := NewTransactionController(c.transactionService)
 
 	// Register the underlying tab controllers on the shared finance router.
 	expenseController.Register(r)
@@ -61,7 +58,6 @@ func (c *FinancialOverviewController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
