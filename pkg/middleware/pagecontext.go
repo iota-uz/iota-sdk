@@ -22,6 +22,11 @@ func WithPageContext() mux.MiddlewareFunc {
 				if !ok {
 					panic("locale not found")
 				}
+				// Prevent browsers from caching authenticated pages so that
+				// the back button after logout cannot display stale content.
+				w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
 				ctx := composables.WithPageCtx(r.Context(), types.NewPageContext(locale, r.URL, localizer))
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},

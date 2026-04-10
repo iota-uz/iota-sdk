@@ -218,7 +218,7 @@ func SessionRow(session *viewmodels.Session) templ.Component {
 					"hx-delete":  templ.URL(fmt.Sprintf("/account/sessions/%s", session.TokenID)),
 					"hx-confirm": pageCtx.T("Account.Sessions.ConfirmRevoke"),
 					"hx-target":  fmt.Sprintf("#session-row-%s", session.TokenID),
-					"hx-swap":    "outerHTML swap:0.3s",
+					"hx-swap":    "delete swap:0.3s",
 				},
 			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var10), templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {

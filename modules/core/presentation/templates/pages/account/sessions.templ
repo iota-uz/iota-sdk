@@ -69,7 +69,7 @@ templ SessionRow(session *viewmodels.Session) {
 						"hx-delete":  templ.URL(fmt.Sprintf("/account/sessions/%s", session.TokenID)),
 						"hx-confirm": pageCtx.T("Account.Sessions.ConfirmRevoke"),
 						"hx-target":  fmt.Sprintf("#session-row-%s", session.TokenID),
-						"hx-swap":    "outerHTML swap:0.3s",
+						"hx-swap":    "delete swap:0.3s",
 					},
 				}) {
 					{ pageCtx.T("Account.Sessions.Revoke") }

@@ -233,7 +233,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService),
 				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService),
-				controllers.NewLogoutController(),
+				controllers.NewLogoutController(sessionService),
 				controllers.NewUploadController(uploadService),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
