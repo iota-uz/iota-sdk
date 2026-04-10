@@ -75,16 +75,22 @@ func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
 
 	composition.AddLocales(builder, &LocaleFiles)
-	composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
 	composition.AddHashFS(builder, assets.HashFS)
+	// Self-service quick links are always available (AccountController
+	// is registered regardless of SkipAdminControllers).
 	composition.AddQuickLinks(builder,
-		spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
-		spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
-		spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
-		spotlight.NewQuickLink("Users.List.New", "/users/new"),
 		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
 		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
 	)
+	if !c.options.SkipAdminControllers {
+		composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
+		composition.AddQuickLinks(builder,
+			spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
+			spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
+			spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
+			spotlight.NewQuickLink("Users.List.New", "/users/new"),
+		)
+	}
 
 	composition.ContributeSpotlightProviders(builder, func(container *composition.Container) ([]spotlight.SearchProvider, error) {
 		pool, err := composition.Resolve[*pgxpool.Pool](container)
