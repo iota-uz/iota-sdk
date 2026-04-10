@@ -215,8 +215,9 @@ func (t *dlItemImpl) valueComponent() templ.Component {
 		return Text(templ.Raw(t.text), t.classes, t.attrs)
 	case DLItemTypeLink:
 		return Link(t.text, t.href, t.classes, t.attrs)
+	default:
+		return t.custom
 	}
-	return t.custom
 }
 
 func (t *dlItemImpl) Attrs() templ.Attributes {
