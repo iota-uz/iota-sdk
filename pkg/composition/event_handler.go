@@ -34,7 +34,8 @@ func ContributeEventHandler(builder *Builder, handler any) {
 	if handler == nil {
 		panic("composition: ContributeEventHandler: handler is nil")
 	}
-	name := fmt.Sprintf("event-handler/%s/%T", builder.descriptor.Name, handler)
+	builder.eventHandlerSeq++
+	name := fmt.Sprintf("event-handler/%s/%T/%d", builder.descriptor.Name, handler, builder.eventHandlerSeq)
 	ContributeHooks(builder, func(container *Container) ([]Hook, error) {
 		bus, err := Resolve[eventbus.EventBus](container)
 		if err != nil {
@@ -81,7 +82,8 @@ func ContributeEventHandlerFunc[T any](builder *Builder, factory func(T) any) {
 		panic("composition: ContributeEventHandlerFunc: factory is nil")
 	}
 	serviceKey := keyFor(reflect.TypeOf((*T)(nil)).Elem(), "")
-	name := fmt.Sprintf("event-handler/%s/%s", builder.descriptor.Name, serviceKey)
+	builder.eventHandlerSeq++
+	name := fmt.Sprintf("event-handler/%s/%s/%d", builder.descriptor.Name, serviceKey, builder.eventHandlerSeq)
 	ContributeHooks(builder, func(container *Container) ([]Hook, error) {
 		bus, err := Resolve[eventbus.EventBus](container)
 		if err != nil {

@@ -124,6 +124,8 @@ type Builder struct {
 	providerRemovals   []Key
 	controllerRemovals []string // matched against Controller.Key()
 	hookRemovals       []string // matched against Hook.Name
+
+	eventHandlerSeq int // monotonic counter for unique event-handler hook names
 }
 
 type namedFactory[T any] struct {

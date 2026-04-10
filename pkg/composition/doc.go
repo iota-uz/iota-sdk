@@ -90,10 +90,10 @@
 // # Lifecycle
 //
 // Engine.Compile(buildCtx, capabilities...) resolves the component graph and
-// returns a Container. Engine.Start(ctx, container) (also available as the
-// package-level Start function) runs every registered hook's Start closure in
-// registration order; each Start may return a StopFn that Engine.Stop invokes
-// in reverse order during shutdown.
+// returns a Container. The package-level Start(ctx, container) function runs
+// every registered hook's Start closure in registration order; each Start may
+// return a StopFn that Stop(ctx, container) invokes in reverse order during
+// shutdown.
 //
 // Hooks themselves register via ContributeHooks with the signature
 // Start(ctx) (StopFn, error). The Start closure captures any local state it

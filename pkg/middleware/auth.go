@@ -162,6 +162,14 @@ func ProvideUser() mux.MiddlewareFunc {
 					return
 				}
 
+				// Refresh the localizer early so that the user's saved UI
+				// language takes precedence over the header-based locale
+				// that the global ProvideLocalizer middleware installed
+				// earlier in the chain. This must run before the
+				// blocked-user check so the error message is rendered in
+				// the user's preferred language.
+				ctx = refreshLocalizerForUser(ctx, container, string(u.UILanguage()))
+
 				// Check if user is blocked
 				if u.IsBlocked() {
 					// Clear session cookie
@@ -173,10 +181,10 @@ func ProvideUser() mux.MiddlewareFunc {
 						MaxAge: -1,
 					})
 					// Redirect to login with localized error
-					errorMsg := intl.MustT(r.Context(), "Login.Errors.AccountBlocked")
+					errorMsg := intl.MustT(ctx, "Login.Errors.AccountBlocked")
 					escapedError := url.QueryEscape(errorMsg)
 					redirectURL := fmt.Sprintf("/login?error=%s", escapedError)
-					http.Redirect(w, r, redirectURL, http.StatusFound)
+					http.Redirect(w, r.WithContext(ctx), redirectURL, http.StatusFound)
 					return
 				}
 
@@ -188,14 +196,6 @@ func ProvideUser() mux.MiddlewareFunc {
 				if tenantErr != nil {
 					ctx = context.WithValue(ctx, constants.TenantIDKey, u.TenantID())
 				}
-
-				// Refresh the localizer so that the user's saved UI
-				// language takes precedence over the header-based locale
-				// that the global ProvideLocalizer middleware installed
-				// earlier in the chain. Without this, authenticated pages
-				// would always render in the Accept-Language default and
-				// ignore the user's stored preference.
-				ctx = refreshLocalizerForUser(ctx, container, string(u.UILanguage()))
 
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
