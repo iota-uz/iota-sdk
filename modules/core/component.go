@@ -46,6 +46,14 @@ type ModuleOptions struct {
 	LoginControllerOptions   *controllers.LoginControllerOptions
 	DashboardLinkPermissions []permission.Permission
 	SettingsLinkPermissions  []permission.Permission
+
+	// SkipAdminControllers suppresses registration of the admin-facing
+	// controllers (dashboard, users, roles, groups, settings, sessions,
+	// spotlight, websocket). Auth controllers (login, logout, two-factor,
+	// account) and infrastructure controllers (health, upload) are still
+	// registered. Use this for specialized binaries like superadmin that
+	// provide their own admin UI.
+	SkipAdminControllers bool
 }
 
 func NewComponent(opts *ModuleOptions) composition.Component {
@@ -211,43 +219,52 @@ func (c *component) Build(builder *composition.Builder) error {
 			groupService *services.GroupService,
 			twoFactorService *coreservices2fa.TwoFactorService,
 		) []application.Controller {
+			// Auth and infrastructure controllers — always registered.
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
-				controllers.NewDashboardController(),
 				controllers.NewLoginController(authService, authFlowService, opts.LoginControllerOptions),
 				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService),
 				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService),
-				// Spotlight controller accepts a nil AI search holder; downstream
-				// components that need AI-assisted search install one explicitly.
-				controllers.NewSpotlightController(app, nil),
 				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService),
 				controllers.NewLogoutController(),
 				controllers.NewUploadController(uploadService),
-				controllers.NewUsersController(app, &controllers.UsersControllerOptions{
-					BasePath:         "/users",
-					PermissionSchema: opts.PermissionSchema,
-				}),
-				controllers.NewRolesController(&controllers.RolesControllerOptions{
-					BasePath:         "/roles",
-					PermissionSchema: opts.PermissionSchema,
-				}),
-				controllers.NewGroupsController(app, groupService),
-				controllers.NewWebSocketController(app),
-				controllers.NewSettingsController(tenantService, uploadService),
-				controllers.NewSessionController("/settings/sessions"),
-			}
-			// NewCrudShowcaseController returns nil in the `!dev` build so
-			// we must nil-guard the append rather than splatting it into
-			// the literal above.
-			if ctrl := controllers.NewCrudShowcaseController(bus); ctrl != nil {
-				ctrls = append(ctrls, ctrl)
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
 				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadAPIControllerOpts(opts)...))
 			}
-			if ctrl := controllers.NewShowcaseController(); ctrl != nil {
-				ctrls = append(ctrls, ctrl)
+
+			// Admin UI controllers — skipped for specialized binaries
+			// (e.g. superadmin) that provide their own admin interface.
+			if !opts.SkipAdminControllers {
+				ctrls = append(ctrls,
+					controllers.NewDashboardController(),
+					// Spotlight controller accepts a nil AI search holder; downstream
+					// components that need AI-assisted search install one explicitly.
+					controllers.NewSpotlightController(app, nil),
+					controllers.NewUsersController(app, &controllers.UsersControllerOptions{
+						BasePath:         "/users",
+						PermissionSchema: opts.PermissionSchema,
+					}),
+					controllers.NewRolesController(&controllers.RolesControllerOptions{
+						BasePath:         "/roles",
+						PermissionSchema: opts.PermissionSchema,
+					}),
+					controllers.NewGroupsController(app, groupService),
+					controllers.NewWebSocketController(app),
+					controllers.NewSettingsController(tenantService, uploadService),
+					controllers.NewSessionController("/settings/sessions"),
+				)
+				// NewCrudShowcaseController returns nil in the `!dev` build so
+				// we must nil-guard the append rather than splatting it into
+				// the literal above.
+				if ctrl := controllers.NewCrudShowcaseController(bus); ctrl != nil {
+					ctrls = append(ctrls, ctrl)
+				}
+				if ctrl := controllers.NewShowcaseController(); ctrl != nil {
+					ctrls = append(ctrls, ctrl)
+				}
 			}
+
 			return ctrls
 		})
 	}

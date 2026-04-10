@@ -159,20 +159,20 @@ func provideBundleField[I any](builder *composition.Builder, field func(*bichatB
 func (c *component) Build(builder *composition.Builder) error {
 	buildCtx := builder.Context()
 
-	composition.AddLocales(builder, &LocaleFiles)
-	composition.AddNavItems(builder, NavItems...)
-	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 	// Gate: env var check is cheap and deterministic. When unset, BiChat
-	// registers no providers and no hooks, and the component compiles to a
-	// no-op. Downstream consumers get NOT_PROVIDED at compile time rather
-	// than silent nil behavior at runtime.
+	// registers only locales (harmless — supports i18n key lookups from
+	// other modules) and skips everything else, so the component compiles
+	// to a no-op with no dead links in navigation or Spotlight.
 	openAIKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
+	composition.AddLocales(builder, &LocaleFiles)
 	if openAIKey == "" {
 		if logger := buildCtx.Logger(); logger != nil {
 			logger.Info("OPENAI_API_KEY not set - BiChat module disabled")
 		}
 		return nil
 	}
+	composition.AddNavItems(builder, NavItems...)
+	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 
 	// Single lazy provider backing the entire BiChat graph. Resolved once per
 	// container instantiation; downstream providers read individual services
