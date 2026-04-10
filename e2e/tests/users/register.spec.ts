@@ -27,6 +27,8 @@ test.describe('user auth and registration flow', () => {
 		await page.goto('/users');
 		await expect(page).toHaveURL(/\/users$/);
 
+		const initialRowCount = await page.locator('tbody tr').count();
+
 		// Click the "New User" link
 		await page.locator('a[href="/users/new"]').filter({ hasText: /.+/ }).first().click();
 
@@ -55,8 +57,8 @@ test.describe('user auth and registration flow', () => {
 		// Wait for redirect after save
 		await page.waitForURL(/\/users$/);
 
-		// Verify user appears in table (comprehensive seed creates 3 users + 1 new = 4 total)
-		await expect(page.locator('tbody tr')).toHaveCount(4);
+		// Verify user count increased by 1
+		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount + 1);
 
 		await logout(page);
 
@@ -65,21 +67,23 @@ test.describe('user auth and registration flow', () => {
 		await page.goto('/users');
 
 		await expect(page).toHaveURL(/\/users/);
-		await expect(page.locator('tbody tr')).toHaveCount(4);
+		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount + 1);
 	});
 
-	test.skip('edits a user and displays changes in users table', async ({ page }) => {
+	test('edits a user and displays changes in users table', async ({ page }) => {
 		// Login as admin user (not the newly created user from test 1)
 		await login(page, 'test@gmail.com', 'TestPass123!');
 
 		await page.goto('/users');
 		await expect(page).toHaveURL(/\/users/);
 
+		const initialRowCount = await page.locator('tbody tr').count();
+
 		// Find and click the edit link for the user created in test 1 (use email for unambiguous selection)
 		const userRow = page.locator('tbody tr').filter({ hasText: 'test1@gmail.com' });
-		await userRow.locator('td a').click();
+		await userRow.locator('td a[href$="/edit"]').click();
 
-		await expect(page).toHaveURL(/\/users\/.+/);
+		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
 
 		// Edit the user details
 		await page.locator('[name=FirstName]').fill('TestNew');
@@ -93,14 +97,14 @@ test.describe('user auth and registration flow', () => {
 		// Wait for redirect after save
 		await page.waitForURL(/\/users$/);
 
-		// Verify changes in the users list (still 4 users total)
-		await expect(page.locator('tbody tr')).toHaveCount(4);
+		// Verify changes in the users list (count unchanged)
+		await expect(page.locator('tbody tr')).toHaveCount(initialRowCount);
 		await expect(page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' })).toBeVisible();
 
 		// Verify phone number persists by checking the edit page
 		const updatedUserRow = page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' });
-		await updatedUserRow.locator('td a').click();
-		await expect(page).toHaveURL(/\/users\/.+/);
+		await updatedUserRow.locator('td a[href$="/edit"]').click();
+		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
 		await expect(page.locator('[name=Phone]')).toHaveValue('998909876543');
 
 		await logout(page);
@@ -111,7 +115,7 @@ test.describe('user auth and registration flow', () => {
 		await expect(page).toHaveURL(/\/users/);
 	});
 
-	test.skip('newly created user should see tabs in the sidebar', async ({ page }) => {
+	test('newly created user should see tabs in the sidebar', async ({ page }) => {
 		// Login with the updated email from test 2 (test1@gmail.com was changed to test1new@gmail.com)
 		await login(page, 'test1new@gmail.com', 'TestPass123!');
 		await page.goto('/');

@@ -430,7 +430,7 @@ test.describe('role management flows', () => {
 		await page.goto('/users');
 		const limitedUserRow = page.locator('tbody tr').filter({ hasText: 'Limited User' });
 		if (await limitedUserRow.isVisible()) {
-			await limitedUserRow.locator('td a').click();
+			await limitedUserRow.locator('td a').nth(1).click();
 
 			// Trigger htmx delete directly — this is cleanup, not testing the dialog
 			await submitDeleteFormViaHtmx(page);
