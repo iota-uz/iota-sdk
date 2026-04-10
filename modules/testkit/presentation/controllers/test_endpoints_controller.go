@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	tf "github.com/iota-uz/iota-sdk/pkg/twofactor"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -80,16 +81,14 @@ func (c *OTPCache) cleanupExpired() {
 }
 
 type TestEndpointsController struct {
-	app         application.Application
 	testService *services.TestDataService
 	otpCache    *OTPCache
 	mutationMu  sync.Mutex
 }
 
-func NewTestEndpointsController(app application.Application) application.Controller {
+func NewTestEndpointsController(db *pgxpool.Pool) application.Controller {
 	return &TestEndpointsController{
-		app:         app,
-		testService: services.NewTestDataService(app),
+		testService: services.NewTestDataService(db),
 		otpCache:    newOTPCache(),
 	}
 }

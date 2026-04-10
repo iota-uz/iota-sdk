@@ -33,13 +33,11 @@ import (
 //
 // Returns a configured TwoFactorVerifyController implementing the Controller interface.
 func NewTwoFactorVerifyController(
-	app application.Application,
 	twoFactorService *twofactor.TwoFactorService,
 	sessionService *services.SessionService,
 	userService *services.UserService,
 ) application.Controller {
 	return &TwoFactorVerifyController{
-		app:              app,
 		twoFactorService: twoFactorService,
 		sessionService:   sessionService,
 		userService:      userService,
@@ -50,7 +48,6 @@ func NewTwoFactorVerifyController(
 // Provides code verification, recovery code fallback, and OTP resend functionality.
 // Routes are mounted at /login/2fa/verify and require authentication (pending 2FA session).
 type TwoFactorVerifyController struct {
-	app              application.Application
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
@@ -74,7 +71,6 @@ func (c *TwoFactorVerifyController) Register(r *mux.Router) {
 	verifyRouter := r.PathPrefix("/login/2fa/verify").Subrouter()
 	verifyRouter.Use(
 		middleware.AuthorizeAnySession(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.WithPageContext(),
 	)
 

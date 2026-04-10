@@ -37,7 +37,7 @@ func TestRolesController_BasicRoutes(t *testing.T) {
 			permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
 
-	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
 		PermissionSchema: createTestPermissionSchema(),
 	})
@@ -69,7 +69,7 @@ func TestRolesController_Validation(t *testing.T) {
 			permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
 
-	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
 		PermissionSchema: createTestPermissionSchema(),
 	})
@@ -112,7 +112,7 @@ func TestRolesController_Delete_EdgeCases(t *testing.T) {
 		AsUser(permissions.RoleDelete, permissions.RoleRead).
 		Build()
 
-	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
 		PermissionSchema: createTestPermissionSchema(),
 	})
@@ -148,7 +148,7 @@ func TestRolesController_Create_ValidationErrors(t *testing.T) {
 		AsUser(permissions.RoleCreate, permissions.RoleRead).
 		Build()
 
-	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
 		PermissionSchema: createTestPermissionSchema(),
 	})
@@ -179,7 +179,7 @@ func TestRolesController_List_Search(t *testing.T) {
 		AsUser(permissions.RoleRead).
 		Build()
 
-	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
 		PermissionSchema: createTestPermissionSchema(),
 	})
@@ -207,7 +207,7 @@ func TestRolesController_Update_NonExistent(t *testing.T) {
 		AsUser(permissions.RoleUpdate, permissions.RoleRead).
 		Build()
 
-	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
 		PermissionSchema: createTestPermissionSchema(),
 	})
@@ -232,7 +232,7 @@ func TestRolesController_Update_PermissionScenarios(t *testing.T) {
 		AsUser(permissions.RoleCreate, permissions.RoleRead, permissions.RoleUpdate, permissions.RoleDelete).
 		Build()
 
-	controller := controllers.NewRolesController(suite.Env().App, &controllers.RolesControllerOptions{
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
 		BasePath:         "/roles",
 		PermissionSchema: defaults.PermissionSchema(),
 	})

@@ -13,35 +13,69 @@
 //
 //	Build(builder *Builder) error
 //
-// Inside Build, a component calls composition.Provide and the Contribute*
-// helpers to register everything it owns. It may also call composition.Use to
-// declare dependencies on types provided by other components. No values are
-// resolved during Build; the method only populates the builder's registry.
+// Inside Build a component calls composition.Provide (and its ProvideFunc,
+// ProvideFuncAs, ProvideAs siblings) together with the Add* and Contribute*
+// helpers to register everything it owns. No values are resolved during
+// Build; the method only populates the builder's registry.
 //
 // # Providers
 //
-// composition.Provide[T] registers a typed factory function for T. Factories
-// are invoked lazily the first time T is requested within a Container. The same
-// resolved value is reused for the lifetime of that Container, so providers are
-// effectively singletons per compilation.
+// composition.Provide[T] registers either an eager value or a closure factory
+// for T. Factories are invoked lazily the first time T is requested within a
+// Container; the same resolved value is reused for the lifetime of that
+// Container, so providers are effectively singletons per compilation.
 //
-// # Resolvers
+// Wide-dependency constructors (services with many typed arguments) should
+// prefer the reflection injector:
 //
-// composition.Use[T]() returns a Resolver[T] handle. Holding a Resolver does
-// not trigger resolution; it is a declaration of intent. Call
-// composition.Resolve[T](container) at actual call time (inside a factory or
-// hook) to obtain the concrete value from the container.
+//	composition.ProvideFunc(builder, services.NewPaymentService)
+//
+// The injector inspects the constructor's signature, resolves each parameter
+// from the container by type, and registers the provider under the return
+// type. ProvideFuncAs[I] additionally bridges the concrete return type to an
+// interface key I so consumers can depend on the interface. Both helpers
+// reject variadic constructors at registration time to prevent silent option
+// drops — wrap variadic functions in a non-variadic adapter.
+//
+// # Static contributions
+//
+// Components that only need to attach constant data (locale bundles, nav
+// items, quick links, hashfs assets) should use the Add* helpers:
+//
+//	composition.AddLocales(builder, &LocaleFiles)
+//	composition.AddNavItems(builder, NavItems...)
+//	composition.AddQuickLinks(builder, spotlight.NewQuickLink(...))
+//	composition.AddHashFS(builder, assets.HashFS)
+//
+// These are zero-closure equivalents of the corresponding Contribute* factories
+// and make the Build method read as a declarative manifest.
 //
 // # Contribution helpers
 //
-// The Contribute* family of functions attach well-known extension points to the
-// builder without requiring callers to know the underlying registry key:
+// For contributions that need to resolve services from the container, the
+// Contribute* family attaches extension points without requiring callers to
+// know the underlying registry key:
 //
-//   - ContributeControllers   - HTTP handler registrars
-//   - ContributeNavItems      - sidebar / navigation entries
-//   - ContributeLocales       - i18n locale bundles
-//   - ContributeHooks         - startup / shutdown hooks
-//   - ContributeApplets       - embedded React applet descriptors
+//   - ContributeControllers / ContributeControllersFunc
+//   - ContributeNavItems
+//   - ContributeLocales
+//   - ContributeHooks
+//   - ContributeApplets
+//   - ContributeEventHandler / ContributeEventHandlerFunc
+//
+// The *Func variants accept a reflection-injected constructor whose parameter
+// types are resolved from the container at materialization time.
+//
+// # Auto-providers
+//
+// Engine.Compile registers providers for the core services already available
+// on the build context: *pgxpool.Pool, eventbus.EventBus, *i18n.Bundle,
+// *logrus.Logger, application.Application, spotlight.Service,
+// application.Huber, and *configuration.Configuration. Components can take
+// these as typed parameters in ProvideFunc / ContributeControllersFunc
+// constructors, or call composition.Resolve from inside a Contribute*
+// closure. User-registered providers for the same key take precedence over
+// the auto-provided value.
 //
 // # Capabilities
 //
@@ -55,7 +89,15 @@
 //
 // # Lifecycle
 //
-// Engine.Compile(ctx, capabilities...) resolves the component graph and returns
-// a Container. Engine.Start invokes registered startup hooks in dependency
-// order; Engine.Stop invokes shutdown hooks in reverse order.
+// Engine.Compile(buildCtx, capabilities...) resolves the component graph and
+// returns a Container. The package-level Start(ctx, container) function runs
+// every registered hook's Start closure in registration order; each Start may
+// return a StopFn that Stop(ctx, container) invokes in reverse order during
+// shutdown.
+//
+// Hooks themselves register via ContributeHooks with the signature
+// Start(ctx) (StopFn, error). The Start closure captures any local state it
+// needs to clean up and returns the StopFn that will later tear that state
+// down. Start and Stop are not safe for concurrent use; callers must serialize
+// lifecycle operations.
 package composition

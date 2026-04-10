@@ -33,7 +33,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 		f := setupTest(t)
 
 		// Create populate service
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		tenantRepo := persistence.NewTenantRepository()
 
 		// Define new tenant spec with unique ID
@@ -84,7 +84,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 	t.Run("IdempotentTenantCreation", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		tenantRepo := persistence.NewTenantRepository()
 
 		// Create tenant first time
@@ -135,7 +135,7 @@ func TestPopulateService_SetupTenant(t *testing.T) {
 	t.Run("InvalidTenantID", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 
 		tenantSpec := &schemas.TenantSpec{
 			ID:   "invalid-uuid",
@@ -166,7 +166,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// ensureAdminRole should seed permissions first
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		permissionRepo := persistence.NewPermissionRepository()
 		roleRepo := persistence.NewRoleRepository()
 
@@ -235,7 +235,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// Test that ensureAdminRole is idempotent when permissions already exist
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		permissionRepo := persistence.NewPermissionRepository()
 		roleRepo := persistence.NewRoleRepository()
 
@@ -332,7 +332,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// Verify that Admin role is created with ALL available permissions
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		permissionRepo := persistence.NewPermissionRepository()
 		roleRepo := persistence.NewRoleRepository()
 
@@ -394,7 +394,7 @@ func TestPopulateService_EnsureAdminRole(t *testing.T) {
 		// Test idempotency: if Admin role already exists, don't create another
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		roleRepo := persistence.NewRoleRepository()
 
 		tenantID := uuid.New()
@@ -490,7 +490,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 	t.Run("CreateUserWithTwoFactorFields", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
 
 		tenantID := uuid.New()
@@ -538,7 +538,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 	t.Run("CreateTenantAndUsers", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 		userRepo := persistence.NewUserRepository(persistence.NewUploadRepository())
 
 		// Define tenant and users
@@ -601,7 +601,7 @@ func TestPopulateService_TenantWithUsers(t *testing.T) {
 	t.Run("UserCreationWithoutTenantFails", func(t *testing.T) {
 		f := setupTest(t)
 
-		populateService := services.NewPopulateService(f.App)
+		populateService := services.NewPopulateService(f.Pool)
 
 		// Try to create users without tenant - using a fresh context without tenant
 		req := &schemas.PopulateRequest{

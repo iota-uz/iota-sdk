@@ -11,13 +11,10 @@ import (
 )
 
 type LogoutController struct {
-	app application.Application
 }
 
-func NewLogoutController(app application.Application) application.Controller {
-	return &LogoutController{
-		app: app,
-	}
+func NewLogoutController() application.Controller {
+	return &LogoutController{}
 }
 
 func (c *LogoutController) Key() string {

@@ -40,27 +40,24 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/validators"
 )
 
+// UserRealtimeUpdates broadcasts user CRUD events to authenticated websocket
+// connections so that open user listings receive live row updates. It is
+// wired via composition.ContributeEventHandlerFunc — one subscription per
+// event kind — so teardown and tenant isolation stay consistent with the
+// rest of the core event-handler stack. The per-controller Register/Subscribe
+// dance that leaked subscribers on every router rebuild has been removed.
 type UserRealtimeUpdates struct {
-	app         application.Application
-	userService *services.UserService
-	basePath    string
+	app application.Application
 }
 
-func NewUserRealtimeUpdates(app application.Application, userService *services.UserService, basePath string) *UserRealtimeUpdates {
-	return &UserRealtimeUpdates{
-		app:         app,
-		userService: userService,
-		basePath:    basePath,
-	}
+// NewUserRealtimeUpdates is the reflection-injector-friendly constructor.
+func NewUserRealtimeUpdates(app application.Application) *UserRealtimeUpdates {
+	return &UserRealtimeUpdates{app: app}
 }
 
-func (ru *UserRealtimeUpdates) Register() {
-	ru.app.EventPublisher().Subscribe(ru.onUserCreated)
-	ru.app.EventPublisher().Subscribe(ru.onUserUpdated)
-	ru.app.EventPublisher().Subscribe(ru.onUserDeleted)
-}
-
-func (ru *UserRealtimeUpdates) onUserCreated(event *user.CreatedEvent) {
+// OnUserCreated renders the newly-created user as a table row and broadcasts
+// it to every authenticated websocket client.
+func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
 	logger := configuration.Use().Logger()
 
 	component := users.UserCreatedEvent(mappers.UserToViewModel(event.Result), &base.TableRowProps{
@@ -84,7 +81,9 @@ func (ru *UserRealtimeUpdates) onUserCreated(event *user.CreatedEvent) {
 	}
 }
 
-func (ru *UserRealtimeUpdates) onUserDeleted(event *user.DeletedEvent) {
+// OnUserDeleted broadcasts a row-deletion to every authenticated websocket
+// client so that open user listings remove the row.
+func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
 	logger := configuration.Use().Logger()
 
 	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
@@ -111,7 +110,9 @@ func (ru *UserRealtimeUpdates) onUserDeleted(event *user.DeletedEvent) {
 	}
 }
 
-func (ru *UserRealtimeUpdates) onUserUpdated(event *user.UpdatedEvent) {
+// OnUserUpdated broadcasts the updated user row to every authenticated
+// websocket client so that open user listings reflect the change.
+func (ru *UserRealtimeUpdates) OnUserUpdated(event *user.UpdatedEvent) {
 	logger := configuration.Use().Logger()
 
 	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
@@ -138,7 +139,6 @@ func (ru *UserRealtimeUpdates) onUserUpdated(event *user.UpdatedEvent) {
 type UsersController struct {
 	app              application.Application
 	basePath         string
-	realtime         *UserRealtimeUpdates
 	permissionSchema *rbac.PermissionSchema
 }
 
@@ -149,7 +149,6 @@ type UsersControllerOptions struct {
 
 func NewUsersController(
 	app application.Application,
-	userService *services.UserService,
 	opts *UsersControllerOptions,
 ) application.Controller {
 	if opts == nil || opts.PermissionSchema == nil {
@@ -159,14 +158,11 @@ func NewUsersController(
 		panic("UsersController requires explicit BasePath in options")
 	}
 
-	controller := &UsersController{
+	return &UsersController{
 		app:              app,
 		basePath:         opts.BasePath,
-		realtime:         NewUserRealtimeUpdates(app, userService, opts.BasePath),
 		permissionSchema: opts.PermissionSchema,
 	}
-
-	return controller
 }
 
 func (c *UsersController) Key() string {
@@ -180,7 +176,6 @@ func (c *UsersController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)
@@ -196,8 +191,6 @@ func (c *UsersController) Register(r *mux.Router) {
 	router.HandleFunc("/{id:[0-9]+}/unblock", di.H(c.UnblockUser)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}/sessions", di.H(c.GetUserSessions)).Methods(http.MethodGet)
 	router.HandleFunc("/{id:[0-9]+}/sessions/{token}", di.H(c.RevokeUserSession)).Methods(http.MethodDelete)
-
-	c.realtime.Register()
 }
 
 func (c *UsersController) resourcePermissionGroups(

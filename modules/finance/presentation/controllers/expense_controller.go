@@ -35,7 +35,6 @@ import (
 )
 
 type ExpenseController struct {
-	app      application.Application
 	basePath string
 }
 
@@ -44,11 +43,10 @@ type ExpensePaginationResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewExpensesController(app application.Application) application.Controller {
+func NewExpensesController() application.Controller {
 	basePath := "/finance/expenses"
 
 	controller := &ExpenseController{
-		app:      app,
 		basePath: basePath,
 	}
 
@@ -66,7 +64,6 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

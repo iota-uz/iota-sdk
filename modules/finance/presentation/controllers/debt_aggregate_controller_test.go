@@ -41,7 +41,7 @@ func TestDebtAggregateController_List_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	controller := controllers.NewDebtAggregateController(debtService, counterpartyService)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -107,7 +107,7 @@ func TestDebtAggregateController_List_HTMX_Request(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	controller := controllers.NewDebtAggregateController(debtService, counterpartyService)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -159,7 +159,7 @@ func TestDebtAggregateController_List_EmptyResult(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
+	controller := controllers.NewDebtAggregateController(debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	response := suite.GET(DebtAggregateBasePath).
@@ -193,7 +193,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_Success(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	controller := controllers.NewDebtAggregateController(debtService, counterpartyService)
 	suite.Register(controller)
 
 	// Create test counterparty
@@ -258,7 +258,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_NotFound(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
+	controller := controllers.NewDebtAggregateController(debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -285,7 +285,7 @@ func TestDebtAggregateController_GetCounterpartyDrawer_InvalidUUID(t *testing.T)
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
+	controller := controllers.NewDebtAggregateController(debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	suite.GET(DebtAggregateBasePath + "/invalid-uuid/drawer").
@@ -308,7 +308,7 @@ func TestDebtAggregateController_Permission_Forbidden(t *testing.T) {
 	debtSvc := itf.GetService[services.DebtService](env)
 	counterpartySvc := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtSvc, counterpartySvc)
+	controller := controllers.NewDebtAggregateController(debtSvc, counterpartySvc)
 	suite.Register(controller)
 
 	suite.GET(DebtAggregateBasePath).
@@ -335,7 +335,7 @@ func TestDebtAggregateController_MultipleCounterparties(t *testing.T) {
 	debtService := itf.GetService[services.DebtService](env)
 	counterpartyService := itf.GetService[services.CounterpartyService](env)
 
-	controller := controllers.NewDebtAggregateController(env.App, debtService, counterpartyService)
+	controller := controllers.NewDebtAggregateController(debtService, counterpartyService)
 	suite.Register(controller)
 
 	// Create multiple counterparties

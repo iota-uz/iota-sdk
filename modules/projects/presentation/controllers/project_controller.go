@@ -29,12 +29,11 @@ import (
 )
 
 type ProjectController struct {
-	app             application.Application
 	basePath        string
 	tableDefinition table.TableDefinition
 }
 
-func NewProjectController(app application.Application) application.Controller {
+func NewProjectController() application.Controller {
 	basePath := "/projects"
 
 	// Create a minimal table definition with columns for HTMX requests
@@ -49,7 +48,6 @@ func NewProjectController(app application.Application) application.Controller {
 		Build()
 
 	return &ProjectController{
-		app:             app,
 		basePath:        basePath,
 		tableDefinition: tableDefinition,
 	}
@@ -65,7 +63,6 @@ func (c *ProjectController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

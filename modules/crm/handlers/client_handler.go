@@ -12,42 +12,29 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmservices "github.com/iota-uz/iota-sdk/modules/crm/services"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
 
+// ClientHandler subscribes to client lifecycle events and creates a chat
+// aggregate every time a new client is persisted. It is a pure struct
+// registered via composition.ProvideFunc; the composition Hook takes care
+// of Subscribe / Unsubscribe on Start / Stop.
 type ClientHandler struct {
 	pool          *pgxpool.Pool
-	publisher     eventbus.EventBus
 	chatService   *crmservices.ChatService
 	tenantService *services.TenantService
-	unsubscribe   func()
 }
 
-func RegisterClientHandler(
-	app application.Application,
+func NewClientHandler(
+	pool *pgxpool.Pool,
 	chatService *crmservices.ChatService,
 	tenantService *services.TenantService,
 ) *ClientHandler {
-	handler := &ClientHandler{
-		pool:          app.DB(),
-		publisher:     app.EventPublisher(),
+	return &ClientHandler{
+		pool:          pool,
 		chatService:   chatService,
 		tenantService: tenantService,
-	}
-	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onCreated)
-	return handler
-}
-
-func (h *ClientHandler) Unregister() {
-	if h == nil || h.publisher == nil {
-		return
-	}
-	if h.unsubscribe != nil {
-		h.unsubscribe()
-		h.unsubscribe = nil
 	}
 }
 
@@ -71,7 +58,9 @@ func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context 
 	return composables.WithPool(composables.WithTenantID(ctx, tenantComposable.ID), h.pool)
 }
 
-func (h *ClientHandler) onCreated(event *client.CreatedEvent) {
+// OnCreated is the eventbus subscriber callback. Compatible with
+// eventbus.EventBus.Subscribe.
+func (h *ClientHandler) OnCreated(event *client.CreatedEvent) {
 	tenantID := event.Result.TenantID()
 	logger := configuration.Use().Logger()
 

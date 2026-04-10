@@ -83,7 +83,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 
 	cfg := options{
 		logger:                  rt.Logger,
-		notFoundHandler:         controllers.NotFound(rt.App),
+		notFoundHandler:         controllers.NotFound(),
 		methodNotAllowedHandler: controllers.MethodNotAllowed(),
 		corsOrigins:             []string{"http://localhost:3000"},
 	}
@@ -101,7 +101,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		}
 	}
 
-	stack := make([]mux.MiddlewareFunc, 0, len(cfg.before)+len(cfg.after)+8)
+	stack := make([]mux.MiddlewareFunc, 0, len(cfg.before)+len(cfg.after)+10)
 	stack = append(stack, cfg.before...)
 	stack = append(stack,
 		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions()),
@@ -111,6 +111,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		middleware.Provide(constants.HeadKey, layouts.DefaultHead()),
 		middleware.Provide(constants.LogoKey, assets.DefaultLogo()),
 		middleware.Provide(constants.PoolKey, rt.Pool),
+		middleware.ProvideLocalizer(rt.App.Bundle(), rt.App.GetSupportedLanguages()),
 		middleware.TracedMiddleware("cors"),
 		middleware.Cors(cfg.corsOrigins...),
 	)

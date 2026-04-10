@@ -74,7 +74,6 @@ func OrderInItemToViewModel(item OrderItem) orderin.OrderItem {
 }
 
 type OrdersController struct {
-	app             application.Application
 	orderService    *orderservice.OrderService
 	positionService *positionservice.PositionService
 	productService  *productservice.ProductService
@@ -87,13 +86,11 @@ type OrderPaginatedResponse struct {
 }
 
 func NewOrdersController(
-	app application.Application,
 	orderService *orderservice.OrderService,
 	positionService *positionservice.PositionService,
 	productService *productservice.ProductService,
 ) application.Controller {
 	return &OrdersController{
-		app:             app,
 		orderService:    orderService,
 		positionService: positionService,
 		productService:  productService,
@@ -111,7 +108,6 @@ func (c *OrdersController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

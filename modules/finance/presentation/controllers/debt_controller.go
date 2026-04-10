@@ -27,7 +27,6 @@ import (
 )
 
 type DebtsController struct {
-	app                 application.Application
 	debtService         *services.DebtService
 	counterpartyService *services.CounterpartyService
 	transactionService  *services.TransactionService
@@ -36,7 +35,6 @@ type DebtsController struct {
 }
 
 func NewDebtsController(
-	app application.Application,
 	debtService *services.DebtService,
 	counterpartyService *services.CounterpartyService,
 	transactionService *services.TransactionService,
@@ -57,7 +55,6 @@ func NewDebtsController(
 		Build()
 
 	return &DebtsController{
-		app:                 app,
 		debtService:         debtService,
 		counterpartyService: counterpartyService,
 		transactionService:  transactionService,
@@ -76,7 +73,6 @@ func (c *DebtsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

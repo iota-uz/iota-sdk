@@ -28,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -144,6 +145,11 @@ func newRouterWithContext(t *testing.T, env *itf.TestEnvironment, u coreuser.Use
 	t.Helper()
 
 	r := mux.NewRouter()
+	// ProvideLocalizer is now installed as a global middleware in
+	// pkg/server/builder.go. The test bypasses the server bootstrap so we
+	// install it here too — without it, downstream middleware like
+	// NavItemsWithInitialState (which calls intl.UseLocalizer) panics.
+	r.Use(middleware.ProvideLocalizer(env.App.Bundle(), env.App.GetSupportedLanguages()))
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			ctx := req.Context()
@@ -217,7 +223,7 @@ func TestControllers_BasePathRouting_Integration(t *testing.T) {
 	basePath := "/admin/ali/chat"
 
 	r := newRouterWithContext(t, env, u)
-	NewChatController(env.App, deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
+	NewChatController(deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
 		WithBasePath(basePath),
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -241,7 +247,7 @@ func TestStreamController_RequireAccessPermission_Integration(t *testing.T) {
 	deps := newControllerDeps(t)
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands, deps.sessionQueries, deps.attachmentService, WithRequireAccessPermission(bichatperm.BiChatAccess)).Register(r)
+	NewStreamController(deps.streamCommands, deps.sessionQueries, deps.attachmentService, WithRequireAccessPermission(bichatperm.BiChatAccess)).Register(r)
 
 	w := flusherRecorder{ResponseRecorder: httptest.NewRecorder()}
 	req := httptest.NewRequest(http.MethodPost, "/bi-chat/stream", bytes.NewBufferString(`{}`))
@@ -261,7 +267,7 @@ func TestChatController_OwnershipVsReadAllPermission_Integration(t *testing.T) {
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u2, "owned by u2")
 
 	r := newRouterWithContext(t, env, u1)
-	NewChatController(env.App, deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
+	NewChatController(deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 		WithReadAllPermission(bichatperm.BiChatExport),
 	).Register(r)
@@ -273,7 +279,7 @@ func TestChatController_OwnershipVsReadAllPermission_Integration(t *testing.T) {
 
 	u1ReadAll := u1.AddPermission(bichatperm.BiChatExport)
 	r2 := newRouterWithContext(t, env, u1ReadAll)
-	NewChatController(env.App, deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
+	NewChatController(deps.sessionCommands, deps.sessionQueries, deps.turnCommands, deps.hitlCommands, deps.chatRepo, deps.agentService, nil, nil,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 		WithReadAllPermission(bichatperm.BiChatExport),
 	).Register(r2)
@@ -296,7 +302,7 @@ func TestStreamController_DebugMode_AllowedWithoutExtraPermission_Integration(t 
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands,
+	NewStreamController(deps.streamCommands,
 		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -330,7 +336,7 @@ func TestStreamController_DebugMode_AllowedWithExportPermission_Integration(t *t
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands,
+	NewStreamController(deps.streamCommands,
 		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -363,7 +369,7 @@ func TestStreamController_ReplaceFromMessageID_TruncatesHistory_Integration(t *t
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "s")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands,
+	NewStreamController(deps.streamCommands,
 		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -430,7 +436,7 @@ func TestStreamController_AttachmentUpload_PersistsOnUserMessage_Integration(t *
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "attachments")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands,
+	NewStreamController(deps.streamCommands,
 		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -482,7 +488,7 @@ func TestStreamController_StreamMessage_SendsImmediateSSEHandshake_Integration(t
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "handshake")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands,
+	NewStreamController(deps.streamCommands,
 		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -515,7 +521,7 @@ func TestStreamController_Stop_Returns200_Integration(t *testing.T) {
 	session := mustCreateSession(t, env.Ctx, deps, env.Tenant.ID, u, "stop test")
 
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands,
+	NewStreamController(deps.streamCommands,
 		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)
@@ -541,7 +547,7 @@ func TestStreamController_Stop_Returns400_WhenSessionIDMissing(t *testing.T) {
 
 	deps := newControllerDeps(t)
 	r := newRouterWithContext(t, env, u)
-	NewStreamController(env.App, deps.streamCommands,
+	NewStreamController(deps.streamCommands,
 		deps.sessionQueries, deps.attachmentService,
 		WithRequireAccessPermission(bichatperm.BiChatAccess),
 	).Register(r)

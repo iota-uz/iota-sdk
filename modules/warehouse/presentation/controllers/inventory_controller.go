@@ -27,7 +27,6 @@ import (
 )
 
 type InventoryController struct {
-	app              application.Application
 	inventoryService *services.InventoryService
 	positionService  *positionservice.PositionService
 	basePath         string
@@ -39,12 +38,10 @@ type InventoryCheckPaginatedResponse struct {
 }
 
 func NewInventoryController(
-	app application.Application,
 	inventoryService *services.InventoryService,
 	positionService *positionservice.PositionService,
 ) application.Controller {
 	return &InventoryController{
-		app:              app,
 		basePath:         "/warehouse/inventory",
 		inventoryService: inventoryService,
 		positionService:  positionService,
@@ -61,7 +58,6 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

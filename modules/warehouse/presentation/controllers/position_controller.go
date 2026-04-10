@@ -41,7 +41,6 @@ import (
 )
 
 type PositionsController struct {
-	app      application.Application
 	basePath string
 }
 
@@ -50,9 +49,8 @@ type PositionPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewPositionsController(app application.Application) application.Controller {
+func NewPositionsController() application.Controller {
 	return &PositionsController{
-		app:      app,
 		basePath: "/warehouse/positions",
 	}
 }
@@ -67,7 +65,6 @@ func (c *PositionsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

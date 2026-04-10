@@ -31,7 +31,7 @@ func TestUploadController_DirectoryListing_Returns404(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(suite.Environment().App, uploadService)
+	controller := controllers.NewUploadController(uploadService)
 	suite.Register(controller)
 
 	// Create a test file in the uploads directory
@@ -60,7 +60,7 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(suite.Environment().App, uploadService)
+	controller := controllers.NewUploadController(uploadService)
 	suite.Register(controller)
 
 	// Create a test file in the uploads directory
@@ -97,7 +97,7 @@ func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(suite.Environment().App, uploadService)
+	controller := controllers.NewUploadController(uploadService)
 	suite.Register(controller)
 
 	// Create a subdirectory with a file
@@ -130,7 +130,7 @@ func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(suite.Environment().App, uploadService)
+	controller := controllers.NewUploadController(uploadService)
 	suite.Register(controller)
 
 	// Create a subdirectory with a file
@@ -169,7 +169,7 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(suite.Environment().App, uploadService)
+	controller := controllers.NewUploadController(uploadService)
 	suite.Register(controller)
 
 	// Test that non-existent file returns 404

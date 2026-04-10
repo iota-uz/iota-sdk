@@ -32,12 +32,11 @@ import (
 )
 
 type ShowcaseController struct {
-	app      application.Application
 	basePath string
 	ds       datasource.DataSource
 }
 
-func NewShowcaseController(app application.Application) application.Controller {
+func NewShowcaseController() application.Controller {
 	config := configuration.Use()
 	ds, err := lenspostgres.New(lenspostgres.Config{
 		ConnectionString: config.Database.ConnectionString(),
@@ -48,9 +47,9 @@ func NewShowcaseController(app application.Application) application.Controller {
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for showcase: %v", err)
-		return &ShowcaseController{app: app, basePath: "/_dev"}
+		return &ShowcaseController{basePath: "/_dev"}
 	}
-	return &ShowcaseController{app: app, basePath: "/_dev", ds: ds}
+	return &ShowcaseController{basePath: "/_dev", ds: ds}
 }
 
 func (c *ShowcaseController) Key() string {
@@ -62,7 +61,6 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.Use(
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

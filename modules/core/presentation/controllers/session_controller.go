@@ -27,13 +27,11 @@ import (
 )
 
 type SessionController struct {
-	app      application.Application
 	basePath string
 }
 
-func NewSessionController(app application.Application, basePath string) application.Controller {
+func NewSessionController(basePath string) application.Controller {
 	return &SessionController{
-		app:      app,
 		basePath: basePath,
 	}
 }
@@ -49,7 +47,6 @@ func (c *SessionController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

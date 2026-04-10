@@ -93,11 +93,10 @@ modules/{module}/
 ### 7. Registration
 - Add navigation item to `modules/{module}/links.go`
 - Register the module in `modules/{module}/component.go`:
-  - Add repositories and services with `composition.Provide(...)`
-  - Resolve shared dependencies with `composition.Use[T]()`
-  - Add controllers with `composition.ContributeControllers(...)`
-  - Add quick links with `composition.ContributeQuickLinks(...)`
-  - Add nav items and locales with `composition.ContributeNavItems(...)` and `composition.ContributeLocales(...)`
+  - Register repositories and services with `composition.ProvideFunc(...)` — the reflection injector resolves each constructor parameter from the container by type (no manual lookup)
+  - Use `composition.ProvideFuncAs[Interface]` when a constructor returns a concrete type but you want the provider keyed by an interface
+  - Add controllers with `composition.ContributeControllersFunc(...)` or `composition.AddControllers(...)` for pre-built instances
+  - Attach static contributions via `composition.AddNavItems`, `composition.AddLocales`, `composition.AddQuickLinks`, `composition.AddHashFS`
 
 ### 8. Verification
 - Run `go vet ./...` to verify compilation

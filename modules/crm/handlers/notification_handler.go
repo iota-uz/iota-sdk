@@ -3,48 +3,38 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"log"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
 	"github.com/iota-uz/iota-sdk/modules/crm/infrastructure/telegram"
-	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
+// NotificationHandler subscribes to new-message events and forwards them
+// to a Telegram bot. OnNewMessage is an event-bus subscriber callback —
+// the CRM component wires it via composition.ContributeEventHandler (not
+// ContributeHooks) so the subscription and its matching unsubscribe are
+// managed by the engine's lifecycle.
 type NotificationHandler struct {
-	pool        *pgxpool.Pool
-	publisher   eventbus.EventBus
-	tgBot       *telegram.Bot
-	unsubscribe func()
+	tgBot *telegram.Bot
 }
 
-func RegisterNotificationHandler(app application.Application, botToken string) *NotificationHandler {
+func NewNotificationHandler(botToken string) (*NotificationHandler, error) {
+	const op serrors.Op = "crm.handlers.NewNotificationHandler"
+	if botToken == "" {
+		return nil, serrors.E(op, errors.New("telegram bot token is required"))
+	}
 	bot, err := telegram.NewBot(botToken)
 	if err != nil {
-		log.Fatalf("Error creating telegram bot: %v", err)
+		return nil, serrors.E(op, err, "failed to create telegram bot")
 	}
-	handler := &NotificationHandler{
-		pool:      app.DB(),
-		publisher: app.EventPublisher(),
-		tgBot:     bot,
-	}
-	handler.unsubscribe = app.EventPublisher().Subscribe(handler.onNewMessage)
-	return handler
+	return &NotificationHandler{tgBot: bot}, nil
 }
 
-func (h *NotificationHandler) Unregister() {
-	if h == nil || h.publisher == nil {
-		return
-	}
-	if h.unsubscribe != nil {
-		h.unsubscribe()
-		h.unsubscribe = nil
-	}
-}
-
-func (h *NotificationHandler) onNewMessage(event *chat.MessagedAddedEvent) {
+// OnNewMessage is the eventbus subscriber callback. Compatible with
+// eventbus.EventBus.Subscribe.
+func (h *NotificationHandler) OnNewMessage(event *chat.MessagedAddedEvent) {
 	ctx := context.Background()
 	chatID := int64(-1001979082001)
 	if err := h.tgBot.SendMessage(

@@ -4,15 +4,12 @@ package superadmin
 import (
 	"embed"
 
-	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
-	"github.com/iota-uz/iota-sdk/modules/superadmin/domain"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 //go:embed presentation/locales/*.toml
@@ -42,52 +39,19 @@ func (c *component) Descriptor() composition.Descriptor {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.ContributeLocales(builder, func(*composition.Container) ([]*embed.FS, error) {
-		return []*embed.FS{&LocaleFiles}, nil
-	})
-	composition.ContributeNavItems(builder, func(*composition.Container) ([]types.NavigationItem, error) {
-		return NavItems, nil
-	})
+	composition.AddLocales(builder, &LocaleFiles)
+	composition.AddNavItems(builder, NavItems...)
 
-	composition.Provide[domain.AnalyticsQueryRepository](builder, func() domain.AnalyticsQueryRepository {
-		return persistence.NewPgAnalyticsQueryRepository()
-	})
-	composition.Provide[*services.AnalyticsService](builder, func(container *composition.Container) (*services.AnalyticsService, error) {
-		repo, err := composition.Resolve[domain.AnalyticsQueryRepository](container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewAnalyticsService(repo), nil
-	})
-	composition.Provide[*services.TenantService](builder, func(container *composition.Container) (*services.TenantService, error) {
-		repo, err := composition.Resolve[domain.AnalyticsQueryRepository](container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewTenantService(repo), nil
-	})
-	composition.Provide[*services.TenantUsersService](builder, func(container *composition.Container) (*services.TenantUsersService, error) {
-		repo, err := composition.Resolve[coreuser.Repository](container)
-		if err != nil {
-			return nil, err
-		}
-		return services.NewTenantUsersService(repo), nil
-	})
+	composition.ProvideFunc(builder, persistence.NewPgAnalyticsQueryRepository)
+	composition.ProvideFunc(builder, services.NewAnalyticsService)
+	composition.ProvideFunc(builder, services.NewTenantService)
+	composition.ProvideFunc(builder, services.NewTenantUsersService)
 
-	composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-		app, err := composition.RequireApplication(container)
-		if err != nil {
-			return nil, err
-		}
-		userService, err := composition.Resolve[*coreservices.UserService](container)
-		if err != nil {
-			return nil, err
-		}
+	composition.ContributeControllersFunc(builder, func(userService *coreservices.UserService) []application.Controller {
 		return []application.Controller{
-			controllers.NewDashboardController(app),
-			controllers.NewTenantsController(app, userService),
-		}, nil
+			controllers.NewDashboardController(),
+			controllers.NewTenantsController(userService),
+		}
 	})
-
 	return nil
 }

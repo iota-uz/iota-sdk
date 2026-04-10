@@ -27,13 +27,12 @@ import (
 )
 
 type PaymentCategoriesController struct {
-	app                    application.Application
 	paymentCategoryService *services.PaymentCategoryService
 	basePath               string
 	tableDefinition        table.TableDefinition
 }
 
-func NewPaymentCategoriesController(app application.Application, paymentCategoryService *services.PaymentCategoryService) application.Controller {
+func NewPaymentCategoriesController(paymentCategoryService *services.PaymentCategoryService) application.Controller {
 	basePath := "/finance/payment-categories"
 
 	// Create table definition with columns for HTMX requests
@@ -47,7 +46,6 @@ func NewPaymentCategoriesController(app application.Application, paymentCategory
 		Build()
 
 	return &PaymentCategoriesController{
-		app:                    app,
 		paymentCategoryService: paymentCategoryService,
 		basePath:               basePath,
 		tableDefinition:        tableDefinition,
@@ -64,7 +62,6 @@ func (c *PaymentCategoriesController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

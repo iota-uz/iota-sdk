@@ -103,7 +103,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 	//	}
 	//
 	//	env := suite.Environment()
-	//	controller := controllers.NewCrudController[TestEntity]("/test-list", env.App, builder)
+	//	controller := controllers.NewCrudController[TestEntity]("/test-list", builder)
 	//	suite.Register(controller)
 	//
 	//	// Make request
@@ -189,8 +189,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 			service: service,
 		}
 
-		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test-details", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test-details", builder)
 		suite.Register(controller)
 
 		// Make request
@@ -255,8 +254,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 			service: service,
 		}
 
-		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test-dynamic", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test-dynamic", builder)
 		suite.Register(controller)
 
 		// Make request
@@ -320,8 +318,7 @@ func TestCrudController_SelectFieldLabels(t *testing.T) {
 			service: service,
 		}
 
-		env := suite.Environment()
-		controller := controllers.NewCrudController[TestEntity]("/test-raw", env.App, builder)
+		controller := controllers.NewCrudController[TestEntity]("/test-raw", builder)
 		suite.Register(controller)
 
 		// Make request

@@ -22,15 +22,13 @@ import (
 )
 
 type PaymeController struct {
-	app            application.Application
 	billingService *services.BillingService
 	payme          configuration.PaymeOptions
 	basePath       string
 }
 
-func NewPaymeController(app application.Application, billingService *services.BillingService, payme configuration.PaymeOptions, basePath string) application.Controller {
+func NewPaymeController(billingService *services.BillingService, payme configuration.PaymeOptions, basePath string) application.Controller {
 	return &PaymeController{
-		app:            app,
 		billingService: billingService,
 		payme:          payme,
 		basePath:       basePath,

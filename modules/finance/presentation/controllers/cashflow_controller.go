@@ -20,21 +20,28 @@ import (
 )
 
 type CashflowController struct {
-	app                    application.Application
 	financialReportService *services.FinancialReportService
 	moneyAccountService    *services.MoneyAccountService
 	queryRepo              query.FinancialReportsQueryRepository
 	basePath               string
 }
 
-func NewCashflowController(app application.Application, financialReportService *services.FinancialReportService, moneyAccountService *services.MoneyAccountService) application.Controller {
+// NewCashflowController takes the query repository as a constructor
+// parameter so the composition container can swap it out. The previous
+// inline construction of query.NewPgFinancialReportsQueryRepository pulled
+// infrastructure into the presentation layer and blocked tests from
+// substituting a mock implementation.
+func NewCashflowController(
+	financialReportService *services.FinancialReportService,
+	moneyAccountService *services.MoneyAccountService,
+	queryRepo query.FinancialReportsQueryRepository,
+) application.Controller {
 	basePath := "/finance/reports"
 
 	return &CashflowController{
-		app:                    app,
 		financialReportService: financialReportService,
 		moneyAccountService:    moneyAccountService,
-		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
+		queryRepo:              queryRepo,
 		basePath:               basePath,
 	}
 }
@@ -49,7 +56,6 @@ func (c *CashflowController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

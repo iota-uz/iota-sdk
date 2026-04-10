@@ -17,17 +17,23 @@ import (
 )
 
 type FinancialReportController struct {
-	app                    application.Application
 	financialReportService *services.FinancialReportService
 	queryRepo              query.FinancialReportsQueryRepository
 	basePath               string
 }
 
-func NewFinancialReportController(app application.Application, financialReportService *services.FinancialReportService) application.Controller {
+// NewFinancialReportController takes the query repository as a constructor
+// parameter so the composition container can swap it out — previously this
+// code called query.NewPgFinancialReportsQueryRepository() inline, which
+// pulled infrastructure into the presentation layer and blocked
+// tests/overrides from substituting an alternative implementation.
+func NewFinancialReportController(
+	financialReportService *services.FinancialReportService,
+	queryRepo query.FinancialReportsQueryRepository,
+) application.Controller {
 	return &FinancialReportController{
-		app:                    app,
 		financialReportService: financialReportService,
-		queryRepo:              query.NewPgFinancialReportsQueryRepository(),
+		queryRepo:              queryRepo,
 		basePath:               "/finance/reports",
 	}
 }
@@ -42,7 +48,6 @@ func (c *FinancialReportController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

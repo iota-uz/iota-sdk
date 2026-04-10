@@ -20,26 +20,18 @@ func (c *component) Build(builder *composition.Builder) error {
 	if !builder.Context().HasCapability(composition.CapabilityAPI) {
 		return nil
 	}
-	composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-		app, err := composition.RequireApplication(container)
-		if err != nil {
-			return nil, err
-		}
-		userService, err := composition.Resolve[*services.UserService](container)
-		if err != nil {
-			return nil, err
-		}
-		uploadService, err := composition.Resolve[*services.UploadService](container)
-		if err != nil {
-			return nil, err
-		}
-		authService, err := composition.Resolve[*services.AuthService](container)
-		if err != nil {
-			return nil, err
-		}
+	// ContributeControllersFunc resolves each constructor parameter from
+	// the container by type. application.Application is provided by the
+	// engine automatically.
+	composition.ContributeControllersFunc(builder, func(
+		app application.Application,
+		userService *services.UserService,
+		uploadService *services.UploadService,
+		authService *services.AuthService,
+	) []application.Controller {
 		return []application.Controller{
 			controllers.NewGraphQLController(app, userService, uploadService, authService),
-		}, nil
+		}
 	})
 	composition.ContributeSchemas(builder, func(*composition.Container) ([]application.GraphSchema, error) {
 		return []application.GraphSchema{{

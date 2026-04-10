@@ -3,7 +3,6 @@ package testkit
 
 import (
 	"github.com/iota-uz/iota-sdk/modules/testkit/presentation/controllers"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
@@ -26,22 +25,14 @@ func (c *component) Build(builder *composition.Builder) error {
 		return nil
 	}
 
-	composition.ContributeControllers(builder, func(container *composition.Container) ([]application.Controller, error) {
-		conf := configuration.Use()
-		if !conf.EnableTestEndpoints {
-			conf.Logger().Debug("Test endpoints disabled - testkit module not loading controllers")
-			return nil, nil
-		}
-		app, err := composition.RequireApplication(container)
-		if err != nil {
-			return nil, err
-		}
+	conf := configuration.Use()
+	if !conf.EnableTestEndpoints {
+		conf.Logger().Debug("Test endpoints disabled - testkit module not loading controllers")
+		return nil
+	}
 
-		conf.Logger().Warn("Test endpoints enabled - this should only be used in test environments")
-		return []application.Controller{
-			controllers.NewTestEndpointsController(app),
-		}, nil
-	})
+	conf.Logger().Warn("Test endpoints enabled - this should only be used in test environments")
+	composition.ContributeControllersFunc(builder, controllers.NewTestEndpointsController)
 
 	return nil
 }

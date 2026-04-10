@@ -26,14 +26,12 @@ import (
 )
 
 type UploadController struct {
-	app           application.Application
 	uploadService *services.UploadService
 	basePath      string
 }
 
-func NewUploadController(app application.Application, uploadService *services.UploadService) application.Controller {
+func NewUploadController(uploadService *services.UploadService) application.Controller {
 	return &UploadController{
-		app:           app,
 		uploadService: uploadService,
 		basePath:      "/uploads",
 	}
@@ -47,7 +45,6 @@ func (c *UploadController) Register(r *mux.Router) {
 	conf := configuration.Use()
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
-	router.Use(middleware.ProvideLocalizer(c.app))
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
 
 	workDir, err := os.Getwd()

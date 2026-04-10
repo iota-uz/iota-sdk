@@ -21,17 +21,21 @@ Controllers in IOTA SDK handle:
 
 ### Basic Controller Setup
 
+Controllers are plain structs with a zero-argument constructor. Services
+are **not** stored on the struct — they arrive as typed parameters on each
+handler method via the `di.H` wrapper. Global services (i18n bundle, pool,
+event bus, user session) are installed as request-scoped middleware by
+`pkg/server/builder.go` and resolved per request via `composables.*`.
+
 ```go
 // modules/finance/presentation/controllers/expense_controller.go
 
 type ExpenseController struct {
-	app      application.Application
 	basePath string
 }
 
-func NewExpensesController(app application.Application) application.Controller {
+func NewExpensesController() application.Controller {
 	return &ExpenseController{
-		app:      app,
 		basePath: "/finance/expenses",
 	}
 }
@@ -44,7 +48,9 @@ func (c *ExpenseController) Key() string {
 
 ### Route Registration
 
-Register routes with middleware and dependency injection:
+Register routes with middleware. The global i18n, logger, tenant, and
+session middlewares are already installed by the server builder; each
+controller only attaches the access-control middlewares it needs.
 
 ```go
 func (c *ExpenseController) Register(r *mux.Router) {
@@ -56,7 +62,6 @@ func (c *ExpenseController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(), // Redirect if not logged in
 		middleware.ProvideUser(),            // Add user to context
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),  // Add i18n support
 		middleware.NavItems(),               // Navigation items
 		middleware.WithPageContext(),        // Page metadata
 	)
@@ -617,35 +622,23 @@ func TestExpenseController_Create(t *testing.T) {
 }
 ```
 
-### Unit Test with Mock Services
+### Unit Test with ITF Suite
+
+After the composition refactor, controllers have zero-argument constructors
+and handler dependencies arrive via `di.H` parameter injection at request
+time. Use the ITF suite to wire the full composition container and exercise
+the HTTP surface end-to-end:
 
 ```go
 func TestExpenseController_List(t *testing.T) {
-	// Create mocks
-	mockService := new(MockExpenseService)
-	
-	controller := &ExpenseController{
-		app:      nil,
-		basePath: "/finance/expenses",
-	}
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		Build()
 
 	t.Run("returns list", func(t *testing.T) {
-		// Setup request
-		req := httptest.NewRequest(http.MethodGet, "/finance/expenses", nil)
-		w := httptest.NewRecorder()
-		
-		// Mock service response
-		mockService.On("GetPaginated", mock.Anything, mock.Anything).
-			Return([]expense.Expense{testExpense}, nil)
-		mockService.On("Count", mock.Anything, mock.Anything).
-			Return(int64(1), nil)
-
-		// Execute
-		controller.List(req, w, testLogger, mockService)
-
-		// Assert
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), "Test Expense")
+		suite.GET("/finance/expenses").
+			Expect(t).
+			Status(http.StatusOK)
 	})
 }
 ```

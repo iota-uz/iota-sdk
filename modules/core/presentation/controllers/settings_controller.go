@@ -21,19 +21,16 @@ import (
 )
 
 type SettingsController struct {
-	app           application.Application
 	tenantService *services.TenantService
 	uploadService *services.UploadService
 	basePath      string
 }
 
 func NewSettingsController(
-	app application.Application,
 	tenantService *services.TenantService,
 	uploadService *services.UploadService,
 ) application.Controller {
 	return &SettingsController{
-		app:           app,
 		tenantService: tenantService,
 		uploadService: uploadService,
 		basePath:      "/settings",
@@ -51,7 +48,6 @@ func (c *SettingsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

@@ -32,7 +32,7 @@ func TestCounterpartiesController_List_Success(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	counterparty1 := counterparty.New(
@@ -78,7 +78,7 @@ func TestCounterpartiesController_List_HTMX_Request(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	counterparty1 := counterparty.New(
@@ -109,7 +109,7 @@ func TestCounterpartiesController_GetNew_Success(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	response := suite.GET(CounterpartyBasePath + "/new").
@@ -137,7 +137,7 @@ func TestCounterpartiesController_Create_Success(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -174,7 +174,7 @@ func TestCounterpartiesController_Create_ValidationError(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -206,7 +206,7 @@ func TestCounterpartiesController_GetEdit_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	counterparty1 := counterparty.New(
@@ -245,7 +245,7 @@ func TestCounterpartiesController_GetEdit_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -264,7 +264,7 @@ func TestCounterpartiesController_Update_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	counterparty1 := counterparty.New(
@@ -309,7 +309,7 @@ func TestCounterpartiesController_Update_ValidationError(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	counterparty1 := counterparty.New(
@@ -351,7 +351,7 @@ func TestCounterpartiesController_Delete_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	counterparty1 := counterparty.New(
@@ -387,7 +387,7 @@ func TestCounterpartiesController_Delete_NotFound(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	nonExistentID := uuid.New()
@@ -406,7 +406,7 @@ func TestCounterpartiesController_Search_Success(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	counterparty1 := counterparty.New(
@@ -445,7 +445,7 @@ func TestCounterpartiesController_InvalidUUID(t *testing.T) {
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	suite.GET(CounterpartyBasePath + "/invalid-uuid").
@@ -463,7 +463,7 @@ func TestCounterpartiesController_Create_InvalidTINValidationError(t *testing.T)
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -498,7 +498,7 @@ func TestCounterpartiesController_Update_InvalidTINValidationError(t *testing.T)
 		AsUser(adminUser)
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	// Create a counterparty first
@@ -551,7 +551,7 @@ func TestCreate_ValidationError_PreservesFormData(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	testCases := []struct {
@@ -648,7 +648,7 @@ func TestCreate_MultipleValidationErrors_PreservesAllFields(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	// Submit form with multiple validation errors
@@ -703,7 +703,7 @@ func TestUpdate_ValidationError_PreservesFormData(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	// Create a counterparty with valid TIN first
@@ -804,7 +804,7 @@ func TestUpdate_ValidTINWithOtherValidationErrors_PreservesUserInput(t *testing.
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	// Create counterparty with original TIN
@@ -870,7 +870,7 @@ func TestCreate_EmptyTIN_ShouldBeAllowed(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	formData := url.Values{}
@@ -911,7 +911,7 @@ func TestCreate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	invalidTIN := "HTMX-INVALID-TIN"
@@ -953,7 +953,7 @@ func TestUpdate_HTMXRequest_ValidationError_PreservesTINField(t *testing.T) {
 		Build()
 
 	service := itf.GetService[services.CounterpartyService](suite.Env())
-	controller := controllers.NewCounterpartiesController(suite.Env().App, service)
+	controller := controllers.NewCounterpartiesController(service)
 	suite.Register(controller)
 
 	// Create existing counterparty

@@ -9,7 +9,6 @@ import (
 
 	"github.com/gorilla/mux"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -20,18 +19,15 @@ import (
 // (via RequireAccessPermission) and relies on hard-to-guess filenames (UUIDs).
 // If you need per-file authorization, serve downloads through a DB-backed controller.
 type UploadsController struct {
-	app     application.Application
 	baseDir string
 	opts    ControllerOptions
 }
 
 func NewUploadsController(
-	app application.Application,
 	baseDir string,
 	opts ...ControllerOption,
 ) *UploadsController {
 	return &UploadsController{
-		app:     app,
 		baseDir: baseDir,
 		opts:    applyControllerOptions(opts...),
 	}
@@ -47,7 +43,6 @@ func (c *UploadsController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}

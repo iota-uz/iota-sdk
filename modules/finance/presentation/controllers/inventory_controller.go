@@ -26,7 +26,6 @@ import (
 )
 
 type InventoryController struct {
-	app              application.Application
 	inventoryService *services.InventoryService
 	currencyService  *coreservices.CurrencyService
 	basePath         string
@@ -37,9 +36,8 @@ type InventoryPaginatedResponse struct {
 	PaginationState *pagination.State
 }
 
-func NewInventoryController(app application.Application, inventoryService *services.InventoryService, currencyService *coreservices.CurrencyService) application.Controller {
+func NewInventoryController(inventoryService *services.InventoryService, currencyService *coreservices.CurrencyService) application.Controller {
 	return &InventoryController{
-		app:              app,
 		inventoryService: inventoryService,
 		currencyService:  currencyService,
 		basePath:         "/finance/inventory",
@@ -57,7 +55,6 @@ func (c *InventoryController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	)

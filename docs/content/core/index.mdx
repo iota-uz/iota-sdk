@@ -219,13 +219,20 @@ When an authenticated user lacks the required permission for a resource, the fra
 
 ### Service Access
 
-Other modules access Core services through typed composition handles:
+Other modules access Core services by declaring them as constructor
+parameters. The reflection injector resolves each parameter from the
+composition container by type, so there is no explicit lookup ceremony:
 
 ```mermaid
 graph LR
-    A[Finance Component] -->|"composition.Use[*UserService]()"| B[UserService]
-    C[Warehouse Component] -->|"composition.Use[upload.Repository]()"| D[UploadService]
-    E[CRM Component] -->|"composition.Use[*SessionService]()"| F[SessionService]
+    A[Finance Component] -->|"ProvideFunc(NewExpenseService)"| B[UserService]
+    C[Warehouse Component] -->|"ProvideFunc(NewProductService)"| D[UploadService]
+    E[CRM Component] -->|"ProvideFunc(NewClientService)"| F[SessionService]
+```
+
+```go
+// modules/finance/component.go
+composition.ProvideFunc(builder, services.NewExpenseService) // takes *UserService, upload.Repository, ...
 ```
 
 ### Shared Entities

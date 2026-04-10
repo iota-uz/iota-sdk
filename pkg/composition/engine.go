@@ -100,6 +100,10 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	}
 
 	container := newContainer(ctx, activeCapabilities)
+	// Register auto-providers for the core services already attached to the
+	// build context. These are registered first so user providers can still
+	// override any of them by declaring their own provider for the same key.
+	installAutoProviders(container, ctx)
 	for _, builder := range builders {
 		if !componentActive(builder.descriptor, activeCapabilities) {
 			continue
@@ -127,68 +131,74 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	return container, nil
 }
 
-func (e *Engine) Run(ctx context.Context, buildCtx BuildContext, capabilities ...Capability) (*Container, error) {
-	container, err := e.Compile(buildCtx, capabilities...)
-	if err != nil {
-		return nil, err
-	}
-	if err := e.Start(ctx, container); err != nil {
-		return nil, err
-	}
-	return container, nil
-}
-
-func (e *Engine) Start(ctx context.Context, container *Container) error {
-	return Start(ctx, container)
-}
-
-func (e *Engine) Stop(ctx context.Context, container *Container) error {
-	return Stop(ctx, container)
-}
-
+// Start runs every registered hook's Start in registration order. Each Start
+// returns an optional Stop closure that the engine records and invokes during
+// Stop, in reverse order. If any Start fails, previously-recorded Stop closures
+// run immediately and the original error is returned.
+//
+// Start and Stop are NOT safe for concurrent use: they mutate container state
+// (started, runningStops) without synchronization. Callers must serialize
+// lifecycle calls — typically one goroutine owns the container, calls Start
+// once at boot, and calls Stop once at shutdown.
 func Start(ctx context.Context, container *Container) error {
 	if container == nil || container.started {
 		return nil
 	}
 
-	started := make([]Hook, 0, len(container.hooks))
 	for _, hook := range container.hooks {
 		if hook.Start == nil {
-			started = append(started, hook)
 			continue
 		}
-		if err := hook.Start(ctx, container); err != nil {
-			for i := len(started) - 1; i >= 0; i-- {
-				if started[i].Stop != nil {
-					_ = started[i].Stop(ctx, container)
-				}
+		stop, err := hook.Start(ctx)
+		if err != nil {
+			rollbackErr := unwindStops(ctx, container.runningStops)
+			container.runningStops = nil
+			wrapped := fmt.Errorf("start hook %q: %w", hook.Name, err)
+			if rollbackErr != nil {
+				// Join so that callers using errors.Is / errors.As can
+				// observe both the original start failure and every
+				// rollback error, not just the outer message.
+				return errors.Join(wrapped, rollbackErr)
 			}
-			return fmt.Errorf("start hook %q: %w", hook.Name, err)
+			return wrapped
 		}
-		started = append(started, hook)
+		container.runningStops = append(container.runningStops, namedStop{name: hook.Name, stop: stop})
 	}
 
 	container.started = true
 	return nil
 }
 
+// Stop invokes recorded stop closures in reverse order. Errors from
+// individual stops are joined and returned together.
 func Stop(ctx context.Context, container *Container) error {
 	if container == nil || !container.started {
 		return nil
 	}
 
-	var stopErr error
-	for i := len(container.hooks) - 1; i >= 0; i-- {
-		hook := container.hooks[i]
-		if hook.Stop == nil {
-			continue
-		}
-		if err := hook.Stop(ctx, container); err != nil {
-			stopErr = errors.Join(stopErr, fmt.Errorf("stop hook %q: %w", hook.Name, err))
-		}
-	}
+	stopErr := unwindStops(ctx, container.runningStops)
+	container.runningStops = nil
 	container.started = false
 	return stopErr
+}
+
+func unwindStops(ctx context.Context, stops []namedStop) error {
+	var stopErr error
+	for i := len(stops) - 1; i >= 0; i-- {
+		entry := stops[i]
+		if entry.stop == nil {
+			continue
+		}
+		if err := entry.stop(ctx); err != nil {
+			stopErr = errors.Join(stopErr, fmt.Errorf("stop hook %q: %w", entry.name, err))
+		}
+	}
+	return stopErr
+}
+
+type namedStop struct {
+	name string
+	stop StopFn
 }
 
 func (e *Engine) orderComponents() ([]registeredComponent, error) {
@@ -260,6 +270,13 @@ type Container struct {
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
 
+	// Controller/hook removal intents collected from builders during
+	// addBuilder, applied as post-collect filters inside materialize.
+	// Provider removals are processed inline at the top of addBuilder
+	// (per-builder ordering) and are not cached on the container.
+	pendingControllerRemovals []string
+	pendingHookRemovals       []string
+
 	controllers        []application.Controller
 	navItems           []types.NavigationItem
 	locales            []*embed.FS
@@ -272,6 +289,7 @@ type Container struct {
 	spotlightAgent     spotlight.Agent
 	middleware         []mux.MiddlewareFunc
 	hooks              []Hook
+	runningStops       []namedStop
 	started            bool
 }
 
@@ -392,22 +410,6 @@ func Resolve[T any](container *Container) (T, error) {
 	return ResolveKey[T](container, KeyFor[T]())
 }
 
-// ResolveOptional returns the provided value, a presence flag, and any non-
-// NOT_PROVIDED error. Use it when a component gracefully degrades in the
-// absence of a provider.
-func ResolveOptional[T any](container *Container) (T, bool, error) {
-	value, err := Resolve[T](container)
-	if err == nil {
-		return value, true, nil
-	}
-	if IsNotProvided(err) {
-		var zero T
-		return zero, false, nil
-	}
-	var zero T
-	return zero, false, err
-}
-
 func ResolveKey[T any](container *Container, key Key) (T, error) {
 	if container == nil {
 		var zero T
@@ -490,10 +492,67 @@ func (c *Container) resolveEntry(entry *providerEntry, path []string) (any, erro
 	return value, nil
 }
 
+// removeProviderEntry deletes the provider from the map and the providerOrder
+// slice. Used when a user provider overrides an auto-installed entry.
+func (c *Container) removeProviderEntry(entry *providerEntry) {
+	if entry == nil {
+		return
+	}
+	delete(c.providers, entry.key)
+	for i, p := range c.providerOrder {
+		if p == entry {
+			c.providerOrder = append(c.providerOrder[:i], c.providerOrder[i+1:]...)
+			return
+		}
+	}
+}
+
 func (c *Container) addBuilder(builder *Builder) error {
+	// Process provider removals BEFORE our own providers. Removals only
+	// affect entries that were already in the container when this builder
+	// ran — i.e., contributions from earlier (topologically upstream)
+	// builders. Any provider the current builder goes on to register in
+	// the loop below survives its own removal list by construction.
+	//
+	// A removal targeting a key that was never provided is a no-op so
+	// defensive removals don't need to probe the container first.
+	for _, key := range builder.providerRemovals {
+		if existing, exists := c.providers[key]; exists {
+			c.removeProviderEntry(existing)
+		}
+	}
+
 	for _, provider := range builder.providers {
-		if _, exists := c.providers[provider.key]; exists {
-			return fmt.Errorf("composition: duplicate provider %s", provider.key)
+		if existing, exists := c.providers[provider.key]; exists {
+			// Provider collision. Five cases decide the outcome:
+			//
+			//  1. existing is an engine auto-provider     → user wins, drop existing
+			//  2. existing is overridable, new is too     → two defaults = error
+			//  3. existing is overridable, new is concrete → new wins, drop existing
+			//  4. existing is concrete,  new is overridable → existing wins, drop new
+			//  5. both concrete                            → error (as before)
+			switch {
+			case isAutoProvider(existing):
+				c.removeProviderEntry(existing)
+			case existing.overridable && provider.overridable:
+				return fmt.Errorf(
+					"composition: duplicate default provider %s "+
+						"(both %q and %q declared ProvideDefault for the same key)",
+					provider.key, existing.componentName, provider.componentName,
+				)
+			case existing.overridable:
+				c.removeProviderEntry(existing)
+			case provider.overridable:
+				// Existing concrete entry wins — silently drop the new default.
+				continue
+			default:
+				return fmt.Errorf(
+					"composition: duplicate provider %s "+
+						"(already declared by %q, %q also declaring); "+
+						"use composition.RemoveProvider[T] or composition.ProvideDefault[T] to resolve",
+					provider.key, existing.componentName, provider.componentName,
+				)
+			}
 		}
 		c.providers[provider.key] = provider
 		c.providerOrder = append(c.providerOrder, provider)
@@ -516,6 +575,13 @@ func (c *Container) addBuilder(builder *Builder) error {
 	}
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
+
+	// Controller and hook removals cannot be applied here because
+	// materialize hasn't run yet — the contributions they target are still
+	// factory closures. Stash them on the container and let materialize
+	// filter the collected slices after each collectInto call.
+	c.pendingControllerRemovals = append(c.pendingControllerRemovals, builder.controllerRemovals...)
+	c.pendingHookRemovals = append(c.pendingHookRemovals, builder.hookRemovals...)
 	return nil
 }
 
@@ -531,6 +597,25 @@ func (c *Container) instantiateAll() error {
 func (c *Container) materialize() error {
 	if err := collectInto(c, c.controllerFactories, &c.controllers); err != nil {
 		return err
+	}
+	// Drop nil controllers — some constructors return nil to signal a
+	// disabled feature (e.g. showcase_controller_prod). Also apply any
+	// pending controller removals by Key(). Doing both filters in one pass
+	// keeps app.Controllers() simple and prevents panics in downstream
+	// sort/iteration code.
+	if len(c.controllers) > 0 {
+		removalSet := stringSet(c.pendingControllerRemovals)
+		filtered := c.controllers[:0]
+		for _, controller := range c.controllers {
+			if controller == nil {
+				continue
+			}
+			if _, removed := removalSet[controller.Key()]; removed {
+				continue
+			}
+			filtered = append(filtered, controller)
+		}
+		c.controllers = filtered
 	}
 	if err := collectInto(c, c.navItemFactories, &c.navItems); err != nil {
 		return err
@@ -565,7 +650,36 @@ func (c *Container) materialize() error {
 	if err := collectInto(c, c.hookFactories, &c.hooks); err != nil {
 		return err
 	}
+	// Filter hooks by Name against any pending RemoveHook intents. Done
+	// after materialization so the removal catches hooks contributed by
+	// ContributeHooks and the higher-level Contribute* wrappers
+	// (ContributeEventHandler[Func], etc.) alike.
+	if len(c.hooks) > 0 && len(c.pendingHookRemovals) > 0 {
+		removalSet := stringSet(c.pendingHookRemovals)
+		filtered := c.hooks[:0]
+		for _, hook := range c.hooks {
+			if _, removed := removalSet[hook.Name]; removed {
+				continue
+			}
+			filtered = append(filtered, hook)
+		}
+		c.hooks = filtered
+	}
 	return nil
+}
+
+// stringSet builds a lookup set from a slice. Returns nil for empty input
+// so callers can use it in a `_, ok := set[key]` check without allocating
+// when there's nothing to filter.
+func stringSet(keys []string) map[string]struct{} {
+	if len(keys) == 0 {
+		return nil
+	}
+	set := make(map[string]struct{}, len(keys))
+	for _, k := range keys {
+		set[k] = struct{}{}
+	}
+	return set
 }
 
 func collectOneInto[T any](container *Container, factory *namedFactory[T], target *T) error {

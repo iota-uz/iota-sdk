@@ -121,7 +121,7 @@ sequenceDiagram
 Modules communicate through:
 
 1. **Event Bus** - Loose coupling via domain events
-2. **Composition Container** - Typed service access via `composition.Use[T]()` and `Resolve(container)`
+2. **Composition Container** - Typed service access via `composition.ProvideFunc` (constructors with typed parameters) and `composition.Resolve[T](container)` from inside Contribute\* closures
 3. **Shared Entities** - Core entities used across modules
 
 ```mermaid

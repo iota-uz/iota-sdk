@@ -14,7 +14,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -26,7 +25,6 @@ import (
 
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
 type StreamController struct {
-	app               application.Application
 	streamService     bichatservices.StreamCommands
 	sessionService    bichatservices.SessionQueries
 	attachmentService bichatservices.AttachmentService
@@ -38,14 +36,12 @@ const streamHeartbeatInterval = 15 * time.Second
 
 // NewStreamController creates a new stream controller.
 func NewStreamController(
-	app application.Application,
 	streamService bichatservices.StreamCommands,
 	sessionService bichatservices.SessionQueries,
 	attachmentService bichatservices.AttachmentService,
 	opts ...ControllerOption,
 ) *StreamController {
 	return &StreamController{
-		app:               app,
 		streamService:     streamService,
 		sessionService:    sessionService,
 		attachmentService: attachmentService,
@@ -65,7 +61,6 @@ func (c *StreamController) Register(r *mux.Router) {
 		middleware.RedirectNotAuthenticated(),
 		middleware.ProvideUser(),
 		middleware.ProvideDynamicLogo(),
-		middleware.ProvideLocalizer(c.app),
 		middleware.NavItems(),
 		middleware.WithPageContext(),
 	}
