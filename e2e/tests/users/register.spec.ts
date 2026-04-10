@@ -105,7 +105,7 @@ test.describe('user auth and registration flow', () => {
 		const updatedUserRow = page.locator('tbody tr').filter({ hasText: 'TestNew UserNew' });
 		await updatedUserRow.locator('td a[href$="/edit"]').click();
 		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
-		await expect(page.locator('[name=Phone]')).toHaveValue('998909876543');
+		await expect(page.locator('[name=Phone]')).toHaveValue('+998 90 987 6543');
 
 		await logout(page);
 
