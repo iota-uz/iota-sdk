@@ -44,7 +44,7 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		blockedBy = strconv.FormatUint(uint64(entity.BlockedBy()), 10)
 	}
 
-	return &viewmodels.User{
+	vm := &viewmodels.User{
 		ID:            strconv.FormatUint(uint64(entity.ID()), 10),
 		Type:          string(entity.Type()),
 		FirstName:     entity.FirstName(),
@@ -53,8 +53,8 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		Email:         entity.Email().Value(),
 		Phone:         phone,
 		Avatar:        avatar,
+		LastAction:    "",
 		Language:      string(entity.UILanguage()),
-		LastAction:    entity.LastAction().Format(time.RFC3339),
 		CreatedAt:     entity.CreatedAt().Format(time.RFC3339),
 		UpdatedAt:     entity.UpdatedAt().Format(time.RFC3339),
 		Roles:         mapping.MapViewModels(entity.Roles(), RoleToViewModel),
@@ -70,6 +70,11 @@ func UserToViewModel(entity user.User) *viewmodels.User {
 		BlockedByUser: "",
 		CanBeBlocked:  entity.CanBeBlocked(),
 	}
+
+	if v := entity.LastAction(); !v.IsZero() {
+		vm.LastAction = v.Format(time.RFC3339)
+	}
+	return vm
 }
 
 func UploadToViewModel(entity upload.Upload) *viewmodels.Upload {

@@ -46,6 +46,7 @@ type ModuleOptions struct {
 	LoginControllerOptions   *controllers.LoginControllerOptions
 	DashboardLinkPermissions []permission.Permission
 	SettingsLinkPermissions  []permission.Permission
+	UserControllerOptions    []controllers.UserControllerOption
 
 	// SkipAdminControllers suppresses registration of the admin-facing
 	// controllers (dashboard, users, roles, groups, settings, sessions,
@@ -238,6 +239,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
 				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadAPIControllerOpts(opts)...))
 			}
+			userControllerOpts := []controllers.UserControllerOption{
+				controllers.WithUserControllerBasePath("/users"),
+				controllers.WithUserControllerPermissionSchema(c.options.PermissionSchema),
+			}
+			userControllerOpts = append(userControllerOpts, c.options.UserControllerOptions...)
 
 			// Admin UI controllers — skipped for specialized binaries
 			// (e.g. superadmin) that provide their own admin interface.
@@ -247,10 +253,7 @@ func (c *component) Build(builder *composition.Builder) error {
 					// Spotlight controller accepts a nil AI search holder; downstream
 					// components that need AI-assisted search install one explicitly.
 					controllers.NewSpotlightController(app, nil),
-					controllers.NewUsersController(app, &controllers.UsersControllerOptions{
-						BasePath:         "/users",
-						PermissionSchema: opts.PermissionSchema,
-					}),
+					controllers.NewUsersController(app, userControllerOpts...),
 					controllers.NewRolesController(&controllers.RolesControllerOptions{
 						BasePath:         "/roles",
 						PermissionSchema: opts.PermissionSchema,

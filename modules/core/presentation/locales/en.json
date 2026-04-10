@@ -121,6 +121,9 @@
       "Title": "Filters"
     }
   },
+  "Common": {
+    "Loading": "Loading..."
+  },
   "ConfirmDelete": "Are you sure you want to delete this item?",
   "Countries": {
     "AF": "Afghanistan",
@@ -1075,7 +1078,13 @@
       "EnterPassword": "Enter password",
       "Delete": "Delete user",
       "DeleteConfirmation": "Are you sure you want to delete this user?",
-      "Permissions": "User Permissions"
+      "Permissions": "User Permissions",
+      "Details": "Details",
+      "LastAction": "Last activity",
+      "CreatedAt": "Created at",
+      "UpdatedAt": "Updated at",
+      "Roles": "Roles",
+      "Access": "Access"
     },
     "Blocked": "Blocked",
     "Block": {

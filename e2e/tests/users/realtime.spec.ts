@@ -66,7 +66,7 @@ test.describe('user realtime behavior', () => {
 
 		// Get the user ID from the href attribute of the edit link
 		const realtimeUserRow = page.locator('tbody tr').filter({ hasText: 'Realtime Test' });
-		const editLink = realtimeUserRow.locator('td a');
+		const editLink = realtimeUserRow.locator('td a').first();
 		const href = await editLink.getAttribute('href');
 		const userId = href!.split('/').pop();
 

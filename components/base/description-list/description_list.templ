@@ -1,0 +1,98 @@
+package descriptionlist
+
+import (
+	"github.com/Oudwins/tailwind-merge-go"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+)
+
+templ RegularItem(label templ.Component, value templ.Component) {
+	<div class="flex p-3 justify-between items-center bg-gray-100 gap-2">
+		@label
+		@value
+	</div>
+}
+
+templ DetailsItem(label templ.Component, contentClasses templ.CSSClasses, lists ...DLList) {
+	<details class="[&[open]>summary>.caret]:rotate-180">
+		<summary class="flex p-3 justify-between items-center bg-surface-100 gap-2 text-200 text-sm cursor-pointer">
+			@label
+			@icons.CaretDown(icons.Props{Size: "16", Class: "caret duration-200"})
+		</summary>
+		<div class={ twmerge.Merge("flex flex-col gap-3 p-4 bg-surface-100", contentClasses.String()) }>
+			for _, list := range lists {
+				@List(list)
+			}
+		</div>
+	</details>
+}
+
+templ Label(value string, classes templ.CSSClasses, attrs templ.Attributes) {
+	<span class={ twmerge.Merge("text-200 text-sm", classes.String()) } { attrs... }>{ value }</span>
+}
+
+templ Text(value templ.Component, classes templ.CSSClasses, attrs templ.Attributes) {
+	<span class={ twmerge.Merge("font-medium text-sm text-right", classes.String()) } { attrs... }>
+		@value
+	</span>
+}
+
+templ Link(text, href string, classes templ.CSSClasses, attrs templ.Attributes) {
+	<a class={ twmerge.Merge("font-medium text-sm text-brand-500 underline text-right", classes.String()) } href={ templ.SafeURL(href) } { attrs... }>{ text }</a>
+}
+
+templ ListTitle(text string, classes templ.CSSClasses, attrs templ.Attributes) {
+	<span class={ twmerge.Merge("text-sm font-medium", classes.String()) } { attrs... }>{ text }</span>
+}
+
+templ ListSubtitle(text templ.Component, classes templ.CSSClasses, attrs templ.Attributes) {
+	<span class={ twmerge.Merge("text-brand-500 text-sm", classes.String()) } { attrs... }>
+		@text
+	</span>
+}
+
+templ listHeader(list DLList) {
+	<div class="flex flex-col gap-2 p-4">
+		if list.Title() != nil {
+			@list.Title()
+		}
+		if list.Subtitle() != nil {
+			@list.Subtitle()
+		}
+	</div>
+}
+
+templ Details(list DLList) {
+	<details class="bg-surface-300 rounded-lg border border-primary group">
+		<summary class="flex items-center justify-between cursor-pointer">
+			@list.Header()
+			<div class="pr-4">
+				@icons.CaretDown(icons.Props{Size: "16", Class: "duration-200 group-open:rotate-180"})
+			</div>
+		</summary>
+		if len(list.Items()) > 0 {
+			<div class="px-4 pb-4">
+				<div class="border border-gray-500 rounded-xl divide-y divide-gray-500 overflow-hidden">
+					for _, item := range list.Items() {
+						@item.Component()
+					}
+				</div>
+			</div>
+		}
+	</details>
+}
+
+templ List(list DLList) {
+	@card.Card(card.Props{
+		Class:  "px-4 pb-4 pt-0",
+		Header: list.Header(),
+	}) {
+		if len(list.Items()) > 0 {
+			<div class="border border-gray-500 rounded-xl divide-y divide-gray-500 overflow-hidden">
+				for _, item := range list.Items() {
+					@item.Component()
+				}
+			</div>
+		}
+	}
+}

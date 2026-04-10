@@ -1,0 +1,229 @@
+package users
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base/breadcrumb"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	descriptionlist "github.com/iota-uz/iota-sdk/components/base/description-list"
+	"github.com/iota-uz/iota-sdk/components/base/slot"
+	sfui "github.com/iota-uz/iota-sdk/components/scaffold/table"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/mapping"
+)
+
+const (
+	SingleSlotBlocked  = slot.Key("blocked")
+	SingleSlotContent  = slot.Key("content")
+	SingleSlotSessions = slot.Key("sessions")
+	SingleSlotGroups   = slot.Key("groups")
+)
+
+type SingleProps struct {
+	User                     *viewmodels.User
+	Slots                    slot.Manager
+	ResourcePermissionGroups []*viewmodels.ResourcePermissionGroup
+}
+
+templ BlockedBanner(user *viewmodels.User) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if user.IsBlocked {
+		<div class="bg-red-50 border border-red-200 rounded-lg p-4">
+			<div class="flex items-start gap-3">
+				<div class="flex-shrink-0 mt-0.5">
+					@icons.Warning(icons.Props{Size: "24", Class: "text-red-500"})
+				</div>
+				<div class="flex-1">
+					<h3 class="text-lg font-semibold text-red-900 mb-2">
+						{ pageCtx.T("Users.Blocked") }
+					</h3>
+					<div class="space-y-1 text-sm text-red-800">
+						<p>
+							<span class="font-medium">{ pageCtx.T("Users.Block.Reason") }:</span>
+							<span class="ml-2">{ user.BlockReason }</span>
+						</p>
+						if user.BlockedByUser != "" {
+							<p>
+								<span class="font-medium">{ pageCtx.T("Users.Block.BlockedBy") }:</span>
+								if user.BlockedBy != "" {
+									<a href={ templ.URL(fmt.Sprintf("/users/%s", user.BlockedBy)) } class="ml-2 text-red-700 hover:text-red-900 underline">
+										{ user.BlockedByUser }
+									</a>
+								} else {
+									<span class="ml-2">{ user.BlockedByUser }</span>
+								}
+							</p>
+						}
+						if user.BlockedAt != "" {
+							<p x-data="dateTimeFormat">
+								<span class="font-medium">{ pageCtx.T("Users.Block.BlockedAt") }:</span>
+								<span class="ml-2" x-text={ fmt.Sprintf("format('%s')", user.BlockedAt) }></span>
+							</p>
+						}
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ Single(props *SingleProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{
+			Title: fmt.Sprintf("%s - %s", pageCtx.T("Users.Meta.List.Title"), props.User.Title()),
+		},
+	}) {
+		<div class="flex flex-col justify-between h-full">
+			<div class="flex flex-col gap-5 p-6">
+				@breadcrumb.List() {
+					@breadcrumb.Item() {
+						@breadcrumb.Link("/users") {
+							{ pageCtx.T("Users.Meta.List.Title") }
+						}
+					}
+					@breadcrumb.Separator() {
+						/
+					}
+					@breadcrumb.Item() {
+						{ props.User.Title() }
+					}
+				}
+				@slot.Slot(props.Slots.Get(SingleSlotBlocked))
+				@UserInfo(props.User, props.Slots)
+				@UserDetailsInfo(props.User)
+				@UserAccessInfo(props.User, props.ResourcePermissionGroups)
+				@slot.Slot(props.Slots.Get(SingleSlotSessions))
+				@slot.Slot(props.Slots.Get(SingleSlotContent))
+				@slot.Streamer(props.Slots)
+			</div>
+		</div>
+	}
+}
+
+templ UserInfoHeader(user *viewmodels.User) {
+	<div class="flex justify-between items-center border-b border-gray-200 p-4">
+		<span class="font-medium">
+			{ user.Title() }
+		</span>
+	</div>
+}
+
+templ SessionsInfo(tcfg *sfui.TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@card.Card(card.Props{
+		Header: card.DefaultHeader(pageCtx.T("Account.Sessions.Title")),
+	}) {
+		@sfui.EmbeddedContent(tcfg)
+	}
+}
+
+templ UserInfo(user *viewmodels.User, slots slot.Manager) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@card.Card(card.Props{
+		Header: UserInfoHeader(user),
+		Class:  "flex flex-wrap w-full gap-2",
+	}) {
+		if user.Phone != "" {
+			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+				<span class="text-200 text-sm">{ pageCtx.T("Users.Single.Phone") }</span>
+				<span class="font-medium text-sm">{ user.Phone }</span>
+			</div>
+		}
+		if user.Email != "" {
+			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+				<span class="text-200 text-sm">{ pageCtx.T("Users.Single.Email") }</span>
+				<span class="font-medium text-sm">{ user.Email }</span>
+			</div>
+		}
+		<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+			<span class="text-200 text-sm">{ pageCtx.T("Users.Single.GroupIDs") }</span>
+			<span class="font-medium text-sm">
+				@slot.Slot(slots.Get(SingleSlotGroups))
+			</span>
+		</div>
+	}
+}
+
+templ UserDetailsInfo(user *viewmodels.User) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		items := []descriptionlist.DLItem{}
+		if user.Language != "" {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Language"), descriptionlist.WithItemText(user.Language)))
+		}
+		if user.LastAction != "" {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.LastAction"), descriptionlist.WithItemText(user.LastAction)))
+		}
+		if user.CreatedAt != "" {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.CreatedAt"), descriptionlist.WithItemText(user.CreatedAt)))
+		}
+		if user.UpdatedAt != "" {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.UpdatedAt"), descriptionlist.WithItemText(user.UpdatedAt)))
+		}
+	}}
+	@descriptionlist.List(descriptionlist.New(
+		descriptionlist.WithListTitle(pageCtx.T("Users.Single.Details")),
+		descriptionlist.WithListItems(items...),
+	))
+}
+
+templ UserAccessInfo(user *viewmodels.User, groups []*viewmodels.ResourcePermissionGroup) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		items := []descriptionlist.DLItem{}
+		if len(user.Roles) > 0 {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Roles"), descriptionlist.WithItemText(user.RolesVerbose())))
+		}
+		if len(groups) > 0 {
+			groupItems := make([]descriptionlist.DLItem, len(groups))
+			for i, group := range groups {
+				setItems := make([]descriptionlist.DLItem, len(group.PermissionSets))
+				for i, set := range group.PermissionSets {
+					permItems := make([]descriptionlist.DLItem, len(set.Permissions))
+					for i, item := range set.Permissions {
+						yesNo := pageCtx.T("No")
+						if item.Checked {
+							yesNo = pageCtx.T("Yes")
+						}
+						permItems[i] = descriptionlist.NewItem(
+							mapping.Or(pageCtx.TSafe(fmt.Sprintf("Permissions.%s", item.Name)), item.Name),
+							descriptionlist.WithItemText(yesNo),
+						)
+					}
+					yesNo := pageCtx.T("No")
+					if set.Checked {
+						yesNo = pageCtx.T("Yes")
+					}
+					setOpts := []descriptionlist.DLItemOption{descriptionlist.WithItemText(yesNo)}
+					if len(permItems) > 1 {
+						setOpts = append(setOpts, descriptionlist.WithItemDetails(
+							descriptionlist.New(descriptionlist.WithListItems(permItems...)),
+						))
+					}
+					setItems[i] = descriptionlist.NewItem(mapping.Or(pageCtx.TSafe(set.Label), set.Label), setOpts...)
+				}
+				groupItems[i] = descriptionlist.NewItem(
+					mapping.Or(pageCtx.TSafe(fmt.Sprintf("Resources.%s", group.Resource)), group.Resource),
+					descriptionlist.WithItemDetails(
+						descriptionlist.New(descriptionlist.WithListItems(setItems...)),
+					),
+				)
+			}
+			items = append(items, descriptionlist.NewItem(
+				pageCtx.T("Users.Single.Permissions"),
+				descriptionlist.WithItemDetails(
+					descriptionlist.New(descriptionlist.WithListItems(groupItems...)),
+				),
+			))
+		}
+	}}
+	if len(items) > 0 {
+		@descriptionlist.List(descriptionlist.New(
+			descriptionlist.WithListTitle(pageCtx.T("Users.Single.Access")),
+			descriptionlist.WithListItems(items...),
+		))
+	}
+}

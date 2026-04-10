@@ -121,6 +121,9 @@
       "Title": "Filtrlar"
     }
   },
+  "Common": {
+    "Loading": "Yuklanmoqda..."
+  },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",
   "Countries": {
     "AF": "Afg'oniston",
@@ -1075,7 +1078,13 @@
       "EnterPassword": "Parolni kiriting",
       "Delete": "Foydalanuvchini o'chirish",
       "DeleteConfirmation": "Haqiqatan ham bu foydalanuvchini o'chirmoqchimisiz?",
-      "Permissions": "Foydalanuvchi ruxsatlari"
+      "Permissions": "Foydalanuvchi ruxsatlari",
+      "Details": "Tafsilotlar",
+      "LastAction": "Oxirgi faollik",
+      "CreatedAt": "Yaratilgan sana",
+      "UpdatedAt": "Yangilangan sana",
+      "Roles": "Rollar",
+      "Access": "Ruxsat"
     },
     "Blocked": "Bloklangan",
     "Block": {

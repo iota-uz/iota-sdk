@@ -110,15 +110,25 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 			</div>
 		}
 		@base.TableCell(base.TableCellProps{}) {
-			@button.Secondary(button.Props{
-				Fixed:    true,
-				Size:     button.SizeSM,
-				Disabled: !user.CanUpdate,
-				Class:    "btn-fixed",
-				Href:     fmt.Sprintf("/users/%s", user.ID),
-			}) {
-				@icons.PencilSimple(icons.Props{Size: "20"})
-			}
+			<div class="flex gap-2">
+				@button.Secondary(button.Props{
+					Fixed: true,
+					Size:  button.SizeSM,
+					Class: "btn-fixed",
+					Href:  fmt.Sprintf("/users/%s", user.ID),
+				}) {
+					@icons.Eye(icons.Props{Size: "20"})
+				}
+				@button.Secondary(button.Props{
+					Fixed:    true,
+					Size:     button.SizeSM,
+					Disabled: !user.CanUpdate,
+					Class:    "btn-fixed",
+					Href:     fmt.Sprintf("/users/%s/edit", user.ID),
+				}) {
+					@icons.PencilSimple(icons.Props{Size: "20"})
+				}
+			</div>
 		}
 	}
 }

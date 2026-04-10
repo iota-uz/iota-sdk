@@ -17,9 +17,12 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/slot"
+	sfui "github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
@@ -136,32 +139,61 @@ func (ru *UserRealtimeUpdates) OnUserUpdated(event *user.UpdatedEvent) {
 	}
 }
 
+type SingleSlotFunc func(ctx context.Context, user user.User, slots slot.Manager)
+
 type UsersController struct {
-	app              application.Application
-	basePath         string
-	permissionSchema *rbac.PermissionSchema
+	app                  application.Application
+	basePath             string
+	permissionSchema     *rbac.PermissionSchema
+	configureSingleSlots SingleSlotFunc
 }
 
-type UsersControllerOptions struct {
-	BasePath         string
-	PermissionSchema *rbac.PermissionSchema
+type userControllerOptions struct {
+	basePath             string
+	permissionSchema     *rbac.PermissionSchema
+	configureSingleSlots SingleSlotFunc
+}
+
+type UserControllerOption func(*userControllerOptions)
+
+func WithUserControllerBasePath(basePath string) UserControllerOption {
+	return func(uco *userControllerOptions) {
+		uco.basePath = basePath
+	}
+}
+
+func WithUserControllerPermissionSchema(schema *rbac.PermissionSchema) UserControllerOption {
+	return func(uco *userControllerOptions) {
+		uco.permissionSchema = schema
+	}
+}
+
+func WithUserControllerConfigureSingleSlots(slotFunc SingleSlotFunc) UserControllerOption {
+	return func(uco *userControllerOptions) {
+		uco.configureSingleSlots = slotFunc
+	}
 }
 
 func NewUsersController(
 	app application.Application,
-	opts *UsersControllerOptions,
+	opts ...UserControllerOption,
 ) application.Controller {
-	if opts == nil || opts.PermissionSchema == nil {
+	o := &userControllerOptions{}
+	for _, opt := range opts {
+		opt(o)
+	}
+	if o.permissionSchema == nil {
 		panic("UsersController requires PermissionSchema in options")
 	}
-	if opts.BasePath == "" {
+	if o.basePath == "" {
 		panic("UsersController requires explicit BasePath in options")
 	}
 
 	return &UsersController{
-		app:              app,
-		basePath:         opts.BasePath,
-		permissionSchema: opts.PermissionSchema,
+		app:                  app,
+		basePath:             o.basePath,
+		permissionSchema:     o.permissionSchema,
+		configureSingleSlots: o.configureSingleSlots,
 	}
 }
 
@@ -181,7 +213,8 @@ func (c *UsersController) Register(r *mux.Router) {
 	)
 	router.HandleFunc("", di.H(c.Users)).Methods(http.MethodGet)
 	router.HandleFunc("/new", di.H(c.GetNew)).Methods(http.MethodGet)
-	router.HandleFunc("/{id:[0-9]+}", di.H(c.GetEdit)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}", di.H(c.GetSingle)).Methods(http.MethodGet)
+	router.HandleFunc("/{id:[0-9]+}/edit", di.H(c.GetEdit)).Methods(http.MethodGet)
 
 	router.HandleFunc("", di.H(c.Create)).Methods(http.MethodPost)
 	router.HandleFunc("/{id:[0-9]+}", di.H(c.Update)).Methods(http.MethodPost)
@@ -404,6 +437,99 @@ func (c *UsersController) Users(
 	} else {
 		templ.Handler(users.Index(props), templ.WithStreaming()).ServeHTTP(w, r)
 	}
+}
+
+func (c *UsersController) GetSingle(
+	r *http.Request,
+	w http.ResponseWriter,
+	logger *logrus.Entry,
+	userService *services.UserService,
+	roleService *services.RoleService,
+	groupQueryService *services.GroupQueryService,
+	sessionService *services.SessionService,
+) {
+	ctx := r.Context()
+	pageCtx := composables.UsePageCtx(ctx)
+	id, err := shared.ParseID(r)
+	if err != nil {
+		logger.Errorf("Error parsing user ID: %v", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	us, err := userService.GetByID(ctx, id)
+	if err != nil {
+		logger.Errorf("Error retrieving user: %v", err)
+		http.Error(w, "Error retrieving user", http.StatusInternalServerError)
+		return
+	}
+	userViewModel := mappers.UserToViewModel(us)
+	slots := slot.NewManager()
+	if userViewModel.IsBlocked {
+		vm := *userViewModel
+		slots.Async(
+			users.SingleSlotBlocked,
+			func(ctx context.Context) (templ.Component, error) {
+				if vm.BlockedBy != "" && vm.BlockedBy != "0" {
+					blockedByID, err := strconv.ParseUint(vm.BlockedBy, 10, 64)
+					if err == nil {
+						blocker, err := userService.GetByID(ctx, uint(blockedByID))
+						if err == nil {
+							vm.BlockedByUser = mappers.UserToViewModel(blocker).Title()
+						}
+					}
+				}
+				return users.BlockedBanner(&vm), nil
+			},
+			slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
+		)
+	}
+	if composables.CanUser(ctx, permissions.SessionRead) == nil {
+		currentUser, _ := composables.UseUser(ctx)
+		canDelete := currentUser != nil && currentUser.Can(permissions.SessionDelete)
+		targetID := id
+		targetVM := userViewModel
+		slots.Async(
+			users.SingleSlotSessions,
+			func(ctx context.Context) (templ.Component, error) {
+				sessionList, err := sessionService.GetByUserID(ctx, targetID)
+				if err != nil {
+					return nil, err
+				}
+				return users.SessionsInfo(buildSessionsTable(ctx, targetVM.ID, sessionList, canDelete)), nil
+			},
+			slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
+		)
+	}
+	slots.Async(
+		users.SingleSlotGroups,
+		func(ctx context.Context) (templ.Component, error) {
+			groupParams := &query.GroupFindParams{
+				Limit:   1000,
+				Offset:  0,
+				Filters: []query.GroupFilter{},
+			}
+			groups, _, err := groupQueryService.FindGroups(r.Context(), groupParams)
+			if err != nil {
+				return nil, err
+			}
+			out := []string{}
+			for _, g := range groups {
+				if slices.Contains(userViewModel.GroupIDs, g.ID) {
+					out = append(out, g.Name)
+				}
+			}
+			return templ.Raw(strings.Join(out, ", ")), nil
+		},
+		slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
+	)
+	if c.configureSingleSlots != nil {
+		c.configureSingleSlots(ctx, us, slots)
+	}
+	templ.Handler(users.Single(&users.SingleProps{
+		User:                     userViewModel,
+		Slots:                    slots,
+		ResourcePermissionGroups: FilterCheckedResourcePermissionGroups(c.resourcePermissionGroups(us.Permissions()...)),
+	}), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 func (c *UsersController) GetEdit(
@@ -970,6 +1096,47 @@ func (c *UsersController) UnblockUser(
 	}
 }
 
+func buildSessionsTable(ctx context.Context, userID string, sessions []session.Session, canDelete bool) *sfui.TableConfig {
+	pageCtx := composables.UsePageCtx(ctx)
+	cols := []sfui.TableColumn{
+		sfui.Column("device", pageCtx.T("Users.Sessions.Device")),
+		sfui.Column("browser", pageCtx.T("Users.Sessions.Browser")),
+		sfui.Column("os", pageCtx.T("Users.Sessions.OS")),
+		sfui.Column("ip", pageCtx.T("Users.Sessions.IP")),
+		sfui.Column("createdAt", pageCtx.T("Users.Sessions.CreatedAt")),
+	}
+	if canDelete {
+		cols = append(cols, sfui.Column("actions", pageCtx.T("Users.Sessions.Actions")))
+	}
+	tcfg := sfui.NewTableConfig(
+		pageCtx.T("Users.Sessions.Title"),
+		fmt.Sprintf("/users/%s/sessions", userID),
+		sfui.WithoutSearch(),
+		sfui.WithConfigurable(false),
+	)
+	tcfg.AddCols(cols...)
+	for _, sess := range sessions {
+		vm := viewmodels.SessionToViewModel(sess, "")
+		cells := []sfui.TableCell{
+			sfui.Cell(users.SessionDeviceCell(vm), vm.Device),
+			sfui.Cell(templ.Raw(vm.Browser), vm.Browser),
+			sfui.Cell(templ.Raw(vm.OS), vm.OS),
+			sfui.Cell(templ.Raw(vm.IPAddress), vm.IPAddress),
+			sfui.Cell(templ.Raw(vm.CreatedAt), vm.CreatedAt),
+		}
+		if canDelete {
+			cells = append(cells, sfui.Cell(
+				users.RevokeSessionButton(userID, vm.TokenID, vm.FullToken),
+				nil,
+			))
+		}
+		tcfg.AddRows(sfui.Row(cells...).ApplyOpts(
+			sfui.WithRowAttrs(templ.Attributes{"id": fmt.Sprintf("session-%s", vm.TokenID)}),
+		))
+	}
+	return tcfg
+}
+
 // GetUserSessions handles GET /users/{id}/sessions
 func (c *UsersController) GetUserSessions(
 	r *http.Request,
@@ -1009,28 +1176,9 @@ func (c *UsersController) GetUserSessions(
 		return
 	}
 
-	// Convert to ViewModels
-	// Note: We pass empty string for currentToken since admin is viewing another user's sessions
-	sessionVMs := make([]*viewmodels.Session, len(sessions))
-	for i, sess := range sessions {
-		sessionVMs[i] = viewmodels.SessionToViewModel(sess, "")
-	}
-
-	// Check if user can delete sessions
-	canDelete := u.Can(permissions.SessionDelete)
-
-	// Render template
-	props := &users.UserSessionsTabProps{
-		User:      mappers.UserToViewModel(targetUser),
-		Sessions:  sessionVMs,
-		CanDelete: canDelete,
-	}
-
-	if err := users.UserSessionsTab(props).Render(r.Context(), w); err != nil {
-		logger.WithError(err).Error("failed to render sessions tab")
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		return
-	}
+	targetUserVM := mappers.UserToViewModel(targetUser)
+	tcfg := buildSessionsTable(r.Context(), targetUserVM.ID, sessions, u.Can(permissions.SessionDelete))
+	templ.Handler(sfui.EmbeddedContent(tcfg), templ.WithStreaming()).ServeHTTP(w, r)
 }
 
 // RevokeUserSession handles DELETE /users/{id}/sessions/{token}

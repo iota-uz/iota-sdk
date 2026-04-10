@@ -2038,28 +2038,26 @@ let tableConfig = (id) => ({
   },
 })
 
-document.addEventListener("alpine:init", () => {
-  Alpine.data("dateTimeFormat", dateTimeFormat)
-  Alpine.data("relativeformat", relativeFormat);
-  Alpine.data("passwordVisibility", passwordVisibility);
-  Alpine.data("dialog", dialog);
-  Alpine.data("combobox", combobox);
-  Alpine.data("filtersDropdown", filtersDropdown);
-  Alpine.data("checkboxes", checkboxes);
-  Alpine.data("spotlight", spotlight);
-  Alpine.data("dateFns", dateFns);
-  Alpine.data("datePicker", datePicker);
-  Alpine.data("navTabs", navTabs);
-  Alpine.data("sidebarShell", sidebarShell);
-  Alpine.data("sidebarNavigation", sidebarNavigation);
-  Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
-  Alpine.data("editableTableRows", editableTableRows);
-  Alpine.data("kanban", kanban);
-  Alpine.data("moneyInput", moneyInput);
-  Alpine.data("dateRangeButtons", dateRangeButtons);
-  Alpine.data("createPermissionFormData", createPermissionFormData);
-  Alpine.data("createPermissionSetData", createPermissionSetData);
-  Alpine.data("fillerRows", fillerRows);
-  Alpine.data("tableConfig", tableConfig);
-  Sortable(Alpine);
-});
+Alpine.data("dateTimeFormat", dateTimeFormat)
+Alpine.data("relativeformat", relativeFormat);
+Alpine.data("passwordVisibility", passwordVisibility);
+Alpine.data("dialog", dialog);
+Alpine.data("combobox", combobox);
+Alpine.data("filtersDropdown", filtersDropdown);
+Alpine.data("checkboxes", checkboxes);
+Alpine.data("spotlight", spotlight);
+Alpine.data("dateFns", dateFns);
+Alpine.data("datePicker", datePicker);
+Alpine.data("navTabs", navTabs);
+Alpine.data("sidebarShell", sidebarShell);
+Alpine.data("sidebarNavigation", sidebarNavigation);
+Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
+Alpine.data("editableTableRows", editableTableRows);
+Alpine.data("kanban", kanban);
+Alpine.data("moneyInput", moneyInput);
+Alpine.data("dateRangeButtons", dateRangeButtons);
+Alpine.data("createPermissionFormData", createPermissionFormData);
+Alpine.data("createPermissionSetData", createPermissionSetData);
+Alpine.data("fillerRows", fillerRows);
+Alpine.data("tableConfig", tableConfig);
+Sortable(Alpine);
