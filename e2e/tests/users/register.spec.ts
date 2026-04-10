@@ -79,8 +79,8 @@ test.describe('user auth and registration flow', () => {
 
 		const initialRowCount = await page.locator('tbody tr').count();
 
-		// Find and click the edit link for the user created in test 1 (use email for unambiguous selection)
-		const userRow = page.locator('tbody tr').filter({ hasText: 'test1@gmail.com' });
+		// Find and click the edit link for the user created in test 1
+		const userRow = page.locator('tbody tr').filter({ hasText: 'Test User' });
 		await userRow.locator('td a[href$="/edit"]').click();
 
 		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
