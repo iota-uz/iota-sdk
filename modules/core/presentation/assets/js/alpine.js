@@ -982,6 +982,7 @@ let datePicker = ({
   selectorType = 'day',
   selected = [],
 } = {}) => ({
+  fp: null,
   selected: [],
   localeMap: {
     ru: {
@@ -998,6 +999,8 @@ let datePicker = ({
     selectorType = selectorType || 'day';
     labelFormat = labelFormat || 'F j, Y';
     dateFormat = dateFormat || 'z';
+
+    this.$el.setAttribute("x-modelable", "selected");
 
     let {default: flatpickr} = await import("./lib/flatpickr/index.js");
     let found = this.localeMap[locale];
@@ -1024,7 +1027,7 @@ let datePicker = ({
       this.selected = selected;
     }
     let self = this;
-    flatpickr(this.$refs.input, {
+    this.fp = flatpickr(this.$refs.input, {
       altInput: true,
       static: true,
       altInputClass: "form-control-input input outline-none w-full",
@@ -1037,24 +1040,19 @@ let datePicker = ({
       plugins,
       onChange(selected = []) {
         let formattedDates = selected.map((s) => flatpickr.formatDate(s, dateFormat));
-        if (!formattedDates.length) {
-          self.selected = [];
-          self.$nextTick(() => {
-            self.$el.dispatchEvent(new CustomEvent('date-selected', {
-              bubbles: true,
-              detail: {selected: self.selected}
-            }));
-          });
+        if (JSON.stringify(self.selected) === JSON.stringify(formattedDates)) {
           return;
         }
-        if (mode === 'single') {
+        if (!formattedDates.length) {
+          self.selected = [];
+        } if (mode === 'single') {
           self.selected = [formattedDates[0]];
         } else if (mode === 'range') {
           if (formattedDates.length === 2) self.selected = formattedDates;
+          else return;
         } else {
-          self.selected = formattedDates;
+          self.selected = formattedDates
         }
-        // Dispatch custom event for HTMX integration
         self.$nextTick(() => {
           self.$el.dispatchEvent(new CustomEvent('date-selected', {
             bubbles: true,
@@ -1063,6 +1061,23 @@ let datePicker = ({
         });
       },
     });
+
+    this.$watch("selected", (newVal) => {
+      if (!this.fp) return;
+      if (!newVal || newVal.length === 0) {
+        this.fp.clear();
+        return;
+      }
+      let currentFpDates = this.fp.selectedDates.map(d =>
+        flatpickr.formatDate(d, dateFormat)
+      );
+      if (JSON.stringify(newVal) != JSON.stringify(currentFpDates)) {
+        this.fp.setDate(newVal, false);
+      }
+    })
+  },
+  destroy() {
+    if (this.fp) this.fp.destroy();
   }
 })
 
