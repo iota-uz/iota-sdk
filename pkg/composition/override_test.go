@@ -229,7 +229,10 @@ func TestRemoveProvider_WithoutReplacement_ResolvesToNotProvided(t *testing.T) {
 
 // overrideCtrl is a minimal application.Controller used to exercise the
 // controller-removal filter in materialize.
-type overrideCtrl struct{ key string }
+type overrideCtrl struct {
+	key   string
+	label string
+}
 
 func (c *overrideCtrl) Key() string            { return c.key }
 func (c *overrideCtrl) Register(_ *mux.Router) {}
@@ -280,6 +283,105 @@ func TestRemoveController_NoopForMissingKey(t *testing.T) {
 
 	_, err = engine.Compile(BuildContext{})
 	require.NoError(t, err)
+}
+
+func TestControllerKeys_MustBeUniqueWithoutExplicitRemoval(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(
+		testComponent{
+			descriptor: Descriptor{Name: "upstream"},
+			build: func(builder *Builder) error {
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{key: "/settings", label: "upstream"}}, nil
+				})
+				return nil
+			},
+		},
+		testComponent{
+			descriptor: Descriptor{Name: "downstream", Requires: []string{"upstream"}},
+			build: func(builder *Builder) error {
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{key: "/settings", label: "downstream"}}, nil
+				})
+				return nil
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `duplicate controller key "/settings"`)
+	require.Contains(t, err.Error(), `"upstream"`)
+	require.Contains(t, err.Error(), `"downstream"`)
+}
+
+func TestRemoveController_AllowsExplicitControllerReplacement(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(
+		testComponent{
+			descriptor: Descriptor{Name: "upstream"},
+			build: func(builder *Builder) error {
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{key: "/settings", label: "upstream"}}, nil
+				})
+				return nil
+			},
+		},
+		testComponent{
+			descriptor: Descriptor{Name: "downstream", Requires: []string{"upstream"}},
+			build: func(builder *Builder) error {
+				RemoveController(builder, "/settings")
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{key: "/settings", label: "downstream"}}, nil
+				})
+				return nil
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	ctrls := container.Controllers()
+	require.Len(t, ctrls, 1)
+	ctrl, ok := ctrls[0].(*overrideCtrl)
+	require.True(t, ok)
+	require.Equal(t, "downstream", ctrl.label)
+}
+
+func TestControllerKeys_AllowNestedDistinctRoutes(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(
+		testComponent{
+			descriptor: Descriptor{Name: "hub"},
+			build: func(builder *Builder) error {
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{key: "/settings", label: "hub"}}, nil
+				})
+				return nil
+			},
+		},
+		testComponent{
+			descriptor: Descriptor{Name: "logo", Requires: []string{"hub"}},
+			build: func(builder *Builder) error {
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{key: "/settings/logo", label: "logo"}}, nil
+				})
+				return nil
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	ctrls := container.Controllers()
+	require.Len(t, ctrls, 2)
+	require.Equal(t, "/settings", ctrls[0].Key())
+	require.Equal(t, "/settings/logo", ctrls[1].Key())
 }
 
 // ----- RemoveHook -----

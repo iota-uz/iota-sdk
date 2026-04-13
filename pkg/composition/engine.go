@@ -257,7 +257,7 @@ type Container struct {
 	providerOrder      []*providerEntry
 	resolutionPath     []string
 
-	controllerFactories   []namedFactory[[]application.Controller]
+	controllerBatches     []controllerBatch
 	navItemFactories      []namedFactory[[]types.NavigationItem]
 	localeFactories       []namedFactory[[]*embed.FS]
 	schemaFactories       []namedFactory[[]application.GraphSchema]
@@ -270,12 +270,11 @@ type Container struct {
 	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
 	hookFactories         []namedFactory[[]Hook]
 
-	// Controller/hook removal intents collected from builders during
-	// addBuilder, applied as post-collect filters inside materialize.
+	// Hook removal intents are collected from builders during addBuilder and
+	// applied as post-collect filters inside materialize.
 	// Provider removals are processed inline at the top of addBuilder
 	// (per-builder ordering) and are not cached on the container.
-	pendingControllerRemovals []string
-	pendingHookRemovals       []string
+	pendingHookRemovals []string
 
 	controllers        []application.Controller
 	navItems           []types.NavigationItem
@@ -291,6 +290,16 @@ type Container struct {
 	hooks              []Hook
 	runningStops       []namedStop
 	started            bool
+}
+
+type controllerContribution struct {
+	component  string
+	controller application.Controller
+}
+
+type controllerBatch struct {
+	factories []namedFactory[[]application.Controller]
+	removals  []string
 }
 
 func newContainer(context BuildContext, activeCapabilities []Capability) *Container {
@@ -558,7 +567,10 @@ func (c *Container) addBuilder(builder *Builder) error {
 		c.providerOrder = append(c.providerOrder, provider)
 	}
 
-	c.controllerFactories = append(c.controllerFactories, builder.controllerFactories...)
+	c.controllerBatches = append(c.controllerBatches, controllerBatch{
+		factories: append([]namedFactory[[]application.Controller](nil), builder.controllerFactories...),
+		removals:  append([]string(nil), builder.controllerRemovals...),
+	})
 	c.navItemFactories = append(c.navItemFactories, builder.navItemFactories...)
 	c.localeFactories = append(c.localeFactories, builder.localeFactories...)
 	c.schemaFactories = append(c.schemaFactories, builder.schemaFactories...)
@@ -576,11 +588,10 @@ func (c *Container) addBuilder(builder *Builder) error {
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
 
-	// Controller and hook removals cannot be applied here because
-	// materialize hasn't run yet — the contributions they target are still
-	// factory closures. Stash them on the container and let materialize
-	// filter the collected slices after each collectInto call.
-	c.pendingControllerRemovals = append(c.pendingControllerRemovals, builder.controllerRemovals...)
+	// Hook removals cannot be applied here because materialize hasn't run yet
+	// — the contributions they target are still factory closures. Stash them on
+	// the container and let materialize filter the collected slices after each
+	// collectInto call.
 	c.pendingHookRemovals = append(c.pendingHookRemovals, builder.hookRemovals...)
 	return nil
 }
@@ -595,24 +606,28 @@ func (c *Container) instantiateAll() error {
 }
 
 func (c *Container) materialize() error {
-	if err := collectInto(c, c.controllerFactories, &c.controllers); err != nil {
+	controllerContributions, err := c.materializeControllerContributions()
+	if err != nil {
 		return err
 	}
-	// Drop nil controllers — some constructors return nil to signal a
-	// disabled feature (e.g. showcase_controller_prod). Also apply any
-	// pending controller removals by Key(). Doing both filters in one pass
-	// keeps app.Controllers() simple and prevents panics in downstream
-	// sort/iteration code.
-	if len(c.controllers) > 0 {
-		removalSet := stringSet(c.pendingControllerRemovals)
-		filtered := c.controllers[:0]
-		for _, controller := range c.controllers {
+	if len(controllerContributions) > 0 {
+		filtered := make([]application.Controller, 0, len(controllerContributions))
+		owners := make(map[string]string, len(controllerContributions))
+		for _, contribution := range controllerContributions {
+			controller := contribution.controller
 			if controller == nil {
 				continue
 			}
-			if _, removed := removalSet[controller.Key()]; removed {
-				continue
+			if existing, exists := owners[controller.Key()]; exists {
+				return fmt.Errorf(
+					"composition: duplicate controller key %q contributed by %q and %q; call composition.RemoveController(builder, %q) before contributing a replacement",
+					controller.Key(),
+					existing,
+					contribution.component,
+					controller.Key(),
+				)
 			}
+			owners[controller.Key()] = contribution.component
 			filtered = append(filtered, controller)
 		}
 		c.controllers = filtered
@@ -668,6 +683,35 @@ func (c *Container) materialize() error {
 	return nil
 }
 
+func (c *Container) materializeControllerContributions() ([]controllerContribution, error) {
+	contributions := make([]controllerContribution, 0)
+	for _, batch := range c.controllerBatches {
+		if len(batch.removals) > 0 && len(contributions) > 0 {
+			removalSet := stringSet(batch.removals)
+			filtered := contributions[:0]
+			for _, contribution := range contributions {
+				controller := contribution.controller
+				if controller == nil {
+					continue
+				}
+				if _, removed := removalSet[controller.Key()]; removed {
+					continue
+				}
+				filtered = append(filtered, contribution)
+			}
+			contributions = filtered
+		}
+
+		values, err := collectControllerContributions(c, batch.factories)
+		if err != nil {
+			return nil, err
+		}
+		contributions = append(contributions, values...)
+	}
+
+	return contributions, nil
+}
+
 // stringSet builds a lookup set from a slice. Returns nil for empty input
 // so callers can use it in a `_, ok := set[key]` check without allocating
 // when there's nothing to filter.
@@ -709,6 +753,26 @@ func collectInto[T any](container *Container, factories []namedFactory[[]T], tar
 		*target = append(*target, values...)
 	}
 	return nil
+}
+
+func collectControllerContributions(container *Container, factories []namedFactory[[]application.Controller]) ([]controllerContribution, error) {
+	contributions := make([]controllerContribution, 0)
+	for _, entry := range factories {
+		previousPath := container.resolutionPath
+		container.resolutionPath = []string{entry.component, entry.label}
+		values, err := entry.factory(container)
+		container.resolutionPath = previousPath
+		if err != nil {
+			return nil, fmt.Errorf("composition: %s contribution for %q: %w", entry.label, entry.component, err)
+		}
+		for _, controller := range values {
+			contributions = append(contributions, controllerContribution{
+				component:  entry.component,
+				controller: controller,
+			})
+		}
+	}
+	return contributions, nil
 }
 
 func componentActive(descriptor Descriptor, active []Capability) bool {
