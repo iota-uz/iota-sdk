@@ -827,7 +827,7 @@ func (c *UsersController) Update(
 	for key := range r.Form {
 		if strings.HasPrefix(key, "Permissions[") && strings.HasSuffix(key, "]") {
 			id := key[len("Permissions[") : len(key)-1]
-			if id != "" {
+			if id != "" && !strings.ContainsAny(id, "[]") {
 				permissionIDs = append(permissionIDs, id)
 			}
 		}
