@@ -2,15 +2,17 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/sirupsen/logrus"
 )
 
@@ -26,7 +28,13 @@ func (c *LogoutController) Key() string {
 }
 
 func (c *LogoutController) Register(r *mux.Router) {
-	r.HandleFunc("/logout", di.H(c.Logout)).Methods(http.MethodGet)
+	r.HandleFunc("/logout", di.H(c.Logout)).Methods(http.MethodPost)
+	r.HandleFunc("/logout", c.MethodNotAllowed).Methods(http.MethodGet)
+}
+
+func (c *LogoutController) MethodNotAllowed(w http.ResponseWriter, _ *http.Request) {
+	w.Header().Set("Allow", http.MethodPost)
+	http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
 }
 
 func (c *LogoutController) Logout(
@@ -38,7 +46,7 @@ func (c *LogoutController) Logout(
 	conf := configuration.Use()
 
 	if cookie, err := r.Cookie(conf.SidCookieKey); err == nil && cookie.Value != "" {
-		if err := sessionService.Delete(r.Context(), cookie.Value); err != nil {
+		if err := sessionService.Delete(r.Context(), cookie.Value); err != nil && !errors.Is(err, persistence.ErrSessionNotFound) {
 			logger.WithError(err).Warn("failed to delete session on logout")
 		}
 	}
