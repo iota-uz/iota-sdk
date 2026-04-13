@@ -470,20 +470,20 @@ func scoreSingle(queryWord, text string) float64 {
 	if len(queryWord) >= minLenContains && strings.Contains(text, queryWord) {
 		return fuzzyScoreContains
 	}
-	// Levenshtein distance on individual words
+	// Levenshtein distance — take the best score across all words
+	var bestLev float64
 	if len(queryWord) >= minLenLevenshtein {
 		for _, word := range words {
 			dist := levenshtein.ComputeDistance(queryWord, word)
 			if dist <= fuzzySearchMaxDistance {
-				// Normalize: distance 0 = fuzzyScoreLevenshteinMax, distance 3 = ~0.1
 				score := fuzzyScoreLevenshteinMax * (1.0 - float64(dist)/float64(fuzzySearchMaxDistance+1))
-				if score > 0 {
-					return score
+				if score > bestLev {
+					bestLev = score
 				}
 			}
 		}
 	}
-	return 0
+	return bestLev
 }
 
 func quickLinkKey(link *QuickLink) string {

@@ -190,9 +190,21 @@ func buildScoreCollapse(ctx context.Context, items []templ.Component, startIdx i
 }
 
 func moreResultsLabel(ctx context.Context, count int) string {
-	return spotlightTextf(ctx, "Spotlight.MoreResults", "{{.Count}} more results", map[string]interface{}{
-		"Count": count,
-	})
+	if localizer, ok := intl.UseLocalizer(ctx); ok {
+		if translated, err := localizer.Localize(&i18n.LocalizeConfig{
+			MessageID: "Spotlight.MoreResults",
+			DefaultMessage: &i18n.Message{
+				ID:    "Spotlight.MoreResults",
+				One:   "{{.Count}} more result",
+				Other: "{{.Count}} more results",
+			},
+			TemplateData: map[string]interface{}{"Count": count},
+			PluralCount:  count,
+		}); err == nil && translated != "" {
+			return translated
+		}
+	}
+	return executeTemplateFallback("{{.Count}} more results", map[string]interface{}{"Count": count})
 }
 
 // resolveDisplayTitle localizes a title at render time using the request's localizer.
@@ -213,23 +225,6 @@ func resolveDisplayTitle(ctx context.Context, title, trKey string) string {
 		}
 	}
 	return title
-}
-
-func spotlightTextf(ctx context.Context, key, fallback string, data map[string]interface{}) string {
-	if localizer, ok := intl.UseLocalizer(ctx); ok {
-		if translated, err := localizer.Localize(&i18n.LocalizeConfig{
-			MessageID: key,
-			DefaultMessage: &i18n.Message{
-				ID:    key,
-				Other: fallback,
-			},
-			TemplateData: data,
-		}); err == nil && translated != "" {
-			return translated
-		}
-	}
-	// Fallback: execute template with data to avoid showing raw {{.Count}}
-	return executeTemplateFallback(fallback, data)
 }
 
 func executeTemplateFallback(tmpl string, data map[string]interface{}) string {

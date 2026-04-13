@@ -1020,7 +1020,10 @@
         "MessageFailed": "Could not send AI message"
       }
     },
-    "MoreResults": "{{.Count}} more results"
+    "MoreResults": {
+      "one": "{{.Count}} more result",
+      "other": "{{.Count}} more results"
+    }
   },
   "Unknown": "Unknown",
   "System": "System",
