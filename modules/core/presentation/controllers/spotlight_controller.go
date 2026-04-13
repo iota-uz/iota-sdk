@@ -620,7 +620,7 @@ func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotl
 		for _, hit := range hits {
 			groupItems = append(groupItems, spotlight.HitToComponent(hit, snapshot.Query))
 		}
-		items = append(items, spotlight.GroupToComponent(title, groupItems, index))
+		items = append(items, spotlight.GroupToComponent(title, groupItems, index, hits))
 		index += len(groupItems)
 	}
 

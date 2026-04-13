@@ -388,36 +388,38 @@ func (ql *QuickLinks) collectSearchableFragments(title, body string, keywords []
 	return fragments
 }
 
-// bestFuzzyScore computes the best match score for the query words against
-// the given text fragments.  Returns 0 if no match is good enough.
+// bestFuzzyScore computes the average of per-query-word best scores against
+// the given text fragments. This requires all query words to contribute,
+// so multi-word queries rank items matching more words higher.
 func (ql *QuickLinks) bestFuzzyScore(queryWords, fragments []string) float64 {
-	var best float64
-	for _, fragment := range fragments {
-		for _, qw := range queryWords {
+	if len(queryWords) == 0 {
+		return 0
+	}
+	var total float64
+	for _, qw := range queryWords {
+		var bestForWord float64
+		for _, fragment := range fragments {
 			s := scoreSingle(qw, fragment)
-			if s > best {
-				best = s
+			if s > bestForWord {
+				bestForWord = s
 			}
 		}
+		total += bestForWord
 	}
-	return best
+	return total / float64(len(queryWords))
 }
 
 // scoreSingle scores a single query word against a single text fragment.
 func scoreSingle(queryWord, text string) float64 {
-	// Exact prefix match (highest)
-	if strings.HasPrefix(text, queryWord) {
-		return fuzzyScoreExactPrefix
-	}
-	// Substring match
-	if strings.Contains(text, queryWord) {
-		return fuzzyScoreContains
-	}
-	// Also check individual words in the text
+	// Word-level prefix match (highest)
 	for _, word := range strings.Fields(text) {
 		if strings.HasPrefix(word, queryWord) {
-			return fuzzyScoreExactPrefix * 0.95 // slightly lower than full-text prefix
+			return fuzzyScoreExactPrefix * 0.95
 		}
+	}
+	// Substring match (query appears inside text but not as a word prefix)
+	if strings.Contains(text, queryWord) {
+		return fuzzyScoreContains
 	}
 	// Levenshtein distance on individual words
 	for _, word := range strings.Fields(text) {

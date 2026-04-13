@@ -496,3 +496,114 @@ func TestQuickLinks_RestrictedNoConfigFiltersAll(t *testing.T) {
 	require.False(t, canReadPolicy(docs[0].Access, emptyPrincipal),
 		"restricted link with no allowed config should be inaccessible to user with no roles/permissions")
 }
+
+// ---------------------------------------------------------------------------
+// scoreSingle tests
+// ---------------------------------------------------------------------------
+
+func TestScoreSingle_WordPrefixBeatsContains(t *testing.T) {
+	// "sett" is a prefix of word "settings" → should get word-prefix score (0.95)
+	// not the lower contains score (0.8)
+	score := scoreSingle("sett", "settings page")
+	require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001,
+		"word-level prefix should rank higher than substring contains")
+}
+
+func TestScoreSingle_NoFalseFullPhrasePrefix(t *testing.T) {
+	// "ha" should NOT get 1.0 from full-phrase HasPrefix on "hamkorlik dasturi"
+	// it should get 0.95 (word prefix on "hamkorlik")
+	score := scoreSingle("ha", "hamkorlik dasturi")
+	require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001,
+		"short prefix should get word-prefix score, not full-phrase exact prefix")
+	require.Less(t, score, fuzzyScoreExactPrefix,
+		"short prefix must score below the exact prefix constant")
+}
+
+func TestScoreSingle_SubstringNotPrefix(t *testing.T) {
+	// "ett" appears inside "settings" but is not a word prefix
+	score := scoreSingle("ett", "settings")
+	require.InDelta(t, fuzzyScoreContains, score, 0.001,
+		"mid-word substring should get contains score")
+}
+
+func TestScoreSingle_NoMatch(t *testing.T) {
+	score := scoreSingle("xyz", "settings")
+	require.Equal(t, 0.0, score, "completely unrelated words should score 0")
+}
+
+func TestScoreSingle_ExactWordMatch(t *testing.T) {
+	// "settings" is a full word match → word-prefix with full word
+	score := scoreSingle("settings", "settings")
+	require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001)
+}
+
+// ---------------------------------------------------------------------------
+// bestFuzzyScore multi-word coverage tests
+// ---------------------------------------------------------------------------
+
+func TestBestFuzzyScore_MultiWordCoverage(t *testing.T) {
+	ql := NewQuickLinks(nil, nil)
+
+	t.Run("single word unchanged", func(t *testing.T) {
+		score := ql.bestFuzzyScore(
+			[]string{"settings"},
+			[]string{"settings page"},
+		)
+		require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001)
+	})
+
+	t.Run("multi-word full coverage ranks higher than partial", func(t *testing.T) {
+		full := ql.bestFuzzyScore(
+			[]string{"john", "settings"},
+			[]string{"john", "settings"},
+		)
+		partial := ql.bestFuzzyScore(
+			[]string{"john", "settings"},
+			[]string{"settings"},
+		)
+		require.Greater(t, full, partial,
+			"matching all query words should score higher than matching only one")
+	})
+
+	t.Run("partial match averages in zero for unmatched word", func(t *testing.T) {
+		score := ql.bestFuzzyScore(
+			[]string{"john", "settings"},
+			[]string{"settings"},
+		)
+		expected := (0.0 + fuzzyScoreExactPrefix*0.95) / 2.0
+		require.InDelta(t, expected, score, 0.001)
+	})
+
+	t.Run("empty query returns zero", func(t *testing.T) {
+		score := ql.bestFuzzyScore([]string{}, []string{"settings"})
+		require.Equal(t, 0.0, score)
+	})
+}
+
+// ---------------------------------------------------------------------------
+// FuzzySearch integration test for short query
+// ---------------------------------------------------------------------------
+
+func TestFuzzySearch_ShortQueryNoFalseTopRank(t *testing.T) {
+	ql := NewQuickLinks(nil, nil)
+	ql.Add(
+		NewQuickLinkBuilder("nav.hamkorlik", "/hamkorlik").
+			Public().
+			WithKeywords("hamkorlik dasturi").
+			Build(),
+		NewQuickLinkBuilder("nav.haggle", "/haggle").
+			Public().
+			WithKeywords("haggle").
+			Build(),
+	)
+
+	req := SearchRequest{TenantID: uuid.New(), UserID: "1"}
+	results := ql.FuzzySearch("ha", req)
+	require.NotEmpty(t, results)
+
+	// Both should match, but neither should have the max exact-prefix score 1.0
+	for _, r := range results {
+		require.Less(t, r.FinalScore, fuzzyScoreExactPrefix,
+			"short 2-char query should not achieve the exact prefix score")
+	}
+}

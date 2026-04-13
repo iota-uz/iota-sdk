@@ -871,6 +871,10 @@ let spotlight = () => ({
     const currentKey = currentItem?.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey || '';
     list.innerHTML = html || '';
     this.$nextTick(() => {
+      // Initialize Alpine tree first so x-show/x-collapse are processed
+      if (window.Alpine && typeof window.Alpine.initTree === 'function') {
+        window.Alpine.initTree(list);
+      }
       const nextItems = Array.from(this._items());
       if (nextItems.length === 0) {
         this.highlightedIndex = 0;
@@ -880,8 +884,14 @@ let spotlight = () => ({
       } else if (this.highlightedIndex >= nextItems.length) {
         this.highlightedIndex = 0;
       }
-      if (window.Alpine && typeof window.Alpine.initTree === 'function') {
-        window.Alpine.initTree(list);
+      // Ensure highlight lands on a visible item
+      if (nextItems.length > 0 && !this._isItemVisible(nextItems[this.highlightedIndex])) {
+        for (let i = 0; i < nextItems.length; i++) {
+          if (this._isItemVisible(nextItems[i])) {
+            this.highlightedIndex = i;
+            break;
+          }
+        }
       }
     });
   },
@@ -935,10 +945,28 @@ let spotlight = () => ({
     return list.querySelectorAll('[data-spotlight-item]');
   },
 
+  _isItemVisible(item) {
+    const more = item.closest('[data-spotlight-more]');
+    return !more || more.style.display !== 'none';
+  },
+
+  _expandCollapseFor(item) {
+    const more = item.closest('[data-spotlight-more]');
+    if (!more || more.style.display !== 'none') return;
+    const wrapper = more.closest('[x-data]');
+    if (wrapper && wrapper.__x) {
+      wrapper.__x.$data.expanded = true;
+    }
+  },
+
   highlightNext() {
     const items = this._items();
     if (items.length === 0) return;
-    this.highlightedIndex = (this.highlightedIndex + 1) % items.length;
+    let next = (this.highlightedIndex + 1) % items.length;
+    if (!this._isItemVisible(items[next])) {
+      this._expandCollapseFor(items[next]);
+    }
+    this.highlightedIndex = next;
 
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
@@ -951,7 +979,11 @@ let spotlight = () => ({
   highlightPrevious() {
     const items = this._items();
     if (items.length === 0) return;
-    this.highlightedIndex = (this.highlightedIndex - 1 + items.length) % items.length;
+    let prev = (this.highlightedIndex - 1 + items.length) % items.length;
+    if (!this._isItemVisible(items[prev])) {
+      this._expandCollapseFor(items[prev]);
+    }
+    this.highlightedIndex = prev;
 
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];

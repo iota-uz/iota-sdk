@@ -1019,7 +1019,8 @@
         "StartFailed": "Could not start AI search",
         "MessageFailed": "Could not send AI message"
       }
-    }
+    },
+    "MoreResults": "%d more results"
   },
   "Unknown": "Unknown",
   "System": "System",

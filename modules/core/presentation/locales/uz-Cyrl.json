@@ -1019,7 +1019,8 @@
         "StartFailed": "AI қидирувни ишга тушириб бўлмади",
         "MessageFailed": "AI га хабар юбориб бўлмади"
       }
-    }
+    },
+    "MoreResults": "Яна %d натижа"
   },
   "Unknown": "Noma'lum",
   "System": "Tizim",

@@ -105,9 +105,47 @@ func displayWhyMatched(ctx context.Context, reason string) string {
 	}
 }
 
-func GroupToComponent(title string, items []templ.Component, startIdx int) templ.Component {
+func GroupToComponent(title string, items []templ.Component, startIdx int, hits []SearchHit) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		child := spotlightui.SpotlightItems(items, startIdx)
+		// Check if this group has any exact match
+		hasExact := false
+		for _, hit := range hits {
+			if hit.WhyMatched == "exact_terms" {
+				hasExact = true
+				break
+			}
+		}
+
+		var child templ.Component
+		if !hasExact || len(hits) != len(items) {
+			child = spotlightui.SpotlightItems(items, startIdx)
+		} else {
+			// Split into exact and non-exact, assigning sequential DOM-order
+			// indices so that highlight bindings match _items() position.
+			var exactItems, moreItems []templ.Component
+			var exactIndices, moreIndices []int
+			idx := startIdx
+			for i, hit := range hits {
+				if hit.WhyMatched == "exact_terms" {
+					exactItems = append(exactItems, items[i])
+					exactIndices = append(exactIndices, idx)
+					idx++
+				}
+			}
+			for i, hit := range hits {
+				if hit.WhyMatched != "exact_terms" {
+					moreItems = append(moreItems, items[i])
+					moreIndices = append(moreIndices, idx)
+					idx++
+				}
+			}
+			if len(moreItems) == 0 {
+				child = spotlightui.SpotlightItems(items, startIdx)
+			} else {
+				label := fmt.Sprintf(spotlightText(ctx, "Spotlight.MoreResults", "%d more results"), len(moreItems))
+				child = spotlightui.SpotlightItemsCollapsible(exactItems, exactIndices, moreItems, moreIndices, label)
+			}
+		}
 		return spotlightui.SpotlightGroup(title).Render(templ.WithChildren(ctx, child), w)
 	})
 }

@@ -1019,9 +1019,10 @@
         "StartFailed": "AI qidiruvni ishga tushirib bo’lmadi",
         "MessageFailed": "AI ga xabar yuborib bo’lmadi"
       }
-    }
+    },
+    "MoreResults": "Yana %d natija"
   },
-  "Unknown": "Noma'lum",
+  "Unknown": "Noma’lum",
   "System": "Tizim",
   "UpdatedAt": "Yangilangan sana",
   "Users": {
