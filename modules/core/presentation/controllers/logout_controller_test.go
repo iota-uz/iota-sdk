@@ -53,7 +53,7 @@ func TestLogoutController_DeletesSessionAndClearsBrowserState(t *testing.T) {
 
 	deletedCookie := response.Cookies()[0]
 	require.Equal(t, config.SidCookieKey, deletedCookie.Name)
-	require.Equal(t, "", deletedCookie.Value)
+	require.Empty(t, deletedCookie.Value)
 	require.Equal(t, config.Domain, deletedCookie.Domain)
 	require.Equal(t, "/", deletedCookie.Path)
 	require.Equal(t, -1, deletedCookie.MaxAge)
