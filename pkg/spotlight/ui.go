@@ -8,10 +8,12 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"text/template"
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/sirupsen/logrus"
 	spotlightui "github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
@@ -107,46 +109,89 @@ func displayWhyMatched(ctx context.Context, reason string) string {
 
 func GroupToComponent(title string, items []templ.Component, startIdx int, hits []SearchHit) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		// Check if this group has any exact match
-		hasExact := false
-		for _, hit := range hits {
-			if hit.WhyMatched == "exact_terms" {
-				hasExact = true
-				break
-			}
-		}
-
-		var child templ.Component
-		if !hasExact || len(hits) != len(items) {
-			child = spotlightui.SpotlightItems(items, startIdx)
-		} else {
-			// Split into exact and non-exact, assigning sequential DOM-order
-			// indices so that highlight bindings match _items() position.
-			var exactItems, moreItems []templ.Component
-			var exactIndices, moreIndices []int
-			idx := startIdx
-			for i, hit := range hits {
-				if hit.WhyMatched == "exact_terms" {
-					exactItems = append(exactItems, items[i])
-					exactIndices = append(exactIndices, idx)
-					idx++
-				}
-			}
-			for i, hit := range hits {
-				if hit.WhyMatched != "exact_terms" {
-					moreItems = append(moreItems, items[i])
-					moreIndices = append(moreIndices, idx)
-					idx++
-				}
-			}
-			if len(moreItems) == 0 {
-				child = spotlightui.SpotlightItems(items, startIdx)
-			} else {
-				label := fmt.Sprintf(spotlightText(ctx, "Spotlight.MoreResults", "%d more results"), len(moreItems))
-				child = spotlightui.SpotlightItemsCollapsible(exactItems, exactIndices, moreItems, moreIndices, label)
-			}
-		}
+		child := buildGroupChild(ctx, items, startIdx, hits)
 		return spotlightui.SpotlightGroup(title).Render(templ.WithChildren(ctx, child), w)
+	})
+}
+
+// maxVisibleWithoutExact is the number of items shown before collapsing
+// in groups that have no exact matches.
+const maxVisibleWithoutExact = 3
+
+// buildGroupChild decides whether to collapse items in the group and returns
+// the appropriate templ component.
+func buildGroupChild(ctx context.Context, items []templ.Component, startIdx int, hits []SearchHit) templ.Component {
+	if len(hits) != len(items) {
+		logrus.WithFields(logrus.Fields{
+			"hits": len(hits), "items": len(items),
+		}).Warn("spotlight: GroupToComponent hits/items length mismatch, skipping collapse")
+		return spotlightui.SpotlightItems(items, startIdx)
+	}
+
+	// Check if this group has any exact match
+	hasExact := false
+	for _, hit := range hits {
+		if hit.WhyMatched == "exact_terms" {
+			hasExact = true
+			break
+		}
+	}
+
+	if hasExact {
+		return buildExactCollapse(ctx, items, startIdx, hits)
+	}
+	if len(items) > maxVisibleWithoutExact {
+		return buildScoreCollapse(ctx, items, startIdx)
+	}
+	return spotlightui.SpotlightItems(items, startIdx)
+}
+
+// buildExactCollapse shows exact-match items and collapses non-exact.
+func buildExactCollapse(ctx context.Context, items []templ.Component, startIdx int, hits []SearchHit) templ.Component {
+	var exactItems, moreItems []templ.Component
+	var exactIndices, moreIndices []int
+	idx := startIdx
+	for i, hit := range hits {
+		if hit.WhyMatched == "exact_terms" {
+			exactItems = append(exactItems, items[i])
+			exactIndices = append(exactIndices, idx)
+			idx++
+		}
+	}
+	for i, hit := range hits {
+		if hit.WhyMatched != "exact_terms" {
+			moreItems = append(moreItems, items[i])
+			moreIndices = append(moreIndices, idx)
+			idx++
+		}
+	}
+	if len(moreItems) == 0 {
+		return spotlightui.SpotlightItems(items, startIdx)
+	}
+	label := moreResultsLabel(ctx, len(moreItems))
+	return spotlightui.SpotlightItemsCollapsible(exactItems, exactIndices, moreItems, moreIndices, label)
+}
+
+// buildScoreCollapse shows the top N items by score and collapses the rest.
+func buildScoreCollapse(ctx context.Context, items []templ.Component, startIdx int) templ.Component {
+	visible := items[:maxVisibleWithoutExact]
+	more := items[maxVisibleWithoutExact:]
+
+	visibleIndices := make([]int, len(visible))
+	for i := range visible {
+		visibleIndices[i] = startIdx + i
+	}
+	moreIndices := make([]int, len(more))
+	for i := range more {
+		moreIndices[i] = startIdx + maxVisibleWithoutExact + i
+	}
+	label := moreResultsLabel(ctx, len(more))
+	return spotlightui.SpotlightItemsCollapsible(visible, visibleIndices, more, moreIndices, label)
+}
+
+func moreResultsLabel(ctx context.Context, count int) string {
+	return spotlightTextf(ctx, "Spotlight.MoreResults", "{{.Count}} more results", map[string]interface{}{
+		"Count": count,
 	})
 }
 
@@ -168,6 +213,35 @@ func resolveDisplayTitle(ctx context.Context, title, trKey string) string {
 		}
 	}
 	return title
+}
+
+func spotlightTextf(ctx context.Context, key, fallback string, data map[string]interface{}) string {
+	if localizer, ok := intl.UseLocalizer(ctx); ok {
+		if translated, err := localizer.Localize(&i18n.LocalizeConfig{
+			MessageID: key,
+			DefaultMessage: &i18n.Message{
+				ID:    key,
+				Other: fallback,
+			},
+			TemplateData: data,
+		}); err == nil && translated != "" {
+			return translated
+		}
+	}
+	// Fallback: execute template with data to avoid showing raw {{.Count}}
+	return executeTemplateFallback(fallback, data)
+}
+
+func executeTemplateFallback(tmpl string, data map[string]interface{}) string {
+	t, err := template.New("").Parse(tmpl)
+	if err != nil {
+		return tmpl
+	}
+	var buf strings.Builder
+	if err := t.Execute(&buf, data); err != nil {
+		return tmpl
+	}
+	return buf.String()
 }
 
 func spotlightText(ctx context.Context, key, fallback string) string {

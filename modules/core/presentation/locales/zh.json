@@ -1024,7 +1024,7 @@
         "MessageFailed": "无法发送 AI 消息"
       }
     },
-    "MoreResults": "还有 %d 个结果"
+    "MoreResults": "还有 {{.Count}} 个结果"
   },
   "Unknown": "未知",
   "System": "系统",

@@ -1020,7 +1020,7 @@
         "MessageFailed": "AI га хабар юбориб бўлмади"
       }
     },
-    "MoreResults": "Яна %d натижа"
+    "MoreResults": "Яна {{.Count}} натижа"
   },
   "Unknown": "Noma'lum",
   "System": "Tizim",

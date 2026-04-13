@@ -1020,7 +1020,7 @@
         "MessageFailed": "AI ga xabar yuborib bo’lmadi"
       }
     },
-    "MoreResults": "Yana %d natija"
+    "MoreResults": "Yana {{.Count}} natija"
   },
   "Unknown": "Noma’lum",
   "System": "Tizim",

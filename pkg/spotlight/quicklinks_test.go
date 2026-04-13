@@ -505,18 +505,16 @@ func TestScoreSingle_WordPrefixBeatsContains(t *testing.T) {
 	// "sett" is a prefix of word "settings" → should get word-prefix score (0.95)
 	// not the lower contains score (0.8)
 	score := scoreSingle("sett", "settings page")
-	require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001,
+	require.InDelta(t, fuzzyScoreWordPrefix, score, 0.001,
 		"word-level prefix should rank higher than substring contains")
 }
 
 func TestScoreSingle_NoFalseFullPhrasePrefix(t *testing.T) {
-	// "ha" should NOT get 1.0 from full-phrase HasPrefix on "hamkorlik dasturi"
-	// it should get 0.95 (word prefix on "hamkorlik")
+	// "ha" should get word-prefix score (0.95) via word "hamkorlik",
+	// NOT the old 1.0 from full-phrase HasPrefix (which is removed).
 	score := scoreSingle("ha", "hamkorlik dasturi")
-	require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001,
-		"short prefix should get word-prefix score, not full-phrase exact prefix")
-	require.Less(t, score, fuzzyScoreExactPrefix,
-		"short prefix must score below the exact prefix constant")
+	require.InDelta(t, fuzzyScoreWordPrefix, score, 0.001,
+		"short prefix should get word-prefix score")
 }
 
 func TestScoreSingle_SubstringNotPrefix(t *testing.T) {
@@ -534,49 +532,69 @@ func TestScoreSingle_NoMatch(t *testing.T) {
 func TestScoreSingle_ExactWordMatch(t *testing.T) {
 	// "settings" is a full word match → word-prefix with full word
 	score := scoreSingle("settings", "settings")
-	require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001)
+	require.InDelta(t, fuzzyScoreWordPrefix, score, 0.001)
 }
 
 // ---------------------------------------------------------------------------
 // bestFuzzyScore multi-word coverage tests
 // ---------------------------------------------------------------------------
 
-func TestBestFuzzyScore_MultiWordCoverage(t *testing.T) {
-	ql := NewQuickLinks(nil, nil)
+func activeFragments(texts ...string) []scoredFragment {
+	frags := make([]scoredFragment, len(texts))
+	for i, t := range texts {
+		frags[i] = scoredFragment{text: t, activeLanguage: true}
+	}
+	return frags
+}
 
+func TestBestFuzzyScore_MultiWordCoverage(t *testing.T) {
 	t.Run("single word unchanged", func(t *testing.T) {
-		score := ql.bestFuzzyScore(
+		score := bestFuzzyScore(
 			[]string{"settings"},
-			[]string{"settings page"},
+			activeFragments("settings page"),
 		)
-		require.InDelta(t, fuzzyScoreExactPrefix*0.95, score, 0.001)
+		require.InDelta(t, fuzzyScoreWordPrefix, score, 0.001)
 	})
 
 	t.Run("multi-word full coverage ranks higher than partial", func(t *testing.T) {
-		full := ql.bestFuzzyScore(
+		full := bestFuzzyScore(
 			[]string{"john", "settings"},
-			[]string{"john", "settings"},
+			activeFragments("john", "settings"),
 		)
-		partial := ql.bestFuzzyScore(
+		partial := bestFuzzyScore(
 			[]string{"john", "settings"},
-			[]string{"settings"},
+			activeFragments("settings"),
 		)
 		require.Greater(t, full, partial,
 			"matching all query words should score higher than matching only one")
 	})
 
 	t.Run("partial match averages in zero for unmatched word", func(t *testing.T) {
-		score := ql.bestFuzzyScore(
+		score := bestFuzzyScore(
 			[]string{"john", "settings"},
-			[]string{"settings"},
+			activeFragments("settings"),
 		)
-		expected := (0.0 + fuzzyScoreExactPrefix*0.95) / 2.0
+		expected := (0.0 + fuzzyScoreWordPrefix) / 2.0
 		require.InDelta(t, expected, score, 0.001)
 	})
 
 	t.Run("empty query returns zero", func(t *testing.T) {
-		score := ql.bestFuzzyScore([]string{}, []string{"settings"})
+		score := bestFuzzyScore([]string{}, activeFragments("settings"))
 		require.Equal(t, 0.0, score)
+	})
+
+	t.Run("cross-language fragment scores discounted", func(t *testing.T) {
+		active := bestFuzzyScore(
+			[]string{"settings"},
+			[]scoredFragment{{text: "settings", activeLanguage: true}},
+		)
+		cross := bestFuzzyScore(
+			[]string{"settings"},
+			[]scoredFragment{{text: "settings", activeLanguage: false}},
+		)
+		require.Greater(t, active, cross,
+			"active language match should score higher than cross-language match")
+		require.InDelta(t, active*crossLanguageDiscount, cross, 0.001)
 	})
 }
 
@@ -601,9 +619,9 @@ func TestFuzzySearch_ShortQueryNoFalseTopRank(t *testing.T) {
 	results := ql.FuzzySearch("ha", req)
 	require.NotEmpty(t, results)
 
-	// Both should match, but neither should have the max exact-prefix score 1.0
+	// Both should match with word-prefix score (0.95), not the old 1.0
 	for _, r := range results {
-		require.Less(t, r.FinalScore, fuzzyScoreExactPrefix,
-			"short 2-char query should not achieve the exact prefix score")
+		require.InDelta(t, fuzzyScoreWordPrefix, r.FinalScore, 0.001,
+			"short 2-char query should get word-prefix score")
 	}
 }

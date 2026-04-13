@@ -869,12 +869,34 @@ let spotlight = () => ({
     const items = this._items();
     const currentItem = items[this.highlightedIndex];
     const currentKey = currentItem?.querySelector('[data-spotlight-key]')?.dataset?.spotlightKey || '';
+
+    // Save which collapse groups were expanded (by group header text)
+    const wasExpanded = new Set();
+    list.querySelectorAll('[data-spotlight-more]').forEach((el) => {
+      if (el.style.display !== 'none') {
+        const groupKey = this._collapseGroupKey(el);
+        if (groupKey) wasExpanded.add(groupKey);
+      }
+    });
+
     list.innerHTML = html || '';
     this.$nextTick(() => {
       // Initialize Alpine tree first so x-show/x-collapse are processed
       if (window.Alpine && typeof window.Alpine.initTree === 'function') {
         window.Alpine.initTree(list);
       }
+
+      // Restore expanded state for collapse groups
+      if (wasExpanded.size > 0) {
+        list.querySelectorAll('[data-spotlight-more]').forEach((el) => {
+          const groupKey = this._collapseGroupKey(el);
+          if (groupKey && wasExpanded.has(groupKey)) {
+            const data = el.closest('[x-data]')?._x_dataStack?.[0];
+            if (data) data.expanded = true;
+          }
+        });
+      }
+
       const nextItems = Array.from(this._items());
       if (nextItems.length === 0) {
         this.highlightedIndex = 0;
@@ -945,6 +967,19 @@ let spotlight = () => ({
     return list.querySelectorAll('[data-spotlight-item]');
   },
 
+  _collapseGroupKey(moreEl) {
+    // Walk up from [data-spotlight-more] to find the nearest group header text.
+    // Structure: <li class="sticky...">TITLE</li> ... <li><ul data-spotlight-more>
+    const wrapper = moreEl.closest('li');
+    if (!wrapper) return null;
+    let sibling = wrapper.previousElementSibling;
+    while (sibling) {
+      if (sibling.classList.contains('sticky')) return sibling.textContent.trim();
+      sibling = sibling.previousElementSibling;
+    }
+    return null;
+  },
+
   _isItemVisible(item) {
     const more = item.closest('[data-spotlight-more]');
     return !more || more.style.display !== 'none';
@@ -954,9 +989,8 @@ let spotlight = () => ({
     const more = item.closest('[data-spotlight-more]');
     if (!more || more.style.display !== 'none') return;
     const wrapper = more.closest('[x-data]');
-    if (wrapper && wrapper.__x) {
-      wrapper.__x.$data.expanded = true;
-    }
+    const data = wrapper?._x_dataStack?.[0];
+    if (data) data.expanded = true;
   },
 
   highlightNext() {
@@ -965,6 +999,12 @@ let spotlight = () => ({
     let next = (this.highlightedIndex + 1) % items.length;
     if (!this._isItemVisible(items[next])) {
       this._expandCollapseFor(items[next]);
+    }
+    // Fallback: if expand failed or timing issue, skip hidden items
+    let attempts = 0;
+    while (attempts < items.length && !this._isItemVisible(items[next])) {
+      next = (next + 1) % items.length;
+      attempts++;
     }
     this.highlightedIndex = next;
 
@@ -982,6 +1022,12 @@ let spotlight = () => ({
     let prev = (this.highlightedIndex - 1 + items.length) % items.length;
     if (!this._isItemVisible(items[prev])) {
       this._expandCollapseFor(items[prev]);
+    }
+    // Fallback: if expand failed or timing issue, skip hidden items
+    let attempts = 0;
+    while (attempts < items.length && !this._isItemVisible(items[prev])) {
+      prev = (prev - 1 + items.length) % items.length;
+      attempts++;
     }
     this.highlightedIndex = prev;
 
