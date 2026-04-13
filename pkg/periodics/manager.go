@@ -23,6 +23,7 @@ type manager struct {
 	tenantID      uuid.UUID
 	mu            sync.RWMutex
 	tasks         map[string]PeriodicTask
+	taskExecutors map[string]func()
 	taskEntryIDs  map[string]cron.EntryID
 	disabledTasks []RegisteredTask
 }
@@ -30,13 +31,14 @@ type manager struct {
 // NewManager creates a new periodic task manager
 func NewManager(logger *logrus.Logger, pool *pgxpool.Pool, tenantID uuid.UUID) Manager {
 	return &manager{
-		cron:         nil, // Will be initialized in Start()
-		logger:       logger,
-		metrics:      NewMetricsCollector(logger),
-		pool:         pool,
-		tenantID:     tenantID,
-		tasks:        make(map[string]PeriodicTask),
-		taskEntryIDs: make(map[string]cron.EntryID),
+		cron:          nil, // Will be initialized in Start()
+		logger:        logger,
+		metrics:       NewMetricsCollector(logger),
+		pool:          pool,
+		tenantID:      tenantID,
+		tasks:         make(map[string]PeriodicTask),
+		taskExecutors: make(map[string]func()),
+		taskEntryIDs:  make(map[string]cron.EntryID),
 	}
 }
 
@@ -51,6 +53,7 @@ func (m *manager) AddTask(task PeriodicTask) error {
 	}
 
 	m.tasks[taskName] = task
+	m.taskExecutors[taskName] = m.buildWrappedExecutor(task)
 	m.logger.WithField("task", taskName).Info("Periodic task registered")
 
 	// If cron is already running, add the task immediately
@@ -93,7 +96,7 @@ func (m *manager) Start() error {
 	// Execute tasks that should run on startup using the same wrapper chain as cron
 	for _, task := range m.tasks {
 		if task.RunOnStart() {
-			executor := m.buildWrappedExecutor(task)
+			executor := m.executorForTask(task)
 			go func(taskName string, exec func()) {
 				defer func() {
 					if r := recover(); r != nil {
@@ -165,6 +168,16 @@ func (m *manager) GetEntries() []Entry {
 	return entries
 }
 
+func (m *manager) executorForTask(task PeriodicTask) func() {
+	if executor, ok := m.taskExecutors[task.Name()]; ok {
+		return executor
+	}
+
+	executor := m.buildWrappedExecutor(task)
+	m.taskExecutors[task.Name()] = executor
+	return executor
+}
+
 // buildWrappedExecutor creates a fully wrapped execution function for a task.
 // Both addTaskToCron and startup use this to ensure the same wrapper chain is applied.
 func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
@@ -220,7 +233,7 @@ func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
 
 // addTaskToCron adds a single task to the cron scheduler
 func (m *manager) addTaskToCron(task PeriodicTask) error {
-	executor := m.buildWrappedExecutor(task)
+	executor := m.executorForTask(task)
 
 	// Add to cron
 	entryID, err := m.cron.AddJob(task.Schedule(), cron.FuncJob(executor))
@@ -325,7 +338,7 @@ func (m *manager) RunTask(name string) error {
 		return fmt.Errorf("task '%s' is already running", name)
 	}
 
-	executor := m.buildWrappedExecutor(task)
+	executor := m.executorForTask(task)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
