@@ -31,7 +31,7 @@ import (
 // 1x1 transparent PNG
 const PngBase64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII="
 
-func setupSettingsControllerTest(t *testing.T) (*itf.Suite, *services.TenantService, *services.UploadService) {
+func setupSettingsLogoControllerTest(t *testing.T) (*itf.Suite, *services.TenantService, *services.UploadService) {
 	t.Helper()
 	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
 		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
@@ -56,14 +56,39 @@ func setupSettingsControllerTest(t *testing.T) (*itf.Suite, *services.TenantServ
 	tenantService := itf.GetService[services.TenantService](suite.Environment())
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
 
-	controller := controllers.NewSettingsController(tenantService, uploadService)
+	controller := controllers.NewSettingsLogoController(tenantService, uploadService)
 	suite.Register(controller)
 
 	return suite, tenantService, uploadService
 }
 
-func TestSettingsController_GetLogo(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsHubController_GetHub(t *testing.T) {
+	suite := itf.NewSuiteBuilder(t).WithComponents(core.NewComponent(&core.ModuleOptions{
+		PermissionSchema: &rbac.PermissionSchema{Sets: []rbac.PermissionSet{}},
+	}), finance.NewComponent()).Build().
+		AsUser(user.New("Test", "User", internet.MustParseEmail("test@example.com"), user.UILanguageEN))
+
+	suite.WithMiddleware(func(ctx context.Context, r *http.Request) context.Context {
+		props := sidebar.Props{
+			TabGroups: sidebar.TabGroupCollection{
+				Groups: []sidebar.TabGroup{{
+					Label: "Core",
+					Value: "core",
+					Items: []sidebar.Item{},
+				}},
+			},
+		}
+		return context.WithValue(ctx, constants.SidebarPropsKey, props)
+	})
+
+	suite.Register(controllers.NewSettingsHubController())
+
+	resp := suite.GET("/settings").Expect(t).Status(http.StatusFound)
+	assert.Equal(t, "/settings/logo", resp.Header("Location"))
+}
+
+func TestSettingsLogoController_GetLogo(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -106,8 +131,8 @@ func TestSettingsController_GetLogo(t *testing.T) {
 	resp.Contains(logoCompactUpload.Path())
 }
 
-func TestSettingsController_PostLogo_Success(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_Success(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -155,8 +180,8 @@ func TestSettingsController_PostLogo_Success(t *testing.T) {
 	assert.Equal(t, int(newLogoCompactUpload.ID()), *updatedTenant.LogoCompactID())
 }
 
-func TestSettingsController_PostLogo_ValidationError(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_ValidationError(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -183,8 +208,8 @@ func TestSettingsController_PostLogo_ValidationError(t *testing.T) {
 	assert.Nil(t, updatedTenant.LogoID())
 }
 
-func TestSettingsController_PostLogo_FileUpload(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_FileUpload(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -228,8 +253,8 @@ func TestSettingsController_PostLogo_FileUpload(t *testing.T) {
 }
 
 // Edge case tests for potential 500 errors
-func TestSettingsController_PostLogo_NonExistentUploadID(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_NonExistentUploadID(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -259,8 +284,8 @@ func TestSettingsController_PostLogo_NonExistentUploadID(t *testing.T) {
 	assert.Nil(t, updatedTenant.LogoID())
 }
 
-func TestSettingsController_PostLogo_ZeroValues(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_ZeroValues(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -288,8 +313,8 @@ func TestSettingsController_PostLogo_ZeroValues(t *testing.T) {
 	assert.Nil(t, updatedTenant.LogoCompactID())
 }
 
-func TestSettingsController_PostLogo_WithExistingLogos(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_WithExistingLogos(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -351,8 +376,8 @@ func TestSettingsController_PostLogo_WithExistingLogos(t *testing.T) {
 	assert.Equal(t, existingCompactLogoID, *updatedTenant.LogoCompactID()) // Should remain unchanged
 }
 
-func TestSettingsController_PostLogo_ExtremelyLargeValues(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_ExtremelyLargeValues(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -382,8 +407,8 @@ func TestSettingsController_PostLogo_ExtremelyLargeValues(t *testing.T) {
 	assert.Nil(t, updatedTenant.LogoID())
 }
 
-func TestSettingsController_PostLogo_EmptyForm(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_EmptyForm(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -408,8 +433,8 @@ func TestSettingsController_PostLogo_EmptyForm(t *testing.T) {
 	assert.Nil(t, updatedTenant.LogoCompactID())
 }
 
-func TestSettingsController_PostLogo_MalformedContentType(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_MalformedContentType(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -433,8 +458,8 @@ func TestSettingsController_PostLogo_MalformedContentType(t *testing.T) {
 	assert.Nil(t, updatedTenant.LogoID())
 }
 
-func TestSettingsController_GetLogo_WithNonExistentUploads(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_GetLogo_WithNonExistentUploads(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -474,8 +499,8 @@ func TestSettingsController_GetLogo_WithNonExistentUploads(t *testing.T) {
 
 // Test cases for phone and email functionality
 
-func TestSettingsController_PostLogo_WithPhoneAndEmail(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_WithPhoneAndEmail(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -518,8 +543,8 @@ func TestSettingsController_PostLogo_WithPhoneAndEmail(t *testing.T) {
 	assert.Equal(t, "test@company.com", updatedTenant.Email().Value())
 }
 
-func TestSettingsController_PostLogo_PhoneValidation(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_PhoneValidation(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -599,8 +624,8 @@ func TestSettingsController_PostLogo_PhoneValidation(t *testing.T) {
 	}
 }
 
-func TestSettingsController_PostLogo_EmailValidation(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_EmailValidation(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -656,8 +681,8 @@ func TestSettingsController_PostLogo_EmailValidation(t *testing.T) {
 	// the controller's internet.NewEmail() function which validates email structure.
 }
 
-func TestSettingsController_PostLogo_PhoneOnlyUpdate(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_PhoneOnlyUpdate(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant with existing email
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -692,8 +717,8 @@ func TestSettingsController_PostLogo_PhoneOnlyUpdate(t *testing.T) {
 	assert.Nil(t, updatedTenant.Email()) // Should be cleared
 }
 
-func TestSettingsController_PostLogo_EmailOnlyUpdate(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_EmailOnlyUpdate(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant with existing phone
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -728,8 +753,8 @@ func TestSettingsController_PostLogo_EmailOnlyUpdate(t *testing.T) {
 	assert.Nil(t, updatedTenant.Phone()) // Should be cleared
 }
 
-func TestSettingsController_PostLogo_ClearPhoneAndEmail(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_ClearPhoneAndEmail(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant with existing phone and email
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -778,8 +803,8 @@ func TestSettingsController_PostLogo_ClearPhoneAndEmail(t *testing.T) {
 	assert.Nil(t, updatedTenant.Email())                           // Email should be cleared
 }
 
-func TestSettingsController_GetLogo_WithPhoneAndEmail(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_GetLogo_WithPhoneAndEmail(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")
@@ -831,8 +856,8 @@ func TestSettingsController_GetLogo_WithPhoneAndEmail(t *testing.T) {
 	resp.Contains("company@example.com") // Email should be displayed
 }
 
-func TestSettingsController_PostLogo_ComplexCombinations(t *testing.T) {
-	suite, tenantService, uploadService := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_ComplexCombinations(t *testing.T) {
+	suite, tenantService, uploadService := setupSettingsLogoControllerTest(t)
 
 	testCases := []struct {
 		name        string
@@ -965,8 +990,8 @@ func TestSettingsController_PostLogo_ComplexCombinations(t *testing.T) {
 	}
 }
 
-func TestSettingsController_PostLogo_EdgeCases(t *testing.T) {
-	suite, tenantService, _ := setupSettingsControllerTest(t)
+func TestSettingsLogoController_PostLogo_EdgeCases(t *testing.T) {
+	suite, tenantService, _ := setupSettingsLogoControllerTest(t)
 
 	// Create a test tenant
 	testTenant, err := tenantService.Create(suite.Environment().Ctx, "Test Tenant", "test.com")

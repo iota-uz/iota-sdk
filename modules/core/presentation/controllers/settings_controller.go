@@ -20,28 +20,19 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-type SettingsController struct {
-	tenantService *services.TenantService
-	uploadService *services.UploadService
-	basePath      string
+type SettingsHubController struct {
+	basePath string
 }
 
-func NewSettingsController(
-	tenantService *services.TenantService,
-	uploadService *services.UploadService,
-) application.Controller {
-	return &SettingsController{
-		tenantService: tenantService,
-		uploadService: uploadService,
-		basePath:      "/settings",
-	}
+func NewSettingsHubController() application.Controller {
+	return &SettingsHubController{basePath: "/settings"}
 }
 
-func (c *SettingsController) Key() string {
+func (c *SettingsHubController) Key() string {
 	return c.basePath
 }
 
-func (c *SettingsController) Register(r *mux.Router) {
+func (c *SettingsHubController) Register(r *mux.Router) {
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(
 		middleware.Authorize(),
@@ -52,15 +43,48 @@ func (c *SettingsController) Register(r *mux.Router) {
 		middleware.WithPageContext(),
 	)
 	router.HandleFunc("", c.GetHub).Methods(http.MethodGet)
-	router.HandleFunc("/logo", c.GetLogo).Methods(http.MethodGet)
-	router.HandleFunc("/logo", c.PostLogo).Methods(http.MethodPost)
 }
 
-func (c *SettingsController) GetHub(w http.ResponseWriter, r *http.Request) {
+func (c *SettingsHubController) GetHub(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, c.basePath+"/logo", http.StatusFound)
 }
 
-func (c *SettingsController) GetLogo(w http.ResponseWriter, r *http.Request) {
+type SettingsLogoController struct {
+	tenantService *services.TenantService
+	uploadService *services.UploadService
+	basePath      string
+}
+
+func NewSettingsLogoController(
+	tenantService *services.TenantService,
+	uploadService *services.UploadService,
+) application.Controller {
+	return &SettingsLogoController{
+		tenantService: tenantService,
+		uploadService: uploadService,
+		basePath:      "/settings/logo",
+	}
+}
+
+func (c *SettingsLogoController) Key() string {
+	return c.basePath
+}
+
+func (c *SettingsLogoController) Register(r *mux.Router) {
+	router := r.PathPrefix(c.basePath).Subrouter()
+	router.Use(
+		middleware.Authorize(),
+		middleware.RedirectNotAuthenticated(),
+		middleware.ProvideUser(),
+		middleware.ProvideDynamicLogo(),
+		middleware.NavItems(),
+		middleware.WithPageContext(),
+	)
+	router.HandleFunc("", c.GetLogo).Methods(http.MethodGet)
+	router.HandleFunc("", c.PostLogo).Methods(http.MethodPost)
+}
+
+func (c *SettingsLogoController) GetLogo(w http.ResponseWriter, r *http.Request) {
 	props, err := c.logoProps(r, nil, nil)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -69,7 +93,7 @@ func (c *SettingsController) GetLogo(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(settings.Logo(props)).ServeHTTP(w, r)
 }
 
-func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
+func (c *SettingsLogoController) PostLogo(w http.ResponseWriter, r *http.Request) {
 	logger := composables.UseLogger(r.Context())
 
 	dto, err := composables.UseForm(&dtos.SaveLogosDTO{}, r)
@@ -105,7 +129,6 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if dto.LogoID > 0 {
-		// Validate that the upload exists before setting it
 		exists, err := c.uploadService.Exists(r.Context(), uint(dto.LogoID))
 		if err != nil {
 			logger.WithError(err).Error("failed to check logo upload existence")
@@ -121,7 +144,6 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 		tenant = tenant.SetLogoID(&logoID)
 	}
 	if dto.LogoCompactID > 0 {
-		// Validate that the upload exists before setting it
 		exists, err := c.uploadService.Exists(r.Context(), uint(dto.LogoCompactID))
 		if err != nil {
 			logger.WithError(err).Error("failed to check compact logo upload existence")
@@ -137,7 +159,6 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 		tenant = tenant.SetLogoCompactID(&logoCompactID)
 	}
 
-	// Handle phone number update
 	if dto.Phone != "" {
 		parsedPhone, err := phone.NewFromE164(dto.Phone)
 		if err != nil {
@@ -153,11 +174,9 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 		}
 		tenant = tenant.SetPhone(parsedPhone)
 	} else {
-		// Clear phone if empty
 		tenant = tenant.SetPhone(nil)
 	}
 
-	// Handle email update
 	if dto.Email != "" {
 		parsedEmail, err := internet.NewEmail(dto.Email)
 		if err != nil {
@@ -173,7 +192,6 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 		}
 		tenant = tenant.SetEmail(parsedEmail)
 	} else {
-		// Clear email if empty
 		tenant = tenant.SetEmail(nil)
 	}
 
@@ -192,7 +210,7 @@ func (c *SettingsController) PostLogo(w http.ResponseWriter, r *http.Request) {
 	templ.Handler(settings.LogoForm(props)).ServeHTTP(w, r)
 }
 
-func (c *SettingsController) logoProps(r *http.Request, errors map[string]string, tenant tenant.Tenant) (*settings.LogoPageProps, error) {
+func (c *SettingsLogoController) logoProps(r *http.Request, errors map[string]string, tenant tenant.Tenant) (*settings.LogoPageProps, error) {
 	nonNilErrors := make(map[string]string)
 	if errors != nil {
 		nonNilErrors = errors
@@ -227,7 +245,6 @@ func (c *SettingsController) logoProps(r *http.Request, errors map[string]string
 		}
 	}
 
-	// Get phone and email values
 	phoneValue := ""
 	if tenant.Phone() != nil {
 		phoneValue = tenant.Phone().E164()
@@ -239,7 +256,7 @@ func (c *SettingsController) logoProps(r *http.Request, errors map[string]string
 	}
 
 	props := &settings.LogoPageProps{
-		PostPath:          c.basePath + "/logo",
+		PostPath:          c.basePath,
 		LogoUpload:        logoUpload,
 		LogoCompactUpload: logoCompactUpload,
 		Phone:             phoneValue,

@@ -260,7 +260,8 @@ func (c *component) Build(builder *composition.Builder) error {
 					}),
 					controllers.NewGroupsController(app, groupService),
 					controllers.NewWebSocketController(app),
-					controllers.NewSettingsController(tenantService, uploadService),
+					controllers.NewSettingsHubController(),
+					controllers.NewSettingsLogoController(tenantService, uploadService),
 					controllers.NewSessionController("/settings/sessions"),
 				)
 				// NewCrudShowcaseController returns nil in the `!dev` build so
