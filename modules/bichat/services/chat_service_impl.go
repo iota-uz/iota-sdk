@@ -432,6 +432,92 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 	}
 }
 
+// TailRunEvents forwards events from the durable per-run Redis event log
+// to the caller. It resolves tenantID from persisted run state (the HTTP
+// controller only knows session + run ids and the Last-Event-ID header),
+// replays all entries with stream id > from, and then live-tails the log
+// until a terminal event, ctx cancellation, or TTL expiry.
+//
+// Returns:
+//   - bichatservices.ErrRunEventLogUnavailable when Redis is not configured;
+//   - bichatservices.ErrRunNotFoundOrFinished when the run is unknown;
+//   - wrapped errors for the rest.
+//
+// onEvent is called synchronously from the goroutine that drives Tail and
+// must not block; HTTP handlers typically write an SSE `id:` + `event:`
+// + `data:` triple and flush.
+func (s *chatServiceImpl) TailRunEvents(
+	ctx context.Context,
+	sessionID, runID uuid.UUID,
+	from string,
+	onEvent func(bichatservices.RunEventDelivery),
+) error {
+	const op serrors.Op = "chatServiceImpl.TailRunEvents"
+
+	if s.eventLog == nil {
+		return bichatservices.ErrRunEventLogUnavailable
+	}
+
+	// Resolve tenant via persisted run state. The run entry carries the
+	// tenant id so we don't have to plumb it through the request — the
+	// GET /stream/events endpoint is browser-hit and can't be trusted
+	// to carry a tenant header.
+	persisted, err := s.getPersistedRunByID(ctx, runID)
+	if err != nil {
+		if errors.Is(err, domain.ErrRunNotFound) || errors.Is(err, domain.ErrNoActiveRun) {
+			return bichatservices.ErrRunNotFoundOrFinished
+		}
+		return serrors.E(op, err)
+	}
+	if persisted == nil {
+		return bichatservices.ErrRunNotFoundOrFinished
+	}
+	if persisted.SessionID() != sessionID {
+		return serrors.E(op, serrors.KindValidation, "session id mismatch")
+	}
+	tenantID := persisted.TenantID()
+
+	// Step 1: replay missed events synchronously so the client receives
+	// them in a deterministic order before live tailing begins.
+	replayed, err := s.eventLog.Replay(ctx, tenantID, runID, from)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	lastID := from
+	for _, evt := range replayed {
+		if err := ctx.Err(); err != nil {
+			return nil
+		}
+		onEvent(bichatservices.RunEventDelivery{
+			StreamID: evt.StreamID,
+			Type:     evt.Type,
+			Payload:  append([]byte(nil), evt.Payload...),
+		})
+		lastID = evt.StreamID
+		if IsRunEventTerminal(evt.Type) {
+			return nil
+		}
+	}
+
+	// Step 2: live-tail from the last event id we delivered. Tail closes
+	// the channel on terminal event / ctx cancel / TTL expiry.
+	tailCh, err := s.eventLog.Tail(ctx, tenantID, runID, lastID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	for evt := range tailCh {
+		if err := ctx.Err(); err != nil {
+			return nil
+		}
+		onEvent(bichatservices.RunEventDelivery{
+			StreamID: evt.StreamID,
+			Type:     evt.Type,
+			Payload:  append([]byte(nil), evt.Payload...),
+		})
+	}
+	return nil
+}
+
 // SendMessage sends a message to a session and processes it with the agent.
 func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.SendMessageRequest) (*bichatservices.SendMessageResponse, error) {
 	const op serrors.Op = "chatServiceImpl.SendMessage"

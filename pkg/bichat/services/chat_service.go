@@ -14,6 +14,12 @@ import (
 // ErrRunNotFoundOrFinished is returned by ResumeStream when the run is not active in this process.
 var ErrRunNotFoundOrFinished = errors.New("generation run not found or already finished")
 
+// ErrRunEventLogUnavailable is returned by TailRunEvents when the durable
+// event log is not configured (e.g. REDIS_URL unset in dev). Controllers
+// map this to 501 Not Implemented so clients know to fall back to the
+// legacy in-memory ResumeStream endpoint.
+var ErrRunEventLogUnavailable = errors.New("run event log unavailable")
+
 // SessionCommands manages mutating session actions.
 type SessionCommands interface {
 	CreateSession(ctx context.Context, tenantID uuid.UUID, userID int64, title string) (domain.Session, error)
@@ -81,6 +87,25 @@ type StreamCommands interface {
 	// ResumeStream attaches to an active run: delivers current snapshot then streams subsequent chunks.
 	// Returns ErrRunNotFoundOrFinished if the run is not active in this process.
 	ResumeStream(ctx context.Context, sessionID uuid.UUID, runID uuid.UUID, onChunk func(StreamChunk)) error
+
+	// TailRunEvents reads the durable per-run event log. Events with
+	// stream id > `from` are delivered in order; an empty `from` streams
+	// from the beginning. onEvent is invoked once per event and must be
+	// non-blocking; callers typically forward it as an SSE line. The
+	// call returns when a terminal event is observed, ctx is cancelled,
+	// or the event log TTL has expired. Returns ErrRunEventLogUnavailable
+	// when the backing Redis stream is not configured.
+	TailRunEvents(ctx context.Context, sessionID, runID uuid.UUID, from string, onEvent func(RunEventDelivery)) error
+}
+
+// RunEventDelivery is a single durable event delivered through TailRunEvents.
+// StreamID is the Redis stream id used as the SSE `id:` field for
+// Last-Event-ID reconnect. Payload is the JSON-encoded
+// httpdto.StreamChunkPayload ready to be written verbatim to the SSE body.
+type RunEventDelivery struct {
+	StreamID string
+	Type     string
+	Payload  []byte
 }
 
 // StreamStatus describes an active streaming run for a session.

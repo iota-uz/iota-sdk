@@ -73,6 +73,12 @@ func (c *StreamController) Register(r *mux.Router) {
 	subRouter.HandleFunc("/stream/stop", c.StopStream).Methods("POST")
 	subRouter.HandleFunc("/stream/status", c.StreamStatus).Methods("GET")
 	subRouter.HandleFunc("/stream/resume", c.ResumeStream).Methods("POST")
+	// GET /stream/events is the cursor-based tail endpoint: EventSource
+	// connects here after a POST /stream kicks off a run. Native
+	// EventSource reconnect sends Last-Event-ID, which we forward to
+	// the event log so the browser never sees a dropped event across
+	// network blips / tab sleep.
+	subRouter.HandleFunc("/stream/events", c.TailEvents).Methods("GET")
 }
 
 // StreamMessage handles SSE streaming for a message.
@@ -571,6 +577,116 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 		Type:      "done",
 		Timestamp: time.Now().UnixMilli(),
 	})
+}
+
+// TailEvents handles GET /stream/events?sessionId=...&runId=... — a pure
+// SSE reader over the durable per-run Redis event log. The browser's
+// native EventSource auto-reconnect sends Last-Event-ID on every resumed
+// connection; we forward it to RunEventLog so replay is always cursor-
+// exact.
+//
+// Returns 503 when the event log is not configured (dev/CI without
+// Redis) so clients can fall back to POST /stream/resume. Returns 404
+// when the run is unknown, 400 for malformed input.
+func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
+	const op serrors.Op = "StreamController.TailEvents"
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+
+	sessionIDStr := r.URL.Query().Get("sessionId")
+	runIDStr := r.URL.Query().Get("runId")
+	if sessionIDStr == "" || runIDStr == "" {
+		http.Error(w, "sessionId and runId are required", http.StatusBadRequest)
+		return
+	}
+	sessionID, err := uuid.Parse(sessionIDStr)
+	if err != nil || sessionID == uuid.Nil {
+		http.Error(w, "sessionId must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	runID, err := uuid.Parse(runIDStr)
+	if err != nil || runID == uuid.Nil {
+		http.Error(w, "runId must be a valid UUID", http.StatusBadRequest)
+		return
+	}
+	if !c.requireStreamSessionAuth(w, r, sessionID, false) {
+		return
+	}
+
+	// Native EventSource reconnect ships this header; if it's empty the
+	// client wants a full replay from the beginning.
+	lastEventID := strings.TrimSpace(r.Header.Get("Last-Event-ID"))
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	c.sendSSEComment(w, flusher, "stream-open")
+
+	var writeMu sync.Mutex
+	heartbeatStop := make(chan struct{})
+	defer close(heartbeatStop)
+	go func() {
+		ticker := time.NewTicker(streamHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				writeMu.Lock()
+				c.sendSSEComment(w, flusher, "ping")
+				writeMu.Unlock()
+			}
+		}
+	}()
+
+	err = c.streamService.TailRunEvents(r.Context(), sessionID, runID, lastEventID, func(evt bichatservices.RunEventDelivery) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		eventName := evt.Type
+		if eventName == "" {
+			eventName = "chunk"
+		}
+		// Emit SSE triple with id: + event: + data:. The id: line is
+		// what EventSource stores in the browser's internal Last-Event-ID
+		// state so a reconnect targets the right cursor.
+		_, _ = fmt.Fprintf(w, "id: %s\n", evt.StreamID)
+		_, _ = fmt.Fprintf(w, "event: %s\n", eventName)
+		_, _ = fmt.Fprintf(w, "data: %s\n\n", evt.Payload)
+		flusher.Flush()
+	})
+	if err != nil {
+		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
+			// Log and emit a synthetic error so the client can fall back.
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+				Type:      "error",
+				Error:     "run event log unavailable",
+				Timestamp: time.Now().UnixMilli(),
+			})
+			return
+		}
+		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
+				Type:      "error",
+				Error:     "run not found or already finished",
+				Timestamp: time.Now().UnixMilli(),
+			})
+			return
+		}
+		logger := configuration.Use().Logger()
+		logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
+	}
 }
 
 // Helper methods
