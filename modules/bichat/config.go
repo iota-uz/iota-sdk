@@ -366,6 +366,13 @@ func (sc *ServiceContainer) CloseTitleQueue() error {
 	return err
 }
 
+// NewRunReaper builds the stale-run reaper when Redis is configured.
+// Returns (nil, nil) when REDIS_URL is unset so the caller can skip
+// the reaper without branching on a sentinel.
+func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
+	return services.NewConfiguredRunReaperFromEnv(sc.logger)
+}
+
 // ConfigOption is a functional option for ModuleConfig
 type ConfigOption func(*ModuleConfig)
 

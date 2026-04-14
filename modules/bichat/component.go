@@ -332,10 +332,38 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 			}()
 		}
 
+		// Stale-run reaper: periodically scans active runs and marks
+		// wedged ones (heartbeat silent for > StaleAfter) as failed so
+		// the sidebar can transition + clients see a terminal error
+		// event. Returns (nil, nil) when Redis is unconfigured.
+		var (
+			reaperCancel context.CancelFunc
+			reaperDone   chan struct{}
+		)
+		reaper, err := b.services.NewRunReaper()
+		if err != nil {
+			return nil, serrors.E(op, err, "failed to create run reaper")
+		}
+		if reaper != nil {
+			reaperCtx, reaperCancelFn := context.WithCancel(context.Background())
+			reaperCancel = reaperCancelFn
+			reaperDone = make(chan struct{})
+			logger := b.config.Logger
+			go func() {
+				defer close(reaperDone)
+				if startErr := reaper.Start(reaperCtx); startErr != nil && logger != nil && !errors.Is(startErr, context.Canceled) {
+					logger.WithError(startErr).Warn("bichat run reaper stopped with error")
+				}
+			}()
+		}
+
 		return func(stopCtx context.Context) error {
 			var stopErr error
 			if titleWorkerCancel != nil {
 				titleWorkerCancel()
+			}
+			if reaperCancel != nil {
+				reaperCancel()
 			}
 			if titleWorkerDone != nil {
 				// Cancel has been called; the worker loop will observe it
@@ -346,6 +374,13 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 				// already cancelled.
 				select {
 				case <-titleWorkerDone:
+				case <-stopCtx.Done():
+					stopErr = errors.Join(stopErr, stopCtx.Err())
+				}
+			}
+			if reaperDone != nil {
+				select {
+				case <-reaperDone:
 				case <-stopCtx.Done():
 					stopErr = errors.Join(stopErr, stopCtx.Err())
 				}
