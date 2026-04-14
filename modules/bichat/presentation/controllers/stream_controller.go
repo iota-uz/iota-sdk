@@ -79,6 +79,10 @@ func (c *StreamController) Register(r *mux.Router) {
 	// the event log so the browser never sees a dropped event across
 	// network blips / tab sleep.
 	subRouter.HandleFunc("/stream/events", c.TailEvents).Methods("GET")
+	// GET /stream/active-runs is the per-tenant sidebar fan-out. Used by
+	// the React chat list to render a status dot next to each session
+	// card without polling /stream/status per session.
+	subRouter.HandleFunc("/stream/active-runs", c.TailActiveRuns).Methods("GET")
 }
 
 // StreamMessage handles SSE streaming for a message.
@@ -686,6 +690,90 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 		}
 		logger := configuration.Use().Logger()
 		logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
+	}
+}
+
+// TailActiveRuns handles GET /stream/active-runs — the per-tenant
+// sidebar fan-out used by the chat list to render a status dot per
+// session. A connect sends one `snapshot` event per currently-running
+// session, then live `update` events per status transition
+// (streaming / completed / cancelled / failed / queued).
+//
+// Tenant scope is taken from the authenticated request context; the
+// handler has no query parameters. Returns 503 when the active-run
+// index is not configured.
+func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request) {
+	const op serrors.Op = "StreamController.TailActiveRuns"
+
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming not supported", http.StatusInternalServerError)
+		return
+	}
+	if _, err := composables.UseUser(r.Context()); err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if c.opts.RequireAccessPermission != nil {
+		if err := composables.CanUser(r.Context(), c.opts.RequireAccessPermission); err != nil {
+			http.Error(w, "Access denied", http.StatusForbidden)
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
+	c.sendSSEComment(w, flusher, "stream-open")
+
+	var writeMu sync.Mutex
+	heartbeatStop := make(chan struct{})
+	defer close(heartbeatStop)
+	go func() {
+		ticker := time.NewTicker(streamHeartbeatInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-heartbeatStop:
+				return
+			case <-ticker.C:
+				writeMu.Lock()
+				c.sendSSEComment(w, flusher, "ping")
+				writeMu.Unlock()
+			}
+		}
+	}()
+
+	err := c.streamService.TailActiveRuns(r.Context(), func(evt bichatservices.ActiveRunDelivery) {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+		payload := struct {
+			SessionID string `json:"sessionId"`
+			RunID     string `json:"runId"`
+			Status    string `json:"status"`
+			UpdatedAt int64  `json:"updatedAt"`
+		}{
+			SessionID: evt.SessionID.String(),
+			RunID:     evt.RunID.String(),
+			Status:    evt.Status,
+			UpdatedAt: evt.UpdatedAt,
+		}
+		c.sendSSEEvent(w, flusher, evt.Event, payload)
+	})
+	if err != nil {
+		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
+			writeMu.Lock()
+			defer writeMu.Unlock()
+			c.sendSSEEvent(w, flusher, "error", map[string]string{
+				"error": "active-run index unavailable",
+			})
+			return
+		}
+		logger := configuration.Use().Logger()
+		logger.WithError(serrors.E(op, err)).Error("TailActiveRuns failed")
 	}
 }
 

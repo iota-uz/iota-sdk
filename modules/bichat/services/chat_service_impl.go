@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -28,20 +29,25 @@ const remoteResumePollInterval = time.Second
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
 type chatServiceImpl struct {
-	chatRepo           domain.ChatRepository
-	sessionAccess      domain.SessionAccessRepository
-	agentService       bichatservices.AgentService
-	model              agents.Model
-	titleService       TitleService
-	titleQueue         TitleJobQueue
-	runState           *streamingsvc.RunStateManager
+	chatRepo      domain.ChatRepository
+	sessionAccess domain.SessionAccessRepository
+	agentService  bichatservices.AgentService
+	model         agents.Model
+	titleService  TitleService
+	titleQueue    TitleJobQueue
+	runState      *streamingsvc.RunStateManager
 	// eventLog mirrors every broadcast chunk into a durable per-run Redis
 	// stream so a client that reconnects (new tab, new device, network
 	// blip) can tail or replay from a cursor instead of reconstructing
 	// state from in-memory buffers. nil when Redis is unconfigured, in
 	// which case only the in-memory broadcaster is used and cross-process
 	// resume is unavailable.
-	eventLog           RunEventLog
+	eventLog RunEventLog
+	// activeRunIndex maintains the per-tenant sidebar view of running
+	// sessions. nil when Redis is unconfigured — in that mode sidebar
+	// dots degrade to polling via /stream/status, but the core
+	// streaming path still works.
+	activeRunIndex     ActiveRunIndex
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *streamingsvc.RunRegistry
@@ -70,6 +76,7 @@ func NewChatService(
 		titleQueue:         normalizeTitleJobQueue(titleQueue),
 		runState:           streamingsvc.NewRunStateManager(runStore),
 		eventLog:           newConfiguredRunEventLog(),
+		activeRunIndex:     newConfiguredActiveRunIndex(),
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}
@@ -203,7 +210,23 @@ func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UU
 }
 
 func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
-	return s.runState.CreateRunState(ctx, run)
+	created, err := s.runState.CreateRunState(ctx, run)
+	if err != nil || !created {
+		return created, err
+	}
+	// Publish "streaming" to the per-tenant active run hash so sidebar
+	// subscribers see the dot light up without waiting for the first
+	// snapshot event. Best-effort: if Redis fan-out fails, the core
+	// stream still works and the client can still pull /stream/status.
+	if s.activeRunIndex != nil {
+		_ = s.activeRunIndex.Upsert(ctx, run.TenantID(), ActiveRunStatus{
+			SessionID: run.SessionID(),
+			RunID:     run.ID(),
+			Status:    string(domain.GenerationRunStatusStreaming),
+			UpdatedAt: time.Now().UTC(),
+		})
+	}
+	return created, nil
 }
 
 func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
@@ -219,11 +242,31 @@ func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessi
 }
 
 func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	return s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
+	err := s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
+	s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCompleted))
+	return err
 }
 
 func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	return s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
+	err := s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
+	s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCancelled))
+	return err
+}
+
+// publishTerminalStatus is the single choke point for emitting the last
+// sidebar status event. We publish then remove atomically so a snapshot
+// fetched just after the terminal delta doesn't see a stale streaming
+// entry (which would leave a dangling dot on the frontend).
+func (s *chatServiceImpl) publishTerminalStatus(ctx context.Context, tenantID, sessionID, runID uuid.UUID, status string) {
+	if s.activeRunIndex == nil {
+		return
+	}
+	_ = s.activeRunIndex.PublishAndRemove(ctx, tenantID, ActiveRunStatus{
+		SessionID: sessionID,
+		RunID:     runID,
+		Status:    status,
+		UpdatedAt: time.Now().UTC(),
+	})
 }
 
 type asyncRunWorker func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun)
@@ -513,6 +556,67 @@ func (s *chatServiceImpl) TailRunEvents(
 			StreamID: evt.StreamID,
 			Type:     evt.Type,
 			Payload:  append([]byte(nil), evt.Payload...),
+		})
+	}
+	return nil
+}
+
+// TailActiveRuns delivers the per-tenant sidebar view: snapshot rows
+// first (each with Event="snapshot"), then live delta events from the
+// active-run index pubsub (each with Event="update"). The handler
+// blocks until ctx is cancelled or the pubsub connection breaks.
+//
+// Snapshot + Subscribe are ordered so a subscriber never misses a delta
+// landed between HGETALL and pubsub establishment: we Subscribe first
+// (the pubsub handshake is the barrier), then HGETALL the current
+// state, then forward live deltas. If an update for session S lands
+// between Subscribe and Snapshot, the snapshot row for S will be the
+// more recent one.
+func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bichatservices.ActiveRunDelivery)) error {
+	const op serrors.Op = "chatServiceImpl.TailActiveRuns"
+
+	if s.activeRunIndex == nil {
+		return bichatservices.ErrRunEventLogUnavailable
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	subCh, err := s.activeRunIndex.Subscribe(ctx, tenantID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	// Snapshot AFTER Subscribe so we don't miss deltas published
+	// between the two calls (see comment above).
+	snap, err := s.activeRunIndex.Snapshot(ctx, tenantID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	for _, entry := range snap {
+		if err := ctx.Err(); err != nil {
+			return nil
+		}
+		onEvent(bichatservices.ActiveRunDelivery{
+			Event:     "snapshot",
+			SessionID: entry.SessionID,
+			RunID:     entry.RunID,
+			Status:    entry.Status,
+			UpdatedAt: entry.UpdatedAt.UnixMilli(),
+		})
+	}
+
+	for entry := range subCh {
+		if err := ctx.Err(); err != nil {
+			return nil
+		}
+		onEvent(bichatservices.ActiveRunDelivery{
+			Event:     "update",
+			SessionID: entry.SessionID,
+			RunID:     entry.RunID,
+			Status:    entry.Status,
+			UpdatedAt: entry.UpdatedAt.UnixMilli(),
 		})
 	}
 	return nil

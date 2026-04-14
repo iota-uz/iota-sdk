@@ -96,6 +96,31 @@ type StreamCommands interface {
 	// or the event log TTL has expired. Returns ErrRunEventLogUnavailable
 	// when the backing Redis stream is not configured.
 	TailRunEvents(ctx context.Context, sessionID, runID uuid.UUID, from string, onEvent func(RunEventDelivery)) error
+
+	// TailActiveRuns delivers the tenant's sidebar active-run view:
+	// first a snapshot of current runs, then live status deltas
+	// (streaming / completed / cancelled / failed / queued). Closes
+	// when ctx is cancelled. Returns ErrRunEventLogUnavailable when
+	// the active-run index is not configured.
+	//
+	// The tenant scope is resolved from context (composables.UseTenantID)
+	// so the transport layer doesn't need to pass it explicitly — the
+	// HTTP middleware has already authenticated the user and set the
+	// tenant header on the request ctx.
+	TailActiveRuns(ctx context.Context, onEvent func(ActiveRunDelivery)) error
+}
+
+// ActiveRunDelivery is a single sidebar update — either a snapshot row
+// on connect or a live delta afterwards. `Event` is "snapshot" for
+// rows delivered during initial HGETALL and "update" for subsequent
+// pubsub deltas, so the client can render differently (one-shot vs
+// mutation).
+type ActiveRunDelivery struct {
+	Event     string    // "snapshot" | "update"
+	SessionID uuid.UUID
+	RunID     uuid.UUID
+	Status    string
+	UpdatedAt int64 // UnixMilli for wire compactness
 }
 
 // RunEventDelivery is a single durable event delivered through TailRunEvents.
