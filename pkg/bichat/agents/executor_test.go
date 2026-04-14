@@ -1521,3 +1521,212 @@ func TestExecutor_InterruptTool_IsExclusive(t *testing.T) {
 		t.Fatalf("expected other tool not to execute in same batch as interrupt")
 	}
 }
+
+// TestExecutor_TextBlockEnd_TextThenToolThenText asserts that executor emits a
+// EventTypeTextBlockEnd marker between an iteration's streamed text and the
+// first tool_start, and that the marker carries an incrementing TextBlockSeq.
+// The final text segment after the last tool call has no closing marker — the
+// done event implicitly closes it.
+func TestExecutor_TextBlockEnd_TextThenToolThenText(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	weatherTool := agents.NewTool(
+		"get_weather",
+		"Gets weather for a location",
+		map[string]any{},
+		func(ctx context.Context, input string) (string, error) { return "sunny", nil },
+	)
+
+	agent := newMockAgent("text-block-agent", weatherTool)
+	agent.setToolResult("get_weather", "sunny")
+
+	model := newMockModel(
+		mockResponse{
+			content: "Let me check the weather.",
+			toolCalls: []types.ToolCall{
+				{ID: "call_1", Name: "get_weather", Arguments: `{"location":"SF"}`},
+			},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "It is sunny.",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model)
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("Weather in SF?")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	type observation struct {
+		typ agents.ExecutorEventType
+		seq int
+	}
+	var observed []observation
+	for {
+		ev, err := gen.Next(ctx)
+		if err != nil {
+			if errors.Is(err, types.ErrGeneratorDone) {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+		switch ev.Type {
+		case agents.EventTypeContent, agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeTextBlockEnd, agents.EventTypeDone:
+			observed = append(observed, observation{typ: ev.Type, seq: ev.TextBlockSeq})
+		case agents.EventTypeError:
+			t.Fatalf("unexpected error event: %v", ev.Error)
+		}
+	}
+
+	// Assert exactly one text_block_end before the tool sequence, with seq=0.
+	textBlockIdx := -1
+	toolStartIdx := -1
+	for i, o := range observed {
+		if o.typ == agents.EventTypeTextBlockEnd {
+			require.Equal(t, -1, textBlockIdx, "exactly one text_block_end expected, got a second at index %d", i)
+			require.Equal(t, 0, o.seq, "first text_block_end must have seq=0")
+			textBlockIdx = i
+		}
+		if o.typ == agents.EventTypeToolStart && toolStartIdx == -1 {
+			toolStartIdx = i
+		}
+	}
+	require.NotEqual(t, -1, textBlockIdx, "expected one text_block_end event")
+	require.NotEqual(t, -1, toolStartIdx, "expected at least one tool_start event")
+	require.Less(t, textBlockIdx, toolStartIdx, "text_block_end must precede tool_start")
+
+	// Final assistant text after the tool has no closing text_block_end (done implies it).
+	doneIdx := -1
+	for i, o := range observed {
+		if o.typ == agents.EventTypeDone {
+			doneIdx = i
+		}
+	}
+	require.NotEqual(t, -1, doneIdx, "expected done event")
+	for _, o := range observed[toolStartIdx+1:doneIdx] {
+		require.NotEqual(t, agents.EventTypeTextBlockEnd, o.typ, "should not emit a closing text_block_end for the final segment")
+	}
+}
+
+// TestExecutor_TextBlockEnd_MultipleTurns asserts seq increments across
+// multiple iterations, each producing a text + tool_call boundary.
+func TestExecutor_TextBlockEnd_MultipleTurns(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tool := agents.NewTool(
+		"do_thing",
+		"do_thing",
+		map[string]any{},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	agent := newMockAgent("multi-turn-agent", tool)
+	agent.setToolResult("do_thing", "ok")
+
+	model := newMockModel(
+		mockResponse{
+			content:      "First step.",
+			toolCalls:    []types.ToolCall{{ID: "c1", Name: "do_thing", Arguments: "{}"}},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "Second step.",
+			toolCalls:    []types.ToolCall{{ID: "c2", Name: "do_thing", Arguments: "{}"}},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "All done.",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model)
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("Run it")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	var seqs []int
+	for {
+		ev, err := gen.Next(ctx)
+		if err != nil {
+			if errors.Is(err, types.ErrGeneratorDone) {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+		if ev.Type == agents.EventTypeTextBlockEnd {
+			seqs = append(seqs, ev.TextBlockSeq)
+		}
+	}
+
+	require.Equal(t, []int{0, 1}, seqs, "expected two text_block_end events with seqs 0 and 1")
+}
+
+// TestExecutor_TextBlockEnd_NoTextBeforeTool asserts that no text_block_end is
+// emitted when an iteration produces only a tool call with no preceding text.
+func TestExecutor_TextBlockEnd_NoTextBeforeTool(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	tool := agents.NewTool(
+		"do_thing",
+		"do_thing",
+		map[string]any{},
+		func(ctx context.Context, input string) (string, error) { return "ok", nil },
+	)
+
+	agent := newMockAgent("no-text-agent", tool)
+	agent.setToolResult("do_thing", "ok")
+
+	model := newMockModel(
+		mockResponse{
+			content:      "",
+			toolCalls:    []types.ToolCall{{ID: "c1", Name: "do_thing", Arguments: "{}"}},
+			finishReason: "tool_calls",
+		},
+		mockResponse{
+			content:      "Done.",
+			finishReason: "stop",
+		},
+	)
+
+	executor := agents.NewExecutor(agent, model)
+	input := agents.Input{
+		Messages:  []types.Message{types.UserMessage("go")},
+		SessionID: uuid.New(),
+		TenantID:  uuid.New(),
+	}
+
+	gen := executor.Execute(ctx, input)
+	defer gen.Close()
+
+	for {
+		ev, err := gen.Next(ctx)
+		if err != nil {
+			if errors.Is(err, types.ErrGeneratorDone) {
+				break
+			}
+			t.Fatalf("unexpected generator error: %v", err)
+		}
+		if ev.Type == agents.EventTypeTextBlockEnd {
+			t.Fatalf("did not expect any text_block_end events when no text precedes tool_start")
+		}
+	}
+}

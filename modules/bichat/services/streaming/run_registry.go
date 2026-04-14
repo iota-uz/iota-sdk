@@ -22,6 +22,11 @@ type ActiveRun struct {
 	ToolOrder   []string
 	ArtifactMap map[string]types.ToolArtifact
 	LastPersist time.Time
+	// TextBlockOffsets are byte offsets into Content marking the end of each
+	// completed assistant text segment. The first entry corresponds to seq 0,
+	// the second to seq 1, etc. The trailing un-closed segment (if any) is
+	// implicit and runs from the last offset to len(Content).
+	TextBlockOffsets []int
 
 	subscribers map[chan bichatservices.StreamChunk]struct{}
 	Mu          sync.RWMutex
@@ -85,7 +90,13 @@ func (r *ActiveRun) SnapshotMetadata() map[string]any {
 	r.Mu.RLock()
 	defer r.Mu.RUnlock()
 	ordered := orderedToolCalls(r.ToolCalls, r.ToolOrder)
-	return map[string]any{"tool_calls": ordered}
+	meta := map[string]any{"tool_calls": ordered}
+	if len(r.TextBlockOffsets) > 0 {
+		offsets := make([]int, len(r.TextBlockOffsets))
+		copy(offsets, r.TextBlockOffsets)
+		meta["text_block_offsets"] = offsets
+	}
+	return meta
 }
 
 func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) []types.ToolCall {

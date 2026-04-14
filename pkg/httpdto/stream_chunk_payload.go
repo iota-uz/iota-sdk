@@ -53,4 +53,10 @@ type StreamChunkPayload struct {
 	Timestamp    int64                  `json:"timestamp,omitempty"`
 	Snapshot     *StreamSnapshotPayload `json:"snapshot,omitempty"`
 	RunID        string                 `json:"runId,omitempty"`
+	// TextBlockSeq is set when Type == "text_block_end". It is the zero-based
+	// ordinal of the assistant text segment that just ended within a single
+	// run, allowing clients to render text/tool/text/tool sequences as
+	// distinct blocks instead of one merged paragraph. Pointer so the JSON
+	// `0` value is preserved while remaining absent for unrelated chunks.
+	TextBlockSeq *int `json:"textBlockSeq,omitempty"`
 }

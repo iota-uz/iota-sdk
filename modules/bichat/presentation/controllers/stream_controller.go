@@ -276,6 +276,10 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 				PartialMetadata: chunk.Snapshot.PartialMetadata,
 			}
 		}
+		if chunk.Type == bichatservices.ChunkTypeTextBlockEnd {
+			seq := chunk.TextBlockSeq
+			payload.TextBlockSeq = &seq
+		}
 
 		// Event name is for SSE clients that care; our frontend reads `data:` lines.
 		eventName := payload.Type
@@ -540,6 +544,10 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 				PartialContent:  chunk.Snapshot.PartialContent,
 				PartialMetadata: chunk.Snapshot.PartialMetadata,
 			}
+		}
+		if chunk.Type == bichatservices.ChunkTypeTextBlockEnd {
+			seq := chunk.TextBlockSeq
+			payload.TextBlockSeq = &seq
 		}
 
 		eventName := payload.Type

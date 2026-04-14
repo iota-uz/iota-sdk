@@ -725,6 +725,17 @@ func (s *chatServiceImpl) runStreamLoop(
 			chunk.Content = event.Content
 			active.Broadcast(chunk)
 
+		case agents.EventTypeTextBlockEnd:
+			active.Mu.Lock()
+			// Record the byte offset of the segment boundary so resume
+			// snapshots can split the accumulated content back into the
+			// blocks the user originally saw.
+			active.TextBlockOffsets = append(active.TextBlockOffsets, len(active.Content))
+			active.Mu.Unlock()
+			chunk.Type = bichatservices.ChunkTypeTextBlockEnd
+			chunk.TextBlockSeq = event.TextBlockSeq
+			active.Broadcast(chunk)
+
 		case agents.EventTypeToolStart:
 			active.Mu.Lock()
 			recordToolEvent(active.ToolCalls, &active.ToolOrder, event.Tool)

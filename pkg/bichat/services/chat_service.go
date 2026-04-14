@@ -188,6 +188,9 @@ type StreamChunk struct {
 	Snapshot *StreamSnapshot
 	// RunID is set when Type is ChunkTypeStreamStarted so the client can store it for resume.
 	RunID string
+	// TextBlockSeq identifies the assistant text segment ordinal that just ended
+	// (when Type is ChunkTypeTextBlockEnd). Zero-based within a single run.
+	TextBlockSeq int
 }
 
 // ChunkType represents the type of streaming chunk
@@ -207,6 +210,11 @@ const (
 	ChunkTypeSnapshot      ChunkType = "snapshot"
 	ChunkTypeStreamStarted ChunkType = "stream_started"
 	ChunkTypePing          ChunkType = "ping"
+	// ChunkTypeTextBlockEnd marks the boundary of an assistant text segment
+	// inside a turn that contains tool calls. The frontend uses it to render
+	// each text-then-tool sequence as a distinct block instead of merging
+	// every text delta into one paragraph.
+	ChunkTypeTextBlockEnd ChunkType = "text_block_end"
 )
 
 // ToolEvent represents a tool execution event in a streaming chunk.
