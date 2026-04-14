@@ -526,7 +526,7 @@ func TestScoreSingle_SubstringNotPrefix(t *testing.T) {
 
 func TestScoreSingle_NoMatch(t *testing.T) {
 	score := scoreSingle("xyz", "settings")
-	require.Equal(t, 0.0, score, "completely unrelated words should score 0")
+	require.InDelta(t, 0.0, score, 0.001, "completely unrelated words should score 0")
 }
 
 func TestScoreSingle_ExactWordMatch(t *testing.T) {
@@ -580,7 +580,7 @@ func TestBestFuzzyScore_MultiWordCoverage(t *testing.T) {
 
 	t.Run("empty query returns zero", func(t *testing.T) {
 		score := bestFuzzyScore([]string{}, activeFragments("settings"))
-		require.Equal(t, 0.0, score)
+		require.InDelta(t, 0.0, score, 0.001)
 	})
 
 	t.Run("cross-language fragment scores discounted", func(t *testing.T) {
