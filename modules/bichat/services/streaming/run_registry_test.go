@@ -63,6 +63,45 @@ func TestActiveRun_SubscriberLifecycleAndSnapshot(t *testing.T) {
 	require.False(t, ok, "CloseAllSubscribers should close subscriber channel")
 }
 
+func TestActiveRun_SetMirrorCalledForEveryBroadcast(t *testing.T) {
+	run := NewActiveRun(uuid.New(), uuid.New(), context.CancelFunc(func() {}), time.Now())
+
+	var seen []bichatservices.ChunkType
+	var seenMu sync.Mutex
+	run.SetMirror(func(chunk bichatservices.StreamChunk) {
+		seenMu.Lock()
+		defer seenMu.Unlock()
+		seen = append(seen, chunk.Type)
+	})
+
+	run.Broadcast(bichatservices.StreamChunk{Type: bichatservices.ChunkTypeContent})
+	run.Broadcast(bichatservices.StreamChunk{Type: bichatservices.ChunkTypeToolStart})
+	run.Broadcast(bichatservices.StreamChunk{Type: bichatservices.ChunkTypeDone})
+
+	seenMu.Lock()
+	defer seenMu.Unlock()
+	require.Equal(t, []bichatservices.ChunkType{
+		bichatservices.ChunkTypeContent,
+		bichatservices.ChunkTypeToolStart,
+		bichatservices.ChunkTypeDone,
+	}, seen)
+}
+
+func TestActiveRun_SetMirrorDoesNotBlockOnSlowSubscribers(t *testing.T) {
+	run := NewActiveRun(uuid.New(), uuid.New(), context.CancelFunc(func() {}), time.Now())
+
+	// Unbuffered channel: Broadcast's default-case drop must still fire
+	// the mirror so the durable log isn't starved by a slow client.
+	slow := make(chan bichatservices.StreamChunk)
+	run.AddSubscriber(slow)
+
+	var mirrored int
+	run.SetMirror(func(chunk bichatservices.StreamChunk) { mirrored++ })
+
+	run.Broadcast(bichatservices.StreamChunk{Type: bichatservices.ChunkTypeContent})
+	require.Equal(t, 1, mirrored, "mirror must fire even when the subscriber channel is full")
+}
+
 func TestActiveRun_ConcurrentAddRemove(t *testing.T) {
 	run := NewActiveRun(uuid.New(), uuid.New(), context.CancelFunc(func() {}), time.Now())
 	var wg sync.WaitGroup

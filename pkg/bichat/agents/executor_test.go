@@ -1612,7 +1612,7 @@ func TestExecutor_TextBlockEnd_TextThenToolThenText(t *testing.T) {
 		}
 	}
 	require.NotEqual(t, -1, doneIdx, "expected done event")
-	for _, o := range observed[toolStartIdx+1:doneIdx] {
+	for _, o := range observed[toolStartIdx+1 : doneIdx] {
 		require.NotEqual(t, agents.EventTypeTextBlockEnd, o.typ, "should not emit a closing text_block_end for the final segment")
 	}
 }

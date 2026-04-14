@@ -35,6 +35,13 @@ type chatServiceImpl struct {
 	titleService       TitleService
 	titleQueue         TitleJobQueue
 	runState           *streamingsvc.RunStateManager
+	// eventLog mirrors every broadcast chunk into a durable per-run Redis
+	// stream so a client that reconnects (new tab, new device, network
+	// blip) can tail or replay from a cursor instead of reconstructing
+	// state from in-memory buffers. nil when Redis is unconfigured, in
+	// which case only the in-memory broadcaster is used and cross-process
+	// resume is unavailable.
+	eventLog           RunEventLog
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *streamingsvc.RunRegistry
@@ -62,9 +69,18 @@ func NewChatService(
 		titleService:       titleService,
 		titleQueue:         normalizeTitleJobQueue(titleQueue),
 		runState:           streamingsvc.NewRunStateManager(runStore),
+		eventLog:           newConfiguredRunEventLog(),
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}
+}
+
+// WithEventLog overrides the event log on an existing chatServiceImpl.
+// Test harnesses use this to inject a miniredis-backed log; production
+// code defers to the env-gated constructor in NewChatService.
+func (s *chatServiceImpl) WithEventLog(log RunEventLog) *chatServiceImpl {
+	s.eventLog = log
+	return s
 }
 
 func normalizeTitleJobQueue(queue TitleJobQueue) TitleJobQueue {
@@ -622,6 +638,28 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Clear TxKey so persistence always opens its own durable transaction.
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
 
+	// When a Redis event log is configured, mirror every broadcast into
+	// bichat:run-events:{tenant}:{run_id} so out-of-process readers (the
+	// SSE controller on a reconnect, or another replica of the server)
+	// can tail/replay via Last-Event-ID. Mirror failures are logged
+	// implicitly by the log implementation and deliberately do not break
+	// the in-memory path — an error appending to Redis should not abort
+	// a live agent streaming to its primary client.
+	if s.eventLog != nil {
+		tenantID := session.TenantID()
+		runID := run.ID()
+		active.SetMirror(func(chunk bichatservices.StreamChunk) {
+			eventType, body, err := encodeRunEventFromChunk(chunk)
+			if err != nil {
+				return
+			}
+			_, _ = s.eventLog.Append(persistCtx, tenantID, runID, RunEvent{
+				Type:    eventType,
+				Payload: body,
+			})
+		})
+	}
+
 	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, session, domainAttachments, startedAt, active)
 
 	onChunk(bichatservices.StreamChunk{
@@ -680,6 +718,13 @@ func (s *chatServiceImpl) runStreamLoop(
 		active.CloseAllSubscribers()
 		s.runRegistry.Remove(active.RunID)
 		s.unregisterStreamCancel(req.SessionID)
+		// Shorten the run-events stream TTL now that the run is done; the
+		// reaper doesn't need it any more and long-lived Redis keys for
+		// every historical run would bloat memory unnecessarily. 5 min
+		// gives slow reconnecting clients a small grace window.
+		if s.eventLog != nil && session != nil {
+			_ = s.eventLog.DropAfterTerminal(persistCtx, session.TenantID(), runID, 5*time.Minute)
+		}
 	}()
 
 	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)

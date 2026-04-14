@@ -29,7 +29,13 @@ type ActiveRun struct {
 	TextBlockOffsets []int
 
 	subscribers map[chan bichatservices.StreamChunk]struct{}
-	Mu          sync.RWMutex
+	// mirrorFn is an optional side-effect hook invoked by Broadcast AFTER
+	// in-memory subscribers are notified. It lets callers dual-write the
+	// chunk to a durable store (e.g. RunEventLog on Redis) without the
+	// runStreamLoop having to care where the event ends up. Installed via
+	// SetMirror at run creation time.
+	mirrorFn func(bichatservices.StreamChunk)
+	Mu       sync.RWMutex
 }
 
 func NewActiveRun(runID, sessionID uuid.UUID, cancel context.CancelFunc, startedAt time.Time) *ActiveRun {
@@ -68,13 +74,26 @@ func (r *ActiveRun) SubscriberCount() int {
 
 func (r *ActiveRun) Broadcast(chunk bichatservices.StreamChunk) {
 	r.Mu.RLock()
-	defer r.Mu.RUnlock()
+	mirror := r.mirrorFn
 	for ch := range r.subscribers {
 		select {
 		case ch <- chunk:
 		default:
 		}
 	}
+	r.Mu.RUnlock()
+	if mirror != nil {
+		mirror(chunk)
+	}
+}
+
+// SetMirror installs a side-effect hook invoked after every Broadcast.
+// Passing nil clears the hook. Safe to call concurrently with Broadcast
+// — the hook is captured under the same RLock that the broadcast uses.
+func (r *ActiveRun) SetMirror(fn func(bichatservices.StreamChunk)) {
+	r.Mu.Lock()
+	r.mirrorFn = fn
+	r.Mu.Unlock()
 }
 
 func (r *ActiveRun) CloseAllSubscribers() {

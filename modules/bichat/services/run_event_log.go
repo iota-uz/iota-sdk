@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -13,6 +14,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/redis/go-redis/v9"
 )
+
+// envLookup is extracted so tests can stub the env; in production it
+// delegates to os.LookupEnv.
+var envLookup = os.LookupEnv
 
 // Redis conventions for the per-run event log.
 const (
@@ -77,6 +82,22 @@ type RunEventLog interface {
 	// runs get garbage-collected without bloating Redis. Safe to call on
 	// an already-expired key.
 	DropAfterTerminal(ctx context.Context, tenantID, runID uuid.UUID, ttl time.Duration) error
+}
+
+// newConfiguredRunEventLog builds a Redis-backed log from REDIS_URL when
+// set, or returns nil so callers fall back to the in-memory broadcaster
+// only. Matches newConfiguredGenerationRunStore semantics: logging a
+// warning on disable is the expected dev/test path.
+func newConfiguredRunEventLog() RunEventLog {
+	redisURL, ok := envLookup("REDIS_URL")
+	if !ok || strings.TrimSpace(redisURL) == "" {
+		return nil
+	}
+	log, err := NewRedisRunEventLog(RedisRunEventLogConfig{RedisURL: redisURL})
+	if err != nil {
+		return nil
+	}
+	return log
 }
 
 // RedisRunEventLogConfig configures the Redis-backed log. Zero values fall
