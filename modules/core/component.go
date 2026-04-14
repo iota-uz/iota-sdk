@@ -215,6 +215,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		opts := c.options
 		composition.ContributeControllersFunc(builder, func(
+			container *composition.Container,
 			app application.Application,
 			bus eventbus.EventBus,
 			uploadService *services.UploadService,
@@ -225,7 +226,16 @@ func (c *component) Build(builder *composition.Builder) error {
 			tenantService *services.TenantService,
 			groupService *services.GroupService,
 			twoFactorService *coreservices2fa.TwoFactorService,
-		) []application.Controller {
+		) ([]application.Controller, error) {
+			// AI search holder is optional — downstream components (e.g. bichat)
+			// register one via composition.ProvideFunc. Resolve it here so the
+			// spotlight controller gets the wired service instead of a hard
+			// nil. Swallow "not provided" so deployments without bichat keep
+			// working; any other error must surface.
+			aiHolder, err := composition.Resolve[*spotlight.AISearchServiceHolder](container)
+			if err != nil && !composition.IsNotProvided(err) {
+				return nil, err
+			}
 			// Auth and infrastructure controllers — always registered.
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
@@ -250,9 +260,10 @@ func (c *component) Build(builder *composition.Builder) error {
 			if !opts.SkipAdminControllers {
 				ctrls = append(ctrls,
 					controllers.NewDashboardController(),
-					// Spotlight controller accepts a nil AI search holder; downstream
-					// components that need AI-assisted search install one explicitly.
-					controllers.NewSpotlightController(app, nil),
+					// aiHolder may be nil when no downstream component registered
+					// an AI search service; the controller is nil-safe and will
+					// surface the feature as unavailable in that case.
+					controllers.NewSpotlightController(app, aiHolder),
 					controllers.NewUsersController(app, userControllerOpts...),
 					controllers.NewRolesController(&controllers.RolesControllerOptions{
 						BasePath:         "/roles",
@@ -275,7 +286,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				}
 			}
 
-			return ctrls
+			return ctrls, nil
 		})
 	}
 
