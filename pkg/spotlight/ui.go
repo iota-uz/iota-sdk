@@ -13,9 +13,9 @@ import (
 	"github.com/a-h/templ"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/sirupsen/logrus"
 	spotlightui "github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/sirupsen/logrus"
 )
 
 func iconForEntityType(doc SearchDocument) templ.Component {
