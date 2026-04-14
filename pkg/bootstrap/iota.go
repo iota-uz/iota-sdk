@@ -57,7 +57,12 @@ func IotaConfigWithServiceName(conf *configuration.Configuration, serviceName st
 			poolCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
 
-			pool, err := pgxpool.New(poolCtx, conf.Database.Opts)
+			poolCfg, err := conf.Database.PoolConfig()
+			if err != nil {
+				return nil, nil, fmt.Errorf("bootstrap: build pgxpool config: %w", err)
+			}
+
+			pool, err := pgxpool.NewWithConfig(poolCtx, poolCfg)
 			if err != nil {
 				return nil, nil, err
 			}
