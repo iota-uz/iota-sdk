@@ -120,7 +120,20 @@ func (s *chatServiceImpl) unregisterStreamCancel(sessionID uuid.UUID) {
 	delete(s.activeStreamCancel, sessionID)
 }
 
-// StopGeneration cancels the active stream for the session; no partial assistant message is persisted.
+// StopGeneration cancels the active stream for the session; no partial
+// assistant message is persisted. The call is idempotent and tries three
+// signals in order:
+//
+//  1. In-process: if this server has the streaming goroutine, we own the
+//     cancel func directly and firing it immediately unblocks the executor.
+//  2. Cross-process: the Redis run state may be owned by a different
+//     worker / replica. Flip the cancel_requested flag so whichever worker
+//     is driving the run sees it on its next tick and drives the Cancel
+//     transition itself. Safe to call even when (1) already fired.
+//
+// When neither mechanism finds an active run the call succeeds silently
+// (see ErrNoActiveRun handling in the controller) so clicking Stop on a
+// run that has just finished is never an error from the user's view.
 func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUID) error {
 	s.streamCancelMu.Lock()
 	cancel, ok := s.activeStreamCancel[sessionID]
@@ -131,6 +144,20 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 	if cancel != nil {
 		cancel()
 	}
+
+	// Best-effort persist the cancel intent. If the active run lives on
+	// another process (future: dedicated run worker, replica behind a
+	// load balancer), this is the ONLY signal it will see. Failures
+	// here are logged via serrors and swallowed so the in-process
+	// cancel that already succeeded stays authoritative.
+	run, err := s.runState.GetPersistedRun(ctx, sessionID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNoActiveRun) {
+			return nil
+		}
+		return nil
+	}
+	_ = s.runState.RequestCancel(ctx, run.TenantID(), sessionID, run.ID())
 	return nil
 }
 
@@ -878,6 +905,21 @@ func (s *chatServiceImpl) runStreamLoop(
 		if shouldPersistSnapshot {
 			meta := active.SnapshotMetadata()
 			_ = s.updateRunSnapshot(persistCtx, session.TenantID(), req.SessionID, runID, content, meta)
+			// Refresh heartbeat at the snapshot throttle cadence (2s).
+			// The reaper marks runs whose heartbeat is older than ~60s as
+			// failed, so a 2s cadence leaves comfortable headroom under
+			// slow LLM calls or tool executions.
+			_ = s.runState.Heartbeat(persistCtx, session.TenantID(), req.SessionID, runID)
+			// Check the out-of-band cancel flag. A Stop RPC from another
+			// tab / device sets this flag on the persisted run; we
+			// observe it here and wind the generator down by cancelling
+			// processCtx. The next gen.Next will return ctx.Err() and
+			// the outer loop's cleanup will emit a terminal chunk.
+			if persistedRun, err := s.runState.GetPersistedRun(persistCtx, req.SessionID); err == nil && persistedRun != nil {
+				if persistedRun.CancelRequested() && active.Cancel != nil {
+					active.Cancel()
+				}
+			}
 			active.Mu.Lock()
 			active.LastPersist = time.Now()
 			active.Mu.Unlock()
