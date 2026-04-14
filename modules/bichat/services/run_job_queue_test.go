@@ -160,6 +160,65 @@ func TestRedisRunJobQueue_Enqueue_HonoursCallerSuppliedRunID(t *testing.T) {
 	assert.Equal(t, requested, returned, "queue must preserve caller-supplied RunID")
 }
 
+func TestRedisRunJobQueue_ClaimRequest_DoesNotEnqueueStreamEntry(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	queue, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{
+		RedisURL: mr.Addr(),
+		Stream:   "bichat:run:test-claim",
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = queue.Close() })
+
+	requestID := uuid.New()
+	assigned := uuid.New()
+	runID, deduped, err := queue.ClaimRequest(context.Background(), requestID, assigned)
+	require.NoError(t, err)
+	assert.False(t, deduped, "first claim must not be marked deduped")
+	assert.Equal(t, assigned, runID, "first claim must return the caller-supplied run id")
+
+	length, xlenErr := queue.client.XLen(context.Background(), queue.stream).Result()
+	require.NoError(t, xlenErr)
+	assert.Equal(t, int64(0), length, "ClaimRequest must not push to the job stream")
+}
+
+func TestRedisRunJobQueue_ClaimRequest_DuplicateReturnsExistingRunID(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	queue, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{RedisURL: mr.Addr()})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = queue.Close() })
+
+	requestID := uuid.New()
+	first, _, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	require.NoError(t, err)
+
+	second, deduped, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	require.NoError(t, err)
+	assert.True(t, deduped, "duplicate claim must be flagged")
+	assert.Equal(t, first, second, "duplicate claim must return the original run id")
+}
+
+func TestRedisRunJobQueue_ReleaseRequest_AllowsFreshRunAfterRelease(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	queue, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{RedisURL: mr.Addr()})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = queue.Close() })
+
+	requestID := uuid.New()
+	first, _, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	require.NoError(t, err)
+	require.NoError(t, queue.ReleaseRequest(context.Background(), requestID))
+
+	second, _, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	require.NoError(t, err)
+	assert.NotEqual(t, first, second, "released request id must produce a new run")
+}
+
 func TestParseRunJobPayload_RoundTripsViaRedis(t *testing.T) {
 	t.Parallel()
 

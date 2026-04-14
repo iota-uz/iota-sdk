@@ -178,6 +178,13 @@ type SendMessageRequest struct {
 	ReasoningEffort *string
 	// Model overrides the default model for this request. Must match a registered model name.
 	Model *string
+	// RequestID is the client-supplied idempotency key. When set, two
+	// sends sharing a RequestID within the dedupe TTL window (~30 min)
+	// converge on the same run: one server-side run executes, both
+	// clients see the same stream. Nil means no dedupe — duplicate
+	// sends race normally and the session's active-run lock decides
+	// which wins. See RunJobQueue.ClaimRequest for the mechanism.
+	RequestID *uuid.UUID
 }
 
 // SendMessageResponse contains the result of sending a message

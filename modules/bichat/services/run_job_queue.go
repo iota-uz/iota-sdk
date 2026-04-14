@@ -91,6 +91,21 @@ type RedisRunJobQueue struct {
 	maxLen       int64
 }
 
+// newConfiguredRunJobQueue mirrors the other newConfigured* helpers:
+// reads REDIS_URL and returns nil on disable so callers can degrade
+// to the pre-queue behaviour.
+func newConfiguredRunJobQueue() *RedisRunJobQueue {
+	redisURL, ok := envLookup("REDIS_URL")
+	if !ok || strings.TrimSpace(redisURL) == "" {
+		return nil
+	}
+	q, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{RedisURL: redisURL})
+	if err != nil {
+		return nil
+	}
+	return q
+}
+
 // NewRedisRunJobQueue constructs a queue bound to the supplied Redis client,
 // or dials a new connection from RedisURL if Client is nil.
 func NewRedisRunJobQueue(cfg RedisRunJobQueueConfig) (*RedisRunJobQueue, error) {
@@ -153,51 +168,29 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "request id is required")
 	}
 
-	// The caller may supply a RunID (e.g. retries promoted off the retry
-	// schedule). When empty, mint a fresh one — but do not commit to it
-	// until SetNX wins, otherwise a losing caller would return a RunID
-	// that isn't actually the authoritative one.
-	assignedRunID := payload.RunID
-	if assignedRunID == uuid.Nil {
-		assignedRunID = uuid.New()
-	}
-
-	dedupeKey := q.dedupeKey(payload.RequestID)
-	enqueueCtx := context.WithoutCancel(ctx)
-
-	acquired, err := q.client.SetNX(enqueueCtx, dedupeKey, assignedRunID.String(), q.dedupeTTL).Result()
+	// Delegate the SetNX dance to ClaimRequest so the inline request
+	// path and the queued path share one implementation — diverging
+	// them would make the dedupe contract subtly different between
+	// the two code paths.
+	runID, deduped, err := q.ClaimRequest(ctx, payload.RequestID, payload.RunID)
 	if err != nil {
-		return uuid.Nil, false, serrors.E(op, "set run dedupe key", err)
+		return uuid.Nil, false, serrors.E(op, err)
 	}
-	if !acquired {
-		// Duplicate send: look up the run id assigned by the first writer.
-		existing, getErr := q.client.Get(enqueueCtx, dedupeKey).Result()
-		if getErr != nil {
-			if errors.Is(getErr, redis.Nil) {
-				// The dedupe key expired between the SetNX race and our Get.
-				// Treat as a stale dedupe record and retry enqueue from scratch.
-				return q.Enqueue(ctx, payload)
-			}
-			return uuid.Nil, false, serrors.E(op, "read run dedupe key", getErr)
-		}
-		existingID, parseErr := uuid.Parse(existing)
-		if parseErr != nil {
-			return uuid.Nil, false, serrors.E(op, "parse existing run id", parseErr)
-		}
-		return existingID, true, nil
+	if deduped {
+		return runID, true, nil
 	}
-
-	payload.RunID = assignedRunID
+	payload.RunID = runID
 	if payload.EnqueuedAt.IsZero() {
 		payload.EnqueuedAt = time.Now().UTC()
 	}
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		_, _ = q.client.Del(enqueueCtx, dedupeKey).Result()
+		_, _ = q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(payload.RequestID)).Result()
 		return uuid.Nil, false, serrors.E(op, "marshal run payload", err)
 	}
 
+	enqueueCtx := context.WithoutCancel(ctx)
 	_, err = q.client.XAdd(enqueueCtx, &redis.XAddArgs{
 		Stream: q.stream,
 		MaxLen: q.maxLen,
@@ -213,13 +206,77 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 		},
 	}).Result()
 	if err != nil {
-		cleanupCtx := context.WithoutCancel(ctx)
-		_, _ = q.client.Del(cleanupCtx, dedupeKey).Result()
+		_, _ = q.client.Del(enqueueCtx, q.dedupeKey(payload.RequestID)).Result()
 		return uuid.Nil, false, serrors.E(op, "xadd run job", err)
 	}
 	_, _ = q.client.XTrimMaxLenApprox(enqueueCtx, q.stream, q.maxLen, 1).Result()
 
 	return payload.RunID, false, nil
+}
+
+// ClaimRequest acquires the request_id dedupe lock WITHOUT enqueuing a
+// stream entry. It is used by the inline SendMessageStream path (where
+// execution stays in-process on the current server) so that duplicate
+// clicks / concurrent tabs sharing a request_id converge to the same
+// run_id without pushing a phantom job onto bichat:run:jobs. Semantics
+// mirror Enqueue's dedupe phase:
+//
+//   - First claim wins SetNX → returns (assignedRunID, false, nil).
+//     Caller must eventually Release on terminal or accept the TTL.
+//   - Subsequent claim reads the existing mapping → returns
+//     (existingRunID, true, nil).
+//   - Expired-between-SetNX-and-Get is retried.
+//
+// When assignedRunID is uuid.Nil a fresh one is minted on a winning
+// claim.
+func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, requestID, assignedRunID uuid.UUID) (uuid.UUID, bool, error) {
+	const op serrors.Op = "RedisRunJobQueue.ClaimRequest"
+	if requestID == uuid.Nil {
+		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "request id is required")
+	}
+	candidate := assignedRunID
+	if candidate == uuid.Nil {
+		candidate = uuid.New()
+	}
+	dedupeKey := q.dedupeKey(requestID)
+	writeCtx := context.WithoutCancel(ctx)
+
+	acquired, err := q.client.SetNX(writeCtx, dedupeKey, candidate.String(), q.dedupeTTL).Result()
+	if err != nil {
+		return uuid.Nil, false, serrors.E(op, "set request dedupe key", err)
+	}
+	if acquired {
+		return candidate, false, nil
+	}
+	existing, err := q.client.Get(writeCtx, dedupeKey).Result()
+	if err != nil {
+		if errors.Is(err, redis.Nil) {
+			return q.ClaimRequest(ctx, requestID, assignedRunID)
+		}
+		return uuid.Nil, false, serrors.E(op, "read request dedupe key", err)
+	}
+	existingID, parseErr := uuid.Parse(existing)
+	if parseErr != nil {
+		return uuid.Nil, false, serrors.E(op, "parse existing run id", parseErr)
+	}
+	return existingID, true, nil
+}
+
+// ReleaseRequest drops the dedupe mapping for a request_id. Called on
+// terminal transitions so repeated send-with-same-id after completion
+// starts a new run rather than attaching to the finished one. Safe to
+// call with an expired key (redis.Nil is swallowed).
+func (q *RedisRunJobQueue) ReleaseRequest(ctx context.Context, requestID uuid.UUID) error {
+	if requestID == uuid.Nil {
+		return nil
+	}
+	if _, err := q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(requestID)).Result(); err != nil {
+		if errors.Is(err, redis.Nil) {
+			return nil
+		}
+		return err
+	}
+	return nil
 }
 
 // Close releases the underlying Redis connection.

@@ -47,7 +47,13 @@ type chatServiceImpl struct {
 	// sessions. nil when Redis is unconfigured — in that mode sidebar
 	// dots degrade to polling via /stream/status, but the core
 	// streaming path still works.
-	activeRunIndex     ActiveRunIndex
+	activeRunIndex ActiveRunIndex
+	// runJobQueue is used only for its ClaimRequest side (not XAdd):
+	// request_id idempotency in the inline SendMessageStream path.
+	// nil when Redis is unconfigured → dedupe silently degrades to
+	// the pre-existing "two concurrent sends on same session → second
+	// fails ErrActiveRunExists" behaviour.
+	runJobQueue        *RedisRunJobQueue
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *streamingsvc.RunRegistry
@@ -77,6 +83,7 @@ func NewChatService(
 		runState:           streamingsvc.NewRunStateManager(runStore),
 		eventLog:           newConfiguredRunEventLog(),
 		activeRunIndex:     newConfiguredActiveRunIndex(),
+		runJobQueue:        newConfiguredRunJobQueue(),
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}
@@ -742,6 +749,32 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	const op serrors.Op = "chatServiceImpl.SendMessageStream"
 	startedAt := time.Now()
 
+	// request_id dedupe: if the client supplied an idempotency key,
+	// claim it before doing any real work. A duplicate send within
+	// the ~30 min dedupe window converges on the existing run — we
+	// emit stream_started with the existing run id then delegate to
+	// the resume path so the second sender tails the same stream as
+	// the first. This mirrors the cross-device UX from the plan.
+	// When Redis is not configured (dev/CI) the queue is nil and
+	// dedupe silently no-ops.
+	var claimedRunID uuid.UUID
+	if req.RequestID != nil && s.runJobQueue != nil {
+		runID, deduped, claimErr := s.runJobQueue.ClaimRequest(ctx, *req.RequestID, uuid.New())
+		if claimErr == nil {
+			if deduped {
+				onChunk(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeStreamStarted,
+					RunID:     runID.String(),
+					Timestamp: time.Now(),
+				})
+				return s.ResumeStream(ctx, req.SessionID, runID, onChunk)
+			}
+			claimedRunID = runID
+		}
+		// Claim error falls through without dedupe — a Redis blip must
+		// not prevent the user's message from sending.
+	}
+
 	var session domain.Session
 	var err error
 
@@ -778,6 +811,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 
 		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+			// claimedRunID is the UUID reserved by ClaimRequest when a
+			// request_id was supplied — preserving it means the dedupe
+			// mapping points to the correct run (and a retry within
+			// the dedupe window attaches correctly). uuid.Nil causes
+			// NewGenerationRun to mint a fresh id.
+			ID:        claimedRunID,
 			SessionID: req.SessionID,
 			TenantID:  session.TenantID(),
 			UserID:    session.UserID(),

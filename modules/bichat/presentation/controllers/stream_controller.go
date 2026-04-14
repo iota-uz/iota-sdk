@@ -130,6 +130,9 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		ReplaceFrom     *uuid.UUID            `json:"replaceFromMessageId,omitempty"`
 		ReasoningEffort *string               `json:"reasoningEffort,omitempty"`
 		Model           *string               `json:"model,omitempty"`
+		// RequestID is the client idempotency key. Duplicate sends with
+		// the same RequestID within ~30 min converge on the same run.
+		RequestID *uuid.UUID `json:"requestId,omitempty"`
 	}
 
 	var req streamRequest
@@ -218,6 +221,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		ReplaceFromMessageID: req.ReplaceFrom,
 		ReasoningEffort:      req.ReasoningEffort,
 		Model:                req.Model,
+		RequestID:            req.RequestID,
 	}, func(chunk bichatservices.StreamChunk) {
 		// Handle context cancellation
 		select {
