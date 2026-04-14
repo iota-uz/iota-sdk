@@ -8,7 +8,6 @@ import (
 	"io"
 	"regexp"
 	"strings"
-	"text/template"
 
 	"github.com/a-h/templ"
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -204,7 +203,10 @@ func moreResultsLabel(ctx context.Context, count int) string {
 			return translated
 		}
 	}
-	return executeTemplateFallback("{{.Count}} more results", map[string]interface{}{"Count": count})
+	if count == 1 {
+		return fmt.Sprintf("%d more result", count)
+	}
+	return fmt.Sprintf("%d more results", count)
 }
 
 // resolveDisplayTitle localizes a title at render time using the request's localizer.
@@ -225,18 +227,6 @@ func resolveDisplayTitle(ctx context.Context, title, trKey string) string {
 		}
 	}
 	return title
-}
-
-func executeTemplateFallback(tmpl string, data map[string]interface{}) string {
-	t, err := template.New("").Parse(tmpl)
-	if err != nil {
-		return tmpl
-	}
-	var buf strings.Builder
-	if err := t.Execute(&buf, data); err != nil {
-		return tmpl
-	}
-	return buf.String()
 }
 
 func spotlightText(ctx context.Context, key, fallback string) string {

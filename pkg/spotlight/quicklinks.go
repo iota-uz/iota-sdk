@@ -159,6 +159,22 @@ type translationResult struct {
 	allBody           string   // all translations joined for document body
 }
 
+// matchLanguage compares IETF BCP 47 language tags by primary subtag.
+// e.g. matchLanguage("uz", "uz") == true, matchLanguage("uz-Cyrl", "uz") == true,
+// matchLanguage("uz", "ru") == false.
+func matchLanguage(lang, active string) bool {
+	if lang == "" || active == "" {
+		return false
+	}
+	primary := func(tag string) string {
+		if idx := strings.IndexAny(tag, "-_"); idx >= 0 {
+			return strings.ToLower(tag[:idx])
+		}
+		return strings.ToLower(tag)
+	}
+	return primary(lang) == primary(active)
+}
+
 // resolveTranslations resolves the translation key into per-language translations,
 // separating the user's active language from others for scoring.
 func (ql *QuickLinks) resolveTranslations(trKey, activeLanguage string) translationResult {
@@ -187,14 +203,16 @@ func (ql *QuickLinks) resolveTranslations(trKey, activeLanguage string) translat
 		if title == "" {
 			title = translated
 		}
+		isActive := activeTr == "" && activeLanguage != "" && matchLanguage(lang, activeLanguage)
+		if isActive {
+			activeTr = translated
+		}
 		if _, exists := seen[translated]; exists {
 			continue
 		}
 		seen[translated] = struct{}{}
 		all = append(all, translated)
-		if strings.HasPrefix(lang, activeLanguage) || strings.HasPrefix(activeLanguage, lang) {
-			activeTr = translated
-		} else {
+		if !isActive {
 			others = append(others, translated)
 		}
 	}

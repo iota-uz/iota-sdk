@@ -993,20 +993,20 @@ func SpotlightItemsCollapsible(
 			}
 		}
 		if len(moreItems) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "<li x-data=\"{ expanded: false }\" class=\"mx-1.5 list-none\"><button type=\"button\" x-show=\"!expanded\" @click=\"expanded = true\" class=\"w-full rounded-lg px-3 py-2 text-center text-xs font-medium text-300 hover:bg-surface-100/50 hover:text-200 transition-colors cursor-pointer\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 62, "<li x-data=\"{ expanded: false }\" x-id=\"[&#39;spotlight-more&#39;]\" class=\"mx-1.5 list-none\"><button type=\"button\" x-show=\"!expanded\" @click=\"expanded = true\" :aria-expanded=\"expanded\" :aria-controls=\"$id(&#39;spotlight-more&#39;)\" class=\"w-full rounded-lg px-3 py-2 text-center text-xs font-medium text-300 hover:bg-surface-100/50 hover:text-200 transition-colors cursor-pointer\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var51 string
 			templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(moreLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 432, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/spotlight/spotlight.templ`, Line: 435, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</button><ul x-show=\"expanded\" x-collapse x-cloak data-spotlight-more class=\"list-none m-0 p-0\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 63, "</button><ul :id=\"$id(&#39;spotlight-more&#39;)\" x-show=\"expanded\" x-collapse x-cloak data-spotlight-more role=\"region\" class=\"list-none m-0 p-0\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

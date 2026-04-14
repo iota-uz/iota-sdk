@@ -421,17 +421,28 @@ templ SpotlightItemsCollapsible(
 	if len(moreItems) > 0 {
 		<li
 			x-data="{ expanded: false }"
+			x-id="['spotlight-more']"
 			class="mx-1.5 list-none"
 		>
 			<button
 				type="button"
 				x-show="!expanded"
 				@click="expanded = true"
+				:aria-expanded="expanded"
+				:aria-controls="$id('spotlight-more')"
 				class="w-full rounded-lg px-3 py-2 text-center text-xs font-medium text-300 hover:bg-surface-100/50 hover:text-200 transition-colors cursor-pointer"
 			>
 				{ moreLabel }
 			</button>
-			<ul x-show="expanded" x-collapse x-cloak data-spotlight-more class="list-none m-0 p-0">
+			<ul
+				:id="$id('spotlight-more')"
+				x-show="expanded"
+				x-collapse
+				x-cloak
+				data-spotlight-more
+				role="region"
+				class="list-none m-0 p-0"
+			>
 				for i, item := range moreItems {
 					@SpotlightItem(moreIndices[i]) {
 						@item

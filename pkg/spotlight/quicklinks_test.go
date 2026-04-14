@@ -625,3 +625,28 @@ func TestFuzzySearch_ShortQueryNoFalseTopRank(t *testing.T) {
 			"short 2-char query should get word-prefix score")
 	}
 }
+
+// ---------------------------------------------------------------------------
+// matchLanguage tests
+// ---------------------------------------------------------------------------
+
+func TestMatchLanguage(t *testing.T) {
+	cases := []struct {
+		lang, active string
+		want         bool
+	}{
+		{"uz", "uz", true},
+		{"uz-Cyrl", "uz", true},
+		{"uz", "uz-Cyrl", true},
+		{"uz", "ru", false},
+		{"en-US", "en-GB", true},
+		{"", "uz", false},
+		{"uz", "", false},
+		{"", "", false},
+		{"UZ", "uz", true}, // case-insensitive
+	}
+	for _, c := range cases {
+		require.Equal(t, c.want, matchLanguage(c.lang, c.active),
+			"matchLanguage(%q, %q)", c.lang, c.active)
+	}
+}
