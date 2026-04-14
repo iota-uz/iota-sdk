@@ -14,6 +14,7 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	spotlightui "github.com/iota-uz/iota-sdk/components/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"github.com/sirupsen/logrus"
 )
 
 func iconForEntityType(doc SearchDocument) templ.Component {
@@ -105,11 +106,107 @@ func displayWhyMatched(ctx context.Context, reason string) string {
 	}
 }
 
-func GroupToComponent(title string, items []templ.Component, startIdx int) templ.Component {
+func GroupToComponent(title string, items []templ.Component, startIdx int, hits []SearchHit) templ.Component {
 	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		child := spotlightui.SpotlightItems(items, startIdx)
+		child := buildGroupChild(ctx, items, startIdx, hits)
 		return spotlightui.SpotlightGroup(title).Render(templ.WithChildren(ctx, child), w)
 	})
+}
+
+// maxVisibleWithoutExact is the number of items shown before collapsing
+// in groups that have no exact matches.
+const maxVisibleWithoutExact = 3
+
+// buildGroupChild decides whether to collapse items in the group and returns
+// the appropriate templ component.
+func buildGroupChild(ctx context.Context, items []templ.Component, startIdx int, hits []SearchHit) templ.Component {
+	if len(hits) != len(items) {
+		logrus.WithFields(logrus.Fields{
+			"hits": len(hits), "items": len(items),
+		}).Warn("spotlight: GroupToComponent hits/items length mismatch, skipping collapse")
+		return spotlightui.SpotlightItems(items, startIdx)
+	}
+
+	// Check if this group has any exact match
+	hasExact := false
+	for _, hit := range hits {
+		if hit.WhyMatched == "exact_terms" {
+			hasExact = true
+			break
+		}
+	}
+
+	if hasExact {
+		return buildExactCollapse(ctx, items, startIdx, hits)
+	}
+	if len(items) > maxVisibleWithoutExact {
+		return buildScoreCollapse(ctx, items, startIdx)
+	}
+	return spotlightui.SpotlightItems(items, startIdx)
+}
+
+// buildExactCollapse shows exact-match items and collapses non-exact.
+func buildExactCollapse(ctx context.Context, items []templ.Component, startIdx int, hits []SearchHit) templ.Component {
+	var exactItems, moreItems []templ.Component
+	var exactIndices, moreIndices []int
+	idx := startIdx
+	for i, hit := range hits {
+		if hit.WhyMatched == "exact_terms" {
+			exactItems = append(exactItems, items[i])
+			exactIndices = append(exactIndices, idx)
+			idx++
+		}
+	}
+	for i, hit := range hits {
+		if hit.WhyMatched != "exact_terms" {
+			moreItems = append(moreItems, items[i])
+			moreIndices = append(moreIndices, idx)
+			idx++
+		}
+	}
+	if len(moreItems) == 0 {
+		return spotlightui.SpotlightItems(items, startIdx)
+	}
+	label := moreResultsLabel(ctx, len(moreItems))
+	return spotlightui.SpotlightItemsCollapsible(exactItems, exactIndices, moreItems, moreIndices, label)
+}
+
+// buildScoreCollapse shows the top N items by score and collapses the rest.
+func buildScoreCollapse(ctx context.Context, items []templ.Component, startIdx int) templ.Component {
+	visible := items[:maxVisibleWithoutExact]
+	more := items[maxVisibleWithoutExact:]
+
+	visibleIndices := make([]int, len(visible))
+	for i := range visible {
+		visibleIndices[i] = startIdx + i
+	}
+	moreIndices := make([]int, len(more))
+	for i := range more {
+		moreIndices[i] = startIdx + maxVisibleWithoutExact + i
+	}
+	label := moreResultsLabel(ctx, len(more))
+	return spotlightui.SpotlightItemsCollapsible(visible, visibleIndices, more, moreIndices, label)
+}
+
+func moreResultsLabel(ctx context.Context, count int) string {
+	if localizer, ok := intl.UseLocalizer(ctx); ok {
+		if translated, err := localizer.Localize(&i18n.LocalizeConfig{
+			MessageID: "Spotlight.MoreResults",
+			DefaultMessage: &i18n.Message{
+				ID:    "Spotlight.MoreResults",
+				One:   "{{.Count}} more result",
+				Other: "{{.Count}} more results",
+			},
+			TemplateData: map[string]interface{}{"Count": count},
+			PluralCount:  count,
+		}); err == nil && translated != "" {
+			return translated
+		}
+	}
+	if count == 1 {
+		return fmt.Sprintf("%d more result", count)
+	}
+	return fmt.Sprintf("%d more results", count)
 }
 
 // resolveDisplayTitle localizes a title at render time using the request's localizer.
