@@ -801,7 +801,6 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), *req.RequestID)
 		}
 	}
-	runPersisted := false // set true once the TX commits and the run row exists
 
 	if req.RequestID != nil && s.runJobQueue != nil {
 		runID, deduped, claimErr := s.runJobQueue.ClaimRequest(ctx, *req.RequestID, uuid.New())
@@ -918,9 +917,6 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 		return err
 	}
-	runPersisted = true
-	_ = runPersisted // used by the deferred release guard below
-
 	// Decouple generation from request cancellation, but keep request values
 	// (tenant/user/pool/tx) required by downstream services and repositories.
 	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
