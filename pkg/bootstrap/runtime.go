@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -16,6 +17,7 @@ import (
 
 type Runtime struct {
 	Config any
+	Source config.Source // optional; set via WithSource
 	Logger *logrus.Logger
 	Pool   *pgxpool.Pool
 	Bundle *i18n.Bundle
@@ -59,6 +61,9 @@ func (rt *Runtime) BuildContext() composition.BuildContext {
 		return composition.BuildContext{}
 	}
 	cfg, _ := rt.Config.(*configuration.Configuration)
+	if rt.Source != nil {
+		return composition.NewBuildContext(rt.App, cfg, rt.Source)
+	}
 	return composition.NewBuildContext(rt.App, cfg)
 }
 
@@ -93,6 +98,7 @@ type Option func(*options)
 
 type options struct {
 	config        any
+	source        config.Source
 	loggerFactory func(context.Context, any) (*logrus.Logger, func() error, error)
 	poolFactory   func(context.Context, any, *logrus.Logger) (*pgxpool.Pool, func() error, error)
 	bundleFactory func(context.Context, any) (*i18n.Bundle, error)
@@ -154,6 +160,7 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 
 	rt := &Runtime{
 		Config: cfg.config,
+		Source: cfg.source,
 	}
 
 	var cleanup []func() error

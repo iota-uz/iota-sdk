@@ -262,7 +262,7 @@ func New(opts *ApplicationOptions) (Application, error) {
 		quickLinks:         quickLinks,
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
-		migrations:         NewMigrationManager(opts.Pool),
+		migrations:         NewMigrationManagerLegacy(opts.Pool),
 		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
 	}

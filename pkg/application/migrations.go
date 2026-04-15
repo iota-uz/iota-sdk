@@ -13,6 +13,7 @@ import (
 	migrate "github.com/rubenv/sql-migrate"
 	"github.com/sirupsen/logrus"
 
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
@@ -33,13 +34,25 @@ type MigrationManager interface {
 	Status(ctx context.Context) ([]MigrationStatus, error)
 }
 
-func NewMigrationManager(pool *pgxpool.Pool) MigrationManager {
-	conf := configuration.Use()
+// NewMigrationManager creates a MigrationManager driven by an explicit
+// dbconfig.Config. Prefer this over NewMigrationManagerLegacy in new code.
+func NewMigrationManager(pool *pgxpool.Pool, db dbconfig.Config, logger logrus.FieldLogger) MigrationManager {
 	return &migrationManager{
-		migrationsDir: conf.MigrationsDir,
-		logger:        conf.Logger(),
+		migrationsDir: db.MigrationsDir,
+		logger:        logger,
 		pool:          pool,
 	}
+}
+
+// NewMigrationManagerLegacy is a thin backward-compat wrapper that reads
+// configuration from the global singleton. It exists for callers that have
+// not yet migrated to dbconfig.Config; it will be removed in W5.1.
+//
+// Deprecated: use NewMigrationManager with an explicit dbconfig.Config instead.
+func NewMigrationManagerLegacy(pool *pgxpool.Pool) MigrationManager {
+	conf := configuration.Use()
+	db := dbconfig.FromLegacy(conf)
+	return NewMigrationManager(pool, db, conf.Logger())
 }
 
 // migrationManager implements the MigrationManager interface

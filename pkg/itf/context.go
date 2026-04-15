@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -28,6 +29,7 @@ type TestContext struct {
 	user       user.User
 	components []composition.Component
 	dbName     string
+	source     config.Source // optional; enables ProvideConfig[T] in component Build
 }
 
 // newTestContext creates a new internal TestContext builder.
@@ -73,6 +75,7 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 	h := NewHarness(tb, HarnessConfig{
 		Name:       tc.dbName,
 		Components: tc.components,
+		Source:     tc.source,
 		Database: DatabaseConfig{
 			Provisioning: ProvisioningPerTestDatabase,
 			Cleanup:      CleanupDropOnExit,

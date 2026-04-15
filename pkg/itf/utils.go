@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -382,6 +383,7 @@ func DBOpts(name string) string {
 func SetupApplication(
 	pool *pgxpool.Pool,
 	components []composition.Component,
+	sources ...config.Source,
 ) (application.Application, *composition.Container, error) {
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
@@ -401,8 +403,14 @@ func SetupApplication(
 		if err := engine.Register(components...); err != nil {
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
 		}
+		var buildCtx composition.BuildContext
+		if len(sources) > 0 && sources[0] != nil {
+			buildCtx = composition.NewBuildContext(app, conf, sources[0])
+		} else {
+			buildCtx = composition.NewBuildContext(app, conf)
+		}
 		container, err = engine.Compile(
-			composition.NewBuildContext(app, conf),
+			buildCtx,
 			composition.CapabilityAPI,
 			composition.CapabilityWorker,
 		)

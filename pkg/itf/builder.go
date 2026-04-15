@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 )
 
 // SuiteBuilder provides a fluent API for building test suites with minimal boilerplate
@@ -17,6 +18,7 @@ type SuiteBuilder struct {
 	components []composition.Component
 	user       user.User
 	dbName     string
+	source     config.Source // optional; enables ProvideConfig[T] in component Build
 }
 
 // NewSuiteBuilder creates a new SuiteBuilder for HTTP controller testing
@@ -42,6 +44,23 @@ func (sb *SuiteBuilder) WithUser(u user.User) *SuiteBuilder {
 // WithTenant sets a custom database name (tenant isolation)
 func (sb *SuiteBuilder) WithTenant(name string) *SuiteBuilder {
 	sb.dbName = name
+	return sb
+}
+
+// WithSource attaches a config.Source to the test suite so that components
+// calling composition.ProvideConfig[T] inside their Build method can load
+// typed configuration from it. Intended for test setups that need to inject
+// config values without relying on environment variables or the legacy
+// configuration.Use() singleton.
+//
+// Example:
+//
+//	itf.NewSuiteBuilder(t).
+//	    WithSource(static.New(map[string]any{"db.host": "localhost"})).
+//	    WithComponents(myComponent).
+//	    Build()
+func (sb *SuiteBuilder) WithSource(src config.Source) *SuiteBuilder {
+	sb.source = src
 	return sb
 }
 
@@ -91,14 +110,34 @@ func (sb *SuiteBuilder) AsAnonymous() *SuiteBuilder {
 func (sb *SuiteBuilder) Build() *Suite {
 	sb.t.Helper()
 
-	// Create the base suite with modules
-	suite := NewSuite(sb.t, sb.components...)
-
-	// Configure user if provided
+	opts := make([]Option, 0, 3)
+	if len(sb.components) > 0 {
+		opts = append(opts, WithComponents(sb.components...))
+	}
 	if sb.user != nil {
-		suite = suite.AsUser(sb.user)
+		opts = append(opts, WithUser(sb.user))
+	}
+	if sb.dbName != "" {
+		opts = append(opts, WithDatabase(sb.dbName))
+	}
+	if sb.source != nil {
+		opts = append(opts, WithSource(sb.source))
 	}
 
+	env := Setup(sb.t, opts...)
+
+	suite := &Suite{
+		t:           sb.t,
+		env:         env,
+		modules:     sb.components,
+		middlewares: make([]MiddlewareFunc, 0),
+		beforeEach:  make([]HookFunc, 0),
+	}
+	suite.router = mux.NewRouter()
+	if sb.user != nil {
+		suite.user = sb.user
+	}
+	suite.setupMiddleware()
 	return suite
 }
 
@@ -107,7 +146,7 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 	sb.t.Helper()
 
 	// Build options array
-	options := make([]Option, 0, len(opts)+2)
+	options := make([]Option, 0, len(opts)+3)
 	if len(sb.components) > 0 {
 		options = append(options, WithComponents(sb.components...))
 	}
@@ -116,6 +155,9 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 	}
 	if sb.dbName != "" {
 		options = append(options, WithDatabase(sb.dbName))
+	}
+	if sb.source != nil {
+		options = append(options, WithSource(sb.source))
 	}
 	options = append(options, opts...)
 

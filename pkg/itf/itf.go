@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -89,6 +90,16 @@ func WithDatabase(name string) Option {
 func WithUser(u user.User) Option {
 	return func(tc *TestContext) {
 		tc.user = u
+	}
+}
+
+// WithSource attaches a config.Source to the test context so that components
+// calling composition.ProvideConfig[T] inside their Build method can load typed
+// configuration. Intended for tests that need to inject config values without
+// relying on environment variables or the legacy configuration.Use() singleton.
+func WithSource(src config.Source) Option {
+	return func(tc *TestContext) {
+		tc.source = src
 	}
 }
 

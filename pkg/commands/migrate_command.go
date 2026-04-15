@@ -46,7 +46,7 @@ func Migrate() error {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
 		defer pool.Close()
-		return handleMigrationCommands(ctx, command, application.NewMigrationManager(pool))
+		return handleMigrationCommands(ctx, command, application.NewMigrationManagerLegacy(pool))
 
 	default:
 		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", command)

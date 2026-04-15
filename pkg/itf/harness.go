@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -119,6 +120,7 @@ type ContextConfig struct {
 type HarnessConfig struct {
 	Name       string
 	Components []composition.Component
+	Source     config.Source // optional; forwarded to SetupApplication for ProvideConfig[T]
 	Database   DatabaseConfig
 	Migration  MigrationConfig
 	Isolation  IsolationConfig
@@ -437,7 +439,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, container, err := SetupApplication(pool, cfg.Components)
+	app, container, err := SetupApplication(pool, cfg.Components, cfg.Source)
 	if err != nil {
 		pool.Close()
 		_ = DropDBE(dbName)

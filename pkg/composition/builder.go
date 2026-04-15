@@ -9,6 +9,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -33,6 +34,8 @@ type BuildContext struct {
 	logger             *logrus.Logger
 	bundle             *i18n.Bundle
 	config             *configuration.Configuration
+	source             config.Source
+	registry           *config.Registry
 	ActiveCapabilities map[Capability]struct{}
 }
 
@@ -40,18 +43,24 @@ type BuildContext struct {
 // the SDK configuration. The application handle is captured privately so
 // Engine.Compile can auto-register application.Application as a provider at
 // container instantiation time.
-func NewBuildContext(app application.Application, config *configuration.Configuration) BuildContext {
+//
+// src is optional (pass nil during transition). When non-nil it enables
+// ProvideConfig[T] and auto-registration of typed stdconfig values.
+func NewBuildContext(app application.Application, cfg *configuration.Configuration, src ...config.Source) BuildContext {
 	ctx := BuildContext{
 		app:    app,
-		config: config,
+		config: cfg,
+	}
+	if len(src) > 0 {
+		ctx.source = src[0]
 	}
 	if app != nil {
 		ctx.db = app.DB()
 		ctx.eventPublisher = app.EventPublisher()
 		ctx.bundle = app.Bundle()
 	}
-	if config != nil {
-		ctx.logger = config.Logger()
+	if cfg != nil {
+		ctx.logger = cfg.Logger()
 	}
 	return ctx
 }
@@ -74,6 +83,25 @@ func (c BuildContext) Bundle() *i18n.Bundle {
 
 func (c BuildContext) Config() *configuration.Configuration {
 	return c.config
+}
+
+// Source returns the config.Source attached to this BuildContext, or nil if
+// none was provided (legacy path).
+func (c BuildContext) Source() config.Source {
+	return c.source
+}
+
+// Registry returns the shared config.Registry for this BuildContext, lazily
+// initialising it on first call. Panics if no Source is attached — callers
+// must check Source() first or use ProvideConfig which returns a proper error.
+func (c *BuildContext) Registry() *config.Registry {
+	if c.registry == nil {
+		if c.source == nil {
+			panic("composition: BuildContext.Registry called but no config.Source is attached; use bootstrap.WithSource")
+		}
+		c.registry = config.NewRegistry(c.source)
+	}
+	return c.registry
 }
 
 func (c BuildContext) HasCapability(capability Capability) bool {

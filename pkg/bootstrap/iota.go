@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
@@ -57,7 +58,10 @@ func IotaConfigWithServiceName(conf *configuration.Configuration, serviceName st
 			poolCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
 
-			poolCfg, err := conf.Database.PoolConfig()
+			// Route through dbconfig.Config.PoolConfig() — never call conf.Database.PoolConfig() directly.
+			// This makes the pool factory source-aware in a forward-compatible way.
+			db := dbconfig.FromLegacy(conf)
+			poolCfg, err := db.PoolConfig()
 			if err != nil {
 				return nil, nil, fmt.Errorf("bootstrap: build pgxpool config: %w", err)
 			}

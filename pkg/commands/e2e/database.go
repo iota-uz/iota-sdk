@@ -101,7 +101,7 @@ func Migrate() error {
 	}
 	defer pool.Close()
 
-	migrations := application.NewMigrationManager(pool)
+	migrations := application.NewMigrationManagerLegacy(pool)
 	if err := migrations.Run(); err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
