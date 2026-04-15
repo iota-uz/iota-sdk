@@ -37,11 +37,13 @@ func TestMappers_AllFields(t *testing.T) {
 			CompletionText:   "The revenue is $1M",
 			Duration:         2 * time.Second,
 			Attributes: map[string]interface{}{
-				"custom_field":        "custom_value",
-				"cache_read_tokens":   100,
-				"cache_write_tokens":  50,
-				"input_price_per_1m":  3.0,
-				"output_price_per_1m": 15.0,
+				"custom_field":       "custom_value",
+				"cache_read_tokens":  100,
+				"cache_write_tokens": 50,
+				"input_cost":         0.003,
+				"output_cost":        0.0075,
+				"total_cost":         0.0105,
+				"cost":               0.0105,
 			},
 		}
 
@@ -65,8 +67,10 @@ func TestMappers_AllFields(t *testing.T) {
 		assert.Equal(t, "custom_value", metadata["custom_field"])
 		assert.Equal(t, 100, metadata["cache_read_tokens"])
 		assert.Equal(t, 50, metadata["cache_write_tokens"])
-		assert.InEpsilon(t, 3.0, metadata["input_price_per_1m"], 1e-9)
-		assert.InEpsilon(t, 15.0, metadata["output_price_per_1m"], 1e-9)
+		assert.InEpsilon(t, 0.003, metadata["input_cost"], 1e-9)
+		assert.InEpsilon(t, 0.0075, metadata["output_cost"], 1e-9)
+		assert.InEpsilon(t, 0.0105, metadata["total_cost"], 1e-9)
+		assert.InEpsilon(t, 0.0105, metadata["cost"], 1e-9)
 	})
 
 	t.Run("mapGenerationToLangfuse - minimal fields", func(t *testing.T) {

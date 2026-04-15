@@ -21,6 +21,7 @@ type mockProvider struct {
 	generations []GenerationObservation
 	spans       []SpanObservation
 	events      []EventObservation
+	traces      []TraceObservation
 }
 
 func (m *mockProvider) RecordGeneration(ctx context.Context, obs GenerationObservation) error {
@@ -45,7 +46,9 @@ func (m *mockProvider) RecordEvent(ctx context.Context, obs EventObservation) er
 }
 
 func (m *mockProvider) RecordTrace(ctx context.Context, obs TraceObservation) error {
-	// No-op for testing
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.traces = append(m.traces, obs)
 	return nil
 }
 
@@ -59,6 +62,12 @@ func (m *mockProvider) getSpans() []SpanObservation {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	return append([]SpanObservation{}, m.spans...)
+}
+
+func (m *mockProvider) getTraces() []TraceObservation {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]TraceObservation{}, m.traces...)
 }
 
 func TestEventBridge_RequestResponseCorrelation(t *testing.T) {
@@ -496,6 +505,64 @@ func TestEventBridge_AgentErrorLifecycle(t *testing.T) {
 	assert.Equal(t, "agent.execute", errorSpan.Name)
 	assert.Equal(t, "error", errorSpan.Status)
 	assert.Equal(t, "max iterations", errorSpan.Output)
+}
+
+func TestEventBridge_FullCycleRecordsTraceCosts(t *testing.T) {
+	t.Parallel()
+
+	bus := hooks.NewEventBus()
+	provider := &mockProvider{}
+	bridge := NewEventBridge(bus, []Provider{provider})
+	defer func() { _ = bridge.Shutdown(context.Background()) }()
+
+	sessionID := uuid.New()
+	tenantID := uuid.New()
+
+	require.NoError(t, bus.Publish(context.Background(),
+		events.NewAgentStartEvent(sessionID, tenantID, "ali", false),
+	))
+	time.Sleep(50 * time.Millisecond)
+
+	requestEvent := events.NewLLMRequestEvent(
+		sessionID, tenantID,
+		"claude-sonnet-4-6", "anthropic",
+		3, 2, 1000,
+		"Show sales for Q1",
+	)
+	require.NoError(t, bus.Publish(context.Background(), requestEvent))
+	time.Sleep(50 * time.Millisecond)
+
+	require.NoError(t, bus.Publish(context.Background(),
+		events.NewLLMResponseEventWithTrace(
+			sessionID, tenantID,
+			sessionID.String(), requestEvent.RequestID,
+			"claude-sonnet-4-6", "anthropic",
+			900, 100, 1000,
+			500, "stop", 0,
+			"Q1 sales were up.",
+			"",
+			"",
+			nil,
+		),
+	))
+	time.Sleep(50 * time.Millisecond)
+
+	require.NoError(t, bus.Publish(context.Background(),
+		events.NewAgentCompleteEvent(sessionID, tenantID, "ali", 1, 1000, 800),
+	))
+	time.Sleep(100 * time.Millisecond)
+
+	generations := provider.getGenerations()
+	require.Len(t, generations, 1)
+	assert.Contains(t, generations[0].Attributes, "input_cost")
+	assert.Contains(t, generations[0].Attributes, "output_cost")
+	assert.Contains(t, generations[0].Attributes, "total_cost")
+	assert.Greater(t, generations[0].Attributes["total_cost"].(float64), 0.0)
+
+	traces := provider.getTraces()
+	require.Len(t, traces, 1)
+	assert.Equal(t, 1000, traces[0].TotalTokens)
+	assert.Greater(t, traces[0].TotalCost, 0.0)
 }
 
 func TestEventBridge_HierarchicalNesting(t *testing.T) {
