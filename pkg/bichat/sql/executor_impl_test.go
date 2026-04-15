@@ -187,12 +187,62 @@ func TestValidateQuery_RejectsNonReadOnlyStatements(t *testing.T) {
 		"SET search_path TO foo",
 		"DO $$ BEGIN PERFORM 1; END $$",
 		"RESET statement_timeout",
-		"EXPLAIN SELECT 1", // EXPLAIN is routed through ExplainQuery, not ValidateQuery
 	}
 	for _, sql := range cases {
 		err := e.ValidateQuery(context.Background(), sql)
 		if !errors.Is(err, ErrNotReadOnly) {
 			t.Fatalf("want ErrNotReadOnly for %q, got %v", sql, err)
+		}
+	}
+}
+
+func TestValidateQuery_RejectsTenantEscalation(t *testing.T) {
+	// Regression: a malicious payload could rewrite app.tenant_id
+	// mid-transaction via set_config(), bypassing the executor's
+	// tenant binding. The dangerous-pattern scan must reject it
+	// regardless of how the call is buried in a CTE or subquery.
+	e := NewSafeQueryExecutor(nil)
+	cases := []string{
+		"SELECT set_config('app.tenant_id', 'other-uuid', true), * FROM t",
+		"WITH s AS MATERIALIZED (SELECT set_config('app.tenant_id', 'other', true)) SELECT * FROM s CROSS JOIN t",
+		"SELECT SET_CONFIG('app.tenant_id', 'other-uuid', true) FROM t",
+		"SELECT * FROM t; SET ROLE postgres",
+		"SELECT * FROM t; SET SESSION AUTHORIZATION 'postgres'",
+		"SELECT pg_read_server_files('/etc/passwd', 0, 100)",
+		"SELECT lo_export(16387, '/tmp/x')",
+	}
+	for _, sql := range cases {
+		err := e.ValidateQuery(context.Background(), sql)
+		if !errors.Is(err, ErrDangerousPattern) {
+			t.Fatalf("want ErrDangerousPattern for %q, got %v", sql, err)
+		}
+	}
+}
+
+func TestValidateQuery_AllowsExplain(t *testing.T) {
+	// EXPLAIN-wrapped reads are a valid tool path (sql_execute
+	// explain_plan=true). The allowlist must let them through; the
+	// blocklist still catches write statements even when buried
+	// inside EXPLAIN.
+	e := NewSafeQueryExecutor(nil)
+	readCases := []string{
+		"EXPLAIN SELECT 1",
+		"EXPLAIN (FORMAT JSON) SELECT * FROM public.users",
+		"EXPLAIN ANALYZE SELECT count(*) FROM public.users",
+	}
+	for _, sql := range readCases {
+		if err := e.ValidateQuery(context.Background(), sql); err != nil {
+			t.Fatalf("EXPLAIN read rejected: %q -> %v", sql, err)
+		}
+	}
+	writeCases := []string{
+		"EXPLAIN INSERT INTO x VALUES (1)",
+		"EXPLAIN UPDATE x SET a = 1",
+	}
+	for _, sql := range writeCases {
+		err := e.ValidateQuery(context.Background(), sql)
+		if !errors.Is(err, ErrWriteOperation) {
+			t.Fatalf("EXPLAIN over write must still reject: %q -> %v", sql, err)
 		}
 	}
 }

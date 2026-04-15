@@ -446,12 +446,15 @@ func isAlphaNumByte(c byte) bool {
 }
 
 // readOnlyStatementPrefixes are the allow-listed first keywords for
-// ValidateQuery. EXPLAIN is not included: callers use ExplainQuery which
-// prepends EXPLAIN server-side after the user's SELECT passes validation.
+// ValidateQuery. EXPLAIN is included because tools wrap user queries
+// with it (e.g. `EXPLAIN (FORMAT TEXT) SELECT ...`); the inner write
+// keywords are still caught by the blocklist that runs before this
+// allowlist.
 var readOnlyStatementPrefixes = []string{
 	"SELECT ",
 	"WITH ",
 	"VALUES ",
+	"EXPLAIN ",
 	// Single-statement edge cases — parenthesised CTEs and VALUES.
 	"(",
 }
@@ -472,7 +475,7 @@ func isReadOnlyStatement(normalized string) bool {
 	// looks for keyword prefixes followed by space. Treat an exact
 	// token match (no trailing content) as read-only.
 	switch trimmed {
-	case "SELECT", "WITH", "VALUES":
+	case "SELECT", "WITH", "VALUES", "EXPLAIN":
 		return true
 	}
 	return false
@@ -514,6 +517,24 @@ var dangerousPatterns = []string{
 	// `COPY (SELECT ...) TO PROGRAM '...'` on a privileged role can exfil
 	// or shell out. Rely on role grants as primary defence; this is belt.
 	"COPY ",
+	// set_config() inside a SELECT can rewrite `app.tenant_id` mid-
+	// transaction, bypassing the executor's tenant binding and the RLS
+	// policies that key off current_setting('app.tenant_id'). Reject
+	// any call to set_config regardless of the is_local flag.
+	"SET_CONFIG(",
+	// SET ROLE / SET SESSION AUTHORIZATION switch the effective role
+	// and would also bypass role-scoped RLS policies. SET LOCAL is
+	// similarly blocked because read-only tx permits it.
+	"SET ROLE ",
+	"SET LOCAL ROLE ",
+	"SET SESSION AUTHORIZATION",
+	// Server-side file / large-object reads are a privilege-escalation
+	// surface even under read-only tx on roles with the filesystem
+	// grants. Rely on role grants as primary; block as belt.
+	"PG_READ_SERVER_FILES(",
+	"PG_READ_BINARY_FILE(",
+	"LO_EXPORT(",
+	"LO_IMPORT(",
 }
 
 func containsDangerousPatterns(normalized string) bool {
