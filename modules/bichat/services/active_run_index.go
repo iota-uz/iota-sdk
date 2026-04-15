@@ -123,21 +123,6 @@ func NewRedisActiveRunIndex(cfg RedisActiveRunIndexConfig) (*RedisActiveRunIndex
 	}, nil
 }
 
-// newConfiguredActiveRunIndex mirrors the other newConfigured* helpers:
-// reads REDIS_URL and returns nil on disable so callers degrade to a
-// no-op integration path.
-func newConfiguredActiveRunIndex() ActiveRunIndex {
-	redisURL, ok := envLookup("REDIS_URL")
-	if !ok || strings.TrimSpace(redisURL) == "" {
-		return nil
-	}
-	idx, err := NewRedisActiveRunIndex(RedisActiveRunIndexConfig{RedisURL: redisURL})
-	if err != nil {
-		return nil
-	}
-	return idx
-}
-
 // Upsert implements ActiveRunIndex.
 func (idx *RedisActiveRunIndex) Upsert(ctx context.Context, tenantID uuid.UUID, status ActiveRunStatus) error {
 	const op serrors.Op = "RedisActiveRunIndex.Upsert"
@@ -248,7 +233,7 @@ func (idx *RedisActiveRunIndex) Subscribe(ctx context.Context, tenantID uuid.UUI
 	out := make(chan ActiveRunStatus)
 	go func() {
 		defer close(out)
-		defer sub.Close()
+		defer func() { _ = sub.Close() }()
 		ch := sub.Channel()
 		for {
 			select {

@@ -302,7 +302,8 @@ func TestExecutor_SingleTurn(t *testing.T) {
 			finalResult = event.Result
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
-		case agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeInterrupt, agents.EventTypeThinking:
+		case agents.EventTypeToolStart, agents.EventTypeToolEnd, agents.EventTypeInterrupt,
+			agents.EventTypeThinking, agents.EventTypeTextBlockEnd:
 			// no-op for this test
 		}
 	}
@@ -414,7 +415,8 @@ func TestExecutor_ToolCalls(t *testing.T) {
 			toolEndEvent = event.Tool
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
-		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone, agents.EventTypeThinking:
+		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone,
+			agents.EventTypeThinking, agents.EventTypeTextBlockEnd:
 			// no-op for this test
 		}
 	}
@@ -1584,6 +1586,8 @@ func TestExecutor_TextBlockEnd_TextThenToolThenText(t *testing.T) {
 			observed = append(observed, observation{typ: ev.Type, seq: ev.TextBlockSeq})
 		case agents.EventTypeError:
 			t.Fatalf("unexpected error event: %v", ev.Error)
+		case agents.EventTypeInterrupt, agents.EventTypeThinking:
+			// no-op: these events are not relevant to the text_block_end assertion
 		}
 	}
 

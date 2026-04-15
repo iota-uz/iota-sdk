@@ -30,11 +30,12 @@ const (
 // IsTerminal reports whether an event type ends the run. Tailing consumers
 // (both server-side and applet-side) MUST settle on any of these.
 func IsTerminal(t StreamEventType) bool {
-	switch t {
+	switch t { //nolint:exhaustive // only terminal types need explicit cases; all non-terminal types return false via default
 	case StreamEventDone, StreamEventCancelled, StreamEventError, StreamEventFailed:
 		return true
+	default:
+		return false
 	}
-	return false
 }
 
 // allStreamEventTypes is the authoritative list of every wire event name.

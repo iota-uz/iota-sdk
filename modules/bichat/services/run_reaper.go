@@ -89,7 +89,7 @@ func NewConfiguredRunReaperWithTunables(
 		return nil, err
 	}
 	if client == nil {
-		return nil, nil
+		return nil, nil //nolint:nilnil // REDIS_URL unset means graceful in-memory fallback; nil return is the signal
 	}
 	store, err := newRedisGenerationRunStore(redisGenerationRunStoreConfig{Client: client})
 	if err != nil {
@@ -245,7 +245,7 @@ func (r *RunReaper) sweep(ctx context.Context) error {
 
 	for {
 		if err := ctx.Err(); err != nil {
-			return nil
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
 		}
 		keys, next, err := r.client.Scan(ctx, cursor, pattern, defaultReaperScanBatchSize).Result()
 		if err != nil {

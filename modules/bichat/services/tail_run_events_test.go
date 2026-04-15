@@ -121,7 +121,7 @@ func TestChatService_TailRunEvents_HonoursLastEventID(t *testing.T) {
 func TestChatService_TailRunEvents_MissingRunReturnsSentinel(t *testing.T) {
 	t.Parallel()
 
-	svc, _, _, _ := newTailTestService(t)
+	svc, _, _, _ := newTailTestService(t) //nolint:dogsled // harness returns 4 values; only svc needed here
 
 	ctx := composables.WithTenantID(context.Background(), uuid.New())
 	err := svc.TailRunEvents(ctx, uuid.New(), uuid.New(), "", func(evt bichatservices.RunEventDelivery) {

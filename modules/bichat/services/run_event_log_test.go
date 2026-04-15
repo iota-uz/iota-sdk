@@ -110,7 +110,7 @@ func TestRedisRunEventLog_TailClosesOnTerminal(t *testing.T) {
 	ch, err := log.Tail(ctx, tenant, run, RunEventStreamStart)
 	require.NoError(t, err)
 
-	var seen []string
+	seen := make([]string, 0, 3) // 2 content + 1 done seeded above
 	for evt := range ch {
 		seen = append(seen, evt.Type)
 	}

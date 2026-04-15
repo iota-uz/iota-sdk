@@ -76,22 +76,6 @@ type RunEventLog interface {
 	DropAfterTerminal(ctx context.Context, tenantID, runID uuid.UUID, ttl time.Duration) error
 }
 
-// newConfiguredRunEventLog builds a Redis-backed log from REDIS_URL when
-// set, or returns nil so callers fall back to the in-memory broadcaster
-// only. Matches newConfiguredGenerationRunStore semantics: logging a
-// warning on disable is the expected dev/test path.
-func newConfiguredRunEventLog() RunEventLog {
-	redisURL, ok := envLookup("REDIS_URL")
-	if !ok || strings.TrimSpace(redisURL) == "" {
-		return nil
-	}
-	log, err := NewRedisRunEventLog(RedisRunEventLogConfig{RedisURL: redisURL})
-	if err != nil {
-		return nil
-	}
-	return log
-}
-
 // RedisRunEventLogConfig configures the Redis-backed log. Zero values fall
 // back to the defaults above.
 type RedisRunEventLogConfig struct {

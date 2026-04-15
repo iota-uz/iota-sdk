@@ -1,13 +1,11 @@
 package controllers
 
 import (
-	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -108,14 +106,16 @@ func TestTailEvents_LastEventIDForwardedToService(t *testing.T) {
 		tailRunEventsFunc: func(_ context.Context, _, _ uuid.UUID, from string, onEvent func(bichatservices.RunEventDelivery)) error {
 			capturedFrom = from
 			// Deliver one content event.
-			payload, _ := json.Marshal(map[string]string{"type": "content", "content": "hello"})
+			payload, err := json.Marshal(map[string]string{"type": "content", "content": "hello"})
+			require.NoError(t, err)
 			onEvent(bichatservices.RunEventDelivery{
 				StreamID: "1712345678001-0",
 				Type:     "content",
 				Payload:  payload,
 			})
 			// Deliver terminal done.
-			donePayload, _ := json.Marshal(map[string]string{"type": "done"})
+			donePayload, err := json.Marshal(map[string]string{"type": "done"})
+			require.NoError(t, err)
 			onEvent(bichatservices.RunEventDelivery{
 				StreamID: "1712345678002-0",
 				Type:     "done",
@@ -189,15 +189,3 @@ func TestTailEvents_UnavailableEmitsErrorEvent(t *testing.T) {
 	assert.Contains(t, body, "unavailable", "error payload must mention unavailable")
 }
 
-// parseSSELines splits an SSE body into event line groups (non-empty lines).
-func parseSSELines(body string) []string {
-	var lines []string
-	scanner := bufio.NewScanner(strings.NewReader(body))
-	for scanner.Scan() {
-		line := scanner.Text()
-		if strings.HasPrefix(line, "event:") || strings.HasPrefix(line, "id:") || strings.HasPrefix(line, "data:") {
-			lines = append(lines, line)
-		}
-	}
-	return lines
-}

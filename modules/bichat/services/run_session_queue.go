@@ -94,18 +94,6 @@ func NewRedisRunSessionQueue(cfg RedisRunSessionQueueConfig) (*RedisRunSessionQu
 	}, nil
 }
 
-// newConfiguredRunSessionQueue mirrors the other newConfigured* helpers.
-func newConfiguredRunSessionQueue() RunSessionQueue {
-	redisURL, ok := envLookup("REDIS_URL")
-	if !ok || strings.TrimSpace(redisURL) == "" {
-		return nil
-	}
-	q, err := NewRedisRunSessionQueue(RedisRunSessionQueueConfig{RedisURL: redisURL})
-	if err != nil {
-		return nil
-	}
-	return q
-}
 
 // Push implements RunSessionQueue.
 //

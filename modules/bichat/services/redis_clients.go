@@ -13,7 +13,7 @@ import (
 func NewSharedRedisClient() (*redis.Client, error) {
 	redisURL, ok := envLookup("REDIS_URL")
 	if !ok || strings.TrimSpace(redisURL) == "" {
-		return nil, nil
+		return nil, nil //nolint:nilnil // REDIS_URL unset means graceful in-memory fallback; nil return is the signal
 	}
 	return newRedisClient(redisURL)
 }

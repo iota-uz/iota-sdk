@@ -134,7 +134,7 @@ func TestRunReaper_SweepLeavesFreshRunAlone(t *testing.T) {
 func TestRunReaper_SweepSkipsNonStreamingEntries(t *testing.T) {
 	t.Parallel()
 
-	reaper, _, _, index, _ := buildReaperHarness(t, 10*time.Millisecond)
+	reaper, _, _, index, _ := buildReaperHarness(t, 10*time.Millisecond) //nolint:dogsled // harness returns 5 values; only reaper and index needed here
 	tenant := uuid.New()
 
 	// A queued row older than stale — reaper must NOT touch queued

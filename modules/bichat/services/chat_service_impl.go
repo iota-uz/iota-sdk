@@ -565,7 +565,7 @@ func (s *chatServiceImpl) TailRunEvents(
 	lastID := from
 	for _, evt := range replayed {
 		if err := ctx.Err(); err != nil {
-			return nil
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
 		}
 		onEvent(bichatservices.RunEventDelivery{
 			StreamID: evt.StreamID,
@@ -586,7 +586,7 @@ func (s *chatServiceImpl) TailRunEvents(
 	}
 	for evt := range tailCh {
 		if err := ctx.Err(); err != nil {
-			return nil
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
 		}
 		onEvent(bichatservices.RunEventDelivery{
 			StreamID: evt.StreamID,
@@ -632,7 +632,7 @@ func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bicha
 	}
 	for _, entry := range snap {
 		if err := ctx.Err(); err != nil {
-			return nil
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
 		}
 		onEvent(bichatservices.ActiveRunDelivery{
 			Event:     "snapshot",
@@ -645,7 +645,7 @@ func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bicha
 
 	for entry := range subCh {
 		if err := ctx.Err(); err != nil {
-			return nil
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
 		}
 		onEvent(bichatservices.ActiveRunDelivery{
 			Event:     "update",

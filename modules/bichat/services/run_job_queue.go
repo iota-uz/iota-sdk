@@ -95,21 +95,6 @@ type RedisRunJobQueue struct {
 	maxLen       int64
 }
 
-// newConfiguredRunJobQueue mirrors the other newConfigured* helpers:
-// reads REDIS_URL and returns nil on disable so callers can degrade
-// to the pre-queue behaviour.
-func newConfiguredRunJobQueue() *RedisRunJobQueue {
-	redisURL, ok := envLookup("REDIS_URL")
-	if !ok || strings.TrimSpace(redisURL) == "" {
-		return nil
-	}
-	q, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{RedisURL: redisURL})
-	if err != nil {
-		return nil
-	}
-	return q
-}
-
 // NewRedisRunJobQueue constructs a queue bound to the supplied Redis client,
 // or dials a new connection from RedisURL if Client is nil.
 func NewRedisRunJobQueue(cfg RedisRunJobQueueConfig) (*RedisRunJobQueue, error) {

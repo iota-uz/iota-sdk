@@ -43,7 +43,7 @@ func TestRunEventLog_ConcurrentAppendsTailReceivesTerminal(t *testing.T) {
 		go func(writerIdx int) {
 			defer wg.Done()
 			for j := 0; j < eventsPerWriter; j++ {
-				body, _ := json.Marshal(map[string]any{"writer": writerIdx, "seq": j})
+				body, _ := json.Marshal(map[string]any{"writer": writerIdx, "seq": j}) //nolint:errchkjson // map[string]any with int values cannot fail
 				_, _ = log.Append(context.Background(), tenant, run, RunEvent{
 					Type:    "content",
 					Payload: body,
@@ -55,7 +55,7 @@ func TestRunEventLog_ConcurrentAppendsTailReceivesTerminal(t *testing.T) {
 	// One goroutine appends the terminal event after all writers have queued.
 	go func() {
 		wg.Wait()
-		body, _ := json.Marshal(map[string]string{})
+		body, _ := json.Marshal(map[string]string{}) //nolint:errchkjson // empty map cannot fail
 		_, _ = log.Append(context.Background(), tenant, run, RunEvent{
 			Type:    "done",
 			Payload: body,
