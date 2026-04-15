@@ -279,7 +279,7 @@ func (c *component) Build(builder *composition.Builder) error {
 						BasePath:         "/roles",
 						PermissionSchema: opts.PermissionSchema,
 					}),
-					controllers.NewGroupsController(app, groupService),
+					controllers.NewGroupsController(app),
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
 					controllers.NewSettingsLogoController(tenantService, uploadService),

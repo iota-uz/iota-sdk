@@ -117,7 +117,7 @@ type GroupsController struct {
 	basePath string
 }
 
-func NewGroupsController(app application.Application, _ *services.GroupService) application.Controller {
+func NewGroupsController(app application.Application) application.Controller {
 	basePath := "/groups"
 
 	controller := &GroupsController{

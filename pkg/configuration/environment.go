@@ -429,5 +429,6 @@ func (c *Configuration) Unload() {
 		if err := c.logFile.Close(); err != nil {
 			log.Printf("Failed to close log file: %v", err)
 		}
+		c.logFile = nil
 	}
 }
