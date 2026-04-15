@@ -84,7 +84,11 @@ type RedisActiveRunIndexConfig struct {
 
 // RedisActiveRunIndex is the Redis hash + pubsub implementation.
 type RedisActiveRunIndex struct {
-	client      *redis.Client
+	client *redis.Client
+	// ownsClient is true only when this instance dialled the connection
+	// itself. When false (client supplied externally), Close is a no-op so
+	// the shared-client path does not tear down the other components.
+	ownsClient  bool
 	keyPrefix   string
 	eventsTopic string
 }
@@ -101,6 +105,7 @@ func NewRedisActiveRunIndex(cfg RedisActiveRunIndexConfig) (*RedisActiveRunIndex
 		events = defaultActiveRunIndexEventsTop
 	}
 
+	ownsClient := cfg.Client == nil
 	client := cfg.Client
 	if client == nil {
 		c, err := newRedisClient(cfg.RedisURL)
@@ -112,6 +117,7 @@ func NewRedisActiveRunIndex(cfg RedisActiveRunIndexConfig) (*RedisActiveRunIndex
 
 	return &RedisActiveRunIndex{
 		client:      client,
+		ownsClient:  ownsClient,
 		keyPrefix:   prefix,
 		eventsTopic: events,
 	}, nil
@@ -267,8 +273,13 @@ func (idx *RedisActiveRunIndex) Subscribe(ctx context.Context, tenantID uuid.UUI
 	return out, nil
 }
 
-// Close releases the underlying Redis connection.
+// Close releases the underlying Redis connection. When the client was
+// supplied externally (ownsClient == false) this is a no-op; the caller
+// that owns the shared *redis.Client is responsible for closing it.
 func (idx *RedisActiveRunIndex) Close() error {
+	if !idx.ownsClient {
+		return nil
+	}
 	return idx.client.Close()
 }
 

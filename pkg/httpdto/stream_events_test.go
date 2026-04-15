@@ -16,7 +16,7 @@ func TestIsTerminal(t *testing.T) {
 		httpdto.StreamEventFailed:    true,
 	}
 
-	for _, et := range httpdto.AllStreamEventTypes {
+	for _, et := range httpdto.AllStreamEventTypes() {
 		want := terminal[et]
 		got := httpdto.IsTerminal(et)
 		if got != want {
@@ -37,7 +37,7 @@ func TestIsTerminal_AllValuesAccountedFor(t *testing.T) {
 	}
 
 	all := make(map[httpdto.StreamEventType]bool)
-	for _, et := range httpdto.AllStreamEventTypes {
+	for _, et := range httpdto.AllStreamEventTypes() {
 		all[et] = true
 	}
 

@@ -84,7 +84,11 @@ type RedisRunJobQueueConfig struct {
 
 // RedisRunJobQueue is the Redis Streams implementation of RunJobQueue.
 type RedisRunJobQueue struct {
-	client       *redis.Client
+	client *redis.Client
+	// ownsClient is true only when this instance dialled the connection
+	// itself. When false (client supplied externally), Close is a no-op so
+	// the shared-client path does not tear down the other components.
+	ownsClient   bool
 	stream       string
 	dedupePrefix string
 	dedupeTTL    time.Duration
@@ -129,6 +133,7 @@ func NewRedisRunJobQueue(cfg RedisRunJobQueueConfig) (*RedisRunJobQueue, error) 
 		maxLen = defaultRunQueueMaxLen
 	}
 
+	ownsClient := cfg.Client == nil
 	client := cfg.Client
 	if client == nil {
 		c, err := newRedisClient(cfg.RedisURL)
@@ -140,6 +145,7 @@ func NewRedisRunJobQueue(cfg RedisRunJobQueueConfig) (*RedisRunJobQueue, error) 
 
 	return &RedisRunJobQueue{
 		client:       client,
+		ownsClient:   ownsClient,
 		stream:       stream,
 		dedupePrefix: dedupePrefix,
 		dedupeTTL:    dedupeTTL,
@@ -231,6 +237,7 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 // claim.
 func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, requestID, assignedRunID uuid.UUID) (uuid.UUID, bool, error) {
 	const op serrors.Op = "RedisRunJobQueue.ClaimRequest"
+	const maxRetries = 3
 	if requestID == uuid.Nil {
 		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "request id is required")
 	}
@@ -241,25 +248,35 @@ func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, requestID, assigned
 	dedupeKey := q.dedupeKey(requestID)
 	writeCtx := context.WithoutCancel(ctx)
 
-	acquired, err := q.client.SetNX(writeCtx, dedupeKey, candidate.String(), q.dedupeTTL).Result()
-	if err != nil {
-		return uuid.Nil, false, serrors.E(op, "set request dedupe key", err)
-	}
-	if acquired {
-		return candidate, false, nil
-	}
-	existing, err := q.client.Get(writeCtx, dedupeKey).Result()
-	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return q.ClaimRequest(ctx, requestID, assignedRunID)
+	// The SetNX→Get sequence has a narrow window where the key expires between
+	// the two operations. We retry up to maxRetries times instead of recursing
+	// so stack depth is bounded regardless of Redis timing.
+	for attempt := range maxRetries {
+		acquired, err := q.client.SetNX(writeCtx, dedupeKey, candidate.String(), q.dedupeTTL).Result()
+		if err != nil {
+			return uuid.Nil, false, serrors.E(op, "set request dedupe key", err)
 		}
-		return uuid.Nil, false, serrors.E(op, "read request dedupe key", err)
+		if acquired {
+			return candidate, false, nil
+		}
+		existing, err := q.client.Get(writeCtx, dedupeKey).Result()
+		if err != nil {
+			if errors.Is(err, redis.Nil) {
+				// Key expired between SetNX and Get — retry.
+				if attempt < maxRetries-1 {
+					continue
+				}
+				return uuid.Nil, false, serrors.E(op, "request dedupe retry exhausted")
+			}
+			return uuid.Nil, false, serrors.E(op, "read request dedupe key", err)
+		}
+		existingID, parseErr := uuid.Parse(existing)
+		if parseErr != nil {
+			return uuid.Nil, false, serrors.E(op, "parse existing run id", parseErr)
+		}
+		return existingID, true, nil
 	}
-	existingID, parseErr := uuid.Parse(existing)
-	if parseErr != nil {
-		return uuid.Nil, false, serrors.E(op, "parse existing run id", parseErr)
-	}
-	return existingID, true, nil
+	return uuid.Nil, false, serrors.E(op, "request dedupe retry exhausted")
 }
 
 // ReleaseRequest drops the dedupe mapping for a request_id. Called on
@@ -279,8 +296,13 @@ func (q *RedisRunJobQueue) ReleaseRequest(ctx context.Context, requestID uuid.UU
 	return nil
 }
 
-// Close releases the underlying Redis connection.
+// Close releases the underlying Redis connection. When the client was
+// supplied externally (ownsClient == false) this is a no-op; the caller
+// that owns the shared *redis.Client is responsible for closing it.
 func (q *RedisRunJobQueue) Close() error {
+	if !q.ownsClient {
+		return nil
+	}
 	return q.client.Close()
 }
 

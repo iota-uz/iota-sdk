@@ -16,6 +16,8 @@ type ChatApplicationServices struct {
 	StreamCommands  bichatservices.StreamCommands
 	HITLCommands    bichatservices.HITLCommands
 	Observability   *StreamObservability
+	// core holds the single chatServiceImpl so shutdown helpers can reach it.
+	core            *chatServiceImpl
 }
 
 type sessionCommandsService struct{ *chatServiceImpl }
@@ -42,5 +44,16 @@ func NewChatApplicationServices(
 		StreamCommands:  &streamCommandsService{chatServiceImpl: core},
 		HITLCommands:    &hitlCommandsService{chatServiceImpl: core},
 		Observability:   NewStreamObservability(core.runRegistry),
+		core:            core,
 	}
+}
+
+// CloseSharedRedis releases the shared *redis.Client that backs all Redis
+// components. Must be called exactly once at shutdown; no-op when Redis is
+// unconfigured.
+func (s *ChatApplicationServices) CloseSharedRedis() error {
+	if s.core == nil {
+		return nil
+	}
+	return s.core.CloseSharedRedis()
 }

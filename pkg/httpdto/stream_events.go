@@ -37,12 +37,20 @@ func IsTerminal(t StreamEventType) bool {
 	return false
 }
 
-// AllStreamEventTypes enumerates every wire event name. Keep in sync with
-// the applet's utils/eventNames.ts (there is a drift-guard test there).
-var AllStreamEventTypes = []StreamEventType{
+// allStreamEventTypes is the authoritative list of every wire event name.
+// Keep in sync with the applet's utils/eventNames.ts (there is a
+// drift-guard test there).
+var allStreamEventTypes = []StreamEventType{
 	StreamEventChunk, StreamEventContent, StreamEventThinking,
 	StreamEventToolStart, StreamEventToolEnd, StreamEventTextBlockEnd,
 	StreamEventSnapshot, StreamEventInterrupt, StreamEventCitation,
 	StreamEventUsage, StreamEventPing, StreamEventStreamStarted,
 	StreamEventDone, StreamEventCancelled, StreamEventError, StreamEventFailed,
+}
+
+// AllStreamEventTypes returns a defensive copy of every wire event name so
+// callers cannot mutate the authoritative list. Use slices.Clone when you
+// need to iterate in a mutation-prone context.
+func AllStreamEventTypes() []StreamEventType {
+	return append([]StreamEventType(nil), allStreamEventTypes...)
 }

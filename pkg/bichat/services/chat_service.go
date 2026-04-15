@@ -15,9 +15,9 @@ import (
 var ErrRunNotFoundOrFinished = errors.New("generation run not found or already finished")
 
 // ErrRunEventLogUnavailable is returned by TailRunEvents when the durable
-// event log is not configured (e.g. REDIS_URL unset in dev). Controllers
-// map this to 501 Not Implemented so clients know to fall back to the
-// legacy in-memory ResumeStream endpoint.
+// event log is not configured (e.g. REDIS_URL unset in dev). The stream
+// controller reports this via an SSE `error` event on an otherwise-200
+// stream so clients can display the condition without switching transports.
 var ErrRunEventLogUnavailable = errors.New("run event log unavailable")
 
 // SessionCommands manages mutating session actions.
@@ -116,7 +116,7 @@ type StreamCommands interface {
 // pubsub deltas, so the client can render differently (one-shot vs
 // mutation).
 type ActiveRunDelivery struct {
-	Event     string    // "snapshot" | "update"
+	Event     string // "snapshot" | "update"
 	SessionID uuid.UUID
 	RunID     uuid.UUID
 	Status    string

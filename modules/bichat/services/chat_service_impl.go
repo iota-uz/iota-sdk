@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf16"
 
 	"github.com/google/uuid"
 	hitlsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/hitl"
@@ -53,7 +54,11 @@ type chatServiceImpl struct {
 	// nil when Redis is unconfigured → dedupe silently degrades to
 	// the pre-existing "two concurrent sends on same session → second
 	// fails ErrActiveRunExists" behaviour.
-	runJobQueue        *RedisRunJobQueue
+	runJobQueue *RedisRunJobQueue
+	// closeSharedRedis is set when a shared *redis.Client was created by
+	// newConfiguredRedisComponents. Must be called exactly once at shutdown
+	// (via CloseSharedRedis). nil when Redis is unconfigured.
+	closeSharedRedis   func() error
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *streamingsvc.RunRegistry
@@ -76,7 +81,10 @@ func NewChatService(
 	// Use a single shared Redis connection for all Redis-backed components so
 	// the process dials only one connection to Redis. Falls back to nil/noop
 	// when REDIS_URL is unset (dev/CI without Redis).
-	eventLog, activeRunIndex, runJobQueue := newConfiguredRedisComponents()
+	// closeSharedRedis is the single owner of the shared *redis.Client; each
+	// component's Close() is a no-op because the client was supplied
+	// externally. Call CloseSharedRedis() exactly once at shutdown.
+	eventLog, activeRunIndex, runJobQueue, closeSharedRedis := newConfiguredRedisComponents()
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
 		sessionAccess:      accessRepo,
@@ -88,9 +96,20 @@ func NewChatService(
 		eventLog:           eventLog,
 		activeRunIndex:     activeRunIndex,
 		runJobQueue:        runJobQueue,
+		closeSharedRedis:   closeSharedRedis,
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}
+}
+
+// CloseSharedRedis releases the shared *redis.Client created by
+// newConfiguredRedisComponents. Must be called exactly once during
+// shutdown; it is a no-op when Redis was not configured.
+func (s *chatServiceImpl) CloseSharedRedis() error {
+	if s.closeSharedRedis == nil {
+		return nil
+	}
+	return s.closeSharedRedis()
 }
 
 // WithEventLog overrides the event log on an existing chatServiceImpl.
@@ -153,6 +172,7 @@ func (s *chatServiceImpl) unregisterStreamCancel(sessionID uuid.UUID) {
 // (see ErrNoActiveRun handling in the controller) so clicking Stop on a
 // run that has just finished is never an error from the user's view.
 func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUID) error {
+	const op serrors.Op = "chatServiceImpl.StopGeneration"
 	s.streamCancelMu.Lock()
 	cancel, ok := s.activeStreamCancel[sessionID]
 	if ok {
@@ -165,17 +185,22 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 
 	// Best-effort persist the cancel intent. If the active run lives on
 	// another process (future: dedicated run worker, replica behind a
-	// load balancer), this is the ONLY signal it will see. Failures
-	// here are logged via serrors and swallowed so the in-process
-	// cancel that already succeeded stays authoritative.
-	run, err := s.runState.GetPersistedRun(ctx, sessionID)
+	// load balancer), this is the ONLY signal it will see.
+	//
+	// Use a detached context so the persisted cancel survives a client
+	// disconnect that has already cancelled ctx.
+	persistCtx := context.WithoutCancel(ctx)
+	run, err := s.runState.GetPersistedRun(persistCtx, sessionID)
 	if err != nil {
 		if errors.Is(err, domain.ErrNoActiveRun) {
+			// No active run — idempotent success from the user's view.
 			return nil
 		}
-		return nil
+		// Any other persistence failure is surfaced so operators can
+		// diagnose cross-process cancel delivery failures.
+		return serrors.E(op, err)
 	}
-	_ = s.runState.RequestCancel(ctx, run.TenantID(), sessionID, run.ID())
+	_ = s.runState.RequestCancel(persistCtx, run.TenantID(), sessionID, run.ID())
 	return nil
 }
 
@@ -1032,10 +1057,14 @@ func (s *chatServiceImpl) runStreamLoop(
 
 		case agents.EventTypeTextBlockEnd:
 			active.Mu.Lock()
-			// Record the byte offset of the segment boundary so resume
-			// snapshots can split the accumulated content back into the
-			// blocks the user originally saw.
-			active.TextBlockOffsets = append(active.TextBlockOffsets, len(active.Content))
+			// Record the UTF-16 code unit count at the segment boundary so
+			// resume snapshots can split the accumulated content back into
+			// the blocks the user originally saw.
+			// Offsets are UTF-16 code unit counts so the applet can consume
+			// them directly via str.slice() without byte-index miscounts on
+			// non-ASCII (multi-byte) content.
+			activeContent := active.Content
+			active.TextBlockOffsets = append(active.TextBlockOffsets, len(utf16.Encode([]rune(activeContent))))
 			active.Mu.Unlock()
 			chunk.Type = bichatservices.ChunkTypeTextBlockEnd
 			chunk.TextBlockSeq = event.TextBlockSeq

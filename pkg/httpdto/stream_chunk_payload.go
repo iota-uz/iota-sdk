@@ -36,6 +36,12 @@ type InterruptEventPayload struct {
 }
 
 // StreamSnapshotPayload is the partial state sent when resuming a stream.
+//
+// PartialMetadata may include a "text_block_offsets" key whose value is
+// []int. Each entry is a UTF-16 code unit count into PartialContent marking
+// the end of a completed assistant text segment (seq 0, seq 1, …). The
+// applet can use these with str.slice() directly — they are NOT Go byte
+// offsets.
 type StreamSnapshotPayload struct {
 	PartialContent  string         `json:"partialContent,omitempty"`
 	PartialMetadata map[string]any `json:"partialMetadata,omitempty"`

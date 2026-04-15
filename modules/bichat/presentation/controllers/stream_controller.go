@@ -480,9 +480,11 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 // connection; we forward it to RunEventLog so replay is always cursor-
 // exact.
 //
-// Returns 503 when the event log is not configured (dev/CI without
-// Redis) so clients can fall back to POST /stream/resume. Returns 404
-// when the run is unknown, 400 for malformed input.
+// For malformed input, the handler responds with HTTP 400 before starting
+// the stream. For valid SSE requests, the handler establishes an HTTP 200
+// event stream and reports runtime conditions such as an unavailable event
+// log or an unknown/finished run via an SSE `error` event payload so
+// clients can handle them without switching transports.
 func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "StreamController.TailEvents"
 
@@ -560,7 +562,7 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		logger := configuration.Use().Logger()
 		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
-			logger.WithError(serrors.E(op, "flush failed", err)).Warn("TailEvents: run event log unavailable")
+			logger.WithError(serrors.E(op, err)).Warn("TailEvents: run event log unavailable")
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
@@ -571,7 +573,7 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
-			logger.WithError(serrors.E(op, "flush failed", err)).Warn("TailEvents: run not found or already finished")
+			logger.WithError(serrors.E(op, err)).Warn("TailEvents: run not found or already finished")
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
@@ -658,7 +660,7 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 	if err != nil {
 		logger := configuration.Use().Logger()
 		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
-			logger.WithError(serrors.E(op, "flush failed", err)).Warn("TailActiveRuns: active-run index unavailable")
+			logger.WithError(serrors.E(op, err)).Warn("TailActiveRuns: active-run index unavailable")
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", map[string]string{

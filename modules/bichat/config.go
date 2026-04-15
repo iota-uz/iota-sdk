@@ -291,6 +291,11 @@ type ServiceContainer struct {
 	titleJobQueue     *services.RedisTitleJobQueue
 	titleQueueConfig  *TitleQueueConfig
 	logger            *logrus.Logger
+	// sharedRedisClose is the single owner of the *redis.Client shared across
+	// all Redis-backed components (event log, active-run index, job queue).
+	// Component Close() calls are no-ops when the client was supplied externally.
+	// Call CloseSharedRedis() once during shutdown to release the connection.
+	sharedRedisClose func() error
 	// Reaper tunables forwarded from ModuleConfig. Zero means use defaults.
 	reaperInterval       time.Duration
 	reaperStaleThreshold time.Duration
@@ -374,6 +379,16 @@ func (sc *ServiceContainer) CloseTitleQueue() error {
 	err := sc.titleJobQueue.Close()
 	sc.titleJobQueue = nil
 	return err
+}
+
+// CloseSharedRedis releases the shared *redis.Client that backs the event log,
+// active-run index, and run job queue. Must be called exactly once at shutdown;
+// no-op when Redis was not configured.
+func (sc *ServiceContainer) CloseSharedRedis() error {
+	if sc.sharedRedisClose == nil {
+		return nil
+	}
+	return sc.sharedRedisClose()
 }
 
 // NewRunReaper builds the stale-run reaper when Redis is configured.

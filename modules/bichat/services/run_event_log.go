@@ -105,11 +105,15 @@ type RedisRunEventLogConfig struct {
 
 // RedisRunEventLog is the Redis Streams implementation.
 type RedisRunEventLog struct {
-	client    *redis.Client
-	keyPrefix string
-	maxLen    int64
-	ttl       time.Duration
-	blockTime time.Duration
+	client *redis.Client
+	// ownsClient is true only when this instance dialled the connection
+	// itself. When false (client supplied externally), Close is a no-op so
+	// the shared-client path does not tear down the other components.
+	ownsClient bool
+	keyPrefix  string
+	maxLen     int64
+	ttl        time.Duration
+	blockTime  time.Duration
 }
 
 // NewRedisRunEventLog constructs a log bound to the supplied client, or
@@ -132,6 +136,7 @@ func NewRedisRunEventLog(cfg RedisRunEventLogConfig) (*RedisRunEventLog, error) 
 		blockTime = defaultRunEventTailBlock
 	}
 
+	ownsClient := cfg.Client == nil
 	client := cfg.Client
 	if client == nil {
 		c, err := newRedisClient(cfg.RedisURL)
@@ -142,11 +147,12 @@ func NewRedisRunEventLog(cfg RedisRunEventLogConfig) (*RedisRunEventLog, error) 
 	}
 
 	return &RedisRunEventLog{
-		client:    client,
-		keyPrefix: prefix,
-		maxLen:    maxLen,
-		ttl:       ttl,
-		blockTime: blockTime,
+		client:     client,
+		ownsClient: ownsClient,
+		keyPrefix:  prefix,
+		maxLen:     maxLen,
+		ttl:        ttl,
+		blockTime:  blockTime,
 	}, nil
 }
 
@@ -288,8 +294,13 @@ func (l *RedisRunEventLog) DropAfterTerminal(ctx context.Context, tenantID, runI
 	return nil
 }
 
-// Close releases the underlying Redis connection.
+// Close releases the underlying Redis connection. When the client was
+// supplied externally (ownsClient == false) this is a no-op; the caller
+// that owns the shared *redis.Client is responsible for closing it.
 func (l *RedisRunEventLog) Close() error {
+	if !l.ownsClient {
+		return nil
+	}
 	return l.client.Close()
 }
 

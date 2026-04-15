@@ -22,10 +22,13 @@ type ActiveRun struct {
 	ToolOrder   []string
 	ArtifactMap map[string]types.ToolArtifact
 	LastPersist time.Time
-	// TextBlockOffsets are byte offsets into Content marking the end of each
-	// completed assistant text segment. The first entry corresponds to seq 0,
-	// the second to seq 1, etc. The trailing un-closed segment (if any) is
-	// implicit and runs from the last offset to len(Content).
+	// TextBlockOffsets are UTF-16 code unit counts into Content marking the
+	// end of each completed assistant text segment. The first entry
+	// corresponds to seq 0, the second to seq 1, etc. The trailing
+	// un-closed segment (if any) is implicit and runs from the last offset
+	// to the UTF-16 length of Content.
+	// Using UTF-16 units (not Go byte offsets) lets the applet consume them
+	// directly via str.slice() without miscounts on non-ASCII characters.
 	TextBlockOffsets []int
 
 	subscribers map[chan bichatservices.StreamChunk]struct{}

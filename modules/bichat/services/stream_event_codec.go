@@ -65,10 +65,10 @@ func BuildPayload(chunk bichatservices.StreamChunk) (httpdto.StreamEventType, ht
 		}
 	}
 	if chunk.Error != nil {
-		// Redis log stores the raw error string; the HTTP layer sanitises
-		// before emitting to browsers (see stream_controller.streamClientErrorMessage).
-		// Including the raw message here is fine because the event log is
-		// server-side only.
+		// Store the raw error string here; encodeRunEventFromChunk applies
+		// sanitizeChunkError before persisting to Redis so replay paths never
+		// expose provider internals. The live HTTP path is sanitised by
+		// stream_controller.streamClientErrorMessage.
 		payload.Error = chunk.Error.Error()
 	}
 	if chunk.Snapshot != nil {
@@ -90,13 +90,41 @@ func BuildPayload(chunk bichatservices.StreamChunk) (httpdto.StreamEventType, ht
 	return httpdto.StreamEventType(eventType), payload, nil
 }
 
+// sanitizeChunkError returns a safe error string for storage in the Redis
+// event log so that replayed events via GET /stream/events cannot leak raw
+// internal error text (e.g. provider stack traces) to browsers.
+//
+// The sanitization logic mirrors StreamController.streamClientErrorMessage.
+// Keep both in sync when updating error-handling behaviour.
+func sanitizeChunkError(chunk bichatservices.StreamChunk) string {
+	if chunk.Error == nil {
+		return ""
+	}
+	if chunk.Type != bichatservices.ChunkTypeError {
+		// Non-error chunk types (e.g. tool errors) carry localised tool info;
+		// preserve them so the applet can display tool-level error detail.
+		return chunk.Error.Error()
+	}
+	// For terminal error chunks, return a generic safe message to avoid
+	// leaking provider internals. The applet only needs to know the run failed.
+	return "An error occurred while processing your request"
+}
+
 // encodeRunEventFromChunk is the internal shim used by the Redis event-log
-// appender. It delegates to BuildPayload and marshals the result so the
-// call site in chat_service_impl.go does not need to change.
+// appender. It delegates to BuildPayload, applies error sanitisation so the
+// stored JSON never contains raw internal error strings, then marshals the
+// result. Only sanitised text is written to Redis; the HTTP layer uses an
+// equivalent sanitiser (StreamController.streamClientErrorMessage) on the
+// live stream path.
 func encodeRunEventFromChunk(chunk bichatservices.StreamChunk) (string, []byte, error) {
 	eventType, payload, err := BuildPayload(chunk)
 	if err != nil {
 		return "", nil, err
+	}
+	// Sanitise before storing so replay over GET /stream/events cannot expose
+	// raw provider error strings. Mirrors the controller's post-encode step.
+	if chunk.Error != nil {
+		payload.Error = sanitizeChunkError(chunk)
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {

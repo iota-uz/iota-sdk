@@ -390,6 +390,9 @@ func newRuntimeStart(b *bichatBundle, pool *pgxpool.Pool) func(ctx context.Conte
 				if closeErr := b.services.CloseTitleQueue(); closeErr != nil {
 					stopErr = errors.Join(stopErr, closeErr)
 				}
+				if closeErr := b.services.CloseSharedRedis(); closeErr != nil {
+					stopErr = errors.Join(stopErr, closeErr)
+				}
 			}
 
 			if b.eventBridge != nil {

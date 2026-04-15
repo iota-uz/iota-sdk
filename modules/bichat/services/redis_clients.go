@@ -21,29 +21,36 @@ func NewSharedRedisClient() (*redis.Client, error) {
 // newConfiguredRedisComponents builds all Redis-backed infrastructure from a
 // single shared client so the process dials only one connection to Redis.
 // Returns all nils when Redis is not configured (REDIS_URL unset).
-func newConfiguredRedisComponents() (RunEventLog, ActiveRunIndex, *RedisRunJobQueue) {
+//
+// Ownership invariant: each component's Close() is a no-op because the
+// client was supplied externally (ownsClient == false). The caller MUST
+// invoke the returned closeFunc exactly once during shutdown to release the
+// shared connection. The closeFunc is nil when Redis is not configured.
+func newConfiguredRedisComponents() (RunEventLog, ActiveRunIndex, *RedisRunJobQueue, func() error) {
 	client, err := NewSharedRedisClient()
 	if err != nil || client == nil {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
+
+	closeClient := func() error { return client.Close() }
 
 	eventLog, err := NewRedisRunEventLog(RedisRunEventLogConfig{Client: client})
 	if err != nil {
 		_ = client.Close()
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	index, err := NewRedisActiveRunIndex(RedisActiveRunIndexConfig{Client: client})
 	if err != nil {
 		_ = client.Close()
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
 	queue, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{Client: client})
 	if err != nil {
 		_ = client.Close()
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 
-	return eventLog, index, queue
+	return eventLog, index, queue, closeClient
 }

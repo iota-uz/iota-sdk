@@ -204,6 +204,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		titleJobQueue:        titleJobQueue,
 		titleQueueConfig:     c.TitleQueue,
 		logger:               c.Logger,
+		sharedRedisClose:     chatServices.CloseSharedRedis,
 		reaperInterval:       c.ReaperInterval,
 		reaperStaleThreshold: c.ReaperStaleThreshold,
 		reaperLockTTL:        c.ReaperLockTTL,
