@@ -65,17 +65,21 @@ type chatServiceImpl struct {
 }
 
 // NewChatService creates a production implementation of ChatService.
+// Returns an error when REDIS_URL is set but any Redis component fails to
+// initialise — this prevents a broken Redis config from silently degrading
+// to the in-memory fallback while operators believe Redis is active.
 //
 // Example:
 //
-//	service := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
+//	service, err := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
 func NewChatService(
 	chatRepo domain.ChatRepository,
 	agentService bichatservices.AgentService,
 	model agents.Model,
 	titleService TitleService,
 	titleQueue TitleJobQueue,
-) *chatServiceImpl {
+) (*chatServiceImpl, error) {
+	const op serrors.Op = "NewChatService"
 	runStore := newConfiguredGenerationRunStore()
 	accessRepo := chatRepo.(domain.SessionAccessRepository)
 	// Use a single shared Redis connection for all Redis-backed components so
@@ -84,7 +88,10 @@ func NewChatService(
 	// closeSharedRedis is the single owner of the shared *redis.Client; each
 	// component's Close() is a no-op because the client was supplied
 	// externally. Call CloseSharedRedis() exactly once at shutdown.
-	eventLog, activeRunIndex, runJobQueue, closeSharedRedis := newConfiguredRedisComponents()
+	eventLog, activeRunIndex, runJobQueue, closeSharedRedis, err := newConfiguredRedisComponents()
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
 		sessionAccess:      accessRepo,
@@ -99,7 +106,7 @@ func NewChatService(
 		closeSharedRedis:   closeSharedRedis,
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
-	}
+	}, nil
 }
 
 // CloseSharedRedis releases the shared *redis.Client created by
@@ -200,7 +207,9 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 		// diagnose cross-process cancel delivery failures.
 		return serrors.E(op, err)
 	}
-	_ = s.runState.RequestCancel(persistCtx, run.TenantID(), sessionID, run.ID())
+	if err := s.runState.RequestCancel(persistCtx, run.TenantID(), sessionID, run.ID()); err != nil {
+		return serrors.E(op, err)
+	}
 	return nil
 }
 
@@ -634,16 +643,28 @@ func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bicha
 	if err != nil {
 		return serrors.E(op, err)
 	}
+
+	// snapshotHighWaterMark tracks the highest UpdatedAt seen per session
+	// in the snapshot phase. Any pubsub delta with UpdatedAt ≤ the
+	// snapshot value for the same session is a buffered-but-stale delta
+	// that arrived before we subscribed yet landed in the pubsub buffer
+	// afterward. Forwarding it would regress the sidebar to an older
+	// status, so we drop it.
+	snapshotHighWaterMark := make(map[uuid.UUID]int64, len(snap))
 	for _, entry := range snap {
 		if err := ctx.Err(); err != nil {
 			return nil //nolint:nilerr // context cancelled — clean stop, not an error
+		}
+		ms := entry.UpdatedAt.UnixMilli()
+		if ms > snapshotHighWaterMark[entry.SessionID] {
+			snapshotHighWaterMark[entry.SessionID] = ms
 		}
 		onEvent(bichatservices.ActiveRunDelivery{
 			Event:     "snapshot",
 			SessionID: entry.SessionID,
 			RunID:     entry.RunID,
 			Status:    entry.Status,
-			UpdatedAt: entry.UpdatedAt.UnixMilli(),
+			UpdatedAt: ms,
 		})
 	}
 
@@ -651,12 +672,22 @@ func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bicha
 		if err := ctx.Err(); err != nil {
 			return nil //nolint:nilerr // context cancelled — clean stop, not an error
 		}
+		ms := entry.UpdatedAt.UnixMilli()
+		// Drop deltas that don't advance beyond the snapshot high-water
+		// mark for this session — they are stale pubsub entries buffered
+		// before the snapshot was taken.
+		if ms <= snapshotHighWaterMark[entry.SessionID] {
+			continue
+		}
+		// Advance the high-water mark so subsequent deltas for the same
+		// session are also deduplicated correctly within the live window.
+		snapshotHighWaterMark[entry.SessionID] = ms
 		onEvent(bichatservices.ActiveRunDelivery{
 			Event:     "update",
 			SessionID: entry.SessionID,
 			RunID:     entry.RunID,
 			Status:    entry.Status,
-			UpdatedAt: entry.UpdatedAt.UnixMilli(),
+			UpdatedAt: ms,
 		})
 	}
 	return nil
@@ -791,19 +822,26 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// When Redis is not configured (dev/CI) the queue is nil and
 	// dedupe silently no-ops.
 	var claimedRunID uuid.UUID
-	// releaseRequest drops the dedupe mapping so that a retry with the same
-	// requestID can mint a fresh run instead of deduping to a phantom one.
-	// It is called on early-exit error paths (before the run is persisted)
-	// and at terminal run completion. Safe to call multiple times: the Redis
-	// key may already be gone and the implementation swallows redis.Nil.
+	// reqTenantID is used to scope the dedupe key. Resolved from context
+	// (set by HTTP auth middleware); falls back to uuid.Nil when not set
+	// (e.g. internal callers without a request context), in which case
+	// dedupe is skipped safely.
+	reqTenantID, _ := composables.UseTenantID(ctx)
+
+	// releaseRequest drops the tenant-scoped dedupe mapping so that a
+	// retry with the same requestID can mint a fresh run instead of
+	// deduping to a phantom one. Called on early-exit error paths (before
+	// the run is persisted) and at terminal run completion. Safe to call
+	// multiple times: the Redis key may already be gone and the
+	// implementation swallows redis.Nil.
 	releaseRequest := func() {
-		if req.RequestID != nil && s.runJobQueue != nil {
-			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), *req.RequestID)
+		if req.RequestID != nil && s.runJobQueue != nil && reqTenantID != uuid.Nil {
+			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), reqTenantID, *req.RequestID)
 		}
 	}
 
-	if req.RequestID != nil && s.runJobQueue != nil {
-		runID, deduped, claimErr := s.runJobQueue.ClaimRequest(ctx, *req.RequestID, uuid.New())
+	if req.RequestID != nil && s.runJobQueue != nil && reqTenantID != uuid.Nil {
+		runID, deduped, claimErr := s.runJobQueue.ClaimRequest(ctx, reqTenantID, *req.RequestID, uuid.New())
 		if claimErr == nil {
 			if deduped {
 				onChunk(bichatservices.StreamChunk{

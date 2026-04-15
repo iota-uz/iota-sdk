@@ -155,11 +155,10 @@ func (q *RedisRunSessionQueue) Len(ctx context.Context, tenantID, sessionID uuid
 	if tenantID == uuid.Nil || sessionID == uuid.Nil {
 		return 0, serrors.E(op, serrors.KindValidation, "tenant id and session id are required")
 	}
+	// LLEN returns 0 (not redis.Nil) for a missing key, so no redis.Nil
+	// branch is needed here.
 	n, err := q.client.LLen(ctx, q.listKey(tenantID, sessionID)).Result()
 	if err != nil {
-		if errors.Is(err, redis.Nil) {
-			return 0, nil
-		}
 		return 0, serrors.E(op, "llen", err)
 	}
 	return n, nil

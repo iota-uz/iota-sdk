@@ -126,7 +126,8 @@ func newControllerDeps(t *testing.T) controllerDeps {
 		ChatRepo:     chatRepo,
 	})
 
-	chatService := modservices.NewChatService(chatRepo, agentService, model, nil, nil)
+	chatService, err := modservices.NewChatService(chatRepo, agentService, model, nil, nil)
+	require.NoError(t, err)
 	attachmentService := modservices.NewAttachmentService(storage.NewNoOpFileStorage())
 
 	return controllerDeps{

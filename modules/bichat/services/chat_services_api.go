@@ -28,14 +28,19 @@ type streamCommandsService struct{ *chatServiceImpl }
 type hitlCommandsService struct{ *chatServiceImpl }
 
 // NewChatApplicationServices builds command/query service facades.
+// Returns an error when REDIS_URL is set but any Redis component fails to
+// initialise (see NewChatService).
 func NewChatApplicationServices(
 	chatRepo domain.ChatRepository,
 	agentService bichatservices.AgentService,
 	model agents.Model,
 	titleService TitleService,
 	titleQueue TitleJobQueue,
-) ChatApplicationServices {
-	core := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
+) (ChatApplicationServices, error) {
+	core, err := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
+	if err != nil {
+		return ChatApplicationServices{}, err
+	}
 	return ChatApplicationServices{
 		SessionCommands: &sessionCommandsService{chatServiceImpl: core},
 		SessionQueries:  &sessionQueriesService{chatServiceImpl: core},
@@ -45,7 +50,7 @@ func NewChatApplicationServices(
 		HITLCommands:    &hitlCommandsService{chatServiceImpl: core},
 		Observability:   NewStreamObservability(core.runRegistry),
 		core:            core,
-	}
+	}, nil
 }
 
 // CloseSharedRedis releases the shared *redis.Client that backs all Redis

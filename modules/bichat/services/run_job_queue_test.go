@@ -171,9 +171,10 @@ func TestRedisRunJobQueue_ClaimRequest_DoesNotEnqueueStreamEntry(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = queue.Close() })
 
+	tenantID := uuid.New()
 	requestID := uuid.New()
 	assigned := uuid.New()
-	runID, deduped, err := queue.ClaimRequest(context.Background(), requestID, assigned)
+	runID, deduped, err := queue.ClaimRequest(context.Background(), tenantID, requestID, assigned)
 	require.NoError(t, err)
 	assert.False(t, deduped, "first claim must not be marked deduped")
 	assert.Equal(t, assigned, runID, "first claim must return the caller-supplied run id")
@@ -191,11 +192,12 @@ func TestRedisRunJobQueue_ClaimRequest_DuplicateReturnsExistingRunID(t *testing.
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = queue.Close() })
 
+	tenantID := uuid.New()
 	requestID := uuid.New()
-	first, _, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	first, _, err := queue.ClaimRequest(context.Background(), tenantID, requestID, uuid.New())
 	require.NoError(t, err)
 
-	second, deduped, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	second, deduped, err := queue.ClaimRequest(context.Background(), tenantID, requestID, uuid.New())
 	require.NoError(t, err)
 	assert.True(t, deduped, "duplicate claim must be flagged")
 	assert.Equal(t, first, second, "duplicate claim must return the original run id")
@@ -209,12 +211,13 @@ func TestRedisRunJobQueue_ReleaseRequest_AllowsFreshRunAfterRelease(t *testing.T
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = queue.Close() })
 
+	tenantID := uuid.New()
 	requestID := uuid.New()
-	first, _, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	first, _, err := queue.ClaimRequest(context.Background(), tenantID, requestID, uuid.New())
 	require.NoError(t, err)
-	require.NoError(t, queue.ReleaseRequest(context.Background(), requestID))
+	require.NoError(t, queue.ReleaseRequest(context.Background(), tenantID, requestID))
 
-	second, _, err := queue.ClaimRequest(context.Background(), requestID, uuid.New())
+	second, _, err := queue.ClaimRequest(context.Background(), tenantID, requestID, uuid.New())
 	require.NoError(t, err)
 	assert.NotEqual(t, first, second, "released request id must produce a new run")
 }
@@ -257,4 +260,32 @@ func TestParseRunJobPayload_RoundTripsViaRedis(t *testing.T) {
 	assert.Equal(t, original.DebugMode, parsed.DebugMode)
 	// Queue assigns a RunID when the caller omits one; round-trip must preserve it.
 	assert.NotEqual(t, uuid.Nil, parsed.RunID)
+}
+
+// TestRedisRunJobQueue_ClaimRequest_CrossTenantIsolation asserts that two
+// distinct tenants sharing the same request_id get distinct RunIDs. This is
+// the regression test for R6/R11: the dedupe key must be scoped to
+// (tenant_id, request_id) so one tenant cannot claim another tenant's run.
+func TestRedisRunJobQueue_ClaimRequest_CrossTenantIsolation(t *testing.T) {
+	t.Parallel()
+
+	mr := miniredis.RunT(t)
+	queue, err := NewRedisRunJobQueue(RedisRunJobQueueConfig{RedisURL: mr.Addr()})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = queue.Close() })
+
+	// Same request_id shared by two distinct tenants.
+	sharedRequestID := uuid.New()
+	tenantA := uuid.New()
+	tenantB := uuid.New()
+
+	runA, dedupedA, err := queue.ClaimRequest(context.Background(), tenantA, sharedRequestID, uuid.New())
+	require.NoError(t, err)
+	require.False(t, dedupedA, "first claim for tenant A must not be deduped")
+
+	runB, dedupedB, err := queue.ClaimRequest(context.Background(), tenantB, sharedRequestID, uuid.New())
+	require.NoError(t, err)
+	require.False(t, dedupedB, "first claim for tenant B with same request_id must not be deduped")
+
+	assert.NotEqual(t, runA, runB, "distinct tenants with the same request_id must get distinct RunIDs")
 }

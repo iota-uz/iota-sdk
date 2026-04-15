@@ -107,7 +107,7 @@ type StreamCommands interface {
 	// TailActiveRuns delivers the tenant's sidebar active-run view:
 	// first a snapshot of current runs, then live status deltas
 	// (streaming / completed / cancelled / failed / queued). Closes
-	// when ctx is cancelled. Returns ErrRunEventLogUnavailable when
+	// when ctx is cancelled. Returns ErrActiveRunIndexUnavailable when
 	// the active-run index is not configured.
 	//
 	// The tenant scope is resolved from context (composables.UseTenantID)

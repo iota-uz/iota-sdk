@@ -181,13 +181,16 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	attachmentService := services.NewAttachmentService(fileStorage)
 	artifactService := bichatservices.NewArtifactService(c.ChatRepo, fileStorage, attachmentService)
 
-	chatServices := services.NewChatApplicationServices(
+	chatServices, err := services.NewChatApplicationServices(
 		c.ChatRepo,
 		agentService,
 		c.Model,
 		titleService,
 		titleJobQueue,
 	)
+	if err != nil {
+		return nil, serrors.E(op, err, "failed to initialise Redis-backed chat services")
+	}
 
 	return &ServiceContainer{
 		sessionCommands:      chatServices.SessionCommands,

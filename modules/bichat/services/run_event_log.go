@@ -350,14 +350,15 @@ func decodeRunEvent(msg redis.XMessage) (RunEvent, error) {
 		return RunEvent{}, fmt.Errorf("event type is not a string (id=%s)", msg.ID)
 	}
 
-	var payload json.RawMessage
-	if raw, ok := msg.Values["payload"]; ok {
-		bytes, err := coerceBytes(raw)
-		if err != nil {
-			return RunEvent{}, fmt.Errorf("decode payload (id=%s): %w", msg.ID, err)
-		}
-		payload = append(payload, bytes...)
+	rawPayload, ok := msg.Values["payload"]
+	if !ok {
+		return RunEvent{}, fmt.Errorf("missing payload field (id=%s)", msg.ID)
 	}
+	payloadBytes, err := coerceBytes(rawPayload)
+	if err != nil {
+		return RunEvent{}, fmt.Errorf("decode payload (id=%s): %w", msg.ID, err)
+	}
+	payload := json.RawMessage(payloadBytes)
 	return RunEvent{
 		StreamID: msg.ID,
 		Type:     typ,

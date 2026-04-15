@@ -36,18 +36,28 @@ func TestRunEventLog_ConcurrentAppendsTailReceivesTerminal(t *testing.T) {
 	const writers = 4
 	const eventsPerWriter = 50
 
+	var (
+		appendErrsMu sync.Mutex
+		appendErrs   []error
+	)
+
 	var wg sync.WaitGroup
-	// Spawn content writers.
+	// Spawn content writers; capture Append errors so the test can assert
+	// on them after the consumer loop finishes.
 	for i := 0; i < writers; i++ {
 		wg.Add(1)
 		go func(writerIdx int) {
 			defer wg.Done()
 			for j := 0; j < eventsPerWriter; j++ {
 				body, _ := json.Marshal(map[string]any{"writer": writerIdx, "seq": j}) //nolint:errchkjson // map[string]any with int values cannot fail
-				_, _ = log.Append(context.Background(), tenant, run, RunEvent{
+				if _, err := log.Append(context.Background(), tenant, run, RunEvent{
 					Type:    "content",
 					Payload: body,
-				})
+				}); err != nil {
+					appendErrsMu.Lock()
+					appendErrs = append(appendErrs, err)
+					appendErrsMu.Unlock()
+				}
 			}
 		}(i)
 	}
@@ -70,6 +80,12 @@ func TestRunEventLog_ConcurrentAppendsTailReceivesTerminal(t *testing.T) {
 		}
 	}
 
+	// Ensure all writer goroutines have exited before inspecting errors.
+	wg.Wait()
+	appendErrsMu.Lock()
+	errs := appendErrs
+	appendErrsMu.Unlock()
+	require.Empty(t, errs, "Append must not fail under concurrent load")
 	assert.True(t, sawTerminal, "consumer must see a terminal event before channel closes")
 }
 

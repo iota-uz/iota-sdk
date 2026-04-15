@@ -163,7 +163,7 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 	// path and the queued path share one implementation — diverging
 	// them would make the dedupe contract subtly different between
 	// the two code paths.
-	runID, deduped, err := q.ClaimRequest(ctx, payload.RequestID, payload.RunID)
+	runID, deduped, err := q.ClaimRequest(ctx, payload.TenantID, payload.RequestID, payload.RunID)
 	if err != nil {
 		return uuid.Nil, false, serrors.E(op, err)
 	}
@@ -177,7 +177,7 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 
 	body, err := json.Marshal(payload)
 	if err != nil {
-		_, _ = q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(payload.RequestID)).Result()
+		_, _ = q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
 		return uuid.Nil, false, serrors.E(op, "marshal run payload", err)
 	}
 
@@ -197,7 +197,7 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 		},
 	}).Result()
 	if err != nil {
-		_, _ = q.client.Del(enqueueCtx, q.dedupeKey(payload.RequestID)).Result()
+		_, _ = q.client.Del(enqueueCtx, q.dedupeKey(payload.TenantID, payload.RequestID)).Result()
 		return uuid.Nil, false, serrors.E(op, "xadd run job", err)
 	}
 	_, _ = q.client.XTrimMaxLenApprox(enqueueCtx, q.stream, q.maxLen, 1).Result()
@@ -218,11 +218,15 @@ func (q *RedisRunJobQueue) Enqueue(ctx context.Context, payload RunJobPayload) (
 //     (existingRunID, true, nil).
 //   - Expired-between-SetNX-and-Get is retried.
 //
-// When assignedRunID is uuid.Nil a fresh one is minted on a winning
-// claim.
-func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, requestID, assignedRunID uuid.UUID) (uuid.UUID, bool, error) {
+// tenantID scopes the lock so distinct tenants with the same requestID
+// get distinct RunIDs (cross-tenant isolation).
+// When assignedRunID is uuid.Nil a fresh one is minted on a winning claim.
+func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, tenantID, requestID, assignedRunID uuid.UUID) (uuid.UUID, bool, error) {
 	const op serrors.Op = "RedisRunJobQueue.ClaimRequest"
 	const maxRetries = 3
+	if tenantID == uuid.Nil {
+		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "tenant id is required")
+	}
 	if requestID == uuid.Nil {
 		return uuid.Nil, false, serrors.E(op, serrors.KindValidation, "request id is required")
 	}
@@ -230,7 +234,7 @@ func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, requestID, assigned
 	if candidate == uuid.Nil {
 		candidate = uuid.New()
 	}
-	dedupeKey := q.dedupeKey(requestID)
+	dedupeKey := q.dedupeKey(tenantID, requestID)
 	writeCtx := context.WithoutCancel(ctx)
 
 	// The SetNX→Get sequence has a narrow window where the key expires between
@@ -264,15 +268,15 @@ func (q *RedisRunJobQueue) ClaimRequest(ctx context.Context, requestID, assigned
 	return uuid.Nil, false, serrors.E(op, "request dedupe retry exhausted")
 }
 
-// ReleaseRequest drops the dedupe mapping for a request_id. Called on
-// terminal transitions so repeated send-with-same-id after completion
-// starts a new run rather than attaching to the finished one. Safe to
-// call with an expired key (redis.Nil is swallowed).
-func (q *RedisRunJobQueue) ReleaseRequest(ctx context.Context, requestID uuid.UUID) error {
-	if requestID == uuid.Nil {
+// ReleaseRequest drops the tenant-scoped dedupe mapping for a request_id.
+// Called on terminal transitions so repeated send-with-same-id after
+// completion starts a new run rather than attaching to the finished one.
+// Safe to call with an expired key (redis.Nil is swallowed).
+func (q *RedisRunJobQueue) ReleaseRequest(ctx context.Context, tenantID, requestID uuid.UUID) error {
+	if tenantID == uuid.Nil || requestID == uuid.Nil {
 		return nil
 	}
-	if _, err := q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(requestID)).Result(); err != nil {
+	if _, err := q.client.Del(context.WithoutCancel(ctx), q.dedupeKey(tenantID, requestID)).Result(); err != nil {
 		if errors.Is(err, redis.Nil) {
 			return nil
 		}
@@ -291,13 +295,17 @@ func (q *RedisRunJobQueue) Close() error {
 	return q.client.Close()
 }
 
-func (q *RedisRunJobQueue) dedupeKey(requestID uuid.UUID) string {
-	return fmt.Sprintf("%s:%s", q.dedupePrefix, requestID.String())
+// dedupeKey scopes the idempotency key to a (tenant, request) pair so one
+// tenant cannot claim another tenant's request_id. Format mirrors
+// RedisTitleJobQueue.dedupeKey: prefix:tenantID:requestID.
+func (q *RedisRunJobQueue) dedupeKey(tenantID, requestID uuid.UUID) string {
+	return fmt.Sprintf("%s:%s:%s", q.dedupePrefix, tenantID.String(), requestID.String())
 }
 
 // ParseRunJobPayload reads a payload back out of a Redis stream entry.
-// It tolerates older producers that only wrote scalar indexed fields by
-// falling back when the "payload" field is missing.
+// Entries without a "payload" field are rejected as corrupt — no back-compat
+// with an older format exists. Hard-fail is intentional: we don't support
+// mixed-version rollout for this queue.
 func ParseRunJobPayload(values map[string]any) (RunJobPayload, error) {
 	const op serrors.Op = "ParseRunJobPayload"
 
