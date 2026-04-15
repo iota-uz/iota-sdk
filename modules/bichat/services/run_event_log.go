@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/redis/go-redis/v9"
 )
@@ -30,20 +31,11 @@ const (
 	RunEventStreamStart = "0"
 )
 
-// Terminal event types: once one of these lands in a stream the log is
-// effectively closed and Tail consumers should exit. Keep this list in sync
-// with bichatservices.ChunkType* and with run_executor.go emit paths.
-var runEventTerminalTypes = map[string]struct{}{
-	"done":      {},
-	"cancelled": {},
-	"error":     {},
-	"failed":    {},
-}
-
 // IsRunEventTerminal reports whether the event type ends the stream.
+// Delegates to httpdto.IsTerminal so the set of terminal types has a
+// single source of truth shared with the TS applet.
 func IsRunEventTerminal(eventType string) bool {
-	_, ok := runEventTerminalTypes[eventType]
-	return ok
+	return httpdto.IsTerminal(httpdto.StreamEventType(eventType))
 }
 
 // RunEvent is a single entry in a run's event log. Payload is an opaque

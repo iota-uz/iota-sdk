@@ -88,7 +88,7 @@ func encodeRunEventFromChunk(chunk bichatservices.StreamChunk) (string, []byte, 
 
 	eventType := strings.TrimSpace(string(chunk.Type))
 	if eventType == "" {
-		eventType = "chunk"
+		eventType = string(httpdto.StreamEventChunk)
 	}
 
 	body, err := json.Marshal(payload)

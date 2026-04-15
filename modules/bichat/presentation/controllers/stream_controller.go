@@ -298,7 +298,7 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		// Event name is for SSE clients that care; our frontend reads `data:` lines.
 		eventName := payload.Type
 		if eventName == "" {
-			eventName = "chunk"
+			eventName = string(httpdto.StreamEventChunk)
 		}
 		sendEvent(eventName, payload)
 	})
@@ -566,7 +566,7 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 
 		eventName := payload.Type
 		if eventName == "" {
-			eventName = "chunk"
+			eventName = string(httpdto.StreamEventChunk)
 		}
 		sendEvent(eventName, payload)
 	})
@@ -660,7 +660,7 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 		defer writeMu.Unlock()
 		eventName := evt.Type
 		if eventName == "" {
-			eventName = "chunk"
+			eventName = string(httpdto.StreamEventChunk)
 		}
 		// Emit SSE triple with id: + event: + data:. The id: line is
 		// what EventSource stores in the browser's internal Last-Event-ID
