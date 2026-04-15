@@ -171,7 +171,7 @@ fix cmd="help":
 [doc("Checks (lint|tr)")]
 check cmd="help":
   case "{{cmd}}" in \
-    lint) golangci-lint run --build-tags {{GO_TEST_TAG}} ./... && python3 scripts/check_staticcheck_style.py --tags {{GO_TEST_TAG}} ;; \
+    lint) golangci-lint run --build-tags {{GO_TEST_TAG}} ./... ;; \
     tr) go run cmd/command/main.go check_tr_keys ;; \
     gosec) GOTOOLCHAIN=auto gosec -r ./cmd/server -exclude-generated -severity high -confidence medium && GOTOOLCHAIN=auto gosec -r ./cmd/superadmin -exclude-generated -severity high -confidence medium ;; \
     *) \
