@@ -384,9 +384,13 @@ func TestSchemaDescriber_ReturnsColumns(t *testing.T) {
 		colMap[c.Name] = c
 	}
 
-	assert.Equal(t, "integer", colMap["id"].Type)
-	assert.Equal(t, "text", colMap["name"].Type)
-	assert.Equal(t, "numeric", colMap["amount"].Type)
+	// format_type(atttypid, atttypmod) includes the precision/scale modifier
+	// (e.g. "numeric(10,2)"), which is richer than information_schema's
+	// bare "numeric". Assert a prefix match so test stays independent of
+	// Postgres version quirks for integer/text names.
+	assert.Contains(t, colMap["id"].Type, "integer")
+	assert.Contains(t, colMap["name"].Type, "text")
+	assert.Equal(t, "numeric(10,2)", colMap["amount"].Type)
 	assert.Contains(t, colMap["created_at"].Type, "timestamp")
 }
 

@@ -298,6 +298,9 @@ func (e *SafeQueryExecutor) resolveTimeout(perCall time.Duration) time.Duration 
 // optionally sets a SQL-level statement_timeout, runs fn, and rolls back.
 // Read-only tx never commits, even on success — there's nothing to persist.
 func (e *SafeQueryExecutor) withTenantTx(ctx context.Context, timeout time.Duration, fn func(tx pgx.Tx) error) error {
+	if e.pool == nil {
+		return fmt.Errorf("sql.SafeQueryExecutor: pool is nil (executor misconfigured)")
+	}
 	tx, err := e.pool.BeginTx(ctx, pgx.TxOptions{AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return fmt.Errorf("begin tx: %w", err)

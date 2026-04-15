@@ -241,6 +241,17 @@ func (l *QueryExecutorSchemaLister) fetchViewCounts(ctx context.Context, schema 
 	return counts
 }
 
+// containsString reports whether needle is present in haystack. Small
+// helper used by SchemaDescribe's allowlist-enforcement check.
+func containsString(haystack []string, needle string) bool {
+	for _, h := range haystack {
+		if h == needle {
+			return true
+		}
+	}
+	return false
+}
+
 func parseIntColumn(v any) int64 {
 	switch n := v.(type) {
 	case int64:
@@ -299,10 +310,15 @@ func NewQueryExecutorSchemaDescriber(executor QueryExecutor, opts ...SchemaDescr
 // SchemaDescribe executes queries to get detailed schema information.
 //
 // Accepts either a bare name ("users") or a schema-qualified reference
-// ("analytics.users"). A qualified reference pins the lookup to that
-// schema and bypasses the allowlist; a bare name searches the allowlist.
-// Pinning is the disambiguation path when two allow-listed schemas hold a
-// same-named table.
+// ("analytics.users"). A qualified reference PINS the lookup to that
+// schema — but only when the schema is present in the allowlist.
+// Qualifying with a schema outside the allowlist returns an error rather
+// than silently widening access. Pinning is the disambiguation path when
+// two allow-listed schemas hold a same-named table.
+//
+// When a bare name matches in multiple allow-listed schemas, the earliest
+// position in the allowlist wins (via array_position) so results are
+// deterministic across planner choices.
 //
 // Column metadata is read from pg_attribute + pg_type so we can join
 // pg_description on (objoid, objsubid) to surface column-level COMMENT ON
@@ -312,13 +328,19 @@ func (d *QueryExecutorSchemaDescriber) SchemaDescribe(ctx context.Context, table
 	schemaFilter := d.allowlist
 	bareName := tableName
 	if idx := strings.Index(tableName, "."); idx > 0 && idx < len(tableName)-1 {
-		schemaFilter = []string{tableName[:idx]}
+		pinned := tableName[:idx]
+		if !containsString(d.allowlist, pinned) {
+			return nil, fmt.Errorf("schema %q is not in the describer allowlist", pinned)
+		}
+		schemaFilter = []string{pinned}
 		bareName = tableName[idx+1:]
 	}
 
 	// Table description (one row) — also asserts the table exists in an
 	// allowed schema. Done as a separate small query to keep the column
-	// query simple.
+	// query simple. ORDER BY array_position makes the tiebreak for
+	// same-named tables in multiple schemas deterministic: earliest
+	// allowlist entry wins.
 	tableQuery := `
 		SELECT
 			n.nspname AS schema,
@@ -328,6 +350,7 @@ func (d *QueryExecutorSchemaDescriber) SchemaDescribe(ctx context.Context, table
 		WHERE c.relname = $1
 		  AND n.nspname = ANY($2)
 		  AND has_table_privilege(current_user, c.oid, 'SELECT')
+		ORDER BY array_position($2::text[], n.nspname), n.nspname
 		LIMIT 1
 	`
 	tableRes, err := d.executor.ExecuteQuery(ctx, tableQuery, []any{bareName, schemaFilter}, 10*time.Second)

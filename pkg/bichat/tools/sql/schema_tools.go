@@ -328,7 +328,11 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodeNoData),
 				Message: fmt.Sprintf("table not found: %s", bareName),
-				Hints:   []string{tools.HintUseSchemaList, "Check spelling and case sensitivity", "Table must exist in analytics schema"},
+				Hints: []string{
+					tools.HintUseSchemaList,
+					"Check spelling and case sensitivity",
+					"If the current role has access to multiple schemas, qualify the name (e.g. \"analytics.users\")",
+				},
 			},
 		}, nil // Data condition, not infrastructure failure
 	}
