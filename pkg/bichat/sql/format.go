@@ -1,9 +1,9 @@
 package sql
 
 import (
+	"bytes"
 	stdlibsql "database/sql"
 	"encoding/json"
-	"strconv"
 	"strings"
 	"time"
 
@@ -89,12 +89,20 @@ func FormatNumeric(v pgtype.Numeric) any {
 		return nil
 	}
 
+	// Decode with UseNumber so large NUMERIC values like
+	// 9007199254740993 (beyond float64 precision) keep their exact
+	// string form. Without this, json.Unmarshal → float64 would round
+	// and we'd silently corrupt the value.
+	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec.UseNumber()
 	var out any
-	if err := json.Unmarshal(raw, &out); err == nil {
-		if value, ok := out.(float64); ok {
-			if value == float64(int64(value)) {
-				return strconv.FormatInt(int64(value), 10)
+	if err := dec.Decode(&out); err == nil {
+		if num, ok := out.(json.Number); ok {
+			// Exact integer fast path preserves arbitrary-precision ints.
+			if _, err := num.Int64(); err == nil {
+				return num.String()
 			}
+			return num.String()
 		}
 	}
 

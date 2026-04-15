@@ -26,6 +26,7 @@ var (
 	ErrQueryTooLong     = errors.New("query exceeds maximum length")
 	ErrWriteOperation   = errors.New("write operations are not allowed")
 	ErrDangerousPattern = errors.New("query contains disallowed patterns")
+	ErrNotReadOnly      = errors.New("query must start with SELECT, WITH, or VALUES")
 )
 
 // commentLineRE strips `-- foo` comments before validation. Multiline `/* */`
@@ -123,8 +124,11 @@ func WithStatementTimeoutCap(d time.Duration) ExecutorOption {
 }
 
 // NewSafeQueryExecutor constructs an executor bound to pool. Pool is
-// required; passing nil panics on first use rather than at construction
-// because some test contexts intentionally pass partially-initialized pools.
+// required in production; passing nil does not fail at construction but
+// the first ExecuteQuery / ExplainQuery call returns a "pool is nil"
+// error. The deferred failure lets test contexts construct an executor
+// before wiring the pool — production callers should still pass a
+// live pool.
 func NewSafeQueryExecutor(pool *pgxpool.Pool, opts ...ExecutorOption) *SafeQueryExecutor {
 	e := &SafeQueryExecutor{
 		pool:           pool,
@@ -156,11 +160,21 @@ func (e *SafeQueryExecutor) ValidateQuery(ctx context.Context, query string) err
 	}
 
 	normalized := normalizeQuery(query)
+	// Specific scans first so callers get the most informative error:
+	// DROP, INSERT, etc. report ErrWriteOperation rather than the
+	// broader ErrNotReadOnly.
 	if isWriteOperation(normalized) {
 		return fmt.Errorf("sql.SafeQueryExecutor.ValidateQuery: %w", ErrWriteOperation)
 	}
 	if containsDangerousPatterns(normalized) {
 		return fmt.Errorf("sql.SafeQueryExecutor.ValidateQuery: %w", ErrDangerousPattern)
+	}
+	// Positive allowlist: the first real keyword must be SELECT,
+	// WITH, or VALUES. Rejects SHOW, SET, DO, RESET, etc. — read-only
+	// from the server's perspective but outside the executor's
+	// read-data contract.
+	if !isReadOnlyStatement(normalized) {
+		return fmt.Errorf("sql.SafeQueryExecutor.ValidateQuery: %w", ErrNotReadOnly)
 	}
 	if err := e.policy.Check(ctx, query); err != nil {
 		return fmt.Errorf("sql.SafeQueryExecutor.ValidateQuery: policy: %w", err)
@@ -338,15 +352,133 @@ func (e *SafeQueryExecutor) withTenantTx(ctx context.Context, timeout time.Durat
 // whitespace so naive Contains scans against the write/dangerous lists
 // don't trip on formatting.
 //
-// Both comment replacements substitute a single space rather than the
-// empty string: `UPDATE/*x*/foo` must not collapse to `UPDATEfoo`, which
-// would slip past the `UPDATE ` prefix check in isWriteOperation.
+// Ordering matters:
+//
+//  1. Strip literals first. A literal like `'--'` or `$$INSERT...$$`
+//     must not be mistaken for a real comment or keyword. Running
+//     comment stripping first would let `SELECT '--'; INSERT ...`
+//     collapse into `SELECT ' `, hiding the INSERT from validation.
+//  2. Strip comments. Both replacements substitute a single space
+//     rather than the empty string: `UPDATE/*x*/foo` must not
+//     collapse to `UPDATEfoo`, which would slip past the `UPDATE `
+//     prefix check in isWriteOperation.
+//  3. Uppercase + collapse whitespace so naive Contains scans against
+//     the write/dangerous lists match regardless of source casing.
+//
+// Literal stripping runs before uppercasing because dollar-tag matching
+// is case sensitive.
 func normalizeQuery(query string) string {
+	query = stripSQLLiterals(query)
 	query = commentLineRE.ReplaceAllString(query, " ")
 	query = blockCommentRE.ReplaceAllString(query, " ")
 	query = strings.ToUpper(query)
 	query = strings.Join(strings.Fields(query), " ")
 	return query
+}
+
+// stripSQLLiterals blanks single-quoted strings, dollar-quoted strings,
+// and double-quoted identifiers so validation scans only real tokens.
+// Each literal is replaced with a single space to preserve token
+// boundaries (so `'X'Y` stays separable).
+func stripSQLLiterals(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); {
+		c := s[i]
+		switch c {
+		case '\'':
+			// Single-quoted string. `''` is an embedded quote.
+			b.WriteByte(' ')
+			i++
+			for i < len(s) {
+				if s[i] == '\'' {
+					if i+1 < len(s) && s[i+1] == '\'' {
+						i += 2
+						continue
+					}
+					i++
+					break
+				}
+				i++
+			}
+		case '"':
+			// Double-quoted identifier. `""` is an embedded quote.
+			b.WriteByte(' ')
+			i++
+			for i < len(s) {
+				if s[i] == '"' {
+					if i+1 < len(s) && s[i+1] == '"' {
+						i += 2
+						continue
+					}
+					i++
+					break
+				}
+				i++
+			}
+		case '$':
+			// Potential dollar-quoted literal: $tag$ ... $tag$ or $$ ... $$.
+			j := i + 1
+			for j < len(s) && (s[j] == '_' || isAlphaNumByte(s[j])) {
+				j++
+			}
+			if j < len(s) && s[j] == '$' {
+				tag := s[i : j+1]
+				if end := strings.Index(s[j+1:], tag); end >= 0 {
+					b.WriteByte(' ')
+					i = j + 1 + end + len(tag)
+					continue
+				}
+			}
+			// Not a dollar-quoted literal; keep the character.
+			b.WriteByte(c)
+			i++
+		default:
+			b.WriteByte(c)
+			i++
+		}
+	}
+	return b.String()
+}
+
+func isAlphaNumByte(c byte) bool {
+	return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9')
+}
+
+// readOnlyStatementPrefixes are the allow-listed first keywords for
+// ValidateQuery. EXPLAIN is included because tools wrap user queries
+// with it (e.g. `EXPLAIN (FORMAT TEXT) SELECT ...`); the inner write
+// keywords are still caught by the blocklist that runs before this
+// allowlist.
+var readOnlyStatementPrefixes = []string{
+	"SELECT ",
+	"WITH ",
+	"VALUES ",
+	"EXPLAIN ",
+	// Single-statement edge cases — parenthesised CTEs and VALUES.
+	"(",
+}
+
+// isReadOnlyStatement checks that the first real keyword is one of the
+// allow-listed read-only statement starters. `normalized` is already
+// uppercase and has comments + literals stripped.
+func isReadOnlyStatement(normalized string) bool {
+	trimmed := strings.TrimLeft(normalized, " \t\n\r;")
+	for _, p := range readOnlyStatementPrefixes {
+		if strings.HasPrefix(trimmed, p) {
+			return true
+		}
+	}
+	// Bare single-token queries like "SELECT" (no trailing space) also
+	// need to be permitted for ValidateQuery to behave like a strict
+	// parser — but they're caught later by the write-op scan which
+	// looks for keyword prefixes followed by space. Treat an exact
+	// token match (no trailing content) as read-only.
+	switch trimmed {
+	case "SELECT", "WITH", "VALUES", "EXPLAIN":
+		return true
+	}
+	return false
 }
 
 // writeOperationPrefixes intentionally include a trailing space so we don't
@@ -385,6 +517,24 @@ var dangerousPatterns = []string{
 	// `COPY (SELECT ...) TO PROGRAM '...'` on a privileged role can exfil
 	// or shell out. Rely on role grants as primary defence; this is belt.
 	"COPY ",
+	// set_config() inside a SELECT can rewrite `app.tenant_id` mid-
+	// transaction, bypassing the executor's tenant binding and the RLS
+	// policies that key off current_setting('app.tenant_id'). Reject
+	// any call to set_config regardless of the is_local flag.
+	"SET_CONFIG(",
+	// SET ROLE / SET SESSION AUTHORIZATION switch the effective role
+	// and would also bypass role-scoped RLS policies. SET LOCAL is
+	// similarly blocked because read-only tx permits it.
+	"SET ROLE ",
+	"SET LOCAL ROLE ",
+	"SET SESSION AUTHORIZATION",
+	// Server-side file / large-object reads are a privilege-escalation
+	// surface even under read-only tx on roles with the filesystem
+	// grants. Rely on role grants as primary; block as belt.
+	"PG_READ_SERVER_FILES(",
+	"PG_READ_BINARY_FILE(",
+	"LO_EXPORT(",
+	"LO_IMPORT(",
 }
 
 func containsDangerousPatterns(normalized string) bool {

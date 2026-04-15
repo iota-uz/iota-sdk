@@ -1,3 +1,4 @@
+// Package pricing provides shared BiChat model pricing lookup and cost calculation.
 package pricing
 
 import (

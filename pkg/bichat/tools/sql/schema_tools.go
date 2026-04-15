@@ -210,7 +210,7 @@ func (t *SchemaDescribeTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"table_name": map[string]any{
 				"type":        "string",
-				"description": "Schema-qualified name of the table or view (e.g., 'schema.table_name')",
+				"description": "Table or view name. Schema qualification is optional (e.g., 'users' or 'public.users') — qualified form pins the lookup to that schema when multiple allow-listed schemas hold a same-named table.",
 			},
 		},
 		"required": []string{"table_name"},
@@ -254,7 +254,7 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodeInvalidRequest),
-				Message: fmt.Sprintf("invalid table name '%s': use schema-qualified format like 'schema.table_name'", params.TableName),
+				Message: fmt.Sprintf("invalid table name '%s': use a bare identifier ('table_name') or schema-qualified form ('schema.table_name')", params.TableName),
 				Hints:   []string{tools.HintCheckFieldFormat, tools.HintUseSchemaList},
 			},
 		}, nil // Input validation error, not infrastructure failure
