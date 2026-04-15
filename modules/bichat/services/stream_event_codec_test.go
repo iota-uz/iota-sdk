@@ -99,7 +99,13 @@ func TestEncodeRunEventFromChunk_SnapshotRoundTrip(t *testing.T) {
 func TestEncodeRunEventFromChunk_EmptyTypeFallsBackToChunk(t *testing.T) {
 	t.Parallel()
 
-	eventType, _, err := encodeRunEventFromChunk(bichatservices.StreamChunk{})
+	eventType, body, err := encodeRunEventFromChunk(bichatservices.StreamChunk{})
 	require.NoError(t, err)
 	assert.Equal(t, "chunk", eventType, "empty chunk type must fall back to the controller default")
+
+	// payload.Type must match the resolved SSE event name so persisted/replayed
+	// payloads round-trip cleanly: event: chunk / data: {"type":"chunk",...}.
+	var decoded httpdto.StreamChunkPayload
+	require.NoError(t, json.Unmarshal(body, &decoded))
+	assert.Equal(t, "chunk", decoded.Type, "payload.Type must equal the resolved event name including the fallback")
 }

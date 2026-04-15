@@ -30,6 +30,10 @@ type ActiveRun struct {
 	// Using UTF-16 units (not Go byte offsets) lets the applet consume them
 	// directly via str.slice() without miscounts on non-ASCII characters.
 	TextBlockOffsets []int
+	// ContentUTF16Len is the running UTF-16 code unit count for Content.
+	// Updated incrementally on every content delta so text_block_end
+	// boundary recording is O(delta) rather than O(total_content).
+	ContentUTF16Len int
 
 	subscribers map[chan bichatservices.StreamChunk]struct{}
 	// mirrorFn is an optional side-effect hook invoked by Broadcast AFTER

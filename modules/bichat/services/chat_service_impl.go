@@ -279,13 +279,17 @@ func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessi
 
 func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
 	err := s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
-	s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCompleted))
+	if err == nil {
+		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCompleted))
+	}
 	return err
 }
 
 func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
 	err := s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
-	s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCancelled))
+	if err == nil {
+		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCancelled))
+	}
 	return err
 }
 
@@ -537,10 +541,10 @@ func (s *chatServiceImpl) TailRunEvents(
 		return bichatservices.ErrRunEventLogUnavailable
 	}
 
-	// Resolve tenant via persisted run state. The run entry carries the
-	// tenant id so we don't have to plumb it through the request — the
-	// GET /stream/events endpoint is browser-hit and can't be trusted
-	// to carry a tenant header.
+	// Load the persisted run within the tenant scope already carried by
+	// ctx. After lookup succeeds, use the run's tenant id for event-log
+	// replay/tailing. This endpoint must still be invoked with a context
+	// that contains the current tenant.
 	persisted, err := s.getPersistedRunByID(ctx, runID)
 	if err != nil {
 		if errors.Is(err, domain.ErrRunNotFound) || errors.Is(err, domain.ErrNoActiveRun) {
@@ -612,7 +616,7 @@ func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bicha
 	const op serrors.Op = "chatServiceImpl.TailActiveRuns"
 
 	if s.activeRunIndex == nil {
-		return bichatservices.ErrRunEventLogUnavailable
+		return bichatservices.ErrActiveRunIndexUnavailable
 	}
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
@@ -787,6 +791,18 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// When Redis is not configured (dev/CI) the queue is nil and
 	// dedupe silently no-ops.
 	var claimedRunID uuid.UUID
+	// releaseRequest drops the dedupe mapping so that a retry with the same
+	// requestID can mint a fresh run instead of deduping to a phantom one.
+	// It is called on early-exit error paths (before the run is persisted)
+	// and at terminal run completion. Safe to call multiple times: the Redis
+	// key may already be gone and the implementation swallows redis.Nil.
+	releaseRequest := func() {
+		if req.RequestID != nil && s.runJobQueue != nil {
+			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), *req.RequestID)
+		}
+	}
+	runPersisted := false // set true once the TX commits and the run row exists
+
 	if req.RequestID != nil && s.runJobQueue != nil {
 		runID, deduped, claimErr := s.runJobQueue.ClaimRequest(ctx, *req.RequestID, uuid.New())
 		if claimErr == nil {
@@ -891,6 +907,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		return nil
 	})
 	if err != nil {
+		// Release the request_id dedupe mapping so the client can retry with the
+		// same requestID and get a fresh run — the current run was never persisted.
+		releaseRequest()
 		if runStateCreated && run != nil && session != nil {
 			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), req.SessionID, run.ID())
 		}
@@ -899,6 +918,8 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 		return err
 	}
+	runPersisted = true
+	_ = runPersisted // used by the deferred release guard below
 
 	// Decouple generation from request cancellation, but keep request values
 	// (tenant/user/pool/tx) required by downstream services and repositories.
@@ -969,6 +990,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				// (notably test transactions) are no longer in use before returning.
 				for range primaryCh {
 				}
+				// Release request_id dedupe mapping at terminal success so a retry
+				// with the same requestID starts a new run rather than deduping to
+				// the completed one.
+				releaseRequest()
 				return nil
 			}
 			if chunk.Type == bichatservices.ChunkTypeError {
@@ -976,6 +1001,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				// Drain until channel closes so the goroutine can persist and exit
 				for range primaryCh {
 				}
+				// Release on terminal error so the client can retry with the same
+				// requestID and get a fresh attempt.
+				releaseRequest()
 				return streamErr
 			}
 		}
@@ -1050,6 +1078,10 @@ func (s *chatServiceImpl) runStreamLoop(
 		case agents.EventTypeContent:
 			active.Mu.Lock()
 			active.Content += event.Content
+			// Track the UTF-16 code unit count incrementally so the
+			// text_block_end boundary path is O(delta) instead of
+			// O(total_content).
+			active.ContentUTF16Len += len(utf16.Encode([]rune(event.Content)))
 			active.Mu.Unlock()
 			chunk.Type = bichatservices.ChunkTypeContent
 			chunk.Content = event.Content
@@ -1057,14 +1089,13 @@ func (s *chatServiceImpl) runStreamLoop(
 
 		case agents.EventTypeTextBlockEnd:
 			active.Mu.Lock()
-			// Record the UTF-16 code unit count at the segment boundary so
-			// resume snapshots can split the accumulated content back into
-			// the blocks the user originally saw.
-			// Offsets are UTF-16 code unit counts so the applet can consume
-			// them directly via str.slice() without byte-index miscounts on
-			// non-ASCII (multi-byte) content.
-			activeContent := active.Content
-			active.TextBlockOffsets = append(active.TextBlockOffsets, len(utf16.Encode([]rune(activeContent))))
+			// Record the running UTF-16 code unit count at the segment
+			// boundary so resume snapshots can split the accumulated content
+			// back into the blocks the user originally saw.
+			// ContentUTF16Len is maintained incrementally on content deltas
+			// above; reading it here is O(1) and does not re-encode the full
+			// accumulated string.
+			active.TextBlockOffsets = append(active.TextBlockOffsets, active.ContentUTF16Len)
 			active.Mu.Unlock()
 			chunk.Type = bichatservices.ChunkTypeTextBlockEnd
 			chunk.TextBlockSeq = event.TextBlockSeq

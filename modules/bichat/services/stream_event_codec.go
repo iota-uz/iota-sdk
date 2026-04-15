@@ -86,6 +86,10 @@ func BuildPayload(chunk bichatservices.StreamChunk) (httpdto.StreamEventType, ht
 	if eventType == "" {
 		eventType = string(httpdto.StreamEventChunk)
 	}
+	// Overwrite payload.Type with the resolved event name (including the
+	// "chunk" fallback) so the SSE event: line and the JSON body.type field
+	// always agree for persisted/replayed events.
+	payload.Type = eventType
 
 	return httpdto.StreamEventType(eventType), payload, nil
 }

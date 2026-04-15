@@ -15,10 +15,17 @@ import (
 var ErrRunNotFoundOrFinished = errors.New("generation run not found or already finished")
 
 // ErrRunEventLogUnavailable is returned by TailRunEvents when the durable
-// event log is not configured (e.g. REDIS_URL unset in dev). The stream
-// controller reports this via an SSE `error` event on an otherwise-200
+// per-run event log is not configured (e.g. REDIS_URL unset in dev). The
+// stream controller reports this via an SSE `error` event on an otherwise-200
 // stream so clients can display the condition without switching transports.
 var ErrRunEventLogUnavailable = errors.New("run event log unavailable")
+
+// ErrActiveRunIndexUnavailable is returned by TailActiveRuns when the
+// active-run index (per-tenant sidebar Redis hash) is not configured. Like
+// ErrRunEventLogUnavailable, the stream controller surfaces it as an SSE
+// `error` event rather than an HTTP error status so clients remain on the
+// same transport.
+var ErrActiveRunIndexUnavailable = errors.New("active run index unavailable")
 
 // SessionCommands manages mutating session actions.
 type SessionCommands interface {

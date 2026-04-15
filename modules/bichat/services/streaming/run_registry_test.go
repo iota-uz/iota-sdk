@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"unicode/utf16"
 
 	"github.com/google/uuid"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
@@ -145,6 +146,40 @@ func TestRunRegistry_ActiveCounters(t *testing.T) {
 	reg.Remove(first.RunID)
 	require.Equal(t, 1, reg.ActiveRuns())
 	require.Equal(t, 1, reg.ActiveSubscribers())
+}
+
+// TestActiveRun_ContentUTF16LenIncremental verifies that ContentUTF16Len
+// matches the reference UTF-16 encoding of the full accumulated content when
+// content deltas are applied one at a time, including non-ASCII (multi-byte)
+// characters where Go byte length != UTF-16 code unit count.
+func TestActiveRun_ContentUTF16LenIncremental(t *testing.T) {
+	t.Parallel()
+
+	deltas := []string{
+		"Hello ",
+		"世界", // non-ASCII: each rune is 1 UTF-16 code unit in BMP
+		" and ",
+		"𝄞",     // U+1D11E MUSICAL SYMBOL G CLEF: outside BMP, 2 UTF-16 code units
+		" done",
+	}
+
+	run := NewActiveRun(uuid.New(), uuid.New(), context.CancelFunc(func() {}), time.Now())
+
+	for _, delta := range deltas {
+		run.Mu.Lock()
+		run.Content += delta
+		run.ContentUTF16Len += len(utf16.Encode([]rune(delta)))
+		run.Mu.Unlock()
+	}
+
+	run.Mu.RLock()
+	content := run.Content
+	gotLen := run.ContentUTF16Len
+	run.Mu.RUnlock()
+
+	wantLen := len(utf16.Encode([]rune(content)))
+	require.Equal(t, wantLen, gotLen,
+		"incremental ContentUTF16Len must match full re-encode of accumulated content")
 }
 
 func TestRunRegistry_ActiveCountersAfterReplacingSessionRun(t *testing.T) {

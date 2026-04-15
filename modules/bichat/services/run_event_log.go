@@ -236,6 +236,24 @@ func (l *RedisRunEventLog) Tail(ctx context.Context, tenantID, runID uuid.UUID, 
 			}).Result()
 			if err != nil {
 				if errors.Is(err, redis.Nil) {
+					// BLOCK timeout — check whether the stream key still exists.
+					// After DropAfterTerminal the key may have expired; if so,
+					// there is no point keeping the tail goroutine and SSE
+					// connection alive forever with only heartbeats.
+					exists, existsErr := l.client.Exists(ctx, key).Result()
+					if existsErr != nil {
+						// Context cancellation or deadline: clean exit.
+						if errors.Is(existsErr, context.Canceled) || errors.Is(existsErr, context.DeadlineExceeded) {
+							return
+						}
+						// Redis error on the Exists check — conservative: exit rather
+						// than spinning indefinitely on a potentially gone key.
+						return
+					}
+					if exists == 0 {
+						// Stream key no longer exists (expired / dropped). End tail.
+						return
+					}
 					continue
 				}
 				if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -247,6 +265,7 @@ func (l *RedisRunEventLog) Tail(ctx context.Context, tenantID, runID uuid.UUID, 
 				for _, msg := range stream.Messages {
 					evt, perr := decodeRunEvent(msg)
 					if perr != nil {
+						cursor = msg.ID // advance past the malformed entry to avoid re-reading it
 						continue
 					}
 					cursor = evt.StreamID

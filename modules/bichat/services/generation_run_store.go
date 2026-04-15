@@ -303,6 +303,8 @@ func (s *redisGenerationRunStore) RequestCancel(ctx context.Context, tenantID, s
 // worker on every streaming iteration so the reaper can detect wedged
 // runs. The operation is racy-safe under the single-writer assumption
 // (one worker owns a given run at a time), same as UpdateRunSnapshot.
+// Idempotent no-op when the run is missing or not in streaming status;
+// callers must not treat those cases as errors.
 func (s *redisGenerationRunStore) Heartbeat(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
 	const op serrors.Op = "redisGenerationRunStore.Heartbeat"
 
@@ -311,10 +313,10 @@ func (s *redisGenerationRunStore) Heartbeat(ctx context.Context, tenantID, sessi
 		return serrors.E(op, err)
 	}
 	if !found {
-		return domain.ErrNoActiveRun
+		return nil
 	}
 	if record.ID != runID.String() || record.Status != string(domain.GenerationRunStatusStreaming) {
-		return domain.ErrNoActiveRun
+		return nil
 	}
 	now := time.Now().UTC()
 	record.LastHeartbeatAt = now

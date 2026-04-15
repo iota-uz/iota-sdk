@@ -594,8 +594,9 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 // (streaming / completed / cancelled / failed / queued).
 //
 // Tenant scope is taken from the authenticated request context; the
-// handler has no query parameters. Returns 503 when the active-run
-// index is not configured.
+// handler has no query parameters. If the active-run index is not
+// configured or otherwise unavailable, the stream emits an SSE `error`
+// event instead of returning a 503 response.
 func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request) {
 	const op serrors.Op = "StreamController.TailActiveRuns"
 
@@ -659,7 +660,7 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 	})
 	if err != nil {
 		logger := configuration.Use().Logger()
-		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
+		if errors.Is(err, bichatservices.ErrActiveRunIndexUnavailable) || errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
 			logger.WithError(serrors.E(op, err)).Warn("TailActiveRuns: active-run index unavailable")
 			writeMu.Lock()
 			defer writeMu.Unlock()
