@@ -5,8 +5,11 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
+
+// defaultSessionDuration matches the legacy GO env default ("720h").
+// Services that inject httpconfig.Config should pass WithExpiresAt explicitly.
+const defaultSessionDuration = 720 * time.Hour
 
 // SessionAudience represents the audience/context for which the session is valid
 type SessionAudience string
@@ -80,7 +83,7 @@ func New(token string, userID uint, tenantID uuid.UUID, ip, userAgent string, op
 		tenantID:  tenantID,
 		ip:        ip,
 		userAgent: userAgent,
-		expiresAt: time.Now().Add(configuration.Use().SessionDuration),
+		expiresAt: time.Now().Add(defaultSessionDuration),
 		createdAt: time.Now(),
 		audience:  "",
 		status:    StatusActive,

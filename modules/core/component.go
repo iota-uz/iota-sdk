@@ -24,7 +24,15 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/validators"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/smtpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -32,6 +40,7 @@ import (
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -176,10 +185,14 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		httpCfg, err := composition.Resolve[*httpconfig.Config](container)
+		if err != nil {
+			return nil, err
+		}
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc),
+					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc, httpCfg),
 				}),
 				BasePath: "/",
 			},
@@ -188,16 +201,19 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	// ----- Spotlight startup hook -----
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		cfg := configuration.Use()
 		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
 			service, err := composition.Resolve[spotlight.Service](container)
+			if err != nil {
+				return nil, err
+			}
+			meiliCfg, err := composition.Resolve[*meiliconfig.Config](container)
 			if err != nil {
 				return nil, err
 			}
 			return []composition.Hook{{
 				Name: "spotlight",
 				Start: func(ctx context.Context) (composition.StopFn, error) {
-					if cfg.MeiliURL != "" {
+					if meiliCfg.URL != "" {
 						if err := service.Readiness(ctx); err != nil {
 							return nil, serrors.E(op, err, "spotlight preflight check")
 						}
@@ -226,6 +242,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			tenantService *services.TenantService,
 			groupService *services.GroupService,
 			twoFactorService *coreservices2fa.TwoFactorService,
+			httpCfg *httpconfig.Config,
+			googleCfg *googleoauthconfig.Config,
+			uploadsCfg *uploadsconfig.Config,
+			dbCfg *dbconfig.Config,
+			logger *logrus.Logger,
 		) ([]application.Controller, error) {
 			// AI search holder is optional — downstream components (e.g. bichat)
 			// register one via composition.ProvideFunc. Resolve it here so the
@@ -239,15 +260,15 @@ func (c *component) Build(builder *composition.Builder) error {
 			// Auth and infrastructure controllers — always registered.
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
-				controllers.NewLoginController(authService, authFlowService, opts.LoginControllerOptions),
-				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService),
-				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService),
-				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService),
-				controllers.NewLogoutController(),
-				controllers.NewUploadController(uploadService),
+				controllers.NewLoginController(authService, authFlowService, httpCfg, googleCfg, opts.LoginControllerOptions),
+				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg),
+				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg),
+				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, httpCfg),
+				controllers.NewLogoutController(httpCfg),
+				controllers.NewUploadController(uploadService, uploadsCfg),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
-				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadAPIControllerOpts(opts)...))
+				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadsCfg, uploadAPIControllerOpts(opts)...))
 			}
 			userControllerOpts := []controllers.UserControllerOption{
 				controllers.WithUserControllerBasePath("/users"),
@@ -259,7 +280,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			// (e.g. superadmin) that provide their own admin interface.
 			if !opts.SkipAdminControllers {
 				ctrls = append(ctrls,
-					controllers.NewDashboardController(),
+					controllers.NewDashboardController(dbCfg),
 					// aiHolder may be nil when no downstream component registered
 					// an AI search service; the controller is nil-safe and will
 					// surface the feature as unavailable in that case.
@@ -269,11 +290,11 @@ func (c *component) Build(builder *composition.Builder) error {
 						BasePath:         "/roles",
 						PermissionSchema: opts.PermissionSchema,
 					}),
-					controllers.NewGroupsController(app, groupService),
+					controllers.NewGroupsController(app, groupService, logger),
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
 					controllers.NewSettingsLogoController(tenantService, uploadService),
-					controllers.NewSessionController("/settings/sessions"),
+					controllers.NewSessionController("/settings/sessions", httpCfg),
 				)
 				// NewCrudShowcaseController returns nil in the `!dev` build so
 				// we must nil-guard the append rather than splatting it into
@@ -281,7 +302,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				if ctrl := controllers.NewCrudShowcaseController(bus); ctrl != nil {
 					ctrls = append(ctrls, ctrl)
 				}
-				if ctrl := controllers.NewShowcaseController(); ctrl != nil {
+				if ctrl := controllers.NewShowcaseController(dbCfg, httpCfg); ctrl != nil {
 					ctrls = append(ctrls, ctrl)
 				}
 			}
@@ -301,8 +322,11 @@ func (c *component) Build(builder *composition.Builder) error {
 func newCoreAuthService(
 	usersService *services.UserService,
 	sessionService *services.SessionService,
+	googleCfg *googleoauthconfig.Config,
+	httpCfg *httpconfig.Config,
+	logger *logrus.Logger,
 ) *services.AuthService {
-	return services.NewAuthService(usersService, sessionService)
+	return services.NewAuthService(usersService, sessionService, googleCfg, httpCfg, logger)
 }
 
 // newCoreUserService injects the validator constructor inline since the
@@ -315,76 +339,84 @@ func newCoreUserService(
 	return services.NewUserService(repo, validators.NewUserValidator(repo), bus, sessionService)
 }
 
-// newCoreTwoFactorService bootstraps the 2FA service from configuration. The
-// behaviour is identical to the previous closure-based provider; only the
-// type of dependency injection has changed.
+// newCoreTwoFactorService bootstraps the 2FA service from typed configs.
+// All values flow through the DI graph; no calls to configuration.Use().
 func newCoreTwoFactorService(
 	otpRepo twofactorentity.OTPRepository,
 	recoveryCodeRepo twofactorentity.RecoveryCodeRepository,
 	userRepo user.Repository,
+	appCfg *appconfig.Config,
+	twoFactorCfg *twofactorconfig.Config,
+	smtpCfg *smtpconfig.Config,
+	twilioCfg *twilioconfig.Config,
 ) (*coreservices2fa.TwoFactorService, error) {
 	const op serrors.Op = "core.newCoreTwoFactorService"
 
-	conf := configuration.Use()
-	if conf.GoAppEnvironment == "production" &&
-		conf.EnableTestEndpoints &&
-		os.Getenv("CI") != "true" &&
-		os.Getenv("GITHUB_ACTIONS") != "true" {
+	// os.Getenv for CI detection is explicitly allowed per the migration plan.
+	isCI := os.Getenv("CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true"
+
+	if appCfg.IsProduction() && appCfg.EnableTestEndpoints && !isCI {
 		return nil, serrors.E(op, serrors.Invalid, errors.New("test endpoints cannot be enabled in production"))
 	}
-	if !conf.EnableTestEndpoints &&
-		conf.GoAppEnvironment == "production" &&
-		conf.TwoFactorAuth.Enabled &&
-		conf.TwoFactorAuth.EncryptionKey == "" {
+	if !appCfg.EnableTestEndpoints &&
+		appCfg.IsProduction() &&
+		twoFactorCfg.Enabled &&
+		twoFactorCfg.EncryptionKey == "" {
 		return nil, serrors.E(op, serrors.Invalid, errors.New("TOTP encryption key is required in production"))
 	}
+
 	var encryptor pkgtwofactor.SecretEncryptor
-	if conf.EnableTestEndpoints {
+	switch {
+	case appCfg.EnableTestEndpoints:
 		encryptor = pkgtwofactor.NewNoopEncryptor()
-	} else if conf.TwoFactorAuth.EncryptionKey != "" {
-		encryptor = pkgtwofactor.NewAESEncryptor(conf.TwoFactorAuth.EncryptionKey)
-	} else {
+	case twoFactorCfg.EncryptionKey != "":
+		encryptor = pkgtwofactor.NewAESEncryptor(twoFactorCfg.EncryptionKey)
+	default:
 		encryptor = pkgtwofactor.NewNoopEncryptor()
 	}
+
 	var otpSender pkgtwofactor.OTPSender
-	if conf.EnableTestEndpoints {
+	env := appCfg.Environment
+	switch {
+	case appCfg.EnableTestEndpoints:
 		otpSender = pkgtwofactor.NewNoopSender()
-	} else if conf.GoAppEnvironment == "production" || conf.GoAppEnvironment == "staging" {
+	case env == "production" || env == "staging":
 		composite := pkgtwofactor.NewCompositeSender(nil)
-		if conf.OTPDelivery.EnableEmail && conf.SMTP.Host != "" {
+		if twoFactorCfg.OTP.EnableEmail && smtpCfg.Host != "" {
 			composite.Register(
 				pkgtwofactor.ChannelEmail,
 				coreservices2fa.NewEmailOTPSender(
-					conf.SMTP.Host,
-					conf.SMTP.Port,
-					conf.SMTP.Username,
-					conf.SMTP.Password,
-					conf.SMTP.From,
+					smtpCfg.Host,
+					smtpCfg.Port,
+					smtpCfg.Username,
+					smtpCfg.Password,
+					smtpCfg.From,
 				),
 			)
 		}
-		if conf.OTPDelivery.EnableSMS && conf.Twilio.AccountSID != "" && conf.Twilio.AuthToken != "" {
+		if twoFactorCfg.OTP.EnableSMS && twilioCfg.IsConfigured() {
 			composite.Register(
 				pkgtwofactor.ChannelSMS,
 				coreservices2fa.NewSMSOTPSender(
-					conf.Twilio.AccountSID,
-					conf.Twilio.AuthToken,
-					conf.Twilio.PhoneNumber,
+					twilioCfg.AccountSID,
+					twilioCfg.AuthToken,
+					twilioCfg.PhoneNumber,
 				),
 			)
 		}
 		otpSender = composite
-	} else {
+	default:
 		otpSender = pkgtwofactor.NewNoopSender()
 	}
+
 	svc, err := coreservices2fa.NewTwoFactorService(
 		otpRepo,
 		recoveryCodeRepo,
 		userRepo,
-		coreservices2fa.WithIssuer(conf.TwoFactorAuth.TOTPIssuer),
-		coreservices2fa.WithOTPLength(conf.TwoFactorAuth.OTPCodeLength),
-		coreservices2fa.WithOTPExpiry(time.Duration(conf.TwoFactorAuth.OTPTTLSeconds)*time.Second),
-		coreservices2fa.WithOTPMaxAttempts(conf.TwoFactorAuth.OTPMaxAttempts),
+		coreservices2fa.WithIssuer(twoFactorCfg.TOTPIssuer),
+		coreservices2fa.WithOTPLength(twoFactorCfg.OTP.CodeLength),
+		coreservices2fa.WithOTPExpiry(time.Duration(twoFactorCfg.OTP.TTLSeconds)*time.Second),
+		coreservices2fa.WithOTPMaxAttempts(twoFactorCfg.OTP.MaxAttempts),
 		coreservices2fa.WithSecretEncryptor(encryptor),
 		coreservices2fa.WithOTPSender(otpSender),
 	)

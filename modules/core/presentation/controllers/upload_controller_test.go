@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -31,7 +32,8 @@ func TestUploadController_DirectoryListing_Returns404(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(uploadService)
+	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
+	controller := controllers.NewUploadController(uploadService, uploadsCfg)
 	suite.Register(controller)
 
 	// Create a test file in the uploads directory
@@ -60,7 +62,8 @@ func TestUploadController_FileAccess_ReturnsFile(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(uploadService)
+	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
+	controller := controllers.NewUploadController(uploadService, uploadsCfg)
 	suite.Register(controller)
 
 	// Create a test file in the uploads directory
@@ -97,7 +100,8 @@ func TestUploadController_SubdirectoryListing_Returns404(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(uploadService)
+	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
+	controller := controllers.NewUploadController(uploadService, uploadsCfg)
 	suite.Register(controller)
 
 	// Create a subdirectory with a file
@@ -130,7 +134,8 @@ func TestUploadController_FileInSubdirectory_ReturnsFile(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(uploadService)
+	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
+	controller := controllers.NewUploadController(uploadService, uploadsCfg)
 	suite.Register(controller)
 
 	// Create a subdirectory with a file
@@ -169,7 +174,8 @@ func TestUploadController_NonExistentFile_Returns404(t *testing.T) {
 		PermissionSchema: defaults.PermissionSchema(),
 	})).Build()
 	uploadService := itf.GetService[services.UploadService](suite.Environment())
-	controller := controllers.NewUploadController(uploadService)
+	uploadsCfg := itf.GetService[uploadsconfig.Config](suite.Environment())
+	controller := controllers.NewUploadController(uploadService, uploadsCfg)
 	suite.Register(controller)
 
 	// Test that non-existent file returns 404

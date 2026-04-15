@@ -22,7 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -35,13 +34,15 @@ import (
 type GroupRealtimeUpdates struct {
 	app          application.Application
 	groupService *services.GroupService
+	logger       *logrus.Logger
 	basePath     string
 }
 
-func NewGroupRealtimeUpdates(app application.Application, groupService *services.GroupService, basePath string) *GroupRealtimeUpdates {
+func NewGroupRealtimeUpdates(app application.Application, groupService *services.GroupService, logger *logrus.Logger, basePath string) *GroupRealtimeUpdates {
 	return &GroupRealtimeUpdates{
 		app:          app,
 		groupService: groupService,
+		logger:       logger,
 		basePath:     basePath,
 	}
 }
@@ -53,7 +54,7 @@ func (ru *GroupRealtimeUpdates) Register() {
 }
 
 func (ru *GroupRealtimeUpdates) onGroupCreated(event *group.CreatedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	updatedGroup := event.Group
 	component := groups.GroupCreatedEvent(mappers.GroupToViewModel(updatedGroup), &base.TableRowProps{
@@ -78,7 +79,7 @@ func (ru *GroupRealtimeUpdates) onGroupCreated(event *group.CreatedEvent) {
 }
 
 func (ru *GroupRealtimeUpdates) onGroupDeleted(event *group.DeletedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
 		Attrs: templ.Attributes{
@@ -104,7 +105,7 @@ func (ru *GroupRealtimeUpdates) onGroupDeleted(event *group.DeletedEvent) {
 }
 
 func (ru *GroupRealtimeUpdates) onGroupUpdated(event *group.UpdatedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	component := groups.GroupRow(mappers.GroupToViewModel(event.Group), &base.TableRowProps{
 		Attrs: templ.Attributes{},
@@ -133,13 +134,13 @@ type GroupsController struct {
 	realtime *GroupRealtimeUpdates
 }
 
-func NewGroupsController(app application.Application, groupService *services.GroupService) application.Controller {
+func NewGroupsController(app application.Application, groupService *services.GroupService, logger *logrus.Logger) application.Controller {
 	basePath := "/groups"
 
 	controller := &GroupsController{
 		app:      app,
 		basePath: basePath,
-		realtime: NewGroupRealtimeUpdates(app, groupService, basePath),
+		realtime: NewGroupRealtimeUpdates(app, groupService, logger, basePath),
 	}
 
 	return controller

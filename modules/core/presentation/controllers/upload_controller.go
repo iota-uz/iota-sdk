@@ -19,7 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/multifs"
@@ -27,12 +27,14 @@ import (
 
 type UploadController struct {
 	uploadService *services.UploadService
+	cfg           *uploadsconfig.Config
 	basePath      string
 }
 
-func NewUploadController(uploadService *services.UploadService) application.Controller {
+func NewUploadController(uploadService *services.UploadService, cfg *uploadsconfig.Config) application.Controller {
 	return &UploadController{
 		uploadService: uploadService,
+		cfg:           cfg,
 		basePath:      "/uploads",
 	}
 }
@@ -42,7 +44,6 @@ func (c *UploadController) Key() string {
 }
 
 func (c *UploadController) Register(r *mux.Router) {
-	conf := configuration.Use()
 	router := r.PathPrefix(c.basePath).Subrouter()
 	router.Use(middleware.Authorize())
 	router.HandleFunc("", c.Create).Methods(http.MethodPost)
@@ -51,15 +52,14 @@ func (c *UploadController) Register(r *mux.Router) {
 	if err != nil {
 		panic(err)
 	}
-	fullPath := filepath.Join(workDir, conf.UploadsPath)
-	prefix := path.Join("/", conf.UploadsPath, "/")
+	fullPath := filepath.Join(workDir, c.cfg.Path)
+	prefix := path.Join("/", c.cfg.Path, "/")
 	neuteredFS := multifs.NewNeuteredFileSystem(http.Dir(fullPath))
 	r.PathPrefix(prefix).Handler(http.StripPrefix(prefix, http.FileServer(neuteredFS)))
 }
 
 func (c *UploadController) Create(w http.ResponseWriter, r *http.Request) {
-	conf := configuration.Use()
-	if err := r.ParseMultipartForm(conf.MaxUploadMemory); err != nil {
+	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}

@@ -18,7 +18,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -87,6 +88,8 @@ func (e *LoginDTO) Ok(ctx context.Context) (map[string]string, bool) {
 func NewLoginController(
 	authService *services.AuthService,
 	authFlowService *services.AuthFlowService,
+	httpCfg *httpconfig.Config,
+	googleCfg *googleoauthconfig.Config,
 	opts ...*LoginControllerOptions,
 ) application.Controller {
 	options := &LoginControllerOptions{}
@@ -96,6 +99,8 @@ func NewLoginController(
 	return &LoginController{
 		authService:     authService,
 		authFlowService: authFlowService,
+		httpCfg:         httpCfg,
+		googleCfg:       googleCfg,
 		options:         options,
 	}
 }
@@ -114,6 +119,8 @@ type LoginController struct {
 	authService      *services.AuthService
 	authFlowService  *services.AuthFlowService
 	twoFactorService *twofactor.TwoFactorService
+	httpCfg          *httpconfig.Config
+	googleCfg        *googleoauthconfig.Config
 	options          *LoginControllerOptions
 }
 
@@ -197,8 +204,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
-	conf := configuration.Use()
-	oauthCookie, err := r.Cookie(conf.OauthStateCookieKey)
+	oauthCookie, err := r.Cookie(c.httpCfg.Cookies.OAuthState)
 	if err != nil {
 		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
@@ -325,7 +331,7 @@ func (c *LoginController) buildLoginMethods(w http.ResponseWriter, r *http.Reque
 		seen[method.ID] = struct{}{}
 	}
 
-	if c.includeGoogleMethod() && configuration.Use().Google.IsConfigured() {
+	if c.includeGoogleMethod() && c.googleCfg.IsConfigured() {
 		codeURL, err := c.authService.GoogleAuthenticate(w)
 		if err != nil {
 			composables.UseLogger(r.Context()).Error("failed to build google login method", "error", err)

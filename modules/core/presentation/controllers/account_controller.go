@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -28,6 +28,7 @@ type AccountController struct {
 	tenantService  *services.TenantService
 	uploadService  *services.UploadService
 	sessionService *services.SessionService
+	cfg            *httpconfig.Config
 	basePath       string
 }
 
@@ -37,6 +38,7 @@ func NewAccountController(
 	tenantService *services.TenantService,
 	uploadService *services.UploadService,
 	sessionService *services.SessionService,
+	cfg *httpconfig.Config,
 ) application.Controller {
 	return &AccountController{
 		app:            app,
@@ -44,6 +46,7 @@ func NewAccountController(
 		tenantService:  tenantService,
 		uploadService:  uploadService,
 		sessionService: sessionService,
+		cfg:            cfg,
 		basePath:       "/account",
 	}
 }
@@ -187,8 +190,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get current session token from cookie
-	config := configuration.Use()
-	cookie, err := r.Cookie(config.SidCookieKey)
+	cookie, err := r.Cookie(c.cfg.Cookies.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -229,8 +231,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	tokenHash := vars["token"]
 
 	// Get current session token from cookie
-	config := configuration.Use()
-	cookie, err := r.Cookie(config.SidCookieKey)
+	cookie, err := r.Cookie(c.cfg.Cookies.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -303,8 +304,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	}
 
 	// Get current session token from cookie
-	config := configuration.Use()
-	cookie, err := r.Cookie(config.SidCookieKey)
+	cookie, err := r.Cookie(c.cfg.Cookies.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)

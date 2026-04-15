@@ -15,7 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
@@ -36,11 +36,13 @@ func NewTwoFactorVerifyController(
 	twoFactorService *twofactor.TwoFactorService,
 	sessionService *services.SessionService,
 	userService *services.UserService,
+	cfg *httpconfig.Config,
 ) application.Controller {
 	return &TwoFactorVerifyController{
 		twoFactorService: twoFactorService,
 		sessionService:   sessionService,
 		userService:      userService,
+		cfg:              cfg,
 	}
 }
 
@@ -51,6 +53,7 @@ type TwoFactorVerifyController struct {
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
+	cfg              *httpconfig.Config
 }
 
 // Key returns the base route path for this controller.
@@ -205,7 +208,6 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 
 	// Update session to Active status with full session duration
 	// Pending sessions have 10-minute TTL, active sessions get full duration
-	conf := configuration.Use()
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -214,7 +216,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
+		session.WithExpiresAt(time.Now().Add(c.cfg.Session.Duration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
@@ -226,13 +228,13 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 
 	// Update the session cookie with new expiry to match the extended DB session
 	sessionCookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     c.cfg.Cookies.SID,
 		Value:    updatedSession.Token(),
 		Expires:  updatedSession.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   c.cfg.IsProduction(),
+		Domain:   c.cfg.Domain,
 		Path:     "/",
 	}
 	http.SetCookie(w, sessionCookie)
@@ -334,7 +336,6 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 
 	// Update session to Active status with full session duration
 	// Pending sessions have 10-minute TTL, active sessions get full duration
-	conf := configuration.Use()
 	updatedSession := session.New(
 		sess.Token(),
 		sess.UserID(),
@@ -343,7 +344,7 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(conf.SessionDuration)),
+		session.WithExpiresAt(time.Now().Add(c.cfg.Session.Duration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
@@ -355,13 +356,13 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 
 	// Update the session cookie with new expiry to match the extended DB session
 	sessionCookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     c.cfg.Cookies.SID,
 		Value:    updatedSession.Token(),
 		Expires:  updatedSession.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   c.cfg.IsProduction(),
+		Domain:   c.cfg.Domain,
 		Path:     "/",
 	}
 	http.SetCookie(w, sessionCookie)

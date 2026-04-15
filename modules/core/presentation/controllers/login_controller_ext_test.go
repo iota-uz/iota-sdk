@@ -181,7 +181,7 @@ func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
 			name: "access check blocks user",
 			setup: func() *LoginController {
 				return &LoginController{
-					authFlowService: services.NewAuthFlowService(nil, nil),
+					authFlowService: services.NewAuthFlowService(nil, nil, nil),
 					options: &LoginControllerOptions{
 						LoginAccessCheck: func(ctx context.Context, u coreuser.User) error {
 							return errors.New("blocked")
@@ -203,7 +203,7 @@ func TestFinalizeAuthenticatedSessionAndUserRedirects(t *testing.T) {
 		{
 			name: "policy errors redirect to login",
 			setup: func() *LoginController {
-				authFlowService := services.NewAuthFlowService(nil, nil)
+				authFlowService := services.NewAuthFlowService(nil, nil, nil)
 				authFlowService.SetTwoFactorPolicy(errorPolicy{})
 				return &LoginController{authFlowService: authFlowService}
 			},

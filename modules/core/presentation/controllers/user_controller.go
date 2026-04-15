@@ -32,7 +32,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
@@ -50,18 +49,19 @@ import (
 // rest of the core event-handler stack. The per-controller Register/Subscribe
 // dance that leaked subscribers on every router rebuild has been removed.
 type UserRealtimeUpdates struct {
-	app application.Application
+	app    application.Application
+	logger *logrus.Logger
 }
 
 // NewUserRealtimeUpdates is the reflection-injector-friendly constructor.
-func NewUserRealtimeUpdates(app application.Application) *UserRealtimeUpdates {
-	return &UserRealtimeUpdates{app: app}
+func NewUserRealtimeUpdates(app application.Application, logger *logrus.Logger) *UserRealtimeUpdates {
+	return &UserRealtimeUpdates{app: app, logger: logger}
 }
 
 // OnUserCreated renders the newly-created user as a table row and broadcasts
 // it to every authenticated websocket client.
 func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	component := users.UserCreatedEvent(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
@@ -87,7 +87,7 @@ func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
 // OnUserDeleted broadcasts a row-deletion to every authenticated websocket
 // client so that open user listings remove the row.
 func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{
@@ -116,7 +116,7 @@ func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
 // OnUserUpdated broadcasts the updated user row to every authenticated
 // websocket client so that open user listings reflect the change.
 func (ru *UserRealtimeUpdates) OnUserUpdated(event *user.UpdatedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},

@@ -12,7 +12,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/option"
@@ -45,6 +47,8 @@ type AuthService struct {
 	usersService   *UserService
 	sessionService *SessionService
 	ipBindingMode  IPBindingMode
+	httpCfg        *httpconfig.Config
+	logger         *logrus.Logger
 }
 
 // AuthServiceOption is a functional option for configuring AuthService
@@ -57,13 +61,19 @@ func WithIPBindingMode(mode IPBindingMode) AuthServiceOption {
 	}
 }
 
-func NewAuthService(usersService *UserService, sessionService *SessionService, opts ...AuthServiceOption) *AuthService {
-	conf := configuration.Use()
+func NewAuthService(
+	usersService *UserService,
+	sessionService *SessionService,
+	googleCfg *googleoauthconfig.Config,
+	httpCfg *httpconfig.Config,
+	logger *logrus.Logger,
+	opts ...AuthServiceOption,
+) *AuthService {
 	svc := &AuthService{
 		oAuthConfig: &oauth2.Config{
-			RedirectURL:  conf.Google.RedirectURL,
-			ClientID:     conf.Google.ClientID,
-			ClientSecret: conf.Google.ClientSecret,
+			RedirectURL:  googleCfg.RedirectURL,
+			ClientID:     googleCfg.ClientID,
+			ClientSecret: googleCfg.ClientSecret,
 			Scopes: []string{
 				"https://www.googleapis.com/auth/userinfo.email",
 				"https://www.googleapis.com/auth/userinfo.profile",
@@ -73,6 +83,8 @@ func NewAuthService(usersService *UserService, sessionService *SessionService, o
 		usersService:   usersService,
 		sessionService: sessionService,
 		ipBindingMode:  IPBindingDisabled, // Default to disabled for backward compatibility
+		httpCfg:        httpCfg,
+		logger:         logger,
 	}
 	for _, opt := range opts {
 		opt(svc)
@@ -110,15 +122,14 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     s.httpCfg.Cookies.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.httpCfg.IsProduction(),
+		Domain:   s.httpCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
@@ -131,9 +142,8 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (session.Sess
 	}
 
 	if sess.IsExpired() {
-		logger := configuration.Use().Logger()
 		if deleteErr := s.sessionService.Delete(ctx, token); deleteErr != nil {
-			logger.WithError(deleteErr).Warn("failed to cleanup expired session")
+			s.logger.WithError(deleteErr).Warn("failed to cleanup expired session")
 		}
 		return nil, ErrSessionExpired
 	}
@@ -145,8 +155,7 @@ func (s *AuthService) Authorize(ctx context.Context, token string) (session.Sess
 				return nil, err
 			}
 			// Log warning but allow access in warn mode
-			logger := configuration.Use().Logger()
-			logger.Warnf("IP binding validation warning for session: %v", err)
+			s.logger.Warnf("IP binding validation warning for session: %v", err)
 		}
 	}
 
@@ -162,8 +171,7 @@ func (s *AuthService) AuthorizeWithAudience(ctx context.Context, token string, e
 
 	// Validate audience
 	if sess.Audience() != expectedAudience {
-		logger := configuration.Use().Logger()
-		logger.Warnf("Session audience mismatch: expected %s, got %s", expectedAudience, sess.Audience())
+		s.logger.Warnf("Session audience mismatch: expected %s, got %s", expectedAudience, sess.Audience())
 		return nil, ErrAudienceMismatch
 	}
 
@@ -172,7 +180,6 @@ func (s *AuthService) AuthorizeWithAudience(ctx context.Context, token string, e
 
 // validateIPBinding checks if the request IP matches the session IP
 func (s *AuthService) validateIPBinding(ctx context.Context, sess session.Session) error {
-	logger := configuration.Use().Logger()
 	currentIP, ok := composables.UseIP(ctx)
 	if !ok {
 		// Handle case when current IP cannot be retrieved
@@ -182,7 +189,7 @@ func (s *AuthService) validateIPBinding(ctx context.Context, sess session.Sessio
 			return ErrIPUnavailable
 		case IPBindingWarn:
 			// In warn mode, log warning and allow
-			logger.Warnf("IP binding validation: unable to retrieve current IP address")
+			s.logger.Warnf("IP binding validation: unable to retrieve current IP address")
 		case IPBindingDisabled:
 			// In disabled mode, allow the request
 		}
@@ -217,27 +224,26 @@ func (s *AuthService) CreateSession(ctx context.Context, u user.User) (session.S
 }
 
 func (s *AuthService) authenticate(ctx context.Context, u user.User, audience session.SessionAudience) (session.Session, error) {
-	logger := configuration.Use().Logger()
-	logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
+	s.logger.Infof("Creating session for user ID: %d, tenant ID: %d, audience: %s", u.ID(), u.TenantID(), audience)
 	ctx = composables.WithTenantID(ctx, u.TenantID())
 
 	// Get IP and user agent
 	ip, ok := composables.UseIP(ctx)
 	if !ok {
-		logger.Warnf("Could not get IP, using default")
+		s.logger.Warnf("Could not get IP, using default")
 		ip = "0.0.0.0"
 	}
 
 	userAgent, ok := composables.UseUserAgent(ctx)
 	if !ok {
-		logger.Warnf("Could not get User-Agent, using default")
+		s.logger.Warnf("Could not get User-Agent, using default")
 		userAgent = "Unknown"
 	}
 
 	// Generate session token
 	token, err := s.newSessionToken()
 	if err != nil {
-		logger.Errorf("Failed to generate session token: %v", err)
+		s.logger.Errorf("Failed to generate session token: %v", err)
 		return nil, err
 	}
 
@@ -253,24 +259,24 @@ func (s *AuthService) authenticate(ctx context.Context, u user.User, audience se
 
 	// Update user last login
 	if err := s.usersService.UpdateLastLogin(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last login: %v", err)
+		s.logger.Errorf("Failed to update last login: %v", err)
 		return nil, err
 	}
 
 	// Update user last action
 	if err := s.usersService.UpdateLastAction(ctx, u.ID()); err != nil {
-		logger.Errorf("Failed to update last action: %v", err)
+		s.logger.Errorf("Failed to update last action: %v", err)
 		return nil, err
 	}
 
 	// Create the session
-	logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), token[:5])
+	s.logger.Infof("Creating session in DB for user ID: %d, token: %s (partial)", u.ID(), token[:5])
 	if err := s.sessionService.Create(ctx, sess); err != nil {
-		logger.Errorf("Failed to create session in DB: %v", err)
+		s.logger.Errorf("Failed to create session in DB: %v", err)
 		return nil, err
 	}
 
-	logger.Infof("Session created successfully")
+	s.logger.Infof("Session created successfully")
 	return sess.ToEntity(), nil
 }
 
@@ -310,49 +316,46 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     s.httpCfg.Cookies.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.httpCfg.IsProduction(),
+		Domain:   s.httpCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
 }
 
 func (s *AuthService) Authenticate(ctx context.Context, email, password string) (user.User, session.Session, error) {
-	logger := configuration.Use().Logger()
-	logger.Infof("Authentication attempt for email: %s", email)
+	s.logger.Infof("Authentication attempt for email: %s", email)
 
 	u, err := s.VerifyPassword(ctx, email, password)
 	if err != nil {
-		logger.Errorf("Failed to verify credentials: %v", err)
+		s.logger.Errorf("Failed to verify credentials: %v", err)
 		return nil, nil, err
 	}
 
-	logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
+	s.logger.Infof("User authenticated, creating session for user ID: %d", u.ID())
 	sess, err := s.authenticate(ctx, u, "")
 	if err != nil {
-		logger.Errorf("Failed to create session: %v", err)
+		s.logger.Errorf("Failed to create session: %v", err)
 		return nil, nil, err
 	}
 
-	logger.Infof("Session created successfully with token: %s (partial)", sess.Token()[:5])
+	s.logger.Infof("Session created successfully with token: %s (partial)", sess.Token()[:5])
 	return u, sess, nil
 }
 
 // AuthenticateWithAudience authenticates a user by email and password, creating a session with a specific audience
 func (s *AuthService) AuthenticateWithAudience(ctx context.Context, email, password string, audience session.SessionAudience) (user.User, session.Session, error) {
-	logger := configuration.Use().Logger()
-	logger.Infof("Authentication attempt for email: %s, audience: %s", email, audience)
+	s.logger.Infof("Authentication attempt for email: %s, audience: %s", email, audience)
 
 	u, err := s.VerifyPassword(ctx, email, password)
 	if err != nil {
-		logger.Errorf("Failed to verify credentials: %v", err)
+		s.logger.Errorf("Failed to verify credentials: %v", err)
 		return nil, nil, err
 	}
 
@@ -369,15 +372,14 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     s.httpCfg.Cookies.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.httpCfg.IsProduction(),
+		Domain:   s.httpCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
@@ -415,28 +417,27 @@ func (s *AuthService) VerifyPassword(ctx context.Context, email, password string
 	return u, nil
 }
 
-func generateStateOauthCookie() (*http.Cookie, error) {
+func (s *AuthService) generateStateOauthCookie() (*http.Cookie, error) {
 	b := make([]byte, 16)
 	_, err := rand.Read(b)
 	if err != nil {
 		return nil, err
 	}
 	state := base64.URLEncoding.EncodeToString(b)
-	conf := configuration.Use()
 	cookie := &http.Cookie{
-		Name:     conf.OauthStateCookieKey,
+		Name:     s.httpCfg.Cookies.OAuthState,
 		Value:    state,
 		Expires:  time.Now().Add(time.Minute * 5),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.httpCfg.IsProduction(),
+		Domain:   s.httpCfg.Domain,
 	}
 	return cookie, nil
 }
 
 func (s *AuthService) GoogleAuthenticate(w http.ResponseWriter) (string, error) {
-	cookie, err := generateStateOauthCookie()
+	cookie, err := s.generateStateOauthCookie()
 	if err != nil {
 		return "", err
 	}

@@ -15,7 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
@@ -23,6 +23,7 @@ import (
 type UploadAPIController struct {
 	uploadService   *services.UploadService
 	authorizer      types.UploadsAuthorizer
+	cfg             *uploadsconfig.Config
 	defaultTenantID uuid.UUID
 }
 
@@ -43,10 +44,11 @@ func WithDefaultTenantID(id uuid.UUID) UploadAPIControllerOption {
 	}
 }
 
-func NewUploadAPIController(uploadService *services.UploadService, opts ...UploadAPIControllerOption) application.Controller {
+func NewUploadAPIController(uploadService *services.UploadService, cfg *uploadsconfig.Config, opts ...UploadAPIControllerOption) application.Controller {
 	c := &UploadAPIController{
 		uploadService: uploadService,
 		authorizer:    authorizers.NewDefaultUploadsAuthorizer(),
+		cfg:           cfg,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -99,8 +101,7 @@ type GeoPointResponse struct {
 }
 
 func (c *UploadAPIController) Create(w http.ResponseWriter, r *http.Request) {
-	conf := configuration.Use()
-	if err := r.ParseMultipartForm(conf.MaxUploadMemory); err != nil {
+	if err := r.ParseMultipartForm(c.cfg.MaxMemory); err != nil {
 		c.writeJSONError(w, http.StatusBadRequest, err.Error())
 		return
 	}

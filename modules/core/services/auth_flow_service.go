@@ -14,7 +14,7 @@ import (
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/security"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	pkgtwofactor "github.com/iota-uz/iota-sdk/pkg/twofactor"
@@ -60,12 +60,14 @@ type AuthFlowService struct {
 	authService     *AuthService
 	sessionService  *SessionService
 	twoFactorPolicy pkgtwofactor.TwoFactorPolicy
+	httpCfg         *httpconfig.Config
 }
 
-func NewAuthFlowService(authService *AuthService, sessionService *SessionService) *AuthFlowService {
+func NewAuthFlowService(authService *AuthService, sessionService *SessionService, httpCfg *httpconfig.Config) *AuthFlowService {
 	return &AuthFlowService{
 		authService:    authService,
 		sessionService: sessionService,
+		httpCfg:        httpCfg,
 	}
 }
 
@@ -225,15 +227,14 @@ func (s *AuthFlowService) requiresTwoFactor(
 }
 
 func (s *AuthFlowService) sessionCookie(token string, expiresAt time.Time) *http.Cookie {
-	conf := configuration.Use()
 	return &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     s.httpCfg.Cookies.SID,
 		Value:    token,
 		Expires:  expiresAt,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   s.httpCfg.IsProduction(),
+		Domain:   s.httpCfg.Domain,
 		Path:     "/",
 	}
 }
