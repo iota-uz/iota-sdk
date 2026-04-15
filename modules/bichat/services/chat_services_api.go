@@ -17,7 +17,7 @@ type ChatApplicationServices struct {
 	HITLCommands    bichatservices.HITLCommands
 	Observability   *StreamObservability
 	// core holds the single chatServiceImpl so shutdown helpers can reach it.
-	core            *chatServiceImpl
+	core *chatServiceImpl
 }
 
 type sessionCommandsService struct{ *chatServiceImpl }
