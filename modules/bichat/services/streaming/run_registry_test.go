@@ -159,7 +159,7 @@ func TestActiveRun_ContentUTF16LenIncremental(t *testing.T) {
 		"Hello ",
 		"世界", // non-ASCII: each rune is 1 UTF-16 code unit in BMP
 		" and ",
-		"𝄞",     // U+1D11E MUSICAL SYMBOL G CLEF: outside BMP, 2 UTF-16 code units
+		"𝄞", // U+1D11E MUSICAL SYMBOL G CLEF: outside BMP, 2 UTF-16 code units
 		" done",
 	}
 
