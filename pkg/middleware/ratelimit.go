@@ -14,7 +14,7 @@ import (
 	"github.com/ulule/limiter/v3/drivers/store/redis"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 )
 
 // RateLimitConfig holds configuration for rate limiting
@@ -33,29 +33,31 @@ type RateLimitConfig struct {
 	OnLimitReached func(w http.ResponseWriter, r *http.Request)
 }
 
-// DefaultKeyFunc returns the real IP address for rate limiting
-func DefaultKeyFunc(r *http.Request) string {
-	return getRealIP(r, configuration.Use())
-}
-
-// UserKeyFunc returns a key based on user ID if authenticated, falls back to IP
-func UserKeyFunc(r *http.Request) string {
-	// Try to get session from context first
-	ctx := r.Context()
-	sess, err := composables.UseSession(ctx)
-	if err != nil {
-		// No authenticated session, fall back to IP-based limiting
-		return DefaultKeyFunc(r)
-	}
-
-	// Use user ID for rate limiting if session is available
-	return fmt.Sprintf("user:%d", sess.UserID())
-}
-
-// EndpointKeyFunc returns a key based on endpoint and IP
-func EndpointKeyFunc(endpoint string) func(r *http.Request) string {
+// DefaultKeyFunc returns a key function that extracts the real IP address for rate limiting.
+func DefaultKeyFunc(cfg *httpconfig.Config) func(r *http.Request) string {
 	return func(r *http.Request) string {
-		return fmt.Sprintf("%s:%s", endpoint, DefaultKeyFunc(r))
+		return getRealIP(r, cfg)
+	}
+}
+
+// UserKeyFunc returns a key function based on user ID if authenticated, falls back to IP.
+func UserKeyFunc(cfg *httpconfig.Config) func(r *http.Request) string {
+	ipKeyFunc := DefaultKeyFunc(cfg)
+	return func(r *http.Request) string {
+		ctx := r.Context()
+		sess, err := composables.UseSession(ctx)
+		if err != nil {
+			return ipKeyFunc(r)
+		}
+		return fmt.Sprintf("user:%d", sess.UserID())
+	}
+}
+
+// EndpointKeyFunc returns a key function based on endpoint and IP.
+func EndpointKeyFunc(cfg *httpconfig.Config, endpoint string) func(r *http.Request) string {
+	ipKeyFunc := DefaultKeyFunc(cfg)
+	return func(r *http.Request) string {
+		return fmt.Sprintf("%s:%s", endpoint, ipKeyFunc(r))
 	}
 }
 
@@ -96,7 +98,7 @@ func RateLimit(config RateLimitConfig) mux.MiddlewareFunc {
 		config.Period = time.Second
 	}
 	if config.KeyFunc == nil {
-		config.KeyFunc = DefaultKeyFunc
+		config.KeyFunc = func(r *http.Request) string { return r.RemoteAddr }
 	}
 	if config.Store == nil {
 		config.Store = NewMemoryStore()
@@ -157,11 +159,11 @@ func GlobalRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFun
 }
 
 // IPRateLimitPeriod creates an IP-based rate limiting middleware with custom time period
-func IPRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc {
-	return RateLimitPeriod(requests, period, DefaultKeyFunc)
+func IPRateLimitPeriod(requests int, period time.Duration, cfg *httpconfig.Config) mux.MiddlewareFunc {
+	return RateLimitPeriod(requests, period, DefaultKeyFunc(cfg))
 }
 
 // UserRateLimitPeriod creates a user-based rate limiting middleware with custom time period
-func UserRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFunc {
-	return RateLimitPeriod(requests, period, UserKeyFunc)
+func UserRateLimitPeriod(requests int, period time.Duration, cfg *httpconfig.Config) mux.MiddlewareFunc {
+	return RateLimitPeriod(requests, period, UserKeyFunc(cfg))
 }

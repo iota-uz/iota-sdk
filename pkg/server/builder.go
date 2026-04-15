@@ -10,7 +10,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/ratelimitconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
@@ -81,18 +83,23 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		return nil, fmt.Errorf("bootstrap runtime with composition container is required")
 	}
 
+	httpCfg, err := composition.Resolve[*httpconfig.Config](rt.Container())
+	if err != nil {
+		return nil, fmt.Errorf("server.New: resolve httpconfig: %w", err)
+	}
+
 	cfg := options{
 		logger:                  rt.Logger,
 		notFoundHandler:         controllers.NotFound(),
 		methodNotAllowedHandler: controllers.MethodNotAllowed(),
 		corsOrigins:             []string{"http://localhost:3000"},
 	}
-	if appConfig, ok := rt.Config.(*configuration.Configuration); ok && appConfig != nil {
+	if rlCfg, resolveErr := composition.Resolve[*ratelimitconfig.Config](rt.Container()); resolveErr == nil && rlCfg != nil {
 		cfg.rateLimit = &RateLimitOptions{
-			Enabled:   appConfig.RateLimit.Enabled,
-			GlobalRPS: appConfig.RateLimit.GlobalRPS,
-			Storage:   appConfig.RateLimit.Storage,
-			RedisURL:  appConfig.RateLimit.RedisURL,
+			Enabled:   rlCfg.Enabled,
+			GlobalRPS: rlCfg.GlobalRPS,
+			Storage:   rlCfg.Storage,
+			RedisURL:  rlCfg.RedisURL,
 		}
 	}
 	for _, opt := range opts {
@@ -104,7 +111,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 	stack := make([]mux.MiddlewareFunc, 0, len(cfg.before)+len(cfg.after)+10)
 	stack = append(stack, cfg.before...)
 	stack = append(stack,
-		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions()),
+		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions(), httpCfg),
 		middleware.TracedMiddleware("database"),
 		middleware.Provide(constants.AppKey, rt.App),
 		middleware.Provide(constants.ContainerKey, rt.Container()),
@@ -140,7 +147,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 
 	stack = append(stack,
 		middleware.TracedMiddleware("requestParams"),
-		middleware.RequestParams(),
+		middleware.RequestParams(httpCfg),
 	)
 	stack = append(stack, cfg.after...)
 	rt.Container().AppendMiddleware(stack...)

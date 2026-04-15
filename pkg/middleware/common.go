@@ -9,7 +9,7 @@ import (
 	"github.com/rs/cors"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -50,13 +50,13 @@ func ContextKeyValue(key interface{}, constructor GenericConstructor) mux.Middle
 	}
 }
 
-func RequestParams() mux.MiddlewareFunc {
+func RequestParams(cfg *httpconfig.Config) mux.MiddlewareFunc {
 	return ContextKeyValue(
 		constants.ParamsKey, func(r *http.Request, w http.ResponseWriter) interface{} {
 			return &composables.Params{
 				Request:   r,
 				Writer:    w,
-				IP:        getRealIP(r, configuration.Use()),
+				IP:        getRealIP(r, cfg),
 				UserAgent: r.UserAgent(),
 			}
 		},

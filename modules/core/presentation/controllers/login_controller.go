@@ -160,7 +160,7 @@ func (c *LoginController) GetMiddlewares() []mux.MiddlewareFunc {
 // PostMiddlewares returns middleware used for login POST routes.
 func (c *LoginController) PostMiddlewares() []mux.MiddlewareFunc {
 	defaults := []mux.MiddlewareFunc{
-		middleware.IPRateLimitPeriod(10, time.Minute), // 10 login attempts per minute per IP
+		middleware.IPRateLimitPeriod(10, time.Minute, c.httpCfg), // 10 login attempts per minute per IP
 	}
 	if c.optionsOrDefault().CustomizePostMiddlewares != nil {
 		return c.optionsOrDefault().CustomizePostMiddlewares(cloneMiddlewares(defaults))

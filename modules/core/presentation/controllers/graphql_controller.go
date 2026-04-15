@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/graphql"
 )
 
@@ -28,6 +29,7 @@ type GraphQLController struct {
 	uploadService   *services.UploadService
 	authService     *services.AuthService
 	httpCfg         *httpconfig.Config
+	uploadsCfg      *uploadsconfig.Config
 	resolverOptions []graph.ResolverOption
 }
 
@@ -51,7 +53,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 			Resolvers: graph.NewResolver(g.app, g.userService, g.uploadService, g.authService, g.httpCfg, g.resolverOptions...),
 		},
 	)
-	srv := graphql.NewBaseServer(schema)
+	srv := graphql.NewBaseServer(schema, g.uploadsCfg)
 	for _, schema := range g.app.GraphSchemas() {
 		exec := executor.New(schema.Value)
 		if schema.ExecutorCb != nil {
@@ -80,7 +82,7 @@ func (g *GraphQLController) Register(r *mux.Router) {
 		if schema.ExecutorCb != nil {
 			schema.ExecutorCb(exec)
 		}
-		router.Handle(path.Join("/query", schema.BasePath), graphql.NewHandler(exec))
+		router.Handle(path.Join("/query", schema.BasePath), graphql.NewHandler(exec, g.uploadsCfg))
 	}
 }
 
@@ -101,6 +103,7 @@ func NewGraphQLController(
 	uploadService *services.UploadService,
 	authService *services.AuthService,
 	httpCfg *httpconfig.Config,
+	uploadsCfg *uploadsconfig.Config,
 	opts ...GraphQLControllerOption,
 ) application.Controller {
 	c := &GraphQLController{
@@ -109,6 +112,7 @@ func NewGraphQLController(
 		uploadService: uploadService,
 		authService:   authService,
 		httpCfg:       httpCfg,
+		uploadsCfg:    uploadsCfg,
 	}
 	for _, opt := range opts {
 		opt(c)

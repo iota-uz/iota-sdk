@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -112,8 +112,17 @@ func TestPgxPoolCollector_CollectsFromRealPool(t *testing.T) {
 func requireTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	conf := configuration.Use()
-	addr := net.JoinHostPort(conf.Database.Host, conf.Database.Port)
+	// Hardcoded defaults that match the local dev compose.
+	// Full env-driven config (W4 scope) will replace this with
+	// itf.SuiteBuilder.WithSource(staticprov.New(...)).
+	cfg := &dbconfig.Config{
+		Host:     "localhost",
+		Port:     "5432",
+		Name:     "iota",
+		User:     "postgres",
+		Password: "",
+	}
+	addr := net.JoinHostPort(cfg.Host, cfg.Port)
 
 	dialer := net.Dialer{Timeout: 500 * time.Millisecond}
 	conn, err := dialer.DialContext(context.Background(), "tcp", addr)
@@ -125,7 +134,7 @@ func requireTestPool(t *testing.T) *pgxpool.Pool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, conf.Database.ConnectionString())
+	pool, err := pgxpool.New(ctx, cfg.ConnectionString())
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 
