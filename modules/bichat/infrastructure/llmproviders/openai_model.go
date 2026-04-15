@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -131,6 +132,57 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 
 	baseURL := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
 	resolveIP := strings.TrimSpace(os.Getenv("OPENAI_API_RESOLVE_IP"))
+	clientOptions := []option.RequestOption{
+		option.WithAPIKey(apiKey),
+	}
+	if baseURL != "" {
+		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
+	}
+	if httpClient, configured, err := newOpenAIHTTPClient(baseURL, resolveIP); err != nil {
+		return nil, serrors.E(op, err, "failed to configure OpenAI HTTP client")
+	} else if configured {
+		clientOptions = append(clientOptions, option.WithHTTPClient(httpClient))
+	}
+
+	client := openai.NewClient(clientOptions...)
+	m := &OpenAIModel{
+		client:                       &client,
+		modelName:                    modelName,
+		logger:                       logging.NewNoOpLogger(),
+		codeInterpreterMemoryLimit:   defaultCodeInterpreterMemoryLimit,
+		codeInterpreterArtifactLimit: defaultCodeInterpreterFileLimit,
+		imageUploadResolver:          newCoreOpenAIImageUploadLookup(),
+	}
+	for _, opt := range opts {
+		opt(m)
+	}
+	if m.imageUploadResolver == nil {
+		m.imageUploadResolver = newCoreOpenAIImageUploadLookup()
+	}
+	return m, nil
+}
+
+// NewOpenAIModelFromConfig creates a new OpenAI model from a typed bichatconfig.OpenAIConfig.
+// Returns an error when APIKey is empty. Prefer this over NewOpenAIModel for new callers.
+func NewOpenAIModelFromConfig(cfg bichatconfig.OpenAIConfig, opts ...OpenAIModelOption) (agents.Model, error) {
+	const op serrors.Op = "llmproviders.NewOpenAIModelFromConfig"
+
+	apiKey := strings.TrimSpace(cfg.APIKey)
+	if apiKey == "" {
+		return nil, serrors.E(op, "OpenAI API key is required (bichat.openai.apikey)")
+	}
+
+	modelName := strings.TrimSpace(cfg.Model)
+	if modelName == "" {
+		if defaultName, ok := agents.DefaultModelForProvider(agents.ProviderOpenAI); ok {
+			modelName = defaultName
+		} else {
+			modelName = agents.DefaultOpenAIModelSnapshot
+		}
+	}
+
+	baseURL := strings.TrimSpace(cfg.BaseURL)
+	resolveIP := strings.TrimSpace(cfg.ResolveIP)
 	clientOptions := []option.RequestOption{
 		option.WithAPIKey(apiKey),
 	}

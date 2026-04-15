@@ -19,22 +19,71 @@ import (
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
-const (
-	openAIAPIKeyEnv      = "OPENAI_API_KEY"
-	langfusePublicKeyEnv = "LANGFUSE_PUBLIC_KEY"
-	langfuseSecretKeyEnv = "LANGFUSE_SECRET_KEY"
-	langfuseBaseURLEnv   = "LANGFUSE_BASE_URL"
-	langfuseEnvironment  = "development"
-)
+const langfuseEnvironment = "development"
+
+// resolveBichatConfigs extracts all typed configs needed by buildModuleConfig
+// from the BuildContext. When a config.Source is attached, the registry path is
+// used (koanf unmarshal + optional Validate). Otherwise the legacy
+// *configuration.Configuration is used via each package's FromLegacy shim.
+func resolveBichatConfigs(buildCtx composition.BuildContext) (
+	bichatCfg *bichatconfig.Config,
+	httpCfg *httpconfig.Config,
+	uploadsCfg *uploadsconfig.Config,
+	logger *logrus.Logger,
+) {
+	logger = buildCtx.Logger()
+
+	if src := buildCtx.Source(); src != nil {
+		reg := config.NewRegistry(src)
+
+		if ptr, err := config.Register[bichatconfig.Config](reg, "bichat"); err == nil {
+			bichatCfg = ptr
+		}
+		if ptr, err := config.Register[httpconfig.Config](reg, "http"); err == nil {
+			httpCfg = ptr
+		}
+		if ptr, err := config.Register[uploadsconfig.Config](reg, "uploads"); err == nil {
+			uploadsCfg = ptr
+		}
+	} else if cfg := buildCtx.Config(); cfg != nil {
+		bv := bichatconfig.FromLegacy(cfg)
+		bichatCfg = &bv
+		hv := httpconfig.FromLegacy(cfg)
+		httpCfg = &hv
+		uv := uploadsconfig.FromLegacy(cfg)
+		uploadsCfg = &uv
+	}
+
+	// Ensure zero-value defaults when resolution produced nothing.
+	if bichatCfg == nil {
+		v := bichatconfig.Config{}
+		v.SetDefaults()
+		bichatCfg = &v
+	}
+	if httpCfg == nil {
+		httpCfg = &httpconfig.Config{}
+	}
+	if uploadsCfg == nil {
+		v := uploadsconfig.Config{}
+		v.SetDefaults()
+		uploadsCfg = &v
+	}
+
+	return bichatCfg, httpCfg, uploadsCfg, logger
+}
 
 // loadModule builds the BiChat runtime graph (module config, service
-// container, event bridge). Callers must check OPENAI_API_KEY before
-// invoking this — see component.Build. A nil moduleConfig indicates a
+// container, event bridge). Callers must check bichatCfg.OpenAI.IsConfigured()
+// before invoking this — see component.Build. A nil moduleConfig indicates a
 // soft failure inside buildModuleConfig (e.g. OpenAI model creation or
 // parent agent bootstrap failed); the error is nil in that case.
 //
@@ -57,12 +106,7 @@ func loadModule(
 		return nil, nil, nil, serrors.E(op, "database pool is required")
 	}
 
-	appConfig := ctx.Config()
-	if appConfig == nil {
-		appConfig = configuration.Use()
-	}
-
-	moduleConfig, eventBridge, err := buildModuleConfig(pool, appConfig, extraAgentOpts, extraConfigOpts)
+	moduleConfig, eventBridge, err := buildModuleConfig(ctx, pool, extraAgentOpts, extraConfigOpts)
 	if err != nil {
 		return nil, nil, nil, serrors.E(op, err)
 	}
@@ -78,23 +122,24 @@ func loadModule(
 }
 
 func buildModuleConfig(
+	buildCtx composition.BuildContext,
 	pool *pgxpool.Pool,
-	appConfig *configuration.Configuration,
 	extraAgentOpts []bichatagents.BIAgentOption,
 	extraConfigOpts []ConfigOption,
 ) (*ModuleConfig, *observability.EventBridge, error) {
 	const op serrors.Op = "bichat.buildModuleConfig"
 
-	if appConfig == nil {
-		return nil, nil, serrors.E(op, "configuration is required")
-	}
 	if pool == nil {
 		return nil, nil, serrors.E(op, "database pool is required")
 	}
 
-	model, err := llmproviders.NewOpenAIModel()
+	bichatCfg, httpCfg, uploadsCfg, logger := resolveBichatConfigs(buildCtx)
+
+	model, err := llmproviders.NewOpenAIModelFromConfig(bichatCfg.OpenAI)
 	if err != nil {
-		appConfig.Logger().Warnf("Failed to create OpenAI model for BiChat: %v", err)
+		if logger != nil {
+			logger.Warnf("Failed to create OpenAI model for BiChat: %v", err)
+		}
 		return nil, nil, nil
 	}
 
@@ -119,28 +164,42 @@ func buildModuleConfig(
 		agentOpts = append(agentOpts, bichatagents.WithModel(modelName))
 	}
 
+	uploadsPath := uploadsCfg.Path
+	origin := httpCfg.Origin
+
 	moduleOpts := []ConfigOption{
 		WithQueryExecutor(executor),
 		WithLearningStore(learningStore),
 		WithValidatedQueryStore(validatedQueryStore),
 		WithAttachmentStorage(
-			appConfig.UploadsPath+"/bichat",
-			appConfig.Origin+"/"+appConfig.UploadsPath+"/bichat",
+			uploadsPath+"/bichat",
+			origin+"/"+uploadsPath+"/bichat",
+		),
+		withAppletSettings(
+			httpCfg.IsDev(),
+			bichatCfg.Applet.ViteURL,
+			bichatCfg.Applet.Entry,
+			bichatCfg.Applet.Client,
+			bichatCfg.OpenAI.IsConfigured(),
 		),
 	}
 
-	knowledgeDir := strings.TrimSpace(appConfig.BiChatKnowledgeDir)
-	kbIndexPath := strings.TrimSpace(appConfig.BiChatKBIndexPath)
+	knowledgeDir := strings.TrimSpace(bichatCfg.Knowledge.Dir)
+	kbIndexPath := strings.TrimSpace(bichatCfg.Knowledge.KBIndexPath)
 	if kbIndexPath == "" && knowledgeDir != "" {
-		kbIndexPath = filepath.Join(appConfig.UploadsPath, "bichat", "knowledge.bleve")
+		kbIndexPath = filepath.Join(uploadsPath, "bichat", "knowledge.bleve")
 	}
 	if kbIndexPath != "" {
 		if err := os.MkdirAll(filepath.Dir(kbIndexPath), 0o750); err != nil {
-			appConfig.Logger().Warnf("Failed to create KB index directory: %v", err)
+			if logger != nil {
+				logger.Warnf("Failed to create KB index directory: %v", err)
+			}
 		} else {
 			_, kbSearcher, kbErr := kb.NewBleveIndex(kbIndexPath)
 			if kbErr != nil {
-				appConfig.Logger().Warnf("Failed to initialize BiChat KB index: %v", kbErr)
+				if logger != nil {
+					logger.Warnf("Failed to initialize BiChat KB index: %v", kbErr)
+				}
 			} else {
 				agentOpts = append(agentOpts, bichatagents.WithKBSearcher(kbSearcher))
 				moduleOpts = append(moduleOpts, WithKBSearcher(kbSearcher))
@@ -148,14 +207,16 @@ func buildModuleConfig(
 		}
 	}
 
-	metadataDir := strings.TrimSpace(appConfig.BiChatSchemaMetadataDir)
+	metadataDir := strings.TrimSpace(bichatCfg.Knowledge.SchemaMetadata)
 	if metadataDir == "" && knowledgeDir != "" {
 		metadataDir = filepath.Join(knowledgeDir, "tables")
 	}
 	if metadataDir != "" {
 		metadataProvider, providerErr := schema.NewFileMetadataProvider(metadataDir)
 		if providerErr != nil {
-			appConfig.Logger().Warnf("Failed to initialize schema metadata provider (%s): %v", metadataDir, providerErr)
+			if logger != nil {
+				logger.Warnf("Failed to initialize schema metadata provider (%s): %v", metadataDir, providerErr)
+			}
 		} else {
 			moduleOpts = append(moduleOpts, WithSchemaMetadata(metadataProvider))
 		}
@@ -169,27 +230,41 @@ func buildModuleConfig(
 	agentOpts = append(agentOpts, extraAgentOpts...)
 	parentAgent, err := bichatagents.NewDefaultBIAgent(executor, agentOpts...)
 	if err != nil {
-		appConfig.Logger().Warnf("Failed to create BiChat agent: %v", err)
+		if logger != nil {
+			logger.Warnf("Failed to create BiChat agent: %v", err)
+		}
 		return nil, nil, nil
 	}
 
 	var providers []observability.Provider
-	if publicKey := strings.TrimSpace(os.Getenv(langfusePublicKeyEnv)); publicKey != "" {
+	if bichatCfg.Langfuse.IsConfigured() {
 		lfClient := langfusego.New(context.Background())
 		lfProvider, lfErr := langfuseprovider.NewLangfuseProvider(lfClient, langfuseprovider.Config{
 			Enabled:     true,
-			PublicKey:   publicKey,
-			SecretKey:   os.Getenv(langfuseSecretKeyEnv),
-			Host:        os.Getenv(langfuseBaseURLEnv),
+			PublicKey:   bichatCfg.Langfuse.PublicKey,
+			SecretKey:   bichatCfg.Langfuse.SecretKey,
+			Host:        bichatCfg.Langfuse.Host,
 			Environment: langfuseEnvironment,
 			SampleRate:  1.0,
 		})
 		if lfErr != nil {
-			appConfig.Logger().Warnf("Failed to create LangFuse provider: %v", lfErr)
+			if logger != nil {
+				logger.Warnf("Failed to create LangFuse provider: %v", lfErr)
+			}
 		} else {
 			providers = append(providers, lfProvider)
 			moduleOpts = append(moduleOpts, WithObservability(lfProvider))
-			appConfig.Logger().Info("LangFuse observability enabled")
+			// Store the Langfuse base URL so debug traces can include a trace link.
+			lfURL := bichatCfg.Langfuse.BaseURL
+			if lfURL == "" {
+				lfURL = bichatCfg.Langfuse.Host
+			}
+			if lfURL != "" {
+				moduleOpts = append(moduleOpts, WithLangfuseBaseURL(lfURL))
+			}
+			if logger != nil {
+				logger.Info("LangFuse observability enabled")
+			}
 		}
 	}
 
@@ -202,7 +277,9 @@ func buildModuleConfig(
 		func(ctx context.Context) uuid.UUID {
 			tenantID, err := composables.UseTenantID(ctx)
 			if err != nil {
-				appConfig.Logger().WithError(err).Warn("BiChat tenant resolver could not read tenant from context")
+				if logger != nil {
+					logger.WithError(err).Warn("BiChat tenant resolver could not read tenant from context")
+				}
 				return uuid.Nil
 			}
 			return tenantID
@@ -210,12 +287,16 @@ func buildModuleConfig(
 		func(ctx context.Context) int64 {
 			currentUser, err := composables.UseUser(ctx)
 			if err != nil {
-				appConfig.Logger().WithError(err).Warn("BiChat user resolver could not read user from context")
+				if logger != nil {
+					logger.WithError(err).Warn("BiChat user resolver could not read user from context")
+				}
 				return 0
 			}
 			userID := uint64(currentUser.ID())
 			if userID > math.MaxInt64 {
-				appConfig.Logger().Warn("BiChat user resolver detected user id overflow")
+				if logger != nil {
+					logger.Warn("BiChat user resolver detected user id overflow")
+				}
 				return 0
 			}
 			return int64(userID)

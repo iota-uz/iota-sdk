@@ -15,10 +15,12 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 	"github.com/twilio/twilio-go"
 )
 
@@ -79,10 +81,12 @@ func (c *component) Build(builder *composition.Builder) error {
 			userService *coreservices.UserService,
 			tenantService *coreservices.TenantService,
 			twilioProvider *cpassproviders.TwilioProvider,
+			logger *logrus.Logger,
+			httpCfg *httpconfig.Config,
 		) []application.Controller {
 			basePath := "/crm/clients"
 			return []application.Controller{
-				controllers.NewClientController(app, clientService, chatService, controllers.ClientControllerConfig{
+				controllers.NewClientController(app, clientService, chatService, logger, controllers.ClientControllerConfig{
 					BasePath: basePath,
 					Tabs: []controllers.TabDefinition{
 						controllers.ProfileTab(basePath, clientService),
@@ -90,7 +94,7 @@ func (c *component) Build(builder *composition.Builder) error {
 						controllers.ActionsTab(),
 					},
 				}),
-				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats"),
+				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats", logger, httpCfg),
 				controllers.NewMessageTemplateController(templateService, "/crm/instant-messages"),
 				controllers.NewTwilioController(app, twilioProvider),
 			}

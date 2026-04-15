@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"mime"
 	"net/url"
-	"os"
 	"path"
 	"sort"
 	"strings"
@@ -270,6 +269,7 @@ func buildDebugTrace(
 	input string,
 	output string,
 	startedAt time.Time,
+	langfuseBaseURL string,
 ) *types.DebugTrace {
 	debugTools := make([]types.DebugToolCall, 0, len(toolCalls))
 	for _, toolCall := range toolCalls {
@@ -287,7 +287,7 @@ func buildDebugTrace(
 	if trimmedTraceID == "" {
 		trimmedTraceID = sessionID.String()
 	}
-	traceURL := buildLangfuseTraceURL(trimmedTraceID)
+	traceURL := buildLangfuseTraceURL(trimmedTraceID, langfuseBaseURL)
 	obsReason := strings.TrimSpace(observationReason)
 
 	if startedAt.IsZero() {
@@ -392,16 +392,13 @@ func buildDebugTrace(
 	}
 }
 
-func buildLangfuseTraceURL(traceID string) string {
+func buildLangfuseTraceURL(traceID, langfuseBaseURL string) string {
 	trimmedTraceID := strings.TrimSpace(traceID)
 	if trimmedTraceID == "" {
 		return ""
 	}
 
-	baseURL := strings.TrimSpace(os.Getenv("LANGFUSE_BASE_URL"))
-	if baseURL == "" {
-		baseURL = strings.TrimSpace(os.Getenv("LANGFUSE_HOST"))
-	}
+	baseURL := strings.TrimSpace(langfuseBaseURL)
 	if baseURL == "" {
 		return ""
 	}
@@ -597,6 +594,7 @@ func (s *chatServiceImpl) saveAgentResult(
 		userInput,
 		result.content,
 		startedAt,
+		s.langfuseBaseURL,
 	); debugTrace != nil {
 		assistantDebugTrace = debugTrace
 	}

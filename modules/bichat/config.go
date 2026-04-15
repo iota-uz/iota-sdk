@@ -266,6 +266,20 @@ type ModuleConfig struct {
 	ReaperStaleThreshold time.Duration
 	ReaperLockTTL        time.Duration
 
+	// Applet dev-mode settings. Populated from bichatconfig.AppletConfig during Build.
+	// IsDev true enables Vite proxy mode; defaults come from bichatconfig.SetDefaults.
+	IsDev         bool
+	AppletViteURL string
+	AppletEntry   string
+	AppletClient  string
+	// OpenAIAPIKeyConfigured reports whether the OpenAI API key was set at construction
+	// time. Used by the React applet context to indicate LLM availability without
+	// re-reading env vars at request time.
+	OpenAIAPIKeyConfigured bool
+	// LangfuseBaseURL is the Langfuse host URL for building trace links in debug
+	// traces. Set via WithLangfuseBaseURL when Langfuse is configured.
+	LangfuseBaseURL string
+
 	// Internal: Build-time state (resolved once during BuildServices).
 	resolvedProjectPromptExtension string
 	projectPromptExtensionResolved bool

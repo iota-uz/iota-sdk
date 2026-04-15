@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 const streamPersistenceTimeout = 10 * time.Second
@@ -62,6 +63,10 @@ type chatServiceImpl struct {
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *streamingsvc.RunRegistry
+	logger             *logrus.Logger
+	// langfuseBaseURL is the Langfuse host URL for building trace links in debug
+	// traces. Set via WithLangfuseBaseURL; empty string disables trace URL generation.
+	langfuseBaseURL string
 }
 
 // NewChatService creates a production implementation of ChatService.
@@ -107,6 +112,38 @@ func NewChatService(
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}, nil
+}
+
+// WithLogger injects a logrus.Logger into the service. Call immediately after
+// NewChatService; safe before concurrent use. No-op when logger is nil.
+func (s *chatServiceImpl) WithLogger(logger *logrus.Logger) *chatServiceImpl {
+	if logger != nil {
+		s.logger = logger
+	}
+	return s
+}
+
+// serviceLogger returns the injected logger if set; nil otherwise.
+// Callers must nil-check before use (mirrors the guard pattern used throughout).
+func (s *chatServiceImpl) serviceLogger() *logrus.Logger {
+	return s.logger
+}
+
+// WithLangfuseBaseURL stores the Langfuse host URL for trace link generation.
+// The URL may be the BaseURL or Host field from LangfuseConfig; callers should
+// prefer BaseURL, falling back to Host when BaseURL is empty.
+func (s *chatServiceImpl) WithLangfuseBaseURL(rawURL string) *chatServiceImpl {
+	s.langfuseBaseURL = strings.TrimSpace(rawURL)
+	return s
+}
+
+// logEntry returns a logrus.Entry for the given fields, or nil when no logger
+// is configured. Callers do: if e := s.logEntry(); e != nil { e.WithField(...).Warn(...) }
+func (s *chatServiceImpl) logEntry() *logrus.Entry {
+	if s.logger == nil {
+		return nil
+	}
+	return logrus.NewEntry(s.logger)
 }
 
 // CloseSharedRedis releases the shared *redis.Client created by
@@ -1284,6 +1321,7 @@ func (s *chatServiceImpl) runStreamLoop(
 		req.Content,
 		assistantContent,
 		startedAt,
+		s.langfuseBaseURL,
 	); debugTrace != nil {
 		assistantDebugTrace = debugTrace
 	}

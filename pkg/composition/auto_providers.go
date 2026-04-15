@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
@@ -135,6 +136,9 @@ func installStdconfigFromSource(container *Container, src config.Source) {
 	if ptr, err := config.Register[appconfig.Config](reg, "app"); err == nil {
 		registerAutoValue[*appconfig.Config](container, "auto:appconfig", ptr)
 	}
+	if ptr, err := config.Register[bichatconfig.Config](reg, "bichat"); err == nil {
+		registerAutoValue[*bichatconfig.Config](container, "auto:bichatconfig", ptr)
+	}
 }
 
 // installStdconfigFromLegacy populates all 14 stdconfig types from the legacy
@@ -196,6 +200,10 @@ func installStdconfigFromLegacy(container *Container, cfg *configuration.Configu
 	{
 		v := appconfig.FromLegacy(cfg)
 		registerAutoValue[*appconfig.Config](container, "auto:appconfig", &v)
+	}
+	{
+		v := bichatconfig.FromLegacy(cfg)
+		registerAutoValue[*bichatconfig.Config](container, "auto:bichatconfig", &v)
 	}
 }
 

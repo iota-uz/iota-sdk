@@ -10,7 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/sirupsen/logrus"
 
@@ -47,6 +47,7 @@ type ChatController struct {
 	clientService   *services.ClientService
 	chatService     *services.ChatService
 	tenantService   *coreservices.TenantService
+	httpCfg         *httpconfig.Config
 	logger          *logrus.Logger
 	basePath        string
 }
@@ -59,7 +60,13 @@ func NewChatController(
 	templateService *services.MessageTemplateService,
 	tenantService *coreservices.TenantService,
 	basePath string,
+	logger *logrus.Logger,
+	httpCfg ...*httpconfig.Config,
 ) application.Controller {
+	var cfg *httpconfig.Config
+	if len(httpCfg) > 0 {
+		cfg = httpCfg[0]
+	}
 	return &ChatController{
 		app:             app,
 		userService:     userService,
@@ -67,7 +74,8 @@ func NewChatController(
 		clientService:   clientService,
 		chatService:     chatService,
 		tenantService:   tenantService,
-		logger:          configuration.Use().Logger(),
+		httpCfg:         cfg,
+		logger:          logger,
 		basePath:        basePath,
 	}
 }
@@ -189,12 +197,15 @@ func (c *ChatController) onMessageAdded(event *chat.MessagedAddedEvent) {
 		c.logger.WithError(err).Error("failed to get client by ID")
 		return
 	}
-	config := configuration.Use()
+	pageSize := 25
+	if c.httpCfg != nil {
+		pageSize = c.httpCfg.Pagination.PageSize
+	}
 	chatViewModels, _, err := c.chatViewModelsWithTotal(
 		ctxWithDB,
 		&chat.FindParams{
 			Offset: 0,
-			Limit:  config.PageSize,
+			Limit:  pageSize,
 			SortBy: chat.SortBy{
 				Fields: []chat.SortByField{
 					{

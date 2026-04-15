@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"os"
 	"strings"
 	"time"
 
@@ -17,6 +16,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -159,18 +160,32 @@ func provideBundleField[I any](builder *composition.Builder, field func(*bichatB
 func (c *component) Build(builder *composition.Builder) error {
 	buildCtx := builder.Context()
 
-	// Gate: env var check is cheap and deterministic. When unset, BiChat
-	// registers only locales (harmless — supports i18n key lookups from
-	// other modules) and skips everything else, so the component compiles
-	// to a no-op with no dead links in navigation or Spotlight.
-	openAIKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
+	// Gate: resolve bichatconfig to check if OpenAI is configured.
+	// Prefer the new typed-config path (config.Source); fall back to legacy.
+	var gateCfg *bichatconfig.Config
+	if src := buildCtx.Source(); src != nil {
+		reg := config.NewRegistry(src)
+		if ptr, err := config.Register[bichatconfig.Config](reg, "bichat"); err == nil {
+			gateCfg = ptr
+		}
+	} else if legacyCfg := buildCtx.Config(); legacyCfg != nil {
+		v := bichatconfig.FromLegacy(legacyCfg)
+		gateCfg = &v
+	}
+	if gateCfg == nil {
+		v := bichatconfig.Config{}
+		v.SetDefaults()
+		gateCfg = &v
+	}
+
 	composition.AddLocales(builder, &LocaleFiles)
-	if openAIKey == "" {
+	if !gateCfg.OpenAI.IsConfigured() {
 		if logger := buildCtx.Logger(); logger != nil {
-			logger.Info("OPENAI_API_KEY not set - BiChat module disabled")
+			logger.Info("bichat.openai.apikey not set - BiChat module disabled")
 		}
 		return nil
 	}
+	_ = strings.TrimSpace // keep strings import used below
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 
@@ -271,6 +286,7 @@ func (c *component) Build(builder *composition.Builder) error {
 
 			if b.config.Logger != nil {
 				b.config.Logger.Info("Registered BiChat stream endpoint")
+				streamOpts = append(streamOpts, controllers.WithLogger(b.config.Logger))
 			}
 
 			return []application.Controller{
