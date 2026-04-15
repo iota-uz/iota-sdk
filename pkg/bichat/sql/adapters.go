@@ -288,11 +288,29 @@ func WithDescribeSchemaAllowlist(schemas []string) SchemaDescriberOption {
 	}
 }
 
+// WithDescribeSampleRows opts the describer into fetching a small
+// preview of actual table rows (up to n) via the executor. The rows
+// land in TableSchema.SampleRows. Setting n <= 0 disables the feature
+// (the default). Sample-row fetch failure is non-fatal: the column
+// metadata still returns and SampleRows is simply nil.
+//
+// Callers should pass a conservative n (the previous EAI default was
+// 5) — the feature exists so the LLM can see example values, not to
+// dump the table.
+func WithDescribeSampleRows(n int) SchemaDescriberOption {
+	return func(d *QueryExecutorSchemaDescriber) {
+		if n > 0 {
+			d.sampleRows = n
+		}
+	}
+}
+
 // QueryExecutorSchemaDescriber adapts a QueryExecutor to implement SchemaDescriber
 // by executing SQL queries to describe table schemas.
 type QueryExecutorSchemaDescriber struct {
-	executor  QueryExecutor
-	allowlist []string
+	executor   QueryExecutor
+	allowlist  []string
+	sampleRows int
 }
 
 // NewQueryExecutorSchemaDescriber creates a schema describer that uses a query executor.
@@ -420,10 +438,26 @@ func (d *QueryExecutorSchemaDescriber) SchemaDescribe(ctx context.Context, table
 		})
 	}
 
-	return &TableSchema{
+	ts := &TableSchema{
 		Name:        bareName,
 		Schema:      resolvedSchema,
 		Description: tableDescription,
 		Columns:     columns,
-	}, nil
+	}
+
+	if d.sampleRows > 0 {
+		// Identifiers are validated by pg_attribute lookup above, so
+		// double-quoting preserves case without opening injection.
+		sampleSQL := fmt.Sprintf(
+			`SELECT * FROM "%s"."%s" LIMIT %d`,
+			resolvedSchema, bareName, d.sampleRows,
+		)
+		if sampleRes, sampleErr := d.executor.ExecuteQuery(ctx, sampleSQL, nil, 10*time.Second); sampleErr == nil && sampleRes != nil {
+			ts.SampleRows = sampleRes.AllMaps()
+		}
+		// Sample failure is non-fatal — column metadata is the
+		// primary payload, preview is a nicety.
+	}
+
+	return ts, nil
 }
