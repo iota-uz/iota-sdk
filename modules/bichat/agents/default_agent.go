@@ -37,6 +37,7 @@ type DefaultBIAgent struct {
 	agentRegistry         *agents.AgentRegistry         // Optional registry for multi-agent delegation
 	viewAccess            permissions.ViewAccessControl // Optional view permission control for SQL
 	insightDepth          string                        // Insight prompting depth: "", "brief", "standard", "detailed"
+	schemaAllowlist       []string                      // Schemas the LLM may enumerate / describe; empty = none visible
 }
 
 // BIAgentOption is a functional option for configuring DefaultBIAgent.
@@ -121,6 +122,15 @@ func WithViewAccessControl(vac permissions.ViewAccessControl) BIAgentOption {
 	}
 }
 
+// WithSchemaAllowlist declares which Postgres schemas the LLM may enumerate
+// via schema_list and describe via schema_describe. Required for any
+// non-trivial deployment — leaving it unset means no schemas are exposed.
+func WithSchemaAllowlist(schemas []string) BIAgentOption {
+	return func(a *DefaultBIAgent) {
+		a.schemaAllowlist = append([]string(nil), schemas...)
+	}
+}
+
 // WithInsightPrompting enables insight-focused response prompting with the specified depth.
 // Valid values: "" (disabled), "brief", "standard", "detailed".
 //   - "brief": 2-3 sentence summary after data
@@ -170,8 +180,11 @@ func NewDefaultBIAgent(
 	schemaLister := bichatsql.NewQueryExecutorSchemaLister(executor,
 		bichatsql.WithCountCacheTTL(10*time.Minute),
 		bichatsql.WithCacheKeyFunc(tenantCacheKey),
+		bichatsql.WithSchemaAllowlist(agent.schemaAllowlist),
 	)
-	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor)
+	schemaDescriber := bichatsql.NewQueryExecutorSchemaDescriber(executor,
+		bichatsql.WithDescribeSchemaAllowlist(agent.schemaAllowlist),
+	)
 
 	// Build core tools list with optional view access control
 	agentTools := []agents.Tool{

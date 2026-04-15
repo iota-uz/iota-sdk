@@ -321,7 +321,7 @@ func TestSchemaLister_NoCacheWithoutKeyFunc(t *testing.T) {
 
 	// No bichatsql.WithCacheKeyFunc — should still work, just not cache
 	executor := newTestExecutor(env.Pool)
-	lister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	lister := bichatsql.NewQueryExecutorSchemaLister(executor, bichatsql.WithSchemaAllowlist([]string{"analytics"}))
 
 	tables, err := lister.SchemaList(env.Ctx)
 	require.NoError(t, err)
@@ -368,7 +368,7 @@ func TestSchemaDescriber_ReturnsColumns(t *testing.T) {
 	require.NoError(t, err)
 
 	executor := newTestExecutor(env.Pool)
-	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor)
+	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor, bichatsql.WithDescribeSchemaAllowlist([]string{"analytics"}))
 
 	// This uses parameterized query ($1) internally — catches the params regression
 	schema, err := describer.SchemaDescribe(env.Ctx, "_test_desc_view")
@@ -403,7 +403,7 @@ func TestSchemaDescriber_NonExistentTable(t *testing.T) {
 	require.NoError(t, err)
 
 	executor := newTestExecutor(env.Pool)
-	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor)
+	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor, bichatsql.WithDescribeSchemaAllowlist([]string{"analytics"}))
 
 	// Stricter than the legacy describer: an unknown table errors instead
 	// of returning an empty TableSchema. The LLM can then re-call schema_list

@@ -17,7 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// validIdentifierPattern validates SQL identifiers, optionally schema-qualified (e.g., "analytics.policies").
+// validIdentifierPattern validates SQL identifiers, optionally schema-qualified (e.g., "schema.table").
 var validIdentifierPattern = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$`)
 
 // isValidIdentifier validates that a name is a valid SQL identifier.
@@ -65,8 +65,8 @@ func (t *SchemaListTool) Name() string {
 
 // Description returns the tool description for the LLM.
 func (t *SchemaListTool) Description() string {
-	return "List all available tables and views in the analytics schema with approximate row counts. " +
-		"Call this before writing SQL to see available tables. Pay attention to foreign keys and indexes for optimal query performance."
+	return "List all available tables and views with approximate row counts. " +
+		"Call this before writing SQL to see what's accessible. Pay attention to foreign keys and indexes for optimal query performance."
 }
 
 // Parameters returns the JSON Schema for tool parameters.
@@ -98,8 +98,8 @@ func (t *SchemaListTool) CallStructured(ctx context.Context, input string) (*typ
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodeNoData),
-				Message: "no tables or views found in analytics schema",
-				Hints:   []string{"Analytics schema may not be initialized", "Contact administrator to set up analytics views"},
+				Message: "no tables or views accessible to the current role",
+				Hints:   []string{"Verify schema allowlist is configured", "Check that the current role has SELECT grants"},
 			},
 		}, nil // Data condition, not infrastructure failure
 	}
@@ -210,7 +210,7 @@ func (t *SchemaDescribeTool) Parameters() map[string]any {
 		"properties": map[string]any{
 			"table_name": map[string]any{
 				"type":        "string",
-				"description": "Schema-qualified name of the table or view (e.g., 'analytics.policies_with_details')",
+				"description": "Schema-qualified name of the table or view (e.g., 'schema.table_name')",
 			},
 		},
 		"required": []string{"table_name"},
@@ -254,7 +254,7 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
 				Code:    string(tools.ErrCodeInvalidRequest),
-				Message: fmt.Sprintf("invalid table name '%s': use schema-qualified format like 'analytics.table_name'", params.TableName),
+				Message: fmt.Sprintf("invalid table name '%s': use schema-qualified format like 'schema.table_name'", params.TableName),
 				Hints:   []string{tools.HintCheckFieldFormat, tools.HintUseSchemaList},
 			},
 		}, nil // Input validation error, not infrastructure failure
@@ -262,7 +262,7 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 
 	// ViewAccess and the ToolResult display use a bare name, but the
 	// describer accepts an optional schema prefix so a qualified reference
-	// ("analytics.users") pins the lookup to that schema — avoiding a
+	// ("schema.table") pins the lookup to that schema — avoiding a
 	// silent wrong-schema match when multiple allow-listed schemas hold a
 	// same-named table.
 	bareName := params.TableName
@@ -331,7 +331,7 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 				Hints: []string{
 					tools.HintUseSchemaList,
 					"Check spelling and case sensitivity",
-					"If the current role has access to multiple schemas, qualify the name (e.g. \"analytics.users\")",
+					"If the current role has access to multiple schemas, qualify the name (e.g. \"schema.table\")",
 				},
 			},
 		}, nil // Data condition, not infrastructure failure

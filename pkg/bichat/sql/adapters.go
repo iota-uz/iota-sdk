@@ -33,18 +33,16 @@ func WithCacheKeyFunc(fn CacheKeyFunc) SchemaListerOption {
 	return func(l *QueryExecutorSchemaLister) { l.cacheKeyFunc = fn }
 }
 
-// WithSchemaAllowlist restricts which schemas SchemaList scans. The default
-// preserves the historical {"analytics"} behavior so callers that don't
-// opt in see no change. Passing an empty slice falls back to the default.
+// WithSchemaAllowlist restricts which schemas SchemaList scans. Required
+// in production wiring — the default is empty, which makes SchemaList
+// return no rows (intentional: forces every consumer to declare what
+// the LLM may see).
 //
 // View row-count enrichment (the secondary count(*) query) only runs when
 // the allowlist contains exactly one schema — multi-schema enumeration
 // would conflate same-named views across schemas in the cache map.
 func WithSchemaAllowlist(schemas []string) SchemaListerOption {
 	return func(l *QueryExecutorSchemaLister) {
-		if len(schemas) == 0 {
-			return
-		}
 		l.allowlist = append([]string(nil), schemas...)
 	}
 }
@@ -66,12 +64,13 @@ type QueryExecutorSchemaLister struct {
 }
 
 // NewQueryExecutorSchemaLister creates a schema lister that uses a query executor.
+// Pass WithSchemaAllowlist to declare which schemas the LLM may enumerate;
+// the default is empty (no schemas visible).
 func NewQueryExecutorSchemaLister(executor QueryExecutor, opts ...SchemaListerOption) SchemaLister {
 	l := &QueryExecutorSchemaLister{
-		executor:  executor,
-		cacheTTL:  10 * time.Minute,
-		cache:     make(map[string]*cachedCounts),
-		allowlist: []string{"analytics"},
+		executor: executor,
+		cacheTTL: 10 * time.Minute,
+		cache:    make(map[string]*cachedCounts),
 	}
 	for _, opt := range opts {
 		opt(l)
@@ -277,13 +276,10 @@ func parseIntColumn(v any) int64 {
 type SchemaDescriberOption func(*QueryExecutorSchemaDescriber)
 
 // WithDescribeSchemaAllowlist restricts the schemas the describer will look
-// up tables in. The first match wins. Default is {"analytics"} to preserve
-// historical behavior. Empty slice falls back to the default.
+// up tables in. The first match wins. Required in production wiring — the
+// default is empty, which makes Describe reject every lookup.
 func WithDescribeSchemaAllowlist(schemas []string) SchemaDescriberOption {
 	return func(d *QueryExecutorSchemaDescriber) {
-		if len(schemas) == 0 {
-			return
-		}
 		d.allowlist = append([]string(nil), schemas...)
 	}
 }
@@ -296,10 +292,11 @@ type QueryExecutorSchemaDescriber struct {
 }
 
 // NewQueryExecutorSchemaDescriber creates a schema describer that uses a query executor.
+// Pass WithDescribeSchemaAllowlist to declare which schemas the LLM may
+// describe; the default is empty (no schemas visible).
 func NewQueryExecutorSchemaDescriber(executor QueryExecutor, opts ...SchemaDescriberOption) SchemaDescriber {
 	d := &QueryExecutorSchemaDescriber{
-		executor:  executor,
-		allowlist: []string{"analytics"},
+		executor: executor,
 	}
 	for _, opt := range opts {
 		opt(d)
@@ -310,7 +307,7 @@ func NewQueryExecutorSchemaDescriber(executor QueryExecutor, opts ...SchemaDescr
 // SchemaDescribe executes queries to get detailed schema information.
 //
 // Accepts either a bare name ("users") or a schema-qualified reference
-// ("analytics.users"). A qualified reference PINS the lookup to that
+// ("public.users"). A qualified reference PINS the lookup to that
 // schema — but only when the schema is present in the allowlist.
 // Qualifying with a schema outside the allowlist returns an error rather
 // than silently widening access. Pinning is the disambiguation path when

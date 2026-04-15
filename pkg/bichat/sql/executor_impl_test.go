@@ -164,7 +164,7 @@ func TestValidateQuery_AllowsReadOnly(t *testing.T) {
 	cases := []string{
 		"SELECT 1",
 		"WITH t AS (SELECT 1) SELECT * FROM t",
-		"SELECT * FROM analytics.users WHERE deleted_at IS NULL",
+		"SELECT * FROM public.users WHERE deleted_at IS NULL",
 		"VALUES (1), (2), (3)",
 	}
 	for _, sql := range cases {
