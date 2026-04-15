@@ -40,7 +40,9 @@ func ValidateBiChatDependencies(pool *pgxpool.Pool) error {
 //    }
 //
 // 3. Create PostgreSQL query executor:
-//    executor := infrastructure.NewPostgresQueryExecutor(app.DB())
+//    executor := bichatsql.NewSafeQueryExecutor(app.DB(),
+//        bichatsql.WithTenantResolver(composables.UseTenantID),
+//    )
 //
 // 4. Configure module:
 //    cfg := bichat.NewModuleConfig(

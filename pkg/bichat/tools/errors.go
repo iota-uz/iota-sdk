@@ -138,7 +138,7 @@ var (
 	// Policy hints
 	HintOnlySelectAllowed = "Only SELECT and WITH (CTE) queries are allowed"
 	HintNoWriteOperations = "Write operations (INSERT, UPDATE, DELETE, DROP) are forbidden"
-	HintCheckSchemaAccess = "Use schema_describe to check available tables in analytics schema"
+	HintCheckSchemaAccess = "Use schema_list and schema_describe to check available tables"
 
 	// Data hints
 	HintTableMayBeEmpty   = "Table may be empty - use sql_execute to verify with COUNT(*)"
