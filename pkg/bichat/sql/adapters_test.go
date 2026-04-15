@@ -92,6 +92,7 @@ func TestSchemaLister_ReturnsDescriptionsAndRowCounts(t *testing.T) {
 			}
 			return tid.String(), nil
 		}),
+		bichatsql.WithSchemaAllowlist([]string{"analytics"}),
 	)
 
 	tables, err := lister.SchemaList(env.Ctx)
@@ -161,6 +162,7 @@ func TestSchemaLister_CachesViewCounts(t *testing.T) {
 			}
 			return tid.String(), nil
 		}),
+		bichatsql.WithSchemaAllowlist([]string{"analytics"}),
 	)
 
 	// First call populates cache
@@ -244,6 +246,7 @@ func TestSchemaLister_CacheExpiresAfterTTL(t *testing.T) {
 			}
 			return tid.String(), nil
 		}),
+		bichatsql.WithSchemaAllowlist([]string{"analytics"}),
 	)
 
 	// First call populates cache
