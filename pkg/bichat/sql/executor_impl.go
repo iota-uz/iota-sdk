@@ -124,8 +124,11 @@ func WithStatementTimeoutCap(d time.Duration) ExecutorOption {
 }
 
 // NewSafeQueryExecutor constructs an executor bound to pool. Pool is
-// required; passing nil panics on first use rather than at construction
-// because some test contexts intentionally pass partially-initialized pools.
+// required in production; passing nil does not fail at construction but
+// the first ExecuteQuery / ExplainQuery call returns a "pool is nil"
+// error. The deferred failure lets test contexts construct an executor
+// before wiring the pool — production callers should still pass a
+// live pool.
 func NewSafeQueryExecutor(pool *pgxpool.Pool, opts ...ExecutorOption) *SafeQueryExecutor {
 	e := &SafeQueryExecutor{
 		pool:           pool,
@@ -349,19 +352,25 @@ func (e *SafeQueryExecutor) withTenantTx(ctx context.Context, timeout time.Durat
 // whitespace so naive Contains scans against the write/dangerous lists
 // don't trip on formatting.
 //
-// Both comment replacements substitute a single space rather than the
-// empty string: `UPDATE/*x*/foo` must not collapse to `UPDATEfoo`, which
-// would slip past the `UPDATE ` prefix check in isWriteOperation.
+// Ordering matters:
 //
-// After comments are stripped, all string and dollar-quoted literals
-// plus double-quoted identifiers are replaced with spaces so that
-// keywords inside data (e.g. `SELECT 'DROP TABLE'`) do not trip the
-// write-op / dangerous-pattern scans. Literal stripping runs before
-// uppercasing because dollar-tag matching is case sensitive.
+//  1. Strip literals first. A literal like `'--'` or `$$INSERT...$$`
+//     must not be mistaken for a real comment or keyword. Running
+//     comment stripping first would let `SELECT '--'; INSERT ...`
+//     collapse into `SELECT ' `, hiding the INSERT from validation.
+//  2. Strip comments. Both replacements substitute a single space
+//     rather than the empty string: `UPDATE/*x*/foo` must not
+//     collapse to `UPDATEfoo`, which would slip past the `UPDATE `
+//     prefix check in isWriteOperation.
+//  3. Uppercase + collapse whitespace so naive Contains scans against
+//     the write/dangerous lists match regardless of source casing.
+//
+// Literal stripping runs before uppercasing because dollar-tag matching
+// is case sensitive.
 func normalizeQuery(query string) string {
+	query = stripSQLLiterals(query)
 	query = commentLineRE.ReplaceAllString(query, " ")
 	query = blockCommentRE.ReplaceAllString(query, " ")
-	query = stripSQLLiterals(query)
 	query = strings.ToUpper(query)
 	query = strings.Join(strings.Fields(query), " ")
 	return query
