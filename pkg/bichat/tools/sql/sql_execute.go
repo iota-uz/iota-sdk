@@ -3,8 +3,6 @@ package sql
 
 import (
 	"context"
-	stdlibsql "database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -21,9 +19,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 // SQLExecuteToolOption configures a SQLExecuteTool.
@@ -297,9 +292,9 @@ func (t *SQLExecuteTool) CallStructured(ctx context.Context, input string) (*typ
 		truncatedReason = "limit"
 		rows = rows[:effectiveLimit]
 	}
-	// Bundled executors (PostgresQueryExecutor and DefaultQueryExecutor) always
-	// return Truncated=false. This branch supports custom QueryExecutor
-	// implementations that enforce a lower system cap than the tool-level limit.
+	// bichatsql.SafeQueryExecutor sets Truncated=true when its own
+	// maxResultRows cap fires (typically higher than the tool-level limit).
+	// Custom QueryExecutor implementations may do the same.
 	if result.Truncated {
 		truncated = true
 		if truncatedReason == "" {
@@ -631,222 +626,9 @@ func MinInt(a, b int) int {
 	return b
 }
 
-// DefaultQueryExecutor is a default implementation of bichatsql.QueryExecutor using pgxpool.
-// Consumers can use this or provide their own implementation.
-type DefaultQueryExecutor struct {
-	pool *pgxpool.Pool
-}
-
-// NewDefaultQueryExecutor creates a new default query executor.
-func NewDefaultQueryExecutor(pool *pgxpool.Pool) bichatsql.QueryExecutor {
-	return &DefaultQueryExecutor{
-		pool: pool,
-	}
-}
-
-// ExecuteQuery executes a SQL query with the given timeout.
-func (e *DefaultQueryExecutor) ExecuteQuery(ctx context.Context, query string, params []any, timeout time.Duration) (*bichatsql.QueryResult, error) {
-	const op serrors.Op = "DefaultQueryExecutor.ExecuteQuery"
-
-	// Add timeout to context
-	queryCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-
-	start := time.Now()
-
-	// Execute query
-	rows, err := e.pool.Query(queryCtx, query, params...)
-	if err != nil {
-		return nil, serrors.E(op, err, "query execution failed")
-	}
-	defer rows.Close()
-
-	// Get column descriptions
-	fieldDescriptions := rows.FieldDescriptions()
-	columnNames := make([]string, len(fieldDescriptions))
-	columnTypes := make([]string, len(fieldDescriptions))
-	for i, fd := range fieldDescriptions {
-		columnNames[i] = fd.Name
-		columnTypes[i] = bichatsql.PgOIDToColumnType(fd.DataTypeOID)
-	}
-
-	// Collect rows (canonical format: [][]any).
-	// Tool-level callers are responsible for explicit row limits.
-	var results [][]any
-
-	for rows.Next() {
-		values, err := rows.Values()
-		if err != nil {
-			return nil, serrors.E(op, err, "failed to scan row")
-		}
-
-		// Format values
-		row := make([]any, len(values))
-		for i, val := range values {
-			row[i] = formatValue(val)
-		}
-
-		results = append(results, row)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, serrors.E(op, err, "error iterating rows")
-	}
-
-	duration := time.Since(start)
-
-	return &bichatsql.QueryResult{
-		Columns:     columnNames,
-		ColumnTypes: columnTypes,
-		Rows:        results,
-		RowCount:    len(results),
-		Truncated:   false,
-		Duration:    duration,
-		SQL:         query,
-	}, nil
-}
-
-// formatValue formats a database value for JSON serialization.
-func formatValue(value interface{}) interface{} {
-	if value == nil {
-		return nil
-	}
-
-	switch v := value.(type) {
-	case time.Time:
-		return v.Format(time.RFC3339)
-	case []byte:
-		return string(v)
-	case stdlibsql.NullString:
-		if v.Valid {
-			return v.String
-		}
-		return nil
-	case stdlibsql.NullInt64:
-		if v.Valid {
-			return v.Int64
-		}
-		return nil
-	case stdlibsql.NullFloat64:
-		if v.Valid {
-			return v.Float64
-		}
-		return nil
-	case stdlibsql.NullBool:
-		if v.Valid {
-			return v.Bool
-		}
-		return nil
-	case stdlibsql.NullTime:
-		if v.Valid {
-			return v.Time.Format(time.RFC3339)
-		}
-		return nil
-	case pgx.Rows:
-		// Handle nested rows if any
-		return nil
-	case pgtype.Numeric:
-		return formatNumeric(v)
-	case *pgtype.Numeric:
-		if v == nil {
-			return nil
-		}
-		return formatNumeric(*v)
-	default:
-		return v
-	}
-}
-
-func formatNumeric(v pgtype.Numeric) any {
-	if !v.Valid {
-		return nil
-	}
-
-	raw, err := v.MarshalJSON()
-	if err != nil {
-		return numericToString(v)
-	}
-
-	if string(raw) == "null" {
-		return nil
-	}
-
-	// Keep exact numeric representation from pgtype JSON encoding.
-	var out any
-	if err := json.Unmarshal(raw, &out); err == nil {
-		switch value := out.(type) {
-		case float64:
-			// Avoid scientific notation and precision-loss side effects for integral numbers.
-			if value == float64(int64(value)) {
-				return strconv.FormatInt(int64(value), 10)
-			}
-		}
-	}
-
-	return strings.Trim(string(raw), "\"")
-}
-
-// numericToString converts a pgtype.Numeric to a decimal string representation.
-// This is a fallback for when MarshalJSON fails.
-func numericToString(v pgtype.Numeric) string {
-	if !v.Valid {
-		return "NULL"
-	}
-
-	// Handle special cases
-	if v.NaN {
-		return "NaN"
-	}
-	if v.InfinityModifier == pgtype.Infinity {
-		return "Infinity"
-	}
-	if v.InfinityModifier == pgtype.NegativeInfinity {
-		return "-Infinity"
-	}
-
-	// Handle nil Int (shouldn't happen for valid numerics, but be safe)
-	if v.Int == nil {
-		return "0"
-	}
-
-	// Convert Int to string
-	intStr := v.Int.String()
-
-	// Handle zero exponent (integer)
-	if v.Exp == 0 {
-		return intStr
-	}
-
-	// Handle positive exponent (multiply by 10^exp)
-	if v.Exp > 0 {
-		return intStr + strings.Repeat("0", int(v.Exp))
-	}
-
-	// Handle negative exponent (insert decimal point)
-	absExp := int(-v.Exp)
-
-	// Handle negative numbers
-	negative := false
-	if len(intStr) > 0 && intStr[0] == '-' {
-		negative = true
-		intStr = intStr[1:]
-	}
-
-	// If exponent magnitude >= length, we need leading zeros
-	if absExp >= len(intStr) {
-		zeros := strings.Repeat("0", absExp-len(intStr))
-		result := "0." + zeros + intStr
-		if negative {
-			return "-" + result
-		}
-		return result
-	}
-
-	// Insert decimal point
-	decimalPos := len(intStr) - absExp
-	result := intStr[:decimalPos] + "." + intStr[decimalPos:]
-	if negative {
-		return "-" + result
-	}
-	return result
-}
+// Note: SafeQueryExecutor in pkg/bichat/sql replaces the previous
+// DefaultQueryExecutor. Construct it via bichatsql.NewSafeQueryExecutor;
+// it implements the same QueryExecutor interface.
+//
+// Value formatting (FormatValue, FormatNumeric, NumericToString) lives in
+// pkg/bichat/sql/format.go.

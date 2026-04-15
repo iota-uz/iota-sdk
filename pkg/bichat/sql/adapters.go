@@ -33,6 +33,22 @@ func WithCacheKeyFunc(fn CacheKeyFunc) SchemaListerOption {
 	return func(l *QueryExecutorSchemaLister) { l.cacheKeyFunc = fn }
 }
 
+// WithSchemaAllowlist restricts which schemas SchemaList scans. The default
+// preserves the historical {"analytics"} behavior so callers that don't
+// opt in see no change. Passing an empty slice falls back to the default.
+//
+// View row-count enrichment (the secondary count(*) query) only runs when
+// the allowlist contains exactly one schema — multi-schema enumeration
+// would conflate same-named views across schemas in the cache map.
+func WithSchemaAllowlist(schemas []string) SchemaListerOption {
+	return func(l *QueryExecutorSchemaLister) {
+		if len(schemas) == 0 {
+			return
+		}
+		l.allowlist = append([]string(nil), schemas...)
+	}
+}
+
 type cachedCounts struct {
 	counts    map[string]int64
 	fetchedAt time.Time
@@ -44,6 +60,7 @@ type QueryExecutorSchemaLister struct {
 	executor     QueryExecutor
 	cacheTTL     time.Duration
 	cacheKeyFunc CacheKeyFunc
+	allowlist    []string
 	mu           sync.Mutex
 	cache        map[string]*cachedCounts
 }
@@ -51,9 +68,10 @@ type QueryExecutorSchemaLister struct {
 // NewQueryExecutorSchemaLister creates a schema lister that uses a query executor.
 func NewQueryExecutorSchemaLister(executor QueryExecutor, opts ...SchemaListerOption) SchemaLister {
 	l := &QueryExecutorSchemaLister{
-		executor: executor,
-		cacheTTL: 10 * time.Minute,
-		cache:    make(map[string]*cachedCounts),
+		executor:  executor,
+		cacheTTL:  10 * time.Minute,
+		cache:     make(map[string]*cachedCounts),
+		allowlist: []string{"analytics"},
 	}
 	for _, opt := range opts {
 		opt(l)
@@ -61,7 +79,10 @@ func NewQueryExecutorSchemaLister(executor QueryExecutor, opts ...SchemaListerOp
 	return l
 }
 
-// SchemaList executes a query to list all tables and views.
+// SchemaList executes a query to list all tables and views the current
+// Postgres role can SELECT from. The allowlist filters by schema; the
+// has_table_privilege check filters by per-relation grant so a restricted
+// role (e.g. ai_readonly) sees only what it can actually read.
 func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo, error) {
 	query := `
 		SELECT
@@ -72,12 +93,13 @@ func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo
 			c.relkind::text
 		FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
-		WHERE n.nspname = 'analytics'
+		WHERE n.nspname = ANY($1)
 		  AND c.relkind IN ('v', 'r', 'm')
-		ORDER BY c.relname
+		  AND has_table_privilege(current_user, c.oid, 'SELECT')
+		ORDER BY n.nspname, c.relname
 	`
 
-	result, err := l.executor.ExecuteQuery(ctx, query, nil, 10*time.Second)
+	result, err := l.executor.ExecuteQuery(ctx, query, []any{l.allowlist}, 10*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list schema: %w", err)
 	}
@@ -108,8 +130,13 @@ func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo
 		}
 	}
 
-	if len(viewsNeedingCounts) > 0 {
-		counts := l.getViewCounts(ctx, viewsNeedingCounts)
+	// View row-count enrichment only when allowlist is single-schema:
+	// multi-schema would require qualifying cache keys by schema, and the
+	// secondary SQL builder would have to track schema per view too.
+	// EAI's only consumer queries one schema at a time, so this path is
+	// preserved unchanged for it.
+	if len(viewsNeedingCounts) > 0 && len(l.allowlist) == 1 {
+		counts := l.getViewCounts(ctx, l.allowlist[0], viewsNeedingCounts)
 		if counts != nil {
 			for i := range tables {
 				if c, ok := counts[tables[i].Name]; ok && c > 0 {
@@ -123,7 +150,7 @@ func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo
 }
 
 // getViewCounts returns estimated row counts for views, using cache when available.
-func (l *QueryExecutorSchemaLister) getViewCounts(ctx context.Context, views []string) map[string]int64 {
+func (l *QueryExecutorSchemaLister) getViewCounts(ctx context.Context, schema string, views []string) map[string]int64 {
 	// Compute cache key once to avoid redundant calls and potential inconsistency.
 	var cacheKey string
 	var cacheEnabled bool
@@ -150,7 +177,7 @@ func (l *QueryExecutorSchemaLister) getViewCounts(ctx context.Context, views []s
 		}
 	}
 
-	counts := l.fetchViewCounts(ctx, views)
+	counts := l.fetchViewCounts(ctx, schema, views)
 	if counts == nil {
 		return nil
 	}
@@ -175,8 +202,12 @@ func (l *QueryExecutorSchemaLister) evictStaleLocked() {
 }
 
 // fetchViewCounts runs a batch count(*) query for the given views.
-func (l *QueryExecutorSchemaLister) fetchViewCounts(ctx context.Context, views []string) map[string]int64 {
+func (l *QueryExecutorSchemaLister) fetchViewCounts(ctx context.Context, schema string, views []string) map[string]int64 {
 	const limit = 1_000_001
+
+	if !validIdentifier.MatchString(schema) {
+		return nil
+	}
 
 	parts := make([]string, 0, len(views))
 	for _, name := range views {
@@ -184,8 +215,8 @@ func (l *QueryExecutorSchemaLister) fetchViewCounts(ctx context.Context, views [
 			continue
 		}
 		parts = append(parts, fmt.Sprintf(
-			"SELECT '%s'::text AS name, count(*)::bigint AS cnt FROM (SELECT 1 FROM analytics.%s LIMIT %d) t",
-			name, name, limit,
+			"SELECT '%s'::text AS name, count(*)::bigint AS cnt FROM (SELECT 1 FROM %s.%s LIMIT %d) t",
+			name, schema, name, limit,
 		))
 	}
 	if len(parts) == 0 {
@@ -231,50 +262,123 @@ func parseIntColumn(v any) int64 {
 	}
 }
 
+// SchemaDescriberOption configures a QueryExecutorSchemaDescriber.
+type SchemaDescriberOption func(*QueryExecutorSchemaDescriber)
+
+// WithDescribeSchemaAllowlist restricts the schemas the describer will look
+// up tables in. The first match wins. Default is {"analytics"} to preserve
+// historical behavior. Empty slice falls back to the default.
+func WithDescribeSchemaAllowlist(schemas []string) SchemaDescriberOption {
+	return func(d *QueryExecutorSchemaDescriber) {
+		if len(schemas) == 0 {
+			return
+		}
+		d.allowlist = append([]string(nil), schemas...)
+	}
+}
+
 // QueryExecutorSchemaDescriber adapts a QueryExecutor to implement SchemaDescriber
 // by executing SQL queries to describe table schemas.
 type QueryExecutorSchemaDescriber struct {
-	executor QueryExecutor
+	executor  QueryExecutor
+	allowlist []string
 }
 
 // NewQueryExecutorSchemaDescriber creates a schema describer that uses a query executor.
-func NewQueryExecutorSchemaDescriber(executor QueryExecutor) SchemaDescriber {
-	return &QueryExecutorSchemaDescriber{executor: executor}
+func NewQueryExecutorSchemaDescriber(executor QueryExecutor, opts ...SchemaDescriberOption) SchemaDescriber {
+	d := &QueryExecutorSchemaDescriber{
+		executor:  executor,
+		allowlist: []string{"analytics"},
+	}
+	for _, opt := range opts {
+		opt(d)
+	}
+	return d
 }
 
 // SchemaDescribe executes queries to get detailed schema information.
+//
+// Accepts either a bare name ("users") or a schema-qualified reference
+// ("analytics.users"). A qualified reference pins the lookup to that
+// schema and bypasses the allowlist; a bare name searches the allowlist.
+// Pinning is the disambiguation path when two allow-listed schemas hold a
+// same-named table.
+//
+// Column metadata is read from pg_attribute + pg_type so we can join
+// pg_description on (objoid, objsubid) to surface column-level COMMENT ON
+// values. Table-level description comes from the same pg_description join
+// at objsubid=0.
 func (d *QueryExecutorSchemaDescriber) SchemaDescribe(ctx context.Context, tableName string) (*TableSchema, error) {
-	// Query column information
+	schemaFilter := d.allowlist
+	bareName := tableName
+	if idx := strings.Index(tableName, "."); idx > 0 && idx < len(tableName)-1 {
+		schemaFilter = []string{tableName[:idx]}
+		bareName = tableName[idx+1:]
+	}
+
+	// Table description (one row) — also asserts the table exists in an
+	// allowed schema. Done as a separate small query to keep the column
+	// query simple.
+	tableQuery := `
+		SELECT
+			n.nspname AS schema,
+			COALESCE(obj_description(c.oid, 'pg_class'), '') AS description
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relname = $1
+		  AND n.nspname = ANY($2)
+		  AND has_table_privilege(current_user, c.oid, 'SELECT')
+		LIMIT 1
+	`
+	tableRes, err := d.executor.ExecuteQuery(ctx, tableQuery, []any{bareName, schemaFilter}, 10*time.Second)
+	if err != nil {
+		return nil, fmt.Errorf("failed to look up table: %w", err)
+	}
+	if len(tableRes.Rows) == 0 {
+		return nil, fmt.Errorf("table %q not found in allowed schemas", tableName)
+	}
+	resolvedSchema, _ := tableRes.Rows[0][0].(string)
+	tableDescription, _ := tableRes.Rows[0][1].(string)
+
 	columnsQuery := `
 		SELECT
-			column_name,
-			data_type,
-			is_nullable,
-			column_default,
-			character_maximum_length,
-			numeric_precision,
-			numeric_scale
-		FROM information_schema.columns
-		WHERE table_schema = 'analytics' AND table_name = $1
-		ORDER BY ordinal_position
+			a.attname                                       AS column_name,
+			format_type(a.atttypid, a.atttypmod)            AS data_type,
+			NOT a.attnotnull                                AS is_nullable,
+			pg_get_expr(ad.adbin, ad.adrelid)               AS column_default,
+			COALESCE(d.description, '')                     AS description
+		FROM pg_attribute a
+		JOIN pg_class c    ON a.attrelid = c.oid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		LEFT JOIN pg_attrdef ad
+		       ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
+		LEFT JOIN pg_description d
+		       ON d.objoid = c.oid
+		      AND d.objsubid = a.attnum
+		      AND d.classoid = 'pg_class'::regclass
+		WHERE c.relname = $1
+		  AND n.nspname = $2
+		  AND a.attnum > 0
+		  AND NOT a.attisdropped
+		ORDER BY a.attnum
 	`
 
-	columnsResult, err := d.executor.ExecuteQuery(ctx, columnsQuery, []any{tableName}, 10*time.Second)
+	columnsResult, err := d.executor.ExecuteQuery(ctx, columnsQuery, []any{bareName, resolvedSchema}, 10*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("failed to describe columns: %w", err)
 	}
 
 	columns := make([]ColumnInfo, 0, len(columnsResult.Rows))
 	for _, row := range columnsResult.Rows {
-		if len(row) < 7 {
+		if len(row) < 5 {
 			continue
 		}
 
 		colName, _ := row[0].(string)
 		dataType, _ := row[1].(string)
-		isNullable, _ := row[2].(string)
+		nullable, _ := row[2].(bool)
 		colDefault := row[3]
-		// Skip length/precision/scale for now
+		colDescription, _ := row[4].(string)
 
 		var defaultValue *string
 		if colDefault != nil {
@@ -286,14 +390,16 @@ func (d *QueryExecutorSchemaDescriber) SchemaDescribe(ctx context.Context, table
 		columns = append(columns, ColumnInfo{
 			Name:         colName,
 			Type:         dataType,
-			Nullable:     isNullable == "YES",
+			Nullable:     nullable,
 			DefaultValue: defaultValue,
+			Description:  colDescription,
 		})
 	}
 
 	return &TableSchema{
-		Name:    tableName,
-		Schema:  "analytics",
-		Columns: columns,
+		Name:        bareName,
+		Schema:      resolvedSchema,
+		Description: tableDescription,
+		Columns:     columns,
 	}, nil
 }

@@ -260,7 +260,11 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 		}, nil // Input validation error, not infrastructure failure
 	}
 
-	// Strip schema prefix for underlying calls (describer/permissions expect bare names)
+	// ViewAccess and the ToolResult display use a bare name, but the
+	// describer accepts an optional schema prefix so a qualified reference
+	// ("analytics.users") pins the lookup to that schema — avoiding a
+	// silent wrong-schema match when multiple allow-listed schemas hold a
+	// same-named table.
 	bareName := params.TableName
 	if idx := strings.Index(params.TableName, "."); idx >= 0 {
 		bareName = params.TableName[idx+1:]
@@ -306,7 +310,7 @@ func (t *SchemaDescribeTool) CallStructured(ctx context.Context, input string) (
 		}
 	}
 
-	schema, err := t.describer.SchemaDescribe(ctx, bareName)
+	schema, err := t.describer.SchemaDescribe(ctx, params.TableName)
 	if err != nil {
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,

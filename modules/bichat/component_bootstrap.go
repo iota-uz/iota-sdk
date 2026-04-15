@@ -10,13 +10,13 @@ import (
 	"github.com/google/uuid"
 	langfusego "github.com/henomis/langfuse-go"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
-	bichatinfra "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure"
 	llmproviders "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
+	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -99,7 +99,15 @@ func buildModuleConfig(
 	}
 
 	chatRepo := bichatpersistence.NewPostgresChatRepository()
-	executor := bichatinfra.NewPostgresQueryExecutor(pool)
+	// SafeQueryExecutor ships with AllowAllPolicy by default: the bichat
+	// SDK module applies no schema-level gating and trusts the Postgres
+	// role behind `pool` (plus has_table_privilege filtering in the schema
+	// tools) to bound visible objects. Downstream consumers that need
+	// domain-aware permission checks wire them via WithQueryPolicy when
+	// they build their own executor instance.
+	executor := bichatsql.NewSafeQueryExecutor(pool,
+		bichatsql.WithTenantResolver(composables.UseTenantID),
+	)
 	learningStore := bichatpersistence.NewLearningRepository(pool)
 	validatedQueryStore := bichatpersistence.NewValidatedQueryRepository(pool)
 

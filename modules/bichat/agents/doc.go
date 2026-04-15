@@ -8,7 +8,9 @@
 //
 // Basic usage with only SQL capabilities:
 //
-//	executor := toolsql.NewDefaultQueryExecutor(dbPool)
+//	executor := bichatsql.NewSafeQueryExecutor(dbPool,
+//	    bichatsql.WithTenantResolver(composables.UseTenantID),
+//	)
 //	agent, err := NewDefaultBIAgent(executor)
 //	if err != nil {
 //	    // handle error

@@ -11,7 +11,9 @@ Pre-configured BI agent with SQL, schema, visualization, and HITL tools.
 ```go
 import bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 
-executor := toolsql.NewDefaultQueryExecutor(dbPool)
+executor := bichatsql.NewSafeQueryExecutor(dbPool,
+    bichatsql.WithTenantResolver(composables.UseTenantID),
+)
 agent, err := bichatagents.NewDefaultBIAgent(executor)
 ```
 
