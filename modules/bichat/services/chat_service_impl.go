@@ -73,6 +73,10 @@ func NewChatService(
 ) *chatServiceImpl {
 	runStore := newConfiguredGenerationRunStore()
 	accessRepo := chatRepo.(domain.SessionAccessRepository)
+	// Use a single shared Redis connection for all Redis-backed components so
+	// the process dials only one connection to Redis. Falls back to nil/noop
+	// when REDIS_URL is unset (dev/CI without Redis).
+	eventLog, activeRunIndex, runJobQueue := newConfiguredRedisComponents()
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
 		sessionAccess:      accessRepo,
@@ -81,9 +85,9 @@ func NewChatService(
 		titleService:       titleService,
 		titleQueue:         normalizeTitleJobQueue(titleQueue),
 		runState:           streamingsvc.NewRunStateManager(runStore),
-		eventLog:           newConfiguredRunEventLog(),
-		activeRunIndex:     newConfiguredActiveRunIndex(),
-		runJobQueue:        newConfiguredRunJobQueue(),
+		eventLog:           eventLog,
+		activeRunIndex:     activeRunIndex,
+		runJobQueue:        runJobQueue,
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}

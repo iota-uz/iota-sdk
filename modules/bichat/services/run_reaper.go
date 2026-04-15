@@ -41,6 +41,9 @@ type RunReaperConfig struct {
 	// considered wedged. Defaults to 60s. Heartbeats tick every ~2s
 	// from the chat service so 60s leaves ~30 missed ticks of headroom.
 	StaleAfter time.Duration
+	// LockTTL is the TTL of the single-writer reaper lock. A crashed
+	// leader releases the lock after this duration. Defaults to 30s.
+	LockTTL time.Duration
 	// KeyPrefix matches the active-run index key prefix. Defaults to
 	// the index's default, which is the common case.
 	KeyPrefix string
@@ -58,6 +61,7 @@ type RunReaper struct {
 	logger         *logrus.Logger
 	pollInterval   time.Duration
 	staleAfter     time.Duration
+	lockTTL        time.Duration
 	keyPrefix      string
 	now            func() time.Time
 	instanceLockID string
@@ -69,13 +73,23 @@ type RunReaper struct {
 // without branching on a sentinel. Errors are returned only for
 // genuine startup failures (bad Redis connection, etc).
 func NewConfiguredRunReaperFromEnv(logger *logrus.Logger) (*RunReaper, error) {
-	redisURL, ok := envLookup("REDIS_URL")
-	if !ok || strings.TrimSpace(redisURL) == "" {
-		return nil, nil
-	}
-	client, err := newRedisClient(redisURL)
+	return NewConfiguredRunReaperWithTunables(logger, 0, 0, 0)
+}
+
+// NewConfiguredRunReaperWithTunables is like NewConfiguredRunReaperFromEnv
+// but accepts explicit poll interval, stale threshold, and lock TTL so
+// callers can override the defaults without touching the env. Zero values
+// fall back to the package-level defaults.
+func NewConfiguredRunReaperWithTunables(
+	logger *logrus.Logger,
+	interval, staleThreshold, lockTTL time.Duration,
+) (*RunReaper, error) {
+	client, err := NewSharedRedisClient()
 	if err != nil {
 		return nil, err
+	}
+	if client == nil {
+		return nil, nil
 	}
 	store, err := newRedisGenerationRunStore(redisGenerationRunStoreConfig{Client: client})
 	if err != nil {
@@ -95,6 +109,9 @@ func NewConfiguredRunReaperFromEnv(logger *logrus.Logger) (*RunReaper, error) {
 		EventLog:       eventLog,
 		ActiveRunIndex: index,
 		Logger:         logger,
+		PollInterval:   interval,
+		StaleAfter:     staleThreshold,
+		LockTTL:        lockTTL,
 	})
 }
 
@@ -129,6 +146,10 @@ func NewRunReaper(cfg RunReaperConfig) (*RunReaper, error) {
 	if stale <= 0 {
 		stale = defaultReaperStaleAfter
 	}
+	lockTTL := cfg.LockTTL
+	if lockTTL <= 0 {
+		lockTTL = defaultReaperLockTTL
+	}
 	prefix := strings.TrimSpace(cfg.KeyPrefix)
 	if prefix == "" {
 		prefix = defaultActiveRunIndexPrefix
@@ -142,6 +163,7 @@ func NewRunReaper(cfg RunReaperConfig) (*RunReaper, error) {
 		logger:         logger,
 		pollInterval:   poll,
 		staleAfter:     stale,
+		lockTTL:        lockTTL,
 		keyPrefix:      prefix,
 		now:            time.Now,
 		instanceLockID: uuid.NewString(),
@@ -175,12 +197,16 @@ func (r *RunReaper) Start(ctx context.Context) error {
 // run one full sweep, release. Silently skips when another replica
 // already holds the lock.
 func (r *RunReaper) sweepIfLeader(ctx context.Context) {
-	acquired, err := r.client.SetNX(ctx, defaultReaperLockKey, r.instanceLockID, defaultReaperLockTTL).Result()
+	acquired, err := r.client.SetNX(ctx, defaultReaperLockKey, r.instanceLockID, r.lockTTL).Result()
 	if err != nil {
 		r.logger.WithError(err).Warn("run reaper lock acquire failed")
 		return
 	}
 	if !acquired {
+		// Another replica holds the lock — this is normal in multi-process
+		// deployments. Debug-level so operators can distinguish "running
+		// elsewhere" from a broken reaper (which would emit Warn/Error).
+		r.logger.Debug("reaper lock held by another instance, skipping sweep")
 		return
 	}
 	defer r.releaseLock(ctx)

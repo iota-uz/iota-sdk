@@ -190,20 +190,23 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 	)
 
 	return &ServiceContainer{
-		sessionCommands:   chatServices.SessionCommands,
-		sessionQueries:    chatServices.SessionQueries,
-		turnCommands:      chatServices.TurnCommands,
-		turnQueries:       chatServices.TurnQueries,
-		streamCommands:    chatServices.StreamCommands,
-		hitlCommands:      chatServices.HITLCommands,
-		agentService:      agentService,
-		attachmentService: attachmentService,
-		artifactService:   artifactService,
-		observability:     chatServices.Observability,
-		titleService:      titleService,
-		titleJobQueue:     titleJobQueue,
-		titleQueueConfig:  c.TitleQueue,
-		logger:            c.Logger,
+		sessionCommands:      chatServices.SessionCommands,
+		sessionQueries:       chatServices.SessionQueries,
+		turnCommands:         chatServices.TurnCommands,
+		turnQueries:          chatServices.TurnQueries,
+		streamCommands:       chatServices.StreamCommands,
+		hitlCommands:         chatServices.HITLCommands,
+		agentService:         agentService,
+		attachmentService:    attachmentService,
+		artifactService:      artifactService,
+		observability:        chatServices.Observability,
+		titleService:         titleService,
+		titleJobQueue:        titleJobQueue,
+		titleQueueConfig:     c.TitleQueue,
+		logger:               c.Logger,
+		reaperInterval:       c.ReaperInterval,
+		reaperStaleThreshold: c.ReaperStaleThreshold,
+		reaperLockTTL:        c.ReaperLockTTL,
 	}, nil
 }
 

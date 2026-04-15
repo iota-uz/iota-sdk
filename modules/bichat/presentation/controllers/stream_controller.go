@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
+	bichatmodsvcs "github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -230,77 +231,13 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 		default:
 		}
 
-		payload := httpdto.StreamChunkPayload{
-			Type:         string(chunk.Type),
-			Content:      chunk.Content,
-			Citation:     chunk.Citation,
-			Usage:        chunk.Usage,
-			GenerationMs: chunk.GenerationMs,
-			Timestamp:    chunk.Timestamp.UnixMilli(),
-		}
-		if chunk.Tool != nil {
-			toolPayload := &httpdto.ToolEventPayload{
-				CallID:     chunk.Tool.CallID,
-				Name:       chunk.Tool.Name,
-				AgentName:  chunk.Tool.AgentName,
-				Arguments:  chunk.Tool.Arguments,
-				Result:     chunk.Tool.Result,
-				DurationMs: chunk.Tool.DurationMs,
-			}
-			if chunk.Tool.Error != nil {
-				toolPayload.Error = chunk.Tool.Error.Error()
-			}
-			payload.Tool = toolPayload
-		}
-		if chunk.Interrupt != nil {
-			questions := make([]httpdto.InterruptQuestionPayload, 0, len(chunk.Interrupt.Questions))
-			for _, q := range chunk.Interrupt.Questions {
-				options := make([]httpdto.InterruptQuestionOptionPayload, 0, len(q.Options))
-				for _, opt := range q.Options {
-					options = append(options, httpdto.InterruptQuestionOptionPayload{
-						ID:    opt.ID,
-						Label: opt.Label,
-					})
-				}
-				questions = append(questions, httpdto.InterruptQuestionPayload{
-					ID:      q.ID,
-					Text:    q.Text,
-					Type:    string(q.Type),
-					Options: options,
-				})
-			}
-			payload.Interrupt = &httpdto.InterruptEventPayload{
-				CheckpointID:       chunk.Interrupt.CheckpointID,
-				AgentName:          chunk.Interrupt.AgentName,
-				ProviderResponseID: chunk.Interrupt.ProviderResponseID,
-				Questions:          questions,
-			}
-		}
+		eventName, payload, _ := bichatmodsvcs.BuildPayload(chunk)
+		// Post-encode error sanitisation: BuildPayload stores the raw error
+		// string from the chunk, but browsers must only see safe messages.
 		if chunk.Error != nil {
-			// Preserve known provider-facing failures (quota/auth/rate-limit), and
-			// keep all other internal failures generic.
 			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
 		}
-		if chunk.RunID != "" {
-			payload.RunID = chunk.RunID
-		}
-		if chunk.Snapshot != nil {
-			payload.Snapshot = &httpdto.StreamSnapshotPayload{
-				PartialContent:  chunk.Snapshot.PartialContent,
-				PartialMetadata: chunk.Snapshot.PartialMetadata,
-			}
-		}
-		if chunk.Type == bichatservices.ChunkTypeTextBlockEnd {
-			seq := chunk.TextBlockSeq
-			payload.TextBlockSeq = &seq
-		}
-
-		// Event name is for SSE clients that care; our frontend reads `data:` lines.
-		eventName := payload.Type
-		if eventName == "" {
-			eventName = string(httpdto.StreamEventChunk)
-		}
-		sendEvent(eventName, payload)
+		sendEvent(string(eventName), payload)
 	})
 
 	if err != nil {
@@ -512,63 +449,13 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 	}()
 
 	err := c.streamService.ResumeStream(r.Context(), req.SessionID, req.RunID, func(chunk bichatservices.StreamChunk) {
-		payload := httpdto.StreamChunkPayload{
-			Type:         string(chunk.Type),
-			Content:      chunk.Content,
-			Citation:     chunk.Citation,
-			Usage:        chunk.Usage,
-			GenerationMs: chunk.GenerationMs,
-			Timestamp:    chunk.Timestamp.UnixMilli(),
-		}
-		if chunk.Tool != nil {
-			toolPayload := &httpdto.ToolEventPayload{
-				CallID:     chunk.Tool.CallID,
-				Name:       chunk.Tool.Name,
-				AgentName:  chunk.Tool.AgentName,
-				Arguments:  chunk.Tool.Arguments,
-				Result:     chunk.Tool.Result,
-				DurationMs: chunk.Tool.DurationMs,
-			}
-			if chunk.Tool.Error != nil {
-				toolPayload.Error = chunk.Tool.Error.Error()
-			}
-			payload.Tool = toolPayload
-		}
-		if chunk.Interrupt != nil {
-			questions := make([]httpdto.InterruptQuestionPayload, 0, len(chunk.Interrupt.Questions))
-			for _, q := range chunk.Interrupt.Questions {
-				options := make([]httpdto.InterruptQuestionOptionPayload, 0, len(q.Options))
-				for _, opt := range q.Options {
-					options = append(options, httpdto.InterruptQuestionOptionPayload{ID: opt.ID, Label: opt.Label})
-				}
-				questions = append(questions, httpdto.InterruptQuestionPayload{ID: q.ID, Text: q.Text, Type: string(q.Type), Options: options})
-			}
-			payload.Interrupt = &httpdto.InterruptEventPayload{
-				CheckpointID:       chunk.Interrupt.CheckpointID,
-				AgentName:          chunk.Interrupt.AgentName,
-				ProviderResponseID: chunk.Interrupt.ProviderResponseID,
-				Questions:          questions,
-			}
-		}
+		eventName, payload, _ := bichatmodsvcs.BuildPayload(chunk)
+		// Post-encode error sanitisation: BuildPayload stores the raw error
+		// string from the chunk, but browsers must only see safe messages.
 		if chunk.Error != nil {
 			payload.Error = c.streamClientErrorMessage(chunk.Error, chunk.Type)
 		}
-		if chunk.Snapshot != nil {
-			payload.Snapshot = &httpdto.StreamSnapshotPayload{
-				PartialContent:  chunk.Snapshot.PartialContent,
-				PartialMetadata: chunk.Snapshot.PartialMetadata,
-			}
-		}
-		if chunk.Type == bichatservices.ChunkTypeTextBlockEnd {
-			seq := chunk.TextBlockSeq
-			payload.TextBlockSeq = &seq
-		}
-
-		eventName := payload.Type
-		if eventName == "" {
-			eventName = string(httpdto.StreamEventChunk)
-		}
-		sendEvent(eventName, payload)
+		sendEvent(string(eventName), payload)
 	})
 	if err != nil {
 		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
@@ -671,8 +558,9 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	})
 	if err != nil {
+		logger := configuration.Use().Logger()
 		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
-			// Log and emit a synthetic error so the client can fall back.
+			logger.WithError(serrors.E(op, "flush failed", err)).Warn("TailEvents: run event log unavailable")
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
@@ -683,6 +571,7 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
+			logger.WithError(serrors.E(op, "flush failed", err)).Warn("TailEvents: run not found or already finished")
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
@@ -692,7 +581,6 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		logger := configuration.Use().Logger()
 		logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
 	}
 }
@@ -768,7 +656,9 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 		c.sendSSEEvent(w, flusher, evt.Event, payload)
 	})
 	if err != nil {
+		logger := configuration.Use().Logger()
 		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
+			logger.WithError(serrors.E(op, "flush failed", err)).Warn("TailActiveRuns: active-run index unavailable")
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", map[string]string{
@@ -776,7 +666,6 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 			})
 			return
 		}
-		logger := configuration.Use().Logger()
 		logger.WithError(serrors.E(op, err)).Error("TailActiveRuns failed")
 	}
 }

@@ -9,18 +9,14 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 )
 
-// encodeRunEventFromChunk converts an in-memory StreamChunk into the wire
-// event-type + JSON payload written to the per-run Redis event log.
+// BuildPayload converts an in-memory StreamChunk into the typed
+// httpdto.StreamEventType + httpdto.StreamChunkPayload pair. It is the
+// single encoding point for all chunk types; callers that need a []byte
+// (e.g. the Redis event-log appender) marshal the returned struct themselves.
 //
-// The payload shape is httpdto.StreamChunkPayload, the same struct the HTTP
-// controller sends down an SSE response. Encoding happens once (at write
-// time) so controllers tailing Redis can forward payloads verbatim —
-// readers never need to know about the internal StreamChunk shape.
-//
-// The returned event type matches httpdto's `type` field conventions. When
-// the chunk type is empty we default to "chunk" to keep parity with the
-// controller's fallback (stream_controller.go:282).
-func encodeRunEventFromChunk(chunk bichatservices.StreamChunk) (string, []byte, error) {
+// When the chunk type is empty we default to StreamEventChunk ("chunk") to
+// keep parity with the controller's fallback.
+func BuildPayload(chunk bichatservices.StreamChunk) (httpdto.StreamEventType, httpdto.StreamChunkPayload, error) {
 	payload := httpdto.StreamChunkPayload{
 		Type:         string(chunk.Type),
 		Content:      chunk.Content,
@@ -91,9 +87,20 @@ func encodeRunEventFromChunk(chunk bichatservices.StreamChunk) (string, []byte, 
 		eventType = string(httpdto.StreamEventChunk)
 	}
 
+	return httpdto.StreamEventType(eventType), payload, nil
+}
+
+// encodeRunEventFromChunk is the internal shim used by the Redis event-log
+// appender. It delegates to BuildPayload and marshals the result so the
+// call site in chat_service_impl.go does not need to change.
+func encodeRunEventFromChunk(chunk bichatservices.StreamChunk) (string, []byte, error) {
+	eventType, payload, err := BuildPayload(chunk)
+	if err != nil {
+		return "", nil, err
+	}
 	body, err := json.Marshal(payload)
 	if err != nil {
 		return "", nil, err
 	}
-	return eventType, body, nil
+	return string(eventType), body, nil
 }

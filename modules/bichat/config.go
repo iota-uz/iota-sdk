@@ -260,6 +260,12 @@ type ModuleConfig struct {
 	StreamRequireAccessPermission permission.Permission
 	StreamReadAllPermission       permission.Permission
 
+	// Optional: Stale-run reaper tuning. Zero values fall back to the
+	// defaults in run_reaper.go (15s interval, 60s stale threshold, 30s lock TTL).
+	ReaperInterval       time.Duration
+	ReaperStaleThreshold time.Duration
+	ReaperLockTTL        time.Duration
+
 	// Internal: Build-time state (resolved once during BuildServices).
 	resolvedProjectPromptExtension string
 	projectPromptExtensionResolved bool
@@ -285,6 +291,10 @@ type ServiceContainer struct {
 	titleJobQueue     *services.RedisTitleJobQueue
 	titleQueueConfig  *TitleQueueConfig
 	logger            *logrus.Logger
+	// Reaper tunables forwarded from ModuleConfig. Zero means use defaults.
+	reaperInterval       time.Duration
+	reaperStaleThreshold time.Duration
+	reaperLockTTL        time.Duration
 }
 
 // SessionCommands returns session mutating actions.
@@ -368,9 +378,16 @@ func (sc *ServiceContainer) CloseTitleQueue() error {
 
 // NewRunReaper builds the stale-run reaper when Redis is configured.
 // Returns (nil, nil) when REDIS_URL is unset so the caller can skip
-// the reaper without branching on a sentinel.
+// the reaper without branching on a sentinel. Reaper interval / stale
+// threshold / lock TTL are forwarded from the ModuleConfig tunables;
+// zero values fall back to the per-constant defaults in run_reaper.go.
 func (sc *ServiceContainer) NewRunReaper() (*services.RunReaper, error) {
-	return services.NewConfiguredRunReaperFromEnv(sc.logger)
+	return services.NewConfiguredRunReaperWithTunables(
+		sc.logger,
+		sc.reaperInterval,
+		sc.reaperStaleThreshold,
+		sc.reaperLockTTL,
+	)
 }
 
 // ConfigOption is a functional option for ModuleConfig
