@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -111,59 +110,8 @@ func WithImageUploadResolver(resolver OpenAIImageUploadLookup) OpenAIModelOption
 	}
 }
 
-// NewOpenAIModel creates a new OpenAI model from environment variables.
-// It reads OPENAI_API_KEY (required) and OPENAI_MODEL (optional, defaults to the provider catalog default).
-func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
-	const op serrors.Op = "llmproviders.NewOpenAIModel"
-
-	apiKey := os.Getenv("OPENAI_API_KEY")
-	if apiKey == "" {
-		return nil, serrors.E(op, "OPENAI_API_KEY environment variable is required")
-	}
-
-	modelName := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
-	if modelName == "" {
-		if defaultName, ok := agents.DefaultModelForProvider(agents.ProviderOpenAI); ok {
-			modelName = defaultName
-		} else {
-			modelName = agents.DefaultOpenAIModelSnapshot
-		}
-	}
-
-	baseURL := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
-	resolveIP := strings.TrimSpace(os.Getenv("OPENAI_API_RESOLVE_IP"))
-	clientOptions := []option.RequestOption{
-		option.WithAPIKey(apiKey),
-	}
-	if baseURL != "" {
-		clientOptions = append(clientOptions, option.WithBaseURL(baseURL))
-	}
-	if httpClient, configured, err := newOpenAIHTTPClient(baseURL, resolveIP); err != nil {
-		return nil, serrors.E(op, err, "failed to configure OpenAI HTTP client")
-	} else if configured {
-		clientOptions = append(clientOptions, option.WithHTTPClient(httpClient))
-	}
-
-	client := openai.NewClient(clientOptions...)
-	m := &OpenAIModel{
-		client:                       &client,
-		modelName:                    modelName,
-		logger:                       logging.NewNoOpLogger(),
-		codeInterpreterMemoryLimit:   defaultCodeInterpreterMemoryLimit,
-		codeInterpreterArtifactLimit: defaultCodeInterpreterFileLimit,
-		imageUploadResolver:          newCoreOpenAIImageUploadLookup(),
-	}
-	for _, opt := range opts {
-		opt(m)
-	}
-	if m.imageUploadResolver == nil {
-		m.imageUploadResolver = newCoreOpenAIImageUploadLookup()
-	}
-	return m, nil
-}
-
 // NewOpenAIModelFromConfig creates a new OpenAI model from a typed bichatconfig.OpenAIConfig.
-// Returns an error when APIKey is empty. Prefer this over NewOpenAIModel for new callers.
+// Returns an error when APIKey is empty.
 func NewOpenAIModelFromConfig(cfg bichatconfig.OpenAIConfig, opts ...OpenAIModelOption) (agents.Model, error) {
 	const op serrors.Op = "llmproviders.NewOpenAIModelFromConfig"
 

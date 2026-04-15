@@ -8,18 +8,18 @@ import (
 	"path/filepath"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/jackc/pgx/v5"
+	"github.com/sirupsen/logrus"
 )
 
 // CreateRaw drops and recreates the e2e database.
-func CreateRaw() error {
+func CreateRaw(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	ctx := context.Background()
 	ensureE2EDatabaseEnv()
-	conf := configuration.Use()
 
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
-		conf.Database.Host, conf.Database.Port, conf.Database.User, conf.Database.Password)
+		cfg.Host, cfg.Port, cfg.User, cfg.Password)
 
 	conn, err := pgx.Connect(ctx, connString)
 	if err != nil {
@@ -39,18 +39,17 @@ func CreateRaw() error {
 		return fmt.Errorf("failed to create e2e database: %w", err)
 	}
 
-	conf.Logger().Info("Created e2e database", "database", E2EDBName)
+	logger.Info("Created e2e database", "database", E2EDBName)
 	return nil
 }
 
 // DropRaw removes the e2e database.
-func DropRaw() error {
+func DropRaw(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	ctx := context.Background()
 	ensureE2EDatabaseEnv()
-	conf := configuration.Use()
 
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
-		conf.Database.Host, conf.Database.Port, conf.Database.User, conf.Database.Password)
+		cfg.Host, cfg.Port, cfg.User, cfg.Password)
 
 	conn, err := pgx.Connect(ctx, connString)
 	if err != nil {
@@ -65,12 +64,12 @@ func DropRaw() error {
 		return fmt.Errorf("failed to drop e2e database: %w", err)
 	}
 
-	conf.Logger().Info("Dropped e2e database", "database", E2EDBName)
+	logger.Info("Dropped e2e database", "database", E2EDBName)
 	return nil
 }
 
 // Migrate applies all migrations to the e2e database.
-func Migrate() error {
+func Migrate(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
@@ -94,8 +93,7 @@ func Migrate() error {
 
 	ensureE2EDatabaseEnv()
 
-	conf := configuration.Use()
-	pool, err := GetE2EPool()
+	pool, err := GetE2EPool(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to e2e database for migrations: %w", err)
 	}
@@ -106,77 +104,74 @@ func Migrate() error {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	conf.Logger().Info("Applied migrations to e2e database")
+	logger.Info("Applied migrations to e2e database")
 	return nil
 }
 
 // Setup performs a complete e2e database setup.
-func Setup() error {
+func Setup(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	ensureE2EDatabaseEnv()
-	conf := configuration.Use()
-	conf.Logger().Info("Setting up e2e database...")
+	logger.Info("Setting up e2e database...")
 
-	exists, err := DatabaseExists()
+	exists, err := DatabaseExists(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to check if database exists: %w", err)
 	}
 
 	if exists {
-		conf.Logger().Info("E2E database exists, clearing data instead of recreating...")
-		if err := TruncateAllTables(); err != nil {
+		logger.Info("E2E database exists, clearing data instead of recreating...")
+		if err := TruncateAllTables(cfg, logger); err != nil {
 			return fmt.Errorf("failed to truncate tables: %w", err)
 		}
 	} else {
-		conf.Logger().Info("E2E database does not exist, creating fresh database...")
-		if err := CreateRaw(); err != nil {
+		logger.Info("E2E database does not exist, creating fresh database...")
+		if err := CreateRaw(cfg, logger); err != nil {
 			return err
 		}
 	}
-	if err := Migrate(); err != nil {
+	if err := Migrate(cfg, logger); err != nil {
 		return err
 	}
 
-	if err := SeedRaw(); err != nil {
+	if err := SeedRaw(cfg, logger); err != nil {
 		return err
 	}
 
-	conf.Logger().Info("E2E database setup complete!")
+	logger.Info("E2E database setup complete!")
 	return nil
 }
 
 // ResetRaw drops, recreates, migrates, and seeds the e2e database.
-func ResetRaw() error {
+func ResetRaw(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	ensureE2EDatabaseEnv()
-	conf := configuration.Use()
-	conf.Logger().Info("Resetting e2e database...")
+	logger.Info("Resetting e2e database...")
 
-	if err := CreateRaw(); err != nil {
+	if err := CreateRaw(cfg, logger); err != nil {
 		return err
 	}
-	if err := Migrate(); err != nil {
+	if err := Migrate(cfg, logger); err != nil {
 		return err
 	}
-	if err := SeedRaw(); err != nil {
+	if err := SeedRaw(cfg, logger); err != nil {
 		return err
 	}
 
-	conf.Logger().Info("E2E database reset complete!")
+	logger.Info("E2E database reset complete!")
 	return nil
 }
 
 // Reset drops and recreates the e2e database with fresh data.
-func Reset() error {
-	return ResetRaw()
+func Reset(cfg *dbconfig.Config, logger *logrus.Logger) error {
+	return ResetRaw(cfg, logger)
 }
 
 // DatabaseExists checks if the e2e database exists.
-func DatabaseExists() (bool, error) {
+func DatabaseExists(cfg *dbconfig.Config) (bool, error) {
 	ctx := context.Background()
 	ensureE2EDatabaseEnv()
-	conf := configuration.Use()
 
 	connString := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=postgres sslmode=disable",
-		conf.Database.Host, conf.Database.Port, conf.Database.User, conf.Database.Password)
+		cfg.Host, cfg.Port, cfg.User, cfg.Password)
 
 	conn, err := pgx.Connect(ctx, connString)
 	if err != nil {
@@ -197,12 +192,11 @@ func DatabaseExists() (bool, error) {
 }
 
 // TruncateAllTables clears all data from the e2e database while preserving connections.
-func TruncateAllTables() error {
+func TruncateAllTables(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	ctx := context.Background()
 	ensureE2EDatabaseEnv()
-	conf := configuration.Use()
 
-	pool, err := GetE2EPool()
+	pool, err := GetE2EPool(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to e2e database: %w", err)
 	}
@@ -242,9 +236,9 @@ func TruncateAllTables() error {
 				return fmt.Errorf("failed to truncate table %s: %w", table, err)
 			}
 		}
-		conf.Logger().Info("Truncated all tables in e2e database", "count", len(tables))
+		logger.Info("Truncated all tables in e2e database", "count", len(tables))
 	} else {
-		conf.Logger().Info("No tables found to truncate in e2e database")
+		logger.Info("No tables found to truncate in e2e database")
 	}
 
 	return nil

@@ -22,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -413,25 +414,19 @@ func mergeCloseErrors(existing, next error) error {
 	return errors.Join(existing, next)
 }
 
-func harnessDBOpts(name string) string {
-	c := configuration.Use()
-	return fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.Database.Host,
-		c.Database.Port,
-		c.Database.User,
-		strings.ToLower(sanitizeDBName(name)),
-		c.Database.Password,
-	)
-}
-
 func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harnessState, error) {
+	// Read legacy config once per harness state creation. This is the single
+	// remaining reference to the global singleton in this file; it will be
+	// replaced in W5.1 when HarnessConfig carries an explicit typed config.
+	legacyConf := configuration.Use() //nolint:staticcheck // W5.1 removal target
+	legacyDB := dbconfig.FromLegacy(legacyConf)
+
 	dbName := buildDBName(cfg.Name, key, isPerTest)
 	if err := CreateDBE(dbName); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
-	pool, err := newPoolWithConfig(harnessDBOpts(dbName), cfg.Database.Pool)
+	pool, err := newPoolWithConfig(dbOptsWithConfig(dbName, legacyDB), cfg.Database.Pool)
 	if err != nil {
 		if cleanupErr := DropDBE(dbName); cleanupErr != nil {
 			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")
@@ -439,7 +434,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, container, err := SetupApplication(pool, cfg.Components, cfg.Source)
+	app, container, err := setupApplicationWithConf(pool, legacyConf, cfg.Components, cfg.Source)
 	if err != nil {
 		pool.Close()
 		_ = DropDBE(dbName)

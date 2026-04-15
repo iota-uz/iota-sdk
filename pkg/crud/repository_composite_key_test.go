@@ -6,10 +6,10 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/crud"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -167,8 +167,7 @@ func setupCompositeKeyTest(t *testing.T) *compositeKeyTestFixtures {
 
 	ctx := composables.WithPool(context.Background(), pool)
 
-	conf := configuration.Use()
-	publisher := eventbus.NewEventPublisher(conf.Logger())
+	publisher := eventbus.NewEventPublisher(logrus.New())
 
 	tx, err := pool.Begin(ctx)
 	if err != nil {

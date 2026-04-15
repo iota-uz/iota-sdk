@@ -197,12 +197,13 @@ func mustRegisterBuiltins(registry *BackendRegistry) {
 		BuildFunc: func(container *Container) (appletenginehandlers.FilesStore, error) {
 			ctx := container.Context()
 			cfg := ctx.EngineConfig.S3
+			accessKeyID, secretAccessKey := resolveS3Credentials(cfg)
 			return appletenginehandlers.NewS3FilesStore(ctx.Pool, appletenginehandlers.S3FilesConfig{
 				Bucket:          strings.TrimSpace(cfg.Bucket),
 				Region:          strings.TrimSpace(cfg.Region),
 				Endpoint:        strings.TrimSpace(cfg.Endpoint),
-				AccessKeyID:     strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.AccessKeyEnv))),
-				SecretAccessKey: strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.SecretKeyEnv))),
+				AccessKeyID:     accessKeyID,
+				SecretAccessKey: secretAccessKey,
 				ForcePathStyle:  cfg.ForcePathStyle,
 			})
 		},
@@ -231,4 +232,20 @@ func must(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+// resolveS3Credentials resolves S3 access credentials from the engine config.
+//
+// The applets config carries env-var names (AccessKeyEnv / SecretKeyEnv) rather
+// than the secret values themselves, because TOML config files are not a safe
+// place for secrets. This helper performs the single env lookup at backend
+// build time — ensuring the os.Getenv call is isolated to one place and
+// happens exactly once per backend construction, not per request.
+//
+// When the applets config is extended to carry direct values in a future
+// version, this helper is the sole place that needs updating.
+func resolveS3Credentials(cfg appletsconfig.AppletEngineS3Config) (accessKeyID, secretAccessKey string) {
+	accessKeyID = strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.AccessKeyEnv)))
+	secretAccessKey = strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.SecretKeyEnv)))
+	return accessKeyID, secretAccessKey
 }

@@ -4,7 +4,6 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 
@@ -13,6 +12,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/eval"
 	evalcli "github.com/iota-uz/iota-sdk/pkg/bichat/eval/cli"
 	"github.com/iota-uz/iota-sdk/pkg/cli/exitcode"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func NewBiChatEvalCommand() *cobra.Command {
@@ -79,9 +80,10 @@ func newBiChatEvalRunCmd() *cobra.Command {
 			if strings.TrimSpace(seedTenantID) == "" {
 				return exitcode.InvalidUsage(fmt.Errorf("--seed-tenant-id is required"))
 			}
-			openAIAPIKey := strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
+			bichatCfg := bichatconfig.FromLegacy(configuration.Use())
+			openAIAPIKey := strings.TrimSpace(bichatCfg.OpenAI.APIKey)
 			if openAIAPIKey == "" {
-				return exitcode.InvalidUsage(fmt.Errorf("OPENAI_API_KEY environment variable is required"))
+				return exitcode.InvalidUsage(fmt.Errorf("OPENAI_API_KEY (bichat.openai.apikey) is required"))
 			}
 			if minPass < 0 || minPass > 1 {
 				return exitcode.InvalidUsage(fmt.Errorf("--min-pass-rate must be between 0.0 and 1.0"))

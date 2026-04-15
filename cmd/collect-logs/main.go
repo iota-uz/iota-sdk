@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/commands"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/telemetryconfig"
+	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func main() {
@@ -32,9 +34,12 @@ func main() {
 		commands.WithTimeout(5 * time.Second),
 	}
 
+	legacyConf := configuration.Use()
+	cfg := telemetryconfig.FromLegacy(legacyConf)
+
 	// Start log collection
 	log.Println("Starting log collector...")
-	if err := commands.CollectLogs(ctx, options...); err != nil {
+	if err := commands.CollectLogs(ctx, &cfg, options...); err != nil {
 		if err != context.Canceled {
 			log.Fatalf("Log collector error: %v", err)
 		}

@@ -21,6 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -273,32 +274,40 @@ func intelligentTruncate(name string, maxLength int) string {
 	return name[:maxLength]
 }
 
-func CreateDB(name string) {
+// createDBWithConfig creates a test database using an explicit dbconfig.Config for
+// the admin connection. Prefer this over CreateDB in new code.
+func createDBWithConfig(name string, db dbconfig.Config) {
 	sanitizedName := sanitizeDBName(name)
-
-	c := configuration.Use()
-	// Create connection string for postgres admin database
 	adminConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
-		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+		db.Host, db.Port, db.User, db.Password,
 	)
-	db, err := sql.Open("postgres", adminConnStr)
+	conn, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		panic(err)
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := conn.Close(); err != nil {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
+	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName))
+	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
+}
+
+// CreateDB creates a test database by reading connection details from the global
+// configuration singleton.
+//
+// Deprecated: use createDBWithConfig with an explicit dbconfig.Config. This shim
+// will be removed in W5.1 when pkg/configuration is deleted.
+func CreateDB(name string) {
+	createDBWithConfig(name, dbconfig.FromLegacy(configuration.Use()))
 }
 
 // CreateDBE creates a test database and returns an error instead of panicking.
@@ -322,40 +331,45 @@ func DropDB(name string) error {
 	return nil
 }
 
-func dropDB(name string) error {
+// dropDBWithConfig drops a test database using an explicit dbconfig.Config for
+// the admin connection. Prefer this over dropDB in new code.
+func dropDBWithConfig(name string, db dbconfig.Config) error {
 	sanitizedName := sanitizeDBName(name)
-
-	c := configuration.Use()
 	adminConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
-		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+		db.Host, db.Port, db.User, db.Password,
 	)
-	db, err := sql.Open("postgres", adminConnStr)
+	conn, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		log.Printf("[WARNING] Failed to open connection for DropDB: %v", err)
 		return err
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := conn.Close(); err != nil {
 			log.Printf("[WARNING] Error closing DropDB connection: %v", err)
 		}
 	}()
 
-	// Terminate any remaining connections to the database
+	// Terminate any remaining connections to the database.
 	terminateSQL := `
 		SELECT pg_terminate_backend(pg_stat_activity.pid)
 		FROM pg_stat_activity
 		WHERE pg_stat_activity.datname = $1
 		AND pid <> pg_backend_pid()
 	`
-	_, _ = db.ExecContext(context.Background(), terminateSQL, sanitizedName)
+	_, _ = conn.ExecContext(context.Background(), terminateSQL, sanitizedName)
 
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
-	if err != nil {
-		return err
-	}
+	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
+	return err
+}
 
-	return nil
+// dropDB drops a test database by reading connection details from the global
+// configuration singleton.
+//
+// Deprecated: use dropDBWithConfig with an explicit dbconfig.Config. This shim
+// will be removed in W5.1 when pkg/configuration is deleted.
+func dropDB(name string) error {
+	return dropDBWithConfig(name, dbconfig.FromLegacy(configuration.Use()))
 }
 
 // DropDBE drops a test database and returns an error instead of panicking.
@@ -370,22 +384,33 @@ func DropDBE(name string) (err error) {
 	return err
 }
 
-func DBOpts(name string) string {
-	sanitizedName := sanitizeDBName(name)
-
-	c := configuration.Use()
+// dbOptsWithConfig returns a libpq-style connection string for the named database
+// using an explicit dbconfig.Config. Prefer this over DBOpts in new code.
+func dbOptsWithConfig(name string, db dbconfig.Config) string {
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.Database.Host, c.Database.Port, c.Database.User, strings.ToLower(sanitizedName), c.Database.Password,
+		db.Host, db.Port, db.User, strings.ToLower(sanitizeDBName(name)), db.Password,
 	)
 }
 
-func SetupApplication(
+// DBOpts returns a libpq-style connection string by reading connection details
+// from the global configuration singleton.
+//
+// Deprecated: use dbOptsWithConfig with an explicit dbconfig.Config. This shim
+// will be removed in W5.1 when pkg/configuration is deleted.
+func DBOpts(name string) string {
+	return dbOptsWithConfig(name, dbconfig.FromLegacy(configuration.Use()))
+}
+
+// setupApplicationWithConf is the core implementation of SetupApplication.
+// It accepts an explicit *configuration.Configuration so callers can supply
+// the value without forcing this function to reach for the global singleton.
+func setupApplicationWithConf(
 	pool *pgxpool.Pool,
+	conf *configuration.Configuration,
 	components []composition.Component,
 	sources ...config.Source,
 ) (application.Application, *composition.Container, error) {
-	conf := configuration.Use()
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
 		Pool:               pool,
@@ -429,10 +454,26 @@ func SetupApplication(
 	return app, container, nil
 }
 
+// SetupApplication bootstraps an application and composition container for tests.
+//
+// Deprecated: callers should migrate to the Harness / SuiteBuilder APIs which
+// accept explicit typed configs. This wrapper will be removed in W5.1.
+func SetupApplication(
+	pool *pgxpool.Pool,
+	components []composition.Component,
+	sources ...config.Source,
+) (application.Application, *composition.Container, error) {
+	return setupApplicationWithConf(pool, configuration.Use(), components, sources...)
+}
+
 // GetTestContext starts application runtime state; callers should call Close when done.
+//
+// Deprecated: use the Harness / SuiteBuilder APIs for new tests. This function
+// reads the global configuration singleton and will be removed in W5.1.
 func GetTestContext() *TestFixtures {
-	conf := configuration.Use()
-	pool := NewPool(conf.Database.Opts)
+	conf := configuration.Use() //nolint:staticcheck // W5.1 removal target
+	db := dbconfig.FromLegacy(conf)
+	pool := NewPool(dbOptsWithConfig("postgres", db))
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
 		Pool:               pool,
@@ -462,8 +503,8 @@ func GetTestContext() *TestFixtures {
 		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
 	}
 
-	// Only run migrations if migrations directory exists
-	if _, err := os.Stat(conf.MigrationsDir); err == nil {
+	// Only run migrations if migrations directory exists.
+	if _, err := os.Stat(db.MigrationsDir); err == nil {
 		if err := app.Migrations().Rollback(); err != nil {
 			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to rollback migrations"))
 		}
@@ -481,10 +522,7 @@ func GetTestContext() *TestFixtures {
 		panic(err)
 	}
 	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithParams(
-		ctx,
-		DefaultParams(),
-	)
+	ctx = composables.WithParams(ctx, DefaultParams())
 
 	return &TestFixtures{
 		SQLDB:     sqlDB,

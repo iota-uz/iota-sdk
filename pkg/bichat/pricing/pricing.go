@@ -203,6 +203,11 @@ func firstNonZero(values ...float64) float64 {
 	return 0
 }
 
+// lookupEnv and getenv are package-level vars so tests can override them
+// without os.Setenv. The only production use is the optional
+// BICHAT_MODEL_PRICING_OVERRIDES_JSON override read once by Default().
+// This is an operator escape-hatch (not a required config dependency) and
+// does not need to be wired through config.Source at this time.
 var lookupEnv = func(key string) string {
 	return strings.TrimSpace(getenv(key))
 }

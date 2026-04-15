@@ -19,12 +19,14 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
-func CheckTrKeys(allowedLanguages []string, components ...composition.Component) error {
-	conf := configuration.Use()
-	app, pool, err := common.NewApplicationWithDefaults(components...)
+// CheckTrKeys validates translation key consistency across all configured locales.
+// cfg, logger, and legacyConf are resolved by the caller (typically a cobra RunE).
+func CheckTrKeys(cfg *dbconfig.Config, logger *logrus.Logger, legacyConf *configuration.Configuration, allowedLanguages []string, components ...composition.Component) error {
+	app, pool, err := common.NewApplicationWithDefaults(cfg, logger, legacyConf, components...)
 	if err != nil {
 		return fmt.Errorf("failed to initialize application: %w", err)
 	}
@@ -113,7 +115,7 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 			}
 
 			// Log detailed error about the missing key using WithFields
-			conf.Logger().WithFields(logrus.Fields{
+			logger.WithFields(logrus.Fields{
 				"key":          key,
 				"present_in":   strings.Join(present, ", "),
 				"missing_from": strings.Join(missing, ", "),
@@ -125,12 +127,12 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 		return fmt.Errorf("some translation keys are not consistent across all locales, see logs for details")
 	}
 
-	conf.Logger().WithFields(logrus.Fields{
+	logger.WithFields(logrus.Fields{
 		"locale_count": len(locales),
 		"key_count":    len(allKeys),
 	}).Info("All translation keys are consistent across all locales")
 
-	if err := checkForUndefinedKeys(allKeys, conf.Logger()); err != nil {
+	if err := checkForUndefinedKeys(allKeys, logger); err != nil {
 		return err
 	}
 
