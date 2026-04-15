@@ -166,10 +166,33 @@ func TestValidateQuery_AllowsReadOnly(t *testing.T) {
 		"WITH t AS (SELECT 1) SELECT * FROM t",
 		"SELECT * FROM public.users WHERE deleted_at IS NULL",
 		"VALUES (1), (2), (3)",
+		// Literals containing banned keywords must not be flagged.
+		"SELECT 'INSERT INTO foo' AS col",
+		"SELECT 'DROP TABLE x' FROM public.users",
+		`SELECT $$DELETE FROM foo$$ AS msg`,
+		`SELECT $tag$TRUNCATE foo$tag$ AS msg`,
+		`SELECT "column with DROP" FROM public.weird`,
 	}
 	for _, sql := range cases {
 		if err := e.ValidateQuery(context.Background(), sql); err != nil {
 			t.Fatalf("read query rejected: %s -> %v", sql, err)
+		}
+	}
+}
+
+func TestValidateQuery_RejectsNonReadOnlyStatements(t *testing.T) {
+	e := NewSafeQueryExecutor(nil)
+	cases := []string{
+		"SHOW tables",
+		"SET search_path TO foo",
+		"DO $$ BEGIN PERFORM 1; END $$",
+		"RESET statement_timeout",
+		"EXPLAIN SELECT 1", // EXPLAIN is routed through ExplainQuery, not ValidateQuery
+	}
+	for _, sql := range cases {
+		err := e.ValidateQuery(context.Background(), sql)
+		if !errors.Is(err, ErrNotReadOnly) {
+			t.Fatalf("want ErrNotReadOnly for %q, got %v", sql, err)
 		}
 	}
 }

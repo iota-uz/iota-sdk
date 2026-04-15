@@ -213,8 +213,12 @@ func (l *QueryExecutorSchemaLister) fetchViewCounts(ctx context.Context, schema 
 		if !validIdentifier.MatchString(name) {
 			continue
 		}
+		// Identifiers are double-quoted so mixed-case names like
+		// `"SalesByDay"` are preserved (unquoted SQL folds them to
+		// lowercase and the view lookup silently 404s). name matched
+		// validIdentifier above, so no quote-escaping is needed.
 		parts = append(parts, fmt.Sprintf(
-			"SELECT '%s'::text AS name, count(*)::bigint AS cnt FROM (SELECT 1 FROM %s.%s LIMIT %d) t",
+			`SELECT '%s'::text AS name, count(*)::bigint AS cnt FROM (SELECT 1 FROM "%s"."%s" LIMIT %d) t`,
 			name, schema, name, limit,
 		))
 	}

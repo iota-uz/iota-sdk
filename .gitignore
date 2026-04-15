@@ -49,3 +49,4 @@ e2e/test-results/
 
 # Playwright CLI snapshots/artifacts
 .playwright-cli/
+.claude/scheduled_tasks.lock
