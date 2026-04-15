@@ -156,6 +156,16 @@ func (c *component) Build(builder *composition.Builder) error {
 		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.UserRealtimeUpdates) any {
 			return ru.OnUserDeleted
 		})
+		composition.ProvideFunc(builder, controllers.NewGroupRealtimeUpdates)
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.GroupRealtimeUpdates) any {
+			return ru.OnGroupCreated
+		})
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.GroupRealtimeUpdates) any {
+			return ru.OnGroupUpdated
+		})
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.GroupRealtimeUpdates) any {
+			return ru.OnGroupDeleted
+		})
 	}
 
 	// ----- GraphQL schema -----
@@ -188,7 +198,7 @@ func (c *component) Build(builder *composition.Builder) error {
 
 	// ----- Spotlight startup hook -----
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
-		cfg := configuration.Use()
+		cfg := builder.Context().Config()
 		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
 			service, err := composition.Resolve[spotlight.Service](container)
 			if err != nil {
@@ -197,7 +207,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			return []composition.Hook{{
 				Name: "spotlight",
 				Start: func(ctx context.Context) (composition.StopFn, error) {
-					if cfg.MeiliURL != "" {
+					if cfg != nil && cfg.MeiliURL != "" {
 						if err := service.Readiness(ctx); err != nil {
 							return nil, serrors.E(op, err, "spotlight preflight check")
 						}

@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"runtime/debug"
 
 	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
@@ -18,24 +16,12 @@ import (
 )
 
 func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			configuration.Use().Unload()
-			log.Println(r)
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
-	if err := run(); err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+	bootstrap.Main(run)
 }
 
 func run() error {
 	conf := configuration.Use()
-	rt, cleanup, err := bootstrap.NewRuntime(context.Background(), bootstrap.IotaConfig(conf))
+	rt, cleanup, err := bootstrap.NewIotaRuntime(context.Background(), conf, "")
 	if err != nil {
 		return fmt.Errorf("failed to initialize runtime: %w", err)
 	}
