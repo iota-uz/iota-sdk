@@ -385,8 +385,8 @@ func stripSQLLiterals(s string) string {
 	b.Grow(len(s))
 	for i := 0; i < len(s); {
 		c := s[i]
-		switch {
-		case c == '\'':
+		switch c {
+		case '\'':
 			// Single-quoted string. `''` is an embedded quote.
 			b.WriteByte(' ')
 			i++
@@ -401,7 +401,7 @@ func stripSQLLiterals(s string) string {
 				}
 				i++
 			}
-		case c == '"':
+		case '"':
 			// Double-quoted identifier. `""` is an embedded quote.
 			b.WriteByte(' ')
 			i++
@@ -416,7 +416,7 @@ func stripSQLLiterals(s string) string {
 				}
 				i++
 			}
-		case c == '$':
+		case '$':
 			// Potential dollar-quoted literal: $tag$ ... $tag$ or $$ ... $$.
 			j := i + 1
 			for j < len(s) && (s[j] == '_' || isAlphaNumByte(s[j])) {
