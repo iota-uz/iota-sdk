@@ -66,7 +66,8 @@ func TestChatService_UnarchiveSession(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
 
 	session := mustSession(t,
 		withSessionTenantID(uuid.New()),
@@ -92,7 +93,8 @@ func TestChatService_ClearSessionHistory(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
 
 	session := mustSession(t,
 		withSessionTenantID(uuid.New()),
@@ -146,7 +148,8 @@ func TestChatService_CompactSessionHistory(t *testing.T) {
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
 	model.response.Message = types.AssistantMessage("## Conversation Summary\nCompacted response")
-	svc := NewChatService(chatRepo, nil, model, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, model, nil, nil)
+	require.NoError(t, err)
 
 	session := mustSession(t,
 		withSessionTenantID(uuid.New()),
@@ -189,7 +192,8 @@ func TestChatService_CompactSessionHistory_EmptyHistory(t *testing.T) {
 
 	chatRepo := newMockChatRepository()
 	model := newMockModel()
-	svc := NewChatService(chatRepo, nil, model, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, model, nil, nil)
+	require.NoError(t, err)
 
 	session := mustSession(t,
 		withSessionTenantID(uuid.New()),
@@ -216,7 +220,8 @@ func TestChatService_MaybeReplaceHistoryFromMessage_TruncatesFromUserMessage(t *
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
 
 	session := mustSession(t,
 		withSessionTenantID(uuid.New()),
@@ -274,7 +279,8 @@ func TestChatService_SendMessage_RejectsWhileQuestionOpen(t *testing.T) {
 	} {
 		t.Run(string(status), func(t *testing.T) {
 			chatRepo := newMockChatRepository()
-			svc := NewChatService(chatRepo, nil, nil, nil, nil)
+			svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+			require.NoError(t, err)
 
 			session := mustSession(t,
 				withSessionTenantID(uuid.New()),
@@ -289,13 +295,14 @@ func TestChatService_SendMessage_RejectsWhileQuestionOpen(t *testing.T) {
 				types.WithQuestionData(mustQuestionDataWithStatus(t, "cp-open", status)),
 			)))
 
-			_, err := svc.SendMessage(t.Context(), bichatservices.SendMessageRequest{
+			var sendErr error
+			_, sendErr = svc.SendMessage(t.Context(), bichatservices.SendMessageRequest{
 				SessionID: session.ID(),
 				UserID:    1,
 				Content:   "continue",
 			})
-			require.Error(t, err)
-			require.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
+			require.Error(t, sendErr)
+			require.ErrorContains(t, sendErr, errHITLPendingQuestionOpen.Error())
 
 			messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 			require.NoError(t, msgErr)
@@ -313,7 +320,8 @@ func TestChatService_SendMessageStream_RejectsWhileQuestionOpen(t *testing.T) {
 	} {
 		t.Run(string(status), func(t *testing.T) {
 			chatRepo := newMockChatRepository()
-			svc := NewChatService(chatRepo, nil, nil, nil, nil)
+			svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+			require.NoError(t, err)
 
 			session := mustSession(t,
 				withSessionTenantID(uuid.New()),
@@ -328,13 +336,13 @@ func TestChatService_SendMessageStream_RejectsWhileQuestionOpen(t *testing.T) {
 				types.WithQuestionData(mustQuestionDataWithStatus(t, "cp-open-stream", status)),
 			)))
 
-			err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+			streamErr := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
 				SessionID: session.ID(),
 				UserID:    1,
 				Content:   "continue",
 			}, func(bichatservices.StreamChunk) {})
-			require.Error(t, err)
-			require.ErrorContains(t, err, errHITLPendingQuestionOpen.Error())
+			require.Error(t, streamErr)
+			require.ErrorContains(t, streamErr, errHITLPendingQuestionOpen.Error())
 
 			messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 			require.NoError(t, msgErr)
@@ -347,7 +355,8 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
 
 	session := mustSession(t,
 		withSessionTenantID(uuid.New()),
@@ -360,9 +369,9 @@ func TestChatService_MaybeReplaceHistoryFromMessage_RejectsNonUserMessage(t *tes
 	require.NoError(t, chatRepo.SaveMessage(t.Context(), assistant))
 
 	replaceFromID := assistant.ID()
-	_, err := svc.maybeReplaceHistoryFromMessage(t.Context(), session, &replaceFromID)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "replaceFromMessageId must point to a user message")
+	_, replaceErr := svc.maybeReplaceHistoryFromMessage(t.Context(), session, &replaceFromID)
+	require.Error(t, replaceErr)
+	assert.Contains(t, replaceErr.Error(), "replaceFromMessageId must point to a user message")
 }
 
 func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T) {
@@ -421,7 +430,8 @@ func TestChatService_ResumeWithAnswer_InterruptPersistsPendingState(t *testing.T
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-prev",
@@ -484,7 +494,8 @@ func TestChatService_ResumeWithAnswer_UsesCanonicalCheckpointAndNormalizesLabels
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-stale-from-client",
@@ -543,7 +554,8 @@ func TestChatService_ResumeWithAnswer_CheckpointNotFoundFinalizesAnswered(t *tes
 		resumeErr: agents.ErrCheckpointNotFound,
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	resp, err := svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-missing",
@@ -600,7 +612,8 @@ func TestChatService_RejectPendingQuestion_CheckpointNotFoundFinalizesRejected(t
 		resumeErr: agents.ErrCheckpointNotFound,
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	resp, err := svc.RejectPendingQuestion(t.Context(), session.ID())
 	require.NoError(t, err)
 	require.NotNil(t, resp)
@@ -722,7 +735,8 @@ func TestChatService_HITLDeferredCheckpointNotFoundFinalizesTerminalState(t *tes
 			)))
 
 			agentSvc := &stubAgentService{resumeStreamErr: agents.ErrCheckpointNotFound}
-			svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+			svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+			require.NoError(t, err)
 
 			resp := tt.invoke(t, svc, session.ID())
 			if tt.assertResponse {
@@ -802,7 +816,8 @@ func TestChatService_ResumeWithAnswerAsync_PersistsSubmittedStateBeforeWorkerCom
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	_, err = svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-async-submit",
@@ -874,7 +889,8 @@ func TestChatService_RejectPendingQuestionAsync_PersistsSubmittedStateBeforeWork
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	_, err = svc.RejectPendingQuestionAsync(t.Context(), session.ID())
 	require.NoError(t, err)
 
@@ -938,7 +954,8 @@ func TestChatService_ResumeWithAnswerAsync_ReusesExistingRunForDuplicateAnswers(
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	firstAccepted, err := svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-async-idempotent-answer",
@@ -1010,7 +1027,8 @@ func TestChatService_RejectPendingQuestionAsync_ReusesExistingRunForDuplicateRej
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	firstAccepted, err := svc.RejectPendingQuestionAsync(t.Context(), session.ID())
 	require.NoError(t, err)
 
@@ -1061,7 +1079,8 @@ func TestChatService_ResumeWithAnswerAsync_MarksFailureStateWhenWorkerFails(t *t
 	)))
 
 	agentSvc := &stubAgentService{resumeErr: assert.AnError}
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 
 	_, err = svc.ResumeWithAnswerAsync(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
@@ -1113,7 +1132,8 @@ func TestChatService_RejectPendingQuestionAsync_MarksFailureStateWhenWorkerFails
 	)))
 
 	agentSvc := &stubAgentService{resumeErr: assert.AnError}
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 
 	_, err = svc.RejectPendingQuestionAsync(t.Context(), session.ID())
 	require.NoError(t, err)
@@ -1169,7 +1189,8 @@ func TestChatService_ResumeWithAnswer_TriggersTitleGenerationAfterCompletion(t *
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	require.NoError(t, err)
 	_, err = svc.ResumeWithAnswer(env.Ctx, bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-title-resume",
@@ -1244,7 +1265,8 @@ func TestChatService_ResumeWithAnswer_DoesNotTriggerTitleGenerationWhenInterrupt
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	require.NoError(t, err)
 	_, err = svc.ResumeWithAnswer(t.Context(), bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-title-resume-continued",
@@ -1303,7 +1325,8 @@ func TestChatService_RejectPendingQuestion_TriggersTitleGenerationAfterCompletio
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	require.NoError(t, err)
 	_, err = svc.RejectPendingQuestion(env.Ctx, session.ID())
 	require.NoError(t, err)
 
@@ -1356,7 +1379,8 @@ func TestChatService_ResumeWithAnswerAsync_TriggersTitleGenerationAfterCompletio
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	require.NoError(t, err)
 	_, err = svc.ResumeWithAnswerAsync(env.Ctx, bichatservices.ResumeRequest{
 		SessionID:    session.ID(),
 		CheckpointID: "cp-title-resume-async",
@@ -1415,7 +1439,8 @@ func TestChatService_RejectPendingQuestionAsync_TriggersTitleGenerationAfterComp
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	require.NoError(t, err)
 	_, err = svc.RejectPendingQuestionAsync(env.Ctx, session.ID())
 	require.NoError(t, err)
 
@@ -1450,13 +1475,14 @@ func TestChatService_SendMessageStream_StreamErrorStillTriggersTitleGeneration(t
 		processStreamErr: assert.AnError,
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
-	err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+	svc, err := NewChatService(chatRepo, agentSvc, nil, titleService, nil)
+	require.NoError(t, err)
+	streamErr := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
 		SessionID: session.ID(),
 		Content:   "first user message",
 	}, func(_ bichatservices.StreamChunk) {})
 
-	require.ErrorIs(t, err, assert.AnError)
+	require.ErrorIs(t, streamErr, assert.AnError)
 
 	messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
 	require.NoError(t, msgErr)
@@ -1506,10 +1532,11 @@ func TestChatService_SendMessageStream_DoneEmittedAfterAssistantPersistence(t *t
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 
 	doneSawPersistedAssistant := false
-	err := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
+	streamErr := svc.SendMessageStream(t.Context(), bichatservices.SendMessageRequest{
 		SessionID: session.ID(),
 		Content:   "hello",
 	}, func(chunk bichatservices.StreamChunk) {
@@ -1521,7 +1548,7 @@ func TestChatService_SendMessageStream_DoneEmittedAfterAssistantPersistence(t *t
 		doneSawPersistedAssistant = len(messages) >= 2 && messages[len(messages)-1].Role() == types.RoleAssistant
 	})
 
-	require.NoError(t, err)
+	require.NoError(t, streamErr)
 	require.True(t, doneSawPersistedAssistant, "done must be emitted only after assistant message is persisted")
 }
 
@@ -1554,15 +1581,16 @@ func TestChatService_SendMessageStream_ClearsRequestTxForAsyncPersistence(t *tes
 			{Type: agents.EventTypeDone},
 		},
 	}
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 
 	ctx := context.WithValue(context.Background(), constants.TxKey, struct{}{})
-	err := svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
+	streamErr := svc.SendMessageStream(ctx, bichatservices.SendMessageRequest{
 		SessionID: session.ID(),
 		UserID:    1,
 		Content:   "hello",
 	}, func(_ bichatservices.StreamChunk) {})
-	require.NoError(t, err)
+	require.NoError(t, streamErr)
 
 	messages, msgErr := chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
 	require.NoError(t, msgErr)
@@ -1814,10 +1842,11 @@ func TestChatService_StopGeneration_NoErrorWhenNoActiveStream(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil)
-
-	err := svc.StopGeneration(context.Background(), uuid.New())
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
 	require.NoError(t, err)
+
+	stopErr := svc.StopGeneration(context.Background(), uuid.New())
+	require.NoError(t, stopErr)
 }
 
 func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t *testing.T) {
@@ -1838,7 +1867,8 @@ func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t 
 		},
 	}
 
-	svc := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -1857,14 +1887,12 @@ func TestChatService_SendMessageStream_ClientDisconnectStillPersistsAssistant(t 
 	}()
 
 	<-streamDone
-	var (
-		messages []types.Message
-		err      error
-	)
+	var messages []types.Message
 	deadline := time.Now().Add(2 * time.Second)
 	for {
-		messages, err = chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
-		require.NoError(t, err)
+		var msgErr error
+		messages, msgErr = chatRepo.GetSessionMessages(context.Background(), session.ID(), domain.ListOptions{})
+		require.NoError(t, msgErr)
 		if len(messages) == 2 {
 			break
 		}
@@ -1897,7 +1925,8 @@ func TestChatService_SendMessageStream_StopGenerationDoesNotPersistAssistant(t *
 		},
 	}
 
-	svc := NewChatService(chatRepo, cancelAgent, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, cancelAgent, nil, nil, nil)
+	require.NoError(t, err)
 	ctx := context.Background()
 	streamDone := make(chan struct{})
 	go func() {
@@ -1949,7 +1978,8 @@ func TestChatService_GetStreamStatus_ReturnsInactiveWhenNoRun(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
 
 	sessionID := uuid.New()
 	status, err := svc.GetStreamStatus(context.Background(), sessionID)
@@ -1962,10 +1992,11 @@ func TestChatService_ResumeStream_ReturnsErrWhenRunNotFound(t *testing.T) {
 	t.Parallel()
 
 	chatRepo := newMockChatRepository()
-	svc := NewChatService(chatRepo, nil, nil, nil, nil)
+	svc, err := NewChatService(chatRepo, nil, nil, nil, nil)
+	require.NoError(t, err)
 
 	sessionID := uuid.New()
 	runID := uuid.New()
-	err := svc.ResumeStream(context.Background(), sessionID, runID, func(bichatservices.StreamChunk) {})
-	require.ErrorIs(t, err, bichatservices.ErrRunNotFoundOrFinished)
+	resumeErr := svc.ResumeStream(context.Background(), sessionID, runID, func(bichatservices.StreamChunk) {})
+	require.ErrorIs(t, resumeErr, bichatservices.ErrRunNotFoundOrFinished)
 }

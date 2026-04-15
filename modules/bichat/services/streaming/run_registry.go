@@ -22,9 +22,27 @@ type ActiveRun struct {
 	ToolOrder   []string
 	ArtifactMap map[string]types.ToolArtifact
 	LastPersist time.Time
+	// TextBlockOffsets are UTF-16 code unit counts into Content marking the
+	// end of each completed assistant text segment. The first entry
+	// corresponds to seq 0, the second to seq 1, etc. The trailing
+	// un-closed segment (if any) is implicit and runs from the last offset
+	// to the UTF-16 length of Content.
+	// Using UTF-16 units (not Go byte offsets) lets the applet consume them
+	// directly via str.slice() without miscounts on non-ASCII characters.
+	TextBlockOffsets []int
+	// ContentUTF16Len is the running UTF-16 code unit count for Content.
+	// Updated incrementally on every content delta so text_block_end
+	// boundary recording is O(delta) rather than O(total_content).
+	ContentUTF16Len int
 
 	subscribers map[chan bichatservices.StreamChunk]struct{}
-	Mu          sync.RWMutex
+	// mirrorFn is an optional side-effect hook invoked by Broadcast AFTER
+	// in-memory subscribers are notified. It lets callers dual-write the
+	// chunk to a durable store (e.g. RunEventLog on Redis) without the
+	// runStreamLoop having to care where the event ends up. Installed via
+	// SetMirror at run creation time.
+	mirrorFn func(bichatservices.StreamChunk)
+	Mu       sync.RWMutex
 }
 
 func NewActiveRun(runID, sessionID uuid.UUID, cancel context.CancelFunc, startedAt time.Time) *ActiveRun {
@@ -63,13 +81,26 @@ func (r *ActiveRun) SubscriberCount() int {
 
 func (r *ActiveRun) Broadcast(chunk bichatservices.StreamChunk) {
 	r.Mu.RLock()
-	defer r.Mu.RUnlock()
+	mirror := r.mirrorFn
 	for ch := range r.subscribers {
 		select {
 		case ch <- chunk:
 		default:
 		}
 	}
+	r.Mu.RUnlock()
+	if mirror != nil {
+		mirror(chunk)
+	}
+}
+
+// SetMirror installs a side-effect hook invoked after every Broadcast.
+// Passing nil clears the hook. Safe to call concurrently with Broadcast
+// — the hook is captured under the same RLock that the broadcast uses.
+func (r *ActiveRun) SetMirror(fn func(bichatservices.StreamChunk)) {
+	r.Mu.Lock()
+	r.mirrorFn = fn
+	r.Mu.Unlock()
 }
 
 func (r *ActiveRun) CloseAllSubscribers() {
@@ -85,7 +116,13 @@ func (r *ActiveRun) SnapshotMetadata() map[string]any {
 	r.Mu.RLock()
 	defer r.Mu.RUnlock()
 	ordered := orderedToolCalls(r.ToolCalls, r.ToolOrder)
-	return map[string]any{"tool_calls": ordered}
+	meta := map[string]any{"tool_calls": ordered}
+	if len(r.TextBlockOffsets) > 0 {
+		offsets := make([]int, len(r.TextBlockOffsets))
+		copy(offsets, r.TextBlockOffsets)
+		meta["text_block_offsets"] = offsets
+	}
+	return meta
 }
 
 func orderedToolCalls(toolCalls map[string]types.ToolCall, toolOrder []string) []types.ToolCall {

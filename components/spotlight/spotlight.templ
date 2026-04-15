@@ -405,3 +405,50 @@ templ SpotlightGroup(title string) {
 	</li>
 	{ children... }
 }
+
+// SpotlightItemsCollapsible renders exact-match items normally and collapses
+// non-exact items behind an expandable "N more results" button.
+templ SpotlightItemsCollapsible(
+	exactItems []templ.Component, exactIndices []int,
+	moreItems []templ.Component, moreIndices []int,
+	moreLabel string,
+) {
+	for i, item := range exactItems {
+		@SpotlightItem(exactIndices[i]) {
+			@item
+		}
+	}
+	if len(moreItems) > 0 {
+		<li
+			x-data="{ expanded: false }"
+			x-id="['spotlight-more']"
+			class="mx-1.5 list-none"
+		>
+			<button
+				type="button"
+				x-show="!expanded"
+				@click="expanded = true"
+				:aria-expanded="expanded"
+				:aria-controls="$id('spotlight-more')"
+				class="w-full rounded-lg px-3 py-2 text-center text-xs font-medium text-300 hover:bg-surface-100/50 hover:text-200 transition-colors cursor-pointer"
+			>
+				{ moreLabel }
+			</button>
+			<ul
+				:id="$id('spotlight-more')"
+				x-show="expanded"
+				x-collapse
+				x-cloak
+				data-spotlight-more
+				role="region"
+				class="list-none m-0 p-0"
+			>
+				for i, item := range moreItems {
+					@SpotlightItem(moreIndices[i]) {
+						@item
+					}
+				}
+			</ul>
+		</li>
+	}
+}

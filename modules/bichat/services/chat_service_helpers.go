@@ -525,6 +525,8 @@ func consumeAgentEvents(ctx context.Context, gen types.Generator[agents.Executor
 			}
 			recordToolArtifacts(artifactMap, collectCodeInterpreterArtifacts(event.CodeInterpreter, event.FileAnnotations))
 
+		case agents.EventTypeTextBlockEnd:
+			// Text block boundary signal; no accumulation needed in this path.
 		case agents.EventTypeError:
 			var errDetail error
 			if event.Error != nil {

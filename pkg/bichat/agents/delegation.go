@@ -227,6 +227,8 @@ eventLoop:
 		case EventTypeInterrupt:
 			// Child agent requested user interaction - not supported in delegation
 			return "", fmt.Errorf("child agent %q requested interrupt (not supported in delegation)", args.SubagentType)
+		case EventTypeTextBlockEnd:
+			// Text block boundary; no action needed for delegation results.
 		case EventTypeToolStart, EventTypeToolEnd:
 			// Forward child tool events to parent stream with agent identity.
 			if event.Tool != nil {

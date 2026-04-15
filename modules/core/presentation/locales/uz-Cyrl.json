@@ -1019,6 +1019,9 @@
         "StartFailed": "AI қидирувни ишга тушириб бўлмади",
         "MessageFailed": "AI га хабар юбориб бўлмади"
       }
+    },
+    "MoreResults": {
+      "other": "Яна {{.Count}} натижа"
     }
   },
   "Unknown": "Noma'lum",

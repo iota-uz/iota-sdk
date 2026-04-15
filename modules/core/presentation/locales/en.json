@@ -1019,6 +1019,10 @@
         "StartFailed": "Could not start AI search",
         "MessageFailed": "Could not send AI message"
       }
+    },
+    "MoreResults": {
+      "one": "{{.Count}} more result",
+      "other": "{{.Count}} more results"
     }
   },
   "Unknown": "Unknown",

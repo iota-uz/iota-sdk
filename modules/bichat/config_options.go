@@ -3,6 +3,7 @@ package bichat
 import (
 	"io/fs"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
@@ -279,5 +280,31 @@ func WithStreamRequireAccessPermission(p permission.Permission) ConfigOption {
 func WithStreamReadAllPermission(p permission.Permission) ConfigOption {
 	return func(c *ModuleConfig) {
 		c.StreamReadAllPermission = p
+	}
+}
+
+// WithReaperInterval sets the polling interval between stale-run reaper sweeps.
+// Default: 15s. Applies only when Redis is configured.
+func WithReaperInterval(d time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ReaperInterval = d
+	}
+}
+
+// WithReaperStaleThreshold sets the maximum age of a run's last heartbeat
+// before the reaper considers it wedged and marks it failed.
+// Default: 60s. Applies only when Redis is configured.
+func WithReaperStaleThreshold(d time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ReaperStaleThreshold = d
+	}
+}
+
+// WithReaperLockTTL sets the TTL of the single-writer reaper lock in Redis.
+// This bounds the time a crashed leader holds the lock before another replica
+// can take over. Default: 30s. Applies only when Redis is configured.
+func WithReaperLockTTL(d time.Duration) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.ReaperLockTTL = d
 	}
 }

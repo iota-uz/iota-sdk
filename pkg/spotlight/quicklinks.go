@@ -151,17 +151,42 @@ func (ql *QuickLinks) Capabilities() ProviderCapabilities {
 	return ProviderCapabilities{EntityTypes: []string{"quick_link", "route"}}
 }
 
-// resolveAllTranslations resolves the translation key into a title (English)
-// and a body containing all unique translations joined by " | " for multi-language search.
-func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
+// translationResult holds the resolved title and per-language translations.
+type translationResult struct {
+	title             string   // display title (first non-empty translation or trKey)
+	activeTranslation string   // translation in the user's active language
+	otherTranslations []string // translations in other languages (deduplicated)
+	allBody           string   // all translations joined for document body
+}
+
+// matchLanguage compares IETF BCP 47 language tags by primary subtag.
+// e.g. matchLanguage("uz", "uz") == true, matchLanguage("uz-Cyrl", "uz") == true,
+// matchLanguage("uz", "ru") == false.
+func matchLanguage(lang, active string) bool {
+	if lang == "" || active == "" {
+		return false
+	}
+	primary := func(tag string) string {
+		if idx := strings.IndexAny(tag, "-_"); idx >= 0 {
+			return strings.ToLower(tag[:idx])
+		}
+		return strings.ToLower(tag)
+	}
+	return primary(lang) == primary(active)
+}
+
+// resolveTranslations resolves the translation key into per-language translations,
+// separating the user's active language from others for scoring.
+func (ql *QuickLinks) resolveTranslations(trKey, activeLanguage string) translationResult {
 	languages := ql.resolvedLanguages()
 	if ql.bundle == nil || len(languages) == 0 {
-		return trKey, trKey
+		return translationResult{title: trKey, activeTranslation: trKey, allBody: trKey}
 	}
 
-	var title string
+	var title, activeTr string
 	seen := make(map[string]struct{}, len(languages))
-	translations := make([]string, 0, len(languages))
+	all := make([]string, 0, len(languages))
+	others := make([]string, 0, len(languages))
 
 	for _, lang := range languages {
 		localizer := i18n.NewLocalizer(ql.bundle, lang)
@@ -178,19 +203,36 @@ func (ql *QuickLinks) resolveAllTranslations(trKey string) (string, string) {
 		if title == "" {
 			title = translated
 		}
-		if _, exists := seen[translated]; !exists {
-			seen[translated] = struct{}{}
-			translations = append(translations, translated)
+		isActive := activeTr == "" && activeLanguage != "" && matchLanguage(lang, activeLanguage)
+		if isActive {
+			activeTr = translated
+		}
+		if _, exists := seen[translated]; exists {
+			continue
+		}
+		seen[translated] = struct{}{}
+		all = append(all, translated)
+		if !isActive {
+			others = append(others, translated)
 		}
 	}
 
 	if title == "" {
 		title = trKey
 	}
-	if len(translations) == 0 {
-		return title, title
+	if activeTr == "" {
+		activeTr = title
 	}
-	return title, strings.Join(translations, searchTextDelimiter)
+	body := title
+	if len(all) > 0 {
+		body = strings.Join(all, searchTextDelimiter)
+	}
+	return translationResult{
+		title:             title,
+		activeTranslation: activeTr,
+		otherTranslations: others,
+		allBody:           body,
+	}
 }
 
 func (ql *QuickLinks) resolvedLanguages() []string {
@@ -230,9 +272,10 @@ func (ql *QuickLinks) StreamDocuments(_ context.Context, scope ProviderScope, em
 	providerID := ql.ProviderID()
 	out := make([]SearchDocument, 0, len(ql.items))
 	for _, item := range ql.items {
-		title, body := ql.resolveAllTranslations(item.trKey)
+		tr := ql.resolveTranslations(item.trKey, "")
 
 		// Include keywords in searchable body
+		body := tr.allBody
 		if len(item.keywords) > 0 {
 			body = body + searchTextDelimiter + strings.Join(item.keywords, searchTextDelimiter)
 		}
@@ -243,11 +286,11 @@ func (ql *QuickLinks) StreamDocuments(_ context.Context, scope ProviderScope, em
 			Provider:    providerID,
 			EntityType:  "quick_link",
 			Domain:      ResultDomainNavigate,
-			Title:       title,
-			Description: title,
+			Title:       tr.title,
+			Description: tr.title,
 			Body:        body,
 			SearchText:  body,
-			ExactTerms:  ExpandExactTerms(append([]string{title, item.link}, item.keywords...)...),
+			ExactTerms:  ExpandExactTerms(append([]string{tr.title, item.link}, item.keywords...)...),
 			URL:         item.link,
 			Language:    scope.Language,
 			Metadata: map[string]string{
@@ -267,10 +310,24 @@ func (ql *QuickLinks) StreamDocuments(_ context.Context, scope ProviderScope, em
 const (
 	fuzzySearchMaxResults    = 8
 	fuzzySearchMaxDistance   = 3
-	fuzzyScoreExactPrefix    = 1.0
+	fuzzyScoreWordPrefix     = 0.95
 	fuzzyScoreContains       = 0.8
 	fuzzyScoreLevenshteinMax = 0.6
+
+	// Minimum query word lengths for each scoring tier.
+	minLenContains    = 2
+	minLenLevenshtein = 3
+
+	// crossLanguageDiscount is applied to scores from non-active-language fragments.
+	crossLanguageDiscount = 0.7
 )
+
+// scoredFragment is a searchable text fragment tagged with whether it belongs
+// to the user's active language. Cross-language matches are discounted.
+type scoredFragment struct {
+	text           string
+	activeLanguage bool
+}
 
 // FuzzySearch performs in-memory fuzzy matching against all quick links,
 // applying RBAC filtering based on the request's principal. Results are
@@ -305,20 +362,20 @@ func (ql *QuickLinks) FuzzySearch(query string, req SearchRequest) []SearchHit {
 			}
 		}
 
-		title, body := ql.resolveAllTranslations(item.trKey)
+		tr := ql.resolveTranslations(item.trKey, req.Language)
 
 		// Collect all searchable text fragments (translations + keywords)
-		searchableFragments := ql.collectSearchableFragments(title, body, item.keywords)
+		searchableFragments := collectSearchableFragments(tr.activeTranslation, tr.otherTranslations, item.keywords)
 
-		best := ql.bestFuzzyScore(queryWords, searchableFragments)
+		best := bestFuzzyScore(queryWords, searchableFragments)
 		if best <= 0 {
 			continue
 		}
 
 		// Build SearchDocument matching StreamDocuments shape
-		fullBody := body
+		fullBody := tr.allBody
 		if len(item.keywords) > 0 {
-			fullBody = body + searchTextDelimiter + strings.Join(item.keywords, searchTextDelimiter)
+			fullBody = tr.allBody + searchTextDelimiter + strings.Join(item.keywords, searchTextDelimiter)
 		}
 
 		doc := SearchDocument{
@@ -327,11 +384,11 @@ func (ql *QuickLinks) FuzzySearch(query string, req SearchRequest) []SearchHit {
 			Provider:    providerID,
 			EntityType:  "quick_link",
 			Domain:      ResultDomainNavigate,
-			Title:       title,
+			Title:       tr.title,
 			Description: item.link,
 			Body:        fullBody,
 			SearchText:  fullBody,
-			ExactTerms:  ExpandExactTerms(append([]string{title, item.link}, item.keywords...)...),
+			ExactTerms:  ExpandExactTerms(append([]string{tr.title, item.link}, item.keywords...)...),
 			URL:         item.link,
 			Language:    req.Language,
 			Metadata: map[string]string{
@@ -369,68 +426,82 @@ func (ql *QuickLinks) FuzzySearch(query string, req SearchRequest) []SearchHit {
 }
 
 // collectSearchableFragments extracts individual lowercase text fragments
-// from the title, body translations, and keywords.
-func (ql *QuickLinks) collectSearchableFragments(title, body string, keywords []string) []string {
-	fragments := make([]string, 0, 8)
-	fragments = append(fragments, strings.ToLower(title))
-	for _, part := range strings.Split(body, searchTextDelimiter) {
-		part = strings.TrimSpace(part)
-		if part != "" {
-			fragments = append(fragments, strings.ToLower(part))
+// from the title, per-language translations, and keywords.
+// activeTitle is the translation in the user's active language (tagged active).
+// otherTranslations are translations in other languages (tagged inactive).
+func collectSearchableFragments(activeTitle string, otherTranslations []string, keywords []string) []scoredFragment {
+	fragments := make([]scoredFragment, 0, 8)
+	if t := strings.TrimSpace(activeTitle); t != "" {
+		fragments = append(fragments, scoredFragment{text: strings.ToLower(t), activeLanguage: true})
+	}
+	for _, tr := range otherTranslations {
+		tr = strings.TrimSpace(tr)
+		if tr != "" {
+			fragments = append(fragments, scoredFragment{text: strings.ToLower(tr), activeLanguage: false})
 		}
 	}
 	for _, kw := range keywords {
 		kw = strings.TrimSpace(kw)
 		if kw != "" {
-			fragments = append(fragments, strings.ToLower(kw))
+			// Keywords are language-neutral, treat as active
+			fragments = append(fragments, scoredFragment{text: strings.ToLower(kw), activeLanguage: true})
 		}
 	}
 	return fragments
 }
 
-// bestFuzzyScore computes the best match score for the query words against
-// the given text fragments.  Returns 0 if no match is good enough.
-func (ql *QuickLinks) bestFuzzyScore(queryWords, fragments []string) float64 {
-	var best float64
-	for _, fragment := range fragments {
-		for _, qw := range queryWords {
-			s := scoreSingle(qw, fragment)
-			if s > best {
-				best = s
+// bestFuzzyScore computes the average of per-query-word best scores against
+// the given text fragments. This requires all query words to contribute,
+// so multi-word queries rank items matching more words higher.
+func bestFuzzyScore(queryWords []string, fragments []scoredFragment) float64 {
+	if len(queryWords) == 0 {
+		return 0
+	}
+	var total float64
+	for _, qw := range queryWords {
+		var bestForWord float64
+		for _, frag := range fragments {
+			s := scoreSingle(qw, frag.text)
+			if !frag.activeLanguage {
+				s *= crossLanguageDiscount
+			}
+			if s > bestForWord {
+				bestForWord = s
 			}
 		}
+		total += bestForWord
 	}
-	return best
+	return total / float64(len(queryWords))
 }
 
 // scoreSingle scores a single query word against a single text fragment.
 func scoreSingle(queryWord, text string) float64 {
-	// Exact prefix match (highest)
-	if strings.HasPrefix(text, queryWord) {
-		return fuzzyScoreExactPrefix
-	}
-	// Substring match
-	if strings.Contains(text, queryWord) {
-		return fuzzyScoreContains
-	}
-	// Also check individual words in the text
-	for _, word := range strings.Fields(text) {
+	words := strings.Fields(text)
+
+	// Word-level prefix match (highest)
+	for _, word := range words {
 		if strings.HasPrefix(word, queryWord) {
-			return fuzzyScoreExactPrefix * 0.95 // slightly lower than full-text prefix
+			return fuzzyScoreWordPrefix
 		}
 	}
-	// Levenshtein distance on individual words
-	for _, word := range strings.Fields(text) {
-		dist := levenshtein.ComputeDistance(queryWord, word)
-		if dist <= fuzzySearchMaxDistance {
-			// Normalize: distance 0 = fuzzyScoreLevenshteinMax, distance 3 = ~0.1
-			score := fuzzyScoreLevenshteinMax * (1.0 - float64(dist)/float64(fuzzySearchMaxDistance+1))
-			if score > 0 {
-				return score
+	// Substring match (query appears inside text but not as a word prefix)
+	if len(queryWord) >= minLenContains && strings.Contains(text, queryWord) {
+		return fuzzyScoreContains
+	}
+	// Levenshtein distance — take the best score across all words
+	var bestLev float64
+	if len(queryWord) >= minLenLevenshtein {
+		for _, word := range words {
+			dist := levenshtein.ComputeDistance(queryWord, word)
+			if dist <= fuzzySearchMaxDistance {
+				score := fuzzyScoreLevenshteinMax * (1.0 - float64(dist)/float64(fuzzySearchMaxDistance+1))
+				if score > bestLev {
+					bestLev = score
+				}
 			}
 		}
 	}
-	return 0
+	return bestLev
 }
 
 func quickLinkKey(link *QuickLink) string {

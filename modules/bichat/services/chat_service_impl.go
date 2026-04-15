@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode/utf16"
 
 	"github.com/google/uuid"
 	hitlsvc "github.com/iota-uz/iota-sdk/modules/bichat/services/hitl"
@@ -16,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -28,32 +30,68 @@ const remoteResumePollInterval = time.Second
 // chatServiceImpl is the production implementation of ChatService.
 // It orchestrates chat sessions, messages, and agent execution.
 type chatServiceImpl struct {
-	chatRepo           domain.ChatRepository
-	sessionAccess      domain.SessionAccessRepository
-	agentService       bichatservices.AgentService
-	model              agents.Model
-	titleService       TitleService
-	titleQueue         TitleJobQueue
-	runState           *streamingsvc.RunStateManager
+	chatRepo      domain.ChatRepository
+	sessionAccess domain.SessionAccessRepository
+	agentService  bichatservices.AgentService
+	model         agents.Model
+	titleService  TitleService
+	titleQueue    TitleJobQueue
+	runState      *streamingsvc.RunStateManager
+	// eventLog mirrors every broadcast chunk into a durable per-run Redis
+	// stream so a client that reconnects (new tab, new device, network
+	// blip) can tail or replay from a cursor instead of reconstructing
+	// state from in-memory buffers. nil when Redis is unconfigured, in
+	// which case only the in-memory broadcaster is used and cross-process
+	// resume is unavailable.
+	eventLog RunEventLog
+	// activeRunIndex maintains the per-tenant sidebar view of running
+	// sessions. nil when Redis is unconfigured — in that mode sidebar
+	// dots degrade to polling via /stream/status, but the core
+	// streaming path still works.
+	activeRunIndex ActiveRunIndex
+	// runJobQueue is used only for its ClaimRequest side (not XAdd):
+	// request_id idempotency in the inline SendMessageStream path.
+	// nil when Redis is unconfigured → dedupe silently degrades to
+	// the pre-existing "two concurrent sends on same session → second
+	// fails ErrActiveRunExists" behaviour.
+	runJobQueue *RedisRunJobQueue
+	// closeSharedRedis is set when a shared *redis.Client was created by
+	// newConfiguredRedisComponents. Must be called exactly once at shutdown
+	// (via CloseSharedRedis). nil when Redis is unconfigured.
+	closeSharedRedis   func() error
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *streamingsvc.RunRegistry
 }
 
 // NewChatService creates a production implementation of ChatService.
+// Returns an error when REDIS_URL is set but any Redis component fails to
+// initialise — this prevents a broken Redis config from silently degrading
+// to the in-memory fallback while operators believe Redis is active.
 //
 // Example:
 //
-//	service := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
+//	service, err := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
 func NewChatService(
 	chatRepo domain.ChatRepository,
 	agentService bichatservices.AgentService,
 	model agents.Model,
 	titleService TitleService,
 	titleQueue TitleJobQueue,
-) *chatServiceImpl {
+) (*chatServiceImpl, error) {
+	const op serrors.Op = "NewChatService"
 	runStore := newConfiguredGenerationRunStore()
 	accessRepo := chatRepo.(domain.SessionAccessRepository)
+	// Use a single shared Redis connection for all Redis-backed components so
+	// the process dials only one connection to Redis. Falls back to nil/noop
+	// when REDIS_URL is unset (dev/CI without Redis).
+	// closeSharedRedis is the single owner of the shared *redis.Client; each
+	// component's Close() is a no-op because the client was supplied
+	// externally. Call CloseSharedRedis() exactly once at shutdown.
+	eventLog, activeRunIndex, runJobQueue, closeSharedRedis, err := newConfiguredRedisComponents()
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	return &chatServiceImpl{
 		chatRepo:           chatRepo,
 		sessionAccess:      accessRepo,
@@ -62,9 +100,31 @@ func NewChatService(
 		titleService:       titleService,
 		titleQueue:         normalizeTitleJobQueue(titleQueue),
 		runState:           streamingsvc.NewRunStateManager(runStore),
+		eventLog:           eventLog,
+		activeRunIndex:     activeRunIndex,
+		runJobQueue:        runJobQueue,
+		closeSharedRedis:   closeSharedRedis,
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
+	}, nil
+}
+
+// CloseSharedRedis releases the shared *redis.Client created by
+// newConfiguredRedisComponents. Must be called exactly once during
+// shutdown; it is a no-op when Redis was not configured.
+func (s *chatServiceImpl) CloseSharedRedis() error {
+	if s.closeSharedRedis == nil {
+		return nil
 	}
+	return s.closeSharedRedis()
+}
+
+// WithEventLog overrides the event log on an existing chatServiceImpl.
+// Test harnesses use this to inject a miniredis-backed log; production
+// code defers to the env-gated constructor in NewChatService.
+func (s *chatServiceImpl) WithEventLog(log RunEventLog) *chatServiceImpl {
+	s.eventLog = log
+	return s
 }
 
 func normalizeTitleJobQueue(queue TitleJobQueue) TitleJobQueue {
@@ -104,8 +164,22 @@ func (s *chatServiceImpl) unregisterStreamCancel(sessionID uuid.UUID) {
 	delete(s.activeStreamCancel, sessionID)
 }
 
-// StopGeneration cancels the active stream for the session; no partial assistant message is persisted.
+// StopGeneration cancels the active stream for the session; no partial
+// assistant message is persisted. The call is idempotent and tries three
+// signals in order:
+//
+//  1. In-process: if this server has the streaming goroutine, we own the
+//     cancel func directly and firing it immediately unblocks the executor.
+//  2. Cross-process: the Redis run state may be owned by a different
+//     worker / replica. Flip the cancel_requested flag so whichever worker
+//     is driving the run sees it on its next tick and drives the Cancel
+//     transition itself. Safe to call even when (1) already fired.
+//
+// When neither mechanism finds an active run the call succeeds silently
+// (see ErrNoActiveRun handling in the controller) so clicking Stop on a
+// run that has just finished is never an error from the user's view.
 func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUID) error {
+	const op serrors.Op = "chatServiceImpl.StopGeneration"
 	s.streamCancelMu.Lock()
 	cancel, ok := s.activeStreamCancel[sessionID]
 	if ok {
@@ -114,6 +188,27 @@ func (s *chatServiceImpl) StopGeneration(ctx context.Context, sessionID uuid.UUI
 	s.streamCancelMu.Unlock()
 	if cancel != nil {
 		cancel()
+	}
+
+	// Best-effort persist the cancel intent. If the active run lives on
+	// another process (future: dedicated run worker, replica behind a
+	// load balancer), this is the ONLY signal it will see.
+	//
+	// Use a detached context so the persisted cancel survives a client
+	// disconnect that has already cancelled ctx.
+	persistCtx := context.WithoutCancel(ctx)
+	run, err := s.runState.GetPersistedRun(persistCtx, sessionID)
+	if err != nil {
+		if errors.Is(err, domain.ErrNoActiveRun) {
+			// No active run — idempotent success from the user's view.
+			return nil
+		}
+		// Any other persistence failure is surfaced so operators can
+		// diagnose cross-process cancel delivery failures.
+		return serrors.E(op, err)
+	}
+	if err := s.runState.RequestCancel(persistCtx, run.TenantID(), sessionID, run.ID()); err != nil {
+		return serrors.E(op, err)
 	}
 	return nil
 }
@@ -160,7 +255,23 @@ func (s *chatServiceImpl) GetStreamStatus(ctx context.Context, sessionID uuid.UU
 }
 
 func (s *chatServiceImpl) createRunState(ctx context.Context, run domain.GenerationRun) (bool, error) {
-	return s.runState.CreateRunState(ctx, run)
+	created, err := s.runState.CreateRunState(ctx, run)
+	if err != nil || !created {
+		return created, err
+	}
+	// Publish "streaming" to the per-tenant active run hash so sidebar
+	// subscribers see the dot light up without waiting for the first
+	// snapshot event. Best-effort: if Redis fan-out fails, the core
+	// stream still works and the client can still pull /stream/status.
+	if s.activeRunIndex != nil {
+		_ = s.activeRunIndex.Upsert(ctx, run.TenantID(), ActiveRunStatus{
+			SessionID: run.SessionID(),
+			RunID:     run.ID(),
+			Status:    string(domain.GenerationRunStatusStreaming),
+			UpdatedAt: time.Now().UTC(),
+		})
+	}
+	return created, nil
 }
 
 func (s *chatServiceImpl) getPersistedRun(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
@@ -176,11 +287,35 @@ func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessi
 }
 
 func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	return s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
+	err := s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
+	if err == nil {
+		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCompleted))
+	}
+	return err
 }
 
 func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
-	return s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
+	err := s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
+	if err == nil {
+		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCancelled))
+	}
+	return err
+}
+
+// publishTerminalStatus is the single choke point for emitting the last
+// sidebar status event. We publish then remove atomically so a snapshot
+// fetched just after the terminal delta doesn't see a stale streaming
+// entry (which would leave a dangling dot on the frontend).
+func (s *chatServiceImpl) publishTerminalStatus(ctx context.Context, tenantID, sessionID, runID uuid.UUID, status string) {
+	if s.activeRunIndex == nil {
+		return
+	}
+	_ = s.activeRunIndex.PublishAndRemove(ctx, tenantID, ActiveRunStatus{
+		SessionID: sessionID,
+		RunID:     runID,
+		Status:    status,
+		UpdatedAt: time.Now().UTC(),
+	})
 }
 
 type asyncRunWorker func(processCtx context.Context, persistCtx context.Context, runID uuid.UUID, session domain.Session, active *streamingsvc.ActiveRun)
@@ -389,6 +524,175 @@ func (s *chatServiceImpl) ResumeStream(ctx context.Context, sessionID uuid.UUID,
 	}
 }
 
+// TailRunEvents forwards events from the durable per-run Redis event log
+// to the caller. It resolves tenantID from persisted run state (the HTTP
+// controller only knows session + run ids and the Last-Event-ID header),
+// replays all entries with stream id > from, and then live-tails the log
+// until a terminal event, ctx cancellation, or TTL expiry.
+//
+// Returns:
+//   - bichatservices.ErrRunEventLogUnavailable when Redis is not configured;
+//   - bichatservices.ErrRunNotFoundOrFinished when the run is unknown;
+//   - wrapped errors for the rest.
+//
+// onEvent is called synchronously from the goroutine that drives Tail and
+// must not block; HTTP handlers typically write an SSE `id:` + `event:`
+// + `data:` triple and flush.
+func (s *chatServiceImpl) TailRunEvents(
+	ctx context.Context,
+	sessionID, runID uuid.UUID,
+	from string,
+	onEvent func(bichatservices.RunEventDelivery),
+) error {
+	const op serrors.Op = "chatServiceImpl.TailRunEvents"
+
+	if s.eventLog == nil {
+		return bichatservices.ErrRunEventLogUnavailable
+	}
+
+	// Load the persisted run within the tenant scope already carried by
+	// ctx. After lookup succeeds, use the run's tenant id for event-log
+	// replay/tailing. This endpoint must still be invoked with a context
+	// that contains the current tenant.
+	persisted, err := s.getPersistedRunByID(ctx, runID)
+	if err != nil {
+		if errors.Is(err, domain.ErrRunNotFound) || errors.Is(err, domain.ErrNoActiveRun) {
+			return bichatservices.ErrRunNotFoundOrFinished
+		}
+		return serrors.E(op, err)
+	}
+	if persisted == nil {
+		return bichatservices.ErrRunNotFoundOrFinished
+	}
+	if persisted.SessionID() != sessionID {
+		return serrors.E(op, serrors.KindValidation, "session id mismatch")
+	}
+	tenantID := persisted.TenantID()
+
+	// Step 1: replay missed events synchronously so the client receives
+	// them in a deterministic order before live tailing begins.
+	replayed, err := s.eventLog.Replay(ctx, tenantID, runID, from)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	lastID := from
+	for _, evt := range replayed {
+		if err := ctx.Err(); err != nil {
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
+		}
+		onEvent(bichatservices.RunEventDelivery{
+			StreamID: evt.StreamID,
+			Type:     evt.Type,
+			Payload:  append([]byte(nil), evt.Payload...),
+		})
+		lastID = evt.StreamID
+		if IsRunEventTerminal(evt.Type) {
+			return nil
+		}
+	}
+
+	// Step 2: live-tail from the last event id we delivered. Tail closes
+	// the channel on terminal event / ctx cancel / TTL expiry.
+	tailCh, err := s.eventLog.Tail(ctx, tenantID, runID, lastID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	for evt := range tailCh {
+		if err := ctx.Err(); err != nil {
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
+		}
+		onEvent(bichatservices.RunEventDelivery{
+			StreamID: evt.StreamID,
+			Type:     evt.Type,
+			Payload:  append([]byte(nil), evt.Payload...),
+		})
+	}
+	return nil
+}
+
+// TailActiveRuns delivers the per-tenant sidebar view: snapshot rows
+// first (each with Event="snapshot"), then live delta events from the
+// active-run index pubsub (each with Event="update"). The handler
+// blocks until ctx is cancelled or the pubsub connection breaks.
+//
+// Snapshot + Subscribe are ordered so a subscriber never misses a delta
+// landed between HGETALL and pubsub establishment: we Subscribe first
+// (the pubsub handshake is the barrier), then HGETALL the current
+// state, then forward live deltas. If an update for session S lands
+// between Subscribe and Snapshot, the snapshot row for S will be the
+// more recent one.
+func (s *chatServiceImpl) TailActiveRuns(ctx context.Context, onEvent func(bichatservices.ActiveRunDelivery)) error {
+	const op serrors.Op = "chatServiceImpl.TailActiveRuns"
+
+	if s.activeRunIndex == nil {
+		return bichatservices.ErrActiveRunIndexUnavailable
+	}
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	subCh, err := s.activeRunIndex.Subscribe(ctx, tenantID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	// Snapshot AFTER Subscribe so we don't miss deltas published
+	// between the two calls (see comment above).
+	snap, err := s.activeRunIndex.Snapshot(ctx, tenantID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	// snapshotHighWaterMark tracks the highest UpdatedAt seen per session
+	// in the snapshot phase. Any pubsub delta with UpdatedAt ≤ the
+	// snapshot value for the same session is a buffered-but-stale delta
+	// that arrived before we subscribed yet landed in the pubsub buffer
+	// afterward. Forwarding it would regress the sidebar to an older
+	// status, so we drop it.
+	snapshotHighWaterMark := make(map[uuid.UUID]int64, len(snap))
+	for _, entry := range snap {
+		if err := ctx.Err(); err != nil {
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
+		}
+		ms := entry.UpdatedAt.UnixMilli()
+		if ms > snapshotHighWaterMark[entry.SessionID] {
+			snapshotHighWaterMark[entry.SessionID] = ms
+		}
+		onEvent(bichatservices.ActiveRunDelivery{
+			Event:     "snapshot",
+			SessionID: entry.SessionID,
+			RunID:     entry.RunID,
+			Status:    entry.Status,
+			UpdatedAt: ms,
+		})
+	}
+
+	for entry := range subCh {
+		if err := ctx.Err(); err != nil {
+			return nil //nolint:nilerr // context cancelled — clean stop, not an error
+		}
+		ms := entry.UpdatedAt.UnixMilli()
+		// Drop deltas that don't advance beyond the snapshot high-water
+		// mark for this session — they are stale pubsub entries buffered
+		// before the snapshot was taken.
+		if ms <= snapshotHighWaterMark[entry.SessionID] {
+			continue
+		}
+		// Advance the high-water mark so subsequent deltas for the same
+		// session are also deduplicated correctly within the live window.
+		snapshotHighWaterMark[entry.SessionID] = ms
+		onEvent(bichatservices.ActiveRunDelivery{
+			Event:     "update",
+			SessionID: entry.SessionID,
+			RunID:     entry.RunID,
+			Status:    entry.Status,
+			UpdatedAt: ms,
+		})
+	}
+	return nil
+}
+
 // SendMessage sends a message to a session and processes it with the agent.
 func (s *chatServiceImpl) SendMessage(ctx context.Context, req bichatservices.SendMessageRequest) (*bichatservices.SendMessageResponse, error) {
 	const op serrors.Op = "chatServiceImpl.SendMessage"
@@ -509,6 +813,50 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	const op serrors.Op = "chatServiceImpl.SendMessageStream"
 	startedAt := time.Now()
 
+	// request_id dedupe: if the client supplied an idempotency key,
+	// claim it before doing any real work. A duplicate send within
+	// the ~30 min dedupe window converges on the existing run — we
+	// emit stream_started with the existing run id then delegate to
+	// the resume path so the second sender tails the same stream as
+	// the first. This mirrors the cross-device UX from the plan.
+	// When Redis is not configured (dev/CI) the queue is nil and
+	// dedupe silently no-ops.
+	var claimedRunID uuid.UUID
+	// reqTenantID is used to scope the dedupe key. Resolved from context
+	// (set by HTTP auth middleware); falls back to uuid.Nil when not set
+	// (e.g. internal callers without a request context), in which case
+	// dedupe is skipped safely.
+	reqTenantID, _ := composables.UseTenantID(ctx)
+
+	// releaseRequest drops the tenant-scoped dedupe mapping so that a
+	// retry with the same requestID can mint a fresh run instead of
+	// deduping to a phantom one. Called on early-exit error paths (before
+	// the run is persisted) and at terminal run completion. Safe to call
+	// multiple times: the Redis key may already be gone and the
+	// implementation swallows redis.Nil.
+	releaseRequest := func() {
+		if req.RequestID != nil && s.runJobQueue != nil && reqTenantID != uuid.Nil {
+			_ = s.runJobQueue.ReleaseRequest(context.WithoutCancel(ctx), reqTenantID, *req.RequestID)
+		}
+	}
+
+	if req.RequestID != nil && s.runJobQueue != nil && reqTenantID != uuid.Nil {
+		runID, deduped, claimErr := s.runJobQueue.ClaimRequest(ctx, reqTenantID, *req.RequestID, uuid.New())
+		if claimErr == nil {
+			if deduped {
+				onChunk(bichatservices.StreamChunk{
+					Type:      bichatservices.ChunkTypeStreamStarted,
+					RunID:     runID.String(),
+					Timestamp: time.Now(),
+				})
+				return s.ResumeStream(ctx, req.SessionID, runID, onChunk)
+			}
+			claimedRunID = runID
+		}
+		// Claim error falls through without dedupe — a Redis blip must
+		// not prevent the user's message from sending.
+	}
+
 	var session domain.Session
 	var err error
 
@@ -545,6 +893,12 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 
 		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+			// claimedRunID is the UUID reserved by ClaimRequest when a
+			// request_id was supplied — preserving it means the dedupe
+			// mapping points to the correct run (and a retry within
+			// the dedupe window attaches correctly). uuid.Nil causes
+			// NewGenerationRun to mint a fresh id.
+			ID:        claimedRunID,
 			SessionID: req.SessionID,
 			TenantID:  session.TenantID(),
 			UserID:    session.UserID(),
@@ -590,6 +944,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		return nil
 	})
 	if err != nil {
+		// Release the request_id dedupe mapping so the client can retry with the
+		// same requestID and get a fresh run — the current run was never persisted.
+		releaseRequest()
 		if runStateCreated && run != nil && session != nil {
 			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), req.SessionID, run.ID())
 		}
@@ -598,7 +955,6 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 		}
 		return err
 	}
-
 	// Decouple generation from request cancellation, but keep request values
 	// (tenant/user/pool/tx) required by downstream services and repositories.
 	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
@@ -621,6 +977,28 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 	// Stream finalization may outlive request-scoped middleware transactions.
 	// Clear TxKey so persistence always opens its own durable transaction.
 	persistCtx = context.WithValue(persistCtx, constants.TxKey, nil)
+
+	// When a Redis event log is configured, mirror every broadcast into
+	// bichat:run-events:{tenant}:{run_id} so out-of-process readers (the
+	// SSE controller on a reconnect, or another replica of the server)
+	// can tail/replay via Last-Event-ID. Mirror failures are logged
+	// implicitly by the log implementation and deliberately do not break
+	// the in-memory path — an error appending to Redis should not abort
+	// a live agent streaming to its primary client.
+	if s.eventLog != nil {
+		tenantID := session.TenantID()
+		runID := run.ID()
+		active.SetMirror(func(chunk bichatservices.StreamChunk) {
+			eventType, body, err := encodeRunEventFromChunk(chunk)
+			if err != nil {
+				return
+			}
+			_, _ = s.eventLog.Append(persistCtx, tenantID, runID, RunEvent{
+				Type:    eventType,
+				Payload: body,
+			})
+		})
+	}
 
 	go s.runStreamLoop(processCtx, persistCtx, run.ID(), req, session, domainAttachments, startedAt, active)
 
@@ -646,6 +1024,10 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				// (notably test transactions) are no longer in use before returning.
 				for range primaryCh {
 				}
+				// Release request_id dedupe mapping at terminal success so a retry
+				// with the same requestID starts a new run rather than deduping to
+				// the completed one.
+				releaseRequest()
 				return nil
 			}
 			if chunk.Type == bichatservices.ChunkTypeError {
@@ -653,6 +1035,9 @@ func (s *chatServiceImpl) SendMessageStream(ctx context.Context, req bichatservi
 				// Drain until channel closes so the goroutine can persist and exit
 				for range primaryCh {
 				}
+				// Release on terminal error so the client can retry with the same
+				// requestID and get a fresh attempt.
+				releaseRequest()
 				return streamErr
 			}
 		}
@@ -680,6 +1065,13 @@ func (s *chatServiceImpl) runStreamLoop(
 		active.CloseAllSubscribers()
 		s.runRegistry.Remove(active.RunID)
 		s.unregisterStreamCancel(req.SessionID)
+		// Shorten the run-events stream TTL now that the run is done; the
+		// reaper doesn't need it any more and long-lived Redis keys for
+		// every historical run would bloat memory unnecessarily. 5 min
+		// gives slow reconnecting clients a small grace window.
+		if s.eventLog != nil && session != nil {
+			_ = s.eventLog.DropAfterTerminal(persistCtx, session.TenantID(), runID, 5*time.Minute)
+		}
 	}()
 
 	gen, err := s.agentService.ProcessMessage(processCtx, req.SessionID, req.Content, domainAttachments)
@@ -720,9 +1112,27 @@ func (s *chatServiceImpl) runStreamLoop(
 		case agents.EventTypeContent:
 			active.Mu.Lock()
 			active.Content += event.Content
+			// Track the UTF-16 code unit count incrementally so the
+			// text_block_end boundary path is O(delta) instead of
+			// O(total_content).
+			active.ContentUTF16Len += len(utf16.Encode([]rune(event.Content)))
 			active.Mu.Unlock()
 			chunk.Type = bichatservices.ChunkTypeContent
 			chunk.Content = event.Content
+			active.Broadcast(chunk)
+
+		case agents.EventTypeTextBlockEnd:
+			active.Mu.Lock()
+			// Record the running UTF-16 code unit count at the segment
+			// boundary so resume snapshots can split the accumulated content
+			// back into the blocks the user originally saw.
+			// ContentUTF16Len is maintained incrementally on content deltas
+			// above; reading it here is O(1) and does not re-encode the full
+			// accumulated string.
+			active.TextBlockOffsets = append(active.TextBlockOffsets, active.ContentUTF16Len)
+			active.Mu.Unlock()
+			chunk.Type = bichatservices.ChunkTypeTextBlockEnd
+			chunk.TextBlockSeq = event.TextBlockSeq
 			active.Broadcast(chunk)
 
 		case agents.EventTypeToolStart:
@@ -822,6 +1232,21 @@ func (s *chatServiceImpl) runStreamLoop(
 		if shouldPersistSnapshot {
 			meta := active.SnapshotMetadata()
 			_ = s.updateRunSnapshot(persistCtx, session.TenantID(), req.SessionID, runID, content, meta)
+			// Refresh heartbeat at the snapshot throttle cadence (2s).
+			// The reaper marks runs whose heartbeat is older than ~60s as
+			// failed, so a 2s cadence leaves comfortable headroom under
+			// slow LLM calls or tool executions.
+			_ = s.runState.Heartbeat(persistCtx, session.TenantID(), req.SessionID, runID)
+			// Check the out-of-band cancel flag. A Stop RPC from another
+			// tab / device sets this flag on the persisted run; we
+			// observe it here and wind the generator down by cancelling
+			// processCtx. The next gen.Next will return ctx.Err() and
+			// the outer loop's cleanup will emit a terminal chunk.
+			if persistedRun, err := s.runState.GetPersistedRun(persistCtx, req.SessionID); err == nil && persistedRun != nil {
+				if persistedRun.CancelRequested() && active.Cancel != nil {
+					active.Cancel()
+				}
+			}
 			active.Mu.Lock()
 			active.LastPersist = time.Now()
 			active.Mu.Unlock()

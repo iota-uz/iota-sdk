@@ -1023,6 +1023,9 @@
         "StartFailed": "无法启动 AI 搜索",
         "MessageFailed": "无法发送 AI 消息"
       }
+    },
+    "MoreResults": {
+      "other": "还有 {{.Count}} 个结果"
     }
   },
   "Unknown": "未知",
