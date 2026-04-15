@@ -18,6 +18,9 @@ type RunStateStore interface {
 	UpdateRunSnapshot(ctx context.Context, tenantID, sessionID, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
 	CompleteRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
 	CancelRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
+	FailRun(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
+	RequestCancel(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
+	Heartbeat(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error
 }
 
 type RunStateManager struct {
@@ -97,6 +100,49 @@ func (m *RunStateManager) CancelRunState(ctx context.Context, tenantID, sessionI
 		return nil
 	}
 	if err := m.store.CancelRun(ctx, tenantID, sessionID, runID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// FailRunState drives a system-initiated terminal transition. Callers must
+// also write a terminal error event to the run's RunEventLog so tailing
+// clients observe the transition.
+func (m *RunStateManager) FailRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	const op serrors.Op = "runStateManager.FailRunState"
+	if m == nil || m.store == nil {
+		return nil
+	}
+	if err := m.store.FailRun(ctx, tenantID, sessionID, runID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// RequestCancel flips the cancel flag on the active run. The worker owns
+// the transition to the Cancelled status; this RPC only records intent.
+// Idempotent.
+func (m *RunStateManager) RequestCancel(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	const op serrors.Op = "runStateManager.RequestCancel"
+	if m == nil || m.store == nil {
+		return nil
+	}
+	if err := m.store.RequestCancel(ctx, tenantID, sessionID, runID); err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// Heartbeat refreshes the liveness timestamp on the active run. Called
+// from the worker every few seconds of streaming so the reaper can
+// distinguish between a healthy long-running LLM call and a wedged
+// worker that silently died.
+func (m *RunStateManager) Heartbeat(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	const op serrors.Op = "runStateManager.Heartbeat"
+	if m == nil || m.store == nil {
+		return nil
+	}
+	if err := m.store.Heartbeat(ctx, tenantID, sessionID, runID); err != nil {
 		return serrors.E(op, err)
 	}
 	return nil

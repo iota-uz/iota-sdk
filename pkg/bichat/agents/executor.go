@@ -70,6 +70,13 @@ const (
 	// Prefer EventTypeContent in new code.
 	EventTypeChunk ExecutorEventType = "content"
 
+	// EventTypeTextBlockEnd is emitted to mark the end of an assistant text segment.
+	// It is emitted before the first tool_start of an iteration when prior text has
+	// been streamed, so consumers can render text/tool_call/text/tool_call sequences
+	// as distinct blocks instead of one merged paragraph. The TextBlockSeq field on
+	// the event identifies the segment ordinal within an Execute call (zero-based).
+	EventTypeTextBlockEnd ExecutorEventType = "text_block_end"
+
 	// EventTypeToolStart is emitted when a tool execution begins.
 	EventTypeToolStart ExecutorEventType = "tool_start"
 
@@ -174,6 +181,12 @@ type ExecutorEvent struct {
 	// FileAnnotations holds file references extracted from Result.
 	// It is populated when Type == EventTypeDone and files were generated.
 	FileAnnotations []types.FileAnnotation
+
+	// TextBlockSeq is the ordinal of an assistant text segment within an Execute
+	// call. It is populated when Type == EventTypeTextBlockEnd; the first segment
+	// is 0, the second is 1, and so on. Consumers use it to attribute streamed
+	// content chunks to a specific block when tool calls split a turn.
+	TextBlockSeq int
 }
 
 // ToolEvent represents a tool execution event.
@@ -487,10 +500,24 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 			input.isResume,
 		))
 
+		// Track text-block segmentation across iterations. textBlockSeq is the
+		// running ordinal of completed text segments within this Execute call;
+		// it is included on every EventTypeTextBlockEnd we yield so consumers can
+		// attribute content chunks to the correct block when tool calls split a
+		// turn.
+		textBlockSeq := 0
+
 		// Start ReAct loop
 		iteration := 0
 		for iteration < e.maxIterations {
 			iteration++
+
+			// Per-iteration text-block tracking. iterTextEmitted flips true the
+			// first time we yield a content chunk inside this iteration;
+			// iterTextBlockEnded flips true once the closing EventTypeTextBlockEnd
+			// has been yielded so we never emit it twice for the same segment.
+			iterTextEmitted := false
+			iterTextBlockEnded := false
 
 			// Determine which tools to use (override if e.tools is set)
 			tools := e.tools
@@ -619,6 +646,29 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				return m
 			}
 
+			// emitTextBlockEndIfNeeded yields an EventTypeTextBlockEnd marker when
+			// the current iteration has streamed any text and the marker has not
+			// already been emitted. It is called both from the speculative tool
+			// path (inside startSpecTool, before yielding the first tool_start)
+			// and from the synchronous executeToolCalls path so that consumers
+			// always see the closing marker for an assistant text segment before
+			// any tool_start that follows it. Returns false only if the consumer
+			// has stopped (yield returned false).
+			emitTextBlockEndIfNeeded := func() bool {
+				if !iterTextEmitted || iterTextBlockEnded {
+					return true
+				}
+				if !yield(ExecutorEvent{
+					Type:         EventTypeTextBlockEnd,
+					TextBlockSeq: textBlockSeq,
+				}) {
+					return false
+				}
+				iterTextBlockEnded = true
+				textBlockSeq++
+				return true
+			}
+
 			handleSpecResult := func(tr specToolResult) bool {
 				if !specEnabled {
 					return true
@@ -730,6 +780,13 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 				specStarted[callID] = struct{}{}
 
+				// Close the text segment that preceded this tool call, if any,
+				// so the consumer can flush it as its own block.
+				if !emitTextBlockEndIfNeeded() {
+					specCancel()
+					return false
+				}
+
 				// Emit tool start event
 				_ = e.eventBus.Publish(specToolCtx, events.NewToolStartEventWithTrace(
 					input.SessionID,
@@ -810,6 +867,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				// Yield chunk event
 				if chunk.Delta != "" {
 					chunks = append(chunks, chunk.Delta)
+					iterTextEmitted = true
 					if !yield(ExecutorEvent{
 						Type:    EventTypeContent,
 						Content: chunk.Delta,
@@ -1016,6 +1074,11 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 					}
 				}
 			} else {
+				// Synchronous path: close any pending text segment before
+				// executeToolCalls yields its first tool_start event.
+				if !emitTextBlockEndIfNeeded() {
+					return nil
+				}
 				toolResults, interrupt, toolErr = e.executeToolCalls(ctx, input.SessionID, input.TenantID, traceID, tools, toolCalls, yield)
 			}
 
