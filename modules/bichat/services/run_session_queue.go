@@ -94,7 +94,6 @@ func NewRedisRunSessionQueue(cfg RedisRunSessionQueueConfig) (*RedisRunSessionQu
 	}, nil
 }
 
-
 // Push implements RunSessionQueue.
 //
 // Uses RPUSH so Pop (LPOP) drains in FIFO order. After pushing the new

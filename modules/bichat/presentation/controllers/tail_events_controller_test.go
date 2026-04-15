@@ -188,4 +188,3 @@ func TestTailEvents_UnavailableEmitsErrorEvent(t *testing.T) {
 	assert.Contains(t, body, "event: error", "must emit SSE error event when log unavailable")
 	assert.Contains(t, body, "unavailable", "error payload must mention unavailable")
 }
-
