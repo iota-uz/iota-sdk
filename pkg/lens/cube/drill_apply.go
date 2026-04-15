@@ -29,3 +29,15 @@ func ApplyDrillFilters(spec CubeSpec, ctx DrillContext, appliers map[string]Dril
 		applier(filter.Value)
 	}
 }
+
+// ApplyDrill iterates drill context filters and calls the matching applier.
+// Unlike ApplyDrillFilters, it does not require a CubeSpec — use this in
+// drill-through handlers that don't have access to the compiled cube.
+// Unknown dimensions (no matching applier) are silently skipped.
+func ApplyDrill(ctx DrillContext, appliers map[string]DrillApplier) {
+	for _, filter := range ctx.Filters {
+		if applier, ok := appliers[filter.Dimension]; ok {
+			applier(filter.Value)
+		}
+	}
+}
