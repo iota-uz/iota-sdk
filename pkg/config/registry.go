@@ -22,10 +22,23 @@ func NewRegistry(src Source) *Registry {
 	}
 }
 
-// Register loads T at prefix from the registry's Source, optionally validates,
-// stores and returns a pointer to the populated config struct.
+// Defaulter is optionally implemented by config types that need to apply
+// fallback values for zero-valued fields. SetDefaults is called on the
+// pointer receiver AFTER Unmarshal and BEFORE Validate — it must not
+// overwrite fields that the source already populated.
+type Defaulter interface {
+	SetDefaults()
+}
+
+// Register loads T at prefix from the registry's Source, applies defaults,
+// optionally validates, stores, and returns a pointer to the populated
+// config struct.
 //
-// If T implements Validatable, Validate() is called after Unmarshal.
+// Order of operations:
+//  1. Source.Unmarshal fills fields from env / yaml / etc.
+//  2. If T implements Defaulter, SetDefaults fills zero-valued fields.
+//  3. If T implements Validatable, Validate checks the final values.
+//
 // A non-nil Validate error aborts registration and returns an error.
 //
 // Calling Register[T] twice with the same T silently overwrites the previous
@@ -34,6 +47,10 @@ func Register[T any](r *Registry, prefix string) (*T, error) {
 	var cfg T
 	if err := r.src.Unmarshal(prefix, &cfg); err != nil {
 		return nil, fmt.Errorf("config: unmarshal %T at %q: %w", cfg, prefix, err)
+	}
+
+	if d, ok := any(&cfg).(Defaulter); ok {
+		d.SetDefaults()
 	}
 
 	if v, ok := any(&cfg).(Validatable); ok {

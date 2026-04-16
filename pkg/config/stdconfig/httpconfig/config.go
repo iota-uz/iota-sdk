@@ -84,3 +84,49 @@ func (c *Config) SocketAddress() string {
 	}
 	return fmt.Sprintf("localhost:%d", c.Port)
 }
+
+// SetDefaults fills zero-valued fields with fallback values that match the
+// legacy envDefault tags from pkg/configuration. Called automatically by
+// config.Register after Unmarshal.
+func (c *Config) SetDefaults() {
+	if c.Port == 0 {
+		c.Port = 3200
+	}
+	if c.Domain == "" {
+		c.Domain = "localhost"
+	}
+	if c.Origin == "" {
+		if c.IsProduction() {
+			c.Origin = fmt.Sprintf("%s://%s", c.Scheme(), c.Domain)
+		} else {
+			c.Origin = fmt.Sprintf("%s://%s:%d", c.Scheme(), c.Domain, c.Port)
+		}
+	}
+	if len(c.AllowedOrigins) == 0 {
+		c.AllowedOrigins = []string{"http://localhost:3000"}
+	}
+	if c.Environment == "" {
+		c.Environment = "development"
+	}
+	if c.Headers.RequestID == "" {
+		c.Headers.RequestID = "X-Request-ID"
+	}
+	if c.Headers.RealIP == "" {
+		c.Headers.RealIP = "X-Real-IP"
+	}
+	if c.Cookies.SID == "" {
+		c.Cookies.SID = "sid"
+	}
+	if c.Cookies.OAuthState == "" {
+		c.Cookies.OAuthState = "oauthState"
+	}
+	if c.Session.Duration == 0 {
+		c.Session.Duration = 720 * time.Hour
+	}
+	if c.Pagination.PageSize == 0 {
+		c.Pagination.PageSize = 25
+	}
+	if c.Pagination.MaxPageSize == 0 {
+		c.Pagination.MaxPageSize = 100
+	}
+}

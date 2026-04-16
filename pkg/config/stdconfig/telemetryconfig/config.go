@@ -58,3 +58,18 @@ func (c *Config) LogrusLogLevel() logrus.Level {
 		return logrus.ErrorLevel
 	}
 }
+
+// SetDefaults fills zero-valued fields with fallback values that match the
+// legacy envDefault tags from pkg/configuration. Called automatically by
+// config.Register after Unmarshal.
+func (c *Config) SetDefaults() {
+	if c.LogLevel == "" {
+		c.LogLevel = "error"
+	}
+	if c.Loki.AppName == "" {
+		c.Loki.AppName = "sdk"
+	}
+	if c.Loki.LogPath == "" {
+		c.Loki.LogPath = "./logs/app.log"
+	}
+}
