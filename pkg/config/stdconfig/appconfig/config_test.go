@@ -80,7 +80,6 @@ func TestIsProduction_False(t *testing.T) {
 	t.Parallel()
 
 	for _, env := range []string{"development", "staging", ""} {
-		env := env
 		t.Run(env, func(t *testing.T) {
 			t.Parallel()
 			cfg := appconfig.Config{Environment: env}
@@ -95,7 +94,6 @@ func TestIsDev_True(t *testing.T) {
 	t.Parallel()
 
 	for _, env := range []string{"development", "staging", "test", ""} {
-		env := env
 		t.Run(env, func(t *testing.T) {
 			t.Parallel()
 			cfg := appconfig.Config{Environment: env}

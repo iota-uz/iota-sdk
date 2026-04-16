@@ -123,12 +123,6 @@ func (s *chatServiceImpl) WithLogger(logger *logrus.Logger) *chatServiceImpl {
 	return s
 }
 
-// serviceLogger returns the injected logger if set; nil otherwise.
-// Callers must nil-check before use (mirrors the guard pattern used throughout).
-func (s *chatServiceImpl) serviceLogger() *logrus.Logger {
-	return s.logger
-}
-
 // WithLangfuseBaseURL stores the Langfuse host URL for trace link generation.
 // The URL may be the BaseURL or Host field from LangfuseConfig; callers should
 // prefer BaseURL, falling back to Host when BaseURL is empty.

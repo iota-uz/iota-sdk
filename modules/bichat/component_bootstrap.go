@@ -32,15 +32,18 @@ const langfuseEnvironment = "development"
 
 // resolveBichatConfigs extracts all typed configs needed by buildModuleConfig
 // from the BuildContext. When a config.Source is attached, the registry path is
-// used (koanf unmarshal + optional Validate). Otherwise the legacy
-// *configuration.Configuration is used via each package's FromLegacy shim.
+// used (koanf unmarshal + optional Validate). Otherwise zero-value defaults are
+// applied via each package's SetDefaults helper.
 func resolveBichatConfigs(buildCtx composition.BuildContext) (
-	bichatCfg *bichatconfig.Config,
-	httpCfg *httpconfig.Config,
-	uploadsCfg *uploadsconfig.Config,
-	logger *logrus.Logger,
+	*bichatconfig.Config,
+	*httpconfig.Config,
+	*uploadsconfig.Config,
+	*logrus.Logger,
 ) {
-	logger = buildCtx.Logger()
+	logger := buildCtx.Logger()
+	var bichatCfg *bichatconfig.Config
+	var httpCfg *httpconfig.Config
+	var uploadsCfg *uploadsconfig.Config
 
 	if src := buildCtx.Source(); src != nil {
 		reg := config.NewRegistry(src)

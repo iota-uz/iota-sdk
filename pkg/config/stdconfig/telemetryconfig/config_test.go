@@ -74,7 +74,6 @@ func TestLogrusLogLevel(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 			cfg := telemetryconfig.Config{LogLevel: tc.input}
@@ -116,7 +115,6 @@ func TestOTELIsConfigured(t *testing.T) {
 	}
 
 	for _, tc := range cases {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			if got := tc.cfg.IsConfigured(); got != tc.expected {

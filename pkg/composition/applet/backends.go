@@ -244,8 +244,8 @@ func must(err error) {
 //
 // When the applets config is extended to carry direct values in a future
 // version, this helper is the sole place that needs updating.
-func resolveS3Credentials(cfg appletsconfig.AppletEngineS3Config) (accessKeyID, secretAccessKey string) {
-	accessKeyID = strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.AccessKeyEnv)))
-	secretAccessKey = strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.SecretKeyEnv)))
+func resolveS3Credentials(cfg appletsconfig.AppletEngineS3Config) (string, string) {
+	accessKeyID := strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.AccessKeyEnv)))
+	secretAccessKey := strings.TrimSpace(os.Getenv(strings.TrimSpace(cfg.SecretKeyEnv)))
 	return accessKeyID, secretAccessKey
 }

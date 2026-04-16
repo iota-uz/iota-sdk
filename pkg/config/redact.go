@@ -35,7 +35,7 @@ func redactValue(rv reflect.Value) any {
 		rv = rv.Elem()
 	}
 
-	switch rv.Kind() {
+	switch rv.Kind() { //nolint:exhaustive // scalars and unsupported kinds fall through to the default branch
 	case reflect.Struct:
 		return redactStruct(rv)
 	case reflect.Slice:
