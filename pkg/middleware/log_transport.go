@@ -11,14 +11,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/sirupsen/logrus"
 )
 
 // LogTransport is a http.RoundTripper middleware for logging outgoing HTTP requests/responses.
 type LogTransport struct {
 	Base            http.RoundTripper
-	Conf            *configuration.Configuration
+	Conf            *httpconfig.Config
 	Logger          *logrus.Logger
 	LogRequestBody  bool
 	LogResponseBody bool
@@ -26,7 +26,7 @@ type LogTransport struct {
 }
 
 // NewLogTransport constructs a new LogTransport with given options.
-func NewLogTransport(logger *logrus.Logger, conf *configuration.Configuration, logRequestBody, logResponseBody bool, name string) *LogTransport {
+func NewLogTransport(logger *logrus.Logger, conf *httpconfig.Config, logRequestBody, logResponseBody bool, name string) *LogTransport {
 	if name == "" {
 		name = "client"
 	}
@@ -44,13 +44,18 @@ func NewLogTransport(logger *logrus.Logger, conf *configuration.Configuration, l
 func (l *LogTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	start := time.Now()
 
+	requestIDHeader := "X-Request-ID"
+	if l.Conf != nil && l.Conf.Headers.RequestID != "" {
+		requestIDHeader = l.Conf.Headers.RequestID
+	}
+
 	// Extract or generate request-id
 	var requestID string
-	if req.Header.Get(l.Conf.RequestIDHeader) != "" {
-		requestID = req.Header.Get(l.Conf.RequestIDHeader)
+	if req.Header.Get(requestIDHeader) != "" {
+		requestID = req.Header.Get(requestIDHeader)
 	} else {
 		requestID = uuid.New().String()
-		req.Header.Set(l.Conf.RequestIDHeader, requestID)
+		req.Header.Set(requestIDHeader, requestID)
 	}
 
 	// Log request body

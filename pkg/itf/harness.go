@@ -22,8 +22,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -396,7 +394,8 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 			s.pool.Close()
 		}
 		if cleanup == CleanupDropOnExit {
-			if err := DropDBE(s.dbName); err != nil {
+			db := LoadDBConfigFromEnv()
+			if err := DropDBE(s.dbName, db); err != nil {
 				closeErr = mergeCloseErrors(closeErr, serrors.E(opDropDB, err, "drop database on close"))
 			}
 		}
@@ -415,29 +414,25 @@ func mergeCloseErrors(existing, next error) error {
 }
 
 func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harnessState, error) {
-	// Read legacy config once per harness state creation. This is the single
-	// remaining reference to the global singleton in this file; it will be
-	// replaced in W5.1 when HarnessConfig carries an explicit typed config.
-	legacyConf := configuration.Use() //nolint:staticcheck // W5.1 removal target
-	legacyDB := dbconfig.FromLegacy(legacyConf)
+	db := LoadDBConfigFromEnv()
 
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	if err := CreateDBE(dbName); err != nil {
+	if err := CreateDBE(dbName, db); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
-	pool, err := newPoolWithConfig(dbOptsWithConfig(dbName, legacyDB), cfg.Database.Pool)
+	pool, err := newPoolWithConfig(DBOpts(dbName, db), cfg.Database.Pool)
 	if err != nil {
-		if cleanupErr := DropDBE(dbName); cleanupErr != nil {
+		if cleanupErr := DropDBE(dbName, db); cleanupErr != nil {
 			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")
 		}
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, container, err := setupApplicationWithConf(pool, legacyConf, cfg.Components, cfg.Source)
+	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source)
 	if err != nil {
 		pool.Close()
-		_ = DropDBE(dbName)
+		_ = DropDBE(dbName, db)
 		return nil, serrors.E(opSetupApplication, err, "setup application")
 	}
 
@@ -445,7 +440,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
 		closeErr := closeApplication(app, container)
 		pool.Close()
-		dropErr := DropDBE(dbName)
+		dropErr := DropDBE(dbName, db)
 		if closeErr != nil {
 			combinedErr = mergeCloseErrors(
 				combinedErr,
@@ -465,7 +460,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	if err != nil {
 		closeErr := closeApplication(app, container)
 		pool.Close()
-		_ = DropDBE(dbName)
+		_ = DropDBE(dbName, db)
 		if closeErr != nil {
 			return nil, serrors.E(opResolveTenant, closeErr, "failed to close controllers before tenant resolve failure")
 		}
@@ -480,7 +475,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		}); err != nil {
 			closeErr := closeApplication(app, container)
 			pool.Close()
-			_ = DropDBE(dbName)
+			_ = DropDBE(dbName, db)
 			if closeErr != nil {
 				return nil, serrors.E(opOncePerHarnessSeed, closeErr, "failed to close controllers before seed failure")
 			}

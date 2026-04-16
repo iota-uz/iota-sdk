@@ -54,13 +54,6 @@ func resolveBichatConfigs(buildCtx composition.BuildContext) (
 		if ptr, err := config.Register[uploadsconfig.Config](reg, "uploads"); err == nil {
 			uploadsCfg = ptr
 		}
-	} else if cfg := buildCtx.Config(); cfg != nil {
-		bv := bichatconfig.FromLegacy(cfg)
-		bichatCfg = &bv
-		hv := httpconfig.FromLegacy(cfg)
-		httpCfg = &hv
-		uv := uploadsconfig.FromLegacy(cfg)
-		uploadsCfg = &uv
 	}
 
 	// Ensure zero-value defaults when resolution produced nothing.

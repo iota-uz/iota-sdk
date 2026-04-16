@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -75,34 +74,5 @@ func TestIsConfigured_BothEmpty(t *testing.T) {
 	cfg := meiliconfig.Config{}
 	if cfg.IsConfigured() {
 		t.Error("IsConfigured: expected false when both URL and APIKey are empty")
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		MeiliURL:    "http://meili.prod:7700",
-		MeiliAPIKey: "prod-key-xyz",
-	}
-
-	got := meiliconfig.FromLegacy(legacy)
-
-	if got.URL != "http://meili.prod:7700" {
-		t.Errorf("URL: got %q, want %q", got.URL, "http://meili.prod:7700")
-	}
-	if got.APIKey != "prod-key-xyz" {
-		t.Errorf("APIKey: got %q, want %q", got.APIKey, "prod-key-xyz")
-	}
-}
-
-func TestFromLegacy_EmptyFields(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{}
-	got := meiliconfig.FromLegacy(legacy)
-
-	if got.IsConfigured() {
-		t.Error("IsConfigured: expected false for empty legacy config")
 	}
 }

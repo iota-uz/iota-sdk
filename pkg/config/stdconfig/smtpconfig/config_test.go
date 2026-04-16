@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/smtpconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func TestConfig_StaticRoundTrip(t *testing.T) {
@@ -56,35 +55,5 @@ func TestConfig_SetDefaults(t *testing.T) {
 	cfg2.SetDefaults()
 	if cfg2.Port != 25 {
 		t.Errorf("SetDefaults must not overwrite explicit port, got %d", cfg2.Port)
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{}
-	legacy.SMTP.Host = "smtp.example.com"
-	legacy.SMTP.Port = 587
-	legacy.SMTP.Username = "sender"
-	legacy.SMTP.Password = "pw"
-	legacy.SMTP.From = "sender@example.com"
-
-	got := smtpconfig.FromLegacy(legacy)
-	if got.Host != "smtp.example.com" {
-		t.Errorf("Host mismatch")
-	}
-	if got.Port != 587 {
-		t.Errorf("Port: want 587, got %d", got.Port)
-	}
-}
-
-func TestFromLegacy_DefaultPort(t *testing.T) {
-	t.Parallel()
-
-	// Legacy port zero → default 587.
-	legacy := &configuration.Configuration{}
-	got := smtpconfig.FromLegacy(legacy)
-	if got.Port != 587 {
-		t.Errorf("default port: want 587, got %d", got.Port)
 	}
 }

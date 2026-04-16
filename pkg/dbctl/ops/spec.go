@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -70,10 +70,8 @@ type ExecutionContext struct {
 	Tx         pgx.Tx
 	JSONOutput bool
 	PolicyPath string
-	// Logger is resolved from the typed telemetryconfig at runner time.
-	// W5.1 will replace this with a proper typed logger injection.
-	Logger *logrus.Logger
-	// LegacyConf provides the full legacy configuration for operations that
-	// still need it during the W4 transition. W5.1 will remove this field.
-	LegacyConf *configuration.Configuration
+	Logger     *logrus.Logger
+	// DBConfig provides typed database config for operations that need to
+	// connect to additional databases (e.g. e2e database management).
+	DBConfig *dbconfig.Config
 }

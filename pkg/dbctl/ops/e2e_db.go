@@ -8,14 +8,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 )
 
-// e2eConfig extracts a *dbconfig.Config from the ExecutionContext's LegacyConf.
-// Falls back to a zero-value Config if LegacyConf is nil (should not happen in practice).
+// e2eConfig extracts a *dbconfig.Config from the ExecutionContext.
+// Falls back to a zero-value Config if DBConfig is nil.
 func e2eConfig(e *ExecutionContext) *dbconfig.Config {
-	if e.LegacyConf == nil {
+	if e.DBConfig == nil {
 		return &dbconfig.Config{}
 	}
-	cfg := dbconfig.FromLegacy(e.LegacyConf)
-	return &cfg
+	return e.DBConfig
 }
 
 func E2ECreateOperation() OperationSpec {

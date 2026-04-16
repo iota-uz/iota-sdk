@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/redisconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -54,30 +53,5 @@ func TestSetDefaults_NonZeroURLUnchanged(t *testing.T) {
 
 	if cfg.URL != "custom:6380" {
 		t.Errorf("URL should be unchanged: got %q", cfg.URL)
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		RedisURL: "redis.prod.internal:6379",
-	}
-
-	got := redisconfig.FromLegacy(legacy)
-
-	if got.URL != "redis.prod.internal:6379" {
-		t.Errorf("URL: got %q, want %q", got.URL, "redis.prod.internal:6379")
-	}
-}
-
-func TestFromLegacy_DefaultWhenEmpty(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{}
-	got := redisconfig.FromLegacy(legacy)
-
-	if got.URL != "localhost:6379" {
-		t.Errorf("URL default via FromLegacy: got %q, want %q", got.URL, "localhost:6379")
 	}
 }

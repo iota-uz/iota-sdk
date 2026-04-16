@@ -49,11 +49,11 @@ func (c *component) Descriptor() composition.Descriptor {
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddLocales(builder, &LocaleFiles)
 
-	// Guard: if legacy config is available use it; if only a typed source is
-	// provided the check is deferred to the ContributeHooks closure. Either way
-	// we skip wiring if OIDC is clearly not configured.
-	if legacyCfg := builder.Context().Config(); legacyCfg != nil {
-		if !legacyCfg.OIDC.IsConfigured() {
+	// Guard: if a source is available check whether OIDC is configured.
+	// Skip wiring if OIDC is clearly not configured.
+	if src := builder.Context().Source(); src != nil {
+		var oidcCfg oidcconfig.Config
+		if err := src.Unmarshal("oidc", &oidcCfg); err == nil && !oidcCfg.IsConfigured() {
 			return nil
 		}
 	}

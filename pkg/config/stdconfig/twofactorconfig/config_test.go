@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -197,51 +196,5 @@ func TestSetDefaults(t *testing.T) {
 	}
 	if cfg.OTP.MaxAttempts != 3 {
 		t.Errorf("OTP.MaxAttempts: got %d after SetDefaults, want 3", cfg.OTP.MaxAttempts)
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		TwoFactorAuth: configuration.TwoFactorAuthOptions{
-			Enabled:        true,
-			TOTPIssuer:     "LegacyApp",
-			EncryptionKey:  "enc-key-abc",
-			OTPCodeLength:  8,
-			OTPTTLSeconds:  600,
-			OTPMaxAttempts: 5,
-		},
-		OTPDelivery: configuration.OTPDeliveryOptions{
-			EnableEmail: true,
-			EnableSMS:   true,
-		},
-	}
-
-	got := twofactorconfig.FromLegacy(legacy)
-
-	if got.Enabled != legacy.TwoFactorAuth.Enabled {
-		t.Errorf("Enabled: got %v, want %v", got.Enabled, legacy.TwoFactorAuth.Enabled)
-	}
-	if got.TOTPIssuer != legacy.TwoFactorAuth.TOTPIssuer {
-		t.Errorf("TOTPIssuer: got %q, want %q", got.TOTPIssuer, legacy.TwoFactorAuth.TOTPIssuer)
-	}
-	if got.EncryptionKey != legacy.TwoFactorAuth.EncryptionKey {
-		t.Errorf("EncryptionKey: got %q, want %q", got.EncryptionKey, legacy.TwoFactorAuth.EncryptionKey)
-	}
-	if got.OTP.CodeLength != legacy.TwoFactorAuth.OTPCodeLength {
-		t.Errorf("OTP.CodeLength: got %d, want %d", got.OTP.CodeLength, legacy.TwoFactorAuth.OTPCodeLength)
-	}
-	if got.OTP.TTLSeconds != legacy.TwoFactorAuth.OTPTTLSeconds {
-		t.Errorf("OTP.TTLSeconds: got %d, want %d", got.OTP.TTLSeconds, legacy.TwoFactorAuth.OTPTTLSeconds)
-	}
-	if got.OTP.MaxAttempts != legacy.TwoFactorAuth.OTPMaxAttempts {
-		t.Errorf("OTP.MaxAttempts: got %d, want %d", got.OTP.MaxAttempts, legacy.TwoFactorAuth.OTPMaxAttempts)
-	}
-	if got.OTP.EnableEmail != legacy.OTPDelivery.EnableEmail {
-		t.Errorf("OTP.EnableEmail: got %v, want %v", got.OTP.EnableEmail, legacy.OTPDelivery.EnableEmail)
-	}
-	if got.OTP.EnableSMS != legacy.OTPDelivery.EnableSMS {
-		t.Errorf("OTP.EnableSMS: got %v, want %v", got.OTP.EnableSMS, legacy.OTPDelivery.EnableSMS)
 	}
 }

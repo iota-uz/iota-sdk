@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/ratelimitconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -112,33 +111,5 @@ func TestSetDefaults(t *testing.T) {
 	}
 	if cfg.Storage != "memory" {
 		t.Errorf("Storage: got %q after SetDefaults, want %q", cfg.Storage, "memory")
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		RateLimit: configuration.RateLimitOptions{
-			Enabled:   true,
-			GlobalRPS: 750,
-			Storage:   "redis",
-			RedisURL:  "redis://redis.example.com:6379",
-		},
-	}
-
-	got := ratelimitconfig.FromLegacy(legacy)
-
-	if got.Enabled != legacy.RateLimit.Enabled {
-		t.Errorf("Enabled: got %v, want %v", got.Enabled, legacy.RateLimit.Enabled)
-	}
-	if got.GlobalRPS != legacy.RateLimit.GlobalRPS {
-		t.Errorf("GlobalRPS: got %d, want %d", got.GlobalRPS, legacy.RateLimit.GlobalRPS)
-	}
-	if got.Storage != legacy.RateLimit.Storage {
-		t.Errorf("Storage: got %q, want %q", got.Storage, legacy.RateLimit.Storage)
-	}
-	if got.RedisURL != legacy.RateLimit.RedisURL {
-		t.Errorf("RedisURL: got %q, want %q", got.RedisURL, legacy.RateLimit.RedisURL)
 	}
 }

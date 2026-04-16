@@ -21,7 +21,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -71,23 +70,15 @@ func installAutoProviders(container *Container, ctx BuildContext) {
 	if logger := ctx.logger; logger != nil {
 		registerAutoValue[*logrus.Logger](container, "auto:logger", logger)
 	}
-	if cfg := ctx.config; cfg != nil {
-		registerAutoValue[*configuration.Configuration](container, "auto:config", cfg)
-	}
 
-	// Typed stdconfig auto-registration.
-	//
-	// Priority: if a config.Source is attached (new path), load via
-	// config.Register so validation runs. Fall back to FromLegacy when only a
-	// legacy *configuration.Configuration is available.
+	// Typed stdconfig auto-registration from config.Source.
+	// When no Source is attached, consumers must call composition.ProvideConfig[T] explicitly.
 	if src := ctx.source; src != nil {
 		installStdconfigFromSource(container, src)
-	} else if cfg := ctx.config; cfg != nil {
-		installStdconfigFromLegacy(container, cfg)
 	}
 }
 
-// installStdconfigFromSource populates all 14 stdconfig types from the new
+// installStdconfigFromSource populates all stdconfig types from the new
 // config.Source, using config.Register for unmarshal + optional Validate.
 // Each registered *T is placed into the container under the pointer key so
 // constructors can receive it directly.
@@ -138,72 +129,6 @@ func installStdconfigFromSource(container *Container, src config.Source) {
 	}
 	if ptr, err := config.Register[bichatconfig.Config](reg, "bichat"); err == nil {
 		registerAutoValue[*bichatconfig.Config](container, "auto:bichatconfig", ptr)
-	}
-}
-
-// installStdconfigFromLegacy populates all 14 stdconfig types from the legacy
-// *configuration.Configuration using each package's FromLegacy shim.
-// Removed atomically in W5.1 alongside pkg/configuration deletion.
-func installStdconfigFromLegacy(container *Container, cfg *configuration.Configuration) {
-	{
-		v := dbconfig.FromLegacy(cfg)
-		registerAutoValue[*dbconfig.Config](container, "auto:dbconfig", &v)
-	}
-	{
-		v := httpconfig.FromLegacy(cfg)
-		registerAutoValue[*httpconfig.Config](container, "auto:httpconfig", &v)
-	}
-	{
-		v := smtpconfig.FromLegacy(cfg)
-		registerAutoValue[*smtpconfig.Config](container, "auto:smtpconfig", &v)
-	}
-	{
-		v := twilioconfig.FromLegacy(cfg)
-		registerAutoValue[*twilioconfig.Config](container, "auto:twilioconfig", &v)
-	}
-	{
-		v := oidcconfig.FromLegacy(cfg)
-		registerAutoValue[*oidcconfig.Config](container, "auto:oidcconfig", &v)
-	}
-	{
-		v := googleoauthconfig.FromLegacy(cfg)
-		registerAutoValue[*googleoauthconfig.Config](container, "auto:googleoauthconfig", &v)
-	}
-	{
-		v := ratelimitconfig.FromLegacy(cfg)
-		registerAutoValue[*ratelimitconfig.Config](container, "auto:ratelimitconfig", &v)
-	}
-	{
-		v := twofactorconfig.FromLegacy(cfg)
-		registerAutoValue[*twofactorconfig.Config](container, "auto:twofactorconfig", &v)
-	}
-	{
-		v := telemetryconfig.FromLegacy(cfg)
-		registerAutoValue[*telemetryconfig.Config](container, "auto:telemetryconfig", &v)
-	}
-	{
-		v := uploadsconfig.FromLegacy(cfg)
-		registerAutoValue[*uploadsconfig.Config](container, "auto:uploadsconfig", &v)
-	}
-	{
-		v := redisconfig.FromLegacy(cfg)
-		registerAutoValue[*redisconfig.Config](container, "auto:redisconfig", &v)
-	}
-	{
-		v := meiliconfig.FromLegacy(cfg)
-		registerAutoValue[*meiliconfig.Config](container, "auto:meiliconfig", &v)
-	}
-	{
-		v := paymentsconfig.FromLegacy(cfg)
-		registerAutoValue[*paymentsconfig.Config](container, "auto:paymentsconfig", &v)
-	}
-	{
-		v := appconfig.FromLegacy(cfg)
-		registerAutoValue[*appconfig.Config](container, "auto:appconfig", &v)
-	}
-	{
-		v := bichatconfig.FromLegacy(cfg)
-		registerAutoValue[*bichatconfig.Config](container, "auto:bichatconfig", &v)
 	}
 }
 

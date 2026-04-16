@@ -168,9 +168,6 @@ func (c *component) Build(builder *composition.Builder) error {
 		if ptr, err := config.Register[bichatconfig.Config](reg, "bichat"); err == nil {
 			gateCfg = ptr
 		}
-	} else if legacyCfg := buildCtx.Config(); legacyCfg != nil {
-		v := bichatconfig.FromLegacy(legacyCfg)
-		gateCfg = &v
 	}
 	if gateCfg == nil {
 		v := bichatconfig.Config{}

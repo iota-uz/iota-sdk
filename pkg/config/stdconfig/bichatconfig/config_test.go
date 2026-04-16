@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	staticprov "github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func TestIsConfigured(t *testing.T) {
@@ -43,46 +42,6 @@ func TestIsConfigured(t *testing.T) {
 			t.Error("expected IsConfigured() = true when PublicKey is set")
 		}
 	})
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{}
-	legacy.OpenAIKey = "sk-legacy"
-	legacy.BiChatKnowledgeDir = "/opt/kb"
-	legacy.BiChatKBIndexPath = "/opt/kb/index.bleve"
-	legacy.BiChatSchemaMetadataDir = "/opt/kb/tables"
-	legacy.BiChatKnowledgeAutoLoad = true
-
-	cfg := bichatconfig.FromLegacy(legacy)
-
-	if cfg.OpenAI.APIKey != "sk-legacy" {
-		t.Errorf("OpenAI.APIKey: got %q, want %q", cfg.OpenAI.APIKey, "sk-legacy")
-	}
-	if cfg.Knowledge.Dir != "/opt/kb" {
-		t.Errorf("Knowledge.Dir: got %q, want %q", cfg.Knowledge.Dir, "/opt/kb")
-	}
-	if cfg.Knowledge.KBIndexPath != "/opt/kb/index.bleve" {
-		t.Errorf("Knowledge.KBIndexPath: got %q, want %q", cfg.Knowledge.KBIndexPath, "/opt/kb/index.bleve")
-	}
-	if cfg.Knowledge.SchemaMetadata != "/opt/kb/tables" {
-		t.Errorf("Knowledge.SchemaMetadata: got %q, want %q", cfg.Knowledge.SchemaMetadata, "/opt/kb/tables")
-	}
-	if !cfg.Knowledge.AutoLoad {
-		t.Error("Knowledge.AutoLoad: expected true")
-	}
-	// Env-only fields are zero from FromLegacy
-	if cfg.OpenAI.Model != "" {
-		t.Errorf("OpenAI.Model: expected empty, got %q", cfg.OpenAI.Model)
-	}
-	if cfg.Langfuse.PublicKey != "" {
-		t.Errorf("Langfuse.PublicKey: expected empty, got %q", cfg.Langfuse.PublicKey)
-	}
-	// SetDefaults should have filled Applet defaults
-	if cfg.Applet.ViteURL == "" {
-		t.Error("Applet.ViteURL: expected default, got empty")
-	}
 }
 
 func TestRoundTripFromSource(t *testing.T) {

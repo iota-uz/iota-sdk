@@ -9,7 +9,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,8 +41,7 @@ func GetDefaultDatabasePool(cfg *dbconfig.Config) (*pgxpool.Pool, error) {
 }
 
 // NewApplication creates a new application with consistent setup patterns.
-// It still accepts the legacy *configuration.Configuration for DI engine wiring (W5.1 removes this).
-func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, legacyConf *configuration.Configuration, components ...composition.Component) (application.Application, error) {
+func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, components ...composition.Component) (application.Application, error) {
 	bundle := application.LoadBundle()
 
 	app, err := application.New(&application.ApplicationOptions{
@@ -62,7 +60,7 @@ func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, legacyConf *confi
 		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 	_, err = engine.Compile(
-		composition.NewBuildContext(app, legacyConf),
+		composition.NewBuildContext(app),
 		composition.CapabilityAPI,
 		composition.CapabilityWorker,
 	)
@@ -74,14 +72,13 @@ func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, legacyConf *confi
 }
 
 // NewApplicationWithDefaults creates an application with default database and built-in modules.
-// conf is the legacy configuration used for DI engine wiring until W5.1 removes it.
-func NewApplicationWithDefaults(cfg *dbconfig.Config, logger *logrus.Logger, legacyConf *configuration.Configuration, components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
+func NewApplicationWithDefaults(cfg *dbconfig.Config, logger *logrus.Logger, components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
 	pool, err := GetDefaultDatabasePool(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	app, err := NewApplication(pool, logger, legacyConf, components...)
+	app, err := NewApplication(pool, logger, components...)
 	if err != nil {
 		pool.Close()
 		return nil, nil, err

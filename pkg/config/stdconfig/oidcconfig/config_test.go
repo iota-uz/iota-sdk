@@ -7,7 +7,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func TestConfig_StaticRoundTrip(t *testing.T) {
@@ -105,41 +104,5 @@ func TestSetDefaults_NoOverwrite(t *testing.T) {
 	}
 	if cfg.IDTokenLifetime != 15*time.Minute {
 		t.Errorf("SetDefaults must not overwrite IDTokenLifetime")
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{}
-	legacy.OIDC.IssuerURL = "https://issuer.example.com"
-	legacy.OIDC.CryptoKey = "mykey"
-	legacy.OIDC.AccessTokenLifetime = 30 * time.Minute
-	legacy.OIDC.RefreshTokenLifetime = 24 * time.Hour
-	legacy.OIDC.IDTokenLifetime = 15 * time.Minute
-
-	got := oidcconfig.FromLegacy(legacy)
-	if got.IssuerURL != "https://issuer.example.com" {
-		t.Errorf("IssuerURL mismatch")
-	}
-	if got.AccessTokenLifetime != 30*time.Minute {
-		t.Errorf("AccessTokenLifetime: want 30m, got %s", got.AccessTokenLifetime)
-	}
-	if !got.IsConfigured() {
-		t.Error("FromLegacy result should be IsConfigured")
-	}
-}
-
-func TestFromLegacy_Defaults(t *testing.T) {
-	t.Parallel()
-
-	// Zero durations in legacy → defaults applied.
-	legacy := &configuration.Configuration{}
-	got := oidcconfig.FromLegacy(legacy)
-	if got.AccessTokenLifetime != time.Hour {
-		t.Errorf("default AccessTokenLifetime: want 1h, got %s", got.AccessTokenLifetime)
-	}
-	if got.RefreshTokenLifetime != 720*time.Hour {
-		t.Errorf("default RefreshTokenLifetime: want 720h, got %s", got.RefreshTokenLifetime)
 	}
 }

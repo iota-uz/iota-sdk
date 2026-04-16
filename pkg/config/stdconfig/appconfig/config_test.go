@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -113,55 +112,5 @@ func TestIsDev_False(t *testing.T) {
 	cfg := appconfig.Config{Environment: "production"}
 	if cfg.IsDev() {
 		t.Error("IsDev: expected false for environment=production")
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		GoAppEnvironment:    "production",
-		TelegramBotToken:    "tg-secret",
-		EnableTestEndpoints: true,
-	}
-
-	got := appconfig.FromLegacy(legacy)
-
-	if got.Environment != "production" {
-		t.Errorf("Environment: got %q, want %q", got.Environment, "production")
-	}
-	if got.TelegramBotToken != "tg-secret" {
-		t.Errorf("TelegramBotToken: got %q, want %q", got.TelegramBotToken, "tg-secret")
-	}
-	if !got.EnableTestEndpoints {
-		t.Error("EnableTestEndpoints: expected true")
-	}
-}
-
-func TestFromLegacy_DefaultWhenEmpty(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{}
-	got := appconfig.FromLegacy(legacy)
-
-	if got.Environment != "development" {
-		t.Errorf("Environment default via FromLegacy: got %q, want %q", got.Environment, "development")
-	}
-	if got.EnableTestEndpoints {
-		t.Error("EnableTestEndpoints default via FromLegacy: expected false")
-	}
-}
-
-func TestFromLegacy_IsProductionMethod(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{GoAppEnvironment: "production"}
-	got := appconfig.FromLegacy(legacy)
-
-	if !got.IsProduction() {
-		t.Error("IsProduction: expected true after FromLegacy with production env")
-	}
-	if got.IsDev() {
-		t.Error("IsDev: expected false after FromLegacy with production env")
 	}
 }

@@ -10,7 +10,6 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -33,34 +32,50 @@ type BuildContext struct {
 	eventPublisher     eventbus.EventBus
 	logger             *logrus.Logger
 	bundle             *i18n.Bundle
-	config             *configuration.Configuration
 	source             config.Source
 	registry           *config.Registry
 	ActiveCapabilities map[Capability]struct{}
 }
 
-// NewBuildContext constructs the BuildContext from the application handle and
-// the SDK configuration. The application handle is captured privately so
-// Engine.Compile can auto-register application.Application as a provider at
-// container instantiation time.
-//
-// src is optional (pass nil during transition). When non-nil it enables
-// ProvideConfig[T] and auto-registration of typed stdconfig values.
-func NewBuildContext(app application.Application, cfg *configuration.Configuration, src ...config.Source) BuildContext {
-	ctx := BuildContext{
-		app:    app,
-		config: cfg,
+// BuildContextOption is a functional option for NewBuildContext.
+type BuildContextOption func(*BuildContext)
+
+// WithLogger attaches a logger to the BuildContext so it can be auto-registered
+// in the DI container. Use this when the logger is built outside of a
+// config.Source (e.g. in test harnesses).
+func WithLogger(logger *logrus.Logger) BuildContextOption {
+	return func(ctx *BuildContext) {
+		ctx.logger = logger
 	}
-	if len(src) > 0 {
-		ctx.source = src[0]
+}
+
+// NewBuildContext constructs the BuildContext from the application handle,
+// an optional config.Source, and any BuildContextOptions. The application
+// handle is captured privately so Engine.Compile can auto-register
+// application.Application as a provider at container instantiation time.
+//
+// src is optional. When non-nil it enables ProvideConfig[T] and
+// auto-registration of typed stdconfig values.
+func NewBuildContext(app application.Application, opts ...any) BuildContext {
+	ctx := BuildContext{
+		app: app,
 	}
 	if app != nil {
 		ctx.db = app.DB()
 		ctx.eventPublisher = app.EventPublisher()
 		ctx.bundle = app.Bundle()
 	}
-	if cfg != nil {
-		ctx.logger = cfg.Logger()
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case config.Source:
+			if v != nil {
+				ctx.source = v
+			}
+		case BuildContextOption:
+			if v != nil {
+				v(&ctx)
+			}
+		}
 	}
 	return ctx
 }
@@ -79,10 +94,6 @@ func (c BuildContext) Logger() *logrus.Logger {
 
 func (c BuildContext) Bundle() *i18n.Bundle {
 	return c.bundle
-}
-
-func (c BuildContext) Config() *configuration.Configuration {
-	return c.config
 }
 
 // Source returns the config.Source attached to this BuildContext, or nil if

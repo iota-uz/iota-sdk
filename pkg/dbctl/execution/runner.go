@@ -14,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/commands/e2e"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -31,15 +30,12 @@ type RunOptions struct {
 	PolicyPath string
 	Actor      string
 	Out        io.Writer
-	// DBConfig provides typed database config. Callers must populate this
-	// (typically via dbconfig.FromLegacy). Required.
+	// DBConfig provides typed database config. Required.
 	DBConfig *dbconfig.Config
 	// AppEnvironment is the deployment environment string (e.g. "production").
 	AppEnvironment string
 	// Logger is forwarded to seed operations.
 	Logger *logrus.Logger
-	// LegacyConf is still needed for DI engine wiring until W5.1.
-	LegacyConf *configuration.Configuration
 }
 
 type PlanResult struct {
@@ -93,7 +89,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 		Pool:       pool,
 		PolicyPath: opts.PolicyPath,
 		Logger:     opts.Logger,
-		LegacyConf: opts.LegacyConf,
+		DBConfig:   opts.DBConfig,
 	}
 	for _, cond := range spec.Preconditions {
 		if cond.Check == nil {
@@ -170,7 +166,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		JSONOutput: opts.JSONOutput,
 		PolicyPath: opts.PolicyPath,
 		Logger:     opts.Logger,
-		LegacyConf: opts.LegacyConf,
+		DBConfig:   opts.DBConfig,
 	}
 
 	for _, step := range plan.Spec.Steps {

@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -78,45 +77,5 @@ func TestSetDefaults_NonZeroValuesUnchanged(t *testing.T) {
 	}
 	if cfg.MaxMemory != 2048 {
 		t.Errorf("MaxMemory should be unchanged: got %d", cfg.MaxMemory)
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		UploadsPath:     "/uploads",
-		MaxUploadSize:   int64(67108864),
-		MaxUploadMemory: int64(16777216),
-	}
-
-	got := uploadsconfig.FromLegacy(legacy)
-
-	if got.Path != "/uploads" {
-		t.Errorf("Path: got %q, want %q", got.Path, "/uploads")
-	}
-	if got.MaxSize != 67108864 {
-		t.Errorf("MaxSize: got %d, want 67108864", got.MaxSize)
-	}
-	if got.MaxMemory != 16777216 {
-		t.Errorf("MaxMemory: got %d, want 16777216", got.MaxMemory)
-	}
-}
-
-func TestFromLegacy_Defaults(t *testing.T) {
-	t.Parallel()
-
-	// Empty legacy fields → defaults applied.
-	legacy := &configuration.Configuration{}
-	got := uploadsconfig.FromLegacy(legacy)
-
-	if got.Path != "static" {
-		t.Errorf("Path default via FromLegacy: got %q, want %q", got.Path, "static")
-	}
-	if got.MaxSize != 33554432 {
-		t.Errorf("MaxSize default via FromLegacy: got %d, want 33554432", got.MaxSize)
-	}
-	if got.MaxMemory != 33554432 {
-		t.Errorf("MaxMemory default via FromLegacy: got %d, want 33554432", got.MaxMemory)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -44,7 +45,7 @@ func RunMigration(cfg *dbconfig.Config, subcommand string) error {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
 		defer pool.Close()
-		return handleMigrationCommands(ctx, subcommand, application.NewMigrationManagerLegacy(pool))
+		return handleMigrationCommands(ctx, subcommand, application.NewMigrationManager(pool, *cfg, logrus.StandardLogger()))
 
 	default:
 		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", subcommand)

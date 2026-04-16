@@ -4,8 +4,9 @@ package commands
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 // NewMigrateCommand creates the migrate command group with all subcommands
@@ -35,12 +36,15 @@ func NewMigrateCommand() *cobra.Command {
 	return migrateCmd
 }
 
-// resolveDBConfig resolves a *dbconfig.Config from the legacy configuration singleton.
-// This is the sole config-resolution site for migrate commands.
-func resolveDBConfig() *dbconfig.Config {
-	legacyConf := configuration.Use()
-	cfg := dbconfig.FromLegacy(legacyConf)
-	return &cfg
+// resolveDBConfig builds a config source and returns a *dbconfig.Config.
+// This is the single config-resolution site for migrate commands.
+func resolveDBConfig() (*dbconfig.Config, error) {
+	src, err := config.Build(envprov.New(".env", ".env.local"))
+	if err != nil {
+		return nil, err
+	}
+	reg := config.NewRegistry(src)
+	return config.Register[dbconfig.Config](reg, "db")
 }
 
 func newMigrateUpCmd() *cobra.Command {
@@ -49,7 +53,11 @@ func newMigrateUpCmd() *cobra.Command {
 		Short: "Apply all pending migrations",
 		Long:  `Applies all pending database migrations to bring the schema up to the latest version.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunMigration(resolveDBConfig(), "up")
+			cfg, err := resolveDBConfig()
+			if err != nil {
+				return err
+			}
+			return RunMigration(cfg, "up")
 		},
 	}
 }
@@ -60,7 +68,11 @@ func newMigrateDownCmd() *cobra.Command {
 		Short: "Rollback the last migration",
 		Long:  `Rolls back the most recently applied database migration.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunMigration(resolveDBConfig(), "down")
+			cfg, err := resolveDBConfig()
+			if err != nil {
+				return err
+			}
+			return RunMigration(cfg, "down")
 		},
 	}
 }
@@ -71,7 +83,11 @@ func newMigrateRedoCmd() *cobra.Command {
 		Short: "Rollback and reapply the last migration",
 		Long:  `Rolls back the most recent migration and then reapplies it, useful for testing migration changes.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunMigration(resolveDBConfig(), "redo")
+			cfg, err := resolveDBConfig()
+			if err != nil {
+				return err
+			}
+			return RunMigration(cfg, "redo")
 		},
 	}
 }
@@ -82,7 +98,11 @@ func newMigrateStatusCmd() *cobra.Command {
 		Short: "Show migration status",
 		Long:  `Displays the status of all migrations, showing which are applied and which are pending.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return RunMigration(resolveDBConfig(), "status")
+			cfg, err := resolveDBConfig()
+			if err != nil {
+				return err
+			}
+			return RunMigration(cfg, "status")
 		},
 	}
 }

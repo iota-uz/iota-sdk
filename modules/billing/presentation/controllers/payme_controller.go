@@ -14,7 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	paymeapi "github.com/iota-uz/payme"
 	paymeauth "github.com/iota-uz/payme/auth"
@@ -23,11 +23,11 @@ import (
 
 type PaymeController struct {
 	billingService *services.BillingService
-	payme          configuration.PaymeOptions
+	payme          paymentsconfig.PaymeConfig
 	basePath       string
 }
 
-func NewPaymeController(billingService *services.BillingService, payme configuration.PaymeOptions, basePath string) application.Controller {
+func NewPaymeController(billingService *services.BillingService, payme paymentsconfig.PaymeConfig, basePath string) application.Controller {
 	return &PaymeController{
 		billingService: billingService,
 		payme:          payme,

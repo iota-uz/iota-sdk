@@ -241,7 +241,8 @@ func skipUnlessDB(t *testing.T) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	config, err := pgxpool.ParseConfig(itf.DBOpts("postgres"))
+	db := itf.LoadDBConfigFromEnv()
+	config, err := pgxpool.ParseConfig(itf.DBOpts("postgres", db))
 	if err != nil {
 		t.Skipf("skipping integration test: invalid db config: %v", err)
 	}

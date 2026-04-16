@@ -4,9 +4,10 @@ package commands
 import (
 	"github.com/spf13/cobra"
 
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 // NewKnowledgeCommand creates the knowledge command group.
@@ -42,17 +43,27 @@ func newKnowledgeLoadCmd(rebuild bool) *cobra.Command {
 		Use:   use,
 		Short: short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			legacyConf := configuration.Use()
-			bichatCfg := bichatconfig.FromLegacy(legacyConf)
-			dbCfg := dbconfig.FromLegacy(legacyConf)
+			src, err := config.Build(envprov.New(".env", ".env.local"))
+			if err != nil {
+				return err
+			}
+			reg := config.NewRegistry(src)
+			bichatCfg, err := config.Register[bichatconfig.Config](reg, "bichat")
+			if err != nil {
+				return err
+			}
+			dbCfg, err := config.Register[dbconfig.Config](reg, "db")
+			if err != nil {
+				return err
+			}
 			return runKnowledgeBootstrap(cmd, knowledgeBootstrapOptions{
 				KnowledgeDir: knowledgeDir,
 				TenantID:     tenantID,
 				IndexPath:    indexPath,
 				MetadataDir:  metadataDir,
 				Rebuild:      rebuild,
-				BichatCfg:    &bichatCfg,
-				DBCfg:        &dbCfg,
+				BichatCfg:    bichatCfg,
+				DBCfg:        dbCfg,
 			})
 		},
 	}

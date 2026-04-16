@@ -12,8 +12,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/eval"
 	evalcli "github.com/iota-uz/iota-sdk/pkg/bichat/eval/cli"
 	"github.com/iota-uz/iota-sdk/pkg/cli/exitcode"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func NewBiChatEvalCommand() *cobra.Command {
@@ -80,7 +81,17 @@ func newBiChatEvalRunCmd() *cobra.Command {
 			if strings.TrimSpace(seedTenantID) == "" {
 				return exitcode.InvalidUsage(fmt.Errorf("--seed-tenant-id is required"))
 			}
-			bichatCfg := bichatconfig.FromLegacy(configuration.Use())
+
+			src, err := config.Build(envprov.New(".env", ".env.local"))
+			if err != nil {
+				return exitcode.New(exitcode.InvalidUsageCode, err)
+			}
+			reg := config.NewRegistry(src)
+			bichatCfg, err := config.Register[bichatconfig.Config](reg, "bichat")
+			if err != nil {
+				return exitcode.New(exitcode.InvalidUsageCode, err)
+			}
+
 			openAIAPIKey := strings.TrimSpace(bichatCfg.OpenAI.APIKey)
 			if openAIAPIKey == "" {
 				return exitcode.InvalidUsage(fmt.Errorf("OPENAI_API_KEY (bichat.openai.apikey) is required"))

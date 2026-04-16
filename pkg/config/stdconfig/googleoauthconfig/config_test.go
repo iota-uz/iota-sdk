@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -81,29 +80,5 @@ func TestIsConfigured(t *testing.T) {
 				t.Errorf("IsConfigured: got %v, want %v", got, tc.expected)
 			}
 		})
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		Google: configuration.GoogleOptions{
-			RedirectURL:  "https://legacy.example.com/cb",
-			ClientID:     "legacy-client-id",
-			ClientSecret: "legacy-client-secret",
-		},
-	}
-
-	got := googleoauthconfig.FromLegacy(legacy)
-
-	if got.RedirectURL != legacy.Google.RedirectURL {
-		t.Errorf("RedirectURL: got %q, want %q", got.RedirectURL, legacy.Google.RedirectURL)
-	}
-	if got.ClientID != legacy.Google.ClientID {
-		t.Errorf("ClientID: got %q, want %q", got.ClientID, legacy.Google.ClientID)
-	}
-	if got.ClientSecret != legacy.Google.ClientSecret {
-		t.Errorf("ClientSecret: got %q, want %q", got.ClientSecret, legacy.Google.ClientSecret)
 	}
 }

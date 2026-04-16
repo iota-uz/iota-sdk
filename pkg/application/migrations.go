@@ -14,7 +14,6 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 // MigrationStatus represents the status of a single migration
@@ -42,17 +41,6 @@ func NewMigrationManager(pool *pgxpool.Pool, db dbconfig.Config, logger logrus.F
 		logger:        logger,
 		pool:          pool,
 	}
-}
-
-// NewMigrationManagerLegacy is a thin backward-compat wrapper that reads
-// configuration from the global singleton. It exists for callers that have
-// not yet migrated to dbconfig.Config; it will be removed in W5.1.
-//
-// Deprecated: use NewMigrationManager with an explicit dbconfig.Config instead.
-func NewMigrationManagerLegacy(pool *pgxpool.Pool) MigrationManager {
-	conf := configuration.Use()
-	db := dbconfig.FromLegacy(conf)
-	return NewMigrationManager(pool, db, conf.Logger())
 }
 
 // migrationManager implements the MigrationManager interface
@@ -218,4 +206,13 @@ func (m *migrationManager) Status(ctx context.Context) ([]MigrationStatus, error
 	}
 
 	return statuses, nil
+}
+
+// noopMigrationManager is a no-op implementation used when no DB config is provided.
+type noopMigrationManager struct{}
+
+func (n *noopMigrationManager) Run() error      { return nil }
+func (n *noopMigrationManager) Rollback() error { return nil }
+func (n *noopMigrationManager) Status(_ context.Context) ([]MigrationStatus, error) {
+	return nil, nil
 }

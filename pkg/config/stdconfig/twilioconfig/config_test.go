@@ -6,7 +6,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func TestConfig_StaticRoundTrip(t *testing.T) {
@@ -59,26 +58,5 @@ func TestIsConfigured(t *testing.T) {
 	empty := &twilioconfig.Config{}
 	if empty.IsConfigured() {
 		t.Error("IsConfigured: should be false when both fields empty")
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{}
-	legacy.Twilio.WebhookURL = "https://example.com/tw"
-	legacy.Twilio.AccountSID = "AClegacy"
-	legacy.Twilio.AuthToken = "legacytoken"
-	legacy.Twilio.PhoneNumber = "+1555000"
-
-	got := twilioconfig.FromLegacy(legacy)
-	if got.AccountSID != "AClegacy" {
-		t.Errorf("AccountSID mismatch")
-	}
-	if got.WebhookURL != "https://example.com/tw" {
-		t.Errorf("WebhookURL mismatch")
-	}
-	if !got.IsConfigured() {
-		t.Error("FromLegacy result should be IsConfigured")
 	}
 }

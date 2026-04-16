@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/telemetryconfig"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
@@ -124,43 +123,5 @@ func TestOTELIsConfigured(t *testing.T) {
 				t.Errorf("IsConfigured: got %v, want %v", got, tc.expected)
 			}
 		})
-	}
-}
-
-func TestFromLegacy(t *testing.T) {
-	t.Parallel()
-
-	legacy := &configuration.Configuration{
-		LogLevel: "debug",
-		Loki: configuration.LokiOptions{
-			URL:     "http://loki.legacy:3100",
-			AppName: "legacy-app",
-			LogPath: "./legacy/app.log",
-		},
-		OpenTelemetry: configuration.OpenTelemetryOptions{
-			TempoURL:    "http://tempo.legacy:4317",
-			ServiceName: "legacy-service",
-		},
-	}
-
-	got := telemetryconfig.FromLegacy(legacy)
-
-	if got.LogLevel != legacy.LogLevel {
-		t.Errorf("LogLevel: got %q, want %q", got.LogLevel, legacy.LogLevel)
-	}
-	if got.Loki.URL != legacy.Loki.URL {
-		t.Errorf("Loki.URL: got %q, want %q", got.Loki.URL, legacy.Loki.URL)
-	}
-	if got.Loki.AppName != legacy.Loki.AppName {
-		t.Errorf("Loki.AppName: got %q, want %q", got.Loki.AppName, legacy.Loki.AppName)
-	}
-	if got.Loki.LogPath != legacy.Loki.LogPath {
-		t.Errorf("Loki.LogPath: got %q, want %q", got.Loki.LogPath, legacy.Loki.LogPath)
-	}
-	if got.OTEL.TempoURL != legacy.OpenTelemetry.TempoURL {
-		t.Errorf("OTEL.TempoURL: got %q, want %q", got.OTEL.TempoURL, legacy.OpenTelemetry.TempoURL)
-	}
-	if got.OTEL.ServiceName != legacy.OpenTelemetry.ServiceName {
-		t.Errorf("OTEL.ServiceName: got %q, want %q", got.OTEL.ServiceName, legacy.OpenTelemetry.ServiceName)
 	}
 }

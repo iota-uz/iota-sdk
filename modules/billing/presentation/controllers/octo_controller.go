@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -36,14 +36,14 @@ const (
 
 type OctoController struct {
 	billingService *services.BillingService
-	octo           configuration.OctoOptions
+	octo           paymentsconfig.OctoConfig
 	basePath       string
 	logTransport   *middleware.LogTransport
 }
 
 func NewOctoController(
 	billingService *services.BillingService,
-	octo configuration.OctoOptions,
+	octo paymentsconfig.OctoConfig,
 	basePath string,
 	logTransport *middleware.LogTransport,
 ) application.Controller {
@@ -164,7 +164,7 @@ func (c *OctoController) parseNotification(r *http.Request, logger *logrus.Entry
 func (c *OctoController) validateSignature(notification *octoapi.NotificationRequest, logger *logrus.Entry) error {
 	if !octoauth.ValidateSignature(
 		notification.Signature,
-		c.octo.OctoSecretHash,
+		c.octo.SecretHash,
 		notification.OctoPaymentUUID,
 		notification.Status,
 	) {
@@ -409,8 +409,8 @@ func (c *OctoController) checkAndUpdateStatusAsync(
 
 	// Create check status request
 	req := octoapi.NewCheckStatusRequest(
-		c.octo.OctoShopID,
-		c.octo.OctoSecret,
+		c.octo.ShopID,
+		c.octo.Secret,
 		notification.ShopTransactionId,
 	)
 
