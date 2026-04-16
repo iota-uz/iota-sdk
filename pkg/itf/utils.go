@@ -362,10 +362,18 @@ func setupApplicationWithSource(
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
 		}
 		var buildCtx composition.BuildContext
-		if len(sources) > 0 && sources[0] != nil {
+		switch {
+		case len(sources) > 0 && sources[0] != nil:
 			buildCtx = composition.NewBuildContext(app, sources[0], composition.WithLogger(logger))
-		} else {
-			buildCtx = composition.NewBuildContext(app, composition.WithLogger(logger))
+		default:
+			// No explicit source supplied — build one from the standard env file
+			// chain so stdconfig auto-registration still works in tests that
+			// don't go through itf.SuiteBuilder.WithSource.
+			fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
+			if err != nil {
+				return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
+			}
+			buildCtx = composition.NewBuildContext(app, fallback, composition.WithLogger(logger))
 		}
 		container, err = engine.Compile(
 			buildCtx,
