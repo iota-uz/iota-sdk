@@ -19,17 +19,18 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 )
 
 // CheckTrKeys validates translation key consistency across all configured locales.
-// cfg and logger are resolved by the caller (typically a cobra RunE).
+// cfg, src, and logger are resolved by the caller (typically a cobra RunE).
 // When logger is nil a default logrus logger is used.
-func CheckTrKeys(cfg *dbconfig.Config, logger *logrus.Logger, components ...composition.Component) error {
+func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger, components ...composition.Component) error {
 	if logger == nil {
 		logger = logrus.StandardLogger()
 	}
-	app, pool, err := common.NewApplicationWithDefaults(cfg, logger, components...)
+	app, pool, err := common.NewApplicationWithDefaults(cfg, logger, src, components...)
 	if err != nil {
 		return fmt.Errorf("failed to initialize application: %w", err)
 	}

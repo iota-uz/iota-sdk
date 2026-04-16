@@ -36,7 +36,7 @@ func newCheckTrKeysCmd() *cobra.Command {
 				return fmt.Errorf("failed to load dbconfig: %w", err)
 			}
 			allComponents := append(modules.Components(), superadmin.NewComponent(&superadmin.ModuleOptions{}))
-			return CheckTrKeys(cfg, nil, allComponents...)
+			return CheckTrKeys(cfg, src, nil, allComponents...)
 		},
 	}
 }

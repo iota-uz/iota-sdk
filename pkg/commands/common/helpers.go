@@ -8,6 +8,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -41,7 +42,11 @@ func GetDefaultDatabasePool(cfg *dbconfig.Config) (*pgxpool.Pool, error) {
 }
 
 // NewApplication creates a new application with consistent setup patterns.
-func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, components ...composition.Component) (application.Application, error) {
+// src is the config.Source attached to the composition BuildContext so that
+// stdconfig values (dbconfig, httpconfig, uploadsconfig, …) are auto-registered
+// in the DI container and constructor injection works end-to-end. Pass nil
+// only when the caller is certain no component will resolve a stdconfig.
+func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, src config.Source, components ...composition.Component) (application.Application, error) {
 	bundle := application.LoadBundle()
 
 	app, err := application.New(&application.ApplicationOptions{
@@ -60,7 +65,7 @@ func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, components ...com
 		return nil, serrors.E(serrors.Op("commands.common.NewApplication"), err)
 	}
 	_, err = engine.Compile(
-		composition.NewBuildContext(app),
+		composition.NewBuildContext(app, src, composition.WithLogger(logger)),
 		composition.CapabilityAPI,
 		composition.CapabilityWorker,
 	)
@@ -72,13 +77,14 @@ func NewApplication(pool *pgxpool.Pool, logger *logrus.Logger, components ...com
 }
 
 // NewApplicationWithDefaults creates an application with default database and built-in modules.
-func NewApplicationWithDefaults(cfg *dbconfig.Config, logger *logrus.Logger, components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
+// src is threaded through to NewApplication; see NewApplication for its role.
+func NewApplicationWithDefaults(cfg *dbconfig.Config, logger *logrus.Logger, src config.Source, components ...composition.Component) (application.Application, *pgxpool.Pool, error) {
 	pool, err := GetDefaultDatabasePool(cfg)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	app, err := NewApplication(pool, logger, components...)
+	app, err := NewApplication(pool, logger, src, components...)
 	if err != nil {
 		pool.Close()
 		return nil, nil, err
