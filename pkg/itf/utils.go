@@ -335,6 +335,8 @@ func DBOpts(name string, db dbconfig.Config) string {
 
 // setupApplicationWithSource bootstraps an application and composition container for tests.
 // When src is non-nil it is forwarded to the build context for ProvideConfig[T].
+// A *dbconfig.Config is also pulled from the source and passed to ApplicationOptions
+// so that app.Migrations() returns a real manager (not the no-op fallback).
 func setupApplicationWithSource(
 	pool *pgxpool.Pool,
 	logger *logrus.Logger,
@@ -344,12 +346,36 @@ func setupApplicationWithSource(
 	if logger == nil {
 		logger = logrus.New()
 	}
+
+	// Resolve the config source up front so it can feed both the
+	// composition build context and ApplicationOptions.DBConfig.
+	var src config.Source
+	switch {
+	case len(sources) > 0 && sources[0] != nil:
+		src = sources[0]
+	default:
+		fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
+		if err != nil {
+			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
+		}
+		src = fallback
+	}
+
+	var dbCfg *dbconfig.Config
+	if src != nil {
+		reg := config.NewRegistry(src)
+		if cfg, err := config.Register[dbconfig.Config](reg, "db"); err == nil {
+			dbCfg = cfg
+		}
+	}
+
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
 		Pool:               pool,
 		Bundle:             bundle,
 		EventBus:           eventbus.NewEventPublisher(logger),
 		Logger:             logger,
+		DBConfig:           dbCfg,
 		SupportedLanguages: application.DefaultSupportedLanguages(),
 	})
 	if err != nil {
@@ -361,20 +387,7 @@ func setupApplicationWithSource(
 		if err := engine.Register(components...); err != nil {
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
 		}
-		var buildCtx composition.BuildContext
-		switch {
-		case len(sources) > 0 && sources[0] != nil:
-			buildCtx = composition.NewBuildContext(app, sources[0], composition.WithLogger(logger))
-		default:
-			// No explicit source supplied — build one from the standard env file
-			// chain so stdconfig auto-registration still works in tests that
-			// don't go through itf.SuiteBuilder.WithSource.
-			fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
-			if err != nil {
-				return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
-			}
-			buildCtx = composition.NewBuildContext(app, fallback, composition.WithLogger(logger))
-		}
+		buildCtx := composition.NewBuildContext(app, src, composition.WithLogger(logger))
 		container, err = engine.Compile(
 			buildCtx,
 			composition.CapabilityAPI,
