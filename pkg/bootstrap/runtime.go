@@ -58,10 +58,14 @@ func (rt *Runtime) BuildContext() composition.BuildContext {
 	if rt == nil {
 		return composition.BuildContext{}
 	}
+	opts := make([]any, 0, 2)
 	if rt.Source != nil {
-		return composition.NewBuildContext(rt.App, rt.Source)
+		opts = append(opts, rt.Source)
 	}
-	return composition.NewBuildContext(rt.App)
+	if rt.Logger != nil {
+		opts = append(opts, composition.WithLogger(rt.Logger))
+	}
+	return composition.NewBuildContext(rt.App, opts...)
 }
 
 // SetComposition stores the compiled engine and container on the runtime.
