@@ -23,10 +23,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 )
 
-// CheckTrKeys validates translation key consistency across all configured locales.
-// cfg, src, and logger are resolved by the caller (typically a cobra RunE).
-// When logger is nil a default logrus logger is used.
-func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger, components ...composition.Component) error {
+// CheckTrKeys validates translation key consistency across the configured
+// locales. cfg, src, and logger are resolved by the caller (typically a cobra
+// RunE). When logger is nil a default logrus logger is used. When
+// allowedLocales is non-empty, only keys belonging to those locales are
+// validated; an empty slice checks every locale present in the bundle.
+func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger, allowedLocales []language.Tag, components ...composition.Component) error {
 	if logger == nil {
 		logger = logrus.StandardLogger()
 	}
@@ -38,6 +40,12 @@ func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger,
 
 	messages := app.Bundle().Messages()
 
+	allowed := make(map[language.Tag]bool, len(allowedLocales))
+	for _, tag := range allowedLocales {
+		allowed[tag] = true
+	}
+	filterLocales := len(allowed) > 0
+
 	// Store all keys for each locale
 	allKeys := make(map[string]map[language.Tag]bool)
 	locales := make([]language.Tag, 0)
@@ -45,6 +53,9 @@ func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger,
 	// First pass: collect all keys from locales
 	for locale, message := range messages {
 		if message == nil {
+			continue
+		}
+		if filterLocales && !allowed[locale] {
 			continue
 		}
 
