@@ -79,29 +79,29 @@ func (p *envProvider) Load(k *koanf.Koanf) error {
 // legacy names listed here are honored as a transition convenience.
 var legacyAliases = map[string]string{
 	// httpconfig
-	"PORT":                  "http.port",
-	"DOMAIN":                "http.domain",
-	"ORIGIN":                "http.origin",
-	"ALLOWED_ORIGINS":       "http.allowedorigins",
-	"GO_APP_ENV":            "http.environment",
-	"REQUEST_ID_HEADER":     "http.headers.requestid",
-	"REAL_IP_HEADER":        "http.headers.realip",
-	"SID_COOKIE_KEY":        "http.cookies.sid",
+	"PORT":                   "http.port",
+	"DOMAIN":                 "http.domain",
+	"ORIGIN":                 "http.origin",
+	"ALLOWED_ORIGINS":        "http.allowedorigins",
+	"GO_APP_ENV":             "http.environment",
+	"REQUEST_ID_HEADER":      "http.headers.requestid",
+	"REAL_IP_HEADER":         "http.headers.realip",
+	"SID_COOKIE_KEY":         "http.cookies.sid",
 	"OAUTH_STATE_COOKIE_KEY": "http.cookies.oauthstate",
-	"SESSION_DURATION":      "http.session.duration",
-	"PAGE_SIZE":             "http.pagination.pagesize",
-	"MAX_PAGE_SIZE":         "http.pagination.maxpagesize",
+	"SESSION_DURATION":       "http.session.duration",
+	"PAGE_SIZE":              "http.pagination.pagesize",
+	"MAX_PAGE_SIZE":          "http.pagination.maxpagesize",
 
 	// appconfig
 	"ENABLE_TEST_ENDPOINTS": "app.enabletestendpoints",
 	"TELEGRAM_BOT_TOKEN":    "app.telegrambottoken",
 
 	// telemetryconfig
-	"LOG_LEVEL":        "telemetry.loglevel",
-	"LOKI_URL":         "telemetry.loki.url",
-	"LOKI_APP_NAME":    "telemetry.loki.appname",
-	"LOG_PATH":         "telemetry.loki.logpath",
-	"OTEL_TEMPO_URL":   "telemetry.otel.tempourl",
+	"LOG_LEVEL":         "telemetry.loglevel",
+	"LOKI_URL":          "telemetry.loki.url",
+	"LOKI_APP_NAME":     "telemetry.loki.appname",
+	"LOG_PATH":          "telemetry.loki.logpath",
+	"OTEL_TEMPO_URL":    "telemetry.otel.tempourl",
 	"OTEL_SERVICE_NAME": "telemetry.otel.servicename",
 
 	// uploadsconfig
@@ -118,24 +118,24 @@ var legacyAliases = map[string]string{
 
 	// dbconfig pool fields (DB_NAME / DB_HOST / DB_PORT / DB_USER / DB_PASSWORD already
 	// transform correctly to db.name etc).
-	"DB_MAX_CONNS":              "db.pool.maxconns",
-	"DB_MIN_CONNS":              "db.pool.minconns",
-	"DB_MAX_CONN_LIFETIME":      "db.pool.maxconnlifetime",
+	"DB_MAX_CONNS":                "db.pool.maxconns",
+	"DB_MIN_CONNS":                "db.pool.minconns",
+	"DB_MAX_CONN_LIFETIME":        "db.pool.maxconnlifetime",
 	"DB_MAX_CONN_LIFETIME_JITTER": "db.pool.maxconnlifetimejitter",
-	"DB_MAX_CONN_IDLE_TIME":     "db.pool.maxconnidletime",
-	"DB_HEALTH_CHECK_PERIOD":    "db.pool.healthcheckperiod",
-	"DB_CONNECT_TIMEOUT":        "db.pool.connecttimeout",
-	"MIGRATIONS_DIR":            "db.migrationsdir",
+	"DB_MAX_CONN_IDLE_TIME":       "db.pool.maxconnidletime",
+	"DB_HEALTH_CHECK_PERIOD":      "db.pool.healthcheckperiod",
+	"DB_CONNECT_TIMEOUT":          "db.pool.connecttimeout",
+	"MIGRATIONS_DIR":              "db.migrationsdir",
 
 	// twofactorconfig
-	"ENABLE_2FA":           "twofactor.enabled",
-	"TOTP_ISSUER":          "twofactor.totpissuer",
-	"TOTP_ENCRYPTION_KEY":  "twofactor.encryptionkey",
-	"OTP_CODE_LENGTH":      "twofactor.otp.codelength",
-	"OTP_TTL_SECONDS":      "twofactor.otp.ttlseconds",
-	"OTP_MAX_ATTEMPTS":     "twofactor.otp.maxattempts",
-	"OTP_ENABLE_EMAIL":     "twofactor.otp.enableemail",
-	"OTP_ENABLE_SMS":       "twofactor.otp.enablesms",
+	"ENABLE_2FA":          "twofactor.enabled",
+	"TOTP_ISSUER":         "twofactor.totpissuer",
+	"TOTP_ENCRYPTION_KEY": "twofactor.encryptionkey",
+	"OTP_CODE_LENGTH":     "twofactor.otp.codelength",
+	"OTP_TTL_SECONDS":     "twofactor.otp.ttlseconds",
+	"OTP_MAX_ATTEMPTS":    "twofactor.otp.maxattempts",
+	"OTP_ENABLE_EMAIL":    "twofactor.otp.enableemail",
+	"OTP_ENABLE_SMS":      "twofactor.otp.enablesms",
 
 	// ratelimitconfig
 	"RATE_LIMIT_ENABLED":    "ratelimit.enabled",
@@ -144,15 +144,15 @@ var legacyAliases = map[string]string{
 	"RATE_LIMIT_REDIS_URL":  "ratelimit.redisurl",
 
 	// oidcconfig
-	"OIDC_ISSUER_URL":            "oidc.issuerurl",
-	"OIDC_CRYPTO_KEY":            "oidc.cryptokey",
-	"OIDC_ACCESS_TOKEN_LIFETIME": "oidc.accesstokenlifetime",
+	"OIDC_ISSUER_URL":             "oidc.issuerurl",
+	"OIDC_CRYPTO_KEY":             "oidc.cryptokey",
+	"OIDC_ACCESS_TOKEN_LIFETIME":  "oidc.accesstokenlifetime",
 	"OIDC_REFRESH_TOKEN_LIFETIME": "oidc.refreshtokenlifetime",
-	"OIDC_ID_TOKEN_LIFETIME":     "oidc.idtokenlifetime",
+	"OIDC_ID_TOKEN_LIFETIME":      "oidc.idtokenlifetime",
 
 	// googleoauthconfig
-	"GOOGLE_REDIRECT_URL": "google.redirecturl",
-	"GOOGLE_CLIENT_ID":    "google.clientid",
+	"GOOGLE_REDIRECT_URL":  "google.redirecturl",
+	"GOOGLE_CLIENT_ID":     "google.clientid",
 	"GOOGLE_CLIENT_SECRET": "google.clientsecret",
 
 	// twilioconfig
@@ -169,19 +169,19 @@ var legacyAliases = map[string]string{
 	"SMTP_FROM":     "smtp.from",
 
 	// bichatconfig (legacy OPENAI_* and BICHAT_KNOWLEDGE_* variants)
-	"OPENAI_API_KEY":           "bichat.openai.apikey",
-	"OPENAI_KEY":               "bichat.openai.apikey", // alternate legacy name
-	"OPENAI_MODEL":             "bichat.openai.model",
-	"OPENAI_BASE_URL":          "bichat.openai.baseurl",
-	"OPENAI_API_RESOLVE_IP":    "bichat.openai.resolveip",
-	"LANGFUSE_PUBLIC_KEY":      "bichat.langfuse.publickey",
-	"LANGFUSE_SECRET_KEY":      "bichat.langfuse.secretkey",
-	"LANGFUSE_BASE_URL":        "bichat.langfuse.baseurl",
-	"LANGFUSE_HOST":            "bichat.langfuse.host",
-	"BICHAT_KNOWLEDGE_DIR":     "bichat.knowledge.dir",
-	"BICHAT_KB_INDEX_PATH":     "bichat.knowledge.kbindexpath",
-	"BICHAT_SCHEMA_METADATA_DIR": "bichat.knowledge.schemametadata",
-	"BICHAT_KNOWLEDGE_AUTO_LOAD": "bichat.knowledge.autoload",
+	"OPENAI_API_KEY":              "bichat.openai.apikey",
+	"OPENAI_KEY":                  "bichat.openai.apikey", // alternate legacy name
+	"OPENAI_MODEL":                "bichat.openai.model",
+	"OPENAI_BASE_URL":             "bichat.openai.baseurl",
+	"OPENAI_API_RESOLVE_IP":       "bichat.openai.resolveip",
+	"LANGFUSE_PUBLIC_KEY":         "bichat.langfuse.publickey",
+	"LANGFUSE_SECRET_KEY":         "bichat.langfuse.secretkey",
+	"LANGFUSE_BASE_URL":           "bichat.langfuse.baseurl",
+	"LANGFUSE_HOST":               "bichat.langfuse.host",
+	"BICHAT_KNOWLEDGE_DIR":        "bichat.knowledge.dir",
+	"BICHAT_KB_INDEX_PATH":        "bichat.knowledge.kbindexpath",
+	"BICHAT_SCHEMA_METADATA_DIR":  "bichat.knowledge.schemametadata",
+	"BICHAT_KNOWLEDGE_AUTO_LOAD":  "bichat.knowledge.autoload",
 	"IOTA_APPLET_VITE_URL_BICHAT": "bichat.applet.viteurl",
 	"IOTA_APPLET_ENTRY_BICHAT":    "bichat.applet.entry",
 	"IOTA_APPLET_CLIENT_BICHAT":   "bichat.applet.client",
