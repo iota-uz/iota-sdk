@@ -73,15 +73,150 @@ func (p *envProvider) Load(k *koanf.Koanf) error {
 	return k.Load(provider, nil)
 }
 
-// transformKey applies the locked single-underscore-to-dot transform.
-// Double (or more) underscores are treated as literal underscores in the key
-// (they collapse to a single underscore — a concern for W0.2 stdconfig naming).
+// legacyAliases maps legacy env var names to their stdconfig koanf paths so
+// existing deployments and CI workflows continue to work without renames.
+// New code should set the canonical env name (e.g. HTTP_PORT for http.port);
+// legacy names listed here are honored as a transition convenience.
+var legacyAliases = map[string]string{
+	// httpconfig
+	"PORT":                  "http.port",
+	"DOMAIN":                "http.domain",
+	"ORIGIN":                "http.origin",
+	"ALLOWED_ORIGINS":       "http.allowedorigins",
+	"GO_APP_ENV":            "http.environment",
+	"REQUEST_ID_HEADER":     "http.headers.requestid",
+	"REAL_IP_HEADER":        "http.headers.realip",
+	"SID_COOKIE_KEY":        "http.cookies.sid",
+	"OAUTH_STATE_COOKIE_KEY": "http.cookies.oauthstate",
+	"SESSION_DURATION":      "http.session.duration",
+	"PAGE_SIZE":             "http.pagination.pagesize",
+	"MAX_PAGE_SIZE":         "http.pagination.maxpagesize",
+
+	// appconfig
+	"ENABLE_TEST_ENDPOINTS": "app.enabletestendpoints",
+	"TELEGRAM_BOT_TOKEN":    "app.telegrambottoken",
+
+	// telemetryconfig
+	"LOG_LEVEL":        "telemetry.loglevel",
+	"LOKI_URL":         "telemetry.loki.url",
+	"LOKI_APP_NAME":    "telemetry.loki.appname",
+	"LOG_PATH":         "telemetry.loki.logpath",
+	"OTEL_TEMPO_URL":   "telemetry.otel.tempourl",
+	"OTEL_SERVICE_NAME": "telemetry.otel.servicename",
+
+	// uploadsconfig
+	"UPLOADS_PATH":      "uploads.path",
+	"MAX_UPLOAD_SIZE":   "uploads.maxsize",
+	"MAX_UPLOAD_MEMORY": "uploads.maxmemory",
+
+	// redisconfig
+	"REDIS_URL": "redis.url",
+
+	// meiliconfig
+	"MEILI_URL":     "meili.url",
+	"MEILI_API_KEY": "meili.apikey",
+
+	// dbconfig pool fields (DB_NAME / DB_HOST / DB_PORT / DB_USER / DB_PASSWORD already
+	// transform correctly to db.name etc).
+	"DB_MAX_CONNS":              "db.pool.maxconns",
+	"DB_MIN_CONNS":              "db.pool.minconns",
+	"DB_MAX_CONN_LIFETIME":      "db.pool.maxconnlifetime",
+	"DB_MAX_CONN_LIFETIME_JITTER": "db.pool.maxconnlifetimejitter",
+	"DB_MAX_CONN_IDLE_TIME":     "db.pool.maxconnidletime",
+	"DB_HEALTH_CHECK_PERIOD":    "db.pool.healthcheckperiod",
+	"DB_CONNECT_TIMEOUT":        "db.pool.connecttimeout",
+	"MIGRATIONS_DIR":            "db.migrationsdir",
+
+	// twofactorconfig
+	"ENABLE_2FA":           "twofactor.enabled",
+	"TOTP_ISSUER":          "twofactor.totpissuer",
+	"TOTP_ENCRYPTION_KEY":  "twofactor.encryptionkey",
+	"OTP_CODE_LENGTH":      "twofactor.otp.codelength",
+	"OTP_TTL_SECONDS":      "twofactor.otp.ttlseconds",
+	"OTP_MAX_ATTEMPTS":     "twofactor.otp.maxattempts",
+	"OTP_ENABLE_EMAIL":     "twofactor.otp.enableemail",
+	"OTP_ENABLE_SMS":       "twofactor.otp.enablesms",
+
+	// ratelimitconfig
+	"RATE_LIMIT_ENABLED":    "ratelimit.enabled",
+	"RATE_LIMIT_GLOBAL_RPS": "ratelimit.globalrps",
+	"RATE_LIMIT_STORAGE":    "ratelimit.storage",
+	"RATE_LIMIT_REDIS_URL":  "ratelimit.redisurl",
+
+	// oidcconfig
+	"OIDC_ISSUER_URL":            "oidc.issuerurl",
+	"OIDC_CRYPTO_KEY":            "oidc.cryptokey",
+	"OIDC_ACCESS_TOKEN_LIFETIME": "oidc.accesstokenlifetime",
+	"OIDC_REFRESH_TOKEN_LIFETIME": "oidc.refreshtokenlifetime",
+	"OIDC_ID_TOKEN_LIFETIME":     "oidc.idtokenlifetime",
+
+	// googleoauthconfig
+	"GOOGLE_REDIRECT_URL": "google.redirecturl",
+	"GOOGLE_CLIENT_ID":    "google.clientid",
+	"GOOGLE_CLIENT_SECRET": "google.clientsecret",
+
+	// twilioconfig
+	"TWILIO_WEBHOOK_URL":  "twilio.webhookurl",
+	"TWILIO_ACCOUNT_SID":  "twilio.accountsid",
+	"TWILIO_AUTH_TOKEN":   "twilio.authtoken",
+	"TWILIO_PHONE_NUMBER": "twilio.phonenumber",
+
+	// smtpconfig
+	"SMTP_HOST":     "smtp.host",
+	"SMTP_PORT":     "smtp.port",
+	"SMTP_USERNAME": "smtp.username",
+	"SMTP_PASSWORD": "smtp.password",
+	"SMTP_FROM":     "smtp.from",
+
+	// bichatconfig (legacy OPENAI_* and BICHAT_KNOWLEDGE_* variants)
+	"OPENAI_API_KEY":           "bichat.openai.apikey",
+	"OPENAI_KEY":               "bichat.openai.apikey", // alternate legacy name
+	"OPENAI_MODEL":             "bichat.openai.model",
+	"OPENAI_BASE_URL":          "bichat.openai.baseurl",
+	"OPENAI_API_RESOLVE_IP":    "bichat.openai.resolveip",
+	"LANGFUSE_PUBLIC_KEY":      "bichat.langfuse.publickey",
+	"LANGFUSE_SECRET_KEY":      "bichat.langfuse.secretkey",
+	"LANGFUSE_BASE_URL":        "bichat.langfuse.baseurl",
+	"LANGFUSE_HOST":            "bichat.langfuse.host",
+	"BICHAT_KNOWLEDGE_DIR":     "bichat.knowledge.dir",
+	"BICHAT_KB_INDEX_PATH":     "bichat.knowledge.kbindexpath",
+	"BICHAT_SCHEMA_METADATA_DIR": "bichat.knowledge.schemametadata",
+	"BICHAT_KNOWLEDGE_AUTO_LOAD": "bichat.knowledge.autoload",
+	"IOTA_APPLET_VITE_URL_BICHAT": "bichat.applet.viteurl",
+	"IOTA_APPLET_ENTRY_BICHAT":    "bichat.applet.entry",
+	"IOTA_APPLET_CLIENT_BICHAT":   "bichat.applet.client",
+
+	// paymentsconfig
+	"CLICK_URL":              "payments.click.url",
+	"CLICK_MERCHANT_ID":      "payments.click.merchantid",
+	"CLICK_MERCHANT_USER_ID": "payments.click.merchantuserid",
+	"CLICK_SERVICE_ID":       "payments.click.serviceid",
+	"CLICK_SECRET_KEY":       "payments.click.secretkey",
+	"PAYME_URL":              "payments.payme.url",
+	"PAYME_MERCHANT_ID":      "payments.payme.merchantid",
+	"PAYME_USER":             "payments.payme.user",
+	"PAYME_SECRET_KEY":       "payments.payme.secretkey",
+	"OCTO_SHOP_ID":           "payments.octo.shopid",
+	"OCTO_SECRET":            "payments.octo.secret",
+	"OCTO_SECRET_HASH":       "payments.octo.secrethash",
+	"OCTO_NOTIFY_URL":        "payments.octo.notifyurl",
+	"STRIPE_SECRET_KEY":      "payments.stripe.secretkey",
+	"STRIPE_SIGNING_SECRET":  "payments.stripe.signingsecret",
+}
+
+// transformKey applies the locked single-underscore-to-dot transform with a
+// legacy-alias bypass for env vars whose natural transform doesn't match the
+// stdconfig koanf paths (multi-word leaf names, bare top-level vars, or
+// renamed prefixes).
 //
 // Transform steps:
-//  1. Strip leading/trailing underscores.
-//  2. Lowercase the whole string.
-//  3. Replace each remaining "_" with ".".
+//  1. If the key is a known legacy alias, return its mapped path verbatim.
+//  2. Otherwise: strip leading/trailing underscores, lowercase, replace each
+//     remaining "_" with ".".
 func transformKey(k, v string) (string, any) {
+	if alias, ok := legacyAliases[k]; ok {
+		return alias, v
+	}
 	k = strings.Trim(k, "_")
 	k = strings.ToLower(k)
 	k = strings.ReplaceAll(k, "_", ".")
