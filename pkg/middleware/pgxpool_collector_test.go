@@ -112,15 +112,15 @@ func TestPgxPoolCollector_CollectsFromRealPool(t *testing.T) {
 func requireTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	// Hardcoded defaults that match the local dev compose.
-	// Full env-driven config (W4 scope) will replace this with
-	// itf.SuiteBuilder.WithSource(staticprov.New(...)).
+	// Hardcoded defaults that match the local dev compose and CI postgres
+	// service (DB_NAME=iota_erp, DB_USER=postgres, DB_PASSWORD=postgres).
+	// Match dbconfig.SetDefaults so the test works in both environments.
 	cfg := &dbconfig.Config{
 		Host:     "localhost",
 		Port:     "5432",
-		Name:     "iota",
+		Name:     "iota_erp",
 		User:     "postgres",
-		Password: "",
+		Password: "postgres",
 	}
 	addr := net.JoinHostPort(cfg.Host, cfg.Port)
 
