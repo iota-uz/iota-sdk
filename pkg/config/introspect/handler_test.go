@@ -8,7 +8,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/introspect"
+	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 )
 
 type secretStruct struct {
@@ -133,6 +135,113 @@ func TestHandlerFromMap_DeterministicKeyOrder(t *testing.T) {
 	resorted, _ := json.MarshalIndent(parsed, "", "  ")
 	if !bytes.Equal(first, resorted) {
 		t.Errorf("keys are not sorted:\ngot:  %s\nwant: %s", first, resorted)
+	}
+}
+
+func TestHandlerWithOrigins_PlainMode(t *testing.T) {
+	t.Parallel()
+
+	src, err := config.Build(static.New(map[string]any{"db.host": "localhost"}))
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	h := introspect.HandlerWithOrigins(
+		func() any { return secretStruct{Host: "plain"} },
+		src,
+		func(*http.Request) bool { return true },
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/debug/config", nil) // no ?origins=1
+	rr := httptest.NewRecorder()
+	h(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	// Should be plain JSON, not the {values, origins} wrapper.
+	if strings.HasPrefix(body, `{"values":`) {
+		t.Errorf("plain mode should not include values/origins wrapper: %s", body)
+	}
+	if !strings.Contains(body, "plain") {
+		t.Errorf("body missing host field: %s", body)
+	}
+}
+
+func TestHandlerWithOrigins_OriginsMode(t *testing.T) {
+	t.Parallel()
+
+	src, err := config.Build(
+		static.New(map[string]any{"db.host": "myhost", "db.port": "5432"}),
+	)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	h := introspect.HandlerWithOrigins(
+		func() any { return secretStruct{Host: "snap", Password: "secret"} },
+		src,
+		func(*http.Request) bool { return true },
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/debug/config?origins=1", nil)
+	rr := httptest.NewRecorder()
+	h(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	body := rr.Body.String()
+	if !strings.HasPrefix(body, `{"values":`) {
+		t.Errorf("origins mode should have {values,...} wrapper: %s", body)
+	}
+
+	var parsed struct {
+		Values  map[string]any    `json:"values"`
+		Origins map[string]string `json:"origins"`
+	}
+	if err := json.Unmarshal([]byte(body), &parsed); err != nil {
+		t.Fatalf("response is not valid JSON: %v\nbody: %s", err, body)
+	}
+
+	// values should be present and secrets redacted.
+	if parsed.Values == nil {
+		t.Error("values field is nil")
+	}
+	if pw, ok := parsed.Values["password"]; ok && pw == "secret" {
+		t.Error("password not redacted in values")
+	}
+
+	// origins should contain known keys from the source.
+	if len(parsed.Origins) == 0 {
+		t.Error("origins map is empty")
+	}
+	for key, origin := range parsed.Origins {
+		if origin == "" {
+			t.Errorf("empty origin for key %q", key)
+		}
+	}
+}
+
+func TestHandlerWithOrigins_Forbidden(t *testing.T) {
+	t.Parallel()
+
+	src, _ := config.Build(static.New(nil))
+	h := introspect.HandlerWithOrigins(
+		func() any { return struct{}{} },
+		src,
+		func(*http.Request) bool { return false },
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/debug/config?origins=1", nil)
+	rr := httptest.NewRecorder()
+	h(rr, req)
+
+	if rr.Code != http.StatusForbidden {
+		t.Errorf("expected 403, got %d", rr.Code)
 	}
 }
 
