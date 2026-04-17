@@ -2,6 +2,8 @@ package composition
 
 import (
 	"fmt"
+	"log/slog"
+	"sort"
 	"strings"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -142,12 +144,47 @@ func installStdconfigFromSource(container *Container, src config.Source) error {
 		},
 	}
 
-	for _, reg := range registrations {
-		if err := reg(); err != nil {
+	for _, register := range registrations {
+		if err := register(); err != nil {
 			return err
 		}
 	}
+
+	if err := reg.Seal(); err != nil {
+		return fmt.Errorf("seal config registry: %w", err)
+	}
+
+	logSourceProvenance(src)
 	return nil
+}
+
+// logSourceProvenance emits a one-shot startup summary of which provider
+// supplied each top-level config prefix, so ops can see "db.* came from env,
+// meili.* came from static" without hitting /debug/config.
+func logSourceProvenance(src config.Source) {
+	counts := make(map[string]map[string]int)
+	for _, key := range src.Keys() {
+		prefix := key
+		if idx := strings.Index(key, "."); idx >= 0 {
+			prefix = key[:idx]
+		}
+		origin, _ := src.Origin(key)
+		if counts[prefix] == nil {
+			counts[prefix] = make(map[string]int)
+		}
+		counts[prefix][origin]++
+	}
+	summary := make([]string, 0, len(counts))
+	for prefix, origins := range counts {
+		parts := make([]string, 0, len(origins))
+		for origin, n := range origins {
+			parts = append(parts, fmt.Sprintf("%s=%d", origin, n))
+		}
+		sort.Strings(parts)
+		summary = append(summary, fmt.Sprintf("%s[%s]", prefix, strings.Join(parts, ",")))
+	}
+	sort.Strings(summary)
+	slog.Info("config loaded", "provenance", strings.Join(summary, " "))
 }
 
 // registerAutoValue installs a value-form provider for T directly on the
