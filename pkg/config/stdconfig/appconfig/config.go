@@ -3,6 +3,8 @@
 // It is a stdconfig package intended to be registered via config.Register[appconfig.Config].
 package appconfig
 
+import "fmt"
+
 const production = "production"
 
 // Config holds app-level settings shared across the application.
@@ -27,4 +29,21 @@ func (c *Config) IsProduction() bool {
 // IsDev reports whether the environment is not "production".
 func (c *Config) IsDev() bool {
 	return c.Environment != production
+}
+
+// Scheme returns "https" in production, "http" otherwise.
+func (c *Config) Scheme() string {
+	if c.IsProduction() {
+		return "https"
+	}
+	return "http"
+}
+
+// SocketAddress returns the bind address for the given port.
+// Production: ":<port>". Dev: "localhost:<port>".
+func (c *Config) SocketAddress(port int) string {
+	if c.IsProduction() {
+		return fmt.Sprintf(":%d", port)
+	}
+	return fmt.Sprintf("localhost:%d", port)
 }

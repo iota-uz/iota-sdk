@@ -6,18 +6,27 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 )
+
+func buildSource(t *testing.T, values map[string]any) config.Source {
+	t.Helper()
+	src, err := config.Build(static.New(values))
+	if err != nil {
+		t.Fatalf("config.Build: %v", err)
+	}
+	return src
+}
 
 func TestConfig_StaticRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	src, err := config.Build(static.New(map[string]any{
+	src := buildSource(t, map[string]any{
 		"http.port":                   8080,
 		"http.domain":                 "example.com",
 		"http.origin":                 "https://example.com",
 		"http.allowedorigins":         []string{"https://app.example.com"},
-		"http.environment":            "production",
 		"http.headers.requestid":      "X-Req-ID",
 		"http.headers.realip":         "X-Forwarded-For",
 		"http.cookies.sid":            "mysid",
@@ -25,10 +34,7 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 		"http.session.duration":       "48h",
 		"http.pagination.pagesize":    50,
 		"http.pagination.maxpagesize": 200,
-	}))
-	if err != nil {
-		t.Fatalf("Build: %v", err)
-	}
+	})
 
 	var cfg httpconfig.Config
 	if err := src.Unmarshal("http", &cfg); err != nil {
@@ -41,8 +47,8 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 	if cfg.Domain != "example.com" {
 		t.Errorf("Domain: want example.com, got %s", cfg.Domain)
 	}
-	if cfg.Environment != "production" {
-		t.Errorf("Environment: want production, got %s", cfg.Environment)
+	if cfg.OriginOverride != "https://example.com" {
+		t.Errorf("OriginOverride: want https://example.com, got %s", cfg.OriginOverride)
 	}
 	if cfg.Headers.RequestID != "X-Req-ID" {
 		t.Errorf("Headers.RequestID: want X-Req-ID, got %s", cfg.Headers.RequestID)
@@ -58,34 +64,44 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 	}
 }
 
-func TestConfig_Methods(t *testing.T) {
+func TestConfig_Defaults(t *testing.T) {
 	t.Parallel()
 
-	prod := &httpconfig.Config{Port: 443, Environment: "production"}
-	if !prod.IsProduction() {
-		t.Error("IsProduction() should return true")
-	}
-	if prod.IsDev() {
-		t.Error("IsDev() should return false in production")
-	}
-	if prod.Scheme() != "https" {
-		t.Errorf("Scheme(): want https, got %s", prod.Scheme())
-	}
-	if prod.SocketAddress() != ":443" {
-		t.Errorf("SocketAddress(): want :443, got %s", prod.SocketAddress())
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[httpconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
 	}
 
-	dev := &httpconfig.Config{Port: 3200, Environment: "development"}
-	if dev.IsProduction() {
-		t.Error("IsProduction() should return false")
+	if cfg.Port != 3200 {
+		t.Errorf("Port default: want 3200, got %d", cfg.Port)
 	}
-	if !dev.IsDev() {
-		t.Error("IsDev() should return true")
+	if cfg.Domain != "localhost" {
+		t.Errorf("Domain default: want localhost, got %s", cfg.Domain)
 	}
-	if dev.Scheme() != "http" {
-		t.Errorf("Scheme(): want http, got %s", dev.Scheme())
+}
+
+func TestConfig_Origin(t *testing.T) {
+	t.Parallel()
+
+	prodApp := &appconfig.Config{Environment: "production"}
+	devApp := &appconfig.Config{Environment: "development"}
+
+	// Override wins regardless of app env.
+	cfg := &httpconfig.Config{OriginOverride: "https://pinned.example.com", Port: 443, Domain: "example.com"}
+	if got := cfg.Origin(devApp); got != "https://pinned.example.com" {
+		t.Errorf("OriginOverride: got %q", got)
 	}
-	if dev.SocketAddress() != "localhost:3200" {
-		t.Errorf("SocketAddress(): want localhost:3200, got %s", dev.SocketAddress())
+
+	// Production: no port.
+	cfg2 := &httpconfig.Config{Port: 443, Domain: "example.com"}
+	if got := cfg2.Origin(prodApp); got != "https://example.com" {
+		t.Errorf("prod Origin: got %q, want https://example.com", got)
+	}
+
+	// Dev: with port.
+	cfg3 := &httpconfig.Config{Port: 3200, Domain: "localhost"}
+	if got := cfg3.Origin(devApp); got != "http://localhost:3200" {
+		t.Errorf("dev Origin: got %q, want http://localhost:3200", got)
 	}
 }
