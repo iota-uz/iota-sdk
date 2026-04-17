@@ -1,6 +1,7 @@
 package composition
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
@@ -44,9 +45,9 @@ import (
 //
 // The set is intentionally small: only services that genuinely live one
 // level above any component and are stable across the engine's lifetime.
-func installAutoProviders(container *Container, ctx BuildContext) {
+func installAutoProviders(container *Container, ctx BuildContext) error {
 	if container == nil {
-		return
+		return nil
 	}
 
 	// Application itself — supports the few legitimate cases (GraphQL
@@ -78,45 +79,75 @@ func installAutoProviders(container *Container, ctx BuildContext) {
 	// Typed stdconfig auto-registration from config.Source.
 	// When no Source is attached, consumers must call composition.ProvideConfig[T] explicitly.
 	if src := ctx.source; src != nil {
-		installStdconfigFromSource(container, src)
+		if err := installStdconfigFromSource(container, src); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
 // registerAuto registers a Prefixed config type T into the registry, then places
-// the result into the container. Errors are silently dropped so that optional
-// configs (e.g. bichatconfig when BiChat is not installed) don't abort startup.
-func registerAuto[T config.Prefixed](r *config.Registry, container *Container, name string) {
-	if ptr, err := config.Register[T](r); err == nil {
-		registerAutoValue[*T](container, name, ptr)
+// the result into the container. Returns an error if registration fails so the
+// caller can surface configuration problems rather than silently skipping them.
+func registerAuto[T config.Prefixed](r *config.Registry, container *Container, name string) error {
+	ptr, err := config.Register[T](r)
+	if err != nil {
+		return fmt.Errorf("auto register %T: %w", *new(T), err)
 	}
+	registerAutoValue[*T](container, name, ptr)
+	return nil
 }
 
 // installStdconfigFromSource populates all stdconfig types from the new
 // config.Source, using config.Register for unmarshal + optional Validate.
 // Each registered *T is placed into the container under the pointer key so
 // constructors can receive it directly.
-func installStdconfigFromSource(container *Container, src config.Source) {
+// Returns the first registration error encountered, if any.
+func installStdconfigFromSource(container *Container, src config.Source) error {
 	reg := config.NewRegistry(src)
 
-	registerAuto[dbconfig.Config](reg, container, "auto:dbconfig")
-	registerAuto[httpconfig.Config](reg, container, "auto:httpconfig")
-	registerAuto[headers.Config](reg, container, "auto:headersconfig")
-	registerAuto[cookies.Config](reg, container, "auto:cookiesconfig")
-	registerAuto[session.Config](reg, container, "auto:sessionconfig")
-	registerAuto[pagination.Config](reg, container, "auto:paginationconfig")
-	registerAuto[smtpconfig.Config](reg, container, "auto:smtpconfig")
-	registerAuto[twilioconfig.Config](reg, container, "auto:twilioconfig")
-	registerAuto[oidcconfig.Config](reg, container, "auto:oidcconfig")
-	registerAuto[googleoauthconfig.Config](reg, container, "auto:googleoauthconfig")
-	registerAuto[ratelimitconfig.Config](reg, container, "auto:ratelimitconfig")
-	registerAuto[twofactorconfig.Config](reg, container, "auto:twofactorconfig")
-	registerAuto[telemetryconfig.Config](reg, container, "auto:telemetryconfig")
-	registerAuto[uploadsconfig.Config](reg, container, "auto:uploadsconfig")
-	registerAuto[redisconfig.Config](reg, container, "auto:redisconfig")
-	registerAuto[meiliconfig.Config](reg, container, "auto:meiliconfig")
-	registerAuto[paymentsconfig.Config](reg, container, "auto:paymentsconfig")
-	registerAuto[appconfig.Config](reg, container, "auto:appconfig")
-	registerAuto[bichatconfig.Config](reg, container, "auto:bichatconfig")
+	registrations := []func() error{
+		func() error { return registerAuto[dbconfig.Config](reg, container, "auto:dbconfig") },
+		func() error { return registerAuto[httpconfig.Config](reg, container, "auto:httpconfig") },
+		func() error { return registerAuto[headers.Config](reg, container, "auto:headersconfig") },
+		func() error { return registerAuto[cookies.Config](reg, container, "auto:cookiesconfig") },
+		func() error { return registerAuto[session.Config](reg, container, "auto:sessionconfig") },
+		func() error { return registerAuto[pagination.Config](reg, container, "auto:paginationconfig") },
+		func() error { return registerAuto[smtpconfig.Config](reg, container, "auto:smtpconfig") },
+		func() error { return registerAuto[twilioconfig.Config](reg, container, "auto:twilioconfig") },
+		func() error { return registerAuto[oidcconfig.Config](reg, container, "auto:oidcconfig") },
+		func() error {
+			return registerAuto[googleoauthconfig.Config](reg, container, "auto:googleoauthconfig")
+		},
+		func() error {
+			return registerAuto[ratelimitconfig.Config](reg, container, "auto:ratelimitconfig")
+		},
+		func() error {
+			return registerAuto[twofactorconfig.Config](reg, container, "auto:twofactorconfig")
+		},
+		func() error {
+			return registerAuto[telemetryconfig.Config](reg, container, "auto:telemetryconfig")
+		},
+		func() error {
+			return registerAuto[uploadsconfig.Config](reg, container, "auto:uploadsconfig")
+		},
+		func() error { return registerAuto[redisconfig.Config](reg, container, "auto:redisconfig") },
+		func() error { return registerAuto[meiliconfig.Config](reg, container, "auto:meiliconfig") },
+		func() error {
+			return registerAuto[paymentsconfig.Config](reg, container, "auto:paymentsconfig")
+		},
+		func() error { return registerAuto[appconfig.Config](reg, container, "auto:appconfig") },
+		func() error {
+			return registerAuto[bichatconfig.Config](reg, container, "auto:bichatconfig")
+		},
+	}
+
+	for _, reg := range registrations {
+		if err := reg(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // registerAutoValue installs a value-form provider for T directly on the

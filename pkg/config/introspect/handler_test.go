@@ -245,6 +245,51 @@ func TestHandlerWithOrigins_Forbidden(t *testing.T) {
 	}
 }
 
+// TestHandlerWithOrigins_MalformedRedact verifies that if config.Redact returns
+// a non-JSON string (e.g. due to an unmarshallable type), HandlerWithOrigins
+// still returns valid JSON with null for the values field.
+func TestHandlerWithOrigins_MalformedRedact(t *testing.T) {
+	t.Parallel()
+
+	// A struct with a channel field causes json.MarshalIndent to fail inside
+	// config.Redact, which returns a "<redact error: ...>" string — not valid JSON.
+	type badSnapshot struct {
+		Ch chan int
+	}
+
+	src, _ := config.Build(static.New(map[string]any{"x": "1"}))
+	h := introspect.HandlerWithOrigins(
+		func() any { return badSnapshot{Ch: make(chan int)} },
+		src,
+		func(*http.Request) bool { return true },
+	)
+
+	req := httptest.NewRequest(http.MethodGet, "/debug/config?origins=1", nil)
+	rr := httptest.NewRecorder()
+	h(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rr.Code)
+	}
+
+	body := rr.Body.Bytes()
+	if !json.Valid(body) {
+		t.Fatalf("response is not valid JSON: %s", body)
+	}
+
+	var parsed struct {
+		Values  any               `json:"values"`
+		Origins map[string]string `json:"origins"`
+	}
+	if err := json.Unmarshal(body, &parsed); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	// values must be null when Redact produced malformed JSON.
+	if parsed.Values != nil {
+		t.Errorf("expected values=null for malformed Redact output, got %v", parsed.Values)
+	}
+}
+
 func TestHandler_ZeroSecret_EmptyString(t *testing.T) {
 	t.Parallel()
 

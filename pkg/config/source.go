@@ -26,6 +26,8 @@ type Source interface {
 
 	// Origin returns the name of the provider that last set key.
 	// ok is false if the key does not exist.
+	// Reports which Provider supplied key. Unrelated to httpconfig.Config.Origin
+	// (URL builder) and httpconfig.Config.OriginOverride (env pin).
 	Origin(key string) (provider string, ok bool)
 }
 
@@ -63,7 +65,9 @@ func Build(providers ...Provider) (Source, error) {
 	return &frozenSource{k: k, flat: flat, origins: origins}, nil
 }
 
-// frozenSource wraps a *koanf.Koanf and exposes no mutation surface.
+// frozenSource is the immutable Source implementation returned by Build.
+// After Build returns, all fields are read-only; concurrent Unmarshal/Get/Keys/Origin
+// calls are safe without additional synchronisation. Mutation would require a new Build.
 type frozenSource struct {
 	k       *koanf.Koanf
 	flat    map[string]any

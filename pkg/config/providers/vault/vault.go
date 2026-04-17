@@ -1,9 +1,8 @@
 // Package vault provides a config.Provider stub for HashiCorp Vault.
 //
-// This is a placeholder implementation for Wave 0.1. The Load method is a
-// no-op. Full Vault integration ships in a future wave.
-//
-// TODO(W-future): implement HashiCorp Vault lookup; spec at pkg/config/providers/vault/README.md
+// This is a placeholder implementation. The Load method is not yet implemented.
+// Vault provider is stubbed; tracked by task-bundle Round-3 follow-up.
+// Current New returns errNotImplemented so callers fail loudly instead of silently skipping.
 package vault
 
 import (

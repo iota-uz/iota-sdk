@@ -17,6 +17,8 @@ import (
 type Config struct {
 	Port           int      `koanf:"port"           default:"3200"`
 	Domain         string   `koanf:"domain"         default:"localhost"`
+	// OriginOverride pins the return value of Origin(), bypassing scheme/domain/port
+	// computation. Maps from ORIGIN env var. Unrelated to Source.Origin (provider provenance).
 	OriginOverride string   `koanf:"origin"`
 	AllowedOrigins []string `koanf:"allowedorigins" default:"http://localhost:3000"`
 }
@@ -24,9 +26,10 @@ type Config struct {
 // ConfigPrefix returns the koanf prefix for httpconfig ("http").
 func (Config) ConfigPrefix() string { return "http" }
 
-// Origin returns the canonical scheme://host[:port] URL.
+// Origin builds the scheme://host[:port] URL for this server.
 // Production drops the explicit port; dev keeps it.
 // If OriginOverride is non-empty, it wins and app is unused.
+// Unrelated to Source.Origin (provider provenance).
 func (c *Config) Origin(app *appconfig.Config) string {
 	if c.OriginOverride != "" {
 		return c.OriginOverride

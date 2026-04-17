@@ -8,6 +8,7 @@ package introspect
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -68,6 +69,13 @@ func HandlerFromMap(configs map[string]any, authz func(*http.Request) bool) http
 	}, authz)
 }
 
+// originsResponse is the JSON envelope emitted by HandlerWithOrigins when
+// ?origins=1 is present in the query string.
+type originsResponse struct {
+	Values  json.RawMessage   `json:"values"`
+	Origins map[string]string `json:"origins"`
+}
+
 // HandlerWithOrigins extends Handler with an optional ?origins=1 query mode.
 // When the query string contains origins=1, the response body is a JSON object
 // with two keys:
@@ -99,7 +107,17 @@ func HandlerWithOrigins(snapshot func() any, src config.Source, authz func(*http
 
 		// Origins mode — build {"values": ..., "origins": {...}}.
 		v := snapshot()
-		redactedJSON := config.Redact(v)
+		redactedStr := config.Redact(v)
+		redactedBytes := []byte(redactedStr)
+
+		// Validate the raw message; substitute null if Redact produced malformed JSON.
+		var valuesRaw json.RawMessage
+		if json.Valid(redactedBytes) {
+			valuesRaw = json.RawMessage(redactedBytes)
+		} else {
+			log.Printf("introspect: config.Redact returned invalid JSON; substituting null")
+			valuesRaw = json.RawMessage("null")
+		}
 
 		originsMap := map[string]string{}
 		if src != nil {
@@ -110,19 +128,18 @@ func HandlerWithOrigins(snapshot func() any, src config.Source, authz func(*http
 			}
 		}
 
-		originsJSON, err := json.Marshal(originsMap)
+		resp := originsResponse{
+			Values:  valuesRaw,
+			Origins: originsMap,
+		}
+		out, err := json.Marshal(resp)
 		if err != nil {
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
 
-		// Build the composite response without re-parsing redactedJSON.
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"values":`))
-		_, _ = w.Write([]byte(redactedJSON))
-		_, _ = w.Write([]byte(`,"origins":`))
-		_, _ = w.Write(originsJSON)
-		_, _ = w.Write([]byte(`}`))
+		_, _ = w.Write(out)
 	}
 }
