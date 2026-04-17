@@ -1,7 +1,7 @@
 // Package vault provides a config.Provider stub for HashiCorp Vault.
 //
 // This is a placeholder implementation. The Load method is not yet implemented.
-// Vault provider is stubbed; tracked by task-bundle Round-3 follow-up.
+// Vault provider is stubbed; tracked by iota-uz/iota-sdk#754.
 // Current New returns errNotImplemented so callers fail loudly instead of silently skipping.
 package vault
 
