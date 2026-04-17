@@ -63,6 +63,9 @@ type Config struct {
 	Stripe StripeConfig `koanf:"stripe"`
 }
 
+// ConfigPrefix returns the koanf prefix for paymentsconfig ("payments").
+func (Config) ConfigPrefix() string { return "payments" }
+
 // SetDefaults applies provider-level defaults to all sub-configs.
 // Call this after unmarshalling from a Source when env vars may be absent.
 func (c *Config) SetDefaults() {

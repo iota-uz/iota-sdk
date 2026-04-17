@@ -14,6 +14,9 @@ type Config struct {
 	From string `koanf:"from"`
 }
 
+// ConfigPrefix returns the koanf prefix for smtpconfig ("smtp").
+func (Config) ConfigPrefix() string { return "smtp" }
+
 // SetDefaults applies default values for fields that are zero-valued.
 // Port defaults to 587 (SMTP submission with STARTTLS).
 // Call this after populating Config from a source that may omit defaults.

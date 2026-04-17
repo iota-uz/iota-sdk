@@ -12,6 +12,7 @@ type Registry struct {
 	mu      sync.RWMutex
 	entries map[reflect.Type]any
 	src     Source
+	sealed  bool
 }
 
 // NewRegistry creates a new Registry backed by src.
@@ -30,9 +31,9 @@ type Defaulter interface {
 	SetDefaults()
 }
 
-// Register loads T at prefix from the registry's Source, applies defaults,
+// RegisterAt loads T at prefix from the registry's Source, applies defaults,
 // optionally validates, stores, and returns a pointer to the populated
-// config struct.
+// config struct. It is the escape hatch for non-Prefixed types or tests.
 //
 // Order of operations:
 //  1. Source.Unmarshal fills fields from env / yaml / etc.
@@ -41,9 +42,16 @@ type Defaulter interface {
 //
 // A non-nil Validate error aborts registration and returns an error.
 //
-// Calling Register[T] twice with the same T silently overwrites the previous
+// Calling RegisterAt[T] twice with the same T silently overwrites the previous
 // entry — callers should register each type once at startup.
-func Register[T any](r *Registry, prefix string) (*T, error) {
+func RegisterAt[T any](r *Registry, prefix string) (*T, error) {
+	r.mu.Lock()
+	sealed := r.sealed
+	r.mu.Unlock()
+	if sealed {
+		return nil, fmt.Errorf("config: registry sealed")
+	}
+
 	var cfg T
 	if err := r.src.Unmarshal(prefix, &cfg); err != nil {
 		return nil, fmt.Errorf("config: unmarshal %T at %q: %w", cfg, prefix, err)
@@ -69,8 +77,18 @@ func Register[T any](r *Registry, prefix string) (*T, error) {
 	return ptr, nil
 }
 
-// Get retrieves the previously registered *T, returning false when not found.
-func Get[T any](r *Registry) (*T, bool) {
+// Register loads T using the prefix declared by T.ConfigPrefix().
+// T must implement Prefixed (i.e. have a ConfigPrefix() string method).
+// This is the preferred API for all stdconfig types.
+func Register[T Prefixed](r *Registry) (*T, error) {
+	var zero T
+	prefix := any(zero).(Prefixed).ConfigPrefix()
+	return RegisterAt[T](r, prefix)
+}
+
+// Lookup retrieves the previously registered *T, returning false when not found.
+// This is the low-level accessor; prefer Get for Prefixed types.
+func Lookup[T any](r *Registry) (*T, bool) {
 	var zero T
 	t := reflect.TypeOf(zero)
 
@@ -84,12 +102,54 @@ func Get[T any](r *Registry) (*T, bool) {
 	return v.(*T), true
 }
 
-// MustGet retrieves the previously registered *T or panics when not found.
-func MustGet[T any](r *Registry) *T {
-	ptr, ok := Get[T](r)
+// Get retrieves the previously registered *T or panics when not found.
+// T must implement Prefixed.
+func Get[T Prefixed](r *Registry) *T {
+	ptr, ok := Lookup[T](r)
 	if !ok {
 		var zero T
 		panic(fmt.Sprintf("config: type %T not registered in registry", zero))
 	}
 	return ptr
+}
+
+// MustGet retrieves the previously registered *T or panics when not found.
+// Works with any T, including non-Prefixed types.
+func MustGet[T any](r *Registry) *T {
+	ptr, ok := Lookup[T](r)
+	if !ok {
+		var zero T
+		panic(fmt.Sprintf("config: type %T not registered in registry", zero))
+	}
+	return ptr
+}
+
+// Seal validates all registered entries that implement Validatable, then
+// locks the registry against further registrations.
+// Returns a joined error of all validation failures; the registry is sealed
+// regardless of whether validation passed.
+func (r *Registry) Seal() error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.sealed = true
+
+	var errs []error
+	for _, v := range r.entries {
+		if val, ok := v.(Validatable); ok {
+			if err := val.Validate(); err != nil {
+				errs = append(errs, err)
+			}
+		}
+	}
+
+	if len(errs) == 0 {
+		return nil
+	}
+	// join via fmt.Errorf wrapping
+	joined := errs[0]
+	for _, e := range errs[1:] {
+		joined = fmt.Errorf("%w; %w", joined, e)
+	}
+	return joined
 }

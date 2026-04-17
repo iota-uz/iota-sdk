@@ -33,6 +33,9 @@ type Config struct {
 	OTP OTPConfig `koanf:"otp"`
 }
 
+// ConfigPrefix returns the koanf prefix for twofactorconfig ("twofactor").
+func (Config) ConfigPrefix() string { return "twofactor" }
+
 // SetDefaults applies default values for fields with zero values.
 // Called from FromLegacy to cover gaps when constructing from a zero Config.
 func (c *Config) SetDefaults() {

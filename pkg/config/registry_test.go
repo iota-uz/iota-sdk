@@ -51,9 +51,9 @@ func TestRegister_UnmarshalRoundTrip(t *testing.T) {
 	})
 	r := NewRegistry(src)
 
-	cfg, err := Register[serverConfig](r, "server")
+	cfg, err := RegisterAt[serverConfig](r, "server")
 	if err != nil {
-		t.Fatalf("Register: %v", err)
+		t.Fatalf("RegisterAt: %v", err)
 	}
 	if cfg.Host != "localhost" {
 		t.Errorf("Host: got %q, want %q", cfg.Host, "localhost")
@@ -69,9 +69,9 @@ func TestRegister_ValidateCalledOnSuccess(t *testing.T) {
 	src := buildSource(t, map[string]any{"cfg.value": "hello"})
 	r := NewRegistry(src)
 
-	_, err := Register[alwaysValid](r, "cfg")
+	_, err := RegisterAt[alwaysValid](r, "cfg")
 	if err != nil {
-		t.Fatalf("Register with valid config: %v", err)
+		t.Fatalf("RegisterAt with valid config: %v", err)
 	}
 }
 
@@ -81,7 +81,7 @@ func TestRegister_ValidateError_PropagatesAndAborts(t *testing.T) {
 	src := buildSource(t, map[string]any{"cfg.value": "hello"})
 	r := NewRegistry(src)
 
-	_, err := Register[alwaysInvalid](r, "cfg")
+	_, err := RegisterAt[alwaysInvalid](r, "cfg")
 	if err == nil {
 		t.Fatal("expected error from Validate, got nil")
 	}
@@ -93,7 +93,7 @@ func TestRegister_ValidateError_PropagatesAndAborts(t *testing.T) {
 	}
 
 	// Type must not be stored after validation failure.
-	_, ok := Get[alwaysInvalid](r)
+	_, ok := Lookup[alwaysInvalid](r)
 	if ok {
 		t.Error("failed registration should not store the type")
 	}
@@ -105,9 +105,9 @@ func TestGet_NotFound(t *testing.T) {
 	src := buildSource(t, nil)
 	r := NewRegistry(src)
 
-	_, ok := Get[serverConfig](r)
+	_, ok := Lookup[serverConfig](r)
 	if ok {
-		t.Error("Get should return false when type not registered")
+		t.Error("Lookup should return false when type not registered")
 	}
 }
 
@@ -133,8 +133,8 @@ func TestMustGet_ReturnsValue_WhenRegistered(t *testing.T) {
 		"server.port": 443,
 	})
 	r := NewRegistry(src)
-	if _, err := Register[serverConfig](r, "server"); err != nil {
-		t.Fatalf("Register: %v", err)
+	if _, err := RegisterAt[serverConfig](r, "server"); err != nil {
+		t.Fatalf("RegisterAt: %v", err)
 	}
 
 	cfg := MustGet[serverConfig](r)

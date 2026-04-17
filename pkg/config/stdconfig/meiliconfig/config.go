@@ -10,6 +10,9 @@ type Config struct {
 	APIKey string `koanf:"apikey" secret:"true"`
 }
 
+// ConfigPrefix returns the koanf prefix for meiliconfig ("meili").
+func (Config) ConfigPrefix() string { return "meili" }
+
 // IsConfigured returns true when both URL and APIKey are set.
 // MeiliSearch activation is implicit — no explicit enable flag required.
 func (c *Config) IsConfigured() bool {

@@ -13,6 +13,9 @@ type Config struct {
 	URL string `koanf:"url"`
 }
 
+// ConfigPrefix returns the koanf prefix for redisconfig ("redis").
+func (Config) ConfigPrefix() string { return "redis" }
+
 // SetDefaults fills zero-value fields with documented defaults.
 func (c *Config) SetDefaults() {
 	if c.URL == "" {

@@ -66,7 +66,7 @@ func TestRoundTripFromSource(t *testing.T) {
 	}
 
 	reg := config.NewRegistry(src)
-	ptr, err := config.Register[bichatconfig.Config](reg, "bichat")
+	ptr, err := config.Register[bichatconfig.Config](reg)
 	if err != nil {
 		t.Fatalf("Register: %v", err)
 	}

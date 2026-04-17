@@ -13,6 +13,9 @@ type Config struct {
 	RedisURL  string `koanf:"redisurl"`
 }
 
+// ConfigPrefix returns the koanf prefix for ratelimitconfig ("ratelimit").
+func (Config) ConfigPrefix() string { return "ratelimit" }
+
 // SetDefaults applies the same defaults as the legacy RateLimitOptions env tags.
 // Called from FromLegacy so zero-value structs get sensible defaults.
 func (c *Config) SetDefaults() {

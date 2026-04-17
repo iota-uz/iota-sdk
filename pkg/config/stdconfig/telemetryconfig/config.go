@@ -59,6 +59,9 @@ func (c *Config) LogrusLogLevel() logrus.Level {
 	}
 }
 
+// ConfigPrefix returns the koanf prefix for telemetryconfig ("telemetry").
+func (Config) ConfigPrefix() string { return "telemetry" }
+
 // SetDefaults fills zero-valued fields with fallback values that match the
 // legacy envDefault tags from pkg/configuration. Called automatically by
 // config.Register after Unmarshal.

@@ -15,6 +15,9 @@ type Config struct {
 	IDTokenLifetime      time.Duration `koanf:"idtokenlifetime"`
 }
 
+// ConfigPrefix returns the koanf prefix for oidcconfig ("oidc").
+func (Config) ConfigPrefix() string { return "oidc" }
+
 // SetDefaults applies default token lifetime values when fields are zero.
 // Defaults: AccessTokenLifetime=1h, RefreshTokenLifetime=720h, IDTokenLifetime=1h.
 func (c *Config) SetDefaults() {

@@ -18,6 +18,9 @@ type Config struct {
 	MaxMemory int64  `koanf:"maxmemory"`
 }
 
+// ConfigPrefix returns the koanf prefix for uploadsconfig ("uploads").
+func (Config) ConfigPrefix() string { return "uploads" }
+
 // SetDefaults fills zero-value fields with documented defaults.
 func (c *Config) SetDefaults() {
 	if c.Path == "" {

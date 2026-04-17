@@ -30,6 +30,9 @@ func (c *Config) SetDefaults() {
 	}
 }
 
+// ConfigPrefix returns the koanf prefix for appconfig ("app").
+func (Config) ConfigPrefix() string { return "app" }
+
 // IsProduction reports whether the environment is "production".
 func (c *Config) IsProduction() bool {
 	return c.Environment == production

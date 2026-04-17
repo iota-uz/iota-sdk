@@ -12,6 +12,9 @@ type Config struct {
 	PhoneNumber string `koanf:"phonenumber"`
 }
 
+// ConfigPrefix returns the koanf prefix for twilioconfig ("twilio").
+func (Config) ConfigPrefix() string { return "twilio" }
+
 // IsConfigured reports whether Twilio is usable — both AccountSID and AuthToken must be set.
 func (c *Config) IsConfigured() bool {
 	return c.AccountSID != "" && c.AuthToken != ""

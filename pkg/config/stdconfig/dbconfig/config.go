@@ -35,6 +35,9 @@ type Config struct {
 	Pool          PoolTuning `koanf:"pool"`
 }
 
+// ConfigPrefix returns the koanf prefix for dbconfig ("db").
+func (Config) ConfigPrefix() string { return "db" }
+
 // ConnectionString returns a libpq-style connection string.
 func (c *Config) ConnectionString() string {
 	return fmt.Sprintf(

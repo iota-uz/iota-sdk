@@ -74,6 +74,9 @@ type Config struct {
 	Applet    AppletConfig    `koanf:"applet"`
 }
 
+// ConfigPrefix returns the koanf prefix for bichatconfig ("bichat").
+func (Config) ConfigPrefix() string { return "bichat" }
+
 // SetDefaults fills zero-value Applet fields with documented defaults.
 func (c *Config) SetDefaults() {
 	if c.Applet.ViteURL == "" {

@@ -15,5 +15,5 @@
 //	    yamlfile.New("config.yaml"),
 //	)
 //	r := config.NewRegistry(src)
-//	dbCfg, err := config.Register[dbconfig.Config](r, "db")
+//	dbCfg, err := config.Register[dbconfig.Config](r)
 package config

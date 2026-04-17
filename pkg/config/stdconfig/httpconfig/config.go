@@ -58,6 +58,9 @@ type Config struct {
 	Pagination     PaginationConfig `koanf:"pagination"`
 }
 
+// ConfigPrefix returns the koanf prefix for httpconfig ("http").
+func (Config) ConfigPrefix() string { return "http" }
+
 // IsProduction reports whether the environment is "production".
 func (c *Config) IsProduction() bool {
 	return c.Environment == production
