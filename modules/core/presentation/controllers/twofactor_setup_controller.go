@@ -18,7 +18,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services/twofactor"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	httpcookies "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	httpsession "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/security"
@@ -39,13 +42,19 @@ func NewTwoFactorSetupController(
 	twoFactorService *twofactor.TwoFactorService,
 	sessionService *services.SessionService,
 	userService *services.UserService,
-	cfg *httpconfig.Config,
+	httpCfg *httpconfig.Config,
+	cookiesCfg *httpcookies.Config,
+	sessionCfg *httpsession.Config,
+	appCfg *appconfig.Config,
 ) application.Controller {
 	return &TwoFactorSetupController{
 		twoFactorService: twoFactorService,
 		sessionService:   sessionService,
 		userService:      userService,
-		cfg:              cfg,
+		httpCfg:          httpCfg,
+		cookiesCfg:       cookiesCfg,
+		sessionCfg:       sessionCfg,
+		appCfg:           appCfg,
 	}
 }
 
@@ -56,7 +65,10 @@ type TwoFactorSetupController struct {
 	twoFactorService *twofactor.TwoFactorService
 	sessionService   *services.SessionService
 	userService      *services.UserService
-	cfg              *httpconfig.Config
+	httpCfg          *httpconfig.Config
+	cookiesCfg       *httpcookies.Config
+	sessionCfg       *httpsession.Config
+	appCfg           *appconfig.Config
 }
 
 type methodChoiceDTO struct {
@@ -107,7 +119,7 @@ func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.R
 		sess.UserAgent(),
 		session.WithStatus(session.StatusActive),
 		session.WithAudience(sess.Audience()),
-		session.WithExpiresAt(time.Now().Add(c.cfg.Session.Duration)),
+		session.WithExpiresAt(time.Now().Add(c.sessionCfg.Duration)),
 		session.WithCreatedAt(sess.CreatedAt()),
 	)
 
@@ -116,13 +128,13 @@ func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.R
 	}
 
 	http.SetCookie(w, &http.Cookie{
-		Name:     c.cfg.Cookies.SID,
+		Name:     c.cookiesCfg.SID,
 		Value:    updatedSession.Token(),
 		Expires:  updatedSession.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   c.cfg.IsProduction(),
-		Domain:   c.cfg.Domain,
+		Secure:   c.appCfg.IsProduction(),
+		Domain:   c.httpCfg.Domain,
 		Path:     "/",
 	})
 

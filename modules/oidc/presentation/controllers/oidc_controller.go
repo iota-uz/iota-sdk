@@ -15,6 +15,7 @@ import (
 	oidcservices "github.com/iota-uz/iota-sdk/modules/oidc/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 )
 
@@ -27,6 +28,7 @@ type OIDCController struct {
 	storage     *oidc.Storage
 	oidcCfg     *oidcconfig.Config
 	httpCfg     *httpconfig.Config
+	cookiesCfg  *cookies.Config
 	oidcService *oidcservices.OIDCService
 	sessionSvc  *coreservices.SessionService
 	provider    op.OpenIDProvider
@@ -38,11 +40,13 @@ func NewOIDCController(
 	oidcService *oidcservices.OIDCService,
 	sessionService *coreservices.SessionService,
 	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
 ) *OIDCController {
 	return &OIDCController{
 		storage:     storage,
 		oidcCfg:     oidcCfg,
 		httpCfg:     httpCfg,
+		cookiesCfg:  cookiesCfg,
 		oidcService: oidcService,
 		sessionSvc:  sessionService,
 	}
@@ -152,7 +156,7 @@ func (c *OIDCController) handleCallback(w http.ResponseWriter, r *http.Request) 
 	// Complete auth request from active session if not already authenticated.
 	// This ensures users finish 2FA before OIDC authorization can proceed.
 	if !authReq.IsAuthenticated() {
-		sessionCookie, err := r.Cookie(c.httpCfg.Cookies.SID)
+		sessionCookie, err := r.Cookie(c.cookiesCfg.SID)
 		if err != nil {
 			logger.WithError(err).Error("Missing session cookie for OIDC callback")
 			http.Error(w, "Unauthorized", http.StatusUnauthorized)

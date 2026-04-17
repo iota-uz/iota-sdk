@@ -5,7 +5,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/authorizers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -21,6 +23,8 @@ type Resolver struct {
 	uploadsAuthorizer types.UploadsAuthorizer
 	usersAuthorizer   types.UsersAuthorizer
 	httpCfg           *httpconfig.Config
+	cookiesCfg        *cookies.Config
+	appCfg            *appconfig.Config
 }
 
 // ResolverOption is a functional option for configuring the Resolver.
@@ -64,6 +68,8 @@ func NewResolver(
 	uploadService *services.UploadService,
 	authService *services.AuthService,
 	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	appCfg *appconfig.Config,
 	opts ...ResolverOption,
 ) *Resolver {
 	r := &Resolver{
@@ -74,6 +80,8 @@ func NewResolver(
 		uploadsAuthorizer: authorizers.NewDefaultUploadsAuthorizer(),
 		usersAuthorizer:   authorizers.NewDefaultUsersAuthorizer(userService),
 		httpCfg:           httpCfg,
+		cookiesCfg:        cookiesCfg,
+		appCfg:            appCfg,
 	}
 
 	// Apply options to override defaults

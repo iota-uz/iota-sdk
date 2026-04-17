@@ -122,7 +122,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 		o.appFactory = func(_ context.Context, rt *Runtime) (application.Application, error) {
 			// Read the allowed origin for WebSocket / CORS CheckOrigin from the source.
 			var allowedOrigin string
-			if src.Has("http.origin") {
+			if _, hasOrigin := src.Get("http.origin"); hasOrigin {
 				type originOnly struct {
 					Origin string `koanf:"origin"`
 				}

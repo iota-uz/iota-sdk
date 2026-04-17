@@ -170,9 +170,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		}
 	}
 	if gateCfg == nil {
-		v := bichatconfig.Config{}
-		v.SetDefaults()
-		gateCfg = &v
+		gateCfg = &bichatconfig.Config{}
 	}
 
 	composition.AddLocales(builder, &LocaleFiles)

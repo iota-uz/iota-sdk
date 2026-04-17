@@ -10,7 +10,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -19,13 +21,19 @@ import (
 func TestLogoutController_Scenarios(t *testing.T) {
 	t.Parallel()
 
+	type cfgBundle struct {
+		httpCfg    *httpconfig.Config
+		cookiesCfg *cookies.Config
+		appCfg     *appconfig.Config
+	}
+
 	testCases := []struct {
 		name string
-		run  func(t *testing.T, suite *itf.Suite, cfg *httpconfig.Config, sessionService *services.SessionService)
+		run  func(t *testing.T, suite *itf.Suite, cfg cfgBundle, sessionService *services.SessionService)
 	}{
 		{
 			name: "post deletes session and clears browser state",
-			run: func(t *testing.T, suite *itf.Suite, cfg *httpconfig.Config, sessionService *services.SessionService) {
+			run: func(t *testing.T, suite *itf.Suite, cfg cfgBundle, sessionService *services.SessionService) {
 				t.Helper()
 
 				token := "logout-test-session-token"
@@ -40,7 +48,7 @@ func TestLogoutController_Scenarios(t *testing.T) {
 				require.NoError(t, err)
 
 				response := suite.POST("/logout").
-					Cookie(cfg.Cookies.SID, token).
+					Cookie(cfg.cookiesCfg.SID, token).
 					Expect(t).
 					Status(http.StatusSeeOther).
 					RedirectTo("/login")
@@ -50,12 +58,12 @@ func TestLogoutController_Scenarios(t *testing.T) {
 				require.Equal(t, "0", response.Header("Expires"))
 				require.Equal(t, `"cache", "cookies", "storage"`, response.Header("Clear-Site-Data"))
 
-				cookies := response.Cookies()
-				require.NotEmpty(t, cookies, "expected at least one Set-Cookie header")
+				respCookies := response.Cookies()
+				require.NotEmpty(t, respCookies, "expected at least one Set-Cookie header")
 
 				var deletedCookie *http.Cookie
-				for _, cookie := range cookies {
-					if cookie.Name == cfg.Cookies.SID {
+				for _, cookie := range respCookies {
+					if cookie.Name == cfg.cookiesCfg.SID {
 						deletedCookie = cookie
 						break
 					}
@@ -63,12 +71,12 @@ func TestLogoutController_Scenarios(t *testing.T) {
 
 				require.NotNil(t, deletedCookie, "expected cleared session cookie to be present")
 				require.Empty(t, deletedCookie.Value)
-				require.Equal(t, cfg.Cookies.SID, deletedCookie.Name)
-				require.Equal(t, cfg.Domain, deletedCookie.Domain)
+				require.Equal(t, cfg.cookiesCfg.SID, deletedCookie.Name)
+				require.Equal(t, cfg.httpCfg.Domain, deletedCookie.Domain)
 				require.Equal(t, "/", deletedCookie.Path)
 				require.Equal(t, -1, deletedCookie.MaxAge)
 				require.True(t, deletedCookie.HttpOnly)
-				require.Equal(t, cfg.IsProduction(), deletedCookie.Secure)
+				require.Equal(t, cfg.appCfg.IsProduction(), deletedCookie.Secure)
 				require.Equal(t, http.SameSiteLaxMode, deletedCookie.SameSite)
 				require.WithinDuration(t, time.Unix(0, 0), deletedCookie.Expires, time.Second)
 
@@ -78,7 +86,7 @@ func TestLogoutController_Scenarios(t *testing.T) {
 		},
 		{
 			name: "get returns method not allowed",
-			run: func(t *testing.T, suite *itf.Suite, _ *httpconfig.Config, _ *services.SessionService) {
+			run: func(t *testing.T, suite *itf.Suite, _ cfgBundle, _ *services.SessionService) {
 				t.Helper()
 
 				response := suite.GET("/logout").
@@ -101,12 +109,15 @@ func TestLogoutController_Scenarios(t *testing.T) {
 			persistTestUser(t, suite.Env())
 
 			httpCfg := itf.GetService[httpconfig.Config](suite.Env())
-			controller := controllers.NewLogoutController(httpCfg)
+			cookiesCfg := itf.GetService[cookies.Config](suite.Env())
+			appCfg := itf.GetService[appconfig.Config](suite.Env())
+			cfg := cfgBundle{httpCfg: httpCfg, cookiesCfg: cookiesCfg, appCfg: appCfg}
+			controller := controllers.NewLogoutController(httpCfg, cookiesCfg, appCfg)
 			suite.Register(controller)
 
 			sessionService := itf.GetService[services.SessionService](suite.Env())
 
-			tc.run(t, suite, httpCfg, sessionService)
+			tc.run(t, suite, cfg, sessionService)
 		})
 	}
 }

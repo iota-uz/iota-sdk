@@ -11,7 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/ratelimitconfig"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -83,9 +83,9 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 		return nil, fmt.Errorf("bootstrap runtime with composition container is required")
 	}
 
-	httpCfg, err := composition.Resolve[*httpconfig.Config](rt.Container())
+	headersCfg, err := composition.Resolve[*headers.Config](rt.Container())
 	if err != nil {
-		return nil, fmt.Errorf("server.New: resolve httpconfig: %w", err)
+		return nil, fmt.Errorf("server.New: resolve headers config: %w", err)
 	}
 
 	cfg := options{
@@ -111,7 +111,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 	stack := make([]mux.MiddlewareFunc, 0, len(cfg.before)+len(cfg.after)+10)
 	stack = append(stack, cfg.before...)
 	stack = append(stack,
-		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions(), httpCfg),
+		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions(), headersCfg),
 		middleware.TracedMiddleware("database"),
 		middleware.Provide(constants.AppKey, rt.App),
 		middleware.Provide(constants.ContainerKey, rt.Container()),
@@ -147,7 +147,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 
 	stack = append(stack,
 		middleware.TracedMiddleware("requestParams"),
-		middleware.RequestParams(httpCfg),
+		middleware.RequestParams(headersCfg),
 	)
 	stack = append(stack, cfg.after...)
 	rt.Container().AppendMiddleware(stack...)

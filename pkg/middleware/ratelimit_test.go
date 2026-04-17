@@ -8,21 +8,16 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// testHTTPConfig returns a minimal httpconfig.Config for tests.
-func testHTTPConfig() *httpconfig.Config {
-	return &httpconfig.Config{
-		Headers: httpconfig.HeadersConfig{
-			RealIP:    "X-Real-IP",
-			RequestID: "X-Request-ID",
-		},
-		Cookies: httpconfig.CookiesConfig{
-			SID: "sid",
-		},
+// testHeadersConfig returns a minimal headers.Config for tests.
+func testHTTPConfig() *headers.Config {
+	return &headers.Config{
+		RealIP:    "X-Real-IP",
+		RequestID: "X-Request-ID",
 	}
 }
 

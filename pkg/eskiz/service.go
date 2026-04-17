@@ -7,7 +7,7 @@ import (
 	"time"
 
 	eskizapi "github.com/iota-uz/eskiz"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/eskiz/models"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/sirupsen/logrus"
@@ -24,7 +24,7 @@ type Service interface {
 func NewService(
 	cfg Config,
 	logger *logrus.Logger,
-	httpCfg *httpconfig.Config,
+	httpCfg *headers.Config,
 ) Service {
 	httpClient := &http.Client{
 		Timeout: apiTimeout,

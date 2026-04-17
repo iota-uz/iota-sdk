@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -86,7 +86,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			tenantService *coreservices.TenantService,
 			twilioProvider *cpassproviders.TwilioProvider,
 			logger *logrus.Logger,
-			httpCfg *httpconfig.Config,
+			paginationCfg *pagination.Config,
 		) []application.Controller {
 			basePath := "/crm/clients"
 			return []application.Controller{
@@ -98,7 +98,7 @@ func (c *component) Build(builder *composition.Builder) error {
 						controllers.ActionsTab(),
 					},
 				}),
-				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats", logger, httpCfg),
+				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats", logger, paginationCfg),
 				controllers.NewMessageTemplateController(templateService, "/crm/instant-messages"),
 				controllers.NewTwilioController(app, twilioProvider),
 			}

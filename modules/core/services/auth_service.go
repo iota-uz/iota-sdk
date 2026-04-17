@@ -12,8 +12,10 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -48,6 +50,8 @@ type AuthService struct {
 	sessionService *SessionService
 	ipBindingMode  IPBindingMode
 	httpCfg        *httpconfig.Config
+	cookiesCfg     *cookies.Config
+	appCfg         *appconfig.Config
 	logger         *logrus.Logger
 }
 
@@ -66,6 +70,8 @@ func NewAuthService(
 	sessionService *SessionService,
 	googleCfg *googleoauthconfig.Config,
 	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	appCfg *appconfig.Config,
 	logger *logrus.Logger,
 	opts ...AuthServiceOption,
 ) *AuthService {
@@ -84,6 +90,8 @@ func NewAuthService(
 		sessionService: sessionService,
 		ipBindingMode:  IPBindingDisabled, // Default to disabled for backward compatibility
 		httpCfg:        httpCfg,
+		cookiesCfg:     cookiesCfg,
+		appCfg:         appCfg,
 		logger:         logger,
 	}
 	for _, opt := range opts {
@@ -123,12 +131,12 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 		return nil, err
 	}
 	cookie := &http.Cookie{
-		Name:     s.httpCfg.Cookies.SID,
+		Name:     s.cookiesCfg.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.httpCfg.IsProduction(),
+		Secure:   s.appCfg.IsProduction(),
 		Domain:   s.httpCfg.Domain,
 		Path:     "/",
 	}
@@ -317,12 +325,12 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 		return nil, err
 	}
 	cookie := &http.Cookie{
-		Name:     s.httpCfg.Cookies.SID,
+		Name:     s.cookiesCfg.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.httpCfg.IsProduction(),
+		Secure:   s.appCfg.IsProduction(),
 		Domain:   s.httpCfg.Domain,
 		Path:     "/",
 	}
@@ -373,12 +381,12 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		return nil, err
 	}
 	cookie := &http.Cookie{
-		Name:     s.httpCfg.Cookies.SID,
+		Name:     s.cookiesCfg.SID,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.httpCfg.IsProduction(),
+		Secure:   s.appCfg.IsProduction(),
 		Domain:   s.httpCfg.Domain,
 		Path:     "/",
 	}
@@ -425,12 +433,12 @@ func (s *AuthService) generateStateOauthCookie() (*http.Cookie, error) {
 	}
 	state := base64.URLEncoding.EncodeToString(b)
 	cookie := &http.Cookie{
-		Name:     s.httpCfg.Cookies.OAuthState,
+		Name:     s.cookiesCfg.OAuthState,
 		Value:    state,
 		Expires:  time.Now().Add(time.Minute * 5),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   s.httpCfg.IsProduction(),
+		Secure:   s.appCfg.IsProduction(),
 		Domain:   s.httpCfg.Domain,
 	}
 	return cookie, nil

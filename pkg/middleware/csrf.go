@@ -8,6 +8,7 @@ import (
 
 	csrf "filippo.io/csrf/gorilla"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 )
 
@@ -44,21 +45,21 @@ func CSRFErrorHandler(h http.Handler) CSRFOption {
 	}
 }
 
-// CSRFFromConfig creates CSRF middleware pre-configured from httpconfig.Config.
-// It reads AllowedOrigins, Origin, and Environment from config.
+// CSRFFromConfig creates CSRF middleware pre-configured from httpconfig.Config and appconfig.Config.
+// It reads AllowedOrigins and computes Origin from config.
 // AllowedOrigins (full URLs) are normalized to scheme-qualified origins for CSRF trust.
 // Additional opts (e.g. CSRFExemptPrefixes) are applied on top.
-func CSRFFromConfig(cfg *httpconfig.Config, opts ...CSRFOption) mux.MiddlewareFunc {
+func CSRFFromConfig(cfg *httpconfig.Config, appCfg *appconfig.Config, opts ...CSRFOption) mux.MiddlewareFunc {
 	baseOpts := []CSRFOption{}
 
-	defaultScheme := cfg.Scheme()
+	defaultScheme := appCfg.Scheme()
 	var trustedOrigins []string
 	for _, origin := range cfg.AllowedOrigins {
 		if normalized, ok := normalizeTrustedOrigin(origin, defaultScheme); ok {
 			trustedOrigins = append(trustedOrigins, normalized)
 		}
 	}
-	if normalized, ok := normalizeTrustedOrigin(cfg.Origin, defaultScheme); ok {
+	if normalized, ok := normalizeTrustedOrigin(cfg.Origin(appCfg), defaultScheme); ok {
 		trustedOrigins = append(trustedOrigins, normalized)
 	}
 

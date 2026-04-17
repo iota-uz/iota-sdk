@@ -20,6 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
@@ -32,17 +33,20 @@ const langfuseEnvironment = "development"
 
 // resolveBichatConfigs extracts all typed configs needed by buildModuleConfig
 // from the BuildContext. When a config.Source is attached, the registry path is
-// used (koanf unmarshal + optional Validate). Otherwise zero-value defaults are
-// applied via each package's SetDefaults helper.
+// used (koanf unmarshal + optional Validate). Otherwise zero-value structs are
+// returned (tag-based defaults were applied during construction or will be applied
+// via config.Register).
 func resolveBichatConfigs(buildCtx composition.BuildContext) (
 	*bichatconfig.Config,
 	*httpconfig.Config,
+	*appconfig.Config,
 	*uploadsconfig.Config,
 	*logrus.Logger,
 ) {
 	logger := buildCtx.Logger()
 	var bichatCfg *bichatconfig.Config
 	var httpCfg *httpconfig.Config
+	var appCfg *appconfig.Config
 	var uploadsCfg *uploadsconfig.Config
 
 	if src := buildCtx.Source(); src != nil {
@@ -54,6 +58,9 @@ func resolveBichatConfigs(buildCtx composition.BuildContext) (
 		if ptr, err := config.Register[httpconfig.Config](reg); err == nil {
 			httpCfg = ptr
 		}
+		if ptr, err := config.Register[appconfig.Config](reg); err == nil {
+			appCfg = ptr
+		}
 		if ptr, err := config.Register[uploadsconfig.Config](reg); err == nil {
 			uploadsCfg = ptr
 		}
@@ -61,20 +68,23 @@ func resolveBichatConfigs(buildCtx composition.BuildContext) (
 
 	// Ensure zero-value defaults when resolution produced nothing.
 	if bichatCfg == nil {
-		v := bichatconfig.Config{}
-		v.SetDefaults()
-		bichatCfg = &v
+		bichatCfg = &bichatconfig.Config{}
 	}
 	if httpCfg == nil {
 		httpCfg = &httpconfig.Config{}
 	}
+	if appCfg == nil {
+		appCfg = &appconfig.Config{}
+	}
 	if uploadsCfg == nil {
-		v := uploadsconfig.Config{}
-		v.SetDefaults()
-		uploadsCfg = &v
+		uploadsCfg = &uploadsconfig.Config{
+			Path:      "static",
+			MaxSize:   33554432,
+			MaxMemory: 33554432,
+		}
 	}
 
-	return bichatCfg, httpCfg, uploadsCfg, logger
+	return bichatCfg, httpCfg, appCfg, uploadsCfg, logger
 }
 
 // loadModule builds the BiChat runtime graph (module config, service
@@ -129,7 +139,7 @@ func buildModuleConfig(
 		return nil, nil, serrors.E(op, "database pool is required")
 	}
 
-	bichatCfg, httpCfg, uploadsCfg, logger := resolveBichatConfigs(buildCtx)
+	bichatCfg, httpCfg, appCfg, uploadsCfg, logger := resolveBichatConfigs(buildCtx)
 
 	model, err := llmproviders.NewOpenAIModelFromConfig(bichatCfg.OpenAI)
 	if err != nil {
@@ -161,7 +171,7 @@ func buildModuleConfig(
 	}
 
 	uploadsPath := uploadsCfg.Path
-	origin := httpCfg.Origin
+	origin := httpCfg.Origin(appCfg)
 
 	moduleOpts := []ConfigOption{
 		WithQueryExecutor(executor),
@@ -172,7 +182,7 @@ func buildModuleConfig(
 			origin+"/"+uploadsPath+"/bichat",
 		),
 		withAppletSettings(
-			httpCfg.IsDev(),
+			appCfg.IsDev(),
 			bichatCfg.Applet.ViteURL,
 			bichatCfg.Applet.Entry,
 			bichatCfg.Applet.Client,

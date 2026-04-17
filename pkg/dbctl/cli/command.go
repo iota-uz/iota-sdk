@@ -7,8 +7,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/execution"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
@@ -32,13 +32,11 @@ func resolveRunOptions(base execution.RunOptions) (execution.RunOptions, error) 
 	}
 	base.DBConfig = dbCfg
 
-	// AppEnvironment via httpconfig.Config so SetDefaults applies the
-	// legacy "development" fallback when HTTP_ENVIRONMENT is unset.
-	httpCfg, err := config.Register[httpconfig.Config](reg)
+	appCfg, err := config.Register[appconfig.Config](reg)
 	if err != nil {
-		return base, fmt.Errorf("dbctl: load httpconfig: %w", err)
+		return base, fmt.Errorf("dbctl: load appconfig: %w", err)
 	}
-	base.AppEnvironment = httpCfg.Environment
+	base.AppEnvironment = appCfg.Environment
 
 	if base.Logger == nil {
 		base.Logger = logrus.StandardLogger()

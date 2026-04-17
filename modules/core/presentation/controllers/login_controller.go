@@ -20,6 +20,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -89,6 +91,8 @@ func NewLoginController(
 	authService *services.AuthService,
 	authFlowService *services.AuthFlowService,
 	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	headersCfg *headers.Config,
 	googleCfg *googleoauthconfig.Config,
 	opts ...*LoginControllerOptions,
 ) application.Controller {
@@ -100,6 +104,8 @@ func NewLoginController(
 		authService:     authService,
 		authFlowService: authFlowService,
 		httpCfg:         httpCfg,
+		cookiesCfg:      cookiesCfg,
+		headersCfg:      headersCfg,
 		googleCfg:       googleCfg,
 		options:         options,
 	}
@@ -120,6 +126,8 @@ type LoginController struct {
 	authFlowService  *services.AuthFlowService
 	twoFactorService *twofactor.TwoFactorService
 	httpCfg          *httpconfig.Config
+	cookiesCfg       *cookies.Config
+	headersCfg       *headers.Config
 	googleCfg        *googleoauthconfig.Config
 	options          *LoginControllerOptions
 }
@@ -160,7 +168,7 @@ func (c *LoginController) GetMiddlewares() []mux.MiddlewareFunc {
 // PostMiddlewares returns middleware used for login POST routes.
 func (c *LoginController) PostMiddlewares() []mux.MiddlewareFunc {
 	defaults := []mux.MiddlewareFunc{
-		middleware.IPRateLimitPeriod(10, time.Minute, c.httpCfg), // 10 login attempts per minute per IP
+		middleware.IPRateLimitPeriod(10, time.Minute, c.headersCfg), // 10 login attempts per minute per IP
 	}
 	if c.optionsOrDefault().CustomizePostMiddlewares != nil {
 		return c.optionsOrDefault().CustomizePostMiddlewares(cloneMiddlewares(defaults))
@@ -204,7 +212,7 @@ func (c *LoginController) GoogleCallback(w http.ResponseWriter, r *http.Request)
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)
 		return
 	}
-	oauthCookie, err := r.Cookie(c.httpCfg.Cookies.OAuthState)
+	oauthCookie, err := r.Cookie(c.cookiesCfg.OAuthState)
 	if err != nil {
 		queryParams.Set("error", intl.MustT(r.Context(), "Login.Errors.OauthStateNotFound"))
 		http.Redirect(w, r, fmt.Sprintf("/login?%s", queryParams.Encode()), http.StatusFound)

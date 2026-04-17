@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -92,12 +93,13 @@ func (c *component) Build(builder *composition.Builder) error {
 		composition.ContributeControllersFunc(builder, func(
 			cfg *oidcconfig.Config,
 			httpCfg *httpconfig.Config,
+			cookiesCfg *cookies.Config,
 			storage *oidcinfra.Storage,
 			oidcService *services.OIDCService,
 			sessionService *coreservices.SessionService,
 		) []application.Controller {
 			return []application.Controller{
-				controllers.NewOIDCController(storage, cfg, oidcService, sessionService, httpCfg),
+				controllers.NewOIDCController(storage, cfg, oidcService, sessionService, httpCfg, cookiesCfg),
 			}
 		})
 	}

@@ -471,9 +471,11 @@ type Handler struct {
 // defaultUploadsConfig returns a Config with documented defaults applied.
 // Used when NewHandler or NewBaseServer receives a nil *uploadsconfig.Config.
 func defaultUploadsConfig() uploadsconfig.Config {
-	c := uploadsconfig.Config{}
-	c.SetDefaults()
-	return c
+	return uploadsconfig.Config{
+		Path:      "static",
+		MaxSize:   33554432,
+		MaxMemory: 33554432,
+	}
 }
 
 func NewHandler(rootExecutor *executor.Executor, cfg *uploadsconfig.Config) *Handler {

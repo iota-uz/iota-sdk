@@ -12,16 +12,20 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 )
 
 type LogoutController struct {
-	cfg *httpconfig.Config
+	cfg        *httpconfig.Config
+	cookiesCfg *cookies.Config
+	appCfg     *appconfig.Config
 }
 
-func NewLogoutController(cfg *httpconfig.Config) application.Controller {
-	return &LogoutController{cfg: cfg}
+func NewLogoutController(cfg *httpconfig.Config, cookiesCfg *cookies.Config, appCfg *appconfig.Config) application.Controller {
+	return &LogoutController{cfg: cfg, cookiesCfg: cookiesCfg, appCfg: appCfg}
 }
 
 func (c *LogoutController) Key() string {
@@ -44,7 +48,7 @@ func (c *LogoutController) Logout(
 	sessionService *services.SessionService,
 	logger *logrus.Entry,
 ) {
-	if cookie, err := r.Cookie(c.cfg.Cookies.SID); err == nil && cookie.Value != "" {
+	if cookie, err := r.Cookie(c.cookiesCfg.SID); err == nil && cookie.Value != "" {
 		if err := sessionService.Delete(r.Context(), cookie.Value); err != nil && !errors.Is(err, persistence.ErrSessionNotFound) {
 			logger.WithError(err).Warn("failed to delete session on logout")
 		}
@@ -52,7 +56,7 @@ func (c *LogoutController) Logout(
 
 	http.SetCookie(
 		w, &http.Cookie{
-			Name:     c.cfg.Cookies.SID,
+			Name:     c.cookiesCfg.SID,
 			Value:    "",
 			Domain:   c.cfg.Domain,
 			Path:     "/",
@@ -60,7 +64,7 @@ func (c *LogoutController) Logout(
 			Expires:  time.Unix(0, 0),
 			HttpOnly: true,
 			SameSite: http.SameSiteLaxMode,
-			Secure:   c.cfg.IsProduction(),
+			Secure:   c.appCfg.IsProduction(),
 		},
 	)
 

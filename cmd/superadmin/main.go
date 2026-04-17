@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -75,8 +76,12 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve httpconfig: %w", err)
 	}
+	appCfg, err := composition.Resolve[*appconfig.Config](rt.Container())
+	if err != nil {
+		return fmt.Errorf("failed to resolve appconfig: %w", err)
+	}
 
-	socketAddr := httpCfg.SocketAddress()
+	socketAddr := appCfg.SocketAddress(httpCfg.Port)
 	rt.Logger.Info("Super Admin Server starting...")
 	rt.Logger.Info("Listening on: " + socketAddr)
 	rt.Logger.Info("Core auth/upload controllers and superadmin controllers loaded")

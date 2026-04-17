@@ -21,7 +21,7 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
 
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 )
 
@@ -61,16 +61,16 @@ func wrapResponseWriter(w http.ResponseWriter) *responseCaptureWriter {
 	}
 }
 
-func getRealIP(r *http.Request, cfg *httpconfig.Config) string {
-	if len(r.Header.Get(cfg.Headers.RealIP)) > 0 {
-		return r.Header.Get(cfg.Headers.RealIP)
+func getRealIP(r *http.Request, cfg *headers.Config) string {
+	if len(r.Header.Get(cfg.RealIP)) > 0 {
+		return r.Header.Get(cfg.RealIP)
 	}
 	return r.RemoteAddr
 }
 
-func getRequestID(r *http.Request, cfg *httpconfig.Config) string {
-	if len(r.Header.Get(cfg.Headers.RequestID)) > 0 {
-		return r.Header.Get(cfg.Headers.RequestID)
+func getRequestID(r *http.Request, cfg *headers.Config) string {
+	if len(r.Header.Get(cfg.RequestID)) > 0 {
+		return r.Header.Get(cfg.RequestID)
 	}
 	return uuid.New().String()
 }
@@ -128,7 +128,7 @@ func shouldLogBody(contentType string) bool {
 		strings.Contains(contentType, "text/xml")
 }
 
-func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *httpconfig.Config) mux.MiddlewareFunc {
+func WithLogger(logger *logrus.Logger, opts LoggerOptions, cfg *headers.Config) mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {

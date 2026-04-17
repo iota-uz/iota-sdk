@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 )
@@ -64,9 +65,13 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve httpconfig: %w", err)
 	}
+	appCfg, err := composition.Resolve[*appconfig.Config](rt.Container())
+	if err != nil {
+		return fmt.Errorf("failed to resolve appconfig: %w", err)
+	}
 
-	socketAddr := httpCfg.SocketAddress()
-	log.Printf("Listening on: %s\n", httpCfg.Origin)
+	socketAddr := appCfg.SocketAddress(httpCfg.Port)
+	log.Printf("Listening on: %s\n", httpCfg.Origin(appCfg))
 	if err := serverInstance.Start(socketAddr); err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}

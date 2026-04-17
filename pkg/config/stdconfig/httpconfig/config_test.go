@@ -2,7 +2,6 @@ package httpconfig_test
 
 import (
 	"testing"
-	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
@@ -23,17 +22,10 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	src := buildSource(t, map[string]any{
-		"http.port":                   8080,
-		"http.domain":                 "example.com",
-		"http.origin":                 "https://example.com",
-		"http.allowedorigins":         []string{"https://app.example.com"},
-		"http.headers.requestid":      "X-Req-ID",
-		"http.headers.realip":         "X-Forwarded-For",
-		"http.cookies.sid":            "mysid",
-		"http.cookies.oauthstate":     "mystate",
-		"http.session.duration":       "48h",
-		"http.pagination.pagesize":    50,
-		"http.pagination.maxpagesize": 200,
+		"http.port":           8080,
+		"http.domain":         "example.com",
+		"http.origin":         "https://example.com",
+		"http.allowedorigins": []string{"https://app.example.com"},
 	})
 
 	var cfg httpconfig.Config
@@ -49,18 +41,6 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 	}
 	if cfg.OriginOverride != "https://example.com" {
 		t.Errorf("OriginOverride: want https://example.com, got %s", cfg.OriginOverride)
-	}
-	if cfg.Headers.RequestID != "X-Req-ID" {
-		t.Errorf("Headers.RequestID: want X-Req-ID, got %s", cfg.Headers.RequestID)
-	}
-	if cfg.Cookies.SID != "mysid" {
-		t.Errorf("Cookies.SID: want mysid, got %s", cfg.Cookies.SID)
-	}
-	if cfg.Session.Duration != 48*time.Hour {
-		t.Errorf("Session.Duration: want 48h, got %s", cfg.Session.Duration)
-	}
-	if cfg.Pagination.PageSize != 50 {
-		t.Errorf("Pagination.PageSize: want 50, got %d", cfg.Pagination.PageSize)
 	}
 }
 

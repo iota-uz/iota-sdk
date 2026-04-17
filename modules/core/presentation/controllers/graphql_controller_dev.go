@@ -20,15 +20,18 @@ func init() {
 }
 
 // initDevPlayground wires a per-instance playground handler that logs the
-// full URL using the controller's injected httpconfig. It replaces the
+// full URL using the controller's injected configs. It replaces the
 // package-level registerPlaygroundHandler with a closure over the controller.
 func initDevPlayground(c *GraphQLController) {
 	if c.httpCfg == nil {
 		return
 	}
-	cfg := c.httpCfg
+	httpCfg := c.httpCfg
+	appCfg := c.appCfg
 	registerPlaygroundHandler = func(router *mux.Router) {
 		router.Handle("/playground", playground.Handler("GraphQL playground", "/query"))
-		log.Printf("See %s/playground for GraphQL playground", cfg.Origin)
+		if appCfg != nil {
+			log.Printf("See %s/playground for GraphQL playground", httpCfg.Origin(appCfg))
+		}
 	}
 }

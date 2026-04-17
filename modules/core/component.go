@@ -28,6 +28,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
+	httpsession "github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/smtpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
@@ -199,10 +202,18 @@ func (c *component) Build(builder *composition.Builder) error {
 		if err != nil {
 			return nil, err
 		}
+		cookiesCfg, err := composition.Resolve[*cookies.Config](container)
+		if err != nil {
+			return nil, err
+		}
+		appCfg, err := composition.Resolve[*appconfig.Config](container)
+		if err != nil {
+			return nil, err
+		}
 		return []application.GraphSchema{
 			{
 				Value: graph.NewExecutableSchema(graph.Config{
-					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc, httpCfg),
+					Resolvers: graph.NewResolver(app, userSvc, uploadSvc, authSvc, httpCfg, cookiesCfg, appCfg),
 				}),
 				BasePath: "/",
 			},
@@ -253,6 +264,10 @@ func (c *component) Build(builder *composition.Builder) error {
 			groupService *services.GroupService,
 			twoFactorService *coreservices2fa.TwoFactorService,
 			httpCfg *httpconfig.Config,
+			cookiesCfg *cookies.Config,
+			headersCfg *headers.Config,
+			sessionCfg *httpsession.Config,
+			appCfg *appconfig.Config,
 			googleCfg *googleoauthconfig.Config,
 			uploadsCfg *uploadsconfig.Config,
 			dbCfg *dbconfig.Config,
@@ -270,11 +285,11 @@ func (c *component) Build(builder *composition.Builder) error {
 			// Auth and infrastructure controllers — always registered.
 			ctrls := []application.Controller{
 				controllers.NewHealthController(app),
-				controllers.NewLoginController(authService, authFlowService, httpCfg, googleCfg, opts.LoginControllerOptions),
-				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg),
-				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg),
-				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, httpCfg),
-				controllers.NewLogoutController(httpCfg),
+				controllers.NewLoginController(authService, authFlowService, httpCfg, cookiesCfg, headersCfg, googleCfg, opts.LoginControllerOptions),
+				controllers.NewTwoFactorSetupController(twoFactorService, sessionService, userService, httpCfg, cookiesCfg, sessionCfg, appCfg),
+				controllers.NewTwoFactorVerifyController(twoFactorService, sessionService, userService, httpCfg, cookiesCfg, sessionCfg, appCfg),
+				controllers.NewAccountController(app, userService, tenantService, uploadService, sessionService, cookiesCfg),
+				controllers.NewLogoutController(httpCfg, cookiesCfg, appCfg),
 				controllers.NewUploadController(uploadService, uploadsCfg),
 			}
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
@@ -304,7 +319,7 @@ func (c *component) Build(builder *composition.Builder) error {
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
 					controllers.NewSettingsLogoController(tenantService, uploadService),
-					controllers.NewSessionController("/settings/sessions", httpCfg),
+					controllers.NewSessionController("/settings/sessions", cookiesCfg),
 				)
 				// NewCrudShowcaseController returns nil in the `!dev` build so
 				// we must nil-guard the append rather than splatting it into
@@ -312,7 +327,7 @@ func (c *component) Build(builder *composition.Builder) error {
 				if ctrl := controllers.NewCrudShowcaseController(bus); ctrl != nil {
 					ctrls = append(ctrls, ctrl)
 				}
-				if ctrl := controllers.NewShowcaseController(dbCfg, httpCfg); ctrl != nil {
+				if ctrl := controllers.NewShowcaseController(dbCfg, httpCfg, appCfg); ctrl != nil {
 					ctrls = append(ctrls, ctrl)
 				}
 			}
@@ -334,9 +349,11 @@ func newCoreAuthService(
 	sessionService *services.SessionService,
 	googleCfg *googleoauthconfig.Config,
 	httpCfg *httpconfig.Config,
+	cookiesCfg *cookies.Config,
+	appCfg *appconfig.Config,
 	logger *logrus.Logger,
 ) *services.AuthService {
-	return services.NewAuthService(usersService, sessionService, googleCfg, httpCfg, logger)
+	return services.NewAuthService(usersService, sessionService, googleCfg, httpCfg, cookiesCfg, appCfg, logger)
 }
 
 // newCoreUserService injects the validator constructor inline since the

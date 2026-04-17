@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -28,7 +28,7 @@ type AccountController struct {
 	tenantService  *services.TenantService
 	uploadService  *services.UploadService
 	sessionService *services.SessionService
-	cfg            *httpconfig.Config
+	cfg            *cookies.Config
 	basePath       string
 }
 
@@ -38,7 +38,7 @@ func NewAccountController(
 	tenantService *services.TenantService,
 	uploadService *services.UploadService,
 	sessionService *services.SessionService,
-	cfg *httpconfig.Config,
+	cfg *cookies.Config,
 ) application.Controller {
 	return &AccountController{
 		app:            app,
@@ -190,7 +190,7 @@ func (c *AccountController) GetSessions(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.Cookies.SID)
+	cookie, err := r.Cookie(c.cfg.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -231,7 +231,7 @@ func (c *AccountController) RevokeSession(w http.ResponseWriter, r *http.Request
 	tokenHash := vars["token"]
 
 	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.Cookies.SID)
+	cookie, err := r.Cookie(c.cfg.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)
@@ -304,7 +304,7 @@ func (c *AccountController) RevokeOtherSessions(w http.ResponseWriter, r *http.R
 	}
 
 	// Get current session token from cookie
-	cookie, err := r.Cookie(c.cfg.Cookies.SID)
+	cookie, err := r.Cookie(c.cfg.SID)
 	if err != nil {
 		logger.WithError(err).Error("failed to get session cookie")
 		http.Error(w, "Session not found", http.StatusUnauthorized)

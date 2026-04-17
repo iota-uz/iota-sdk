@@ -16,26 +16,26 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
-// resolveSIDKey returns the session-ID cookie key from the typed httpconfig.Config
+// resolveSIDKey returns the session-ID cookie key from the typed cookies.Config
 // registered in the composition container, falling back to "sid" if unavailable.
 func resolveSIDKey(ctx context.Context) string {
 	container, err := composition.UseContainer(ctx)
 	if err != nil {
 		return "sid"
 	}
-	cfg, err := composition.Resolve[*httpconfig.Config](container)
+	cfg, err := composition.Resolve[*cookies.Config](container)
 	if err != nil || cfg == nil {
 		return "sid"
 	}
-	if cfg.Cookies.SID == "" {
+	if cfg.SID == "" {
 		return "sid"
 	}
-	return cfg.Cookies.SID
+	return cfg.SID
 }
 
 func getToken(r *http.Request, sidKey string) (string, error) {

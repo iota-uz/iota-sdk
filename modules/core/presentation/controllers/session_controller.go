@@ -20,7 +20,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -28,10 +28,10 @@ import (
 
 type SessionController struct {
 	basePath string
-	cfg      *httpconfig.Config
+	cfg      *cookies.Config
 }
 
-func NewSessionController(basePath string, cfg *httpconfig.Config) application.Controller {
+func NewSessionController(basePath string, cfg *cookies.Config) application.Controller {
 	return &SessionController{
 		basePath: basePath,
 		cfg:      cfg,
@@ -100,7 +100,7 @@ func (c *SessionController) List(
 
 	// Get current user's session token for highlighting
 	currentToken := ""
-	if cookie, err := r.Cookie(c.cfg.Cookies.SID); err == nil {
+	if cookie, err := r.Cookie(c.cfg.SID); err == nil {
 		currentToken = cookie.Value
 	}
 

@@ -29,12 +29,14 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	sidKey := "sid"
 	domain := ""
 	secure := false
+	if r.cookiesCfg != nil && r.cookiesCfg.SID != "" {
+		sidKey = r.cookiesCfg.SID
+	}
 	if r.httpCfg != nil {
-		if r.httpCfg.Cookies.SID != "" {
-			sidKey = r.httpCfg.Cookies.SID
-		}
 		domain = r.httpCfg.Domain
-		secure = r.httpCfg.IsProduction()
+	}
+	if r.appCfg != nil {
+		secure = r.appCfg.IsProduction()
 	}
 
 	cookie := &http.Cookie{

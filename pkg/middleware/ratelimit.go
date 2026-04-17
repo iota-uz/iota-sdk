@@ -14,7 +14,7 @@ import (
 	"github.com/ulule/limiter/v3/drivers/store/redis"
 
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 )
 
 // RateLimitConfig holds configuration for rate limiting
@@ -34,14 +34,14 @@ type RateLimitConfig struct {
 }
 
 // DefaultKeyFunc returns a key function that extracts the real IP address for rate limiting.
-func DefaultKeyFunc(cfg *httpconfig.Config) func(r *http.Request) string {
+func DefaultKeyFunc(cfg *headers.Config) func(r *http.Request) string {
 	return func(r *http.Request) string {
 		return getRealIP(r, cfg)
 	}
 }
 
 // UserKeyFunc returns a key function based on user ID if authenticated, falls back to IP.
-func UserKeyFunc(cfg *httpconfig.Config) func(r *http.Request) string {
+func UserKeyFunc(cfg *headers.Config) func(r *http.Request) string {
 	ipKeyFunc := DefaultKeyFunc(cfg)
 	return func(r *http.Request) string {
 		ctx := r.Context()
@@ -54,7 +54,7 @@ func UserKeyFunc(cfg *httpconfig.Config) func(r *http.Request) string {
 }
 
 // EndpointKeyFunc returns a key function based on endpoint and IP.
-func EndpointKeyFunc(cfg *httpconfig.Config, endpoint string) func(r *http.Request) string {
+func EndpointKeyFunc(cfg *headers.Config, endpoint string) func(r *http.Request) string {
 	ipKeyFunc := DefaultKeyFunc(cfg)
 	return func(r *http.Request) string {
 		return fmt.Sprintf("%s:%s", endpoint, ipKeyFunc(r))
@@ -159,11 +159,11 @@ func GlobalRateLimitPeriod(requests int, period time.Duration) mux.MiddlewareFun
 }
 
 // IPRateLimitPeriod creates an IP-based rate limiting middleware with custom time period
-func IPRateLimitPeriod(requests int, period time.Duration, cfg *httpconfig.Config) mux.MiddlewareFunc {
+func IPRateLimitPeriod(requests int, period time.Duration, cfg *headers.Config) mux.MiddlewareFunc {
 	return RateLimitPeriod(requests, period, DefaultKeyFunc(cfg))
 }
 
 // UserRateLimitPeriod creates a user-based rate limiting middleware with custom time period
-func UserRateLimitPeriod(requests int, period time.Duration, cfg *httpconfig.Config) mux.MiddlewareFunc {
+func UserRateLimitPeriod(requests int, period time.Duration, cfg *headers.Config) mux.MiddlewareFunc {
 	return RateLimitPeriod(requests, period, UserKeyFunc(cfg))
 }

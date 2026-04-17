@@ -12,7 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
@@ -67,7 +67,7 @@ func (c *component) Build(builder *composition.Builder) error {
 		composition.ContributeControllersFunc(builder, func(
 			billingSvc *services.BillingService,
 			paymentsCfg *paymentsconfig.Config,
-			httpCfg *httpconfig.Config,
+			httpCfg *headers.Config,
 		) []application.Controller {
 			return newBillingControllers(billingSvc, paymentsCfg, httpCfg, stripeHooks)
 		})
@@ -84,7 +84,7 @@ func newBillingService(
 	repo billingdom.Repository,
 	bus eventbus.EventBus,
 	paymentsCfg *paymentsconfig.Config,
-	httpCfg *httpconfig.Config,
+	httpCfg *headers.Config,
 	logger *logrus.Logger,
 ) *services.BillingService {
 	logTransport := middleware.NewLogTransport(logger, httpCfg, true, true, "octo")
@@ -119,7 +119,7 @@ func newBillingService(
 func newBillingControllers(
 	billingSvc *services.BillingService,
 	paymentsCfg *paymentsconfig.Config,
-	httpCfg *httpconfig.Config,
+	httpCfg *headers.Config,
 	stripeHooks []ports.StripeEventHook,
 ) []application.Controller {
 	basePath := "/billing"
