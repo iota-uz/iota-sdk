@@ -1,3 +1,6 @@
+// Package stdconfig aggregates every typed config package shipped with iota-sdk.
+// It provides a Bundle struct plus RegisterAll helper that registers all
+// stdconfig types from a single config.Source in one call.
 package stdconfig
 
 import (

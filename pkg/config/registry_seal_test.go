@@ -1,7 +1,6 @@
 package config
 
 import (
-	"errors"
 	"strings"
 	"testing"
 )
@@ -12,15 +11,6 @@ type sealValid struct {
 }
 
 func (s *sealValid) Validate() error { return nil }
-
-// sealInvalid is a config type that always fails validation.
-type sealInvalid struct {
-	Value string `koanf:"value"`
-}
-
-func (s *sealInvalid) Validate() error {
-	return errors.New("sealInvalid: always fails")
-}
 
 func TestSeal_NoErrors_WhenAllValid(t *testing.T) {
 	t.Parallel()

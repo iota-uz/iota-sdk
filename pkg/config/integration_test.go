@@ -28,16 +28,19 @@ func writeTempEnv(t *testing.T, content string) string {
 func TestIntegration_CanonicalKeys(t *testing.T) {
 	t.Parallel()
 
+	// Use keys that CI runners and developer shells are unlikely to set in
+	// their process environment — otherwise the env overlay (process env > file)
+	// would mask the .env file values we're testing here.
 	envContent := strings.Join([]string{
 		"HTTP_PORT=8080",
 		"RATELIMIT_ENABLED=false",
-		"DB_HOST=canonical",
+		"APP_TELEGRAMBOTTOKEN=canonical",
 	}, "\n")
 	envPath := writeTempEnv(t, envContent)
 
 	src, err := config.Build(
 		envprov.New(envPath),
-		static.New(map[string]any{"db.port": "9999"}),
+		static.New(map[string]any{"app.environment": "static-wins"}),
 	)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
@@ -57,14 +60,14 @@ func TestIntegration_CanonicalKeys(t *testing.T) {
 		t.Errorf("HTTP.Port: got %d, want 8080", bundle.HTTP.Port)
 	}
 
-	// DB_HOST → db.host from .env file.
-	if bundle.DB.Host != "canonical" {
-		t.Errorf("DB.Host: got %q, want \"canonical\"", bundle.DB.Host)
+	// APP_TELEGRAMBOTTOKEN → app.telegrambottoken from .env file.
+	if bundle.App.TelegramBotToken != "canonical" {
+		t.Errorf("App.TelegramBotToken: got %q, want \"canonical\"", bundle.App.TelegramBotToken)
 	}
 
-	// db.port from static provider (later provider wins).
-	if bundle.DB.Port != "9999" {
-		t.Errorf("DB.Port: got %q, want \"9999\"", bundle.DB.Port)
+	// app.environment from static provider (later provider wins over tag default).
+	if bundle.App.Environment != "static-wins" {
+		t.Errorf("App.Environment: got %q, want \"static-wins\"", bundle.App.Environment)
 	}
 
 	// RATELIMIT_ENABLED=false: *bool sentinel correctly captures explicit false.
@@ -87,13 +90,13 @@ func TestIntegration_CanonicalKeys(t *testing.T) {
 		t.Errorf("Origin(http.port): expected env: prefix, got %q", origin)
 	}
 
-	// Origin of db.port comes from static provider.
-	origin, ok = src.Origin("db.port")
+	// Origin of app.environment comes from static provider.
+	origin, ok = src.Origin("app.environment")
 	if !ok {
-		t.Error("Origin(db.port): expected ok=true")
+		t.Error("Origin(app.environment): expected ok=true")
 	}
 	if origin != "static" {
-		t.Errorf("Origin(db.port): got %q, want \"static\"", origin)
+		t.Errorf("Origin(app.environment): got %q, want \"static\"", origin)
 	}
 }
 

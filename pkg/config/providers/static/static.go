@@ -27,10 +27,8 @@ func (p *staticProvider) Name() string {
 
 // Load returns a copy of the stored values map.
 func (p *staticProvider) Load() (map[string]any, error) {
-	if len(p.values) == 0 {
-		return nil, nil
-	}
 	// Return a shallow copy so mutations after New don't affect the source.
+	// Empty source returns an empty (non-nil) map so Build can still iterate safely.
 	out := make(map[string]any, len(p.values))
 	for k, v := range p.values {
 		out[k] = v

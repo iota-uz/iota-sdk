@@ -20,8 +20,8 @@ import (
 //	    "http.port": 9090,
 //	})
 //	// cfg.Port == 9090, all other fields have their defaults
-func Populated[T config.Prefixed](t testing.TB, overrides map[string]any) *T {
-	t.Helper()
+func Populated[T config.Prefixed](tb testing.TB, overrides map[string]any) *T {
+	tb.Helper()
 	src, err := config.Build(static.New(overrides))
 	if err != nil {
 		panic("configtesting.Populated: Build: " + err.Error())

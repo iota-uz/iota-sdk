@@ -82,7 +82,7 @@ func redactSecret(fv reflect.Value) string {
 		}
 		fv = fv.Elem()
 	}
-	switch fv.Kind() {
+	switch fv.Kind() { //nolint:exhaustive // scalar kinds redact to "***" via the default branch below
 	case reflect.Slice, reflect.Map:
 		if fv.IsNil() || fv.Len() == 0 {
 			return ""

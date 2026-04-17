@@ -36,7 +36,8 @@ func (p *yamlProvider) Name() string {
 // Uses a temporary koanf instance internally to leverage the YAML parser.
 func (p *yamlProvider) Load() (map[string]any, error) {
 	if _, err := os.Stat(p.path); errors.Is(err, os.ErrNotExist) {
-		return nil, nil
+		// Missing file is a silent no-op; return an empty map so Build merges cleanly.
+		return map[string]any{}, nil
 	}
 	k := koanf.New(".")
 	if err := k.Load(file.Provider(p.path), koanfyaml.Parser()); err != nil {

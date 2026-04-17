@@ -132,7 +132,10 @@ func TestHandlerFromMap_DeterministicKeyOrder(t *testing.T) {
 		t.Fatalf("invalid JSON: %v", err)
 	}
 	// Re-marshal to get sorted keys, compare bytes.
-	resorted, _ := json.MarshalIndent(parsed, "", "  ")
+	resorted, err := json.MarshalIndent(parsed, "", "  ")
+	if err != nil {
+		t.Fatalf("re-marshal: %v", err)
+	}
 	if !bytes.Equal(first, resorted) {
 		t.Errorf("keys are not sorted:\ngot:  %s\nwant: %s", first, resorted)
 	}

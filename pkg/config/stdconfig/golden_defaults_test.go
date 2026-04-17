@@ -38,7 +38,7 @@ func TestGoldenDefaults(t *testing.T) {
 		t.Fatalf("RegisterAll: %v", err)
 	}
 
-	got, err := json.MarshalIndent(bundle, "", "  ")
+	got, err := json.MarshalIndent(bundle, "", "  ") //nolint:musttag // stdconfig types use koanf tags, not json — fixture compares Go field names
 	if err != nil {
 		t.Fatalf("json.MarshalIndent: %v", err)
 	}

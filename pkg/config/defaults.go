@@ -56,7 +56,7 @@ func applyDefaults(rv reflect.Value) error {
 			continue
 		}
 
-		switch field.Type.Kind() {
+		switch field.Type.Kind() { //nolint:exhaustive // other kinds handled by default tag / setFieldFromString below
 		case reflect.Struct:
 			// Recurse into nested struct fields unconditionally (they may have default tags).
 			if err := applyDefaults(fv); err != nil {
@@ -135,7 +135,7 @@ func applyDefaults(rv reflect.Value) error {
 
 func setFieldFromString(fv reflect.Value, field reflect.StructField, raw, typeName string) error {
 	kind := field.Type.Kind()
-	switch kind {
+	switch kind { //nolint:exhaustive // unsupported kinds fall through to the default branch with an explicit error
 	case reflect.String:
 		fv.SetString(raw)
 
