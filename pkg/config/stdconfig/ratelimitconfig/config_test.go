@@ -17,6 +17,8 @@ func buildSource(t *testing.T, values map[string]any) config.Source {
 	return src
 }
 
+func boolPtr(b bool) *bool { return &b }
+
 func TestUnmarshalRoundTrip(t *testing.T) {
 	t.Parallel()
 
@@ -32,8 +34,8 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 		t.Fatalf("Unmarshal: %v", err)
 	}
 
-	if !cfg.Enabled {
-		t.Error("Enabled: got false, want true")
+	if !cfg.IsEnabled() {
+		t.Error("IsEnabled: got false, want true")
 	}
 	if cfg.GlobalRPS != 500 {
 		t.Errorf("GlobalRPS: got %d, want 500", cfg.GlobalRPS)
@@ -46,7 +48,7 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 func TestValidate_HappyPath_Memory(t *testing.T) {
 	t.Parallel()
 
-	cfg := ratelimitconfig.Config{Enabled: true, GlobalRPS: 1000, Storage: "memory"}
+	cfg := ratelimitconfig.Config{Enabled: boolPtr(true), GlobalRPS: 1000, Storage: "memory"}
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -55,7 +57,7 @@ func TestValidate_HappyPath_Memory(t *testing.T) {
 func TestValidate_HappyPath_Redis(t *testing.T) {
 	t.Parallel()
 
-	cfg := ratelimitconfig.Config{Enabled: true, GlobalRPS: 500, Storage: "redis", RedisURL: "redis://localhost:6379"}
+	cfg := ratelimitconfig.Config{Enabled: boolPtr(true), GlobalRPS: 500, Storage: "redis", RedisURL: "redis://localhost:6379"}
 	if err := cfg.Validate(); err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -64,7 +66,7 @@ func TestValidate_HappyPath_Redis(t *testing.T) {
 func TestValidate_NegativeRPS(t *testing.T) {
 	t.Parallel()
 
-	cfg := ratelimitconfig.Config{Enabled: true, GlobalRPS: -1, Storage: "memory"}
+	cfg := ratelimitconfig.Config{Enabled: boolPtr(true), GlobalRPS: -1, Storage: "memory"}
 	if err := cfg.Validate(); err == nil {
 		t.Error("expected error for negative GlobalRPS, got nil")
 	}
@@ -73,7 +75,7 @@ func TestValidate_NegativeRPS(t *testing.T) {
 func TestValidate_RPSTooHigh(t *testing.T) {
 	t.Parallel()
 
-	cfg := ratelimitconfig.Config{Enabled: true, GlobalRPS: 2000000, Storage: "memory"}
+	cfg := ratelimitconfig.Config{Enabled: boolPtr(true), GlobalRPS: 2000000, Storage: "memory"}
 	if err := cfg.Validate(); err == nil {
 		t.Error("expected error for GlobalRPS > 1000000, got nil")
 	}
@@ -82,7 +84,7 @@ func TestValidate_RPSTooHigh(t *testing.T) {
 func TestValidate_InvalidStorage(t *testing.T) {
 	t.Parallel()
 
-	cfg := ratelimitconfig.Config{Enabled: true, GlobalRPS: 100, Storage: "invalid"}
+	cfg := ratelimitconfig.Config{Enabled: boolPtr(true), GlobalRPS: 100, Storage: "invalid"}
 	if err := cfg.Validate(); err == nil {
 		t.Error("expected error for invalid storage, got nil")
 	}
@@ -91,7 +93,7 @@ func TestValidate_InvalidStorage(t *testing.T) {
 func TestValidate_RedisWithoutURL(t *testing.T) {
 	t.Parallel()
 
-	cfg := ratelimitconfig.Config{Enabled: true, GlobalRPS: 100, Storage: "redis", RedisURL: ""}
+	cfg := ratelimitconfig.Config{Enabled: boolPtr(true), GlobalRPS: 100, Storage: "redis", RedisURL: ""}
 	if err := cfg.Validate(); err == nil {
 		t.Error("expected error for redis storage without RedisURL, got nil")
 	}
@@ -106,8 +108,12 @@ func TestDefaults_AllFields(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	if !cfg.Enabled {
-		t.Error("Enabled: got false, want true (default)")
+	// Tag engine allocates *bool and sets to true.
+	if cfg.Enabled == nil {
+		t.Error("Enabled: got nil, want non-nil pointer (allocated by tag engine)")
+	}
+	if !cfg.IsEnabled() {
+		t.Error("IsEnabled: got false, want true (default)")
 	}
 	if cfg.GlobalRPS != 1000 {
 		t.Errorf("GlobalRPS: got %d, want 1000 (default)", cfg.GlobalRPS)
@@ -127,7 +133,17 @@ func TestDefaults_EnabledExplicitTrue(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	if !cfg.Enabled {
-		t.Error("Enabled: got false but source set true")
+	if !cfg.IsEnabled() {
+		t.Error("IsEnabled: got false but source set true")
+	}
+}
+
+// TestIsEnabled_NilPointer verifies nil behaves as true (safe default).
+func TestIsEnabled_NilPointer(t *testing.T) {
+	t.Parallel()
+
+	cfg := &ratelimitconfig.Config{} // Enabled is nil
+	if !cfg.IsEnabled() {
+		t.Error("IsEnabled with nil pointer: got false, want true")
 	}
 }

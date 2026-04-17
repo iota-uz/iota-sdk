@@ -67,11 +67,16 @@ func TestIntegration_AliasAndCanonicalKeys(t *testing.T) {
 		t.Errorf("DB.Port: got %q, want \"9999\"", bundle.DB.Port)
 	}
 
-	// RATE_LIMIT_ENABLED=false in env — but due to bool zero-value limitation,
-	// the tag default (true) fires. Document this known limitation in the test.
-	// The source value was set to false but is indistinguishable from absent.
-	// This is the known ratelimitconfig.Enabled bool limitation.
-	_ = bundle.RateLimit.Enabled // limitation documented in ratelimitconfig
+	// RATE_LIMIT_ENABLED=false in env: *bool sentinel correctly captures explicit false.
+	if bundle.RateLimit.Enabled == nil {
+		t.Fatal("RateLimit.Enabled: got nil, want non-nil *bool")
+	}
+	if *bundle.RateLimit.Enabled != false {
+		t.Errorf("RateLimit.Enabled: got %v, want false (RATE_LIMIT_ENABLED=false in .env must win)", *bundle.RateLimit.Enabled)
+	}
+	if bundle.RateLimit.IsEnabled() {
+		t.Error("RateLimit.IsEnabled(): got true, want false")
+	}
 
 	// Origin of http.port comes from the env provider.
 	origin, ok := src.Origin("http.port")
@@ -89,6 +94,39 @@ func TestIntegration_AliasAndCanonicalKeys(t *testing.T) {
 	}
 	if origin != "static" {
 		t.Errorf("Origin(db.port): got %q, want \"static\"", origin)
+	}
+}
+
+// TestIntegration_RateLimitDefaultPath verifies that when RATE_LIMIT_ENABLED is
+// absent from the environment, the tag engine allocates *bool = true.
+func TestIntegration_RateLimitDefaultPath(t *testing.T) {
+	t.Parallel()
+
+	// Empty .env — no RATE_LIMIT_ENABLED set.
+	envPath := writeTempEnv(t, "PORT=3200\n")
+
+	src, err := config.Build(
+		envprov.New(envPath).WithAliases(stdconfig.AllLegacyAliases()...),
+	)
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+
+	registry := config.NewRegistry(src)
+	bundle, err := stdconfig.RegisterAll(registry)
+	if err != nil {
+		t.Fatalf("RegisterAll: %v", err)
+	}
+
+	// Tag engine must allocate *bool and set to true when key is absent.
+	if bundle.RateLimit.Enabled == nil {
+		t.Fatal("RateLimit.Enabled: got nil, want non-nil (allocated by tag engine)")
+	}
+	if !*bundle.RateLimit.Enabled {
+		t.Errorf("RateLimit.Enabled: got false, want true (tag default path)")
+	}
+	if !bundle.RateLimit.IsEnabled() {
+		t.Error("RateLimit.IsEnabled(): got false, want true")
 	}
 }
 
