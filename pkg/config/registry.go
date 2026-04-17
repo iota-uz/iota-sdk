@@ -57,6 +57,11 @@ func RegisterAt[T any](r *Registry, prefix string) (*T, error) {
 		return nil, fmt.Errorf("config: unmarshal %T at %q: %w", cfg, prefix, err)
 	}
 
+	if err := applyTagDefaults(&cfg); err != nil {
+		return nil, fmt.Errorf("config: apply defaults %T: %w", cfg, err)
+	}
+
+	// Defaulter step retained during Change 3; removed in Change 7.
 	if d, ok := any(&cfg).(Defaulter); ok {
 		d.SetDefaults()
 	}
