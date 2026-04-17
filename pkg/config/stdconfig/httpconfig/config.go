@@ -15,8 +15,8 @@ import (
 //
 // Env prefix: "http" (e.g. PORT → http.port, DOMAIN → http.domain).
 type Config struct {
-	Port           int      `koanf:"port"           default:"3200"`
-	Domain         string   `koanf:"domain"         default:"localhost"`
+	Port   int    `koanf:"port"           default:"3200"`
+	Domain string `koanf:"domain"         default:"localhost"`
 	// OriginOverride pins the return value of Origin(), bypassing scheme/domain/port
 	// computation. Maps from ORIGIN env var. Unrelated to Source.Origin (provider provenance).
 	OriginOverride string   `koanf:"origin"`

@@ -96,7 +96,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 	}
 	if rlCfg, resolveErr := composition.Resolve[*ratelimitconfig.Config](rt.Container()); resolveErr == nil && rlCfg != nil {
 		cfg.rateLimit = &RateLimitOptions{
-			Enabled:   rlCfg.Enabled,
+			Enabled:   rlCfg.IsEnabled(),
 			GlobalRPS: rlCfg.GlobalRPS,
 			Storage:   rlCfg.Storage,
 			RedisURL:  rlCfg.RedisURL,

@@ -249,7 +249,7 @@ func TestDefaults_SliceOfStruct(t *testing.T) {
 
 	s := outerSliceStruct{
 		Items: []innerSliceElem{
-			{},          // zero element — should get default
+			{},            // zero element — should get default
 			{Name: "set"}, // pre-set — should stay unchanged
 		},
 	}
