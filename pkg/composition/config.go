@@ -28,7 +28,7 @@ func ProvideConfig[T any](b *Builder, prefix string) error {
 	// for mutation — b.context is addressable as a struct field).
 	reg := (&b.context).Registry()
 
-	ptr, err := config.Register[T](reg, prefix)
+	ptr, err := config.RegisterAt[T](reg, prefix)
 	if err != nil {
 		return err
 	}

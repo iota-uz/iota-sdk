@@ -165,7 +165,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	var gateCfg *bichatconfig.Config
 	if src := buildCtx.Source(); src != nil {
 		reg := config.NewRegistry(src)
-		if ptr, err := config.Register[bichatconfig.Config](reg, "bichat"); err == nil {
+		if ptr, err := config.Register[bichatconfig.Config](reg); err == nil {
 			gateCfg = ptr
 		}
 	}

@@ -7,21 +7,27 @@
 package vault
 
 import (
-	"github.com/knadh/koanf/v2"
+	"errors"
 
 	"github.com/iota-uz/iota-sdk/pkg/config"
 )
 
+var errNotImplemented = errors.New("vault provider: not implemented")
+
+// Ensure *vaultProvider implements config.Provider at compile time.
+var _ config.Provider = (*vaultProvider)(nil)
+
 // New returns a Vault Provider stub.
 // addr, token, and path are accepted for API compatibility with future waves
-// but are currently unused.
-func New(addr, token, path string) config.Provider {
-	return &vaultProvider{}
+// but are currently unused. Returns (nil, error) indicating the provider is
+// not yet implemented.
+func New(addr, token, path string) (config.Provider, error) {
+	return nil, errNotImplemented
 }
 
 type vaultProvider struct{}
 
-// Load is a no-op in W0.1. Full implementation ships in a future wave.
-func (p *vaultProvider) Load(_ *koanf.Koanf) error {
-	return nil
+// Load is a no-op in W0.1.
+func (p *vaultProvider) Load() (map[string]any, error) {
+	return nil, errNotImplemented
 }

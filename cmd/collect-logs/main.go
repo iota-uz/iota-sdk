@@ -33,7 +33,7 @@ func main() {
 	}
 
 	reg := config.NewRegistry(src)
-	cfg, err := config.Register[telemetryconfig.Config](reg, "telemetry")
+	cfg, err := config.Register[telemetryconfig.Config](reg)
 	if err != nil {
 		log.Fatalf("failed to load telemetryconfig: %v", err)
 	}

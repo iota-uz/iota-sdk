@@ -364,7 +364,7 @@ func setupApplicationWithSource(
 	var dbCfg *dbconfig.Config
 	if src != nil {
 		reg := config.NewRegistry(src)
-		if cfg, err := config.Register[dbconfig.Config](reg, "db"); err == nil {
+		if cfg, err := config.Register[dbconfig.Config](reg); err == nil {
 			dbCfg = cfg
 		}
 	}
@@ -415,7 +415,7 @@ func LoadDBConfigFromEnv() dbconfig.Config {
 		panic(fmt.Errorf("itf: load DB config from env: %w", err))
 	}
 	reg := config.NewRegistry(src)
-	cfg, err := config.Register[dbconfig.Config](reg, "db")
+	cfg, err := config.Register[dbconfig.Config](reg)
 	if err != nil {
 		panic(fmt.Errorf("itf: register dbconfig: %w", err))
 	}

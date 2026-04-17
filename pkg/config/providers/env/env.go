@@ -25,6 +25,18 @@ import (
 // Ensure *Provider implements config.Provider at compile time.
 var _ config.Provider = (*Provider)(nil)
 
+// Load implements config.Provider. It loads .env files and process environment
+// variables, applies the key transform / aliases, and returns the result as a
+// map[string]any. A temporary koanf instance is used internally; the result
+// is extracted via k.Raw() and returned to the caller.
+func (p *Provider) Load() (map[string]any, error) {
+	k := koanf.New(".")
+	if err := p.loadInto(k); err != nil {
+		return nil, err
+	}
+	return k.Raw(), nil
+}
+
 // Provider is the env config provider. Use New to create and optionally chain
 // WithAliases to register legacy env-var mappings.
 type Provider struct {
@@ -65,8 +77,8 @@ func (p *Provider) WithAliases(maps ...map[string]string) *Provider {
 	return p
 }
 
-// Load implements config.Provider.
-func (p *Provider) Load(k *koanf.Koanf) error {
+// loadInto is the internal implementation that populates a koanf instance.
+func (p *Provider) loadInto(k *koanf.Koanf) error {
 	// Collect vars from .env files first (earlier files have lower precedence
 	// than later ones, and all file vars have lower precedence than process env).
 	fileVars := map[string]string{}

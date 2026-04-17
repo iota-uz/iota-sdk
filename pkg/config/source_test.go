@@ -2,8 +2,6 @@ package config
 
 import (
 	"testing"
-
-	"github.com/knadh/koanf/v2"
 )
 
 // staticTestProvider is a minimal in-package Provider for source tests.
@@ -11,13 +9,12 @@ type staticTestProvider struct {
 	data map[string]any
 }
 
-func (p *staticTestProvider) Load(k *koanf.Koanf) error {
-	for key, val := range p.data {
-		if err := k.Set(key, val); err != nil {
-			return err
-		}
+func (p *staticTestProvider) Load() (map[string]any, error) {
+	out := make(map[string]any, len(p.data))
+	for k, v := range p.data {
+		out[k] = v
 	}
-	return nil
+	return out, nil
 }
 
 func TestBuild_ProviderCompositionOrder(t *testing.T) {

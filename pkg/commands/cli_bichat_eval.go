@@ -87,7 +87,7 @@ func newBiChatEvalRunCmd() *cobra.Command {
 				return exitcode.New(exitcode.InvalidUsageCode, err)
 			}
 			reg := config.NewRegistry(src)
-			bichatCfg, err := config.Register[bichatconfig.Config](reg, "bichat")
+			bichatCfg, err := config.Register[bichatconfig.Config](reg)
 			if err != nil {
 				return exitcode.New(exitcode.InvalidUsageCode, err)
 			}

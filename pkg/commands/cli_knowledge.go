@@ -48,11 +48,11 @@ func newKnowledgeLoadCmd(rebuild bool) *cobra.Command {
 				return err
 			}
 			reg := config.NewRegistry(src)
-			bichatCfg, err := config.Register[bichatconfig.Config](reg, "bichat")
+			bichatCfg, err := config.Register[bichatconfig.Config](reg)
 			if err != nil {
 				return err
 			}
-			dbCfg, err := config.Register[dbconfig.Config](reg, "db")
+			dbCfg, err := config.Register[dbconfig.Config](reg)
 			if err != nil {
 				return err
 			}

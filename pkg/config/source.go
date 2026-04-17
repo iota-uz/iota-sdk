@@ -1,6 +1,9 @@
 package config
 
-import "github.com/knadh/koanf/v2"
+import (
+	koanfmaps "github.com/knadh/koanf/maps"
+	"github.com/knadh/koanf/v2"
+)
 
 // Source is an immutable loaded configuration view built once at bootstrap.
 // After Build returns the Source cannot absorb new keys.
@@ -15,11 +18,25 @@ type Source interface {
 
 // Build composes providers into a single immutable Source.
 // Providers are applied in order; later providers override earlier ones.
+// Each provider's Load() returns a map[string]any which is merged into
+// the internal koanf instance via flattened dot-delimited keys.
 func Build(providers ...Provider) (Source, error) {
 	k := koanf.New(".")
 	for _, p := range providers {
-		if err := p.Load(k); err != nil {
+		m, err := p.Load()
+		if err != nil {
 			return nil, err
+		}
+		if len(m) == 0 {
+			continue
+		}
+		// Flatten nested maps to dot-delimited keys so koanf.Set handles them
+		// correctly regardless of nesting depth.
+		flat, _ := koanfmaps.Flatten(m, nil, ".")
+		for key, val := range flat {
+			if err := k.Set(key, val); err != nil {
+				return nil, err
+			}
 		}
 	}
 	return &frozenSource{k: k}, nil

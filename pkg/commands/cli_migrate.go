@@ -44,7 +44,7 @@ func resolveDBConfig() (*dbconfig.Config, error) {
 		return nil, err
 	}
 	reg := config.NewRegistry(src)
-	return config.Register[dbconfig.Config](reg, "db")
+	return config.Register[dbconfig.Config](reg)
 }
 
 func newMigrateUpCmd() *cobra.Command {

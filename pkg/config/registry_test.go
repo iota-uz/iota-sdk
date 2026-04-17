@@ -3,8 +3,6 @@ package config
 import (
 	"errors"
 	"testing"
-
-	"github.com/knadh/koanf/v2"
 )
 
 // --- helpers ----------------------------------------------------------------
@@ -145,4 +143,3 @@ func TestMustGet_ReturnsValue_WhenRegistered(t *testing.T) {
 
 // Ensure staticTestProvider (declared in source_test.go) satisfies Provider.
 var _ Provider = (*staticTestProvider)(nil)
-var _ = (*koanf.Koanf)(nil)

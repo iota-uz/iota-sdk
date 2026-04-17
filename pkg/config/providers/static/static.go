@@ -3,10 +3,11 @@
 package static
 
 import (
-	"github.com/knadh/koanf/v2"
-
 	"github.com/iota-uz/iota-sdk/pkg/config"
 )
+
+// Ensure *staticProvider implements config.Provider at compile time.
+var _ config.Provider = (*staticProvider)(nil)
 
 // New returns a Provider loaded from values.
 // Keys may be flat dot-delimited strings ("db.host") or nested map[string]any.
@@ -19,17 +20,15 @@ type staticProvider struct {
 	values map[string]any
 }
 
-// Load merges values into k. Each top-level key is set individually so that
-// dot-delimited flat keys (e.g. "db.host") are expanded into nested maps,
-// consistent with how env and yaml providers behave.
-func (p *staticProvider) Load(k *koanf.Koanf) error {
+// Load returns a copy of the stored values map.
+func (p *staticProvider) Load() (map[string]any, error) {
 	if len(p.values) == 0 {
-		return nil
+		return nil, nil
 	}
-	for key, val := range p.values {
-		if err := k.Set(key, val); err != nil {
-			return err
-		}
+	// Return a shallow copy so mutations after New don't affect the source.
+	out := make(map[string]any, len(p.values))
+	for k, v := range p.values {
+		out[k] = v
 	}
-	return nil
+	return out, nil
 }

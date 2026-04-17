@@ -31,7 +31,7 @@ func newCheckTrKeysCmd() *cobra.Command {
 				return fmt.Errorf("failed to build config source: %w", err)
 			}
 			reg := config.NewRegistry(src)
-			cfg, err := config.Register[dbconfig.Config](reg, "db")
+			cfg, err := config.Register[dbconfig.Config](reg)
 			if err != nil {
 				return fmt.Errorf("failed to load dbconfig: %w", err)
 			}

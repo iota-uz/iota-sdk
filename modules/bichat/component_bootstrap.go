@@ -48,13 +48,13 @@ func resolveBichatConfigs(buildCtx composition.BuildContext) (
 	if src := buildCtx.Source(); src != nil {
 		reg := config.NewRegistry(src)
 
-		if ptr, err := config.Register[bichatconfig.Config](reg, "bichat"); err == nil {
+		if ptr, err := config.Register[bichatconfig.Config](reg); err == nil {
 			bichatCfg = ptr
 		}
-		if ptr, err := config.Register[httpconfig.Config](reg, "http"); err == nil {
+		if ptr, err := config.Register[httpconfig.Config](reg); err == nil {
 			httpCfg = ptr
 		}
-		if ptr, err := config.Register[uploadsconfig.Config](reg, "uploads"); err == nil {
+		if ptr, err := config.Register[uploadsconfig.Config](reg); err == nil {
 			uploadsCfg = ptr
 		}
 	}

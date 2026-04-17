@@ -43,7 +43,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 
 		// Eagerly load telemetry config; errors surface immediately at bootstrap
 		// before any side-effects via poisoned factories.
-		telCfg, telErr := config.Register[telemetryconfig.Config](reg, "telemetry")
+		telCfg, telErr := config.Register[telemetryconfig.Config](reg)
 
 		effectiveServiceName := serviceName
 		if telErr == nil && effectiveServiceName == "" {
@@ -95,7 +95,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 			poolCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 			defer cancel()
 
-			dbCfg, err := config.Register[dbconfig.Config](reg, "db")
+			dbCfg, err := config.Register[dbconfig.Config](reg)
 			if err != nil {
 				return nil, nil, fmt.Errorf("bootstrap: load dbconfig from source: %w", err)
 			}

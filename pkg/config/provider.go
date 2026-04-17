@@ -1,9 +1,11 @@
 package config
 
-import "github.com/knadh/koanf/v2"
-
 // Provider contributes keys to a Source during Build.
 // Later providers passed to Build override earlier ones.
+//
+// Load returns a flat or nested map[string]any of configuration values.
+// The Build function merges provider maps in order (later providers override
+// earlier ones) using dot-notation for nested keys.
 type Provider interface {
-	Load(k *koanf.Koanf) error
+	Load() (map[string]any, error)
 }

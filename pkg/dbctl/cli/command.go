@@ -26,7 +26,7 @@ func resolveRunOptions(base execution.RunOptions) (execution.RunOptions, error) 
 	}
 	reg := config.NewRegistry(src)
 
-	dbCfg, err := config.Register[dbconfig.Config](reg, "db")
+	dbCfg, err := config.Register[dbconfig.Config](reg)
 	if err != nil {
 		return base, fmt.Errorf("dbctl: load dbconfig: %w", err)
 	}
@@ -34,7 +34,7 @@ func resolveRunOptions(base execution.RunOptions) (execution.RunOptions, error) 
 
 	// AppEnvironment via httpconfig.Config so SetDefaults applies the
 	// legacy "development" fallback when HTTP_ENVIRONMENT is unset.
-	httpCfg, err := config.Register[httpconfig.Config](reg, "http")
+	httpCfg, err := config.Register[httpconfig.Config](reg)
 	if err != nil {
 		return base, fmt.Errorf("dbctl: load httpconfig: %w", err)
 	}
