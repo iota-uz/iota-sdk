@@ -1,0 +1,164 @@
+{
+  "App": {
+    "Environment": "development",
+    "TelegramBotToken": "",
+    "EnableTestEndpoints": false
+  },
+  "Bichat": {
+    "OpenAI": {
+      "APIKey": "",
+      "Model": "",
+      "BaseURL": "",
+      "ResolveIP": ""
+    },
+    "Langfuse": {
+      "PublicKey": "",
+      "SecretKey": "",
+      "BaseURL": "",
+      "Host": ""
+    },
+    "Knowledge": {
+      "Dir": "",
+      "KBIndexPath": "",
+      "SchemaMetadata": "",
+      "AutoLoad": false
+    },
+    "Applet": {
+      "ViteURL": "http://localhost:5173",
+      "Entry": "/src/main.tsx",
+      "Client": "/@vite/client"
+    }
+  },
+  "DB": {
+    "Name": "iota_erp",
+    "Host": "localhost",
+    "Port": "5432",
+    "User": "postgres",
+    "Password": "postgres",
+    "MigrationsDir": "migrations",
+    "Pool": {
+      "MaxConns": 32,
+      "MinConns": 8,
+      "MaxConnLifetime": 3600000000000,
+      "MaxConnLifetimeJitter": 360000000000,
+      "MaxConnIdleTime": 900000000000,
+      "HealthCheckPeriod": 60000000000,
+      "ConnectTimeout": 10000000000
+    }
+  },
+  "GoogleOAuth": {
+    "RedirectURL": "",
+    "ClientID": "",
+    "ClientSecret": ""
+  },
+  "HTTP": {
+    "Port": 3200,
+    "Domain": "localhost",
+    "OriginOverride": "",
+    "AllowedOrigins": [
+      "http://localhost:3000"
+    ]
+  },
+  "Headers": {
+    "RequestID": "X-Request-ID",
+    "RealIP": "X-Real-IP"
+  },
+  "Cookies": {
+    "SID": "sid",
+    "OAuthState": "oauthState"
+  },
+  "Session": {
+    "Duration": 2592000000000000
+  },
+  "Pagination": {
+    "PageSize": 25,
+    "MaxPageSize": 100
+  },
+  "Meili": {
+    "URL": "",
+    "APIKey": ""
+  },
+  "OIDC": {
+    "IssuerURL": "",
+    "CryptoKey": "",
+    "AccessTokenLifetime": 3600000000000,
+    "RefreshTokenLifetime": 2592000000000000,
+    "IDTokenLifetime": 3600000000000
+  },
+  "Payments": {
+    "Click": {
+      "URL": "https://my.click.uz",
+      "MerchantID": 0,
+      "MerchantUserID": 0,
+      "ServiceID": 0,
+      "SecretKey": ""
+    },
+    "Payme": {
+      "URL": "https://checkout.test.paycom.uz",
+      "MerchantID": "",
+      "User": "Paycom",
+      "SecretKey": ""
+    },
+    "Octo": {
+      "ShopID": 0,
+      "Secret": "",
+      "SecretHash": "",
+      "NotifyURL": ""
+    },
+    "Stripe": {
+      "SecretKey": "",
+      "SigningSecret": ""
+    }
+  },
+  "RateLimit": {
+    "Enabled": true,
+    "GlobalRPS": 1000,
+    "Storage": "memory",
+    "RedisURL": ""
+  },
+  "Redis": {
+    "URL": "localhost:6379"
+  },
+  "SMTP": {
+    "Host": "",
+    "Port": 587,
+    "Username": "",
+    "Password": "",
+    "From": ""
+  },
+  "Telemetry": {
+    "LogLevel": "error",
+    "Loki": {
+      "URL": "",
+      "AppName": "sdk",
+      "LogPath": "./logs/app.log"
+    },
+    "OTEL": {
+      "TempoURL": "",
+      "ServiceName": ""
+    }
+  },
+  "Twilio": {
+    "WebhookURL": "",
+    "AccountSID": "",
+    "AuthToken": "",
+    "PhoneNumber": ""
+  },
+  "TwoFactor": {
+    "Enabled": false,
+    "TOTPIssuer": "",
+    "EncryptionKey": "",
+    "OTP": {
+      "CodeLength": 6,
+      "TTLSeconds": 300,
+      "MaxAttempts": 3,
+      "EnableEmail": false,
+      "EnableSMS": false
+    }
+  },
+  "Uploads": {
+    "Path": "static",
+    "MaxSize": 33554432,
+    "MaxMemory": 33554432
+  }
+}
