@@ -8,23 +8,23 @@ import (
 // ---- test structs ----
 
 type allKindsStruct struct {
-	S       string        `default:"hello"`
-	BTrue   bool          `default:"true"`
-	BFalse  bool          `default:"false"`
-	I       int           `default:"42"`
-	I8      int8          `default:"8"`
-	I16     int16         `default:"16"`
-	I32     int32         `default:"32"`
-	I64     int64         `default:"64"`
-	U       uint          `default:"1"`
-	U8      uint8         `default:"8"`
-	U16     uint16        `default:"16"`
-	U32     uint32        `default:"32"`
-	U64     uint64        `default:"64"`
-	F32     float32       `default:"3.14"`
-	F64     float64       `default:"2.71"`
-	D       time.Duration `default:"5m"`
-	Strs    []string      `default:"a,b,c"`
+	S      string        `default:"hello"`
+	BTrue  bool          `default:"true"`
+	BFalse bool          `default:"false"`
+	I      int           `default:"42"`
+	I8     int8          `default:"8"`
+	I16    int16         `default:"16"`
+	I32    int32         `default:"32"`
+	I64    int64         `default:"64"`
+	U      uint          `default:"1"`
+	U8     uint8         `default:"8"`
+	U16    uint16        `default:"16"`
+	U32    uint32        `default:"32"`
+	U64    uint64        `default:"64"`
+	F32    float32       `default:"3.14"`
+	F64    float64       `default:"2.71"`
+	D      time.Duration `default:"5m"`
+	Strs   []string      `default:"a,b,c"`
 }
 
 type nestedOuter struct {
