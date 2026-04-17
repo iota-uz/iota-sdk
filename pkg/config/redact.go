@@ -10,7 +10,7 @@ import (
 // Redact walks v via reflection and returns a JSON-ish representation
 // suitable for logging and /debug/config. Fields tagged secret:"true" are
 // replaced with "***" unless they are zero-valued, in which case "" is used.
-// Nested structs, pointers, and slices of structs are walked recursively.
+// Nested structs, pointers, slices of structs, and maps are walked recursively.
 // Safe on nil inputs.
 func Redact(v any) string {
 	if v == nil {
@@ -40,6 +40,8 @@ func redactValue(rv reflect.Value) any {
 		return redactStruct(rv)
 	case reflect.Slice:
 		return redactSlice(rv)
+	case reflect.Map:
+		return redactMap(rv)
 	default:
 		return rv.Interface()
 	}
@@ -60,17 +62,43 @@ func redactStruct(rv reflect.Value) map[string]any {
 		}
 
 		if field.Tag.Get("secret") == "true" {
-			if fv.IsZero() {
-				out[key] = ""
-			} else {
-				out[key] = "***"
-			}
+			out[key] = redactSecret(fv)
 			continue
 		}
 
 		out[key] = redactValue(fv)
 	}
 	return out
+}
+
+// redactSecret returns "***" for a non-zero/non-empty secret field,
+// or "" for a zero/empty one. Handles scalars, structs, slices, and maps
+// without recursing into their internals (the whole subtree is obscured).
+func redactSecret(fv reflect.Value) string {
+	// Dereference pointer.
+	for fv.Kind() == reflect.Ptr {
+		if fv.IsNil() {
+			return ""
+		}
+		fv = fv.Elem()
+	}
+	switch fv.Kind() {
+	case reflect.Slice, reflect.Map:
+		if fv.IsNil() || fv.Len() == 0 {
+			return ""
+		}
+		return "***"
+	case reflect.Struct:
+		if fv.IsZero() {
+			return ""
+		}
+		return "***"
+	default:
+		if fv.IsZero() {
+			return ""
+		}
+		return "***"
+	}
 }
 
 func redactSlice(rv reflect.Value) any {
@@ -80,6 +108,24 @@ func redactSlice(rv reflect.Value) any {
 	out := make([]any, rv.Len())
 	for i := 0; i < rv.Len(); i++ {
 		out[i] = redactValue(rv.Index(i))
+	}
+	return out
+}
+
+func redactMap(rv reflect.Value) any {
+	if rv.IsNil() {
+		return nil
+	}
+	out := make(map[string]any, rv.Len())
+	for _, mk := range rv.MapKeys() {
+		// Use fmt.Sprint for non-string keys; string keys are used directly.
+		var keyStr string
+		if mk.Kind() == reflect.String {
+			keyStr = mk.String()
+		} else {
+			keyStr = fmt.Sprint(mk.Interface())
+		}
+		out[keyStr] = redactValue(rv.MapIndex(mk))
 	}
 	return out
 }
