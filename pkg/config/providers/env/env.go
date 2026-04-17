@@ -40,8 +40,8 @@ func (p *Provider) Load() (map[string]any, error) {
 // Provider is the env config provider. Use New to create and optionally chain
 // WithAliases to register legacy env-var mappings.
 type Provider struct {
-	files   []string
-	aliases map[string]string
+	files    []string
+	aliases  map[string]string
 	warnOnce sync.Map // map[string]*sync.Once — fires at most once per alias key
 }
 
