@@ -7,6 +7,10 @@
 //	BICHAT_OPENAI_API_KEY → bichat.openai.api_key
 //	_LEADING → leading
 //	TRAILING_ → trailing
+//
+// Most deployments set env vars using the natural UPPER_SNAKE_CASE form that
+// transforms directly to the correct koanf path. No built-in alias table is
+// provided. For custom mappings use [Provider.WithAliases].
 package env
 
 import (
@@ -62,10 +66,8 @@ type Provider struct {
 //  2. Overlays the live process environment (os.Environ) on top.
 //
 // Key transform: single underscore → dot, lowercased. See package doc.
-//
-// Wire legacy alias maps from stdconfig packages via WithAliases:
-//
-//	env.New(".env").WithAliases(stdconfig.AllLegacyAliases()...)
+// Use canonical UPPER_SNAKE_CASE env var names (e.g. HTTP_PORT, DB_POOL_MAXCONNS).
+// For custom alias mappings use [Provider.WithAliases].
 func New(files ...string) *Provider {
 	return &Provider{
 		files:   files,
@@ -74,11 +76,13 @@ func New(files ...string) *Provider {
 }
 
 // WithAliases merges one or more env-var → koanf-path alias maps into the
-// provider. Later maps override earlier ones on key collision. Returns p for
-// chaining.
+// provider. Use this when a deployment's env var names don't follow the natural
+// transform (UPPER_SNAKE → lower, underscore→dot). Most deployments should not
+// need this — prefer the canonical natural-form env vars (see package doc).
+// Later maps override earlier ones on key collision. Returns p for chaining.
 //
-// Each alias hit produces a one-time slog.Warn log so operators know they are
-// relying on deprecated env var names.
+// Each alias hit produces a one-time slog.Warn log so operators notice they are
+// relying on non-canonical env var names.
 func (p *Provider) WithAliases(maps ...map[string]string) *Provider {
 	for _, m := range maps {
 		for k, v := range m {
@@ -128,13 +132,12 @@ func (p *Provider) loadInto(k *koanf.Koanf) error {
 	return k.Load(provider, nil)
 }
 
-// transformKey applies the locked single-underscore-to-dot transform with a
-// legacy-alias bypass for env vars whose natural transform doesn't match the
-// stdconfig koanf paths (multi-word leaf names, bare top-level vars, or
-// renamed prefixes).
+// transformKey applies the locked single-underscore-to-dot transform with an
+// optional alias bypass for env vars whose natural transform doesn't match the
+// desired koanf path.
 //
 // Transform steps:
-//  1. If the key is a known legacy alias, return its mapped path verbatim and
+//  1. If the key is a registered alias, return its mapped path verbatim and
 //     emit a one-time slog.Warn.
 //  2. Otherwise: strip leading/trailing underscores, lowercase, replace each
 //     remaining "_" with ".".

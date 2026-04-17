@@ -52,7 +52,7 @@ type Bundle struct {
 //
 // Example:
 //
-//	src, _ := config.Build(env.New(".env").WithAliases(stdconfig.AllLegacyAliases()...))
+//	src, _ := config.Build(env.New(".env"))
 //	r := config.NewRegistry(src)
 //	b, err := stdconfig.RegisterAll(r)
 func RegisterAll(r *config.Registry) (*Bundle, error) {

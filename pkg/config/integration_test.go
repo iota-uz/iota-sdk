@@ -22,21 +22,21 @@ func writeTempEnv(t *testing.T, content string) string {
 	return path
 }
 
-// TestIntegration_AliasAndCanonicalKeys verifies that legacy env-var aliases
-// resolve correctly alongside canonical dot-delimited keys, and that explicit
-// values override tag-based defaults.
-func TestIntegration_AliasAndCanonicalKeys(t *testing.T) {
+// TestIntegration_CanonicalKeys verifies that canonical UPPER_SNAKE_CASE env
+// vars resolve correctly via the natural transform, and that explicit values
+// override tag-based defaults.
+func TestIntegration_CanonicalKeys(t *testing.T) {
 	t.Parallel()
 
 	envContent := strings.Join([]string{
-		"PORT=8080",
-		"RATE_LIMIT_ENABLED=false",
-		"db.host=canonical",
+		"HTTP_PORT=8080",
+		"RATELIMIT_ENABLED=false",
+		"DB_HOST=canonical",
 	}, "\n")
 	envPath := writeTempEnv(t, envContent)
 
 	src, err := config.Build(
-		envprov.New(envPath).WithAliases(stdconfig.AllLegacyAliases()...),
+		envprov.New(envPath),
 		static.New(map[string]any{"db.port": "9999"}),
 	)
 	if err != nil {
@@ -52,12 +52,12 @@ func TestIntegration_AliasAndCanonicalKeys(t *testing.T) {
 		t.Fatalf("Seal: %v", err)
 	}
 
-	// PORT alias maps to http.port.
+	// HTTP_PORT → http.port
 	if bundle.HTTP.Port != 8080 {
 		t.Errorf("HTTP.Port: got %d, want 8080", bundle.HTTP.Port)
 	}
 
-	// db.host comes from the .env file as a canonical key.
+	// DB_HOST → db.host from .env file.
 	if bundle.DB.Host != "canonical" {
 		t.Errorf("DB.Host: got %q, want \"canonical\"", bundle.DB.Host)
 	}
@@ -67,12 +67,12 @@ func TestIntegration_AliasAndCanonicalKeys(t *testing.T) {
 		t.Errorf("DB.Port: got %q, want \"9999\"", bundle.DB.Port)
 	}
 
-	// RATE_LIMIT_ENABLED=false in env: *bool sentinel correctly captures explicit false.
+	// RATELIMIT_ENABLED=false: *bool sentinel correctly captures explicit false.
 	if bundle.RateLimit.Enabled == nil {
 		t.Fatal("RateLimit.Enabled: got nil, want non-nil *bool")
 	}
 	if *bundle.RateLimit.Enabled != false {
-		t.Errorf("RateLimit.Enabled: got %v, want false (RATE_LIMIT_ENABLED=false in .env must win)", *bundle.RateLimit.Enabled)
+		t.Errorf("RateLimit.Enabled: got %v, want false (RATELIMIT_ENABLED=false in .env must win)", *bundle.RateLimit.Enabled)
 	}
 	if bundle.RateLimit.IsEnabled() {
 		t.Error("RateLimit.IsEnabled(): got true, want false")
@@ -97,16 +97,16 @@ func TestIntegration_AliasAndCanonicalKeys(t *testing.T) {
 	}
 }
 
-// TestIntegration_RateLimitDefaultPath verifies that when RATE_LIMIT_ENABLED is
+// TestIntegration_RateLimitDefaultPath verifies that when RATELIMIT_ENABLED is
 // absent from the environment, the tag engine allocates *bool = true.
 func TestIntegration_RateLimitDefaultPath(t *testing.T) {
 	t.Parallel()
 
-	// Empty .env — no RATE_LIMIT_ENABLED set.
-	envPath := writeTempEnv(t, "PORT=3200\n")
+	// Empty .env — no RATELIMIT_ENABLED set.
+	envPath := writeTempEnv(t, "HTTP_PORT=3200\n")
 
 	src, err := config.Build(
-		envprov.New(envPath).WithAliases(stdconfig.AllLegacyAliases()...),
+		envprov.New(envPath),
 	)
 	if err != nil {
 		t.Fatalf("Build: %v", err)
