@@ -7,6 +7,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
@@ -19,13 +23,17 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 )
 
-// Bundle holds pointers to all 15 stdconfig types, populated by RegisterAll.
+// Bundle holds pointers to all stdconfig types, populated by RegisterAll.
 type Bundle struct {
 	App         *appconfig.Config
 	Bichat      *bichatconfig.Config
 	DB          *dbconfig.Config
 	GoogleOAuth *googleoauthconfig.Config
 	HTTP        *httpconfig.Config
+	Headers     *headers.Config
+	Cookies     *cookies.Config
+	Session     *session.Config
+	Pagination  *pagination.Config
 	Meili       *meiliconfig.Config
 	OIDC        *oidcconfig.Config
 	Payments    *paymentsconfig.Config
@@ -38,7 +46,7 @@ type Bundle struct {
 	Uploads     *uploadsconfig.Config
 }
 
-// RegisterAll registers all 15 stdconfig types into r and returns a Bundle
+// RegisterAll registers all stdconfig types into r and returns a Bundle
 // with non-nil pointers to each. Any registration error aborts immediately
 // and returns (nil, error).
 //
@@ -64,6 +72,18 @@ func RegisterAll(r *config.Registry) (*Bundle, error) {
 		return nil, err
 	}
 	if b.HTTP, err = config.Register[httpconfig.Config](r); err != nil {
+		return nil, err
+	}
+	if b.Headers, err = config.Register[headers.Config](r); err != nil {
+		return nil, err
+	}
+	if b.Cookies, err = config.Register[cookies.Config](r); err != nil {
+		return nil, err
+	}
+	if b.Session, err = config.Register[session.Config](r); err != nil {
+		return nil, err
+	}
+	if b.Pagination, err = config.Register[pagination.Config](r); err != nil {
 		return nil, err
 	}
 	if b.Meili, err = config.Register[meiliconfig.Config](r); err != nil {

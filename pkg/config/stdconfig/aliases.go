@@ -7,6 +7,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
@@ -30,6 +34,10 @@ func AllLegacyAliases() []map[string]string {
 		dbconfig.LegacyAliases(),
 		googleoauthconfig.LegacyAliases(),
 		httpconfig.LegacyAliases(),
+		headers.LegacyAliases(),
+		cookies.LegacyAliases(),
+		session.LegacyAliases(),
+		pagination.LegacyAliases(),
 		meiliconfig.LegacyAliases(),
 		oidcconfig.LegacyAliases(),
 		paymentsconfig.LegacyAliases(),

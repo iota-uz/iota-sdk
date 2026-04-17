@@ -11,6 +11,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/googleoauthconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/session"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
@@ -78,6 +82,15 @@ func installAutoProviders(container *Container, ctx BuildContext) {
 	}
 }
 
+// registerAuto registers a Prefixed config type T into the registry, then places
+// the result into the container. Errors are silently dropped so that optional
+// configs (e.g. bichatconfig when BiChat is not installed) don't abort startup.
+func registerAuto[T config.Prefixed](r *config.Registry, container *Container, name string) {
+	if ptr, err := config.Register[T](r); err == nil {
+		registerAutoValue[*T](container, name, ptr)
+	}
+}
+
 // installStdconfigFromSource populates all stdconfig types from the new
 // config.Source, using config.Register for unmarshal + optional Validate.
 // Each registered *T is placed into the container under the pointer key so
@@ -85,51 +98,25 @@ func installAutoProviders(container *Container, ctx BuildContext) {
 func installStdconfigFromSource(container *Container, src config.Source) {
 	reg := config.NewRegistry(src)
 
-	if ptr, err := config.Register[dbconfig.Config](reg); err == nil {
-		registerAutoValue[*dbconfig.Config](container, "auto:dbconfig", ptr)
-	}
-	if ptr, err := config.Register[httpconfig.Config](reg); err == nil {
-		registerAutoValue[*httpconfig.Config](container, "auto:httpconfig", ptr)
-	}
-	if ptr, err := config.Register[smtpconfig.Config](reg); err == nil {
-		registerAutoValue[*smtpconfig.Config](container, "auto:smtpconfig", ptr)
-	}
-	if ptr, err := config.Register[twilioconfig.Config](reg); err == nil {
-		registerAutoValue[*twilioconfig.Config](container, "auto:twilioconfig", ptr)
-	}
-	if ptr, err := config.Register[oidcconfig.Config](reg); err == nil {
-		registerAutoValue[*oidcconfig.Config](container, "auto:oidcconfig", ptr)
-	}
-	if ptr, err := config.Register[googleoauthconfig.Config](reg); err == nil {
-		registerAutoValue[*googleoauthconfig.Config](container, "auto:googleoauthconfig", ptr)
-	}
-	if ptr, err := config.Register[ratelimitconfig.Config](reg); err == nil {
-		registerAutoValue[*ratelimitconfig.Config](container, "auto:ratelimitconfig", ptr)
-	}
-	if ptr, err := config.Register[twofactorconfig.Config](reg); err == nil {
-		registerAutoValue[*twofactorconfig.Config](container, "auto:twofactorconfig", ptr)
-	}
-	if ptr, err := config.Register[telemetryconfig.Config](reg); err == nil {
-		registerAutoValue[*telemetryconfig.Config](container, "auto:telemetryconfig", ptr)
-	}
-	if ptr, err := config.Register[uploadsconfig.Config](reg); err == nil {
-		registerAutoValue[*uploadsconfig.Config](container, "auto:uploadsconfig", ptr)
-	}
-	if ptr, err := config.Register[redisconfig.Config](reg); err == nil {
-		registerAutoValue[*redisconfig.Config](container, "auto:redisconfig", ptr)
-	}
-	if ptr, err := config.Register[meiliconfig.Config](reg); err == nil {
-		registerAutoValue[*meiliconfig.Config](container, "auto:meiliconfig", ptr)
-	}
-	if ptr, err := config.Register[paymentsconfig.Config](reg); err == nil {
-		registerAutoValue[*paymentsconfig.Config](container, "auto:paymentsconfig", ptr)
-	}
-	if ptr, err := config.Register[appconfig.Config](reg); err == nil {
-		registerAutoValue[*appconfig.Config](container, "auto:appconfig", ptr)
-	}
-	if ptr, err := config.Register[bichatconfig.Config](reg); err == nil {
-		registerAutoValue[*bichatconfig.Config](container, "auto:bichatconfig", ptr)
-	}
+	registerAuto[dbconfig.Config](reg, container, "auto:dbconfig")
+	registerAuto[httpconfig.Config](reg, container, "auto:httpconfig")
+	registerAuto[headers.Config](reg, container, "auto:headersconfig")
+	registerAuto[cookies.Config](reg, container, "auto:cookiesconfig")
+	registerAuto[session.Config](reg, container, "auto:sessionconfig")
+	registerAuto[pagination.Config](reg, container, "auto:paginationconfig")
+	registerAuto[smtpconfig.Config](reg, container, "auto:smtpconfig")
+	registerAuto[twilioconfig.Config](reg, container, "auto:twilioconfig")
+	registerAuto[oidcconfig.Config](reg, container, "auto:oidcconfig")
+	registerAuto[googleoauthconfig.Config](reg, container, "auto:googleoauthconfig")
+	registerAuto[ratelimitconfig.Config](reg, container, "auto:ratelimitconfig")
+	registerAuto[twofactorconfig.Config](reg, container, "auto:twofactorconfig")
+	registerAuto[telemetryconfig.Config](reg, container, "auto:telemetryconfig")
+	registerAuto[uploadsconfig.Config](reg, container, "auto:uploadsconfig")
+	registerAuto[redisconfig.Config](reg, container, "auto:redisconfig")
+	registerAuto[meiliconfig.Config](reg, container, "auto:meiliconfig")
+	registerAuto[paymentsconfig.Config](reg, container, "auto:paymentsconfig")
+	registerAuto[appconfig.Config](reg, container, "auto:appconfig")
+	registerAuto[bichatconfig.Config](reg, container, "auto:bichatconfig")
 }
 
 // registerAutoValue installs a value-form provider for T directly on the
