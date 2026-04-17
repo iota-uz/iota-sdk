@@ -525,20 +525,20 @@ jobs:
 
       - name: Start Go Server
         env:
-          SESSION_DURATION: 720h
-          DOMAIN: localhost
-          PORT: 3201
+          HTTP_SESSION_DURATION: 720h
+          HTTP_DOMAIN: localhost
+          HTTP_PORT: 3201
           DB_HOST: localhost
           DB_PORT: 5432
           DB_NAME: iota_erp_e2e
           DB_USER: postgres
           DB_PASSWORD: postgres
-          SID_COOKIE_KEY: sid
-          GO_APP_ENV: production
-          ENABLE_TEST_ENDPOINTS: true
-          TOTP_ENCRYPTION_KEY: e2e-test-encryption-key-32bytes!!
-          OIDC_ISSUER_URL: https://localhost:3201/oidc
-          OIDC_CRYPTO_KEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+          HTTP_COOKIES_SID: sid
+          APP_ENVIRONMENT: production
+          APP_ENABLETESTENDPOINTS: true
+          TWOFACTOR_ENCRYPTIONKEY: e2e-test-encryption-key-32bytes!!
+          OIDC_ISSUERURL: https://localhost:3201/oidc
+          OIDC_CRYPTOKEY: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
         run: |
           go run -tags dev cmd/server/main.go > /tmp/server.log 2>&1 &
           SERVER_PID=$!
