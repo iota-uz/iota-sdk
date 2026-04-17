@@ -7,6 +7,8 @@ import (
 
 // Source is an immutable loaded configuration view built once at bootstrap.
 // After Build returns the Source cannot absorb new keys.
+// There is no Reload, Watch, OnChange, or Subscribe API — and none will be added.
+// To pick up new configuration values, restart the process.
 type Source interface {
 	// Unmarshal populates target with all keys under prefix.
 	// Use an empty string to unmarshal from the root.
