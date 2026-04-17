@@ -551,6 +551,7 @@ jobs:
       - name: Run Playwright Tests
         env:
           BASE_URL: http://localhost:3201
+          OIDC_ISSUERURL: https://localhost:3201/oidc
         run: npx playwright test --shard=${{ matrix.shard }}
         working-directory: e2e
 
