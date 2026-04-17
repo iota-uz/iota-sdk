@@ -16,14 +16,22 @@ type Config struct {
 // ConfigPrefix returns the koanf prefix for ratelimitconfig ("ratelimit").
 func (Config) ConfigPrefix() string { return "ratelimit" }
 
-// SetDefaults applies the same defaults as the legacy RateLimitOptions env tags.
-// Called from FromLegacy so zero-value structs get sensible defaults.
+// SetDefaults applies per-field defaults for zero-valued fields, matching the
+// pattern used by all other stdconfig packages.
+//
+// Enabled: defaults to true only when the config is completely zero-valued
+// (i.e. no field was set by any provider). This preserves legacy semantics
+// while allowing callers to set Enabled=false explicitly.
 func (c *Config) SetDefaults() {
-	if !c.Enabled && c.GlobalRPS == 0 && c.Storage == "" {
-		// All zero — apply defaults
-		c.Enabled = true
+	allZero := !c.Enabled && c.GlobalRPS == 0 && c.Storage == "" && c.RedisURL == ""
+	if c.GlobalRPS == 0 {
 		c.GlobalRPS = 1000
+	}
+	if c.Storage == "" {
 		c.Storage = "memory"
+	}
+	if allZero {
+		c.Enabled = true
 	}
 }
 
