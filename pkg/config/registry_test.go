@@ -109,21 +109,7 @@ func TestGet_NotFound(t *testing.T) {
 	}
 }
 
-func TestMustGet_Panics_WhenNotRegistered(t *testing.T) {
-	t.Parallel()
-
-	src := buildSource(t, nil)
-	r := NewRegistry(src)
-
-	defer func() {
-		if rec := recover(); rec == nil {
-			t.Error("MustGet should panic when type not registered")
-		}
-	}()
-	MustGet[serverConfig](r)
-}
-
-func TestMustGet_ReturnsValue_WhenRegistered(t *testing.T) {
+func TestGet_Lookup_WhenRegistered(t *testing.T) {
 	t.Parallel()
 
 	src := buildSource(t, map[string]any{
@@ -135,7 +121,10 @@ func TestMustGet_ReturnsValue_WhenRegistered(t *testing.T) {
 		t.Fatalf("RegisterAt: %v", err)
 	}
 
-	cfg := MustGet[serverConfig](r)
+	cfg, ok := Lookup[serverConfig](r)
+	if !ok {
+		t.Fatal("Lookup: expected ok=true")
+	}
 	if cfg.Host != "example.com" {
 		t.Errorf("Host: got %q", cfg.Host)
 	}

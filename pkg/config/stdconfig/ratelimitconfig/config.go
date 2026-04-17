@@ -6,34 +6,26 @@ import "fmt"
 
 // Config holds all rate-limit settings.
 // Env prefix: "ratelimit" (e.g. RATE_LIMIT_ENABLED → ratelimit.enabled).
+//
+// Semantic note: Enabled defaults to true independently of other fields via the
+// default:"true" struct tag. The old all-zero gate silently left Enabled=false
+// whenever any ratelimit var was set without RATE_LIMIT_ENABLED — that was a
+// correctness bug. The tag-based default fixes it.
+//
+// Limitation: because false is the zero value for bool, the tag engine cannot
+// distinguish "RATE_LIMIT_ENABLED=false" from "absent". The default fires in
+// both cases. If you need to disable rate limiting, prefer setting Enabled to
+// false programmatically after registration, or use a non-zero sentinel and
+// Validate to detect it.
 type Config struct {
-	Enabled   bool   `koanf:"enabled"`
-	GlobalRPS int    `koanf:"globalrps"`
-	Storage   string `koanf:"storage"`
+	Enabled   bool   `koanf:"enabled"   default:"true"`
+	GlobalRPS int    `koanf:"globalrps" default:"1000"`
+	Storage   string `koanf:"storage"   default:"memory"`
 	RedisURL  string `koanf:"redisurl"`
 }
 
 // ConfigPrefix returns the koanf prefix for ratelimitconfig ("ratelimit").
 func (Config) ConfigPrefix() string { return "ratelimit" }
-
-// SetDefaults applies per-field defaults for zero-valued fields, matching the
-// pattern used by all other stdconfig packages.
-//
-// Enabled: defaults to true only when the config is completely zero-valued
-// (i.e. no field was set by any provider). This preserves legacy semantics
-// while allowing callers to set Enabled=false explicitly.
-func (c *Config) SetDefaults() {
-	allZero := !c.Enabled && c.GlobalRPS == 0 && c.Storage == "" && c.RedisURL == ""
-	if c.GlobalRPS == 0 {
-		c.GlobalRPS = 1000
-	}
-	if c.Storage == "" {
-		c.Storage = "memory"
-	}
-	if allZero {
-		c.Enabled = true
-	}
-}
 
 // Validate checks rate-limit configuration for errors.
 // Implements config.Validatable so config.Register invokes it automatically.

@@ -97,19 +97,37 @@ func TestValidate_RedisWithoutURL(t *testing.T) {
 	}
 }
 
-func TestSetDefaults(t *testing.T) {
+func TestDefaults_AllFields(t *testing.T) {
 	t.Parallel()
 
-	cfg := ratelimitconfig.Config{} // all zero
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[ratelimitconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if !cfg.Enabled {
-		t.Error("Enabled: got false after SetDefaults, want true")
+		t.Error("Enabled: got false, want true (default)")
 	}
 	if cfg.GlobalRPS != 1000 {
-		t.Errorf("GlobalRPS: got %d after SetDefaults, want 1000", cfg.GlobalRPS)
+		t.Errorf("GlobalRPS: got %d, want 1000 (default)", cfg.GlobalRPS)
 	}
 	if cfg.Storage != "memory" {
-		t.Errorf("Storage: got %q after SetDefaults, want %q", cfg.Storage, "memory")
+		t.Errorf("Storage: got %q, want \"memory\" (default)", cfg.Storage)
+	}
+}
+
+func TestDefaults_EnabledExplicitTrue(t *testing.T) {
+	t.Parallel()
+
+	// When source explicitly sets enabled=true, it stays true.
+	r := config.NewRegistry(buildSource(t, map[string]any{"ratelimit.enabled": true}))
+	cfg, err := config.Register[ratelimitconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+
+	if !cfg.Enabled {
+		t.Error("Enabled: got false but source set true")
 	}
 }
