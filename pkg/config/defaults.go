@@ -33,6 +33,18 @@ func applyTagDefaults(v any) error {
 	return applyDefaults(rv)
 }
 
+// applyDefaults walks the struct fields of rv and applies default tag values.
+//
+// Recurses into:
+//   - nested struct fields (value)
+//   - nested *struct fields when non-nil
+//   - []struct fields (per element)
+//
+// Scalar pointer fields (*bool, *int, etc.) are allocated when nil and the
+// default tag parses into the element's kind.
+//
+// Note: *struct fields that are nil are NOT recursed into. Users who want
+// defaults on an optional nested config must pre-allocate the pointer.
 func applyDefaults(rv reflect.Value) error {
 	rt := rv.Type()
 	for i := range rt.NumField() {
@@ -44,12 +56,66 @@ func applyDefaults(rv reflect.Value) error {
 			continue
 		}
 
-		// Recurse into nested structs unconditionally (they may have default tags).
-		if field.Type.Kind() == reflect.Struct {
+		switch field.Type.Kind() {
+		case reflect.Struct:
+			// Recurse into nested struct fields unconditionally (they may have default tags).
 			if err := applyDefaults(fv); err != nil {
 				return err
 			}
 			continue
+
+		case reflect.Ptr:
+			elemKind := field.Type.Elem().Kind()
+			if elemKind == reflect.Struct {
+				// Pointer-to-struct: recurse only if already non-nil.
+				// Nil *struct fields are left untouched to avoid allocating
+				// optional nested configs that would otherwise stay nil.
+				if !fv.IsNil() {
+					if err := applyDefaults(fv.Elem()); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+			// Scalar pointer (*bool, *int, *string, *time.Duration, etc.):
+			// allocate and set from default tag when nil.
+			tag := field.Tag.Get("default")
+			if tag == "" {
+				continue
+			}
+			if !fv.IsNil() {
+				// Already set — do not clobber.
+				continue
+			}
+			// Allocate a new element of the pointed-to type.
+			newElem := reflect.New(field.Type.Elem()).Elem()
+			// Re-use setFieldFromString by constructing a synthetic StructField
+			// whose Type is the element type (not the pointer type).
+			synthField := reflect.StructField{
+				Name: field.Name,
+				Type: field.Type.Elem(),
+				Tag:  field.Tag,
+			}
+			if err := setFieldFromString(newElem, synthField, tag, rt.Name()); err != nil {
+				return err
+			}
+			// Store the allocated pointer.
+			ptr := reflect.New(field.Type.Elem())
+			ptr.Elem().Set(newElem)
+			fv.Set(ptr)
+			continue
+
+		case reflect.Slice:
+			// Slice-of-struct: recurse into each existing element.
+			if field.Type.Elem().Kind() == reflect.Struct {
+				for j := range fv.Len() {
+					if err := applyDefaults(fv.Index(j)); err != nil {
+						return err
+					}
+				}
+				continue
+			}
+			// fall through to default tag handling for []string etc.
 		}
 
 		tag := field.Tag.Get("default")

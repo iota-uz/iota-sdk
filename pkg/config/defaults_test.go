@@ -157,3 +157,154 @@ func TestApplyTagDefaults_EmptyTagNoOp(t *testing.T) {
 		t.Errorf("no default tag should leave field zero, got %d", s.Y)
 	}
 }
+
+// ---- pointer scalar tests ----
+
+type pointerScalarStruct struct {
+	B *bool          `default:"true"`
+	S *string        `default:"x"`
+	D *time.Duration `default:"30s"`
+}
+
+func TestDefaults_PointerScalar(t *testing.T) {
+	t.Parallel()
+
+	var s pointerScalarStruct
+	if err := applyTagDefaults(&s); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.B == nil || *s.B != true {
+		t.Errorf("B: got %v, want ptr to true", s.B)
+	}
+	if s.S == nil || *s.S != "x" {
+		t.Errorf("S: got %v, want ptr to \"x\"", s.S)
+	}
+	if s.D == nil || *s.D != 30*time.Second {
+		t.Errorf("D: got %v, want ptr to 30s", s.D)
+	}
+}
+
+func TestDefaults_PointerScalar_AlreadySet(t *testing.T) {
+	t.Parallel()
+
+	f := false
+	s := pointerScalarStruct{B: &f}
+	if err := applyTagDefaults(&s); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.B == nil || *s.B != false {
+		t.Errorf("pre-set *B was changed: got %v", s.B)
+	}
+}
+
+// ---- pointer-to-struct tests ----
+
+type subConfig struct {
+	Value string `default:"sub-default"`
+}
+
+type outerWithPtrStruct struct {
+	Sub *subConfig
+}
+
+func TestDefaults_PointerStruct_Nil(t *testing.T) {
+	t.Parallel()
+
+	var s outerWithPtrStruct // Sub is nil
+	if err := applyTagDefaults(&s); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Sub != nil {
+		t.Error("nil *Sub should remain nil — no allocation for nil pointers")
+	}
+}
+
+func TestDefaults_PointerStruct_NonNil(t *testing.T) {
+	t.Parallel()
+
+	s := outerWithPtrStruct{Sub: &subConfig{}}
+	if err := applyTagDefaults(&s); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Sub == nil {
+		t.Fatal("Sub unexpectedly nil")
+	}
+	if s.Sub.Value != "sub-default" {
+		t.Errorf("Sub.Value: got %q, want \"sub-default\"", s.Sub.Value)
+	}
+}
+
+// ---- slice-of-struct test ----
+
+type innerSliceElem struct {
+	Name string `default:"elem-default"`
+}
+
+type outerSliceStruct struct {
+	Items []innerSliceElem
+}
+
+func TestDefaults_SliceOfStruct(t *testing.T) {
+	t.Parallel()
+
+	s := outerSliceStruct{
+		Items: []innerSliceElem{
+			{},          // zero element — should get default
+			{Name: "set"}, // pre-set — should stay unchanged
+		},
+	}
+	if err := applyTagDefaults(&s); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.Items[0].Name != "elem-default" {
+		t.Errorf("Items[0].Name: got %q, want \"elem-default\"", s.Items[0].Name)
+	}
+	if s.Items[1].Name != "set" {
+		t.Errorf("Items[1].Name: got %q, want \"set\"", s.Items[1].Name)
+	}
+}
+
+// ---- embedded struct test ----
+
+// EmbeddedBase uses an exported name so the anonymous embed is exported and
+// visible to applyDefaults.
+type EmbeddedBase struct {
+	BaseField string `default:"base-default"`
+}
+
+type outerEmbedded struct {
+	EmbeddedBase
+	Own string `default:"own-default"`
+}
+
+func TestDefaults_EmbeddedStruct(t *testing.T) {
+	t.Parallel()
+
+	var s outerEmbedded
+	if err := applyTagDefaults(&s); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if s.BaseField != "base-default" {
+		t.Errorf("BaseField: got %q, want \"base-default\"", s.BaseField)
+	}
+	if s.Own != "own-default" {
+		t.Errorf("Own: got %q, want \"own-default\"", s.Own)
+	}
+}
+
+// ---- unsupported pointer kind test ----
+
+type unsupportedPtrKind struct {
+	M *map[string]int `default:"something"`
+}
+
+func TestDefaults_UnsupportedPointerKind(t *testing.T) {
+	t.Parallel()
+
+	var s unsupportedPtrKind
+	err := applyTagDefaults(&s)
+	if err == nil {
+		t.Fatal("expected error for *map[string]int with default tag, got nil")
+	}
+	t.Logf("error (expected): %v", err)
+}
