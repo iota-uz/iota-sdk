@@ -102,30 +102,30 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSetDefaults_ClickURL(t *testing.T) {
+func TestDefaults_ClickURL(t *testing.T) {
 	t.Parallel()
 
-	// Source with no click.url key — SetDefaults should fill it in.
-	src := buildSource(t, map[string]any{
-		"click.merchantid": int64(1),
-	})
-
-	var cfg paymentsconfig.Config
-	if err := src.Unmarshal("", &cfg); err != nil {
-		t.Fatalf("Unmarshal: %v", err)
+	r := config.NewRegistry(buildSource(t, map[string]any{
+		"payments.click.merchantid": int64(1),
+	}))
+	cfg, err := config.Register[paymentsconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	cfg.SetDefaults()
 
 	if cfg.Click.URL != "https://my.click.uz" {
 		t.Errorf("Click.URL default: got %q, want %q", cfg.Click.URL, "https://my.click.uz")
 	}
 }
 
-func TestSetDefaults_PaymeURLAndUser(t *testing.T) {
+func TestDefaults_PaymeURLAndUser(t *testing.T) {
 	t.Parallel()
 
-	var cfg paymentsconfig.Config
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[paymentsconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.Payme.URL != "https://checkout.test.paycom.uz" {
 		t.Errorf("Payme.URL default: got %q", cfg.Payme.URL)

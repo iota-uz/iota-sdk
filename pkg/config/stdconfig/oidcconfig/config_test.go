@@ -69,11 +69,23 @@ func TestIsConfigured(t *testing.T) {
 	}
 }
 
-func TestSetDefaults(t *testing.T) {
+func buildSource(t *testing.T, values map[string]any) config.Source {
+	t.Helper()
+	src, err := config.Build(static.New(values))
+	if err != nil {
+		t.Fatalf("config.Build: %v", err)
+	}
+	return src
+}
+
+func TestDefaults_TokenLifetimes(t *testing.T) {
 	t.Parallel()
 
-	cfg := &oidcconfig.Config{}
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[oidcconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.AccessTokenLifetime != time.Hour {
 		t.Errorf("AccessTokenLifetime default: want 1h, got %s", cfg.AccessTokenLifetime)
@@ -86,23 +98,26 @@ func TestSetDefaults(t *testing.T) {
 	}
 }
 
-func TestSetDefaults_NoOverwrite(t *testing.T) {
+func TestDefaults_NoOverwrite(t *testing.T) {
 	t.Parallel()
 
-	cfg := &oidcconfig.Config{
-		AccessTokenLifetime:  2 * time.Hour,
-		RefreshTokenLifetime: 48 * time.Hour,
-		IDTokenLifetime:      15 * time.Minute,
+	r := config.NewRegistry(buildSource(t, map[string]any{
+		"oidc.accesstokenlifetime":  "2h",
+		"oidc.refreshtokenlifetime": "48h",
+		"oidc.idtokenlifetime":      "15m",
+	}))
+	cfg, err := config.Register[oidcconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	cfg.SetDefaults()
 
 	if cfg.AccessTokenLifetime != 2*time.Hour {
-		t.Errorf("SetDefaults must not overwrite AccessTokenLifetime")
+		t.Errorf("explicit AccessTokenLifetime must not be overwritten: got %s", cfg.AccessTokenLifetime)
 	}
 	if cfg.RefreshTokenLifetime != 48*time.Hour {
-		t.Errorf("SetDefaults must not overwrite RefreshTokenLifetime")
+		t.Errorf("explicit RefreshTokenLifetime must not be overwritten: got %s", cfg.RefreshTokenLifetime)
 	}
 	if cfg.IDTokenLifetime != 15*time.Minute {
-		t.Errorf("SetDefaults must not overwrite IDTokenLifetime")
+		t.Errorf("explicit IDTokenLifetime must not be overwritten: got %s", cfg.IDTokenLifetime)
 	}
 }

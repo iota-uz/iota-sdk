@@ -182,19 +182,22 @@ func TestValidate_MaxAttemptsTooHigh(t *testing.T) {
 	}
 }
 
-func TestSetDefaults(t *testing.T) {
+func TestDefaults_OTPFields(t *testing.T) {
 	t.Parallel()
 
-	cfg := twofactorconfig.Config{} // all zero
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[twofactorconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.OTP.CodeLength != 6 {
-		t.Errorf("OTP.CodeLength: got %d after SetDefaults, want 6", cfg.OTP.CodeLength)
+		t.Errorf("OTP.CodeLength: got %d, want 6", cfg.OTP.CodeLength)
 	}
 	if cfg.OTP.TTLSeconds != 300 {
-		t.Errorf("OTP.TTLSeconds: got %d after SetDefaults, want 300", cfg.OTP.TTLSeconds)
+		t.Errorf("OTP.TTLSeconds: got %d, want 300", cfg.OTP.TTLSeconds)
 	}
 	if cfg.OTP.MaxAttempts != 3 {
-		t.Errorf("OTP.MaxAttempts: got %d after SetDefaults, want 3", cfg.OTP.MaxAttempts)
+		t.Errorf("OTP.MaxAttempts: got %d, want 3", cfg.OTP.MaxAttempts)
 	}
 }

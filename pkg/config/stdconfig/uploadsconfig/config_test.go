@@ -42,11 +42,14 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSetDefaults_ZeroValues(t *testing.T) {
+func TestDefaults_ZeroValues(t *testing.T) {
 	t.Parallel()
 
-	cfg := uploadsconfig.Config{}
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[uploadsconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.Path != "static" {
 		t.Errorf("Path default: got %q, want %q", cfg.Path, "static")
@@ -59,15 +62,18 @@ func TestSetDefaults_ZeroValues(t *testing.T) {
 	}
 }
 
-func TestSetDefaults_NonZeroValuesUnchanged(t *testing.T) {
+func TestDefaults_NonZeroValuesUnchanged(t *testing.T) {
 	t.Parallel()
 
-	cfg := uploadsconfig.Config{
-		Path:      "/custom",
-		MaxSize:   1024,
-		MaxMemory: 2048,
+	r := config.NewRegistry(buildSource(t, map[string]any{
+		"uploads.path":      "/custom",
+		"uploads.maxsize":   int64(1024),
+		"uploads.maxmemory": int64(2048),
+	}))
+	cfg, err := config.Register[uploadsconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
 	}
-	cfg.SetDefaults()
 
 	if cfg.Path != "/custom" {
 		t.Errorf("Path should be unchanged: got %q", cfg.Path)

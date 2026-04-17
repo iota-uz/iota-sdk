@@ -42,11 +42,14 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSetDefaults_ZeroEnvironment(t *testing.T) {
+func TestDefaults_ZeroEnvironment(t *testing.T) {
 	t.Parallel()
 
-	cfg := appconfig.Config{}
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[appconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.Environment != "development" {
 		t.Errorf("Environment default: got %q, want %q", cfg.Environment, "development")
@@ -56,11 +59,14 @@ func TestSetDefaults_ZeroEnvironment(t *testing.T) {
 	}
 }
 
-func TestSetDefaults_NonZeroEnvironmentUnchanged(t *testing.T) {
+func TestDefaults_NonZeroEnvironmentUnchanged(t *testing.T) {
 	t.Parallel()
 
-	cfg := appconfig.Config{Environment: "staging"}
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, map[string]any{"app.environment": "staging"}))
+	cfg, err := config.Register[appconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.Environment != "staging" {
 		t.Errorf("Environment should be unchanged: got %q", cfg.Environment)

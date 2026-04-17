@@ -3,31 +3,17 @@
 // It is a stdconfig package intended to be registered via config.Register[appconfig.Config].
 package appconfig
 
-const (
-	production         = "production"
-	defaultEnvironment = "development"
-)
+const production = "production"
 
 // Config holds app-level settings shared across the application.
 //
 // Env prefix: "app" (e.g. GO_APP_ENV → app.environment,
 // TELEGRAM_BOT_TOKEN → app.telegrambottoken,
 // ENABLE_TEST_ENDPOINTS → app.enabletestendpoints).
-//
-// Note: httpconfig.Config also exposes Environment for HTTP-specific helpers
-// (Scheme, IsDev, IsProduction, SocketAddress). Both packages read the same
-// source value independently — intentional duplication of an independent slice.
 type Config struct {
-	Environment         string `koanf:"environment"`
-	TelegramBotToken    string `koanf:"telegrambottoken" secret:"true"`
+	Environment         string `koanf:"environment"         default:"development"`
+	TelegramBotToken    string `koanf:"telegrambottoken"    secret:"true"`
 	EnableTestEndpoints bool   `koanf:"enabletestendpoints"`
-}
-
-// SetDefaults fills zero-value fields with documented defaults.
-func (c *Config) SetDefaults() {
-	if c.Environment == "" {
-		c.Environment = defaultEnvironment
-	}
 }
 
 // ConfigPrefix returns the koanf prefix for appconfig ("app").

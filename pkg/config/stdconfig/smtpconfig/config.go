@@ -7,7 +7,7 @@ package smtpconfig
 // Env prefix: "smtp" (e.g. SMTP_HOST → smtp.host, SMTP_PASSWORD → smtp.password).
 type Config struct {
 	Host     string `koanf:"host"`
-	Port     int    `koanf:"port"`
+	Port     int    `koanf:"port"     default:"587"`
 	Username string `koanf:"username"`
 	Password string `koanf:"password" secret:"true"`
 	// From is the sender email address.
@@ -16,12 +16,3 @@ type Config struct {
 
 // ConfigPrefix returns the koanf prefix for smtpconfig ("smtp").
 func (Config) ConfigPrefix() string { return "smtp" }
-
-// SetDefaults applies default values for fields that are zero-valued.
-// Port defaults to 587 (SMTP submission with STARTTLS).
-// Call this after populating Config from a source that may omit defaults.
-func (c *Config) SetDefaults() {
-	if c.Port == 0 {
-		c.Port = 587
-	}
-}

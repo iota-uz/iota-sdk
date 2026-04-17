@@ -59,9 +59,9 @@ type KnowledgeConfig struct {
 // BICHAT_APPLET_ENTRY → bichat.applet.entry,
 // BICHAT_APPLET_CLIENT → bichat.applet.client).
 type AppletConfig struct {
-	ViteURL string `koanf:"viteurl"`
-	Entry   string `koanf:"entry"`
-	Client  string `koanf:"client"`
+	ViteURL string `koanf:"viteurl" default:"http://localhost:5173"`
+	Entry   string `koanf:"entry"   default:"/src/main.tsx"`
+	Client  string `koanf:"client"  default:"/@vite/client"`
 }
 
 // Config holds all BiChat module configuration.
@@ -76,16 +76,3 @@ type Config struct {
 
 // ConfigPrefix returns the koanf prefix for bichatconfig ("bichat").
 func (Config) ConfigPrefix() string { return "bichat" }
-
-// SetDefaults fills zero-value Applet fields with documented defaults.
-func (c *Config) SetDefaults() {
-	if c.Applet.ViteURL == "" {
-		c.Applet.ViteURL = "http://localhost:5173"
-	}
-	if c.Applet.Entry == "" {
-		c.Applet.Entry = "/src/main.tsx"
-	}
-	if c.Applet.Client == "" {
-		c.Applet.Client = "/@vite/client"
-	}
-}

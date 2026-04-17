@@ -41,19 +41,34 @@ func TestConfig_StaticRoundTrip(t *testing.T) {
 	}
 }
 
-func TestConfig_SetDefaults(t *testing.T) {
+func buildSource(t *testing.T, values map[string]any) config.Source {
+	t.Helper()
+	src, err := config.Build(static.New(values))
+	if err != nil {
+		t.Fatalf("config.Build: %v", err)
+	}
+	return src
+}
+
+func TestConfig_Defaults(t *testing.T) {
 	t.Parallel()
 
-	cfg := &smtpconfig.Config{}
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[smtpconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 	if cfg.Port != 587 {
-		t.Errorf("SetDefaults Port: want 587, got %d", cfg.Port)
+		t.Errorf("default Port: want 587, got %d", cfg.Port)
 	}
 
 	// Should not overwrite an explicit port.
-	cfg2 := &smtpconfig.Config{Port: 25}
-	cfg2.SetDefaults()
+	r2 := config.NewRegistry(buildSource(t, map[string]any{"smtp.port": 25}))
+	cfg2, err := config.Register[smtpconfig.Config](r2)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 	if cfg2.Port != 25 {
-		t.Errorf("SetDefaults must not overwrite explicit port, got %d", cfg2.Port)
+		t.Errorf("explicit port must not be overwritten, got %d", cfg2.Port)
 	}
 }

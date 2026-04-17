@@ -11,9 +11,9 @@ type LokiConfig struct {
 	// URL is the Loki push endpoint. Empty means Loki shipping is disabled.
 	URL string `koanf:"url"`
 	// AppName is the app label sent with every log line. Defaults to "sdk".
-	AppName string `koanf:"appname"`
+	AppName string `koanf:"appname" default:"sdk"`
 	// LogPath is the local log file path. Defaults to "./logs/app.log".
-	LogPath string `koanf:"logpath"`
+	LogPath string `koanf:"logpath" default:"./logs/app.log"`
 }
 
 // OTELConfig groups OpenTelemetry (Tempo) settings under the "otel" sub-key.
@@ -35,7 +35,7 @@ func (o *OTELConfig) IsConfigured() bool {
 type Config struct {
 	// LogLevel controls the minimum log severity. Defaults to "error".
 	// Valid values: "silent", "error", "warn", "info", "debug".
-	LogLevel string     `koanf:"loglevel"`
+	LogLevel string     `koanf:"loglevel" default:"error"`
 	Loki     LokiConfig `koanf:"loki"`
 	OTEL     OTELConfig `koanf:"otel"`
 }
@@ -61,18 +61,3 @@ func (c *Config) LogrusLogLevel() logrus.Level {
 
 // ConfigPrefix returns the koanf prefix for telemetryconfig ("telemetry").
 func (Config) ConfigPrefix() string { return "telemetry" }
-
-// SetDefaults fills zero-valued fields with fallback values that match the
-// legacy envDefault tags from pkg/configuration. Called automatically by
-// config.Register after Unmarshal.
-func (c *Config) SetDefaults() {
-	if c.LogLevel == "" {
-		c.LogLevel = "error"
-	}
-	if c.Loki.AppName == "" {
-		c.Loki.AppName = "sdk"
-	}
-	if c.Loki.LogPath == "" {
-		c.Loki.LogPath = "./logs/app.log"
-	}
-}

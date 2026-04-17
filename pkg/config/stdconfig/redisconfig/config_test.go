@@ -34,22 +34,28 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 	}
 }
 
-func TestSetDefaults_ZeroURL(t *testing.T) {
+func TestDefaults_ZeroURL(t *testing.T) {
 	t.Parallel()
 
-	cfg := redisconfig.Config{}
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, nil))
+	cfg, err := config.Register[redisconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.URL != "localhost:6379" {
 		t.Errorf("URL default: got %q, want %q", cfg.URL, "localhost:6379")
 	}
 }
 
-func TestSetDefaults_NonZeroURLUnchanged(t *testing.T) {
+func TestDefaults_NonZeroURLUnchanged(t *testing.T) {
 	t.Parallel()
 
-	cfg := redisconfig.Config{URL: "custom:6380"}
-	cfg.SetDefaults()
+	r := config.NewRegistry(buildSource(t, map[string]any{"redis.url": "custom:6380"}))
+	cfg, err := config.Register[redisconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
 
 	if cfg.URL != "custom:6380" {
 		t.Errorf("URL should be unchanged: got %q", cfg.URL)
