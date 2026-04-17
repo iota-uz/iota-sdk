@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
-	"runtime/debug"
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core"
@@ -22,18 +19,7 @@ import (
 )
 
 func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Println(r)
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
-	if err := run(); err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+	bootstrap.Main(run)
 }
 
 func run() error {

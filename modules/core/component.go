@@ -165,6 +165,16 @@ func (c *component) Build(builder *composition.Builder) error {
 		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.UserRealtimeUpdates) any {
 			return ru.OnUserDeleted
 		})
+		composition.ProvideFunc(builder, controllers.NewGroupRealtimeUpdates)
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.GroupRealtimeUpdates) any {
+			return ru.OnGroupCreated
+		})
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.GroupRealtimeUpdates) any {
+			return ru.OnGroupUpdated
+		})
+		composition.ContributeEventHandlerFunc(builder, func(ru *controllers.GroupRealtimeUpdates) any {
+			return ru.OnGroupDeleted
+		})
 	}
 
 	// ----- GraphQL schema -----
@@ -290,7 +300,7 @@ func (c *component) Build(builder *composition.Builder) error {
 						BasePath:         "/roles",
 						PermissionSchema: opts.PermissionSchema,
 					}),
-					controllers.NewGroupsController(app, groupService, logger),
+					controllers.NewGroupsController(app),
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
 					controllers.NewSettingsLogoController(tenantService, uploadService),

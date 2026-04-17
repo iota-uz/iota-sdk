@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -484,33 +483,6 @@ func (s *Storage) TerminateSession(ctx context.Context, userID string, clientID 
 	return nil
 }
 
-// GetSigningKey returns the active signing key for JWT signing
-// Deprecated: use KeySet instead
-func (s *Storage) GetSigningKey(ctx context.Context, keyCh chan<- jose.SigningKey) {
-	// Retrieve active signing key
-	privateKey, keyID, err := GetActiveSigningKey(ctx, s.db, s.cryptoKey)
-	if err != nil {
-		// Log error and close channel to signal failure
-		log.Printf("OIDC: Failed to get signing key: %v", err)
-		close(keyCh)
-		return
-	}
-
-	// Create signing key
-	signingKey := jose.SigningKey{
-		Algorithm: jose.RS256,
-		Key: &jose.JSONWebKey{
-			Key:       privateKey,
-			KeyID:     keyID,
-			Algorithm: string(jose.RS256),
-			Use:       "sig",
-		},
-	}
-
-	keyCh <- signingKey
-	close(keyCh)
-}
-
 // SigningKey returns the active signing key for JWT signing
 func (s *Storage) SigningKey(ctx context.Context) (op.SigningKey, error) {
 	const operation serrors.Op = "Storage.SigningKey"
@@ -604,8 +576,7 @@ func (s *Storage) Health(ctx context.Context) error {
 	return nil
 }
 
-// SetUserinfoFromScopes maps IOTA SDK User entity to OIDC claims
-// Deprecated: use SetUserinfoFromToken instead
+// SetUserinfoFromScopes maps requested scopes onto OIDC userinfo claims.
 func (s *Storage) SetUserinfoFromScopes(
 	ctx context.Context,
 	userinfo *oidc.UserInfo,

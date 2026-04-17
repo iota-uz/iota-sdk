@@ -110,14 +110,3 @@ func (a *authLog) UserAgent() string {
 func (a *authLog) CreatedAt() time.Time {
 	return a.createdAt
 }
-
-// AuthenticationLog is deprecated, use AuthLog interface instead
-// Kept for backward compatibility
-type AuthenticationLog struct {
-	ID        uint
-	TenantID  uuid.UUID
-	UserID    uint
-	IP        string
-	UserAgent string
-	CreatedAt time.Time
-}
