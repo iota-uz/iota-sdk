@@ -20,6 +20,11 @@ type staticProvider struct {
 	values map[string]any
 }
 
+// Name returns "static".
+func (p *staticProvider) Name() string {
+	return "static"
+}
+
 // Load returns a copy of the stored values map.
 func (p *staticProvider) Load() (map[string]any, error) {
 	if len(p.values) == 0 {

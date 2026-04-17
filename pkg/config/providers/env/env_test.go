@@ -27,10 +27,10 @@ func TestEnv_DotEnvFileLoad(t *testing.T) {
 		t.Fatalf("config.Build: %v", err)
 	}
 
-	if !src.Has("app.host") {
+	if _, ok := src.Get("app.host"); !ok {
 		t.Error("app.host should be present")
 	}
-	if !src.Has("app.port") {
+	if _, ok := src.Get("app.port"); !ok {
 		t.Error("app.port should be present")
 	}
 }
@@ -68,7 +68,7 @@ func TestEnv_KeyTransform_SingleUnderscoreToDot(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	if !src.Has("bichat.openai.api.key") {
+	if _, ok := src.Get("bichat.openai.api.key"); !ok {
 		t.Error("BICHAT_OPENAI_API_KEY should map to bichat.openai.api.key")
 	}
 }
@@ -82,10 +82,10 @@ func TestEnv_KeyTransform_LeadingTrailingUnderscore(t *testing.T) {
 		t.Fatalf("Build: %v", err)
 	}
 
-	if !src.Has("leading") {
+	if _, ok := src.Get("leading"); !ok {
 		t.Error("_LEADING should map to leading")
 	}
-	if !src.Has("trailing") {
+	if _, ok := src.Get("trailing"); !ok {
 		t.Error("TRAILING_ should map to trailing")
 	}
 }

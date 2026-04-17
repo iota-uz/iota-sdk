@@ -27,6 +27,11 @@ func New(addr, token, path string) (config.Provider, error) {
 
 type vaultProvider struct{}
 
+// Name returns "vault".
+func (p *vaultProvider) Name() string {
+	return "vault"
+}
+
 // Load is a no-op in W0.1.
 func (p *vaultProvider) Load() (map[string]any, error) {
 	return nil, errNotImplemented

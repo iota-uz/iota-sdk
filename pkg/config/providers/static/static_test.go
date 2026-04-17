@@ -67,7 +67,7 @@ func TestStatic_EmptyInputIsNoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build with nil map: %v", err)
 	}
-	if src.Has("anything") {
+	if _, ok := src.Get("anything"); ok {
 		t.Error("empty static provider should have no keys")
 	}
 
@@ -75,7 +75,7 @@ func TestStatic_EmptyInputIsNoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Build with empty map: %v", err)
 	}
-	if src2.Has("anything") {
+	if _, ok := src2.Get("anything"); ok {
 		t.Error("empty static provider should have no keys")
 	}
 }

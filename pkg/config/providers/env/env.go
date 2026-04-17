@@ -10,6 +10,7 @@
 package env
 
 import (
+	"fmt"
 	"log/slog"
 	"os"
 	"strings"
@@ -24,6 +25,16 @@ import (
 
 // Ensure *Provider implements config.Provider at compile time.
 var _ config.Provider = (*Provider)(nil)
+
+// Name returns a human-readable identifier for the provider.
+// Returns "env" when no .env files are configured, or "env:file1,file2" when
+// one or more files are loaded.
+func (p *Provider) Name() string {
+	if len(p.files) == 0 {
+		return "env"
+	}
+	return fmt.Sprintf("env:%s", strings.Join(p.files, ","))
+}
 
 // Load implements config.Provider. It loads .env files and process environment
 // variables, applies the key transform / aliases, and returns the result as a

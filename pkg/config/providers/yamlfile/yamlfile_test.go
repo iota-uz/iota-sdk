@@ -49,7 +49,7 @@ func TestYAML_MissingFileIsNoop(t *testing.T) {
 	if err != nil {
 		t.Fatalf("missing yaml file should not error: %v", err)
 	}
-	if src.Has("anything") {
+	if _, ok := src.Get("anything"); ok {
 		t.Error("missing file source should have no keys")
 	}
 }

@@ -27,6 +27,11 @@ type yamlProvider struct {
 	path string
 }
 
+// Name returns "yamlfile:<path>".
+func (p *yamlProvider) Name() string {
+	return "yamlfile:" + p.path
+}
+
 // Load parses the YAML file and returns its contents as a map[string]any.
 // Uses a temporary koanf instance internally to leverage the YAML parser.
 func (p *yamlProvider) Load() (map[string]any, error) {

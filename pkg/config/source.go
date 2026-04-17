@@ -1,6 +1,9 @@
 package config
 
 import (
+	"maps"
+	"slices"
+
 	koanfmaps "github.com/knadh/koanf/maps"
 	"github.com/knadh/koanf/v2"
 )
@@ -14,8 +17,16 @@ type Source interface {
 	// Use an empty string to unmarshal from the root.
 	Unmarshal(prefix string, target any) error
 
-	// Has reports whether the given dot-delimited key exists.
-	Has(key string) bool
+	// Get returns the value stored at the given dot-delimited key.
+	// ok is false if the key does not exist.
+	Get(key string) (value any, ok bool)
+
+	// Keys returns all keys in the source, sorted and deduplicated.
+	Keys() []string
+
+	// Origin returns the name of the provider that last set key.
+	// ok is false if the key does not exist.
+	Origin(key string) (provider string, ok bool)
 }
 
 // Build composes providers into a single immutable Source.
@@ -24,6 +35,12 @@ type Source interface {
 // the internal koanf instance via flattened dot-delimited keys.
 func Build(providers ...Provider) (Source, error) {
 	k := koanf.New(".")
+	// flat duplicates koanf's internal state for O(1) key lookups and origin
+	// tracking. Config maps are typically tens of keys so the O(n) extra memory
+	// cost is negligible.
+	flat := make(map[string]any)
+	origins := make(map[string]string)
+
 	for _, p := range providers {
 		m, err := p.Load()
 		if err != nil {
@@ -34,25 +51,41 @@ func Build(providers ...Provider) (Source, error) {
 		}
 		// Flatten nested maps to dot-delimited keys so koanf.Set handles them
 		// correctly regardless of nesting depth.
-		flat, _ := koanfmaps.Flatten(m, nil, ".")
-		for key, val := range flat {
+		flatMap, _ := koanfmaps.Flatten(m, nil, ".")
+		for key, val := range flatMap {
 			if err := k.Set(key, val); err != nil {
 				return nil, err
 			}
+			flat[key] = val
+			origins[key] = p.Name()
 		}
 	}
-	return &frozenSource{k: k}, nil
+	return &frozenSource{k: k, flat: flat, origins: origins}, nil
 }
 
 // frozenSource wraps a *koanf.Koanf and exposes no mutation surface.
 type frozenSource struct {
-	k *koanf.Koanf
+	k       *koanf.Koanf
+	flat    map[string]any
+	origins map[string]string
 }
 
 func (s *frozenSource) Unmarshal(prefix string, target any) error {
 	return s.k.Unmarshal(prefix, target)
 }
 
-func (s *frozenSource) Has(key string) bool {
-	return s.k.Exists(key)
+func (s *frozenSource) Get(key string) (any, bool) {
+	v, ok := s.flat[key]
+	return v, ok
+}
+
+func (s *frozenSource) Keys() []string {
+	ks := slices.Collect(maps.Keys(s.flat))
+	slices.Sort(ks)
+	return ks
+}
+
+func (s *frozenSource) Origin(key string) (string, bool) {
+	p, ok := s.origins[key]
+	return p, ok
 }
