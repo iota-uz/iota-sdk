@@ -32,6 +32,10 @@ func NewCapabilityRegistry() CapabilityRegistry {
 	}
 }
 
+// Register appends probe to the registry's probe list. If probe produces a
+// Capability with a non-empty Key, any earlier-registered probe reporting the
+// same Key is superseded at List time (see List for the dedup rules). Nil
+// probes are ignored.
 func (r *capabilityRegistryImpl) Register(probe CapabilityProbe) {
 	if probe == nil {
 		return
@@ -43,12 +47,65 @@ func (r *capabilityRegistryImpl) Register(probe CapabilityProbe) {
 	r.probes = append(r.probes, probe)
 }
 
+// List returns the currently-registered probes, deduplicated by Capability.Key
+// with last-wins semantics: when two probes emit the same Key, only the one
+// registered later appears in the returned slice. Probes producing a capability
+// with an empty Key are always included (the framework cannot collapse them).
+//
+// Dedup is evaluated at List call time, not at Register time, because probes
+// are free to adjust their reported capability on each Probe call. The probes
+// are re-evaluated here by invoking Probe with a background context to read
+// only the Key field; the full result is not cached. This is cheap for the
+// small N of feature gates and avoids a parallel "key index" that could drift.
+//
+// The returned slice preserves registration order for the surviving entries,
+// so callers get a stable iteration sequence across List calls.
 func (r *capabilityRegistryImpl) List() []CapabilityProbe {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
-
 	probes := make([]CapabilityProbe, len(r.probes))
 	copy(probes, r.probes)
+	r.mu.RUnlock()
 
-	return probes
+	if len(probes) < 2 {
+		return probes
+	}
+
+	// Walk in registration order and remember the latest index for each non-empty
+	// Key. Then filter out superseded entries.
+	latest := make(map[string]int, len(probes))
+	for i, p := range probes {
+		cap := safeProbeKey(p)
+		if cap == "" {
+			continue
+		}
+		latest[cap] = i
+	}
+	if len(latest) == 0 {
+		return probes
+	}
+
+	out := make([]CapabilityProbe, 0, len(probes))
+	for i, p := range probes {
+		cap := safeProbeKey(p)
+		if cap != "" && latest[cap] != i {
+			continue
+		}
+		out = append(out, p)
+	}
+	return out
+}
+
+// safeProbeKey calls Probe with a background context and returns Capability.Key
+// without panicking on probe failures. Used for dedup only; callers that need
+// the full Capability should use CapabilityService.
+func safeProbeKey(probe CapabilityProbe) (key string) {
+	defer func() {
+		if r := recover(); r != nil {
+			key = ""
+		}
+	}()
+	if probe == nil {
+		return ""
+	}
+	return probe.Probe(context.Background()).Key
 }
