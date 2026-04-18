@@ -34,7 +34,7 @@ func TestUnmarshalRoundTrip(t *testing.T) {
 	}
 }
 
-func TestDefaults_ZeroURL(t *testing.T) {
+func TestImplicitDisable_WhenURLUnset(t *testing.T) {
 	t.Parallel()
 
 	r := config.NewRegistry(buildSource(t, nil))
@@ -43,8 +43,29 @@ func TestDefaults_ZeroURL(t *testing.T) {
 		t.Fatalf("Register: %v", err)
 	}
 
-	if cfg.URL != "localhost:6379" {
-		t.Errorf("URL default: got %q, want %q", cfg.URL, "localhost:6379")
+	// Unset URL means Redis is off. Previously a localhost:6379 tag default
+	// masked the unset state; removing it lets gate helpers detect disabled.
+	if cfg.URL != "" {
+		t.Errorf("URL should be empty when unset (no default); got %q", cfg.URL)
+	}
+	if cfg.IsConfigured() {
+		t.Error("IsConfigured should be false when URL is empty")
+	}
+	if got := cfg.DisabledReason(); got != "REDIS_URL not set" {
+		t.Errorf("DisabledReason: got %q, want %q", got, "REDIS_URL not set")
+	}
+}
+
+func TestIsConfigured_TrueWhenURLSet(t *testing.T) {
+	t.Parallel()
+
+	r := config.NewRegistry(buildSource(t, map[string]any{"redis.url": "redis:6379"}))
+	cfg, err := config.Register[redisconfig.Config](r)
+	if err != nil {
+		t.Fatalf("Register: %v", err)
+	}
+	if !cfg.IsConfigured() {
+		t.Error("IsConfigured should be true when URL is set")
 	}
 }
 

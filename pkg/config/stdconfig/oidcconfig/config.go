@@ -19,6 +19,14 @@ type Config struct {
 func (Config) ConfigPrefix() string { return "oidc" }
 
 // IsConfigured reports whether OIDC is usable — both IssuerURL and CryptoKey must be set.
+// Implements config.Configured so composition.SkipIfDisabled can gate the module.
 func (c *Config) IsConfigured() bool {
 	return c.IssuerURL != "" && c.CryptoKey != ""
+}
+
+// DisabledReason describes why OIDC is off when IsConfigured returns false.
+// Implements config.DisabledReason so gate helpers surface a useful message
+// in /system/info and in strict-mode Register errors.
+func (c *Config) DisabledReason() string {
+	return "OIDC_ISSUERURL and OIDC_CRYPTOKEY required"
 }

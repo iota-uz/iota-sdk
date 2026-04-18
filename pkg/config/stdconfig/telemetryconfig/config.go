@@ -16,6 +16,14 @@ type LokiConfig struct {
 	LogPath string `koanf:"logpath" default:"./logs/app.log"`
 }
 
+// IsConfigured returns true when the Loki push URL is set. Used by
+// composition.IfConfigured to gate Loki hook installation inside an
+// already-active telemetry path.
+func (l LokiConfig) IsConfigured() bool { return l.URL != "" }
+
+// DisabledReason explains why the Loki hook is off when IsConfigured returns false.
+func (l LokiConfig) DisabledReason() string { return "TELEMETRY_LOKI_URL not set" }
+
 // OTELConfig groups OpenTelemetry (Tempo) settings under the "otel" sub-key.
 type OTELConfig struct {
 	// TempoURL is the OTLP gRPC endpoint for traces. Empty means tracing is disabled.

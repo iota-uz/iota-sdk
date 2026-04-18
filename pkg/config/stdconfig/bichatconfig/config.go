@@ -76,3 +76,15 @@ type Config struct {
 
 // ConfigPrefix returns the koanf prefix for bichatconfig ("bichat").
 func (Config) ConfigPrefix() string { return "bichat" }
+
+// IsConfigured reports whether BiChat has the minimum settings needed to run.
+// OpenAI is the required integration; Langfuse and Knowledge are optional
+// sub-features checked separately inside the module via composition.IfConfigured.
+func (c *Config) IsConfigured() bool {
+	return c.OpenAI.IsConfigured()
+}
+
+// DisabledReason explains why BiChat is off when IsConfigured returns false.
+func (c *Config) DisabledReason() string {
+	return "BICHAT_OPENAI_APIKEY required"
+}

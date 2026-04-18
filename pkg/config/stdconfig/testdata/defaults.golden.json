@@ -117,7 +117,7 @@
     "RedisURL": ""
   },
   "Redis": {
-    "URL": "localhost:6379"
+    "URL": ""
   },
   "SMTP": {
     "Host": "",

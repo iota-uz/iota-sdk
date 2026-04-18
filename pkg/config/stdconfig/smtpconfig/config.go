@@ -16,3 +16,11 @@ type Config struct {
 
 // ConfigPrefix returns the koanf prefix for smtpconfig ("smtp").
 func (Config) ConfigPrefix() string { return "smtp" }
+
+// IsConfigured reports whether SMTP is usable — Host is the one field the
+// feature cannot synthesise a default for. Port, Username, Password and From
+// all have practical defaults or are optional.
+func (c *Config) IsConfigured() bool { return c.Host != "" }
+
+// DisabledReason explains why SMTP is off when IsConfigured returns false.
+func (c *Config) DisabledReason() string { return "SMTP_HOST required" }

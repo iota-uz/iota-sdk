@@ -18,6 +18,12 @@ func (Config) ConfigPrefix() string { return "googleoauth" }
 
 // IsConfigured returns true when both ClientID and ClientSecret are set.
 // Google OAuth enablement is implicit — no explicit flag needed.
+// Implements config.Configured for composition.SkipIfDisabled gating.
 func (c *Config) IsConfigured() bool {
 	return c.ClientID != "" && c.ClientSecret != ""
+}
+
+// DisabledReason explains why Google OAuth is off when IsConfigured returns false.
+func (c *Config) DisabledReason() string {
+	return "GOOGLEOAUTH_CLIENTID and GOOGLEOAUTH_CLIENTSECRET required"
 }

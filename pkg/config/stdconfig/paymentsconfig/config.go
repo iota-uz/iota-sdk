@@ -48,3 +48,37 @@ type Config struct {
 
 // ConfigPrefix returns the koanf prefix for paymentsconfig ("payments").
 func (Config) ConfigPrefix() string { return "payments" }
+
+// IsConfigured reports whether any payment provider has the minimum settings.
+// Payments is a fan-out feature: the module-level gate lights up as soon as
+// one provider is configured, and modules then use composition.IfConfigured
+// on individual sub-structs to gate per-provider wiring.
+func (c *Config) IsConfigured() bool {
+	return c.Click.IsConfigured() || c.Payme.IsConfigured() ||
+		c.Octo.IsConfigured() || c.Stripe.IsConfigured()
+}
+
+// DisabledReason explains why payments are off when IsConfigured returns false.
+func (c *Config) DisabledReason() string {
+	return "at least one payment provider's credentials required (CLICK / PAYME / OCTO / STRIPE)"
+}
+
+// IsConfigured reports whether Click has the minimum credentials to operate.
+func (c ClickConfig) IsConfigured() bool {
+	return c.MerchantID != 0 && c.ServiceID != 0 && c.SecretKey != ""
+}
+
+// IsConfigured reports whether Payme has the minimum credentials to operate.
+func (c PaymeConfig) IsConfigured() bool {
+	return c.MerchantID != "" && c.SecretKey != ""
+}
+
+// IsConfigured reports whether Octo has the minimum credentials to operate.
+func (c OctoConfig) IsConfigured() bool {
+	return c.ShopID != 0 && c.Secret != ""
+}
+
+// IsConfigured reports whether Stripe has the minimum credentials to operate.
+func (c StripeConfig) IsConfigured() bool {
+	return c.SecretKey != ""
+}
