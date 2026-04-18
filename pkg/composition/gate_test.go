@@ -194,6 +194,81 @@ func TestGatedRegister_DisabledFeature_SkipsAndReturnsNil(t *testing.T) {
 	mustFirstCapability(t, registry, "feat")
 }
 
+// --- Engine.Compile integration --------------------------------------------
+
+// gatedComponent is a minimal Component that uses SkipIfDisabled in Build.
+// It provides one *gatedCfg-keyed value so we can assert zero providers
+// land in the container when the feature is disabled.
+type gatedComponent struct{}
+
+func (gatedComponent) Descriptor() Descriptor { return Descriptor{Name: "gatedcomponent"} }
+func (gatedComponent) Build(builder *Builder) error {
+	if SkipIfDisabled[gatedCfg](builder) {
+		return nil
+	}
+	Provide[string](builder, "gated-provider-value")
+	return nil
+}
+
+func TestIntegration_Engine_DisabledFeature_NoProvidersWired(t *testing.T) {
+	t.Parallel()
+
+	src, err := config.Build(static.New(nil))
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	capReg := health.NewCapabilityRegistry()
+	engine := NewEngine()
+	if err := engine.Register(gatedComponent{}); err != nil {
+		t.Fatalf("engine.Register: %v", err)
+	}
+
+	ctx := NewBuildContext(nil, src, WithLogger(logrus.New()), WithCapabilityRegistry(capReg))
+	container, err := engine.Compile(ctx)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	// Disabled feature: the string provider must NOT be in the container.
+	// Any resolution attempt should report NotProvided.
+	if v, err := Resolve[string](container); err == nil {
+		t.Errorf("disabled feature should not provide string; got %q", v)
+	} else if !IsNotProvided(err) {
+		t.Errorf("expected NotProvided, got %v", err)
+	}
+
+	// Capability probe still emitted by the gate helper.
+	mustFirstCapability(t, capReg, "feat")
+}
+
+func TestIntegration_Engine_ActiveFeature_ProvidersWired(t *testing.T) {
+	t.Parallel()
+
+	src, err := config.Build(static.New(map[string]any{"feat.apikey": "sk-test"}))
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	capReg := health.NewCapabilityRegistry()
+	engine := NewEngine()
+	if err := engine.Register(gatedComponent{}); err != nil {
+		t.Fatalf("engine.Register: %v", err)
+	}
+
+	ctx := NewBuildContext(nil, src, WithLogger(logrus.New()), WithCapabilityRegistry(capReg))
+	container, err := engine.Compile(ctx)
+	if err != nil {
+		t.Fatalf("Compile: %v", err)
+	}
+
+	v, err := Resolve[string](container)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if v != "gated-provider-value" {
+		t.Errorf("Resolve: got %q, want %q", v, "gated-provider-value")
+	}
+}
+
 // --- Partial-config gate --------------------------------------------------
 
 func TestSkipIfDisabled_PartialConfig_StrictPanics(t *testing.T) {
