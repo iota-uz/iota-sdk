@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -34,6 +35,7 @@ type BuildContext struct {
 	bundle             *i18n.Bundle
 	source             config.Source
 	registry           *config.Registry
+	capabilities       health.CapabilityRegistry // lazy-init via CapabilityRegistry()
 	ActiveCapabilities map[Capability]struct{}
 }
 
@@ -46,6 +48,19 @@ type BuildContextOption func(*BuildContext)
 func WithLogger(logger *logrus.Logger) BuildContextOption {
 	return func(ctx *BuildContext) {
 		ctx.logger = logger
+	}
+}
+
+// WithCapabilityRegistry attaches a shared health.CapabilityRegistry. Gate
+// helpers emit CapabilityProbe entries here so that /system/info reflects
+// the enabled/disabled state of every optional feature without per-module
+// health wiring. When omitted, the BuildContext lazily creates a private
+// registry on first CapabilityRegistry() call — callers that want the
+// Capabilities to flow into the system-info controller must attach the
+// same registry they pass to the runtime / controller options.
+func WithCapabilityRegistry(registry health.CapabilityRegistry) BuildContextOption {
+	return func(ctx *BuildContext) {
+		ctx.capabilities = registry
 	}
 }
 
@@ -113,6 +128,18 @@ func (c *BuildContext) Registry() *config.Registry {
 		c.registry = config.NewRegistry(c.source)
 	}
 	return c.registry
+}
+
+// CapabilityRegistry returns the shared health.CapabilityRegistry for this
+// BuildContext, lazily creating a private one on first call when no registry
+// was attached via WithCapabilityRegistry. Gate helpers use this to emit
+// CapabilityProbe entries reflecting each feature's enabled/disabled state.
+// Never returns nil.
+func (c *BuildContext) CapabilityRegistry() health.CapabilityRegistry {
+	if c.capabilities == nil {
+		c.capabilities = health.NewCapabilityRegistry()
+	}
+	return c.capabilities
 }
 
 func (c BuildContext) HasCapability(capability Capability) bool {

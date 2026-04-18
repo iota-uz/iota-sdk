@@ -9,18 +9,20 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
 type Runtime struct {
-	Source config.Source // optional; set via WithSource
-	Logger *logrus.Logger
-	Pool   *pgxpool.Pool
-	Bundle *i18n.Bundle
-	App    application.Application
-	Engine *composition.Engine
+	Source             config.Source             // optional; set via WithSource
+	Logger             *logrus.Logger
+	Pool               *pgxpool.Pool
+	Bundle             *i18n.Bundle
+	App                application.Application
+	Engine             *composition.Engine
+	CapabilityRegistry health.CapabilityRegistry // optional; set via WithCapabilityRegistry
 
 	container *composition.Container
 }
@@ -58,12 +60,15 @@ func (rt *Runtime) BuildContext() composition.BuildContext {
 	if rt == nil {
 		return composition.BuildContext{}
 	}
-	opts := make([]any, 0, 2)
+	opts := make([]any, 0, 3)
 	if rt.Source != nil {
 		opts = append(opts, rt.Source)
 	}
 	if rt.Logger != nil {
 		opts = append(opts, composition.WithLogger(rt.Logger))
+	}
+	if rt.CapabilityRegistry != nil {
+		opts = append(opts, composition.WithCapabilityRegistry(rt.CapabilityRegistry))
 	}
 	return composition.NewBuildContext(rt.App, opts...)
 }
@@ -98,11 +103,12 @@ func (rt *Runtime) Stop(ctx context.Context) error {
 type Option func(*options)
 
 type options struct {
-	source        config.Source
-	loggerFactory func(context.Context, any) (*logrus.Logger, func() error, error)
-	poolFactory   func(context.Context, any, *logrus.Logger) (*pgxpool.Pool, func() error, error)
-	bundleFactory func(context.Context, any) (*i18n.Bundle, error)
-	appFactory    func(context.Context, *Runtime) (application.Application, error)
+	source             config.Source
+	capabilityRegistry health.CapabilityRegistry
+	loggerFactory      func(context.Context, any) (*logrus.Logger, func() error, error)
+	poolFactory        func(context.Context, any, *logrus.Logger) (*pgxpool.Pool, func() error, error)
+	bundleFactory      func(context.Context, any) (*i18n.Bundle, error)
+	appFactory         func(context.Context, *Runtime) (application.Application, error)
 }
 
 func WithLoggerFactory(factory func(context.Context, any) (*logrus.Logger, func() error, error)) Option {
@@ -153,7 +159,8 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 	}
 
 	rt := &Runtime{
-		Source: cfg.source,
+		Source:             cfg.source,
+		CapabilityRegistry: cfg.capabilityRegistry,
 	}
 
 	var cleanup []func() error

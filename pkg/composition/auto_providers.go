@@ -29,6 +29,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -78,10 +79,16 @@ func installAutoProviders(container *Container, ctx BuildContext) error {
 		registerAutoValue[*logrus.Logger](container, "auto:logger", logger)
 	}
 
+	// Expose the shared health.CapabilityRegistry as an auto-provider so
+	// controllers (system_info) can read the gate-emitted probes via DI.
+	// Lazy-init on access via (&ctx).CapabilityRegistry() ensures we always
+	// hand out the same instance that gate helpers wrote into.
+	registerAutoValue[health.CapabilityRegistry](container, "auto:capabilityregistry", (&ctx).CapabilityRegistry())
+
 	// Typed stdconfig auto-registration from config.Source.
 	// When no Source is attached, consumers must call composition.ProvideConfig[T] explicitly.
 	if src := ctx.source; src != nil {
-		if err := installStdconfigFromSource(container, src); err != nil {
+		if err := installStdconfigFromSource(container, &ctx); err != nil {
 			return err
 		}
 	}
@@ -100,13 +107,13 @@ func registerAuto[T config.Prefixed](r *config.Registry, container *Container, n
 	return nil
 }
 
-// installStdconfigFromSource populates all stdconfig types from the new
-// config.Source, using config.Register for unmarshal + optional Validate.
-// Each registered *T is placed into the container under the pointer key so
-// constructors can receive it directly.
+// installStdconfigFromSource populates all stdconfig types from the attached
+// config.Source, using the BuildContext's shared registry (so component gate
+// helpers see the same entries) and placing each *T into the container under
+// the pointer key for constructor auto-wiring.
 // Returns the first registration error encountered, if any.
-func installStdconfigFromSource(container *Container, src config.Source) error {
-	reg := config.NewRegistry(src)
+func installStdconfigFromSource(container *Container, ctx *BuildContext) error {
+	reg := ctx.Registry()
 
 	registrations := []func() error{
 		func() error { return registerAuto[dbconfig.Config](reg, container, "auto:dbconfig") },
@@ -154,7 +161,7 @@ func installStdconfigFromSource(container *Container, src config.Source) error {
 		return fmt.Errorf("seal config registry: %w", err)
 	}
 
-	logSourceProvenance(src)
+	logSourceProvenance(ctx.Source())
 	return nil
 }
 
