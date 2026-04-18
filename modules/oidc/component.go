@@ -50,13 +50,12 @@ func (c *component) Descriptor() composition.Descriptor {
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddLocales(builder, &LocaleFiles)
 
-	// Guard: if a source is available check whether OIDC is configured.
-	// Skip wiring if OIDC is clearly not configured.
-	if src := builder.Context().Source(); src != nil {
-		var oidcCfg oidcconfig.Config
-		if err := src.Unmarshal("oidc", &oidcCfg); err == nil && !oidcCfg.IsConfigured() {
-			return nil
-		}
+	// Implicit enablement: OIDC is on iff OIDC_ISSUERURL and OIDC_CRYPTOKEY
+	// are both supplied. The gate helper emits a CapabilityProbe so
+	// /system/info reflects state and logs a single structured line when
+	// disabled, matching every other optional module.
+	if composition.SkipIfDisabled[oidcconfig.Config](builder) {
+		return nil
 	}
 
 	composition.ProvideFunc(builder, persistence.NewClientRepository)

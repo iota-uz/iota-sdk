@@ -16,7 +16,6 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -160,26 +159,17 @@ func provideBundleField[I any](builder *composition.Builder, field func(*bichatB
 func (c *component) Build(builder *composition.Builder) error {
 	buildCtx := builder.Context()
 
-	// Gate: resolve bichatconfig to check if OpenAI is configured.
-	// Prefer the new typed-config path (config.Source); fall back to legacy.
-	var gateCfg *bichatconfig.Config
-	if src := buildCtx.Source(); src != nil {
-		reg := config.NewRegistry(src)
-		if ptr, err := config.Register[bichatconfig.Config](reg); err == nil {
-			gateCfg = ptr
-		}
-	}
-	if gateCfg == nil {
-		gateCfg = &bichatconfig.Config{}
-	}
-
 	composition.AddLocales(builder, &LocaleFiles)
-	if !gateCfg.OpenAI.IsConfigured() {
-		if logger := buildCtx.Logger(); logger != nil {
-			logger.Info("bichat.openai.apikey not set - BiChat module disabled")
-		}
+
+	// Implicit enablement: the module is on iff BICHAT_OPENAI_APIKEY is set.
+	// The gate helper emits a CapabilityProbe so /system/info reflects state,
+	// logs a single structured line when disabled, and panics in strict mode
+	// if the operator left a partial config (prevents typos masking feature
+	// loss in production).
+	if composition.SkipIfDisabled[bichatconfig.Config](builder) {
 		return nil
 	}
+
 	_ = strings.TrimSpace // keep strings import used below
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
