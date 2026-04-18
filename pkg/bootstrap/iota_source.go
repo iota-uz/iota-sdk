@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/telemetryconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
@@ -38,6 +39,15 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 	return func(o *options) {
 		// Attach Source to Runtime so components can use ProvideConfig[T].
 		o.source = src
+
+		// Ensure a shared CapabilityRegistry exists so telemetry sub-features
+		// surface on /system/info alongside module-level gates. Callers that
+		// attach their own via bootstrap.WithCapabilityRegistry will have set
+		// o.capabilityRegistry already — respect that and don't overwrite.
+		if o.capabilityRegistry == nil {
+			o.capabilityRegistry = health.NewCapabilityRegistry()
+		}
+		capReg := o.capabilityRegistry
 
 		reg := config.NewRegistry(src)
 
@@ -65,7 +75,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				return nil, nil, fmt.Errorf("bootstrap: create file logger: %w", err)
 			}
 
-			if telCfg.Loki.URL != "" {
+			if telCfg.Loki.IsConfigured() {
 				appName := telCfg.Loki.AppName
 				if appName == "" {
 					appName = "sdk"
@@ -73,9 +83,13 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				if err := logging.AddLokiHook(logger, telCfg.Loki.URL, appName); err != nil {
 					return nil, nil, fmt.Errorf("bootstrap: add Loki hook: %w", err)
 				}
+				registerLokiCapability(capReg, health.StatusHealthy, "")
+			} else {
+				registerLokiCapability(capReg, health.StatusDisabled, telCfg.Loki.DisabledReason())
 			}
 
 			if !telCfg.OTEL.IsConfigured() {
+				registerOTELCapability(capReg, health.StatusDisabled, "TELEMETRY_OTEL_TEMPOURL and TELEMETRY_OTEL_SERVICENAME required")
 				return logger, func() error { return nil }, nil
 			}
 
@@ -85,6 +99,7 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 				telCfg.OTEL.TempoURL,
 			)
 			logger.Info("OpenTelemetry tracing enabled, exporting to Tempo at " + telCfg.OTEL.TempoURL)
+			registerOTELCapability(capReg, health.StatusHealthy, "")
 			return logger, func() error {
 				cleanup()
 				return nil
@@ -157,4 +172,38 @@ func IotaSourceWithServiceName(src config.Source, serviceName string) Option {
 			})
 		}
 	}
+}
+
+// registerLokiCapability emits a one-shot Loki hook capability probe so
+// /system/info reflects whether log shipping to Loki is active.
+func registerLokiCapability(capReg health.CapabilityRegistry, status health.Status, message string) {
+	if capReg == nil {
+		return
+	}
+	capReg.Register(health.CapabilityProbeFunc(func(context.Context) health.Capability {
+		return health.Capability{
+			Key:     "telemetry.loki",
+			Name:    "telemetry.loki",
+			Enabled: status == health.StatusHealthy,
+			Status:  status,
+			Message: message,
+		}
+	}))
+}
+
+// registerOTELCapability emits an OTEL tracing capability probe so the same
+// /system/info panel covers Tempo alongside Loki.
+func registerOTELCapability(capReg health.CapabilityRegistry, status health.Status, message string) {
+	if capReg == nil {
+		return
+	}
+	capReg.Register(health.CapabilityProbeFunc(func(context.Context) health.Capability {
+		return health.Capability{
+			Key:     "telemetry.otel",
+			Name:    "telemetry.otel",
+			Enabled: status == health.StatusHealthy,
+			Status:  status,
+			Message: message,
+		}
+	}))
 }
