@@ -3,6 +3,7 @@ package config
 import (
 	"maps"
 	"slices"
+	"strings"
 
 	koanfmaps "github.com/knadh/koanf/maps"
 	"github.com/knadh/koanf/v2"
@@ -29,6 +30,13 @@ type Source interface {
 	// Reports which Provider supplied key. Unrelated to httpconfig.Config.Origin
 	// (URL builder) and httpconfig.Config.OriginOverride (env pin).
 	Origin(key string) (provider string, ok bool)
+
+	// HasPrefix reports whether any key in the Source starts with prefix
+	// followed by ".". Used by the registry's lazy-loading gate to tell
+	// "operator did not touch this feature" (no match) from "operator
+	// configured it partially" (match without required fields populated).
+	// An empty prefix reports true iff the Source has any keys at all.
+	HasPrefix(prefix string) bool
 }
 
 // Build composes providers into a single immutable Source.
@@ -92,4 +100,17 @@ func (s *frozenSource) Keys() []string {
 func (s *frozenSource) Origin(key string) (string, bool) {
 	p, ok := s.origins[key]
 	return p, ok
+}
+
+func (s *frozenSource) HasPrefix(prefix string) bool {
+	if prefix == "" {
+		return len(s.flat) > 0
+	}
+	needle := prefix + "."
+	for k := range s.flat {
+		if strings.HasPrefix(k, needle) {
+			return true
+		}
+	}
+	return false
 }
