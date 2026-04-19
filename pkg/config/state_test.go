@@ -49,7 +49,7 @@ func TestSource_HasPrefix(t *testing.T) {
 		{"namespace", true},
 		{"namespace.key", true},
 		{"missing", false},
-		{"", true},                 // empty prefix: true iff any keys
+		{"", true},                   // empty prefix: true iff any keys
 		{"namespace.key.sub", false}, // exact match without trailing "." doesn't count
 	}
 

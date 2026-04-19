@@ -12,16 +12,16 @@ import (
 // always a typo or a half-finished deployment.
 //
 //   - StrictYes    — Register returns an error; Seal joins all errors.
-//                    Prevents boot when any optional feature is half-configured.
+//     Prevents boot when any optional feature is half-configured.
 //   - StrictLax    — Register succeeds with state downgraded to Disabled;
-//                    Seal logs a warning per entry and returns nil for them.
-//                    Appropriate for development where partial configs are
-//                    common during iteration.
+//     Seal logs a warning per entry and returns nil for them.
+//     Appropriate for development where partial configs are
+//     common during iteration.
 //   - StrictDefault — resolves to StrictYes when app.environment=="production"
-//                     (either via the Source or the APP_ENVIRONMENT env var
-//                     fallback) and StrictLax elsewhere. Overridable at the
-//                     registry via SetStrict, or via APP_STRICT_CONFIG=true|false
-//                     in the environment.
+//     (either via the Source or the APP_ENVIRONMENT env var
+//     fallback) and StrictLax elsewhere. Overridable at the
+//     registry via SetStrict, or via APP_STRICT_CONFIG=true|false
+//     in the environment.
 type StrictMode int
 
 const (

@@ -16,7 +16,7 @@ import (
 )
 
 type Runtime struct {
-	Source             config.Source             // optional; set via WithSource
+	Source             config.Source // optional; set via WithSource
 	Logger             *logrus.Logger
 	Pool               *pgxpool.Pool
 	Bundle             *i18n.Bundle

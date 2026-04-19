@@ -166,4 +166,3 @@ func TestLazyLoading_ConfiguredFeature_IsActive(t *testing.T) {
 		t.Errorf("Seal: %v", err)
 	}
 }
-
