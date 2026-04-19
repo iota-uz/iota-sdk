@@ -74,11 +74,11 @@ func (r *capabilityRegistryImpl) List() []CapabilityProbe {
 	// Key. Then filter out superseded entries.
 	latest := make(map[string]int, len(probes))
 	for i, p := range probes {
-		cap := safeProbeKey(p)
-		if cap == "" {
+		key := safeProbeKey(p)
+		if key == "" {
 			continue
 		}
-		latest[cap] = i
+		latest[key] = i
 	}
 	if len(latest) == 0 {
 		return probes
@@ -86,8 +86,8 @@ func (r *capabilityRegistryImpl) List() []CapabilityProbe {
 
 	out := make([]CapabilityProbe, 0, len(probes))
 	for i, p := range probes {
-		cap := safeProbeKey(p)
-		if cap != "" && latest[cap] != i {
+		key := safeProbeKey(p)
+		if key != "" && latest[key] != i {
 			continue
 		}
 		out = append(out, p)
@@ -98,14 +98,14 @@ func (r *capabilityRegistryImpl) List() []CapabilityProbe {
 // safeProbeKey calls Probe with a background context and returns Capability.Key
 // without panicking on probe failures. Used for dedup only; callers that need
 // the full Capability should use CapabilityService.
-func safeProbeKey(probe CapabilityProbe) (key string) {
-	defer func() {
-		if r := recover(); r != nil {
-			key = ""
-		}
-	}()
+func safeProbeKey(probe CapabilityProbe) string {
 	if probe == nil {
 		return ""
 	}
-	return probe.Probe(context.Background()).Key
+	key := ""
+	func() {
+		defer func() { _ = recover() }()
+		key = probe.Probe(context.Background()).Key
+	}()
+	return key
 }

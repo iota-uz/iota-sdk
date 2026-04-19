@@ -44,9 +44,9 @@ func newGateBuilder(t *testing.T, data map[string]any) (*Builder, health.Capabil
 func mustFirstCapability(t *testing.T, registry health.CapabilityRegistry, key string) health.Capability {
 	t.Helper()
 	for _, p := range registry.List() {
-		cap := p.Probe(context.Background())
-		if cap.Key == key {
-			return cap
+		capability := p.Probe(context.Background())
+		if capability.Key == key {
+			return capability
 		}
 	}
 	t.Fatalf("capability %q not emitted; registry list: %v", key, registry.List())
@@ -63,9 +63,9 @@ func TestSkipIfDisabled_ActiveFeature_ReturnsFalse(t *testing.T) {
 		t.Fatal("SkipIfDisabled should return false when feature is configured")
 	}
 
-	cap := mustFirstCapability(t, registry, "feat")
-	if !cap.Enabled || cap.Status != health.StatusHealthy {
-		t.Errorf("probe for active feature: got enabled=%v status=%s, want true/healthy", cap.Enabled, cap.Status)
+	capability := mustFirstCapability(t, registry, "feat")
+	if !capability.Enabled || capability.Status != health.StatusHealthy {
+		t.Errorf("probe for active feature: got enabled=%v status=%s, want true/healthy", capability.Enabled, capability.Status)
 	}
 }
 
@@ -78,15 +78,15 @@ func TestSkipIfDisabled_DisabledFeature_ReturnsTrue_AndEmitsProbe(t *testing.T) 
 		t.Fatal("SkipIfDisabled should return true when feature is disabled")
 	}
 
-	cap := mustFirstCapability(t, registry, "feat")
-	if cap.Enabled {
+	capability := mustFirstCapability(t, registry, "feat")
+	if capability.Enabled {
 		t.Error("disabled feature should emit Enabled=false")
 	}
-	if cap.Status != health.StatusDisabled {
-		t.Errorf("Status: got %s, want %s", cap.Status, health.StatusDisabled)
+	if capability.Status != health.StatusDisabled {
+		t.Errorf("Status: got %s, want %s", capability.Status, health.StatusDisabled)
 	}
-	if !strings.Contains(cap.Message, "feat.apikey required") {
-		t.Errorf("Message should carry DisabledReason, got %q", cap.Message)
+	if !strings.Contains(capability.Message, "feat.apikey required") {
+		t.Errorf("Message should carry DisabledReason, got %q", capability.Message)
 	}
 }
 
@@ -111,8 +111,8 @@ func TestSkipIfDisabled_AlwaysOnCfg_ReturnsFalse(t *testing.T) {
 		t.Error("always-on config (no Configured) should not be skipped")
 	}
 
-	cap := mustFirstCapability(t, registry, "core")
-	if !cap.Enabled {
+	capability := mustFirstCapability(t, registry, "core")
+	if !capability.Enabled {
 		t.Error("always-on config should emit Enabled=true probe")
 	}
 }
@@ -137,9 +137,9 @@ func TestIfConfigured_InvokesWhenConfigured(t *testing.T) {
 		t.Error("fn must be invoked when sub-feature is configured")
 	}
 
-	cap := mustFirstCapability(t, registry, "parent.sub")
-	if !cap.Enabled {
-		t.Errorf("probe should report Enabled=true; got %+v", cap)
+	capability := mustFirstCapability(t, registry, "parent.sub")
+	if !capability.Enabled {
+		t.Errorf("probe should report Enabled=true; got %+v", capability)
 	}
 }
 
@@ -155,9 +155,9 @@ func TestIfConfigured_SkipsWhenUnconfigured(t *testing.T) {
 		t.Error("fn must not be invoked when sub-feature is unconfigured")
 	}
 
-	cap := mustFirstCapability(t, registry, "parent.sub")
-	if cap.Enabled || cap.Status != health.StatusDisabled {
-		t.Errorf("probe for unconfigured sub-feature: got %+v", cap)
+	capability := mustFirstCapability(t, registry, "parent.sub")
+	if capability.Enabled || capability.Status != health.StatusDisabled {
+		t.Errorf("probe for unconfigured sub-feature: got %+v", capability)
 	}
 }
 
@@ -322,8 +322,8 @@ func TestSkipIfDisabled_PartialConfig_LaxSkips(t *testing.T) {
 		t.Error("partial config in lax mode should skip")
 	}
 
-	cap := mustFirstCapability(t, ctx.CapabilityRegistry(), "feat")
-	if cap.Status != health.StatusDown {
-		t.Errorf("partial-config capability should report Status=down, got %s", cap.Status)
+	capability := mustFirstCapability(t, ctx.CapabilityRegistry(), "feat")
+	if capability.Status != health.StatusDown {
+		t.Errorf("partial-config capability should report Status=down, got %s", capability.Status)
 	}
 }

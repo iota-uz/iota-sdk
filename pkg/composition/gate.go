@@ -64,6 +64,8 @@ func SkipIfDisabled[T config.Prefixed](builder *Builder) bool {
 	emitProbe(buildCtx, prefix, state, cfg)
 
 	switch state {
+	case config.StateActive:
+		return false
 	case config.StateDisabled:
 		logSkip(buildCtx, prefix, reasonFor(cfg, "required fields not set"))
 		return true
@@ -153,6 +155,8 @@ func GatedRegister[T config.Prefixed](builder *Builder, fn func() error) error {
 	emitProbe(buildCtx, prefix, state, cfg)
 
 	switch state {
+	case config.StateActive:
+		return fn()
 	case config.StateDisabled:
 		logSkip(buildCtx, prefix, reasonFor(cfg, "required fields not set"))
 		return nil
@@ -243,27 +247,27 @@ func emitSubFeatureProbe(buildCtx *BuildContext, key string, state config.Featur
 }
 
 func buildCapability(key string, state config.FeatureState, message, origin string) health.Capability {
-	cap := health.Capability{
+	capability := health.Capability{
 		Key:    key,
 		Name:   key,
 		Source: origin,
 	}
 	switch state {
 	case config.StateActive:
-		cap.Enabled = true
-		cap.Status = health.StatusHealthy
+		capability.Enabled = true
+		capability.Status = health.StatusHealthy
 	case config.StateDisabled:
-		cap.Enabled = false
-		cap.Status = health.StatusDisabled
-		cap.Message = message
+		capability.Enabled = false
+		capability.Status = health.StatusDisabled
+		capability.Message = message
 	case config.StatePartiallyConfigured:
-		cap.Enabled = true
-		cap.Status = health.StatusDown
-		cap.Message = message
+		capability.Enabled = true
+		capability.Status = health.StatusDown
+		capability.Message = message
 	default:
-		cap.Status = health.StatusUnknown
+		capability.Status = health.StatusUnknown
 	}
-	return cap
+	return capability
 }
 
 // firstPrefixOrigin returns the provider name for any key observed under the
