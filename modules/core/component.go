@@ -36,7 +36,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -320,6 +322,7 @@ func (c *component) Build(builder *composition.Builder) error {
 					controllers.NewSettingsHubController(),
 					controllers.NewSettingsLogoController(tenantService, uploadService),
 					controllers.NewSessionController("/settings/sessions", cookiesCfg),
+					buildSystemInfoController(container, app.DB(), appCfg),
 				)
 				// NewCrudShowcaseController returns nil in the `!dev` build so
 				// we must nil-guard the append rather than splatting it into
@@ -462,4 +465,31 @@ func uploadAPIControllerOpts(opts *ModuleOptions) []controllers.UploadAPIControl
 		result = append(result, controllers.WithDefaultTenantID(opts.DefaultTenantID))
 	}
 	return result
+}
+
+// buildSystemInfoController wires the /system/info UI with a DefaultBuildViewModel
+// that consumes the shared health.CapabilityRegistry. When the registry isn't
+// resolvable (test harnesses building a minimal container) the controller still
+// mounts but reports an empty Capabilities slice. CanAccess is left unset so any
+// authenticated user can view — downstream binaries that want RBAC clamp-down
+// override via a custom HealthUIControllerOptions, either by passing options via
+// deps or by swapping in their own BuildViewModel.
+func buildSystemInfoController(
+	container *composition.Container,
+	pool *pgxpool.Pool,
+	appCfg *appconfig.Config,
+) application.Controller {
+	var capSvc health.CapabilityService
+	if registry, err := composition.Resolve[health.CapabilityRegistry](container); err == nil && registry != nil {
+		capSvc = health.NewCapabilityService(registry)
+	}
+	return controllers.NewHealthUIController(map[string]any{
+		"options": &controllers.HealthUIControllerOptions{
+			BuildViewModel: viewmodels.DefaultBuildViewModel(viewmodels.SystemInfoBuilderOptions{
+				Pool:         pool,
+				Capabilities: capSvc,
+				App:          appCfg,
+			}),
+		},
+	})
 }

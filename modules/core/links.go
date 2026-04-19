@@ -46,6 +46,13 @@ var SettingsLink = types.NavigationItem{
 	Children: nil,
 }
 
+var SystemInfoLink = types.NavigationItem{
+	Name:     "NavigationLinks.SystemInfo",
+	Icon:     nil,
+	Href:     "/system/info",
+	Children: nil,
+}
+
 var AdministrationLink = types.NavigationItem{
 	Name: "NavigationLinks.Administration",
 	Icon: icons.AirTrafficControl(icons.Props{Size: "20"}),
@@ -55,6 +62,7 @@ var AdministrationLink = types.NavigationItem{
 		RolesLink,
 		GroupsLink,
 		SettingsLink,
+		SystemInfoLink,
 	},
 }
 

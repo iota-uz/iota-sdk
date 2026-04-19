@@ -1138,14 +1138,14 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if capability.Source != "" {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "<div class=\"text-xs font-mono text-200 mb-2\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 92, "<div class=\"text-xs font-mono text-200 mb-2\" data-capability-source>")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
 						var templ_7745c5c3_Var60 string
 						templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(capability.Source)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 315, Col: 72}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/system_info/metrics_partial.templ`, Line: 315, Col: 95}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 						if templ_7745c5c3_Err != nil {
@@ -1348,7 +1348,7 @@ func MetricsPartial(vm *viewmodels.SystemInfoViewModel) templ.Component {
 					}
 					return nil
 				})
-				templ_7745c5c3_Err = card.Card(card.Props{Class: "!p-3"}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
+				templ_7745c5c3_Err = card.Card(card.Props{Class: "!p-3", Attrs: templ.Attributes{"data-capability": capability.Key}}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var58), templ_7745c5c3_Buffer)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
