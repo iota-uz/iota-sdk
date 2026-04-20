@@ -35,7 +35,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
+    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -154,12 +154,12 @@ let dialog = (initialState) => ({
       });
     });
   }),
-  lightDismiss({target: dialog}) {
+  lightDismiss({ target: dialog }) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({target: dialog}) {
+  async close({ target: dialog }) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -376,14 +376,14 @@ let filtersDropdown = () => ({
     // We use 'filter-changed' custom event instead of 'change' to avoid race condition
     // where HTMX collects form data before Alpine updates checkbox state
     this.$nextTick(() => {
-      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   },
   clearAll() {
     this.selected = [];
     this.$el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
     this.$nextTick(() => {
-      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   }
 });
@@ -542,7 +542,7 @@ let spotlight = () => ({
             method: 'POST',
             credentials: 'same-origin',
             keepalive: true,
-          }).catch(() => {});
+          }).catch(() => { });
         }
         return;
       }
@@ -602,7 +602,7 @@ let spotlight = () => ({
         method: 'POST',
         credentials: 'same-origin',
         keepalive: true,
-      }).catch(() => {});
+      }).catch(() => { });
     }
   },
 
@@ -630,7 +630,7 @@ let spotlight = () => ({
           Accept: 'application/json',
         },
         credentials: 'same-origin',
-        body: JSON.stringify({q: query}),
+        body: JSON.stringify({ q: query }),
       });
       if (!response.ok) {
         throw new Error(`AI search failed with ${response.status}`);
@@ -841,7 +841,7 @@ let spotlight = () => ({
       method: 'POST',
       credentials: 'same-origin',
       keepalive: true,
-    }).catch(() => {});
+    }).catch(() => { });
   },
 
   updateAISnapshot(snapshot) {
@@ -1011,7 +1011,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
+        item.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     });
   },
@@ -1034,7 +1034,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
+        item.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     });
   },
@@ -1078,27 +1078,25 @@ let datePicker = ({
     labelFormat = labelFormat || 'F j, Y';
     dateFormat = dateFormat || 'z';
 
-    this.$el.setAttribute("x-modelable", "selected");
-
-    let {default: flatpickr} = await import("./lib/flatpickr/index.js");
+    let { default: flatpickr } = await import("./lib/flatpickr/index.js");
     let found = this.localeMap[locale];
     if (found) {
-      let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
+      let { default: localeData } = await import(`./lib/flatpickr/locales/${found.path}`);
       flatpickr.localize(localeData[found.key]);
     }
     let plugins = [];
     if (selectorType === 'month') {
-      let {default: monthSelect} = await import('./lib/flatpickr/plugins/month-select.js');
+      let { default: monthSelect } = await import('./lib/flatpickr/plugins/month-select.js');
       plugins.push(monthSelect({
         altFormat: labelFormat,
         dateFormat: dateFormat,
         shortHand: true,
       }))
     } else if (selectorType === 'week') {
-      let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
+      let { default: weekSelect } = await import('./lib/flatpickr/plugins/week-select.js');
       plugins.push(weekSelect())
     } else if (selectorType === 'year') {
-      let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
+      let { default: yearSelect } = await import('./lib/flatpickr/plugins/year-select.js');
       plugins.push(yearSelect())
     }
     if (selected) {
@@ -1134,7 +1132,7 @@ let datePicker = ({
         self.$nextTick(() => {
           self.$el.dispatchEvent(new CustomEvent('date-selected', {
             bubbles: true,
-            detail: {selected: self.selected}
+            detail: { selected: self.selected }
           }));
         });
       },
@@ -1161,7 +1159,7 @@ let datePicker = ({
 
 let navTabs = (defaultValue = '') => ({
   activeTab: defaultValue,
-  backgroundStyle: {left: 0, width: 0, opacity: 0},
+  backgroundStyle: { left: 0, width: 0, opacity: 0 },
   restoreHandler: null,
 
   init() {
@@ -1188,7 +1186,7 @@ let navTabs = (defaultValue = '') => ({
     this.activeTab = tabValue;
     this.$nextTick(() => this.updateBackground());
     // Emit event for parent components to handle
-    this.$dispatch('tab-changed', {value: tabValue});
+    this.$dispatch('tab-changed', { value: tabValue });
   },
 
   updateBackground() {
@@ -1239,7 +1237,7 @@ window.initSidebarCollapsed = function() {
   return false;
 }
 
-let createAnchoredOverlayPositioner = ({gap = 8, minTop = 8} = {}) => ({
+let createAnchoredOverlayPositioner = ({ gap = 8, minTop = 8 } = {}) => ({
   rightStart(anchorEl) {
     if (!anchorEl) return null;
     const rect = anchorEl.getBoundingClientRect();
@@ -1289,7 +1287,7 @@ let sidebarShell = () => ({
       if (this.storedTab && this.$el.querySelector('[role="tablist"]')) {
         // Wait a bit for navTabs to initialize
         setTimeout(() => {
-          this.$dispatch('restore-tab', {value: this.storedTab});
+          this.$dispatch('restore-tab', { value: this.storedTab });
         }, 100);
       }
     });
@@ -1300,7 +1298,7 @@ let sidebarNavigation = () => ({
   collapsedMenus: [],
   outsideClickHandler: null,
   escapeHandler: null,
-  overlayPositioner: createAnchoredOverlayPositioner({gap: 8, minTop: 8}),
+  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
 
   onCollapsedGroupTrigger(event) {
     const trigger = event.currentTarget;
@@ -1429,7 +1427,7 @@ let disableFormElementsWhen = (query) => ({
     this.changeHandler = this.onChange.bind(this);
     this.media.addEventListener('change', this.changeHandler);
     this.observer = new MutationObserver(() => this.disableAllFormElements());
-    this.observer.observe(this.$el, {childList: true, subtree: true});
+    this.observer.observe(this.$el, { childList: true, subtree: true });
     this.disableAllFormElements();
   },
   destroy() {
@@ -1446,11 +1444,11 @@ let disableFormElementsWhen = (query) => ({
   }
 })
 
-let editableTableRows = ({rows, emptyRow} = {rows: [], emptyRow: ''}) => ({
+let editableTableRows = ({ rows, emptyRow } = { rows: [], emptyRow: '' }) => ({
   emptyRow,
   rows,
   addRow() {
-    this.rows.push({id: Math.random().toString(32).slice(2), html: this.emptyRow})
+    this.rows.push({ id: Math.random().toString(32).slice(2), html: this.emptyRow })
   },
   removeRow(id) {
     this.rows = this.rows.filter((row) => row.id !== id);
@@ -1550,7 +1548,7 @@ let moneyInput = (config = {}) => ({
     if (hiddenInput) {
       hiddenInput.dispatchEvent(new CustomEvent('money-changed', {
         bubbles: true,
-        detail: {amountInCents: this.amountInCents}
+        detail: { amountInCents: this.amountInCents }
       }));
     }
   },
@@ -1588,7 +1586,7 @@ let moneyInput = (config = {}) => ({
   }
 });
 
-let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
+let dateRangeButtons = ({ formID, hiddenStartID, hiddenEndID } = {}) => ({
   formatDate(d) {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -1616,7 +1614,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
         if (typeof htmx !== 'undefined') {
           htmx.trigger(form, 'dateRangeChange');
         } else {
-          const event = new Event('change', {bubbles: true});
+          const event = new Event('change', { bubbles: true });
           form.dispatchEvent(event);
         }
       }, 50);
@@ -1668,7 +1666,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
         if (typeof htmx !== 'undefined') {
           htmx.trigger(form, 'dateRangeChange');
         } else {
-          const event = new Event('change', {bubbles: true});
+          const event = new Event('change', { bubbles: true });
           form.dispatchEvent(event);
         }
       }, 50);
@@ -1717,7 +1715,7 @@ function createPermissionSetData(allChecked, someChecked, permissionIds, setId) 
       checkboxes.forEach(checkbox => {
         if (checkbox) {
           checkbox.checked = checked;
-          checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
       });
 
@@ -1786,7 +1784,7 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
       const checkboxes = this.getPermissionCheckboxes();
       checkboxes.forEach(checkbox => {
         checkbox.checked = checked;
-        checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
       this.updateVisualToggle();
@@ -1906,7 +1904,7 @@ let fillerRows = (rowHeight = 49) => ({
   },
   _debounce(fn, ms) {
     let t;
-    return (...a) => {clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms);};
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
   }
 });
 
@@ -1916,7 +1914,7 @@ let tableConfig = (id) => ({
   },
   columns: [],
   fixedColumns: [],
-  grid: {verticalLines: true, horizontalLines: true},
+  grid: { verticalLines: true, horizontalLines: true },
   table: null,
   rootEl: null,
   observer: null,
@@ -2087,7 +2085,7 @@ let tableConfig = (id) => ({
   },
 
   save() {
-    let config = JSON.stringify({key: this.key, columns: this.columns, grid: this.grid});
+    let config = JSON.stringify({ key: this.key, columns: this.columns, grid: this.grid });
     window.localStorage.setItem(this.key, config);
     return config;
   },
@@ -2122,7 +2120,7 @@ let tableConfig = (id) => ({
     });
 
     for (let body of tBodies) {
-      this.observer.observe(body, {childList: true});
+      this.observer.observe(body, { childList: true });
     }
   },
 
