@@ -91,8 +91,6 @@ type Request struct {
 	Cache       Cache
 }
 
-type Runtime = Request
-
 type Scope struct {
 	PanelIDs []string
 }
