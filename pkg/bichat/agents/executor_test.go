@@ -295,7 +295,7 @@ func TestExecutor_SingleTurn(t *testing.T) {
 		}
 
 		switch event.Type {
-		case agents.EventTypeChunk:
+		case agents.EventTypeContent:
 			chunks = append(chunks, event.Chunk.Delta)
 		case agents.EventTypeDone:
 			doneCount++
@@ -415,7 +415,7 @@ func TestExecutor_ToolCalls(t *testing.T) {
 			toolEndEvent = event.Tool
 		case agents.EventTypeError:
 			t.Fatalf("Unexpected error event: %v", event.Error)
-		case agents.EventTypeChunk, agents.EventTypeInterrupt, agents.EventTypeDone,
+		case agents.EventTypeContent, agents.EventTypeInterrupt, agents.EventTypeDone,
 			agents.EventTypeThinking, agents.EventTypeTextBlockEnd:
 			// no-op for this test
 		}
@@ -1203,7 +1203,7 @@ func TestExecutor_StreamingChunks(t *testing.T) {
 			t.Fatalf("Unexpected error: %v", err)
 		}
 
-		if event.Type == agents.EventTypeChunk && event.Chunk.Delta != "" {
+		if event.Type == agents.EventTypeContent && event.Chunk.Delta != "" {
 			chunks = append(chunks, event.Chunk.Delta)
 		}
 	}
