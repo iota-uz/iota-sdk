@@ -20,14 +20,10 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// IotaSource is the "new world" entrypoint — all factories derive from a
-// config.Source only, without ever touching *configuration.Configuration.
-// Use this when the application has fully migrated off the legacy type.
+// IotaSource is the entrypoint — all factories derive from a config.Source.
 //
 // It calls WithSource(src) internally so the Source is attached to the
 // Runtime and available to components via the composition BuildContext.
-//
-// Parallel to IotaConfig; both options coexist during the transition period.
 func IotaSource(src config.Source) Option {
 	return IotaSourceWithServiceName(src, "")
 }

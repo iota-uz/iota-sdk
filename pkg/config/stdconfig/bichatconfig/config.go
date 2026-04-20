@@ -7,9 +7,6 @@ package bichatconfig
 // Env prefix: "bichat.openai" (e.g. BICHAT_OPENAI_API_KEY → bichat.openai.apikey,
 // BICHAT_OPENAI_MODEL → bichat.openai.model, BICHAT_OPENAI_BASE_URL → bichat.openai.baseurl,
 // BICHAT_OPENAI_API_RESOLVE_IP → bichat.openai.resolveip).
-//
-// Note: legacy env var OPENAI_API_KEY maps to this field via FromLegacy / the
-// env provider's single-underscore dot transform.
 type OpenAIConfig struct {
 	APIKey    string `koanf:"apikey"    secret:"true"`
 	Model     string `koanf:"model"`

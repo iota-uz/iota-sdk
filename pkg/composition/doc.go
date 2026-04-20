@@ -70,12 +70,11 @@
 //
 // Engine.Compile registers providers for the core services already available
 // on the build context: *pgxpool.Pool, eventbus.EventBus, *i18n.Bundle,
-// *logrus.Logger, application.Application, spotlight.Service,
-// application.Huber, and *configuration.Configuration. Components can take
-// these as typed parameters in ProvideFunc / ContributeControllersFunc
-// constructors, or call composition.Resolve from inside a Contribute*
-// closure. User-registered providers for the same key take precedence over
-// the auto-provided value.
+// *logrus.Logger, application.Application, spotlight.Service, and
+// application.Huber. Components can take these as typed parameters in
+// ProvideFunc / ContributeControllersFunc constructors, or call
+// composition.Resolve from inside a Contribute* closure. User-registered
+// providers for the same key take precedence over the auto-provided value.
 //
 // # Capabilities
 //
