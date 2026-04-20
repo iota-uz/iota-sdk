@@ -469,7 +469,7 @@ func (app *application) GetSupportedLanguages() []string {
 	return app.supportedLanguages
 }
 
-func (app *application) AppletRegistry() AppletRegistry {
+func (app *application) AppletRegistry() applets.Registry {
 	return app.appletRegistry
 }
 

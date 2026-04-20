@@ -8,6 +8,7 @@ import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -16,7 +17,7 @@ import (
 
 type testRuntimeSource struct {
 	navItems []types.NavigationItem
-	applets  []Applet
+	applets  []applets.Applet
 }
 
 func (s *testRuntimeSource) Controllers() []Controller          { return nil }
@@ -25,7 +26,7 @@ func (s *testRuntimeSource) Assets() []*embed.FS                { return nil }
 func (s *testRuntimeSource) HashFSAssets() []*hashfs.FS         { return nil }
 func (s *testRuntimeSource) LocaleFiles() []*embed.FS           { return nil }
 func (s *testRuntimeSource) GraphSchemas() []GraphSchema        { return nil }
-func (s *testRuntimeSource) Applets() []Applet                  { return s.applets }
+func (s *testRuntimeSource) Applets() []applets.Applet          { return s.applets }
 func (s *testRuntimeSource) NavItems() []types.NavigationItem   { return s.navItems }
 func (s *testRuntimeSource) QuickLinks() []*spotlight.QuickLink { return nil }
 func (s *testRuntimeSource) SpotlightProviders() []spotlight.SearchProvider {

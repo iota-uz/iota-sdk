@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iota-uz/applets"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/bichat/presentation/controllers"
@@ -205,12 +206,12 @@ func (c *component) Build(builder *composition.Builder) error {
 	provideBundleField(builder, func(b *bichatBundle) bichatservices.ArtifactService { return b.services.ArtifactService() })
 	provideBundleField(builder, func(b *bichatBundle) *services.StreamObservability { return b.services.StreamObservability() })
 
-	composition.ContributeApplets(builder, func(container *composition.Container) ([]application.Applet, error) {
+	composition.ContributeApplets(builder, func(container *composition.Container) ([]applets.Applet, error) {
 		b, err := composition.Resolve[*bichatBundle](container)
 		if err != nil {
 			return nil, err
 		}
-		return []application.Applet{NewBiChatApplet(b.config, b.services)}, nil
+		return []applets.Applet{NewBiChatApplet(b.config, b.services)}, nil
 	})
 
 	composition.ContributeSpotlightAgent(builder, func(container *composition.Container) (spotlight.Agent, error) {

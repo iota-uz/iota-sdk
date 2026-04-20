@@ -11,6 +11,7 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -263,7 +264,7 @@ type Container struct {
 	navItemFactories      []namedFactory[[]types.NavigationItem]
 	localeFactories       []namedFactory[[]*embed.FS]
 	schemaFactories       []namedFactory[[]application.GraphSchema]
-	appletFactories       []namedFactory[[]application.Applet]
+	appletFactories       []namedFactory[[]applets.Applet]
 	assetFactories        []namedFactory[[]*embed.FS]
 	hashFSFactories       []namedFactory[[]*hashfs.FS]
 	quickLinkFactories    []namedFactory[[]*spotlight.QuickLink]
@@ -282,7 +283,7 @@ type Container struct {
 	navItems           []types.NavigationItem
 	locales            []*embed.FS
 	graphSchemas       []application.GraphSchema
-	applets            []application.Applet
+	applets            []applets.Applet
 	assets             []*embed.FS
 	hashFSAssets       []*hashfs.FS
 	quickLinks         []*spotlight.QuickLink
@@ -332,8 +333,8 @@ func (c *Container) GraphSchemas() []application.GraphSchema {
 	return append([]application.GraphSchema(nil), c.graphSchemas...)
 }
 
-func (c *Container) Applets() []application.Applet {
-	return append([]application.Applet(nil), c.applets...)
+func (c *Container) Applets() []applets.Applet {
+	return append([]applets.Applet(nil), c.applets...)
 }
 
 func (c *Container) Assets() []*embed.FS {

@@ -33,7 +33,7 @@ type RuntimeSource interface {
 	HashFSAssets() []*hashfs.FS
 	LocaleFiles() []*embed.FS
 	GraphSchemas() []GraphSchema
-	Applets() []Applet
+	Applets() []applets.Applet
 	NavItems() []types.NavigationItem
 	QuickLinks() []*spotlight.QuickLink
 	SpotlightProviders() []spotlight.SearchProvider
@@ -61,7 +61,7 @@ type Application interface {
 	GraphSchemas() []GraphSchema
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string
-	AppletRegistry() AppletRegistry
+	AppletRegistry() applets.Registry
 }
 
 type Seeder interface {
@@ -98,12 +98,3 @@ type Controller interface {
 	Register(r *mux.Router)
 	Key() string
 }
-
-// Applet represents a React/Next.js application that integrates with the SDK
-// This is now an alias for applets.Applet to unify the applet system.
-// All applets should implement applets.Applet directly, which includes Config().
-type Applet = applets.Applet
-
-// AppletRegistry is now an alias for applets.Registry to unify the registry system.
-// The application uses pkg/applets.Registry directly for all applet operations.
-type AppletRegistry = applets.Registry

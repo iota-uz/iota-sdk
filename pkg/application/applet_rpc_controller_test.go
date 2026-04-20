@@ -107,7 +107,7 @@ func buildRPCAppletControllers(t *testing.T, app Application) ([]Controller, err
 func TestBuildAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
@@ -159,7 +159,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
@@ -198,7 +198,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
@@ -236,7 +236,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
@@ -272,7 +272,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
@@ -299,7 +299,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
@@ -326,7 +326,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
@@ -358,7 +358,7 @@ master_key_file = %q
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
@@ -385,7 +385,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
@@ -415,7 +415,7 @@ required = ["OPENAI_API_KEY"]
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
@@ -448,7 +448,7 @@ secret_key_env = "APPLET_S3_SECRET_KEY"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "bichat", basePath: "/bi-chat", method: "bichat.ping"}}})
 
 	_, err = buildRPCAppletControllers(t, app)
 	require.Error(t, err)
@@ -466,7 +466,7 @@ hosts = ["demo.example.com"]
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)
@@ -507,7 +507,7 @@ secrets = "env"
 
 	app, err := New(&ApplicationOptions{Bundle: LoadBundle(), SupportedLanguages: []string{"en"}})
 	require.NoError(t, err)
-	attachRuntimeSource(t, app, &testRuntimeSource{applets: []Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
+	attachRuntimeSource(t, app, &testRuntimeSource{applets: []applets.Applet{&rpcTestApplet{name: "demo", basePath: "/demo", method: "demo.ping"}}})
 
 	controllers, err := buildRPCAppletControllers(t, app)
 	require.NoError(t, err)

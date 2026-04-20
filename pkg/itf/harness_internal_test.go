@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -202,7 +203,7 @@ func (a *testApp) NavItems(*i18n.Localizer) []types.NavigationItem { return nil 
 func (a *testApp) GraphSchemas() []application.GraphSchema         { return nil }
 func (a *testApp) Bundle() *i18n.Bundle                            { return nil }
 func (a *testApp) GetSupportedLanguages() []string                 { return nil }
-func (a *testApp) AppletRegistry() application.AppletRegistry      { return nil }
+func (a *testApp) AppletRegistry() applets.Registry                { return nil }
 func (a *testApp) Session() session.Session                        { return nil }
 func (a *testApp) SetSession(session session.Session)              {}
 func (a *testApp) Migrations() application.MigrationManager        { return a.migrations }

@@ -7,6 +7,7 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/applets"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -173,7 +174,7 @@ type Builder struct {
 	navItemFactories    []namedFactory[[]types.NavigationItem]
 	localeFactories     []namedFactory[[]*embed.FS]
 	schemaFactories     []namedFactory[[]application.GraphSchema]
-	appletFactories     []namedFactory[[]application.Applet]
+	appletFactories     []namedFactory[[]applets.Applet]
 	assetFactories      []namedFactory[[]*embed.FS]
 	hashFSFactories     []namedFactory[[]*hashfs.FS]
 	quickLinkFactories  []namedFactory[[]*spotlight.QuickLink]
@@ -407,7 +408,7 @@ func ContributeSchemas(builder *Builder, factory func(*Container) ([]application
 	appendFactory(builder, "schemas", factory, &builder.schemaFactories)
 }
 
-func ContributeApplets(builder *Builder, factory func(*Container) ([]application.Applet, error)) {
+func ContributeApplets(builder *Builder, factory func(*Container) ([]applets.Applet, error)) {
 	appendFactory(builder, "applets", factory, &builder.appletFactories)
 }
 
