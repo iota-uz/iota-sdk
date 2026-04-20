@@ -1,6 +1,5 @@
 // Package twofactorconfig provides typed configuration for two-factor authentication
-// (TOTP) and OTP delivery. It merges the legacy TwoFactorAuthOptions and OTPDeliveryOptions
-// concerns into a single cohesive Config.
+// (TOTP) and OTP delivery.
 // Intended to be registered via config.Register[twofactorconfig.Config].
 package twofactorconfig
 
@@ -37,7 +36,7 @@ type Config struct {
 func (Config) ConfigPrefix() string { return "twofactor" }
 
 // Validate checks 2FA configuration for errors.
-// Validation is skipped entirely when Enabled=false, matching legacy behaviour.
+// Validation is skipped entirely when Enabled=false.
 // Implements config.Validatable so config.Register invokes it automatically.
 func (c *Config) Validate() error {
 	if !c.Enabled {

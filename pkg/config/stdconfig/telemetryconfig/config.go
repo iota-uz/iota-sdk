@@ -1,6 +1,5 @@
-// Package telemetryconfig provides typed configuration for logging and observability.
-// It merges the legacy LokiOptions, OpenTelemetryOptions, and the top-level LogLevel field
-// into a single cohesive Config.
+// Package telemetryconfig provides typed configuration for logging and observability:
+// log level, Loki log shipping, and OpenTelemetry tracing.
 // Intended to be registered via config.Register[telemetryconfig.Config].
 package telemetryconfig
 
@@ -49,7 +48,7 @@ type Config struct {
 }
 
 // LogrusLogLevel converts the LogLevel string to a logrus.Level.
-// Unknown values default to ErrorLevel, matching legacy behaviour.
+// Unknown values default to ErrorLevel.
 func (c *Config) LogrusLogLevel() logrus.Level {
 	switch c.LogLevel {
 	case "silent":
