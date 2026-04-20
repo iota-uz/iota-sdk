@@ -3,15 +3,25 @@ package sql_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
+	"os"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// dbEnvOrDefault reads an env var and falls back to a default value.
+// TODO(W5): replace with config.Source lookup once pkg/configuration is deleted.
+func dbEnvOrDefault(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
+}
 
 // requirePostgresPool dials the configured Postgres and returns a live
 // pool. Test is skipped when the server is unreachable so contributors
@@ -19,8 +29,9 @@ import (
 func requirePostgresPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
-	conf := configuration.Use()
-	addr := net.JoinHostPort(conf.Database.Host, conf.Database.Port)
+	host := dbEnvOrDefault("DB_HOST", "localhost")
+	port := dbEnvOrDefault("DB_PORT", "5432")
+	addr := net.JoinHostPort(host, port)
 	d := net.Dialer{Timeout: 500 * time.Millisecond}
 	conn, err := d.DialContext(context.Background(), "tcp", addr)
 	if err != nil {
@@ -29,13 +40,22 @@ func requirePostgresPool(t *testing.T) *pgxpool.Pool {
 	}
 	_ = conn.Close()
 
-	cfg, err := conf.Database.PoolConfig()
+	user := dbEnvOrDefault("DB_USER", "postgres")
+	password := dbEnvOrDefault("DB_PASSWORD", "postgres")
+	dbName := dbEnvOrDefault("DB_NAME", "iota")
+	connStr := fmt.Sprintf(
+		"host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
+		host, port, user, password, dbName,
+	)
+	pool, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
-		t.Fatalf("PoolConfig: %v", err)
+		t.Skipf("postgres pool unavailable (%s): %v", connStr, err)
+		return nil
 	}
-	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
-	if err != nil {
-		t.Fatalf("pool: %v", err)
+	if err := pool.Ping(context.Background()); err != nil {
+		pool.Close()
+		t.Skipf("postgres ping failed (%s): %v", connStr, err)
+		return nil
 	}
 	t.Cleanup(pool.Close)
 	return pool

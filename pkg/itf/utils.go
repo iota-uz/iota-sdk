@@ -8,26 +8,26 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/session"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/pgx/v5/stdlib"
 	_ "github.com/lib/pq"
+	"github.com/sirupsen/logrus"
 )
 
 const (
@@ -75,18 +75,18 @@ func NewPool(dbOpts string) *pgxpool.Pool {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
 	defer cancel()
 
-	config, err := pgxpool.ParseConfig(dbOpts)
+	cfg, err := pgxpool.ParseConfig(dbOpts)
 	if err != nil {
 		panic(err)
 	}
 
 	// With increased PostgreSQL max_connections (500), we can use reasonable limits
-	config.MaxConns = 4
-	config.MinConns = 0
-	config.MaxConnLifetime = time.Minute * 5
-	config.MaxConnIdleTime = time.Second * 30
+	cfg.MaxConns = 4
+	cfg.MinConns = 0
+	cfg.MaxConnLifetime = time.Minute * 5
+	cfg.MaxConnIdleTime = time.Second * 30
 
-	pool, err := pgxpool.NewWithConfig(ctx, config)
+	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		panic(fmt.Errorf("failed to create database pool: %w", err))
 	}
@@ -100,20 +100,21 @@ type DatabaseManager struct {
 	dbName string
 }
 
-// NewDatabaseManager creates a new database and returns a manager that handles cleanup automatically
+// NewDatabaseManager creates a new database and returns a manager that handles cleanup automatically.
+// It reads DB connection details from the standard .env files.
 func NewDatabaseManager(t *testing.T) *DatabaseManager {
 	t.Helper()
 
+	db := LoadDBConfigFromEnv()
 	dbName := t.Name()
-	CreateDB(dbName)
-	pool := NewPool(DBOpts(dbName))
+	CreateDB(dbName, db)
+	pool := NewPool(DBOpts(dbName, db))
 
 	dm := &DatabaseManager{
 		pool:   pool,
 		dbName: dbName,
 	}
 
-	// Register cleanup
 	t.Cleanup(func() {
 		dm.Close()
 	})
@@ -180,85 +181,53 @@ var nonIdentifierChars = regexp.MustCompile(`[^a-z0-9_]`)
 // sanitizeDBName replaces special characters in database names with underscores
 // and ensures the name doesn't exceed PostgreSQL's 63-character limit
 func sanitizeDBName(name string) string {
-	// Convert to lowercase (PostgreSQL convention)
 	sanitized := strings.ToLower(name)
-
 	sanitized = nonIdentifierChars.ReplaceAllString(sanitized, "_")
 
-	// Remove consecutive underscores
 	for strings.Contains(sanitized, "__") {
 		sanitized = strings.ReplaceAll(sanitized, "__", "_")
 	}
-
-	// Trim leading/trailing underscores
 	sanitized = strings.Trim(sanitized, "_")
-
-	// Handle edge case where sanitization results in empty string
 	if sanitized == "" {
 		sanitized = "test_db"
 	}
-
-	// If name is within limit, return as-is
 	if len(sanitized) <= maxDBNameLength {
 		return sanitized
 	}
-
-	// Name is too long, need to truncate and add hash for uniqueness
 	return truncateWithHash(sanitized, name)
 }
 
-// truncateWithHash truncates a database name and adds a hash suffix for uniqueness
 func truncateWithHash(sanitized, original string) string {
-	// Calculate hash of the original name for uniqueness
 	hasher := sha256.New()
 	hasher.Write([]byte(original))
-	hash := fmt.Sprintf("%x", hasher.Sum(nil))[:8] // Use first 8 chars of hash
-
-	// Calculate available space for the name part
+	hash := fmt.Sprintf("%x", hasher.Sum(nil))[:8]
 	maxNameLength := maxDBNameLength - hashSuffixLength
-
-	// Truncate intelligently - try to keep meaningful parts
 	truncated := intelligentTruncate(sanitized, maxNameLength)
-
-	// Combine truncated name with hash
 	return fmt.Sprintf("%s_%s", truncated, hash)
 }
 
-// intelligentTruncate tries to keep the most meaningful parts of a test name
 func intelligentTruncate(name string, maxLength int) string {
 	if len(name) <= maxLength {
 		return name
 	}
-
-	// Split by underscores to identify segments
 	parts := strings.Split(name, "_")
-
-	// If we have multiple parts, try to keep the most important ones
 	if len(parts) > 1 {
-		// Keep the first and last parts if possible, as they're often most meaningful
 		first := parts[0]
 		last := parts[len(parts)-1]
-
-		// If first and last alone fit, use them
 		combined := first + "_" + last
 		if len(combined) <= maxLength && first != last {
 			return combined
 		}
-
-		// If first part is reasonable length, start with it
 		if len(first) <= maxLength/2 {
 			result := first
-			remaining := maxLength - len(first) - 1 // -1 for underscore
-
-			// Add as many subsequent parts as we can fit
+			remaining := maxLength - len(first) - 1
 			for i := 1; i < len(parts) && len(result) < maxLength; i++ {
 				part := parts[i]
-				if len(part)+1 <= remaining { // +1 for underscore
+				if len(part)+1 <= remaining {
 					result += "_" + part
 					remaining -= len(part) + 1
 				} else {
-					// If we can fit a truncated version of this part, do it
-					if remaining > 4 { // Minimum meaningful length
+					if remaining > 4 {
 						result += "_" + part[:remaining-1]
 					}
 					break
@@ -267,129 +236,146 @@ func intelligentTruncate(name string, maxLength int) string {
 			return result
 		}
 	}
-
-	// Fallback: simple truncation
 	return name[:maxLength]
 }
 
-func CreateDB(name string) {
+// CreateDB creates a test database using an explicit dbconfig.Config for the admin connection.
+func CreateDB(name string, db dbconfig.Config) {
 	sanitizedName := sanitizeDBName(name)
-
-	c := configuration.Use()
-	// Create connection string for postgres admin database
 	adminConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
-		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+		db.Host, db.Port, db.User, db.Password,
 	)
-	db, err := sql.Open("postgres", adminConnStr)
+	conn, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		panic(err)
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := conn.Close(); err != nil {
 			log.Printf("[WARNING] Error closing CreateDB connection: %v", err)
 		}
 	}()
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
+	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName))
+	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`CREATE DATABASE "%s"`, sanitizedName))
 	if err != nil {
 		panic(err)
 	}
 }
 
 // CreateDBE creates a test database and returns an error instead of panicking.
-func CreateDBE(name string) (err error) {
+func CreateDBE(name string, db dbconfig.Config) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = serrors.E(opCreateDBE, fmt.Errorf("failed to create test database %q: %v", sanitizeDBName(name), r))
 		}
 	}()
-
-	CreateDB(name)
+	CreateDB(name, db)
 	return nil
 }
 
 // DropDB drops a test database. Used for cleanup after tests to free disk space.
-func DropDB(name string) error {
-	if err := dropDB(name); err != nil {
+func DropDB(name string, db dbconfig.Config) error {
+	if err := dropDB(name, db); err != nil {
 		log.Printf("[WARNING] DropDB failed: %v", err)
 		return err
 	}
 	return nil
 }
 
-func dropDB(name string) error {
+func dropDB(name string, db dbconfig.Config) error {
 	sanitizedName := sanitizeDBName(name)
-
-	c := configuration.Use()
 	adminConnStr := fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
-		c.Database.Host, c.Database.Port, c.Database.User, c.Database.Password,
+		db.Host, db.Port, db.User, db.Password,
 	)
-	db, err := sql.Open("postgres", adminConnStr)
+	conn, err := sql.Open("postgres", adminConnStr)
 	if err != nil {
 		log.Printf("[WARNING] Failed to open connection for DropDB: %v", err)
 		return err
 	}
 	defer func() {
-		if err := db.Close(); err != nil {
+		if err := conn.Close(); err != nil {
 			log.Printf("[WARNING] Error closing DropDB connection: %v", err)
 		}
 	}()
 
-	// Terminate any remaining connections to the database
 	terminateSQL := `
 		SELECT pg_terminate_backend(pg_stat_activity.pid)
 		FROM pg_stat_activity
 		WHERE pg_stat_activity.datname = $1
 		AND pid <> pg_backend_pid()
 	`
-	_, _ = db.ExecContext(context.Background(), terminateSQL, sanitizedName)
-
-	_, err = db.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	_, _ = conn.ExecContext(context.Background(), terminateSQL, sanitizedName)
+	_, err = conn.ExecContext(context.Background(), fmt.Sprintf(`DROP DATABASE IF EXISTS "%s"`, sanitizedName))
+	return err
 }
 
 // DropDBE drops a test database and returns an error instead of panicking.
-func DropDBE(name string) (err error) {
+func DropDBE(name string, db dbconfig.Config) (err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			err = serrors.E(opDropDBE, fmt.Errorf("failed to drop test database %q: %v", sanitizeDBName(name), r))
 		}
 	}()
-
-	err = dropDB(name)
+	err = dropDB(name, db)
 	return err
 }
 
-func DBOpts(name string) string {
-	sanitizedName := sanitizeDBName(name)
-
-	c := configuration.Use()
+// DBOpts returns a libpq-style connection string for the named database
+// using an explicit dbconfig.Config.
+func DBOpts(name string, db dbconfig.Config) string {
 	return fmt.Sprintf(
 		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.Database.Host, c.Database.Port, c.Database.User, strings.ToLower(sanitizedName), c.Database.Password,
+		db.Host, db.Port, db.User, strings.ToLower(sanitizeDBName(name)), db.Password,
 	)
 }
 
-func SetupApplication(
+// setupApplicationWithSource bootstraps an application and composition container for tests.
+// When src is non-nil it is forwarded to the build context for ProvideConfig[T].
+// A *dbconfig.Config is also pulled from the source and passed to ApplicationOptions
+// so that app.Migrations() returns a real manager (not the no-op fallback).
+func setupApplicationWithSource(
 	pool *pgxpool.Pool,
+	logger *logrus.Logger,
 	components []composition.Component,
+	sources ...config.Source,
 ) (application.Application, *composition.Container, error) {
-	conf := configuration.Use()
+	if logger == nil {
+		logger = logrus.New()
+	}
+
+	// Resolve the config source up front so it can feed both the
+	// composition build context and ApplicationOptions.DBConfig.
+	var src config.Source
+	switch {
+	case len(sources) > 0 && sources[0] != nil:
+		src = sources[0]
+	default:
+		fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
+		if err != nil {
+			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
+		}
+		src = fallback
+	}
+
+	var dbCfg *dbconfig.Config
+	if src != nil {
+		reg := config.NewRegistry(src)
+		if cfg, err := config.Register[dbconfig.Config](reg); err == nil {
+			dbCfg = cfg
+		}
+	}
+
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
 		Pool:               pool,
 		Bundle:             bundle,
-		EventBus:           eventbus.NewEventPublisher(conf.Logger()),
-		Logger:             conf.Logger(),
+		EventBus:           eventbus.NewEventPublisher(logger),
+		Logger:             logger,
+		DBConfig:           dbCfg,
 		SupportedLanguages: application.DefaultSupportedLanguages(),
 	})
 	if err != nil {
@@ -401,8 +387,9 @@ func SetupApplication(
 		if err := engine.Register(components...); err != nil {
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "register components")
 		}
+		buildCtx := composition.NewBuildContext(app, src, composition.WithLogger(logger))
 		container, err = engine.Compile(
-			composition.NewBuildContext(app, conf),
+			buildCtx,
 			composition.CapabilityAPI,
 			composition.CapabilityWorker,
 		)
@@ -417,73 +404,20 @@ func SetupApplication(
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "start runtime")
 		}
 	}
-
 	return app, container, nil
 }
 
-// GetTestContext starts application runtime state; callers should call Close when done.
-func GetTestContext() *TestFixtures {
-	conf := configuration.Use()
-	pool := NewPool(conf.Database.Opts)
-	bundle := application.LoadBundle()
-	app, err := application.New(&application.ApplicationOptions{
-		Pool:               pool,
-		Bundle:             bundle,
-		EventBus:           eventbus.NewEventPublisher(conf.Logger()),
-		Logger:             conf.Logger(),
-		SupportedLanguages: application.DefaultSupportedLanguages(),
-	})
+// LoadDBConfigFromEnv builds a dbconfig.Config from env files (.env, .env.local).
+// Panics on failure — only used in test setup paths where panics are acceptable.
+func LoadDBConfigFromEnv() dbconfig.Config {
+	src, err := config.Build(envprov.New(".env", ".env.local"))
 	if err != nil {
-		panic(err)
+		panic(fmt.Errorf("itf: load DB config from env: %w", err))
 	}
-	engine := composition.NewEngine()
-	if err := engine.Register(modules.Components()...); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "register components"))
-	}
-	container, err := engine.Compile(
-		composition.NewBuildContext(app, conf),
-		composition.CapabilityAPI,
-		composition.CapabilityWorker,
-	)
+	reg := config.NewRegistry(src)
+	cfg, err := config.Register[dbconfig.Config](reg)
 	if err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "compile components"))
+		panic(fmt.Errorf("itf: register dbconfig: %w", err))
 	}
-	startCtx, cancelStart := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancelStart()
-	if err := composition.Start(startCtx, container); err != nil {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "start runtime"))
-	}
-
-	// Only run migrations if migrations directory exists
-	if _, err := os.Stat(conf.MigrationsDir); err == nil {
-		if err := app.Migrations().Rollback(); err != nil {
-			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to rollback migrations"))
-		}
-		if err := app.Migrations().Run(); err != nil {
-			panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to run migrations"))
-		}
-	} else if !os.IsNotExist(err) {
-		panic(serrors.E(serrors.Op("itf.GetTestContext"), err, "failed to stat migrations directory"))
-	}
-
-	sqlDB := stdlib.OpenDB(*pool.Config().ConnConfig)
-	ctx := context.Background()
-	tx, err := pool.Begin(ctx)
-	if err != nil {
-		panic(err)
-	}
-	ctx = composables.WithTx(ctx, tx)
-	ctx = composables.WithParams(
-		ctx,
-		DefaultParams(),
-	)
-
-	return &TestFixtures{
-		SQLDB:     sqlDB,
-		Pool:      pool,
-		Tx:        tx,
-		Context:   ctx,
-		App:       app,
-		Container: container,
-	}
+	return *cfg
 }

@@ -19,7 +19,9 @@ import (
 	showcase "github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/showcase"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -33,13 +35,14 @@ import (
 
 type ShowcaseController struct {
 	basePath string
+	httpCfg  *httpconfig.Config
+	appCfg   *appconfig.Config
 	ds       datasource.DataSource
 }
 
-func NewShowcaseController() application.Controller {
-	config := configuration.Use()
+func NewShowcaseController(dbCfg *dbconfig.Config, httpCfg *httpconfig.Config, appCfg *appconfig.Config) application.Controller {
 	ds, err := lenspostgres.New(lenspostgres.Config{
-		ConnectionString: config.Database.ConnectionString(),
+		ConnectionString: dbCfg.ConnectionString(),
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,
@@ -47,9 +50,9 @@ func NewShowcaseController() application.Controller {
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for showcase: %v", err)
-		return &ShowcaseController{basePath: "/_dev"}
+		return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg}
 	}
-	return &ShowcaseController{basePath: "/_dev", ds: ds}
+	return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, ds: ds}
 }
 
 func (c *ShowcaseController) Key() string {
@@ -79,11 +82,13 @@ func (c *ShowcaseController) Register(r *mux.Router) {
 	router.HandleFunc("/error-preview/404", di.H(c.Error404Preview)).Methods(http.MethodGet)
 	router.HandleFunc("/api/showcase/toast-example", di.H(c.ToastExample)).Methods(http.MethodPost)
 
-	log.Printf(
-		"See %s%s for docs\n",
-		configuration.Use().Origin,
-		c.basePath,
-	)
+	if c.appCfg != nil {
+		log.Printf(
+			"See %s%s for docs\n",
+			c.httpCfg.Origin(c.appCfg),
+			c.basePath,
+		)
+	}
 }
 
 func (c *ShowcaseController) getSidebarProps() sidebar.Props {

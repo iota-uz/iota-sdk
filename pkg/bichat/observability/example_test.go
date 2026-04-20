@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 )
 
 // MockProvider demonstrates a simple observability provider implementation.
@@ -82,17 +82,15 @@ func Example_basicUsage() {
 }
 
 // Example_langfuseIntegration demonstrates Langfuse provider integration.
-// This example shows environment variable loading and configuration.
+// In production, populate bichatconfig.LangfuseConfig from a config.Source
+// (e.g. env vars BICHAT_LANGFUSE_SECRET_KEY, BICHAT_LANGFUSE_PUBLIC_KEY).
 func Example_langfuseIntegration() {
-	// Load Langfuse configuration from environment
-	langfuseConfig := struct {
-		SecretKey string
-		PublicKey string
-		Host      string
-	}{
-		SecretKey: os.Getenv("LANGFUSE_SECRET_KEY"),
-		PublicKey: os.Getenv("LANGFUSE_PUBLIC_KEY"),
-		Host:      getEnvOrDefault("LANGFUSE_HOST", "https://cloud.langfuse.com"),
+	// In production this comes from DI / config.Source; here we use an empty
+	// struct to keep the example self-contained and deterministic.
+	langfuseConfig := bichatconfig.LangfuseConfig{
+		SecretKey: "",
+		PublicKey: "",
+		Host:      "https://cloud.langfuse.com",
 	}
 
 	// Validate configuration
@@ -258,11 +256,4 @@ func Example_costTracking() {
 	// Output:
 	// Generation cost: $0.010500 (input: $0.003000, output: $0.007500)
 	// Total cost: $0.010500 from 1 generations
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

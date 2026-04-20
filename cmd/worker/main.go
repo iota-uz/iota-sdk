@@ -3,10 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
-	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -15,35 +13,23 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
 )
 
 func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			configuration.Use().Unload()
-			log.Println(r)
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
-	if err := run(); err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+	bootstrap.Main(run)
 }
 
 func run() error {
-	conf := configuration.Use()
-	serviceName := conf.OpenTelemetry.ServiceName
-	if serviceName != "" {
-		serviceName += "-worker"
+	src, err := config.Build(envprov.New(".env", ".env.local"))
+	if err != nil {
+		return fmt.Errorf("failed to build config source: %w", err)
 	}
 
 	rt, cleanup, err := bootstrap.NewRuntime(
 		context.Background(),
-		bootstrap.IotaConfigWithServiceName(conf, serviceName),
+		bootstrap.IotaSourceWithServiceName(src, resolveWorkerServiceName(src)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize worker runtime: %w", err)
@@ -83,4 +69,19 @@ func run() error {
 		rt.Logger.WithError(err).Warn("failed to stop worker runtime gracefully")
 	}
 	return nil
+}
+
+// resolveWorkerServiceName reads the telemetry service name from the source and
+// appends "-worker". Falls back to empty string when not configured.
+func resolveWorkerServiceName(src config.Source) string {
+	type telOnly struct {
+		OTEL struct {
+			ServiceName string `koanf:"servicename"`
+		} `koanf:"otel"`
+	}
+	var t telOnly
+	if err := src.Unmarshal("telemetry", &t); err != nil || t.OTEL.ServiceName == "" {
+		return ""
+	}
+	return t.OTEL.ServiceName + "-worker"
 }

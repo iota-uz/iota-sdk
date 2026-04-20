@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"os"
 	"strings"
 	"time"
 
@@ -17,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -159,18 +159,18 @@ func provideBundleField[I any](builder *composition.Builder, field func(*bichatB
 func (c *component) Build(builder *composition.Builder) error {
 	buildCtx := builder.Context()
 
-	// Gate: env var check is cheap and deterministic. When unset, BiChat
-	// registers only locales (harmless — supports i18n key lookups from
-	// other modules) and skips everything else, so the component compiles
-	// to a no-op with no dead links in navigation or Spotlight.
-	openAIKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
 	composition.AddLocales(builder, &LocaleFiles)
-	if openAIKey == "" {
-		if logger := buildCtx.Logger(); logger != nil {
-			logger.Info("OPENAI_API_KEY not set - BiChat module disabled")
-		}
+
+	// Implicit enablement: the module is on iff BICHAT_OPENAI_APIKEY is set.
+	// The gate helper emits a CapabilityProbe so /system/info reflects state,
+	// logs a single structured line when disabled, and panics in strict mode
+	// if the operator left a partial config (prevents typos masking feature
+	// loss in production).
+	if composition.SkipIfDisabled[bichatconfig.Config](builder) {
 		return nil
 	}
+
+	_ = strings.TrimSpace // keep strings import used below
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 
@@ -271,6 +271,7 @@ func (c *component) Build(builder *composition.Builder) error {
 
 			if b.config.Logger != nil {
 				b.config.Logger.Info("Registered BiChat stream endpoint")
+				streamOpts = append(streamOpts, controllers.WithLogger(b.config.Logger))
 			}
 
 			return []application.Controller{

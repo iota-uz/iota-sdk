@@ -25,7 +25,8 @@ import (
 	"github.com/iota-uz/applets"
 	coreuser "github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/meiliconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -81,9 +82,10 @@ type seeder struct {
 }
 
 func (s *seeder) Seed(ctx context.Context, deps *SeedDeps) error {
-	conf := configuration.Use()
 	for _, seedFunc := range s.seedFuncs {
-		conf.Logger().Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
+		if deps != nil && deps.Logger != nil {
+			deps.Logger.Infof("Seeding %s", reflect.TypeOf(seedFunc).Name())
+		}
 		if err := seedFunc(ctx, deps); err != nil {
 			return err
 		}
@@ -184,6 +186,12 @@ type ApplicationOptions struct {
 	Bundle             *i18n.Bundle
 	Huber              Huber
 	SupportedLanguages []string
+	// Meili holds MeiliSearch settings. When nil or empty URL, the application
+	// uses a no-op search engine. Previously read from configuration.Use().
+	Meili *meiliconfig.Config
+	// DBConfig provides typed database config for the migration manager.
+	// When nil, migrations are disabled (no-op manager).
+	DBConfig *dbconfig.Config
 }
 
 func LoadBundle() *i18n.Bundle {
@@ -238,11 +246,10 @@ func New(opts *ApplicationOptions) (Application, error) {
 	if opts.Logger != nil {
 		serviceOpts = append(serviceOpts, spotlight.WithLogger(opts.Logger))
 	}
-	cfg := configuration.Use()
-	if cfg.MeiliURL == "" {
-		engine = spotlight.NewNoopEngine()
+	if opts.Meili != nil && opts.Meili.URL != "" {
+		engine = spotlight.NewMeilisearchEngine(opts.Meili.URL, opts.Meili.APIKey)
 	} else {
-		engine = spotlight.NewMeilisearchEngine(cfg.MeiliURL, cfg.MeiliAPIKey)
+		engine = spotlight.NewNoopEngine()
 	}
 	spotlightService := spotlight.NewService(
 		engine,
@@ -262,11 +269,23 @@ func New(opts *ApplicationOptions) (Application, error) {
 		quickLinks:         quickLinks,
 		spotlight:          spotlightService,
 		bundle:             opts.Bundle,
-		migrations:         NewMigrationManager(opts.Pool),
+		migrations:         newMigrationManager(opts.Pool, opts.DBConfig, opts.Logger),
 		supportedLanguages: opts.SupportedLanguages,
 		appletRegistry:     applets.NewRegistry(),
 	}
 	return app, nil
+}
+
+// newMigrationManager creates a MigrationManager from the provided pool and db config.
+// When dbConfig is nil, a no-op manager is returned.
+func newMigrationManager(pool *pgxpool.Pool, db *dbconfig.Config, logger *logrus.Logger) MigrationManager {
+	if db == nil {
+		return &noopMigrationManager{}
+	}
+	if logger == nil {
+		logger = logrus.StandardLogger()
+	}
+	return NewMigrationManager(pool, *db, logger)
 }
 
 // application with a dynamically extendable service registry

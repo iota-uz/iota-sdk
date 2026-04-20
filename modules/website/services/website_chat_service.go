@@ -29,7 +29,7 @@ import (
 	websitePersistence "github.com/iota-uz/iota-sdk/modules/website/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/website/infrastructure/rag"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/redisconfig"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/openai/openai-go"
 	"github.com/openai/openai-go/option"
@@ -72,6 +72,7 @@ type WebsiteChatServiceConfig struct {
 	RAGProvider        rag.Provider
 	DefaultCacheConfig DefaultWebsiteChatCacheConfig
 	Cache              cache.Cache
+	RedisCfg           *redisconfig.Config
 }
 
 type WebsiteChatService struct {
@@ -86,7 +87,6 @@ type WebsiteChatService struct {
 }
 
 func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService {
-	conf := configuration.Use()
 	if config.ThreadRepo == nil {
 		config.ThreadRepo = websitePersistence.NewInmemThreadRepository()
 	}
@@ -103,7 +103,11 @@ func NewWebsiteChatService(config WebsiteChatServiceConfig) *WebsiteChatService 
 	if config.Cache != nil {
 		service.cache = config.Cache
 	} else if config.DefaultCacheConfig.Enabled {
-		service.cache = infraCache.NewRedisCache(redis.NewClient(&redis.Options{Addr: conf.RedisURL}), config.DefaultCacheConfig.Prefix, config.DefaultCacheConfig.TTL)
+		redisAddr := "localhost:6379"
+		if config.RedisCfg != nil && config.RedisCfg.URL != "" {
+			redisAddr = config.RedisCfg.URL
+		}
+		service.cache = infraCache.NewRedisCache(redis.NewClient(&redis.Options{Addr: redisAddr}), config.DefaultCacheConfig.Prefix, config.DefaultCacheConfig.TTL)
 	}
 
 	return service

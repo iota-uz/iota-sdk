@@ -8,19 +8,21 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 )
 
 type Runtime struct {
-	Config any
-	Logger *logrus.Logger
-	Pool   *pgxpool.Pool
-	Bundle *i18n.Bundle
-	App    application.Application
-	Engine *composition.Engine
+	Source             config.Source // optional; set via WithSource
+	Logger             *logrus.Logger
+	Pool               *pgxpool.Pool
+	Bundle             *i18n.Bundle
+	App                application.Application
+	Engine             *composition.Engine
+	CapabilityRegistry health.CapabilityRegistry // optional; set via WithCapabilityRegistry
 
 	container *composition.Container
 }
@@ -58,8 +60,17 @@ func (rt *Runtime) BuildContext() composition.BuildContext {
 	if rt == nil {
 		return composition.BuildContext{}
 	}
-	cfg, _ := rt.Config.(*configuration.Configuration)
-	return composition.NewBuildContext(rt.App, cfg)
+	opts := make([]any, 0, 3)
+	if rt.Source != nil {
+		opts = append(opts, rt.Source)
+	}
+	if rt.Logger != nil {
+		opts = append(opts, composition.WithLogger(rt.Logger))
+	}
+	if rt.CapabilityRegistry != nil {
+		opts = append(opts, composition.WithCapabilityRegistry(rt.CapabilityRegistry))
+	}
+	return composition.NewBuildContext(rt.App, opts...)
 }
 
 // SetComposition stores the compiled engine and container on the runtime.
@@ -92,17 +103,12 @@ func (rt *Runtime) Stop(ctx context.Context) error {
 type Option func(*options)
 
 type options struct {
-	config        any
-	loggerFactory func(context.Context, any) (*logrus.Logger, func() error, error)
-	poolFactory   func(context.Context, any, *logrus.Logger) (*pgxpool.Pool, func() error, error)
-	bundleFactory func(context.Context, any) (*i18n.Bundle, error)
-	appFactory    func(context.Context, *Runtime) (application.Application, error)
-}
-
-func WithConfig(config any) Option {
-	return func(o *options) {
-		o.config = config
-	}
+	source             config.Source
+	capabilityRegistry health.CapabilityRegistry
+	loggerFactory      func(context.Context, any) (*logrus.Logger, func() error, error)
+	poolFactory        func(context.Context, any, *logrus.Logger) (*pgxpool.Pool, func() error, error)
+	bundleFactory      func(context.Context, any) (*i18n.Bundle, error)
+	appFactory         func(context.Context, *Runtime) (application.Application, error)
 }
 
 func WithLoggerFactory(factory func(context.Context, any) (*logrus.Logger, func() error, error)) Option {
@@ -153,12 +159,13 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 	}
 
 	rt := &Runtime{
-		Config: cfg.config,
+		Source:             cfg.source,
+		CapabilityRegistry: cfg.capabilityRegistry,
 	}
 
 	var cleanup []func() error
 
-	logger, loggerCleanup, err := cfg.loggerFactory(ctx, cfg.config)
+	logger, loggerCleanup, err := cfg.loggerFactory(ctx, nil)
 	if err != nil {
 		return nil, nil, serrors.E(op, err, "build logger")
 	}
@@ -167,7 +174,7 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 		cleanup = append(cleanup, loggerCleanup)
 	}
 
-	pool, poolCleanup, err := cfg.poolFactory(ctx, cfg.config, logger)
+	pool, poolCleanup, err := cfg.poolFactory(ctx, nil, logger)
 	if err != nil {
 		return nil, nil, errors.Join(serrors.E(op, err, "build pool"), runCleanup(cleanup))
 	}
@@ -176,7 +183,7 @@ func NewRuntime(ctx context.Context, opts ...Option) (*Runtime, func() error, er
 		cleanup = append(cleanup, poolCleanup)
 	}
 
-	bundle, err := cfg.bundleFactory(ctx, cfg.config)
+	bundle, err := cfg.bundleFactory(ctx, nil)
 	if err != nil {
 		return nil, nil, errors.Join(serrors.E(op, err, "build bundle"), runCleanup(cleanup))
 	}

@@ -15,10 +15,13 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/pagination"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twilioconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 	"github.com/twilio/twilio-go"
 )
 
@@ -62,12 +65,15 @@ func (c *component) Build(builder *composition.Builder) error {
 	// The Telegram gate runs at Build time so it reads the composition
 	// BuildContext directly rather than going through the auto-provider
 	// path (providers are not yet resolvable here).
-	if cfg := builder.Context().Config(); cfg != nil && cfg.TelegramBotToken != "" {
-		notification, err := handlers.NewNotificationHandler(cfg.TelegramBotToken)
-		if err != nil {
-			return err
+	if src := builder.Context().Source(); src != nil {
+		var appCfg appconfig.Config
+		if err := src.Unmarshal("app", &appCfg); err == nil && appCfg.TelegramBotToken != "" {
+			notification, err := handlers.NewNotificationHandler(appCfg.TelegramBotToken)
+			if err != nil {
+				return err
+			}
+			composition.ContributeEventHandler(builder, notification.OnNewMessage)
 		}
-		composition.ContributeEventHandler(builder, notification.OnNewMessage)
 	}
 
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
@@ -79,10 +85,12 @@ func (c *component) Build(builder *composition.Builder) error {
 			userService *coreservices.UserService,
 			tenantService *coreservices.TenantService,
 			twilioProvider *cpassproviders.TwilioProvider,
+			logger *logrus.Logger,
+			paginationCfg *pagination.Config,
 		) []application.Controller {
 			basePath := "/crm/clients"
 			return []application.Controller{
-				controllers.NewClientController(app, clientService, chatService, controllers.ClientControllerConfig{
+				controllers.NewClientController(app, clientService, chatService, logger, controllers.ClientControllerConfig{
 					BasePath: basePath,
 					Tabs: []controllers.TabDefinition{
 						controllers.ProfileTab(basePath, clientService),
@@ -90,7 +98,7 @@ func (c *component) Build(builder *composition.Builder) error {
 						controllers.ActionsTab(),
 					},
 				}),
-				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats"),
+				controllers.NewChatController(app, userService, clientService, chatService, templateService, tenantService, "/crm/chats", logger, paginationCfg),
 				controllers.NewMessageTemplateController(templateService, "/crm/instant-messages"),
 				controllers.NewTwilioController(app, twilioProvider),
 			}
@@ -105,15 +113,15 @@ func (c *component) Build(builder *composition.Builder) error {
 func newCRMTwilioProvider(
 	clientRepo clientagg.Repository,
 	chatRepo chat.Repository,
-	cfg *configuration.Configuration,
+	cfg *twilioconfig.Config,
 ) *cpassproviders.TwilioProvider {
 	return cpassproviders.NewTwilioProvider(
 		cpassproviders.Config{
 			Params: twilio.ClientParams{
-				Username: cfg.Twilio.AccountSID,
-				Password: cfg.Twilio.AuthToken,
+				Username: cfg.AccountSID,
+				Password: cfg.AuthToken,
 			},
-			WebhookURL: cfg.Twilio.WebhookURL,
+			WebhookURL: cfg.WebhookURL,
 		},
 		clientRepo,
 		chatRepo,

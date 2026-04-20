@@ -8,32 +8,44 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// testHeadersConfig returns a minimal headers.Config for tests.
+func testHTTPConfig() *headers.Config {
+	return &headers.Config{
+		RealIP:    "X-Real-IP",
+		RequestID: "X-Request-ID",
+	}
+}
+
 func TestDefaultKeyFunc(t *testing.T) {
+	cfg := testHTTPConfig()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 
-	key := DefaultKeyFunc(req)
+	key := DefaultKeyFunc(cfg)(req)
 	assert.Equal(t, "192.168.1.1:12345", key)
 }
 
 func TestDefaultKeyFuncWithRealIPHeader(t *testing.T) {
+	cfg := testHTTPConfig()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 	req.Header.Set("X-Real-IP", "10.0.0.1")
 
-	key := DefaultKeyFunc(req)
+	key := DefaultKeyFunc(cfg)(req)
 	assert.Equal(t, "10.0.0.1", key)
 }
 
 func TestEndpointKeyFunc(t *testing.T) {
+	cfg := testHTTPConfig()
 	req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	req.RemoteAddr = "192.168.1.1:12345"
 
-	keyFunc := EndpointKeyFunc("/api/users")
+	keyFunc := EndpointKeyFunc(cfg, "/api/users")
 	key := keyFunc(req)
 	assert.Equal(t, "/api/users:192.168.1.1:12345", key)
 }
@@ -104,7 +116,7 @@ func TestRateLimitHeaders(t *testing.T) {
 
 	// Create router with rate limiting middleware
 	router := mux.NewRouter()
-	router.Use(IPRateLimitPeriod(5, time.Second))
+	router.Use(IPRateLimitPeriod(5, time.Second, testHTTPConfig()))
 	router.HandleFunc("/test", handler)
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
@@ -138,7 +150,7 @@ func TestRateLimitWithCustomPeriod(t *testing.T) {
 
 	// Create router with custom period rate limiting (1000 requests per 30 minutes)
 	router := mux.NewRouter()
-	router.Use(IPRateLimitPeriod(1000, 30*time.Minute))
+	router.Use(IPRateLimitPeriod(1000, 30*time.Minute, testHTTPConfig()))
 	router.HandleFunc("/test", handler)
 
 	ip := "192.168.1.1:12345"

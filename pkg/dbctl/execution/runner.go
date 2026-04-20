@@ -13,11 +13,12 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/commands/e2e"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 type RunOptions struct {
@@ -29,6 +30,12 @@ type RunOptions struct {
 	PolicyPath string
 	Actor      string
 	Out        io.Writer
+	// DBConfig provides typed database config. Required.
+	DBConfig *dbconfig.Config
+	// AppEnvironment is the deployment environment string (e.g. "production").
+	AppEnvironment string
+	// Logger is forwarded to seed operations.
+	Logger *logrus.Logger
 }
 
 type PlanResult struct {
@@ -51,12 +58,13 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	cfg, payload, err := policy.Load(opts.PolicyPath)
+	policyCfg, payload, err := policy.Load(opts.PolicyPath)
 	if err != nil {
 		return nil, err
 	}
-	target := resolveTarget(opts.Operation)
-	decision := policy.Evaluate(cfg, target, spec.Kind == ops.OperationKindDestructive)
+
+	target := resolveTarget(opts.Operation, opts.DBConfig, opts.AppEnvironment)
+	decision := policy.Evaluate(policyCfg, target, spec.Kind == ops.OperationKindDestructive)
 	if !decision.Allowed {
 		return nil, serrors.E(op, serrors.PermissionDenied, "policy denied operation: "+strings.Join(decision.Reasons, "; "))
 	}
@@ -64,7 +72,7 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 		return nil, serrors.E(op, serrors.Invalid, "destructive operations require --yes confirmation")
 	}
 
-	pool, err := getControlDatabasePool(ctx, opts.Operation)
+	pool, err := getControlDatabasePool(ctx, opts.Operation, opts.DBConfig)
 	if err != nil {
 		return nil, serrors.E(op, err, "open database pool")
 	}
@@ -80,6 +88,8 @@ func Plan(ctx context.Context, opts RunOptions) (*PlanResult, error) {
 		},
 		Pool:       pool,
 		PolicyPath: opts.PolicyPath,
+		Logger:     opts.Logger,
+		DBConfig:   opts.DBConfig,
 	}
 	for _, cond := range spec.Preconditions {
 		if cond.Check == nil {
@@ -128,7 +138,7 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		return nil
 	}
 
-	pool, err := getControlDatabasePool(ctx, opts.Operation)
+	pool, err := getControlDatabasePool(ctx, opts.Operation, opts.DBConfig)
 	if err != nil {
 		return serrors.E(op, err, "open database pool")
 	}
@@ -155,6 +165,8 @@ func Apply(ctx context.Context, opts RunOptions) error {
 		Pool:       pool,
 		JSONOutput: opts.JSONOutput,
 		PolicyPath: opts.PolicyPath,
+		Logger:     opts.Logger,
+		DBConfig:   opts.DBConfig,
 	}
 
 	for _, step := range plan.Spec.Steps {
@@ -231,18 +243,27 @@ func stepSummaries(spec ops.OperationSpec) []map[string]string {
 	return steps
 }
 
-func resolveTarget(operation string) policy.Target {
-	conf := configuration.Use()
-	databaseName := strings.TrimSpace(conf.Database.Name)
+// resolveTarget builds the policy Target from explicit config rather than reading from the global singleton.
+func resolveTarget(operation string, cfg *dbconfig.Config, appEnvironment string) policy.Target {
+	databaseName := ""
+	if cfg != nil {
+		databaseName = strings.TrimSpace(cfg.Name)
+	}
 	if isE2EOperation(operation) {
 		databaseName = e2e.E2EDBName
 	}
+	host, port, user := "", "", ""
+	if cfg != nil {
+		host = strings.TrimSpace(cfg.Host)
+		port = strings.TrimSpace(cfg.Port)
+		user = strings.TrimSpace(cfg.User)
+	}
 	return policy.Target{
-		Environment: strings.TrimSpace(conf.GoAppEnvironment),
-		Host:        strings.TrimSpace(conf.Database.Host),
-		Port:        strings.TrimSpace(conf.Database.Port),
+		Environment: strings.TrimSpace(appEnvironment),
+		Host:        host,
+		Port:        port,
 		Name:        databaseName,
-		User:        strings.TrimSpace(conf.Database.User),
+		User:        user,
 	}
 }
 
@@ -265,8 +286,8 @@ func advisoryKey(parts ...string) int64 {
 	return int64(h.Sum64())
 }
 
-func getControlDatabasePool(ctx context.Context, operation string) (*pgxpool.Pool, error) {
-	return common.GetDatabasePool(ctx, controlDatabaseName(operation))
+func getControlDatabasePool(ctx context.Context, operation string, cfg *dbconfig.Config) (*pgxpool.Pool, error) {
+	return common.GetDatabasePool(ctx, cfg, controlDatabaseName(operation))
 }
 
 func controlDatabaseName(operation string) string {

@@ -12,9 +12,11 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/headers"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/sirupsen/logrus"
 )
 
 type ComponentOption func(*component)
@@ -64,9 +66,10 @@ func (c *component) Build(builder *composition.Builder) error {
 		stripeHooks := append([]ports.StripeEventHook{}, c.stripeHooks...)
 		composition.ContributeControllersFunc(builder, func(
 			billingSvc *services.BillingService,
-			conf *configuration.Configuration,
+			paymentsCfg *paymentsconfig.Config,
+			httpCfg *headers.Config,
 		) []application.Controller {
-			return newBillingControllers(billingSvc, conf, stripeHooks)
+			return newBillingControllers(billingSvc, paymentsCfg, httpCfg, stripeHooks)
 		})
 	}
 
@@ -80,29 +83,31 @@ func (c *component) Build(builder *composition.Builder) error {
 func newBillingService(
 	repo billingdom.Repository,
 	bus eventbus.EventBus,
-	conf *configuration.Configuration,
+	paymentsCfg *paymentsconfig.Config,
+	httpCfg *headers.Config,
+	logger *logrus.Logger,
 ) *services.BillingService {
-	logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
+	logTransport := middleware.NewLogTransport(logger, httpCfg, true, true, "octo")
 	clickProvider := providers.NewClickProvider(providers.ClickConfig{
-		URL:            conf.Click.URL,
-		ServiceID:      conf.Click.ServiceID,
-		SecretKey:      conf.Click.SecretKey,
-		MerchantID:     conf.Click.MerchantID,
-		MerchantUserID: conf.Click.MerchantUserID,
+		URL:            paymentsCfg.Click.URL,
+		ServiceID:      paymentsCfg.Click.ServiceID,
+		SecretKey:      paymentsCfg.Click.SecretKey,
+		MerchantID:     paymentsCfg.Click.MerchantID,
+		MerchantUserID: paymentsCfg.Click.MerchantUserID,
 	})
 	paymeProvider := providers.NewPaymeProvider(providers.PaymeConfig{
-		URL:        conf.Payme.URL,
-		SecretKey:  conf.Payme.SecretKey,
-		MerchantID: conf.Payme.MerchantID,
-		User:       conf.Payme.User,
+		URL:        paymentsCfg.Payme.URL,
+		SecretKey:  paymentsCfg.Payme.SecretKey,
+		MerchantID: paymentsCfg.Payme.MerchantID,
+		User:       paymentsCfg.Payme.User,
 	})
 	octoProvider := providers.NewOctoProvider(providers.OctoConfig{
-		OctoShopID: conf.Octo.OctoShopID,
-		OctoSecret: conf.Octo.OctoSecret,
-		NotifyURL:  conf.Octo.NotifyURL,
+		OctoShopID: paymentsCfg.Octo.ShopID,
+		OctoSecret: paymentsCfg.Octo.Secret,
+		NotifyURL:  paymentsCfg.Octo.NotifyURL,
 	}, logTransport)
 	stripeProvider := providers.NewStripeProvider(providers.StripeConfig{
-		SecretKey: conf.Stripe.SecretKey,
+		SecretKey: paymentsCfg.Stripe.SecretKey,
 	})
 	return services.NewBillingService(
 		repo,
@@ -113,15 +118,16 @@ func newBillingService(
 
 func newBillingControllers(
 	billingSvc *services.BillingService,
-	conf *configuration.Configuration,
+	paymentsCfg *paymentsconfig.Config,
+	httpCfg *headers.Config,
 	stripeHooks []ports.StripeEventHook,
 ) []application.Controller {
 	basePath := "/billing"
-	logTransport := middleware.NewLogTransport(conf.Logger(), conf, true, true, "octo")
+	logTransport := middleware.NewLogTransport(logrus.StandardLogger(), httpCfg, true, true, "octo")
 	return []application.Controller{
-		controllers.NewClickController(billingSvc, conf.Click, basePath+"/click"),
-		controllers.NewPaymeController(billingSvc, conf.Payme, basePath+"/payme"),
-		controllers.NewOctoController(billingSvc, conf.Octo, basePath+"/octo", logTransport),
-		controllers.NewStripeController(billingSvc, conf.Stripe, basePath+"/stripe", stripeHooks...),
+		controllers.NewClickController(billingSvc, paymentsCfg.Click, basePath+"/click"),
+		controllers.NewPaymeController(billingSvc, paymentsCfg.Payme, basePath+"/payme"),
+		controllers.NewOctoController(billingSvc, paymentsCfg.Octo, basePath+"/octo", logTransport),
+		controllers.NewStripeController(billingSvc, paymentsCfg.Stripe, basePath+"/stripe", stripeHooks...),
 	}
 }

@@ -103,7 +103,9 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 	// Register auto-providers for the core services already attached to the
 	// build context. These are registered first so user providers can still
 	// override any of them by declaring their own provider for the same key.
-	installAutoProviders(container, ctx)
+	if err := installAutoProviders(container, ctx); err != nil {
+		return nil, fmt.Errorf("install auto providers: %w", err)
+	}
 	for _, builder := range builders {
 		if !componentActive(builder.descriptor, activeCapabilities) {
 			continue

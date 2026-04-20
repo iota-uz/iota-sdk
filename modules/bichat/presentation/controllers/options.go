@@ -6,12 +6,14 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/bichat/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/sirupsen/logrus"
 )
 
 type ControllerOptions struct {
 	BasePath                string
 	RequireAccessPermission permission.Permission
 	ReadAllPermission       permission.Permission
+	Logger                  *logrus.Logger
 }
 
 type ControllerOption func(*ControllerOptions)
@@ -26,6 +28,10 @@ func WithRequireAccessPermission(p permission.Permission) ControllerOption {
 
 func WithReadAllPermission(p permission.Permission) ControllerOption {
 	return func(o *ControllerOptions) { o.ReadAllPermission = p }
+}
+
+func WithLogger(logger *logrus.Logger) ControllerOption {
+	return func(o *ControllerOptions) { o.Logger = logger }
 }
 
 func defaultControllerOptions() ControllerOptions {

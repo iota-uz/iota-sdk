@@ -187,9 +187,13 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		c.Model,
 		titleService,
 		titleJobQueue,
+		c.Logger,
 	)
 	if err != nil {
 		return nil, serrors.E(op, err, "failed to initialise Redis-backed chat services")
+	}
+	if c.LangfuseBaseURL != "" {
+		chatServices.WithLangfuseBaseURL(c.LangfuseBaseURL)
 	}
 
 	return &ServiceContainer{

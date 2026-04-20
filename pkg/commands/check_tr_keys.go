@@ -19,12 +19,20 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 )
 
-func CheckTrKeys(allowedLanguages []string, components ...composition.Component) error {
-	conf := configuration.Use()
-	app, pool, err := common.NewApplicationWithDefaults(components...)
+// CheckTrKeys validates translation key consistency across the configured
+// locales. cfg, src, and logger are resolved by the caller (typically a cobra
+// RunE). When logger is nil a default logrus logger is used. When
+// allowedLocales is non-empty, only keys belonging to those locales are
+// validated; an empty slice checks every locale present in the bundle.
+func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger, allowedLocales []language.Tag, components ...composition.Component) error {
+	if logger == nil {
+		logger = logrus.StandardLogger()
+	}
+	app, pool, err := common.NewApplicationWithDefaults(cfg, logger, src, components...)
 	if err != nil {
 		return fmt.Errorf("failed to initialize application: %w", err)
 	}
@@ -32,54 +40,27 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 
 	messages := app.Bundle().Messages()
 
-	// If allowedLanguages is provided, create a whitelist map for validation
-	var allowedLocales map[string]language.Tag
-	if len(allowedLanguages) > 0 {
-		allowedLocales = make(map[string]language.Tag)
-		for _, code := range allowedLanguages {
-			// Parse language code to tag
-			tag, err := language.Parse(code)
-			if err != nil {
-				return fmt.Errorf("invalid language code in whitelist: %s: %w", code, err)
-			}
-			allowedLocales[code] = tag
-		}
-
-		// Validate that all allowed languages exist in the bundle
-		for code, tag := range allowedLocales {
-			if messages[tag] == nil {
-				return fmt.Errorf("language %s (%s) is in whitelist but not found in bundle", code, tag)
-			}
-		}
+	allowed := make(map[language.Tag]bool, len(allowedLocales))
+	for _, tag := range allowedLocales {
+		allowed[tag] = true
 	}
+	filterLocales := len(allowed) > 0
 
 	// Store all keys for each locale
 	allKeys := make(map[string]map[language.Tag]bool)
 	locales := make([]language.Tag, 0)
 
-	// First pass: collect all keys from locales (filtered by allowedLanguages if provided)
+	// First pass: collect all keys from locales
 	for locale, message := range messages {
 		if message == nil {
 			continue
 		}
-
-		// If allowedLanguages is specified, only process those locales
-		if len(allowedLocales) > 0 {
-			isAllowed := false
-			for _, allowedTag := range allowedLocales {
-				if locale == allowedTag {
-					isAllowed = true
-					break
-				}
-			}
-			if !isAllowed {
-				continue
-			}
+		if filterLocales && !allowed[locale] {
+			continue
 		}
 
 		locales = append(locales, locale)
 
-		// Process keys in this locale
 		for key := range message {
 			if allKeys[key] == nil {
 				allKeys[key] = make(map[language.Tag]bool)
@@ -96,11 +77,9 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 	// Second pass: check for missing keys
 	missingKeys := false
 	for key, localeMap := range allKeys {
-		// If the key is not present in all locales
 		if len(localeMap) != len(locales) {
 			missingKeys = true
 
-			// Find which locales have the key
 			present := make([]string, 0)
 			missing := make([]string, 0)
 
@@ -112,8 +91,7 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 				}
 			}
 
-			// Log detailed error about the missing key using WithFields
-			conf.Logger().WithFields(logrus.Fields{
+			logger.WithFields(logrus.Fields{
 				"key":          key,
 				"present_in":   strings.Join(present, ", "),
 				"missing_from": strings.Join(missing, ", "),
@@ -125,12 +103,12 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 		return fmt.Errorf("some translation keys are not consistent across all locales, see logs for details")
 	}
 
-	conf.Logger().WithFields(logrus.Fields{
+	logger.WithFields(logrus.Fields{
 		"locale_count": len(locales),
 		"key_count":    len(allKeys),
 	}).Info("All translation keys are consistent across all locales")
 
-	if err := checkForUndefinedKeys(allKeys, conf.Logger()); err != nil {
+	if err := checkForUndefinedKeys(allKeys, logger); err != nil {
 		return err
 	}
 
@@ -140,40 +118,32 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 func extractKeysFromGoFile(path string, rootPath string, fset *token.FileSet) (map[string][]string, error) {
 	keysWithLocations := make(map[string][]string)
 
-	// Parse the Go file
 	node, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse %s: %w", path, err)
 	}
 
-	// Visit all nodes in the AST
 	ast.Inspect(node, func(n ast.Node) bool {
-		// Look for function calls
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
 			return true
 		}
 
-		// Check if it's a method call (selector expression)
 		sel, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
 
-		// Check if method name is T or TSafe
 		methodName := sel.Sel.Name
 		if methodName != "T" && methodName != "TSafe" {
 			return true
 		}
 
-		// Extract the first argument (the translation key)
 		if len(call.Args) == 0 {
 			return true
 		}
 
-		// Check if first argument is a string literal
 		if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
-			// Remove quotes from string literal
 			key := strings.Trim(lit.Value, `"`)
 			relPath, _ := filepath.Rel(rootPath, path)
 			position := fset.Position(call.Pos())
@@ -198,8 +168,6 @@ func extractKeysFromTemplFile(path string, rootPath string) (map[string][]string
 		_ = file.Close()
 	}()
 
-	// Regex to match .T("key") or .TSafe("key") calls
-	// Matches both single and double quotes
 	tCallRegex := regexp.MustCompile(`\.T(?:Safe)?\s*\(\s*["']([^"']+)["']`)
 
 	scanner := bufio.NewScanner(file)
@@ -208,7 +176,6 @@ func extractKeysFromTemplFile(path string, rootPath string) (map[string][]string
 		lineNum++
 		line := scanner.Text()
 
-		// Find all matches in this line
 		matches := tCallRegex.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
 			if len(match) >= 2 {
@@ -236,7 +203,6 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 			return err
 		}
 
-		// Skip non-relevant directories
 		if info.IsDir() {
 			name := info.Name()
 			if name == "vendor" || name == "node_modules" || name == ".git" || name == "dist" || name == "build" {
@@ -248,11 +214,9 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 		var fileKeys map[string][]string
 		var fileErr error
 
-		// Process Go files (excluding tests)
 		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
 			fileKeys, fileErr = extractKeysFromGoFile(path, rootPath, fset)
 		} else if strings.HasSuffix(path, ".templ") {
-			// Process templ files
 			fileKeys, fileErr = extractKeysFromTemplFile(path, rootPath)
 		} else {
 			return nil
@@ -262,7 +226,6 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 			return fileErr
 		}
 
-		// Merge keys from this file
 		for key, locations := range fileKeys {
 			keysWithLocations[key] = append(keysWithLocations[key], locations...)
 		}
@@ -275,7 +238,6 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 
 // WriteRequiredKeysFile extracts T/TSafe translation keys from the codebase under projectRoot
 // and writes the unique, sorted list to outputPath as a JSON array of strings.
-// outputPath is created or overwritten. projectRoot is typically the application root (e.g. where go.mod lives).
 func WriteRequiredKeysFile(projectRoot, outputPath string) error {
 	keysWithLocations, err := extractTranslationKeys(projectRoot)
 	if err != nil {
@@ -283,7 +245,6 @@ func WriteRequiredKeysFile(projectRoot, outputPath string) error {
 	}
 	keys := make([]string, 0, len(keysWithLocations))
 	for key := range keysWithLocations {
-		// Skip dynamic key suffixes (e.g. "Countries.") same as checkForUndefinedKeys
 		if strings.HasSuffix(key, ".") {
 			continue
 		}
@@ -303,7 +264,6 @@ func WriteRequiredKeysFile(projectRoot, outputPath string) error {
 func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, logger *logrus.Logger) error {
 	logger.Info("Scanning codebase for T() and TSafe() calls...")
 
-	// Get current working directory as root path for scanning
 	rootPath, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
@@ -314,11 +274,8 @@ func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, logger *log
 		return fmt.Errorf("failed to extract translation keys from codebase: %w", err)
 	}
 
-	// Check for keys used in code but not in any locale
 	undefinedKeys := false
 	for key, locations := range usedKeys {
-		// Skip keys that end with "." - these are likely dynamic keys built with string concatenation
-		// Example: pageCtx.T("Countries." + countryCode) will be detected as "Countries."
 		if strings.HasSuffix(key, ".") {
 			continue
 		}

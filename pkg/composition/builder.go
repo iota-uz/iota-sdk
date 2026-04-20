@@ -9,8 +9,9 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/iota-uz/iota-sdk/pkg/health"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -32,26 +33,64 @@ type BuildContext struct {
 	eventPublisher     eventbus.EventBus
 	logger             *logrus.Logger
 	bundle             *i18n.Bundle
-	config             *configuration.Configuration
+	source             config.Source
+	registry           *config.Registry
+	capabilities       health.CapabilityRegistry // lazy-init via CapabilityRegistry()
 	ActiveCapabilities map[Capability]struct{}
 }
 
-// NewBuildContext constructs the BuildContext from the application handle and
-// the SDK configuration. The application handle is captured privately so
-// Engine.Compile can auto-register application.Application as a provider at
-// container instantiation time.
-func NewBuildContext(app application.Application, config *configuration.Configuration) BuildContext {
+// BuildContextOption is a functional option for NewBuildContext.
+type BuildContextOption func(*BuildContext)
+
+// WithLogger attaches a logger to the BuildContext so it can be auto-registered
+// in the DI container. Use this when the logger is built outside of a
+// config.Source (e.g. in test harnesses).
+func WithLogger(logger *logrus.Logger) BuildContextOption {
+	return func(ctx *BuildContext) {
+		ctx.logger = logger
+	}
+}
+
+// WithCapabilityRegistry attaches a shared health.CapabilityRegistry. Gate
+// helpers emit CapabilityProbe entries here so that /system/info reflects
+// the enabled/disabled state of every optional feature without per-module
+// health wiring. When omitted, the BuildContext lazily creates a private
+// registry on first CapabilityRegistry() call — callers that want the
+// Capabilities to flow into the system-info controller must attach the
+// same registry they pass to the runtime / controller options.
+func WithCapabilityRegistry(registry health.CapabilityRegistry) BuildContextOption {
+	return func(ctx *BuildContext) {
+		ctx.capabilities = registry
+	}
+}
+
+// NewBuildContext constructs the BuildContext from the application handle,
+// an optional config.Source, and any BuildContextOptions. The application
+// handle is captured privately so Engine.Compile can auto-register
+// application.Application as a provider at container instantiation time.
+//
+// src is optional. When non-nil it enables ProvideConfig[T] and
+// auto-registration of typed stdconfig values.
+func NewBuildContext(app application.Application, opts ...any) BuildContext {
 	ctx := BuildContext{
-		app:    app,
-		config: config,
+		app: app,
 	}
 	if app != nil {
 		ctx.db = app.DB()
 		ctx.eventPublisher = app.EventPublisher()
 		ctx.bundle = app.Bundle()
 	}
-	if config != nil {
-		ctx.logger = config.Logger()
+	for _, opt := range opts {
+		switch v := opt.(type) {
+		case config.Source:
+			if v != nil {
+				ctx.source = v
+			}
+		case BuildContextOption:
+			if v != nil {
+				v(&ctx)
+			}
+		}
 	}
 	return ctx
 }
@@ -72,8 +111,35 @@ func (c BuildContext) Bundle() *i18n.Bundle {
 	return c.bundle
 }
 
-func (c BuildContext) Config() *configuration.Configuration {
-	return c.config
+// Source returns the config.Source attached to this BuildContext, or nil if
+// none was provided (legacy path).
+func (c BuildContext) Source() config.Source {
+	return c.source
+}
+
+// Registry returns the shared config.Registry for this BuildContext, lazily
+// initialising it on first call. Panics if no Source is attached — callers
+// must check Source() first or use ProvideConfig which returns a proper error.
+func (c *BuildContext) Registry() *config.Registry {
+	if c.registry == nil {
+		if c.source == nil {
+			panic("composition: BuildContext.Registry called but no config.Source is attached; use bootstrap.WithSource")
+		}
+		c.registry = config.NewRegistry(c.source)
+	}
+	return c.registry
+}
+
+// CapabilityRegistry returns the shared health.CapabilityRegistry for this
+// BuildContext, lazily creating a private one on first call when no registry
+// was attached via WithCapabilityRegistry. Gate helpers use this to emit
+// CapabilityProbe entries reflecting each feature's enabled/disabled state.
+// Never returns nil.
+func (c *BuildContext) CapabilityRegistry() health.CapabilityRegistry {
+	if c.capabilities == nil {
+		c.capabilities = health.NewCapabilityRegistry()
+	}
+	return c.capabilities
 }
 
 func (c BuildContext) HasCapability(capability Capability) bool {

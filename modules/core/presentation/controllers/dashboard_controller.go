@@ -14,7 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
@@ -24,10 +24,9 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-func NewDashboardController() application.Controller {
-	config := configuration.Use()
+func NewDashboardController(dbCfg *dbconfig.Config) application.Controller {
 	ds, err := lenspostgres.New(lenspostgres.Config{
-		ConnectionString: config.Database.ConnectionString(),
+		ConnectionString: dbCfg.ConnectionString(),
 		MaxConnections:   5,
 		MinConnections:   1,
 		QueryTimeout:     30 * time.Second,

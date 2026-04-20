@@ -11,20 +11,18 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/sirupsen/logrus"
 )
 
-// Test runs the e2e test suite with complete database setup
-// The server must be started separately using `just e2e dev`
-func Test() error {
-	conf := configuration.Use()
-	logger := conf.Logger()
-
+// Test runs the e2e test suite with complete database setup.
+// The server must be started separately using `just e2e dev`.
+func Test(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	logger.Info("Starting e2e test runner...")
 
 	// First, ensure database is set up with fresh data
 	logger.Info("Setting up e2e database...")
-	if err := Setup(); err != nil {
+	if err := Setup(cfg, logger); err != nil {
 		return fmt.Errorf("failed to setup e2e database: %w", err)
 	}
 

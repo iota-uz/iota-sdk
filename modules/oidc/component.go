@@ -17,7 +17,9 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/oidc/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/oidcconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -26,8 +28,6 @@ import (
 var LocaleFiles embed.FS
 
 type ModuleOptions struct{}
-
-type OIDCConfig = configuration.OIDCOptions
 
 func NewComponent(opts *ModuleOptions) composition.Component {
 	if opts == nil {
@@ -50,12 +50,14 @@ func (c *component) Descriptor() composition.Descriptor {
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddLocales(builder, &LocaleFiles)
 
-	config := configuration.Use().OIDC
-	if !config.IsConfigured() {
+	// Implicit enablement: OIDC is on iff OIDC_ISSUERURL and OIDC_CRYPTOKEY
+	// are both supplied. The gate helper emits a CapabilityProbe so
+	// /system/info reflects state and logs a single structured line when
+	// disabled, matching every other optional module.
+	if composition.SkipIfDisabled[oidcconfig.Config](builder) {
 		return nil
 	}
 
-	composition.Provide[OIDCConfig](builder, config)
 	composition.ProvideFunc(builder, persistence.NewClientRepository)
 	composition.ProvideFunc(builder, persistence.NewAuthRequestRepository)
 	composition.ProvideFunc(builder, persistence.NewTokenRepository)
@@ -65,7 +67,7 @@ func (c *component) Build(builder *composition.Builder) error {
 	if builder.Context().HasCapability(composition.CapabilityAPI) {
 		pool := builder.Context().DB()
 		composition.ContributeHooks(builder, func(container *composition.Container) ([]composition.Hook, error) {
-			cfg, err := composition.Resolve[OIDCConfig](container)
+			cfg, err := composition.Resolve[*oidcconfig.Config](container)
 			if err != nil {
 				return nil, err
 			}
@@ -88,13 +90,15 @@ func (c *component) Build(builder *composition.Builder) error {
 		})
 
 		composition.ContributeControllersFunc(builder, func(
-			cfg OIDCConfig,
+			cfg *oidcconfig.Config,
+			httpCfg *httpconfig.Config,
+			cookiesCfg *cookies.Config,
 			storage *oidcinfra.Storage,
 			oidcService *services.OIDCService,
 			sessionService *coreservices.SessionService,
 		) []application.Controller {
 			return []application.Controller{
-				controllers.NewOIDCController(storage, &cfg, oidcService, sessionService),
+				controllers.NewOIDCController(storage, cfg, oidcService, sessionService, httpCfg, cookiesCfg),
 			}
 		})
 	}
@@ -105,7 +109,7 @@ func (c *component) Build(builder *composition.Builder) error {
 // newOIDCStorage adapts the OIDC storage constructor (which mixes typed deps
 // with config fields) into a function shape ProvideFunc can call.
 func newOIDCStorage(
-	cfg OIDCConfig,
+	cfg *oidcconfig.Config,
 	clientRepo client.Repository,
 	authRequestRepo authrequest.Repository,
 	tokenRepo token.Repository,

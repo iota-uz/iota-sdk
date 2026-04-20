@@ -15,7 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,7 +106,7 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 	t.Run("returns 200 for valid signed event", func(t *testing.T) {
 		controller := &StripeController{
 			billingService: &services.BillingService{},
-			stripe:         configuration.StripeOptions{SigningSecret: secret},
+			stripe:         paymentsconfig.StripeConfig{SigningSecret: secret},
 		}
 
 		eventPayload := map[string]any{
@@ -127,7 +127,7 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 	t.Run("returns 400 for invalid signature", func(t *testing.T) {
 		controller := &StripeController{
 			billingService: &services.BillingService{},
-			stripe:         configuration.StripeOptions{SigningSecret: secret},
+			stripe:         paymentsconfig.StripeConfig{SigningSecret: secret},
 		}
 
 		eventPayload := map[string]any{
@@ -151,7 +151,7 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 	t.Run("returns 500 for handler error", func(t *testing.T) {
 		controller := &StripeController{
 			billingService: &services.BillingService{},
-			stripe:         configuration.StripeOptions{SigningSecret: secret},
+			stripe:         paymentsconfig.StripeConfig{SigningSecret: secret},
 		}
 
 		// checkout.session.completed path attempts to unmarshal Data.Raw into
@@ -176,7 +176,7 @@ func TestStripeController_Handle_WebhookFlow(t *testing.T) {
 	t.Run("enqueues hook dispatch on valid event", func(t *testing.T) {
 		controller := &StripeController{
 			billingService: &services.BillingService{},
-			stripe:         configuration.StripeOptions{SigningSecret: secret},
+			stripe:         paymentsconfig.StripeConfig{SigningSecret: secret},
 			hooks:          []ports.StripeEventHook{&testStripeHook{}},
 			hookQueue:      make(chan stripe.Event, 1),
 		}
@@ -300,7 +300,7 @@ func TestStripeController_Handle_Returns500_OnLookupFailures(t *testing.T) {
 			}
 			controller := &StripeController{
 				billingService: services.NewBillingService(repo, nil, nil),
-				stripe:         configuration.StripeOptions{SigningSecret: secret},
+				stripe:         paymentsconfig.StripeConfig{SigningSecret: secret},
 			}
 			logger := logrus.New().WithField("test", true)
 
