@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 )
@@ -73,7 +72,7 @@ type HITLInterrupt struct {
 type StreamResult struct {
 	StreamedContent string
 	Usage           *types.DebugUsage
-	Citations       []domain.Citation
+	Citations       []types.Citation
 	ToolCalls       []ToolCall
 	Interrupt       *HITLInterrupt
 	ErrorPayload    *httpdto.StreamChunkPayload
@@ -143,7 +142,7 @@ func (c *SSEClient) StreamMessage(ctx context.Context, sessionID uuid.UUID, cont
 	}
 
 	result := &StreamResult{
-		Citations: make([]domain.Citation, 0),
+		Citations: make([]types.Citation, 0),
 		ToolCalls: make([]ToolCall, 0),
 	}
 	toolCalls := make(map[string]ToolCall)
