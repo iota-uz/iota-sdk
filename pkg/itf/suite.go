@@ -386,11 +386,6 @@ func (m *MultipartData) AddForm(formValues url.Values) *MultipartData {
 	return m
 }
 
-// Deprecated: Use MultipartData with NewMultipart() instead for more flexibility
-func (r *Request) File(fieldName, fileName string, content []byte) *Request {
-	return r.MultipartData(NewMultipart().AddFile(fieldName, fileName, content))
-}
-
 func (r *Request) MultipartData(data *MultipartData) *Request {
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
