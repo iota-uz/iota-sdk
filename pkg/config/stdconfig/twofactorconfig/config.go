@@ -21,7 +21,7 @@ type OTPConfig struct {
 }
 
 // Config holds all two-factor authentication settings.
-// Env prefix: "twofactor" (e.g. ENABLE_2FA → twofactor.enabled).
+// Env prefix: "twofactor" (e.g. TWOFACTOR_ENABLED → twofactor.enabled).
 type Config struct {
 	// Enabled controls whether 2FA is active. Defaults to false.
 	Enabled bool `koanf:"enabled"`

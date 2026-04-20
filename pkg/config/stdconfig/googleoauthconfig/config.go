@@ -3,7 +3,7 @@
 package googleoauthconfig
 
 // Config holds all Google OAuth settings.
-// Env prefix: "googleoauth" (e.g. GOOGLE_REDIRECT_URL → googleoauth.redirecturl).
+// Env prefix: "googleoauth" (e.g. GOOGLEOAUTH_REDIRECTURL → googleoauth.redirecturl).
 type Config struct {
 	RedirectURL  string `koanf:"redirecturl"`
 	ClientID     string `koanf:"clientid"`

@@ -9,7 +9,7 @@ import (
 
 // Config holds session-lifetime settings.
 //
-// Env prefix: "http.session" (e.g. SESSION_DURATION → http.session.duration).
+// Env prefix: "http.session" (e.g. HTTP_SESSION_DURATION → http.session.duration).
 type Config struct {
 	// Duration is the session lifetime.
 	Duration time.Duration `koanf:"duration" default:"720h"`
