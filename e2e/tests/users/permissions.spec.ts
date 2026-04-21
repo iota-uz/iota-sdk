@@ -41,7 +41,7 @@ test.describe('user direct permission editing', () => {
 
 		await page.getByRole('button', { name: /permissions/i }).click();
 		await waitForAlpine(page);
-		await expect(page.locator('input[type="checkbox"][name^="Permissions["]').first()).toBeAttached();
+		await expect(page.locator('input[type="checkbox"][name="PermissionIDs"]').first()).toBeAttached();
 
 		const selectedPermissions = await page.evaluate(() => {
 			const form = document.getElementById('save-form');
@@ -50,7 +50,7 @@ test.describe('user direct permission editing', () => {
 			}
 
 			const inputs = Array.from(
-				document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][name^="Permissions["]'),
+				document.querySelectorAll<HTMLInputElement>('input[type="checkbox"][name="PermissionIDs"]'),
 			).filter((input) => !input.checked);
 
 			if (inputs.length < 2) {
@@ -60,15 +60,27 @@ test.describe('user direct permission editing', () => {
 			const selected = inputs.slice(0, 2).map((input) => {
 				input.checked = true;
 				input.dispatchEvent(new Event('change', { bubbles: true }));
-				return input.name;
+				return input.value;
 			});
 
-			const submitted = Array.from(new FormData(form).keys()).filter((key) => key.startsWith('Permissions['));
+			const submitted = Array.from(new FormData(form).getAll('PermissionIDs')).map(String);
 
 			return { selected, submitted };
 		});
 
 		expect(selectedPermissions.submitted).toEqual(expect.arrayContaining(selectedPermissions.selected));
+
+		await page.locator('[name=FirstName]').fill('');
+		await page.locator('#save-btn').click();
+		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
+		await page.getByRole('button', { name: /permissions/i }).click();
+		await waitForAlpine(page);
+
+		for (const permissionID of selectedPermissions.selected) {
+			await expect(page.locator(`input[name="PermissionIDs"][value="${permissionID}"]`)).toBeChecked();
+		}
+
+		await page.locator('[name=FirstName]').fill('Permission');
 
 		await page.locator('#save-btn').click();
 		await page.waitForURL(/\/users$/);
@@ -81,8 +93,8 @@ test.describe('user direct permission editing', () => {
 		await page.getByRole('button', { name: /permissions/i }).click();
 		await waitForAlpine(page);
 
-		for (const permissionName of selectedPermissions.selected) {
-			await expect(page.locator(`input[name="${permissionName}"]`)).toBeChecked();
+		for (const permissionID of selectedPermissions.selected) {
+			await expect(page.locator(`input[name="PermissionIDs"][value="${permissionID}"]`)).toBeChecked();
 		}
 	});
 });

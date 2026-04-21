@@ -58,6 +58,22 @@ func withFormAttr(attrs templ.Attributes, formID string) templ.Attributes {
 	return merged
 }
 
+func permissionAttrs(attrs templ.Attributes, formID string, inputName string, permissionID string) templ.Attributes {
+	merged := templ.Attributes{}
+	for key, value := range attrs {
+		merged[key] = value
+	}
+
+	if inputName == "" {
+		merged["name"] = fmt.Sprintf("Permissions[%s]", permissionID)
+	} else {
+		merged["name"] = inputName
+		merged["value"] = permissionID
+	}
+
+	return withFormAttr(merged, formID)
+}
+
 type SharedProps struct {
 	PageContext types.PageContext
 	Label       string
@@ -88,6 +104,7 @@ type PermissionSetProps struct {
 	ResourceName string
 	SetIndex     int
 	Form         string
+	InputName    string
 }
 
 templ PermissionSet(props PermissionSetProps) {
@@ -102,9 +119,7 @@ templ PermissionSet(props PermissionSetProps) {
 				Label:        label,
 				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 				Checked:      props.Set.Checked,
-				Attrs: withFormAttr(templ.Attributes{
-					"name": fmt.Sprintf("Permissions[%s]", props.Set.Permissions[0].ID),
-				}, props.Form),
+				Attrs: permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
 			})
 			if props.Set.Description != "" {
 				<p class="text-sm text-gray-600 mt-1">{ tOrKey(props.PageContext,props.Set.Description) }</p>
@@ -162,11 +177,10 @@ templ PermissionSet(props PermissionSetProps) {
 								Label:        tOrKey(props.PageContext, fmt.Sprintf("Permissions.%s", perm.Name)),
 								LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 								Checked:      perm.Checked,
-								Attrs: withFormAttr(templ.Attributes{
-									"name":               fmt.Sprintf("Permissions[%s]", perm.ID),
+								Attrs: permissionAttrs(templ.Attributes{
 									"@change":            "updateState()",
 									"data-permission-id": perm.ID,
-								}, props.Form),
+								}, props.Form, props.InputName, perm.ID),
 							})
 						</div>
 					}
@@ -181,6 +195,7 @@ type ResourceGroupProps struct {
 	ResourceGroup *viewmodels.ResourcePermissionGroup
 	GroupIndex    int
 	Form          string
+	InputName     string
 }
 
 templ ResourceGroup(props ResourceGroupProps) {
@@ -234,6 +249,7 @@ templ ResourceGroup(props ResourceGroupProps) {
 					ResourceName: props.ResourceGroup.Resource,
 					SetIndex:     i,
 					Form:         props.Form,
+					InputName:    props.InputName,
 				})
 			}
 		</div>

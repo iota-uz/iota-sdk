@@ -34,6 +34,24 @@ type IndexPageProps struct {
 	Page    int
 	PerPage int
 	HasMore bool
+	Filters IndexFilterState
+}
+
+type IndexFilterState struct {
+	Search        string
+	RoleIDs       []string
+	GroupIDs      []string
+	CreatedAtFrom string
+	CreatedAtTo   string
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func mkInfiniteAttrs(ctx context.Context, props *IndexPageProps) templ.Attributes {
@@ -163,7 +181,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(user.Title())
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 75, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 93, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -189,7 +207,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 						var templ_7745c5c3_Var7 string
 						templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("System"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 83, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 101, Col: 28}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 						if templ_7745c5c3_Err != nil {
@@ -222,7 +240,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 						var templ_7745c5c3_Var9 string
 						templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Users.Blocked"))
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 92, Col: 35}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 110, Col: 35}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 						if templ_7745c5c3_Err != nil {
@@ -273,7 +291,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 					var templ_7745c5c3_Var11 string
 					templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(user.RolesVerbose())
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 101, Col: 26}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 119, Col: 26}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 					if templ_7745c5c3_Err != nil {
@@ -287,7 +305,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 					var templ_7745c5c3_Var12 string
 					templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Unknown"))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 104, Col: 26}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 122, Col: 26}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 					if templ_7745c5c3_Err != nil {
@@ -323,7 +341,7 @@ func UserRow(user *viewmodels.User, rowProps *base.TableRowProps) templ.Componen
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("format('%s')", user.CreatedAt))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 109, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 127, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -569,13 +587,14 @@ func RoleFilter(props *IndexPageProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"bg-surface-600 border border-primary rounded-lg p-4 mb-4\"><form hx-get=\"/users\" hx-target=\"#users-table-wrapper\" hx-swap=\"innerHTML\" hx-push-url=\"true\" hx-indicator=\"#users-table-body\" hx-trigger=\"change\" x-data=\"checkboxes\" x-init=\"init\" x-on:DOMNodeRemoved=\"destroy\"><div class=\"space-y-3\"><div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 18, "<div class=\"bg-surface-600 border border-primary rounded-lg p-4 mb-4\"><div class=\"space-y-3\" x-data=\"checkboxes\" x-init=\"init\" x-on:DOMNodeRemoved=\"destroy\"><div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
-			Label: pageCtx.T("Users.List.AllRoles"),
-			ID:    "all-roles-checkbox",
+			Label:   pageCtx.T("Users.List.AllRoles"),
+			ID:      "all-roles-checkbox",
+			Checked: len(props.Filters.RoleIDs) == 0,
 			Attrs: templ.Attributes{
 				"class":   "parent",
 				"x-ref":   "parent",
@@ -609,7 +628,7 @@ func RoleFilter(props *IndexPageProps) templ.Component {
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", role.UsersCount))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 216, Col: 44}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 225, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -622,8 +641,9 @@ func RoleFilter(props *IndexPageProps) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
-				Label: role.Name,
-				ID:    fmt.Sprintf("role-%s", role.ID),
+				Label:   role.Name,
+				ID:      fmt.Sprintf("role-%s", role.ID),
+				Checked: containsString(props.Filters.RoleIDs, role.ID),
 				Attrs: templ.Attributes{
 					"name":    "roleID",
 					"value":   role.ID,
@@ -634,7 +654,7 @@ func RoleFilter(props *IndexPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div></div></form></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 22, "</div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -664,13 +684,14 @@ func GroupFilter(props *IndexPageProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"bg-surface-600 border border-primary rounded-lg p-4 mb-4\"><form hx-get=\"/users\" hx-target=\"#users-table-wrapper\" hx-swap=\"innerHTML\" hx-push-url=\"true\" hx-indicator=\"#users-table-body\" hx-trigger=\"change\" x-data=\"checkboxes\" x-init=\"init\" x-on:DOMNodeRemoved=\"destroy\"><div class=\"space-y-3\"><div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 23, "<div class=\"bg-surface-600 border border-primary rounded-lg p-4 mb-4\"><div class=\"space-y-3\" x-data=\"checkboxes\" x-init=\"init\" x-on:DOMNodeRemoved=\"destroy\"><div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
-			Label: pageCtx.T("Users.List.AllGroups"),
-			ID:    "all-users-checkbox",
+			Label:   pageCtx.T("Users.List.AllGroups"),
+			ID:      "all-users-checkbox",
+			Checked: len(props.Filters.GroupIDs) == 0,
 			Attrs: templ.Attributes{
 				"class":   "parent",
 				"x-ref":   "parent",
@@ -704,7 +725,7 @@ func GroupFilter(props *IndexPageProps) templ.Component {
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%d", group.UsersCount()))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 265, Col: 47}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 264, Col: 46}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -717,8 +738,9 @@ func GroupFilter(props *IndexPageProps) templ.Component {
 				return nil
 			})
 			templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
-				Label: group.Name,
-				ID:    fmt.Sprintf("group-%s", group.ID),
+				Label:   group.Name,
+				ID:      fmt.Sprintf("group-%s", group.ID),
+				Checked: containsString(props.Filters.GroupIDs, group.ID),
 				Attrs: templ.Attributes{
 					"name":    "groupID",
 					"value":   group.ID,
@@ -729,7 +751,7 @@ func GroupFilter(props *IndexPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></div></form></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 27, "</div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -759,7 +781,7 @@ func UsersContent(props *IndexPageProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div class=\"bg-surface-600 border border-primary rounded-lg\"><form class=\"p-4 flex items-center gap-3\" hx-get=\"/users\" hx-trigger=\"keyup changed delay:500ms from:(form input), change changed from:(form select)\" hx-target=\"#users-table-body\" hx-swap=\"innerHTML\" hx-indicator=\"#users-table-body\"><input type=\"hidden\" name=\"page\" value=\"1\"><div class=\"flex-1\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "<div class=\"bg-surface-600 border border-primary rounded-lg\"><div class=\"p-4 flex items-center gap-3\"><input type=\"hidden\" name=\"page\" value=\"1\"><div class=\"flex-1\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -769,7 +791,8 @@ func UsersContent(props *IndexPageProps) templ.Component {
 			},
 			Placeholder: pageCtx.T("Search"),
 			Attrs: templ.Attributes{
-				"name": "Search",
+				"name":  "Search",
+				"value": props.Filters.Search,
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
@@ -799,7 +822,7 @@ func UsersContent(props *IndexPageProps) templ.Component {
 				var templ_7745c5c3_Var29 string
 				templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Users.List.New"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 306, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 298, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 				if templ_7745c5c3_Err != nil {
@@ -816,7 +839,7 @@ func UsersContent(props *IndexPageProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></form>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -825,6 +848,153 @@ func UsersContent(props *IndexPageProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		return nil
+	})
+}
+
+func UsersPageContent(props *IndexPageProps) templ.Component {
+	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
+			return templ_7745c5c3_CtxErr
+		}
+		templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+		if !templ_7745c5c3_IsBuffer {
+			defer func() {
+				templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+				if templ_7745c5c3_Err == nil {
+					templ_7745c5c3_Err = templ_7745c5c3_BufErr
+				}
+			}()
+		}
+		ctx = templ.InitializeContext(ctx)
+		templ_7745c5c3_Var30 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var30 == nil {
+			templ_7745c5c3_Var30 = templ.NopComponent
+		}
+		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<div id=\"users-page-content\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Var31 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = filters.CreatedAt().Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return nil
+		})
+		templ_7745c5c3_Err = filters.Drawer(filters.DrawerProps{
+			Heading: "Filters",
+			Action:  "open-user-filters",
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<div class=\"m-6\"><div class=\"flex justify-between md:justify-start\"><h1 class=\"text-2xl font-medium\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var32 string
+		templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Users"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 319, Col: 41}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</h1><div class=\"flex md:hidden gap-2\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = button.Secondary(button.Props{
+			Size:  button.SizeNormal,
+			Class: "bg-transparent",
+			Icon:  icons.List(icons.Props{Size: "18"}),
+			Attrs: templ.Attributes{
+				"x-data": "",
+				"@click": "$dispatch('open-user-filters')",
+			},
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if composables.CanUser(ctx, permissions.UserCreate) == nil {
+			templ_7745c5c3_Err = button.Primary(button.Props{
+				Size: button.SizeNormal,
+				Href: "/users/new",
+				Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+			}).Render(ctx, templ_7745c5c3_Buffer)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "</div></div><div class=\"mt-5 flex space-x-5\"><div x-data=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var33 string
+		templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{ filtersCollapsed: false, expandText: '%s', collapseText: '%s' }",
+			pageCtx.T("Users.List.ExpandFilters"),
+			pageCtx.T("Users.List.CollapseFilters")))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 344, Col: 46}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "\" class=\"hidden md:block flex-shrink-0 transition-all\" :class=\"filtersCollapsed ? &#39;w-16&#39; : &#39;w-64&#39;\"><button @click=\"filtersCollapsed = !filtersCollapsed\" class=\"w-full p-2 mb-4 flex items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer\" x-tooltip=\"filtersCollapsed ? expandText : collapseText\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.CaretLeft(icons.Props{
+			Size:  "20",
+			Class: "transition-transform duration-300",
+			Attributes: templ.Attributes{
+				":class": "filtersCollapsed ? 'rotate-180' : ''",
+			},
+		}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</button><template x-if=\"!filtersCollapsed\"><div>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = RoleFilter(props).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = GroupFilter(props).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</div></template></div><div class=\"flex-1\" id=\"users-table-wrapper\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = UsersContent(props).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 39, "</div></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -848,13 +1018,13 @@ func Index(props *IndexPageProps) templ.Component {
 			}()
 		}
 		ctx = templ.InitializeContext(ctx)
-		templ_7745c5c3_Var30 := templ.GetChildren(ctx)
-		if templ_7745c5c3_Var30 == nil {
-			templ_7745c5c3_Var30 = templ.NopComponent
+		templ_7745c5c3_Var34 := templ.GetChildren(ctx)
+		if templ_7745c5c3_Var34 == nil {
+			templ_7745c5c3_Var34 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Var31 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+		templ_7745c5c3_Var35 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
 			if !templ_7745c5c3_IsBuffer {
@@ -866,120 +1036,15 @@ func Index(props *IndexPageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Var32 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
-				templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
-				templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
-				if !templ_7745c5c3_IsBuffer {
-					defer func() {
-						templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
-						if templ_7745c5c3_Err == nil {
-							templ_7745c5c3_Err = templ_7745c5c3_BufErr
-						}
-					}()
-				}
-				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = filters.CreatedAt().Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-				return nil
-			})
-			templ_7745c5c3_Err = filters.Drawer(filters.DrawerProps{
-				Heading: "Filters",
-				Action:  "open-user-filters",
-			}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var32), templ_7745c5c3_Buffer)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<form id=\"users-query-form\" hx-get=\"/users\" hx-target=\"#users-page-content\" hx-swap=\"outerHTML\" hx-push-url=\"true\" hx-indicator=\"#users-table-body\" hx-trigger=\"keyup changed delay:500ms from:find input[name=&#39;Search&#39;], change from:find input[type=&#39;checkbox&#39;], change from:find input[name=&#39;CreatedAt.From&#39;], change from:find input[name=&#39;CreatedAt.To&#39;], change from:find select\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, " <div class=\"m-6\"><div class=\"flex justify-between md:justify-start\"><h1 class=\"text-2xl font-medium\">")
+			templ_7745c5c3_Err = UsersPageContent(props).Render(ctx, templ_7745c5c3_Buffer)
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			var templ_7745c5c3_Var33 string
-			templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("NavigationLinks.Users"))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 329, Col: 41}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</h1><div class=\"flex md:hidden gap-2\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = button.Secondary(button.Props{
-				Size:  button.SizeNormal,
-				Class: "bg-transparent",
-				Icon:  icons.List(icons.Props{Size: "18"}),
-				Attrs: templ.Attributes{
-					"x-data": "",
-					"@click": "$dispatch('open-user-filters')",
-				},
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			if composables.CanUser(ctx, permissions.UserCreate) == nil {
-				templ_7745c5c3_Err = button.Primary(button.Props{
-					Size: button.SizeNormal,
-					Href: "/users/new",
-					Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-				}).Render(ctx, templ_7745c5c3_Buffer)
-				if templ_7745c5c3_Err != nil {
-					return templ_7745c5c3_Err
-				}
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</div></div><div class=\"mt-5 flex space-x-5\"><!-- Left sidebar with role and group filters (collapsible) --><div x-data=\"")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			var templ_7745c5c3_Var34 string
-			templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("{ filtersCollapsed: false, expandText: '%s', collapseText: '%s' }",
-				pageCtx.T("Users.List.ExpandFilters"),
-				pageCtx.T("Users.List.CollapseFilters")))
-			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/users/users.templ`, Line: 355, Col: 46}
-			}
-			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 35, "\" class=\"hidden md:block flex-shrink-0 transition-all\" :class=\"filtersCollapsed ? &#39;w-16&#39; : &#39;w-64&#39;\"><!-- Toggle button --><button @click=\"filtersCollapsed = !filtersCollapsed\" class=\"w-full p-2 mb-4 flex items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer\" x-tooltip=\"filtersCollapsed ? expandText : collapseText\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = icons.CaretLeft(icons.Props{
-				Size:  "20",
-				Class: "transition-transform duration-300",
-				Attributes: templ.Attributes{
-					":class": "filtersCollapsed ? 'rotate-180' : ''",
-				},
-			}).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 36, "</button><!-- Filters content (only show when not collapsed) --><template x-if=\"!filtersCollapsed\"><div>")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = RoleFilter(props).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = GroupFilter(props).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "</div></template></div><!-- Main content area with user list --><div class=\"flex-1\" id=\"users-table-wrapper\">")
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = UsersContent(props).Render(ctx, templ_7745c5c3_Buffer)
-			if templ_7745c5c3_Err != nil {
-				return templ_7745c5c3_Err
-			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "</div></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "</form>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -987,7 +1052,7 @@ func Index(props *IndexPageProps) templ.Component {
 		})
 		templ_7745c5c3_Err = layouts.Authenticated(layouts.AuthenticatedProps{
 			BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.List.Title")},
-		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var31), templ_7745c5c3_Buffer)
+		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var35), templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

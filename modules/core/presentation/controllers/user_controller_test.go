@@ -247,7 +247,7 @@ func ensurePermissionExistsForControllerTest(
 	require.NoError(t, permissionRepository.Save(suite.Env().Ctx, perm))
 }
 
-func TestUsersController_EditForm_PermissionInputsBelongToSaveForm(t *testing.T) {
+func TestUsersController_EditForm_PermissionInputsRenderInsideSaveForm(t *testing.T) {
 	t.Parallel()
 
 	suite := itf.NewSuiteBuilder(t).
@@ -271,13 +271,9 @@ func TestUsersController_EditForm_PermissionInputsBelongToSaveForm(t *testing.T)
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(response.Body()))
 	require.NoError(t, err)
 
-	selector := fmt.Sprintf(`input[name="Permissions[%s]"]`, permissions.UploadRead.ID().String())
+	selector := fmt.Sprintf(`#save-form input[name="PermissionIDs"][value="%s"]`, permissions.UploadRead.ID().String())
 	permissionInput := doc.Find(selector).First()
 	require.Equal(t, 1, permissionInput.Length(), "expected upload permission toggle to render")
-
-	formID, exists := permissionInput.Attr("form")
-	require.True(t, exists, "expected rendered permission input to target save-form")
-	assert.Equal(t, "save-form", formID)
 }
 
 func TestUsersController_Update_PersistsDirectPermissions(t *testing.T) {
@@ -301,12 +297,12 @@ func TestUsersController_Update_PersistsDirectPermissions(t *testing.T) {
 
 	response := suite.POST(fmt.Sprintf("/users/%d", targetUser.ID())).
 		FormFields(map[string]interface{}{
-			"FirstName":  targetUser.FirstName(),
-			"LastName":   targetUser.LastName(),
-			"MiddleName": targetUser.MiddleName(),
-			"Email":      targetUser.Email().Value(),
-			"Language":   string(targetUser.UILanguage()),
-			fmt.Sprintf("Permissions[%s]", permissionID): "on",
+			"FirstName":     targetUser.FirstName(),
+			"LastName":      targetUser.LastName(),
+			"MiddleName":    targetUser.MiddleName(),
+			"Email":         targetUser.Email().Value(),
+			"Language":      string(targetUser.UILanguage()),
+			"PermissionIDs": permissionID,
 		}).
 		Expect(t)
 
@@ -317,4 +313,47 @@ func TestUsersController_Update_PersistsDirectPermissions(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, updatedUser.Permissions(), 1)
 	assert.Equal(t, permissions.UploadRead.Name(), updatedUser.Permissions()[0].Name())
+}
+
+func TestUsersController_Update_InvalidFormPreservesSubmittedPermissions(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		AsUser(permissions.UserRead, permissions.UserUpdate).
+		Build()
+
+	controller := controllers.NewUsersController(
+		suite.Env().App,
+		controllers.WithUserControllerBasePath("/users"),
+		controllers.WithUserControllerPermissionSchema(defaults.PermissionSchema()),
+	)
+	suite.Register(controller)
+
+	ensurePermissionExistsForControllerTest(t, suite, permissions.UploadRead)
+	targetUser := createTargetUserForControllerTest(t, suite, "user-rerender-permissions@test.com")
+	permissionID := permissions.UploadRead.ID().String()
+
+	response := suite.POST(fmt.Sprintf("/users/%d", targetUser.ID())).
+		FormFields(map[string]interface{}{
+			"FirstName":     "",
+			"LastName":      targetUser.LastName(),
+			"MiddleName":    targetUser.MiddleName(),
+			"Email":         targetUser.Email().Value(),
+			"Language":      string(targetUser.UILanguage()),
+			"PermissionIDs": permissionID,
+		}).
+		Expect(t)
+
+	response.Status(200)
+
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(response.Body()))
+	require.NoError(t, err)
+
+	selector := fmt.Sprintf(`input[name="PermissionIDs"][value="%s"]`, permissionID)
+	permissionInput := doc.Find(selector).First()
+	require.Equal(t, 1, permissionInput.Length(), "expected submitted permission toggle to rerender")
+
+	_, exists := permissionInput.Attr("checked")
+	require.True(t, exists, "expected submitted permission toggle to remain checked")
 }
