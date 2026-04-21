@@ -243,6 +243,7 @@ func ensurePermissionExistsForControllerTest(
 	if err == nil {
 		return
 	}
+	require.ErrorIs(t, err, persistence.ErrPermissionNotFound)
 
 	require.NoError(t, permissionRepository.Save(suite.Env().Ctx, perm))
 }
@@ -293,6 +294,7 @@ func TestUsersController_Update_PersistsDirectPermissions(t *testing.T) {
 
 	ensurePermissionExistsForControllerTest(t, suite, permissions.UploadRead)
 	targetUser := createTargetUserForControllerTest(t, suite, "user-direct-permissions@test.com")
+	require.Empty(t, targetUser.Permissions())
 	permissionID := permissions.UploadRead.ID().String()
 
 	response := suite.POST(fmt.Sprintf("/users/%d", targetUser.ID())).

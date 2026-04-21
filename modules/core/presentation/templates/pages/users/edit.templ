@@ -2,6 +2,8 @@ package users
 
 import (
 	"fmt"
+	"strconv"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/button"
@@ -34,277 +36,289 @@ func useUploads(u *viewmodels.User) []*viewmodels.Upload {
 }
 
 templ EditForm(props *EditFormProps) {
-	<div id="edit-content">
-		@EditFormContent(props)
-	</div>
+	@EditFormContent(props)
 }
 
 templ EditFormContent(props *EditFormProps) {
+	<div id="edit-content">
+		@EditFormInner(props)
+	</div>
+}
+
+templ EditFormContentOOB(props *EditFormProps) {
+	<div id="edit-content" hx-swap-oob="true">
+		@EditFormInner(props)
+	</div>
+}
+
+templ EditFormInner(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ uploads := useUploads(props.User) }}
+	{{ updateURL := fmt.Sprintf("/users/%s", props.User.ID) }}
+	{{ blockDrawerURL := fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }}
 	<form
 		id="save-form"
 		method="post"
-		hx-post={ fmt.Sprintf("/users/%s", props.User.ID) }
+		hx-post={ updateURL }
 		hx-indicator="#save-btn"
 		hx-target="#edit-content"
 		hx-swap="outerHTML"
 		class="flex flex-col justify-between h-[calc(100vh-4rem)]"
 	>
-			<div class="flex-1 overflow-y-auto p-4 md:p-6">
-				if props.User.IsBlocked {
-					<div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-						<div class="flex items-start gap-3">
-							<div class="flex-shrink-0 mt-0.5">
-								@icons.Warning(icons.Props{Size: "24", Class: "text-red-500"})
-							</div>
-							<div class="flex-1">
-								<h3 class="text-lg font-semibold text-red-900 mb-2">
-									{ pageCtx.T("Users.Blocked") }
-								</h3>
-								<div class="space-y-1 text-sm text-red-800">
+		@composables.CSRFTokenField()
+		<div class="flex-1 overflow-y-auto p-4 md:p-6">
+			if props.User.IsBlocked {
+				<div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+					<div class="flex items-start gap-3">
+						<div class="flex-shrink-0 mt-0.5">
+							@icons.Warning(icons.Props{Size: "24", Class: "text-red-500"})
+						</div>
+						<div class="flex-1">
+							<h3 class="text-lg font-semibold text-red-900 mb-2">
+								{ pageCtx.T("Users.Blocked") }
+							</h3>
+							<div class="space-y-1 text-sm text-red-800">
+								<p>
+									<span class="font-medium">{ pageCtx.T("Users.Block.Reason") }:</span>
+									<span class="ml-2">{ props.User.BlockReason }</span>
+								</p>
+								if props.User.BlockedByUser != "" {
 									<p>
-										<span class="font-medium">{ pageCtx.T("Users.Block.Reason") }:</span>
-										<span class="ml-2">{ props.User.BlockReason }</span>
+										<span class="font-medium">{ pageCtx.T("Users.Block.BlockedBy") }:</span>
+										if props.User.BlockedBy != "" {
+											<a href={ templ.URL(fmt.Sprintf("/users/%s", props.User.BlockedBy)) } class="ml-2 text-red-700 hover:text-red-900 underline">
+												{ props.User.BlockedByUser }
+											</a>
+										} else {
+											<span class="ml-2">{ props.User.BlockedByUser }</span>
+										}
 									</p>
-									if props.User.BlockedByUser != "" {
-										<p>
-											<span class="font-medium">{ pageCtx.T("Users.Block.BlockedBy") }:</span>
-											if props.User.BlockedBy != "" {
-												<a href={ templ.URL(fmt.Sprintf("/users/%s", props.User.BlockedBy)) } class="ml-2 text-red-700 hover:text-red-900 underline">
-													{ props.User.BlockedByUser }
-												</a>
-											} else {
-												<span class="ml-2">{ props.User.BlockedByUser }</span>
-											}
-										</p>
-									}
-									if props.User.BlockedAt != "" {
-										<p x-data="dateTimeFormat">
-											<span class="font-medium">{ pageCtx.T("Users.Block.BlockedAt") }:</span>
-											<span class="ml-2" x-text={ fmt.Sprintf("format('%s')", props.User.BlockedAt) }></span>
-										</p>
-									}
-								</div>
+								}
+								if props.User.BlockedAt != "" {
+									<p x-data="dateTimeFormat">
+										<span class="font-medium">{ pageCtx.T("Users.Block.BlockedAt") }:</span>
+										<span class="ml-2" x-text={ fmt.Sprintf("format('%s')", props.User.BlockedAt) }></span>
+									</p>
+								}
 							</div>
 						</div>
 					</div>
-				}
-				@tab.Root(tab.Props{
-					DefaultValue: "userinfo",
-				}) {
-					@tab.List(tab.ListProps{}) {
-						@tab.Button("userinfo") {
-							{ pageCtx.T("Users.Tabs.UserInfo") }
-						}
-						@tab.Button("permissions") {
-							{ pageCtx.T("Users.Tabs.Permissions") }
-						}
-						if composables.CanUser(ctx, permissions.SessionRead) == nil {
-							@tab.Button("sessions") {
-								{ pageCtx.T("Users.Tabs.Sessions") }
-							}
+				</div>
+			}
+			@tab.Root(tab.Props{
+				DefaultValue: "userinfo",
+			}) {
+				@tab.List(tab.ListProps{}) {
+					@tab.Button("userinfo") {
+						{ pageCtx.T("Users.Tabs.UserInfo") }
+					}
+					@tab.Button("permissions") {
+						{ pageCtx.T("Users.Tabs.Permissions") }
+					}
+					if composables.CanUser(ctx, permissions.SessionRead) == nil {
+						@tab.Button("sessions") {
+							{ pageCtx.T("Users.Tabs.Sessions") }
 						}
 					}
-					<div x-show="selectedTab === 'userinfo'" class="flex flex-col md:flex-row gap-5 mt-5">
-						<div class="flex-1 space-y-5">
-							@card.Card(card.Props{
-								Header: card.DefaultHeader(pageCtx.T("Users.Cards.PersonalInfo")),
-								Class:  "grid grid-cols-1 md:grid-cols-2 gap-4",
-							}) {
-								@input.Text(&input.Props{
-									Label: pageCtx.T("Users.Single.FirstName"),
-									Attrs: templ.Attributes{
-										"value": props.User.FirstName,
-										"name":  "FirstName",
-									},
-									Error: props.Errors["FirstName"],
-								})
-								@input.Text(&input.Props{
-									Label: pageCtx.T("Users.Single.LastName"),
-									Attrs: templ.Attributes{
-										"value": props.User.LastName,
-										"name":  "LastName",
-									},
-									Error: props.Errors["LastName"],
-								})
-								@input.Text(&input.Props{
-									Label: pageCtx.T("Users.Single.MiddleName"),
-									Attrs: templ.Attributes{
-										"value": props.User.MiddleName,
-										"name":  "MiddleName",
-									},
-									Error: props.Errors["MiddleName"],
-								})
-								@EmailInput(SharedProps{
-									Value:       props.User.Email,
-									Error:       props.Errors["Email"],
-									Placeholder: "email@gmail.com",
-									Required:    true,
-								})
-								@input.Text(&input.Props{
-									Label:       pageCtx.T("Users.Single.Phone"),
-									Placeholder: "+998 12 345 6789",
-									Attrs: templ.Attributes{
-										"value":     props.User.Phone,
-										"name":      "Phone",
-										"minlength": "16",
-										"maxlength": "16",
-										"pattern":   "^\\+998.{12}",
-										"x-mask":    "+998 99 999 9999",
-									},
-									Error: props.Errors["Phone"],
-								})
-							}
-							@card.Card(card.Props{
-								Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
-								Class:  "grid grid-cols-1 md:grid-cols-3 gap-4",
-							}) {
-								@RoleSelect(&RoleSelectProps{
-									Roles:    props.Roles,
-									Selected: props.User.Roles,
-									Error:    props.Errors["RoleIDs"],
-									Name:     "RoleIDs",
-								})
-								@GroupSelect(&GroupSelectProps{
-									Groups:   props.Groups,
-									Selected: props.User.GroupIDs,
-									Error:    props.Errors["GroupIDs"],
-									Name:     "GroupIDs",
-								})
-								@input.Password(&input.Props{
-									Label:       pageCtx.T("Users.Single.Password"),
-									Placeholder: pageCtx.T("Users.Single.EnterPassword"),
-									Attrs: templ.Attributes{
-										"autocomplete": "new-password",
-										"name":         "Password",
-									},
-								})
-								@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
-									Label:       pageCtx.T("Users.Single.Language"),
-									Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
-									Value:       string(props.User.Language),
-									Attrs:       templ.Attributes{"name": "Language"},
-									Error:       props.Errors["Language"],
-								})
-							}
-						</div>
-						@card.Card(card.Props{}) {
-							@components.UploadInput(&components.UploadInputProps{
-								Label:       pageCtx.T("Users.Single.ChooseAvatar"),
-								Placeholder: "PNG, JPG",
-								Name:        "AvatarID",
-								Accept:      "image/*",
-								Error:       props.Errors["AvatarID"],
-								Uploads:     uploads,
+				}
+				<div x-show="selectedTab === 'userinfo'" class="flex flex-col md:flex-row gap-5 mt-5">
+					<div class="flex-1 space-y-5">
+						@card.Card(card.Props{
+							Header: card.DefaultHeader(pageCtx.T("Users.Cards.PersonalInfo")),
+							Class:  "grid grid-cols-1 md:grid-cols-2 gap-4",
+						}) {
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Users.Single.FirstName"),
+								Attrs: templ.Attributes{
+									"value": props.User.FirstName,
+									"name":  "FirstName",
+								},
+								Error: props.Errors["FirstName"],
+							})
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Users.Single.LastName"),
+								Attrs: templ.Attributes{
+									"value": props.User.LastName,
+									"name":  "LastName",
+								},
+								Error: props.Errors["LastName"],
+							})
+							@input.Text(&input.Props{
+								Label: pageCtx.T("Users.Single.MiddleName"),
+								Attrs: templ.Attributes{
+									"value": props.User.MiddleName,
+									"name":  "MiddleName",
+								},
+								Error: props.Errors["MiddleName"],
+							})
+							@EmailInput(SharedProps{
+								Value:       props.User.Email,
+								Error:       props.Errors["Email"],
+								Placeholder: "email@gmail.com",
+								Required:    true,
+							})
+							@input.Text(&input.Props{
+								Label:       pageCtx.T("Users.Single.Phone"),
+								Placeholder: "+998 12 345 6789",
+								Attrs: templ.Attributes{
+									"value":     props.User.Phone,
+									"name":      "Phone",
+									"minlength": "16",
+									"maxlength": "16",
+									"pattern":   "^\\+998.{12}",
+									"x-mask":    "+998 99 999 9999",
+								},
+								Error: props.Errors["Phone"],
+							})
+						}
+						@card.Card(card.Props{
+							Header: card.DefaultHeader(pageCtx.T("Users.Cards.UserInfo")),
+							Class:  "grid grid-cols-1 md:grid-cols-3 gap-4",
+						}) {
+							@RoleSelect(&RoleSelectProps{
+								Roles:    props.Roles,
+								Selected: props.User.Roles,
+								Error:    props.Errors["RoleIDs"],
+								Name:     "RoleIDs",
+							})
+							@GroupSelect(&GroupSelectProps{
+								Groups:   props.Groups,
+								Selected: props.User.GroupIDs,
+								Error:    props.Errors["GroupIDs"],
+								Name:     "GroupIDs",
+							})
+							@input.Password(&input.Props{
+								Label:       pageCtx.T("Users.Single.Password"),
+								Placeholder: pageCtx.T("Users.Single.EnterPassword"),
+								Attrs: templ.Attributes{
+									"autocomplete": "new-password",
+									"name":         "Password",
+								},
+							})
+							@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
+								Label:       pageCtx.T("Users.Single.Language"),
+								Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
+								Value:       string(props.User.Language),
+								Attrs:       templ.Attributes{"name": "Language"},
+								Error:       props.Errors["Language"],
 							})
 						}
 					</div>
-					<div x-show="selectedTab === 'permissions'" class="mt-5 flex flex-col gap-5">
-						{{ pageCtx := composables.UsePageCtx(ctx) }}
-						for i, group := range props.ResourcePermissionGroups {
-							@card.Card(card.Props{
-								Class: "space-y-3",
-							}) {
-								@roles.ResourceGroup(roles.ResourceGroupProps{
-									PageContext:   pageCtx,
-									ResourceGroup: group,
-									GroupIndex:    i,
-									InputName:     "PermissionIDs",
-								})
-							}
+					@card.Card(card.Props{}) {
+						@components.UploadInput(&components.UploadInputProps{
+							Label:       pageCtx.T("Users.Single.ChooseAvatar"),
+							Placeholder: "PNG, JPG",
+							Name:        "AvatarID",
+							Accept:      "image/*",
+							Error:       props.Errors["AvatarID"],
+							Uploads:     uploads,
+						})
+					}
+				</div>
+				<div x-show="selectedTab === 'permissions'" class="mt-5 flex flex-col gap-5">
+					for i, group := range props.ResourcePermissionGroups {
+						@card.Card(card.Props{
+							Class: "space-y-3",
+						}) {
+							@roles.ResourceGroup(roles.ResourceGroupProps{
+								PageContext:   pageCtx,
+								ResourceGroup: group,
+								GroupIndex:    i,
+								InputName:     "PermissionIDs",
+							})
 						}
-					</div>
-					if composables.CanUser(ctx, permissions.SessionRead) == nil {
-						{{
-							sessionTabAttrs := templ.Attributes{
-								"hx-get":     templ.URL(fmt.Sprintf("/users/%s/sessions", props.User.ID)),
-								"hx-trigger": "intersect once",
-								"hx-swap":    "innerHTML",
-							}
-						}}
-						<div x-show="selectedTab === 'sessions'" { sessionTabAttrs... }>
-							<div class="flex items-center justify-center p-8">
-								<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-							</div>
+					}
+				</div>
+				if composables.CanUser(ctx, permissions.SessionRead) == nil {
+					{{
+						sessionTabAttrs := templ.Attributes{
+							"hx-get":     templ.URL(fmt.Sprintf("/users/%s/sessions", props.User.ID)),
+							"hx-trigger": "intersect once",
+							"hx-swap":    "innerHTML",
+						}
+					}}
+					<div x-show="selectedTab === 'sessions'" { sessionTabAttrs... }>
+						<div class="flex items-center justify-center p-8">
+							<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
 						</div>
-					}
+					</div>
 				}
-			</div>
-			<div
-				class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
-			>
-				if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil {
-					if !props.User.IsBlocked {
-						<button
-							type="button"
-							class="btn btn-warning flex items-center gap-2"
-							hx-get={ fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }
-							hx-target="#view-drawer"
-							hx-swap="innerHTML"
-							disabled?={ !props.User.CanBeBlocked }
-						>
-							@icons.Prohibit(icons.Props{Size: "20"})
-							<span>{ pageCtx.T("Users.Block.Button") }</span>
-						</button>
-					} else {
-						<button
-							type="button"
-							class="btn btn-success flex items-center gap-2"
-							@click="$dispatch('open-unblock-user-confirmation')"
-						>
-							@icons.Check(icons.Props{Size: "20"})
-							<span>{ pageCtx.T("Users.Unblock.Button") }</span>
-						</button>
-					}
+			}
+		</div>
+		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
+			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil {
+				if !props.User.IsBlocked {
+					<button
+						type="button"
+						class="btn btn-warning flex items-center gap-2"
+						hx-get={ blockDrawerURL }
+						hx-target="#view-drawer"
+						hx-swap="innerHTML"
+						disabled?={ !props.User.CanBeBlocked }
+					>
+						@icons.Prohibit(icons.Props{Size: "20"})
+						<span>{ pageCtx.T("Users.Block.Button") }</span>
+					</button>
+				} else {
+					<button
+						type="button"
+						class="btn btn-success flex items-center gap-2"
+						@click="$dispatch('open-unblock-user-confirmation')"
+					>
+						@icons.Check(icons.Props{Size: "20"})
+						<span>{ pageCtx.T("Users.Unblock.Button") }</span>
+					</button>
 				}
-				if composables.CanUser(ctx, permissions.UserDelete) == nil {
-					if !props.CanDelete {
-						@button.Danger(button.Props{
-							Disabled: true,
-							Size:     button.SizeMD,
-							Attrs: templ.Attributes{
-								"type":          "button",
-								"@click":        "$dispatch('open-delete-user-confirmation')",
-								"id":            "delete-user-btn",
-								"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
-							},
-						}) {
-							{ pageCtx.T("Delete") }
-						}
-					} else {
-						@button.Danger(button.Props{
-							Disabled: false,
-							Size:     button.SizeMD,
-							Attrs: templ.Attributes{
-								"type":   "button",
-								"@click": "$dispatch('open-delete-user-confirmation')",
-								"id":     "delete-user-btn",
-							},
-						}) {
-							{ pageCtx.T("Delete") }
-						}
-					}
-				}
-				if composables.CanUser(ctx, permissions.UserUpdate) == nil {
-					@button.Primary(button.Props{
-						Disabled: !props.User.CanUpdate,
+			}
+			if composables.CanUser(ctx, permissions.UserDelete) == nil {
+				if !props.CanDelete {
+					@button.Danger(button.Props{
+						Disabled: true,
 						Size:     button.SizeMD,
 						Attrs: templ.Attributes{
-							"name":  "_action",
-							"value": "save",
-							"id":    "save-btn",
+							"type":          "button",
+							"@click":        "$dispatch('open-delete-user-confirmation')",
+							"id":            "delete-user-btn",
+							"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
 						},
 					}) {
-						{ pageCtx.T("Save") }
+						{ pageCtx.T("Delete") }
+					}
+				} else {
+					@button.Danger(button.Props{
+						Disabled: false,
+						Size:     button.SizeMD,
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"@click": "$dispatch('open-delete-user-confirmation')",
+							"id":     "delete-user-btn",
+						},
+					}) {
+						{ pageCtx.T("Delete") }
 					}
 				}
-			</div>
+			}
+			if composables.CanUser(ctx, permissions.UserUpdate) == nil {
+				@button.Primary(button.Props{
+					Disabled: !props.User.CanUpdate,
+					Size:     button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
+			}
+		</div>
 	</form>
 }
 
 templ Edit(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ deleteURL := strconv.Quote(string(templ.URL(fmt.Sprintf("/users/%s", props.User.ID)))) }}
+	{{ unblockURL := strconv.Quote(string(templ.URL(fmt.Sprintf("/users/%s/unblock", props.User.ID)))) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.Edit.Title")},
 	}) {
@@ -317,9 +331,9 @@ templ Edit(props *EditFormProps) {
 			Attrs: templ.Attributes{
 				"@closing": fmt.Sprintf(`({target}) => {
 					if (target.returnValue === "confirm") {
-						htmx.ajax('DELETE', '/users/%s', {target: '#edit-content', swap: 'outerHTML'});
+						htmx.ajax('DELETE', %s, {target: '#edit-content', swap: 'outerHTML'});
 					}
-				}`, props.User.ID),
+				}`, deleteURL),
 			},
 			CancelText:  pageCtx.T("Cancel"),
 			ConfirmText: pageCtx.T("Delete"),
@@ -332,14 +346,13 @@ templ Edit(props *EditFormProps) {
 			Attrs: templ.Attributes{
 				"@closing": fmt.Sprintf(`({target}) => {
 					if (target.returnValue === "confirm") {
-						htmx.ajax('POST', '/users/%s/unblock', {target: '#edit-content', swap: 'outerHTML'});
+						htmx.ajax('POST', %s, {target: '#edit-content', swap: 'outerHTML'});
 					}
-				}`, props.User.ID),
+				}`, unblockURL),
 			},
 			CancelText:  pageCtx.T("Cancel"),
 			ConfirmText: pageCtx.T("Users.Unblock.Confirm"),
 		})
-		<!-- Drawer container for block/unblock -->
 		<div id="view-drawer"></div>
 	}
 }

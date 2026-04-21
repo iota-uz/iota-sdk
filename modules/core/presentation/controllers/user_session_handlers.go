@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/a-h/templ"
@@ -21,6 +22,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
+
+func escapedText(text string) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		_, err := io.WriteString(w, templ.EscapeString(text))
+		return err
+	})
+}
 
 func buildSessionsTable(ctx context.Context, userID string, sessions []session.Session, canDelete bool) *sfui.TableConfig {
 	pageCtx := composables.UsePageCtx(ctx)
@@ -47,10 +55,10 @@ func buildSessionsTable(ctx context.Context, userID string, sessions []session.S
 		vm := viewmodels.SessionToViewModel(sess, "")
 		cells := []sfui.TableCell{
 			sfui.Cell(users.SessionDeviceCell(vm), vm.Device),
-			sfui.Cell(templ.Raw(vm.Browser), vm.Browser),
-			sfui.Cell(templ.Raw(vm.OS), vm.OS),
-			sfui.Cell(templ.Raw(vm.IPAddress), vm.IPAddress),
-			sfui.Cell(templ.Raw(vm.CreatedAt), vm.CreatedAt),
+			sfui.Cell(escapedText(vm.Browser), vm.Browser),
+			sfui.Cell(escapedText(vm.OS), vm.OS),
+			sfui.Cell(escapedText(vm.IPAddress), vm.IPAddress),
+			sfui.Cell(escapedText(vm.CreatedAt), vm.CreatedAt),
 		}
 		if canDelete {
 			cells = append(cells, sfui.Cell(

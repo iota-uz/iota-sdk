@@ -119,7 +119,7 @@ templ PermissionSet(props PermissionSetProps) {
 				Label:        label,
 				LabelClasses: templ.Classes("flex-row-reverse justify-between w-full text-sm"),
 				Checked:      props.Set.Checked,
-				Attrs: permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
+				Attrs:        permissionAttrs(templ.Attributes{}, props.Form, props.InputName, props.Set.Permissions[0].ID),
 			})
 			if props.Set.Description != "" {
 				<p class="text-sm text-gray-600 mt-1">{ tOrKey(props.PageContext,props.Set.Description) }</p>

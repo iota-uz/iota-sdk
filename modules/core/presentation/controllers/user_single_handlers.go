@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"slices"
 	"strconv"
@@ -18,6 +19,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -105,7 +107,7 @@ func (c *UsersController) GetSingle(
 				}
 			}
 
-			return templ.Raw(strings.Join(out, ", ")), nil
+			return escapedText(strings.Join(out, ", ")), nil
 		},
 		slot.WithSlotSourceFallback(templ.Raw(pageCtx.T("Common.Loading"))),
 	)
@@ -152,6 +154,11 @@ func (c *UsersController) GetBlockDrawer(
 	logger *logrus.Entry,
 	userService *services.UserService,
 ) {
+	if !htmx.IsHxRequest(r) {
+		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
+		return
+	}
+
 	if err := composables.CanUser(r.Context(), permissions.UserUpdateBlockStatus); err != nil {
 		logger.WithError(err).Error("error lacks permission")
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -186,6 +193,11 @@ func (c *UsersController) BlockUser(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) {
+	if !htmx.IsHxRequest(r) {
+		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
+		return
+	}
+
 	if err := composables.CanUser(r.Context(), permissions.UserUpdateBlockStatus); err != nil {
 		logger.WithError(err).Error("error lacks permission")
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)
@@ -206,11 +218,11 @@ func (c *UsersController) BlockUser(
 		return
 	}
 
-	blockReason := r.FormValue("BlockReason")
+	blockReason := strings.TrimSpace(r.FormValue("BlockReason"))
 	errors := map[string]string{}
 
 	switch {
-	case strings.TrimSpace(blockReason) == "":
+	case blockReason == "":
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonRequired")
 	case len(blockReason) < 3:
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonTooShort")
@@ -252,7 +264,6 @@ func (c *UsersController) BlockUser(
 	}
 
 	logger.
-		WithField("block_reason", blockReason).
 		WithField("blocked_by", composables.MustUseUser(r.Context()).ID()).
 		WithField("target_id", id).
 		WithField("action", "block").
@@ -266,19 +277,13 @@ func (c *UsersController) BlockUser(
 	}
 
 	var buf bytes.Buffer
-	if _, err := fmt.Fprintf(&buf, `<div id="block-user-drawer-%d"></div>`, id); err != nil {
+	if _, err := io.WriteString(&buf, fmt.Sprintf(`<div id="block-user-drawer-%d"></div>`, id)); err != nil {
 		logger.WithError(err).Error("error writing block drawer placeholder")
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
 	}
 
-	editContent, err := renderEditContentOOB(r.Context(), logger, props)
-	if err != nil {
-		http.Error(w, "Error rendering response", http.StatusInternalServerError)
-		return
-	}
-
-	if _, err := editContent.WriteTo(&buf); err != nil {
+	if err := renderEditContentOOB(r.Context(), &buf, props); err != nil {
 		logger.WithError(err).Error("error buffering edit content")
 		http.Error(w, "Error rendering response", http.StatusInternalServerError)
 		return
@@ -297,6 +302,11 @@ func (c *UsersController) UnblockUser(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) {
+	if !htmx.IsHxRequest(r) {
+		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
+		return
+	}
+
 	if err := composables.CanUser(r.Context(), permissions.UserUpdateBlockStatus); err != nil {
 		logger.WithError(err).Error("error lacks permission")
 		http.Error(w, http.StatusText(http.StatusForbidden), http.StatusForbidden)

@@ -29,7 +29,10 @@ func (c *UsersController) GetNew(
 		return
 	}
 
-	users.New(props).Render(r.Context(), w)
+	if err := users.New(props).Render(r.Context(), w); err != nil {
+		logger.WithError(err).Error("error rendering create page")
+		http.Error(w, "Error rendering response", http.StatusInternalServerError)
+	}
 }
 
 func (c *UsersController) Create(
@@ -51,7 +54,10 @@ func (c *UsersController) Create(
 			return
 		}
 
-		users.CreateForm(props).Render(r.Context(), w)
+		if err := users.CreateForm(props).Render(r.Context(), w); err != nil {
+			logger.WithError(err).Error("error rendering create form")
+			http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		}
 	}
 
 	dto, err := composables.UseForm(&dtos.CreateUserDTO{}, r)
@@ -106,7 +112,7 @@ func (c *UsersController) Update(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -128,7 +134,10 @@ func (c *UsersController) Update(
 			return
 		}
 
-		users.EditForm(props).Render(r.Context(), w)
+		if err := users.EditForm(props).Render(r.Context(), w); err != nil {
+			logger.WithError(err).Error("error rendering edit form")
+			http.Error(w, "Error rendering response", http.StatusInternalServerError)
+		}
 	}
 
 	if errs, ok := dto.Ok(r.Context()); !ok {
@@ -187,7 +196,7 @@ func (c *UsersController) Delete(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 

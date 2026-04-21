@@ -32,6 +32,10 @@ func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if conn.User().TenantID() != event.Result.TenantID() {
+			return nil
+		}
+
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			logger.WithError(err).Error("failed to render user created event for websocket")
@@ -57,6 +61,10 @@ func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if conn.User().TenantID() != event.Result.TenantID() {
+			return nil
+		}
+
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			logger.WithError(err).Error("failed to render user deleted event for websocket")
@@ -80,6 +88,10 @@ func (ru *UserRealtimeUpdates) OnUserUpdated(event *user.UpdatedEvent) {
 	})
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
+		if conn.User().TenantID() != event.Result.TenantID() {
+			return nil
+		}
+
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
 			logger.WithError(err).Error("failed to render user updated event for websocket")

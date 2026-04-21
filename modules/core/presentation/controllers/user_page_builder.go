@@ -1,13 +1,10 @@
 package controllers
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
 	"strconv"
-
-	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
@@ -17,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type userCreateFormState struct {
@@ -42,14 +40,16 @@ func loadUserFormOptions(
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
 ) ([]*viewmodels.Role, []*viewmodels.Group, error) {
+	const op = serrors.Op("controllers.loadUserFormOptions")
+
 	roles, err := roleService.GetAll(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, serrors.E(op, err)
 	}
 
 	groups, _, err := groupQueryService.FindGroups(ctx, userGroupsFindParams(1000))
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, serrors.E(op, err)
 	}
 
 	return mapping.MapViewModels(roles, mappers.RoleToViewModel), groups, nil
@@ -129,9 +129,11 @@ func (c *UsersController) buildCreateFormProps(
 	groupQueryService *services.GroupQueryService,
 	state *userCreateFormState,
 ) (*users.CreateFormProps, error) {
+	const op = serrors.Op("controllers.buildCreateFormProps")
+
 	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	userViewModel := viewmodels.User{}
@@ -171,19 +173,21 @@ func (c *UsersController) buildEditFormProps(
 	userID uint,
 	state *userEditFormState,
 ) (*users.EditFormProps, error) {
+	const op = serrors.Op("controllers.buildEditFormProps")
+
 	roleViewModels, groups, err := loadUserFormOptions(ctx, roleService, groupQueryService)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	us, err := userService.GetByID(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	canDelete, err := userService.CanUserBeDeleted(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	userViewModel := mappers.UserToViewModel(us)
@@ -233,25 +237,8 @@ func renderBlockDrawer(
 
 func renderEditContentOOB(
 	ctx context.Context,
-	logger *logrus.Entry,
+	w io.Writer,
 	props *users.EditFormProps,
-) (*bytes.Buffer, error) {
-	var buf bytes.Buffer
-
-	if _, err := buf.WriteString(`<div id="edit-content" hx-swap-oob="true">`); err != nil {
-		logger.WithError(err).Error("failed to open edit-content oob wrapper")
-		return nil, err
-	}
-
-	if err := users.EditFormContent(props).Render(ctx, &buf); err != nil {
-		logger.WithError(err).Error("failed to render edit form content")
-		return nil, err
-	}
-
-	if _, err := buf.WriteString(`</div>`); err != nil {
-		logger.WithError(err).Error("failed to close edit-content oob wrapper")
-		return nil, err
-	}
-
-	return &buf, nil
+) error {
+	return users.EditFormContentOOB(props).Render(ctx, w)
 }

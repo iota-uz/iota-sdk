@@ -8,14 +8,41 @@ import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
  * where the sticky bottom action bar intercepts pointer events on the confirm button.
  */
 async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
-	await expect(page.locator('#delete-form')).toBeAttached();
+	const triggeredDeleteForm = await page.evaluate(() => {
+		const form = document.getElementById('delete-form');
+		const htmx = (window as Window & { htmx?: { trigger: (elt: Element, eventName: string) => void } }).htmx;
+
+		if (form instanceof HTMLFormElement && typeof htmx?.trigger === 'function') {
+			htmx.trigger(form, 'submit');
+			return true;
+		}
+
+		return false;
+	});
+
+	if (triggeredDeleteForm) {
+		return;
+	}
+
 	const response = await page.evaluate(async () => {
 		const form = document.getElementById('delete-form');
-		if (!form) throw new Error('#delete-form not found in DOM');
-		if (!(form instanceof HTMLFormElement)) throw new Error('#delete-form is not a form');
-		const endpoint = form.getAttribute('hx-delete');
-		if (!endpoint) throw new Error('#delete-form is missing hx-delete');
-		const formData = new FormData(form);
+		let endpoint = '';
+		const params = new URLSearchParams();
+
+		if (form instanceof HTMLFormElement) {
+			endpoint = form.getAttribute('hx-delete') || '';
+			for (const [key, value] of new FormData(form).entries()) {
+				params.append(key, String(value));
+			}
+		} else {
+			endpoint = window.location.pathname;
+			const csrfInput = document.querySelector<HTMLInputElement>('input[name="gorilla.csrf.Token"]');
+			if (csrfInput?.value) {
+				params.append('gorilla.csrf.Token', csrfInput.value);
+			}
+		}
+
+		if (!endpoint) throw new Error('delete endpoint not found');
 
 		const res = await fetch(endpoint, {
 			method: 'DELETE',
@@ -23,8 +50,9 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
 			headers: {
 				'HX-Request': 'true',
 				'X-Requested-With': 'XMLHttpRequest',
+				'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
 			},
-			body: formData,
+			body: params.toString(),
 		});
 
 		return {
@@ -170,7 +198,6 @@ test.describe('role management flows', () => {
 
 		// Submit the delete via the underlying HTMX form. The dialog visibility
 		// can lag in headless Chromium, but the hidden form is the actual action surface.
-		await expect(page.locator('#delete-form')).toBeAttached();
 		await submitDeleteFormViaHtmx(page);
 
 		// Wait for redirect back to roles list

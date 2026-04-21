@@ -39,7 +39,7 @@ test.describe('user direct permission editing', () => {
 		await createdUserRow.locator('td a[href$="/edit"]').click();
 		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
 
-		await page.getByRole('button', { name: /permissions/i }).click();
+		await page.locator('[data-tab-value="permissions"]').click();
 		await waitForAlpine(page);
 		await expect(page.locator('input[type="checkbox"][name="PermissionIDs"]').first()).toBeAttached();
 
@@ -70,16 +70,22 @@ test.describe('user direct permission editing', () => {
 
 		expect(selectedPermissions.submitted).toEqual(expect.arrayContaining(selectedPermissions.selected));
 
+		await page.locator('[data-tab-value="userinfo"]').click();
 		await page.locator('[name=FirstName]').fill('');
-		await page.locator('#save-btn').click();
+		await Promise.all([
+			page.waitForResponse((response) => response.request().method() === 'POST' && /\/users\/\d+$/.test(response.url())),
+			page.locator('#save-btn').click(),
+		]);
 		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
-		await page.getByRole('button', { name: /permissions/i }).click();
+		await page.locator('[data-tab-value="permissions"]').click();
 		await waitForAlpine(page);
 
 		for (const permissionID of selectedPermissions.selected) {
 			await expect(page.locator(`input[name="PermissionIDs"][value="${permissionID}"]`)).toBeChecked();
 		}
 
+		await page.locator('[data-tab-value="userinfo"]').click();
+		await expect(page.locator('[name=FirstName]')).toBeVisible();
 		await page.locator('[name=FirstName]').fill('Permission');
 
 		await page.locator('#save-btn').click();
@@ -90,7 +96,7 @@ test.describe('user direct permission editing', () => {
 		await updatedUserRow.locator('td a[href$="/edit"]').click();
 		await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
 
-		await page.getByRole('button', { name: /permissions/i }).click();
+		await page.locator('[data-tab-value="permissions"]').click();
 		await waitForAlpine(page);
 
 		for (const permissionID of selectedPermissions.selected) {
