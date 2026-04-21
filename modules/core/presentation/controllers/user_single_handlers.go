@@ -138,7 +138,7 @@ func (c *UsersController) GetEdit(
 		return
 	}
 
-	props, err := c.buildEditFormProps(r.Context(), userService, roleService, groupQueryService, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
@@ -269,7 +269,7 @@ func (c *UsersController) BlockUser(
 		WithField("action", "block").
 		Info("user blocked")
 
-	props, err := c.buildEditFormProps(r.Context(), userService, roleService, groupQueryService, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)
@@ -332,7 +332,7 @@ func (c *UsersController) UnblockUser(
 		WithField("action", "unblock").
 		Info("user unblocked")
 
-	props, err := c.buildEditFormProps(r.Context(), userService, roleService, groupQueryService, id, nil)
+	props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, nil)
 	if err != nil {
 		logger.WithError(err).Error("error building edit form props")
 		http.Error(w, "Error retrieving user information", http.StatusInternalServerError)

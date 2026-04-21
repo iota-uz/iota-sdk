@@ -62,7 +62,7 @@ func buildSessionsTable(ctx context.Context, userID string, sessions []session.S
 		}
 		if canDelete {
 			cells = append(cells, sfui.Cell(
-				users.RevokeSessionButton(userID, vm.TokenID, vm.FullToken),
+				users.RevokeSessionButton(userID, vm.TokenID),
 				nil,
 			))
 		}
@@ -82,6 +82,11 @@ func (c *UsersController) GetUserSessions(
 	sessionService *services.SessionService,
 	logger *logrus.Entry,
 ) {
+	if !htmx.IsHxRequest(r) {
+		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
+		return
+	}
+
 	if !u.Can(permissions.SessionRead) {
 		logger.Error("user does not have SessionRead permission")
 		http.Error(w, "Forbidden", http.StatusForbidden)
@@ -121,6 +126,11 @@ func (c *UsersController) RevokeUserSession(
 	sessionService *services.SessionService,
 	logger *logrus.Entry,
 ) {
+	if !htmx.IsHxRequest(r) {
+		http.Error(w, "Expected HTMX request", http.StatusBadRequest)
+		return
+	}
+
 	if !u.Can(permissions.SessionDelete) {
 		logger.Error("user does not have SessionDelete permission")
 		http.Error(w, "Forbidden", http.StatusForbidden)
@@ -134,8 +144,8 @@ func (c *UsersController) RevokeUserSession(
 		return
 	}
 
-	tokenHash := mux.Vars(r)["token"]
-	if tokenHash == "" {
+	tokenID := mux.Vars(r)["token"]
+	if tokenID == "" {
 		logger.Error("token is required")
 		http.Error(w, "Token required", http.StatusBadRequest)
 		return
@@ -151,7 +161,7 @@ func (c *UsersController) RevokeUserSession(
 	var sessionToRevoke string
 	for _, s := range sessions {
 		sessionVM := viewmodels.SessionToViewModel(s, "")
-		if sessionVM.FullToken == tokenHash {
+		if sessionVM.TokenID == tokenID {
 			sessionToRevoke = s.Token()
 			break
 		}
@@ -169,7 +179,7 @@ func (c *UsersController) RevokeUserSession(
 		return
 	}
 
-	logger.WithField("tokenHash", tokenHash).Info("session revoked successfully")
+	logger.WithField("tokenID", tokenID).Info("session revoked successfully")
 	htmx.SetTrigger(w, "showToast", `{"type": "success", "message": "Session revoked successfully"}`)
 	w.WriteHeader(http.StatusOK)
 }

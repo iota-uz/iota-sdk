@@ -124,7 +124,7 @@ func (c *UsersController) Update(
 	}
 
 	respondWithForm := func(errors map[string]string, dto *dtos.UpdateUserDTO) {
-		props, err := c.buildEditFormProps(r.Context(), userService, roleService, groupQueryService, id, &userEditFormState{
+		props, err := c.buildEditFormProps(r.Context(), logger, userService, roleService, groupQueryService, id, &userEditFormState{
 			DTO:    dto,
 			Errors: errors,
 		})

@@ -71,7 +71,11 @@ func permissionAttrs(attrs templ.Attributes, formID string, inputName string, pe
 		merged["value"] = permissionID
 	}
 
-	return withFormAttr(merged, formID)
+	if formID != "" {
+		merged["form"] = formID
+	}
+
+	return merged
 }
 
 type SharedProps struct {

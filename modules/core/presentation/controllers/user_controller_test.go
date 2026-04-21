@@ -352,7 +352,7 @@ func TestUsersController_Update_InvalidFormPreservesSubmittedPermissions(t *test
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(response.Body()))
 	require.NoError(t, err)
 
-	selector := fmt.Sprintf(`input[name="PermissionIDs"][value="%s"]`, permissionID)
+	selector := fmt.Sprintf(`#save-form input[name="PermissionIDs"][value="%s"]`, permissionID)
 	permissionInput := doc.Find(selector).First()
 	require.Equal(t, 1, permissionInput.Length(), "expected submitted permission toggle to rerender")
 

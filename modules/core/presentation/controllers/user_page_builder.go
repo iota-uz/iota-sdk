@@ -2,9 +2,10 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"strconv"
+
+	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
@@ -27,6 +28,8 @@ type userEditFormState struct {
 	Errors map[string]string
 }
 
+const userFormGroupsLimit = 1000
+
 func userGroupsFindParams(limit int) *query.GroupFindParams {
 	return &query.GroupFindParams{
 		Limit:   limit,
@@ -47,7 +50,7 @@ func loadUserFormOptions(
 		return nil, nil, serrors.E(op, err)
 	}
 
-	groups, _, err := groupQueryService.FindGroups(ctx, userGroupsFindParams(1000))
+	groups, _, err := groupQueryService.FindGroups(ctx, userGroupsFindParams(userFormGroupsLimit))
 	if err != nil {
 		return nil, nil, serrors.E(op, err)
 	}
@@ -105,18 +108,25 @@ func (c *UsersController) selectedPermissionsFromIDs(permissionIDs []string) []p
 	return selected
 }
 
-func decorateBlockedByUser(ctx context.Context, userService *services.UserService, userViewModel *viewmodels.User) {
+func decorateBlockedByUser(
+	ctx context.Context,
+	logger *logrus.Entry,
+	userService *services.UserService,
+	userViewModel *viewmodels.User,
+) {
 	if !userViewModel.IsBlocked || userViewModel.BlockedBy == "" || userViewModel.BlockedBy == "0" {
 		return
 	}
 
 	blockedByID, err := strconv.ParseUint(userViewModel.BlockedBy, 10, 64)
 	if err != nil {
+		logger.WithField("blockedBy", userViewModel.BlockedBy).WithError(err).Warn("failed to parse blocked by user id")
 		return
 	}
 
 	blockerUser, err := userService.GetByID(ctx, uint(blockedByID))
 	if err != nil {
+		logger.WithField("blockedBy", userViewModel.BlockedBy).WithError(err).Warn("failed to load blocker user")
 		return
 	}
 
@@ -151,7 +161,7 @@ func (c *UsersController) buildCreateFormProps(
 				GroupIDs:   state.DTO.GroupIDs,
 				Roles:      selectedRoleViewModels(roleViewModels, state.DTO.RoleIDs),
 				Language:   state.DTO.Language,
-				AvatarID:   fmt.Sprint(state.DTO.AvatarID),
+				AvatarID:   strconv.FormatUint(uint64(state.DTO.AvatarID), 10),
 			}
 		}
 	}
@@ -167,6 +177,7 @@ func (c *UsersController) buildCreateFormProps(
 
 func (c *UsersController) buildEditFormProps(
 	ctx context.Context,
+	logger *logrus.Entry,
 	userService *services.UserService,
 	roleService *services.RoleService,
 	groupQueryService *services.GroupQueryService,
@@ -192,7 +203,7 @@ func (c *UsersController) buildEditFormProps(
 
 	userViewModel := mappers.UserToViewModel(us)
 	userViewModel.CanDelete = canDelete
-	decorateBlockedByUser(ctx, userService, userViewModel)
+	decorateBlockedByUser(ctx, logger, userService, userViewModel)
 
 	selectedPermissions := us.Permissions()
 	errors := map[string]string{}
