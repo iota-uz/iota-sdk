@@ -83,13 +83,56 @@ func isDisabled(props ComboboxProps) bool {
 		props.Attrs["disabled"] == true
 }
 
+// liftRequiredFromAttrs pulls any `required` / `:required` keys out of the
+// caller-supplied Attrs so they do not land on the hidden <select>. A native
+// `required` on a display:none element traps the browser: it cannot focus
+// the element to show the validation popup and logs
+// `The invalid form control with name=... is not focusable`. The lifted
+// values are returned as strings for the wrapper to surface as
+// data-required / :data-required, giving form-level JS validators a stable
+// hook without the broken native behavior.
+func liftRequiredFromAttrs(attrs templ.Attributes) (rest templ.Attributes, dataRequired, dataRequiredBind string) {
+	rest = make(templ.Attributes, len(attrs))
+	for k, v := range attrs {
+		switch k {
+		case "required":
+			switch val := v.(type) {
+			case bool:
+				if val {
+					dataRequired = "true"
+				}
+			case string:
+				if val != "" && val != "false" {
+					dataRequired = "true"
+				}
+			}
+		case ":required":
+			if s, ok := v.(string); ok {
+				dataRequiredBind = s
+			}
+		default:
+			rest[k] = v
+		}
+	}
+	return
+}
+
 templ Combobox(props ComboboxProps) {
-	{{ hasEndpoint := strings.TrimSpace(props.Endpoint) != "" }}
+	{{
+		hasEndpoint := strings.TrimSpace(props.Endpoint) != ""
+		selectAttrs, dataRequired, dataRequiredBind := liftRequiredFromAttrs(props.Attrs)
+	}}
 	<div
 		x-data={ fmt.Sprintf("combobox(%t, %t)", props.Searchable, props.CanCreateNew) }
 		class={ "w-full flex flex-col", props.Class }
 		x-on:keydown.esc.window="open = false, openedWithKeyboard = false"
 		x-id="['combobox']"
+		if dataRequired != "" {
+			data-required={ dataRequired }
+		}
+		if dataRequiredBind != "" {
+			:data-required={ dataRequiredBind }
+		}
 	>
 		if len(props.Label) > 0 {
 			<label class="form-control-label mb-2" :for="$id('combobox')">{ props.Label }</label>
@@ -105,7 +148,7 @@ templ Combobox(props ComboboxProps) {
 			if props.Form != "" {
 				form={ props.Form }
 			}
-			{ props.Attrs... }
+			{ selectAttrs... }
 		>
 			{ children... }
 		</select>
