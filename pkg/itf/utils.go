@@ -379,10 +379,25 @@ func DBOpts(name string) string {
 	)
 }
 
+// SetupApplication wires a test application + composition container against
+// `pool` using the provided components.
+//
+// `capabilities` controls which capability set is passed to `engine.Compile`.
+// When empty (the default for backward compatibility), it expands to
+// `[CapabilityAPI, CapabilityWorker]` — same behaviour as before this option
+// was added. Pass an explicit, narrower set (for example, just
+// `composition.CapabilityAPI`) to verify that worker-only contributions stay
+// inactive in API-only contexts. This is the same shape the EAI CLI uses to
+// avoid materializing NATS subscribers, periodic tasks, MSSQL pools, and
+// Bleve file-locks at compile time.
 func SetupApplication(
 	pool *pgxpool.Pool,
 	components []composition.Component,
+	capabilities ...composition.Capability,
 ) (application.Application, *composition.Container, error) {
+	if len(capabilities) == 0 {
+		capabilities = []composition.Capability{composition.CapabilityAPI, composition.CapabilityWorker}
+	}
 	conf := configuration.Use()
 	bundle := application.LoadBundle()
 	app, err := application.New(&application.ApplicationOptions{
@@ -403,8 +418,7 @@ func SetupApplication(
 		}
 		container, err = engine.Compile(
 			composition.NewBuildContext(app, conf),
-			composition.CapabilityAPI,
-			composition.CapabilityWorker,
+			capabilities...,
 		)
 		if err != nil {
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "compile components")
