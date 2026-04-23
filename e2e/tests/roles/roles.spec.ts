@@ -8,27 +8,6 @@ import { resetTestDatabase, seedScenario } from "../../fixtures/test-data";
  * where the sticky bottom action bar intercepts pointer events on the confirm button.
  */
 async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
-  const triggeredDeleteForm = await page.evaluate(() => {
-    const form = document.getElementById("delete-form");
-
-    if (form instanceof HTMLFormElement && form.getAttribute("hx-delete")) {
-      if (typeof form.requestSubmit === "function") {
-        form.requestSubmit();
-      } else {
-        form.dispatchEvent(
-          new Event("submit", { bubbles: true, cancelable: true }),
-        );
-      }
-      return true;
-    }
-
-    return false;
-  });
-
-  if (triggeredDeleteForm) {
-    return;
-  }
-
   const response = await page.evaluate(async () => {
     const form = document.getElementById("delete-form");
     let endpoint = "";
@@ -66,7 +45,9 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
       ok: res.ok,
       status: res.status,
       redirect:
-        res.headers.get("Hx-Redirect") || res.headers.get("HX-Redirect"),
+        res.headers.get("Hx-Redirect") ||
+        res.headers.get("HX-Redirect") ||
+        (res.redirected ? res.url : null),
       location: res.headers.get("Location"),
     };
   });
@@ -290,12 +271,15 @@ test.describe("role management flows", () => {
     // This verifies that modules with empty ResourceGroups are not displayed (fix for #498)
 
     // Wait for module content to be visible
-    await expect(moduleContentContainers.first()).toBeVisible({
+    const defaultModuleContent = moduleContentContainers.first();
+    await expect(defaultModuleContent).toBeVisible({
       timeout: 5000,
     });
 
     // The content should have at least one permission-related element
-    const permissionInputsInTab = page.locator('input[name^="Permissions"]');
+    const permissionInputsInTab = defaultModuleContent.locator(
+      'input[name^="Permissions"]',
+    );
     const inputCount = await permissionInputsInTab.count();
 
     // The visible module tab MUST have at least one permission checkbox
@@ -407,12 +391,17 @@ test.describe("role management flows", () => {
 
     // Find and enable only the User Read permission
     const userReadCheckbox = page
-      .locator('input[type="checkbox"][name^="Permissions"]')
+      .locator('input[name="Permissions[User.Read]"]')
       .first();
-    if (await userReadCheckbox.isVisible()) {
-      await userReadCheckbox.check();
-      await expect(userReadCheckbox).toBeChecked();
-    }
+    await expect(userReadCheckbox).toHaveCount(1);
+    await userReadCheckbox.check({ force: true });
+    await expect(userReadCheckbox).toBeChecked();
+
+    const userUpdateCheckbox = page
+      .locator('input[name="Permissions[User.Update]"]')
+      .first();
+    await expect(userUpdateCheckbox).toHaveCount(1);
+    await expect(userUpdateCheckbox).not.toBeChecked();
 
     // Save the role
     await saveRoleButton(page).first().click();
@@ -509,40 +498,28 @@ test.describe("role management flows", () => {
     // (not stuck on login page)
     await expect(page).not.toHaveURL(/\/login/);
 
-    // Navigate to users page - check if RBAC controls access appropriately
-    await page.goto("/users");
+    // The limited user should have explicit read access to users.
+    await page.goto("/users", { waitUntil: "domcontentloaded" });
+    await expect(page).toHaveURL(/\/users$/);
+    await expect(page.locator("table")).toBeVisible();
 
-    // Get current URL and page state
-    const rbacUrl = page.url();
+    // And they should not have access to a different resource like roles.
+    await page.goto("/roles", { waitUntil: "domcontentloaded" });
+    const rolesTableVisible = await page
+      .locator("tbody")
+      .isVisible()
+      .catch(() => false);
+    const forbiddenVisible = await page
+      .getByText(/forbidden/i)
+      .isVisible()
+      .catch(() => false);
+    const redirectedAwayFromRoles = !/\/roles$/.test(page.url());
 
-    // The limited user's access depends on their permissions
-    // They should either:
-    // 1. See the users page (if they have read permission), or
-    // 2. Be redirected/blocked (if they don't)
-    // Either outcome validates that RBAC is working
-    const isOnUsersPage = rbacUrl.includes("/users");
-    const isRedirectedAway =
-      rbacUrl.includes("/login") || rbacUrl === "/" || rbacUrl.endsWith("/");
-
-    // One of these must be true - RBAC is enforcing something
-    expect(isOnUsersPage || isRedirectedAway).toBe(true);
-
-    // If on users page, verify page structure is valid (not error page)
-    if (isOnUsersPage) {
-      // Should have valid page structure, not an error message
-      const hasTable = await page
-        .locator("table")
-        .isVisible()
-        .catch(() => false);
-      const hasForbidden = await page
-        .locator("text=forbidden")
-        .isVisible()
-        .catch(() => false);
-
-      // Either we have access (table visible) or we're blocked (forbidden message)
-      // Both are valid RBAC behaviors
-      expect(hasTable || hasForbidden).toBe(true);
-    }
+    expect(
+      rolesTableVisible,
+      "limited role should not be able to view the roles list",
+    ).toBe(false);
+    expect(forbiddenVisible || redirectedAwayFromRoles).toBe(true);
 
     // Clean up: Login back as admin and delete the test role and user
     await logout(page);

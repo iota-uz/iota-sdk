@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -14,12 +13,14 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/iota-uz/iota-sdk/components/base/slot"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 )
 
@@ -37,7 +38,7 @@ func (c *UsersController) GetSingle(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -95,16 +96,32 @@ func (c *UsersController) GetSingle(
 	slots.Async(
 		users.SingleSlotGroups,
 		func(ctx context.Context) (templ.Component, error) {
-			groups, _, err := groupQueryService.FindGroups(ctx, userGroupsFindParams(1000))
+			if len(userViewModel.GroupIDs) == 0 {
+				return escapedText(""), nil
+			}
+
+			groups, _, err := groupQueryService.FindGroups(ctx, &query.GroupFindParams{
+				Limit:  len(userViewModel.GroupIDs),
+				Offset: 0,
+				SortBy: query.SortBy{
+					Fields: []repo.SortByField[query.Field]{
+						{Field: query.GroupFieldName, Ascending: true},
+					},
+				},
+				Filters: []query.GroupFilter{
+					{
+						Column: query.GroupFieldID,
+						Filter: repo.In(userViewModel.GroupIDs),
+					},
+				},
+			})
 			if err != nil {
 				return nil, err
 			}
 
 			out := make([]string, 0, len(groups))
 			for _, group := range groups {
-				if slices.Contains(userViewModel.GroupIDs, group.ID) {
-					out = append(out, group.Name)
-				}
+				out = append(out, group.Name)
 			}
 
 			return escapedText(strings.Join(out, ", ")), nil
@@ -134,7 +151,7 @@ func (c *UsersController) GetEdit(
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.WithError(err).Error("error parsing user id")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -247,7 +264,7 @@ func (c *UsersController) BlockUser(
 
 	if _, err := userService.BlockUser(r.Context(), id, blockReason); err != nil {
 		logger.WithError(err).Error("error blocking user")
-		errors["BlockReason"] = err.Error()
+		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.OperationFailed")
 
 		targetUser, fetchErr := userService.GetByID(r.Context(), id)
 		if fetchErr != nil {

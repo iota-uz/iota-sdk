@@ -8,6 +8,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -33,6 +34,9 @@ func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		if conn.User().TenantID() != event.Result.TenantID() {
+			return nil
+		}
+		if !conn.User().Can(permissions.UserRead) {
 			return nil
 		}
 
@@ -64,6 +68,9 @@ func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
 		if conn.User().TenantID() != event.Result.TenantID() {
 			return nil
 		}
+		if !conn.User().Can(permissions.UserRead) {
+			return nil
+		}
 
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
@@ -89,6 +96,9 @@ func (ru *UserRealtimeUpdates) OnUserUpdated(event *user.UpdatedEvent) {
 
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
 		if conn.User().TenantID() != event.Result.TenantID() {
+			return nil
+		}
+		if !conn.User().Can(permissions.UserRead) {
 			return nil
 		}
 
