@@ -179,7 +179,15 @@ func (c *UsersController) RevokeUserSession(
 		return
 	}
 
+	pageCtx := composables.UsePageCtx(r.Context())
 	logger.WithField("tokenID", tokenID).Info("session revoked successfully")
-	htmx.SetTrigger(w, "showToast", `{"type": "success", "message": "Session revoked successfully"}`)
+	htmx.SetTrigger(
+		w,
+		"showToast",
+		fmt.Sprintf(
+			`{"type": "success", "message": "%s"}`,
+			templ.EscapeString(pageCtx.T("Users.Sessions.RevokeSuccess")),
+		),
+	)
 	w.WriteHeader(http.StatusOK)
 }

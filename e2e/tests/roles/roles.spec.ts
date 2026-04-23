@@ -1,6 +1,6 @@
-import { test, expect, type Page } from "@playwright/test";
-import { login, logout, waitForAlpine } from "../../fixtures/auth";
-import { resetTestDatabase, seedScenario } from "../../fixtures/test-data";
+import { test, expect, type Page } from '@playwright/test';
+import { login, logout, waitForAlpine } from '../../fixtures/auth';
+import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
 
 /**
  * Submit the #delete-form via htmx programmatically.
@@ -9,12 +9,12 @@ import { resetTestDatabase, seedScenario } from "../../fixtures/test-data";
  */
 async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
   const response = await page.evaluate(async () => {
-    const form = document.getElementById("delete-form");
-    let endpoint = "";
+    const form = document.getElementById('delete-form');
+    let endpoint = '';
     const params = new URLSearchParams();
 
-    if (form instanceof HTMLFormElement && form.getAttribute("hx-delete")) {
-      endpoint = form.getAttribute("hx-delete") || "";
+    if (form instanceof HTMLFormElement && form.getAttribute('hx-delete')) {
+      endpoint = form.getAttribute('hx-delete') || '';
       for (const [key, value] of new FormData(form).entries()) {
         params.append(key, String(value));
       }
@@ -24,19 +24,19 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
         'input[name="gorilla.csrf.Token"]',
       );
       if (csrfInput?.value) {
-        params.append("gorilla.csrf.Token", csrfInput.value);
+        params.append('gorilla.csrf.Token', csrfInput.value);
       }
     }
 
-    if (!endpoint) throw new Error("delete endpoint not found");
+    if (!endpoint) throw new Error('delete endpoint not found');
 
     const res = await fetch(endpoint, {
-      method: "DELETE",
-      credentials: "same-origin",
+      method: 'DELETE',
+      credentials: 'same-origin',
       headers: {
-        "HX-Request": "true",
-        "X-Requested-With": "XMLHttpRequest",
-        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        'HX-Request': 'true',
+        'X-Requested-With': 'XMLHttpRequest',
+        'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
       },
       body: params.toString(),
     });
@@ -45,36 +45,38 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
       ok: res.ok,
       status: res.status,
       redirect:
-        res.headers.get("Hx-Redirect") ||
-        res.headers.get("HX-Redirect") ||
+        res.headers.get('Hx-Redirect') ||
+        res.headers.get('HX-Redirect') ||
         (res.redirected ? res.url : null),
-      location: res.headers.get("Location"),
+      location: res.headers.get('Location'),
     };
   });
   expect(response.ok || response.status === 302).toBeTruthy();
   if (response.redirect) {
-    await page.goto(response.redirect, { waitUntil: "domcontentloaded" });
+    await page.goto(response.redirect, { waitUntil: 'domcontentloaded' });
   }
 }
 
 async function ensureRolesListVisible(page: Page): Promise<void> {
   await expect(page).toHaveURL(/\/roles$/, { timeout: 15000 });
-  await expect(page.locator("tbody")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('tbody')).toBeVisible({ timeout: 15000 });
 }
 
-test.describe("role management flows", () => {
+test.describe('role management flows', () => {
   // Tests MUST run serially - some tests depend on data created by previous tests
-  test.describe.configure({ mode: "serial" });
+  test.describe.configure({ mode: 'serial' });
+  const userReadPermissionID = '13f011c8-1107-4957-ad19-70cfc167a775';
+  const userUpdatePermissionID = '1c351fd3-9a2b-40b9-80b1-11ba81e645c8';
 
   const saveRoleButton = (page: Page) =>
     page
-      .getByRole("button", { name: /save/i })
+      .getByRole('button', { name: /save/i })
       .or(page.locator('[data-test-id="save-role-btn"], #save-btn'));
 
   // Reset database once for entire suite
   test.beforeAll(async ({ request }) => {
     await resetTestDatabase(request, { reseedMinimal: false });
-    await seedScenario(request, "comprehensive");
+    await seedScenario(request, 'comprehensive');
   });
 
   test.beforeEach(async ({ page }) => {
@@ -85,14 +87,14 @@ test.describe("role management flows", () => {
     await logout(page);
   });
 
-  test("complete role lifecycle: create, edit, and delete", async ({
+  test('complete role lifecycle: create, edit, and delete', async ({
     page,
   }) => {
     // Login as admin user
-    await login(page, "test@gmail.com", "TestPass123!");
+    await login(page, 'test@gmail.com', 'TestPass123!');
 
     // Navigate to roles page
-    await page.goto("/roles");
+    await page.goto('/roles');
     await expect(page).toHaveURL(/\/roles$/);
 
     // Wait for roles page to be ready and new button to be visible and clickable
@@ -102,7 +104,7 @@ test.describe("role management flows", () => {
 
     // Count initial roles
     const initialRoleCount = await page
-      .locator("tbody tr:not(.hidden)")
+      .locator('tbody tr:not(.hidden)')
       .count();
 
     // Click new role button
@@ -118,13 +120,13 @@ test.describe("role management flows", () => {
     ).toBeVisible();
     // Save button (by role or test-id); may be in sticky footer below fold
     const saveBtn = saveRoleButton(page).first();
-    await saveBtn.waitFor({ state: "attached", timeout: 15000 });
+    await saveBtn.waitFor({ state: 'attached', timeout: 15000 });
     await saveBtn.scrollIntoViewIfNeeded();
     await expect(saveBtn).toBeVisible();
 
     // Fill in role details
-    const testRoleName = "Test Editor Role";
-    const testRoleDescription = "Can view and edit users";
+    const testRoleName = 'Test Editor Role';
+    const testRoleDescription = 'Can view and edit users';
     await page.locator('[data-test-id="role-name-input"]').fill(testRoleName);
     await page
       .locator('[data-test-id="role-description-input"]')
@@ -161,16 +163,16 @@ test.describe("role management flows", () => {
 
     // Verify role appears in list
     const createdRoleRow = page
-      .locator("tbody tr")
+      .locator('tbody tr')
       .filter({ hasText: testRoleName });
     await expect(createdRoleRow).toBeVisible();
 
     // Verify role count increased
-    const newRoleCount = await page.locator("tbody tr:not(.hidden)").count();
+    const newRoleCount = await page.locator('tbody tr:not(.hidden)').count();
     expect(newRoleCount).toBe(initialRoleCount + 1);
 
     // Edit the role - find the edit button for our new role
-    await createdRoleRow.locator("a").first().click();
+    await createdRoleRow.locator('a').first().click();
     await expect(page).toHaveURL(/\/roles\/\d+$/);
 
     // Verify the saved values are loaded in the edit form
@@ -187,7 +189,7 @@ test.describe("role management flows", () => {
     ).toBeVisible();
 
     // Update role name
-    const updatedRoleName = "Updated Editor Role";
+    const updatedRoleName = 'Updated Editor Role';
     await page
       .locator('[data-test-id="role-name-input"]')
       .fill(updatedRoleName);
@@ -201,17 +203,17 @@ test.describe("role management flows", () => {
 
     // Verify name was updated in the list
     await expect(
-      page.locator("tbody tr").filter({ hasText: updatedRoleName }),
+      page.locator('tbody tr').filter({ hasText: updatedRoleName }),
     ).toBeVisible();
     await expect(
-      page.locator("tbody tr").filter({ hasText: testRoleName }),
+      page.locator('tbody tr').filter({ hasText: testRoleName }),
     ).not.toBeVisible();
 
     // Delete the role
     const updatedRoleRow = page
-      .locator("tbody tr")
+      .locator('tbody tr')
       .filter({ hasText: updatedRoleName });
-    await updatedRoleRow.locator("a").first().click();
+    await updatedRoleRow.locator('a').first().click();
     await expect(page).toHaveURL(/\/roles\/\d+$/);
 
     // Verify we're on the correct edit page
@@ -231,21 +233,21 @@ test.describe("role management flows", () => {
 
     // Verify role was deleted from list
     await expect(
-      page.locator("tbody tr").filter({ hasText: updatedRoleName }),
+      page.locator('tbody tr').filter({ hasText: updatedRoleName }),
     ).not.toBeVisible();
 
     // Verify role count returned to initial
-    const finalRoleCount = await page.locator("tbody tr:not(.hidden)").count();
+    const finalRoleCount = await page.locator('tbody tr:not(.hidden)').count();
     expect(finalRoleCount).toBe(initialRoleCount);
   });
 
-  test("permission UI shows only modules with resources (regression test for #498)", async ({
+  test('permission UI shows only modules with resources (regression test for #498)', async ({
     page,
   }) => {
-    await login(page, "test@gmail.com", "TestPass123!");
+    await login(page, 'test@gmail.com', 'TestPass123!');
 
     // Navigate to create role page
-    await page.goto("/roles/new", { waitUntil: "domcontentloaded" });
+    await page.goto('/roles/new', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/roles\/new$/);
 
     // Wait for Alpine.js and permission UI to load
@@ -286,7 +288,7 @@ test.describe("role management flows", () => {
     // If it has zero, that's the bug from #498 (empty module being displayed)
     expect(
       inputCount,
-      "Default module tab should have permission inputs",
+      'Default module tab should have permission inputs',
     ).toBeGreaterThan(0);
 
     // Verify the total permission count across all modules
@@ -297,26 +299,26 @@ test.describe("role management flows", () => {
     expect(totalPermissionCount).toBeGreaterThanOrEqual(4);
   });
 
-  test("system roles are protected from modification", async ({ page }) => {
-    await login(page, "test@gmail.com", "TestPass123!");
+  test('system roles are protected from modification', async ({ page }) => {
+    await login(page, 'test@gmail.com', 'TestPass123!');
 
     // Navigate to roles page
-    await page.goto("/roles", { waitUntil: "domcontentloaded" });
+    await page.goto('/roles', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/roles$/);
 
     // Verify the roles table is visible and has content
-    const rolesTable = page.locator("tbody");
+    const rolesTable = page.locator('tbody');
     await expect(rolesTable).toBeVisible();
 
     // Count total roles in the table
-    const roleRows = page.locator("tbody tr:not(.hidden)");
+    const roleRows = page.locator('tbody tr:not(.hidden)');
     const totalRoles = await roleRows.count();
     expect(totalRoles).toBeGreaterThan(0);
 
     // Find a system role row - system roles typically have disabled edit buttons
     // The Administrator role is usually a system role
     const systemRoleRow = page
-      .locator("tbody tr")
+      .locator('tbody tr')
       .filter({ hasText: /Administrator|System/i })
       .first();
 
@@ -326,31 +328,31 @@ test.describe("role management flows", () => {
       await expect(systemRoleRow).toContainText(/Administrator|System/i);
 
       // The edit button should be disabled for system roles
-      const editButton = systemRoleRow.locator("a, button").first();
+      const editButton = systemRoleRow.locator('a, button').first();
       await expect(editButton).toBeVisible();
 
       // Check if button is disabled using multiple possible indicators
       const isDisabled =
         (await editButton.isDisabled()) ||
-        (await editButton.getAttribute("aria-disabled")) === "true" ||
-        (await editButton.getAttribute("disabled")) !== null;
+        (await editButton.getAttribute('aria-disabled')) === 'true' ||
+        (await editButton.getAttribute('disabled')) !== null;
 
       // System roles MUST have their edit buttons disabled
-      expect(isDisabled, "System role edit button should be disabled").toBe(
+      expect(isDisabled, 'System role edit button should be disabled').toBe(
         true,
       );
 
       // Additionally verify the button has disabled styling or state
-      const buttonClasses = (await editButton.getAttribute("class")) || "";
+      const buttonClasses = (await editButton.getAttribute('class')) || '';
       const hasDisabledAppearance =
         isDisabled ||
-        buttonClasses.includes("disabled") ||
-        buttonClasses.includes("opacity") ||
-        buttonClasses.includes("cursor-not-allowed");
+        buttonClasses.includes('disabled') ||
+        buttonClasses.includes('opacity') ||
+        buttonClasses.includes('cursor-not-allowed');
 
       expect(
         hasDisabledAppearance,
-        "System role button should have disabled appearance",
+        'System role button should have disabled appearance',
       ).toBe(true);
     } else {
       // If no system role exists in the test data, this test is skipped
@@ -359,19 +361,19 @@ test.describe("role management flows", () => {
     }
   });
 
-  test("user with limited role can only access permitted resources (RBAC flow)", async ({
+  test('user with limited role can only access permitted resources (RBAC flow)', async ({
     page,
     request,
   }) => {
-    const limitedRoleName = "Limited Reader Role";
-    const limitedUserEmail = "limited@test.com";
-    const limitedUserPassword = "TestPass123!";
+    const limitedRoleName = 'Limited Reader Role';
+    const limitedUserEmail = 'limited@test.com';
+    const limitedUserPassword = 'TestPass123!';
 
     // Login as admin to create a limited role and user
-    await login(page, "test@gmail.com", "TestPass123!");
+    await login(page, 'test@gmail.com', 'TestPass123!');
 
     // Create a limited role with only User.Read permission
-    await page.goto("/roles/new", { waitUntil: "domcontentloaded" });
+    await page.goto('/roles/new', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/roles\/new$/);
 
     await page
@@ -379,7 +381,7 @@ test.describe("role management flows", () => {
       .fill(limitedRoleName);
     await page
       .locator('[data-test-id="role-description-input"]')
-      .fill("Can only view users");
+      .fill('Can only view users');
 
     // Verify inputs were set
     await expect(page.locator('[data-test-id="role-name-input"]')).toHaveValue(
@@ -390,15 +392,20 @@ test.describe("role management flows", () => {
     await waitForAlpine(page);
 
     // Find and enable only the User Read permission
-    const userReadCheckbox = page
-      .locator('input[name="Permissions[User.Read]"]')
+    const coreModuleContent = page.locator(
+      '[data-test-id="module-content-Core"]',
+    );
+    await expect(coreModuleContent).toBeVisible();
+
+    const userReadCheckbox = coreModuleContent
+      .locator(`input[name="Permissions[${userReadPermissionID}]"]`)
       .first();
     await expect(userReadCheckbox).toHaveCount(1);
     await userReadCheckbox.check({ force: true });
     await expect(userReadCheckbox).toBeChecked();
 
-    const userUpdateCheckbox = page
-      .locator('input[name="Permissions[User.Update]"]')
+    const userUpdateCheckbox = coreModuleContent
+      .locator(`input[name="Permissions[${userUpdatePermissionID}]"]`)
       .first();
     await expect(userUpdateCheckbox).toHaveCount(1);
     await expect(userUpdateCheckbox).not.toBeChecked();
@@ -409,7 +416,7 @@ test.describe("role management flows", () => {
 
     // Verify role was created and appears in the table
     const createdRoleRow = page
-      .locator("tbody tr")
+      .locator('tbody tr')
       .filter({ hasText: limitedRoleName });
     await expect(createdRoleRow).toBeVisible();
 
@@ -417,48 +424,48 @@ test.describe("role management flows", () => {
     await expect(createdRoleRow).toContainText(limitedRoleName);
 
     // Create a new user with this limited role
-    await page.goto("/users/new");
+    await page.goto('/users/new');
     await expect(page).toHaveURL(/\/users\/new$/);
 
     // Fill in user details
-    await page.locator("[name=FirstName]").fill("Limited");
-    await page.locator("[name=LastName]").fill("User");
-    await page.locator("[name=Email]").fill(limitedUserEmail);
-    await page.locator("[name=Phone]").fill("+998901112233");
-    await page.locator("[name=Password]").fill(limitedUserPassword);
+    await page.locator('[name=FirstName]').fill('Limited');
+    await page.locator('[name=LastName]').fill('User');
+    await page.locator('[name=Email]').fill(limitedUserEmail);
+    await page.locator('[name=Phone]').fill('+998901112233');
+    await page.locator('[name=Password]').fill(limitedUserPassword);
     // Select first enabled option (index 0 might be a disabled placeholder)
-    const languageSelect = page.locator("[name=Language]");
-    const enabledOptions = languageSelect.locator("option:not([disabled])");
+    const languageSelect = page.locator('[name=Language]');
+    const enabledOptions = languageSelect.locator('option:not([disabled])');
     const firstEnabledValue = await enabledOptions
       .first()
-      .getAttribute("value");
+      .getAttribute('value');
     if (firstEnabledValue) {
       await languageSelect.selectOption(firstEnabledValue);
     }
 
     // Verify user form fields
-    await expect(page.locator("[name=FirstName]")).toHaveValue("Limited");
-    await expect(page.locator("[name=LastName]")).toHaveValue("User");
-    await expect(page.locator("[name=Email]")).toHaveValue(limitedUserEmail);
+    await expect(page.locator('[name=FirstName]')).toHaveValue('Limited');
+    await expect(page.locator('[name=LastName]')).toHaveValue('User');
+    await expect(page.locator('[name=Email]')).toHaveValue(limitedUserEmail);
 
     // Select the Limited Reader Role in the role dropdown
-    const roleCombobox = page.locator('select[name="RoleIDs"]').locator("..");
-    const caretIcon = roleCombobox.locator("svg.cursor-pointer");
+    const roleCombobox = page.locator('select[name="RoleIDs"]').locator('..');
+    const caretIcon = roleCombobox.locator('svg.cursor-pointer');
     if (await caretIcon.isVisible()) {
       await caretIcon.click();
-      const roleDropdown = roleCombobox.locator("ul[x-ref=list]");
+      const roleDropdown = roleCombobox.locator('ul[x-ref=list]');
       await expect(roleDropdown).toBeVisible();
 
       // Find and click the "Limited Reader Role" option (use first() to avoid strict mode violation)
       const limitedRoleOption = roleDropdown
-        .locator("li")
+        .locator('li')
         .filter({ hasText: limitedRoleName })
         .first();
       if (await limitedRoleOption.isVisible()) {
         await limitedRoleOption.click();
       } else {
         // Fallback: select first available role
-        await roleDropdown.locator("li").first().click();
+        await roleDropdown.locator('li').first().click();
       }
 
       // Wait for dropdown to close after selection
@@ -466,7 +473,7 @@ test.describe("role management flows", () => {
     }
 
     // Save the user
-    await page.locator("[id=save-btn]").click();
+    await page.locator('[id=save-btn]').click();
 
     // Wait for redirect to users page or handle login redirect
     // The newly created user might not have sufficient permissions causing a redirect to login
@@ -474,19 +481,19 @@ test.describe("role management flows", () => {
 
     // Check where we ended up
     const currentUrl = page.url();
-    if (currentUrl.includes("/login")) {
+    if (currentUrl.includes('/login')) {
       // If redirected to login, there was likely a session or permission issue
       // Re-login as admin to continue the test
-      await login(page, "test@gmail.com", "TestPass123!");
-      await page.goto("/users");
+      await login(page, 'test@gmail.com', 'TestPass123!');
+      await page.goto('/users');
     }
 
     // Verify user was created in the list
     const createdUserRow = page
-      .locator("tbody tr")
-      .filter({ hasText: "Limited User" });
+      .locator('tbody tr')
+      .filter({ hasText: 'Limited User' });
     await expect(createdUserRow).toBeVisible();
-    await expect(createdUserRow).toContainText("Limited");
+    await expect(createdUserRow).toContainText('Limited');
 
     // Logout admin
     await logout(page);
@@ -499,14 +506,14 @@ test.describe("role management flows", () => {
     await expect(page).not.toHaveURL(/\/login/);
 
     // The limited user should have explicit read access to users.
-    await page.goto("/users", { waitUntil: "domcontentloaded" });
+    await page.goto('/users', { waitUntil: 'domcontentloaded' });
     await expect(page).toHaveURL(/\/users$/);
-    await expect(page.locator("table")).toBeVisible();
+    await expect(page.locator('table')).toBeVisible();
 
     // And they should not have access to a different resource like roles.
-    await page.goto("/roles", { waitUntil: "domcontentloaded" });
+    await page.goto('/roles', { waitUntil: 'domcontentloaded' });
     const rolesTableVisible = await page
-      .locator("tbody")
+      .locator('tbody')
       .isVisible()
       .catch(() => false);
     const forbiddenVisible = await page
@@ -517,21 +524,21 @@ test.describe("role management flows", () => {
 
     expect(
       rolesTableVisible,
-      "limited role should not be able to view the roles list",
+      'limited role should not be able to view the roles list',
     ).toBe(false);
     expect(forbiddenVisible || redirectedAwayFromRoles).toBe(true);
 
     // Clean up: Login back as admin and delete the test role and user
     await logout(page);
-    await login(page, "test@gmail.com", "TestPass123!");
+    await login(page, 'test@gmail.com', 'TestPass123!');
 
     // Delete the limited user
-    await page.goto("/users");
+    await page.goto('/users');
     const limitedUserRow = page
-      .locator("tbody tr")
-      .filter({ hasText: "Limited User" });
+      .locator('tbody tr')
+      .filter({ hasText: 'Limited User' });
     if (await limitedUserRow.isVisible()) {
-      await limitedUserRow.locator("td a").nth(1).click();
+      await limitedUserRow.locator('td a').nth(1).click();
 
       // Trigger htmx delete directly — this is cleanup, not testing the dialog
       await submitDeleteFormViaHtmx(page);
@@ -540,16 +547,16 @@ test.describe("role management flows", () => {
 
     // Verify user was deleted
     await expect(
-      page.locator("tbody tr").filter({ hasText: "Limited User" }),
+      page.locator('tbody tr').filter({ hasText: 'Limited User' }),
     ).not.toBeVisible();
 
     // Delete the limited role
-    await page.goto("/roles");
+    await page.goto('/roles');
     const limitedRoleRow = page
-      .locator("tbody tr")
+      .locator('tbody tr')
       .filter({ hasText: limitedRoleName });
     if (await limitedRoleRow.isVisible()) {
-      await limitedRoleRow.locator("a").first().click();
+      await limitedRoleRow.locator('a').first().click();
       await page.locator('[data-test-id="delete-role-btn"]').click();
 
       // Wait for dialog and trigger htmx delete directly
@@ -565,7 +572,7 @@ test.describe("role management flows", () => {
 
     // Verify role was deleted
     await expect(
-      page.locator("tbody tr").filter({ hasText: limitedRoleName }),
+      page.locator('tbody tr').filter({ hasText: limitedRoleName }),
     ).not.toBeVisible();
   });
 });

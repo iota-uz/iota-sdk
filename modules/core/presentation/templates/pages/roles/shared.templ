@@ -44,20 +44,6 @@ func getPermissionIds(permissions []*viewmodels.PermissionItem) []string {
 	return ids
 }
 
-func withFormAttr(attrs templ.Attributes, formID string) templ.Attributes {
-	if formID == "" {
-		return attrs
-	}
-
-	merged := templ.Attributes{}
-	for key, value := range attrs {
-		merged[key] = value
-	}
-	merged["form"] = formID
-
-	return merged
-}
-
 func permissionAttrs(attrs templ.Attributes, formID string, inputName string, permissionID string) templ.Attributes {
 	merged := templ.Attributes{}
 	for key, value := range attrs {

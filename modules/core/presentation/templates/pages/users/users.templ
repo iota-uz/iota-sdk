@@ -206,7 +206,7 @@ templ RoleFilter(props *IndexPageProps) {
 					@input.Checkbox(&input.CheckboxProps{
 						Label:   role.Name,
 						ID:      fmt.Sprintf("role-%s", role.ID),
-					Checked: slices.Contains(props.Filters.RoleIDs, role.ID),
+						Checked: slices.Contains(props.Filters.RoleIDs, role.ID),
 						Attrs: templ.Attributes{
 							"name":    "roleID",
 							"value":   role.ID,
@@ -245,7 +245,7 @@ templ GroupFilter(props *IndexPageProps) {
 					@input.Checkbox(&input.CheckboxProps{
 						Label:   group.Name,
 						ID:      fmt.Sprintf("group-%s", group.ID),
-					Checked: slices.Contains(props.Filters.GroupIDs, group.ID),
+						Checked: slices.Contains(props.Filters.GroupIDs, group.ID),
 						Attrs: templ.Attributes{
 							"name":    "groupID",
 							"value":   group.ID,
