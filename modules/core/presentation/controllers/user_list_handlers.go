@@ -15,6 +15,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 )
 
+func parseFilterTime(value string) (time.Time, error) {
+	return time.Parse(time.RFC3339Nano, value)
+}
+
 func userIndexFiltersFromRequest(r *http.Request) users.IndexFilterState {
 	return users.IndexFilterState{
 		Search:        r.URL.Query().Get("Search"),
@@ -66,7 +70,7 @@ func (c *UsersController) Users(
 	}
 
 	if filters.CreatedAtTo != "" {
-		t, err := time.Parse(time.RFC3339, filters.CreatedAtTo)
+		t, err := parseFilterTime(filters.CreatedAtTo)
 		if err != nil {
 			logger.WithError(err).Error("error parsing CreatedAt.To")
 			http.Error(w, "Invalid date format", http.StatusBadRequest)
@@ -79,7 +83,7 @@ func (c *UsersController) Users(
 	}
 
 	if filters.CreatedAtFrom != "" {
-		t, err := time.Parse(time.RFC3339, filters.CreatedAtFrom)
+		t, err := parseFilterTime(filters.CreatedAtFrom)
 		if err != nil {
 			logger.WithError(err).Error("error parsing CreatedAt.From")
 			http.Error(w, "Invalid date format", http.StatusBadRequest)

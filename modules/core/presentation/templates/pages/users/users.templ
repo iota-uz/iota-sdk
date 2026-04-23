@@ -230,7 +230,7 @@ templ GroupFilter(props *IndexPageProps) {
 			<div>
 				@input.Checkbox(&input.CheckboxProps{
 					Label:   pageCtx.T("Users.List.AllGroups"),
-					ID:      "all-users-checkbox",
+					ID:      "all-groups-checkbox",
 					Checked: len(props.Filters.GroupIDs) == 0,
 					Attrs: templ.Attributes{
 						"class":   "parent",

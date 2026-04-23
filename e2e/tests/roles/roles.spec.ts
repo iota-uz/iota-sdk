@@ -43,7 +43,6 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
 
     return {
       ok: res.ok,
-      status: res.status,
       redirect:
         res.headers.get('Hx-Redirect') ||
         res.headers.get('HX-Redirect') ||
@@ -51,7 +50,7 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
       location: res.headers.get('Location'),
     };
   });
-  expect(response.ok || response.status === 302).toBeTruthy();
+  expect(response.ok).toBeTruthy();
   if (response.redirect) {
     await page.goto(response.redirect, { waitUntil: 'domcontentloaded' });
   }

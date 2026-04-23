@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/a-h/templ"
 	"github.com/sirupsen/logrus"
@@ -241,9 +242,9 @@ func (c *UsersController) BlockUser(
 	switch {
 	case blockReason == "":
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonRequired")
-	case len(blockReason) < 3:
+	case utf8.RuneCountInString(blockReason) < 3:
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonTooShort")
-	case len(blockReason) > 1024:
+	case utf8.RuneCountInString(blockReason) > 1024:
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonTooLong")
 	}
 

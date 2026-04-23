@@ -5,6 +5,7 @@ import (
 	"context"
 
 	"github.com/a-h/templ"
+	"github.com/google/uuid"
 
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -25,15 +26,11 @@ func NewUserRealtimeUpdates(app application.Application) *UserRealtimeUpdates {
 	return &UserRealtimeUpdates{app: app}
 }
 
-func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
+func (ru *UserRealtimeUpdates) broadcastToTenant(tenantID uuid.UUID, component templ.Component, label string) {
 	logger := configuration.Use().Logger()
 
-	component := users.UserCreatedEvent(mappers.UserToViewModel(event.Result), &base.TableRowProps{
-		Attrs: templ.Attributes{},
-	})
-
 	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
-		if conn.User().TenantID() != event.Result.TenantID() {
+		if conn.User().TenantID() != tenantID {
 			return nil
 		}
 		if !conn.User().Can(permissions.UserRead) {
@@ -42,77 +39,38 @@ func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
 
 		var buf bytes.Buffer
 		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render user created event for websocket")
+			logger.WithError(err).Errorf("failed to render %s event for websocket", label)
 			return nil
 		}
 		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send user created event to websocket connection")
+			logger.WithError(err).Errorf("failed to send %s event to websocket connection", label)
 			return nil
 		}
 		return nil
 	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast user created event to websocket")
+		logger.WithError(err).Errorf("failed to broadcast %s event to websocket", label)
 	}
 }
 
-func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
-	logger := configuration.Use().Logger()
+func (ru *UserRealtimeUpdates) OnUserCreated(event *user.CreatedEvent) {
+	component := users.UserCreatedEvent(mappers.UserToViewModel(event.Result), &base.TableRowProps{
+		Attrs: templ.Attributes{},
+	})
+	ru.broadcastToTenant(event.Result.TenantID(), component, "user created")
+}
 
+func (ru *UserRealtimeUpdates) OnUserDeleted(event *user.DeletedEvent) {
 	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{
 			"hx-swap-oob": "delete",
 		},
 	})
-
-	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
-		if conn.User().TenantID() != event.Result.TenantID() {
-			return nil
-		}
-		if !conn.User().Can(permissions.UserRead) {
-			return nil
-		}
-
-		var buf bytes.Buffer
-		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render user deleted event for websocket")
-			return nil
-		}
-		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send user deleted event to websocket connection")
-			return nil
-		}
-		return nil
-	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast user deleted event to websocket")
-	}
+	ru.broadcastToTenant(event.Result.TenantID(), component, "user deleted")
 }
 
 func (ru *UserRealtimeUpdates) OnUserUpdated(event *user.UpdatedEvent) {
-	logger := configuration.Use().Logger()
-
 	component := users.UserRow(mappers.UserToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
 	})
-
-	if err := ru.app.Websocket().ForEach(application.ChannelAuthenticated, func(connCtx context.Context, conn application.Connection) error {
-		if conn.User().TenantID() != event.Result.TenantID() {
-			return nil
-		}
-		if !conn.User().Can(permissions.UserRead) {
-			return nil
-		}
-
-		var buf bytes.Buffer
-		if err := component.Render(connCtx, &buf); err != nil {
-			logger.WithError(err).Error("failed to render user updated event for websocket")
-			return nil
-		}
-		if err := conn.SendMessage(buf.Bytes()); err != nil {
-			logger.WithError(err).Error("failed to send user updated event to websocket connection")
-			return nil
-		}
-		return nil
-	}); err != nil {
-		logger.WithError(err).Error("failed to broadcast user updated event to websocket")
-	}
+	ru.broadcastToTenant(event.Result.TenantID(), component, "user updated")
 }

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -180,14 +181,17 @@ func (c *UsersController) RevokeUserSession(
 	}
 
 	pageCtx := composables.UsePageCtx(r.Context())
+	toastPayload, err := json.Marshal(map[string]string{
+		"type":    "success",
+		"message": pageCtx.T("Users.Sessions.RevokeSuccess"),
+	})
+	if err != nil {
+		logger.WithError(err).Error("failed to marshal session revoke toast")
+		http.Error(w, "Failed to revoke session", http.StatusInternalServerError)
+		return
+	}
+
 	logger.WithField("tokenID", tokenID).Info("session revoked successfully")
-	htmx.SetTrigger(
-		w,
-		"showToast",
-		fmt.Sprintf(
-			`{"type": "success", "message": "%s"}`,
-			templ.EscapeString(pageCtx.T("Users.Sessions.RevokeSuccess")),
-		),
-	)
+	htmx.SetTrigger(w, "showToast", string(toastPayload))
 	w.WriteHeader(http.StatusOK)
 }

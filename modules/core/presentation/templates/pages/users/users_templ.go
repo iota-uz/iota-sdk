@@ -682,7 +682,7 @@ func GroupFilter(props *IndexPageProps) templ.Component {
 		}
 		templ_7745c5c3_Err = input.Checkbox(&input.CheckboxProps{
 			Label:   pageCtx.T("Users.List.AllGroups"),
-			ID:      "all-users-checkbox",
+			ID:      "all-groups-checkbox",
 			Checked: len(props.Filters.GroupIDs) == 0,
 			Attrs: templ.Attributes{
 				"class":   "parent",
