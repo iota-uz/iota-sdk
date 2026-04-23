@@ -77,8 +77,7 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
 }
 
 async function ensureRolesListVisible(page: Page): Promise<void> {
-  await page.waitForURL(/\/roles$/, { timeout: 15000 });
-  await expect(page).toHaveURL(/\/roles$/);
+  await expect(page).toHaveURL(/\/roles$/, { timeout: 15000 });
   await expect(page.locator("tbody")).toBeVisible({ timeout: 15000 });
 }
 
