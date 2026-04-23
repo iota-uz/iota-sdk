@@ -75,6 +75,37 @@ async function setCheckboxState(
   }, checked);
 }
 
+async function setMultiSelectByLabel(
+  locator: ReturnType<Page['locator']>,
+  labels: string[],
+): Promise<void> {
+  await locator.evaluate((element, nextLabels) => {
+    if (!(element instanceof HTMLSelectElement)) {
+      throw new Error('expected select element');
+    }
+
+    const labelSet = new Set(nextLabels);
+    let matched = 0;
+
+    for (const option of Array.from(element.options)) {
+      const shouldSelect = labelSet.has(option.text.trim());
+      option.selected = shouldSelect;
+      if (shouldSelect) {
+        matched++;
+      }
+    }
+
+    if (matched !== labelSet.size) {
+      throw new Error(
+        `expected to match ${labelSet.size} select options, matched ${matched}`,
+      );
+    }
+
+    element.dispatchEvent(new Event('input', { bubbles: true }));
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, labels);
+}
+
 test.describe('role management flows', () => {
   // Tests MUST run serially - some tests depend on data created by previous tests
   test.describe.configure({ mode: 'serial' });
@@ -461,29 +492,10 @@ test.describe('role management flows', () => {
     await expect(page.locator('[name=LastName]')).toHaveValue('User');
     await expect(page.locator('[name=Email]')).toHaveValue(limitedUserEmail);
 
-    // Select the Limited Reader Role in the role dropdown
-    const roleCombobox = page.locator('select[name="RoleIDs"]').locator('..');
-    const caretIcon = roleCombobox.locator('svg.cursor-pointer');
-    if (await caretIcon.isVisible()) {
-      await caretIcon.click();
-      const roleDropdown = roleCombobox.locator('ul[x-ref=list]');
-      await expect(roleDropdown).toBeVisible();
-
-      // Find and click the "Limited Reader Role" option (use first() to avoid strict mode violation)
-      const limitedRoleOption = roleDropdown
-        .locator('li')
-        .filter({ hasText: limitedRoleName })
-        .first();
-      if (await limitedRoleOption.isVisible()) {
-        await limitedRoleOption.click();
-      } else {
-        // Fallback: select first available role
-        await roleDropdown.locator('li').first().click();
-      }
-
-      // Wait for dropdown to close after selection
-      await expect(roleDropdown).not.toBeVisible();
-    }
+    // Select the Limited Reader Role directly on the underlying multi-select.
+    const roleSelect = page.locator('select[name="RoleIDs"]');
+    await expect(roleSelect).toHaveCount(1);
+    await setMultiSelectByLabel(roleSelect, [limitedRoleName]);
 
     // Save the user
     await page.locator('[id=save-btn]').click();
