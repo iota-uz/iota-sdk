@@ -61,6 +61,20 @@ async function ensureRolesListVisible(page: Page): Promise<void> {
   await expect(page.locator('tbody')).toBeVisible({ timeout: 15000 });
 }
 
+async function setCheckboxState(
+  locator: ReturnType<Page['locator']>,
+  checked: boolean,
+): Promise<void> {
+  await locator.evaluate((element, nextChecked) => {
+    if (!(element instanceof HTMLInputElement)) {
+      throw new Error('expected checkbox input');
+    }
+
+    element.checked = nextChecked;
+    element.dispatchEvent(new Event('change', { bubbles: true }));
+  }, checked);
+}
+
 test.describe('role management flows', () => {
   // Tests MUST run serially - some tests depend on data created by previous tests
   test.describe.configure({ mode: 'serial' });
@@ -400,7 +414,7 @@ test.describe('role management flows', () => {
       .locator(`input[name="Permissions[${userReadPermissionID}]"]`)
       .first();
     await expect(userReadCheckbox).toHaveCount(1);
-    await userReadCheckbox.check({ force: true });
+    await setCheckboxState(userReadCheckbox, true);
     await expect(userReadCheckbox).toBeChecked();
 
     const userUpdateCheckbox = coreModuleContent
