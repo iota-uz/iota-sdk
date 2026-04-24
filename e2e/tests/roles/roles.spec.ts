@@ -41,16 +41,26 @@ async function submitDeleteFormViaHtmx(page: Page): Promise<void> {
       body: params.toString(),
     });
 
+    const body = await res.text().catch(() => '');
+
     return {
+      endpoint,
       ok: res.ok,
+      status: res.status,
       redirect:
         res.headers.get('Hx-Redirect') ||
         res.headers.get('HX-Redirect') ||
         (res.redirected ? res.url : null),
       location: res.headers.get('Location'),
+      body: body.slice(0, 500),
     };
   });
-  expect(response.ok).toBeTruthy();
+  expect(
+    response.ok,
+    `DELETE ${response.endpoint} failed with status ${response.status}; location=${
+      response.location ?? 'none'
+    }; body=${response.body}`,
+  ).toBeTruthy();
   if (response.redirect) {
     await page.goto(response.redirect, { waitUntil: 'domcontentloaded' });
   }
@@ -571,7 +581,12 @@ test.describe('role management flows', () => {
       .locator('tbody tr')
       .filter({ hasText: 'Limited User' });
     if (await limitedUserRow.isVisible()) {
-      await limitedUserRow.locator('td a').nth(1).click();
+      await limitedUserRow
+        .locator('a[href*="/users/"][href$="/edit"]')
+        .first()
+        .click();
+      await expect(page).toHaveURL(/\/users\/\d+\/edit$/);
+      await expect(page.locator('#delete-user-btn')).toBeEnabled();
 
       // Trigger htmx delete directly — this is cleanup, not testing the dialog
       await submitDeleteFormViaHtmx(page);

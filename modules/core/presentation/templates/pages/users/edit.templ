@@ -317,23 +317,35 @@ templ EditFormInner(props *EditFormProps) {
 
 templ Edit(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	{{ deleteURL := strconv.Quote(string(templ.URL(fmt.Sprintf("/users/%s", props.User.ID)))) }}
 	{{ unblockURL := strconv.Quote(string(templ.URL(fmt.Sprintf("/users/%s/unblock", props.User.ID)))) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.Edit.Title")},
 	}) {
 		@EditForm(props)
+		<form
+			id="delete-form"
+			hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
+			hx-trigger="submit"
+			hx-target="#edit-content"
+			hx-swap="outerHTML"
+			hx-indicator="#delete-user-btn"
+			hx-disabled-elt="find button"
+			class="hidden"
+		>
+			@composables.CSRFTokenField()
+		</form>
 		@dialog.Confirmation(&dialog.Props{
 			Heading: pageCtx.T("Users.Single.Delete"),
 			Text:    pageCtx.T("Users.Single.DeleteConfirmation"),
 			Icon:    icons.Trash(icons.Props{Size: "20"}),
 			Action:  "open-delete-user-confirmation",
 			Attrs: templ.Attributes{
-				"@closing": fmt.Sprintf(`({target}) => {
+				"@closing": `({target}) => {
 					if (target.returnValue === "confirm") {
-						htmx.ajax('DELETE', %s, {target: '#edit-content', swap: 'outerHTML'});
+						const deleteForm = document.getElementById("delete-form");
+						htmx.trigger(deleteForm, "submit");
 					}
-				}`, deleteURL),
+				}`,
 			},
 			CancelText:  pageCtx.T("Cancel"),
 			ConfirmText: pageCtx.T("Delete"),
