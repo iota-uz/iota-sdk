@@ -536,7 +536,9 @@ test.describe('role management flows', () => {
     await expect(page.locator('table')).toBeVisible();
 
     // And they should not have access to a different resource like roles.
-    await page.goto('/roles', { waitUntil: 'domcontentloaded' });
+    const rolesResponse = await page.goto('/roles', {
+      waitUntil: 'domcontentloaded',
+    });
     const rolesTableVisible = await page
       .locator('tbody')
       .isVisible()
@@ -546,12 +548,18 @@ test.describe('role management flows', () => {
       .isVisible()
       .catch(() => false);
     const redirectedAwayFromRoles = !/\/roles$/.test(page.url());
+    const forbiddenStatus = rolesResponse?.status() === 403;
 
     expect(
       rolesTableVisible,
       'limited role should not be able to view the roles list',
     ).toBe(false);
-    expect(forbiddenVisible || redirectedAwayFromRoles).toBe(true);
+    expect(
+      forbiddenStatus || forbiddenVisible || redirectedAwayFromRoles,
+      `limited role should receive a forbidden response or redirect away from roles; status=${
+        rolesResponse?.status() ?? 'none'
+      } url=${page.url()}`,
+    ).toBe(true);
 
     // Clean up: Login back as admin and delete the test role and user
     await logout(page);
