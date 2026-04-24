@@ -375,7 +375,7 @@ templ Index(props *IndexPageProps) {
 			hx-swap="outerHTML"
 			hx-push-url="true"
 			hx-indicator="#users-table-body"
-			hx-trigger="keyup changed delay:500ms from:find input[name='Search'], change from:find input[type='checkbox'], change from:find input[name='CreatedAt.From'], change from:find input[name='CreatedAt.To'], change from:find select"
+			hx-trigger="keyup changed delay:500ms from:(form input[name='Search']), change from:(form input[type='checkbox']), change from:(form input[name='CreatedAt.From']), change from:(form input[name='CreatedAt.To']), change from:(form select)"
 		>
 			@UsersPageContent(props)
 		</form>

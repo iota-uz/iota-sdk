@@ -252,10 +252,11 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 
 	// Validate reason length
 	reason = strings.TrimSpace(reason)
-	if utf8.RuneCountInString(reason) < 3 {
+	reasonLength := utf8.RuneCountInString(reason)
+	if reasonLength < 3 {
 		return nil, errors.New("block reason must be at least 3 characters")
 	}
-	if utf8.RuneCountInString(reason) > 1024 {
+	if reasonLength > 1024 {
 		return nil, errors.New("block reason must not exceed 1024 characters")
 	}
 

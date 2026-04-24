@@ -1028,7 +1028,7 @@ func Index(props *IndexPageProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<form id=\"users-query-form\" hx-get=\"/users\" hx-target=\"#users-page-content\" hx-swap=\"outerHTML\" hx-push-url=\"true\" hx-indicator=\"#users-table-body\" hx-trigger=\"keyup changed delay:500ms from:find input[name=&#39;Search&#39;], change from:find input[type=&#39;checkbox&#39;], change from:find input[name=&#39;CreatedAt.From&#39;], change from:find input[name=&#39;CreatedAt.To&#39;], change from:find select\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 40, "<form id=\"users-query-form\" hx-get=\"/users\" hx-target=\"#users-page-content\" hx-swap=\"outerHTML\" hx-push-url=\"true\" hx-indicator=\"#users-table-body\" hx-trigger=\"keyup changed delay:500ms from:(form input[name=&#39;Search&#39;]), change from:(form input[type=&#39;checkbox&#39;]), change from:(form input[name=&#39;CreatedAt.From&#39;]), change from:(form input[name=&#39;CreatedAt.To&#39;]), change from:(form select)\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

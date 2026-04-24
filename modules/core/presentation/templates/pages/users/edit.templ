@@ -54,12 +54,12 @@ templ EditFormContentOOB(props *EditFormProps) {
 templ EditFormInner(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ uploads := useUploads(props.User) }}
-	{{ updateURL := fmt.Sprintf("/users/%s", props.User.ID) }}
-	{{ blockDrawerURL := fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }}
+	{{ updateURL := templ.URL(fmt.Sprintf("/users/%s", props.User.ID)) }}
+	{{ blockDrawerURL := templ.URL(fmt.Sprintf("/users/%s/block/drawer", props.User.ID)) }}
 	<form
 		id="save-form"
 		method="post"
-		hx-post={ updateURL }
+		hx-post={ string(updateURL) }
 		hx-indicator="#save-btn"
 		hx-target="#edit-content"
 		hx-swap="outerHTML"
@@ -251,7 +251,7 @@ templ EditFormInner(props *EditFormProps) {
 					<button
 						type="button"
 						class="btn btn-warning flex items-center gap-2"
-						hx-get={ blockDrawerURL }
+						hx-get={ string(blockDrawerURL) }
 						hx-target="#view-drawer"
 						hx-swap="innerHTML"
 						disabled?={ !props.User.CanBeBlocked }
@@ -317,6 +317,7 @@ templ EditFormInner(props *EditFormProps) {
 
 templ Edit(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ deleteURL := templ.URL(fmt.Sprintf("/users/%s", props.User.ID)) }}
 	{{ unblockURL := strconv.Quote(string(templ.URL(fmt.Sprintf("/users/%s/unblock", props.User.ID)))) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.Edit.Title")},
@@ -324,7 +325,7 @@ templ Edit(props *EditFormProps) {
 		@EditForm(props)
 		<form
 			id="delete-form"
-			hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
+			hx-delete={ string(deleteURL) }
 			hx-trigger="submit"
 			hx-target="#edit-content"
 			hx-swap="outerHTML"

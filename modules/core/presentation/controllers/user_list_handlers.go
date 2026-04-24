@@ -91,7 +91,7 @@ func (c *UsersController) Users(
 		}
 		findParams.Filters = append(findParams.Filters, query.Filter{
 			Column: query.FieldCreatedAt,
-			Filter: repo.Gt(t),
+			Filter: repo.Gte(t),
 		})
 	}
 
