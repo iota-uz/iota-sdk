@@ -330,7 +330,7 @@ templ Edit(props *EditFormProps) {
 			hx-target="#edit-content"
 			hx-swap="outerHTML"
 			hx-indicator="#delete-user-btn"
-			hx-disabled-elt="find button"
+			hx-disabled-elt="#delete-user-btn"
 			class="hidden"
 		>
 			@composables.CSRFTokenField()

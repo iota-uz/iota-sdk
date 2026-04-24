@@ -237,14 +237,15 @@ func (c *UsersController) BlockUser(
 	}
 
 	blockReason := strings.TrimSpace(r.FormValue("BlockReason"))
+	blockReasonLength := utf8.RuneCountInString(blockReason)
 	errors := map[string]string{}
 
 	switch {
 	case blockReason == "":
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonRequired")
-	case utf8.RuneCountInString(blockReason) < 3:
+	case blockReasonLength < 3:
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonTooShort")
-	case utf8.RuneCountInString(blockReason) > 1024:
+	case blockReasonLength > 1024:
 		errors["BlockReason"] = pageCtx.T("Users.Block.Errors.ReasonTooLong")
 	}
 

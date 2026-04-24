@@ -1002,7 +1002,7 @@ func Edit(props *EditFormProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\" hx-trigger=\"submit\" hx-target=\"#edit-content\" hx-swap=\"outerHTML\" hx-indicator=\"#delete-user-btn\" hx-disabled-elt=\"find button\" class=\"hidden\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "\" hx-trigger=\"submit\" hx-target=\"#edit-content\" hx-swap=\"outerHTML\" hx-indicator=\"#delete-user-btn\" hx-disabled-elt=\"#delete-user-btn\" class=\"hidden\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
