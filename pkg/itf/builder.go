@@ -13,10 +13,11 @@ import (
 
 // SuiteBuilder provides a fluent API for building test suites with minimal boilerplate
 type SuiteBuilder struct {
-	t          testing.TB
-	components []composition.Component
-	user       user.User
-	dbName     string
+	t            testing.TB
+	components   []composition.Component
+	capabilities []composition.Capability
+	user         user.User
+	dbName       string
 }
 
 // NewSuiteBuilder creates a new SuiteBuilder for HTTP controller testing
@@ -30,6 +31,18 @@ func NewSuiteBuilder(tb testing.TB) *SuiteBuilder {
 // WithComponents adds composition components to the test suite.
 func (sb *SuiteBuilder) WithComponents(components ...composition.Component) *SuiteBuilder {
 	sb.components = append(sb.components, components...)
+	return sb
+}
+
+// WithCapabilities sets the composition capabilities used when compiling the
+// suite container. When unset (the default), Build / BuildWithOptions compile
+// with [CapabilityAPI, CapabilityWorker] — preserving the historical
+// behaviour. Pass a narrower set (for example, just composition.CapabilityAPI)
+// to verify that worker-only contributions stay inactive — useful for testing
+// CLI / API-only compositions that must not materialize NATS consumers,
+// periodic-task managers, file-locked indices, etc.
+func (sb *SuiteBuilder) WithCapabilities(caps ...composition.Capability) *SuiteBuilder {
+	sb.capabilities = append(sb.capabilities[:0], caps...)
 	return sb
 }
 
@@ -91,6 +104,13 @@ func (sb *SuiteBuilder) AsAnonymous() *SuiteBuilder {
 func (sb *SuiteBuilder) Build() *Suite {
 	sb.t.Helper()
 
+	// When capabilities are explicitly set, route through BuildWithOptions to
+	// pass them down via the Option pipeline. Otherwise fall back to the
+	// original NewSuite path for full backward compatibility.
+	if len(sb.capabilities) > 0 {
+		return sb.BuildWithOptions()
+	}
+
 	// Create the base suite with modules
 	suite := NewSuite(sb.t, sb.components...)
 
@@ -107,9 +127,12 @@ func (sb *SuiteBuilder) BuildWithOptions(opts ...Option) *Suite {
 	sb.t.Helper()
 
 	// Build options array
-	options := make([]Option, 0, len(opts)+2)
+	options := make([]Option, 0, len(opts)+4)
 	if len(sb.components) > 0 {
 		options = append(options, WithComponents(sb.components...))
+	}
+	if len(sb.capabilities) > 0 {
+		options = append(options, WithCapabilities(sb.capabilities...))
 	}
 	if sb.user != nil {
 		options = append(options, WithUser(sb.user))
