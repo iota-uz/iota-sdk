@@ -1102,7 +1102,8 @@
       "Errors": {
         "ReasonRequired": "Bloklash sababi talab qilinadi",
         "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
-        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak",
+        "OperationFailed": "Фойдаланувчини блоклаб бўлмади. Илтимос, қайта уриниб кўринг."
       }
     },
     "Unblock": {

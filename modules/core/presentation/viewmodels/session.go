@@ -19,8 +19,7 @@ type Session struct {
 	CreatedAt    string
 	IsCurrent    bool
 	Icon         string
-	TokenID      string // Hash of token for safe DOM ids (session-row-*)
-	FullToken    string // Hidden from display, used for revocation
+	TokenID      string // Hash of token for safe DOM ids and revocation routes
 }
 
 // SessionToViewModel converts a domain session entity to a presentation ViewModel
@@ -49,7 +48,6 @@ func SessionToViewModel(s session.Session, currentToken string) *Session {
 		IsCurrent:    s.Token() == currentToken,
 		Icon:         deviceInfo.Icon,
 		TokenID:      hashToken(s.Token()),
-		FullToken:    s.Token(), // Store raw token for revocation
 	}
 }
 

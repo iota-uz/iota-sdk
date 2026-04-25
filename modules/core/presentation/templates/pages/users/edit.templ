@@ -2,6 +2,8 @@ package users
 
 import (
 	"fmt"
+	"strconv"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/button"
@@ -34,9 +36,36 @@ func useUploads(u *viewmodels.User) []*viewmodels.Upload {
 }
 
 templ EditForm(props *EditFormProps) {
+	@EditFormContent(props)
+}
+
+templ EditFormContent(props *EditFormProps) {
+	<div id="edit-content">
+		@EditFormInner(props)
+	</div>
+}
+
+templ EditFormContentOOB(props *EditFormProps) {
+	<div id="edit-content" hx-swap-oob="true">
+		@EditFormInner(props)
+	</div>
+}
+
+templ EditFormInner(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{ uploads := useUploads(props.User) }}
-	<div class="flex flex-col justify-between h-[calc(100vh-4rem)]" id="edit-content">
+	{{ updateURL := templ.URL(fmt.Sprintf("/users/%s", props.User.ID)) }}
+	{{ blockDrawerURL := templ.URL(fmt.Sprintf("/users/%s/block/drawer", props.User.ID)) }}
+	<form
+		id="save-form"
+		method="post"
+		hx-post={ string(updateURL) }
+		hx-indicator="#save-btn"
+		hx-target="#edit-content"
+		hx-swap="outerHTML"
+		class="flex flex-col justify-between h-[calc(100vh-4rem)]"
+	>
+		@composables.CSRFTokenField()
 		<div class="flex-1 overflow-y-auto p-4 md:p-6">
 			if props.User.IsBlocked {
 				<div class="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -103,7 +132,6 @@ templ EditForm(props *EditFormProps) {
 								Attrs: templ.Attributes{
 									"value": props.User.FirstName,
 									"name":  "FirstName",
-									"form":  "save-form",
 								},
 								Error: props.Errors["FirstName"],
 							})
@@ -112,7 +140,6 @@ templ EditForm(props *EditFormProps) {
 								Attrs: templ.Attributes{
 									"value": props.User.LastName,
 									"name":  "LastName",
-									"form":  "save-form",
 								},
 								Error: props.Errors["LastName"],
 							})
@@ -121,14 +148,12 @@ templ EditForm(props *EditFormProps) {
 								Attrs: templ.Attributes{
 									"value": props.User.MiddleName,
 									"name":  "MiddleName",
-									"form":  "save-form",
 								},
 								Error: props.Errors["MiddleName"],
 							})
 							@EmailInput(SharedProps{
 								Value:       props.User.Email,
 								Error:       props.Errors["Email"],
-								Form:        "save-form",
 								Placeholder: "email@gmail.com",
 								Required:    true,
 							})
@@ -138,7 +163,6 @@ templ EditForm(props *EditFormProps) {
 								Attrs: templ.Attributes{
 									"value":     props.User.Phone,
 									"name":      "Phone",
-									"form":      "save-form",
 									"minlength": "16",
 									"maxlength": "16",
 									"pattern":   "^\\+998.{12}",
@@ -155,14 +179,12 @@ templ EditForm(props *EditFormProps) {
 								Roles:    props.Roles,
 								Selected: props.User.Roles,
 								Error:    props.Errors["RoleIDs"],
-								Form:     "save-form",
 								Name:     "RoleIDs",
 							})
 							@GroupSelect(&GroupSelectProps{
 								Groups:   props.Groups,
 								Selected: props.User.GroupIDs,
 								Error:    props.Errors["GroupIDs"],
-								Form:     "save-form",
 								Name:     "GroupIDs",
 							})
 							@input.Password(&input.Props{
@@ -171,14 +193,13 @@ templ EditForm(props *EditFormProps) {
 								Attrs: templ.Attributes{
 									"autocomplete": "new-password",
 									"name":         "Password",
-									"form":         "save-form",
 								},
 							})
 							@usercomponents.LanguageSelect(&usercomponents.LanguageSelectProps{
 								Label:       pageCtx.T("Users.Single.Language"),
 								Placeholder: pageCtx.T("Users.Single.SelectLanguage"),
 								Value:       string(props.User.Language),
-								Attrs:       templ.Attributes{"name": "Language", "form": "save-form"},
+								Attrs:       templ.Attributes{"name": "Language"},
 								Error:       props.Errors["Language"],
 							})
 						}
@@ -191,12 +212,10 @@ templ EditForm(props *EditFormProps) {
 							Accept:      "image/*",
 							Error:       props.Errors["AvatarID"],
 							Uploads:     uploads,
-							Form:        "save-form",
 						})
 					}
 				</div>
 				<div x-show="selectedTab === 'permissions'" class="mt-5 flex flex-col gap-5">
-					{{ pageCtx := composables.UsePageCtx(ctx) }}
 					for i, group := range props.ResourcePermissionGroups {
 						@card.Card(card.Props{
 							Class: "space-y-3",
@@ -205,6 +224,7 @@ templ EditForm(props *EditFormProps) {
 								PageContext:   pageCtx,
 								ResourceGroup: group,
 								GroupIndex:    i,
+								InputName:     "PermissionIDs",
 							})
 						}
 					}
@@ -225,15 +245,13 @@ templ EditForm(props *EditFormProps) {
 				}
 			}
 		</div>
-		<div
-			class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4"
-		>
+		<div class="h-16 md:h-20 shadow-t-lg border-t w-full flex items-center justify-end px-4 md:px-8 bg-surface-300 border-t-primary mt-auto gap-4">
 			if composables.CanUser(ctx, permissions.UserUpdateBlockStatus) == nil {
 				if !props.User.IsBlocked {
 					<button
 						type="button"
 						class="btn btn-warning flex items-center gap-2"
-						hx-get={ fmt.Sprintf("/users/%s/block/drawer", props.User.ID) }
+						hx-get={ string(blockDrawerURL) }
 						hx-target="#view-drawer"
 						hx-swap="innerHTML"
 						disabled?={ !props.User.CanBeBlocked }
@@ -253,79 +271,70 @@ templ EditForm(props *EditFormProps) {
 				}
 			}
 			if composables.CanUser(ctx, permissions.UserDelete) == nil {
-				<form
-					id="delete-form"
-					hx-delete={ fmt.Sprintf("/users/%s", props.User.ID) }
-					hx-trigger="submit"
-					hx-target="closest .content"
-					hx-swap="innerHTML"
-					hx-indicator="#delete-user-btn"
-					hx-disabled-elt="find button"
-				>
-					if !props.CanDelete {
-						@button.Danger(button.Props{
-							Disabled: true,
-							Size:     button.SizeMD,
-							Attrs: templ.Attributes{
-								"name":          "_action",
-								"value":         "delete",
-								"type":          "button",
-								"@click":        "$dispatch('open-delete-user-confirmation')",
-								"id":            "delete-user-btn",
-								"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
-							},
-						}) {
-							{ pageCtx.T("Delete") }
-						}
-					} else {
-						@button.Danger(button.Props{
-							Disabled: false,
-							Size:     button.SizeMD,
-							Attrs: templ.Attributes{
-								"name":   "_action",
-								"value":  "delete",
-								"type":   "button",
-								"@click": "$dispatch('open-delete-user-confirmation')",
-								"id":     "delete-user-btn",
-							},
-						}) {
-							{ pageCtx.T("Delete") }
-						}
-					}
-				</form>
-			}
-			if composables.CanUser(ctx, permissions.UserUpdate) == nil {
-				<form
-					id="save-form"
-					method="post"
-					hx-post={ fmt.Sprintf("/users/%s", props.User.ID) }
-					hx-indicator="#save-btn"
-					hx-target="#edit-content"
-					hx-swap="outerHTML"
-				>
-					@button.Primary(button.Props{
-						Disabled: !props.User.CanUpdate,
+				if !props.CanDelete {
+					@button.Danger(button.Props{
+						Disabled: true,
 						Size:     button.SizeMD,
 						Attrs: templ.Attributes{
-							"name":  "_action",
-							"value": "save",
-							"id":    "save-btn",
+							"type":          "button",
+							"@click":        "$dispatch('open-delete-user-confirmation')",
+							"id":            "delete-user-btn",
+							"x-tooltip.raw": pageCtx.T("Users.Delete.NotAllowed"),
 						},
 					}) {
-						{ pageCtx.T("Save") }
+						{ pageCtx.T("Delete") }
 					}
-				</form>
+				} else {
+					@button.Danger(button.Props{
+						Disabled: false,
+						Size:     button.SizeMD,
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"@click": "$dispatch('open-delete-user-confirmation')",
+							"id":     "delete-user-btn",
+						},
+					}) {
+						{ pageCtx.T("Delete") }
+					}
+				}
+			}
+			if composables.CanUser(ctx, permissions.UserUpdate) == nil {
+				@button.Primary(button.Props{
+					Disabled: !props.User.CanUpdate,
+					Size:     button.SizeMD,
+					Attrs: templ.Attributes{
+						"name":  "_action",
+						"value": "save",
+						"id":    "save-btn",
+					},
+				}) {
+					{ pageCtx.T("Save") }
+				}
 			}
 		</div>
-	</div>
+	</form>
 }
 
 templ Edit(props *EditFormProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{ deleteURL := templ.URL(fmt.Sprintf("/users/%s", props.User.ID)) }}
+	{{ unblockURL := strconv.Quote(string(templ.URL(fmt.Sprintf("/users/%s/unblock", props.User.ID)))) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.Edit.Title")},
 	}) {
 		@EditForm(props)
+		<form
+			id="delete-form"
+			hx-delete={ string(deleteURL) }
+			hx-trigger="submit"
+			hx-target="#edit-content"
+			hx-swap="outerHTML"
+			hx-indicator="#delete-user-btn"
+			hx-disabled-elt="#delete-user-btn"
+			class="hidden"
+		>
+			@composables.CSRFTokenField()
+		</form>
 		@dialog.Confirmation(&dialog.Props{
 			Heading: pageCtx.T("Users.Single.Delete"),
 			Text:    pageCtx.T("Users.Single.DeleteConfirmation"),
@@ -334,7 +343,7 @@ templ Edit(props *EditFormProps) {
 			Attrs: templ.Attributes{
 				"@closing": `({target}) => {
 					if (target.returnValue === "confirm") {
-						let deleteForm = document.getElementById("delete-form");
+						const deleteForm = document.getElementById("delete-form");
 						htmx.trigger(deleteForm, "submit");
 					}
 				}`,
@@ -350,14 +359,13 @@ templ Edit(props *EditFormProps) {
 			Attrs: templ.Attributes{
 				"@closing": fmt.Sprintf(`({target}) => {
 					if (target.returnValue === "confirm") {
-						htmx.ajax('POST', '/users/%s/unblock', {target: '#edit-content', swap: 'innerHTML'});
+						htmx.ajax('POST', %s, {target: '#edit-content', swap: 'outerHTML'});
 					}
-				}`, props.User.ID),
+				}`, unblockURL),
 			},
 			CancelText:  pageCtx.T("Cancel"),
 			ConfirmText: pageCtx.T("Users.Unblock.Confirm"),
 		})
-		<!-- Drawer container for block/unblock -->
 		<div id="view-drawer"></div>
 	}
 }

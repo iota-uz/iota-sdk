@@ -198,6 +198,31 @@ func TestRolesController_List_Search(t *testing.T) {
 		ExpectBodyContains("roles-table-body")
 }
 
+func TestRolesController_ReadRoutesRequireRoleRead(t *testing.T) {
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		AsUser(permissions.UserRead).
+		Build()
+
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
+		BasePath:         "/roles",
+		PermissionSchema: createTestPermissionSchema(),
+	})
+	suite.Register(controller)
+
+	roleRepository := persistence.NewRoleRepository()
+	createdRole, err := roleRepository.Create(
+		suite.Env().Ctx,
+		role.New("Role Read Guard Regression"),
+	)
+	require.NoError(t, err)
+
+	suite.GET("/roles").Assert(t).ExpectForbidden()
+	suite.GET(fmt.Sprintf("/roles/%d", createdRole.ID())).Assert(t).ExpectForbidden()
+}
+
 func TestRolesController_Update_NonExistent(t *testing.T) {
 	// Test update on non-existent role
 	t.Parallel()
