@@ -33,15 +33,22 @@ func (s *templateSubmission) Template() string { return s.template }
 // previously-submitted template. It's derived from the /user/templates list
 // endpoint — there is no single-template fetch.
 //
-// Values observed: "new" (just submitted, pending review), "service" (approved
-// for use), "rejected" (moderation denied). Additional strings may appear —
-// consumers should treat unknown values as pending-equivalent.
+// Canonical values per Eskiz OpenAPI spec (translated):
+//   - "moderation" → На модерации (in moderation queue, treat as pending)
+//   - "inproccess" → В процессе (review in flight, treat as pending)
+//   - "service"    → Сервисный (approved for service messages)
+//   - "reklama"    → Рекламный (approved for advertising)
+//   - "rejected"   → Отказано (moderation denied)
+//
+// Consumers should treat unknown values as pending-equivalent.
 type TemplateModerationStatus string
 
 const (
-	TemplateModerationPending  TemplateModerationStatus = "new"
-	TemplateModerationApproved TemplateModerationStatus = "service"
-	TemplateModerationRejected TemplateModerationStatus = "rejected"
+	TemplateModerationPending     TemplateModerationStatus = "moderation"
+	TemplateModerationInProcess   TemplateModerationStatus = "inproccess"
+	TemplateModerationApproved    TemplateModerationStatus = "service"
+	TemplateModerationAdvertising TemplateModerationStatus = "reklama"
+	TemplateModerationRejected    TemplateModerationStatus = "rejected"
 )
 
 // TemplateRecord is a single entry in the user's template list.
