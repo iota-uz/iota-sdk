@@ -41,7 +41,7 @@ require (
 	github.com/gotd/td v0.115.0
 	github.com/henomis/langfuse-go v0.0.3
 	github.com/iota-uz/applets v0.4.30
-	github.com/iota-uz/click v1.0.5-0.20260429080350-2c5e7aa8f4f1
+	github.com/iota-uz/click v1.0.5-0.20260429082959-aba6c3284bf9
 	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
 	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.3
