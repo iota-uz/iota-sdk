@@ -295,6 +295,8 @@ github.com/iota-uz/click v1.0.5-0.20260429080350-2c5e7aa8f4f1 h1:qPK5fiPjBIiZsYP
 github.com/iota-uz/click v1.0.5-0.20260429080350-2c5e7aa8f4f1/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
 github.com/iota-uz/click v1.0.5-0.20260429082959-aba6c3284bf9 h1:+SmxU7RJaP5XpL37PD5Ktu9fyQwgY+64Bv1cimCsVAg=
 github.com/iota-uz/click v1.0.5-0.20260429082959-aba6c3284bf9/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
+github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e h1:837CEXuzIT0a2l7Ll55Lyau6k4S1i+xIXy8lOfGakPU=
+github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
 github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049 h1:rcV6DDYg68P/PAn1oshQGHQsFoZcRquMeN8+OvHshyQ=
 github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049/go.mod h1:AQhBUxkNnq/mVuJQY+WTt1KfHaM/UoRV4m1sFxadUr0=
 github.com/iota-uz/go-i18n/v2 v2.6.1 h1:TqeZQAjlc7jSOuCgvulH9HvNXjeaKrbEXxXicx9Sfv8=
