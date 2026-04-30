@@ -13,7 +13,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/hooks/events"
-	"github.com/iota-uz/iota-sdk/pkg/bichat/pricing"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -1031,7 +1030,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 				if usage != nil {
 					result.Usage = *usage
-					result.Usage.Cost = pricing.Compute(modelInfo.Name, result.Usage).Total
+					result.Usage.Cost = e.model.Pricing().CalculateCost(result.Usage)
 				}
 
 				if !yield(buildDoneEvent(result)) {
