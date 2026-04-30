@@ -122,7 +122,7 @@ func TestProvider_NoCostAttributesEmitted(t *testing.T) {
 			"cost":                    0.42,
 			"total_cost":              0.42,
 			"input_cost":              0.30,
-			"output_cost":              0.12,
+			"output_cost":             0.12,
 			"input_price_per_1m":      3.0,
 			"output_price_per_1m":     15.0,
 			"cache_read_tokens":       10,

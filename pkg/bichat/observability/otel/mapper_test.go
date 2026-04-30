@@ -29,23 +29,23 @@ func TestGenerationToAttributes_FullMapping(t *testing.T) {
 	sessionID := uuid.New()
 
 	obs := observability.GenerationObservation{
-		Model:            "gpt-5.4-mini",
-		Provider:         "openai",
-		PromptTokens:     100,
-		CompletionTokens: 50,
-		TotalTokens:      150,
-		FinishReason:     "stop",
-		UserID:           "user-123",
-		UserEmail:        "u@example.com",
-		TenantID:         tenantID,
-		SessionID:        sessionID,
-		Input:            map[string]any{"prompt": "hi"},
-		Output:           "hello",
-		PromptMessages:   3,
-		Tools:            2,
-		ToolCalls:        1,
-		LatencyMs:        4321,
-		Thinking:         "deliberation",
+		Model:             "gpt-5.4-mini",
+		Provider:          "openai",
+		PromptTokens:      100,
+		CompletionTokens:  50,
+		TotalTokens:       150,
+		FinishReason:      "stop",
+		UserID:            "user-123",
+		UserEmail:         "u@example.com",
+		TenantID:          tenantID,
+		SessionID:         sessionID,
+		Input:             map[string]any{"prompt": "hi"},
+		Output:            "hello",
+		PromptMessages:    3,
+		Tools:             2,
+		ToolCalls:         1,
+		LatencyMs:         4321,
+		Thinking:          "deliberation",
 		ObservationReason: "missing_request_id",
 		Level:             "info",
 		ModelParameters: map[string]interface{}{
@@ -119,9 +119,9 @@ func TestGenerationToAttributes_OmitsCostAttributes(t *testing.T) {
 		CompletionTokens: 50,
 		TotalTokens:      150,
 		Attributes: map[string]interface{}{
-			"cost":                 1.23, // must NOT be exported as an attribute
-			"input_price_per_1m":   2.5,
-			"output_price_per_1m":  10.0,
+			"cost":                1.23, // must NOT be exported as an attribute
+			"input_price_per_1m":  2.5,
+			"output_price_per_1m": 10.0,
 		},
 	}
 	for _, kv := range generationToAttributes(obs) {
