@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules/bichat"
@@ -253,11 +252,4 @@ func Example_costTracking() {
 	// Output:
 	// Generation cost: $0.010500 (input: $0.003000, output: $0.007500)
 	// Total cost: $0.010500 from 1 generations
-}
-
-func getEnvOrDefault(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
 }

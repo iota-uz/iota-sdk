@@ -41,7 +41,7 @@ func noopShutdown(context.Context) error { return nil }
 //
 // When cfg.Enabled is false or cfg.Endpoint is empty, this function returns a
 // nil TracerProvider and a no-op shutdown.
-func InitTracerProvider(ctx context.Context, cfg Config) (tp *sdktrace.TracerProvider, shutdown func(context.Context) error, err error) {
+func InitTracerProvider(ctx context.Context, cfg Config) (*sdktrace.TracerProvider, func(context.Context) error, error) {
 	if !cfg.Enabled || cfg.Endpoint == "" {
 		return nil, noopShutdown, nil
 	}
@@ -84,7 +84,7 @@ func InitTracerProvider(ctx context.Context, cfg Config) (tp *sdktrace.TracerPro
 	}
 
 	bsp := sdktrace.NewBatchSpanProcessor(exporter)
-	tp = sdktrace.NewTracerProvider(
+	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(cfg.SampleRate)),

@@ -141,13 +141,13 @@ func TestProvider_NoCostAttributesEmitted(t *testing.T) {
 		key := string(kv.Key)
 		// Substring belt: catches obvious cost/price leaks regardless of namespace.
 		lower := strings.ToLower(key)
-		assert.False(t, strings.Contains(lower, "cost"),
+		assert.NotContains(t, lower, "cost",
 			"cost attribute leaked: %s (this is the bug class we're closing)", key)
-		assert.False(t, strings.Contains(lower, "price"),
+		assert.NotContains(t, lower, "price",
 			"price attribute leaked: %s", key)
-		assert.False(t, strings.Contains(lower, "expense"),
+		assert.NotContains(t, lower, "expense",
 			"expense attribute leaked: %s", key)
-		assert.False(t, strings.Contains(lower, "billing"),
+		assert.NotContains(t, lower, "billing",
 			"billing attribute leaked: %s", key)
 
 		// Allowlist suspenders: every emitted key must live in one of the
@@ -312,10 +312,10 @@ func TestConfig_Validate(t *testing.T) {
 	assert.InDelta(t, 0.5, mid.SampleRate, 1e-9)
 
 	bad := Config{Enabled: true}
-	assert.Error(t, bad.Validate(), "Endpoint required when Enabled")
+	require.Error(t, bad.Validate(), "Endpoint required when Enabled")
 
 	rangeBad := Config{Enabled: true, Endpoint: "x", SampleRate: 2.0}
-	assert.Error(t, rangeBad.Validate())
+	require.Error(t, rangeBad.Validate())
 }
 
 func TestLangfuseAuthHeaders_NoEnv(t *testing.T) {

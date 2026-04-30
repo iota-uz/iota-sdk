@@ -1,7 +1,6 @@
 package otel
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -92,7 +91,7 @@ func TestGenerationToAttributes_FullMapping(t *testing.T) {
 	// Model parameters flattened.
 	assert.InDelta(t, 0.7, m["gen_ai.request.temperature"].AsFloat64(), 1e-9)
 	assert.Equal(t, int64(4096), m["gen_ai.request.max_tokens"].AsInt64())
-	assert.Equal(t, true, m["gen_ai.request.stream"].AsBool())
+	assert.True(t, m["gen_ai.request.stream"].AsBool())
 	assert.Equal(t, "END", m["gen_ai.request.stop"].AsString())
 	// Nested map skipped.
 	_, hasUnsupported := m["gen_ai.request.unsupported"]
@@ -125,9 +124,9 @@ func TestGenerationToAttributes_OmitsCostAttributes(t *testing.T) {
 		},
 	}
 	for _, kv := range generationToAttributes(obs) {
-		assert.False(t, strings.Contains(string(kv.Key), "cost"),
+		assert.NotContains(t, string(kv.Key), "cost",
 			"unexpected cost-related attribute %q emitted", kv.Key)
-		assert.False(t, strings.Contains(string(kv.Key), "price"),
+		assert.NotContains(t, string(kv.Key), "price",
 			"unexpected price-related attribute %q emitted", kv.Key)
 	}
 }
@@ -150,8 +149,8 @@ func TestSpanToAttributes(t *testing.T) {
 	assert.Equal(t, "success", m[attrEAISpanStatus].AsString())
 	assert.Equal(t, "search_db", m[attrEAIToolName].AsString())
 	assert.Equal(t, "call-1", m[attrEAIToolCallID].AsString())
-	assert.Equal(t, `{"q":"test"}`, m[attrLangfuseObsInput].AsString())
-	assert.Equal(t, `{"rows":3}`, m[attrLangfuseObsOutput].AsString())
+	assert.JSONEq(t, `{"q":"test"}`, m[attrLangfuseObsInput].AsString())
+	assert.JSONEq(t, `{"rows":3}`, m[attrLangfuseObsOutput].AsString())
 	assert.Equal(t, "info", m[attrEAIObservationLevel].AsString())
 	assert.Equal(t, int64(3), m[attrEAISpanAttrPrefix+"row_count"].AsInt64())
 }
@@ -200,8 +199,8 @@ func TestTraceToAttributes(t *testing.T) {
 
 func TestJsonString_PassesThroughStrings(t *testing.T) {
 	assert.Equal(t, "hello", jsonString("hello"))
-	assert.Equal(t, "", jsonString(""))
-	assert.Equal(t, "", jsonString(nil))
+	assert.Empty(t, jsonString(""))
+	assert.Empty(t, jsonString(nil))
 	got := jsonString(map[string]string{"k": "v"})
 	assert.Contains(t, got, "\"k\"")
 	assert.Contains(t, got, "\"v\"")

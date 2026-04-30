@@ -566,7 +566,7 @@ func TestEventBridge_DoesNotShipCostOnTelemetryPath(t *testing.T) {
 	traces := provider.getTraces()
 	require.Len(t, traces, 1)
 	assert.Equal(t, 1000, traces[0].TotalTokens)
-	assert.Equal(t, 0.0, traces[0].TotalCost,
+	assert.Zero(t, traces[0].TotalCost,
 		"trace TotalCost should be zero post-migration; cost lives in Langfuse")
 }
 

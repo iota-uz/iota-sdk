@@ -146,21 +146,24 @@ func (p *Provider) parentContext(ctx context.Context, parentID string) context.C
 	return trace.ContextWithSpanContext(ctx, sc)
 }
 
-// safeEnd ends a span at the recorded timestamp+duration. When the duration
-// is zero/negative we still end at the recorded start timestamp so historical
-// observations don't mutate into long-running spans (which would skew latency
-// dashboards). End-time of zero is the only case that falls back to OTel's
-// "now" default.
-func safeEnd(span trace.Span, start time.Time, dur time.Duration) {
+// safeEndOptions returns the End() options that pin a span to its recorded
+// timestamp+duration. When duration is zero/negative we still end at the
+// recorded start timestamp so historical observations don't mutate into
+// long-running spans (which would skew latency dashboards). A zero start
+// timestamp returns nil so the call site falls back to OTel's "now" default.
+//
+// Returning options instead of calling span.End() directly lets each call
+// site invoke span.End(...) inline — keeps the spancheck linter happy and
+// makes the lifecycle obvious to readers.
+func safeEndOptions(start time.Time, dur time.Duration) []trace.SpanEndOption {
 	if start.IsZero() {
-		span.End()
-		return
+		return nil
 	}
 	end := start
 	if dur > 0 {
 		end = start.Add(dur)
 	}
-	span.End(trace.WithTimestamp(end))
+	return []trace.SpanEndOption{trace.WithTimestamp(end)}
 }
 
 // RecordGeneration emits a CLIENT-kind span with GenAI semantic-convention
@@ -188,7 +191,7 @@ func (p *Provider) RecordGeneration(ctx context.Context, obs observability.Gener
 	_, span := p.resolveTracer().Start(pctx, name, startOpts...)
 	p.rememberSpan(obs.ID, span.SpanContext())
 	span.SetAttributes(generationToAttributes(obs)...)
-	safeEnd(span, obs.Timestamp, obs.Duration)
+	span.End(safeEndOptions(obs.Timestamp, obs.Duration)...)
 	return nil
 }
 
@@ -221,7 +224,7 @@ func (p *Provider) RecordSpan(ctx context.Context, obs observability.SpanObserva
 	if obs.Status == "error" {
 		span.SetStatus(codes.Error, obs.Output)
 	}
-	safeEnd(span, obs.Timestamp, obs.Duration)
+	span.End(safeEndOptions(obs.Timestamp, obs.Duration)...)
 	return nil
 }
 
@@ -288,7 +291,7 @@ func (p *Provider) RecordTrace(ctx context.Context, obs observability.TraceObser
 	// noise for any consumer that respects Resource attrs (every standard
 	// OTel sink does). Tags and metadata that are genuinely per-trace stay.
 	span.SetAttributes(traceToAttributes(obs)...)
-	safeEnd(span, obs.Timestamp, obs.Duration)
+	span.End(safeEndOptions(obs.Timestamp, obs.Duration)...)
 	return nil
 }
 
