@@ -98,15 +98,10 @@ func newRegistry(overridesJSON string) *Registry {
 
 func defaultEntries() map[string]ModelPricing {
 	entries := map[string]ModelPricing{
-		normalizeKey("gpt-5.4-2026-03-05"): {
-			InputPerMTok:     2.50,
-			OutputPerMTok:    15.00,
-			CacheReadPerMTok: 0.25,
-		},
-		normalizeKey("gpt-5.4"): {
-			InputPerMTok:     2.50,
-			OutputPerMTok:    15.00,
-			CacheReadPerMTok: 0.25,
+		normalizeKey("gpt-5.5"): {
+			InputPerMTok:     5.00,
+			OutputPerMTok:    30.00,
+			CacheReadPerMTok: 0.50,
 		},
 		normalizeKey("gpt-5.2"): {
 			InputPerMTok:     1.75,
@@ -118,25 +113,31 @@ func defaultEntries() map[string]ModelPricing {
 			OutputPerMTok:    14.00,
 			CacheReadPerMTok: 0.175,
 		},
+		// "gpt-5-mini"/"gpt-5-nano" are aliases of the .4 canonical names in
+		// the agents catalog (see RegisterModelSpec in model_catalog_openai.go).
+		// We duplicate the price rows here because pkg/bichat/pricing cannot
+		// import pkg/bichat/agents to resolve aliases — that would cycle via
+		// agents/executor.go → pricing. Keep both rows in sync with the
+		// canonical above when prices change.
 		normalizeKey("gpt-5.4-mini"): {
-			InputPerMTok:     0.25,
-			OutputPerMTok:    2.00,
-			CacheReadPerMTok: 0.025,
+			InputPerMTok:     0.75,
+			OutputPerMTok:    4.50,
+			CacheReadPerMTok: 0.075,
 		},
 		normalizeKey("gpt-5-mini"): {
-			InputPerMTok:     0.25,
-			OutputPerMTok:    2.00,
-			CacheReadPerMTok: 0.025,
+			InputPerMTok:     0.75,
+			OutputPerMTok:    4.50,
+			CacheReadPerMTok: 0.075,
 		},
 		normalizeKey("gpt-5.4-nano"): {
-			InputPerMTok:     0.05,
-			OutputPerMTok:    0.40,
-			CacheReadPerMTok: 0.005,
+			InputPerMTok:     0.20,
+			OutputPerMTok:    1.25,
+			CacheReadPerMTok: 0.02,
 		},
 		normalizeKey("gpt-5-nano"): {
-			InputPerMTok:     0.05,
-			OutputPerMTok:    0.40,
-			CacheReadPerMTok: 0.005,
+			InputPerMTok:     0.20,
+			OutputPerMTok:    1.25,
+			CacheReadPerMTok: 0.02,
 		},
 	}
 

@@ -108,7 +108,10 @@ func TestOpenAIModel_Info(t *testing.T) {
 	info := model.Info()
 	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 1_050_000, info.ContextWindow)
+	// Bare-major alias resolves to the mini spec (400K context), not the
+	// frontier default. Pre-2026-04 this incorrectly fell through to the
+	// big-model spec while still being charged mini prices.
+	assert.Equal(t, 400_000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)
@@ -137,13 +140,13 @@ func TestOpenAIModel_Info_ContextWindowFromCatalog(t *testing.T) {
 		expectCtx  int
 		expectName string
 	}{
-		{name: "canonical gpt-5.4", modelEnv: "gpt-5.4", expectCtx: 1050000, expectName: "gpt-5.4"},
-		{name: "versioned alias", modelEnv: agents.DefaultOpenAIModelSnapshot, expectCtx: 1050000, expectName: agents.DefaultOpenAIModelSnapshot},
-		{name: "normalized alias", modelEnv: " GPT-5.4-2026-03-05 ", expectCtx: 1050000, expectName: "GPT-5.4-2026-03-05"},
+		{name: "canonical gpt-5.5", modelEnv: "gpt-5.5", expectCtx: 1050000, expectName: "gpt-5.5"},
+		{name: "default snapshot alias", modelEnv: agents.DefaultOpenAIModelSnapshot, expectCtx: 1050000, expectName: agents.DefaultOpenAIModelSnapshot},
+		{name: "normalized alias", modelEnv: " GPT-5.5 ", expectCtx: 1050000, expectName: "GPT-5.5"},
 		{name: "canonical gpt-5.2", modelEnv: "gpt-5.2", expectCtx: 400000, expectName: "gpt-5.2"},
 		{name: "versioned gpt-5.2 alias", modelEnv: "gpt-5.2-2025-12-11", expectCtx: 400000, expectName: "gpt-5.2-2025-12-11"},
-		{name: "legacy gpt-5-mini alias falls back to default spec", modelEnv: "gpt-5-mini", expectCtx: 1_050_000, expectName: "gpt-5-mini"},
-		{name: "legacy gpt-5-nano alias falls back to default spec", modelEnv: "gpt-5-nano", expectCtx: 1_050_000, expectName: "gpt-5-nano"},
+		{name: "gpt-5-mini bare alias resolves to mini spec", modelEnv: "gpt-5-mini", expectCtx: 400_000, expectName: "gpt-5-mini"},
+		{name: "gpt-5-nano bare alias resolves to nano spec", modelEnv: "gpt-5-nano", expectCtx: 400_000, expectName: "gpt-5-nano"},
 		{name: "canonical gpt-5.4-mini", modelEnv: "gpt-5.4-mini", expectCtx: 400000, expectName: "gpt-5.4-mini"},
 		{name: "canonical gpt-5.4-nano", modelEnv: "gpt-5.4-nano", expectCtx: 400000, expectName: "gpt-5.4-nano"},
 		{name: "unknown falls back to default spec", modelEnv: "unknown-model", expectCtx: 1050000, expectName: "unknown-model"},
