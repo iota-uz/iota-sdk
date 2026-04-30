@@ -105,6 +105,7 @@ templ (p *UploadInputProps) render() {
 					name="file"
 					multiple?={ p.Multiple }
 					hx-on::after-request="this.value = ''"
+					{ uploadErrorAttrs(p.ID)... }
 				/>
 			</div>
 			<div id={ fmt.Sprintf("target-%s", p.ID) }>
@@ -126,6 +127,14 @@ templ (p *UploadInputProps) render() {
 			<p class="text-xs">
 				{ p.Placeholder }
 			</p>
+			// Inline error slot populated by the response-error / send-error
+			// handlers above. Hidden until a request fails.
+			<p
+				id={ fmt.Sprintf("error-%s", p.ID) }
+				class="text-red-500 text-xs mt-2 hidden"
+				role="alert"
+				aria-live="polite"
+			></p>
 			if p.Error != "" {
 				<p class="text-red-500 text-xs mt-2">
 					{ p.Error }
@@ -133,6 +142,34 @@ templ (p *UploadInputProps) render() {
 			}
 		</div>
 	</div>
+}
+
+// uploadErrorAttrs builds the HTMX failure-event handlers for the hidden file
+// input. On a server error (4xx/5xx) it surfaces the response body; on a
+// pre-flight failure (network/CORS/offline) it shows a generic retry message.
+// Both render an inline error inside the dropzone and dispatch a `notify`
+// toast event so users actually see what went wrong instead of the spinner
+// silently disappearing. `hx-on::before-request` clears any prior error so a
+// fresh upload starts clean.
+func uploadErrorAttrs(id string) templ.Attributes {
+	clearSlot := fmt.Sprintf(
+		`var slot = document.getElementById('error-%s'); if (slot) { slot.textContent = ''; slot.classList.add('hidden'); }`,
+		id,
+	)
+	render := func(read string) string {
+		return fmt.Sprintf(
+			`%s var slot = document.getElementById('error-%s'); if (slot) { slot.textContent = msg; slot.classList.remove('hidden'); }`+
+				` window.dispatchEvent(new CustomEvent('notify', {detail: {variant: 'error', message: msg}}));`,
+			read, id,
+		)
+	}
+	respErr := render(`var msg = (event.detail && event.detail.xhr && event.detail.xhr.responseText) ? event.detail.xhr.responseText : ''; if (!msg) { msg = 'Upload failed'; } if (msg.length > 200) { msg = msg.slice(0, 200) + '…'; }`)
+	netErr := render(`var msg = 'Network error — please retry';`)
+	return templ.Attributes{
+		"hx-on::before-request":  clearSlot,
+		"hx-on::response-error":  respErr,
+		"hx-on::send-error":      netErr,
+	}
 }
 
 // uploadDropAttrs builds the dragover/dragenter/dragleave/drop handlers that
