@@ -12,7 +12,8 @@ import (
 )
 
 // MockProvider demonstrates a simple observability provider implementation.
-// In production, use real providers like Langfuse, OpenTelemetry, or custom backends.
+// In production, use the built-in OTel provider (pkg/bichat/observability/otel)
+// or implement a custom backend that satisfies observability.Provider.
 type MockProvider struct {
 	generations []observability.GenerationObservation
 	spans       []observability.SpanObservation
@@ -81,42 +82,41 @@ func Example_basicUsage() {
 	// Observability provider example
 }
 
-// Example_langfuseIntegration demonstrates Langfuse provider integration.
-// This example shows environment variable loading and configuration.
-func Example_langfuseIntegration() {
-	// Load Langfuse configuration from environment
-	langfuseConfig := struct {
-		SecretKey string
-		PublicKey string
-		Host      string
-	}{
-		SecretKey: os.Getenv("LANGFUSE_SECRET_KEY"),
-		PublicKey: os.Getenv("LANGFUSE_PUBLIC_KEY"),
-		Host:      getEnvOrDefault("LANGFUSE_HOST", "https://cloud.langfuse.com"),
-	}
-
-	// Validate configuration
-	if langfuseConfig.SecretKey == "" || langfuseConfig.PublicKey == "" {
-		fmt.Println("Langfuse credentials not configured, skipping...")
+// Example_otelIntegration demonstrates OpenTelemetry-based observability with
+// the built-in OTel provider. Spans are exported via OTLP/HTTP to any GenAI
+// semconv-aware backend (Langfuse on /api/public/otel, Datadog, Tempo, etc).
+//
+// Required env: OTEL_EXPORTER_OTLP_ENDPOINT.
+// Optional env: LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY (used by
+// otelprovider.LangfuseAuthHeaders to build the Basic auth header).
+func Example_otelIntegration() {
+	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+	if endpoint == "" {
+		fmt.Println("OTEL_EXPORTER_OTLP_ENDPOINT not configured, skipping...")
 		return
 	}
 
-	// Create Langfuse provider (implementation details in pkg/bichat/observability/langfuse/)
-	// langfuseProvider := langfuse.NewProvider(langfuseConfig.SecretKey, langfuseConfig.PublicKey, langfuseConfig.Host)
+	// In real usage:
+	//
+	//   shutdown, err := otelprovider.InitTracerProvider(ctx, otelprovider.Config{
+	//       Endpoint: endpoint,
+	//       Headers:  otelprovider.LangfuseAuthHeaders(),
+	//       Enabled:  true,
+	//       SampleRate: 1.0,
+	//   })
+	//   if err != nil { log.Fatal(err) }
+	//   defer shutdown(context.Background())
+	//
+	//   provider := otelprovider.NewProvider(otelprovider.Config{Enabled: true})
+	//   cfg := bichat.NewModuleConfig(
+	//       tenantID, userID, chatRepo, model, policy, agent,
+	//       bichat.WithObservability(provider),
+	//   )
 
-	// Create BiChat module with Langfuse observability
-	// cfg := bichat.NewModuleConfig(
-	//     tenantID, userID, chatRepo, model, policy, agent,
-	//     bichat.WithObservability(langfuseProvider),
-	// )
-
-	// module := bichat.NewModuleWithConfig(cfg)
-	// defer module.Shutdown(context.Background())
-
-	fmt.Println("Langfuse provider configured successfully")
+	fmt.Println("OTel provider configured successfully")
 
 	// Output:
-	// Langfuse credentials not configured, skipping...
+	// OTEL_EXPORTER_OTLP_ENDPOINT not configured, skipping...
 }
 
 // Example_multipleProviders demonstrates using multiple observability providers simultaneously.

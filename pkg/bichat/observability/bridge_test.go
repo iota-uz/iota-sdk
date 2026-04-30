@@ -507,7 +507,11 @@ func TestEventBridge_AgentErrorLifecycle(t *testing.T) {
 	assert.Equal(t, "max iterations", errorSpan.Output)
 }
 
-func TestEventBridge_FullCycleRecordsTraceCosts(t *testing.T) {
+// TestEventBridge_DoesNotShipCostOnTelemetryPath asserts the bug-class closure
+// after the OTel migration: the bridge must NOT stamp computed cost onto
+// GenerationObservation.Attributes. Cost is derived server-side by Langfuse
+// (or any OTel sink) from gen_ai.request.model + token counts.
+func TestEventBridge_DoesNotShipCostOnTelemetryPath(t *testing.T) {
 	t.Parallel()
 
 	bus := hooks.NewEventBus()
@@ -554,15 +558,16 @@ func TestEventBridge_FullCycleRecordsTraceCosts(t *testing.T) {
 
 	generations := provider.getGenerations()
 	require.Len(t, generations, 1)
-	assert.Contains(t, generations[0].Attributes, "input_cost")
-	assert.Contains(t, generations[0].Attributes, "output_cost")
-	assert.Contains(t, generations[0].Attributes, "total_cost")
-	assert.Greater(t, generations[0].Attributes["total_cost"].(float64), 0.0)
+	for _, key := range []string{"input_cost", "output_cost", "cost", "total_cost"} {
+		assert.NotContains(t, generations[0].Attributes, key,
+			"bridge must not ship %q on telemetry path; cost is computed server-side", key)
+	}
 
 	traces := provider.getTraces()
 	require.Len(t, traces, 1)
 	assert.Equal(t, 1000, traces[0].TotalTokens)
-	assert.Greater(t, traces[0].TotalCost, 0.0)
+	assert.Equal(t, 0.0, traces[0].TotalCost,
+		"trace TotalCost should be zero post-migration; cost lives in Langfuse")
 }
 
 func TestEventBridge_HierarchicalNesting(t *testing.T) {
