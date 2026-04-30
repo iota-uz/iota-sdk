@@ -146,7 +146,7 @@ func uploadDropAttrs(id string) templ.Attributes {
 			` var inp=document.getElementById(%q);`+
 			` if(!inp||!event.dataTransfer||!event.dataTransfer.files||!event.dataTransfer.files.length){return;}`+
 			` try{inp.files=event.dataTransfer.files;}`+
-			` catch(e){var dt=new DataTransfer(); for(var i=0;i<event.dataTransfer.files.length;i++){dt.items.add(event.dataTransfer.files[i]);} inp.files=dt.files;}`+
+			` catch(e){if(typeof DataTransfer==='function'){var dt=new DataTransfer(); for(var i=0;i<event.dataTransfer.files.length;i++){dt.items.add(event.dataTransfer.files[i]);} inp.files=dt.files;}}`+
 			` inp.dispatchEvent(new Event('change',{bubbles:true}));`,
 		id,
 	)
