@@ -26,8 +26,10 @@ type Config struct {
 	// Example: {"Authorization": "Basic <base64(public:secret)>"}.
 	Headers map[string]string
 
-	// SampleRate controls span head sampling (0.0–1.0).
-	// 1.0 = 100%, 0.0 = drop everything. Defaults to 1.0 when unset.
+	// SampleRate controls span head sampling. Sentinel value: a negative number
+	// (e.g. -1) means "use the default". 0.0 means drop every span; 1.0 means
+	// keep them all. Validate() applies the default of 1.0 only when this
+	// field is negative, so callers can explicitly disable sampling with 0.0.
 	SampleRate float64
 
 	// Environment identifies the deployment environment (e.g. "production").
@@ -38,7 +40,9 @@ type Config struct {
 	// Emitted as the service.version resource attribute.
 	Version string
 
-	// Tags are global tags applied as resource attributes (eai.tag.<i>).
+	// Tags are global tags applied as resource attributes (eai.tag.<i>) so
+	// they are inherited by every span this provider emits, not just the
+	// trace summary span.
 	Tags []string
 
 	// Enabled controls whether observability is active.
@@ -51,14 +55,15 @@ type Config struct {
 // It returns an error only when Enabled is true and Endpoint is empty.
 //
 // Defaults applied:
-//   - SampleRate: 1.0 when unset (zero value).
+//   - SampleRate: 1.0 when negative (sentinel for "unset"). 0.0 is preserved
+//     verbatim so callers can drop every span deliberately.
 //   - Enabled:    a zero-value Config is treated as enabled by callers that
 //     explicitly opt in; Validate does not flip Enabled itself.
 func (c *Config) Validate() error {
-	if c.SampleRate == 0 {
+	if c.SampleRate < 0 {
 		c.SampleRate = 1.0
 	}
-	if c.SampleRate < 0.0 || c.SampleRate > 1.0 {
+	if c.SampleRate > 1.0 {
 		return errors.New("otel: SampleRate must be between 0.0 and 1.0")
 	}
 	if c.Enabled && c.Endpoint == "" {

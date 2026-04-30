@@ -26,7 +26,6 @@ import (
 const (
 	openAIAPIKeyEnv         = "OPENAI_API_KEY"
 	otelExporterEndpointEnv = "OTEL_EXPORTER_OTLP_ENDPOINT"
-	bichatEnvironment       = "development"
 )
 
 // loadModule builds the BiChat runtime graph (module config, service
@@ -171,30 +170,29 @@ func buildModuleConfig(
 	}
 
 	// Observability: emit OTel GenAI semconv spans when an OTLP endpoint is
-	// configured. The host application is responsible for calling
-	// otelprovider.InitTracerProvider — this site only wires the provider
-	// against whatever global TracerProvider is registered. If the host
-	// forgot to initialize, we'd silently drop spans into a no-op tracer,
-	// which is precisely the failure mode that motivated this migration —
-	// so we detect that case and warn loudly instead of pretending the
-	// pipeline works.
+	// configured. We build a SCOPED TracerProvider (not installed as the
+	// global) so bichat's pipeline doesn't pick up unrelated spans from
+	// otelhttp middleware, sql instrumentation, etc. The endpoint value is
+	// not logged — OTLP URLs can embed Basic-auth credentials.
 	var providers []observability.Provider
 	if endpoint := strings.TrimSpace(os.Getenv(otelExporterEndpointEnv)); endpoint != "" {
-		if !otelprovider.HasGlobalTracerProvider() {
-			appConfig.Logger().Warnf(
-				"%s is set (%s) but no global OTel TracerProvider is registered; "+
-					"bichat spans will be dropped. The host bootstrap must call "+
-					"otelprovider.InitTracerProvider before constructing the bichat module.",
-				otelExporterEndpointEnv, endpoint,
+		otelCfg := otelprovider.Config{
+			Endpoint:    endpoint,
+			Headers:     otelprovider.LangfuseAuthHeaders(),
+			SampleRate:  1.0,
+			Enabled:     true,
+			Environment: appConfig.GoAppEnvironment,
+		}
+		tp, _, otelErr := otelprovider.InitTracerProvider(context.Background(), otelCfg)
+		if otelErr != nil {
+			appConfig.Logger().WithError(otelErr).Warnf(
+				"failed to init scoped OTel TracerProvider; bichat spans will be dropped",
 			)
-		} else {
-			otelProv := otelprovider.NewProvider(otelprovider.Config{
-				Enabled:     true,
-				Environment: bichatEnvironment,
-			})
+		} else if tp != nil {
+			otelProv := otelprovider.NewProvider(otelCfg, otelprovider.WithTracer(tp.Tracer("bichat")))
 			providers = append(providers, otelProv)
 			moduleOpts = append(moduleOpts, WithObservability(otelProv))
-			appConfig.Logger().Info("OTel observability enabled (bichat → OTLP)")
+			appConfig.Logger().Info("OTel observability enabled (bichat → OTLP, scoped tracer)")
 		}
 	}
 

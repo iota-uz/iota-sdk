@@ -89,34 +89,29 @@ func Example_basicUsage() {
 // Required env: OTEL_EXPORTER_OTLP_ENDPOINT.
 // Optional env: LANGFUSE_PUBLIC_KEY + LANGFUSE_SECRET_KEY (used by
 // otelprovider.LangfuseAuthHeaders to build the Basic auth header).
+//
+// In real usage:
+//
+//	tp, shutdown, err := otelprovider.InitTracerProvider(ctx, otelprovider.Config{
+//	    Endpoint:   endpoint,
+//	    Headers:    otelprovider.LangfuseAuthHeaders(),
+//	    Enabled:    true,
+//	    SampleRate: 1.0,
+//	})
+//	if err != nil { log.Fatal(err) }
+//	defer shutdown(context.Background())
+//
+//	provider := otelprovider.NewProvider(otelprovider.Config{Enabled: true},
+//	    otelprovider.WithTracer(tp.Tracer("bichat")))
+//	cfg := bichat.NewModuleConfig(
+//	    tenantID, userID, chatRepo, model, policy, agent,
+//	    bichat.WithObservability(provider),
+//	)
 func Example_otelIntegration() {
-	endpoint := os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
-	if endpoint == "" {
-		fmt.Println("OTEL_EXPORTER_OTLP_ENDPOINT not configured, skipping...")
-		return
-	}
-
-	// In real usage:
-	//
-	//   shutdown, err := otelprovider.InitTracerProvider(ctx, otelprovider.Config{
-	//       Endpoint: endpoint,
-	//       Headers:  otelprovider.LangfuseAuthHeaders(),
-	//       Enabled:  true,
-	//       SampleRate: 1.0,
-	//   })
-	//   if err != nil { log.Fatal(err) }
-	//   defer shutdown(context.Background())
-	//
-	//   provider := otelprovider.NewProvider(otelprovider.Config{Enabled: true})
-	//   cfg := bichat.NewModuleConfig(
-	//       tenantID, userID, chatRepo, model, policy, agent,
-	//       bichat.WithObservability(provider),
-	//   )
-
-	fmt.Println("OTel provider configured successfully")
+	fmt.Println("OTel provider example")
 
 	// Output:
-	// OTEL_EXPORTER_OTLP_ENDPOINT not configured, skipping...
+	// OTel provider example
 }
 
 // Example_multipleProviders demonstrates using multiple observability providers simultaneously.

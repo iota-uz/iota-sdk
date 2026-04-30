@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 )
@@ -21,7 +22,7 @@ func newTestProvider(t *testing.T, enabled bool) (*Provider, *tracetest.InMemory
 	t.Cleanup(func() {
 		_ = tp.Shutdown(context.Background())
 	})
-	p := NewProvider(Config{Enabled: enabled}, WithTracer(tp.Tracer("test")))
+	p := newProvider(Config{Enabled: enabled}, WithTracer(tp.Tracer("test")))
 	return p, exporter
 }
 
@@ -165,18 +166,16 @@ func TestProvider_NoCostAttributesEmitted(t *testing.T) {
 	}
 }
 
-func TestProvider_RecordSpan_SetsEAISpanKeysAndParentLink(t *testing.T) {
+func TestProvider_RecordSpan_SetsEAISpanKeys(t *testing.T) {
 	p, exporter := newTestProvider(t, true)
 
 	err := p.RecordSpan(context.Background(), observability.SpanObservation{
-		ID:       "span-1",
-		TraceID:  "trace-x",
-		ParentID: "parent-span",
-		Name:     "tool.execute",
-		Type:     "tool",
-		Status:   "success",
-		ToolName: "search_db",
-		CallID:   "call-1",
+		ID:        "span-1",
+		Name:      "tool.execute",
+		Type:      "tool",
+		Status:    "success",
+		ToolName:  "search_db",
+		CallID:    "call-1",
 		Timestamp: time.Now(),
 		Duration:  10 * time.Millisecond,
 	})
@@ -190,14 +189,65 @@ func TestProvider_RecordSpan_SetsEAISpanKeysAndParentLink(t *testing.T) {
 	requireAttrString(t, s.Attributes, attrEAISpanStatus, "success")
 	requireAttrString(t, s.Attributes, attrEAIToolName, "search_db")
 	requireAttrString(t, s.Attributes, attrEAIToolCallID, "call-1")
+}
 
-	// Parent SpanContext must reflect the derived parent span ID.
-	expectedParent := deriveSpanID("parent-span")
-	assert.Equal(t, expectedParent, s.Parent.SpanID(),
-		"span must link to the derived parent span ID")
-	expectedTrace := deriveTraceID("trace-x")
-	assert.Equal(t, expectedTrace, s.SpanContext.TraceID(),
-		"span trace ID must be derived from obs.TraceID")
+// TestProvider_ParentLinkageViaStateMap verifies that when a child observation
+// references an earlier observation via ParentID, the child span correctly
+// inherits the parent's TraceID and parent SpanID via the in-process state
+// map. This is the only way bichat string-IDs can thread into OTel's binary
+// SpanContext model without a custom IDGenerator.
+func TestProvider_ParentLinkageViaStateMap(t *testing.T) {
+	p, exporter := newTestProvider(t, true)
+
+	require.NoError(t, p.RecordSpan(context.Background(), observability.SpanObservation{
+		ID:        "agent-1",
+		Name:      "agent.execute",
+		Type:      "agent",
+		Status:    "success",
+		Timestamp: time.Now(),
+		Duration:  100 * time.Millisecond,
+	}))
+
+	require.NoError(t, p.RecordSpan(context.Background(), observability.SpanObservation{
+		ID:        "tool-1",
+		ParentID:  "agent-1",
+		Name:      "tool.execute",
+		Type:      "tool",
+		Status:    "success",
+		Timestamp: time.Now(),
+		Duration:  10 * time.Millisecond,
+	}))
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 2)
+	parent, child := spans[0], spans[1]
+	assert.Equal(t, parent.SpanContext.TraceID(), child.SpanContext.TraceID(),
+		"child span must inherit the parent's TraceID")
+	assert.Equal(t, parent.SpanContext.SpanID(), child.Parent.SpanID(),
+		"child span's parent SpanID must equal the parent's real SpanID")
+}
+
+// TestProvider_RecordSpan_ErrorStatus_SetsOTelStatus verifies that a bichat
+// observation with Status="error" produces an OTel span with the canonical
+// error status, so backends like Jaeger / Datadog flag it as failed in their
+// error-rate metrics. A custom eai.span.status alone is invisible there.
+func TestProvider_RecordSpan_ErrorStatus_SetsOTelStatus(t *testing.T) {
+	p, exporter := newTestProvider(t, true)
+
+	require.NoError(t, p.RecordSpan(context.Background(), observability.SpanObservation{
+		ID:        "span-err",
+		Name:      "tool.execute",
+		Type:      "tool",
+		Status:    "error",
+		Output:    "boom",
+		Timestamp: time.Now(),
+		Duration:  5 * time.Millisecond,
+	}))
+
+	spans := exporter.GetSpans()
+	require.Len(t, spans, 1)
+	assert.Equal(t, codes.Error, spans[0].Status.Code,
+		"error spans must call SetStatus(codes.Error, …) so backends flag failures")
 }
 
 func TestProvider_RecordEvent_SetsEAIEventKeys(t *testing.T) {
@@ -223,29 +273,6 @@ func TestProvider_RecordEvent_SetsEAIEventKeys(t *testing.T) {
 	requireAttrString(t, s.Attributes, attrEAIEventLevel, "warn")
 }
 
-func TestDeriveTraceID_Deterministic(t *testing.T) {
-	a := deriveTraceID("trace-1")
-	b := deriveTraceID("trace-1")
-	assert.Equal(t, a, b, "trace ID derivation must be deterministic")
-	assert.True(t, a.IsValid())
-
-	c := deriveTraceID("trace-2")
-	assert.NotEqual(t, a, c)
-
-	zero := deriveTraceID("")
-	assert.False(t, zero.IsValid(), "empty input yields zero trace ID")
-}
-
-func TestDeriveSpanID_Deterministic(t *testing.T) {
-	a := deriveSpanID("span-1")
-	b := deriveSpanID("span-1")
-	assert.Equal(t, a, b)
-	assert.True(t, a.IsValid())
-
-	zero := deriveSpanID("")
-	assert.False(t, zero.IsValid())
-}
-
 func TestProvider_UpdateTraceName_EmitsMarkerSpan(t *testing.T) {
 	p, exporter := newTestProvider(t, true)
 	require.NoError(t, p.UpdateTraceName(context.Background(), "trace-z", "My Chat"))
@@ -269,9 +296,20 @@ func TestProvider_UpdateTraceTags_EmitsMarkerSpan(t *testing.T) {
 }
 
 func TestConfig_Validate(t *testing.T) {
-	c := Config{Enabled: true, Endpoint: "https://x/y"}
-	require.NoError(t, c.Validate())
-	assert.InDelta(t, 1.0, c.SampleRate, 1e-9, "default SampleRate=1.0")
+	// Negative SampleRate is the sentinel for "unset" — defaults to 1.0.
+	defaulted := Config{Enabled: true, Endpoint: "https://x/y", SampleRate: -1}
+	require.NoError(t, defaulted.Validate())
+	assert.InDelta(t, 1.0, defaulted.SampleRate, 1e-9, "negative SampleRate defaults to 1.0")
+
+	// SampleRate=0 is preserved verbatim (callers can deliberately drop everything).
+	zeroed := Config{Enabled: true, Endpoint: "https://x/y", SampleRate: 0}
+	require.NoError(t, zeroed.Validate())
+	assert.InDelta(t, 0.0, zeroed.SampleRate, 1e-9, "SampleRate=0 must survive Validate so callers can disable sampling")
+
+	// SampleRate=0.5 round-trips unchanged.
+	mid := Config{Enabled: true, Endpoint: "https://x/y", SampleRate: 0.5}
+	require.NoError(t, mid.Validate())
+	assert.InDelta(t, 0.5, mid.SampleRate, 1e-9)
 
 	bad := Config{Enabled: true}
 	assert.Error(t, bad.Validate(), "Endpoint required when Enabled")
@@ -296,15 +334,17 @@ func TestLangfuseAuthHeaders_WithEnv(t *testing.T) {
 }
 
 func TestInitTracerProvider_DisabledReturnsNoop(t *testing.T) {
-	shutdown, err := InitTracerProvider(context.Background(), Config{Enabled: false})
+	tp, shutdown, err := InitTracerProvider(context.Background(), Config{Enabled: false})
 	require.NoError(t, err)
+	assert.Nil(t, tp, "disabled config must not allocate a TracerProvider")
 	require.NotNil(t, shutdown)
 	assert.NoError(t, shutdown(context.Background()))
 }
 
 func TestInitTracerProvider_EmptyEndpointReturnsNoop(t *testing.T) {
-	shutdown, err := InitTracerProvider(context.Background(), Config{Enabled: true})
+	tp, shutdown, err := InitTracerProvider(context.Background(), Config{Enabled: true})
 	require.NoError(t, err)
+	assert.Nil(t, tp, "empty endpoint must not allocate a TracerProvider")
 	require.NotNil(t, shutdown)
 	assert.NoError(t, shutdown(context.Background()))
 }

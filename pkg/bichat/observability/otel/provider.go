@@ -2,19 +2,22 @@ package otel
 
 import (
 	"context"
-	"crypto/sha256"
+	"sync"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 )
 
 // Provider implements observability.Provider by emitting OpenTelemetry spans
-// that follow the GenAI semantic conventions. Spans are exported via the
-// configured global TracerProvider (typically set up by InitTracerProvider).
+// that follow the GenAI semantic conventions. The provider is intended to be
+// constructed against a SCOPED TracerProvider (created via InitTracerProvider
+// and passed in via WithTracer), not the OTel global — this keeps bichat's
+// pipeline isolated from any other instrumented library in the same process.
 //
 // Cost attributes are intentionally NOT emitted: the trace backend computes
 // cost server-side from gen_ai.request.model + token counts, removing the
@@ -23,6 +26,20 @@ type Provider struct {
 	tracer trace.Tracer
 	cfg    Config
 	log    *logrus.Logger
+	// spans maps bichat span/trace IDs (the strings on GenerationObservation/
+	// SpanObservation/EventObservation) to the real OTel SpanContext that the
+	// SDK assigned to the underlying span. Subsequent observations whose
+	// ParentID points at a bichat ID look up the captured SpanContext here so
+	// the new span correctly inherits TraceID + parent linkage. Without this
+	// map the only options would be (a) install a custom IDGenerator on the
+	// TracerProvider or (b) propagate via ctx — neither fits the bridge,
+	// which builds bichat-internal IDs and passes them as plain strings.
+	//
+	// TODO: bound size / evict on session end. Currently grows for the
+	// process lifetime; fine for short-lived test runs and the typical
+	// dev-server workload, but a long-running production node will leak
+	// ~100 bytes per recorded span.
+	spans sync.Map // map[string]trace.SpanContext
 }
 
 // Option configures a Provider during construction.
@@ -42,10 +59,26 @@ func WithLogger(l *logrus.Logger) Option {
 
 // NewProvider creates an OTel-based observability provider.
 //
+// Returns observability.Provider rather than the concrete *Provider so the
+// package boundary stays decoupled from this backend (see CLAUDE.md:
+// "Prefer interfaces over concrete structs at boundaries"). Callers that
+// need access to the additional TraceNameUpdater / TraceTagUpdater
+// interfaces can type-assert against those.
+//
 // If WithTracer is not supplied, the provider lazily resolves
-// otel.Tracer("bichat") on each call, so callers can call NewProvider before
-// InitTracerProvider as long as setup completes before any Record* calls.
-func NewProvider(cfg Config, opts ...Option) *Provider {
+// otel.Tracer("bichat") on each call. NOTE: with the migration to a SCOPED
+// TracerProvider (see InitTracerProvider), the global is typically the OTel
+// noop and spans would be silently dropped — host bootstraps should ALWAYS
+// pass WithTracer(tp.Tracer("bichat")) using the TracerProvider returned by
+// InitTracerProvider.
+func NewProvider(cfg Config, opts ...Option) observability.Provider {
+	return newProvider(cfg, opts...)
+}
+
+// newProvider is the package-internal constructor used by tests that need to
+// access the concrete *Provider type (e.g. for direct field inspection or
+// type-asserted helpers).
+func newProvider(cfg Config, opts ...Option) *Provider {
 	log := logrus.New()
 	log.SetLevel(logrus.InfoLevel)
 
@@ -67,73 +100,67 @@ func (p *Provider) resolveTracer() trace.Tracer {
 	return otel.Tracer("bichat")
 }
 
-// deriveTraceID hashes an arbitrary string into a 16-byte OTel trace ID.
-// Empty input yields the zero trace ID, which OTel treats as "no trace".
-func deriveTraceID(s string) trace.TraceID {
-	var tid trace.TraceID
-	if s == "" {
-		return tid
+// rememberSpan stores the OTel SpanContext of a freshly-started span keyed by
+// its bichat ID, so subsequent observations whose ParentID matches can find
+// the real parent SpanContext and inherit TraceID + parent linkage.
+func (p *Provider) rememberSpan(bichatID string, sc trace.SpanContext) {
+	if bichatID == "" || !sc.IsValid() {
+		return
 	}
-	h := sha256.Sum256([]byte(s))
-	copy(tid[:], h[:16])
-	return tid
+	p.spans.Store(bichatID, sc)
 }
 
-// deriveSpanID hashes an arbitrary string into an 8-byte OTel span ID.
-// Empty input yields the zero span ID.
-func deriveSpanID(s string) trace.SpanID {
-	var sid trace.SpanID
-	if s == "" {
-		return sid
+// lookupSpan returns the captured SpanContext for a bichat ID, or zero+false.
+func (p *Provider) lookupSpan(bichatID string) (trace.SpanContext, bool) {
+	if bichatID == "" {
+		return trace.SpanContext{}, false
 	}
-	h := sha256.Sum256([]byte(s))
-	copy(sid[:], h[:8])
-	return sid
+	v, ok := p.spans.Load(bichatID)
+	if !ok {
+		return trace.SpanContext{}, false
+	}
+	sc, ok := v.(trace.SpanContext)
+	return sc, ok
 }
 
-// parentContext builds a context whose embedded SpanContext carries the
-// derived trace ID and (only when parentID is non-empty) a real parent span ID.
-// This is what makes child spans land under the correct trace once exported.
+// parentContext returns a context that embeds the parent's REAL OTel
+// SpanContext (TraceID + SpanID) when we've already recorded that bichat ID.
+// When parentID is empty or unknown, the original ctx is returned and the new
+// span becomes a root — which is correct for the first observation of a run.
 //
-// When parentID is empty, the SpanContext omits SpanID entirely so OTel treats
-// the new span as a fresh root — synthesizing a fake parent span ID would
-// produce orphan/broken-parent badges in backends that validate parent
-// linkage, since that synthesized ID is never actually exported.
-func parentContext(ctx context.Context, traceID, parentID string) context.Context {
-	tid := deriveTraceID(traceID)
-	if !tid.IsValid() {
+// Earlier iterations of this provider hashed bichat IDs into synthetic OTel
+// IDs to thread a deterministic TraceID through. That produced orphaned
+// parent links: the synthetic SpanIDs never matched any span actually
+// exported by the SDK, and OTel's tracer.Start treats a SpanContext with a
+// zero/invalid SpanID as "no parent" anyway, falling back to a fresh
+// TraceID. The state map is the only correct way to bridge bichat's
+// string-ID world into OTel's binary-ID world without a custom IDGenerator.
+func (p *Provider) parentContext(ctx context.Context, parentID string) context.Context {
+	if parentID == "" {
 		return ctx
 	}
-	cfg := trace.SpanContextConfig{
-		TraceID:    tid,
-		Remote:     true,
-		TraceFlags: trace.FlagsSampled,
+	sc, ok := p.lookupSpan(parentID)
+	if !ok {
+		return ctx
 	}
-	if parentID != "" {
-		sid := deriveSpanID(parentID)
-		if sid.IsValid() {
-			cfg.SpanID = sid
-		}
-	}
-	// If parentID was empty or its derived span ID was invalid (zero), leave
-	// cfg.SpanID as the zero value so OTel treats this as a root span.
-	sc := trace.NewSpanContext(cfg)
 	return trace.ContextWithSpanContext(ctx, sc)
 }
 
-// safeEnd ends a span at obs.Timestamp + duration. End time of zero is fine
-// for OTel — it falls back to the current time — but providing the recorded
-// duration produces more accurate trace timelines.
+// safeEnd ends a span at the recorded timestamp+duration. When the duration
+// is zero/negative we still end at the recorded start timestamp so historical
+// observations don't mutate into long-running spans (which would skew latency
+// dashboards). End-time of zero is the only case that falls back to OTel's
+// "now" default.
 func safeEnd(span trace.Span, start time.Time, dur time.Duration) {
 	if start.IsZero() {
 		span.End()
 		return
 	}
-	if dur <= 0 {
-		span.End()
-		return
+	end := start
+	if dur > 0 {
+		end = start.Add(dur)
 	}
-	span.End(trace.WithTimestamp(start.Add(dur)))
+	span.End(trace.WithTimestamp(end))
 }
 
 // RecordGeneration emits a CLIENT-kind span with GenAI semantic-convention
@@ -145,7 +172,7 @@ func (p *Provider) RecordGeneration(ctx context.Context, obs observability.Gener
 	}
 	defer p.recover("RecordGeneration", obs.ID)
 
-	pctx := parentContext(ctx, obs.TraceID, obs.ParentID)
+	pctx := p.parentContext(ctx, obs.ParentID)
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindClient),
 	}
@@ -159,6 +186,7 @@ func (p *Provider) RecordGeneration(ctx context.Context, obs observability.Gener
 	}
 
 	_, span := p.resolveTracer().Start(pctx, name, startOpts...)
+	p.rememberSpan(obs.ID, span.SpanContext())
 	span.SetAttributes(generationToAttributes(obs)...)
 	safeEnd(span, obs.Timestamp, obs.Duration)
 	return nil
@@ -171,7 +199,7 @@ func (p *Provider) RecordSpan(ctx context.Context, obs observability.SpanObserva
 	}
 	defer p.recover("RecordSpan", obs.ID)
 
-	pctx := parentContext(ctx, obs.TraceID, obs.ParentID)
+	pctx := p.parentContext(ctx, obs.ParentID)
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindInternal),
 	}
@@ -185,7 +213,14 @@ func (p *Provider) RecordSpan(ctx context.Context, obs observability.SpanObserva
 	}
 
 	_, span := p.resolveTracer().Start(pctx, name, startOpts...)
+	p.rememberSpan(obs.ID, span.SpanContext())
 	span.SetAttributes(spanToAttributes(obs)...)
+	// Mirror the bichat status into the OTel standard. Backends like Jaeger
+	// and Datadog use SetStatus(codes.Error, ...) to drive error-rate
+	// metrics; a custom eai.span.status attribute alone is invisible there.
+	if obs.Status == "error" {
+		span.SetStatus(codes.Error, obs.Output)
+	}
 	safeEnd(span, obs.Timestamp, obs.Duration)
 	return nil
 }
@@ -199,7 +234,7 @@ func (p *Provider) RecordEvent(ctx context.Context, obs observability.EventObser
 	}
 	defer p.recover("RecordEvent", obs.ID)
 
-	pctx := parentContext(ctx, obs.TraceID, "")
+	pctx := p.parentContext(ctx, obs.TraceID)
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindInternal),
 	}
@@ -213,6 +248,7 @@ func (p *Provider) RecordEvent(ctx context.Context, obs observability.EventObser
 	}
 
 	_, span := p.resolveTracer().Start(pctx, name, startOpts...)
+	p.rememberSpan(obs.ID, span.SpanContext())
 	span.SetAttributes(eventToAttributes(obs)...)
 	if !obs.Timestamp.IsZero() {
 		span.End(trace.WithTimestamp(obs.Timestamp))
@@ -231,7 +267,7 @@ func (p *Provider) RecordTrace(ctx context.Context, obs observability.TraceObser
 	}
 	defer p.recover("RecordTrace", obs.ID)
 
-	pctx := parentContext(ctx, obs.ID, "")
+	pctx := p.parentContext(ctx, obs.ID)
 	startOpts := []trace.SpanStartOption{
 		trace.WithSpanKind(trace.SpanKindInternal),
 	}
@@ -245,17 +281,13 @@ func (p *Provider) RecordTrace(ctx context.Context, obs observability.TraceObser
 	}
 
 	_, span := p.resolveTracer().Start(pctx, name, startOpts...)
-	attrs := traceToAttributes(obs)
-	if len(p.cfg.Tags) > 0 {
-		attrs = append(attrs, attribute.StringSlice(attrLangfuseTraceTags, p.cfg.Tags))
-	}
-	if p.cfg.Environment != "" {
-		attrs = append(attrs, attribute.String("deployment.environment.name", p.cfg.Environment))
-	}
-	if p.cfg.Version != "" {
-		attrs = append(attrs, attribute.String("service.version", p.cfg.Version))
-	}
-	span.SetAttributes(attrs...)
+	p.rememberSpan(obs.ID, span.SpanContext())
+	// Resource attrs (service.version, deployment.environment.name, eai.tag.*)
+	// are now set on the TracerProvider's Resource and propagate to every
+	// span automatically — duplicating them on each trace summary is dead
+	// noise for any consumer that respects Resource attrs (every standard
+	// OTel sink does). Tags and metadata that are genuinely per-trace stay.
+	span.SetAttributes(traceToAttributes(obs)...)
 	safeEnd(span, obs.Timestamp, obs.Duration)
 	return nil
 }
@@ -270,7 +302,7 @@ func (p *Provider) UpdateTraceName(ctx context.Context, traceID, name string) er
 	}
 	defer p.recover("UpdateTraceName", traceID)
 
-	pctx := parentContext(ctx, traceID, "")
+	pctx := p.parentContext(ctx, traceID)
 	_, span := p.resolveTracer().Start(pctx, "bichat.trace.update",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)
@@ -290,7 +322,7 @@ func (p *Provider) UpdateTraceTags(ctx context.Context, traceID string, tags []s
 	}
 	defer p.recover("UpdateTraceTags", traceID)
 
-	pctx := parentContext(ctx, traceID, "")
+	pctx := p.parentContext(ctx, traceID)
 	_, span := p.resolveTracer().Start(pctx, "bichat.trace.update",
 		trace.WithSpanKind(trace.SpanKindInternal),
 	)

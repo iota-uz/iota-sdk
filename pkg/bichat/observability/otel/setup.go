@@ -3,8 +3,8 @@ package otel
 import (
 	"context"
 	"fmt"
+	"strings"
 
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/sdk/resource"
@@ -16,42 +16,38 @@ import (
 // Used when observability is disabled.
 func noopShutdown(context.Context) error { return nil }
 
-// HasGlobalTracerProvider reports whether a non-default global TracerProvider
-// has been registered (i.e. someone called otel.SetTracerProvider with a real
-// provider). Returns false when the global is still the zero-value no-op
-// TracerProvider that OTel installs by default — in that case spans created
-// by Provider would be silently dropped.
+// InitTracerProvider builds a SCOPED OpenTelemetry TracerProvider for bichat.
+// It is intentionally NOT installed as the global TracerProvider — doing so
+// would hijack any other OTel-instrumented library in the same process
+// (otelhttp middleware, sql instrumentation, etc.) and ship their spans to
+// the same OTLP endpoint, polluting bichat's trace dashboard.
 //
-// Use this from a host module's bootstrap to detect "endpoint configured but
-// nobody initialized the pipeline" misconfigurations and warn loudly.
-func HasGlobalTracerProvider() bool {
-	if _, ok := otel.GetTracerProvider().(*sdktrace.TracerProvider); ok {
-		return true
-	}
-	return false
-}
-
-// InitTracerProvider sets up a global OpenTelemetry TracerProvider with an
-// OTLP/HTTP exporter pointed at cfg.Endpoint, batched span processing, and
-// resource attributes describing the bichat service.
+// Callers should pass the returned TracerProvider's tracer to NewProvider via
+// WithTracer:
+//
+//	tp, shutdown, err := otelprovider.InitTracerProvider(ctx, cfg)
+//	if err != nil { ... }
+//	defer shutdown(...)
+//	prov := otelprovider.NewProvider(cfg, otelprovider.WithTracer(tp.Tracer("bichat")))
 //
 // Resource attributes set:
 //   - service.name = "bichat"
 //   - service.version = cfg.Version (when non-empty)
 //   - deployment.environment.name = cfg.Environment (when non-empty)
+//   - eai.tag.<i> = each value in cfg.Tags
 //
 // The returned shutdown function drains pending spans and should be invoked
 // from the component shutdown path (typically with a bounded context).
 //
 // When cfg.Enabled is false or cfg.Endpoint is empty, this function returns a
-// no-op shutdown and does NOT mutate the global tracer provider.
-func InitTracerProvider(ctx context.Context, cfg Config) (shutdown func(context.Context) error, err error) {
+// nil TracerProvider and a no-op shutdown.
+func InitTracerProvider(ctx context.Context, cfg Config) (tp *sdktrace.TracerProvider, shutdown func(context.Context) error, err error) {
 	if !cfg.Enabled || cfg.Endpoint == "" {
-		return noopShutdown, nil
+		return nil, noopShutdown, nil
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return nil, fmt.Errorf("otel.InitTracerProvider: invalid config: %w", err)
+		return nil, nil, fmt.Errorf("otel.InitTracerProvider: invalid config: %w", err)
 	}
 
 	exporter, err := otlptracehttp.New(ctx,
@@ -59,7 +55,7 @@ func InitTracerProvider(ctx context.Context, cfg Config) (shutdown func(context.
 		otlptracehttp.WithHeaders(cfg.Headers),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("otel.InitTracerProvider: build exporter: %w", err)
+		return nil, nil, fmt.Errorf("otel.InitTracerProvider: build exporter: %w", err)
 	}
 
 	resAttrs := []attribute.KeyValue{
@@ -71,22 +67,30 @@ func InitTracerProvider(ctx context.Context, cfg Config) (shutdown func(context.
 	if cfg.Environment != "" {
 		resAttrs = append(resAttrs, semconv.DeploymentEnvironmentName(cfg.Environment))
 	}
+	for i, tag := range cfg.Tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		resAttrs = append(resAttrs, attribute.String(fmt.Sprintf("eai.tag.%d", i), tag))
+	}
 
 	res, err := resource.Merge(
 		resource.Default(),
 		resource.NewWithAttributes(semconv.SchemaURL, resAttrs...),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("otel.InitTracerProvider: build resource: %w", err)
+		return nil, nil, fmt.Errorf("otel.InitTracerProvider: build resource: %w", err)
 	}
 
 	bsp := sdktrace.NewBatchSpanProcessor(exporter)
-	tp := sdktrace.NewTracerProvider(
+	tp = sdktrace.NewTracerProvider(
 		sdktrace.WithSpanProcessor(bsp),
 		sdktrace.WithResource(res),
 		sdktrace.WithSampler(sdktrace.TraceIDRatioBased(cfg.SampleRate)),
 	)
-	otel.SetTracerProvider(tp)
-
-	return tp.Shutdown, nil
+	// NOTE: deliberately not calling otel.SetTracerProvider(tp). Bichat owns
+	// this TP. Host applications that want a global tracer can configure one
+	// independently.
+	return tp, tp.Shutdown, nil
 }
