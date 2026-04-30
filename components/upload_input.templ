@@ -76,7 +76,7 @@ templ (p *UploadInputProps) render() {
 					aria-hidden="true"
 					tabindex="-1"
 					accept={ p.Accept }
-					hx-trigger="change changed"
+					hx-trigger="change"
 					hx-target={ fmt.Sprintf("#target-%s", p.ID) }
 					hx-post="/uploads"
 					hx-encoding="multipart/form-data"
