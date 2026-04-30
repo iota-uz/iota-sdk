@@ -7,6 +7,7 @@ import (
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/utils/random"
 )
@@ -71,9 +72,21 @@ templ UploadTarget(p *UploadInputProps) {
 
 templ (p *UploadInputProps) render() {
 	<div
-		class={ "border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center transition-colors", p.Class }
+		class={ "relative border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center transition-colors", p.Class }
 		{ uploadDropAttrs(p.ID)... }
 	>
+		// Loading overlay shown while a file is being uploaded. The
+		// `htmx-indicator` class is toggled by HTMX via `hx-indicator` on the
+		// hidden file input below.
+		<div
+			id={ fmt.Sprintf("spinner-%s", p.ID) }
+			class="htmx-indicator absolute inset-0 z-10 flex items-center justify-center rounded-md bg-white/70"
+			aria-hidden="true"
+		>
+			@loaders.Spinner(loaders.SpinnerProps{
+				SpinnerClass: templ.Classes("w-6 h-6"),
+			})
+		</div>
 		<div class="flex flex-col items-center">
 			<div id={ fmt.Sprintf("upload-form-%s", p.ID) }>
 				<input
@@ -85,6 +98,7 @@ templ (p *UploadInputProps) render() {
 					accept={ p.Accept }
 					hx-trigger="change"
 					hx-target={ fmt.Sprintf("#target-%s", p.ID) }
+					hx-indicator={ fmt.Sprintf("#spinner-%s", p.ID) }
 					hx-post="/uploads"
 					hx-encoding="multipart/form-data"
 					hx-vals={ fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s", "_multiple": "%t"}`, p.ID, p.Form, p.Name, p.Multiple) }
