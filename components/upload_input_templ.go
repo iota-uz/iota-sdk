@@ -618,13 +618,15 @@ func (p *UploadInputProps) render() templ.Component {
 	})
 }
 
-// uploadInputScript emits the runtime helpers shared by every UploadInput
-// instance on the page. Idempotent via a `__upload` existence check so
-// rendering N inputs only registers the helpers once. Centralising the
-// logic here keeps the Go side declarative — templates only emit
+// UploadHelpersScript emits the runtime helpers shared by every upload
+// dropzone on the page (this SDK's `UploadInput` and any consumer that
+// wants to reuse the `__upload` namespace, e.g. the EAI claim
+// `UploadSection`). Idempotent via a `__upload` existence check so
+// rendering N dropzones only registers the helpers once. Centralising the
+// logic here keeps templates declarative — call sites only emit
 // `__upload.fn(this, event)` callbacks plus per-instance config in
 // data-* attributes.
-func uploadInputScript() templ.Component {
+func UploadHelpersScript() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -655,7 +657,7 @@ func uploadInputScript() templ.Component {
 
 // UploadInput renders a file upload input with preview capability. Drop
 // support, client-side validation and async error feedback are powered by
-// the shared `__upload` helpers in `uploadInputScript`.
+// the shared `__upload` helpers in `UploadHelpersScript`.
 func UploadInput(props *UploadInputProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -681,7 +683,7 @@ func UploadInput(props *UploadInputProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = uploadInputScript().Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = UploadHelpersScript().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
