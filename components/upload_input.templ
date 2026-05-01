@@ -25,6 +25,28 @@ type UploadInputProps struct {
 	Form        string               // ID of the form this input belongs to
 	Class       string               // Additional CSS classes
 	Multiple    bool                 // Whether multiple file uploads are allowed
+
+	// MaxSize is the per-file size limit in bytes enforced client-side before
+	// upload. 0 means no client-side limit (server may still reject).
+	MaxSize int64
+
+	// Labels override default English copy used in async error feedback. Each
+	// field is optional; empty values fall back to a built-in default.
+	Labels UploadInputLabels
+}
+
+// UploadInputLabels holds the user-facing strings rendered by the component
+// at runtime. Use {name}, {size} and {limit} placeholders in messages where
+// applicable — they are replaced with the rejected file's name, megabyte
+// size and configured limit respectively.
+type UploadInputLabels struct {
+	GenericError    string // generic 4xx/5xx fallback, default "Upload failed"
+	NetworkError    string // pre-flight failure, default "Network error — please retry"
+	TypeRejected    string // unsupported extension, default `File "{name}" — unsupported format`
+	SizeRejected    string // oversized file, default `File "{name}" is too large ({size}MB > {limit}MB)`
+	TooLargeStatus  string // 413 fallback, default "File too large"
+	UnsupportedType string // 415 fallback, default "Unsupported file type"
+	ServerError     string // 5xx fallback, default "Server error — please retry later"
 }
 
 func newUploadInput(props *UploadInputProps) *UploadInputProps {
@@ -34,7 +56,32 @@ func newUploadInput(props *UploadInputProps) *UploadInputProps {
 	if props.Accept == "" {
 		props.Accept = "image/*"
 	}
+	applyLabelDefaults(&props.Labels)
 	return props
+}
+
+func applyLabelDefaults(l *UploadInputLabels) {
+	if l.GenericError == "" {
+		l.GenericError = "Upload failed"
+	}
+	if l.NetworkError == "" {
+		l.NetworkError = "Network error — please retry"
+	}
+	if l.TypeRejected == "" {
+		l.TypeRejected = `File "{name}" — unsupported format`
+	}
+	if l.SizeRejected == "" {
+		l.SizeRejected = `File "{name}" is too large ({size}MB > {limit}MB)`
+	}
+	if l.TooLargeStatus == "" {
+		l.TooLargeStatus = "File too large"
+	}
+	if l.UnsupportedType == "" {
+		l.UnsupportedType = "Unsupported file type"
+	}
+	if l.ServerError == "" {
+		l.ServerError = "Server error — please retry later"
+	}
 }
 
 templ UploadTarget(p *UploadInputProps) {
@@ -77,10 +124,13 @@ templ (p *UploadInputProps) render() {
 	>
 		// Loading overlay shown while a file is being uploaded. The
 		// `htmx-indicator` class is toggled by HTMX via `hx-indicator` on the
-		// hidden file input below.
+		// hidden file input below; `pointer-events-none` keeps the overlay
+		// click-through when invisible. `hx-sync="this:drop"` on the input
+		// already prevents concurrent uploads, so the overlay's visual block
+		// during a request is enough.
 		<div
 			id={ fmt.Sprintf("spinner-%s", p.ID) }
-			class="htmx-indicator absolute inset-0 z-10 flex items-center justify-center rounded-md bg-white/70"
+			class="htmx-indicator pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-surface-100/80"
 			aria-hidden="true"
 		>
 			@loaders.Spinner(loaders.SpinnerProps{
@@ -102,10 +152,12 @@ templ (p *UploadInputProps) render() {
 					hx-post="/uploads"
 					hx-encoding="multipart/form-data"
 					hx-vals={ fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s", "_multiple": "%t"}`, p.ID, p.Form, p.Name, p.Multiple) }
+					hx-sync="this:drop"
 					name="file"
 					multiple?={ p.Multiple }
 					hx-on::after-request="this.value = ''"
-					{ uploadErrorAttrs(p.ID)... }
+					{ uploadValidationAttrs(p)... }
+					{ uploadErrorAttrs(p)... }
 				/>
 			</div>
 			<div id={ fmt.Sprintf("target-%s", p.ID) }>
@@ -127,8 +179,8 @@ templ (p *UploadInputProps) render() {
 			<p class="text-xs">
 				{ p.Placeholder }
 			</p>
-			// Inline error slot populated by the response-error / send-error
-			// handlers above. Hidden until a request fails.
+			// Inline error slot populated by the validation/response/send-error
+			// handlers above. Hidden until a request fails or files are rejected.
 			<p
 				id={ fmt.Sprintf("error-%s", p.ID) }
 				class="text-red-500 text-xs mt-2 hidden"
@@ -144,31 +196,76 @@ templ (p *UploadInputProps) render() {
 	</div>
 }
 
-// uploadErrorAttrs builds the HTMX failure-event handlers for the hidden file
-// input. On a server error (4xx/5xx) it surfaces the response body; on a
-// pre-flight failure (network/CORS/offline) it shows a generic retry message.
-// Both render an inline error inside the dropzone and dispatch a `notify`
-// toast event so users actually see what went wrong instead of the spinner
-// silently disappearing. `hx-on::before-request` clears any prior error so a
-// fresh upload starts clean.
-func uploadErrorAttrs(id string) templ.Attributes {
-	clearSlot := fmt.Sprintf(
-		`var slot = document.getElementById('error-%s'); if (slot) { slot.textContent = ''; slot.classList.add('hidden'); }`,
-		id,
+// uploadValidationAttrs builds the `hx-on::before-request` handler that
+// rejects files exceeding `MaxSize` or whose extension/mimetype does not
+// match `Accept` before the upload fires. The browser already enforces
+// `accept` on click-picked files, but drop events bypass it — so we filter
+// in JS to keep the behaviour consistent.
+//
+// On rejection: render an inline error in the dropzone, dispatch a `notify`
+// toast, clear the input value (so the same file can be retried), and call
+// `event.preventDefault()` to abort the request. On success: clear any
+// stale error and let HTMX continue.
+func uploadValidationAttrs(p *UploadInputProps) templ.Attributes {
+	js := fmt.Sprintf(
+		`var inp = this; var slot = document.getElementById('error-%s');`+
+			` if (slot) { slot.textContent = ''; slot.classList.add('hidden'); }`+
+			` var maxSize = %d; var accept = %q;`+
+			` var sizeTpl = %q; var typeTpl = %q;`+
+			` var errs = []; var files = inp.files || [];`+
+			` for (var i = 0; i < files.length; i++) {`+
+			`   var f = files[i];`+
+			`   if (maxSize > 0 && f.size > maxSize) {`+
+			`     errs.push(sizeTpl.replace('{name}', f.name).replace('{size}', (f.size/1048576).toFixed(1)).replace('{limit}', (maxSize/1048576).toFixed(1)));`+
+			`     continue;`+
+			`   }`+
+			`   if (accept && !__uploadAcceptMatches(f, accept)) {`+
+			`     errs.push(typeTpl.replace('{name}', f.name));`+
+			`   }`+
+			` }`+
+			` if (errs.length) {`+
+			`   var msg = errs.join('; ');`+
+			`   if (slot) { slot.textContent = msg; slot.classList.remove('hidden'); }`+
+			`   window.dispatchEvent(new CustomEvent('notify', {detail: {variant: 'error', message: msg}}));`+
+			`   inp.value = ''; event.preventDefault();`+
+			` }`,
+		p.ID, p.MaxSize, p.Accept, p.Labels.SizeRejected, p.Labels.TypeRejected,
 	)
+	return templ.Attributes{
+		"hx-on::before-request": js,
+	}
+}
+
+// uploadErrorAttrs builds the HTMX failure-event handlers for the hidden file
+// input. Server errors (4xx/5xx) get pretty-mapped by status code; only
+// fall back to the raw response body when no status-specific label fits.
+// Pre-flight failures (network/CORS/offline) get the network label.
+//
+// Both render an inline error inside the dropzone and dispatch a `notify`
+// toast event.
+func uploadErrorAttrs(p *UploadInputProps) templ.Attributes {
 	render := func(read string) string {
 		return fmt.Sprintf(
 			`%s var slot = document.getElementById('error-%s'); if (slot) { slot.textContent = msg; slot.classList.remove('hidden'); }`+
 				` window.dispatchEvent(new CustomEvent('notify', {detail: {variant: 'error', message: msg}}));`,
-			read, id,
+			read, p.ID,
 		)
 	}
-	respErr := render(`var msg = (event.detail && event.detail.xhr && event.detail.xhr.responseText) ? event.detail.xhr.responseText : ''; if (!msg) { msg = 'Upload failed'; } if (msg.length > 200) { msg = msg.slice(0, 200) + '…'; }`)
-	netErr := render(`var msg = 'Network error — please retry';`)
+	respErr := render(fmt.Sprintf(
+		`var xhr = event.detail && event.detail.xhr; var status = xhr ? xhr.status : 0; var body = xhr ? (xhr.responseText || '') : '';`+
+			` var msg = '';`+
+			` if (status === 413) { msg = %q; }`+
+			` else if (status === 415) { msg = %q; }`+
+			` else if (status >= 500) { msg = %q; }`+
+			` else if (body && body.length < 200 && body.indexOf('<') === -1) { msg = body; }`+
+			` else { msg = %q; }`,
+		p.Labels.TooLargeStatus, p.Labels.UnsupportedType, p.Labels.ServerError, p.Labels.GenericError,
+	))
+	netErr := fmt.Sprintf(`var msg = %q;`, p.Labels.NetworkError)
+	netErr = render(netErr)
 	return templ.Attributes{
-		"hx-on::before-request":  clearSlot,
-		"hx-on::response-error":  respErr,
-		"hx-on::send-error":      netErr,
+		"hx-on::response-error": respErr,
+		"hx-on::send-error":     netErr,
 	}
 }
 
@@ -199,6 +296,37 @@ func uploadDropAttrs(id string) templ.Attributes {
 // It displays existing uploads and allows selecting new files.
 templ UploadInput(props *UploadInputProps) {
 	@newUploadInput(props).render()
+	@uploadAcceptHelper()
+}
+
+// uploadAcceptHelper emits the global `__uploadAcceptMatches` JS function
+// once per page (idempotent via existence check) so multiple UploadInputs
+// share a single implementation. Matches files against the same syntax the
+// browser uses for `accept`: comma-separated extensions (`.pdf`),
+// MIME types (`image/png`), or wildcards (`image/*`).
+templ uploadAcceptHelper() {
+	<script>
+		if (typeof window.__uploadAcceptMatches !== 'function') {
+			window.__uploadAcceptMatches = function (file, accept) {
+				if (!accept) return true;
+				var name = (file.name || '').toLowerCase();
+				var type = (file.type || '').toLowerCase();
+				var tokens = accept.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+				for (var i = 0; i < tokens.length; i++) {
+					var t = tokens[i];
+					if (t.indexOf('.') === 0) {
+						if (name.endsWith(t)) return true;
+					} else if (t.indexOf('/*') === t.length - 2) {
+						var prefix = t.slice(0, t.length - 1);
+						if (type.indexOf(prefix) === 0) return true;
+					} else if (type === t) {
+						return true;
+					}
+				}
+				return false;
+			};
+		}
+	</script>
 }
 
 script removeUploadedFile(rowID string) {
