@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -13,40 +14,36 @@ import (
 )
 
 // UploadInputProps defines the properties for the UploadInput component.
-// It provides configuration options for the file upload interface.
 type UploadInputProps struct {
-	ID          string               // Unique identifier for the input
-	Label       string               // Text label for the upload button
-	Placeholder string               // Placeholder text shown below the button
-	Uploads     []*viewmodels.Upload // List of already uploaded files
-	Error       string               // Error message to display
-	Accept      string               // File types to accept (e.g., "image/*")
-	Name        string               // Name attribute for the form field
-	Form        string               // ID of the form this input belongs to
-	Class       string               // Additional CSS classes
-	Multiple    bool                 // Whether multiple file uploads are allowed
+	ID          string
+	Label       string
+	Placeholder string
+	Uploads     []*viewmodels.Upload
+	Error       string
+	Accept      string
+	Name        string
+	Form        string
+	Class       string
+	Multiple    bool
 
-	// MaxSize is the per-file size limit in bytes enforced client-side before
-	// upload. 0 means no client-side limit (server may still reject).
+	// MaxSize is the per-file size limit in bytes enforced client-side
+	// before upload. 0 = no client-side limit (server may still reject).
 	MaxSize int64
 
-	// Labels override default English copy used in async error feedback. Each
-	// field is optional; empty values fall back to a built-in default.
+	// Labels override default English copy for async error feedback. Use
+	// {name}, {size}, {limit} placeholders in TypeRejected/SizeRejected;
+	// they are replaced with the rejected file's name and megabyte values.
 	Labels UploadInputLabels
 }
 
-// UploadInputLabels holds the user-facing strings rendered by the component
-// at runtime. Use {name}, {size} and {limit} placeholders in messages where
-// applicable — they are replaced with the rejected file's name, megabyte
-// size and configured limit respectively.
 type UploadInputLabels struct {
-	GenericError    string // generic 4xx/5xx fallback, default "Upload failed"
-	NetworkError    string // pre-flight failure, default "Network error — please retry"
-	TypeRejected    string // unsupported extension, default `File "{name}" — unsupported format`
-	SizeRejected    string // oversized file, default `File "{name}" is too large ({size}MB > {limit}MB)`
-	TooLargeStatus  string // 413 fallback, default "File too large"
-	UnsupportedType string // 415 fallback, default "Unsupported file type"
-	ServerError     string // 5xx fallback, default "Server error — please retry later"
+	GenericError    string `json:"genericError"`
+	NetworkError    string `json:"networkError"`
+	TypeRejected    string `json:"typeRejected"`
+	SizeRejected    string `json:"sizeRejected"`
+	TooLargeStatus  string `json:"tooLargeStatus"`
+	UnsupportedType string `json:"unsupportedType"`
+	ServerError     string `json:"serverError"`
 }
 
 func newUploadInput(props *UploadInputProps) *UploadInputProps {
@@ -81,6 +78,36 @@ func applyLabelDefaults(l *UploadInputLabels) {
 	}
 	if l.ServerError == "" {
 		l.ServerError = "Server error — please retry later"
+	}
+}
+
+// uploadInputDropAttrs returns the drag-and-drop event handlers for the
+// outer wrapper. Defined as a Go helper because templ's attribute parser
+// treats `on*=` literals as templ.ComponentScript when the value is an
+// expression — a bare templ.Attributes spread sidesteps that and keeps
+// the JS handlers as plain strings.
+func uploadInputDropAttrs(id string) templ.Attributes {
+	return templ.Attributes{
+		"ondragenter": "__upload.dragenter(this, event)",
+		"ondragover":  "__upload.dragover(event)",
+		"ondragleave": "__upload.dragleave(this, event)",
+		"ondrop":      fmt.Sprintf("__upload.drop(this, event, %q)", id),
+	}
+}
+
+// uploadInputDataAttrs serialises the per-instance config (size limit,
+// accept list, error/status labels, error-slot id) as JSON-in-data-*
+// attributes that the runtime helpers in `uploadInputScript` read at the
+// moment of an event. Keeping the inline `hx-on::*` and `ondrop="..."`
+// handlers as one-liners (e.g. `__upload.drop(this, event, '<id>')`)
+// instead of multi-line JS-in-Go strings.
+func uploadInputDataAttrs(p *UploadInputProps) templ.Attributes {
+	labels, _ := json.Marshal(p.Labels)
+	return templ.Attributes{
+		"data-upload-max-size": fmt.Sprintf("%d", p.MaxSize),
+		"data-upload-accept":   p.Accept,
+		"data-upload-slot":     fmt.Sprintf("error-%s", p.ID),
+		"data-upload-labels":   string(labels),
 	}
 }
 
@@ -120,14 +147,8 @@ templ UploadTarget(p *UploadInputProps) {
 templ (p *UploadInputProps) render() {
 	<div
 		class={ "relative border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center transition-colors", p.Class }
-		{ uploadDropAttrs(p.ID)... }
+		{ uploadInputDropAttrs(p.ID)... }
 	>
-		// Loading overlay shown while a file is being uploaded. The
-		// `htmx-indicator` class is toggled by HTMX via `hx-indicator` on the
-		// hidden file input below; `pointer-events-none` keeps the overlay
-		// click-through when invisible. `hx-sync="this:drop"` on the input
-		// already prevents concurrent uploads, so the overlay's visual block
-		// during a request is enough.
 		<div
 			id={ fmt.Sprintf("spinner-%s", p.ID) }
 			class="htmx-indicator pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-surface-100/80"
@@ -156,8 +177,10 @@ templ (p *UploadInputProps) render() {
 					name="file"
 					multiple?={ p.Multiple }
 					hx-on::after-request="this.value = ''"
-					{ uploadValidationAttrs(p)... }
-					{ uploadErrorAttrs(p)... }
+					hx-on::before-request="__upload.beforeRequest(this, event)"
+					hx-on::response-error="__upload.onResponseError(this, event)"
+					hx-on::send-error="__upload.onSendError(this, event)"
+					{ uploadInputDataAttrs(p)... }
 				/>
 			</div>
 			<div id={ fmt.Sprintf("target-%s", p.ID) }>
@@ -179,8 +202,6 @@ templ (p *UploadInputProps) render() {
 			<p class="text-xs">
 				{ p.Placeholder }
 			</p>
-			// Inline error slot populated by the validation/response/send-error
-			// handlers above. Hidden until a request fails or files are rejected.
 			<p
 				id={ fmt.Sprintf("error-%s", p.ID) }
 				class="text-red-500 text-xs mt-2 hidden"
@@ -196,137 +217,163 @@ templ (p *UploadInputProps) render() {
 	</div>
 }
 
-// uploadValidationAttrs builds the `hx-on::before-request` handler that
-// rejects files exceeding `MaxSize` or whose extension/mimetype does not
-// match `Accept` before the upload fires. The browser already enforces
-// `accept` on click-picked files, but drop events bypass it — so we filter
-// in JS to keep the behaviour consistent.
-//
-// On rejection: render an inline error in the dropzone, dispatch a `notify`
-// toast, clear the input value (so the same file can be retried), and call
-// `event.preventDefault()` to abort the request. On success: clear any
-// stale error and let HTMX continue.
-func uploadValidationAttrs(p *UploadInputProps) templ.Attributes {
-	js := fmt.Sprintf(
-		`var inp = this; var slot = document.getElementById('error-%s');`+
-			` if (slot) { slot.textContent = ''; slot.classList.add('hidden'); }`+
-			` var maxSize = %d; var accept = %q;`+
-			` var sizeTpl = %q; var typeTpl = %q;`+
-			` var errs = []; var files = inp.files || [];`+
-			` for (var i = 0; i < files.length; i++) {`+
-			`   var f = files[i];`+
-			`   if (maxSize > 0 && f.size > maxSize) {`+
-			`     errs.push(sizeTpl.replace('{name}', f.name).replace('{size}', (f.size/1048576).toFixed(1)).replace('{limit}', (maxSize/1048576).toFixed(1)));`+
-			`     continue;`+
-			`   }`+
-			`   if (accept && !__uploadAcceptMatches(f, accept)) {`+
-			`     errs.push(typeTpl.replace('{name}', f.name));`+
-			`   }`+
-			` }`+
-			` if (errs.length) {`+
-			`   var msg = errs.join('; ');`+
-			`   if (slot) { slot.textContent = msg; slot.classList.remove('hidden'); }`+
-			`   window.dispatchEvent(new CustomEvent('notify', {detail: {variant: 'error', message: msg}}));`+
-			`   inp.value = ''; event.preventDefault();`+
-			` }`,
-		p.ID, p.MaxSize, p.Accept, p.Labels.SizeRejected, p.Labels.TypeRejected,
-	)
-	return templ.Attributes{
-		"hx-on::before-request": js,
-	}
-}
-
-// uploadErrorAttrs builds the HTMX failure-event handlers for the hidden file
-// input. Server errors (4xx/5xx) get pretty-mapped by status code; only
-// fall back to the raw response body when no status-specific label fits.
-// Pre-flight failures (network/CORS/offline) get the network label.
-//
-// Both render an inline error inside the dropzone and dispatch a `notify`
-// toast event.
-func uploadErrorAttrs(p *UploadInputProps) templ.Attributes {
-	render := func(read string) string {
-		return fmt.Sprintf(
-			`%s var slot = document.getElementById('error-%s'); if (slot) { slot.textContent = msg; slot.classList.remove('hidden'); }`+
-				` window.dispatchEvent(new CustomEvent('notify', {detail: {variant: 'error', message: msg}}));`,
-			read, p.ID,
-		)
-	}
-	respErr := render(fmt.Sprintf(
-		`var xhr = event.detail && event.detail.xhr; var status = xhr ? xhr.status : 0; var body = xhr ? (xhr.responseText || '') : '';`+
-			` var msg = '';`+
-			` if (status === 413) { msg = %q; }`+
-			` else if (status === 415) { msg = %q; }`+
-			` else if (status >= 500) { msg = %q; }`+
-			` else if (body && body.length < 200 && body.indexOf('<') === -1) { msg = body; }`+
-			` else { msg = %q; }`,
-		p.Labels.TooLargeStatus, p.Labels.UnsupportedType, p.Labels.ServerError, p.Labels.GenericError,
-	))
-	netErr := fmt.Sprintf(`var msg = %q;`, p.Labels.NetworkError)
-	netErr = render(netErr)
-	return templ.Attributes{
-		"hx-on::response-error": respErr,
-		"hx-on::send-error":     netErr,
-	}
-}
-
-// uploadDropAttrs builds the dragover/dragenter/dragleave/drop handlers that
-// route a dropped FileList into the hidden <input type=file> and dispatch
-// `change` so the existing HTMX hx-trigger="change" picks the upload up.
-// The DataTransfer fallback covers older WebKit builds where input.files is
-// read-only.
-func uploadDropAttrs(id string) templ.Attributes {
-	drop := fmt.Sprintf(
-		`event.preventDefault(); event.stopPropagation(); this.classList.remove('border-primary');`+
-			` var inp=document.getElementById(%q);`+
-			` if(!inp||!event.dataTransfer||!event.dataTransfer.files||!event.dataTransfer.files.length){return;}`+
-			` try{inp.files=event.dataTransfer.files;}`+
-			` catch(e){if(typeof DataTransfer==='function'){var dt=new DataTransfer(); for(var i=0;i<event.dataTransfer.files.length;i++){dt.items.add(event.dataTransfer.files[i]);} inp.files=dt.files;}}`+
-			` inp.dispatchEvent(new Event('change',{bubbles:true}));`,
-		id,
-	)
-	return templ.Attributes{
-		"ondragover":  "event.preventDefault(); event.stopPropagation();",
-		"ondragenter": "event.preventDefault(); event.stopPropagation(); this.classList.add('border-primary');",
-		"ondragleave": "if(event.target===this){this.classList.remove('border-primary');}",
-		"ondrop":      drop,
-	}
-}
-
-// UploadInput renders a file upload input with preview capability.
-// It displays existing uploads and allows selecting new files.
-templ UploadInput(props *UploadInputProps) {
-	@newUploadInput(props).render()
-	@uploadAcceptHelper()
-}
-
-// uploadAcceptHelper emits the global `__uploadAcceptMatches` JS function
-// once per page (idempotent via existence check) so multiple UploadInputs
-// share a single implementation. Matches files against the same syntax the
-// browser uses for `accept`: comma-separated extensions (`.pdf`),
-// MIME types (`image/png`), or wildcards (`image/*`).
-templ uploadAcceptHelper() {
+// UploadHelpersScript emits the runtime helpers shared by every upload
+// dropzone on the page (this SDK's `UploadInput` and any consumer that
+// wants to reuse the `__upload` namespace, e.g. the EAI claim
+// `UploadSection`). Idempotent via a `__upload` existence check so
+// rendering N dropzones only registers the helpers once. Centralising the
+// logic here keeps templates declarative — call sites only emit
+// `__upload.fn(this, event)` callbacks plus per-instance config in
+// data-* attributes.
+templ UploadHelpersScript() {
 	<script>
-		if (typeof window.__uploadAcceptMatches !== 'function') {
-			window.__uploadAcceptMatches = function (file, accept) {
-				if (!accept) return true;
-				var name = (file.name || '').toLowerCase();
-				var type = (file.type || '').toLowerCase();
-				var tokens = accept.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
-				for (var i = 0; i < tokens.length; i++) {
-					var t = tokens[i];
-					if (t.indexOf('.') === 0) {
-						if (name.endsWith(t)) return true;
-					} else if (t.indexOf('/*') === t.length - 2) {
-						var prefix = t.slice(0, t.length - 1);
-						if (type.indexOf(prefix) === 0) return true;
-					} else if (type === t) {
-						return true;
+		if (typeof window.__upload === 'undefined') {
+			window.__upload = (function () {
+				function acceptMatches(file, accept) {
+					if (!accept) return true;
+					var name = (file.name || '').toLowerCase();
+					var type = (file.type || '').toLowerCase();
+					var tokens = accept.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+					return tokens.some(function (t) {
+						if (t.charAt(0) === '.') return name.endsWith(t);
+						if (t.endsWith('/*')) return type.indexOf(t.slice(0, -1)) === 0;
+						return type === t;
+					});
+				}
+
+				function readConfig(input) {
+					return {
+						maxSize: parseInt(input.dataset.uploadMaxSize, 10) || 0,
+						accept: input.dataset.uploadAccept || '',
+						slot: input.dataset.uploadSlot || '',
+						labels: parseLabels(input.dataset.uploadLabels),
+					};
+				}
+
+				function parseLabels(raw) {
+					try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+				}
+
+				function setError(slotId, msg) {
+					var slot = slotId && document.getElementById(slotId);
+					if (slot) {
+						slot.textContent = msg;
+						slot.classList.remove('hidden');
+					}
+					window.dispatchEvent(new CustomEvent('notify', { detail: { variant: 'error', message: msg } }));
+				}
+
+				function clearError(slotId) {
+					var slot = slotId && document.getElementById(slotId);
+					if (slot) {
+						slot.textContent = '';
+						slot.classList.add('hidden');
 					}
 				}
-				return false;
-			};
+
+				function dragover(event) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+
+				function dragenter(el, event) {
+					event.preventDefault();
+					event.stopPropagation();
+					el.classList.add('border-primary');
+				}
+
+				function dragleave(el, event) {
+					if (event.target === el) el.classList.remove('border-primary');
+				}
+
+				function drop(el, event, inputId) {
+					event.preventDefault();
+					event.stopPropagation();
+					el.classList.remove('border-primary');
+					var inp = document.getElementById(inputId);
+					if (!inp || !event.dataTransfer || !event.dataTransfer.files || !event.dataTransfer.files.length) return;
+					try {
+						inp.files = event.dataTransfer.files;
+					} catch (e) {
+						if (typeof DataTransfer !== 'function') return;
+						var dt = new DataTransfer();
+						for (var i = 0; i < event.dataTransfer.files.length; i++) {
+							dt.items.add(event.dataTransfer.files[i]);
+						}
+						inp.files = dt.files;
+					}
+					inp.dispatchEvent(new Event('change', { bubbles: true }));
+				}
+
+				function beforeRequest(input, event) {
+					var cfg = readConfig(input);
+					clearError(cfg.slot);
+					var errs = [];
+					var files = input.files || [];
+					for (var i = 0; i < files.length; i++) {
+						var f = files[i];
+						if (cfg.maxSize > 0 && f.size > cfg.maxSize) {
+							errs.push((cfg.labels.sizeRejected || '{name} is too large')
+								.replace('{name}', f.name)
+								.replace('{size}', (f.size / 1048576).toFixed(1))
+								.replace('{limit}', (cfg.maxSize / 1048576).toFixed(1)));
+							continue;
+						}
+						if (cfg.accept && !acceptMatches(f, cfg.accept)) {
+							errs.push((cfg.labels.typeRejected || '{name} unsupported').replace('{name}', f.name));
+						}
+					}
+					if (errs.length) {
+						setError(cfg.slot, errs.join('; '));
+						input.value = '';
+						event.preventDefault();
+					}
+				}
+
+				function pickResponseMessage(xhr, labels) {
+					var status = xhr ? xhr.status : 0;
+					var body = xhr ? (xhr.responseText || '') : '';
+					if (status === 413) return labels.tooLargeStatus || 'File too large';
+					if (status === 415) return labels.unsupportedType || 'Unsupported file type';
+					if (status >= 500) return labels.serverError || 'Server error';
+					if (body && body.length < 200 && body.indexOf('<') === -1) return body.trim();
+					return labels.genericError || 'Upload failed';
+				}
+
+				function onResponseError(input, event) {
+					var cfg = readConfig(input);
+					var xhr = event && event.detail && event.detail.xhr;
+					setError(cfg.slot, pickResponseMessage(xhr, cfg.labels));
+				}
+
+				function onSendError(input) {
+					var cfg = readConfig(input);
+					setError(cfg.slot, cfg.labels.networkError || 'Network error');
+				}
+
+				return {
+					acceptMatches: acceptMatches,
+					dragover: dragover,
+					dragenter: dragenter,
+					dragleave: dragleave,
+					drop: drop,
+					beforeRequest: beforeRequest,
+					onResponseError: onResponseError,
+					onSendError: onSendError,
+					setError: setError,
+					clearError: clearError,
+				};
+			})();
 		}
 	</script>
+}
+
+// UploadInput renders a file upload input with preview capability. Drop
+// support, client-side validation and async error feedback are powered by
+// the shared `__upload` helpers in `UploadHelpersScript`.
+templ UploadInput(props *UploadInputProps) {
+	@newUploadInput(props).render()
+	@UploadHelpersScript()
 }
 
 script removeUploadedFile(rowID string) {

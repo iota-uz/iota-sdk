@@ -9,6 +9,7 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -21,40 +22,36 @@ import (
 )
 
 // UploadInputProps defines the properties for the UploadInput component.
-// It provides configuration options for the file upload interface.
 type UploadInputProps struct {
-	ID          string               // Unique identifier for the input
-	Label       string               // Text label for the upload button
-	Placeholder string               // Placeholder text shown below the button
-	Uploads     []*viewmodels.Upload // List of already uploaded files
-	Error       string               // Error message to display
-	Accept      string               // File types to accept (e.g., "image/*")
-	Name        string               // Name attribute for the form field
-	Form        string               // ID of the form this input belongs to
-	Class       string               // Additional CSS classes
-	Multiple    bool                 // Whether multiple file uploads are allowed
+	ID          string
+	Label       string
+	Placeholder string
+	Uploads     []*viewmodels.Upload
+	Error       string
+	Accept      string
+	Name        string
+	Form        string
+	Class       string
+	Multiple    bool
 
-	// MaxSize is the per-file size limit in bytes enforced client-side before
-	// upload. 0 means no client-side limit (server may still reject).
+	// MaxSize is the per-file size limit in bytes enforced client-side
+	// before upload. 0 = no client-side limit (server may still reject).
 	MaxSize int64
 
-	// Labels override default English copy used in async error feedback. Each
-	// field is optional; empty values fall back to a built-in default.
+	// Labels override default English copy for async error feedback. Use
+	// {name}, {size}, {limit} placeholders in TypeRejected/SizeRejected;
+	// they are replaced with the rejected file's name and megabyte values.
 	Labels UploadInputLabels
 }
 
-// UploadInputLabels holds the user-facing strings rendered by the component
-// at runtime. Use {name}, {size} and {limit} placeholders in messages where
-// applicable — they are replaced with the rejected file's name, megabyte
-// size and configured limit respectively.
 type UploadInputLabels struct {
-	GenericError    string // generic 4xx/5xx fallback, default "Upload failed"
-	NetworkError    string // pre-flight failure, default "Network error — please retry"
-	TypeRejected    string // unsupported extension, default `File "{name}" — unsupported format`
-	SizeRejected    string // oversized file, default `File "{name}" is too large ({size}MB > {limit}MB)`
-	TooLargeStatus  string // 413 fallback, default "File too large"
-	UnsupportedType string // 415 fallback, default "Unsupported file type"
-	ServerError     string // 5xx fallback, default "Server error — please retry later"
+	GenericError    string `json:"genericError"`
+	NetworkError    string `json:"networkError"`
+	TypeRejected    string `json:"typeRejected"`
+	SizeRejected    string `json:"sizeRejected"`
+	TooLargeStatus  string `json:"tooLargeStatus"`
+	UnsupportedType string `json:"unsupportedType"`
+	ServerError     string `json:"serverError"`
 }
 
 func newUploadInput(props *UploadInputProps) *UploadInputProps {
@@ -92,6 +89,36 @@ func applyLabelDefaults(l *UploadInputLabels) {
 	}
 }
 
+// uploadInputDropAttrs returns the drag-and-drop event handlers for the
+// outer wrapper. Defined as a Go helper because templ's attribute parser
+// treats `on*=` literals as templ.ComponentScript when the value is an
+// expression — a bare templ.Attributes spread sidesteps that and keeps
+// the JS handlers as plain strings.
+func uploadInputDropAttrs(id string) templ.Attributes {
+	return templ.Attributes{
+		"ondragenter": "__upload.dragenter(this, event)",
+		"ondragover":  "__upload.dragover(event)",
+		"ondragleave": "__upload.dragleave(this, event)",
+		"ondrop":      fmt.Sprintf("__upload.drop(this, event, %q)", id),
+	}
+}
+
+// uploadInputDataAttrs serialises the per-instance config (size limit,
+// accept list, error/status labels, error-slot id) as JSON-in-data-*
+// attributes that the runtime helpers in `uploadInputScript` read at the
+// moment of an event. Keeping the inline `hx-on::*` and `ondrop="..."`
+// handlers as one-liners (e.g. `__upload.drop(this, event, '<id>')`)
+// instead of multi-line JS-in-Go strings.
+func uploadInputDataAttrs(p *UploadInputProps) templ.Attributes {
+	labels, _ := json.Marshal(p.Labels)
+	return templ.Attributes{
+		"data-upload-max-size": fmt.Sprintf("%d", p.MaxSize),
+		"data-upload-accept":   p.Accept,
+		"data-upload-slot":     fmt.Sprintf("error-%s", p.ID),
+		"data-upload-labels":   string(labels),
+	}
+}
+
 func UploadTarget(p *UploadInputProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -126,7 +153,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 			var templ_7745c5c3_Var2 string
 			templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(rowID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 91, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 118, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 			if templ_7745c5c3_Err != nil {
@@ -139,7 +166,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(uploadDisplayName(upload))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 94, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 121, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -152,7 +179,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(uploadDisplayMeta(upload))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 95, Col: 81}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 122, Col: 81}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -195,7 +222,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var6 string
 				templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(upload.URL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 108, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 135, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 				if templ_7745c5c3_Err != nil {
@@ -208,7 +235,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(uploadDisplayName(upload))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 108, Col: 109}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 135, Col: 109}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -227,7 +254,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 111, Col: 39}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 138, Col: 39}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -240,7 +267,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var9 string
 				templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(upload.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 111, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 138, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 				if templ_7745c5c3_Err != nil {
@@ -253,7 +280,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var10 string
 				templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(p.Form)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 111, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 138, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 				if templ_7745c5c3_Err != nil {
@@ -271,7 +298,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var11 string
 				templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(p.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 113, Col: 39}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 140, Col: 39}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 				if templ_7745c5c3_Err != nil {
@@ -284,7 +311,7 @@ func UploadTarget(p *UploadInputProps) templ.Component {
 				var templ_7745c5c3_Var12 string
 				templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(upload.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 113, Col: 59}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 140, Col: 59}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 				if templ_7745c5c3_Err != nil {
@@ -351,7 +378,7 @@ func (p *UploadInputProps) render() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, uploadDropAttrs(p.ID))
+		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, uploadInputDropAttrs(p.ID))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -362,7 +389,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var16 string
 		templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("spinner-%s", p.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 132, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 153, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 		if templ_7745c5c3_Err != nil {
@@ -385,7 +412,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var17 string
 		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("upload-form-%s", p.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 141, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 162, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
@@ -398,7 +425,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var18 string
 		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(p.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 143, Col: 14}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 164, Col: 14}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
@@ -411,7 +438,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var19 string
 		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(p.Accept)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 148, Col: 22}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 169, Col: 22}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 		if templ_7745c5c3_Err != nil {
@@ -424,7 +451,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#target-%s", p.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 150, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 171, Col: 48}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -437,7 +464,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var21 string
 		templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("#spinner-%s", p.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 151, Col: 52}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 172, Col: 52}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 		if templ_7745c5c3_Err != nil {
@@ -450,7 +477,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var22 string
 		templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s", "_multiple": "%t"}`, p.ID, p.Form, p.Name, p.Multiple))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 154, Col: 130}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 175, Col: 130}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 		if templ_7745c5c3_Err != nil {
@@ -466,15 +493,11 @@ func (p *UploadInputProps) render() templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, " hx-on::after-request=\"this.value = &#39;&#39;\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, " hx-on::after-request=\"this.value = &#39;&#39;\" hx-on::before-request=\"__upload.beforeRequest(this, event)\" hx-on::response-error=\"__upload.onResponseError(this, event)\" hx-on::send-error=\"__upload.onSendError(this, event)\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, uploadValidationAttrs(p))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, uploadErrorAttrs(p))
+		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, uploadInputDataAttrs(p))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -485,7 +508,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("target-%s", p.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 163, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 186, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {
@@ -518,7 +541,7 @@ func (p *UploadInputProps) render() templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(p.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 176, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 199, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -545,7 +568,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var26 string
 		templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(p.Placeholder)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 180, Col: 19}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 203, Col: 19}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 		if templ_7745c5c3_Err != nil {
@@ -558,7 +581,7 @@ func (p *UploadInputProps) render() templ.Component {
 		var templ_7745c5c3_Var27 string
 		templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("error-%s", p.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 185, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 206, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 		if templ_7745c5c3_Err != nil {
@@ -576,7 +599,7 @@ func (p *UploadInputProps) render() templ.Component {
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(p.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 192, Col: 14}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/upload_input.templ`, Line: 213, Col: 14}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -595,105 +618,13 @@ func (p *UploadInputProps) render() templ.Component {
 	})
 }
 
-// uploadValidationAttrs builds the `hx-on::before-request` handler that
-// rejects files exceeding `MaxSize` or whose extension/mimetype does not
-// match `Accept` before the upload fires. The browser already enforces
-// `accept` on click-picked files, but drop events bypass it — so we filter
-// in JS to keep the behaviour consistent.
-//
-// On rejection: render an inline error in the dropzone, dispatch a `notify`
-// toast, clear the input value (so the same file can be retried), and call
-// `event.preventDefault()` to abort the request. On success: clear any
-// stale error and let HTMX continue.
-func uploadValidationAttrs(p *UploadInputProps) templ.Attributes {
-	js := fmt.Sprintf(
-		`var inp = this; var slot = document.getElementById('error-%s');`+
-			` if (slot) { slot.textContent = ''; slot.classList.add('hidden'); }`+
-			` var maxSize = %d; var accept = %q;`+
-			` var sizeTpl = %q; var typeTpl = %q;`+
-			` var errs = []; var files = inp.files || [];`+
-			` for (var i = 0; i < files.length; i++) {`+
-			`   var f = files[i];`+
-			`   if (maxSize > 0 && f.size > maxSize) {`+
-			`     errs.push(sizeTpl.replace('{name}', f.name).replace('{size}', (f.size/1048576).toFixed(1)).replace('{limit}', (maxSize/1048576).toFixed(1)));`+
-			`     continue;`+
-			`   }`+
-			`   if (accept && !__uploadAcceptMatches(f, accept)) {`+
-			`     errs.push(typeTpl.replace('{name}', f.name));`+
-			`   }`+
-			` }`+
-			` if (errs.length) {`+
-			`   var msg = errs.join('; ');`+
-			`   if (slot) { slot.textContent = msg; slot.classList.remove('hidden'); }`+
-			`   window.dispatchEvent(new CustomEvent('notify', {detail: {variant: 'error', message: msg}}));`+
-			`   inp.value = ''; event.preventDefault();`+
-			` }`,
-		p.ID, p.MaxSize, p.Accept, p.Labels.SizeRejected, p.Labels.TypeRejected,
-	)
-	return templ.Attributes{
-		"hx-on::before-request": js,
-	}
-}
-
-// uploadErrorAttrs builds the HTMX failure-event handlers for the hidden file
-// input. Server errors (4xx/5xx) get pretty-mapped by status code; only
-// fall back to the raw response body when no status-specific label fits.
-// Pre-flight failures (network/CORS/offline) get the network label.
-//
-// Both render an inline error inside the dropzone and dispatch a `notify`
-// toast event.
-func uploadErrorAttrs(p *UploadInputProps) templ.Attributes {
-	render := func(read string) string {
-		return fmt.Sprintf(
-			`%s var slot = document.getElementById('error-%s'); if (slot) { slot.textContent = msg; slot.classList.remove('hidden'); }`+
-				` window.dispatchEvent(new CustomEvent('notify', {detail: {variant: 'error', message: msg}}));`,
-			read, p.ID,
-		)
-	}
-	respErr := render(fmt.Sprintf(
-		`var xhr = event.detail && event.detail.xhr; var status = xhr ? xhr.status : 0; var body = xhr ? (xhr.responseText || '') : '';`+
-			` var msg = '';`+
-			` if (status === 413) { msg = %q; }`+
-			` else if (status === 415) { msg = %q; }`+
-			` else if (status >= 500) { msg = %q; }`+
-			` else if (body && body.length < 200 && body.indexOf('<') === -1) { msg = body; }`+
-			` else { msg = %q; }`,
-		p.Labels.TooLargeStatus, p.Labels.UnsupportedType, p.Labels.ServerError, p.Labels.GenericError,
-	))
-	netErr := fmt.Sprintf(`var msg = %q;`, p.Labels.NetworkError)
-	netErr = render(netErr)
-	return templ.Attributes{
-		"hx-on::response-error": respErr,
-		"hx-on::send-error":     netErr,
-	}
-}
-
-// uploadDropAttrs builds the dragover/dragenter/dragleave/drop handlers that
-// route a dropped FileList into the hidden <input type=file> and dispatch
-// `change` so the existing HTMX hx-trigger="change" picks the upload up.
-// The DataTransfer fallback covers older WebKit builds where input.files is
-// read-only.
-func uploadDropAttrs(id string) templ.Attributes {
-	drop := fmt.Sprintf(
-		`event.preventDefault(); event.stopPropagation(); this.classList.remove('border-primary');`+
-			` var inp=document.getElementById(%q);`+
-			` if(!inp||!event.dataTransfer||!event.dataTransfer.files||!event.dataTransfer.files.length){return;}`+
-			` try{inp.files=event.dataTransfer.files;}`+
-			` catch(e){if(typeof DataTransfer==='function'){var dt=new DataTransfer(); for(var i=0;i<event.dataTransfer.files.length;i++){dt.items.add(event.dataTransfer.files[i]);} inp.files=dt.files;}}`+
-			` inp.dispatchEvent(new Event('change',{bubbles:true}));`,
-		id,
-	)
-	return templ.Attributes{
-		"ondragover":  "event.preventDefault(); event.stopPropagation();",
-		"ondragenter": "event.preventDefault(); event.stopPropagation(); this.classList.add('border-primary');",
-		"ondragleave": "if(event.target===this){this.classList.remove('border-primary');}",
-		"ondrop":      drop,
-	}
-}
-
-// UploadInput renders a file upload input with preview capability.
-// It displays existing uploads and allows selecting new files.
-func UploadInput(props *UploadInputProps) templ.Component {
+// uploadInputScript emits the runtime helpers shared by every UploadInput
+// instance on the page. Idempotent via a `__upload` existence check so
+// rendering N inputs only registers the helpers once. Centralising the
+// logic here keeps the Go side declarative — templates only emit
+// `__upload.fn(this, event)` callbacks plus per-instance config in
+// data-* attributes.
+func uploadInputScript() templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -714,11 +645,7 @@ func UploadInput(props *UploadInputProps) templ.Component {
 			templ_7745c5c3_Var29 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = newUploadInput(props).render().Render(ctx, templ_7745c5c3_Buffer)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = uploadAcceptHelper().Render(ctx, templ_7745c5c3_Buffer)
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<script>\n\t\tif (typeof window.__upload === 'undefined') {\n\t\t\twindow.__upload = (function () {\n\t\t\t\tfunction acceptMatches(file, accept) {\n\t\t\t\t\tif (!accept) return true;\n\t\t\t\t\tvar name = (file.name || '').toLowerCase();\n\t\t\t\t\tvar type = (file.type || '').toLowerCase();\n\t\t\t\t\tvar tokens = accept.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);\n\t\t\t\t\treturn tokens.some(function (t) {\n\t\t\t\t\t\tif (t.charAt(0) === '.') return name.endsWith(t);\n\t\t\t\t\t\tif (t.endsWith('/*')) return type.indexOf(t.slice(0, -1)) === 0;\n\t\t\t\t\t\treturn type === t;\n\t\t\t\t\t});\n\t\t\t\t}\n\n\t\t\t\tfunction readConfig(input) {\n\t\t\t\t\treturn {\n\t\t\t\t\t\tmaxSize: parseInt(input.dataset.uploadMaxSize, 10) || 0,\n\t\t\t\t\t\taccept: input.dataset.uploadAccept || '',\n\t\t\t\t\t\tslot: input.dataset.uploadSlot || '',\n\t\t\t\t\t\tlabels: parseLabels(input.dataset.uploadLabels),\n\t\t\t\t\t};\n\t\t\t\t}\n\n\t\t\t\tfunction parseLabels(raw) {\n\t\t\t\t\ttry { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }\n\t\t\t\t}\n\n\t\t\t\tfunction setError(slotId, msg) {\n\t\t\t\t\tvar slot = slotId && document.getElementById(slotId);\n\t\t\t\t\tif (slot) {\n\t\t\t\t\t\tslot.textContent = msg;\n\t\t\t\t\t\tslot.classList.remove('hidden');\n\t\t\t\t\t}\n\t\t\t\t\twindow.dispatchEvent(new CustomEvent('notify', { detail: { variant: 'error', message: msg } }));\n\t\t\t\t}\n\n\t\t\t\tfunction clearError(slotId) {\n\t\t\t\t\tvar slot = slotId && document.getElementById(slotId);\n\t\t\t\t\tif (slot) {\n\t\t\t\t\t\tslot.textContent = '';\n\t\t\t\t\t\tslot.classList.add('hidden');\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction dragover(event) {\n\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\tevent.stopPropagation();\n\t\t\t\t}\n\n\t\t\t\tfunction dragenter(el, event) {\n\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\tevent.stopPropagation();\n\t\t\t\t\tel.classList.add('border-primary');\n\t\t\t\t}\n\n\t\t\t\tfunction dragleave(el, event) {\n\t\t\t\t\tif (event.target === el) el.classList.remove('border-primary');\n\t\t\t\t}\n\n\t\t\t\tfunction drop(el, event, inputId) {\n\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\tevent.stopPropagation();\n\t\t\t\t\tel.classList.remove('border-primary');\n\t\t\t\t\tvar inp = document.getElementById(inputId);\n\t\t\t\t\tif (!inp || !event.dataTransfer || !event.dataTransfer.files || !event.dataTransfer.files.length) return;\n\t\t\t\t\ttry {\n\t\t\t\t\t\tinp.files = event.dataTransfer.files;\n\t\t\t\t\t} catch (e) {\n\t\t\t\t\t\tif (typeof DataTransfer !== 'function') return;\n\t\t\t\t\t\tvar dt = new DataTransfer();\n\t\t\t\t\t\tfor (var i = 0; i < event.dataTransfer.files.length; i++) {\n\t\t\t\t\t\t\tdt.items.add(event.dataTransfer.files[i]);\n\t\t\t\t\t\t}\n\t\t\t\t\t\tinp.files = dt.files;\n\t\t\t\t\t}\n\t\t\t\t\tinp.dispatchEvent(new Event('change', { bubbles: true }));\n\t\t\t\t}\n\n\t\t\t\tfunction beforeRequest(input, event) {\n\t\t\t\t\tvar cfg = readConfig(input);\n\t\t\t\t\tclearError(cfg.slot);\n\t\t\t\t\tvar errs = [];\n\t\t\t\t\tvar files = input.files || [];\n\t\t\t\t\tfor (var i = 0; i < files.length; i++) {\n\t\t\t\t\t\tvar f = files[i];\n\t\t\t\t\t\tif (cfg.maxSize > 0 && f.size > cfg.maxSize) {\n\t\t\t\t\t\t\terrs.push((cfg.labels.sizeRejected || '{name} is too large')\n\t\t\t\t\t\t\t\t.replace('{name}', f.name)\n\t\t\t\t\t\t\t\t.replace('{size}', (f.size / 1048576).toFixed(1))\n\t\t\t\t\t\t\t\t.replace('{limit}', (cfg.maxSize / 1048576).toFixed(1)));\n\t\t\t\t\t\t\tcontinue;\n\t\t\t\t\t\t}\n\t\t\t\t\t\tif (cfg.accept && !acceptMatches(f, cfg.accept)) {\n\t\t\t\t\t\t\terrs.push((cfg.labels.typeRejected || '{name} unsupported').replace('{name}', f.name));\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t\tif (errs.length) {\n\t\t\t\t\t\tsetError(cfg.slot, errs.join('; '));\n\t\t\t\t\t\tinput.value = '';\n\t\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction pickResponseMessage(xhr, labels) {\n\t\t\t\t\tvar status = xhr ? xhr.status : 0;\n\t\t\t\t\tvar body = xhr ? (xhr.responseText || '') : '';\n\t\t\t\t\tif (status === 413) return labels.tooLargeStatus || 'File too large';\n\t\t\t\t\tif (status === 415) return labels.unsupportedType || 'Unsupported file type';\n\t\t\t\t\tif (status >= 500) return labels.serverError || 'Server error';\n\t\t\t\t\tif (body && body.length < 200 && body.indexOf('<') === -1) return body.trim();\n\t\t\t\t\treturn labels.genericError || 'Upload failed';\n\t\t\t\t}\n\n\t\t\t\tfunction onResponseError(input, event) {\n\t\t\t\t\tvar cfg = readConfig(input);\n\t\t\t\t\tvar xhr = event && event.detail && event.detail.xhr;\n\t\t\t\t\tsetError(cfg.slot, pickResponseMessage(xhr, cfg.labels));\n\t\t\t\t}\n\n\t\t\t\tfunction onSendError(input) {\n\t\t\t\t\tvar cfg = readConfig(input);\n\t\t\t\t\tsetError(cfg.slot, cfg.labels.networkError || 'Network error');\n\t\t\t\t}\n\n\t\t\t\treturn {\n\t\t\t\t\tacceptMatches: acceptMatches,\n\t\t\t\t\tdragover: dragover,\n\t\t\t\t\tdragenter: dragenter,\n\t\t\t\t\tdragleave: dragleave,\n\t\t\t\t\tdrop: drop,\n\t\t\t\t\tbeforeRequest: beforeRequest,\n\t\t\t\t\tonResponseError: onResponseError,\n\t\t\t\t\tonSendError: onSendError,\n\t\t\t\t\tsetError: setError,\n\t\t\t\t\tclearError: clearError,\n\t\t\t\t};\n\t\t\t})();\n\t\t}\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -726,12 +653,10 @@ func UploadInput(props *UploadInputProps) templ.Component {
 	})
 }
 
-// uploadAcceptHelper emits the global `__uploadAcceptMatches` JS function
-// once per page (idempotent via existence check) so multiple UploadInputs
-// share a single implementation. Matches files against the same syntax the
-// browser uses for `accept`: comma-separated extensions (`.pdf`),
-// MIME types (`image/png`), or wildcards (`image/*`).
-func uploadAcceptHelper() templ.Component {
+// UploadInput renders a file upload input with preview capability. Drop
+// support, client-side validation and async error feedback are powered by
+// the shared `__upload` helpers in `uploadInputScript`.
+func UploadInput(props *UploadInputProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -752,7 +677,11 @@ func uploadAcceptHelper() templ.Component {
 			templ_7745c5c3_Var30 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "<script>\n\t\tif (typeof window.__uploadAcceptMatches !== 'function') {\n\t\t\twindow.__uploadAcceptMatches = function (file, accept) {\n\t\t\t\tif (!accept) return true;\n\t\t\t\tvar name = (file.name || '').toLowerCase();\n\t\t\t\tvar type = (file.type || '').toLowerCase();\n\t\t\t\tvar tokens = accept.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);\n\t\t\t\tfor (var i = 0; i < tokens.length; i++) {\n\t\t\t\t\tvar t = tokens[i];\n\t\t\t\t\tif (t.indexOf('.') === 0) {\n\t\t\t\t\t\tif (name.endsWith(t)) return true;\n\t\t\t\t\t} else if (t.indexOf('/*') === t.length - 2) {\n\t\t\t\t\t\tvar prefix = t.slice(0, t.length - 1);\n\t\t\t\t\t\tif (type.indexOf(prefix) === 0) return true;\n\t\t\t\t\t} else if (type === t) {\n\t\t\t\t\t\treturn true;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\treturn false;\n\t\t\t};\n\t\t}\n\t</script>")
+		templ_7745c5c3_Err = newUploadInput(props).render().Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = uploadInputScript().Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
