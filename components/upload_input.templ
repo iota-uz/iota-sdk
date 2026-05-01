@@ -115,10 +115,30 @@ templ UploadTarget(p *UploadInputProps) {
 	<div class="w-full space-y-2">
 		for i, upload := range p.Uploads {
 			{{ rowID := fmt.Sprintf("uploaded-file-%s-%d", p.ID, i) }}
+			{{ name := uploadDisplayName(upload) }}
+			{{ previewURL := strings.TrimSpace(upload.URL) }}
 			<div id={ rowID } class="rounded-md border border-primary bg-surface-100 p-2">
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
-						<div class="truncate text-xs font-medium text-100">{ uploadDisplayName(upload) }</div>
+						if previewURL != "" {
+							// Open the uploaded file in a new tab so the user
+							// can verify what was actually attached. rel=noopener+
+							// noreferrer is required whenever target=_blank
+							// crosses an origin boundary.
+							<a
+								href={ templ.SafeURL(previewURL) }
+								target="_blank"
+								rel="noopener noreferrer"
+								class="block truncate text-xs font-medium text-primary hover:underline"
+								title={ name }
+							>
+								{ name }
+							</a>
+						} else {
+							<div class="truncate text-xs font-medium text-100" title={ name }>
+								{ name }
+							</div>
+						}
 						<div class="truncate text-[11px] text-text-300">{ uploadDisplayMeta(upload) }</div>
 					</div>
 					<button
@@ -131,8 +151,10 @@ templ UploadTarget(p *UploadInputProps) {
 						@icons.X(icons.Props{Size: "14"})
 					</button>
 				</div>
-				if upload.URL != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(upload.Mimetype)), "image/") {
-					<img class="mt-2 h-16 w-16 rounded-md object-contain" src={ upload.URL } alt={ uploadDisplayName(upload) }/>
+				if previewURL != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(upload.Mimetype)), "image/") {
+					<a href={ templ.SafeURL(previewURL) } target="_blank" rel="noopener noreferrer">
+						<img class="mt-2 h-16 w-16 rounded-md object-contain" src={ previewURL } alt={ name }/>
+					</a>
 				}
 				if p.Form != "" {
 					<input type="hidden" name={ p.Name } value={ upload.ID } form={ p.Form }/>
@@ -386,6 +408,13 @@ script removeUploadedFile(rowID string) {
 func uploadDisplayName(upload *viewmodels.Upload) string {
 	if upload == nil {
 		return "Uploaded file"
+	}
+	// Prefer the original filename (Name) so the user sees "scan.pdf"
+	// instead of the storage hash. Slug is a filesystem-safe identifier
+	// that defaults to the hash when no name was provided, so it is a
+	// fallback rather than a primary display.
+	if value := strings.TrimSpace(upload.Name); value != "" {
+		return value
 	}
 	if value := strings.TrimSpace(upload.Slug); value != "" {
 		return value
