@@ -1,29 +1,49 @@
 package components
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/utils/random"
 )
 
 // UploadInputProps defines the properties for the UploadInput component.
-// It provides configuration options for the file upload interface.
 type UploadInputProps struct {
-	ID          string               // Unique identifier for the input
-	Label       string               // Text label for the upload button
-	Placeholder string               // Placeholder text shown below the button
-	Uploads     []*viewmodels.Upload // List of already uploaded files
-	Error       string               // Error message to display
-	Accept      string               // File types to accept (e.g., "image/*")
-	Name        string               // Name attribute for the form field
-	Form        string               // ID of the form this input belongs to
-	Class       string               // Additional CSS classes
-	Multiple    bool                 // Whether multiple file uploads are allowed
+	ID          string
+	Label       string
+	Placeholder string
+	Uploads     []*viewmodels.Upload
+	Error       string
+	Accept      string
+	Name        string
+	Form        string
+	Class       string
+	Multiple    bool
+
+	// MaxSize is the per-file size limit in bytes enforced client-side
+	// before upload. 0 = no client-side limit (server may still reject).
+	MaxSize int64
+
+	// Labels override default English copy for async error feedback. Use
+	// {name}, {size}, {limit} placeholders in TypeRejected/SizeRejected;
+	// they are replaced with the rejected file's name and megabyte values.
+	Labels UploadInputLabels
+}
+
+type UploadInputLabels struct {
+	GenericError    string `json:"genericError"`
+	NetworkError    string `json:"networkError"`
+	TypeRejected    string `json:"typeRejected"`
+	SizeRejected    string `json:"sizeRejected"`
+	TooLargeStatus  string `json:"tooLargeStatus"`
+	UnsupportedType string `json:"unsupportedType"`
+	ServerError     string `json:"serverError"`
 }
 
 func newUploadInput(props *UploadInputProps) *UploadInputProps {
@@ -33,17 +53,92 @@ func newUploadInput(props *UploadInputProps) *UploadInputProps {
 	if props.Accept == "" {
 		props.Accept = "image/*"
 	}
+	applyLabelDefaults(&props.Labels)
 	return props
+}
+
+func applyLabelDefaults(l *UploadInputLabels) {
+	if l.GenericError == "" {
+		l.GenericError = "Upload failed"
+	}
+	if l.NetworkError == "" {
+		l.NetworkError = "Network error — please retry"
+	}
+	if l.TypeRejected == "" {
+		l.TypeRejected = `File "{name}" — unsupported format`
+	}
+	if l.SizeRejected == "" {
+		l.SizeRejected = `File "{name}" is too large ({size}MB > {limit}MB)`
+	}
+	if l.TooLargeStatus == "" {
+		l.TooLargeStatus = "File too large"
+	}
+	if l.UnsupportedType == "" {
+		l.UnsupportedType = "Unsupported file type"
+	}
+	if l.ServerError == "" {
+		l.ServerError = "Server error — please retry later"
+	}
+}
+
+// uploadInputDropAttrs returns the drag-and-drop event handlers for the
+// outer wrapper. Defined as a Go helper because templ's attribute parser
+// treats `on*=` literals as templ.ComponentScript when the value is an
+// expression — a bare templ.Attributes spread sidesteps that and keeps
+// the JS handlers as plain strings.
+func uploadInputDropAttrs(id string) templ.Attributes {
+	return templ.Attributes{
+		"ondragenter": "__upload.dragenter(this, event)",
+		"ondragover":  "__upload.dragover(event)",
+		"ondragleave": "__upload.dragleave(this, event)",
+		"ondrop":      fmt.Sprintf("__upload.drop(this, event, %q)", id),
+	}
+}
+
+// uploadInputDataAttrs serialises the per-instance config (size limit,
+// accept list, error/status labels, error-slot id) as JSON-in-data-*
+// attributes that the runtime helpers in `uploadInputScript` read at the
+// moment of an event. Keeping the inline `hx-on::*` and `ondrop="..."`
+// handlers as one-liners (e.g. `__upload.drop(this, event, '<id>')`)
+// instead of multi-line JS-in-Go strings.
+func uploadInputDataAttrs(p *UploadInputProps) templ.Attributes {
+	labels, _ := json.Marshal(p.Labels)
+	return templ.Attributes{
+		"data-upload-max-size": fmt.Sprintf("%d", p.MaxSize),
+		"data-upload-accept":   p.Accept,
+		"data-upload-slot":     fmt.Sprintf("error-%s", p.ID),
+		"data-upload-labels":   string(labels),
+	}
 }
 
 templ UploadTarget(p *UploadInputProps) {
 	<div class="w-full space-y-2">
 		for i, upload := range p.Uploads {
 			{{ rowID := fmt.Sprintf("uploaded-file-%s-%d", p.ID, i) }}
+			{{ name := uploadDisplayName(upload) }}
+			{{ previewURL := strings.TrimSpace(upload.URL) }}
 			<div id={ rowID } class="rounded-md border border-primary bg-surface-100 p-2">
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
-						<div class="truncate text-xs font-medium text-100">{ uploadDisplayName(upload) }</div>
+						if previewURL != "" {
+							// Open the uploaded file in a new tab so the user
+							// can verify what was actually attached. rel=noopener+
+							// noreferrer is required whenever target=_blank
+							// crosses an origin boundary.
+							<a
+								href={ templ.SafeURL(previewURL) }
+								target="_blank"
+								rel="noopener noreferrer"
+								class="block truncate text-xs font-medium text-primary hover:underline"
+								title={ name }
+							>
+								{ name }
+							</a>
+						} else {
+							<div class="truncate text-xs font-medium text-100" title={ name }>
+								{ name }
+							</div>
+						}
 						<div class="truncate text-[11px] text-text-300">{ uploadDisplayMeta(upload) }</div>
 					</div>
 					<button
@@ -56,8 +151,10 @@ templ UploadTarget(p *UploadInputProps) {
 						@icons.X(icons.Props{Size: "14"})
 					</button>
 				</div>
-				if upload.URL != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(upload.Mimetype)), "image/") {
-					<img class="mt-2 h-16 w-16 rounded-md object-contain" src={ upload.URL } alt={ uploadDisplayName(upload) }/>
+				if previewURL != "" && strings.HasPrefix(strings.ToLower(strings.TrimSpace(upload.Mimetype)), "image/") {
+					<a href={ templ.SafeURL(previewURL) } target="_blank" rel="noopener noreferrer">
+						<img class="mt-2 h-16 w-16 rounded-md object-contain" src={ previewURL } alt={ name }/>
+					</a>
 				}
 				if p.Form != "" {
 					<input type="hidden" name={ p.Name } value={ upload.ID } form={ p.Form }/>
@@ -70,7 +167,19 @@ templ UploadTarget(p *UploadInputProps) {
 }
 
 templ (p *UploadInputProps) render() {
-	<div class={ "border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center", p.Class }>
+	<div
+		class={ "relative border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center transition-colors", p.Class }
+		{ uploadInputDropAttrs(p.ID)... }
+	>
+		<div
+			id={ fmt.Sprintf("spinner-%s", p.ID) }
+			class="htmx-indicator pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md bg-surface-100/80"
+			aria-hidden="true"
+		>
+			@loaders.Spinner(loaders.SpinnerProps{
+				SpinnerClass: templ.Classes("w-6 h-6"),
+			})
+		</div>
 		<div class="flex flex-col items-center">
 			<div id={ fmt.Sprintf("upload-form-%s", p.ID) }>
 				<input
@@ -82,12 +191,18 @@ templ (p *UploadInputProps) render() {
 					accept={ p.Accept }
 					hx-trigger="change"
 					hx-target={ fmt.Sprintf("#target-%s", p.ID) }
+					hx-indicator={ fmt.Sprintf("#spinner-%s", p.ID) }
 					hx-post="/uploads"
 					hx-encoding="multipart/form-data"
 					hx-vals={ fmt.Sprintf(`{"_id": "%s", "_formName": "%s", "_name": "%s", "_multiple": "%t"}`, p.ID, p.Form, p.Name, p.Multiple) }
+					hx-sync="this:drop"
 					name="file"
 					multiple?={ p.Multiple }
 					hx-on::after-request="this.value = ''"
+					hx-on::before-request="__upload.beforeRequest(this, event)"
+					hx-on::response-error="__upload.onResponseError(this, event)"
+					hx-on::send-error="__upload.onSendError(this, event)"
+					{ uploadInputDataAttrs(p)... }
 				/>
 			</div>
 			<div id={ fmt.Sprintf("target-%s", p.ID) }>
@@ -109,6 +224,12 @@ templ (p *UploadInputProps) render() {
 			<p class="text-xs">
 				{ p.Placeholder }
 			</p>
+			<p
+				id={ fmt.Sprintf("error-%s", p.ID) }
+				class="text-red-500 text-xs mt-2 hidden"
+				role="alert"
+				aria-live="polite"
+			></p>
 			if p.Error != "" {
 				<p class="text-red-500 text-xs mt-2">
 					{ p.Error }
@@ -118,10 +239,163 @@ templ (p *UploadInputProps) render() {
 	</div>
 }
 
-// UploadInput renders a file upload input with preview capability.
-// It displays existing uploads and allows selecting new files.
+// UploadHelpersScript emits the runtime helpers shared by every upload
+// dropzone on the page (this SDK's `UploadInput` and any consumer that
+// wants to reuse the `__upload` namespace, e.g. the EAI claim
+// `UploadSection`). Idempotent via a `__upload` existence check so
+// rendering N dropzones only registers the helpers once. Centralising the
+// logic here keeps templates declarative — call sites only emit
+// `__upload.fn(this, event)` callbacks plus per-instance config in
+// data-* attributes.
+templ UploadHelpersScript() {
+	<script>
+		if (typeof window.__upload === 'undefined') {
+			window.__upload = (function () {
+				function acceptMatches(file, accept) {
+					if (!accept) return true;
+					var name = (file.name || '').toLowerCase();
+					var type = (file.type || '').toLowerCase();
+					var tokens = accept.split(',').map(function (s) { return s.trim().toLowerCase(); }).filter(Boolean);
+					return tokens.some(function (t) {
+						if (t.charAt(0) === '.') return name.endsWith(t);
+						if (t.endsWith('/*')) return type.indexOf(t.slice(0, -1)) === 0;
+						return type === t;
+					});
+				}
+
+				function readConfig(input) {
+					return {
+						maxSize: parseInt(input.dataset.uploadMaxSize, 10) || 0,
+						accept: input.dataset.uploadAccept || '',
+						slot: input.dataset.uploadSlot || '',
+						labels: parseLabels(input.dataset.uploadLabels),
+					};
+				}
+
+				function parseLabels(raw) {
+					try { return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
+				}
+
+				function setError(slotId, msg) {
+					var slot = slotId && document.getElementById(slotId);
+					if (slot) {
+						slot.textContent = msg;
+						slot.classList.remove('hidden');
+					}
+					window.dispatchEvent(new CustomEvent('notify', { detail: { variant: 'error', message: msg } }));
+				}
+
+				function clearError(slotId) {
+					var slot = slotId && document.getElementById(slotId);
+					if (slot) {
+						slot.textContent = '';
+						slot.classList.add('hidden');
+					}
+				}
+
+				function dragover(event) {
+					event.preventDefault();
+					event.stopPropagation();
+				}
+
+				function dragenter(el, event) {
+					event.preventDefault();
+					event.stopPropagation();
+					el.classList.add('border-primary');
+				}
+
+				function dragleave(el, event) {
+					if (event.target === el) el.classList.remove('border-primary');
+				}
+
+				function drop(el, event, inputId) {
+					event.preventDefault();
+					event.stopPropagation();
+					el.classList.remove('border-primary');
+					var inp = document.getElementById(inputId);
+					if (!inp || !event.dataTransfer || !event.dataTransfer.files || !event.dataTransfer.files.length) return;
+					try {
+						inp.files = event.dataTransfer.files;
+					} catch (e) {
+						if (typeof DataTransfer !== 'function') return;
+						var dt = new DataTransfer();
+						for (var i = 0; i < event.dataTransfer.files.length; i++) {
+							dt.items.add(event.dataTransfer.files[i]);
+						}
+						inp.files = dt.files;
+					}
+					inp.dispatchEvent(new Event('change', { bubbles: true }));
+				}
+
+				function beforeRequest(input, event) {
+					var cfg = readConfig(input);
+					clearError(cfg.slot);
+					var errs = [];
+					var files = input.files || [];
+					for (var i = 0; i < files.length; i++) {
+						var f = files[i];
+						if (cfg.maxSize > 0 && f.size > cfg.maxSize) {
+							errs.push((cfg.labels.sizeRejected || '{name} is too large')
+								.replace('{name}', f.name)
+								.replace('{size}', (f.size / 1048576).toFixed(1))
+								.replace('{limit}', (cfg.maxSize / 1048576).toFixed(1)));
+							continue;
+						}
+						if (cfg.accept && !acceptMatches(f, cfg.accept)) {
+							errs.push((cfg.labels.typeRejected || '{name} unsupported').replace('{name}', f.name));
+						}
+					}
+					if (errs.length) {
+						setError(cfg.slot, errs.join('; '));
+						input.value = '';
+						event.preventDefault();
+					}
+				}
+
+				function pickResponseMessage(xhr, labels) {
+					var status = xhr ? xhr.status : 0;
+					var body = xhr ? (xhr.responseText || '') : '';
+					if (status === 413) return labels.tooLargeStatus || 'File too large';
+					if (status === 415) return labels.unsupportedType || 'Unsupported file type';
+					if (status >= 500) return labels.serverError || 'Server error';
+					if (body && body.length < 200 && body.indexOf('<') === -1) return body.trim();
+					return labels.genericError || 'Upload failed';
+				}
+
+				function onResponseError(input, event) {
+					var cfg = readConfig(input);
+					var xhr = event && event.detail && event.detail.xhr;
+					setError(cfg.slot, pickResponseMessage(xhr, cfg.labels));
+				}
+
+				function onSendError(input) {
+					var cfg = readConfig(input);
+					setError(cfg.slot, cfg.labels.networkError || 'Network error');
+				}
+
+				return {
+					acceptMatches: acceptMatches,
+					dragover: dragover,
+					dragenter: dragenter,
+					dragleave: dragleave,
+					drop: drop,
+					beforeRequest: beforeRequest,
+					onResponseError: onResponseError,
+					onSendError: onSendError,
+					setError: setError,
+					clearError: clearError,
+				};
+			})();
+		}
+	</script>
+}
+
+// UploadInput renders a file upload input with preview capability. Drop
+// support, client-side validation and async error feedback are powered by
+// the shared `__upload` helpers in `UploadHelpersScript`.
 templ UploadInput(props *UploadInputProps) {
 	@newUploadInput(props).render()
+	@UploadHelpersScript()
 }
 
 script removeUploadedFile(rowID string) {
@@ -134,6 +408,13 @@ script removeUploadedFile(rowID string) {
 func uploadDisplayName(upload *viewmodels.Upload) string {
 	if upload == nil {
 		return "Uploaded file"
+	}
+	// Prefer the original filename (Name) so the user sees "scan.pdf"
+	// instead of the storage hash. Slug is a filesystem-safe identifier
+	// that defaults to the hash when no name was provided, so it is a
+	// fallback rather than a primary display.
+	if value := strings.TrimSpace(upload.Name); value != "" {
+		return value
 	}
 	if value := strings.TrimSpace(upload.Slug); value != "" {
 		return value
