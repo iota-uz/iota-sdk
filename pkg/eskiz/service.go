@@ -30,7 +30,8 @@ type Service interface {
 
 	// SendBatch submits up to ~200 rows in one call. Per-row delivery
 	// events are fetched later via GetSMSStatus or via the webhook.
-	SendBatch(ctx context.Context, messages []models.BatchMessage) (models.BatchResult, error)
+	// Use SendBatchWithFrom to override the default sender id for the batch.
+	SendBatch(ctx context.Context, messages []models.BatchMessage, opts ...models.SendBatchOption) (models.BatchResult, error)
 
 	// GetSMSStatus returns the delivery status of a single SMS by its
 	// Eskiz-assigned id (the value from SendSMSResult.ID()).
@@ -146,8 +147,9 @@ func drain(httpResp *http.Response) {
 
 // SendBatch submits a batch of messages. Phones are converted to numeric
 // form; a leading "+" is stripped and anything non-digit errors out
-// (models.ErrInvalidBatchPhone).
-func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage) (models.BatchResult, error) {
+// (models.ErrInvalidBatchPhone). Apply SendBatchWithFrom to set a sender id
+// for the batch.
+func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage, opts ...models.SendBatchOption) (models.BatchResult, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
 	}
@@ -170,10 +172,19 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage)
 		inner = append(inner, row)
 	}
 
+	o := models.SendBatchOptions{}
+	for _, opt := range opts {
+		opt(&o)
+	}
+
 	batchReq := eskizapi.SendSmsBatchRequest{Messages: inner}
 	if s.cfg.CallbackURL() != "" {
 		cb := s.cfg.CallbackURL()
 		batchReq.CallbackUrl = &cb
+	}
+	if o.From != "" {
+		from := o.From
+		batchReq.From = &from
 	}
 
 	res, httpResp, err := s.client.DefaultApi.

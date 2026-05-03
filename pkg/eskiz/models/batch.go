@@ -55,6 +55,24 @@ func ToEskizInner(m BatchMessage) (eskizapi.SendSmsBatchRequestMessagesInner, er
 	}, nil
 }
 
+// SendBatchOptions is the per-call envelope mutated by SendBatchOption.
+// Fields map 1:1 to top-level keys on Eskiz's send-batch request body.
+type SendBatchOptions struct {
+	From string
+}
+
+// SendBatchOption configures a SendBatch invocation. Eskiz applies these at
+// the batch envelope level (not per-row), so they affect every message in
+// the call.
+type SendBatchOption func(*SendBatchOptions)
+
+// SendBatchWithFrom sets the sender id (alpha-name / nickname) used for
+// every row in the batch. Must be one of the nicknames approved on the
+// Eskiz account; unknown sender ids cause Eskiz to reject the dispatch.
+func SendBatchWithFrom(from string) SendBatchOption {
+	return func(o *SendBatchOptions) { o.From = from }
+}
+
 // BatchResult is the Service-level outcome of a SendBatch call. Eskiz returns
 // a dispatch id that groups the whole batch — per-row delivery status comes
 // later via webhook or GetSMSStatus.
