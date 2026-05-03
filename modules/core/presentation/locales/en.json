@@ -1103,7 +1103,8 @@
       "Errors": {
         "ReasonRequired": "Block reason is required",
         "ReasonTooShort": "Block reason must be at least 3 characters",
-        "ReasonTooLong": "Block reason must not exceed 1024 characters"
+        "ReasonTooLong": "Block reason must not exceed 1024 characters",
+        "OperationFailed": "Unable to block user. Please try again."
       }
     },
     "Unblock": {

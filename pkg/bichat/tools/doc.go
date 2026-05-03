@@ -43,7 +43,9 @@
 // custom implementations:
 //
 //	// SQL executor service (tools/sql sub-package)
-//	executor := toolsql.NewDefaultQueryExecutor(pool)
+//	executor := bichatsql.NewSafeQueryExecutor(pool,
+//	    bichatsql.WithTenantResolver(composables.UseTenantID),
+//	)
 //	sqlTool := toolsql.NewSQLExecuteTool(executor)
 //
 //	// Knowledge base searcher (tools/kb sub-package)

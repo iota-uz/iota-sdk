@@ -8,14 +8,20 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/modules"
-	infrastructure "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func newTestExecutor(pool *pgxpool.Pool) bichatsql.QueryExecutor {
+	return bichatsql.NewSafeQueryExecutor(pool,
+		bichatsql.WithTenantResolver(composables.UseTenantID),
+	)
+}
 
 func TestMain(m *testing.M) {
 	if err := os.Chdir("../../../"); err != nil {
@@ -76,7 +82,7 @@ func TestSchemaLister_ReturnsDescriptionsAndRowCounts(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	executor := infrastructure.NewPostgresQueryExecutor(env.Pool)
+	executor := newTestExecutor(env.Pool)
 	lister := bichatsql.NewQueryExecutorSchemaLister(executor,
 		bichatsql.WithCountCacheTTL(10*time.Minute),
 		bichatsql.WithCacheKeyFunc(func(ctx context.Context) (string, error) {
@@ -86,6 +92,7 @@ func TestSchemaLister_ReturnsDescriptionsAndRowCounts(t *testing.T) {
 			}
 			return tid.String(), nil
 		}),
+		bichatsql.WithSchemaAllowlist([]string{"analytics"}),
 	)
 
 	tables, err := lister.SchemaList(env.Ctx)
@@ -145,7 +152,7 @@ func TestSchemaLister_CachesViewCounts(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	executor := infrastructure.NewPostgresQueryExecutor(env.Pool)
+	executor := newTestExecutor(env.Pool)
 	lister := bichatsql.NewQueryExecutorSchemaLister(executor,
 		bichatsql.WithCountCacheTTL(1*time.Hour),
 		bichatsql.WithCacheKeyFunc(func(ctx context.Context) (string, error) {
@@ -155,6 +162,7 @@ func TestSchemaLister_CachesViewCounts(t *testing.T) {
 			}
 			return tid.String(), nil
 		}),
+		bichatsql.WithSchemaAllowlist([]string{"analytics"}),
 	)
 
 	// First call populates cache
@@ -228,7 +236,7 @@ func TestSchemaLister_CacheExpiresAfterTTL(t *testing.T) {
 	`, tenantID)
 	require.NoError(t, err)
 
-	executor := infrastructure.NewPostgresQueryExecutor(env.Pool)
+	executor := newTestExecutor(env.Pool)
 	lister := bichatsql.NewQueryExecutorSchemaLister(executor,
 		bichatsql.WithCountCacheTTL(1*time.Millisecond), // Extremely short TTL
 		bichatsql.WithCacheKeyFunc(func(ctx context.Context) (string, error) {
@@ -238,6 +246,7 @@ func TestSchemaLister_CacheExpiresAfterTTL(t *testing.T) {
 			}
 			return tid.String(), nil
 		}),
+		bichatsql.WithSchemaAllowlist([]string{"analytics"}),
 	)
 
 	// First call populates cache
@@ -314,8 +323,8 @@ func TestSchemaLister_NoCacheWithoutKeyFunc(t *testing.T) {
 	require.NoError(t, err)
 
 	// No bichatsql.WithCacheKeyFunc — should still work, just not cache
-	executor := infrastructure.NewPostgresQueryExecutor(env.Pool)
-	lister := bichatsql.NewQueryExecutorSchemaLister(executor)
+	executor := newTestExecutor(env.Pool)
+	lister := bichatsql.NewQueryExecutorSchemaLister(executor, bichatsql.WithSchemaAllowlist([]string{"analytics"}))
 
 	tables, err := lister.SchemaList(env.Ctx)
 	require.NoError(t, err)
@@ -361,8 +370,8 @@ func TestSchemaDescriber_ReturnsColumns(t *testing.T) {
 	`)
 	require.NoError(t, err)
 
-	executor := infrastructure.NewPostgresQueryExecutor(env.Pool)
-	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor)
+	executor := newTestExecutor(env.Pool)
+	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor, bichatsql.WithDescribeSchemaAllowlist([]string{"analytics"}))
 
 	// This uses parameterized query ($1) internally — catches the params regression
 	schema, err := describer.SchemaDescribe(env.Ctx, "_test_desc_view")
@@ -378,9 +387,13 @@ func TestSchemaDescriber_ReturnsColumns(t *testing.T) {
 		colMap[c.Name] = c
 	}
 
-	assert.Equal(t, "integer", colMap["id"].Type)
-	assert.Equal(t, "text", colMap["name"].Type)
-	assert.Equal(t, "numeric", colMap["amount"].Type)
+	// format_type(atttypid, atttypmod) includes the precision/scale modifier
+	// (e.g. "numeric(10,2)"), which is richer than information_schema's
+	// bare "numeric". Assert a prefix match so test stays independent of
+	// Postgres version quirks for integer/text names.
+	assert.Contains(t, colMap["id"].Type, "integer")
+	assert.Contains(t, colMap["name"].Type, "text")
+	assert.Equal(t, "numeric(10,2)", colMap["amount"].Type)
 	assert.Contains(t, colMap["created_at"].Type, "timestamp")
 }
 
@@ -392,11 +405,13 @@ func TestSchemaDescriber_NonExistentTable(t *testing.T) {
 	_, err := env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS analytics`)
 	require.NoError(t, err)
 
-	executor := infrastructure.NewPostgresQueryExecutor(env.Pool)
-	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor)
+	executor := newTestExecutor(env.Pool)
+	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor, bichatsql.WithDescribeSchemaAllowlist([]string{"analytics"}))
 
+	// Stricter than the legacy describer: an unknown table errors instead
+	// of returning an empty TableSchema. The LLM can then re-call schema_list
+	// to find the correct identifier.
 	schema, err := describer.SchemaDescribe(env.Ctx, "nonexistent_view_xyz")
-	require.NoError(t, err)
-	require.NotNil(t, schema)
-	assert.Empty(t, schema.Columns, "non-existent table should return empty columns")
+	require.Error(t, err)
+	assert.Nil(t, schema)
 }

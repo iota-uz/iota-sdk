@@ -78,7 +78,7 @@ func SessionDeviceCell(sess *viewmodels.Session) templ.Component {
 	})
 }
 
-func RevokeSessionButton(userID, tokenID, fullToken string) templ.Component {
+func RevokeSessionButton(userID, tokenID string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -126,7 +126,7 @@ func RevokeSessionButton(userID, tokenID, fullToken string) templ.Component {
 		templ_7745c5c3_Err = button.Danger(button.Props{
 			Size: button.SizeSM,
 			Attrs: templ.Attributes{
-				"hx-delete":  fmt.Sprintf("/users/%s/sessions/%s", userID, fullToken),
+				"hx-delete":  fmt.Sprintf("/users/%s/sessions/%s", userID, tokenID),
 				"hx-confirm": pageCtx.T("Users.Sessions.RevokeConfirm"),
 				"hx-target":  fmt.Sprintf("#session-%s", tokenID),
 				"hx-swap":    "outerHTML swap:0.5s",

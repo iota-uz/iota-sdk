@@ -237,6 +237,10 @@ func ToDomainTin(s sql.NullString, c country.Country) (tax.Tin, error) {
 }
 
 func ToDBUpload(upload upload.Upload) *models.Upload {
+	mimetypeStr := ""
+	if mime := upload.Mimetype(); mime != nil {
+		mimetypeStr = mime.String()
+	}
 	model := &models.Upload{
 		ID:        upload.ID(),
 		TenantID:  upload.TenantID().String(),
@@ -246,7 +250,7 @@ func ToDBUpload(upload upload.Upload) *models.Upload {
 		Name:      upload.Name(),
 		Size:      upload.Size().Bytes(),
 		Type:      upload.Type().String(),
-		Mimetype:  upload.Mimetype().String(),
+		Mimetype:  mimetypeStr,
 		CreatedAt: upload.CreatedAt(),
 		UpdatedAt: upload.UpdatedAt(),
 		GeoPoint:  &models.Point{X: 0, Y: 0},

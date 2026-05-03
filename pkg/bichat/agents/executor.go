@@ -1030,6 +1030,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 				}
 				if usage != nil {
 					result.Usage = *usage
+					result.Usage.Cost = e.model.Pricing().CalculateCost(result.Usage)
 				}
 
 				if !yield(buildDoneEvent(result)) {
@@ -1736,6 +1737,7 @@ func buildDoneEvent(result *Response) ExecutorEvent {
 			CompletionTokens: u.CompletionTokens,
 			TotalTokens:      u.TotalTokens,
 			CachedTokens:     cachedTokens,
+			Cost:             u.Cost,
 		}
 	}
 	return ev

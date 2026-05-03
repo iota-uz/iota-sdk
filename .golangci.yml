@@ -13,6 +13,7 @@ issues:
     - py-embed
     - docs
     - logs
+    - tmp
     - e2e
     - migrations
   exclude-rules:

@@ -45,25 +45,16 @@ func WithUserEmailFromContext(fn func(context.Context) string) BridgeOption {
 	}
 }
 
-// WithModelPricing sets model pricing for cost calculation on generations.
-// Pricing fields are added to GenerationObservation.Attributes so the provider
-// can compute cost from token counts.
-func WithModelPricing(inputPer1M, outputPer1M, cacheWritePer1M, cacheReadPer1M float64) BridgeOption {
-	return func(b *EventBridge) {
-		b.pricing = &modelPricing{
-			InputPer1M:      inputPer1M,
-			OutputPer1M:     outputPer1M,
-			CacheWritePer1M: cacheWritePer1M,
-			CacheReadPer1M:  cacheReadPer1M,
-		}
-	}
-}
-
-type modelPricing struct {
-	InputPer1M      float64
-	OutputPer1M     float64
-	CacheWritePer1M float64
-	CacheReadPer1M  float64
+// WithModelPricing previously seeded per-1M token rates so the bridge could stamp
+// computed cost onto each GenerationObservation. With the migration to the OTel
+// provider (Langfuse computes cost server-side from gen_ai.request.model + token
+// counts), the bridge no longer ships cost on the telemetry path. This option is
+// retained so existing callers compile, but it is a no-op.
+//
+// Deprecated: configure pricing in Langfuse's Models tab (or your OTel sink).
+// This option will be removed in a future release.
+func WithModelPricing(_, _, _, _ float64) BridgeOption {
+	return func(_ *EventBridge) {}
 }
 
 // EventBridge connects BiChat's EventBus to observability providers.
@@ -82,14 +73,15 @@ type EventBridge struct {
 	// Optional context extractors
 	userIDFromCtx    func(context.Context) string
 	userEmailFromCtx func(context.Context) string
-	pricing          *modelPricing
 
 	// Correlation state
 	mu                 sync.RWMutex
 	pendingGenerations map[string]*simplePendingGeneration
 	agentSpans         map[string]*agentSpanState     // traceID → agent span state
 	lastGenerationIDs  map[string]string              // traceID → last generation span ID
+	traceMetrics       map[string]*traceMetrics       // traceID → accumulated token/cost totals
 	traceTags          map[string]map[string]struct{} // traceID → accumulated dynamic tags
+	traceFinalizeRefs  map[string]int                 // traceID → providers still using finalization state
 	sessionTraceIDs    map[uuid.UUID]string           // sessionID → most recent active traceID
 	cleanupStop        chan struct{}
 	cleanupDone        chan struct{}
@@ -99,6 +91,12 @@ type EventBridge struct {
 type agentSpanState struct {
 	spanID    string
 	startTime time.Time
+}
+
+type traceMetrics struct {
+	startedAt   time.Time
+	totalTokens int
+	totalCost   float64
 }
 
 // NewEventBridge creates an EventBridge that connects BiChat events to observability providers.
@@ -123,7 +121,9 @@ func NewEventBridge(eventBus hooks.EventBus, providers []Provider, opts ...Bridg
 		pendingGenerations: make(map[string]*simplePendingGeneration),
 		agentSpans:         make(map[string]*agentSpanState),
 		lastGenerationIDs:  make(map[string]string),
+		traceMetrics:       make(map[string]*traceMetrics),
 		traceTags:          make(map[string]map[string]struct{}),
+		traceFinalizeRefs:  make(map[string]int),
 		sessionTraceIDs:    make(map[uuid.UUID]string),
 		cleanupStop:        make(chan struct{}),
 		cleanupDone:        make(chan struct{}),
@@ -224,6 +224,27 @@ func (b *EventBridge) addTraceTag(traceID string, tag string) {
 	b.traceTags[traceID][tag] = struct{}{}
 }
 
+func (b *EventBridge) recordTraceMetrics(traceID string, startedAt time.Time, totalTokens int, totalCost float64) {
+	traceID = strings.TrimSpace(traceID)
+	if traceID == "" {
+		return
+	}
+
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	metrics := b.traceMetrics[traceID]
+	if metrics == nil {
+		metrics = &traceMetrics{startedAt: startedAt}
+		b.traceMetrics[traceID] = metrics
+	}
+	if metrics.startedAt.IsZero() || (!startedAt.IsZero() && startedAt.Before(metrics.startedAt)) {
+		metrics.startedAt = startedAt
+	}
+	metrics.totalTokens += totalTokens
+	metrics.totalCost += totalCost
+}
+
 // performCleanup removes orphaned pending observations.
 func (b *EventBridge) performCleanup() {
 	b.mu.Lock()
@@ -244,6 +265,8 @@ func (b *EventBridge) performCleanup() {
 	for traceID := range b.traceTags {
 		if _, hasSpan := b.agentSpans[traceID]; !hasSpan {
 			delete(b.traceTags, traceID)
+			delete(b.traceMetrics, traceID)
+			delete(b.traceFinalizeRefs, traceID)
 		}
 	}
 }
@@ -330,6 +353,10 @@ func (h *agentStartHandler) Handle(_ context.Context, event hooks.Event) error {
 			startTime: e.Timestamp(),
 		}
 	}
+	if _, exists := h.bridge.traceMetrics[traceID]; !exists {
+		h.bridge.traceMetrics[traceID] = &traceMetrics{startedAt: e.Timestamp()}
+	}
+	h.bridge.traceFinalizeRefs[traceID] = len(h.bridge.providers)
 	h.bridge.sessionTraceIDs[e.SessionID()] = traceID
 	return nil
 }
@@ -395,17 +422,23 @@ func (h *providerHandler) finalizeAgentSpan(
 
 	h.bridge.mu.Lock()
 	as := h.bridge.agentSpans[traceID]
-	delete(h.bridge.agentSpans, traceID)
-	delete(h.bridge.lastGenerationIDs, traceID)
-	// Collect and remove accumulated trace tags.
 	dynTags := h.bridge.traceTags[traceID]
-	delete(h.bridge.traceTags, traceID)
-	// Prune sessionTraceIDs so this trace no longer keeps the map growing.
-	for sid, tid := range h.bridge.sessionTraceIDs {
-		if tid == traceID {
-			delete(h.bridge.sessionTraceIDs, sid)
-			break
+	metrics := h.bridge.traceMetrics[traceID]
+	remainingRefs := h.bridge.traceFinalizeRefs[traceID] - 1
+	if remainingRefs <= 0 {
+		delete(h.bridge.agentSpans, traceID)
+		delete(h.bridge.lastGenerationIDs, traceID)
+		delete(h.bridge.traceTags, traceID)
+		delete(h.bridge.traceMetrics, traceID)
+		delete(h.bridge.traceFinalizeRefs, traceID)
+		for sid, tid := range h.bridge.sessionTraceIDs {
+			if tid == traceID {
+				delete(h.bridge.sessionTraceIDs, sid)
+				break
+			}
 		}
+	} else {
+		h.bridge.traceFinalizeRefs[traceID] = remainingRefs
 	}
 	h.bridge.mu.Unlock()
 
@@ -455,7 +488,27 @@ func (h *providerHandler) finalizeAgentSpan(
 		_ = tagUpdater.UpdateTraceTags(ctx, traceID, tags)
 	}
 
-	return nil
+	totalTokens := 0
+	totalCost := 0.0
+	if metrics != nil {
+		totalTokens = metrics.totalTokens
+		totalCost = metrics.totalCost
+	}
+	if attrTotalTokens, ok := attrs["total_tokens"].(int); ok && attrTotalTokens > totalTokens {
+		totalTokens = attrTotalTokens
+	}
+
+	return h.provider.RecordTrace(ctx, TraceObservation{
+		ID:          traceID,
+		TenantID:    tenantID,
+		SessionID:   sessionID,
+		Timestamp:   startTime,
+		Name:        "BiChat Session",
+		Duration:    time.Duration(durationMs) * time.Millisecond,
+		Status:      status,
+		TotalCost:   totalCost,
+		TotalTokens: totalTokens,
+	})
 }
 
 func (h *providerHandler) handleAgentComplete(ctx context.Context, e *events.AgentCompleteEvent) error {
@@ -527,18 +580,6 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		attrs["cache_read_tokens"] = e.CacheReadTokens
 	}
 
-	// Add pricing so the provider can calculate cost.
-	if h.bridge.pricing != nil {
-		attrs["input_price_per_1m"] = h.bridge.pricing.InputPer1M
-		attrs["output_price_per_1m"] = h.bridge.pricing.OutputPer1M
-		if h.bridge.pricing.CacheWritePer1M > 0 {
-			attrs["cache_write_price_per_1m"] = h.bridge.pricing.CacheWritePer1M
-		}
-		if h.bridge.pricing.CacheReadPer1M > 0 {
-			attrs["cache_read_price_per_1m"] = h.bridge.pricing.CacheReadPer1M
-		}
-	}
-
 	// Resolve user ID and email from context for trace enrichment.
 	var userID string
 	if h.bridge.userIDFromCtx != nil {
@@ -603,6 +644,8 @@ func (h *providerHandler) handleLLMResponse(ctx context.Context, e *events.LLMRe
 		obs.TraceID = traceID
 		obs.Attributes["otel.span_id"] = spanID
 	}
+
+	h.bridge.recordTraceMetrics(obs.TraceID, obs.Timestamp, e.TotalTokens, 0)
 
 	return h.provider.RecordGeneration(ctx, obs)
 }

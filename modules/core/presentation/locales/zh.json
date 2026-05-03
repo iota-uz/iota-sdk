@@ -1106,7 +1106,8 @@
       "Errors": {
         "ReasonRequired": "需要输入封禁原因",
         "ReasonTooShort": "封禁原因必须至少为3个字符",
-        "ReasonTooLong": "封禁原因不得超过1024个字符"
+        "ReasonTooLong": "封禁原因不得超过1024个字符",
+        "OperationFailed": "无法封禁该用户，请重试。"
       }
     },
     "Unblock": {
