@@ -87,6 +87,6 @@ type templateRecord struct {
 	status   TemplateModerationStatus
 }
 
-func (r *templateRecord) ID() int                              { return r.id }
-func (r *templateRecord) Template() string                     { return r.template }
-func (r *templateRecord) Status() TemplateModerationStatus     { return r.status }
+func (r *templateRecord) ID() int                          { return r.id }
+func (r *templateRecord) Template() string                 { return r.template }
+func (r *templateRecord) Status() TemplateModerationStatus { return r.status }
