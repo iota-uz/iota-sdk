@@ -39,14 +39,25 @@ func (m *batchMessage) Message() string     { return m.message }
 
 // ToEskizInner converts a domain BatchMessage into the generated client's row
 // type. The Eskiz batch API encodes phone as numeric — a leading "+" is
-// stripped and the rest must be digits. Returns ErrInvalidBatchPhone otherwise.
+// stripped and the rest must be digits. Returns ErrInvalidBatchPhone if the
+// remainder isn't strictly decimal (rejecting scientific/decimal/sign forms
+// that strconv.ParseFloat would otherwise accept).
 func ToEskizInner(m BatchMessage) (eskizapi.SendSmsBatchRequestMessagesInner, error) {
 	userSMSID := m.UserSmsID()
 	phoneDigits := strings.TrimPrefix(m.PhoneNumber(), "+")
-	phone, err := strconv.ParseFloat(phoneDigits, 64)
+	if phoneDigits == "" {
+		return eskizapi.SendSmsBatchRequestMessagesInner{}, ErrInvalidBatchPhone
+	}
+	for _, r := range phoneDigits {
+		if r < '0' || r > '9' {
+			return eskizapi.SendSmsBatchRequestMessagesInner{}, ErrInvalidBatchPhone
+		}
+	}
+	parsed, err := strconv.ParseUint(phoneDigits, 10, 64)
 	if err != nil {
 		return eskizapi.SendSmsBatchRequestMessagesInner{}, ErrInvalidBatchPhone
 	}
+	phone := float64(parsed)
 	msg := m.Message()
 	return eskizapi.SendSmsBatchRequestMessagesInner{
 		UserSmsId: &userSMSID,
@@ -112,4 +123,14 @@ type batchResult struct {
 
 func (r *batchResult) DispatchID() string { return r.dispatchID }
 func (r *batchResult) Message() string    { return r.message }
-func (r *batchResult) Status() []string   { return r.status }
+
+// Status returns a defensive copy so callers can't mutate the cached
+// internal slice and surprise other consumers reading the same instance.
+func (r *batchResult) Status() []string {
+	if len(r.status) == 0 {
+		return nil
+	}
+	out := make([]string, len(r.status))
+	copy(out, r.status)
+	return out
+}

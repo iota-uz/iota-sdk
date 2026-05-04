@@ -1,6 +1,7 @@
 package models
 
 import (
+	"strconv"
 	"time"
 
 	eskizapi "github.com/iota-uz/eskiz"
@@ -43,7 +44,7 @@ func NewSMSStatus(resp *eskizapi.SmsStatusResponse) SMSStatus {
 	d := resp.Data
 	s := &smsStatus{}
 	if d.Id != nil {
-		s.id = intToString(*d.Id)
+		s.id = strconv.Itoa(*d.Id)
 	}
 	if resp.Status != nil {
 		s.status = *resp.Status
@@ -96,28 +97,4 @@ func (s *smsStatus) isTerminal() bool {
 		return true
 	}
 	return false
-}
-
-// intToString converts an int to decimal string without importing strconv at
-// top level (localized to avoid conflicts).
-func intToString(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	var buf [20]byte
-	i := len(buf)
-	for n > 0 {
-		i--
-		buf[i] = byte('0' + n%10)
-		n /= 10
-	}
-	if neg {
-		i--
-		buf[i] = '-'
-	}
-	return string(buf[i:])
 }

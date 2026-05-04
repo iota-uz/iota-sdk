@@ -3,6 +3,7 @@ package eskiz
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"time"
 
@@ -135,14 +136,22 @@ func (s *service) SendSMS(ctx context.Context, model models.SendSMS) (models.Sen
 	if err != nil {
 		return nil, err
 	}
-
+	if res == nil {
+		return nil, ErrNilResponse
+	}
 	return models.NewSendSMSResult(res), nil
 }
 
+// drain reads any remaining bytes off the body to EOF and then closes it.
+// Without the io.Copy step the underlying http.Transport can't return the
+// connection to the keep-alive pool, which silently disables connection
+// reuse for every API call.
 func drain(httpResp *http.Response) {
-	if httpResp != nil {
-		_ = httpResp.Body.Close()
+	if httpResp == nil || httpResp.Body == nil {
+		return
 	}
+	_, _ = io.Copy(io.Discard, httpResp.Body)
+	_ = httpResp.Body.Close()
 }
 
 // SendBatch submits a batch of messages. Phones are converted to numeric
@@ -159,11 +168,17 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage,
 
 	inner := make([]eskizapi.SendSmsBatchRequestMessagesInner, 0, len(messages))
 	for _, m := range messages {
+		if m.UserSmsID() == "" {
+			return nil, ErrInvalidMessage
+		}
 		if m.PhoneNumber() == "" {
 			return nil, ErrInvalidPhoneNumber
 		}
 		if m.Message() == "" {
 			return nil, ErrInvalidMessage
+		}
+		if len(m.Message()) > s.cfg.MaxMessageSize() {
+			return nil, ErrMessageTooLong
 		}
 		row, err := models.ToEskizInner(m)
 		if err != nil {
@@ -195,6 +210,9 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage,
 	if err != nil {
 		return nil, err
 	}
+	if res == nil {
+		return nil, ErrNilResponse
+	}
 	return models.NewBatchResult(res), nil
 }
 
@@ -211,6 +229,9 @@ func (s *service) GetSMSStatus(ctx context.Context, id string) (models.SMSStatus
 	if err != nil {
 		return nil, err
 	}
+	if res == nil {
+		return nil, ErrNilResponse
+	}
 	return models.NewSMSStatus(res), nil
 }
 
@@ -223,6 +244,9 @@ func (s *service) GetBalance(ctx context.Context) (models.Balance, error) {
 	drain(httpResp)
 	if err != nil {
 		return nil, err
+	}
+	if res == nil {
+		return nil, ErrNilResponse
 	}
 	return models.NewBalance(res), nil
 }
@@ -246,6 +270,9 @@ func (s *service) SubmitTemplate(ctx context.Context, body string) (models.Templ
 	if err != nil {
 		return nil, err
 	}
+	if res == nil {
+		return nil, ErrNilResponse
+	}
 	return models.NewTemplateSubmission(res), nil
 }
 
@@ -258,6 +285,9 @@ func (s *service) ListTemplates(ctx context.Context) ([]models.TemplateRecord, e
 	drain(httpResp)
 	if err != nil {
 		return nil, err
+	}
+	if res == nil {
+		return nil, ErrNilResponse
 	}
 	return models.NewTemplateRecords(res), nil
 }
