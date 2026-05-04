@@ -70,9 +70,14 @@ func (s TemplateModerationStatus) IsTerminal() bool {
 	return false
 }
 
+// TemplateRecord exposes both `template` (parsed/normalised body, blank for
+// pending rows) and `original_text` (verbatim body Eskiz received). Match
+// against OriginalText() — it's populated immediately on submit, while
+// Template() is empty until moderation runs.
 type TemplateRecord interface {
 	ID() int
 	Template() string
+	OriginalText() string
 	Status() TemplateModerationStatus
 }
 
@@ -91,6 +96,9 @@ func NewTemplateRecords(resp *eskizapi.TemplatesListResponse) []TemplateRecord {
 		if item.Template != nil {
 			r.template = *item.Template
 		}
+		if item.OriginalText != nil {
+			r.originalText = *item.OriginalText
+		}
 		if item.Status != nil {
 			r.status = TemplateModerationStatus(*item.Status)
 		}
@@ -100,11 +108,13 @@ func NewTemplateRecords(resp *eskizapi.TemplatesListResponse) []TemplateRecord {
 }
 
 type templateRecord struct {
-	id       int
-	template string
-	status   TemplateModerationStatus
+	id           int
+	template     string
+	originalText string
+	status       TemplateModerationStatus
 }
 
 func (r *templateRecord) ID() int                          { return r.id }
 func (r *templateRecord) Template() string                 { return r.template }
+func (r *templateRecord) OriginalText() string             { return r.originalText }
 func (r *templateRecord) Status() TemplateModerationStatus { return r.status }
