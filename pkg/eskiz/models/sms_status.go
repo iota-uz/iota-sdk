@@ -7,36 +7,24 @@ import (
 	eskizapi "github.com/iota-uz/eskiz"
 )
 
-// SMSStatus describes the delivery state of a single outgoing SMS as reported
-// by Eskiz's /message/sms/status-by-id endpoint.
-//
-// This type reflects the snapshot at fetch time. For real-time updates,
-// consumers should register a callback URL in the Service config — Eskiz will
-// POST the same status fields back via webhook.
+// SMSStatus is the delivery snapshot returned by /message/sms/status-by-id.
+// For real-time updates, register a callback URL in the Service config and
+// Eskiz will POST the same fields via webhook.
 type SMSStatus interface {
-	// ID is the Eskiz-assigned message id (matches SendSMSResult.ID()).
 	ID() string
 	// Status is the coarse lifecycle: "waiting" | "transmitting" |
-	// "delivered" | "notdelivered" | "failed" | "expired" | ...
-	// Exact enumeration comes from Eskiz — consumers map it to their own
-	// delivery state machine.
+	// "delivered" | "notdelivered" | "failed" | "expired" | …
 	Status() string
-	// To is the recipient phone number as Eskiz saw it.
 	To() string
-	// CreatedAt is when Eskiz accepted the request.
 	CreatedAt() time.Time
-	// DeliveredAt is set only when Status transitions to a terminal
-	// delivered state. Zero time otherwise.
+	// DeliveredAt is the terminal-state transition time; zero otherwise.
 	DeliveredAt() time.Time
-	// Parts is the number of SMS segments billed.
 	Parts() int
-	// TotalPrice is the final billing amount in account units.
 	TotalPrice() float64
 }
 
-// NewSMSStatus wraps an Eskiz SmsStatusResponse. Returns nil if the response
-// lacks a Data payload (never observed in practice, but Eskiz occasionally
-// returns {status: "error"} with no body on invalid ids).
+// NewSMSStatus returns nil if the response has no Data payload — Eskiz
+// occasionally answers {status:"error"} with no body for invalid ids.
 func NewSMSStatus(resp *eskizapi.SmsStatusResponse) SMSStatus {
 	if resp == nil || resp.Data == nil {
 		return nil
@@ -55,8 +43,8 @@ func NewSMSStatus(resp *eskizapi.SmsStatusResponse) SMSStatus {
 	if d.CreatedAt != nil {
 		s.createdAt = *d.CreatedAt
 	}
-	// Eskiz doesn't expose an explicit DeliveredAt field. When Status is a
-	// terminal delivered state, UpdatedAt is the delivery transition time.
+	// Eskiz has no explicit DeliveredAt — UpdatedAt holds the
+	// transition time once Status enters a terminal state.
 	if d.UpdatedAt != nil && s.isTerminal() {
 		s.deliveredAt = *d.UpdatedAt
 	}
@@ -89,8 +77,6 @@ func (s *smsStatus) DeliveredAt() time.Time {
 func (s *smsStatus) Parts() int          { return s.parts }
 func (s *smsStatus) TotalPrice() float64 { return s.totalPrice }
 
-// isTerminal reports whether Status is a final delivery state.
-// Conservative — non-terminal statuses keep DeliveredAt as zero time.
 func (s *smsStatus) isTerminal() bool {
 	switch s.status {
 	case "delivered", "notdelivered", "failed", "expired":

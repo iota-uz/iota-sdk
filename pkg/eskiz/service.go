@@ -1,4 +1,5 @@
-// Package eskiz provides this package.
+// Package eskiz wraps Eskiz's SMS / template moderation REST API behind a
+// stable Go interface; consumers never touch the generated OpenAPI client.
 package eskiz
 
 import (
@@ -18,34 +19,15 @@ const (
 	apiTimeout = 30 * time.Second
 )
 
-// Service is the domain-level Eskiz client. It wraps the generated API and
-// surfaces a stable, Go-idiomatic interface for SMS delivery, batch sending,
-// status polling, balance inquiries, and template moderation.
-//
-// All methods return wrapped domain types (package models) rather than
-// OpenAPI-generated structs so callers never couple to generated code.
 type Service interface {
-	// SendSMS sends a single SMS. Config's CallbackURL, if set, is
-	// attached so the receiving webhook receives delivery events.
 	SendSMS(ctx context.Context, model models.SendSMS) (models.SendSMSResult, error)
-
-	// SendBatch submits up to ~200 rows in one call. Per-row delivery
-	// events are fetched later via GetSMSStatus or via the webhook.
-	// Use SendBatchWithFrom to override the default sender id for the batch.
+	// SendBatch posts up to ~200 rows in one call. Per-row delivery events
+	// arrive via webhook or GetSMSStatus. Use SendBatchWithFrom to set the
+	// sender id for the dispatch.
 	SendBatch(ctx context.Context, messages []models.BatchMessage, opts ...models.SendBatchOption) (models.BatchResult, error)
-
-	// GetSMSStatus returns the delivery status of a single SMS by its
-	// Eskiz-assigned id (the value from SendSMSResult.ID()).
 	GetSMSStatus(ctx context.Context, id string) (models.SMSStatus, error)
-
-	// GetBalance returns the account's current credit balance.
 	GetBalance(ctx context.Context) (models.Balance, error)
-
-	// SubmitTemplate submits a template body for moderation.
 	SubmitTemplate(ctx context.Context, body string) (models.TemplateSubmission, error)
-
-	// ListTemplates returns all templates the account has ever submitted,
-	// with current moderation status.
 	ListTemplates(ctx context.Context) ([]models.TemplateRecord, error)
 }
 
@@ -54,37 +36,19 @@ func NewService(
 	logger *logrus.Logger,
 	sdkConfig *configuration.Configuration,
 ) Service {
-	httpClient := &http.Client{
-		Timeout: apiTimeout,
-	}
+	httpClient := &http.Client{Timeout: apiTimeout}
 
-	// Create base client for token refresh (without auth)
+	// Unauthenticated client used by the token refresher to obtain a token
+	// without recursing back through itself.
 	baseConfig := eskizapi.NewConfiguration()
 	baseConfig.Servers = eskizapi.ServerConfigurations{{URL: cfg.URL()}}
 	baseConfig.HTTPClient = httpClient
-	baseClient := eskizapi.NewAPIClient(baseConfig)
+	refresher := &tokenRefresher{cfg: cfg, client: eskizapi.NewAPIClient(baseConfig)}
 
-	refresher := &tokenRefresher{
-		cfg:    cfg,
-		client: baseClient,
-	}
-
-	// Create log transport for request/response logging
-	logTransport := middleware.NewLogTransport(
-		logger,
-		sdkConfig,
-		true, // log request bodies
-		true, // log response bodies
-		"eskiz",
-	)
-
-	// Create authenticated client
+	logTransport := middleware.NewLogTransport(logger, sdkConfig, true, true, "eskiz")
 	authClient := &http.Client{
-		Timeout: apiTimeout,
-		Transport: &authRoundTripper{
-			Base:      logTransport,
-			Refresher: refresher,
-		},
+		Timeout:   apiTimeout,
+		Transport: &authRoundTripper{Base: logTransport, Refresher: refresher},
 	}
 
 	config := eskizapi.NewConfiguration()
@@ -142,10 +106,8 @@ func (s *service) SendSMS(ctx context.Context, model models.SendSMS) (models.Sen
 	return models.NewSendSMSResult(res), nil
 }
 
-// drain reads any remaining bytes off the body to EOF and then closes it.
-// Without the io.Copy step the underlying http.Transport can't return the
-// connection to the keep-alive pool, which silently disables connection
-// reuse for every API call.
+// drain consumes the body to EOF before close so http.Transport returns the
+// connection to the keep-alive pool.
 func drain(httpResp *http.Response) {
 	if httpResp == nil || httpResp.Body == nil {
 		return
@@ -154,10 +116,6 @@ func drain(httpResp *http.Response) {
 	_ = httpResp.Body.Close()
 }
 
-// SendBatch submits a batch of messages. Phones are converted to numeric
-// form; a leading "+" is stripped and anything non-digit errors out
-// (models.ErrInvalidBatchPhone). Apply SendBatchWithFrom to set a sender id
-// for the batch.
 func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage, opts ...models.SendBatchOption) (models.BatchResult, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
@@ -216,7 +174,6 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage,
 	return models.NewBatchResult(res), nil
 }
 
-// GetSMSStatus fetches the current delivery status for a single SMS by id.
 func (s *service) GetSMSStatus(ctx context.Context, id string) (models.SMSStatus, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
@@ -235,7 +192,6 @@ func (s *service) GetSMSStatus(ctx context.Context, id string) (models.SMSStatus
 	return models.NewSMSStatus(res), nil
 }
 
-// GetBalance returns the account's current credit balance.
 func (s *service) GetBalance(ctx context.Context) (models.Balance, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
@@ -251,7 +207,6 @@ func (s *service) GetBalance(ctx context.Context) (models.Balance, error) {
 	return models.NewBalance(res), nil
 }
 
-// SubmitTemplate queues a template body for moderation.
 func (s *service) SubmitTemplate(ctx context.Context, body string) (models.TemplateSubmission, error) {
 	if ctx == nil {
 		return nil, ErrNilContext
@@ -276,7 +231,6 @@ func (s *service) SubmitTemplate(ctx context.Context, body string) (models.Templ
 	return models.NewTemplateSubmission(res), nil
 }
 
-// ListTemplates returns all submitted templates with their moderation status.
 func (s *service) ListTemplates(ctx context.Context) ([]models.TemplateRecord, error) {
 	if ctx == nil {
 		return nil, ErrNilContext

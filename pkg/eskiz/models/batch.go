@@ -8,21 +8,18 @@ import (
 	eskizapi "github.com/iota-uz/eskiz"
 )
 
-// ErrInvalidBatchPhone is returned by ToEskizInner when a batch message
-// phone cannot be parsed as a digits-only number. Eskiz's batch API uses a
-// numeric phone field (no leading "+"), so callers must pass normalised input.
+// ErrInvalidBatchPhone is returned when a batch phone isn't a strictly
+// digits-only number (Eskiz's batch endpoint encodes the phone as numeric).
 var ErrInvalidBatchPhone = errors.New("batch phone must be digits only (no leading +, no spaces)")
 
-// BatchMessage is a single entry in a SendBatch request.
 type BatchMessage interface {
-	// UserSmsID is the caller-supplied id that Eskiz echoes back per row;
-	// callers use it to correlate results with their own item ids. Required.
+	// UserSmsID is the caller-supplied correlation id Eskiz echoes back
+	// on the per-row delivery webhook. Required.
 	UserSmsID() string
 	PhoneNumber() string
 	Message() string
 }
 
-// NewBatchMessage constructs a BatchMessage.
 func NewBatchMessage(userSmsID, phone, message string) BatchMessage {
 	return &batchMessage{userSmsID: userSmsID, phone: phone, message: message}
 }
@@ -37,11 +34,9 @@ func (m *batchMessage) UserSmsID() string   { return m.userSmsID }
 func (m *batchMessage) PhoneNumber() string { return m.phone }
 func (m *batchMessage) Message() string     { return m.message }
 
-// ToEskizInner converts a domain BatchMessage into the generated client's row
-// type. The Eskiz batch API encodes phone as numeric — a leading "+" is
-// stripped and the rest must be digits. Returns ErrInvalidBatchPhone if the
-// remainder isn't strictly decimal (rejecting scientific/decimal/sign forms
-// that strconv.ParseFloat would otherwise accept).
+// ToEskizInner rejects phone strings that aren't pure decimals; strconv.ParseFloat
+// would otherwise accept "1e6" / "12.5" / signed forms and silently corrupt the
+// recipient.
 func ToEskizInner(m BatchMessage) (eskizapi.SendSmsBatchRequestMessagesInner, error) {
 	userSMSID := m.UserSmsID()
 	phoneDigits := strings.TrimPrefix(m.PhoneNumber(), "+")
@@ -66,40 +61,26 @@ func ToEskizInner(m BatchMessage) (eskizapi.SendSmsBatchRequestMessagesInner, er
 	}, nil
 }
 
-// SendBatchOptions is the per-call envelope mutated by SendBatchOption.
-// Fields map 1:1 to top-level keys on Eskiz's send-batch request body.
+// SendBatchOptions captures envelope-level fields. Eskiz applies these to
+// every row in the batch (not per-message).
 type SendBatchOptions struct {
 	From string
 }
 
-// SendBatchOption configures a SendBatch invocation. Eskiz applies these at
-// the batch envelope level (not per-row), so they affect every message in
-// the call.
 type SendBatchOption func(*SendBatchOptions)
 
-// SendBatchWithFrom sets the sender id (alpha-name / nickname) used for
-// every row in the batch. Must be one of the nicknames approved on the
-// Eskiz account; unknown sender ids cause Eskiz to reject the dispatch.
+// SendBatchWithFrom sets the sender id (alpha-name / nickname). Must be
+// pre-approved on the Eskiz account.
 func SendBatchWithFrom(from string) SendBatchOption {
 	return func(o *SendBatchOptions) { o.From = from }
 }
 
-// BatchResult is the Service-level outcome of a SendBatch call. Eskiz returns
-// a dispatch id that groups the whole batch — per-row delivery status comes
-// later via webhook or GetSMSStatus.
 type BatchResult interface {
-	// DispatchID groups the batch on Eskiz side. Use with GetSmsLogs or
-	// GetDispatchStatus to observe per-row results.
 	DispatchID() string
-	// Message is Eskiz's batch-level acknowledgement (usually "Waiting for
-	// SMS provider" or "Success").
 	Message() string
-	// Status is the batch-level status slice — Eskiz returns coarse hints
-	// like ["waiting"]. Terminal states come via per-row webhook.
 	Status() []string
 }
 
-// NewBatchResult wraps an Eskiz SendSmsBatchResponse. Returns nil for nil resp.
 func NewBatchResult(resp *eskizapi.SendSmsBatchResponse) BatchResult {
 	if resp == nil {
 		return nil
@@ -124,8 +105,7 @@ type batchResult struct {
 func (r *batchResult) DispatchID() string { return r.dispatchID }
 func (r *batchResult) Message() string    { return r.message }
 
-// Status returns a defensive copy so callers can't mutate the cached
-// internal slice and surprise other consumers reading the same instance.
+// Status returns a defensive copy.
 func (r *batchResult) Status() []string {
 	if len(r.status) == 0 {
 		return nil

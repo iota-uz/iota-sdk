@@ -2,22 +2,18 @@ package models
 
 import eskizapi "github.com/iota-uz/eskiz"
 
-// TemplateSubmission is the outcome of SubmitTemplate — the Eskiz-side
-// template id the caller stores for later moderation-status polling and
-// (eventually) for attributing sends to an approved template.
+// TemplateSubmission is the outcome of SubmitTemplate. Eskiz's /user/template
+// response carries only the echoed body — there is no upstream id at this
+// stage. Callers that need the moderation id resolve it via ListTemplates.
 type TemplateSubmission interface {
-	// Template is the echoed template body Eskiz has recorded. Usually
-	// identical to what was submitted.
 	Template() string
 }
 
-// NewTemplateSubmission wraps an Eskiz SendTemplateResponse.
+// NewTemplateSubmission always returns a non-nil TemplateSubmission so callers
+// never receive a (nil result, nil error) pair from service.SubmitTemplate.
 func NewTemplateSubmission(resp *eskizapi.SendTemplateResponse) TemplateSubmission {
-	if resp == nil {
-		return nil
-	}
 	s := &templateSubmission{}
-	if resp.Template != nil {
+	if resp != nil && resp.Template != nil {
 		s.template = *resp.Template
 	}
 	return s
@@ -29,18 +25,14 @@ type templateSubmission struct {
 
 func (s *templateSubmission) Template() string { return s.template }
 
-// TemplateModerationStatus is the moderation state Eskiz assigns to a
-// previously-submitted template. It's derived from the /user/templates list
-// endpoint — there is no single-template fetch.
+// TemplateModerationStatus mirrors Eskiz's status strings:
+//   - "moderation"  → in moderation queue (pending)
+//   - "inproccess"  → review in flight (pending)
+//   - "service"     → approved for service messages
+//   - "reklama"     → approved for advertising
+//   - "rejected"    → moderation denied
 //
-// Canonical values per Eskiz OpenAPI spec (translated):
-//   - "moderation" → На модерации (in moderation queue, treat as pending)
-//   - "inproccess" → В процессе (review in flight, treat as pending)
-//   - "service"    → Сервисный (approved for service messages)
-//   - "reklama"    → Рекламный (approved for advertising)
-//   - "rejected"   → Отказано (moderation denied)
-//
-// Consumers should treat unknown values as pending-equivalent.
+// Unknown values flow through verbatim so callers can decide.
 type TemplateModerationStatus string
 
 const (
@@ -51,18 +43,42 @@ const (
 	TemplateModerationRejected    TemplateModerationStatus = "rejected"
 )
 
-// TemplateRecord is a single entry in the user's template list.
+// IsKnown reports whether the status matches a value Eskiz actually documents.
+func (s TemplateModerationStatus) IsKnown() bool {
+	switch s {
+	case TemplateModerationPending,
+		TemplateModerationInProcess,
+		TemplateModerationApproved,
+		TemplateModerationAdvertising,
+		TemplateModerationRejected:
+		return true
+	}
+	return false
+}
+
+// IsTerminal reports whether the status is a final moderation verdict
+// (no further transitions expected without a re-submission).
+func (s TemplateModerationStatus) IsTerminal() bool {
+	switch s {
+	case TemplateModerationApproved,
+		TemplateModerationAdvertising,
+		TemplateModerationRejected:
+		return true
+	}
+	return false
+}
+
 type TemplateRecord interface {
 	ID() int
 	Template() string
 	Status() TemplateModerationStatus
 }
 
-// NewTemplateRecords maps a TemplatesListResponse into domain records.
-// Unknown status strings are returned verbatim for caller inspection.
+// NewTemplateRecords always returns a non-nil slice (empty on missing payload)
+// so callers can iterate without nil checks.
 func NewTemplateRecords(resp *eskizapi.TemplatesListResponse) []TemplateRecord {
 	if resp == nil || resp.Result == nil {
-		return nil
+		return []TemplateRecord{}
 	}
 	out := make([]TemplateRecord, 0, len(resp.Result))
 	for _, item := range resp.Result {
