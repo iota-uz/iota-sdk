@@ -64,6 +64,8 @@ func (s TemplateModerationStatus) IsTerminal() bool {
 		TemplateModerationAdvertising,
 		TemplateModerationRejected:
 		return true
+	case TemplateModerationPending, TemplateModerationInProcess:
+		return false
 	}
 	return false
 }
