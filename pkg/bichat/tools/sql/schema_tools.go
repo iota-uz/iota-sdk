@@ -153,4 +153,3 @@ func (t *SchemaListTool) CallStructured(ctx context.Context, input string) (*typ
 func (t *SchemaListTool) Call(ctx context.Context, input string) (string, error) {
 	return tools.FormatStructuredResult(t.CallStructured(ctx, input))
 }
-
