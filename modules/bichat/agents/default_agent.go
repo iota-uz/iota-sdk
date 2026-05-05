@@ -114,7 +114,7 @@ func WithWebFetchStorage(fileStorage storage.FileStorage) BIAgentOption {
 }
 
 // WithViewAccessControl enables permission-based view access control for SQL execution.
-// When configured, schema_list, schema_describe, and sql_execute tools will validate
+// When configured, schema_list, schema_describe_batch, and sql_execute tools will validate
 // user permissions against analytics schema views before execution.
 func WithViewAccessControl(vac permissions.ViewAccessControl) BIAgentOption {
 	return func(a *DefaultBIAgent) {
@@ -123,7 +123,7 @@ func WithViewAccessControl(vac permissions.ViewAccessControl) BIAgentOption {
 }
 
 // WithSchemaAllowlist declares which Postgres schemas the LLM may enumerate
-// via schema_list and describe via schema_describe. Required for any
+// via schema_list and describe via schema_describe_batch. Required for any
 // non-trivial deployment — leaving it unset means no schemas are exposed.
 func WithSchemaAllowlist(schemas []string) BIAgentOption {
 	return func(a *DefaultBIAgent) {

@@ -3,6 +3,8 @@ package sql
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -221,6 +223,49 @@ func TestSchemaDescribeBatchTool_AllFailedReportsToolError(t *testing.T) {
 	assert.Contains(t, out, "failed to describe any of the requested tables")
 	assert.Contains(t, out, "boom-a")
 	assert.Contains(t, out, "boom-b")
+}
+
+func TestSchemaDescribeBatchTool_AllMissingReportsTableNotFound(t *testing.T) {
+	t.Parallel()
+
+	describer := &recordingDescriber{
+		schemas: map[string]*bichatsql.TableSchema{
+			"missing_a": nil,
+			"missing_b": nil,
+		},
+	}
+	tool := NewSchemaDescribeBatchTool(describer)
+
+	out, err := tool.Call(context.Background(), `{"table_names": ["missing_a", "missing_b"]}`)
+	require.NoError(t, err)
+	assert.Contains(t, out, "TABLE_NOT_FOUND")
+	assert.Contains(t, out, "none of the requested tables were found")
+	assert.NotContains(t, out, "QUERY_ERROR")
+}
+
+func TestSchemaDescribeBatchTool_RejectsTooManyTables(t *testing.T) {
+	t.Parallel()
+
+	describer := &recordingDescriber{
+		fallback: &bichatsql.TableSchema{
+			Name:    "ok",
+			Schema:  "public",
+			Columns: []bichatsql.ColumnInfo{{Name: "id", Type: "integer"}},
+		},
+	}
+	tool := NewSchemaDescribeBatchTool(describer)
+
+	names := make([]string, 65)
+	for i := range names {
+		names[i] = fmt.Sprintf(`"t%d"`, i)
+	}
+	input := fmt.Sprintf(`{"table_names": [%s]}`, strings.Join(names, ","))
+
+	out, err := tool.Call(context.Background(), input)
+	require.NoError(t, err)
+	assert.Contains(t, out, "INVALID_REQUEST")
+	assert.Contains(t, out, "too many table_names")
+	assert.Empty(t, describer.callsCopy(), "no describes run when over the cap")
 }
 
 func TestSchemaDescribeBatchTool_TableNotFoundIsPerEntryError(t *testing.T) {

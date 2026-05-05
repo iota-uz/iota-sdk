@@ -16,8 +16,14 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// schemaDescribeBatchMaxParallel bounds concurrency for parallel describes.
-const schemaDescribeBatchMaxParallel = 8
+const (
+	// schemaDescribeBatchMaxParallel bounds concurrency for parallel describes.
+	schemaDescribeBatchMaxParallel = 8
+	// schemaDescribeBatchMaxTables caps how many tables a single call may
+	// request. Generous for any real workflow; protects against pathological
+	// inputs that would otherwise spawn unbounded goroutines.
+	schemaDescribeBatchMaxTables = 64
+)
 
 // SchemaDescribeBatchToolOption configures a SchemaDescribeBatchTool.
 type SchemaDescribeBatchToolOption func(*SchemaDescribeBatchTool)
@@ -132,6 +138,20 @@ func (t *SchemaDescribeBatchTool) CallStructured(ctx context.Context, input stri
 		}, nil
 	}
 
+	if len(names) > schemaDescribeBatchMaxTables {
+		return &types.ToolResult{
+			CodecID: types.CodecToolError,
+			Payload: types.ToolErrorPayload{
+				Code: string(tools.ErrCodeInvalidRequest),
+				Message: fmt.Sprintf(
+					"too many table_names: got %d, max %d per call",
+					len(names), schemaDescribeBatchMaxTables,
+				),
+				Hints: []string{"Split the request into multiple calls"},
+			},
+		}, nil
+	}
+
 	// Validate identifiers (collect all bad names so the LLM can fix in one shot).
 	var invalid []string
 	for _, n := range names {
@@ -200,15 +220,18 @@ func (t *SchemaDescribeBatchTool) CallStructured(ctx context.Context, input stri
 		}
 	}
 
-	// Fan out describes with bounded parallelism.
+	// Fan out describes with bounded parallelism. Acquire the semaphore in
+	// the parent goroutine *before* launching, so we never hold more than
+	// schemaDescribeBatchMaxParallel goroutines in flight regardless of how
+	// many names came in.
 	entries := make([]types.SchemaDescribeBatchEntry, len(names))
 	sem := make(chan struct{}, schemaDescribeBatchMaxParallel)
 	var wg sync.WaitGroup
 	for i, n := range names {
+		sem <- struct{}{}
 		wg.Add(1)
 		go func(i int, requested string) {
 			defer wg.Done()
-			sem <- struct{}{}
 			defer func() { <-sem }()
 
 			entry := types.SchemaDescribeBatchEntry{Requested: requested}
@@ -218,6 +241,7 @@ func (t *SchemaDescribeBatchTool) CallStructured(ctx context.Context, input stri
 				entry.Error = derr.Error()
 			case schema == nil || len(schema.Columns) == 0:
 				entry.Error = fmt.Sprintf("table not found: %s", bareIdentifier(requested))
+				entry.NotFound = true
 			default:
 				entry.Name = schema.Name
 				entry.Schema = schema.Schema
@@ -238,26 +262,38 @@ func (t *SchemaDescribeBatchTool) CallStructured(ctx context.Context, input stri
 	}
 	wg.Wait()
 
-	// If every table failed, surface a single tool error so the model treats
-	// it as an infrastructure problem rather than a usable partial result.
-	allFailed := true
+	// Decide whether the batch as a whole is unusable. A purely "table not
+	// found" outcome is a normal LLM-recoverable result (matches the single
+	// tool's TABLE_NOT_FOUND), while any actual describer error means we
+	// surface QUERY_ERROR so the model treats it as infrastructure trouble.
+	anyOK, anyHardError := false, false
 	for _, e := range entries {
-		if e.Error == "" {
-			allFailed = false
-			break
+		switch {
+		case e.Error == "":
+			anyOK = true
+		case !e.NotFound:
+			anyHardError = true
 		}
 	}
-	if allFailed {
+	if !anyOK {
 		var msgs []string
 		for _, e := range entries {
 			msgs = append(msgs, fmt.Sprintf("%s: %s", e.Requested, e.Error))
 		}
+		code := tools.ErrCodeTableNotFound
+		message := "none of the requested tables were found: " + strings.Join(msgs, "; ")
+		hints := []string{tools.HintUseSchemaList}
+		if anyHardError {
+			code = tools.ErrCodeQueryError
+			message = "failed to describe any of the requested tables: " + strings.Join(msgs, "; ")
+			hints = []string{tools.HintCheckConnection, tools.HintUseSchemaList}
+		}
 		return &types.ToolResult{
 			CodecID: types.CodecToolError,
 			Payload: types.ToolErrorPayload{
-				Code:    string(tools.ErrCodeQueryError),
-				Message: "failed to describe any of the requested tables: " + strings.Join(msgs, "; "),
-				Hints:   []string{tools.HintCheckConnection, tools.HintUseSchemaList},
+				Code:    string(code),
+				Message: message,
+				Hints:   hints,
 			},
 		}, nil
 	}

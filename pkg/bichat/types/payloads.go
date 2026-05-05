@@ -66,12 +66,15 @@ type SchemaDescribeBatchPayload struct {
 
 // SchemaDescribeBatchEntry represents one table's description in a batch result.
 // Per-table errors are recorded inline in Error rather than aborting the batch.
+// NotFound distinguishes "table doesn't exist" (LLM-recoverable, normal result)
+// from real describer errors so the batch result code can reflect that.
 type SchemaDescribeBatchEntry struct {
 	Requested string                 `json:"requested"`
 	Name      string                 `json:"name,omitempty"`
 	Schema    string                 `json:"schema,omitempty"`
 	Columns   []SchemaDescribeColumn `json:"columns,omitempty"`
 	Error     string                 `json:"error,omitempty"`
+	NotFound  bool                   `json:"not_found,omitempty"`
 }
 
 // JSONPayload is the generic payload for JSON-based formatters.
