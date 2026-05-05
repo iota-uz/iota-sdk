@@ -19,7 +19,8 @@ func TransferWithComment(comment string) TransferOption {
 
 func NewTransferDetails(opts ...TransferOption) TransferDetails {
 	d := &transferDetails{
-		data: make(map[string]any),
+		data:    make(map[string]any),
+		comment: "",
 	}
 
 	for _, opt := range opts {
