@@ -9,29 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// mockSchemaDescriber implements bichatsql.SchemaDescriber for testing.
-type mockSchemaDescriber struct {
-	schema *bichatsql.TableSchema
-	err    error
-}
-
-func (m *mockSchemaDescriber) SchemaDescribe(ctx context.Context, tableName string) (*bichatsql.TableSchema, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	if m.schema != nil {
-		return m.schema, nil
-	}
-	return &bichatsql.TableSchema{
-		Name:   tableName,
-		Schema: "public",
-		Columns: []bichatsql.ColumnInfo{
-			{Name: "id", Type: "integer", IsPrimaryKey: true},
-			{Name: "name", Type: "text"},
-		},
-	}, nil
-}
-
 // mockSchemaLister implements bichatsql.SchemaLister for testing.
 type mockSchemaLister struct {
 	tables []bichatsql.TableInfo

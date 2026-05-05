@@ -3,7 +3,6 @@ package sql
 import (
 	"context"
 	"errors"
-	"strings"
 	"sync"
 	"testing"
 
@@ -314,5 +313,5 @@ func TestSchemaDescribeBatchTool_Name(t *testing.T) {
 	tool := NewSchemaDescribeBatchTool(&recordingDescriber{})
 	assert.Equal(t, "schema_describe_batch", tool.Name())
 	assert.NotEmpty(t, tool.Description())
-	assert.True(t, strings.Contains(tool.Description(), "Describe multiple"))
+	assert.Contains(t, tool.Description(), "Describe multiple")
 }
