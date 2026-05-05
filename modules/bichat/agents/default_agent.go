@@ -191,7 +191,7 @@ func NewDefaultBIAgent(
 		utility.NewGetCurrentTimeTool(),
 		utility.NewWebFetchTool(utility.WithWebFetchStorage(agent.webFetchStorage)),
 		toolsql.NewSchemaListTool(schemaLister, toolsql.WithSchemaListViewAccess(agent.viewAccess)),
-		toolsql.NewSchemaDescribeTool(schemaDescriber, toolsql.WithSchemaDescribeViewAccess(agent.viewAccess)),
+		toolsql.NewSchemaDescribeBatchTool(schemaDescriber, toolsql.WithSchemaDescribeBatchViewAccess(agent.viewAccess)),
 		toolsql.NewSQLExecuteTool(executor, toolsql.WithViewAccessControl(agent.viewAccess)),
 		export.NewRenderTableTool(executor),
 		export.NewExportQueryToExcelTool(executor),
