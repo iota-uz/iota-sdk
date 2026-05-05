@@ -122,6 +122,11 @@ type CashDetails struct {
 	Data map[string]any `json:"data"`
 }
 
+type TransferDetails struct {
+	Data    map[string]any `json:"data"`
+	Comment string         `json:"comment"`
+}
+
 type IntegratorDetails struct {
 	Data      map[string]any `json:"data"`
 	ErrorCode int32          `json:"error_code"`
