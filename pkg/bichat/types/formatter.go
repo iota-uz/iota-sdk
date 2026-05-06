@@ -60,15 +60,16 @@ type ToolArtifact struct {
 
 // Codec IDs for built-in formatters.
 const (
-	CodecQueryResult     = "query-result"
-	CodecExplainPlan     = "explain-plan"
-	CodecSchemaList      = "schema-list"
-	CodecSchemaDescribe  = "schema-describe"
-	CodecSearchResults   = "search-results"
-	CodecToolError       = "tool-error"
-	CodecSQLDiagnosis    = "sql-diagnosis"
-	CodecTime            = "time"
-	CodecArtifactList    = "artifact-list"
-	CodecArtifactContent = "artifact-content"
-	CodecJSON            = "json"
+	CodecQueryResult         = "query-result"
+	CodecExplainPlan         = "explain-plan"
+	CodecSchemaList          = "schema-list"
+	CodecSchemaDescribe      = "schema-describe"
+	CodecSchemaDescribeBatch = "schema-describe-batch"
+	CodecSearchResults       = "search-results"
+	CodecToolError           = "tool-error"
+	CodecSQLDiagnosis        = "sql-diagnosis"
+	CodecTime                = "time"
+	CodecArtifactList        = "artifact-list"
+	CodecArtifactContent     = "artifact-content"
+	CodecJSON                = "json"
 )
