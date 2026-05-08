@@ -150,7 +150,12 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage,
 		opt(&o)
 	}
 
-	batchReq := eskizapi.SendSmsBatchRequest{Messages: inner}
+	// Eskiz rejects the batch endpoint with "dispatch_id is invalid" when the
+	// field is missing. Use the current Unix millisecond as a unique-enough
+	// correlator — it fits in float64's 53-bit safe-integer range until 2255.
+	dispatchID := float64(time.Now().UnixMilli())
+
+	batchReq := eskizapi.SendSmsBatchRequest{Messages: inner, DispatchId: &dispatchID}
 	if s.cfg.CallbackURL() != "" {
 		cb := s.cfg.CallbackURL()
 		batchReq.CallbackUrl = &cb
