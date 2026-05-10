@@ -61,31 +61,33 @@ func ToEskizInner(m BatchMessage) (eskizapi.SendSmsBatchRequestMessagesInner, er
 	}, nil
 }
 
-// SendBatchOptions captures envelope-level fields. Eskiz applies these to
-// every row in the batch (not per-message).
 type SendBatchOptions struct {
-	From string
+	From       string
+	DispatchID int64
 }
 
 type SendBatchOption func(*SendBatchOptions)
 
-// SendBatchWithFrom sets the sender id (alpha-name / nickname). Must be
-// pre-approved on the Eskiz account.
 func SendBatchWithFrom(from string) SendBatchOption {
 	return func(o *SendBatchOptions) { o.From = from }
 }
 
+func SendBatchWithDispatchID(id int64) SendBatchOption {
+	return func(o *SendBatchOptions) { o.DispatchID = id }
+}
+
 type BatchResult interface {
 	DispatchID() string
+	SentDispatchID() int64
 	Message() string
 	Status() []string
 }
 
-func NewBatchResult(resp *eskizapi.SendSmsBatchResponse) BatchResult {
+func NewBatchResult(resp *eskizapi.SendSmsBatchResponse, sentDispatchID int64) BatchResult {
+	r := &batchResult{sentDispatchID: sentDispatchID}
 	if resp == nil {
-		return nil
+		return r
 	}
-	r := &batchResult{}
 	if resp.Id != nil {
 		r.dispatchID = *resp.Id
 	}
@@ -97,15 +99,16 @@ func NewBatchResult(resp *eskizapi.SendSmsBatchResponse) BatchResult {
 }
 
 type batchResult struct {
-	dispatchID string
-	message    string
-	status     []string
+	dispatchID     string
+	sentDispatchID int64
+	message        string
+	status         []string
 }
 
-func (r *batchResult) DispatchID() string { return r.dispatchID }
-func (r *batchResult) Message() string    { return r.message }
+func (r *batchResult) DispatchID() string    { return r.dispatchID }
+func (r *batchResult) SentDispatchID() int64 { return r.sentDispatchID }
+func (r *batchResult) Message() string       { return r.message }
 
-// Status returns a defensive copy.
 func (r *batchResult) Status() []string {
 	if len(r.status) == 0 {
 		return nil

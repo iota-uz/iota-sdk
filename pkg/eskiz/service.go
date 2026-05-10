@@ -6,6 +6,7 @@ import (
 	"context"
 	"io"
 	"net/http"
+	"strconv"
 	"time"
 
 	eskizapi "github.com/iota-uz/eskiz"
@@ -25,6 +26,7 @@ type Service interface {
 	// arrive via webhook or GetSMSStatus. Use SendBatchWithFrom to set the
 	// sender id for the dispatch.
 	SendBatch(ctx context.Context, messages []models.BatchMessage, opts ...models.SendBatchOption) (models.BatchResult, error)
+	GetMessagesByDispatch(ctx context.Context, dispatchID int64) ([]models.MessageStatus, error)
 	GetSMSStatus(ctx context.Context, id string) (models.SMSStatus, error)
 	GetBalance(ctx context.Context) (models.Balance, error)
 	SubmitTemplate(ctx context.Context, body string) (models.TemplateSubmission, error)
@@ -150,10 +152,10 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage,
 		opt(&o)
 	}
 
-	// Eskiz rejects the batch endpoint with "dispatch_id is invalid" when the
-	// field is missing. Use the current Unix millisecond as a unique-enough
-	// correlator — it fits in float64's 53-bit safe-integer range until 2255.
-	dispatchID := float64(time.Now().UnixMilli())
+	if o.DispatchID == 0 {
+		o.DispatchID = time.Now().UnixMilli()
+	}
+	dispatchID := float64(o.DispatchID)
 
 	batchReq := eskizapi.SendSmsBatchRequest{Messages: inner, DispatchId: &dispatchID}
 	if s.cfg.CallbackURL() != "" {
@@ -176,7 +178,28 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage,
 	if res == nil {
 		return nil, ErrNilResponse
 	}
-	return models.NewBatchResult(res), nil
+	return models.NewBatchResult(res, o.DispatchID), nil
+}
+
+func (s *service) GetMessagesByDispatch(ctx context.Context, dispatchID int64) ([]models.MessageStatus, error) {
+	if ctx == nil {
+		return nil, ErrNilContext
+	}
+	if dispatchID <= 0 {
+		return nil, ErrInvalidMessage
+	}
+	res, httpResp, err := s.client.DefaultApi.
+		GetUserMessagesByDispatch(ctx).
+		DispatchId(strconv.FormatInt(dispatchID, 10)).
+		Execute()
+	drain(httpResp)
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, ErrNilResponse
+	}
+	return models.MessageStatusesFromResponse(res), nil
 }
 
 func (s *service) GetSMSStatus(ctx context.Context, id string) (models.SMSStatus, error) {
