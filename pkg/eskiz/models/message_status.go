@@ -41,6 +41,20 @@ func (m *messageStatus) SentAt() time.Time     { return m.sentAt }
 func (m *messageStatus) DeliveredAt() time.Time { return m.deliveredAt }
 func (m *messageStatus) CreatedAt() time.Time  { return m.createdAt }
 
+func NewMessageStatus(messageID, userSmsID string, dispatchID int64, to, message, status string, sentAt, deliveredAt, createdAt time.Time) MessageStatus {
+	return &messageStatus{
+		messageID:   messageID,
+		userSmsID:   userSmsID,
+		dispatchID:  dispatchID,
+		to:          to,
+		message:     message,
+		status:      status,
+		sentAt:      sentAt,
+		deliveredAt: deliveredAt,
+		createdAt:   createdAt,
+	}
+}
+
 func MessageStatusesFromResponse(resp *eskizapi.UserMessagesResponse) []MessageStatus {
 	if resp == nil || resp.Data == nil {
 		return nil
@@ -56,7 +70,9 @@ func MessageStatusesFromResponse(resp *eskizapi.UserMessagesResponse) []MessageS
 			s.userSmsID = *r.UserSmsId
 		}
 		if r.DispatchId.IsSet() && r.DispatchId.Get() != nil {
-			s.dispatchID = int64(*r.DispatchId.Get())
+			if v, perr := strconv.ParseInt(*r.DispatchId.Get(), 10, 64); perr == nil {
+				s.dispatchID = v
+			}
 		}
 		if r.To != nil {
 			s.to = *r.To

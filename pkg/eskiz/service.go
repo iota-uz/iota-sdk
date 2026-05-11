@@ -155,7 +155,7 @@ func (s *service) SendBatch(ctx context.Context, messages []models.BatchMessage,
 	if o.DispatchID == 0 {
 		o.DispatchID = time.Now().UnixMilli()
 	}
-	dispatchID := float64(o.DispatchID)
+	dispatchID := int(o.DispatchID)
 
 	batchReq := eskizapi.SendSmsBatchRequest{Messages: inner, DispatchId: &dispatchID}
 	if s.cfg.CallbackURL() != "" {

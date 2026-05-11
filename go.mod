@@ -42,7 +42,7 @@ require (
 	github.com/henomis/langfuse-go v0.0.3
 	github.com/iota-uz/applets v0.4.30
 	github.com/iota-uz/click v1.0.4
-	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
+	github.com/iota-uz/eskiz v0.0.0-20260511192142-271bee4acc4b
 	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.3
 	github.com/iota-uz/octo v1.2.2-0.20251217065529-a4c263bfd38b
