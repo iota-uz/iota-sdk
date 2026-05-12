@@ -41,7 +41,7 @@ require (
 	github.com/gotd/td v0.115.0
 	github.com/iota-uz/applets v0.4.30
 	github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e
-	github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049
+	github.com/iota-uz/eskiz v0.0.0-20260512120215-4347c50e0295
 	github.com/iota-uz/go-i18n/v2 v2.6.1
 	github.com/iota-uz/icons v0.0.3
 	github.com/iota-uz/octo v1.2.2-0.20251217065529-a4c263bfd38b

@@ -287,8 +287,8 @@ github.com/iota-uz/applets v0.4.30 h1:gf6Cg01vVnijrI2OYnuwDu0NDzrFZ2nW/O2BYvcOOz
 github.com/iota-uz/applets v0.4.30/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
 github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e h1:837CEXuzIT0a2l7Ll55Lyau6k4S1i+xIXy8lOfGakPU=
 github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e/go.mod h1:WamcxWiFXli4WMWiPQgeNHX/hU4Ac/Xmx1N1ok6vbkQ=
-github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049 h1:rcV6DDYg68P/PAn1oshQGHQsFoZcRquMeN8+OvHshyQ=
-github.com/iota-uz/eskiz v0.0.0-20250711174003-e4a8dcdb7049/go.mod h1:AQhBUxkNnq/mVuJQY+WTt1KfHaM/UoRV4m1sFxadUr0=
+github.com/iota-uz/eskiz v0.0.0-20260512120215-4347c50e0295 h1:ocqppj/WF80umki5qNPJxp9wWWW0ix6L6cN5wrp8Bzw=
+github.com/iota-uz/eskiz v0.0.0-20260512120215-4347c50e0295/go.mod h1:AQhBUxkNnq/mVuJQY+WTt1KfHaM/UoRV4m1sFxadUr0=
 github.com/iota-uz/go-i18n/v2 v2.6.1 h1:TqeZQAjlc7jSOuCgvulH9HvNXjeaKrbEXxXicx9Sfv8=
 github.com/iota-uz/go-i18n/v2 v2.6.1/go.mod h1:Qt4UWzI9Hh93eRZyRWEi4A8RZ5i1kZpltEazsn61Y4s=
 github.com/iota-uz/icons v0.0.3 h1:zguy03hGSRKILEwLcdCheuKHwhePyWWDNV2v9UY2INc=
