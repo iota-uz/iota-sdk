@@ -217,7 +217,11 @@ func (s *service) GetSMSStatus(ctx context.Context, id string) (models.SMSStatus
 	if res == nil {
 		return nil, ErrNilResponse
 	}
-	return models.NewSMSStatus(res), nil
+	status := models.NewSMSStatus(res)
+	if status == nil {
+		return nil, ErrNilResponse
+	}
+	return status, nil
 }
 
 func (s *service) GetBalance(ctx context.Context) (models.Balance, error) {
@@ -232,7 +236,11 @@ func (s *service) GetBalance(ctx context.Context) (models.Balance, error) {
 	if res == nil {
 		return nil, ErrNilResponse
 	}
-	return models.NewBalance(res), nil
+	bal := models.NewBalance(res)
+	if bal == nil {
+		return nil, ErrNilResponse
+	}
+	return bal, nil
 }
 
 func (s *service) SubmitTemplate(ctx context.Context, body string) (models.TemplateSubmission, error) {

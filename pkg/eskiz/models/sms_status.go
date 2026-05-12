@@ -34,8 +34,12 @@ func NewSMSStatus(resp *eskizapi.SmsStatusResponse) SMSStatus {
 	if d.Id != nil {
 		s.id = strconv.Itoa(*d.Id)
 	}
-	if resp.Status != nil {
-		s.status = *resp.Status
+	// Per-message delivery state ("waiting", "transmitting", "delivered",
+	// "notdelivered", "failed", "expired") lives on Data.Status. The envelope
+	// resp.Status is just the API call result ("success" | "error") — using
+	// it here would keep isTerminal() false forever and DeliveredAt zero.
+	if d.Status != nil {
+		s.status = *d.Status
 	}
 	if d.To != nil {
 		s.to = *d.To
