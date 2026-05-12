@@ -35,9 +35,10 @@ templ List(props ListProps) {
 templ Button(value string) {
 	@button.Ghost(button.Props{
 		Attrs: templ.Attributes{
-			"type":   "button",
-			":class": fmt.Sprintf("selectedTab === '%s' ? 'after:bg-brand-500' : ''", value),
-			"@click": fmt.Sprintf("selectedTab = '%s'", value),
+			"type":           "button",
+			"data-tab-value": value,
+			":class":         fmt.Sprintf("selectedTab === '%s' ? 'after:bg-brand-500' : ''", value),
+			"@click":         fmt.Sprintf("selectedTab = '%s'", value),
 		},
 		Class: linkClass,
 	}) {

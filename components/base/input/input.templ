@@ -258,7 +258,9 @@ templ (p *CheckboxProps) render() {
 			})
 		</div>
 		<!-- Optional label text -->
-		if len(p.Label) > 0 {
+		if p.LabelComp != nil {
+			@p.LabelComp
+		} else if len(p.Label) > 0 {
 			<span>{ p.Label }</span>
 		}
 		{ children... }

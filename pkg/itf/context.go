@@ -20,14 +20,15 @@ type controllerCloser interface {
 
 // TestContext provides a fluent API for building test contexts
 type TestContext struct {
-	ctx        context.Context
-	pool       *pgxpool.Pool
-	tx         pgx.Tx
-	app        application.Application
-	tenant     *composables.Tenant
-	user       user.User
-	components []composition.Component
-	dbName     string
+	ctx          context.Context
+	pool         *pgxpool.Pool
+	tx           pgx.Tx
+	app          application.Application
+	tenant       *composables.Tenant
+	user         user.User
+	components   []composition.Component
+	capabilities []composition.Capability
+	dbName       string
 }
 
 // newTestContext creates a new internal TestContext builder.
@@ -71,8 +72,9 @@ func (tc *TestContext) Build(tb testing.TB) *TestEnvironment {
 		tc.dbName = tb.Name() + "_" + uniqueSuffix
 	}
 	h := NewHarness(tb, HarnessConfig{
-		Name:       tc.dbName,
-		Components: tc.components,
+		Name:         tc.dbName,
+		Components:   tc.components,
+		Capabilities: tc.capabilities,
 		Database: DatabaseConfig{
 			Provisioning: ProvisioningPerTestDatabase,
 			Cleanup:      CleanupDropOnExit,

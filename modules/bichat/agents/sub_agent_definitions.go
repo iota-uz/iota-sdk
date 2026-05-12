@@ -230,7 +230,7 @@ func resolveSubAgentTools(toolKeys []string, deps SubAgentDependencies) ([]corea
 				)
 			}
 			resolved = append(resolved, toolsql.NewSchemaListTool(schemaLister, toolsql.WithSchemaListViewAccess(deps.ViewAccess)))
-		case "schema_describe":
+		case "schema_describe_batch":
 			if deps.QueryExecutor == nil {
 				return nil, fmt.Errorf("tool %q requires query executor", name)
 			}
@@ -239,7 +239,7 @@ func resolveSubAgentTools(toolKeys []string, deps SubAgentDependencies) ([]corea
 					bichatsql.WithDescribeSchemaAllowlist(deps.SchemaAllowlist),
 				)
 			}
-			resolved = append(resolved, toolsql.NewSchemaDescribeTool(schemaDescriber, toolsql.WithSchemaDescribeViewAccess(deps.ViewAccess)))
+			resolved = append(resolved, toolsql.NewSchemaDescribeBatchTool(schemaDescriber, toolsql.WithSchemaDescribeBatchViewAccess(deps.ViewAccess)))
 		case "sql_execute":
 			if deps.QueryExecutor == nil {
 				return nil, fmt.Errorf("tool %q requires query executor", name)
