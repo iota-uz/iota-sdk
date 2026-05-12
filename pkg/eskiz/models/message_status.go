@@ -31,15 +31,15 @@ type messageStatus struct {
 	createdAt   time.Time
 }
 
-func (m *messageStatus) MessageID() string     { return m.messageID }
-func (m *messageStatus) UserSmsID() string     { return m.userSmsID }
-func (m *messageStatus) DispatchID() int64     { return m.dispatchID }
-func (m *messageStatus) To() string            { return m.to }
-func (m *messageStatus) Message() string       { return m.message }
-func (m *messageStatus) Status() string        { return m.status }
-func (m *messageStatus) SentAt() time.Time     { return m.sentAt }
+func (m *messageStatus) MessageID() string      { return m.messageID }
+func (m *messageStatus) UserSmsID() string      { return m.userSmsID }
+func (m *messageStatus) DispatchID() int64      { return m.dispatchID }
+func (m *messageStatus) To() string             { return m.to }
+func (m *messageStatus) Message() string        { return m.message }
+func (m *messageStatus) Status() string         { return m.status }
+func (m *messageStatus) SentAt() time.Time      { return m.sentAt }
 func (m *messageStatus) DeliveredAt() time.Time { return m.deliveredAt }
-func (m *messageStatus) CreatedAt() time.Time  { return m.createdAt }
+func (m *messageStatus) CreatedAt() time.Time   { return m.createdAt }
 
 func NewMessageStatus(messageID, userSmsID string, dispatchID int64, to, message, status string, sentAt, deliveredAt, createdAt time.Time) MessageStatus {
 	return &messageStatus{
