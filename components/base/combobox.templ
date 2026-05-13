@@ -62,10 +62,10 @@ templ DropdownIndicator() {
 templ SelectedValues() {
 	<ul class="contents">
 		<template x-for="item in Array.from(selectedValues.values())" :key="item.value">
-			<li class="flex items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100 whitespace-nowrap">
-				<span class="whitespace-nowrap" x-text="item.label"></span>
+			<li class="flex min-w-0 items-center gap-1.5 px-1.5 py-1 rounded-md bg-surface-100">
+				<span class="block max-w-48 truncate" x-text="item.label" :title="item.label"></span>
 				<button
-					class="text-brand-500 cursor-pointer"
+					class="text-brand-500 cursor-pointer flex-shrink-0"
 					type="button"
 					@click="removeSelectedValue(item.value)"
 				>
@@ -210,16 +210,19 @@ templ Combobox(props ComboboxProps) {
 					Placeholder: props.Placeholder,
 					WrapperProps: templ.Attributes{
 						"x-ref": "trigger",
+						"class": "flex-wrap gap-1 py-1",
 					},
 					AddonLeft: &input.Addon{
 						Component: SelectedValues(),
 						Attrs: templ.Attributes{
 							"x-show": "selectedValues.size > 0",
 						},
+						Class: "contents",
 					},
 					Attrs: searchInputAttrs,
 					AddonRight: &input.Addon{
 						Component: DropdownIndicator(),
+						Class:     "ml-auto",
 					},
 				})
 			} else {
