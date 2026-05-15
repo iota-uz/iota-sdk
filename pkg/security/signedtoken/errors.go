@@ -1,4 +1,4 @@
-package signed_token
+package signedtoken
 
 import "errors"
 

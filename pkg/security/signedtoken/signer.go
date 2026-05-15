@@ -1,4 +1,4 @@
-// Package signed_token provides a generic HMAC-SHA256-signed, expiring,
+// Package signedtoken provides a generic HMAC-SHA256-signed, expiring,
 // versioned token for passing trusted payloads through URLs.
 //
 // Wire format: v1.<base64url(payload-json)>.<base64url(hmac-sha256)>
@@ -7,7 +7,7 @@
 //
 // Tokens carry an absolute expiry (UnixSeconds). Verify rejects expired or
 // tampered tokens with ErrExpired / ErrInvalid.
-package signed_token
+package signedtoken
 
 import (
 	"crypto/hmac"
@@ -53,7 +53,7 @@ func (s *hmacSigner[T]) Sign(payload T, ttl time.Duration) (string, error) {
 	}
 	body, err := json.Marshal(env)
 	if err != nil {
-		return "", fmt.Errorf("signed_token: marshal: %w", err)
+		return "", fmt.Errorf("signedtoken: marshal: %w", err)
 	}
 	payloadSeg := base64.RawURLEncoding.EncodeToString(body)
 	signedPrefix := tokenVersion + "." + payloadSeg
