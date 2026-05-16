@@ -52,7 +52,6 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-
 	config := configuration.Use().OIDC
 	if !config.IsConfigured() {
 		return nil
