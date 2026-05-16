@@ -134,9 +134,6 @@ func componentName(comp composition.Component) string {
 }
 
 func parseAllowedLanguages(allowed []string, messages map[language.Tag]map[string]*i18n.MessageTemplate) (map[string]language.Tag, error) {
-	if len(allowed) == 0 {
-		return nil, nil
-	}
 	out := make(map[string]language.Tag, len(allowed))
 	for _, code := range allowed {
 		tag, err := language.Parse(code)
