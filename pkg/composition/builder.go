@@ -333,10 +333,6 @@ func ContributeNavItems(builder *Builder, factory func(*Container) ([]types.Navi
 	appendFactory(builder, "nav-items", factory, &builder.navItemFactories)
 }
 
-func ContributeLocales(builder *Builder, factory func(*Container) ([]*embed.FS, error)) {
-	appendFactory(builder, "locales", factory, &builder.localeFactories)
-}
-
 func ContributeSchemas(builder *Builder, factory func(*Container) ([]application.GraphSchema, error)) {
 	appendFactory(builder, "schemas", factory, &builder.schemaFactories)
 }

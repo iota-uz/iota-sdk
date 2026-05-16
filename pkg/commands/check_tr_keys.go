@@ -29,19 +29,20 @@ import (
 // database, Redis, NATS, S3 or DI container is initialized — so it is safe
 // to run as a fast pre-commit / CI check.
 //
-// Locale files are discovered through the optional composition.LocaleSource
-// interface on each component. Components that do not implement it are
-// skipped silently (they ship no locales for this check to validate).
+// Locale files are read directly from each Component's LocaleFS method.
+// Components without locales return nil and contribute nothing.
 //
 // The check performs three things:
 //  1. Parses every embedded locale file. The underlying go-i18n parser
 //     surfaces an error if a TOML/JSON table mixes reserved plural keys
 //     (one/other/description/hash/…) with regular sub-keys.
 //  2. Reports keys that exist in some locales but are missing from others.
-//  3. Walks the current working directory for T()/TSafe() call sites and
-//     reports any translation key that is used in code but never defined
-//     in a locale file.
-func CheckTrKeys(allowedLanguages []string, components ...composition.Component) error {
+//  3. Walks rootPath for T()/TSafe() call sites and reports any translation
+//     key that is used in code but never defined in a locale file. rootPath
+//     should be the project root the caller wants scanned (typically the
+//     module's go.mod directory). Empty rootPath skips the undefined-key
+//     scan.
+func CheckTrKeys(allowedLanguages []string, rootPath string, components ...composition.Component) error {
 	logger := newDefaultLogger()
 
 	bundle := i18n.NewBundle(language.Russian)
@@ -54,7 +55,7 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 
 	messages := bundle.Messages()
 	if len(messages) == 0 {
-		return fmt.Errorf("no locale files were discovered from the supplied components — ensure each component implements composition.LocaleSource")
+		return fmt.Errorf("no locale files were discovered from the supplied components")
 	}
 
 	allowedLocales, err := parseAllowedLanguages(allowedLanguages, messages)
@@ -76,29 +77,24 @@ func CheckTrKeys(allowedLanguages []string, components ...composition.Component)
 		"key_count":    len(allKeys),
 	}).Info("All translation keys are consistent across all locales")
 
-	if err := checkForUndefinedKeys(allKeys, logger); err != nil {
-		return err
+	if rootPath == "" {
+		return nil
 	}
-
-	return nil
+	return checkForUndefinedKeys(allKeys, rootPath, logger)
 }
 
-// loadComponentLocales parses every locale file contributed by the
-// LocaleSource components into the supplied bundle. Each component's locale
-// files are loaded in registration order; duplicate filenames across
-// components are tolerated (go-i18n merges them into the same locale).
+// loadComponentLocales parses every locale file contributed by the components
+// into the supplied bundle. Each component's locale files are loaded in
+// registration order; duplicate filenames across components are tolerated
+// (go-i18n merges them into the same locale).
 func loadComponentLocales(bundle *i18n.Bundle, components []composition.Component) error {
 	for _, comp := range components {
-		src, ok := comp.(composition.LocaleSource)
-		if !ok {
-			continue
-		}
-		for _, embedFS := range src.LocaleFS() {
+		for _, embedFS := range comp.LocaleFS() {
 			if embedFS == nil {
 				continue
 			}
 			if err := loadEmbedFSIntoBundle(bundle, embedFS); err != nil {
-				return fmt.Errorf("component %q: %w", componentName(comp), err)
+				return fmt.Errorf("component %q: %w", comp.Descriptor().Name, err)
 			}
 		}
 	}
@@ -126,11 +122,6 @@ func loadEmbedFSIntoBundle(bundle *i18n.Bundle, embedFS *embed.FS) error {
 		}
 		return nil
 	})
-}
-
-func componentName(comp composition.Component) string {
-	defer func() { _ = recover() }()
-	return comp.Descriptor().Name
 }
 
 func parseAllowedLanguages(allowed []string, messages map[language.Tag]map[string]*i18n.MessageTemplate) (map[string]language.Tag, error) {
@@ -357,13 +348,8 @@ func WriteRequiredKeysFile(projectRoot, outputPath string) error {
 	return nil
 }
 
-func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, logger *logrus.Logger) error {
-	logger.Info("Scanning codebase for T() and TSafe() calls...")
-
-	rootPath, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
-	}
+func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, rootPath string, logger *logrus.Logger) error {
+	logger.WithField("root", rootPath).Info("Scanning codebase for T() and TSafe() calls...")
 
 	usedKeys, err := extractTranslationKeys(rootPath)
 	if err != nil {

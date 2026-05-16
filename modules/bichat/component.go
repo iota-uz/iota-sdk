@@ -168,7 +168,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	// other modules) and skips everything else, so the component compiles
 	// to a no-op with no dead links in navigation or Spotlight.
 	openAIKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
-	composition.AddLocales(builder, &LocaleFiles)
 	if openAIKey == "" {
 		if logger := buildCtx.Logger(); logger != nil {
 			logger.Info("OPENAI_API_KEY not set - BiChat module disabled")
