@@ -32,7 +32,6 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddQuickLinks(builder, spotlight.NewQuickLink(EmployeesLink.Name, EmployeesLink.Href))
 	composition.ProvideFunc(builder, persistence.NewPositionRepository)

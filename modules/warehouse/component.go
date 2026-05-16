@@ -40,7 +40,6 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &localeFiles)
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddAssets(builder, &assets.FS)
 	composition.AddQuickLinks(builder,

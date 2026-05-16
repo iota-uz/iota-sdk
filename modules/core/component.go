@@ -78,8 +78,6 @@ func (c *component) LocaleFS() []*embed.FS {
 
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
-
-	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddHashFS(builder, assets.HashFS)
 	// Self-service quick links are always available (AccountController
 	// is registered regardless of SkipAdminControllers).

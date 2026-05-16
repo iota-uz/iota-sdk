@@ -945,9 +945,12 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "productcatalog"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&localeFiles}
+}
+
 func (c *component) Build(builder *composition.Builder) error {
 	// Static contributions: zero closures for constant data.
-	composition.AddLocales(builder, &localeFiles)
 	composition.AddNavItems(builder, NavItems...)
 	composition.AddQuickLinks(builder, spotlight.NewQuickLink(NavItems[0].Name, NavItems[0].Href))
 

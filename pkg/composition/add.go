@@ -15,22 +15,6 @@ import (
 // use variadic splats like `AddNavItems(builder, optionalItems...)` without
 // guarding the caller side.
 
-// AddLocales attaches one or more locale embeds without requiring a closure.
-// Equivalent to ContributeLocales(b, func(*Container) ([]*embed.FS, error) {
-// return locales, nil }) but with zero ceremony.
-func AddLocales(builder *Builder, locales ...*embed.FS) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	if len(locales) == 0 {
-		return
-	}
-	captured := append([]*embed.FS(nil), locales...)
-	ContributeLocales(builder, func(*Container) ([]*embed.FS, error) {
-		return captured, nil
-	})
-}
-
 // AddNavItems attaches one or more navigation items.
 func AddNavItems(builder *Builder, items ...types.NavigationItem) {
 	if builder == nil {

@@ -1,5 +1,7 @@
 package composition
 
+import "embed"
+
 // Shared test fixtures used across multiple *_test.go files in this package.
 // Kept here so that test-only types do not bleed into production build tags.
 
@@ -17,11 +19,16 @@ func (s *greetingService) Greet() string {
 
 type testComponent struct {
 	descriptor Descriptor
+	locales    []*embed.FS
 	build      func(*Builder) error
 }
 
 func (c testComponent) Descriptor() Descriptor {
 	return c.descriptor
+}
+
+func (c testComponent) LocaleFS() []*embed.FS {
+	return c.locales
 }
 
 func (c testComponent) Build(builder *Builder) error {

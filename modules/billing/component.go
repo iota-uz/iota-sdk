@@ -59,8 +59,6 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
-
 	composition.ProvideFuncAs[billingdom.Repository](builder, persistence.NewBillingRepository)
 	composition.ProvideFunc(builder, newBillingService)
 

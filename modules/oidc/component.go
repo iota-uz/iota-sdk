@@ -52,8 +52,6 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
-
 	config := configuration.Use().OIDC
 	if !config.IsConfigured() {
 		return nil

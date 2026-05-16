@@ -43,7 +43,6 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddNavItems(builder, NavItems...)
 
 	composition.ProvideFunc(builder, persistence.NewPgAnalyticsQueryRepository)
