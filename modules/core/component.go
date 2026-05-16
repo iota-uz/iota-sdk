@@ -72,6 +72,10 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "core"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
 

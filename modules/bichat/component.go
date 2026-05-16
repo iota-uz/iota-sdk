@@ -134,6 +134,10 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "bichat"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 // bichatBundle is the lazily-built BiChat runtime graph. Held as a single
 // provider so buildModuleConfig is invoked at most once per container.
 type bichatBundle struct {
