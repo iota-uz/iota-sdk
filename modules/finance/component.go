@@ -30,6 +30,10 @@ func (c *component) Descriptor() composition.Descriptor {
 	}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&localeFiles}
+}
+
 func (c *component) Build(builder *composition.Builder) error {
 	composition.AddLocales(builder, &localeFiles)
 	composition.AddNavItems(builder, NavItems...)
