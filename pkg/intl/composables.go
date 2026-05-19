@@ -67,6 +67,33 @@ func MustT(ctx context.Context, msgID string) string {
 	})
 }
 
+// T returns the translation for the given message ID without panicking.
+// The second return value is false when the localizer is missing from the
+// context or the message ID is not present in any registered translation
+// file. Callers should provide their own fallback rather than relying on
+// MustT, which is fragile in user-supplied LabelKey scenarios.
+func T(ctx context.Context, msgID string) (string, bool) {
+	l, ok := UseLocalizer(ctx)
+	if !ok {
+		return "", false
+	}
+	out, err := l.Localize(&i18n.LocalizeConfig{MessageID: msgID})
+	if err != nil {
+		return "", false
+	}
+	return out, true
+}
+
+// TWithDefault returns the translation for msgID or the supplied default
+// when the localizer is missing or the key is unknown. Equivalent to T but
+// avoids forcing every caller to write the same two-line fallback.
+func TWithDefault(ctx context.Context, msgID, fallback string) string {
+	if out, ok := T(ctx, msgID); ok {
+		return out
+	}
+	return fallback
+}
+
 func loadUniTranslator() *ut.UniversalTranslator {
 	enLocale := en.New()
 	ruLocale := ru.New()

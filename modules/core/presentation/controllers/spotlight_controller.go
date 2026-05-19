@@ -551,16 +551,32 @@ func (c *SpotlightController) aiSnapshotPayload(r *http.Request, snapshot spotli
 	return payload
 }
 
+// translateOrEmpty returns the localized string for key, or an empty string
+// when the key is missing in any registered locale. Empty return lets the
+// AI display helpers (DisplayTitle, DisplayLabel, ...) fall through to the
+// caller-supplied default. Using intl.MustT here panics whenever an EAI
+// provider emits a LabelKey that has not been translated, which previously
+// took down `/spotlight/ai/stream` whenever spotlight indexed unfamiliar
+// entity types.
+func (c *SpotlightController) translateOrEmpty(r *http.Request, key string) string {
+	if out, ok := intl.T(r.Context(), key); ok {
+		return out
+	}
+	return ""
+}
+
 func (c *SpotlightController) aiCandidateEntityLabel(r *http.Request, candidate spotlight.AISearchCandidate) string {
 	if key := strings.TrimSpace(candidate.EntityLabelKey); key != "" {
-		return intl.MustT(r.Context(), key)
+		if label := c.translateOrEmpty(r, key); label != "" {
+			return label
+		}
 	}
 	return strings.TrimSpace(candidate.EntityType)
 }
 
 func (c *SpotlightController) aiCandidateTitle(r *http.Request, candidate spotlight.AISearchCandidate) string {
 	return candidate.DisplayTitle(func(key string) string {
-		return intl.MustT(r.Context(), key)
+		return c.translateOrEmpty(r, key)
 	})
 }
 
@@ -573,7 +589,7 @@ func (c *SpotlightController) aiCandidateEvidence(r *http.Request, candidate spo
 		}
 		items = append(items, spotlightAIEvidenceView{
 			Label: item.DisplayLabel(func(key string) string {
-				return intl.MustT(r.Context(), key)
+				return c.translateOrEmpty(r, key)
 			}),
 			Value: value,
 		})
@@ -583,13 +599,13 @@ func (c *SpotlightController) aiCandidateEvidence(r *http.Request, candidate spo
 
 func (c *SpotlightController) aiCandidateConfidence(r *http.Request, candidate spotlight.AISearchCandidate) string {
 	return candidate.DisplayConfidence(func(key string) string {
-		return intl.MustT(r.Context(), key)
+		return c.translateOrEmpty(r, key)
 	})
 }
 
 func (c *SpotlightController) aiLinkLabel(r *http.Request, link spotlight.AISearchLink) string {
 	return link.DisplayLabel(func(key string) string {
-		return intl.MustT(r.Context(), key)
+		return c.translateOrEmpty(r, key)
 	})
 }
 
@@ -627,7 +643,9 @@ func (c *SpotlightController) renderSnapshotHTML(r *http.Request, snapshot spotl
 	for _, group := range snapshot.Response.Groups {
 		localizedTitle := group.Title
 		if group.TitleKey != "" {
-			localizedTitle = intl.MustT(r.Context(), group.TitleKey)
+			if translated, ok := intl.T(r.Context(), group.TitleKey); ok {
+				localizedTitle = translated
+			}
 		}
 		appendGroup(localizedTitle, group.Hits)
 	}

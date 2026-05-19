@@ -3,6 +3,7 @@ package spotlight
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -10,6 +11,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
+
+// errTenantMismatch is returned when a provider emits a SearchDocument with
+// a TenantID that does not match the pipeline scope tenant. Granite is
+// currently single-tenant in production, but silently overwriting the
+// field would mask any future cross-tenant leak.
+var errTenantMismatch = errors.New("tenant mismatch")
 
 type IndexerPipeline struct {
 	registry *ProviderRegistry
@@ -123,6 +130,11 @@ type docBuffer struct {
 func (b *docBuffer) add(providerID string, tenantID uuid.UUID, docs []SearchDocument) error {
 	now := time.Now().UTC()
 	for i := range docs {
+		if docs[i].TenantID != uuid.Nil && docs[i].TenantID != tenantID {
+			return serrors.E("spotlight.IndexerPipeline.docBuffer.add",
+				fmt.Sprintf("provider %s emitted document with tenant %s but pipeline scope is %s", providerID, docs[i].TenantID, tenantID),
+				errTenantMismatch)
+		}
 		docs[i].TenantID = tenantID
 		docs[i].Provider = providerID
 		if docs[i].UpdatedAt.IsZero() {

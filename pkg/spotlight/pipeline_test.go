@@ -168,6 +168,46 @@ func TestIndexerPipelineSync_StreamingProviderUpsertsIncrementally(t *testing.T)
 	}
 }
 
+func TestIndexerPipelineSync_DocBufferRejectsMismatchedTenant(t *testing.T) {
+	registry := NewProviderRegistry()
+	scopeTenant := uuid.New()
+	otherTenant := uuid.New()
+
+	registry.Register(&pipelineTestProvider{
+		id: "provider.misconfigured",
+		docs: []SearchDocument{
+			{ID: "doc-1", TenantID: otherTenant},
+		},
+	})
+
+	engine := &pipelineTestEngine{}
+	pipeline := NewIndexerPipeline(registry, engine, nil)
+
+	err := pipeline.Sync(context.Background(), scopeTenant, "en", "", 10, ScopeConfig{})
+	require.NoError(t, err, "Sync continues across failing providers — current behaviour")
+	require.Len(t, engine.batches, 0, "mismatched tenant must abort the provider before upsert")
+}
+
+func TestIndexerPipelineSync_DocBufferOverwritesZeroTenant(t *testing.T) {
+	registry := NewProviderRegistry()
+	scopeTenant := uuid.New()
+
+	registry.Register(&pipelineTestProvider{
+		id: "provider.zero",
+		docs: []SearchDocument{
+			{ID: "doc-1"},
+		},
+	})
+
+	engine := &pipelineTestEngine{}
+	pipeline := NewIndexerPipeline(registry, engine, nil)
+
+	err := pipeline.Sync(context.Background(), scopeTenant, "en", "", 10, ScopeConfig{})
+	require.NoError(t, err)
+	require.Len(t, engine.batches, 1)
+	require.Equal(t, scopeTenant, engine.batches[0][0].TenantID)
+}
+
 func TestIndexerPipelineSync_UsesRegistryPriorityOrder(t *testing.T) {
 	registry := NewProviderRegistry()
 	tenantID := uuid.New()
