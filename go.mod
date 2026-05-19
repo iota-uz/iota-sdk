@@ -39,6 +39,7 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
+	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/henomis/langfuse-go v0.0.3
 	github.com/iota-uz/applets v0.4.30
 	github.com/iota-uz/click v1.0.4
@@ -67,6 +68,7 @@ require (
 	github.com/rubenv/sql-migrate v1.7.0
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
+	github.com/sony/gobreaker/v2 v2.4.0
 	github.com/spf13/cobra v1.10.1
 	github.com/stretchr/testify v1.11.1
 	github.com/stripe/stripe-go/v82 v82.1.0

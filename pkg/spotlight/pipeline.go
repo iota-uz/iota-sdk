@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -33,6 +34,49 @@ const pipelineUpsertBatchSize = 5000
 // surfaces this as a per-provider stop, not a fatal sync failure.
 var errProviderDocumentCap = errors.New("provider document cap reached")
 
+// SyncProviderError records the outcome of a single provider sync. Used
+// inside SyncReport to expose per-provider granularity to operators.
+type SyncProviderError struct {
+	ProviderID string
+	Err        error
+	DocCount   int
+	BatchCount int
+}
+
+func (e SyncProviderError) Error() string {
+	return fmt.Sprintf("provider %s failed after %d docs / %d batches: %v",
+		e.ProviderID, e.DocCount, e.BatchCount, e.Err)
+}
+
+func (e SyncProviderError) Unwrap() error { return e.Err }
+
+// SyncReport summarizes the result of a Sync call. It is returned as the
+// error chain when at least one provider failed, so callers can branch
+// with errors.As(err, &report) to inspect details. Issue #2810 §3.4.
+type SyncReport struct {
+	TotalProviders int
+	Succeeded      []string
+	Failed         []SyncProviderError
+	Capped         []string
+}
+
+func (r *SyncReport) Error() string {
+	if r == nil || len(r.Failed) == 0 {
+		return ""
+	}
+	names := make([]string, 0, len(r.Failed))
+	for _, f := range r.Failed {
+		names = append(names, f.ProviderID)
+	}
+	return fmt.Sprintf("spotlight sync: %d of %d providers failed: %s",
+		len(r.Failed), r.TotalProviders, strings.Join(names, ", "))
+}
+
+// HasFailures reports whether the run had any failed providers. Nil-safe.
+func (r *SyncReport) HasFailures() bool {
+	return r != nil && len(r.Failed) > 0
+}
+
 type batchStats struct {
 	docCount       int
 	batchCount     int
@@ -47,6 +91,7 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 	providers := p.registry.All()
 	syncStart := time.Now()
 	totalDocs := 0
+	report := &SyncReport{TotalProviders: 0}
 
 	for _, provider := range providers {
 		if provider.ProviderID() == "core.quick_links" {
@@ -56,6 +101,7 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		if ok && !enabled {
 			continue
 		}
+		report.TotalProviders++
 
 		caps := provider.Capabilities()
 		batchSize := pipelineUpsertBatchSize
@@ -96,6 +142,12 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		totalDocs += stats.docCount
 
 		if providerErr != nil {
+			report.Failed = append(report.Failed, SyncProviderError{
+				ProviderID: provider.ProviderID(),
+				Err:        providerErr,
+				DocCount:   stats.docCount,
+				BatchCount: stats.batchCount,
+			})
 			if p.logger != nil {
 				p.logger.WithFields(logrus.Fields{
 					"provider_id": provider.ProviderID(),
@@ -110,12 +162,16 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 			continue
 		}
 
-		if capped && p.logger != nil {
-			p.logger.WithFields(logrus.Fields{
-				"provider_id":  provider.ProviderID(),
-				"document_cap": caps.DocumentCap,
-				"docs":         stats.docCount,
-			}).Warn("Spotlight provider hit DocumentCap; results may be truncated")
+		report.Succeeded = append(report.Succeeded, provider.ProviderID())
+		if capped {
+			report.Capped = append(report.Capped, provider.ProviderID())
+			if p.logger != nil {
+				p.logger.WithFields(logrus.Fields{
+					"provider_id":  provider.ProviderID(),
+					"document_cap": caps.DocumentCap,
+					"docs":         stats.docCount,
+				}).Warn("Spotlight provider hit DocumentCap; results may be truncated")
+			}
 		}
 
 		if p.logger != nil {
@@ -135,6 +191,13 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		if p.logger != nil {
 			p.logger.WithError(err).Error("Spotlight WaitPending failed")
 		}
+		// Promote WaitPending failures into the aggregated report under
+		// a synthetic provider name so operators see at-a-glance that
+		// the engine drain failed (likely some upserts were lost).
+		report.Failed = append(report.Failed, SyncProviderError{
+			ProviderID: "_engine.WaitPending",
+			Err:        err,
+		})
 	}
 
 	if p.logger != nil {
@@ -143,9 +206,14 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 			"total_ms":       time.Since(syncStart).Milliseconds(),
 			"wait_ms":        time.Since(waitStart).Milliseconds(),
 			"provider_count": len(providers),
+			"failed":         len(report.Failed),
+			"capped":         len(report.Capped),
 		}).Info("Spotlight sync completed")
 	}
 
+	if report.HasFailures() {
+		return report
+	}
 	return nil
 }
 

@@ -184,7 +184,12 @@ func TestIndexerPipelineSync_DocBufferRejectsMismatchedTenant(t *testing.T) {
 	pipeline := NewIndexerPipeline(registry, engine, nil)
 
 	err := pipeline.Sync(context.Background(), scopeTenant, "en", "", 10, ScopeConfig{})
-	require.NoError(t, err, "Sync continues across failing providers — current behaviour")
+	// Sync now surfaces failures via *SyncReport; the per-provider abort
+	// still leaves no docs in the engine, but the report carries detail.
+	var report *SyncReport
+	require.ErrorAs(t, err, &report, "Sync must return *SyncReport on failure")
+	require.Len(t, report.Failed, 1)
+	require.Equal(t, "provider.misconfigured", report.Failed[0].ProviderID)
 	require.Len(t, engine.batches, 0, "mismatched tenant must abort the provider before upsert")
 }
 

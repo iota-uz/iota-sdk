@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
@@ -209,8 +210,12 @@ type SpotlightService struct {
 	outbox     OutboxProcessor
 	quickLinks *QuickLinks
 
-	cacheMu     sync.RWMutex
-	searchCache map[string]cachedSearchResponse
+	// searchCache uses an LRU with TTL stored on the entry itself. The
+	// hashicorp library handles eviction in O(1) and is thread-safe so
+	// the previous cacheMu is no longer required. The hand-rolled
+	// O(n) eviction (service.go:617 in the previous revision) was
+	// hot-path under high QPS distinct queries; see #2810 §2.6.
+	searchCache *lru.Cache[string, cachedSearchResponse]
 
 	lifecycleMu   sync.Mutex
 	started       bool
@@ -234,6 +239,15 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 	acl := NewStrictACLEvaluator(NewComposablesPrincipalResolver())
 	normalizedCfg := cfg.normalized()
 
+	cache, err := lru.New[string, cachedSearchResponse](normalizedCfg.SearchCacheMaxEntries)
+	if err != nil {
+		// lru.New only errors on size <= 0; normalizedCfg already
+		// guarantees a positive value, so this path is unreachable in
+		// practice. Panic communicates the misconfiguration loudly
+		// rather than silently disabling the cache.
+		panic(fmt.Sprintf("spotlight: cannot init search cache: %v", err))
+	}
+
 	svc := &SpotlightService{
 		cfg:         normalizedCfg,
 		registry:    registry,
@@ -246,7 +260,7 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 		metrics:     NewNoopMetrics(),
 		logger:      logrus.StandardLogger(),
 		agent:       agent,
-		searchCache: make(map[string]cachedSearchResponse),
+		searchCache: cache,
 		sessions:    make(map[string]*searchSession),
 	}
 	for _, opt := range opts {
@@ -347,15 +361,30 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 		return serrors.E(op, err)
 	}
 
+	// Track commit success explicitly so the deferred Abort only fires on
+	// abnormal exit. Previously Abort was inline-on-Sync-error only and a
+	// panic between Sync and Commit (or a runaway Commit timeout) left
+	// `spotlight_build_<schema>` orphaned. Issue #2810 §4.2 / §4.1.
+	committed := false
+	defer func() {
+		if !committed {
+			if abortErr := session.Abort(ctx); abortErr != nil && s.logger != nil {
+				s.logger.WithError(abortErr).
+					WithField("tenant_id", tenantID.String()).
+					Error("Spotlight build session abort failed")
+			}
+		}
+	}()
+
 	buildPipeline := NewIndexerPipeline(s.registry, session.Engine(), s.logger)
 	if err := buildPipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
-		_ = session.Abort(ctx)
 		return serrors.E(op, err)
 	}
 
 	if err := session.Commit(ctx); err != nil {
 		return serrors.E(op, err)
 	}
+	committed = true
 
 	if s.logger != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -635,14 +664,14 @@ func (s *SpotlightService) getCachedSearch(req SearchRequest, allowStale bool) (
 		return SearchResponse{}, false
 	}
 	key := searchCacheKey(req)
-	now := time.Now()
-	s.cacheMu.RLock()
-	entry, ok := s.searchCache[key]
-	s.cacheMu.RUnlock()
+	entry, ok := s.searchCache.Get(key)
 	if !ok {
 		return SearchResponse{}, false
 	}
-	if !allowStale && now.After(entry.expiresAt) {
+	if !allowStale && time.Now().After(entry.expiresAt) {
+		// Expired entry is not removed eagerly; the LRU will reuse the
+		// slot on next eviction. Removing here would require a write
+		// lock for every miss, defeating the LRU's O(1) read path.
 		return SearchResponse{}, false
 	}
 	return entry.response, true
@@ -654,36 +683,14 @@ func (s *SpotlightService) setCachedSearch(req SearchRequest, resp SearchRespons
 	}
 	key := searchCacheKey(req)
 	now := time.Now()
-	// O(n) eviction is intentional and bounded by SearchCacheMaxEntries (default: 512).
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	if len(s.searchCache) >= s.cfg.SearchCacheMaxEntries {
-		for cacheKey, entry := range s.searchCache {
-			if now.After(entry.expiresAt) {
-				delete(s.searchCache, cacheKey)
-			}
-		}
-	}
-	if len(s.searchCache) >= s.cfg.SearchCacheMaxEntries {
-		var oldestKey string
-		var oldestAt time.Time
-		first := true
-		for cacheKey, entry := range s.searchCache {
-			if first || entry.storedAt.Before(oldestAt) {
-				first = false
-				oldestKey = cacheKey
-				oldestAt = entry.storedAt
-			}
-		}
-		if oldestKey != "" {
-			delete(s.searchCache, oldestKey)
-		}
-	}
-	s.searchCache[key] = cachedSearchResponse{
+	// LRU eviction is O(1) and bounded by SearchCacheMaxEntries.
+	// Hand-rolled scan + delete (the previous code) was a hot path under
+	// high QPS distinct queries. Issue #2810 §2.6.
+	s.searchCache.Add(key, cachedSearchResponse{
 		response:  resp,
 		expiresAt: now.Add(s.cfg.SearchCacheTTL),
 		storedAt:  now,
-	}
+	})
 }
 
 func searchCacheKey(req SearchRequest) string {
