@@ -531,6 +531,88 @@ func rebuildIndexName(active string) string {
 	return fmt.Sprintf("%s_build_%s", active, sanitizedVersion)
 }
 
+// buildIndexPrefix returns the prefix used to identify rebuild scratch
+// indexes for the active index, regardless of schema version. The
+// janitor uses this to find orphans created by previous schema versions.
+func (e *MeilisearchEngine) buildIndexPrefix() string {
+	return e.activeName + "_build_"
+}
+
+// PrunedIndex describes a single index removed by PruneOrphanBuildIndexes.
+type PrunedIndex struct {
+	Name        string
+	AgeReported time.Duration
+	Reason      string
+}
+
+// PruneOrphanBuildIndexes scans Meili for rebuild scratch indexes that no
+// longer match the current schema version, are older than the supplied
+// minAge, and removes them. Returns the list of pruned indexes for
+// callers that want to log or metric the action. The janitor task in EAI
+// calls this on an hourly schedule.
+//
+// minAge guards against pruning a build index that another node is still
+// populating: pass 6 h to match the production rebuild window (~25 min
+// for a full sync, plus generous slack).
+func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge time.Duration) ([]PrunedIndex, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.PruneOrphanBuildIndexes"
+
+	results, err := e.client.ListIndexesWithContext(ctx, &meilisearch.IndexesQuery{Limit: 200})
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if results == nil {
+		return nil, nil
+	}
+
+	prefix := e.buildIndexPrefix()
+	current := rebuildIndexName(e.activeName)
+	cutoff := time.Now().Add(-minAge)
+
+	pruned := make([]PrunedIndex, 0)
+	for _, idx := range results.Results {
+		if idx == nil {
+			continue
+		}
+		if !strings.HasPrefix(idx.UID, prefix) {
+			continue
+		}
+		if idx.UID == current {
+			// Active rebuild target; never prune.
+			continue
+		}
+		if minAge > 0 && !idx.UpdatedAt.IsZero() && idx.UpdatedAt.After(cutoff) {
+			// Recently active — could be a sibling node mid-rebuild.
+			continue
+		}
+		task, err := e.client.DeleteIndexWithContext(ctx, idx.UID)
+		if err != nil {
+			if isMeiliNotFound(err) {
+				continue
+			}
+			return pruned, serrors.E(op, err)
+		}
+		if task != nil {
+			if _, err := waitTaskCtxClient(ctx, e.client, task.TaskUID); err != nil {
+				return pruned, serrors.E(op, err)
+			}
+		}
+		pruned = append(pruned, PrunedIndex{
+			Name:        idx.UID,
+			AgeReported: time.Since(idx.UpdatedAt),
+			Reason:      "schema version mismatch / older than minAge",
+		})
+		if e.logger != nil {
+			e.logger.WithFields(logrus.Fields{
+				"index":   idx.UID,
+				"age":     time.Since(idx.UpdatedAt).String(),
+				"current": current,
+			}).Info("spotlight janitor pruned orphan build index")
+		}
+	}
+	return pruned, nil
+}
+
 // upsertSplitMaxDepth bounds the 413 split-and-retry recursion so a
 // pathological document set cannot consume the goroutine in O(n)
 // halvings.
