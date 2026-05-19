@@ -232,6 +232,7 @@ type docBuffer struct {
 }
 
 func (b *docBuffer) add(providerID string, tenantID uuid.UUID, docs []SearchDocument) error {
+	const op serrors.Op = "spotlight.IndexerPipeline.docBuffer.add"
 	if b.documentCap > 0 && b.stats.docCount >= b.documentCap {
 		return errProviderDocumentCap
 	}
@@ -244,7 +245,7 @@ func (b *docBuffer) add(providerID string, tenantID uuid.UUID, docs []SearchDocu
 	now := time.Now().UTC()
 	for i := range docs {
 		if docs[i].TenantID != uuid.Nil && docs[i].TenantID != tenantID {
-			return serrors.E("spotlight.IndexerPipeline.docBuffer.add",
+			return serrors.E(op,
 				fmt.Sprintf("provider %s emitted document with tenant %s but pipeline scope is %s", providerID, docs[i].TenantID, tenantID),
 				errTenantMismatch)
 		}

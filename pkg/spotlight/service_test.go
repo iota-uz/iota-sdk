@@ -257,6 +257,39 @@ func totalHitsAcrossGroups(resp SearchResponse) int {
 	return total
 }
 
+func TestSpotlightService_Search_ClampsEngineTopKAtMax(t *testing.T) {
+	tenantID := uuid.New()
+	hits := make([]SearchHit, 0, 50)
+	for i := 0; i < 50; i++ {
+		hits = append(hits, SearchHit{
+			Document: SearchDocument{
+				ID:       string(rune('a'+i%26)) + "-doc",
+				TenantID: tenantID,
+				Access:   AccessPolicy{Visibility: VisibilityPublic},
+			},
+			LexicalScore: float64(50 - i),
+			FinalScore:   float64(50 - i),
+		})
+	}
+	engine := &capturingEngine{hits: hits}
+	cfg := DefaultServiceConfig()
+	cfg.SearchCacheTTL = 0
+	cfg.ACLFanOutFactor = 5
+	cfg.ACLEngineMaxTopK = 200
+	svc := NewService(engine, nil, cfg, WithACLEvaluator(&denyAllACL{denyFirst: 0}))
+
+	// Caller asks for TopK=300 — above ACLEngineMaxTopK (200). The engine
+	// must still receive the cap, not 300 or 300*5=1500.
+	req := SearchRequest{TenantID: tenantID, Query: "many", TopK: 300}
+	_, err := svc.Search(context.Background(), req)
+	require.NoError(t, err)
+
+	engine.mu.Lock()
+	require.Equal(t, 200, engine.requests[0].TopK,
+		"engine must be clamped to ACLEngineMaxTopK even when caller TopK exceeds the cap")
+	engine.mu.Unlock()
+}
+
 func TestSpotlightService_Search_UsesBatchACLAndCache(t *testing.T) {
 	tenantID := uuid.New()
 	engine := &testEngine{

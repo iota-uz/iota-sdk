@@ -365,14 +365,21 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 	// abnormal exit. Previously Abort was inline-on-Sync-error only and a
 	// panic between Sync and Commit (or a runaway Commit timeout) left
 	// `spotlight_build_<schema>` orphaned. Issue #2810 §4.2 / §4.1.
+	//
+	// Abort uses a fresh background context so a cancelled / timed-out
+	// request context cannot also block the cleanup that fixes the
+	// orphan it was supposed to prevent.
 	committed := false
 	defer func() {
-		if !committed {
-			if abortErr := session.Abort(ctx); abortErr != nil && s.logger != nil {
-				s.logger.WithError(abortErr).
-					WithField("tenant_id", tenantID.String()).
-					Error("Spotlight build session abort failed")
-			}
+		if committed {
+			return
+		}
+		abortCtx, cancelAbort := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelAbort()
+		if abortErr := session.Abort(abortCtx); abortErr != nil && s.logger != nil {
+			s.logger.WithError(abortErr).
+				WithField("tenant_id", tenantID.String()).
+				Error("Spotlight build session abort failed")
 		}
 	}()
 
@@ -476,14 +483,21 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 	// exist further down the ranking. Engine-side ACL via buildAccessFilter
 	// already prunes most denials; this fan-out covers the long tail where
 	// the application acl evaluator enforces something the doc fields don't.
+	//
+	// The hard ACLEngineMaxTopK applies even if the caller passed a TopK
+	// larger than the cap; without the unconditional clamp below the
+	// engine could receive a runaway value.
 	originalTopK := req.TopK
 	engineReq := req
-	if originalTopK > 0 && s.cfg.ACLFanOutFactor > 1 {
-		fetch := originalTopK * s.cfg.ACLFanOutFactor
+	if originalTopK > 0 {
+		fetch := originalTopK
+		if s.cfg.ACLFanOutFactor > 1 {
+			fetch = originalTopK * s.cfg.ACLFanOutFactor
+		}
 		if fetch > s.cfg.ACLEngineMaxTopK {
 			fetch = s.cfg.ACLEngineMaxTopK
 		}
-		if fetch > originalTopK {
+		if fetch != originalTopK {
 			engineReq.TopK = fetch
 		}
 	}
@@ -695,6 +709,15 @@ func (s *SpotlightService) setCachedSearch(req SearchRequest, resp SearchRespons
 
 func searchCacheKey(req SearchRequest) string {
 	parts := make([]string, 0, 16)
+	// Cache key uses the caller's effective TopK (after defaulting 0→20).
+	// We deliberately do NOT route through normalizedTopK() — that helper
+	// clamps at 100 for engine safety, which would alias TopK=50, TopK=100,
+	// and TopK=200 into the same key and serve a wrong-sized response on
+	// cache hits once ACL fan-out raised the engine ceiling to 500.
+	topK := req.TopK
+	if topK <= 0 {
+		topK = 20
+	}
 	parts = append(parts,
 		req.TenantID.String(),
 		req.UserID,
@@ -702,7 +725,7 @@ func searchCacheKey(req SearchRequest) string {
 		strings.ToLower(strings.TrimSpace(req.Language)),
 		string(req.Intent),
 		string(req.Mode),
-		fmt.Sprintf("topk=%d", req.normalizedTopK()),
+		fmt.Sprintf("topk=%d", topK),
 	)
 	if len(req.ExactTerms) > 0 {
 		parts = append(parts, "exact="+strings.Join(ExpandExactTerms(req.ExactTerms...), ","))

@@ -49,6 +49,7 @@ type MeilisearchEngine struct {
 	pendingMu   sync.Mutex
 	pendingUIDs []int64
 	logger      *logrus.Logger
+	metrics     Metrics
 }
 
 type meiliSearchIndexState struct {
@@ -75,6 +76,23 @@ func (e *MeilisearchEngine) WithLogger(logger *logrus.Logger) *MeilisearchEngine
 	e.logger = logger
 	return e
 }
+
+// WithMetrics attaches a Metrics sink so the engine can report
+// access-filter sizes, 413 splits, and other operational signals.
+// Returns the engine for chaining. Defaults to NoopMetrics when unset.
+func (e *MeilisearchEngine) WithMetrics(metrics Metrics) *MeilisearchEngine {
+	e.metrics = metrics
+	return e
+}
+
+func (e *MeilisearchEngine) metricsSink() Metrics {
+	if e.metrics == nil {
+		return noopMetricsSingleton
+	}
+	return e.metrics
+}
+
+var noopMetricsSingleton Metrics = NewNoopMetrics()
 
 // defaultWaitForTaskDeadline is the wall-clock deadline applied when the
 // caller's ctx has no deadline of its own. The previous hard-coded
@@ -123,9 +141,13 @@ func waitTaskCtxClient(ctx context.Context, client meilisearch.ServiceManager, t
 // the setup/configure path. Called on Meilisearch health failures and on
 // any task that returns `index_not_found` (which indicates the underlying
 // index disappeared, e.g. after a Meili restart with lost data).
+//
+// Both Swap calls run unconditionally; `||` would short-circuit and skip
+// the second flag clear when the first was already true.
 func (e *MeilisearchEngine) markUnready(reason string) {
-	previouslyReady := e.writeReady.Swap(false) || e.searchReady.Swap(false)
-	if previouslyReady && e.logger != nil {
+	prevWrite := e.writeReady.Swap(false)
+	prevSearch := e.searchReady.Swap(false)
+	if (prevWrite || prevSearch) && e.logger != nil {
 		e.logger.WithField("reason", reason).
 			Warn("spotlight engine marked unready; will re-configure on next op")
 	}
@@ -704,18 +726,23 @@ func (e *MeilisearchEngine) addDocumentsAsync(ctx context.Context, docs []Search
 	return nil
 }
 
-// handleAddDocumentsError performs side-effects (markUnready, logging)
-// for known error classes and returns true if the error is structured
-// enough to make further classification (e.g. 413 → split) possible.
+// handleAddDocumentsError performs side-effects (markUnready, logging,
+// metrics) for known error classes and returns true if the error is
+// structured enough to make further classification (e.g. 413 → split)
+// possible.
 func (e *MeilisearchEngine) handleAddDocumentsError(err error) bool {
 	if err == nil {
 		return false
 	}
 	if isMeiliNotFound(err) {
 		e.markUnready("AddDocuments returned index_not_found")
+		e.metricsSink().OnEngineError("", EngineErrorOther)
 	}
-	if isMeiliPayloadTooLarge(err) && e.logger != nil {
-		e.logger.WithError(err).Warn("spotlight Meili returned 413 payload_too_large; splitting batch")
+	if isMeiliPayloadTooLarge(err) {
+		if e.logger != nil {
+			e.logger.WithError(err).Warn("spotlight Meili returned 413 payload_too_large; splitting batch")
+		}
+		e.metricsSink().OnEngineError("", EngineErrorPayloadTooLarge)
 	}
 	return true
 }
@@ -866,7 +893,9 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 	}
 
 	baseFilter := buildSearchFilter(req)
+	e.metricsSink().OnAccessFilterSize(len(baseFilter))
 	if err := validateAccessFilter(e.logger, baseFilter); err != nil {
+		e.metricsSink().OnEngineError("", EngineErrorFilterTooLong)
 		return nil, serrors.E(op, err)
 	}
 

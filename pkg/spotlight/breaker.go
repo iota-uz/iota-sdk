@@ -3,6 +3,7 @@ package spotlight
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/sony/gobreaker/v2"
@@ -72,10 +73,13 @@ func DefaultEngineBreakerConfig(name string) EngineBreakerConfig {
 
 // EngineBreaker wraps a gobreaker.CircuitBreaker with our own surface so
 // projectors can call Allow / RecordResult or Execute. It is safe for
-// concurrent use.
+// concurrent use; the underlying *gobreaker.CircuitBreaker is replaced
+// wholesale by ResetManually, so all accesses go through cbMu.
 type EngineBreaker struct {
+	mu       sync.RWMutex
 	cb       *gobreaker.CircuitBreaker[any]
-	manualMu chan struct{} // semaphore reserved for ResetManually
+	settings gobreaker.Settings // captured at construction; reused on reset
+	manualMu chan struct{}      // semaphore reserved for ResetManually
 }
 
 // ErrBreakerOpen is returned by Execute / Allow when the breaker has
@@ -120,7 +124,11 @@ func NewEngineBreaker(cfg EngineBreakerConfig) *EngineBreaker {
 		}
 	}
 	cb := gobreaker.NewCircuitBreaker[any](settings)
-	return &EngineBreaker{cb: cb, manualMu: make(chan struct{}, 1)}
+	return &EngineBreaker{
+		cb:       cb,
+		settings: settings,
+		manualMu: make(chan struct{}, 1),
+	}
 }
 
 func breakerStateFrom(s gobreaker.State) BreakerState {
@@ -136,16 +144,36 @@ func breakerStateFrom(s gobreaker.State) BreakerState {
 	}
 }
 
+// loadCB returns the current breaker pointer under the read lock.
+func (b *EngineBreaker) loadCB() *gobreaker.CircuitBreaker[any] {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	return b.cb
+}
+
 // State returns the current state. Useful for the /system/spotlight UI.
 func (b *EngineBreaker) State() BreakerState {
-	return breakerStateFrom(b.cb.State())
+	return breakerStateFrom(b.loadCB().State())
 }
 
 // Execute runs fn through the breaker. If the breaker is open the function
 // is not invoked and ErrBreakerOpen is returned. Non-nil fn errors count
-// as failures toward the trip threshold.
-func (b *EngineBreaker) Execute(_ context.Context, fn func() error) error {
-	_, err := b.cb.Execute(func() (any, error) {
+// as failures toward the trip threshold. The caller's context is honored
+// before fn runs so a cancelled context short-circuits without consuming
+// a breaker slot.
+func (b *EngineBreaker) Execute(ctx context.Context, fn func() error) error {
+	if ctx != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+	}
+	cb := b.loadCB()
+	_, err := cb.Execute(func() (any, error) {
+		if ctx != nil {
+			if cerr := ctx.Err(); cerr != nil {
+				return nil, cerr
+			}
+		}
 		return nil, fn()
 	})
 	if errors.Is(err, gobreaker.ErrOpenState) {
@@ -158,8 +186,9 @@ func (b *EngineBreaker) Execute(_ context.Context, fn func() error) error {
 // "reset" endpoint exposed on /system/spotlight/breaker/reset.
 //
 // gobreaker has no public reset; the workaround is to recreate the
-// breaker. We allocate a fresh one and atomic-swap via a small mutex so
-// concurrent callers observe one of the two.
+// breaker with the original settings so Name, OnStateChange, MinRequests,
+// FailureRatio and timeouts survive the reset. b.mu serializes the swap
+// with concurrent State/Execute reads.
 func (b *EngineBreaker) ResetManually() {
 	select {
 	case b.manualMu <- struct{}{}:
@@ -167,13 +196,8 @@ func (b *EngineBreaker) ResetManually() {
 	default:
 		return // someone else is already resetting; theirs wins.
 	}
-	// Recreating the breaker resets all counters and state. The new
-	// instance inherits no configuration from the old one; callers that
-	// need configurability should supply a Factory option instead.
-	b.cb = gobreaker.NewCircuitBreaker[any](gobreaker.Settings{
-		Name:        "spotlight.meili.reset",
-		MaxRequests: 1,
-		Interval:    60 * time.Second,
-		Timeout:     30 * time.Second,
-	})
+	fresh := gobreaker.NewCircuitBreaker[any](b.settings)
+	b.mu.Lock()
+	b.cb = fresh
+	b.mu.Unlock()
 }

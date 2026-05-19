@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"net/http"
 	"time"
 
@@ -127,7 +127,8 @@ func backoffWithJitter(p RetryPolicy, attempt int) time.Duration {
 		return delay
 	}
 	jitter := float64(delay) * p.JitterFractional
-	// rand.Float64 is fine here — we are jittering retry delays, not
-	// generating cryptographic randomness.
+	// math/rand/v2 is auto-seeded per process, so multi-node deploys do
+	// not lock-step their retry jitter (the issue with the legacy
+	// math/rand global RNG that this package previously used).
 	return time.Duration(float64(delay) + (rand.Float64()*2-1)*jitter)
 }

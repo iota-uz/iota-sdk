@@ -164,6 +164,9 @@ func (m *PrometheusMetrics) OnOutboxPoll(took time.Duration, err error) {
 }
 
 func (m *PrometheusMetrics) OnProviderSync(providerID string, result ProviderSyncResult, _ int, took time.Duration) {
+	if providerID == "" {
+		providerID = "unknown"
+	}
 	m.providerSync.WithLabelValues(providerID, string(result)).Inc()
 	m.providerLatency.WithLabelValues(providerID, string(result)).Observe(took.Seconds())
 }
