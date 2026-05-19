@@ -3,6 +3,7 @@ package spotlight
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -273,8 +274,33 @@ func TestBuildSearchFilterEscapesDynamicValues(t *testing.T) {
 	filter := buildSearchFilter(req)
 	require.Contains(t, filter, `domain = "people\" OR domain = \"admin"`)
 	require.Contains(t, filter, `owner_id = "user\" OR access_visibility = \"public"`)
-	require.Contains(t, filter, `allowed_roles = "ops\" OR allowed_roles = \"admin"`)
-	require.Contains(t, filter, `allowed_permissions = "read\" OR allowed_permissions = \"write"`)
+	// Roles and permissions now use Meili's IN [...] syntax (issue #2810 §2.7);
+	// values are still escaped, just inside the list.
+	require.Contains(t, filter, `allowed_roles IN ["ops\" OR allowed_roles = \"admin"]`)
+	require.Contains(t, filter, `allowed_permissions IN ["read\" OR allowed_permissions = \"write"]`)
+}
+
+func TestBuildAccessFilterGroupsRolesAndPermissions(t *testing.T) {
+	req := SearchRequest{
+		TenantID:    uuidMustParse("22222222-2222-2222-2222-222222222222"),
+		UserID:      "u-1",
+		Roles:       []string{"role.a", "role.b", "role.c"},
+		Permissions: []string{"perm.read", "perm.write"},
+	}
+
+	filter := buildAccessFilter(req)
+	// Single IN clause per facet, not three separate equality clauses.
+	require.Contains(t, filter, `allowed_roles IN ["role.a", "role.b", "role.c"]`)
+	require.Contains(t, filter, `allowed_permissions IN ["perm.read", "perm.write"]`)
+	require.NotContains(t, filter, `allowed_roles = "role.a"`,
+		"per-role equality must not leak when IN grouping is available")
+}
+
+func TestValidateAccessFilterEnforcesHardCap(t *testing.T) {
+	require.NoError(t, validateAccessFilter(nil, `access_visibility = "public"`))
+
+	huge := strings.Repeat("x", accessFilterMaxBytes+1)
+	require.ErrorIs(t, validateAccessFilter(nil, huge), errAccessFilterTooLong)
 }
 
 func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *testing.T) {

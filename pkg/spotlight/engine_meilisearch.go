@@ -18,11 +18,26 @@ import (
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/meilisearch/meilisearch-go"
+	"github.com/sirupsen/logrus"
 )
 
 var _ IndexEngine = (*MeilisearchEngine)(nil)
 
 const IndexSchemaVersion = "2026-03-30-search-v4"
+
+// engineMaxTopK caps a single Meili search call. Service-layer ACL fan-out
+// multiplies the caller topK by ACLFanOutFactor (default 5); raising the
+// ceiling beyond 500 has no practical use and exposes the engine to
+// runaway payloads.
+const engineMaxTopK = 500
+
+// accessFilterWarnBytes is the threshold over which buildAccessFilter logs
+// a warning telemetry-side. accessFilterMaxBytes is the hard ceiling above
+// which the request is rejected to keep Meili stable.
+const (
+	accessFilterWarnBytes = 4 * 1024
+	accessFilterMaxBytes  = 16 * 1024
+)
 
 type MeilisearchEngine struct {
 	client      meilisearch.ServiceManager
@@ -33,6 +48,7 @@ type MeilisearchEngine struct {
 	writeReady  atomic.Bool
 	pendingMu   sync.Mutex
 	pendingUIDs []int64
+	logger      *logrus.Logger
 }
 
 type meiliSearchIndexState struct {
@@ -50,6 +66,14 @@ func NewMeilisearchEngine(url, apiKey string) *MeilisearchEngine {
 		indexName:  "spotlight",
 		activeName: "spotlight",
 	}
+}
+
+// WithLogger attaches a logger that the engine uses for warnings such as
+// access filters approaching the size budget. Returns the engine for
+// chaining at construction time.
+func (e *MeilisearchEngine) WithLogger(logger *logrus.Logger) *MeilisearchEngine {
+	e.logger = logger
+	return e
 }
 
 // setup ensures the index is created and configured, retrying on failure.
@@ -668,11 +692,19 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 	if topK <= 0 {
 		topK = 20
 	}
-	if topK > 100 {
-		topK = 100
+	// The hard upper bound is 500 to accommodate the ACL fan-out factor
+	// applied by the service layer (5×100). Returning more than this from
+	// a single Meili query pushes payload sizes and memory pressure
+	// uncomfortably high without offering practical benefit, so callers
+	// requesting larger limits get clamped here.
+	if topK > engineMaxTopK {
+		topK = engineMaxTopK
 	}
 
 	baseFilter := buildSearchFilter(req)
+	if err := validateAccessFilter(e.logger, baseFilter); err != nil {
+		return nil, serrors.E(op, err)
+	}
 
 	if req.Mode == QueryModeLookup && len(req.ExactTerms) > 0 {
 		exactFilter := buildExactTermsFilter(req.ExactTerms)
@@ -865,6 +897,12 @@ func buildGenericFilterClauses(filters map[string]string) string {
 	return strings.Join(clauses, " AND ")
 }
 
+// buildAccessFilter builds the Meilisearch filter expression that pre-filters
+// search results by the caller's access. The Meili `IN` operator collapses
+// the previous per-role / per-permission `OR` chain so users with many
+// roles produce a compact filter instead of dozens of equality clauses.
+// The function returns the filter string only; callers should pass the
+// result through validateAccessFilter to enforce the size budget.
 func buildAccessFilter(req SearchRequest) string {
 	clauses := []string{`access_visibility = "public"`}
 	if req.UserID != "" {
@@ -874,14 +912,49 @@ func buildAccessFilter(req SearchRequest) string {
 			fmt.Sprintf(`allowed_users = "%s"`, escapedUserID),
 		)
 	}
-	for _, role := range dedupeAndSort(req.Roles) {
-		clauses = append(clauses, fmt.Sprintf(`allowed_roles = "%s"`, escapeFilterString(role)))
+	if roles := dedupeAndSort(req.Roles); len(roles) > 0 {
+		clauses = append(clauses, fmt.Sprintf(`allowed_roles IN [%s]`, joinQuoted(roles)))
 	}
-	for _, permission := range dedupeAndSort(req.Permissions) {
-		clauses = append(clauses, fmt.Sprintf(`allowed_permissions = "%s"`, escapeFilterString(permission)))
+	if perms := dedupeAndSort(req.Permissions); len(perms) > 0 {
+		clauses = append(clauses, fmt.Sprintf(`allowed_permissions IN [%s]`, joinQuoted(perms)))
 	}
 	return strings.Join(clauses, " OR ")
 }
+
+// joinQuoted formats values as a comma-separated, quoted list for use
+// inside a Meilisearch `IN [...]` expression.
+func joinQuoted(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(values))
+	for _, v := range values {
+		parts = append(parts, fmt.Sprintf(`"%s"`, escapeFilterString(v)))
+	}
+	return strings.Join(parts, ", ")
+}
+
+// validateAccessFilter enforces the upper bound on filter string length.
+// Meili historically had filter parsing issues at very large sizes, and an
+// admin with hundreds of permissions could otherwise produce a runaway
+// expression. Returns a serrors-wrapped error above the hard cap; logs a
+// warning between the soft warn threshold and the cap.
+func validateAccessFilter(logger *logrus.Logger, filter string) error {
+	const op serrors.Op = "spotlight.MeilisearchEngine.validateAccessFilter"
+	size := len(filter)
+	if size > accessFilterMaxBytes {
+		return serrors.E(op,
+			fmt.Sprintf("access filter is %d bytes, exceeds hard cap %d", size, accessFilterMaxBytes),
+			errAccessFilterTooLong)
+	}
+	if size > accessFilterWarnBytes && logger != nil {
+		logger.WithField("access_filter_bytes", size).
+			Warn("spotlight access filter approaching size limit; consider grouping permissions")
+	}
+	return nil
+}
+
+var errAccessFilterTooLong = errors.New("spotlight access filter too long")
 
 func buildExactTermsFilter(terms []string) string {
 	normalized := normalizeExactTerms(terms)

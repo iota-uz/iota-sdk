@@ -28,6 +28,8 @@ const (
 	defaultSearchCacheEntries  = 512
 	defaultSearchLatencyBudget = 350 * time.Millisecond
 	defaultBackgroundTick      = 5 * time.Second
+	defaultACLFanOutFactor     = 5
+	defaultACLEngineMaxTopK    = 500
 )
 
 type ServiceConfig struct {
@@ -38,6 +40,13 @@ type ServiceConfig struct {
 	SearchLatencyBudget      time.Duration
 	AllowStaleCacheOnTimeout bool
 	BackgroundIndexerTick    time.Duration
+	// ACLFanOutFactor controls over-fetching to absorb post-filter ACL drops.
+	// Engine receives topK * factor candidates so the post-filter still has
+	// enough rows to fill topK when many top hits get denied.
+	ACLFanOutFactor int
+	// ACLEngineMaxTopK is the absolute ceiling on the per-engine fetch size
+	// after fan-out multiplication. Protects engine from runaway queries.
+	ACLEngineMaxTopK int
 }
 
 func DefaultServiceConfig() ServiceConfig {
@@ -49,6 +58,8 @@ func DefaultServiceConfig() ServiceConfig {
 		SearchLatencyBudget:      defaultSearchLatencyBudget,
 		AllowStaleCacheOnTimeout: true,
 		BackgroundIndexerTick:    defaultBackgroundTick,
+		ACLFanOutFactor:          defaultACLFanOutFactor,
+		ACLEngineMaxTopK:         defaultACLEngineMaxTopK,
 	}
 }
 
@@ -71,6 +82,12 @@ func (c ServiceConfig) normalized() ServiceConfig {
 	}
 	if cfg.BackgroundIndexerTick <= 0 {
 		cfg.BackgroundIndexerTick = defaultBackgroundTick
+	}
+	if cfg.ACLFanOutFactor <= 0 {
+		cfg.ACLFanOutFactor = defaultACLFanOutFactor
+	}
+	if cfg.ACLEngineMaxTopK <= 0 {
+		cfg.ACLEngineMaxTopK = defaultACLEngineMaxTopK
 	}
 	return cfg
 }
@@ -424,9 +441,27 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		return cached, nil
 	}
 
+	// Over-fetch from engine to absorb post-filter ACL drops (issue #2810
+	// item 1.1). If we asked for exactly topK and the post-filter rejects
+	// every candidate, the user sees an empty page even when matching docs
+	// exist further down the ranking. Engine-side ACL via buildAccessFilter
+	// already prunes most denials; this fan-out covers the long tail where
+	// the application acl evaluator enforces something the doc fields don't.
+	originalTopK := req.TopK
+	engineReq := req
+	if originalTopK > 0 && s.cfg.ACLFanOutFactor > 1 {
+		fetch := originalTopK * s.cfg.ACLFanOutFactor
+		if fetch > s.cfg.ACLEngineMaxTopK {
+			fetch = s.cfg.ACLEngineMaxTopK
+		}
+		if fetch > originalTopK {
+			engineReq.TopK = fetch
+		}
+	}
+
 	searchCtx, cancelSearch := withTimeoutRespectingDeadline(ctx, s.cfg.SearchTimeout)
 	engineStarted := time.Now()
-	hits, err := s.engine.Search(searchCtx, req)
+	hits, err := s.engine.Search(searchCtx, engineReq)
 	telemetry.EngineTook = time.Since(engineStarted)
 	searchCtxErr := searchCtx.Err()
 	cancelSearch()
@@ -452,6 +487,11 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 	aclStarted := time.Now()
 	filtered := s.filterAuthorized(ctx, req, hits)
 	telemetry.ACLTook = time.Since(aclStarted)
+	// Trim back to the caller-requested topK after the post-filter has had
+	// a chance to consume the fan-out surplus.
+	if originalTopK > 0 && len(filtered) > originalTopK {
+		filtered = filtered[:originalTopK]
+	}
 	telemetry.AuthorizedHits = len(filtered)
 	rankStarted := time.Now()
 	ranked := s.ranker.Rank(ctx, req, filtered)

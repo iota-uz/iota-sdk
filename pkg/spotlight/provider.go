@@ -13,6 +13,23 @@ import (
 type ProviderCapabilities struct {
 	EntityTypes   []string
 	IndexPriority int
+	// BatchSize, when positive, overrides the default pipeline upsert batch
+	// size for this provider. Use a smaller value for providers that emit
+	// large per-document payloads (e.g., long body text) to avoid hitting
+	// the engine's per-request size limit. Use a larger value for very
+	// small docs to amortize round-trip cost.
+	BatchSize int
+	// MaxBytes, when positive, caps the projected JSON payload size in
+	// bytes for any single upsert batch from this provider. Providers
+	// with highly variable document sizes should set this rather than
+	// (or in addition to) BatchSize.
+	MaxBytes int
+	// DocumentCap, when positive, is a hard upper bound on the number of
+	// documents this provider may emit during a single sync. The pipeline
+	// stops accepting new documents once this cap is reached and logs a
+	// warning so operators can see truncation has occurred. Zero means
+	// unlimited.
+	DocumentCap int
 }
 
 const ProviderStreamBatchSize = 500

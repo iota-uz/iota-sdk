@@ -178,6 +178,85 @@ func (a *testBatchACL) stats() (int, int) {
 	return a.batchCalls, a.canReadCall
 }
 
+type capturingEngine struct {
+	mu       sync.Mutex
+	requests []SearchRequest
+	hits     []SearchHit
+}
+
+func (e *capturingEngine) Upsert(context.Context, []SearchDocument) error      { return nil }
+func (e *capturingEngine) UpsertAsync(context.Context, []SearchDocument) error { return nil }
+func (e *capturingEngine) WaitPending(context.Context) error                   { return nil }
+func (e *capturingEngine) Delete(context.Context, []DocumentRef) error         { return nil }
+func (e *capturingEngine) DeleteTenant(context.Context, uuid.UUID) error       { return nil }
+func (e *capturingEngine) Health(context.Context) error                        { return nil }
+func (e *capturingEngine) Stats(context.Context) (*IndexStats, error)          { return &IndexStats{}, nil }
+
+func (e *capturingEngine) Search(_ context.Context, req SearchRequest) ([]SearchHit, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.requests = append(e.requests, req)
+	out := make([]SearchHit, len(e.hits))
+	copy(out, e.hits)
+	return out, nil
+}
+
+type denyAllACL struct {
+	denyFirst int
+}
+
+func (a *denyAllACL) CanRead(_ context.Context, _ SearchRequest, _ SearchHit) bool {
+	return false
+}
+
+func (a *denyAllACL) FilterAuthorized(_ context.Context, _ SearchRequest, hits []SearchHit) []SearchHit {
+	if len(hits) <= a.denyFirst {
+		return nil
+	}
+	return hits[a.denyFirst:]
+}
+
+func TestSpotlightService_Search_FansOutTopKForACLDrops(t *testing.T) {
+	tenantID := uuid.New()
+	hits := make([]SearchHit, 0, 60)
+	for i := 0; i < 60; i++ {
+		hits = append(hits, SearchHit{
+			Document: SearchDocument{
+				ID:       string(rune('a'+i)) + "-doc",
+				TenantID: tenantID,
+				Access:   AccessPolicy{Visibility: VisibilityPublic},
+			},
+			LexicalScore: float64(60 - i),
+			FinalScore:   float64(60 - i),
+		})
+	}
+	engine := &capturingEngine{hits: hits}
+	cfg := DefaultServiceConfig()
+	cfg.SearchCacheTTL = 0 // bypass cache to verify engine req
+	svc := NewService(engine, nil, cfg, WithACLEvaluator(&denyAllACL{denyFirst: 50}))
+
+	req := SearchRequest{TenantID: tenantID, Query: "anything", TopK: 10}
+	resp, err := svc.Search(context.Background(), req)
+	require.NoError(t, err)
+
+	engine.mu.Lock()
+	require.Len(t, engine.requests, 1, "engine should be called exactly once per search")
+	require.Equal(t, 50, engine.requests[0].TopK,
+		"engine fetch must be topK * ACLFanOutFactor = 10*5 (not the caller's 10)")
+	engine.mu.Unlock()
+
+	// 60 hits returned, ACL denies first 50, leaving 10 — exactly topK.
+	require.Equal(t, 10, totalHitsAcrossGroups(resp))
+}
+
+func totalHitsAcrossGroups(resp SearchResponse) int {
+	total := 0
+	for _, g := range resp.Groups {
+		total += len(g.Hits)
+	}
+	return total
+}
+
 func TestSpotlightService_Search_UsesBatchACLAndCache(t *testing.T) {
 	tenantID := uuid.New()
 	engine := &testEngine{
