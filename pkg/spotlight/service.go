@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
@@ -28,6 +29,8 @@ const (
 	defaultSearchCacheEntries  = 512
 	defaultSearchLatencyBudget = 350 * time.Millisecond
 	defaultBackgroundTick      = 5 * time.Second
+	defaultACLFanOutFactor     = 5
+	defaultACLEngineMaxTopK    = 500
 )
 
 type ServiceConfig struct {
@@ -38,6 +41,13 @@ type ServiceConfig struct {
 	SearchLatencyBudget      time.Duration
 	AllowStaleCacheOnTimeout bool
 	BackgroundIndexerTick    time.Duration
+	// ACLFanOutFactor controls over-fetching to absorb post-filter ACL drops.
+	// Engine receives topK * factor candidates so the post-filter still has
+	// enough rows to fill topK when many top hits get denied.
+	ACLFanOutFactor int
+	// ACLEngineMaxTopK is the absolute ceiling on the per-engine fetch size
+	// after fan-out multiplication. Protects engine from runaway queries.
+	ACLEngineMaxTopK int
 }
 
 func DefaultServiceConfig() ServiceConfig {
@@ -49,6 +59,8 @@ func DefaultServiceConfig() ServiceConfig {
 		SearchLatencyBudget:      defaultSearchLatencyBudget,
 		AllowStaleCacheOnTimeout: true,
 		BackgroundIndexerTick:    defaultBackgroundTick,
+		ACLFanOutFactor:          defaultACLFanOutFactor,
+		ACLEngineMaxTopK:         defaultACLEngineMaxTopK,
 	}
 }
 
@@ -71,6 +83,12 @@ func (c ServiceConfig) normalized() ServiceConfig {
 	}
 	if cfg.BackgroundIndexerTick <= 0 {
 		cfg.BackgroundIndexerTick = defaultBackgroundTick
+	}
+	if cfg.ACLFanOutFactor <= 0 {
+		cfg.ACLFanOutFactor = defaultACLFanOutFactor
+	}
+	if cfg.ACLEngineMaxTopK <= 0 {
+		cfg.ACLEngineMaxTopK = defaultACLEngineMaxTopK
 	}
 	return cfg
 }
@@ -192,8 +210,12 @@ type SpotlightService struct {
 	outbox     OutboxProcessor
 	quickLinks *QuickLinks
 
-	cacheMu     sync.RWMutex
-	searchCache map[string]cachedSearchResponse
+	// searchCache uses an LRU with TTL stored on the entry itself. The
+	// hashicorp library handles eviction in O(1) and is thread-safe so
+	// the previous cacheMu is no longer required. The hand-rolled
+	// O(n) eviction (service.go:617 in the previous revision) was
+	// hot-path under high QPS distinct queries; see #2810 §2.6.
+	searchCache *lru.Cache[string, cachedSearchResponse]
 
 	lifecycleMu   sync.Mutex
 	started       bool
@@ -217,6 +239,15 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 	acl := NewStrictACLEvaluator(NewComposablesPrincipalResolver())
 	normalizedCfg := cfg.normalized()
 
+	cache, err := lru.New[string, cachedSearchResponse](normalizedCfg.SearchCacheMaxEntries)
+	if err != nil {
+		// lru.New only errors on size <= 0; normalizedCfg already
+		// guarantees a positive value, so this path is unreachable in
+		// practice. Panic communicates the misconfiguration loudly
+		// rather than silently disabling the cache.
+		panic(fmt.Sprintf("spotlight: cannot init search cache: %v", err))
+	}
+
 	svc := &SpotlightService{
 		cfg:         normalizedCfg,
 		registry:    registry,
@@ -229,7 +260,7 @@ func NewService(engine IndexEngine, agent Agent, cfg ServiceConfig, opts ...Serv
 		metrics:     NewNoopMetrics(),
 		logger:      logrus.StandardLogger(),
 		agent:       agent,
-		searchCache: make(map[string]cachedSearchResponse),
+		searchCache: cache,
 		sessions:    make(map[string]*searchSession),
 	}
 	for _, opt := range opts {
@@ -330,15 +361,37 @@ func (s *SpotlightService) ReindexTenant(ctx context.Context, tenantID uuid.UUID
 		return serrors.E(op, err)
 	}
 
+	// Track commit success explicitly so the deferred Abort only fires on
+	// abnormal exit. Previously Abort was inline-on-Sync-error only and a
+	// panic between Sync and Commit (or a runaway Commit timeout) left
+	// `spotlight_build_<schema>` orphaned. Issue #2810 §4.2 / §4.1.
+	//
+	// Abort uses a fresh background context so a cancelled / timed-out
+	// request context cannot also block the cleanup that fixes the
+	// orphan it was supposed to prevent.
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		abortCtx, cancelAbort := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancelAbort()
+		if abortErr := session.Abort(abortCtx); abortErr != nil && s.logger != nil {
+			s.logger.WithError(abortErr).
+				WithField("tenant_id", tenantID.String()).
+				Error("Spotlight build session abort failed")
+		}
+	}()
+
 	buildPipeline := NewIndexerPipeline(s.registry, session.Engine(), s.logger)
 	if err := buildPipeline.Sync(ctx, tenantID, language, "", 0, scope); err != nil {
-		_ = session.Abort(ctx)
 		return serrors.E(op, err)
 	}
 
 	if err := session.Commit(ctx); err != nil {
 		return serrors.E(op, err)
 	}
+	committed = true
 
 	if s.logger != nil {
 		s.logger.WithFields(logrus.Fields{
@@ -424,9 +477,34 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 		return cached, nil
 	}
 
+	// Over-fetch from engine to absorb post-filter ACL drops (issue #2810
+	// item 1.1). If we asked for exactly topK and the post-filter rejects
+	// every candidate, the user sees an empty page even when matching docs
+	// exist further down the ranking. Engine-side ACL via buildAccessFilter
+	// already prunes most denials; this fan-out covers the long tail where
+	// the application acl evaluator enforces something the doc fields don't.
+	//
+	// The hard ACLEngineMaxTopK applies even if the caller passed a TopK
+	// larger than the cap; without the unconditional clamp below the
+	// engine could receive a runaway value.
+	originalTopK := req.TopK
+	engineReq := req
+	if originalTopK > 0 {
+		fetch := originalTopK
+		if s.cfg.ACLFanOutFactor > 1 {
+			fetch = originalTopK * s.cfg.ACLFanOutFactor
+		}
+		if fetch > s.cfg.ACLEngineMaxTopK {
+			fetch = s.cfg.ACLEngineMaxTopK
+		}
+		if fetch != originalTopK {
+			engineReq.TopK = fetch
+		}
+	}
+
 	searchCtx, cancelSearch := withTimeoutRespectingDeadline(ctx, s.cfg.SearchTimeout)
 	engineStarted := time.Now()
-	hits, err := s.engine.Search(searchCtx, req)
+	hits, err := s.engine.Search(searchCtx, engineReq)
 	telemetry.EngineTook = time.Since(engineStarted)
 	searchCtxErr := searchCtx.Err()
 	cancelSearch()
@@ -453,9 +531,16 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 	filtered := s.filterAuthorized(ctx, req, hits)
 	telemetry.ACLTook = time.Since(aclStarted)
 	telemetry.AuthorizedHits = len(filtered)
+	// Rank the full post-ACL set before trimming. Trimming first would
+	// drop candidates whose Ranker boosts (recency, exact-term match,
+	// etc.) would have promoted them into the final topK and defeats the
+	// point of the ACL fan-out (#777 review).
 	rankStarted := time.Now()
 	ranked := s.ranker.Rank(ctx, req, filtered)
 	telemetry.RankTook = time.Since(rankStarted)
+	if originalTopK > 0 && len(ranked) > originalTopK {
+		ranked = ranked[:originalTopK]
+	}
 	groupStarted := time.Now()
 	resp := s.grouper.Group(ctx, req, ranked)
 	telemetry.GroupTook = time.Since(groupStarted)
@@ -595,14 +680,14 @@ func (s *SpotlightService) getCachedSearch(req SearchRequest, allowStale bool) (
 		return SearchResponse{}, false
 	}
 	key := searchCacheKey(req)
-	now := time.Now()
-	s.cacheMu.RLock()
-	entry, ok := s.searchCache[key]
-	s.cacheMu.RUnlock()
+	entry, ok := s.searchCache.Get(key)
 	if !ok {
 		return SearchResponse{}, false
 	}
-	if !allowStale && now.After(entry.expiresAt) {
+	if !allowStale && time.Now().After(entry.expiresAt) {
+		// Expired entry is not removed eagerly; the LRU will reuse the
+		// slot on next eviction. Removing here would require a write
+		// lock for every miss, defeating the LRU's O(1) read path.
 		return SearchResponse{}, false
 	}
 	return entry.response, true
@@ -614,40 +699,27 @@ func (s *SpotlightService) setCachedSearch(req SearchRequest, resp SearchRespons
 	}
 	key := searchCacheKey(req)
 	now := time.Now()
-	// O(n) eviction is intentional and bounded by SearchCacheMaxEntries (default: 512).
-	s.cacheMu.Lock()
-	defer s.cacheMu.Unlock()
-	if len(s.searchCache) >= s.cfg.SearchCacheMaxEntries {
-		for cacheKey, entry := range s.searchCache {
-			if now.After(entry.expiresAt) {
-				delete(s.searchCache, cacheKey)
-			}
-		}
-	}
-	if len(s.searchCache) >= s.cfg.SearchCacheMaxEntries {
-		var oldestKey string
-		var oldestAt time.Time
-		first := true
-		for cacheKey, entry := range s.searchCache {
-			if first || entry.storedAt.Before(oldestAt) {
-				first = false
-				oldestKey = cacheKey
-				oldestAt = entry.storedAt
-			}
-		}
-		if oldestKey != "" {
-			delete(s.searchCache, oldestKey)
-		}
-	}
-	s.searchCache[key] = cachedSearchResponse{
+	// LRU eviction is O(1) and bounded by SearchCacheMaxEntries.
+	// Hand-rolled scan + delete (the previous code) was a hot path under
+	// high QPS distinct queries. Issue #2810 §2.6.
+	s.searchCache.Add(key, cachedSearchResponse{
 		response:  resp,
 		expiresAt: now.Add(s.cfg.SearchCacheTTL),
 		storedAt:  now,
-	}
+	})
 }
 
 func searchCacheKey(req SearchRequest) string {
 	parts := make([]string, 0, 16)
+	// Cache key uses the caller's effective TopK (after defaulting 0→20).
+	// We deliberately do NOT route through normalizedTopK() — that helper
+	// clamps at 100 for engine safety, which would alias TopK=50, TopK=100,
+	// and TopK=200 into the same key and serve a wrong-sized response on
+	// cache hits once ACL fan-out raised the engine ceiling to 500.
+	topK := req.TopK
+	if topK <= 0 {
+		topK = 20
+	}
 	parts = append(parts,
 		req.TenantID.String(),
 		req.UserID,
@@ -655,7 +727,7 @@ func searchCacheKey(req SearchRequest) string {
 		strings.ToLower(strings.TrimSpace(req.Language)),
 		string(req.Intent),
 		string(req.Mode),
-		fmt.Sprintf("topk=%d", req.normalizedTopK()),
+		fmt.Sprintf("topk=%d", topK),
 	)
 	if len(req.ExactTerms) > 0 {
 		parts = append(parts, "exact="+strings.Join(ExpandExactTerms(req.ExactTerms...), ","))

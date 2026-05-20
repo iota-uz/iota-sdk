@@ -3,6 +3,7 @@ package spotlight
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -55,7 +56,7 @@ func TestMeilisearchEngine_SetupForSearchExistingIndexStaysReadOnly(t *testing.T
 		Return(&meilisearch.TaskInfo{TaskUID: 1}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(1), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(1), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	index.EXPECT().
@@ -63,7 +64,7 @@ func TestMeilisearchEngine_SetupForSearchExistingIndexStaysReadOnly(t *testing.T
 		Return(&meilisearch.TaskInfo{TaskUID: 2}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(2), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(2), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	index.EXPECT().
@@ -71,7 +72,7 @@ func TestMeilisearchEngine_SetupForSearchExistingIndexStaysReadOnly(t *testing.T
 		Return(&meilisearch.TaskInfo{TaskUID: 3}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(3), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(3), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 
@@ -97,7 +98,7 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 		Return(&meilisearch.TaskInfo{TaskUID: 10}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(10), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(10), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	service.EXPECT().
@@ -109,7 +110,7 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 		Return(&meilisearch.TaskInfo{TaskUID: 11}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(11), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(11), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	index.EXPECT().
@@ -117,7 +118,7 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 		Return(&meilisearch.TaskInfo{TaskUID: 12}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(12), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(12), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	index.EXPECT().
@@ -125,7 +126,7 @@ func TestMeilisearchEngine_SetupForSearchMissingIndexBootstrapsIt(t *testing.T) 
 		Return(&meilisearch.TaskInfo{TaskUID: 13}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(13), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(13), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 
@@ -273,8 +274,77 @@ func TestBuildSearchFilterEscapesDynamicValues(t *testing.T) {
 	filter := buildSearchFilter(req)
 	require.Contains(t, filter, `domain = "people\" OR domain = \"admin"`)
 	require.Contains(t, filter, `owner_id = "user\" OR access_visibility = \"public"`)
-	require.Contains(t, filter, `allowed_roles = "ops\" OR allowed_roles = \"admin"`)
-	require.Contains(t, filter, `allowed_permissions = "read\" OR allowed_permissions = \"write"`)
+	// Roles and permissions now use Meili's IN [...] syntax (issue #2810 §2.7);
+	// values are still escaped, just inside the list.
+	require.Contains(t, filter, `allowed_roles IN ["ops\" OR allowed_roles = \"admin"]`)
+	require.Contains(t, filter, `allowed_permissions IN ["read\" OR allowed_permissions = \"write"]`)
+}
+
+func TestBuildAccessFilterGroupsRolesAndPermissions(t *testing.T) {
+	req := SearchRequest{
+		TenantID:    uuidMustParse("22222222-2222-2222-2222-222222222222"),
+		UserID:      "u-1",
+		Roles:       []string{"role.a", "role.b", "role.c"},
+		Permissions: []string{"perm.read", "perm.write"},
+	}
+
+	filter := buildAccessFilter(req)
+	// Single IN clause per facet, not three separate equality clauses.
+	require.Contains(t, filter, `allowed_roles IN ["role.a", "role.b", "role.c"]`)
+	require.Contains(t, filter, `allowed_permissions IN ["perm.read", "perm.write"]`)
+	require.NotContains(t, filter, `allowed_roles = "role.a"`,
+		"per-role equality must not leak when IN grouping is available")
+}
+
+func TestValidateAccessFilterEnforcesHardCap(t *testing.T) {
+	require.NoError(t, validateAccessFilter(nil, `access_visibility = "public"`))
+
+	huge := strings.Repeat("x", accessFilterMaxBytes+1)
+	require.ErrorIs(t, validateAccessFilter(nil, huge), errAccessFilterTooLong)
+}
+
+type stringError string
+
+func (e stringError) Error() string { return string(e) }
+
+func TestIsMeiliPayloadTooLargeMatchesTypedAndStringErrors(t *testing.T) {
+	require.True(t, isMeiliPayloadTooLarge(&meilisearch.Error{StatusCode: http.StatusRequestEntityTooLarge}))
+	require.True(t, isMeiliPayloadTooLarge(stringError("payload_too_large")))
+	require.True(t, isMeiliPayloadTooLarge(stringError("Payload Too Large")))
+	require.False(t, isMeiliPayloadTooLarge(nil))
+	require.False(t, isMeiliPayloadTooLarge(&meilisearch.Error{StatusCode: http.StatusBadRequest}))
+}
+
+func TestMeilisearchEngine_AddDocumentsSyncSplitsOn413(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	index := meilimocks.NewMockmeilisearchIndexManager(t)
+	engine := &MeilisearchEngine{
+		client:    service,
+		indexName: "spotlight",
+	}
+	engine.writeReady.Store(true) // skip setup() inside addDocumentsSync
+
+	service.EXPECT().Index("spotlight").Return(index).Times(3)
+	// First call: 8 docs → 413 forces split.
+	index.EXPECT().
+		AddDocuments(mock.MatchedBy(func(rs []map[string]interface{}) bool { return len(rs) == 8 }), mock.Anything).
+		Return(nil, &meilisearch.Error{StatusCode: http.StatusRequestEntityTooLarge}).
+		Once()
+	// Two halves of 4 each succeed.
+	index.EXPECT().
+		AddDocuments(mock.MatchedBy(func(rs []map[string]interface{}) bool { return len(rs) == 4 }), mock.Anything).
+		Return(&meilisearch.TaskInfo{TaskUID: 99}, nil).
+		Twice()
+	service.EXPECT().
+		WaitForTaskWithContext(mock.Anything, int64(99), 100*time.Millisecond).
+		Return(&meilisearch.Task{Status: meilisearch.TaskStatusSucceeded}, nil).
+		Twice()
+
+	docs := make([]SearchDocument, 8)
+	for i := range docs {
+		docs[i] = SearchDocument{ID: "d", TenantID: uuidMustParse("11111111-1111-1111-1111-111111111111")}
+	}
+	require.NoError(t, engine.addDocumentsSync(t.Context(), docs, 0))
 }
 
 func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *testing.T) {
@@ -299,7 +369,7 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		Return(&meilisearch.TaskInfo{TaskUID: 20}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(20), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(20), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	service.EXPECT().
@@ -309,7 +379,7 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		Return(&meilisearch.TaskInfo{TaskUID: 21}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(21), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(21), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	service.EXPECT().
@@ -317,7 +387,7 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		Return(&meilisearch.TaskInfo{TaskUID: 22}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(22), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(22), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 
@@ -346,7 +416,7 @@ func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *t
 		Return(&meilisearch.TaskInfo{TaskUID: 31}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(31), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(31), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	index.EXPECT().
@@ -354,7 +424,7 @@ func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *t
 		Return(&meilisearch.TaskInfo{TaskUID: 32}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(32), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(32), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	index.EXPECT().
@@ -362,7 +432,7 @@ func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *t
 		Return(&meilisearch.TaskInfo{TaskUID: 33}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(33), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(33), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 	service.EXPECT().
@@ -374,7 +444,7 @@ func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *t
 		Return(&meilisearch.TaskInfo{TaskUID: 34}, nil).
 		Once()
 	service.EXPECT().
-		WaitForTask(int64(34), 100*time.Millisecond).
+		WaitForTaskWithContext(mock.Anything, int64(34), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
 

@@ -47,6 +47,40 @@ func TestMustLocalizePanicsOnMissingKey(t *testing.T) {
 	assert.Contains(t, fmt.Sprint(recovered), `not found in language`)
 }
 
+func TestTReturnsFalseOnMissingKeyOrLocalizer(t *testing.T) {
+	t.Parallel()
+
+	got, ok := T(t.Context(), "Missing.Key")
+	require.False(t, ok)
+	require.Empty(t, got)
+
+	bundle := i18n.NewBundle(language.English)
+	bundle.MustAddMessages(language.English, &i18n.Message{ID: "Spotlight.Present", Other: "found"})
+	localizer := i18n.NewLocalizer(bundle, language.English.String())
+	ctx := WithLocalizer(t.Context(), localizer)
+
+	got, ok = T(ctx, "Spotlight.Present")
+	require.True(t, ok)
+	require.Equal(t, "found", got)
+
+	got, ok = T(ctx, "Spotlight.NotPresent")
+	require.False(t, ok)
+	require.Empty(t, got)
+}
+
+func TestTWithDefaultFallsBackOnMissing(t *testing.T) {
+	t.Parallel()
+
+	bundle := i18n.NewBundle(language.English)
+	bundle.MustAddMessages(language.English, &i18n.Message{ID: "Spotlight.Greeting", Other: "hi"})
+	localizer := i18n.NewLocalizer(bundle, language.English.String())
+	ctx := WithLocalizer(t.Context(), localizer)
+
+	require.Equal(t, "hi", TWithDefault(ctx, "Spotlight.Greeting", "fallback"))
+	require.Equal(t, "fallback", TWithDefault(ctx, "Spotlight.Absent", "fallback"))
+	require.Equal(t, "noctx", TWithDefault(t.Context(), "Spotlight.Greeting", "noctx"))
+}
+
 func TestValidateRequiredKeys(t *testing.T) {
 	t.Parallel()
 
