@@ -4,6 +4,8 @@ import (
 	"time"
 
 	lru "github.com/hashicorp/golang-lru/v2"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // EventDedupConfig tunes the in-process at-least-once dedupe window. NATS
@@ -21,7 +23,8 @@ type EventDedupConfig struct {
 	TTL time.Duration
 }
 
-// DefaultEventDedupConfig: 10 000 entries × 30 min window. Issue #2810 §3.5.
+// DefaultEventDedupConfig returns a deduper configured for 10 000 entries
+// over a 30-minute window. Issue #2810 §3.5.
 func DefaultEventDedupConfig() EventDedupConfig {
 	return EventDedupConfig{
 		Capacity: 10_000,
@@ -38,8 +41,12 @@ type EventDeduper struct {
 }
 
 // NewEventDeduper returns a deduper with the supplied config (zero-value
-// fields are normalized to DefaultEventDedupConfig).
-func NewEventDeduper(cfg EventDedupConfig) *EventDeduper {
+// fields are normalized to DefaultEventDedupConfig). Returns an error
+// rather than panicking on cache init failure so callers can degrade
+// gracefully — typically by falling back to a nil *EventDeduper which
+// Seen() handles as "never seen" (every event passes through).
+func NewEventDeduper(cfg EventDedupConfig) (*EventDeduper, error) {
+	const op serrors.Op = "spotlight.NewEventDeduper"
 	if cfg.Capacity <= 0 {
 		cfg.Capacity = DefaultEventDedupConfig().Capacity
 	}
@@ -48,10 +55,9 @@ func NewEventDeduper(cfg EventDedupConfig) *EventDeduper {
 	}
 	cache, err := lru.New[string, time.Time](cfg.Capacity)
 	if err != nil {
-		// lru.New only errors on size <= 0, which we just normalized.
-		panic("spotlight: cannot init event deduper: " + err.Error())
+		return nil, serrors.E(op, err)
 	}
-	return &EventDeduper{cfg: cfg, cache: cache}
+	return &EventDeduper{cfg: cfg, cache: cache}, nil
 }
 
 // Seen returns true when the supplied key was already recorded within
@@ -71,11 +77,17 @@ func (d *EventDeduper) Seen(provider, primaryKey, eventID string) bool {
 	return false
 }
 
-// Stats reports the current cache fill level. Exposed for the
+// DedupStats reports the dedup cache fill level. Exposed for the
 // /system/spotlight UI and the dedup metrics counter.
-func (d *EventDeduper) Stats() (entries int, capacity int) {
+type DedupStats struct {
+	Entries  int
+	Capacity int
+}
+
+// Stats reports the current cache fill level.
+func (d *EventDeduper) Stats() DedupStats {
 	if d == nil {
-		return 0, 0
+		return DedupStats{}
 	}
-	return d.cache.Len(), d.cfg.Capacity
+	return DedupStats{Entries: d.cache.Len(), Capacity: d.cfg.Capacity}
 }

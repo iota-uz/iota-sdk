@@ -100,7 +100,10 @@ func BenchmarkBackoffWithJitter(b *testing.B) {
 
 func BenchmarkEventDeduperSeen(b *testing.B) {
 	cfg := EventDedupConfig{Capacity: 10_000, TTL: 30 * time.Minute}
-	d := NewEventDeduper(cfg)
+	d, err := NewEventDeduper(cfg)
+	if err != nil {
+		b.Fatal(err)
+	}
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -111,7 +114,10 @@ func BenchmarkEventDeduperSeen(b *testing.B) {
 func BenchmarkEventDeduperSeen_Hot(b *testing.B) {
 	// Same (provider,pk,event_id) → exercises the LRU hit path.
 	cfg := EventDedupConfig{Capacity: 1000, TTL: 30 * time.Minute}
-	d := NewEventDeduper(cfg)
+	d, err := NewEventDeduper(cfg)
+	if err != nil {
+		b.Fatal(err)
+	}
 	_ = d.Seen("crm.contracts", "pk-1", "ev-hot")
 	b.ReportAllocs()
 	b.ResetTimer()

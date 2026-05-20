@@ -530,15 +530,17 @@ func (s *SpotlightService) Search(ctx context.Context, req SearchRequest) (Searc
 	aclStarted := time.Now()
 	filtered := s.filterAuthorized(ctx, req, hits)
 	telemetry.ACLTook = time.Since(aclStarted)
-	// Trim back to the caller-requested topK after the post-filter has had
-	// a chance to consume the fan-out surplus.
-	if originalTopK > 0 && len(filtered) > originalTopK {
-		filtered = filtered[:originalTopK]
-	}
 	telemetry.AuthorizedHits = len(filtered)
+	// Rank the full post-ACL set before trimming. Trimming first would
+	// drop candidates whose Ranker boosts (recency, exact-term match,
+	// etc.) would have promoted them into the final topK and defeats the
+	// point of the ACL fan-out (#777 review).
 	rankStarted := time.Now()
 	ranked := s.ranker.Rank(ctx, req, filtered)
 	telemetry.RankTook = time.Since(rankStarted)
+	if originalTopK > 0 && len(ranked) > originalTopK {
+		ranked = ranked[:originalTopK]
+	}
 	groupStarted := time.Now()
 	resp := s.grouper.Group(ctx, req, ranked)
 	telemetry.GroupTook = time.Since(groupStarted)

@@ -303,14 +303,14 @@ func TestValidateAccessFilterEnforcesHardCap(t *testing.T) {
 	require.ErrorIs(t, validateAccessFilter(nil, huge), errAccessFilterTooLong)
 }
 
-type stringErr string
+type stringError string
 
-func (e stringErr) Error() string { return string(e) }
+func (e stringError) Error() string { return string(e) }
 
 func TestIsMeiliPayloadTooLargeMatchesTypedAndStringErrors(t *testing.T) {
 	require.True(t, isMeiliPayloadTooLarge(&meilisearch.Error{StatusCode: http.StatusRequestEntityTooLarge}))
-	require.True(t, isMeiliPayloadTooLarge(stringErr("payload_too_large")))
-	require.True(t, isMeiliPayloadTooLarge(stringErr("Payload Too Large")))
+	require.True(t, isMeiliPayloadTooLarge(stringError("payload_too_large")))
+	require.True(t, isMeiliPayloadTooLarge(stringError("Payload Too Large")))
 	require.False(t, isMeiliPayloadTooLarge(nil))
 	require.False(t, isMeiliPayloadTooLarge(&meilisearch.Error{StatusCode: http.StatusBadRequest}))
 }

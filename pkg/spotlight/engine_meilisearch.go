@@ -842,19 +842,18 @@ func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	return nil
 }
 
-// drainTaskCtx returns a context with at least drainWaitDeadline of
-// headroom while still honoring any tighter deadline the caller already
-// set.
+// drainTaskCtx returns a context that drains pending Meili tasks. If the
+// parent already has *any* deadline, we propagate it as-is — the caller
+// owns the deadline and we must not tighten it (a long-running reindex
+// is the canonical case). Only when the parent has no deadline at all do
+// we apply drainWaitDeadline as a floor so background callers don't hang
+// indefinitely if Meili wedges.
 func drainTaskCtx(parent context.Context) (context.Context, context.CancelFunc) {
 	if parent == nil {
 		parent = context.Background()
 	}
-	if existing, ok := parent.Deadline(); ok {
-		// Caller already set a deadline; if it's tighter than the
-		// drain budget, respect it. Otherwise extend.
-		if time.Until(existing) <= drainWaitDeadline {
-			return context.WithCancel(parent)
-		}
+	if _, ok := parent.Deadline(); ok {
+		return context.WithCancel(parent)
 	}
 	return context.WithTimeout(parent, drainWaitDeadline)
 }
@@ -935,12 +934,18 @@ func (e *MeilisearchEngine) Search(ctx context.Context, req SearchRequest) ([]Se
 		topK = engineMaxTopK
 	}
 
-	baseFilter := buildSearchFilter(req)
-	e.metricsSink().OnAccessFilterSize(len(baseFilter))
-	if err := validateAccessFilter(e.logger, baseFilter); err != nil {
+	// Track the ACL clause separately from the full Meili filter: the size
+	// budget enforced by validateAccessFilter targets ACL-driven blow-up
+	// (large role/permission unions), and the metric is named
+	// spotlight_access_filter_bytes — recording the full filter (tenant +
+	// visibility + ACL) here would conflate unrelated growth.
+	accessClause := buildAccessFilter(req)
+	e.metricsSink().OnAccessFilterSize(len(accessClause))
+	if err := validateAccessFilter(e.logger, accessClause); err != nil {
 		e.metricsSink().OnEngineError("", EngineErrorFilterTooLong)
 		return nil, serrors.E(op, err)
 	}
+	baseFilter := buildSearchFilter(req)
 
 	if req.Mode == QueryModeLookup && len(req.ExactTerms) > 0 {
 		exactFilter := buildExactTermsFilter(req.ExactTerms)

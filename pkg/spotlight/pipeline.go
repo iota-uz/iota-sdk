@@ -30,7 +30,7 @@ type IndexerPipeline struct {
 const pipelineUpsertBatchSize = 5000
 
 // SyncProviderError records the outcome of a single provider sync. Used
-// inside SyncReport to expose per-provider granularity to operators.
+// inside SyncReportError to expose per-provider granularity to operators.
 type SyncProviderError struct {
 	ProviderID string
 	Err        error
@@ -45,16 +45,16 @@ func (e SyncProviderError) Error() string {
 
 func (e SyncProviderError) Unwrap() error { return e.Err }
 
-// SyncReport summarizes the result of a Sync call. It is returned as the
+// SyncReportError summarizes the result of a Sync call. It is returned as the
 // error chain when at least one provider failed, so callers can branch
 // with errors.As(err, &report) to inspect details. Issue #2810 §3.4.
-type SyncReport struct {
+type SyncReportError struct {
 	TotalProviders int
 	Succeeded      []string
 	Failed         []SyncProviderError
 }
 
-func (r *SyncReport) Error() string {
+func (r *SyncReportError) Error() string {
 	if r == nil || len(r.Failed) == 0 {
 		return ""
 	}
@@ -67,7 +67,7 @@ func (r *SyncReport) Error() string {
 }
 
 // HasFailures reports whether the run had any failed providers. Nil-safe.
-func (r *SyncReport) HasFailures() bool {
+func (r *SyncReportError) HasFailures() bool {
 	return r != nil && len(r.Failed) > 0
 }
 
@@ -85,7 +85,7 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 	providers := p.registry.All()
 	syncStart := time.Now()
 	totalDocs := 0
-	report := &SyncReport{TotalProviders: 0}
+	report := &SyncReportError{TotalProviders: 0}
 
 	for _, provider := range providers {
 		if provider.ProviderID() == "core.quick_links" {

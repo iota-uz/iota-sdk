@@ -198,6 +198,16 @@ func (b *EngineBreaker) ResetManually() {
 	}
 	fresh := gobreaker.NewCircuitBreaker[any](b.settings)
 	b.mu.Lock()
+	prev := b.cb.State()
 	b.cb = fresh
+	onStateChange := b.settings.OnStateChange
+	name := b.settings.Name
 	b.mu.Unlock()
+	// gobreaker only emits OnStateChange on transitions inside the
+	// breaker; NewCircuitBreaker does not synthesize a Closed event. If
+	// we were previously open or half-open, fire the transition ourselves
+	// so metrics and admin UIs that track state stay accurate.
+	if onStateChange != nil && prev != gobreaker.StateClosed {
+		onStateChange(name, prev, gobreaker.StateClosed)
+	}
 }
