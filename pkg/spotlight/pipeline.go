@@ -29,11 +29,6 @@ type IndexerPipeline struct {
 // provider does not override it via ProviderCapabilities.BatchSize.
 const pipelineUpsertBatchSize = 5000
 
-// errProviderDocumentCap is returned by docBuffer.add when a provider has
-// emitted more documents than its declared DocumentCap. The pipeline
-// surfaces this as a per-provider stop, not a fatal sync failure.
-var errProviderDocumentCap = errors.New("provider document cap reached")
-
 // SyncProviderError records the outcome of a single provider sync. Used
 // inside SyncReport to expose per-provider granularity to operators.
 type SyncProviderError struct {
@@ -57,7 +52,6 @@ type SyncReport struct {
 	TotalProviders int
 	Succeeded      []string
 	Failed         []SyncProviderError
-	Capped         []string
 }
 
 func (r *SyncReport) Error() string {
@@ -110,11 +104,10 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		}
 		stats := &batchStats{}
 		buf := &docBuffer{
-			pipeline:    p,
-			ctx:         ctx,
-			stats:       stats,
-			batchSize:   batchSize,
-			documentCap: caps.DocumentCap,
+			pipeline:  p,
+			ctx:       ctx,
+			stats:     stats,
+			batchSize: batchSize,
 		}
 		providerStart := time.Now()
 
@@ -127,11 +120,6 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		providerErr := provider.StreamDocuments(ctx, providerScope, func(docs []SearchDocument) error {
 			return buf.add(provider.ProviderID(), tenantID, docs)
 		})
-		// Document cap is a controlled stop, not a failure.
-		capped := errors.Is(providerErr, errProviderDocumentCap)
-		if capped {
-			providerErr = nil
-		}
 		// Flush remaining buffered docs
 		if providerErr == nil {
 			providerErr = buf.flush()
@@ -163,16 +151,6 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 		}
 
 		report.Succeeded = append(report.Succeeded, provider.ProviderID())
-		if capped {
-			report.Capped = append(report.Capped, provider.ProviderID())
-			if p.logger != nil {
-				p.logger.WithFields(logrus.Fields{
-					"provider_id":  provider.ProviderID(),
-					"document_cap": caps.DocumentCap,
-					"docs":         stats.docCount,
-				}).Warn("Spotlight provider hit DocumentCap; results may be truncated")
-			}
-		}
 
 		if p.logger != nil {
 			p.logger.WithFields(logrus.Fields{
@@ -207,7 +185,6 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 			"wait_ms":        time.Since(waitStart).Milliseconds(),
 			"provider_count": len(providers),
 			"failed":         len(report.Failed),
-			"capped":         len(report.Capped),
 		}).Info("Spotlight sync completed")
 	}
 
@@ -220,28 +197,17 @@ func (p *IndexerPipeline) Sync(ctx context.Context, tenantID uuid.UUID, language
 // docBuffer accumulates documents from provider emit calls and flushes
 // them to the engine in larger batches for efficiency. batchSize is the
 // per-provider count ceiling (default pipelineUpsertBatchSize, override
-// via ProviderCapabilities.BatchSize). documentCap, when positive, halts
-// the provider once it emits that many docs.
+// via ProviderCapabilities.BatchSize).
 type docBuffer struct {
-	pipeline    *IndexerPipeline
-	ctx         context.Context
-	stats       *batchStats
-	pending     []SearchDocument
-	batchSize   int
-	documentCap int
+	pipeline  *IndexerPipeline
+	ctx       context.Context
+	stats     *batchStats
+	pending   []SearchDocument
+	batchSize int
 }
 
 func (b *docBuffer) add(providerID string, tenantID uuid.UUID, docs []SearchDocument) error {
 	const op serrors.Op = "spotlight.IndexerPipeline.docBuffer.add"
-	if b.documentCap > 0 && b.stats.docCount >= b.documentCap {
-		return errProviderDocumentCap
-	}
-	if b.documentCap > 0 {
-		remaining := b.documentCap - b.stats.docCount
-		if remaining < len(docs) {
-			docs = docs[:remaining]
-		}
-	}
 	now := time.Now().UTC()
 	for i := range docs {
 		if docs[i].TenantID != uuid.Nil && docs[i].TenantID != tenantID {
@@ -269,9 +235,6 @@ func (b *docBuffer) add(providerID string, tenantID uuid.UUID, docs []SearchDocu
 		if err := b.upsert(flushBatch, providerID); err != nil {
 			return err
 		}
-	}
-	if b.documentCap > 0 && b.stats.docCount >= b.documentCap {
-		return errProviderDocumentCap
 	}
 	return nil
 }

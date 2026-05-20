@@ -24,12 +24,6 @@ type ProviderCapabilities struct {
 	// with highly variable document sizes should set this rather than
 	// (or in addition to) BatchSize.
 	MaxBytes int
-	// DocumentCap, when positive, is a hard upper bound on the number of
-	// documents this provider may emit during a single sync. The pipeline
-	// stops accepting new documents once this cap is reached and logs a
-	// warning so operators can see truncation has occurred. Zero means
-	// unlimited.
-	DocumentCap int
 }
 
 const ProviderStreamBatchSize = 500

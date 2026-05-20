@@ -94,13 +94,31 @@ func (e *MeilisearchEngine) metricsSink() Metrics {
 
 var noopMetricsSingleton Metrics = NewNoopMetrics()
 
-// defaultWaitForTaskDeadline is the wall-clock deadline applied when the
-// caller's ctx has no deadline of its own. The previous hard-coded
-// 100ms / 250ms WaitForTask calls were a *poll interval*, not a real
-// deadline — under load they accumulated minutes of blocking (the
-// `143a82543` incident showed a 24-second GraphQL request held entirely
-// by Meili waits at 296% CPU).
-const defaultWaitForTaskDeadline = 10 * time.Second
+// defaultWaitForTaskDeadline is the wall-clock deadline applied to
+// single-task waits when the caller's ctx has no deadline of its own.
+// The previous hard-coded 100ms / 250ms WaitForTask calls were a
+// *poll interval*, not a real deadline — under load they accumulated
+// minutes of blocking (the `143a82543` incident showed a 24-second
+// GraphQL request held entirely by Meili waits at 296% CPU).
+//
+// 60s is the floor: even fresh-index configureIndex tasks can take
+// 15-30s on a cold Meili, and a single 80 MiB upsert task can take
+// 20-40s under CPU pressure. The previous 10s value was just "much
+// more than 250ms" — empirically too tight once batches grew past a
+// few MB. Inline single-doc writes still return in well under 1s, so
+// this only changes behavior on the slow path.
+const defaultWaitForTaskDeadline = 60 * time.Second
+
+// drainWaitDeadline is the per-task wall-clock deadline used during
+// WaitPending — the final bulk-drain step after a full reindex. The
+// drain may have dozens of large pending tasks queued; we give each
+// one a generous budget so a slow Meili doesn't surface as a noisy
+// task failure in the periodic reindex log.
+//
+// 5 minutes accounts for cold-start Meili re-indexing a fresh tenant
+// with 2M+ docs on a single shared CPU. The drain returns as soon as
+// each task is done; the deadline only fires if something is wedged.
+const drainWaitDeadline = 5 * time.Minute
 
 // waitTaskPollInterval is the poll interval the meilisearch client uses
 // while waiting for a task to reach a terminal state.
@@ -799,7 +817,12 @@ func buildMeiliRecords(docs []SearchDocument) []map[string]interface{} {
 	return records
 }
 
-// WaitPending blocks until all async upsert tasks have completed in Meilisearch.
+// WaitPending blocks until all async upsert tasks have completed in
+// Meilisearch. Each pending task gets `drainWaitDeadline` of headroom
+// (not the inline 10s) because Meili can take 20-40s to digest a single
+// 80 MiB batch under CPU pressure. If the caller's ctx is already
+// deadlined, that deadline is honored — drainWaitDeadline only sets
+// the floor.
 func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	const op serrors.Op = "spotlight.MeilisearchEngine.WaitPending"
 
@@ -809,11 +832,31 @@ func (e *MeilisearchEngine) WaitPending(ctx context.Context) error {
 	e.pendingMu.Unlock()
 
 	for _, uid := range uids {
-		if _, err := e.waitTaskCtx(ctx, uid); err != nil {
+		taskCtx, cancel := drainTaskCtx(ctx)
+		_, err := e.client.WaitForTaskWithContext(taskCtx, uid, waitTaskPollInterval)
+		cancel()
+		if err != nil {
 			return serrors.E(op, err)
 		}
 	}
 	return nil
+}
+
+// drainTaskCtx returns a context with at least drainWaitDeadline of
+// headroom while still honoring any tighter deadline the caller already
+// set.
+func drainTaskCtx(parent context.Context) (context.Context, context.CancelFunc) {
+	if parent == nil {
+		parent = context.Background()
+	}
+	if existing, ok := parent.Deadline(); ok {
+		// Caller already set a deadline; if it's tighter than the
+		// drain budget, respect it. Otherwise extend.
+		if time.Until(existing) <= drainWaitDeadline {
+			return context.WithCancel(parent)
+		}
+	}
+	return context.WithTimeout(parent, drainWaitDeadline)
 }
 
 // Delete removes documents from Meilisearch by their references.
