@@ -134,6 +134,10 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "bichat"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 // bichatBundle is the lazily-built BiChat runtime graph. Held as a single
 // provider so buildModuleConfig is invoked at most once per container.
 type bichatBundle struct {
@@ -164,7 +168,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	// other modules) and skips everything else, so the component compiles
 	// to a no-op with no dead links in navigation or Spotlight.
 	openAIKey := strings.TrimSpace(os.Getenv(openAIAPIKeyEnv))
-	composition.AddLocales(builder, &LocaleFiles)
 	if openAIKey == "" {
 		if logger := buildCtx.Logger(); logger != nil {
 			logger.Info("OPENAI_API_KEY not set - BiChat module disabled")

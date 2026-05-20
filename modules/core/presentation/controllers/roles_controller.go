@@ -86,6 +86,11 @@ func (c *RolesController) List(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
+
 	params := composables.UsePaginated(r)
 	search := r.URL.Query().Get("name")
 
@@ -138,6 +143,11 @@ func (c *RolesController) GetEdit(
 	logger *logrus.Entry,
 	roleService *services.RoleService,
 ) {
+	if err := composables.CanUser(r.Context(), permissions.RoleRead); err != nil {
+		RenderForbidden(w, r)
+		return
+	}
+
 	id, err := shared.ParseID(r)
 	if err != nil {
 		logger.Errorf("Error parsing role ID: %v", err)

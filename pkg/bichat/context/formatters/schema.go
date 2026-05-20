@@ -123,6 +123,58 @@ func (f *SchemaDescribeFormatter) Format(payload any, opts types.FormatOptions) 
 	return b.String(), nil
 }
 
+// SchemaDescribeBatchFormatter formats batched schema describe results as
+// markdown sections separated by horizontal rules. Each entry renders as a
+// `## name` header followed by either the per-column markdown table (reusing
+// the same column rendering as SchemaDescribeFormatter) or `error: ...` when
+// that single table failed to describe.
+type SchemaDescribeBatchFormatter struct {
+	inner *SchemaDescribeFormatter
+}
+
+// NewSchemaDescribeBatchFormatter creates a new batch schema describe formatter.
+func NewSchemaDescribeBatchFormatter() *SchemaDescribeBatchFormatter {
+	return &SchemaDescribeBatchFormatter{inner: NewSchemaDescribeFormatter()}
+}
+
+// Format renders a SchemaDescribeBatchPayload as markdown sections.
+func (f *SchemaDescribeBatchFormatter) Format(payload any, opts types.FormatOptions) (string, error) {
+	p, ok := payload.(types.SchemaDescribeBatchPayload)
+	if !ok {
+		return "", fmt.Errorf("SchemaDescribeBatchFormatter: expected SchemaDescribeBatchPayload, got %T", payload)
+	}
+
+	var b strings.Builder
+	for i, entry := range p.Tables {
+		if i > 0 {
+			b.WriteString("\n\n---\n\n")
+		}
+		header := entry.Requested
+		if header == "" {
+			if entry.Schema != "" {
+				header = entry.Schema + "." + entry.Name
+			} else {
+				header = entry.Name
+			}
+		}
+		fmt.Fprintf(&b, "## %s\n", header)
+		if entry.Error != "" {
+			fmt.Fprintf(&b, "error: %s\n", entry.Error)
+			continue
+		}
+		inner, err := f.inner.Format(types.SchemaDescribePayload{
+			Name:    entry.Name,
+			Schema:  entry.Schema,
+			Columns: entry.Columns,
+		}, opts)
+		if err != nil {
+			return "", err
+		}
+		b.WriteString(inner)
+	}
+	return b.String(), nil
+}
+
 // abbreviateCount formats a row count as a human-friendly estimate.
 //
 //	0 → "-", 54 → "~50", 1234 → "~1.2K", 54000 → "~54K", 1243230 → "~1.2M"

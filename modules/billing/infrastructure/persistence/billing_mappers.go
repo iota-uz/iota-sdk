@@ -205,6 +205,17 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 		cashDetails := details.NewCashDetails(details.CashWithData(d.Data))
 		return cashDetails, nil
 
+	case billing.Transfer:
+		var d models.TransferDetails
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, err
+		}
+		transferDetails := details.NewTransferDetails(
+			details.TransferWithData(d.Data),
+			details.TransferWithComment(d.Comment),
+		)
+		return transferDetails, nil
+
 	case billing.Integrator:
 		var d models.IntegratorDetails
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -324,6 +335,12 @@ func ToDBDetails(data details.Details) (json.RawMessage, error) {
 	case details.CashDetails:
 		return json.Marshal(&models.CashDetails{
 			Data: d.Data(),
+		})
+
+	case details.TransferDetails:
+		return json.Marshal(&models.TransferDetails{
+			Data:    d.Data(),
+			Comment: d.Comment(),
 		})
 
 	case details.IntegratorDetails:

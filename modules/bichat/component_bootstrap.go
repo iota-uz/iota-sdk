@@ -8,13 +8,12 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
-	langfusego "github.com/henomis/langfuse-go"
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
 	llmproviders "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/llmproviders"
 	bichatpersistence "github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
-	langfuseprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/langfuse"
+	otelprovider "github.com/iota-uz/iota-sdk/pkg/bichat/observability/otel"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/schema"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -25,11 +24,8 @@ import (
 )
 
 const (
-	openAIAPIKeyEnv      = "OPENAI_API_KEY"
-	langfusePublicKeyEnv = "LANGFUSE_PUBLIC_KEY"
-	langfuseSecretKeyEnv = "LANGFUSE_SECRET_KEY"
-	langfuseBaseURLEnv   = "LANGFUSE_BASE_URL"
-	langfuseEnvironment  = "development"
+	openAIAPIKeyEnv         = "OPENAI_API_KEY"
+	otelExporterEndpointEnv = "OTEL_EXPORTER_OTLP_ENDPOINT"
 )
 
 // loadModule builds the BiChat runtime graph (module config, service
@@ -173,23 +169,30 @@ func buildModuleConfig(
 		return nil, nil, nil
 	}
 
+	// Observability: emit OTel GenAI semconv spans when an OTLP endpoint is
+	// configured. We build a SCOPED TracerProvider (not installed as the
+	// global) so bichat's pipeline doesn't pick up unrelated spans from
+	// otelhttp middleware, sql instrumentation, etc. The endpoint value is
+	// not logged — OTLP URLs can embed Basic-auth credentials.
 	var providers []observability.Provider
-	if publicKey := strings.TrimSpace(os.Getenv(langfusePublicKeyEnv)); publicKey != "" {
-		lfClient := langfusego.New(context.Background())
-		lfProvider, lfErr := langfuseprovider.NewLangfuseProvider(lfClient, langfuseprovider.Config{
-			Enabled:     true,
-			PublicKey:   publicKey,
-			SecretKey:   os.Getenv(langfuseSecretKeyEnv),
-			Host:        os.Getenv(langfuseBaseURLEnv),
-			Environment: langfuseEnvironment,
+	if endpoint := strings.TrimSpace(os.Getenv(otelExporterEndpointEnv)); endpoint != "" {
+		otelCfg := otelprovider.Config{
+			Endpoint:    endpoint,
+			Headers:     otelprovider.LangfuseAuthHeaders(),
 			SampleRate:  1.0,
-		})
-		if lfErr != nil {
-			appConfig.Logger().Warnf("Failed to create LangFuse provider: %v", lfErr)
-		} else {
-			providers = append(providers, lfProvider)
-			moduleOpts = append(moduleOpts, WithObservability(lfProvider))
-			appConfig.Logger().Info("LangFuse observability enabled")
+			Enabled:     true,
+			Environment: appConfig.GoAppEnvironment,
+		}
+		tp, _, otelErr := otelprovider.InitTracerProvider(context.Background(), otelCfg)
+		if otelErr != nil {
+			appConfig.Logger().WithError(otelErr).Warnf(
+				"failed to init scoped OTel TracerProvider; bichat spans will be dropped",
+			)
+		} else if tp != nil {
+			otelProv := otelprovider.NewProvider(otelCfg, otelprovider.WithTracer(tp.Tracer("bichat")))
+			providers = append(providers, otelProv)
+			moduleOpts = append(moduleOpts, WithObservability(otelProv))
+			appConfig.Logger().Info("OTel observability enabled (bichat → OTLP, scoped tracer)")
 		}
 	}
 

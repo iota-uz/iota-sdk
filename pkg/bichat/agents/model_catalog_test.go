@@ -8,14 +8,14 @@ import (
 )
 
 func TestLookupModelSpec_OpenAI(t *testing.T) {
-	spec, ok := LookupModelSpec(ProviderOpenAI, "gpt-5.4")
+	spec, ok := LookupModelSpec(ProviderOpenAI, "gpt-5.5")
 	require.True(t, ok)
-	assert.Equal(t, "gpt-5.4", spec.Name)
+	assert.Equal(t, "gpt-5.5", spec.Name)
 	assert.Equal(t, ProviderOpenAI, spec.Provider)
 	assert.Equal(t, 1_050_000, spec.ContextWindow)
 	assert.NotEmpty(t, spec.Pricing.Currency)
 
-	// Versioned alias resolves to same canonical spec
+	// DefaultOpenAIModelSnapshot resolves to the same canonical spec.
 	spec2, ok2 := LookupModelSpec(ProviderOpenAI, DefaultOpenAIModelSnapshot)
 	require.True(t, ok2)
 	assert.Equal(t, spec.Name, spec2.Name)
@@ -36,7 +36,7 @@ func TestDefaultModelForProvider_OpenAI(t *testing.T) {
 func TestDefaultModelSpecForProvider_OpenAI(t *testing.T) {
 	spec, ok := DefaultModelSpecForProvider(ProviderOpenAI)
 	require.True(t, ok)
-	assert.Equal(t, "gpt-5.4", spec.Name)
+	assert.Equal(t, "gpt-5.5", spec.Name)
 	assert.Equal(t, ProviderOpenAI, spec.Provider)
 
 	_, ok2 := DefaultModelSpecForProvider("unknown-provider")

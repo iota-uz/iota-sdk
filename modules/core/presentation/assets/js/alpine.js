@@ -324,33 +324,45 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     }
     select?.dispatchEvent(new Event("change"));
   },
+  syncSelectedAttrs() {
+    this.selectedValues.clear();
+    for (let i = 0; i < this.allOptions.length; i++) {
+      let option = this.allOptions[i];
+      if (option.hasAttribute("selected")) {
+        this.activeIndex = i;
+        this.activeValue = option.value;
+        if (!this.multiple && this.selectedValues.size > 0) break;
+        this.selectedValues.set(option.value, {
+          label: option.textContent,
+          value: option.value,
+        });
+      }
+    }
+  },
   select: {
     ["x-init"]() {
       this.options = Array.from(this.$el.querySelectorAll("option"));
       this.allOptions = [...this.options];
       this.multiple = this.$el.multiple;
-      for (let i = 0, len = this.options.length; i < len; i++) {
-        let option = this.options[i];
-        if (option.hasAttribute('selected')) {
-          this.activeIndex = i;
-          this.activeValue = option.value;
-          if (this.selectedValues.size > 0 && !this.multiple) continue;
-          this.selectedValues.set(option.value, {
-            label: option.textContent,
-            value: option.value,
-          })
+      this.$nextTick(() => this.syncSelectedAttrs());
+      this.observer = new MutationObserver((mutations) => {
+        if (mutations.some(m => m.type === "childList")) {
+          this.options = Array.from(this.$el.querySelectorAll("option"));
+          this.allOptions = [...this.options];
+          if (this.$refs.input) {
+            this.setActiveIndex(this.$refs.input.value);
+            this.setActiveValue(this.$refs.input.value);
+          }
         }
-      }
-      this.observer = new MutationObserver(() => {
-        this.options = Array.from(this.$el.querySelectorAll("option"));
-        this.allOptions = [...this.options];
-        if (this.$refs.input) {
-          this.setActiveIndex(this.$refs.input.value);
-          this.setActiveValue(this.$refs.input.value);
+        if (mutations.some(m => m.type === "attributes")) {
+          this.syncSelectedAttrs();
         }
       });
       this.observer.observe(this.$el, {
-        childList: true
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["selected"],
       });
     },
   },

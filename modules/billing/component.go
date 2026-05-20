@@ -54,9 +54,11 @@ func (c *component) Descriptor() composition.Descriptor {
 	}
 }
 
-func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
 
+func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFuncAs[billingdom.Repository](builder, persistence.NewBillingRepository)
 	composition.ProvideFunc(builder, newBillingService)
 

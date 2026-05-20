@@ -303,7 +303,7 @@ description: SQL specialist
 model: gpt-from-file
 tools:
   - schema_list
-  - schema_describe
+  - schema_describe_batch
   - sql_execute
 ---
 SQL prompt`)},
@@ -395,7 +395,7 @@ description: SQL specialist
 model: gpt-from-file
 tools:
   - schema_list
-  - schema_describe
+  - schema_describe_batch
   - sql_execute
 ---
 SQL prompt`)},

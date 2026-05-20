@@ -96,6 +96,14 @@ func (e *Engine) Compile(ctx BuildContext, capabilities ...Capability) (*Contain
 		if err := component.component.Build(builder); err != nil {
 			return nil, fmt.Errorf("build component %q: %w", component.descriptor.Name, err)
 		}
+		if fss := component.component.LocaleFS(); len(fss) > 0 {
+			captured := append([]*embed.FS(nil), fss...)
+			builder.localeFactories = append(builder.localeFactories, namedFactory[[]*embed.FS]{
+				component: builder.descriptor.Name,
+				label:     "auto-locales",
+				factory:   func(*Container) ([]*embed.FS, error) { return captured, nil },
+			})
+		}
 		builders = append(builders, builder)
 	}
 

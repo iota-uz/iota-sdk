@@ -82,6 +82,7 @@ func UploadToViewModel(entity upload.Upload) *viewmodels.Upload {
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Hash:      entity.Hash(),
 		Slug:      entity.Slug(),
+		Name:      entity.Name(),
 		URL:       entity.PreviewURL(),
 		Mimetype:  "",
 		Size:      entity.Size().String(),

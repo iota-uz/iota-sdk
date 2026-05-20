@@ -92,6 +92,18 @@ func WithUser(u user.User) Option {
 	}
 }
 
+// WithCapabilities sets the composition capabilities used when compiling the
+// test container. When unset (the default) the harness compiles with the
+// historical [CapabilityAPI, CapabilityWorker] pair. Pass a narrower subset
+// to verify capability gating — for example, compile with CapabilityAPI only
+// to assert that worker-only contributions (NATS consumers, periodic tasks,
+// file-locked indices, etc.) stay inactive in API/CLI contexts.
+func WithCapabilities(caps ...composition.Capability) Option {
+	return func(tc *TestContext) {
+		tc.capabilities = append(tc.capabilities[:0], caps...)
+	}
+}
+
 // applyOptions applies all options to the test context
 func (tc *TestContext) applyOptions(opts ...Option) *TestContext {
 	for _, opt := range opts {

@@ -188,9 +188,10 @@ func Button(value string) templ.Component {
 		})
 		templ_7745c5c3_Err = button.Ghost(button.Props{
 			Attrs: templ.Attributes{
-				"type":   "button",
-				":class": fmt.Sprintf("selectedTab === '%s' ? 'after:bg-brand-500' : ''", value),
-				"@click": fmt.Sprintf("selectedTab = '%s'", value),
+				"type":           "button",
+				"data-tab-value": value,
+				":class":         fmt.Sprintf("selectedTab === '%s' ? 'after:bg-brand-500' : ''", value),
+				"@click":         fmt.Sprintf("selectedTab = '%s'", value),
 			},
 			Class: linkClass,
 		}).Render(templ.WithChildren(ctx, templ_7745c5c3_Var9), templ_7745c5c3_Buffer)
@@ -229,7 +230,7 @@ func Content(value string) templ.Component {
 		var templ_7745c5c3_Var11 string
 		templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("selectedTab === '%s'", value))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/tab/tab.templ`, Line: 49, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/tab/tab.templ`, Line: 50, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 		if templ_7745c5c3_Err != nil {

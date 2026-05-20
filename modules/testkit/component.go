@@ -2,6 +2,8 @@
 package testkit
 
 import (
+	"embed"
+
 	"github.com/iota-uz/iota-sdk/modules/testkit/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/configuration"
@@ -18,6 +20,10 @@ func (c *component) Descriptor() composition.Descriptor {
 		Name:     "testkit",
 		Requires: []string{"core"},
 	}
+}
+
+func (c *component) LocaleFS() []*embed.FS {
+	return nil
 }
 
 func (c *component) Build(builder *composition.Builder) error {
