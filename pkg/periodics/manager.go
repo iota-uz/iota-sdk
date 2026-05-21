@@ -199,8 +199,15 @@ func (m *manager) buildWrappedExecutor(task PeriodicTask) func() {
 
 	// Create the job that will execute the task
 	job := cron.FuncJob(func() {
-		// No context.WithTimeout here — TimeoutWrapper already handles it
-		ctx := context.Background()
+		// TimeoutWrapper cancels the host goroutine after config.Timeout but
+		// cannot share a context through cron's Job.Run() interface. Apply
+		// the same budget directly to the ctx handed to Execute so DB calls,
+		// HTTP requests, and bounded waits inside the task observe the
+		// deadline. Without this, long-running drains (e.g. Spotlight's
+		// WaitPending) fall back to internal per-call defaults and trip
+		// long before the configured Timeout.
+		ctx, cancel := context.WithTimeout(context.Background(), config.Timeout)
+		defer cancel()
 
 		// Add database pool, tenant ID, and logger to context for task execution
 		ctx = composables.WithPool(ctx, m.pool)
