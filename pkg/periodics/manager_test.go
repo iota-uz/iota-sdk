@@ -18,9 +18,9 @@ type ctxCapturingTask struct {
 	completed chan struct{}
 }
 
-func (t *ctxCapturingTask) Name() string                   { return t.name }
-func (t *ctxCapturingTask) Schedule() string               { return "@every 1h" }
-func (t *ctxCapturingTask) RunOnStart() bool               { return false }
+func (t *ctxCapturingTask) Name() string     { return t.name }
+func (t *ctxCapturingTask) Schedule() string { return "@every 1h" }
+func (t *ctxCapturingTask) RunOnStart() bool { return false }
 func (t *ctxCapturingTask) Config() TaskConfig {
 	return TaskConfig{
 		Timeout:             t.timeout,
