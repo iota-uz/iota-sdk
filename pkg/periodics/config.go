@@ -22,8 +22,12 @@ type BaseTaskConfig struct {
 	// RetryDelay is the initial delay between retries (will be exponentially increased)
 	RetryDelay time.Duration `env:"RETRY_DELAY" envDefault:"1s"`
 
-	// Timeout is the maximum time the task can run before being cancelled
-	Timeout time.Duration `env:"TIMEOUT" envDefault:"5m"`
+	// Timeout is the maximum time the task can run before being cancelled.
+	// No envDefault: caarlos0/env applies envDefault unconditionally when the
+	// env var is unset, which silently overwrites a value pre-populated by the
+	// caller's NewDefaultConfig(). mergeWithDefaults() falls back to the
+	// DefaultTaskConfig().Timeout (5m) at task registration if this stays zero.
+	Timeout time.Duration `env:"TIMEOUT"`
 
 	// EnableSkipIfRunning skips execution if previous instance is still running
 	EnableSkipIfRunning bool `env:"ENABLE_SKIP_IF_RUNNING" envDefault:"true"`
