@@ -12,10 +12,12 @@ import (
 )
 
 type ctxCapturingTask struct {
-	name      string
-	timeout   time.Duration
-	gotCtx    context.Context
-	completed chan struct{}
+	name        string
+	timeout     time.Duration
+	gotDeadline time.Time
+	gotHasDL    bool
+	executedAt  time.Time
+	completed   chan struct{}
 }
 
 func (t *ctxCapturingTask) Name() string     { return t.name }
@@ -30,7 +32,11 @@ func (t *ctxCapturingTask) Config() TaskConfig {
 }
 
 func (t *ctxCapturingTask) Execute(ctx context.Context) error {
-	t.gotCtx = ctx
+	// Capture deadline state inside Execute so the delta we measure is
+	// "deadline - executedAt", not "deadline - assertion time". The latter
+	// drifts under GC / scheduler stalls and would flake on a busy CI.
+	t.executedAt = time.Now()
+	t.gotDeadline, t.gotHasDL = ctx.Deadline()
 	close(t.completed)
 	return nil
 }
@@ -63,11 +69,12 @@ func TestBuildWrappedExecutor_PropagatesTimeoutDeadline(t *testing.T) {
 		t.Fatal("task did not execute")
 	}
 
-	require.NotNil(t, task.gotCtx, "Execute must receive a non-nil ctx")
-	deadline, ok := task.gotCtx.Deadline()
-	require.True(t, ok, "Execute ctx must carry the configured timeout as a deadline")
+	require.True(t, task.gotHasDL, "Execute ctx must carry the configured timeout as a deadline")
+	require.False(t, task.executedAt.IsZero(), "expected executedAt to be set inside Execute")
 
-	remaining := time.Until(deadline)
-	assert.InDelta(t, timeout.Seconds(), remaining.Seconds(), 5,
-		"ctx deadline should be ~config.Timeout from now")
+	// Span between ctx creation in buildWrappedExecutor and Execute entry is
+	// microseconds in practice; 1s tolerance trivially absorbs scheduler jitter.
+	budget := task.gotDeadline.Sub(task.executedAt)
+	assert.InDelta(t, timeout.Seconds(), budget.Seconds(), 1,
+		"ctx deadline should be ~config.Timeout from the moment Execute runs")
 }
