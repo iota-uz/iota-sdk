@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/caarlos0/env/v11"
 	"github.com/google/uuid"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
@@ -77,4 +78,25 @@ func TestBuildWrappedExecutor_PropagatesTimeoutDeadline(t *testing.T) {
 	budget := task.gotDeadline.Sub(task.executedAt)
 	assert.InDelta(t, timeout.Seconds(), budget.Seconds(), 1,
 		"ctx deadline should be ~config.Timeout from the moment Execute runs")
+}
+
+type envTestConfig struct {
+	BaseTaskConfig `envPrefix:"PERIODIC_ENVTEST_"`
+}
+
+// TestBaseTaskConfig_TimeoutSurvivesEnvParse guards against a regression
+// where BaseTaskConfig.Timeout carried `envDefault:"5m"`. caarlos0/env applies
+// envDefault unconditionally when the env var is unset, which silently
+// overwrote consumer-set values like EAI's 30m Spotlight reindex timeout.
+func TestBaseTaskConfig_TimeoutSurvivesEnvParse(t *testing.T) {
+	t.Setenv("PERIODIC_ENVTEST_ENABLED", "true")
+
+	cfg := &envTestConfig{
+		BaseTaskConfig: BaseTaskConfig{
+			Timeout: 30 * time.Minute,
+		},
+	}
+	require.NoError(t, env.Parse(cfg))
+	assert.Equal(t, 30*time.Minute, cfg.Timeout,
+		"struct-set Timeout must survive env.Parse when no TIMEOUT env var is set")
 }
