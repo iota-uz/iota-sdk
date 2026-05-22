@@ -13,7 +13,8 @@ import "time"
 //	}
 type BaseTaskConfig struct {
 	// Schedule is the cron expression for when to run the task.
-	// No envDefault — each module sets its own default via NewDefaultConfig().
+	// No envDefault: callers may pre-populate task-specific defaults before
+	// env.Parse runs.
 	Schedule string `env:"SCHEDULE"`
 
 	// MaxRetries is the maximum number of retry attempts on failure
@@ -24,9 +25,9 @@ type BaseTaskConfig struct {
 
 	// Timeout is the maximum time the task can run before being cancelled.
 	// No envDefault: caarlos0/env applies envDefault unconditionally when the
-	// env var is unset, which silently overwrites a value pre-populated by the
-	// caller's NewDefaultConfig(). mergeWithDefaults() falls back to the
-	// DefaultTaskConfig().Timeout (5m) at task registration if this stays zero.
+	// env var is unset, which silently overwrites caller-provided default config
+	// values. mergeWithDefaults() falls back to DefaultTaskConfig().Timeout (5m)
+	// when building the scheduled task executor if this stays zero.
 	Timeout time.Duration `env:"TIMEOUT"`
 
 	// EnableSkipIfRunning skips execution if previous instance is still running
