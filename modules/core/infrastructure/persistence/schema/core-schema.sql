@@ -204,3 +204,39 @@ CREATE INDEX roles_tenant_id_idx ON roles (tenant_id);
 
 CREATE INDEX user_groups_tenant_id_idx ON user_groups (tenant_id);
 
+CREATE SCHEMA IF NOT EXISTS core;
+
+CREATE TABLE core.departments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    parent_id uuid NULL REFERENCES core.departments (id) ON DELETE SET NULL,
+    code varchar NOT NULL,
+    name jsonb NOT NULL,
+    "order" int NOT NULL DEFAULT 0,
+    status varchar NOT NULL DEFAULT 'active',
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now(),
+    UNIQUE (tenant_id, code)
+);
+
+CREATE INDEX departments_tenant_id_idx ON core.departments (tenant_id);
+
+CREATE INDEX departments_tenant_id_parent_id_idx ON core.departments (tenant_id, parent_id);
+
+CREATE TABLE core.user_positions (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
+    tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
+    user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    department_id uuid NOT NULL REFERENCES core.departments (id) ON DELETE CASCADE,
+    title jsonb NOT NULL,
+    is_manager boolean NOT NULL DEFAULT FALSE,
+    is_primary boolean NOT NULL DEFAULT FALSE,
+    status varchar NOT NULL DEFAULT 'active',
+    created_at timestamp with time zone DEFAULT now(),
+    updated_at timestamp with time zone DEFAULT now()
+);
+
+CREATE INDEX user_positions_tenant_id_user_id_idx ON core.user_positions (tenant_id, user_id);
+
+CREATE INDEX user_positions_tenant_id_department_id_idx ON core.user_positions (tenant_id, department_id);
+

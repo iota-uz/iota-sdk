@@ -196,6 +196,31 @@ type GroupRole struct {
 	CreatedAt time.Time
 }
 
+type Department struct {
+	ID        string
+	TenantID  string
+	ParentID  sql.NullString
+	Code      string
+	Name      []byte // MultiLang jsonb
+	Order     int
+	Status    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type UserPosition struct {
+	ID           string
+	TenantID     string
+	UserID       uint
+	DepartmentID string
+	Title        []byte // MultiLang jsonb
+	IsManager    bool
+	IsPrimary    bool
+	Status       string
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
 type Point struct {
 	X float64
 	Y float64

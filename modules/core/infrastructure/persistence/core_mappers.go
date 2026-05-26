@@ -10,9 +10,11 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/userposition"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/authlog"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/passport"
@@ -26,6 +28,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/tax"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
+	crudmodels "github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
 	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
@@ -566,4 +569,118 @@ func ToDBGroup(g group.Group) *models.Group {
 		CreatedAt:   g.CreatedAt(),
 		UpdatedAt:   g.UpdatedAt(),
 	}
+}
+
+func ToDomainDepartment(dbDepartment *models.Department) (department.Department, error) {
+	id, err := uuid.Parse(dbDepartment.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID, err := uuid.Parse(dbDepartment.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	name, err := crudmodels.MultiLangFromJSON(dbDepartment.Name)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse department name jsonb")
+	}
+
+	opts := []department.Option{
+		department.WithID(id),
+		department.WithTenantID(tenantID),
+		department.WithOrder(dbDepartment.Order),
+		department.WithStatus(department.Status(dbDepartment.Status)),
+		department.WithCreatedAt(dbDepartment.CreatedAt),
+		department.WithUpdatedAt(dbDepartment.UpdatedAt),
+	}
+
+	if dbDepartment.ParentID.Valid && dbDepartment.ParentID.String != "" {
+		parentID, err := uuid.Parse(dbDepartment.ParentID.String)
+		if err != nil {
+			return nil, err
+		}
+		opts = append(opts, department.WithParentID(&parentID))
+	}
+
+	return department.New(dbDepartment.Code, name, opts...), nil
+}
+
+func ToDBDepartment(d department.Department) (*models.Department, error) {
+	name, err := d.NameI18n().ToJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to serialize department name to jsonb")
+	}
+
+	var parentID sql.NullString
+	if d.ParentID() != nil {
+		parentID = mapping.ValueToSQLNullString(d.ParentID().String())
+	}
+
+	return &models.Department{
+		ID:        d.ID().String(),
+		TenantID:  d.TenantID().String(),
+		ParentID:  parentID,
+		Code:      d.Code(),
+		Name:      name,
+		Order:     d.Order(),
+		Status:    string(d.Status()),
+		CreatedAt: d.CreatedAt(),
+		UpdatedAt: d.UpdatedAt(),
+	}, nil
+}
+
+func ToDomainUserPosition(dbPosition *models.UserPosition) (userposition.UserPosition, error) {
+	id, err := uuid.Parse(dbPosition.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	tenantID, err := uuid.Parse(dbPosition.TenantID)
+	if err != nil {
+		return nil, err
+	}
+
+	departmentID, err := uuid.Parse(dbPosition.DepartmentID)
+	if err != nil {
+		return nil, err
+	}
+
+	title, err := crudmodels.MultiLangFromJSON(dbPosition.Title)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse user position title jsonb")
+	}
+
+	opts := []userposition.Option{
+		userposition.WithID(id),
+		userposition.WithTenantID(tenantID),
+		userposition.WithIsManager(dbPosition.IsManager),
+		userposition.WithIsPrimary(dbPosition.IsPrimary),
+		userposition.WithStatus(userposition.Status(dbPosition.Status)),
+		userposition.WithCreatedAt(dbPosition.CreatedAt),
+		userposition.WithUpdatedAt(dbPosition.UpdatedAt),
+	}
+
+	return userposition.New(dbPosition.UserID, departmentID, title, opts...), nil
+}
+
+func ToDBUserPosition(p userposition.UserPosition) (*models.UserPosition, error) {
+	title, err := p.TitleI18n().ToJSON()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to serialize user position title to jsonb")
+	}
+
+	return &models.UserPosition{
+		ID:           p.ID().String(),
+		TenantID:     p.TenantID().String(),
+		UserID:       p.UserID(),
+		DepartmentID: p.DepartmentID().String(),
+		Title:        title,
+		IsManager:    p.IsManager(),
+		IsPrimary:    p.IsPrimary(),
+		Status:       string(p.Status()),
+		CreatedAt:    p.CreatedAt(),
+		UpdatedAt:    p.UpdatedAt(),
+	}, nil
 }
