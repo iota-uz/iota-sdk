@@ -221,8 +221,7 @@ CREATE TABLE core.departments (
     updated_at timestamp with time zone DEFAULT now(),
     UNIQUE (tenant_id, code),
     CONSTRAINT departments_tenant_id_id_key UNIQUE (tenant_id, id),
-    CONSTRAINT departments_parent_tenant_fkey FOREIGN KEY (tenant_id, parent_id)
-        REFERENCES core.departments (tenant_id, id) ON DELETE SET NULL
+    CONSTRAINT departments_parent_tenant_fkey FOREIGN KEY (tenant_id, parent_id) REFERENCES core.departments (tenant_id, id) ON DELETE SET NULL
 );
 
 CREATE INDEX departments_tenant_id_idx ON core.departments (tenant_id);
@@ -240,10 +239,8 @@ CREATE TABLE core.user_positions (
     status varchar NOT NULL DEFAULT 'active',
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    CONSTRAINT user_positions_department_tenant_fkey FOREIGN KEY (tenant_id, department_id)
-        REFERENCES core.departments (tenant_id, id) ON DELETE CASCADE,
-    CONSTRAINT user_positions_user_tenant_fkey FOREIGN KEY (tenant_id, user_id)
-        REFERENCES users (tenant_id, id) ON DELETE CASCADE
+    CONSTRAINT user_positions_department_tenant_fkey FOREIGN KEY (tenant_id, department_id) REFERENCES core.departments (tenant_id, id) ON DELETE CASCADE,
+    CONSTRAINT user_positions_user_tenant_fkey FOREIGN KEY (tenant_id, user_id) REFERENCES users (tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX user_positions_tenant_id_user_id_idx ON core.user_positions (tenant_id, user_id);
