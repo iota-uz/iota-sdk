@@ -8,6 +8,7 @@ import (
 	"github.com/benbjohnson/hashfs"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -83,6 +84,15 @@ func TestApplication_AttachRuntimeSource_AddsQuickLinks(t *testing.T) {
 
 func TestDefaultSupportedLanguages(t *testing.T) {
 	require.Equal(t, []string{"en", "ru", "uz", "zh"}, DefaultSupportedLanguages())
+}
+
+func TestLoadBundle_RegistersSpotlightDefaults(t *testing.T) {
+	bundle := LoadBundle()
+	localizer := i18n.NewLocalizer(bundle, "uz")
+
+	got, err := localizer.Localize(&i18n.LocalizeConfig{MessageID: "Spotlight.Badge.Action"})
+	require.NoError(t, err)
+	require.Equal(t, "Harakat", got)
 }
 
 func TestApplication_AttachRuntimeSource_AddsNestedQuickLinksForChildren(t *testing.T) {
