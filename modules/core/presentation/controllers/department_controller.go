@@ -21,8 +21,18 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	opDepartmentsList   serrors.Op = "core.controllers.DepartmentsController.List"
+	opDepartmentsNew    serrors.Op = "core.controllers.DepartmentsController.GetNew"
+	opDepartmentsEdit   serrors.Op = "core.controllers.DepartmentsController.GetEdit"
+	opDepartmentsCreate serrors.Op = "core.controllers.DepartmentsController.Create"
+	opDepartmentsUpdate serrors.Op = "core.controllers.DepartmentsController.Update"
+	opDepartmentsDelete serrors.Op = "core.controllers.DepartmentsController.Delete"
 )
 
 type DepartmentsController struct {
@@ -88,6 +98,44 @@ func (c *DepartmentsController) departmentNameIndex(
 	return vms, names, nil
 }
 
+// parentNamesForPage resolves the parentID -> localized name lookup for just
+// the rows on the current page, fetching only the referenced parents via
+// GetByIDs instead of loading the whole tenant.
+func (c *DepartmentsController) parentNamesForPage(
+	r *http.Request,
+	service *services.DepartmentService,
+	entities []department.Department,
+	locale string,
+) (map[string]string, error) {
+	seen := make(map[uuid.UUID]struct{}, len(entities))
+	parentIDs := make([]uuid.UUID, 0, len(entities))
+	for _, d := range entities {
+		pid := d.ParentID()
+		if pid == nil {
+			continue
+		}
+		if _, ok := seen[*pid]; ok {
+			continue
+		}
+		seen[*pid] = struct{}{}
+		parentIDs = append(parentIDs, *pid)
+	}
+	if len(parentIDs) == 0 {
+		return nil, nil
+	}
+
+	parents, err := service.GetByIDs(r.Context(), parentIDs)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(parents))
+	for _, p := range parents {
+		vm := mappers.DepartmentToViewModel(p, locale, nil)
+		names[vm.ID] = vm.Name
+	}
+	return names, nil
+}
+
 func (c *DepartmentsController) List(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -114,26 +162,29 @@ func (c *DepartmentsController) List(
 
 	total, err := service.Count(r.Context(), findParams)
 	if err != nil {
-		logger.Errorf("Error counting departments: %v", err)
+		logger.Error(serrors.E(opDepartmentsList, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
 
 	entities, err := service.GetPaginated(r.Context(), findParams)
 	if err != nil {
-		logger.Errorf("Error retrieving departments: %v", err)
-		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
-		return
-	}
-
-	_, names, err := c.departmentNameIndex(r, service)
-	if err != nil {
-		logger.Errorf("Error retrieving departments: %v", err)
+		logger.Error(serrors.E(opDepartmentsList, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
 
 	locale := localeOf(r)
+
+	// Resolve only the parent names referenced by the current page's rows
+	// (label lookup), instead of loading every tenant department.
+	names, err := c.parentNamesForPage(r, service, entities, locale)
+	if err != nil {
+		logger.Error(serrors.E(opDepartmentsList, err))
+		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
+		return
+	}
+
 	viewModels := make([]*viewmodels.Department, 0, len(entities))
 	for _, d := range entities {
 		viewModels = append(viewModels, mappers.DepartmentToViewModel(d, locale, names))
@@ -170,7 +221,7 @@ func (c *DepartmentsController) GetNew(
 	}
 	options, err := c.parentOptions(r, service, "")
 	if err != nil {
-		logger.Errorf("Error retrieving departments: %v", err)
+		logger.Error(serrors.E(opDepartmentsNew, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -202,14 +253,14 @@ func (c *DepartmentsController) GetEdit(
 
 	entity, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Errorf("Error retrieving department: %v", err)
+		logger.Error(serrors.E(opDepartmentsEdit, err))
 		http.Error(w, "Department not found", http.StatusNotFound)
 		return
 	}
 
 	options, err := c.parentOptionsExcludingSubtree(r, service, orgQuery, id)
 	if err != nil {
-		logger.Errorf("Error retrieving departments: %v", err)
+		logger.Error(serrors.E(opDepartmentsEdit, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -241,7 +292,7 @@ func (c *DepartmentsController) Create(
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		options, err := c.parentOptions(r, service, "")
 		if err != nil {
-			logger.Errorf("Error retrieving departments: %v", err)
+			logger.Error(serrors.E(opDepartmentsCreate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -271,14 +322,14 @@ func (c *DepartmentsController) Create(
 	// first (mirrors GroupsController.Create).
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		logger.Errorf("Error getting tenant: %v", err)
+		logger.Error(serrors.E(opDepartmentsCreate, err))
 		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
 		return
 	}
 	entity = entity.SetTenantID(tenantID)
 
 	if _, err := service.Create(r.Context(), entity); err != nil {
-		logger.Errorf("Error creating department: %v", err)
+		logger.Error(serrors.E(opDepartmentsCreate, err))
 		http.Error(w, "Error creating department", http.StatusInternalServerError)
 		return
 	}
@@ -317,6 +368,7 @@ func (c *DepartmentsController) Update(
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		options, err := c.parentOptionsExcludingSubtree(r, service, orgQuery, id)
 		if err != nil {
+			logger.Error(serrors.E(opDepartmentsUpdate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -340,7 +392,7 @@ func (c *DepartmentsController) Update(
 
 	existing, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Errorf("Error retrieving department: %v", err)
+		logger.Error(serrors.E(opDepartmentsUpdate, err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -353,6 +405,7 @@ func (c *DepartmentsController) Update(
 	}
 
 	if _, err := service.Update(r.Context(), entity); err != nil {
+		logger.Error(serrors.E(opDepartmentsUpdate, err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -366,6 +419,7 @@ func (c *DepartmentsController) Update(
 func (c *DepartmentsController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,
+	logger *logrus.Entry,
 	service *services.DepartmentService,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.DepartmentDelete); err != nil {
@@ -379,6 +433,7 @@ func (c *DepartmentsController) Delete(
 	}
 
 	if err := service.Delete(r.Context(), id); err != nil {
+		logger.Error(serrors.E(opDepartmentsDelete, err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

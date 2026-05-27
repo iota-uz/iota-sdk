@@ -20,8 +20,18 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/shared"
 	"github.com/sirupsen/logrus"
+)
+
+const (
+	opPositionsList   serrors.Op = "core.controllers.PositionsController.List"
+	opPositionsNew    serrors.Op = "core.controllers.PositionsController.GetNew"
+	opPositionsEdit   serrors.Op = "core.controllers.PositionsController.GetEdit"
+	opPositionsCreate serrors.Op = "core.controllers.PositionsController.Create"
+	opPositionsUpdate serrors.Op = "core.controllers.PositionsController.Update"
+	opPositionsDelete serrors.Op = "core.controllers.PositionsController.Delete"
 )
 
 type PositionsController struct {
@@ -100,6 +110,75 @@ func (c *PositionsController) departmentPickerData(
 	return opts, names, nil
 }
 
+// userNamesForPage resolves the userID -> display-name lookup for just the
+// rows on the current page, fetching only the referenced users via GetByIDs
+// instead of loading every tenant user.
+func (c *PositionsController) userNamesForPage(
+	r *http.Request,
+	userService *services.UserService,
+	entities []userposition.UserPosition,
+) (map[string]string, error) {
+	seen := make(map[uint]struct{}, len(entities))
+	ids := make([]uint, 0, len(entities))
+	for _, p := range entities {
+		uid := p.UserID()
+		if _, ok := seen[uid]; ok {
+			continue
+		}
+		seen[uid] = struct{}{}
+		ids = append(ids, uid)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	users, err := userService.GetByIDs(r.Context(), ids)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(users))
+	for _, u := range users {
+		vm := mappers.UserToViewModel(u)
+		names[vm.ID] = vm.Title()
+	}
+	return names, nil
+}
+
+// deptNamesForPage resolves the departmentID -> localized-name lookup for just
+// the rows on the current page, fetching only the referenced departments via
+// GetByIDs instead of loading every tenant department.
+func (c *PositionsController) deptNamesForPage(
+	r *http.Request,
+	departmentService *services.DepartmentService,
+	entities []userposition.UserPosition,
+	locale string,
+) (map[string]string, error) {
+	seen := make(map[uuid.UUID]struct{}, len(entities))
+	ids := make([]uuid.UUID, 0, len(entities))
+	for _, p := range entities {
+		did := p.DepartmentID()
+		if _, ok := seen[did]; ok {
+			continue
+		}
+		seen[did] = struct{}{}
+		ids = append(ids, did)
+	}
+	if len(ids) == 0 {
+		return nil, nil
+	}
+
+	depts, err := departmentService.GetByIDs(r.Context(), ids)
+	if err != nil {
+		return nil, err
+	}
+	names := make(map[string]string, len(depts))
+	for _, d := range depts {
+		vm := mappers.DepartmentToViewModel(d, locale, nil)
+		names[vm.ID] = vm.Name
+	}
+	return names, nil
+}
+
 func (c *PositionsController) List(
 	r *http.Request,
 	w http.ResponseWriter,
@@ -128,32 +207,35 @@ func (c *PositionsController) List(
 
 	total, err := service.Count(r.Context(), findParams)
 	if err != nil {
-		logger.Errorf("Error counting positions: %v", err)
+		logger.Error(serrors.E(opPositionsList, err))
 		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
 		return
 	}
 
 	entities, err := service.GetPaginated(r.Context(), findParams)
 	if err != nil {
-		logger.Errorf("Error retrieving positions: %v", err)
-		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
-		return
-	}
-
-	_, userNames, err := c.userPickerData(r, userService)
-	if err != nil {
-		logger.Errorf("Error retrieving users: %v", err)
-		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
-		return
-	}
-	_, deptNames, err := c.departmentPickerData(r, departmentService)
-	if err != nil {
-		logger.Errorf("Error retrieving departments: %v", err)
+		logger.Error(serrors.E(opPositionsList, err))
 		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
 		return
 	}
 
 	locale := localeOf(r)
+
+	// Resolve only the user/department names referenced by the current page's
+	// rows (label lookup), instead of loading every tenant user and department.
+	userNames, err := c.userNamesForPage(r, userService, entities)
+	if err != nil {
+		logger.Error(serrors.E(opPositionsList, err))
+		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
+		return
+	}
+	deptNames, err := c.deptNamesForPage(r, departmentService, entities, locale)
+	if err != nil {
+		logger.Error(serrors.E(opPositionsList, err))
+		http.Error(w, "Error retrieving positions", http.StatusInternalServerError)
+		return
+	}
+
 	viewModels := make([]*viewmodels.UserPosition, 0, len(entities))
 	for _, p := range entities {
 		viewModels = append(viewModels, mappers.UserPositionToViewModel(p, locale, userNames, deptNames))
@@ -191,13 +273,13 @@ func (c *PositionsController) GetNew(
 	}
 	userOpts, _, err := c.userPickerData(r, userService)
 	if err != nil {
-		logger.Errorf("Error retrieving users: %v", err)
+		logger.Error(serrors.E(opPositionsNew, err))
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 	deptOpts, _, err := c.departmentPickerData(r, departmentService)
 	if err != nil {
-		logger.Errorf("Error retrieving departments: %v", err)
+		logger.Error(serrors.E(opPositionsNew, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -231,20 +313,20 @@ func (c *PositionsController) GetEdit(
 
 	entity, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Errorf("Error retrieving position: %v", err)
+		logger.Error(serrors.E(opPositionsEdit, err))
 		http.Error(w, "Position not found", http.StatusNotFound)
 		return
 	}
 
 	userOpts, userNames, err := c.userPickerData(r, userService)
 	if err != nil {
-		logger.Errorf("Error retrieving users: %v", err)
+		logger.Error(serrors.E(opPositionsEdit, err))
 		http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 		return
 	}
 	deptOpts, deptNames, err := c.departmentPickerData(r, departmentService)
 	if err != nil {
-		logger.Errorf("Error retrieving departments: %v", err)
+		logger.Error(serrors.E(opPositionsEdit, err))
 		http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 		return
 	}
@@ -279,11 +361,13 @@ func (c *PositionsController) Create(
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		userOpts, _, err := c.userPickerData(r, userService)
 		if err != nil {
+			logger.Error(serrors.E(opPositionsCreate, err))
 			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 			return
 		}
 		deptOpts, _, err := c.departmentPickerData(r, departmentService)
 		if err != nil {
+			logger.Error(serrors.E(opPositionsCreate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -315,14 +399,14 @@ func (c *PositionsController) Create(
 	// first (mirrors GroupsController.Create).
 	tenantID, err := composables.UseTenantID(r.Context())
 	if err != nil {
-		logger.Errorf("Error getting tenant: %v", err)
+		logger.Error(serrors.E(opPositionsCreate, err))
 		http.Error(w, "Error getting tenant", http.StatusInternalServerError)
 		return
 	}
 	entity = entity.SetTenantID(tenantID)
 
 	if _, err := service.Create(r.Context(), entity); err != nil {
-		logger.Errorf("Error creating position: %v", err)
+		logger.Error(serrors.E(opPositionsCreate, err))
 		http.Error(w, "Error creating position", http.StatusInternalServerError)
 		return
 	}
@@ -362,11 +446,13 @@ func (c *PositionsController) Update(
 	if errors, ok := dto.Ok(r.Context()); !ok {
 		userOpts, userNames, err := c.userPickerData(r, userService)
 		if err != nil {
+			logger.Error(serrors.E(opPositionsUpdate, err))
 			http.Error(w, "Error retrieving users", http.StatusInternalServerError)
 			return
 		}
 		deptOpts, _, err := c.departmentPickerData(r, departmentService)
 		if err != nil {
+			logger.Error(serrors.E(opPositionsUpdate, err))
 			http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
 			return
 		}
@@ -394,7 +480,7 @@ func (c *PositionsController) Update(
 
 	existing, err := service.GetByID(r.Context(), id)
 	if err != nil {
-		logger.Errorf("Error retrieving position: %v", err)
+		logger.Error(serrors.E(opPositionsUpdate, err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -407,6 +493,7 @@ func (c *PositionsController) Update(
 	}
 
 	if _, err := service.Update(r.Context(), entity); err != nil {
+		logger.Error(serrors.E(opPositionsUpdate, err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -420,6 +507,7 @@ func (c *PositionsController) Update(
 func (c *PositionsController) Delete(
 	r *http.Request,
 	w http.ResponseWriter,
+	logger *logrus.Entry,
 	service *services.UserPositionService,
 ) {
 	if err := composables.CanUser(r.Context(), permissions.PositionDelete); err != nil {
@@ -433,6 +521,7 @@ func (c *PositionsController) Delete(
 	}
 
 	if err := service.Delete(r.Context(), id); err != nil {
+		logger.Error(serrors.E(opPositionsDelete, err))
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
