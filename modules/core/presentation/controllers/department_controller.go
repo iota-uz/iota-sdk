@@ -121,7 +121,7 @@ func (c *DepartmentsController) parentNamesForPage(
 		parentIDs = append(parentIDs, *pid)
 	}
 	if len(parentIDs) == 0 {
-		return nil, nil
+		return map[string]string{}, nil
 	}
 
 	parents, err := service.GetByIDs(r.Context(), parentIDs)

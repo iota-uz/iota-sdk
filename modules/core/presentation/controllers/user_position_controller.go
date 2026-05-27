@@ -129,7 +129,7 @@ func (c *PositionsController) userNamesForPage(
 		ids = append(ids, uid)
 	}
 	if len(ids) == 0 {
-		return nil, nil
+		return map[string]string{}, nil
 	}
 
 	users, err := userService.GetByIDs(r.Context(), ids)
@@ -164,7 +164,7 @@ func (c *PositionsController) deptNamesForPage(
 		ids = append(ids, did)
 	}
 	if len(ids) == 0 {
-		return nil, nil
+		return map[string]string{}, nil
 	}
 
 	depts, err := departmentService.GetByIDs(r.Context(), ids)
