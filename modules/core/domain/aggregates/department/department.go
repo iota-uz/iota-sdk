@@ -61,9 +61,20 @@ func WithTenantID(tenantID uuid.UUID) Option {
 	}
 }
 
+// copyUUIDPtr returns a defensive copy of a *uuid.UUID so a caller that retains
+// the original pointer cannot mutate the aggregate's parent reference after
+// construction (the aggregate is immutable).
+func copyUUIDPtr(id *uuid.UUID) *uuid.UUID {
+	if id == nil {
+		return nil
+	}
+	v := *id
+	return &v
+}
+
 func WithParentID(parentID *uuid.UUID) Option {
 	return func(d *department) {
-		d.parentID = parentID
+		d.parentID = copyUUIDPtr(parentID)
 	}
 }
 
@@ -191,7 +202,7 @@ func (d *department) SetName(name models.MultiLang) Department {
 
 func (d *department) SetParentID(parentID *uuid.UUID) Department {
 	r := *d
-	r.parentID = parentID
+	r.parentID = copyUUIDPtr(parentID)
 	r.updatedAt = time.Now()
 	return &r
 }

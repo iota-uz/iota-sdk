@@ -31,9 +31,11 @@ CREATE TABLE core.departments (
     -- Tenant-qualified self-reference target for the parent FK below.
     CONSTRAINT departments_tenant_id_id_key UNIQUE (tenant_id, id),
     -- A parent department must live in the same tenant; cross-tenant parents
-    -- are rejected by the database, not only the application.
+    -- are rejected by the database, not only the application. On parent delete
+    -- only parent_id is nulled (column-specific SET NULL, PG15+); tenant_id is
+    -- NOT NULL and must be preserved, so children orphan to the tenant root.
     CONSTRAINT departments_parent_tenant_fkey FOREIGN KEY (tenant_id, parent_id)
-        REFERENCES core.departments (tenant_id, id) ON DELETE SET NULL
+        REFERENCES core.departments (tenant_id, id) ON DELETE SET NULL (parent_id)
 );
 
 CREATE INDEX departments_tenant_id_idx ON core.departments (tenant_id);
