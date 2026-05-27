@@ -124,7 +124,8 @@ CREATE TABLE user_groups (
     description text,
     created_at timestamp DEFAULT now(),
     updated_at timestamp DEFAULT now(),
-    UNIQUE (tenant_id, name)
+    UNIQUE (tenant_id, name),
+    CONSTRAINT user_groups_tenant_id_id_key UNIQUE (tenant_id, id)
 );
 
 CREATE TABLE group_users (
