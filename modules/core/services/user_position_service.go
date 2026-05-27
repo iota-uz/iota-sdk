@@ -146,13 +146,14 @@ func (s *UserPositionService) Update(
 
 // Delete removes a user position by its ID.
 func (s *UserPositionService) Delete(ctx context.Context, id uuid.UUID) error {
+	const op serrors.Op = "UserPositionService.Delete"
 	if err := composables.CanUser(ctx, permissions.PositionDelete); err != nil {
 		return err
 	}
 
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	var p userposition.UserPosition
@@ -165,7 +166,7 @@ func (s *UserPositionService) Delete(ctx context.Context, id uuid.UUID) error {
 		return s.repo.Delete(txCtx, id)
 	})
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	s.publisher.Publish(userposition.NewDeletedEvent(p, actor))

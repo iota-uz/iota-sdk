@@ -135,7 +135,13 @@ func (d *department) TenantID() uuid.UUID {
 }
 
 func (d *department) ParentID() *uuid.UUID {
-	return d.parentID
+	if d.parentID == nil {
+		return nil
+	}
+	// Return a fresh copy so callers cannot mutate the aggregate's internal
+	// parent pointer through the returned reference.
+	parentID := *d.parentID
+	return &parentID
 }
 
 func (d *department) Code() string {

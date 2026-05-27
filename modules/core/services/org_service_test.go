@@ -73,7 +73,7 @@ func requireValidation(t *testing.T, err error) {
 	require.Error(t, err)
 	var se *serrors.Error
 	if assert.ErrorAs(t, err, &se) {
-		assert.Equal(t, "validation", se.ErrorKind(), "expected a validation-kind error, got: %v", err)
+		assert.Equalf(t, "validation", se.ErrorKind(), "expected a validation-kind error, got: %v", err)
 	}
 }
 

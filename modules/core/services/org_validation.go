@@ -67,6 +67,13 @@ func ValidateDepartment(
 	repo department.Repository,
 	subtree SubtreeFunc,
 ) error {
+	if d.TenantID() != tenantID {
+		return serrors.E(
+			op,
+			serrors.KindValidation,
+			fmt.Errorf("department %s belongs to a different tenant than the caller", d.ID()),
+		)
+	}
 	if err := validateOrgMultiLang(op, "name", d.NameI18n()); err != nil {
 		return err
 	}
@@ -142,6 +149,13 @@ func ValidateUserPosition(
 	deptRepo department.Repository,
 	userRepo user.Repository,
 ) error {
+	if p.TenantID() != tenantID {
+		return serrors.E(
+			op,
+			serrors.KindValidation,
+			fmt.Errorf("user position %s belongs to a different tenant than the caller", p.ID()),
+		)
+	}
 	if err := validateOrgMultiLang(op, "title", p.TitleI18n()); err != nil {
 		return err
 	}

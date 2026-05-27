@@ -30,6 +30,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	crudmodels "github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/mapping"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/twofactor"
 )
 
@@ -572,45 +573,33 @@ func ToDBGroup(g group.Group) *models.Group {
 }
 
 func ToDomainDepartment(dbDepartment *models.Department) (department.Department, error) {
-	id, err := uuid.Parse(dbDepartment.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	tenantID, err := uuid.Parse(dbDepartment.TenantID)
-	if err != nil {
-		return nil, err
-	}
-
+	const op serrors.Op = "ToDomainDepartment"
 	name, err := crudmodels.MultiLangFromJSON(dbDepartment.Name)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse department name jsonb")
+		return nil, serrors.E(op, err)
 	}
 
 	opts := []department.Option{
-		department.WithID(id),
-		department.WithTenantID(tenantID),
+		department.WithID(dbDepartment.ParsedID()),
+		department.WithTenantID(dbDepartment.ParsedTenantID()),
 		department.WithOrder(dbDepartment.Order),
 		department.WithStatus(department.Status(dbDepartment.Status)),
 		department.WithCreatedAt(dbDepartment.CreatedAt),
 		department.WithUpdatedAt(dbDepartment.UpdatedAt),
 	}
 
-	if dbDepartment.ParentID.Valid && dbDepartment.ParentID.String != "" {
-		parentID, err := uuid.Parse(dbDepartment.ParentID.String)
-		if err != nil {
-			return nil, err
-		}
-		opts = append(opts, department.WithParentID(&parentID))
+	if parentID := dbDepartment.ParsedParentID(); parentID != nil {
+		opts = append(opts, department.WithParentID(parentID))
 	}
 
 	return department.New(dbDepartment.Code, name, opts...), nil
 }
 
 func ToDBDepartment(d department.Department) (*models.Department, error) {
+	const op serrors.Op = "ToDBDepartment"
 	name, err := d.NameI18n().ToJSON()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to serialize department name to jsonb")
+		return nil, serrors.E(op, err)
 	}
 
 	var parentID sql.NullString
@@ -632,29 +621,15 @@ func ToDBDepartment(d department.Department) (*models.Department, error) {
 }
 
 func ToDomainUserPosition(dbPosition *models.UserPosition) (userposition.UserPosition, error) {
-	id, err := uuid.Parse(dbPosition.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	tenantID, err := uuid.Parse(dbPosition.TenantID)
-	if err != nil {
-		return nil, err
-	}
-
-	departmentID, err := uuid.Parse(dbPosition.DepartmentID)
-	if err != nil {
-		return nil, err
-	}
-
+	const op serrors.Op = "ToDomainUserPosition"
 	title, err := crudmodels.MultiLangFromJSON(dbPosition.Title)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse user position title jsonb")
+		return nil, serrors.E(op, err)
 	}
 
 	opts := []userposition.Option{
-		userposition.WithID(id),
-		userposition.WithTenantID(tenantID),
+		userposition.WithID(dbPosition.ParsedID()),
+		userposition.WithTenantID(dbPosition.ParsedTenantID()),
 		userposition.WithIsManager(dbPosition.IsManager),
 		userposition.WithIsPrimary(dbPosition.IsPrimary),
 		userposition.WithStatus(userposition.Status(dbPosition.Status)),
@@ -662,13 +637,14 @@ func ToDomainUserPosition(dbPosition *models.UserPosition) (userposition.UserPos
 		userposition.WithUpdatedAt(dbPosition.UpdatedAt),
 	}
 
-	return userposition.New(dbPosition.UserID, departmentID, title, opts...), nil
+	return userposition.New(dbPosition.UserID, dbPosition.ParsedDepartmentID(), title, opts...), nil
 }
 
 func ToDBUserPosition(p userposition.UserPosition) (*models.UserPosition, error) {
+	const op serrors.Op = "ToDBUserPosition"
 	title, err := p.TitleI18n().ToJSON()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to serialize user position title to jsonb")
+		return nil, serrors.E(op, err)
 	}
 
 	return &models.UserPosition{

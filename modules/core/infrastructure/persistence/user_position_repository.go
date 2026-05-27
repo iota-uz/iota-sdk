@@ -3,14 +3,15 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/userposition"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var (
@@ -60,9 +61,10 @@ func (r *PgUserPositionRepository) buildFilters(
 	ctx context.Context,
 	params *userposition.FindParams,
 ) ([]string, []interface{}, error) {
+	const op serrors.Op = "PgUserPositionRepository.buildFilters"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, nil, serrors.E(op, err)
 	}
 
 	where := []string{"p.tenant_id = $1"}
@@ -71,7 +73,7 @@ func (r *PgUserPositionRepository) buildFilters(
 	for _, filter := range params.Filters {
 		column, ok := r.fieldMap[filter.Column]
 		if !ok {
-			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
+			return nil, nil, serrors.E(op, fmt.Errorf("unknown filter field: %v", filter.Column))
 		}
 		where = append(where, filter.Filter.String(column, len(args)+1))
 		args = append(args, filter.Filter.Value()...)
@@ -90,9 +92,14 @@ func (r *PgUserPositionRepository) GetPaginated(
 	ctx context.Context,
 	params *userposition.FindParams,
 ) ([]userposition.UserPosition, error) {
+	const op serrors.Op = "PgUserPositionRepository.GetPaginated"
+	if params == nil {
+		params = &userposition.FindParams{}
+	}
+
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	query := repo.Join(
@@ -104,20 +111,25 @@ func (r *PgUserPositionRepository) GetPaginated(
 
 	positions, err := r.queryPositions(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get paginated user positions")
+		return nil, serrors.E(op, err)
 	}
 	return positions, nil
 }
 
 func (r *PgUserPositionRepository) Count(ctx context.Context, params *userposition.FindParams) (int64, error) {
+	const op serrors.Op = "PgUserPositionRepository.Count"
+	if params == nil {
+		params = &userposition.FindParams{}
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to get transaction")
+		return 0, serrors.E(op, err)
 	}
 
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 
 	query := repo.Join(
@@ -127,42 +139,44 @@ func (r *PgUserPositionRepository) Count(ctx context.Context, params *userpositi
 
 	var count int64
 	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
-		return 0, errors.Wrap(err, "failed to count user positions")
+		return 0, serrors.E(op, err)
 	}
 	return count, nil
 }
 
 func (r *PgUserPositionRepository) GetByID(ctx context.Context, id uuid.UUID) (userposition.UserPosition, error) {
+	const op serrors.Op = "PgUserPositionRepository.GetByID"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, serrors.E(op, err)
 	}
 
 	q := repo.Join(userPositionFindQuery, "WHERE p.id = $1 AND p.tenant_id = $2")
 	positions, err := r.queryPositions(ctx, q, id.String(), tenantID.String())
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to query user position with id: %s", id.String()))
+		return nil, serrors.E(op, err)
 	}
 	if len(positions) == 0 {
-		return nil, errors.Wrap(ErrUserPositionNotFound, fmt.Sprintf("id: %s", id.String()))
+		return nil, serrors.E(op, serrors.NotFound, ErrUserPositionNotFound)
 	}
 	return positions[0], nil
 }
 
 func (r *PgUserPositionRepository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
+	const op serrors.Op = "PgUserPositionRepository.Exists"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get transaction")
+		return false, serrors.E(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get tenant from context")
+		return false, serrors.E(op, err)
 	}
 
 	var exists bool
 	if err := tx.QueryRow(ctx, userPositionExistsQuery, id.String(), tenantID.String()).Scan(&exists); err != nil {
-		return false, errors.Wrap(err, "failed to check if user position exists")
+		return false, serrors.E(op, err)
 	}
 	return exists, nil
 }
@@ -171,9 +185,10 @@ func (r *PgUserPositionRepository) Save(
 	ctx context.Context,
 	entity userposition.UserPosition,
 ) (userposition.UserPosition, error) {
+	const op serrors.Op = "PgUserPositionRepository.Save"
 	exists, err := r.Exists(ctx, entity.ID())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to check if user position exists")
+		return nil, serrors.E(op, err)
 	}
 
 	if exists {
@@ -186,15 +201,24 @@ func (r *PgUserPositionRepository) create(
 	ctx context.Context,
 	entity userposition.UserPosition,
 ) (userposition.UserPosition, error) {
+	const op serrors.Op = "PgUserPositionRepository.create"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
+	}
+
+	// Tenant ownership comes from the request context, never the entity
+	// payload, so a mismatched-entity tenant cannot insert into another tenant.
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 
 	dbPosition, err := ToDBUserPosition(entity)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to map user position to db model")
+		return nil, serrors.E(op, err)
 	}
+	dbPosition.TenantID = tenantID.String()
 	if entity.ID() == uuid.Nil {
 		dbPosition.ID = uuid.New().String()
 	}
@@ -226,12 +250,12 @@ func (r *PgUserPositionRepository) create(
 	}
 
 	if _, err := tx.Exec(ctx, repo.Insert("core.user_positions", fields), values...); err != nil {
-		return nil, errors.Wrap(err, "failed to insert user position")
+		return nil, serrors.E(op, err)
 	}
 
 	id, err := uuid.Parse(dbPosition.ID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse UUID")
+		return nil, serrors.E(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
@@ -240,15 +264,24 @@ func (r *PgUserPositionRepository) update(
 	ctx context.Context,
 	entity userposition.UserPosition,
 ) (userposition.UserPosition, error) {
+	const op serrors.Op = "PgUserPositionRepository.update"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
+	}
+
+	// Tenant ownership comes from the request context, never the entity
+	// payload, so the update can only ever target the caller's own tenant row.
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 
 	dbPosition, err := ToDBUserPosition(entity)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to map user position to db model")
+		return nil, serrors.E(op, err)
 	}
+	dbPosition.TenantID = tenantID.String()
 
 	fields := []string{
 		"department_id",
@@ -277,29 +310,30 @@ func (r *PgUserPositionRepository) update(
 		fmt.Sprintf("tenant_id = $%d", len(values)),
 	)
 	if _, err := tx.Exec(ctx, query, values...); err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to update user position with ID: %s", dbPosition.ID))
+		return nil, serrors.E(op, err)
 	}
 
 	id, err := uuid.Parse(dbPosition.ID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse UUID")
+		return nil, serrors.E(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
 
 func (r *PgUserPositionRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	const op serrors.Op = "PgUserPositionRepository.Delete"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get transaction")
+		return serrors.E(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get tenant from context")
+		return serrors.E(op, err)
 	}
 
 	if _, err := tx.Exec(ctx, userPositionDeleteQuery, id.String(), tenantID.String()); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to delete user position with ID: %s", id.String()))
+		return serrors.E(op, err)
 	}
 	return nil
 }
@@ -309,14 +343,15 @@ func (r *PgUserPositionRepository) queryPositions(
 	query string,
 	args ...interface{},
 ) ([]userposition.UserPosition, error) {
+	const op serrors.Op = "PgUserPositionRepository.queryPositions"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute query")
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -335,20 +370,20 @@ func (r *PgUserPositionRepository) queryPositions(
 			&dbPosition.CreatedAt,
 			&dbPosition.UpdatedAt,
 		); err != nil {
-			return nil, errors.Wrap(err, "failed to scan user position row")
+			return nil, serrors.E(op, err)
 		}
 		dbPositions = append(dbPositions, &dbPosition)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, errors.Wrap(err, "row iteration error")
+		return nil, serrors.E(op, err)
 	}
 
 	entities := make([]userposition.UserPosition, 0, len(dbPositions))
 	for _, dbPosition := range dbPositions {
 		domainPosition, err := ToDomainUserPosition(dbPosition)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert user position ID: %s to domain entity", dbPosition.ID))
+			return nil, serrors.E(op, err)
 		}
 		entities = append(entities, domainPosition)
 	}

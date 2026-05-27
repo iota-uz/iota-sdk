@@ -7,7 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/pkg/errors"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // SQL queries for organizational membership/hierarchy lookups.
@@ -92,9 +92,10 @@ func NewPgOrgQueryRepository() OrgQueryRepository {
 }
 
 func (r *PgOrgQueryRepository) UserDepartments(ctx context.Context, userID uint) ([]uuid.UUID, error) {
+	const op serrors.Op = "PgOrgQueryRepository.UserDepartments"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, serrors.E(op, err)
 	}
 	return r.queryDepartmentIDs(ctx, userDepartmentsSQL, userID, tenantID.String())
 }
@@ -104,9 +105,10 @@ func (r *PgOrgQueryRepository) UserManagedDepartments(
 	userID uint,
 	includeSubtree bool,
 ) ([]uuid.UUID, error) {
+	const op serrors.Op = "PgOrgQueryRepository.UserManagedDepartments"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, serrors.E(op, err)
 	}
 
 	query := userManagedDepartmentsSQL
@@ -117,9 +119,10 @@ func (r *PgOrgQueryRepository) UserManagedDepartments(
 }
 
 func (r *PgOrgQueryRepository) DepartmentSubtree(ctx context.Context, deptID uuid.UUID) ([]uuid.UUID, error) {
+	const op serrors.Op = "PgOrgQueryRepository.DepartmentSubtree"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, serrors.E(op, err)
 	}
 	return r.queryDepartmentIDs(ctx, departmentSubtreeSQL, deptID.String(), tenantID.String())
 }
@@ -129,14 +132,15 @@ func (r *PgOrgQueryRepository) queryDepartmentIDs(
 	query string,
 	args ...interface{},
 ) ([]uuid.UUID, error) {
+	const op serrors.Op = "PgOrgQueryRepository.queryDepartmentIDs"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute org query")
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -144,17 +148,17 @@ func (r *PgOrgQueryRepository) queryDepartmentIDs(
 	for rows.Next() {
 		var idStr string
 		if err := rows.Scan(&idStr); err != nil {
-			return nil, errors.Wrap(err, "failed to scan department id")
+			return nil, serrors.E(op, err)
 		}
 		id, err := uuid.Parse(idStr)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to parse department id")
+			return nil, serrors.E(op, err)
 		}
 		ids = append(ids, id)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, errors.Wrap(err, "row iteration error")
+		return nil, serrors.E(op, err)
 	}
 
 	return ids, nil

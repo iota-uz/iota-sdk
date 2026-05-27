@@ -3,14 +3,15 @@ package persistence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	"github.com/go-faster/errors"
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence/models"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var (
@@ -58,9 +59,10 @@ func (r *PgDepartmentRepository) buildFilters(
 	ctx context.Context,
 	params *department.FindParams,
 ) ([]string, []interface{}, error) {
+	const op serrors.Op = "PgDepartmentRepository.buildFilters"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, nil, serrors.E(op, err)
 	}
 
 	where := []string{"d.tenant_id = $1"}
@@ -69,7 +71,7 @@ func (r *PgDepartmentRepository) buildFilters(
 	for _, filter := range params.Filters {
 		column, ok := r.fieldMap[filter.Column]
 		if !ok {
-			return nil, nil, errors.Wrap(fmt.Errorf("unknown filter field: %v", filter.Column), "invalid filter")
+			return nil, nil, serrors.E(op, fmt.Errorf("unknown filter field: %v", filter.Column))
 		}
 		where = append(where, filter.Filter.String(column, len(args)+1))
 		args = append(args, filter.Filter.Value()...)
@@ -88,9 +90,14 @@ func (r *PgDepartmentRepository) GetPaginated(
 	ctx context.Context,
 	params *department.FindParams,
 ) ([]department.Department, error) {
+	const op serrors.Op = "PgDepartmentRepository.GetPaginated"
+	if params == nil {
+		params = &department.FindParams{}
+	}
+
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
 
 	query := repo.Join(
@@ -102,20 +109,25 @@ func (r *PgDepartmentRepository) GetPaginated(
 
 	departments, err := r.queryDepartments(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get paginated departments")
+		return nil, serrors.E(op, err)
 	}
 	return departments, nil
 }
 
 func (r *PgDepartmentRepository) Count(ctx context.Context, params *department.FindParams) (int64, error) {
+	const op serrors.Op = "PgDepartmentRepository.Count"
+	if params == nil {
+		params = &department.FindParams{}
+	}
+
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to get transaction")
+		return 0, serrors.E(op, err)
 	}
 
 	where, args, err := r.buildFilters(ctx, params)
 	if err != nil {
-		return 0, err
+		return 0, serrors.E(op, err)
 	}
 
 	query := repo.Join(
@@ -125,50 +137,53 @@ func (r *PgDepartmentRepository) Count(ctx context.Context, params *department.F
 
 	var count int64
 	if err := tx.QueryRow(ctx, query, args...).Scan(&count); err != nil {
-		return 0, errors.Wrap(err, "failed to count departments")
+		return 0, serrors.E(op, err)
 	}
 	return count, nil
 }
 
 func (r *PgDepartmentRepository) GetByID(ctx context.Context, id uuid.UUID) (department.Department, error) {
+	const op serrors.Op = "PgDepartmentRepository.GetByID"
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get tenant from context")
+		return nil, serrors.E(op, err)
 	}
 
 	q := repo.Join(departmentFindQuery, "WHERE d.id = $1 AND d.tenant_id = $2")
 	departments, err := r.queryDepartments(ctx, q, id.String(), tenantID.String())
 	if err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to query department with id: %s", id.String()))
+		return nil, serrors.E(op, err)
 	}
 	if len(departments) == 0 {
-		return nil, errors.Wrap(ErrDepartmentNotFound, fmt.Sprintf("id: %s", id.String()))
+		return nil, serrors.E(op, serrors.NotFound, ErrDepartmentNotFound)
 	}
 	return departments[0], nil
 }
 
 func (r *PgDepartmentRepository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
+	const op serrors.Op = "PgDepartmentRepository.Exists"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get transaction")
+		return false, serrors.E(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return false, errors.Wrap(err, "failed to get tenant from context")
+		return false, serrors.E(op, err)
 	}
 
 	var exists bool
 	if err := tx.QueryRow(ctx, departmentExistsQuery, id.String(), tenantID.String()).Scan(&exists); err != nil {
-		return false, errors.Wrap(err, "failed to check if department exists")
+		return false, serrors.E(op, err)
 	}
 	return exists, nil
 }
 
 func (r *PgDepartmentRepository) Save(ctx context.Context, entity department.Department) (department.Department, error) {
+	const op serrors.Op = "PgDepartmentRepository.Save"
 	exists, err := r.Exists(ctx, entity.ID())
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to check if department exists")
+		return nil, serrors.E(op, err)
 	}
 
 	if exists {
@@ -181,15 +196,24 @@ func (r *PgDepartmentRepository) create(
 	ctx context.Context,
 	entity department.Department,
 ) (department.Department, error) {
+	const op serrors.Op = "PgDepartmentRepository.create"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
+	}
+
+	// Tenant ownership comes from the request context, never the entity
+	// payload, so a mismatched-entity tenant cannot insert into another tenant.
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 
 	dbDepartment, err := ToDBDepartment(entity)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to map department to db model")
+		return nil, serrors.E(op, err)
 	}
+	dbDepartment.TenantID = tenantID.String()
 	if entity.ID() == uuid.Nil {
 		dbDepartment.ID = uuid.New().String()
 	}
@@ -219,12 +243,12 @@ func (r *PgDepartmentRepository) create(
 	}
 
 	if _, err := tx.Exec(ctx, repo.Insert("core.departments", fields), values...); err != nil {
-		return nil, errors.Wrap(err, "failed to insert department")
+		return nil, serrors.E(op, err)
 	}
 
 	id, err := uuid.Parse(dbDepartment.ID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse UUID")
+		return nil, serrors.E(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
@@ -233,15 +257,24 @@ func (r *PgDepartmentRepository) update(
 	ctx context.Context,
 	entity department.Department,
 ) (department.Department, error) {
+	const op serrors.Op = "PgDepartmentRepository.update"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
+	}
+
+	// Tenant ownership comes from the request context, never the entity
+	// payload, so the update can only ever target the caller's own tenant row.
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
 	}
 
 	dbDepartment, err := ToDBDepartment(entity)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to map department to db model")
+		return nil, serrors.E(op, err)
 	}
+	dbDepartment.TenantID = tenantID.String()
 
 	fields := []string{
 		"parent_id",
@@ -270,29 +303,30 @@ func (r *PgDepartmentRepository) update(
 		fmt.Sprintf("tenant_id = $%d", len(values)),
 	)
 	if _, err := tx.Exec(ctx, query, values...); err != nil {
-		return nil, errors.Wrap(err, fmt.Sprintf("failed to update department with ID: %s", dbDepartment.ID))
+		return nil, serrors.E(op, err)
 	}
 
 	id, err := uuid.Parse(dbDepartment.ID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse UUID")
+		return nil, serrors.E(op, err)
 	}
 	return r.GetByID(ctx, id)
 }
 
 func (r *PgDepartmentRepository) Delete(ctx context.Context, id uuid.UUID) error {
+	const op serrors.Op = "PgDepartmentRepository.Delete"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get transaction")
+		return serrors.E(op, err)
 	}
 
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get tenant from context")
+		return serrors.E(op, err)
 	}
 
 	if _, err := tx.Exec(ctx, departmentDeleteQuery, id.String(), tenantID.String()); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to delete department with ID: %s", id.String()))
+		return serrors.E(op, err)
 	}
 	return nil
 }
@@ -302,14 +336,15 @@ func (r *PgDepartmentRepository) queryDepartments(
 	query string,
 	args ...interface{},
 ) ([]department.Department, error) {
+	const op serrors.Op = "PgDepartmentRepository.queryDepartments"
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get transaction")
+		return nil, serrors.E(op, err)
 	}
 
 	rows, err := tx.Query(ctx, query, args...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute query")
+		return nil, serrors.E(op, err)
 	}
 	defer rows.Close()
 
@@ -327,20 +362,20 @@ func (r *PgDepartmentRepository) queryDepartments(
 			&dbDepartment.CreatedAt,
 			&dbDepartment.UpdatedAt,
 		); err != nil {
-			return nil, errors.Wrap(err, "failed to scan department row")
+			return nil, serrors.E(op, err)
 		}
 		dbDepartments = append(dbDepartments, &dbDepartment)
 	}
 
 	if err := rows.Err(); err != nil {
-		return nil, errors.Wrap(err, "row iteration error")
+		return nil, serrors.E(op, err)
 	}
 
 	entities := make([]department.Department, 0, len(dbDepartments))
 	for _, dbDepartment := range dbDepartments {
 		domainDepartment, err := ToDomainDepartment(dbDepartment)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("failed to convert department ID: %s to domain entity", dbDepartment.ID))
+			return nil, serrors.E(op, err)
 		}
 		entities = append(entities, domainDepartment)
 	}

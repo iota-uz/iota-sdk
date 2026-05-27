@@ -34,6 +34,10 @@ type FindParams struct {
 
 func (f *FindParams) FilterBy(field Field, filter repo.Filter) *FindParams {
 	res := *f
+	// Deep-copy Filters so the shallow struct copy does not share the backing
+	// array with the receiver (appending below could otherwise mutate it).
+	res.Filters = make([]Filter, len(f.Filters), len(f.Filters)+1)
+	copy(res.Filters, f.Filters)
 	res.Filters = append(res.Filters, Filter{
 		Column: field,
 		Filter: filter,

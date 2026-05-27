@@ -103,7 +103,10 @@ CREATE TABLE users (
     created_at timestamp with time zone NOT NULL DEFAULT now(),
     updated_at timestamp with time zone NOT NULL DEFAULT now(),
     UNIQUE (tenant_id, email),
-    UNIQUE (tenant_id, phone)
+    UNIQUE (tenant_id, phone),
+    -- Tenant-qualified FK target so core.user_positions can reference a user by
+    -- (tenant_id, id) and never bridge tenants.
+    CONSTRAINT users_tenant_id_id_key UNIQUE (tenant_id, id)
 );
 
 CREATE TABLE user_roles (
@@ -209,14 +212,17 @@ CREATE SCHEMA IF NOT EXISTS core;
 CREATE TABLE core.departments (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-    parent_id uuid NULL REFERENCES core.departments (id) ON DELETE SET NULL,
+    parent_id uuid NULL,
     code varchar NOT NULL,
     name jsonb NOT NULL,
     "order" int NOT NULL DEFAULT 0,
     status varchar NOT NULL DEFAULT 'active',
     created_at timestamp with time zone DEFAULT now(),
     updated_at timestamp with time zone DEFAULT now(),
-    UNIQUE (tenant_id, code)
+    UNIQUE (tenant_id, code),
+    CONSTRAINT departments_tenant_id_id_key UNIQUE (tenant_id, id),
+    CONSTRAINT departments_parent_tenant_fkey FOREIGN KEY (tenant_id, parent_id)
+        REFERENCES core.departments (tenant_id, id) ON DELETE SET NULL
 );
 
 CREATE INDEX departments_tenant_id_idx ON core.departments (tenant_id);
@@ -226,14 +232,18 @@ CREATE INDEX departments_tenant_id_parent_id_idx ON core.departments (tenant_id,
 CREATE TABLE core.user_positions (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid (),
     tenant_id uuid NOT NULL REFERENCES tenants (id) ON DELETE CASCADE,
-    user_id integer NOT NULL REFERENCES users (id) ON DELETE CASCADE,
-    department_id uuid NOT NULL REFERENCES core.departments (id) ON DELETE CASCADE,
+    user_id integer NOT NULL,
+    department_id uuid NOT NULL,
     title jsonb NOT NULL,
     is_manager boolean NOT NULL DEFAULT FALSE,
     is_primary boolean NOT NULL DEFAULT FALSE,
     status varchar NOT NULL DEFAULT 'active',
     created_at timestamp with time zone DEFAULT now(),
-    updated_at timestamp with time zone DEFAULT now()
+    updated_at timestamp with time zone DEFAULT now(),
+    CONSTRAINT user_positions_department_tenant_fkey FOREIGN KEY (tenant_id, department_id)
+        REFERENCES core.departments (tenant_id, id) ON DELETE CASCADE,
+    CONSTRAINT user_positions_user_tenant_fkey FOREIGN KEY (tenant_id, user_id)
+        REFERENCES users (tenant_id, id) ON DELETE CASCADE
 );
 
 CREATE INDEX user_positions_tenant_id_user_id_idx ON core.user_positions (tenant_id, user_id);

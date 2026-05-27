@@ -62,7 +62,10 @@ func (s *DepartmentService) GetByID(ctx context.Context, id uuid.UUID) (departme
 	return s.repo.GetByID(ctx, id)
 }
 
-// GetAll returns all departments.
+// GetAll returns departments for the caller's tenant, up to a fixed cap of
+// 1000 rows. This is a convenience for small organizations and admin pickers;
+// it is NOT a complete listing. Callers that may exceed 1000 departments must
+// use GetPaginated with explicit Limit/Offset instead.
 func (s *DepartmentService) GetAll(ctx context.Context) ([]department.Department, error) {
 	if err := composables.CanUser(ctx, permissions.DepartmentRead); err != nil {
 		return nil, err
@@ -146,13 +149,14 @@ func (s *DepartmentService) Update(ctx context.Context, d department.Department)
 
 // Delete removes a department by its ID.
 func (s *DepartmentService) Delete(ctx context.Context, id uuid.UUID) error {
+	const op serrors.Op = "DepartmentService.Delete"
 	if err := composables.CanUser(ctx, permissions.DepartmentDelete); err != nil {
 		return err
 	}
 
 	actor, err := composables.UseUser(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	var d department.Department
@@ -165,7 +169,7 @@ func (s *DepartmentService) Delete(ctx context.Context, id uuid.UUID) error {
 		return s.repo.Delete(txCtx, id)
 	})
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	s.publisher.Publish(department.NewDeletedEvent(d, actor))
