@@ -190,6 +190,7 @@ func LoadBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	spotlight.MustRegisterTranslations(bundle)
 	return bundle
 }
 

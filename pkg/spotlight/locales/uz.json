@@ -1,0 +1,32 @@
+{
+  "Spotlight": {
+    "Match": {
+      "Exact": "Aniq moslik",
+      "Best": "Eng yaxshi moslik"
+    },
+    "Badge": {
+      "Exact": "Aniq",
+      "Action": "Harakat",
+      "Navigate": "Navigatsiya",
+      "Staff": "Xodim",
+      "Person": "Shaxs"
+    },
+    "Summary": {
+      "Default": "So'rovingiz uchun eng yaxshi mosliklar topildi",
+      "Help": "Eng mos sahifalar va bilim bazasi yozuvlari"
+    },
+    "Actions": {
+      "Open": "Ochish"
+    },
+    "Group": {
+      "Navigate": "Navigatsiya",
+      "Actions": "Harakatlar",
+      "Data": "Ma'lumotlar",
+      "Knowledge": "Bilim bazasi",
+      "_Other": "Boshqa"
+    },
+    "MoreResults": {
+      "other": "Yana {{.Count}} natija"
+    }
+  }
+}

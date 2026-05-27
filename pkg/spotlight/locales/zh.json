@@ -1,0 +1,32 @@
+{
+  "Spotlight": {
+    "Match": {
+      "Exact": "精确匹配",
+      "Best": "最佳匹配"
+    },
+    "Badge": {
+      "Exact": "精确",
+      "Action": "操作",
+      "Navigate": "导航",
+      "Staff": "员工",
+      "Person": "人员"
+    },
+    "Summary": {
+      "Default": "已找到与请求最匹配的结果",
+      "Help": "以下是最匹配的页面和知识库条目"
+    },
+    "Actions": {
+      "Open": "打开"
+    },
+    "Group": {
+      "Navigate": "导航",
+      "Actions": "操作",
+      "Data": "数据",
+      "Knowledge": "知识",
+      "_Other": "其他"
+    },
+    "MoreResults": {
+      "other": "还有 {{.Count}} 个结果"
+    }
+  }
+}
