@@ -332,8 +332,12 @@ func (r *PgUserPositionRepository) Delete(ctx context.Context, id uuid.UUID) err
 		return serrors.E(op, err)
 	}
 
-	if _, err := tx.Exec(ctx, userPositionDeleteQuery, id.String(), tenantID.String()); err != nil {
+	tag, err := tx.Exec(ctx, userPositionDeleteQuery, id.String(), tenantID.String())
+	if err != nil {
 		return serrors.E(op, err)
+	}
+	if tag.RowsAffected() == 0 {
+		return serrors.E(op, serrors.NotFound, ErrUserPositionNotFound)
 	}
 	return nil
 }
