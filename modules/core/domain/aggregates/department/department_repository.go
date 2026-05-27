@@ -48,6 +48,7 @@ type Repository interface {
 	Count(ctx context.Context, params *FindParams) (int64, error)
 	GetPaginated(ctx context.Context, params *FindParams) ([]Department, error)
 	GetByID(ctx context.Context, id uuid.UUID) (Department, error)
+	GetByIDs(ctx context.Context, ids []uuid.UUID) ([]Department, error)
 	Save(ctx context.Context, department Department) (Department, error)
 	Exists(ctx context.Context, id uuid.UUID) (bool, error)
 	Delete(ctx context.Context, id uuid.UUID) error

@@ -62,6 +62,14 @@ func (s *DepartmentService) GetByID(ctx context.Context, id uuid.UUID) (departme
 	return s.repo.GetByID(ctx, id)
 }
 
+// GetByIDs returns the departments matching the given IDs (tenant-scoped).
+func (s *DepartmentService) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]department.Department, error) {
+	if err := composables.CanUser(ctx, permissions.DepartmentRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByIDs(ctx, ids)
+}
+
 // GetAll returns departments for the caller's tenant, up to a fixed cap of
 // 1000 rows. This is a convenience for small organizations and admin pickers;
 // it is NOT a complete listing. Callers that may exceed 1000 departments must
