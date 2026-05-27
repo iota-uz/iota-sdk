@@ -481,7 +481,7 @@ func (c *PositionsController) Update(
 	existing, err := service.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Error(serrors.E(opPositionsUpdate, err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error retrieving position", http.StatusInternalServerError)
 		return
 	}
 
@@ -494,7 +494,7 @@ func (c *PositionsController) Update(
 
 	if _, err := service.Update(r.Context(), entity); err != nil {
 		logger.Error(serrors.E(opPositionsUpdate, err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error updating position", http.StatusInternalServerError)
 		return
 	}
 
@@ -522,7 +522,7 @@ func (c *PositionsController) Delete(
 
 	if err := service.Delete(r.Context(), id); err != nil {
 		logger.Error(serrors.E(opPositionsDelete, err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error deleting position", http.StatusInternalServerError)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)

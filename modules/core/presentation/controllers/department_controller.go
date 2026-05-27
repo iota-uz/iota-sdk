@@ -393,7 +393,7 @@ func (c *DepartmentsController) Update(
 	existing, err := service.GetByID(r.Context(), id)
 	if err != nil {
 		logger.Error(serrors.E(opDepartmentsUpdate, err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error retrieving department", http.StatusInternalServerError)
 		return
 	}
 
@@ -406,7 +406,7 @@ func (c *DepartmentsController) Update(
 
 	if _, err := service.Update(r.Context(), entity); err != nil {
 		logger.Error(serrors.E(opDepartmentsUpdate, err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error updating department", http.StatusInternalServerError)
 		return
 	}
 
@@ -434,7 +434,7 @@ func (c *DepartmentsController) Delete(
 
 	if err := service.Delete(r.Context(), id); err != nil {
 		logger.Error(serrors.E(opDepartmentsDelete, err))
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Error deleting department", http.StatusInternalServerError)
 		return
 	}
 	shared.Redirect(w, r, c.basePath)
