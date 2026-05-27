@@ -581,7 +581,8 @@
       "Sessions": "会话",
       "Logout": "退出登录",
       "Settings": "设置"
-    }
+    },
+    "Departments": "部门"
   },
   "No": "否",
   "PerPage": "每页",
@@ -1276,6 +1277,85 @@
     "Hub": {
       "Title": "设置",
       "BackToApp": "返回应用"
+    }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "部门列表"
+      },
+      "Edit": {
+        "Title": "编辑部门"
+      },
+      "New": {
+        "Title": "新建部门"
+      }
+    },
+    "List": {
+      "New": "新建部门",
+      "Name": "名称",
+      "Code": "编码",
+      "Parent": "上级",
+      "Status": "状态",
+      "NoDepartments": {
+        "Title": "未找到部门",
+        "_Description": "点击“新建部门”按钮创建您的第一个部门"
+      }
+    },
+    "Single": {
+      "Name": "名称",
+      "Code": "编码",
+      "Parent": "上级部门",
+      "NoParent": "无上级",
+      "Order": "排序",
+      "Status": "状态",
+      "EnterName": "输入名称",
+      "EnterCode": "输入编码",
+      "EnterOrder": "输入排序"
+    },
+    "Status": {
+      "Active": "启用",
+      "Inactive": "停用"
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "职位列表"
+      },
+      "Edit": {
+        "Title": "编辑职位"
+      },
+      "New": {
+        "Title": "新建职位"
+      }
+    },
+    "List": {
+      "New": "新建职位",
+      "Title": "名称",
+      "User": "用户",
+      "Department": "部门",
+      "Role": "角色",
+      "Status": "状态",
+      "NoPositions": {
+        "Title": "未找到职位",
+        "_Description": "点击“新建职位”按钮创建您的第一个职位"
+      }
+    },
+    "Single": {
+      "Title": "名称",
+      "User": "用户",
+      "SelectUser": "选择用户",
+      "Department": "部门",
+      "SelectDepartment": "选择部门",
+      "IsManager": "主管",
+      "IsPrimary": "主要",
+      "Status": "状态",
+      "EnterTitle": "输入名称"
+    },
+    "Status": {
+      "Active": "启用",
+      "Inactive": "停用"
     }
   }
 }

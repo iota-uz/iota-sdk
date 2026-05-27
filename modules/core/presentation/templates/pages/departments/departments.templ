@@ -1,0 +1,254 @@
+package departments
+
+import (
+	"fmt"
+	"net/url"
+	"strconv"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/avatar"
+	"github.com/iota-uz/iota-sdk/components/base/badge"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/dialog"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
+	params := url.Values{}
+	params.Set("page", strconv.Itoa(props.Page+1))
+	params.Set("name", props.Search)
+	params.Set("limit", strconv.Itoa(props.PerPage))
+
+	return templ.Attributes{
+		"hx-get":     "/departments?" + params.Encode(),
+		"hx-trigger": "intersect once",
+		"hx-swap":    "afterend",
+		"hx-target":  "this",
+	}
+}
+
+templ DepartmentRow(d *viewmodels.Department, rowProps *base.TableRowProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		rowProps.Attrs["id"] = fmt.Sprintf("department-%s", d.ID)
+		rowProps.Attrs["hx-get"] = fmt.Sprintf("/departments/%s", d.ID)
+		rowProps.Attrs["hx-target"] = "body"
+		rowProps.Attrs["hx-swap"] = "beforeend"
+		rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
+	}}
+	@base.TableRow(*rowProps) {
+		@base.TableCell(base.TableCellProps{}) {
+			<div class="flex items-center gap-3">
+				@avatar.Avatar(avatar.Props{
+					Initials: d.GetInitials(),
+					Variant:  avatar.Round,
+				})
+				<span>{ d.Name }</span>
+			</div>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			<span class="font-mono text-sm">{ d.Code }</span>
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			if d.ParentName != "" {
+				<span>{ d.ParentName }</span>
+			} else {
+				<span class="text-gray-400">{ pageCtx.T("Departments.Single.NoParent") }</span>
+			}
+		}
+		@base.TableCell(base.TableCellProps{}) {
+			if d.Status == "inactive" {
+				@badge.New(badge.Props{Class: templ.Classes("px-2"), Variant: badge.VariantGray, Size: badge.SizeNormal}) {
+					{ pageCtx.T("Departments.Status.Inactive") }
+				}
+			} else {
+				@badge.New(badge.Props{Class: templ.Classes("px-2"), Variant: badge.VariantGreen, Size: badge.SizeNormal}) {
+					{ pageCtx.T("Departments.Status.Active") }
+				}
+			}
+		}
+	}
+}
+
+templ DepartmentRows(props *IndexPageProps) {
+	for ix, d := range props.Departments {
+		{{
+			isLastRow := ix == len(props.Departments)-1
+			rowProps := &base.TableRowProps{
+				Attrs: templ.Attributes{},
+			}
+			if isLastRow && props.HasMore {
+				rowProps.Attrs = mkInfiniteAttrs(props)
+			}
+		}}
+		@DepartmentRow(d, rowProps)
+	}
+}
+
+templ DepartmentsTable(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if len(props.Departments) == 0 {
+		@base.TableEmptyState(base.TableEmptyStateProps{
+			Title:       pageCtx.T("Departments.List.NoDepartments.Title"),
+			Description: pageCtx.T("Departments.List.NoDepartments._Description"),
+		})
+	} else {
+		@base.Table(base.TableProps{
+			Columns: []*base.TableColumn{
+				{Label: pageCtx.T("Departments.List.Name"), Key: "name"},
+				{Label: pageCtx.T("Departments.List.Code"), Key: "code"},
+				{Label: pageCtx.T("Departments.List.Parent"), Key: "parent"},
+				{Label: pageCtx.T("Departments.List.Status"), Key: "status"},
+			},
+		}) {
+			<tbody id="departments-table-body">
+				@DepartmentRows(props)
+			</tbody>
+		}
+	}
+}
+
+templ DepartmentsContent(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="m-6">
+		<div class="flex justify-between md:justify-start">
+			<h1 class="text-2xl font-medium">
+				{ pageCtx.T("NavigationLinks.Departments") }
+			</h1>
+			<div class="flex md:hidden gap-2">
+				if composables.CanUser(ctx, permissions.DepartmentCreate) == nil {
+					@button.Primary(button.Props{
+						Size: button.SizeNormal,
+						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+						Attrs: templ.Attributes{
+							"type":   "button",
+							"x-data": "",
+							"@click": "$dispatch('new-department')",
+						},
+					})
+				}
+			</div>
+		</div>
+		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+			<form
+				class="p-4 flex items-center gap-3"
+				hx-get="/departments"
+				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"
+				hx-target="table"
+				hx-swap="outerHTML"
+			>
+				<input type="hidden" name="page" value="1"/>
+				<div class="flex-1">
+					@input.Text(&input.Props{
+						AddonLeft: &input.Addon{
+							Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+						},
+						Placeholder: pageCtx.T("Search"),
+						Attrs: templ.Attributes{
+							"name":  "name",
+							"value": props.Search,
+						},
+					})
+				</div>
+				<div class="hidden md:flex gap-3">
+					if composables.CanUser(ctx, permissions.DepartmentCreate) == nil {
+						@button.Primary(button.Props{
+							Size: button.SizeNormal,
+							Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+							Attrs: templ.Attributes{
+								"type":   "button",
+								"x-data": "",
+								"@click": "$dispatch('new-department')",
+							},
+						}) {
+							{ pageCtx.T("Departments.List.New") }
+						}
+					}
+				</div>
+			</form>
+			@DepartmentsTable(props)
+		</div>
+	</div>
+}
+
+templ NewDepartmentDrawer() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.RTL,
+		Action:    "new-department",
+		Classes:   templ.Classes("flex items-stretch"),
+		ID:        "new-department-drawer",
+	}) {
+		<div class="bg-white w-full md:w-[450px] ml-auto">
+			<div class="flex flex-col h-full">
+				<form method="dialog">
+					<div class="flex justify-between px-4 py-3 border-b border-primary">
+						<h3 class="text-lg font-medium">
+							{ pageCtx.T("Departments.Meta.New.Title") }
+						</h3>
+						<div>
+							<button class="cursor-pointer">
+								@icons.XCircle(icons.Props{Size: "20"})
+							</button>
+						</div>
+					</div>
+				</form>
+				<div class="flex-1 min-h-0" hx-get="/departments/new" hx-trigger="load" hx-swap="innerHTML">
+					<div class="flex justify-center items-center h-full">
+						<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+					</div>
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ EditDepartmentDrawer(props *EditFormProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@dialog.Drawer(dialog.DrawerProps{
+		Direction: dialog.RTL,
+		Action:    "edit-department",
+		Open:      true,
+		Classes:   templ.Classes("flex items-stretch"),
+		ID:        "edit-department-drawer",
+		Attrs: templ.Attributes{
+			"@closing": "window.history.pushState({}, '', '/departments')",
+			"@closed":  "document.getElementById('edit-department-drawer').remove()",
+		},
+	}) {
+		<div class="bg-white w-full md:w-[450px] ml-auto">
+			<div class="flex flex-col h-full">
+				<form method="dialog">
+					<div class="flex justify-between px-4 py-3 border-b border-primary">
+						<h3 class="text-lg font-medium">
+							{ pageCtx.T("Departments.Meta.Edit.Title") }
+						</h3>
+						<div>
+							<button class="cursor-pointer">
+								@icons.XCircle(icons.Props{Size: "20"})
+							</button>
+						</div>
+					</div>
+				</form>
+				<div class="flex-1 min-h-0">
+					@EditForm(props)
+				</div>
+			</div>
+		</div>
+	}
+}
+
+templ Index(props *IndexPageProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@layouts.Authenticated(layouts.AuthenticatedProps{
+		BaseProps: layouts.BaseProps{Title: pageCtx.T("Departments.Meta.List.Title")},
+	}) {
+		@DepartmentsContent(props)
+		@NewDepartmentDrawer()
+	}
+}

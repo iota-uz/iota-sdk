@@ -1,0 +1,225 @@
+package positions
+
+import (
+	"fmt"
+
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+)
+
+// TitleInputsProps configures the per-locale title inputs. Values holds the
+// current value per locale code; Form, when set, associates the inputs with a
+// detached <form> (used by the edit drawer).
+type TitleInputsProps struct {
+	Values map[string]string
+	Error  string
+	Form   string
+}
+
+// MultiLangTitleInputs renders one labelled text input per supported locale,
+// named Title[<locale>] so the form decoder assembles them into a map. The
+// aggregate then builds a MultiLang from that map on submit.
+templ MultiLangTitleInputs(props *TitleInputsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="space-y-4">
+		<label class="form-control-label">{ pageCtx.T("Positions.Single.Title") }</label>
+		for _, lang := range intl.GetSupportedLanguages(nil) {
+			{{
+				value := ""
+				if props.Values != nil {
+					value = props.Values[lang.Code]
+				}
+				attrs := templ.Attributes{
+					"name":  fmt.Sprintf("Title[%s]", lang.Code),
+					"value": value,
+				}
+				if props.Form != "" {
+					attrs["form"] = props.Form
+				}
+			}}
+			@input.Text(&input.Props{
+				Label:       lang.VerboseName,
+				Placeholder: pageCtx.T("Positions.Single.EnterTitle"),
+				Attrs:       attrs,
+			})
+		}
+		if props.Error != "" {
+			<small class="text-xs text-red-500 mt-1" data-testid="field-error">
+				{ props.Error }
+			</small>
+		}
+	</div>
+}
+
+// UserSelectProps configures the user picker. Disabled renders a read-only
+// picker (used on edit, where the aggregate's user link is immutable) backed by
+// a hidden input that still submits the current id for validation.
+type UserSelectProps struct {
+	Options  []*UserOption
+	Selected string
+	Error    string
+	Form     string
+	Disabled bool
+}
+
+templ UserSelect(props *UserSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		attrs := templ.Attributes{"name": "UserID"}
+		if props.Form != "" {
+			attrs["form"] = props.Form
+		}
+		if props.Disabled {
+			attrs["disabled"] = true
+		}
+	}}
+	@base.Select(&base.SelectProps{
+		Label:       pageCtx.T("Positions.Single.User"),
+		Placeholder: pageCtx.T("Positions.Single.SelectUser"),
+		Error:       props.Error,
+		Attrs:       attrs,
+	}) {
+		for _, opt := range props.Options {
+			<option value={ opt.ID } selected?={ opt.ID == props.Selected }>{ opt.Name }</option>
+		}
+	}
+	if props.Disabled {
+		{{
+			hiddenAttrs := templ.Attributes{
+				"type":  "hidden",
+				"name":  "UserID",
+				"value": props.Selected,
+			}
+			if props.Form != "" {
+				hiddenAttrs["form"] = props.Form
+			}
+		}}
+		<input { hiddenAttrs... }/>
+	}
+}
+
+// DepartmentSelectProps configures the department picker.
+type DepartmentSelectProps struct {
+	Options  []*DepartmentOption
+	Selected string
+	Error    string
+	Form     string
+}
+
+templ DepartmentSelect(props *DepartmentSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		attrs := templ.Attributes{"name": "DepartmentID"}
+		if props.Form != "" {
+			attrs["form"] = props.Form
+		}
+	}}
+	@base.Select(&base.SelectProps{
+		Label:       pageCtx.T("Positions.Single.Department"),
+		Placeholder: pageCtx.T("Positions.Single.SelectDepartment"),
+		Error:       props.Error,
+		Attrs:       attrs,
+	}) {
+		for _, opt := range props.Options {
+			<option value={ opt.ID } selected?={ opt.ID == props.Selected }>{ opt.Name }</option>
+		}
+	}
+}
+
+// StatusSelectProps configures the active/inactive status dropdown.
+type StatusSelectProps struct {
+	Selected string
+	Error    string
+	Form     string
+}
+
+templ StatusSelect(props *StatusSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		selected := props.Selected
+		if selected == "" {
+			selected = "active"
+		}
+		attrs := templ.Attributes{"name": "Status"}
+		if props.Form != "" {
+			attrs["form"] = props.Form
+		}
+	}}
+	@base.Select(&base.SelectProps{
+		Label: pageCtx.T("Positions.Single.Status"),
+		Error: props.Error,
+		Attrs: attrs,
+	}) {
+		<option value="active" selected?={ selected == "active" }>{ pageCtx.T("Positions.Status.Active") }</option>
+		<option value="inactive" selected?={ selected == "inactive" }>{ pageCtx.T("Positions.Status.Inactive") }</option>
+	}
+}
+
+// FormFieldsProps bundles the inputs shared by the create and edit forms.
+// UserDisabled is set on edit because the aggregate's user link cannot change.
+type FormFieldsProps struct {
+	Title        map[string]string
+	UserID       string
+	DepartmentID string
+	IsManager    bool
+	IsPrimary    bool
+	Status       string
+	UserOpts     []*UserOption
+	DeptOpts     []*DepartmentOption
+	UserDisabled bool
+	Errors       map[string]string
+	Form         string
+}
+
+templ FormFields(props *FormFieldsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		managerAttrs := templ.Attributes{
+			"name":  "IsManager",
+			"value": "true",
+		}
+		primaryAttrs := templ.Attributes{
+			"name":  "IsPrimary",
+			"value": "true",
+		}
+		if props.Form != "" {
+			managerAttrs["form"] = props.Form
+			primaryAttrs["form"] = props.Form
+		}
+	}}
+	@MultiLangTitleInputs(&TitleInputsProps{
+		Values: props.Title,
+		Error:  props.Errors["Title"],
+		Form:   props.Form,
+	})
+	@UserSelect(&UserSelectProps{
+		Options:  props.UserOpts,
+		Selected: props.UserID,
+		Error:    props.Errors["UserID"],
+		Form:     props.Form,
+		Disabled: props.UserDisabled,
+	})
+	@DepartmentSelect(&DepartmentSelectProps{
+		Options:  props.DeptOpts,
+		Selected: props.DepartmentID,
+		Error:    props.Errors["DepartmentID"],
+		Form:     props.Form,
+	})
+	@input.Checkbox(&input.CheckboxProps{
+		Label:   pageCtx.T("Positions.Single.IsManager"),
+		Checked: props.IsManager,
+		Attrs:   managerAttrs,
+	})
+	@input.Checkbox(&input.CheckboxProps{
+		Label:   pageCtx.T("Positions.Single.IsPrimary"),
+		Checked: props.IsPrimary,
+		Attrs:   primaryAttrs,
+	})
+	@StatusSelect(&StatusSelectProps{
+		Selected: props.Status,
+		Error:    props.Errors["Status"],
+		Form:     props.Form,
+	})
+}

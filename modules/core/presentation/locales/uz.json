@@ -577,7 +577,8 @@
       "Sessions": "Sessiyalar",
       "Logout": "Chiqish",
       "Settings": "Sozlamalar"
-    }
+    },
+    "Departments": "Bo'limlar"
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
@@ -1272,6 +1273,85 @@
     "Hub": {
       "Title": "Sozlamalar",
       "BackToApp": "Orqaga"
+    }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Bo'limlar ro'yxati"
+      },
+      "Edit": {
+        "Title": "Bo'limni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi bo'lim"
+      }
+    },
+    "List": {
+      "New": "Yangi bo'lim",
+      "Name": "Nomi",
+      "Code": "Kod",
+      "Parent": "Ota bo'lim",
+      "Status": "Holati",
+      "NoDepartments": {
+        "Title": "Bo'limlar topilmadi",
+        "_Description": "«Yangi bo'lim» tugmasini bosib birinchi bo'limingizni yarating"
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "Code": "Kod",
+      "Parent": "Ota bo'lim",
+      "NoParent": "Ota bo'limsiz",
+      "Order": "Tartib",
+      "Status": "Holati",
+      "EnterName": "Nomini kiriting",
+      "EnterCode": "Kodni kiriting",
+      "EnterOrder": "Tartibni kiriting"
+    },
+    "Status": {
+      "Active": "Faol",
+      "Inactive": "Nofaol"
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Lavozimlar ro'yxati"
+      },
+      "Edit": {
+        "Title": "Lavozimni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi lavozim"
+      }
+    },
+    "List": {
+      "New": "Yangi lavozim",
+      "Title": "Nomi",
+      "User": "Foydalanuvchi",
+      "Department": "Bo'lim",
+      "Role": "Rol",
+      "Status": "Holati",
+      "NoPositions": {
+        "Title": "Lavozimlar topilmadi",
+        "_Description": "«Yangi lavozim» tugmasini bosib birinchi lavozimingizni yarating"
+      }
+    },
+    "Single": {
+      "Title": "Nomi",
+      "User": "Foydalanuvchi",
+      "SelectUser": "Foydalanuvchini tanlang",
+      "Department": "Bo'lim",
+      "SelectDepartment": "Bo'limni tanlang",
+      "IsManager": "Rahbar",
+      "IsPrimary": "Asosiy",
+      "Status": "Holati",
+      "EnterTitle": "Nomini kiriting"
+    },
+    "Status": {
+      "Active": "Faol",
+      "Inactive": "Nofaol"
     }
   }
 }

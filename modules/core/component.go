@@ -91,6 +91,8 @@ func (c *component) Build(builder *composition.Builder) error {
 			spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
 			spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
 			spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
+			spotlight.NewQuickLink(DepartmentsLink.Name, DepartmentsLink.Href),
+			spotlight.NewQuickLink(PositionsLink.Name, PositionsLink.Href),
 			spotlight.NewQuickLink("Users.List.New", "/users/new"),
 		)
 	}
@@ -278,6 +280,8 @@ func (c *component) Build(builder *composition.Builder) error {
 						PermissionSchema: opts.PermissionSchema,
 					}),
 					controllers.NewGroupsController(app, groupService),
+					controllers.NewDepartmentsController(app),
+					controllers.NewPositionsController(app),
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
 					controllers.NewSettingsLogoController(tenantService, uploadService),
