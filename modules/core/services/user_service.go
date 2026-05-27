@@ -49,6 +49,13 @@ func (s *UserService) GetByID(ctx context.Context, id uint) (user.User, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *UserService) GetByIDs(ctx context.Context, ids []uint) ([]user.User, error) {
+	if err := composables.CanUser(ctx, permissions.UserRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByIDs(ctx, ids)
+}
+
 func (s *UserService) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
 	if err := composables.CanUser(ctx, permissions.UserRead); err != nil {
 		return nil, err

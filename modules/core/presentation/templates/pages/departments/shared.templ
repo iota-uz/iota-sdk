@@ -1,0 +1,193 @@
+package departments
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
+)
+
+// localeValue looks up a per-locale value tolerating key-casing differences:
+// MultiLang.GetAll normalizes keys to lowercase (e.g. "uz-cyrl") while form
+// re-renders key by the submitted UI code (e.g. "uz-Cyrl"). Matching
+// case-insensitively keeps every locale (esp. uz-Cyrl) pre-filled on edit.
+func localeValue(values map[string]string, code string) string {
+	if values == nil {
+		return ""
+	}
+	if v, ok := values[code]; ok {
+		return v
+	}
+	return values[strings.ToLower(code)]
+}
+
+// DepartmentOption is a lightweight parent-department choice for the select.
+type DepartmentOption struct {
+	ID   string
+	Name string
+}
+
+// NameInputsProps configures the per-locale name inputs. Values holds the
+// current value per locale code; Form, when set, associates the inputs with a
+// detached <form> (used by the edit drawer).
+type NameInputsProps struct {
+	Values map[string]string
+	Error  string
+	Form   string
+}
+
+// MultiLangNameInputs renders one labelled text input per supported locale,
+// named Name[<locale>] so the form decoder assembles them into a map. The
+// aggregate then builds a MultiLang from that map on submit.
+templ MultiLangNameInputs(props *NameInputsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="space-y-4">
+		<label class="form-control-label">{ pageCtx.T("Departments.Single.Name") }</label>
+		for _, lang := range intl.GetSupportedLanguages(nil) {
+			{{
+				value := localeValue(props.Values, lang.Code)
+				attrs := templ.Attributes{
+					"name":  fmt.Sprintf("Name[%s]", lang.Code),
+					"value": value,
+				}
+				if props.Form != "" {
+					attrs["form"] = props.Form
+				}
+			}}
+			@input.Text(&input.Props{
+				Label:       lang.VerboseName,
+				Placeholder: pageCtx.T("Departments.Single.EnterName"),
+				Attrs:       attrs,
+			})
+		}
+		if props.Error != "" {
+			<small class="text-xs text-red-500 mt-1" data-testid="field-error">
+				{ props.Error }
+			</small>
+		}
+	</div>
+}
+
+// ParentSelectProps configures the parent-department dropdown. Options must
+// already exclude the department being edited and its descendants to prevent
+// hierarchy cycles. Selected is the currently chosen parent id (empty for a
+// root department).
+type ParentSelectProps struct {
+	Options  []*DepartmentOption
+	Selected string
+	Error    string
+	Form     string
+}
+
+templ ParentSelect(props *ParentSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		attrs := templ.Attributes{"name": "ParentID"}
+		if props.Form != "" {
+			attrs["form"] = props.Form
+		}
+	}}
+	@base.Select(&base.SelectProps{
+		Label:       pageCtx.T("Departments.Single.Parent"),
+		Placeholder: pageCtx.T("Departments.Single.NoParent"),
+		Error:       props.Error,
+		Attrs:       attrs,
+	}) {
+		<option value="" selected?={ props.Selected == "" }>{ pageCtx.T("Departments.Single.NoParent") }</option>
+		for _, opt := range props.Options {
+			<option value={ opt.ID } selected?={ opt.ID == props.Selected }>{ opt.Name }</option>
+		}
+	}
+}
+
+// StatusSelectProps configures the active/inactive status dropdown shared by
+// the create and edit forms.
+type StatusSelectProps struct {
+	Selected string
+	Error    string
+	Form     string
+}
+
+templ StatusSelect(props *StatusSelectProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		selected := props.Selected
+		if selected == "" {
+			selected = "active"
+		}
+		attrs := templ.Attributes{"name": "Status"}
+		if props.Form != "" {
+			attrs["form"] = props.Form
+		}
+	}}
+	@base.Select(&base.SelectProps{
+		Label: pageCtx.T("Departments.Single.Status"),
+		Error: props.Error,
+		Attrs: attrs,
+	}) {
+		<option value="active" selected?={ selected == "active" }>{ pageCtx.T("Departments.Status.Active") }</option>
+		<option value="inactive" selected?={ selected == "inactive" }>{ pageCtx.T("Departments.Status.Inactive") }</option>
+	}
+}
+
+// FormFieldsProps bundles the inputs shared by the create and edit forms so the
+// two templates stay in lockstep. Form associates inputs with a detached form.
+type FormFieldsProps struct {
+	Name       map[string]string
+	Code       string
+	ParentID   string
+	Order      string
+	Status     string
+	ParentOpts []*DepartmentOption
+	Errors     map[string]string
+	Form       string
+}
+
+templ FormFields(props *FormFieldsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+		codeAttrs := templ.Attributes{
+			"name":  "Code",
+			"value": props.Code,
+		}
+		orderAttrs := templ.Attributes{
+			"name":  "Order",
+			"value": props.Order,
+		}
+		if props.Form != "" {
+			codeAttrs["form"] = props.Form
+			orderAttrs["form"] = props.Form
+		}
+	}}
+	@MultiLangNameInputs(&NameInputsProps{
+		Values: props.Name,
+		Error:  props.Errors["Name"],
+		Form:   props.Form,
+	})
+	@input.Text(&input.Props{
+		Label:       pageCtx.T("Departments.Single.Code"),
+		Placeholder: pageCtx.T("Departments.Single.EnterCode"),
+		Error:       props.Errors["Code"],
+		Attrs:       codeAttrs,
+	})
+	@ParentSelect(&ParentSelectProps{
+		Options:  props.ParentOpts,
+		Selected: props.ParentID,
+		Error:    props.Errors["ParentID"],
+		Form:     props.Form,
+	})
+	@input.Number(&input.Props{
+		Label:       pageCtx.T("Departments.Single.Order"),
+		Placeholder: pageCtx.T("Departments.Single.EnterOrder"),
+		Error:       props.Errors["Order"],
+		Attrs:       orderAttrs,
+	})
+	@StatusSelect(&StatusSelectProps{
+		Selected: props.Status,
+		Error:    props.Errors["Status"],
+		Form:     props.Form,
+	})
+}

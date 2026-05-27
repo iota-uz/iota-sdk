@@ -39,6 +39,22 @@ var GroupsLink = types.NavigationItem{
 	Children:    nil,
 }
 
+var DepartmentsLink = types.NavigationItem{
+	Name:        "NavigationLinks.Departments",
+	Icon:        nil,
+	Href:        "/departments",
+	Permissions: []permission.Permission{permissions.DepartmentRead},
+	Children:    nil,
+}
+
+var PositionsLink = types.NavigationItem{
+	Name:        "NavigationLinks.Positions",
+	Icon:        nil,
+	Href:        "/positions",
+	Permissions: []permission.Permission{permissions.PositionRead},
+	Children:    nil,
+}
+
 var SettingsLink = types.NavigationItem{
 	Name:     "NavigationLinks.Settings",
 	Icon:     nil,
@@ -54,6 +70,8 @@ var AdministrationLink = types.NavigationItem{
 		UsersLink,
 		RolesLink,
 		GroupsLink,
+		DepartmentsLink,
+		PositionsLink,
 		SettingsLink,
 	},
 }

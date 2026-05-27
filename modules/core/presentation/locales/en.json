@@ -577,7 +577,8 @@
       "Sessions": "Sessions",
       "Logout": "Logout",
       "Settings": "Settings"
-    }
+    },
+    "Departments": "Departments"
   },
   "No": "No",
   "PerPage": "Per page",
@@ -1273,6 +1274,85 @@
     "Hub": {
       "Title": "Settings",
       "BackToApp": "Back to app"
+    }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Departments List"
+      },
+      "Edit": {
+        "Title": "Edit department"
+      },
+      "New": {
+        "Title": "New department"
+      }
+    },
+    "List": {
+      "New": "New department",
+      "Name": "Name",
+      "Code": "Code",
+      "Parent": "Parent",
+      "Status": "Status",
+      "NoDepartments": {
+        "Title": "No departments found",
+        "_Description": "Create your first department by clicking the 'New department' button"
+      }
+    },
+    "Single": {
+      "Name": "Name",
+      "Code": "Code",
+      "Parent": "Parent department",
+      "NoParent": "No parent",
+      "Order": "Order",
+      "Status": "Status",
+      "EnterName": "Enter name",
+      "EnterCode": "Enter code",
+      "EnterOrder": "Enter order"
+    },
+    "Status": {
+      "Active": "Active",
+      "Inactive": "Inactive"
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Positions List"
+      },
+      "Edit": {
+        "Title": "Edit position"
+      },
+      "New": {
+        "Title": "New position"
+      }
+    },
+    "List": {
+      "New": "New position",
+      "Title": "Title",
+      "User": "User",
+      "Department": "Department",
+      "Role": "Role",
+      "Status": "Status",
+      "NoPositions": {
+        "Title": "No positions found",
+        "_Description": "Create your first position by clicking the 'New position' button"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "User": "User",
+      "SelectUser": "Select user",
+      "Department": "Department",
+      "SelectDepartment": "Select department",
+      "IsManager": "Manager",
+      "IsPrimary": "Primary",
+      "Status": "Status",
+      "EnterTitle": "Enter title"
+    },
+    "Status": {
+      "Active": "Active",
+      "Inactive": "Inactive"
     }
   }
 }

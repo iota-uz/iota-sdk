@@ -577,7 +577,8 @@
       "Sessions": "Sessiyalar",
       "Logout": "Chiqish",
       "Settings": "Созламалар"
-    }
+    },
+    "Departments": "Бўлимлар"
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
@@ -1272,6 +1273,85 @@
     "Hub": {
       "Title": "Созламалар",
       "BackToApp": "Орқага"
+    }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Бўлимлар рўйхати"
+      },
+      "Edit": {
+        "Title": "Бўлимни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги бўлим"
+      }
+    },
+    "List": {
+      "New": "Янги бўлим",
+      "Name": "Номи",
+      "Code": "Код",
+      "Parent": "Она бўлим",
+      "Status": "Ҳолати",
+      "NoDepartments": {
+        "Title": "Бўлимлар топилмади",
+        "_Description": "«Янги бўлим» тугмасини босиб биринчи бўлимингизни яратинг"
+      }
+    },
+    "Single": {
+      "Name": "Номи",
+      "Code": "Код",
+      "Parent": "Она бўлим",
+      "NoParent": "Она бўлимсиз",
+      "Order": "Тартиб",
+      "Status": "Ҳолати",
+      "EnterName": "Номини киритинг",
+      "EnterCode": "Кодни киритинг",
+      "EnterOrder": "Тартибни киритинг"
+    },
+    "Status": {
+      "Active": "Фаол",
+      "Inactive": "Нофаол"
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Лавозимлар рўйхати"
+      },
+      "Edit": {
+        "Title": "Лавозимни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги лавозим"
+      }
+    },
+    "List": {
+      "New": "Янги лавозим",
+      "Title": "Номи",
+      "User": "Фойдаланувчи",
+      "Department": "Бўлим",
+      "Role": "Рол",
+      "Status": "Ҳолати",
+      "NoPositions": {
+        "Title": "Лавозимлар топилмади",
+        "_Description": "«Янги лавозим» тугмасини босиб биринчи лавозимингизни яратинг"
+      }
+    },
+    "Single": {
+      "Title": "Номи",
+      "User": "Фойдаланувчи",
+      "SelectUser": "Фойдаланувчини танланг",
+      "Department": "Бўлим",
+      "SelectDepartment": "Бўлимни танланг",
+      "IsManager": "Раҳбар",
+      "IsPrimary": "Асосий",
+      "Status": "Ҳолати",
+      "EnterTitle": "Номини киритинг"
+    },
+    "Status": {
+      "Active": "Фаол",
+      "Inactive": "Нофаол"
     }
   }
 }

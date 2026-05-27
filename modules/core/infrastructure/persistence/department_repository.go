@@ -160,6 +160,25 @@ func (r *PgDepartmentRepository) GetByID(ctx context.Context, id uuid.UUID) (dep
 	return departments[0], nil
 }
 
+func (r *PgDepartmentRepository) GetByIDs(ctx context.Context, ids []uuid.UUID) ([]department.Department, error) {
+	const op serrors.Op = "PgDepartmentRepository.GetByIDs"
+	if len(ids) == 0 {
+		return []department.Department{}, nil
+	}
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	q := repo.Join(departmentFindQuery, "WHERE d.id = ANY($1) AND d.tenant_id = $2")
+	departments, err := r.queryDepartments(ctx, q, ids, tenantID.String())
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return departments, nil
+}
+
 func (r *PgDepartmentRepository) Exists(ctx context.Context, id uuid.UUID) (bool, error) {
 	const op serrors.Op = "PgDepartmentRepository.Exists"
 	tx, err := composables.UseTx(ctx)
