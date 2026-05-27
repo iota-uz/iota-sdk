@@ -278,7 +278,8 @@ func (c *DepartmentsController) Create(
 	entity = entity.SetTenantID(tenantID)
 
 	if _, err := service.Create(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("Error creating department: %v", err)
+		http.Error(w, "Error creating department", http.StatusInternalServerError)
 		return
 	}
 

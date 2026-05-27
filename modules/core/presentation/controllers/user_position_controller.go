@@ -322,7 +322,8 @@ func (c *PositionsController) Create(
 	entity = entity.SetTenantID(tenantID)
 
 	if _, err := service.Create(r.Context(), entity); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		logger.Errorf("Error creating position: %v", err)
+		http.Error(w, "Error creating position", http.StatusInternalServerError)
 		return
 	}
 

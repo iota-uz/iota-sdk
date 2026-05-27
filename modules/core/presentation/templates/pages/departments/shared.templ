@@ -2,12 +2,27 @@ package departments
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
+
+// localeValue looks up a per-locale value tolerating key-casing differences:
+// MultiLang.GetAll normalizes keys to lowercase (e.g. "uz-cyrl") while form
+// re-renders key by the submitted UI code (e.g. "uz-Cyrl"). Matching
+// case-insensitively keeps every locale (esp. uz-Cyrl) pre-filled on edit.
+func localeValue(values map[string]string, code string) string {
+	if values == nil {
+		return ""
+	}
+	if v, ok := values[code]; ok {
+		return v
+	}
+	return values[strings.ToLower(code)]
+}
 
 // DepartmentOption is a lightweight parent-department choice for the select.
 type DepartmentOption struct {
@@ -33,10 +48,7 @@ templ MultiLangNameInputs(props *NameInputsProps) {
 		<label class="form-control-label">{ pageCtx.T("Departments.Single.Name") }</label>
 		for _, lang := range intl.GetSupportedLanguages(nil) {
 			{{
-				value := ""
-				if props.Values != nil {
-					value = props.Values[lang.Code]
-				}
+				value := localeValue(props.Values, lang.Code)
 				attrs := templ.Attributes{
 					"name":  fmt.Sprintf("Name[%s]", lang.Code),
 					"value": value,

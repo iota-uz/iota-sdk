@@ -10,12 +10,27 @@ import templruntime "github.com/a-h/templ/runtime"
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
+
+// localeValue looks up a per-locale value tolerating key-casing differences:
+// MultiLang.GetAll normalizes keys to lowercase (e.g. "uz-cyrl") while form
+// re-renders key by the submitted UI code (e.g. "uz-Cyrl"). Matching
+// case-insensitively keeps every locale (esp. uz-Cyrl) pre-filled on edit.
+func localeValue(values map[string]string, code string) string {
+	if values == nil {
+		return ""
+	}
+	if v, ok := values[code]; ok {
+		return v
+	}
+	return values[strings.ToLower(code)]
+}
 
 // DepartmentOption is a lightweight parent-department choice for the select.
 type DepartmentOption struct {
@@ -64,7 +79,7 @@ func MultiLangNameInputs(props *NameInputsProps) templ.Component {
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Departments.Single.Name"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 33, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 48, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -76,10 +91,7 @@ func MultiLangNameInputs(props *NameInputsProps) templ.Component {
 		}
 		for _, lang := range intl.GetSupportedLanguages(nil) {
 
-			value := ""
-			if props.Values != nil {
-				value = props.Values[lang.Code]
-			}
+			value := localeValue(props.Values, lang.Code)
 			attrs := templ.Attributes{
 				"name":  fmt.Sprintf("Name[%s]", lang.Code),
 				"value": value,
@@ -104,7 +116,7 @@ func MultiLangNameInputs(props *NameInputsProps) templ.Component {
 			var templ_7745c5c3_Var3 string
 			templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(props.Error)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 56, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 68, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 			if templ_7745c5c3_Err != nil {
@@ -190,7 +202,7 @@ func ParentSelect(props *ParentSelectProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Departments.Single.NoParent"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 87, Col: 96}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 99, Col: 96}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -208,7 +220,7 @@ func ParentSelect(props *ParentSelectProps) templ.Component {
 				var templ_7745c5c3_Var7 string
 				templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(opt.ID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 89, Col: 25}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 101, Col: 25}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 				if templ_7745c5c3_Err != nil {
@@ -231,7 +243,7 @@ func ParentSelect(props *ParentSelectProps) templ.Component {
 				var templ_7745c5c3_Var8 string
 				templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(opt.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 89, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 101, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 				if templ_7745c5c3_Err != nil {
@@ -325,7 +337,7 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Departments.Status.Active"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 119, Col: 100}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 131, Col: 100}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -348,7 +360,7 @@ func StatusSelect(props *StatusSelectProps) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Departments.Status.Inactive"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 120, Col: 106}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/core/presentation/templates/pages/departments/shared.templ`, Line: 132, Col: 106}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {

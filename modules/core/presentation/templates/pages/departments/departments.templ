@@ -35,21 +35,29 @@ func mkInfiniteAttrs(props *IndexPageProps) templ.Attributes {
 templ DepartmentRow(d *viewmodels.Department, rowProps *base.TableRowProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
+		// The detail-fetch hx-* attributes live on an inner button rather than on
+		// the <tr>, so the last row's infinite-scroll pagination attributes (set
+		// via mkInfiniteAttrs) are not clobbered here. Mirrors the crm/clients row.
 		rowProps.Attrs["id"] = fmt.Sprintf("department-%s", d.ID)
-		rowProps.Attrs["hx-get"] = fmt.Sprintf("/departments/%s", d.ID)
-		rowProps.Attrs["hx-target"] = "body"
-		rowProps.Attrs["hx-swap"] = "beforeend"
-		rowProps.Attrs["class"] = "cursor-pointer hover:bg-surface-600"
+		rowProps.Attrs["class"] = "hover:bg-surface-600"
 	}}
 	@base.TableRow(*rowProps) {
 		@base.TableCell(base.TableCellProps{}) {
-			<div class="flex items-center gap-3">
+			<button
+				type="button"
+				x-data
+				hx-get={ fmt.Sprintf("/departments/%s", d.ID) }
+				hx-target="body"
+				hx-swap="beforeend"
+				hx-trigger="click"
+				class="flex items-center gap-3 cursor-pointer text-left w-full"
+			>
 				@avatar.Avatar(avatar.Props{
 					Initials: d.GetInitials(),
 					Variant:  avatar.Round,
 				})
 				<span>{ d.Name }</span>
-			</div>
+			</button>
 		}
 		@base.TableCell(base.TableCellProps{}) {
 			<span class="font-mono text-sm">{ d.Code }</span>
