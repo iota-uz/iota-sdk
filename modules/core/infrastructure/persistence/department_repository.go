@@ -12,11 +12,44 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// Re-export the domain-level Repository contract errors so existing
+// `persistence.ErrDepartmentNotFound` / `ErrDepartmentDuplicateCode` callers
+// keep compiling. New code should prefer the canonical `department.ErrNotFound`
+// / `department.ErrDuplicateCode` to keep services and controllers decoupled
+// from this infrastructure package.
 var (
-	ErrDepartmentNotFound = errors.New("department not found")
+	ErrDepartmentNotFound      = department.ErrNotFound
+	ErrDepartmentDuplicateCode = department.ErrDuplicateCode
 )
+
+// departmentsTenantCodeUniqueConstraint is the Postgres name of the unique
+// constraint on (tenant_id, code) for core.departments. SQLSTATE 23505 raised
+// against this constraint maps to department.ErrDuplicateCode.
+const departmentsTenantCodeUniqueConstraint = "departments_tenant_id_code_key"
+
+// classifyDepartmentDBError maps the Postgres unique-constraint violation on
+// (tenant_id, code) for core.departments to department.ErrDuplicateCode wrapped
+// in serrors.KindValidation, so admin controllers can render a field-level
+// "code already in use" message instead of a 500. Unrecognized errors keep
+// their original shape (wrapped with op for tracing). Currently routed from
+// the create() and update() write paths; Delete() does not need it (it has no
+// 23505 surface today — a FK-violation classifier for child-dept references
+// can be added here when the admin "cascade delete" UX is built).
+func classifyDepartmentDBError(op serrors.Op, err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
+		pgErr.ConstraintName == departmentsTenantCodeUniqueConstraint {
+		return serrors.E(op, serrors.KindValidation,
+			fmt.Errorf("department code already exists in tenant: %w", department.ErrDuplicateCode))
+	}
+	return serrors.E(op, err)
+}
 
 const (
 	departmentFindQuery = `
@@ -262,7 +295,7 @@ func (r *PgDepartmentRepository) create(
 	}
 
 	if _, err := tx.Exec(ctx, repo.Insert("core.departments", fields), values...); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, classifyDepartmentDBError(op, err)
 	}
 
 	id, err := uuid.Parse(dbDepartment.ID)
@@ -322,7 +355,7 @@ func (r *PgDepartmentRepository) update(
 		fmt.Sprintf("tenant_id = $%d", len(values)),
 	)
 	if _, err := tx.Exec(ctx, query, values...); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, classifyDepartmentDBError(op, err)
 	}
 
 	id, err := uuid.Parse(dbDepartment.ID)

@@ -2,12 +2,15 @@
 package controllers
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
@@ -19,6 +22,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -329,6 +333,30 @@ func (c *DepartmentsController) Create(
 	entity = entity.SetTenantID(tenantID)
 
 	if _, err := service.Create(r.Context(), entity); err != nil {
+		// Surface known validation/conflict failures back to the drawer as
+		// field-level errors (mirrors the DTO-error branch above).
+		if status, fields := departmentValidationFieldError(r.Context(), err); fields != nil {
+			options, optErr := c.parentOptions(r, service, "")
+			if optErr != nil {
+				logger.Error(serrors.E(opDepartmentsCreate, optErr))
+				http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
+				return
+			}
+			props := &departments.CreateFormProps{
+				Department: &departments.DepartmentFormData{
+					Name:     dto.Name,
+					Code:     dto.Code,
+					ParentID: dto.ParentID,
+					Order:    strconv.Itoa(dto.Order),
+					Status:   dto.Status,
+				},
+				ParentOpts: options,
+				Errors:     fields,
+			}
+			w.WriteHeader(status)
+			templ.Handler(departments.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			return
+		}
 		logger.Error(serrors.E(opDepartmentsCreate, err))
 		http.Error(w, "Error creating department", http.StatusInternalServerError)
 		return
@@ -405,6 +433,33 @@ func (c *DepartmentsController) Update(
 	}
 
 	if _, err := service.Update(r.Context(), entity); err != nil {
+		// Surface known validation/conflict failures back to the drawer as
+		// field-level errors (mirrors the DTO-error branch above).
+		if status, fields := departmentValidationFieldError(r.Context(), err); fields != nil {
+			options, optErr := c.parentOptionsExcludingSubtree(r, service, orgQuery, id)
+			if optErr != nil {
+				logger.Error(serrors.E(opDepartmentsUpdate, optErr))
+				http.Error(w, "Error retrieving departments", http.StatusInternalServerError)
+				return
+			}
+			props := &departments.EditFormProps{
+				Department: &viewmodels.Department{
+					ID:        id.String(),
+					Code:      dto.Code,
+					NameI18n:  dto.Name,
+					ParentID:  dto.ParentID,
+					Order:     strconv.Itoa(dto.Order),
+					Status:    dto.Status,
+					CanUpdate: true,
+					CanDelete: true,
+				},
+				ParentOpts: options,
+				Errors:     fields,
+			}
+			w.WriteHeader(status)
+			templ.Handler(departments.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
+			return
+		}
 		logger.Error(serrors.E(opDepartmentsUpdate, err))
 		http.Error(w, "Error updating department", http.StatusInternalServerError)
 		return
@@ -491,4 +546,43 @@ func buildParentOptions(
 		opts = append(opts, &departments.DepartmentOption{ID: vm.ID, Name: vm.Name})
 	}
 	return opts
+}
+
+// departmentValidationFieldError maps a service or repository error to the
+// drawer's field-error map plus the HTTP status to send back. It returns
+// (0, nil) when the error is not a known validation failure — callers fall
+// through to the generic 5xx path. Sentinels live with the layer that raises
+// them: services.* for write-path validation, persistence.* for storage
+// constraints. Malformed UUIDs in `ParentID` are caught earlier by the DTO
+// validator (`omitempty,uuid` tag) and surface through the existing DTO error
+// branch, so they are not handled here.
+func departmentValidationFieldError(ctx context.Context, err error) (int, map[string]string) {
+	if err == nil {
+		return 0, nil
+	}
+	l, ok := intl.UseLocalizer(ctx)
+	if !ok {
+		return 0, nil
+	}
+	tr := func(key string) string {
+		return l.MustLocalize(&i18n.LocalizeConfig{MessageID: key})
+	}
+
+	switch {
+	case errors.Is(err, services.ErrDepartmentSelfLoop):
+		return http.StatusBadRequest, map[string]string{"ParentID": tr("Departments.Errors.SelfLoop")}
+	case errors.Is(err, services.ErrDepartmentCycle):
+		return http.StatusBadRequest, map[string]string{"ParentID": tr("Departments.Errors.Cycle")}
+	case errors.Is(err, services.ErrDepartmentParentNotFound):
+		return http.StatusBadRequest, map[string]string{"ParentID": tr("Departments.Errors.ParentNotFound")}
+	case errors.Is(err, department.ErrDuplicateCode):
+		return http.StatusConflict, map[string]string{"Code": tr("Departments.Errors.DuplicateCode")}
+	}
+
+	// Validation errors without a known sentinel fall through to the generic
+	// 5xx path. Add a sentinel for the failure first, then map it here — the
+	// drawer template only renders per-field errors, so a generic "_form" entry
+	// would silently disappear and look like a no-op success.
+
+	return 0, nil
 }

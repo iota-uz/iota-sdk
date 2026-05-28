@@ -6,13 +6,16 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
-	"github.com/iota-uz/iota-sdk/modules/core/permissions"
-	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
 
 // OrgQuery is the consumer-facing read API for organizational membership and
 // hierarchy lookups. It is the foundation that permission-scoping code (e.g.
-// EDO granular permissions) builds on. All lookups are tenant-scoped.
+// EDO granular permissions) builds on. All lookups are tenant-scoped at the
+// repository layer; callers are not required to hold the `DepartmentRead`
+// permission to query structural membership — that gate is enforced by the
+// admin Department CRUD controllers, not by this internal-read API. Downstream
+// services (EDO AccessResolver, future HR/CRM resolvers) consume this without
+// needing to grant every end-user `DepartmentRead`.
 type OrgQuery interface {
 	// UserDepartments returns the departments the user holds a position in.
 	UserDepartments(ctx context.Context, userID uint) ([]uuid.UUID, error)
@@ -37,9 +40,6 @@ func NewOrgQueryService(repo query.OrgQueryRepository) *OrgQueryService {
 var _ OrgQuery = (*OrgQueryService)(nil)
 
 func (s *OrgQueryService) UserDepartments(ctx context.Context, userID uint) ([]uuid.UUID, error) {
-	if err := composables.CanUser(ctx, permissions.DepartmentRead); err != nil {
-		return nil, err
-	}
 	return s.repo.UserDepartments(ctx, userID)
 }
 
@@ -48,15 +48,9 @@ func (s *OrgQueryService) UserManagedDepartments(
 	userID uint,
 	includeSubtree bool,
 ) ([]uuid.UUID, error) {
-	if err := composables.CanUser(ctx, permissions.DepartmentRead); err != nil {
-		return nil, err
-	}
 	return s.repo.UserManagedDepartments(ctx, userID, includeSubtree)
 }
 
 func (s *OrgQueryService) DepartmentSubtree(ctx context.Context, deptID uuid.UUID) ([]uuid.UUID, error) {
-	if err := composables.CanUser(ctx, permissions.DepartmentRead); err != nil {
-		return nil, err
-	}
 	return s.repo.DepartmentSubtree(ctx, deptID)
 }

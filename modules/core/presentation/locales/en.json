@@ -1313,6 +1313,12 @@
     "Status": {
       "Active": "Active",
       "Inactive": "Inactive"
+    },
+    "Errors": {
+      "SelfLoop": "A department cannot be its own parent.",
+      "Cycle": "This parent would create a circular hierarchy.",
+      "DuplicateCode": "This code is already in use by another department.",
+      "ParentNotFound": "The selected parent department was not found."
     }
   },
   "Positions": {

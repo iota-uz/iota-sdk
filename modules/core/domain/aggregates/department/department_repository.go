@@ -3,9 +3,28 @@ package department
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
+)
+
+// Repository contract errors. These are part of the Repository interface's
+// public surface so consumers (services, controllers, seeders) can match a
+// specific failure with errors.Is without taking a dependency on any concrete
+// infrastructure package. Repository implementations must wrap the underlying
+// driver error so errors.Is(err, ErrNotFound) / ErrDuplicateCode resolves
+// correctly.
+var (
+	// ErrNotFound is returned by Repository.GetByID / Delete when the row does
+	// not exist (or sits in a different tenant — the persistence layer scopes
+	// every query to the caller tenant, so a cross-tenant id surfaces as
+	// not-found).
+	ErrNotFound = errors.New("department not found")
+	// ErrDuplicateCode is returned by Repository.Save when the (tenant_id, code)
+	// pair already exists. Admin controllers map this to a field-level "code
+	// already in use" message on the Code input.
+	ErrDuplicateCode = errors.New("department: code already exists in tenant")
 )
 
 type Field = int
