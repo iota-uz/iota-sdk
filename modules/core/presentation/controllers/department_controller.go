@@ -554,9 +554,9 @@ func buildParentOptions(
 // (0, nil) when the error is not a known validation failure — callers fall
 // through to the generic 5xx path. Sentinels live with the layer that raises
 // them: services.* for write-path validation, persistence.* for storage
-// constraints. The DTO validator already catches malformed UUIDs via
-// `omitempty,uuid`, so an invalid-UUID error reaching this helper is the
-// defense-in-depth path and is mapped to a ParentID field error too.
+// constraints. Malformed UUIDs in `ParentID` are caught earlier by the DTO
+// validator (`omitempty,uuid` tag) and surface through the existing DTO error
+// branch, so they are not handled here.
 func departmentValidationFieldError(ctx context.Context, err error) (int, map[string]string) {
 	if err == nil {
 		return 0, nil

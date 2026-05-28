@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/userposition"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -124,8 +125,15 @@ func validateDepartmentParent(
 
 	parent, err := repo.GetByID(ctx, *parentID)
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation,
-			fmt.Errorf("parent department %s not found (%w): %w", *parentID, ErrDepartmentParentNotFound, err))
+		// Only "row missing" is a user-fixable validation failure (bad ParentID
+		// from the form). Transient DB/tx errors must propagate as internal so
+		// the controller renders them as a 5xx instead of a misleading
+		// "parent not found" field error on the drawer.
+		if errors.Is(err, persistence.ErrDepartmentNotFound) {
+			return serrors.E(op, serrors.KindValidation,
+				fmt.Errorf("parent department %s not found (%w): %w", *parentID, ErrDepartmentParentNotFound, err))
+		}
+		return serrors.E(op, fmt.Errorf("failed to load parent department %s: %w", *parentID, err))
 	}
 	if parent.TenantID() != tenantID {
 		return serrors.E(

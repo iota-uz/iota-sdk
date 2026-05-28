@@ -28,10 +28,14 @@ var (
 // against this constraint maps to ErrDepartmentDuplicateCode.
 const departmentsTenantCodeUniqueConstraint = "departments_tenant_id_code_key"
 
-// classifyDepartmentDBError maps known Postgres constraint violations on
-// core.departments to typed sentinels wrapped in serrors. Unrecognized errors
-// keep their original shape (wrapped with op for tracing). Callers should pass
-// every Save/Update/Delete error through this helper.
+// classifyDepartmentDBError maps the Postgres unique-constraint violation on
+// (tenant_id, code) for core.departments to ErrDepartmentDuplicateCode wrapped
+// in serrors.KindValidation, so admin controllers can render a field-level
+// "code already in use" message instead of a 500. Unrecognized errors keep
+// their original shape (wrapped with op for tracing). Currently routed from
+// the create() and update() write paths; Delete() does not need it (it has no
+// 23505 surface today — a FK-violation classifier for child-dept references
+// can be added here when the admin "cascade delete" UX is built).
 func classifyDepartmentDBError(op serrors.Op, err error) error {
 	if err == nil {
 		return nil
