@@ -90,11 +90,15 @@ templ ParentSelect(props *ParentSelectProps) {
 			attrs["form"] = props.Form
 		}
 	}}
+	// Parent is optional, so the dropdown carries an explicit clickable "no
+	// parent" option with value="" — users can re-select it after picking a
+	// parent. base.Select's Placeholder would inject a *second* (disabled)
+	// option with the same label; we omit Placeholder here to avoid the
+	// duplicate that previously confused the form submission.
 	@base.Select(&base.SelectProps{
-		Label:       pageCtx.T("Departments.Single.Parent"),
-		Placeholder: pageCtx.T("Departments.Single.NoParent"),
-		Error:       props.Error,
-		Attrs:       attrs,
+		Label: pageCtx.T("Departments.Single.Parent"),
+		Error: props.Error,
+		Attrs: attrs,
 	}) {
 		<option value="" selected?={ props.Selected == "" }>{ pageCtx.T("Departments.Single.NoParent") }</option>
 		for _, opt := range props.Options {

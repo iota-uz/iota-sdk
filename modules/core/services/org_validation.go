@@ -5,6 +5,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
@@ -19,6 +20,25 @@ import (
 // organizational name/title must populate. These mirror the EAI-supported UI
 // languages (see pkg/intl: en, ru, uz, uz-Cyrl).
 var orgRequiredLocales = []string{"en", "ru", "uz", "uz-Cyrl"}
+
+// Sentinel errors for organizational write-path validation failures raised at
+// the service/validation layer. They are wrapped via fmt.Errorf("…: %w", …)
+// inside serrors.E values so callers can match the specific failure with
+// errors.Is and surface a field-level i18n message without parsing free-form
+// text. The repository layer owns its own sentinels (e.g.
+// persistence.ErrDepartmentDuplicateCode, persistence.ErrDepartmentNotFound) —
+// controllers match against both.
+var (
+	// ErrDepartmentSelfLoop signals a department whose ParentID equals its own ID.
+	ErrDepartmentSelfLoop = errors.New("department: parent cannot be self")
+	// ErrDepartmentCycle signals a department whose ParentID sits inside its own
+	// descendant subtree (assigning it would create a cycle).
+	ErrDepartmentCycle = errors.New("department: parent would create cycle")
+	// ErrDepartmentParentNotFound signals a department whose ParentID references a
+	// row that does not exist (or sits in a different tenant — repository scope
+	// hides cross-tenant rows so it surfaces as not-found).
+	ErrDepartmentParentNotFound = errors.New("department: parent not found")
+)
 
 // SubtreeFunc returns the department subtree rooted at the given department id
 // (the department itself plus all descendants). It is satisfied by
@@ -98,12 +118,14 @@ func validateDepartmentParent(
 	}
 
 	if *parentID == deptID {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("department %s cannot be its own parent", deptID))
+		return serrors.E(op, serrors.KindValidation,
+			fmt.Errorf("department %s cannot be its own parent: %w", deptID, ErrDepartmentSelfLoop))
 	}
 
 	parent, err := repo.GetByID(ctx, *parentID)
 	if err != nil {
-		return serrors.E(op, serrors.KindValidation, fmt.Errorf("parent department %s not found: %w", *parentID, err))
+		return serrors.E(op, serrors.KindValidation,
+			fmt.Errorf("parent department %s not found (%w): %w", *parentID, ErrDepartmentParentNotFound, err))
 	}
 	if parent.TenantID() != tenantID {
 		return serrors.E(
@@ -125,7 +147,8 @@ func validateDepartmentParent(
 			return serrors.E(
 				op,
 				serrors.KindValidation,
-				fmt.Errorf("parent department %s is a descendant of %s (would create a cycle)", *parentID, deptID),
+				fmt.Errorf("parent department %s is a descendant of %s (would create a cycle): %w",
+					*parentID, deptID, ErrDepartmentCycle),
 			)
 		}
 	}

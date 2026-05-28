@@ -12,11 +12,38 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 var (
 	ErrDepartmentNotFound = errors.New("department not found")
+	// ErrDepartmentDuplicateCode is raised when a Save would violate the unique
+	// (tenant_id, code) constraint. Controllers match against this with errors.Is
+	// to render a field-level "code already in use" message on the Code input.
+	ErrDepartmentDuplicateCode = errors.New("department: code already exists in tenant")
 )
+
+// departmentsTenantCodeUniqueConstraint is the Postgres name of the unique
+// constraint on (tenant_id, code) for core.departments. SQLSTATE 23505 raised
+// against this constraint maps to ErrDepartmentDuplicateCode.
+const departmentsTenantCodeUniqueConstraint = "departments_tenant_id_code_key"
+
+// classifyDepartmentDBError maps known Postgres constraint violations on
+// core.departments to typed sentinels wrapped in serrors. Unrecognized errors
+// keep their original shape (wrapped with op for tracing). Callers should pass
+// every Save/Update/Delete error through this helper.
+func classifyDepartmentDBError(op serrors.Op, err error) error {
+	if err == nil {
+		return nil
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
+		pgErr.ConstraintName == departmentsTenantCodeUniqueConstraint {
+		return serrors.E(op, serrors.KindValidation,
+			fmt.Errorf("department code already exists in tenant: %w", ErrDepartmentDuplicateCode))
+	}
+	return serrors.E(op, err)
+}
 
 const (
 	departmentFindQuery = `
@@ -262,7 +289,7 @@ func (r *PgDepartmentRepository) create(
 	}
 
 	if _, err := tx.Exec(ctx, repo.Insert("core.departments", fields), values...); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, classifyDepartmentDBError(op, err)
 	}
 
 	id, err := uuid.Parse(dbDepartment.ID)
@@ -322,7 +349,7 @@ func (r *PgDepartmentRepository) update(
 		fmt.Sprintf("tenant_id = $%d", len(values)),
 	)
 	if _, err := tx.Exec(ctx, query, values...); err != nil {
-		return nil, serrors.E(op, err)
+		return nil, classifyDepartmentDBError(op, err)
 	}
 
 	id, err := uuid.Parse(dbDepartment.ID)

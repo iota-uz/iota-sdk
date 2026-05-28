@@ -1312,6 +1312,12 @@
     "Status": {
       "Active": "Faol",
       "Inactive": "Nofaol"
+    },
+    "Errors": {
+      "SelfLoop": "Bo'lim o'ziga ota-bo'lim bo'la olmaydi.",
+      "Cycle": "Bu ota-bo'lim aylanma ierarxiyani yaratadi.",
+      "DuplicateCode": "Bu kod boshqa bo'lim tomonidan ishlatilmoqda.",
+      "ParentNotFound": "Tanlangan ota-bo'lim topilmadi."
     }
   },
   "Positions": {

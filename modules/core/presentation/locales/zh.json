@@ -1316,6 +1316,12 @@
     "Status": {
       "Active": "启用",
       "Inactive": "停用"
+    },
+    "Errors": {
+      "SelfLoop": "部门不能作为自己的上级。",
+      "Cycle": "该上级会造成循环层级。",
+      "DuplicateCode": "该编码已被其他部门使用。",
+      "ParentNotFound": "未找到所选的上级部门。"
     }
   },
   "Positions": {
