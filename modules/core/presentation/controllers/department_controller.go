@@ -12,7 +12,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -576,7 +575,7 @@ func departmentValidationFieldError(ctx context.Context, err error) (int, map[st
 		return http.StatusBadRequest, map[string]string{"ParentID": tr("Departments.Errors.Cycle")}
 	case errors.Is(err, services.ErrDepartmentParentNotFound):
 		return http.StatusBadRequest, map[string]string{"ParentID": tr("Departments.Errors.ParentNotFound")}
-	case errors.Is(err, persistence.ErrDepartmentDuplicateCode):
+	case errors.Is(err, department.ErrDuplicateCode):
 		return http.StatusConflict, map[string]string{"Code": tr("Departments.Errors.DuplicateCode")}
 	}
 

@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -96,7 +96,7 @@ func TestDepartmentValidationFieldError(t *testing.T) {
 		},
 		{
 			name:        "duplicate-code sentinel → Code field, 409",
-			err:         fmt.Errorf("wrap: %w", persistence.ErrDepartmentDuplicateCode),
+			err:         fmt.Errorf("wrap: %w", department.ErrDuplicateCode),
 			wantStatus:  http.StatusConflict,
 			wantField:   "Code",
 			wantMessage: "Departments.Errors.DuplicateCode",

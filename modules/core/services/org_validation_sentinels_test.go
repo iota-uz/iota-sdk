@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
-	persistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/stretchr/testify/require"
@@ -103,7 +102,7 @@ func TestDepartmentValidationSentinels(t *testing.T) {
 				_, err := repo.Save(ctx, dup)
 				return err
 			},
-			expected: persistence.ErrDepartmentDuplicateCode,
+			expected: department.ErrDuplicateCode,
 		},
 	}
 

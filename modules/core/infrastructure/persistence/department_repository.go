@@ -15,21 +15,23 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// Re-export the domain-level Repository contract errors so existing
+// `persistence.ErrDepartmentNotFound` / `ErrDepartmentDuplicateCode` callers
+// keep compiling. New code should prefer the canonical `department.ErrNotFound`
+// / `department.ErrDuplicateCode` to keep services and controllers decoupled
+// from this infrastructure package.
 var (
-	ErrDepartmentNotFound = errors.New("department not found")
-	// ErrDepartmentDuplicateCode is raised when a Save would violate the unique
-	// (tenant_id, code) constraint. Controllers match against this with errors.Is
-	// to render a field-level "code already in use" message on the Code input.
-	ErrDepartmentDuplicateCode = errors.New("department: code already exists in tenant")
+	ErrDepartmentNotFound      = department.ErrNotFound
+	ErrDepartmentDuplicateCode = department.ErrDuplicateCode
 )
 
 // departmentsTenantCodeUniqueConstraint is the Postgres name of the unique
 // constraint on (tenant_id, code) for core.departments. SQLSTATE 23505 raised
-// against this constraint maps to ErrDepartmentDuplicateCode.
+// against this constraint maps to department.ErrDuplicateCode.
 const departmentsTenantCodeUniqueConstraint = "departments_tenant_id_code_key"
 
 // classifyDepartmentDBError maps the Postgres unique-constraint violation on
-// (tenant_id, code) for core.departments to ErrDepartmentDuplicateCode wrapped
+// (tenant_id, code) for core.departments to department.ErrDuplicateCode wrapped
 // in serrors.KindValidation, so admin controllers can render a field-level
 // "code already in use" message instead of a 500. Unrecognized errors keep
 // their original shape (wrapped with op for tracing). Currently routed from
@@ -44,7 +46,7 @@ func classifyDepartmentDBError(op serrors.Op, err error) error {
 	if errors.As(err, &pgErr) && pgErr.Code == "23505" &&
 		pgErr.ConstraintName == departmentsTenantCodeUniqueConstraint {
 		return serrors.E(op, serrors.KindValidation,
-			fmt.Errorf("department code already exists in tenant: %w", ErrDepartmentDuplicateCode))
+			fmt.Errorf("department code already exists in tenant: %w", department.ErrDuplicateCode))
 	}
 	return serrors.E(op, err)
 }

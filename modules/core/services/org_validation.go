@@ -12,7 +12,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/userposition"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/crud/models"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -26,9 +25,9 @@ var orgRequiredLocales = []string{"en", "ru", "uz", "uz-Cyrl"}
 // the service/validation layer. They are wrapped via fmt.Errorf("…: %w", …)
 // inside serrors.E values so callers can match the specific failure with
 // errors.Is and surface a field-level i18n message without parsing free-form
-// text. The repository layer owns its own sentinels (e.g.
-// persistence.ErrDepartmentDuplicateCode, persistence.ErrDepartmentNotFound) —
-// controllers match against both.
+// text. Storage-layer contract errors (e.g. department.ErrNotFound,
+// department.ErrDuplicateCode) live on the Repository interface so they can be
+// matched without coupling services to the persistence package.
 var (
 	// ErrDepartmentSelfLoop signals a department whose ParentID equals its own ID.
 	ErrDepartmentSelfLoop = errors.New("department: parent cannot be self")
@@ -129,7 +128,7 @@ func validateDepartmentParent(
 		// from the form). Transient DB/tx errors must propagate as internal so
 		// the controller renders them as a 5xx instead of a misleading
 		// "parent not found" field error on the drawer.
-		if errors.Is(err, persistence.ErrDepartmentNotFound) {
+		if errors.Is(err, department.ErrNotFound) {
 			return serrors.E(op, serrors.KindValidation,
 				fmt.Errorf("parent department %s not found (%w): %w", *parentID, ErrDepartmentParentNotFound, err))
 		}
