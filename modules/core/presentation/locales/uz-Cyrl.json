@@ -1362,5 +1362,8 @@
       "Active": "Фаол",
       "Inactive": "Нофаол"
     }
+  },
+  "Error": {
+    "ProcessingFailed": "Импорт хатоси"
   }
 }

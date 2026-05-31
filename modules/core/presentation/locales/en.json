@@ -1363,5 +1363,8 @@
       "Active": "Active",
       "Inactive": "Inactive"
     }
+  },
+  "Error": {
+    "ProcessingFailed": "Import Failed"
   }
 }

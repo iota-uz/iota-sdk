@@ -28,7 +28,10 @@ func isTerminal(status importpkg.RunStatus) bool {
 // is unused while the run is still in progress.
 templ RunProgress(statusURL string, state importpkg.RunState, confirmURL string) {
 	if isTerminal(state.Status) {
-		<div id="import-run" hx-get={ statusURL } hx-swap="outerHTML">
+		// Terminal: no polling. Deliberately no hx-get here — a div with hx-get
+		// but no hx-trigger defaults to a click trigger, so clicking the inner
+		// Confirm button would bubble up and fire a spurious status fetch.
+		<div id="import-run">
 			@RunResult(state, confirmURL)
 		</div>
 	} else {
@@ -45,7 +48,7 @@ templ RunProgress(statusURL string, state importpkg.RunState, confirmURL string)
 						if state.Phase != "" {
 							{ state.Phase }
 						} else {
-							{ pgCtx.T("Running") }
+							{ orDefault(pgCtx.TSafe("Running"), "Running…") }
 						}
 					</p>
 					@base.Progress(base.ProgressProps{
@@ -67,6 +70,16 @@ func progressTarget(total int) uint {
 	return uint(total)
 }
 
+// orDefault returns v, or def when v is empty. Used with TSafe so a missing
+// (or not-yet-translated) i18n key falls back to readable English instead of
+// panicking or rendering blank.
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
+}
+
 // RunResult renders the outcome of a finished import run: the ordered counts,
 // any warnings, an optional consumer-supplied Detail component, and an error
 // box when state.Status is RunFailed. When the result is a successful dry run,
@@ -79,7 +92,7 @@ templ RunResult(state importpkg.RunState, confirmURL string) {
 			<div class="bg-red-100 text-red-700 py-3 px-4 text-sm font-medium rounded-md mb-4">
 				<div class="flex items-center space-x-2">
 					@icons.WarningCircle(icons.Props{Size: "20", Class: "text-red-600"})
-					<span class="font-semibold">{ pgCtx.T("Error.ValidationError") }</span>
+					<span class="font-semibold">{ orDefault(pgCtx.TSafe("Error.ProcessingFailed"), "Import failed") }</span>
 				</div>
 				if state.Err != "" {
 					<div class="mt-2 text-sm">{ state.Err }</div>
@@ -99,7 +112,7 @@ templ RunResult(state importpkg.RunState, confirmURL string) {
 			}
 			if len(state.Result.Warnings) > 0 {
 				<div class="bg-yellow-50 text-yellow-800 py-3 px-4 text-sm rounded-md mb-4">
-					<div class="font-semibold mb-2">{ pgCtx.T("Warnings") }</div>
+					<div class="font-semibold mb-2">{ orDefault(pgCtx.TSafe("Warnings"), "Warnings") }</div>
 					<ul class="space-y-1">
 						for _, w := range state.Result.Warnings {
 							<li class="flex items-start space-x-2">
@@ -127,7 +140,7 @@ templ RunResult(state importpkg.RunState, confirmURL string) {
 							"hx-swap":   "outerHTML",
 						},
 					}) {
-						{ pgCtx.T("Confirm") }
+						{ orDefault(pgCtx.TSafe("Confirm"), "Confirm") }
 					}
 				</div>
 			}

@@ -1366,5 +1366,8 @@
       "Active": "启用",
       "Inactive": "停用"
     }
+  },
+  "Error": {
+    "ProcessingFailed": "导入失败"
   }
 }

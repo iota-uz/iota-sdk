@@ -74,15 +74,16 @@ const DefaultRetentionTTL = 30 * time.Minute
 // Retention: state lives in process memory only — it is not shared across
 // processes/instances and is lost on restart. To bound memory growth, the store
 // prunes terminal runs (RunDone or RunFailed) opportunistically on every
-// Create/Update under the store lock, oldest-first by FinishedAt:
+// Create/Update under the store lock, oldest-first by FinishedAt.
 //
-//   - A terminal run is evicted once its age (now - FinishedAt) exceeds the TTL.
-//   - When the number of terminal runs still exceeds the cap, the oldest are
-//     evicted until the count is within the cap.
+// Pruning is cap-gated: while the number of terminal runs is at or below the
+// cap, nothing is evicted (so a pure size cap is deterministic and does not
+// depend on wall-clock time). Only once the terminal count exceeds the cap does
+// a sweep run, evicting (a) any terminal run older than the TTL and (b) the
+// oldest terminal runs until the count is back within the cap.
 //
 // Non-terminal runs (RunQueued or RunRunning) are never evicted regardless of
-// cap or TTL. The TTL sweep is skipped when the cap alone is satisfied, so a
-// pure size cap is deterministic and does not depend on wall-clock time.
+// cap or TTL.
 //
 // Suitable for single-process deployments; back it with shared storage for
 // horizontally scaled setups.
@@ -118,6 +119,20 @@ func NewMemoryRunStoreWithCap(n int) *MemoryRunStore {
 // isTerminal reports whether a status is a terminal (evictable) state.
 func isTerminal(status RunStatus) bool {
 	return status == RunDone || status == RunFailed
+}
+
+// cloneRunState returns a deep copy of st: the outer struct plus the Result
+// pointer and its slices, so callers cannot mutate a returned snapshot and
+// affect the stored state (or race with concurrent readers).
+func cloneRunState(st *RunState) RunState {
+	cp := *st
+	if st.Result != nil {
+		res := *st.Result
+		res.Counts = append([]ImportCount(nil), st.Result.Counts...)
+		res.Warnings = append([]string(nil), st.Result.Warnings...)
+		cp.Result = &res
+	}
+	return cp
 }
 
 // prune evicts terminal runs that exceed the TTL and/or the cap, oldest-first by
@@ -163,7 +178,7 @@ func (s *MemoryRunStore) Create(id string) *RunState {
 	st := &RunState{ID: id, Status: RunQueued}
 	s.state[id] = st
 	s.prune()
-	snapshot := *st
+	snapshot := cloneRunState(st)
 	return &snapshot
 }
 
@@ -175,7 +190,7 @@ func (s *MemoryRunStore) Get(id string) (RunState, bool) {
 	if !ok {
 		return RunState{}, false
 	}
-	return *st, true
+	return cloneRunState(st), true
 }
 
 // Update mutates the stored run under lock. Unknown ids are ignored.
@@ -233,6 +248,16 @@ func NewImportRunner(store RunStore) *ImportRunner {
 // terminal status (RunDone or RunFailed) plus Result/Err and FinishedAt are
 // recorded when proc.Process returns.
 func (r *ImportRunner) Start(ctx context.Context, id string, proc BulkImportProcessor, filePath string, opts ImportRunOptions) {
+	// Defensively copy the caller-owned Options map so a caller that reuses or
+	// mutates it after Start returns cannot race the background worker.
+	if opts.Options != nil {
+		cp := make(map[string]string, len(opts.Options))
+		for k, v := range opts.Options {
+			cp[k] = v
+		}
+		opts.Options = cp
+	}
+
 	if _, ok := r.store.Get(id); !ok {
 		r.store.Create(id)
 	}

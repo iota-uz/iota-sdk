@@ -1364,5 +1364,8 @@
       "Active": "Активна",
       "Inactive": "Неактивна"
     }
+  },
+  "Error": {
+    "ProcessingFailed": "Ошибка импорта"
   }
 }

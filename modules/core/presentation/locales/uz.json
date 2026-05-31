@@ -1362,5 +1362,8 @@
       "Active": "Faol",
       "Inactive": "Nofaol"
     }
+  },
+  "Error": {
+    "ProcessingFailed": "Import xatosi"
   }
 }
