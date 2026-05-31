@@ -922,6 +922,9 @@
   "UploadLabel": "Fayl yuklash",
   "UploadPlaceholder": "Yuklash uchun faylni tanlang",
   "DownloadTemplate": "Shablonni yuklab olish",
+  "Running": "Bajarilmoqda…",
+  "Warnings": "Ogohlantirishlar",
+  "Confirm": "Tasdiqlash",
   "Example": {
     "Below": "Quyida misolni ko'ring"
   },

@@ -922,6 +922,9 @@
   "UploadLabel": "Upload File",
   "UploadPlaceholder": "Choose a file to upload",
   "DownloadTemplate": "Download Template",
+  "Running": "Running…",
+  "Warnings": "Warnings",
+  "Confirm": "Confirm",
   "Example": {
     "Below": "See example below"
   },

@@ -922,6 +922,9 @@
   "UploadLabel": "Загрузить файл",
   "UploadPlaceholder": "Выберите файл для загрузки",
   "DownloadTemplate": "Скачать шаблон",
+  "Running": "Выполняется…",
+  "Warnings": "Предупреждения",
+  "Confirm": "Подтвердить",
   "Example": {
     "Below": "См. пример ниже"
   },

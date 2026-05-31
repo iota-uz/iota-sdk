@@ -926,6 +926,9 @@
   "UploadLabel": "上传文件",
   "UploadPlaceholder": "选择要上传的文件",
   "DownloadTemplate": "下载模板",
+  "Running": "运行中…",
+  "Warnings": "警告",
+  "Confirm": "确认",
   "Example": {
     "Below": "请参见下面的示例"
   },
