@@ -1366,5 +1366,6 @@
   },
   "Error": {
     "ProcessingFailed": "Import Failed"
-  }
+  },
+  "DryRunNotice": "This is a preview — no data has been changed yet. Review the results above, then confirm to apply the import."
 }

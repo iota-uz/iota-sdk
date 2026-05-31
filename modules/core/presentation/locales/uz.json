@@ -1365,5 +1365,6 @@
   },
   "Error": {
     "ProcessingFailed": "Import xatosi"
-  }
+  },
+  "DryRunNotice": "Bu — oldindan ko‘rish. Ma’lumotlar hali o‘zgartirilmadi. Yuqoridagi natijalarni tekshiring va importni qo‘llash uchun tasdiqlang."
 }

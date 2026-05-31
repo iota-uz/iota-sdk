@@ -69,7 +69,10 @@ templ ImportContent(props *ImportPageProps) {
 			}
 		</div>
 		<div class="bg-white border-t border-gray-200 shadow-lg">
-			<div class="px-6 py-4 flex justify-end gap-4">
+			<div class="px-6 py-4 flex justify-end items-center gap-4">
+				if hint := config.GetSubmitHint(); hint != "" {
+					<p class="text-sm text-gray-500 mr-auto max-w-xl">{ hint }</p>
+				}
 				@button.Secondary(button.Props{
 					Size: button.SizeMD,
 					Attrs: templ.Attributes{
@@ -87,7 +90,11 @@ templ ImportContent(props *ImportPageProps) {
 						"type": "submit",
 					},
 				}) {
-					{ pgCtx.T("Submit") }
+					if label := config.GetSubmitLabel(); label != "" {
+						{ label }
+					} else {
+						{ pgCtx.T("Submit") }
+					}
 				}
 			</div>
 		</div>

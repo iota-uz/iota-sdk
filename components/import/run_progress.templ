@@ -129,6 +129,9 @@ templ RunResult(state importpkg.RunState, confirmURL string) {
 				</div>
 			}
 			if state.Result.DryRun && state.Status != importpkg.RunFailed && confirmURL != "" {
+				<div class="bg-blue-50 text-blue-800 py-3 px-4 text-sm rounded-md mb-4">
+					{ orDefault(pgCtx.TSafe("DryRunNotice"), "This is a preview — no data has been changed yet. Review the results above, then confirm to apply the import.") }
+				</div>
 				<div class="flex justify-end">
 					@button.Primary(button.Props{
 						Size: button.SizeMD,
