@@ -1,0 +1,136 @@
+package importcomponents
+
+import (
+	"strconv"
+
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	importpkg "github.com/iota-uz/iota-sdk/pkg/import"
+)
+
+// isTerminal reports whether the run has reached a terminal status.
+func isTerminal(status importpkg.RunStatus) bool {
+	return status == importpkg.RunDone || status == importpkg.RunFailed
+}
+
+// RunProgress renders the live progress of an asynchronous import run.
+//
+// While the run is in progress it shows a progress bar (Value=Done,
+// Target=Total) plus the current phase label, wrapped in an element that polls
+// statusURL every 2 seconds via HTMX (hx-get + hx-trigger="every 2s",
+// hx-swap="outerHTML"). When state.Status is terminal (RunDone/RunFailed) the
+// hx-trigger is omitted so polling stops, and RunResult is rendered instead.
+//
+// confirmURL is forwarded to RunResult for the dry-run confirmation button; it
+// is unused while the run is still in progress.
+templ RunProgress(statusURL string, state importpkg.RunState, confirmURL string) {
+	if isTerminal(state.Status) {
+		<div id="import-run" hx-get={ statusURL } hx-swap="outerHTML">
+			@RunResult(state, confirmURL)
+		</div>
+	} else {
+		{{ pgCtx := composables.UsePageCtx(ctx) }}
+		<div
+			id="import-run"
+			hx-get={ statusURL }
+			hx-trigger="every 2s"
+			hx-swap="outerHTML"
+		>
+			@card.Card(card.Props{WrapperClass: "mx-6 mb-6"}) {
+				<div class="space-y-3">
+					<p class="text-sm font-medium text-gray-700">
+						if state.Phase != "" {
+							{ state.Phase }
+						} else {
+							{ pgCtx.T("Running") }
+						}
+					</p>
+					@base.Progress(base.ProgressProps{
+						Value:  uint(state.Done),
+						Target: progressTarget(state.Total),
+					})
+				</div>
+			}
+		</div>
+	}
+}
+
+// progressTarget returns a safe target for the progress bar, avoiding a zero
+// divisor when the total is not yet known.
+func progressTarget(total int) uint {
+	if total <= 0 {
+		return 1
+	}
+	return uint(total)
+}
+
+// RunResult renders the outcome of a finished import run: the ordered counts,
+// any warnings, an optional consumer-supplied Detail component, and an error
+// box when state.Status is RunFailed. When the result is a successful dry run,
+// it renders a confirm button that POSTs to confirmURL (which the consumer
+// builds to carry the uploaded FileID and DryRun=false).
+templ RunResult(state importpkg.RunState, confirmURL string) {
+	{{ pgCtx := composables.UsePageCtx(ctx) }}
+	@card.Card(card.Props{WrapperClass: "mx-6 mb-6"}) {
+		if state.Status == importpkg.RunFailed {
+			<div class="bg-red-100 text-red-700 py-3 px-4 text-sm font-medium rounded-md mb-4">
+				<div class="flex items-center space-x-2">
+					@icons.WarningCircle(icons.Props{Size: "20", Class: "text-red-600"})
+					<span class="font-semibold">{ pgCtx.T("Error.ValidationError") }</span>
+				</div>
+				if state.Err != "" {
+					<div class="mt-2 text-sm">{ state.Err }</div>
+				}
+			</div>
+		}
+		if state.Result != nil {
+			if len(state.Result.Counts) > 0 {
+				<ul class="text-gray-700 mb-4 space-y-2">
+					for _, c := range state.Result.Counts {
+						<li class="flex justify-between border-b border-gray-100 py-1">
+							<span>{ c.Label }</span>
+							<span class="font-medium">{ strconv.Itoa(c.Value) }</span>
+						</li>
+					}
+				</ul>
+			}
+			if len(state.Result.Warnings) > 0 {
+				<div class="bg-yellow-50 text-yellow-800 py-3 px-4 text-sm rounded-md mb-4">
+					<div class="font-semibold mb-2">{ pgCtx.T("Warnings") }</div>
+					<ul class="space-y-1">
+						for _, w := range state.Result.Warnings {
+							<li class="flex items-start space-x-2">
+								<span class="mt-0.5">•</span>
+								<span>{ w }</span>
+							</li>
+						}
+					</ul>
+				</div>
+			}
+			if state.Result.Detail != nil {
+				<div class="mb-4">
+					@state.Result.Detail
+				</div>
+			}
+			if state.Result.DryRun && state.Status != importpkg.RunFailed && confirmURL != "" {
+				<div class="flex justify-end">
+					@button.Primary(button.Props{
+						Size: button.SizeMD,
+						Icon: icons.Check(icons.Props{Size: "20"}),
+						Attrs: templ.Attributes{
+							"type":      "button",
+							"hx-post":   confirmURL,
+							"hx-target": "#import-run",
+							"hx-swap":   "outerHTML",
+						},
+					}) {
+						{ pgCtx.T("Confirm") }
+					}
+				</div>
+			}
+		}
+	}
+}

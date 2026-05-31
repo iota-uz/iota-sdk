@@ -12,6 +12,10 @@ import (
 type ImportPageProps struct {
 	Config importpkg.ImportPageConfig
 	Errors map[string]string
+	// ExtraOptions is an optional consumer-supplied component rendered inside
+	// the import form after the upload input and before submit. It may be nil,
+	// in which case nothing extra is rendered.
+	ExtraOptions templ.Component
 }
 
 templ ImportPage(props *ImportPageProps) {
