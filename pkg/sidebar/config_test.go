@@ -44,6 +44,37 @@ func TestWorkspaceTabGroupBuilderLocalizesAndFlattensWorkspaceContainers(t *test
 	require.Equal(t, "Clients", collection.Groups[1].Items[0].(interface{ Text() string }).Text())
 }
 
+func TestWorkspaceTabGroupBuilderHonorsChildWorkspaceOverride(t *testing.T) {
+	collection := WorkspaceTabGroupBuilder(
+		[]types.NavigationItem{
+			{
+				Name:      "CRM",
+				Href:      "/crm",
+				Workspace: "crm",
+				Children: []types.NavigationItem{
+					{Name: "Clients", Href: "/crm/clients"},
+					// Child declares a different workspace: it must land in ERP,
+					// not be flattened into the parent's CRM workspace.
+					{Name: "Shared Report", Href: "/reports", Workspace: "erp"},
+				},
+			},
+		},
+		[]types.NavWorkspace{
+			{Key: "erp", Label: "ERP", Default: true, Order: 0},
+			{Key: "crm", Label: "CRM", Order: 1},
+		},
+		nil,
+	)
+
+	require.Len(t, collection.Groups, 2)
+	require.Equal(t, "erp", collection.Groups[0].Value)
+	require.Len(t, collection.Groups[0].Items, 1)
+	require.Equal(t, "Shared Report", collection.Groups[0].Items[0].(interface{ Text() string }).Text())
+	require.Equal(t, "crm", collection.Groups[1].Value)
+	require.Len(t, collection.Groups[1].Items, 1)
+	require.Equal(t, "Clients", collection.Groups[1].Items[0].(interface{ Text() string }).Text())
+}
+
 func TestBuildTabGroupsWithWorkspacesFallsBackToLegacyBuilder(t *testing.T) {
 	collection := BuildTabGroupsWithWorkspaces(
 		[]types.NavigationItem{

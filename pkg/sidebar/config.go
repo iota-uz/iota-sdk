@@ -81,13 +81,26 @@ func WorkspaceTabGroupBuilder(
 		workspaceByKey[workspace.Key] = workspace
 	}
 
-	for _, item := range items {
-		workspaceKey := item.Workspace
-		if _, ok := workspaceByKey[workspaceKey]; workspaceKey == "" || !ok {
-			workspaceKey = defaultWorkspace.Key
+	resolveKey := func(workspace string) string {
+		if _, ok := workspaceByKey[workspace]; workspace == "" || !ok {
+			return defaultWorkspace.Key
 		}
+		return workspace
+	}
+
+	for _, item := range items {
+		workspaceKey := resolveKey(item.Workspace)
 		if item.Workspace != "" && len(item.Children) > 0 {
-			groupItems[workspaceKey] = append(groupItems[workspaceKey], layouts.MapNavItemsToSidebar(item.Children)...)
+			// Tagged container: flatten its children into workspaces. A child
+			// that declares its own (valid) Workspace is routed there; otherwise
+			// it inherits the container's workspace.
+			for _, child := range item.Children {
+				childKey := workspaceKey
+				if child.Workspace != "" {
+					childKey = resolveKey(child.Workspace)
+				}
+				groupItems[childKey] = append(groupItems[childKey], layouts.MapNavItemToSidebar(child))
+			}
 			continue
 		}
 		groupItems[workspaceKey] = append(groupItems[workspaceKey], layouts.MapNavItemToSidebar(item))
