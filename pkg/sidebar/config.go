@@ -7,7 +7,6 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
-	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -126,12 +125,18 @@ func localizeWorkspaceLabel(localizer *i18n.Localizer, workspace types.NavWorksp
 	if localizer == nil || workspace.Label == "" {
 		return workspace.Label
 	}
-	// Mirror nav-item name localization (pkg/application.translate): fail loudly
-	// on a missing/typo'd NavWorkspaces.* key instead of silently shipping the
-	// raw key as a visible sidebar tab label.
-	return intl.MustLocalize(localizer, &i18n.LocalizeConfig{
+	// Workspace labels are i18n keys declared by the consuming app, not the SDK.
+	// Degrade gracefully (fall back to the raw key) rather than panicking on a
+	// missing/typo'd NavWorkspaces.* key — a missing label must not take down the
+	// whole authenticated sidebar. Consumers catch missing keys via their own
+	// i18n key-consistency checks (e.g. `just check tr`).
+	label, err := localizer.Localize(&i18n.LocalizeConfig{
 		MessageID: workspace.Label,
 	})
+	if err != nil {
+		return workspace.Label
+	}
+	return label
 }
 
 // DefaultTabGroupBuilder maintains current behavior.

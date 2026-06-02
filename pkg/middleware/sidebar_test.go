@@ -127,10 +127,10 @@ func TestGetEnabledNavItems(t *testing.T) {
 		require.Equal(t, []string{"leaf-deep", "leaf"}, keysOf(out))
 	})
 
-	t.Run("parent with two child-groups that all collapse to empty is pruned", func(t *testing.T) {
+	t.Run("single-child group chain collapses to grandchild leaf", func(t *testing.T) {
 		t.Parallel()
-		// Both child groups are non-leaf (have a Children slice) but yield zero
-		// enabled descendants, so the parent has no enabled children and is dropped.
+		// parent -> g1 (group) -> g1a (leaf, empty Children). Both single-child
+		// levels collapse, hoisting g1a to the top.
 		out := getEnabledNavItems([]types.NavigationItem{
 			{Key: "parent", Workspace: "erp", Children: []types.NavigationItem{
 				{Key: "g1", Children: []types.NavigationItem{

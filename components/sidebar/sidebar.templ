@@ -150,11 +150,12 @@ templ SidebarPinnedNav(props Props) {
 // label) that switches the active tab via the same navTabs Alpine state used by
 // the expanded selector, so the two stay in sync.
 templ SidebarCollapsedWorkspaceTabs(props Props) {
-	<div x-show="isCollapsed" class="mt-4 flex flex-col items-center gap-1">
+	<div x-show="isCollapsed" role="tablist" aria-orientation="vertical" class="mt-4 flex flex-col items-center gap-1">
 		for _, group := range props.TabGroups.Groups {
 			<button
 				type="button"
 				role="tab"
+				aria-label={ group.Label }
 				data-tab-value={ group.Value }
 				@click={ fmt.Sprintf("setActiveTab('%s')", group.Value) }
 				x-bind:aria-selected={ fmt.Sprintf("isActive('%s') ? 'true' : 'false'", group.Value) }
