@@ -20,15 +20,16 @@ type testRuntimeSource struct {
 	applets  []Applet
 }
 
-func (s *testRuntimeSource) Controllers() []Controller          { return nil }
-func (s *testRuntimeSource) Middleware() []mux.MiddlewareFunc   { return nil }
-func (s *testRuntimeSource) Assets() []*embed.FS                { return nil }
-func (s *testRuntimeSource) HashFSAssets() []*hashfs.FS         { return nil }
-func (s *testRuntimeSource) LocaleFiles() []*embed.FS           { return nil }
-func (s *testRuntimeSource) GraphSchemas() []GraphSchema        { return nil }
-func (s *testRuntimeSource) Applets() []Applet                  { return s.applets }
-func (s *testRuntimeSource) NavItems() []types.NavigationItem   { return s.navItems }
-func (s *testRuntimeSource) QuickLinks() []*spotlight.QuickLink { return nil }
+func (s *testRuntimeSource) Controllers() []Controller           { return nil }
+func (s *testRuntimeSource) Middleware() []mux.MiddlewareFunc    { return nil }
+func (s *testRuntimeSource) Assets() []*embed.FS                 { return nil }
+func (s *testRuntimeSource) HashFSAssets() []*hashfs.FS          { return nil }
+func (s *testRuntimeSource) LocaleFiles() []*embed.FS            { return nil }
+func (s *testRuntimeSource) GraphSchemas() []GraphSchema         { return nil }
+func (s *testRuntimeSource) Applets() []Applet                   { return s.applets }
+func (s *testRuntimeSource) NavItems() []types.NavigationItem    { return s.navItems }
+func (s *testRuntimeSource) NavWorkspaces() []types.NavWorkspace { return nil }
+func (s *testRuntimeSource) QuickLinks() []*spotlight.QuickLink  { return nil }
 func (s *testRuntimeSource) SpotlightProviders() []spotlight.SearchProvider {
 	return nil
 }

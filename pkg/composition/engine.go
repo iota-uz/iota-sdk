@@ -267,6 +267,7 @@ type Container struct {
 
 	controllerBatches     []controllerBatch
 	navItemFactories      []namedFactory[[]types.NavigationItem]
+	navWorkspaceFactories []namedFactory[[]types.NavWorkspace]
 	localeFactories       []namedFactory[[]*embed.FS]
 	schemaFactories       []namedFactory[[]application.GraphSchema]
 	appletFactories       []namedFactory[[]application.Applet]
@@ -282,10 +283,13 @@ type Container struct {
 	// applied as post-collect filters inside materialize.
 	// Provider removals are processed inline at the top of addBuilder
 	// (per-builder ordering) and are not cached on the container.
-	pendingHookRemovals []string
+	pendingHookRemovals     []string
+	pendingNavItemRemovals  []string
+	pendingNavItemOverrides []types.NavigationItem
 
 	controllers        []application.Controller
 	navItems           []types.NavigationItem
+	navWorkspaces      []types.NavWorkspace
 	locales            []*embed.FS
 	graphSchemas       []application.GraphSchema
 	applets            []application.Applet
@@ -328,6 +332,10 @@ func (c *Container) Controllers() []application.Controller {
 
 func (c *Container) NavItems() []types.NavigationItem {
 	return append([]types.NavigationItem(nil), c.navItems...)
+}
+
+func (c *Container) NavWorkspaces() []types.NavWorkspace {
+	return append([]types.NavWorkspace(nil), c.navWorkspaces...)
 }
 
 func (c *Container) LocaleFiles() []*embed.FS {
@@ -580,6 +588,7 @@ func (c *Container) addBuilder(builder *Builder) error {
 		removals:  append([]string(nil), builder.controllerRemovals...),
 	})
 	c.navItemFactories = append(c.navItemFactories, builder.navItemFactories...)
+	c.navWorkspaceFactories = append(c.navWorkspaceFactories, builder.navWorkspaceFactories...)
 	c.localeFactories = append(c.localeFactories, builder.localeFactories...)
 	c.schemaFactories = append(c.schemaFactories, builder.schemaFactories...)
 	c.appletFactories = append(c.appletFactories, builder.appletFactories...)
@@ -601,6 +610,8 @@ func (c *Container) addBuilder(builder *Builder) error {
 	// the container and let materialize filter the collected slices after each
 	// collectInto call.
 	c.pendingHookRemovals = append(c.pendingHookRemovals, builder.hookRemovals...)
+	c.pendingNavItemRemovals = append(c.pendingNavItemRemovals, builder.navItemRemovals...)
+	c.pendingNavItemOverrides = append(c.pendingNavItemOverrides, builder.navItemOverrides...)
 	return nil
 }
 
@@ -641,6 +652,10 @@ func (c *Container) materialize() error {
 		c.controllers = filtered
 	}
 	if err := collectInto(c, c.navItemFactories, &c.navItems); err != nil {
+		return err
+	}
+	c.navItems = applyNavItemOverrides(c.navItems, c.pendingNavItemRemovals, c.pendingNavItemOverrides)
+	if err := collectInto(c, c.navWorkspaceFactories, &c.navWorkspaces); err != nil {
 		return err
 	}
 	if err := collectInto(c, c.localeFactories, &c.locales); err != nil {
@@ -761,6 +776,43 @@ func collectInto[T any](container *Container, factories []namedFactory[[]T], tar
 		*target = append(*target, values...)
 	}
 	return nil
+}
+
+func applyNavItemOverrides(
+	items []types.NavigationItem,
+	removals []string,
+	overrides []types.NavigationItem,
+) []types.NavigationItem {
+	if len(items) == 0 || (len(removals) == 0 && len(overrides) == 0) {
+		return items
+	}
+
+	removed := make(map[string]struct{}, len(removals))
+	for _, key := range removals {
+		if key != "" {
+			removed[key] = struct{}{}
+		}
+	}
+	replacements := make(map[string]types.NavigationItem, len(overrides))
+	for _, item := range overrides {
+		if item.Key != "" {
+			replacements[item.Key] = item
+		}
+	}
+
+	out := make([]types.NavigationItem, 0, len(items))
+	for _, item := range items {
+		if _, ok := removed[item.Key]; ok && item.Key != "" {
+			continue
+		}
+		if replacement, ok := replacements[item.Key]; ok && item.Key != "" {
+			out = append(out, replacement)
+			continue
+		}
+		item.Children = applyNavItemOverrides(item.Children, removals, overrides)
+		out = append(out, item)
+	}
+	return out
 }
 
 func collectControllerContributions(container *Container, factories []namedFactory[[]application.Controller]) ([]controllerContribution, error) {

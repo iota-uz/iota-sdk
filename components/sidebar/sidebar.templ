@@ -19,6 +19,7 @@ const (
 type Props struct {
 	Header       templ.Component
 	TabGroups    TabGroupCollection
+	PinnedItems  []Item
 	Footer       templ.Component
 	InitialState SidebarState // Server-side initial state hint
 }
@@ -107,8 +108,22 @@ templ Sidebar(props Props) {
 }
 
 templ SidebarNav(props Props) {
-	{{ tabs := BuildSidebarNavTabs(ctx, props.TabGroups) }}
+	{{
+		tabs := BuildSidebarNavTabs(ctx, props.TabGroups)
+		pinnedNodes := buildSidebarNavNodes(ctx, props.PinnedItems)
+	}}
 	<nav x-data="sidebarNavigation()" x-init="initSidebarNavigation()" class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
+		if len(pinnedNodes) > 0 {
+			<ul
+				id="sidebar-pinned-navigation"
+				:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
+				class="flex flex-col gap-2 pb-4 mb-4 border-b border-surface-300 transition-all duration-300"
+			>
+				for _, node := range pinnedNodes {
+					@SidebarNode(node, SidebarRenderModeMain, 0)
+				}
+			</ul>
+		}
 		for _, tab := range tabs {
 			@navtabs.Content(tab.Value) {
 				<ul
