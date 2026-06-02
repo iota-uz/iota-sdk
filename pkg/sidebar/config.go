@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -52,9 +53,18 @@ func WorkspaceTabGroupBuilder(
 	workspaces []types.NavWorkspace,
 	localizer *i18n.Localizer,
 ) sidebar.TabGroupCollection {
+	if len(workspaces) == 0 {
+		return BuildTabGroups(items, localizer)
+	}
+
 	orderedWorkspaces := append([]types.NavWorkspace(nil), workspaces...)
 	sort.SliceStable(orderedWorkspaces, func(i, j int) bool {
-		return orderedWorkspaces[i].Order < orderedWorkspaces[j].Order
+		if orderedWorkspaces[i].Order != orderedWorkspaces[j].Order {
+			return orderedWorkspaces[i].Order < orderedWorkspaces[j].Order
+		}
+		// Deterministic secondary tie-break: equal-Order workspaces sort by Key
+		// ascending so ordering is self-evident rather than relying on insertion.
+		return orderedWorkspaces[i].Key < orderedWorkspaces[j].Key
 	})
 
 	defaultWorkspace := orderedWorkspaces[0]
@@ -103,13 +113,12 @@ func localizeWorkspaceLabel(localizer *i18n.Localizer, workspace types.NavWorksp
 	if localizer == nil || workspace.Label == "" {
 		return workspace.Label
 	}
-	label, err := localizer.Localize(&i18n.LocalizeConfig{
+	// Mirror nav-item name localization (pkg/application.translate): fail loudly
+	// on a missing/typo'd NavWorkspaces.* key instead of silently shipping the
+	// raw key as a visible sidebar tab label.
+	return intl.MustLocalize(localizer, &i18n.LocalizeConfig{
 		MessageID: workspace.Label,
 	})
-	if err != nil {
-		return workspace.Label
-	}
-	return label
 }
 
 // DefaultTabGroupBuilder maintains current behavior.

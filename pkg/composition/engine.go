@@ -806,6 +806,10 @@ func applyNavItemOverrides(
 			continue
 		}
 		if replacement, ok := replacements[item.Key]; ok && item.Key != "" {
+			// Apply removals/overrides recursively into the replacement's
+			// subtree too, so a removal nested inside a replacement is honored
+			// rather than the replacement being appended verbatim.
+			replacement.Children = applyNavItemOverrides(replacement.Children, removals, overrides)
 			out = append(out, replacement)
 			continue
 		}

@@ -87,6 +87,38 @@ func TestEngineCompileNavWorkspacesAndKeyOverrides(t *testing.T) {
 	}, container.NavWorkspaces())
 }
 
+func TestApplyNavItemOverridesRecursesIntoReplacementSubtree(t *testing.T) {
+	t.Parallel()
+
+	items := []types.NavigationItem{
+		{Key: "core.admin", Name: "Admin"},
+	}
+	// Replacement carries its own children; one of them is targeted for removal.
+	overrides := []types.NavigationItem{
+		{Key: "core.admin", Name: "Admin", Children: []types.NavigationItem{
+			{Key: "core.users", Name: "Users", Href: "/users"},
+			{Key: "core.secret", Name: "Secret", Href: "/secret"},
+			{Key: "core.nested", Name: "Nested", Children: []types.NavigationItem{
+				{Key: "core.deep-secret", Name: "DeepSecret", Href: "/deep"},
+				{Key: "core.deep-keep", Name: "DeepKeep", Href: "/keep"},
+			}},
+		}},
+	}
+	removals := []string{"core.secret", "core.deep-secret"}
+
+	got := applyNavItemOverrides(items, removals, overrides)
+
+	want := []types.NavigationItem{
+		{Key: "core.admin", Name: "Admin", Children: []types.NavigationItem{
+			{Key: "core.users", Name: "Users", Href: "/users"},
+			{Key: "core.nested", Name: "Nested", Children: []types.NavigationItem{
+				{Key: "core.deep-keep", Name: "DeepKeep", Href: "/keep"},
+			}},
+		}},
+	}
+	require.Equal(t, want, got)
+}
+
 func TestEngineCompileDetectsCycles(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(

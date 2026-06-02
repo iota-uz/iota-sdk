@@ -168,7 +168,10 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 				sidebarProps = sidebarPropsDecorator(r.Context(), r, sidebarProps)
 
 				ctx := context.WithValue(r.Context(), constants.AllNavItemsKey, filtered)
-				ctx = context.WithValue(ctx, constants.NavItemsKey, append(enabledPinnedItems, enabledNavItems...))
+				// Fresh allocation to avoid mutating enabledPinnedItems' backing
+				// array (used above for PinnedItems sidebar props).
+				allNavItems := append(append([]types.NavigationItem(nil), enabledPinnedItems...), enabledNavItems...)
+				ctx = context.WithValue(ctx, constants.NavItemsKey, allNavItems)
 				ctx = context.WithValue(ctx, constants.SidebarPropsKey, sidebarProps)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
