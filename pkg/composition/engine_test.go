@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -47,6 +48,75 @@ func TestEngineCompileTopoSort(t *testing.T) {
 	_, err = engine.Compile(BuildContext{})
 	require.NoError(t, err)
 	require.Equal(t, []string{"core", "crm", "ui"}, buildOrder)
+}
+
+func TestEngineCompileNavWorkspacesAndKeyOverrides(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(
+		testComponent{
+			descriptor: Descriptor{Name: "core"},
+			build: func(builder *Builder) error {
+				AddNavItems(builder,
+					types.NavigationItem{Key: "core.dashboard", Name: "Dashboard", Href: "/"},
+					types.NavigationItem{Key: "core.admin", Name: "Admin", Children: []types.NavigationItem{
+						{Key: "core.users", Name: "Users", Href: "/users"},
+					}},
+				)
+				AddNavWorkspaces(builder, types.NavWorkspace{Key: "erp", Label: "ERP", Default: true})
+				return nil
+			},
+		},
+		testComponent{
+			descriptor: Descriptor{Name: "host", Requires: []string{"core"}},
+			build: func(builder *Builder) error {
+				RemoveNavItemsByKey(builder, "core.admin")
+				ReplaceNavItemsByKey(builder, types.NavigationItem{Key: "core.dashboard", Name: "Home", Href: "/"})
+				AddNavWorkspaces(builder, types.NavWorkspace{Key: "crm", Label: "CRM", Order: 1})
+				return nil
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+	require.Equal(t, []types.NavigationItem{{Key: "core.dashboard", Name: "Home", Href: "/"}}, container.NavItems())
+	require.Equal(t, []types.NavWorkspace{
+		{Key: "erp", Label: "ERP", Default: true},
+		{Key: "crm", Label: "CRM", Order: 1},
+	}, container.NavWorkspaces())
+}
+
+func TestApplyNavItemOverridesRecursesIntoReplacementSubtree(t *testing.T) {
+	t.Parallel()
+
+	items := []types.NavigationItem{
+		{Key: "core.admin", Name: "Admin"},
+	}
+	// Replacement carries its own children; one of them is targeted for removal.
+	overrides := []types.NavigationItem{
+		{Key: "core.admin", Name: "Admin", Children: []types.NavigationItem{
+			{Key: "core.users", Name: "Users", Href: "/users"},
+			{Key: "core.secret", Name: "Secret", Href: "/secret"},
+			{Key: "core.nested", Name: "Nested", Children: []types.NavigationItem{
+				{Key: "core.deep-secret", Name: "DeepSecret", Href: "/deep"},
+				{Key: "core.deep-keep", Name: "DeepKeep", Href: "/keep"},
+			}},
+		}},
+	}
+	removals := []string{"core.secret", "core.deep-secret"}
+
+	got := applyNavItemOverrides(items, removals, overrides)
+
+	want := []types.NavigationItem{
+		{Key: "core.admin", Name: "Admin", Children: []types.NavigationItem{
+			{Key: "core.users", Name: "Users", Href: "/users"},
+			{Key: "core.nested", Name: "Nested", Children: []types.NavigationItem{
+				{Key: "core.deep-keep", Name: "DeepKeep", Href: "/keep"},
+			}},
+		}},
+	}
+	require.Equal(t, want, got)
 }
 
 func TestEngineCompileDetectsCycles(t *testing.T) {

@@ -35,6 +35,7 @@ type RuntimeSource interface {
 	GraphSchemas() []GraphSchema
 	Applets() []Applet
 	NavItems() []types.NavigationItem
+	NavWorkspaces() []types.NavWorkspace
 	QuickLinks() []*spotlight.QuickLink
 	SpotlightProviders() []spotlight.SearchProvider
 	SpotlightAgent() spotlight.Agent
@@ -58,6 +59,7 @@ type Application interface {
 	QuickLinks() *spotlight.QuickLinks
 	Migrations() MigrationManager
 	NavItems(localizer *i18n.Localizer) []types.NavigationItem
+	NavWorkspaces() []types.NavWorkspace
 	GraphSchemas() []GraphSchema
 	Bundle() *i18n.Bundle
 	GetSupportedLanguages() []string

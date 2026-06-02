@@ -29,6 +29,48 @@ func AddNavItems(builder *Builder, items ...types.NavigationItem) {
 	})
 }
 
+// AddNavWorkspaces attaches one or more sidebar workspace declarations.
+func AddNavWorkspaces(builder *Builder, workspaces ...types.NavWorkspace) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(workspaces) == 0 {
+		return
+	}
+	captured := append([]types.NavWorkspace(nil), workspaces...)
+	ContributeNavWorkspaces(builder, func(*Container) ([]types.NavWorkspace, error) {
+		return captured, nil
+	})
+}
+
+// RemoveNavItemsByKey removes contributed navigation items with matching
+// stable keys after all nav contributions have materialized.
+func RemoveNavItemsByKey(builder *Builder, keys ...string) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		builder.navItemRemovals = append(builder.navItemRemovals, key)
+	}
+}
+
+// ReplaceNavItemsByKey replaces contributed navigation items by their stable
+// keys after all nav contributions have materialized.
+func ReplaceNavItemsByKey(builder *Builder, items ...types.NavigationItem) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	for _, item := range items {
+		if item.Key == "" {
+			continue
+		}
+		builder.navItemOverrides = append(builder.navItemOverrides, item)
+	}
+}
+
 // AddHashFS attaches one or more hashfs.FS asset bundles.
 func AddHashFS(builder *Builder, assets ...*hashfs.FS) {
 	if builder == nil {

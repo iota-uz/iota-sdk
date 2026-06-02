@@ -1,10 +1,12 @@
 package sidebar
 
 import (
+	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/navtabs"
 	"strconv"
+	"strings"
 )
 
 // SidebarState represents the initial state of the sidebar
@@ -19,6 +21,7 @@ const (
 type Props struct {
 	Header       templ.Component
 	TabGroups    TabGroupCollection
+	PinnedItems  []Item
 	Footer       templ.Component
 	InitialState SidebarState // Server-side initial state hint
 }
@@ -49,6 +52,19 @@ func depthAttr(depth int) string {
 	return strconv.Itoa(depth)
 }
 
+// workspaceTabBadge derives a compact, icon-sized label for the collapsed
+// workspace switcher. Short labels (e.g. "ERP", "CRM", "ЭДО") are shown as-is;
+// longer labels are truncated to their first 3 runes so they fit the 4rem rail.
+// The full label is always available via the button's tooltip.
+func workspaceTabBadge(label string) string {
+	label = strings.TrimSpace(label)
+	runes := []rune(label)
+	if len(runes) <= 3 {
+		return strings.ToUpper(label)
+	}
+	return strings.ToUpper(string(runes[:3]))
+}
+
 templ Sidebar(props Props) {
 	<div
 		x-data="sidebarShell()"
@@ -77,6 +93,7 @@ templ Sidebar(props Props) {
 				if props.Header != nil {
 					@props.Header
 				}
+				@SidebarPinnedNav(props)
 				if len(props.TabGroups.Groups) > 1 {
 					<div x-show="!isCollapsed" x-transition>
 						<div class="mt-4">
@@ -94,6 +111,7 @@ templ Sidebar(props Props) {
 							}
 						</div>
 					</div>
+					@SidebarCollapsedWorkspaceTabs(props)
 				}
 			</div>
 			@SidebarNav(props)
@@ -106,8 +124,58 @@ templ Sidebar(props Props) {
 	</div>
 }
 
+// SidebarPinnedNav renders the pinned navigation items above the workspace tab
+// selector. Pinned items stay visible regardless of the active workspace tab and
+// in the collapsed sidebar, so they live in the header region (outside the tab
+// content) rather than inside the scrollable per-tab nav.
+templ SidebarPinnedNav(props Props) {
+	{{ pinnedNodes := buildSidebarNavNodes(ctx, props.PinnedItems) }}
+	if len(pinnedNodes) > 0 {
+		<nav x-data="sidebarNavigation()" x-init="initSidebarNavigation()" class="mt-4">
+			<ul
+				id="sidebar-pinned-navigation"
+				class="flex flex-col gap-2 pb-4 border-b border-surface-300"
+			>
+				for _, node := range pinnedNodes {
+					@SidebarNode(node, SidebarRenderModeMain, 0)
+				}
+			</ul>
+		</nav>
+	}
+}
+
+// SidebarCollapsedWorkspaceTabs renders the workspace selector for the collapsed
+// sidebar, where the horizontal tab bar is hidden. Each workspace becomes a
+// compact, icon-sized pill (badge label + right-placed tooltip with the full
+// label) that switches the active tab via the same navTabs Alpine state used by
+// the expanded selector, so the two stay in sync.
+templ SidebarCollapsedWorkspaceTabs(props Props) {
+	<div x-show="isCollapsed" role="tablist" aria-orientation="vertical" class="mt-4 flex flex-col items-center gap-1">
+		for _, group := range props.TabGroups.Groups {
+			<button
+				type="button"
+				role="tab"
+				aria-label={ group.Label }
+				data-tab-value={ group.Value }
+				@click={ fmt.Sprintf("setActiveTab('%s')", group.Value) }
+				x-bind:aria-selected={ fmt.Sprintf("isActive('%s') ? 'true' : 'false'", group.Value) }
+				x-bind:class={ fmt.Sprintf("isActive('%s') ? 'bg-white text-slate-900' : 'text-gray-100 hover:bg-white/10'", group.Value) }
+				x-tooltip.placement.right.raw={ sidebarTooltipText(group.Label, group.IsBeta) }
+				class="relative w-10 h-10 rounded-xl text-[11px] font-semibold leading-none flex items-center justify-center transition-colors duration-200 !cursor-pointer"
+			>
+				{ workspaceTabBadge(group.Label) }
+				if group.IsBeta {
+					@SidebarBetaBadge("absolute -top-1 -right-1 z-10 pointer-events-none text-[8px] px-1", true)
+				}
+			</button>
+		}
+	</div>
+}
+
 templ SidebarNav(props Props) {
-	{{ tabs := BuildSidebarNavTabs(ctx, props.TabGroups) }}
+	{{
+		tabs := BuildSidebarNavTabs(ctx, props.TabGroups)
+	}}
 	<nav x-data="sidebarNavigation()" x-init="initSidebarNavigation()" class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
 		for _, tab := range tabs {
 			@navtabs.Content(tab.Value) {
