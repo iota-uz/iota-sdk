@@ -164,7 +164,7 @@ func (c *RolesController) GetEdit(
 			return
 		}
 		logger.Errorf("Error retrieving role: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving role", http.StatusInternalServerError)
 		return
 	}
 	props := &roles.EditFormProps{
@@ -237,15 +237,15 @@ func (c *RolesController) Update(
 			return
 		}
 		logger.Errorf("Error retrieving role: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving role", http.StatusInternalServerError)
 		return
 	}
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
+	if validationErrors, ok := dto.Ok(r.Context()); !ok {
 		props := &roles.EditFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
 			ModulePermissionGroups: c.modulePermissionGroups(roleEntity.Permissions()...),
-			Errors:                 errors,
+			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -305,7 +305,7 @@ func (c *RolesController) Create(
 		return
 	}
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
+	if validationErrors, ok := dto.Ok(r.Context()); !ok {
 		roleEntity, err := dto.ToEntity(c.permissionSchema)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
@@ -315,7 +315,7 @@ func (c *RolesController) Create(
 		props := &roles.CreateFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
 			ModulePermissionGroups: c.modulePermissionGroups(),
-			Errors:                 errors,
+			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

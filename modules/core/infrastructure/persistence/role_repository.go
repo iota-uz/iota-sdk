@@ -313,22 +313,23 @@ func (g *GormRoleRepository) Update(ctx context.Context, data role.Role) (role.R
 }
 
 func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
+	op := serrors.Op("RoleRepository.Delete")
 	tenantID, err := composables.UseTenantID(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get tenant from context")
+		return serrors.E(op, err)
 	}
 
 	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id, tenantID.String()); err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 
 	tx, err := composables.UseTx(ctx)
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	tag, err := tx.Exec(ctx, roleDeleteQuery, id, tenantID.String())
 	if err != nil {
-		return err
+		return serrors.E(op, err)
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrRoleNotFound
