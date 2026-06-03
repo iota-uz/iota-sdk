@@ -2,10 +2,12 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -157,8 +159,12 @@ func (c *RolesController) GetEdit(
 
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error retrieving role: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving role", http.StatusInternalServerError)
 		return
 	}
 	props := &roles.EditFormProps{
@@ -188,6 +194,10 @@ func (c *RolesController) Delete(
 	}
 
 	if err := roleService.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error deleting role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -222,16 +232,20 @@ func (c *RolesController) Update(
 
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error retrieving role: %v", err)
-		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
+		http.Error(w, "Error retrieving role", http.StatusInternalServerError)
 		return
 	}
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
+	if validationErrors, ok := dto.Ok(r.Context()); !ok {
 		props := &roles.EditFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
 			ModulePermissionGroups: c.modulePermissionGroups(roleEntity.Permissions()...),
-			Errors:                 errors,
+			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.EditForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return
@@ -245,6 +259,10 @@ func (c *RolesController) Update(
 	}
 
 	if err := roleService.Update(r.Context(), updatedEntity); err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error updating role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -287,7 +305,7 @@ func (c *RolesController) Create(
 		return
 	}
 
-	if errors, ok := dto.Ok(r.Context()); !ok {
+	if validationErrors, ok := dto.Ok(r.Context()); !ok {
 		roleEntity, err := dto.ToEntity(c.permissionSchema)
 		if err != nil {
 			logger.Errorf("Error converting DTO to entity: %v", err)
@@ -297,7 +315,7 @@ func (c *RolesController) Create(
 		props := &roles.CreateFormProps{
 			Role:                   mappers.RoleToViewModel(roleEntity),
 			ModulePermissionGroups: c.modulePermissionGroups(),
-			Errors:                 errors,
+			Errors:                 validationErrors,
 		}
 		templ.Handler(roles.CreateForm(props), templ.WithStreaming()).ServeHTTP(w, r)
 		return

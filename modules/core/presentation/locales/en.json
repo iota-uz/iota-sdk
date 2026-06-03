@@ -1095,6 +1095,7 @@
       "Access": "Access"
     },
     "Blocked": "Blocked",
+    "NoRole": "No role",
     "Block": {
       "Title": "Block User",
       "Button": "Block User",

@@ -11,10 +11,10 @@ import (
 
 func TestWorkspaceTabGroupBuilderLocalizesAndFlattensWorkspaceContainers(t *testing.T) {
 	bundle := i18n.NewBundle(language.English)
-	bundle.AddMessages(language.English,
+	require.NoError(t, bundle.AddMessages(language.English,
 		&i18n.Message{ID: "NavWorkspaces.ERP", Other: "ERP"},
 		&i18n.Message{ID: "NavWorkspaces.CRM", Other: "CRM"},
-	)
+	))
 	localizer := i18n.NewLocalizer(bundle, language.English.String())
 
 	collection := WorkspaceTabGroupBuilder(

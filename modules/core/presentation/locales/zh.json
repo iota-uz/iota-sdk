@@ -1098,6 +1098,7 @@
       "Access": "访问权限"
     },
     "Blocked": "已封禁",
+    "NoRole": "无角色",
     "Block": {
       "Title": "封禁用户",
       "Button": "封禁用户",

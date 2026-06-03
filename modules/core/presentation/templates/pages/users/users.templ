@@ -111,7 +111,7 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 					{ user.RolesVerbose() }
 				</div>
 			} else {
-				{ pageCtx.T("Unknown") }
+				{ pageCtx.T("Users.NoRole") }
 			}
 		}
 		@base.TableCell(base.TableCellProps{}) {

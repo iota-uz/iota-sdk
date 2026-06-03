@@ -1094,6 +1094,7 @@
       "Access": "Kirish"
     },
     "Blocked": "Bloklangan",
+    "NoRole": "Rol biriktirilmagan",
     "Block": {
       "Title": "Foydalanuvchini bloklash",
       "Button": "Bloklash",

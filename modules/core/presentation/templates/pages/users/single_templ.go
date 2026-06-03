@@ -728,6 +728,8 @@ func UserAccessInfo(user *viewmodels.User, groups []*viewmodels.ResourcePermissi
 		items := []descriptionlist.DLItem{}
 		if len(user.Roles) > 0 {
 			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Roles"), descriptionlist.WithItemText(user.RolesVerbose())))
+		} else {
+			items = append(items, descriptionlist.NewItem(pageCtx.T("Users.Single.Roles"), descriptionlist.WithItemText(pageCtx.T("Users.NoRole"))))
 		}
 		if len(groups) > 0 {
 			groupItems := make([]descriptionlist.DLItem, len(groups))

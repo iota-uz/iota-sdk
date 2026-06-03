@@ -78,7 +78,7 @@ func TestRolesController_Validation(t *testing.T) {
 	cases := itf.Cases(
 		itf.GET("/roles/0").
 			Named("Zero_ID_Edit").
-			ExpectStatus(500), // Invalid ID
+			ExpectStatus(404), // ParseID("0")=0; GetByID(0) -> ErrRoleNotFound
 
 		itf.GET("/roles/-1").
 			Named("Negative_ID_Edit").
@@ -90,15 +90,15 @@ func TestRolesController_Validation(t *testing.T) {
 
 		itf.GET("/roles/999999999").
 			Named("Non_Existent_ID_Edit").
-			ExpectStatus(500), // Role not found
+			ExpectStatus(404), // Role not found
 
 		itf.DELETE("/roles/0").
 			Named("Zero_ID_Delete").
-			ExpectStatus(500),
+			ExpectStatus(404), // ParseID("0")=0; Delete -> ErrRoleNotFound
 
 		itf.DELETE("/roles/999999999").
 			Named("Non_Existent_ID_Delete").
-			ExpectStatus(500),
+			ExpectStatus(404),
 	)
 
 	suite.RunCases(cases)
@@ -121,7 +121,7 @@ func TestRolesController_Delete_EdgeCases(t *testing.T) {
 	cases := itf.Cases(
 		itf.DELETE("/roles/0").
 			Named("Zero_ID").
-			ExpectStatus(500), // Role ID 0 is invalid
+			ExpectStatus(404), // ParseID("0")=0; role not found
 
 		itf.DELETE("/roles/-1").
 			Named("Negative_ID").
@@ -133,7 +133,7 @@ func TestRolesController_Delete_EdgeCases(t *testing.T) {
 
 		itf.DELETE("/roles/999999999").
 			Named("Large_ID").
-			ExpectStatus(500), // Large ID should still reach controller but role not found
+			ExpectStatus(404), // Large ID reaches controller but role not found
 	)
 
 	suite.RunCases(cases)
@@ -245,8 +245,26 @@ func TestRolesController_Update_NonExistent(t *testing.T) {
 			"Description": "Updated Description",
 		})
 
-	// Should return error (role not found)
-	response.Assert(t).ExpectStatus(500)
+	// Should return 404 (role not found)
+	response.Assert(t).ExpectStatus(404)
+}
+
+func TestRolesController_Delete_NonExistent(t *testing.T) {
+	// Test delete on non-existent role returns 404
+	t.Parallel()
+
+	suite := itf.NewSuiteBuilder(t).
+		WithComponents(modules.Components()...).
+		AsUser(permissions.RoleDelete, permissions.RoleRead).
+		Build()
+
+	controller := controllers.NewRolesController(&controllers.RolesControllerOptions{
+		BasePath:         "/roles",
+		PermissionSchema: createTestPermissionSchema(),
+	})
+	suite.Register(controller)
+
+	suite.DELETE(fmt.Sprintf("/roles/%d", 999999)).Assert(t).ExpectStatus(404)
 }
 
 func TestRolesController_Update_PermissionScenarios(t *testing.T) {
