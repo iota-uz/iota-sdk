@@ -926,6 +926,9 @@
   "UploadLabel": "上传文件",
   "UploadPlaceholder": "选择要上传的文件",
   "DownloadTemplate": "下载模板",
+  "Running": "运行中…",
+  "Warnings": "警告",
+  "Confirm": "确认",
   "Example": {
     "Below": "请参见下面的示例"
   },
@@ -1363,5 +1366,9 @@
       "Active": "启用",
       "Inactive": "停用"
     }
-  }
+  },
+  "Error": {
+    "ProcessingFailed": "导入失败"
+  },
+  "DryRunNotice": "这是预览——数据尚未更改。请查看上方结果，然后确认以执行导入。"
 }

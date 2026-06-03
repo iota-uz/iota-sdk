@@ -922,6 +922,9 @@
   "UploadLabel": "Upload File",
   "UploadPlaceholder": "Choose a file to upload",
   "DownloadTemplate": "Download Template",
+  "Running": "Running…",
+  "Warnings": "Warnings",
+  "Confirm": "Confirm",
   "Example": {
     "Below": "See example below"
   },
@@ -1360,5 +1363,9 @@
       "Active": "Active",
       "Inactive": "Inactive"
     }
-  }
+  },
+  "Error": {
+    "ProcessingFailed": "Import Failed"
+  },
+  "DryRunNotice": "This is a preview — no data has been changed yet. Review the results above, then confirm to apply the import."
 }

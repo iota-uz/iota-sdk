@@ -102,19 +102,20 @@ type Builder struct {
 	context    BuildContext
 	descriptor Descriptor
 
-	providers           []*providerEntry
-	controllerFactories []namedFactory[[]application.Controller]
-	navItemFactories    []namedFactory[[]types.NavigationItem]
-	localeFactories     []namedFactory[[]*embed.FS]
-	schemaFactories     []namedFactory[[]application.GraphSchema]
-	appletFactories     []namedFactory[[]application.Applet]
-	assetFactories      []namedFactory[[]*embed.FS]
-	hashFSFactories     []namedFactory[[]*hashfs.FS]
-	quickLinkFactories  []namedFactory[[]*spotlight.QuickLink]
-	spotlightFactories  []namedFactory[[]spotlight.SearchProvider]
-	spotlightAgent      *namedFactory[spotlight.Agent]
-	middlewareFactories []namedFactory[[]mux.MiddlewareFunc]
-	hookFactories       []namedFactory[[]Hook]
+	providers             []*providerEntry
+	controllerFactories   []namedFactory[[]application.Controller]
+	navItemFactories      []namedFactory[[]types.NavigationItem]
+	navWorkspaceFactories []namedFactory[[]types.NavWorkspace]
+	localeFactories       []namedFactory[[]*embed.FS]
+	schemaFactories       []namedFactory[[]application.GraphSchema]
+	appletFactories       []namedFactory[[]application.Applet]
+	assetFactories        []namedFactory[[]*embed.FS]
+	hashFSFactories       []namedFactory[[]*hashfs.FS]
+	quickLinkFactories    []namedFactory[[]*spotlight.QuickLink]
+	spotlightFactories    []namedFactory[[]spotlight.SearchProvider]
+	spotlightAgent        *namedFactory[spotlight.Agent]
+	middlewareFactories   []namedFactory[[]mux.MiddlewareFunc]
+	hookFactories         []namedFactory[[]Hook]
 
 	// Removals are recorded here and processed after every builder has
 	// contributed, so a downstream component can cleanly replace upstream
@@ -123,6 +124,8 @@ type Builder struct {
 	// Container.addBuilder.
 	providerRemovals   []Key
 	controllerRemovals []string // matched against Controller.Key()
+	navItemRemovals    []string // matched against NavigationItem.Key
+	navItemOverrides   []types.NavigationItem
 	hookRemovals       []string // matched against Hook.Name
 
 	eventHandlerSeq int // monotonic counter for unique event-handler hook names
@@ -331,6 +334,10 @@ func ContributeControllers(builder *Builder, factory func(*Container) ([]applica
 
 func ContributeNavItems(builder *Builder, factory func(*Container) ([]types.NavigationItem, error)) {
 	appendFactory(builder, "nav-items", factory, &builder.navItemFactories)
+}
+
+func ContributeNavWorkspaces(builder *Builder, factory func(*Container) ([]types.NavWorkspace, error)) {
+	appendFactory(builder, "nav-workspaces", factory, &builder.navWorkspaceFactories)
 }
 
 func ContributeSchemas(builder *Builder, factory func(*Container) ([]application.GraphSchema, error)) {

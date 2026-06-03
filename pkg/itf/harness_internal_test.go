@@ -199,6 +199,7 @@ func (a *testApp) Websocket() application.Huber                    { return nil 
 func (a *testApp) Spotlight() spotlight.Service                    { return nil }
 func (a *testApp) QuickLinks() *spotlight.QuickLinks               { return nil }
 func (a *testApp) NavItems(*i18n.Localizer) []types.NavigationItem { return nil }
+func (a *testApp) NavWorkspaces() []types.NavWorkspace             { return nil }
 func (a *testApp) GraphSchemas() []application.GraphSchema         { return nil }
 func (a *testApp) Bundle() *i18n.Bundle                            { return nil }
 func (a *testApp) GetSupportedLanguages() []string                 { return nil }

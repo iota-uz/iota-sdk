@@ -9,6 +9,7 @@ import (
 )
 
 var DashboardLink = types.NavigationItem{
+	Key:      "core.dashboard",
 	Name:     "NavigationLinks.Dashboard",
 	Icon:     icons.Gauge(icons.Props{Size: "20"}),
 	Href:     "/",
@@ -16,6 +17,7 @@ var DashboardLink = types.NavigationItem{
 }
 
 var UsersLink = types.NavigationItem{
+	Key:         "core.users",
 	Name:        "NavigationLinks.Users",
 	Icon:        nil,
 	Href:        "/users",
@@ -24,6 +26,7 @@ var UsersLink = types.NavigationItem{
 }
 
 var RolesLink = types.NavigationItem{
+	Key:         "core.roles",
 	Name:        "NavigationLinks.Roles",
 	Icon:        nil,
 	Href:        "/roles",
@@ -32,6 +35,7 @@ var RolesLink = types.NavigationItem{
 }
 
 var GroupsLink = types.NavigationItem{
+	Key:         "core.groups",
 	Name:        "NavigationLinks.Groups",
 	Icon:        nil,
 	Href:        "/groups",
@@ -40,6 +44,7 @@ var GroupsLink = types.NavigationItem{
 }
 
 var DepartmentsLink = types.NavigationItem{
+	Key:         "core.departments",
 	Name:        "NavigationLinks.Departments",
 	Icon:        nil,
 	Href:        "/departments",
@@ -48,6 +53,7 @@ var DepartmentsLink = types.NavigationItem{
 }
 
 var PositionsLink = types.NavigationItem{
+	Key:         "core.positions",
 	Name:        "NavigationLinks.Positions",
 	Icon:        nil,
 	Href:        "/positions",
@@ -56,6 +62,7 @@ var PositionsLink = types.NavigationItem{
 }
 
 var SettingsLink = types.NavigationItem{
+	Key:      "core.settings",
 	Name:     "NavigationLinks.Settings",
 	Icon:     nil,
 	Href:     "/settings/logo",
@@ -63,6 +70,7 @@ var SettingsLink = types.NavigationItem{
 }
 
 var AdministrationLink = types.NavigationItem{
+	Key:  "core.administration",
 	Name: "NavigationLinks.Administration",
 	Icon: icons.AirTrafficControl(icons.Props{Size: "20"}),
 	Href: "#",

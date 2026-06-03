@@ -8,6 +8,9 @@ import (
 )
 
 type NavigationItem struct {
+	Key         string
+	Workspace   string
+	Pinned      bool
 	Name        string
 	Href        string
 	Children    []NavigationItem
@@ -27,4 +30,12 @@ func (n NavigationItem) HasPermission(user user.User) bool {
 		}
 	}
 	return true
+}
+
+type NavWorkspace struct {
+	Key     string
+	Label   string
+	Order   int
+	Default bool
+	IsBeta  bool
 }

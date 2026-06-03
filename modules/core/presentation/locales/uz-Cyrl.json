@@ -922,6 +922,9 @@
   "UploadLabel": "Fayl yuklash",
   "UploadPlaceholder": "Yuklash uchun faylni tanlang",
   "DownloadTemplate": "Shablonni yuklab olish",
+  "Running": "Бажарилмоқда…",
+  "Warnings": "Огоҳлантиришлар",
+  "Confirm": "Тасдиқлаш",
   "Example": {
     "Below": "Quyida misolni ko'ring"
   },
@@ -1359,5 +1362,9 @@
       "Active": "Фаол",
       "Inactive": "Нофаол"
     }
-  }
+  },
+  "Error": {
+    "ProcessingFailed": "Импорт хатоси"
+  },
+  "DryRunNotice": "Бу — олдиндан кўриш. Маълумотлар ҳали ўзгартирилмади. Юқоридаги натижаларни текширинг ва импортни қўллаш учун тасдиқланг."
 }

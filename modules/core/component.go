@@ -55,6 +55,10 @@ type ModuleOptions struct {
 	// registered. Use this for specialized binaries like superadmin that
 	// provide their own admin UI.
 	SkipAdminControllers bool
+
+	// SkipAdminNavItems suppresses contribution of the built-in admin
+	// navigation without affecting controller or spotlight registration.
+	SkipAdminNavItems bool
 }
 
 func NewComponent(opts *ModuleOptions) composition.Component {
@@ -86,7 +90,9 @@ func (c *component) Build(builder *composition.Builder) error {
 		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
 	)
 	if !c.options.SkipAdminControllers {
-		composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
+		if !c.options.SkipAdminNavItems {
+			composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
+		}
 		composition.AddQuickLinks(builder,
 			spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
 			spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
