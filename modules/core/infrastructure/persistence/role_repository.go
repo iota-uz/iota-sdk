@@ -321,7 +321,19 @@ func (g *GormRoleRepository) Delete(ctx context.Context, id uint) error {
 	if err := g.execQuery(ctx, roleDeletePermissionsQuery, id, tenantID.String()); err != nil {
 		return err
 	}
-	return g.execQuery(ctx, roleDeleteQuery, id, tenantID)
+
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return err
+	}
+	tag, err := tx.Exec(ctx, roleDeleteQuery, id, tenantID.String())
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrRoleNotFound
+	}
+	return nil
 }
 
 func (g *GormRoleRepository) queryPermissions(ctx context.Context, roleIDs []uint) (map[uint][]*models.Permission, error) {

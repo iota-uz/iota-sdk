@@ -2,10 +2,12 @@
 package controllers
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
@@ -157,6 +159,10 @@ func (c *RolesController) GetEdit(
 
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error retrieving role: %v", err)
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
@@ -188,6 +194,10 @@ func (c *RolesController) Delete(
 	}
 
 	if err := roleService.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error deleting role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -222,6 +232,10 @@ func (c *RolesController) Update(
 
 	roleEntity, err := roleService.GetByID(r.Context(), id)
 	if err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error retrieving role: %v", err)
 		http.Error(w, "Error retrieving roles", http.StatusInternalServerError)
 		return
@@ -245,6 +259,10 @@ func (c *RolesController) Update(
 	}
 
 	if err := roleService.Update(r.Context(), updatedEntity); err != nil {
+		if errors.Is(err, persistence.ErrRoleNotFound) {
+			http.Error(w, "Role not found", http.StatusNotFound)
+			return
+		}
 		logger.Errorf("Error updating role: %v", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

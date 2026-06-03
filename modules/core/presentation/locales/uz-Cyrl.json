@@ -1094,6 +1094,7 @@
       "Access": "Ruxsat"
     },
     "Blocked": "Bloklangan",
+    "NoRole": "Рол бириктирилмаган",
     "Block": {
       "Title": "Foydalanuvchini bloklash",
       "Button": "Bloklash",
