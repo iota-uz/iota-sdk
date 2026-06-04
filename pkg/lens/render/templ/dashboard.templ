@@ -665,7 +665,7 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 		x-transition:leave="transition ease-in duration-150"
 		x-transition:leave-start="opacity-100"
 		x-transition:leave-end="opacity-0"
-		class="fixed inset-0 z-50 flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
+		class="fixed inset-0 z-[90] flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
 		style="display: none;"
 		@click.self="fullscreen = false"
 		@keydown.escape.window="fullscreen = false"

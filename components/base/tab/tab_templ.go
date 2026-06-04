@@ -22,7 +22,7 @@ type ListProps struct {
 	Class string
 }
 
-var linkClass = "rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full"
+var linkClass = "shrink-0 whitespace-nowrap rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full"
 
 func Root(props Props) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
@@ -113,7 +113,7 @@ func List(props ListProps) templ.Component {
 			templ_7745c5c3_Var5 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var6 = []any{"flex gap-2 border-b", props.Class}
+		var templ_7745c5c3_Var6 = []any{"flex flex-nowrap gap-2 border-b overflow-x-auto", props.Class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
