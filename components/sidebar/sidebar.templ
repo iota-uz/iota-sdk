@@ -224,6 +224,9 @@ templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 					Size:  button.SizeMD,
 					Href:  node.Href,
 					Class: "p-2 w-auto flex justify-center",
+					Attrs: templ.Attributes{
+						"aria-label": tooltipText,
+					},
 				}) {
 					<div class="w-6 h-6 flex items-center justify-center">
 						if node.Icon != nil {
@@ -286,10 +289,12 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
 	}}
 	if mode == SidebarRenderModeMain {
 		<div>
-			<div
+			<button
+				type="button"
 				x-show="isCollapsed"
 				@click.stop="onCollapsedGroupTrigger($event)"
 				x-tooltip.placement.right.raw={ tooltipText }
+				aria-label={ tooltipText }
 				data-sidebar-collapsed-group-trigger="true"
 				data-group-id={ node.ID }
 				data-depth={ depthAttr(depth) }
@@ -300,7 +305,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
 				} else {
 					@SidebarFallbackIcon(node.Text)
 				}
-			</div>
+			</button>
 			<details x-show="!isCollapsed" class="group" open?={ node.IsActive }>
 				<summary class="btn btn-sidebar btn-md gap-2 w-full cursor-pointer">
 					if node.Icon != nil {
