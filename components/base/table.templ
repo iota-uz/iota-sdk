@@ -219,9 +219,17 @@ templ Table(props TableProps) {
 				headH: 0,
 				sbGap: 0,
 				stickyR: 0,
+				touch: false,
 				init() {
 					const sc = this.$refs.sc;
 					if (!sc) return;
+					this.touch = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+					if (this.touch) {
+						sc.style.overflowX = 'auto';
+						sc.style.webkitOverflowScrolling = 'touch';
+						sc.style.overscrollBehaviorX = 'contain';
+						sc.style.touchAction = 'pan-x pan-y';
+					}
 					this.$nextTick(() => this.measure());
 					this._ro = new ResizeObserver(() => this.measure());
 					this._ro.observe(sc);
@@ -380,6 +388,7 @@ templ Table(props TableProps) {
 			</div>
 			<div
 				class="absolute left-0 z-[9] overflow-x-scroll overflow-y-hidden proxy-scrollbar bg-surface-600"
+				x-show="!touch"
 				x-ref="proxy"
 				:style="'top:'+headH+'px;right:'+(sbGap+stickyR)+'px'"
 				style="height: 12px;"

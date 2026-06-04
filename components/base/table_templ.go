@@ -292,7 +292,7 @@ func Table(props TableProps) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if props.ScrollbarUnderHeader {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"relative\" x-data=\"{\n\t\t\t\tsyncing: false,\n\t\t\t\tproxyW: 0,\n\t\t\t\theadH: 0,\n\t\t\t\tsbGap: 0,\n\t\t\t\tstickyR: 0,\n\t\t\t\tinit() {\n\t\t\t\t\tconst sc = this.$refs.sc;\n\t\t\t\t\tif (!sc) return;\n\t\t\t\t\tthis.$nextTick(() =&gt; this.measure());\n\t\t\t\t\tthis._ro = new ResizeObserver(() =&gt; this.measure());\n\t\t\t\t\tthis._ro.observe(sc);\n\t\t\t\t\tthis._mo = new MutationObserver(() =&gt; requestAnimationFrame(() =&gt; this.measure()));\n\t\t\t\t\tthis._mo.observe(\n\t\t\t\t\t\tsc.querySelector(&#39;tbody&#39;) || sc,\n\t\t\t\t\t\t{ childList: true, subtree: true }\n\t\t\t\t\t);\n\t\t\t\t\tsc.addEventListener(&#39;wheel&#39;, (e) =&gt; {\n\t\t\t\t\t\tif (e.deltaX !== 0) { sc.scrollLeft += e.deltaX; }\n\t\t\t\t\t}, { passive: true });\n\t\t\t\t},\n\t\t\t\tdestroy() {\n\t\t\t\t\tif (this._ro) this._ro.disconnect();\n\t\t\t\t\tif (this._mo) this._mo.disconnect();\n\t\t\t\t},\n\t\t\t\tmeasure() {\n\t\t\t\t\tconst sc = this.$refs.sc;\n\t\t\t\t\tif (!sc || !sc.isConnected) return;\n\t\t\t\t\tthis.proxyW = sc.scrollWidth;\n\t\t\t\t\tthis.headH = sc.querySelector(&#39;thead&#39;)?.offsetHeight || 0;\n\t\t\t\t\tthis.sbGap = sc.offsetWidth - sc.clientWidth;\n\t\t\t\t\tlet sr = 0;\n\t\t\t\t\tsc.querySelectorAll(&#39;thead th&#39;).forEach(th =&gt; {\n\t\t\t\t\t\tconst s = getComputedStyle(th);\n\t\t\t\t\t\tif (s.position === &#39;sticky&#39; &amp;&amp; s.right !== &#39;auto&#39;) sr += th.offsetWidth;\n\t\t\t\t\t});\n\t\t\t\t\tthis.stickyR = sr;\n\t\t\t\t},\n\t\t\t\tonScroll() { if(!this.syncing){this.syncing=true; this.$refs.proxy.scrollLeft=this.$refs.sc.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} },\n\t\t\t\tonProxy() { if(!this.syncing){this.syncing=true; this.$refs.sc.scrollLeft=this.$refs.proxy.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} }\n\t\t\t}\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "<div class=\"relative\" x-data=\"{\n\t\t\t\tsyncing: false,\n\t\t\t\tproxyW: 0,\n\t\t\t\theadH: 0,\n\t\t\t\tsbGap: 0,\n\t\t\t\tstickyR: 0,\n\t\t\t\ttouch: false,\n\t\t\t\tinit() {\n\t\t\t\t\tconst sc = this.$refs.sc;\n\t\t\t\t\tif (!sc) return;\n\t\t\t\t\tthis.touch = window.matchMedia(&#39;(hover: none), (pointer: coarse)&#39;).matches;\n\t\t\t\t\tif (this.touch) {\n\t\t\t\t\t\tsc.style.overflowX = &#39;auto&#39;;\n\t\t\t\t\t\tsc.style.webkitOverflowScrolling = &#39;touch&#39;;\n\t\t\t\t\t\tsc.style.overscrollBehaviorX = &#39;contain&#39;;\n\t\t\t\t\t\tsc.style.touchAction = &#39;pan-x pan-y&#39;;\n\t\t\t\t\t}\n\t\t\t\t\tthis.$nextTick(() =&gt; this.measure());\n\t\t\t\t\tthis._ro = new ResizeObserver(() =&gt; this.measure());\n\t\t\t\t\tthis._ro.observe(sc);\n\t\t\t\t\tthis._mo = new MutationObserver(() =&gt; requestAnimationFrame(() =&gt; this.measure()));\n\t\t\t\t\tthis._mo.observe(\n\t\t\t\t\t\tsc.querySelector(&#39;tbody&#39;) || sc,\n\t\t\t\t\t\t{ childList: true, subtree: true }\n\t\t\t\t\t);\n\t\t\t\t\tsc.addEventListener(&#39;wheel&#39;, (e) =&gt; {\n\t\t\t\t\t\tif (e.deltaX !== 0) { sc.scrollLeft += e.deltaX; }\n\t\t\t\t\t}, { passive: true });\n\t\t\t\t},\n\t\t\t\tdestroy() {\n\t\t\t\t\tif (this._ro) this._ro.disconnect();\n\t\t\t\t\tif (this._mo) this._mo.disconnect();\n\t\t\t\t},\n\t\t\t\tmeasure() {\n\t\t\t\t\tconst sc = this.$refs.sc;\n\t\t\t\t\tif (!sc || !sc.isConnected) return;\n\t\t\t\t\tthis.proxyW = sc.scrollWidth;\n\t\t\t\t\tthis.headH = sc.querySelector(&#39;thead&#39;)?.offsetHeight || 0;\n\t\t\t\t\tthis.sbGap = sc.offsetWidth - sc.clientWidth;\n\t\t\t\t\tlet sr = 0;\n\t\t\t\t\tsc.querySelectorAll(&#39;thead th&#39;).forEach(th =&gt; {\n\t\t\t\t\t\tconst s = getComputedStyle(th);\n\t\t\t\t\t\tif (s.position === &#39;sticky&#39; &amp;&amp; s.right !== &#39;auto&#39;) sr += th.offsetWidth;\n\t\t\t\t\t});\n\t\t\t\t\tthis.stickyR = sr;\n\t\t\t\t},\n\t\t\t\tonScroll() { if(!this.syncing){this.syncing=true; this.$refs.proxy.scrollLeft=this.$refs.sc.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} },\n\t\t\t\tonProxy() { if(!this.syncing){this.syncing=true; this.$refs.sc.scrollLeft=this.$refs.proxy.scrollLeft; this.$nextTick(()=&gt;this.syncing=false)} }\n\t\t\t}\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -428,7 +428,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var15 string
 						templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 294, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 302, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 						if templ_7745c5c3_Err != nil {
@@ -464,7 +464,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var16 string
 					templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(col.SortURL)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 305, Col: 32}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 313, Col: 32}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 					if templ_7745c5c3_Err != nil {
@@ -495,7 +495,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var17 string
 					templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 315, Col: 29}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 323, Col: 29}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 					if templ_7745c5c3_Err != nil {
@@ -573,7 +573,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var20 string
 						templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 339, Col: 29}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 347, Col: 29}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 						if templ_7745c5c3_Err != nil {
@@ -623,7 +623,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var21 string
 					templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 354, Col: 23}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 362, Col: 23}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 					if templ_7745c5c3_Err != nil {
@@ -701,7 +701,7 @@ func Table(props TableProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</table></div><div class=\"absolute left-0 z-[9] overflow-x-scroll overflow-y-hidden proxy-scrollbar bg-surface-600\" x-ref=\"proxy\" :style=\"&#39;top:&#39;+headH+&#39;px;right:&#39;+(sbGap+stickyR)+&#39;px&#39;\" style=\"height: 12px;\" @scroll.self=\"onProxy\"><div :style=\"&#39;width:&#39;+(proxyW-stickyR)+&#39;px;height:1px&#39;\"></div></div><!-- Cover vertical scrollbar track in the header area --><div class=\"absolute right-0 top-0 z-[11] bg-surface-500 pointer-events-none\" x-show=\"sbGap &gt; 0\" :style=\"&#39;width:&#39;+sbGap+&#39;px;height:&#39;+headH+&#39;px&#39;\"></div></div>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 52, "</table></div><div class=\"absolute left-0 z-[9] overflow-x-scroll overflow-y-hidden proxy-scrollbar bg-surface-600\" x-show=\"!touch\" x-ref=\"proxy\" :style=\"&#39;top:&#39;+headH+&#39;px;right:&#39;+(sbGap+stickyR)+&#39;px&#39;\" style=\"height: 12px;\" @scroll.self=\"onProxy\"><div :style=\"&#39;width:&#39;+(proxyW-stickyR)+&#39;px;height:1px&#39;\"></div></div><!-- Cover vertical scrollbar track in the header area --><div class=\"absolute right-0 top-0 z-[11] bg-surface-500 pointer-events-none\" x-show=\"sbGap &gt; 0\" :style=\"&#39;width:&#39;+sbGap+&#39;px;height:&#39;+headH+&#39;px&#39;\"></div></div>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -838,7 +838,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var32 string
 						templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 429, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 438, Col: 28}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 						if templ_7745c5c3_Err != nil {
@@ -874,7 +874,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var33 string
 					templ_7745c5c3_Var33, templ_7745c5c3_Err = templ.JoinStringErrs(col.SortURL)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 441, Col: 31}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 450, Col: 31}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var33))
 					if templ_7745c5c3_Err != nil {
@@ -905,7 +905,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var34 string
 					templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 451, Col: 28}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 460, Col: 28}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 					if templ_7745c5c3_Err != nil {
@@ -983,7 +983,7 @@ func Table(props TableProps) templ.Component {
 						var templ_7745c5c3_Var37 string
 						templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(col.Key)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 475, Col: 28}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 484, Col: 28}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 						if templ_7745c5c3_Err != nil {
@@ -1033,7 +1033,7 @@ func Table(props TableProps) templ.Component {
 					var templ_7745c5c3_Var38 string
 					templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(col.Label)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 491, Col: 22}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/table.templ`, Line: 500, Col: 22}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 					if templ_7745c5c3_Err != nil {

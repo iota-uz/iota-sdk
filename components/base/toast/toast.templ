@@ -21,7 +21,7 @@ templ Container() {
 		}"
 		@notify.window="addNotification($event.detail)"
 		@remove-notification.window="removeNotification($event.detail)"
-		class="fixed top-0 right-0 z-50 w-full max-w-sm p-4 space-y-3 pointer-events-none"
+		class="fixed top-0 right-0 z-[100] w-full max-w-sm p-4 space-y-3 pointer-events-none"
 		aria-live="assertive"
 	>
 		<template x-for="notification in notifications" :key="notification.id">

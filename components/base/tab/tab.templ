@@ -14,7 +14,7 @@ type ListProps struct {
 	Class string
 }
 
-var linkClass = "rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full"
+var linkClass = "shrink-0 whitespace-nowrap rounded-none after:absolute after:left-0 after:bottom-0 after:h-0.5 after:w-full"
 
 templ Root(props Props) {
 	<div x-data={ fmt.Sprintf("{selectedTab: '%s'}", props.DefaultValue) } class={ props.Class }>
@@ -26,7 +26,7 @@ templ List(props ListProps) {
 	<div
 		@keydown.right.prevent="$focus.wrap().next()"
 		@keydown.left.prevent="$focus.wrap().previous()"
-		class={ "flex gap-2 border-b", props.Class }
+		class={ "flex flex-nowrap gap-2 border-b overflow-x-auto", props.Class }
 	>
 		{ children... }
 	</div>
