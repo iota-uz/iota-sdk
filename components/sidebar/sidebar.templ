@@ -52,6 +52,17 @@ func depthAttr(depth int) string {
 	return strconv.Itoa(depth)
 }
 
+// sidebarFallbackInitial returns the uppercase first rune of a nav item's
+// text. It backs the icon stand-in shown in the collapsed sidebar for items
+// that have no icon, so they don't render as empty (invisible) buttons.
+func sidebarFallbackInitial(text string) string {
+	runes := []rune(strings.TrimSpace(text))
+	if len(runes) == 0 {
+		return "?"
+	}
+	return strings.ToUpper(string(runes[0]))
+}
+
 // workspaceTabBadge derives a compact, icon-sized label for the collapsed
 // workspace switcher. Short labels (e.g. "ERP", "CRM", "ЭДО") are shown as-is;
 // longer labels are truncated to their first 3 runes so they fit the 4rem rail.
@@ -214,11 +225,13 @@ templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 					Href:  node.Href,
 					Class: "p-2 w-auto flex justify-center",
 				}) {
-					if node.Icon != nil {
-						<div class="w-6 h-6 flex items-center justify-center">
+					<div class="w-6 h-6 flex items-center justify-center">
+						if node.Icon != nil {
 							@node.Icon
-						</div>
-					}
+						} else {
+							@SidebarFallbackIcon(node.Text)
+						}
+					</div>
 				}
 			</div>
 			<div x-show="!isCollapsed">
@@ -284,6 +297,8 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
 			>
 				if node.Icon != nil {
 					@node.Icon
+				} else {
+					@SidebarFallbackIcon(node.Text)
 				}
 			</div>
 			<details x-show="!isCollapsed" class="group" open?={ node.IsActive }>
@@ -348,6 +363,19 @@ templ CollapsedGroupFlyout(node NavNode, depth int) {
 			</ul>
 		</div>
 	</template>
+}
+
+// SidebarFallbackIcon renders a circled first letter of the nav item's text,
+// used as an icon stand-in in the collapsed sidebar for items without an icon.
+// It inherits the surrounding button's text color so it follows hover/active
+// states like a regular icon would.
+templ SidebarFallbackIcon(text string) {
+	<span
+		aria-hidden="true"
+		class="w-6 h-6 rounded-full border border-current/40 text-[11px] font-semibold leading-none flex items-center justify-center shrink-0"
+	>
+		{ sidebarFallbackInitial(text) }
+	</span>
 }
 
 templ SidebarBetaBadge(className string, active bool) {
