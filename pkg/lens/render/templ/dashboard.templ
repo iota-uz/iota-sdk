@@ -657,6 +657,9 @@ templ PanelFullscreenButton(chartText chartText) {
 }
 
 templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass string, body templ.Component) {
+	// Inline z-index (like the loading card above): pkg/ templates are not scanned by
+	// downstream Tailwind builds, so an arbitrary z-[90] class would be missing there.
+	// Must stay above the authenticated-layout navbar chrome (avatar dropdown is z-[80]).
 	<div
 		x-show="fullscreen"
 		x-transition:enter="transition ease-out duration-200"
@@ -665,8 +668,8 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 		x-transition:leave="transition ease-in duration-150"
 		x-transition:leave-start="opacity-100"
 		x-transition:leave-end="opacity-0"
-		class="fixed inset-0 z-[90] flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
-		style="display: none;"
+		class="fixed inset-0 flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
+		style="display: none; z-index: 90;"
 		@click.self="fullscreen = false"
 		@keydown.escape.window="fullscreen = false"
 	>
