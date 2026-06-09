@@ -98,6 +98,62 @@ func TestChatService_SendMessageStream_ArtifactPersistFailureKeepsAnswer(t *test
 	assert.Equal(t, "final answer", messages[1].Content())
 }
 
+// ambiguousCommitRepo simulates the commit-ambiguity race: the first
+// SaveMessage records the row (the COMMIT landed server-side) but reports a
+// deadline error (the client never saw the ack). A correct retry must detect
+// the already-persisted message via GetMessage and not insert it again — a
+// blind re-insert would hit a duplicate key and wrongly discard the answer.
+type ambiguousCommitRepo struct {
+	*mockChatRepository
+	saveCalls int
+}
+
+func (r *ambiguousCommitRepo) SaveMessage(ctx context.Context, msg types.Message) error {
+	r.saveCalls++
+	// Record on the first call so the message becomes queryable, mirroring a
+	// server-side commit the client did not observe, then report the deadline.
+	if r.saveCalls == 1 {
+		_ = r.mockChatRepository.SaveMessage(ctx, msg)
+		return context.DeadlineExceeded
+	}
+	return r.mockChatRepository.SaveMessage(ctx, msg)
+}
+
+// A deadline that fires after the message already committed must not trigger a
+// duplicate insert on retry: the guard detects the persisted message and
+// returns success, so the answer is preserved (#2998 / PR #800 review).
+func TestChatService_persistAssistantMessageCritical_RetryIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	baseRepo := newMockChatRepository()
+	chatRepo := &ambiguousCommitRepo{mockChatRepository: baseRepo}
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("idempotent retry"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	svc, err := NewChatService(chatRepo, &stubAgentService{}, nil, nil, nil)
+	require.NoError(t, err)
+
+	msg := types.NewMessage(
+		types.WithMessageID(uuid.New()),
+		types.WithSessionID(session.ID()),
+		types.WithRole(types.RoleAssistant),
+		types.WithContent("final answer"),
+	)
+
+	persistErr := svc.persistAssistantMessageCritical(t.Context(), msg, session)
+
+	require.NoError(t, persistErr, "an answer committed before the deadline must not be discarded")
+	assert.Equal(t, 1, chatRepo.saveCalls, "retry must skip the insert once the message exists")
+
+	got, getErr := chatRepo.GetMessage(t.Context(), msg.ID())
+	require.NoError(t, getErr)
+	assert.Equal(t, "final answer", got.Content())
+}
+
 // When the critical persist (assistant message) fails, the run terminates with
 // an error chunk and the answer is genuinely not persisted — the failure is now
 // observable rather than silently swallowed.

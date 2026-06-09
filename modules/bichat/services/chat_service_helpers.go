@@ -219,6 +219,21 @@ func (s *chatServiceImpl) persistAssistantMessageCritical(
 
 	var err error
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		// Commit-ambiguity guard: a deadline can fire after the previous
+		// attempt's COMMIT already landed server-side. The message insert is
+		// not idempotent, so blindly re-running it would hit a duplicate-key
+		// error and wrongly discard an answer that was actually persisted. The
+		// message+session write is atomic, so if the message is already present
+		// the whole tx committed — treat that as success.
+		if attempt > 1 {
+			existsCtx, existsCancel := context.WithTimeout(ctx, streamPersistenceTimeout)
+			_, getErr := s.chatRepo.GetMessage(existsCtx, msg.ID())
+			existsCancel()
+			if getErr == nil {
+				return nil
+			}
+		}
+
 		attemptCtx, cancel := context.WithTimeout(ctx, streamPersistenceTimeout)
 		err = s.withinTx(attemptCtx, func(txCtx context.Context) error {
 			if saveErr := s.chatRepo.SaveMessage(txCtx, msg); saveErr != nil {

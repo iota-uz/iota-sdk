@@ -23,10 +23,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-// streamPersistenceTimeout bounds each finalize transaction (assistant message
-// + session, and best-effort artifacts). Deep-mode runs produce large payloads,
-// so this is generous: a too-tight budget previously discarded fully-generated
-// answers when persistence overran it (see #2998).
+// streamPersistenceTimeout bounds each detached persistence transaction that
+// outlives the client request: stream finalize (assistant message + session,
+// and best-effort artifacts), HITL resume/reject, history clear/compact, and
+// run-state writes. Deep-mode runs produce large payloads, so this is generous:
+// a too-tight budget previously discarded fully-generated answers when
+// persistence overran it (see #2998).
 const streamPersistenceTimeout = 30 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
