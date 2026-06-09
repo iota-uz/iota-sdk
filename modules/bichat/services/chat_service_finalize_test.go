@@ -79,7 +79,7 @@ func TestChatService_SendMessageStream_ArtifactPersistFailureKeepsAnswer(t *test
 		SessionID: session.ID(),
 		Content:   "hello",
 	}, func(chunk bichatservices.StreamChunk) {
-		switch chunk.Type {
+		switch chunk.Type { //nolint:exhaustive // test only inspects the done/error terminal chunks
 		case bichatservices.ChunkTypeDone:
 			sawDone = true
 		case bichatservices.ChunkTypeError:
@@ -184,7 +184,7 @@ func TestChatService_SendMessageStream_CriticalPersistFailureSurfacesError(t *te
 		SessionID: session.ID(),
 		Content:   "hello",
 	}, func(chunk bichatservices.StreamChunk) {
-		switch chunk.Type {
+		switch chunk.Type { //nolint:exhaustive // test only inspects the done/error terminal chunks
 		case bichatservices.ChunkTypeError:
 			sawError = true
 		case bichatservices.ChunkTypeDone:
