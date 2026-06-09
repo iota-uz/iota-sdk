@@ -603,7 +603,11 @@ templ TableSection(config *TableConfig) {
 		hx-swap={ config.ResolvedHxSwap() }
 		hx-indicator={ config.ResolvedHxIndicator() }
 		class={ templ.KV("flex-1 min-h-0", config.FullHeight) }
+		{ config.FormHxAttrs()... }
 	>
+		if len(config.DeferredPanels) > 0 {
+			@DeferredPanels(config)
+		}
 		<div
 			class={
 				templ.Classes(
@@ -651,6 +655,55 @@ templ TableSection(config *TableConfig) {
 			</div>
 		}
 	</form>
+}
+
+// DeferredPanels renders all registered deferred panels as the first child of
+// the table form — inside the form (to inherit filter state via hx-include)
+// but outside the swap target (so row/content swaps never destroy them).
+templ DeferredPanels(config *TableConfig) {
+	<div
+		class={
+			templ.Classes(
+				"flex flex-col gap-3 mb-3",
+				templ.KV("shrink-0", config.FullHeight),
+			),
+		}
+	>
+		for _, panel := range config.DeferredPanels {
+			@deferredPanel(config, panel)
+		}
+	</div>
+}
+
+// deferredPanel wires a single panel: skeleton on first paint, self-load on
+// `load`, reload on the form's RefreshEvent, sending the current filter form.
+templ deferredPanel(config *TableConfig, panel DeferredPanel) {
+	<div
+		id={ panel.ID }
+		class={ panel.Class }
+		hx-get={ panel.URL }
+		hx-trigger={ "load, " + config.RefreshEvent() + " from:closest form" }
+		hx-include="closest form"
+		hx-target="this"
+		hx-swap="innerHTML"
+		hx-sync="this:replace"
+		hx-push-url="false"
+	>
+		if panel.Skeleton != nil {
+			@panel.Skeleton
+		} else {
+			@DefaultPanelSkeleton()
+		}
+	</div>
+}
+
+// DefaultPanelSkeleton renders pulse placeholder chips for a deferred panel.
+templ DefaultPanelSkeleton() {
+	<div class="flex flex-wrap gap-3" aria-busy="true" aria-live="polite">
+		for i := 0; i < 3; i++ {
+			<div class="animate-pulse h-9 w-32 rounded-lg bg-surface-500"></div>
+		}
+	</div>
 }
 
 templ TableSettingsTrigger() {
