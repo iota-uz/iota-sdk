@@ -897,6 +897,15 @@ func WithSearchParamName(name string) TableConfigOpt {
 	}
 }
 
+// WithDeferredPanels registers one or more deferred panels (summary/aggregate
+// regions) rendered inside the table form but outside the swap target, so they
+// persist across row/content swaps and reload on filter/search changes.
+func WithDeferredPanels(panels ...DeferredPanel) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.DeferredPanels = append(c.DeferredPanels, panels...)
+	}
+}
+
 func (c *TableConfig) ResolvedHxTarget() string {
 	if c.HxTarget != "" {
 		return c.HxTarget
@@ -921,6 +930,34 @@ func (c *TableConfig) ResolvedHxIndicator() string {
 	return "#table-body"
 }
 
+// RefreshEvent is the canonical client event the form re-broadcasts after its
+// own (filter/search) request completes; deferred panels listen for it to
+// reload. Namespaced by table ID so multiple tables on a page don't cross-talk.
+func (c *TableConfig) RefreshEvent() string {
+	id := c.ID
+	if id == "" {
+		id = "default"
+	}
+	return "tbl:" + id + ":refresh"
+}
+
+// FormHxAttrs returns extra <form> attributes that re-broadcast RefreshEvent
+// after the form's OWN successful request. The event.detail.elt===this guard
+// fires only for the form's request (not bubbled panel/infinite-scroll/sort
+// requests), so it is loop-free and excludes infinite scroll & sort from panel
+// reloads. Empty when no deferred panels are configured.
+func (c *TableConfig) FormHxAttrs() templ.Attributes {
+	if len(c.DeferredPanels) == 0 {
+		return templ.Attributes{}
+	}
+	return templ.Attributes{
+		"hx-on::after-request": fmt.Sprintf(
+			"if(event.detail.elt===this && event.detail.successful){htmx.trigger(this,'%s')}",
+			c.RefreshEvent(),
+		),
+	}
+}
+
 type InfiniteScrollConfig struct {
 	HasMore bool
 	Page    int
@@ -940,6 +977,33 @@ type TableHeadConfig struct {
 	Sticky               bool
 	ScrollbarUnderHeader bool
 	Attrs                templ.Attributes
+}
+
+// DeferredPanel declares a region (e.g. a summary/aggregates bar or a total
+// count badge) that paints a skeleton immediately, self-loads its real content
+// via hx-get on `load`, and reloads whenever the table's filter/search state
+// changes — without being destroyed by row/content swaps.
+//
+// Panels render inside the table <form> (so they inherit the current filter
+// querystring via hx-include) but outside the swap target (so row/content swaps
+// never wipe them). Reload is driven by RefreshEvent, which the form
+// re-broadcasts after its own successful request (see FormHxAttrs); infinite
+// scroll and sort therefore do NOT reload panels.
+//
+// The endpoint at URL MUST return only the panel's inner content — never the
+// wrapper div — otherwise the swap nests a self-loading element.
+type DeferredPanel struct {
+	// ID is the stable DOM id of the panel wrapper. Required when panels are
+	// used; must be unique on the page.
+	ID string
+	// URL is the hx-get endpoint returning the rendered inner fragment. It
+	// receives the table's current filter/search querystring via hx-include.
+	URL string
+	// Skeleton is the placeholder rendered on first paint. If nil,
+	// DefaultPanelSkeleton() is used.
+	Skeleton templ.Component
+	// Class is appended to the wrapper div's class list (layout/placement).
+	Class string
 }
 
 type TableConfig struct {
@@ -977,6 +1041,10 @@ type TableConfig struct {
 	HxIndicator     string // Custom hx-indicator; defaults to "#table-body"
 	SearchValue     string // Current search input value (for HTMX re-render)
 	SearchParamName string // Query/form field name used for the search value
+
+	// Deferred panels rendered inside the form but outside the swap target;
+	// they skeleton-load and reload on filter/search change. See DeferredPanel.
+	DeferredPanels []DeferredPanel
 
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
