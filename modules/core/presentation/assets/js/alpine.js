@@ -2170,12 +2170,20 @@ let cellTruncate = () => ({
       if (!el) return;
       this.overflowText = el.scrollWidth > el.clientWidth ? el.textContent.trim() : '';
     };
+    // Coalesce ResizeObserver callbacks into a single rAF so a burst of resize
+    // notifications (container reflow, gear toggles) does one layout read, not
+    // a forced reflow per callback.
+    this._schedule = () => {
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = 0; this._measure(); });
+    };
     this.$nextTick(() => this._measure());
-    this._ro = new ResizeObserver(() => this._measure());
+    this._ro = new ResizeObserver(() => this._schedule());
     this._ro.observe(this.$el);
   },
   destroy() {
     if (this._ro) this._ro.disconnect();
+    if (this._raf) cancelAnimationFrame(this._raf);
   },
 });
 
@@ -2248,9 +2256,17 @@ let tableKeyboardNav = () => ({
   onKey(e) {
     const active = document.activeElement;
     if (!active || !active.matches || !active.matches('[data-row-drawer]')) return;
+    // Guard against the handler running more than once for the same keypress
+    // (e.g. if htmx-alpine-init re-initialises the tbody and binds a second
+    // @keydown listener). Both listeners share the event object, so a one-shot
+    // flag keeps a single ArrowDown/ArrowUp to exactly one row of movement.
+    if (e.__rowNavHandled) return;
     const rows = this.rows();
     const idx = rows.indexOf(active);
     if (idx === -1) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      e.__rowNavHandled = true;
+    }
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       const next = rows[idx + 1];

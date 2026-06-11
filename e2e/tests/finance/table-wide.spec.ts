@@ -10,33 +10,30 @@ import { resetTestDatabase, seedScenario } from '../../fixtures/test-data';
  *   - WithDrawer()    keyboard navigation (arrow keys + Enter)
  *   - horizontal scroll affordance overlays
  *
- * The list lives at /finance/expense-categories. We seed a category through the
- * create drawer so at least one real data row exists regardless of scenario.
+ * The list lives at /finance/expense-categories and is empty after a reseed, so
+ * each test creates a category through the create drawer to get a real data row.
  */
 
 const BASE = '/finance/expense-categories';
 
 async function createCategory(page: Page, name: string, description: string) {
   await page.goto(BASE);
-  await page.locator('[hx-get$="/new/drawer"]').first().click();
-  // Drawer form fields are plain inputs named name/description.
-  await page.locator('input[name="name"]').fill(name);
-  const desc = page.locator('textarea[name="description"], input[name="description"]').first();
-  await desc.fill(description);
+  await waitForAlpine(page);
+  // CreateAction renders a trigger with hx-get=".../new/drawer" targeting #view-drawer.
+  // The layout renders a responsive pair (toolbar + collapsed menu); click the visible one.
+  await page.locator('[hx-get*="/new/drawer"]:visible').first().click();
+  // Drawer form fields are named with capitalised DTO field names (Name / Description).
+  await page.locator('#view-drawer input[name="Name"]').fill(name);
+  await page.locator('#view-drawer textarea[name="Description"]').fill(description);
   await Promise.all([
     page.waitForResponse((r) => r.url().includes(BASE) && r.request().method() === 'POST'),
-    page.getByRole('button', { name: /save|add|create/i }).first().click(),
+    page.locator('#create-form button[type="submit"]').first().click(),
   ]);
   await page.goto(BASE);
   await waitForAlpine(page);
 }
 
-// TODO(#799): selectors in createCategory() and the assertions below were authored
-// without a live e2e run (the dev env had no Playwright deps). The create-drawer flow
-// and data-col/tooltip selectors need validation against a running instance before this
-// is un-skipped. The primitives are covered by helpers_test.go unit tests and dogfooded
-// on /finance/expense-categories. Tracking: iota-uz/iota-sdk#799.
-test.describe.skip('Wide-dataset scaffold table (expense categories)', () => {
+test.describe('Wide-dataset scaffold table (expense categories)', () => {
   test.describe.configure({ mode: 'serial' });
 
   const longDescription =
@@ -74,11 +71,12 @@ test.describe.skip('Wide-dataset scaffold table (expense categories)', () => {
   test('priority column is hidden on narrow viewports, visible on wide', async ({
     page,
   }) => {
-    await page.goto(BASE);
-    await waitForAlpine(page);
+    await createCategory(page, 'Priority Cat', 'Short');
 
-    const createdHeader = page.locator('thead th[data-col="created_at"]').first();
-    await expect(createdHeader).toHaveAttribute('data-col-priority', '2');
+    // The created_at header carries WithPriority(2). Headers don't emit data-col,
+    // so target the priority attribute itself (created_at is the only priority col).
+    const createdHeader = page.locator('thead th[data-col-priority="2"]').first();
+    await expect(createdHeader).toHaveCount(1);
 
     // Desktop: visible.
     await page.setViewportSize({ width: 1280, height: 800 });
@@ -92,25 +90,33 @@ test.describe.skip('Wide-dataset scaffold table (expense categories)', () => {
   test('drawer rows are keyboard-navigable and Enter opens the drawer', async ({
     page,
   }) => {
-    await createCategory(page, 'Keyboard Cat', 'Short');
+    // Seed at least 3 rows so single-step navigation can be asserted
+    // unconditionally: the regression this guards (focus jumping row 0 -> row 2)
+    // only manifests with 3+ rows, so the test must not be conditional on count.
+    await createCategory(page, 'Keyboard Cat A', 'Short');
+    await createCategory(page, 'Keyboard Cat B', 'Short');
+    await createCategory(page, 'Keyboard Cat C', 'Short');
     await page.setViewportSize({ width: 1280, height: 800 });
 
     const rows = page.locator('tbody tr[data-row-drawer]');
     await expect(rows.first()).toBeVisible();
+    expect(await rows.count()).toBeGreaterThanOrEqual(3);
 
     // Rows expose the accessibility/keyboard hooks.
     await expect(rows.first()).toHaveAttribute('tabindex', '0');
     await expect(rows.first()).toHaveAttribute('role', 'button');
 
-    // Focus first row, ArrowDown moves focus to the next drawer row (if any).
+    // Each ArrowDown/ArrowUp must move focus exactly ONE row (guards the
+    // double-listener double-step bug). toBeFocused auto-retries while the
+    // Alpine handler applies focus.
     await rows.first().focus();
-    const count = await rows.count();
-    if (count > 1) {
-      await page.keyboard.press('ArrowDown');
-      const secondFocused = await rows.nth(1).evaluate((el) => el === document.activeElement);
-      expect(secondFocused).toBe(true);
-      await page.keyboard.press('ArrowUp');
-    }
+    await expect(rows.first()).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(rows.nth(2)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(rows.nth(1)).toBeFocused();
 
     // Enter triggers the row's hx-get into #view-drawer.
     await rows.first().focus();
@@ -124,13 +130,12 @@ test.describe.skip('Wide-dataset scaffold table (expense categories)', () => {
   test('horizontal scroll affordance overlays exist in the table wrapper', async ({
     page,
   }) => {
-    await page.goto(BASE);
-    await waitForAlpine(page);
+    await createCategory(page, 'Overlay Cat', 'Short');
 
-    // Gradient overlays are rendered (visibility is driven by scroll state).
+    // Both gradient edge overlays are rendered (visibility is driven by scroll state).
     const overlays = page.locator(
       '#sortable-table-container [class*="bg-gradient-to-r"], #sortable-table-container [class*="bg-gradient-to-l"]',
     );
-    await expect(overlays.first()).toHaveCount(1);
+    await expect(overlays).toHaveCount(2);
   });
 });

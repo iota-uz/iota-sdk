@@ -722,7 +722,10 @@ func (r *tableRowImpl) ApplyOpts(opts ...RowOpt) TableRow {
 
 func WithDrawer(fetchURL string) RowOpt {
 	return func(r *tableRowImpl) {
-		r.attrs["class"] = r.attrs["class"].(string) +
+		// Comma-ok guard: Row() initializes class as a string, but defend against
+		// a nil/non-string class set by a prior opt instead of panicking.
+		existing, _ := r.attrs["class"].(string)
+		r.attrs["class"] = existing +
 			" cursor-pointer hover:bg-surface-500 transition-colors" +
 			" focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
 		r.attrs["hx-get"] = fetchURL
