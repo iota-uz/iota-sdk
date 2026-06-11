@@ -1950,6 +1950,9 @@ let tableConfig = (id) => ({
     let col = this.columns.find(c => c.key === colKey);
     if (!col) return;
     col.visible = !col.visible;
+    // Mark as user-controlled so an explicit show overrides responsive
+    // (max-*:hidden) auto-hiding via inline display.
+    col.userSet = true;
     this.save();
     this.applyConfiguration();
   },
@@ -1983,8 +1986,14 @@ let tableConfig = (id) => ({
       let cell = cellMap.get(col.key);
       if (cell) {
         if (!col.visible) {
+          // Explicitly hidden by the user.
           cell.style.display = 'none';
+        } else if (col.userSet) {
+          // User explicitly showed it: force visible, beating the
+          // responsive max-*:hidden class.
+          cell.style.display = 'table-cell';
         } else {
+          // Let CSS (incl. responsive priority classes) govern visibility.
           cell.style.display = '';
         }
         fragment.appendChild(cell);
@@ -2048,6 +2057,11 @@ let tableConfig = (id) => ({
             ...domCol,
             sticky: savedCol.sticky != undefined ? savedCol.sticky : domCol.sticky,
             visible: savedCol.visible != undefined ? savedCol.visible : true,
+            // userSet defaults to false for legacy configs that predate it.
+            userSet: savedCol.userSet === true,
+            // priority ALWAYS comes from the DOM (never stale localStorage) so
+            // developer-changed priorities take effect on next render.
+            priority: domCol.priority,
           });
         }
       });
@@ -2079,10 +2093,15 @@ let tableConfig = (id) => ({
       let key = th.dataset.col || `col-${index}`;
       let sticky = th.dataset.colSticky != undefined;
       let defaultHidden = th.dataset.colHidden != undefined;
+      let priority = parseInt(th.dataset.colPriority || '0', 10) || 0;
       columns.push({
         key,
         label: th.textContent.trim(),
         sticky,
+        priority,
+        // userSet tracks whether the user explicitly toggled this column,
+        // which lets an explicit "show" override responsive auto-hiding.
+        userSet: false,
         visible: !defaultHidden,
       });
     });
@@ -2141,6 +2160,113 @@ let tableConfig = (id) => ({
   },
 })
 
+// cellTruncate enables a tooltip ONLY when a truncated cell's content actually
+// overflows. x-tooltip (Tippy) disables itself when overflowText is falsy.
+let cellTruncate = () => ({
+  overflowText: '',
+  init() {
+    this._measure = () => {
+      const el = this.$el;
+      if (!el) return;
+      this.overflowText = el.scrollWidth > el.clientWidth ? el.textContent.trim() : '';
+    };
+    this.$nextTick(() => this._measure());
+    this._ro = new ResizeObserver(() => this._measure());
+    this._ro.observe(this.$el);
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+  },
+});
+
+// scrollAffordance powers the horizontal scroll gradient overlays for the plain
+// (non-ScrollbarUnderHeader) table wrapper. The ScrollbarUnderHeader branch
+// folds this logic into its own inline x-data instead.
+let scrollAffordance = () => ({
+  canScrollLeft: false,
+  canScrollRight: false,
+  stickyR: 0,
+  init() {
+    this.sc = this.$refs.sc;
+    if (!this.sc) return;
+    this.$nextTick(() => this.measure());
+    this._ro = new ResizeObserver(() => this.measure());
+    this._ro.observe(this.sc);
+    this._mo = new MutationObserver(() => requestAnimationFrame(() => this.measure()));
+    this._mo.observe(this.sc.querySelector('tbody') || this.sc, { childList: true, subtree: true });
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+    if (this._mo) this._mo.disconnect();
+  },
+  measure() {
+    const sc = this.sc;
+    if (!sc || !sc.isConnected) return;
+    let sr = 0;
+    sc.querySelectorAll('thead th').forEach(th => {
+      const s = getComputedStyle(th);
+      if (s.position === 'sticky' && s.right !== 'auto') sr += th.offsetWidth;
+    });
+    this.stickyR = sr;
+    this.onScroll();
+  },
+  onScroll() {
+    const sc = this.sc;
+    if (!sc) return;
+    this.canScrollLeft = sc.scrollLeft > 0;
+    this.canScrollRight = sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1;
+  },
+});
+
+// tableKeyboardNav adds arrow-key row navigation + Enter-to-open for drawer
+// rows. Attached to the TBODY (not the configurable container) to avoid x-data
+// collision with tableConfig. It acts only when focus is on a [data-row-drawer]
+// row, so drawerless tables and inputs are never affected.
+let tableKeyboardNav = () => ({
+  lastRow: null,
+  init() {
+    this._onDrawerClosed = (event) => {
+      // Only react when the swap actually targeted the drawer, otherwise
+      // unrelated table swaps (infinite-scroll, filter, search) would steal
+      // focus back to the last clicked row.
+      if (event?.detail?.target?.id !== 'view-drawer') return;
+      const drawer = document.getElementById('view-drawer');
+      const empty = !drawer || drawer.children.length === 0;
+      if (empty && this.lastRow && this.lastRow.isConnected) {
+        this.lastRow.focus();
+      }
+    };
+    // Refocus the originating row when the drawer is cleared/closed.
+    document.addEventListener('htmx:afterSwap', this._onDrawerClosed);
+  },
+  destroy() {
+    document.removeEventListener('htmx:afterSwap', this._onDrawerClosed);
+  },
+  rows() {
+    return Array.from(this.$el.querySelectorAll('[data-row-drawer]'));
+  },
+  onKey(e) {
+    const active = document.activeElement;
+    if (!active || !active.matches || !active.matches('[data-row-drawer]')) return;
+    const rows = this.rows();
+    const idx = rows.indexOf(active);
+    if (idx === -1) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = rows[idx + 1];
+      if (next) next.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = rows[idx - 1];
+      if (prev) prev.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      this.lastRow = active;
+      active.click();
+    }
+  },
+});
+
 Alpine.data("dateTimeFormat", dateTimeFormat)
 Alpine.data("relativeformat", relativeFormat);
 Alpine.data("passwordVisibility", passwordVisibility);
@@ -2163,4 +2289,7 @@ Alpine.data("createPermissionFormData", createPermissionFormData);
 Alpine.data("createPermissionSetData", createPermissionSetData);
 Alpine.data("fillerRows", fillerRows);
 Alpine.data("tableConfig", tableConfig);
+Alpine.data("cellTruncate", cellTruncate);
+Alpine.data("scrollAffordance", scrollAffordance);
+Alpine.data("tableKeyboardNav", tableKeyboardNav);
 Sortable(Alpine);
