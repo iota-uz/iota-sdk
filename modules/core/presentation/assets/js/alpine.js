@@ -2170,12 +2170,20 @@ let cellTruncate = () => ({
       if (!el) return;
       this.overflowText = el.scrollWidth > el.clientWidth ? el.textContent.trim() : '';
     };
+    // Coalesce ResizeObserver callbacks into a single rAF so a burst of resize
+    // notifications (container reflow, gear toggles) does one layout read, not
+    // a forced reflow per callback.
+    this._schedule = () => {
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = 0; this._measure(); });
+    };
     this.$nextTick(() => this._measure());
-    this._ro = new ResizeObserver(() => this._measure());
+    this._ro = new ResizeObserver(() => this._schedule());
     this._ro.observe(this.$el);
   },
   destroy() {
     if (this._ro) this._ro.disconnect();
+    if (this._raf) cancelAnimationFrame(this._raf);
   },
 });
 

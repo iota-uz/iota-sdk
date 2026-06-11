@@ -90,27 +90,33 @@ test.describe('Wide-dataset scaffold table (expense categories)', () => {
   test('drawer rows are keyboard-navigable and Enter opens the drawer', async ({
     page,
   }) => {
-    await createCategory(page, 'Keyboard Cat', 'Short');
+    // Seed at least 3 rows so single-step navigation can be asserted
+    // unconditionally: the regression this guards (focus jumping row 0 -> row 2)
+    // only manifests with 3+ rows, so the test must not be conditional on count.
+    await createCategory(page, 'Keyboard Cat A', 'Short');
+    await createCategory(page, 'Keyboard Cat B', 'Short');
+    await createCategory(page, 'Keyboard Cat C', 'Short');
     await page.setViewportSize({ width: 1280, height: 800 });
 
     const rows = page.locator('tbody tr[data-row-drawer]');
     await expect(rows.first()).toBeVisible();
+    expect(await rows.count()).toBeGreaterThanOrEqual(3);
 
     // Rows expose the accessibility/keyboard hooks.
     await expect(rows.first()).toHaveAttribute('tabindex', '0');
     await expect(rows.first()).toHaveAttribute('role', 'button');
 
-    // Focus first row, ArrowDown moves focus to the next drawer row (if any).
+    // Each ArrowDown/ArrowUp must move focus exactly ONE row (guards the
+    // double-listener double-step bug). toBeFocused auto-retries while the
+    // Alpine handler applies focus.
     await rows.first().focus();
     await expect(rows.first()).toBeFocused();
-    const count = await rows.count();
-    if (count > 1) {
-      await page.keyboard.press('ArrowDown');
-      // toBeFocused auto-retries while the Alpine handler applies focus.
-      await expect(rows.nth(1)).toBeFocused();
-      await page.keyboard.press('ArrowUp');
-      await expect(rows.first()).toBeFocused();
-    }
+    await page.keyboard.press('ArrowDown');
+    await expect(rows.nth(1)).toBeFocused();
+    await page.keyboard.press('ArrowDown');
+    await expect(rows.nth(2)).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(rows.nth(1)).toBeFocused();
 
     // Enter triggers the row's hx-get into #view-drawer.
     await rows.first().focus();
