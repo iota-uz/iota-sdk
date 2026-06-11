@@ -39,8 +39,8 @@ func NewExpenseCategoriesController(expenseCategoryService *services.ExpenseCate
 	tableDefinition := table.NewTableDefinition("", basePath).
 		WithColumns(
 			table.Column("name", "Name"),
-			table.Column("description", "Description"),
-			table.Column("created_at", "Created At"),
+			table.Column("description", "Description", table.WithTruncate()),
+			table.Column("created_at", "Created At", table.WithPriority(2)),
 		).
 		WithInfiniteScroll(true).
 		Build()
@@ -149,8 +149,8 @@ func (c *ExpenseCategoriesController) List(w http.ResponseWriter, r *http.Reques
 		).
 			WithColumns(
 				table.Column("name", pageCtx.T("ExpenseCategories.List.Name")),
-				table.Column("description", pageCtx.T("ExpenseCategories.Single._Description")),
-				table.Column("created_at", pageCtx.T("CreatedAt")),
+				table.Column("description", pageCtx.T("ExpenseCategories.Single._Description"), table.WithTruncate()),
+				table.Column("created_at", pageCtx.T("CreatedAt"), table.WithPriority(2)),
 			).
 			WithActions(actions.RenderAction(createAction)).
 			WithFilters(filters.CreatedAt()).

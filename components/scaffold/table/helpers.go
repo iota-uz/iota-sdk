@@ -39,6 +39,32 @@ type TableColumn interface {
 	StickyPos() StickyPosition
 	AddonBottom() *Addon
 	DefaultHidden() bool
+	// Truncate reports whether cell content for this column is clipped to a
+	// single line (with an ellipsis + overflow tooltip).
+	Truncate() bool
+	// TruncateWidth is the max content width in px when Truncate is true.
+	TruncateWidth() int
+	// Priority controls responsive auto-hiding. Lower = more important;
+	// unset/0/1 always visible, 2 hides below tablet, >=3 hides below desktop.
+	Priority() int
+}
+
+// DefaultTruncateWidth is the column max content width (px) applied when
+// WithTruncate / WithTruncateDefault is used without an explicit width.
+const DefaultTruncateWidth = 240
+
+// priorityCellClass returns the responsive auto-hide utility for a body cell at
+// the given column priority. Mirrors the header priorityClass in base/table.
+// Lower priority = more important; 0/1 always visible.
+func priorityCellClass(p int) string {
+	switch {
+	case p >= 3:
+		return "max-lg:hidden"
+	case p == 2:
+		return "max-md:hidden"
+	default:
+		return ""
+	}
 }
 
 type TableCell interface {
@@ -650,6 +676,9 @@ type tableColumnImpl struct {
 	stickyPos         StickyPosition
 	addonBottom       *Addon
 	defaultHidden     bool
+	truncate          bool
+	truncateWidth     int
+	priority          int
 }
 
 func (c *tableColumnImpl) Key() string                              { return c.key }
@@ -663,6 +692,9 @@ func (c *tableColumnImpl) Editable() bool                           { return c.e
 func (c *tableColumnImpl) StickyPos() StickyPosition                { return c.stickyPos }
 func (c *tableColumnImpl) AddonBottom() *Addon                      { return c.addonBottom }
 func (c *tableColumnImpl) DefaultHidden() bool                      { return c.defaultHidden }
+func (c *tableColumnImpl) Truncate() bool                           { return c.truncate }
+func (c *tableColumnImpl) TruncateWidth() int                       { return c.truncateWidth }
+func (c *tableColumnImpl) Priority() int                            { return c.priority }
 func (c *tableColumnImpl) EditableField() crud.Field                { return c.editableField }
 func (c *tableColumnImpl) RendererRegistry() *crud.RendererRegistry { return c.rendererRegistery }
 
@@ -690,10 +722,19 @@ func (r *tableRowImpl) ApplyOpts(opts ...RowOpt) TableRow {
 
 func WithDrawer(fetchURL string) RowOpt {
 	return func(r *tableRowImpl) {
-		r.attrs["class"] = r.attrs["class"].(string) + " cursor-pointer hover:bg-surface-500 transition-colors"
+		r.attrs["class"] = r.attrs["class"].(string) +
+			" cursor-pointer hover:bg-surface-500 transition-colors" +
+			" focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary"
 		r.attrs["hx-get"] = fetchURL
 		r.attrs["hx-target"] = "#view-drawer"
 		r.attrs["hx-swap"] = "innerHTML"
+		// Keyboard navigation hooks (see tableKeyboardNav in alpine.js):
+		// the row becomes focusable and self-identifies as a drawer trigger so
+		// arrow-key navigation and Enter-to-open work without scroll hijacking.
+		r.attrs["tabindex"] = "0"
+		r.attrs["data-row-drawer"] = "true"
+		r.attrs["role"] = "button"
+		r.attrs["aria-haspopup"] = "dialog"
 	}
 }
 
@@ -739,6 +780,35 @@ func WithSticky(pos StickyPosition) ColumnOpt {
 func WithDefaultHidden() ColumnOpt {
 	return func(c *tableColumnImpl) {
 		c.defaultHidden = true
+	}
+}
+
+// WithTruncate clips this column's cell content to a single line within
+// maxWidthPx (default DefaultTruncateWidth) and shows a tooltip with the full
+// text only when the content actually overflows.
+//
+// Text-only scope: truncate (overflow:hidden) plus the overflow tooltip (which
+// reads cell textContent) only behave correctly for plain inline text. Do not
+// use it on block/flex component cells (badges, chips, action buttons) — those
+// get visually clipped and surface meaningless or empty tooltips. Use it on
+// text columns only.
+func WithTruncate(maxWidthPx ...int) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.truncate = true
+		c.truncateWidth = DefaultTruncateWidth
+		if len(maxWidthPx) > 0 && maxWidthPx[0] > 0 {
+			c.truncateWidth = maxWidthPx[0]
+		}
+	}
+}
+
+// WithPriority sets a column's responsive priority. Lower = more important.
+// unset/0/1 → always visible; 2 → hidden below tablet (max-md); >=3 → hidden
+// below desktop (max-lg). Sticky columns are exempt. Users may override the
+// auto-hiding via table settings.
+func WithPriority(n int) ColumnOpt {
+	return func(c *tableColumnImpl) {
+		c.priority = n
 	}
 }
 
@@ -837,6 +907,27 @@ func WithNoWrap(nowrap bool) TableConfigOpt {
 	}
 }
 
+// WithTruncateDefault enables truncation for ALL non-sticky columns that don't
+// already declare their own WithTruncate. Sticky columns are skipped because
+// they typically hold action buttons/dropdowns that overflow:hidden would clip.
+// maxWidthPx defaults to DefaultTruncateWidth.
+//
+// Text-only scope: like WithTruncate, truncate + the overflow tooltip (reads
+// cell textContent) only behave correctly for plain inline text, not for
+// block/flex component cells (badges, chips, action buttons). Because this
+// applies to every non-sticky column, callers that render component cells in
+// non-sticky positions should opt those columns out / set per-column behavior
+// accordingly (e.g. mark them sticky or render plain text).
+func WithTruncateDefault(maxWidthPx ...int) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.TruncateDefault = true
+		c.TruncateDefaultWidth = DefaultTruncateWidth
+		if len(maxWidthPx) > 0 && maxWidthPx[0] > 0 {
+			c.TruncateDefaultWidth = maxWidthPx[0]
+		}
+	}
+}
+
 func WithScrollbarGutter(enabled bool) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.ScrollbarGutter = enabled
@@ -904,6 +995,38 @@ func WithDeferredPanels(panels ...DeferredPanel) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.DeferredPanels = append(c.DeferredPanels, panels...)
 	}
+}
+
+// resolvedTruncate returns the effective truncation (on, widthPx) for a column,
+// folding in the table-wide WithTruncateDefault. Sticky columns never truncate.
+func (c *TableConfig) resolvedTruncate(col TableColumn) (bool, int) {
+	if !col.StickyPos().Unknown() && !col.StickyPos().None() {
+		return false, 0
+	}
+	if col.Truncate() {
+		w := col.TruncateWidth()
+		if w <= 0 {
+			w = DefaultTruncateWidth
+		}
+		return true, w
+	}
+	if c.TruncateDefault {
+		w := c.TruncateDefaultWidth
+		if w <= 0 {
+			w = DefaultTruncateWidth
+		}
+		return true, w
+	}
+	return false, 0
+}
+
+// resolvedPriority returns the effective responsive priority for a column.
+// Sticky columns are exempt (always 0).
+func (c *TableConfig) resolvedPriority(col TableColumn) int {
+	if !col.StickyPos().Unknown() && !col.StickyPos().None() {
+		return 0
+	}
+	return col.Priority()
 }
 
 func (c *TableConfig) ResolvedHxTarget() string {
@@ -1028,19 +1151,24 @@ type TableConfig struct {
 	CurrentSortOrder string // Current sort order (asc/desc)
 
 	// Table display customizations
-	FillerRows      bool   // Enable filler rows to fill vertical space
-	FillerRowHeight int    // Filler row height in px (default: 49)
-	NoWrap          bool   // white-space: nowrap on all td/th
-	ScrollbarGutter bool   // scrollbar-gutter: stable + hide SDK cover div
-	SearchClearable bool   // Show clear (X) button on search input
-	HxTrigger       string // Custom hx-trigger (overrides default)
-	FullHeight      bool   // Full-height flex layout (h-full min-h-0 overflow-hidden)
-	ContentID       string // ID for content wrapper div (HTMX swap target)
-	HxTarget        string // Custom hx-target; defaults to "#"+ContentID if set, else "#table-body"
-	HxSwap          string // Custom hx-swap; defaults to "innerHTML"
-	HxIndicator     string // Custom hx-indicator; defaults to "#table-body"
-	SearchValue     string // Current search input value (for HTMX re-render)
-	SearchParamName string // Query/form field name used for the search value
+	FillerRows      bool // Enable filler rows to fill vertical space
+	FillerRowHeight int  // Filler row height in px (default: 49)
+	NoWrap          bool // white-space: nowrap on all td/th
+
+	// TruncateDefault clips all non-sticky columns lacking their own
+	// WithTruncate to TruncateDefaultWidth px (single line + overflow tooltip).
+	TruncateDefault      bool
+	TruncateDefaultWidth int
+	ScrollbarGutter      bool   // scrollbar-gutter: stable + hide SDK cover div
+	SearchClearable      bool   // Show clear (X) button on search input
+	HxTrigger            string // Custom hx-trigger (overrides default)
+	FullHeight           bool   // Full-height flex layout (h-full min-h-0 overflow-hidden)
+	ContentID            string // ID for content wrapper div (HTMX swap target)
+	HxTarget             string // Custom hx-target; defaults to "#"+ContentID if set, else "#table-body"
+	HxSwap               string // Custom hx-swap; defaults to "innerHTML"
+	HxIndicator          string // Custom hx-indicator; defaults to "#table-body"
+	SearchValue          string // Current search input value (for HTMX re-render)
+	SearchParamName      string // Query/form field name used for the search value
 
 	// Deferred panels rendered inside the form but outside the swap target;
 	// they skeleton-load and reload on filter/search change. See DeferredPanel.
