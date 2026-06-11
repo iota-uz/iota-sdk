@@ -31,7 +31,12 @@ async function createCategory(page: Page, name: string, description: string) {
   await waitForAlpine(page);
 }
 
-test.describe('Wide-dataset scaffold table (expense categories)', () => {
+// TODO(#799): selectors in createCategory() and the assertions below were authored
+// without a live e2e run (the dev env had no Playwright deps). The create-drawer flow
+// and data-col/tooltip selectors need validation against a running instance before this
+// is un-skipped. The primitives are covered by helpers_test.go unit tests and dogfooded
+// on /finance/expense-categories. Tracking: iota-uz/iota-sdk#799.
+test.describe.skip('Wide-dataset scaffold table (expense categories)', () => {
   test.describe.configure({ mode: 'serial' });
 
   const longDescription =

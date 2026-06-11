@@ -315,8 +315,8 @@ func TestWithPriority(t *testing.T) {
 }
 
 func TestPriorityClassMapping(t *testing.T) {
-	assert.Equal(t, "", priorityCellClass(0))
-	assert.Equal(t, "", priorityCellClass(1))
+	assert.Empty(t, priorityCellClass(0))
+	assert.Empty(t, priorityCellClass(1))
 	assert.Equal(t, "max-md:hidden", priorityCellClass(2))
 	assert.Equal(t, "max-lg:hidden", priorityCellClass(3))
 	assert.Equal(t, "max-lg:hidden", priorityCellClass(4))
