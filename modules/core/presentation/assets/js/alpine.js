@@ -2345,20 +2345,26 @@ let filterBuilder = () => ({
   },
   remove(i) {
     const input = this.$root.querySelector(`input[name="f"][data-fb-chip="${i}"]`);
-    input?.closest('[data-fb-chip-wrapper]')?.remove();
+    const wrapper = input?.closest('[data-fb-chip-wrapper]');
     this.closeAll();
-    this.submit();
+    // Detach after the click handler unwinds: removing the wrapper (which
+    // contains the clicked button) synchronously makes Alpine trip over the
+    // orphaned node and abort before the submit.
+    this.$nextTick(() => {
+      wrapper?.remove();
+      this.submit();
+    });
   },
   clearAll() {
-    this.$root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
-    this.$root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
     this.closeAll();
-    this.submit();
+    this.$nextTick(() => {
+      this.$root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
+      this.$root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
+      this.submit();
+    });
   },
   submit() {
-    this.$nextTick(() => {
-      this.$root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
-    });
+    this.$root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
   },
 });
 
