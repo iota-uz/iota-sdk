@@ -2344,23 +2344,26 @@ let filterBuilder = () => ({
     this.submit();
   },
   remove(i) {
-    const input = this.$root.querySelector(`input[name="f"][data-fb-chip="${i}"]`);
+    // Capture nodes before deferring: Alpine magics ($root) are unavailable
+    // inside the $nextTick callback, and removing the wrapper (which contains
+    // the clicked button) synchronously would trip Alpine on the orphaned
+    // node and abort before the submit.
+    const root = this.$root;
+    const input = root.querySelector(`input[name="f"][data-fb-chip="${i}"]`);
     const wrapper = input?.closest('[data-fb-chip-wrapper]');
     this.closeAll();
-    // Detach after the click handler unwinds: removing the wrapper (which
-    // contains the clicked button) synchronously makes Alpine trip over the
-    // orphaned node and abort before the submit.
     this.$nextTick(() => {
       wrapper?.remove();
-      this.submit();
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   },
   clearAll() {
+    const root = this.$root;
     this.closeAll();
     this.$nextTick(() => {
-      this.$root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
-      this.$root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
-      this.submit();
+      root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
+      root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   },
   submit() {
