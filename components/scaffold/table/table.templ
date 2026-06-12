@@ -604,7 +604,11 @@ templ TableContent(config *TableConfig) {
 templ TableSection(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
-		hxTrigger := "keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type='checkbox']"
+		// Editor controls inside filter-builder popovers must not resubmit the
+		// form mid-edit. hx-trigger from:<selector> binds listeners directly on
+		// the source elements, so stopPropagation cannot shield them — event
+		// filters on target.closest() are the only reliable guard.
+		hxTrigger := "keyup[!target.closest('[data-fb-popover]')] changed delay:300ms from:input, change[!target.closest('[data-fb-popover]')] from:input delay:500ms, change[!target.closest('[data-fb-popover]')] from:select, change from:input[type='checkbox'], filter-changed"
 		if config.HxTrigger != "" {
 			hxTrigger = config.HxTrigger
 		}

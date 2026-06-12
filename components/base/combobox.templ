@@ -192,6 +192,7 @@ templ Combobox(props ComboboxProps) {
 				{{
 					searchInputAttrs := templ.Attributes{
 						"@input.debounce":            "onInput",
+						"@click":                     "open = true",
 						"x-on:keydown.enter.prevent": "setValue(activeValue)",
 						"autocomplete":               "off",
 						"x-ref":                      "input",
@@ -277,23 +278,36 @@ templ Combobox(props ComboboxProps) {
 				<template x-for="(item, index) in options" x-bind:key="item.value + ':' + index">
 					<li
 						class="combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none"
-						:class="activeValue == item.value ? 'bg-surface-400' : ''"
+						:class="[
+							activeValue == item.value ? 'bg-surface-400' : '',
+							item.disabled ? (item.dataset.fbHeader ? '!cursor-default !py-1 mt-1 text-xs uppercase tracking-wide text-200 pointer-events-none hover:bg-transparent' : 'opacity-40 !cursor-not-allowed hover:bg-transparent') : '',
+						]"
 						x-on:click="setValue(item.value)"
 						x-on:keydown.enter="setValue(item.value)"
 						x-bind:id="$id('combobox') + '-option-' + index"
-						tabindex="0"
+						x-bind:tabindex="item.disabled ? -1 : 0"
 					>
-						<span class="whitespace-nowrap" x-text="item.textContent"></span>
+						<span class="inline-flex min-w-0 items-baseline gap-1.5">
+							<span class="whitespace-nowrap" x-text="item.textContent"></span>
+							<span
+								class="text-xs text-200 whitespace-nowrap"
+								x-cloak
+								x-show="item.dataset.fbCount !== undefined"
+								x-text="item.dataset.fbCount !== undefined ? '(' + Number(item.dataset.fbCount).toLocaleString() + ')' : ''"
+							></span>
+						</span>
 						@icons.Check(icons.Props{Size: "16", Attributes: templ.Attributes{
 							"x-cloak": "",
 							"x-show":  "selectedValues.has(item.value)",
 						}})
 					</li>
 				</template>
-				<li x-ref="createOption" x-show={ fmt.Sprintf("options.length == 0 && %t", props.CanCreateNew) } class="cursor-pointer px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none" { props.CreateProps... }>
-					<input type="hidden" name="_SearchQuery" :value="searchQuery"/>
-					<span class="whitespace-nowrap" x-text="searchQuery"></span>
-				</li>
+				if props.CanCreateNew {
+					<li x-ref="createOption" x-show="options.length == 0" class="cursor-pointer px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none" { props.CreateProps... }>
+						<input type="hidden" name="_SearchQuery" :value="searchQuery"/>
+						<span class="whitespace-nowrap" x-text="searchQuery"></span>
+					</li>
+				}
 				<li x-show={ fmt.Sprintf("options.length == 0 && %t", !props.CanCreateNew) } class="px-4 py-2 text-sm text-200">
 					{ props.NotFoundText }
 				</li>

@@ -914,6 +914,34 @@
     "Filters": {
       "Title": "Filters",
       "SelectAll": "Select All"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Add filter",
+      "ClearAll": "Clear all",
+      "Apply": "Apply",
+      "SearchFields": "Search filters...",
+      "SelectValues": "Select values...",
+      "NothingFound": "Nothing found",
+      "Remove": "Remove filter",
+      "Operators": {
+        "Is": "is",
+        "IsNot": "is not",
+        "Before": "before",
+        "After": "after",
+        "On": "on",
+        "Between": "between",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "This month",
+        "LastMonth": "Last month",
+        "Last30Days": "Last 30 days",
+        "Next30Days": "Next 30 days",
+        "ThisYear": "This year",
+        "LastYear": "Last year"
+      }
     }
   },
   "Search": "Search",

@@ -220,6 +220,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       }
     }
     if (index == null || index > this.allOptions.length - 1) return;
+    // Disabled options (and filterbuilder group headers) are not selectable.
+    if (this.allOptions[index].disabled) return;
     if (this.multiple) {
       this.allOptions[index].toggleAttribute("selected");
       if (this.selectedValues.has(value)) {
@@ -269,6 +271,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeIndex = i;
       }
@@ -277,6 +280,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveValue(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeValue = option.value;
         return option;
@@ -2283,6 +2287,136 @@ let tableKeyboardNav = () => ({
   },
 });
 
+// filterBuilder powers components/scaffold/filterbuilder: a chip-based
+// filter constructor. Chips are server-rendered; this factory only manages
+// popover state, writes the hidden `f` inputs (pkg/filterq URL codec) and
+// dispatches a bubbling `filter-changed` event so the enclosing HTMX form
+// resubmits.
+let filterBuilder = () => ({
+  adding: false,
+  editing: null, // chip index with an open edit popover
+  draftField: null, // field key picked in the add popover (stage 2)
+  fieldSearch: '',
+  openAdd() {
+    this.editing = null;
+    this.draftField = null;
+    this.fieldSearch = '';
+    this.adding = !this.adding;
+    if (this.adding) this.$nextTick(() => this.$refs.fieldSearchInput?.focus());
+  },
+  edit(i) {
+    this.adding = false;
+    this.draftField = null;
+    this.editing = this.editing === i ? null : i;
+  },
+  closeAll() {
+    this.adding = false;
+    this.editing = null;
+    this.draftField = null;
+  },
+  fieldMatches(el) {
+    const q = this.fieldSearch.trim().toLowerCase();
+    return !q || (el.dataset.fbLabel || '').toLowerCase().includes(q);
+  },
+  // Mirror of pkg/filterq EncodeCondition. Encode-only on purpose: decoding
+  // lives exclusively in Go, the server re-render is the source of truth.
+  encode({ field, op, values }) {
+    const esc = (v) => String(v).replaceAll('%', '%25').replaceAll(',', '%2C');
+    return field + ':' + op + ':' + values.map(esc).join(',');
+  },
+  applyFlag(field) {
+    this.onApply({ field, op: 'is', values: ['true'], chip: -1 });
+  },
+  onApply(detail) {
+    if (!detail || !detail.values || !detail.values.length) return;
+    const enc = this.encode(detail);
+    if (detail.chip >= 0) {
+      const input = this.$root.querySelector(`input[name="f"][data-fb-chip="${detail.chip}"]`);
+      if (input) input.value = enc;
+    } else {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'f';
+      input.value = enc;
+      this.$root.appendChild(input);
+    }
+    this.closeAll();
+    this.submit();
+  },
+  remove(i) {
+    // Capture nodes before deferring: Alpine magics ($root) are unavailable
+    // inside the $nextTick callback, and removing the wrapper (which contains
+    // the clicked button) synchronously would trip Alpine on the orphaned
+    // node and abort before the submit.
+    const root = this.$root;
+    const input = root.querySelector(`input[name="f"][data-fb-chip="${i}"]`);
+    const wrapper = input?.closest('[data-fb-chip-wrapper]');
+    this.closeAll();
+    this.$nextTick(() => {
+      wrapper?.remove();
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  clearAll() {
+    const root = this.$root;
+    this.closeAll();
+    this.$nextTick(() => {
+      root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
+      root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  submit() {
+    this.$root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+  },
+});
+
+// fbPanel is the polymorphic operator+value editor inside filterBuilder
+// popovers. It collects values from its nameless embedded controls and hands
+// them up to filterBuilder via the `fb-apply` event.
+let fbPanel = (cfg = {}) => ({
+  op: cfg.op,
+  preset: cfg.preset || '',
+  apply() {
+    const values = this.collect();
+    if (!values.length) return;
+    this.$dispatch('fb-apply', { field: cfg.field, op: this.op, values, chip: cfg.chip });
+  },
+  applyPreset(token) {
+    this.op = 'between';
+    this.preset = token;
+    this.$dispatch('fb-apply', {
+      field: cfg.field,
+      op: 'between',
+      values: ['preset:' + token],
+      chip: cfg.chip,
+    });
+  },
+  variantEl() {
+    const variant = this.op === 'between' ? 'range' : 'single';
+    return this.$root.querySelector(`[data-fb-variant="${variant}"]`);
+  },
+  collect() {
+    switch (cfg.type) {
+      case 'reference': {
+        const select = this.$root.querySelector('select[multiple]');
+        return Array.from(select?.selectedOptions ?? [])
+          .map((o) => o.value)
+          .filter((v) => v && !v.startsWith('__group:'));
+      }
+      case 'date': {
+        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"]') ?? [];
+        return Array.from(inputs).map((i) => i.value).filter(Boolean);
+      }
+      case 'number': {
+        const inputs = this.variantEl()?.querySelectorAll('input[data-fb-value]') ?? [];
+        return Array.from(inputs).map((i) => i.value.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  },
+});
+
 Alpine.data("dateTimeFormat", dateTimeFormat)
 Alpine.data("relativeformat", relativeFormat);
 Alpine.data("passwordVisibility", passwordVisibility);
@@ -2308,4 +2442,6 @@ Alpine.data("tableConfig", tableConfig);
 Alpine.data("cellTruncate", cellTruncate);
 Alpine.data("scrollAffordance", scrollAffordance);
 Alpine.data("tableKeyboardNav", tableKeyboardNav);
+Alpine.data("filterBuilder", filterBuilder);
+Alpine.data("fbPanel", fbPanel);
 Sortable(Alpine);

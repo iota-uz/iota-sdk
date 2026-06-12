@@ -918,6 +918,34 @@
     "Filters": {
       "Title": "筛选器",
       "SelectAll": "全选"
+    },
+    "FilterBuilder": {
+      "AddFilter": "添加筛选",
+      "ClearAll": "清除全部",
+      "Apply": "应用",
+      "SearchFields": "搜索筛选...",
+      "SelectValues": "选择值...",
+      "NothingFound": "未找到",
+      "Remove": "移除筛选",
+      "Operators": {
+        "Is": "是",
+        "IsNot": "不是",
+        "Before": "之前",
+        "After": "之后",
+        "On": "在",
+        "Between": "介于",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "本月",
+        "LastMonth": "上月",
+        "Last30Days": "过去30天",
+        "Next30Days": "未来30天",
+        "ThisYear": "今年",
+        "LastYear": "去年"
+      }
     }
   },
   "Search": "搜索",
