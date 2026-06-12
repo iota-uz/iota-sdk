@@ -71,8 +71,9 @@ func DecodeCondition(raw string) (Condition, bool) {
 	if !op.Valid() {
 		return Condition{}, false
 	}
-	var values []string
-	for _, v := range strings.Split(parts[2], ",") {
+	rawValues := strings.Split(parts[2], ",")
+	values := make([]string, 0, len(rawValues))
+	for _, v := range rawValues {
 		if v == "" {
 			continue
 		}

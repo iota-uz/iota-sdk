@@ -48,34 +48,29 @@ func (p DatePreset) Valid() bool {
 func (p DatePreset) Value() string { return presetPrefix + string(p) }
 
 // Range resolves the preset to inclusive date-only bounds in now's location.
-// Both bounds are at midnight; consumers must extend `to` to end-of-day when
-// comparing against timestamps.
-func (p DatePreset) Range(now time.Time) (from, to time.Time) {
+// Both bounds are at midnight; consumers must extend the upper bound to
+// end-of-day when comparing against timestamps.
+func (p DatePreset) Range(now time.Time) (time.Time, time.Time) {
 	y, m, d := now.Date()
 	loc := now.Location()
 	today := time.Date(y, m, d, 0, 0, 0, 0, loc)
 	switch p {
 	case PresetThisMonth:
-		from = time.Date(y, m, 1, 0, 0, 0, 0, loc)
-		to = from.AddDate(0, 1, -1)
+		from := time.Date(y, m, 1, 0, 0, 0, 0, loc)
+		return from, from.AddDate(0, 1, -1)
 	case PresetLastMonth:
 		first := time.Date(y, m, 1, 0, 0, 0, 0, loc)
-		from = first.AddDate(0, -1, 0)
-		to = first.AddDate(0, 0, -1)
+		return first.AddDate(0, -1, 0), first.AddDate(0, 0, -1)
 	case PresetLast30D:
-		from = today.AddDate(0, 0, -29)
-		to = today
+		return today.AddDate(0, 0, -29), today
 	case PresetNext30D:
-		from = today
-		to = today.AddDate(0, 0, 30)
+		return today, today.AddDate(0, 0, 30)
 	case PresetThisYear:
-		from = time.Date(y, 1, 1, 0, 0, 0, 0, loc)
-		to = time.Date(y, 12, 31, 0, 0, 0, 0, loc)
+		return time.Date(y, 1, 1, 0, 0, 0, 0, loc), time.Date(y, 12, 31, 0, 0, 0, 0, loc)
 	case PresetLastYear:
-		from = time.Date(y-1, 1, 1, 0, 0, 0, 0, loc)
-		to = time.Date(y-1, 12, 31, 0, 0, 0, 0, loc)
+		return time.Date(y-1, 1, 1, 0, 0, 0, 0, loc), time.Date(y-1, 12, 31, 0, 0, 0, 0, loc)
 	}
-	return from, to
+	return time.Time{}, time.Time{}
 }
 
 // DateLayout is the codec wire format for explicit date values.
@@ -101,22 +96,22 @@ func (c Condition) Preset() (DatePreset, bool) {
 
 // DateRange resolves an OpBetween date condition to inclusive date-only
 // bounds: either by resolving its preset against now, or by parsing two
-// explicit YYYY-MM-DD values. ok is false for any other shape.
-func (c Condition) DateRange(now time.Time) (from, to time.Time, ok bool) {
+// explicit YYYY-MM-DD values. The bool is false for any other shape.
+func (c Condition) DateRange(now time.Time) (time.Time, time.Time, bool) {
 	if c.Op != OpBetween {
-		return from, to, false
+		return time.Time{}, time.Time{}, false
 	}
 	if p, isPreset := c.Preset(); isPreset {
-		from, to = p.Range(now)
+		from, to := p.Range(now)
 		return from, to, true
 	}
 	if len(c.Values) != 2 {
-		return from, to, false
+		return time.Time{}, time.Time{}, false
 	}
 	from, err1 := time.ParseInLocation(DateLayout, c.Values[0], now.Location())
 	to, err2 := time.ParseInLocation(DateLayout, c.Values[1], now.Location())
 	if err1 != nil || err2 != nil {
-		return from, to, false
+		return time.Time{}, time.Time{}, false
 	}
 	return from, to, true
 }

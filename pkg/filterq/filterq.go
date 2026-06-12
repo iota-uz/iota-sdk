@@ -48,6 +48,8 @@ func (o Operator) Arity() int {
 		return -1
 	case OpBetween:
 		return 2
+	case OpBefore, OpAfter, OpOn, OpEq, OpGt, OpLt:
+		return 1
 	default:
 		return 1
 	}
