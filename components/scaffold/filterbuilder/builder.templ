@@ -1,0 +1,145 @@
+package filterbuilder
+
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
+)
+
+// Builder renders the filter chip bar: active chips, the "+ Add filter"
+// popover and the presence marker. It must live inside the page's HTMX
+// filter form — chip mutations dispatch a bubbling `filter-changed` event
+// and the hidden `f` inputs carry the state.
+templ Builder(props Props) {
+	@builderRoot(props, false)
+}
+
+// BuilderOOB renders the same bar marked for an out-of-band swap. Append it
+// to HTMX responses whose target does not contain the builder so chips stay
+// server-rendered after every filter change.
+templ BuilderOOB(props Props) {
+	@builderRoot(props, true)
+}
+
+templ builderRoot(props Props, oob bool) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div
+		id={ props.id() }
+		if oob {
+			hx-swap-oob="outerHTML"
+		}
+		x-data="filterBuilder"
+		x-on:fb-apply.stop="onApply($event.detail)"
+		x-on:keydown.esc.window="closeAll()"
+		class={ "flex flex-wrap items-center gap-2", props.Class }
+	>
+		<input type="hidden" name={ filterq.PresenceParam } value="1"/>
+		for i, c := range props.Filters {
+			@Chip(props, i, c)
+		}
+		@addFilterButton(props)
+		if len(props.Filters) > 1 {
+			<button
+				type="button"
+				x-on:click="clearAll()"
+				class="text-sm text-200 hover:text-100 cursor-pointer whitespace-nowrap"
+			>
+				{ pageCtx.T("Scaffold.FilterBuilder.ClearAll") }
+			</button>
+		}
+	</div>
+}
+
+templ addFilterButton(props Props) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="relative" x-on:click.outside="if (adding) closeAll()">
+		<button
+			type="button"
+			x-on:click="openAdd()"
+			class={
+				"inline-flex items-center gap-1.5 h-8 px-3 rounded-lg text-sm cursor-pointer",
+				"border border-dashed border-primary text-200 hover:text-100 hover:bg-surface-100 duration-150",
+			}
+		>
+			@icons.Plus(icons.Props{Size: "14"})
+			{ pageCtx.T("Scaffold.FilterBuilder.AddFilter") }
+		</button>
+		<div
+			x-cloak
+			x-show="adding"
+			x-transition.opacity.duration.100ms
+			role="dialog"
+			class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm"
+		>
+			<!-- Stage 1: field picker -->
+			<div x-show="draftField === null">
+				<div class="flex items-center gap-2 border-b border-secondary px-3 py-2">
+					@icons.MagnifyingGlass(icons.Props{Size: "16", Class: "text-200 shrink-0"})
+					<input
+						type="text"
+						class="w-full bg-transparent text-sm outline-none"
+						placeholder={ pageCtx.T("Scaffold.FilterBuilder.SearchFields") }
+						x-model="fieldSearch"
+						x-ref="fieldSearchInput"
+						autocomplete="off"
+					/>
+				</div>
+				<div class="max-h-72 overflow-y-auto p-1.5">
+					for _, group := range fieldGroups(props.Registry.Fields()) {
+						if group[0].Group != "" {
+							<div class="px-2.5 pt-2 pb-1 text-xs uppercase tracking-wide text-200">{ group[0].Group }</div>
+						}
+						for _, field := range group {
+							@fieldPickerItem(field)
+						}
+					}
+				</div>
+			</div>
+			<!-- Stage 2: per-field editor -->
+			for _, field := range props.Registry.Fields() {
+				if field.Type != filterq.FieldTypeBool {
+					<div x-cloak x-show={ "draftField === '" + field.Key + "'" } class="p-3">
+						<button
+							type="button"
+							class="mb-2 inline-flex items-center gap-1 text-xs text-200 hover:text-100 cursor-pointer"
+							x-on:click="draftField = null"
+						>
+							@icons.CaretLeft(icons.Props{Size: "12"})
+							{ field.Label }
+						</button>
+						@editorPanel(field, nil, -1)
+					</div>
+				}
+			}
+		</div>
+	</div>
+}
+
+templ fieldPickerItem(field FieldDef) {
+	<button
+		type="button"
+		class={
+			"flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm",
+			"cursor-pointer duration-100 hover:bg-surface-400",
+		}
+		data-fb-label={ field.Label }
+		x-show="fieldMatches($el)"
+		if field.Type == filterq.FieldTypeBool {
+			x-on:click={ "applyFlag('" + field.Key + "')" }
+		} else {
+			x-on:click={ "draftField = '" + field.Key + "'" }
+		}
+	>
+		switch field.Type {
+			case filterq.FieldTypeDate:
+				@icons.CalendarBlank(icons.Props{Size: "16", Class: "text-200 shrink-0"})
+			case filterq.FieldTypeNumber:
+				@icons.Hash(icons.Props{Size: "16", Class: "text-200 shrink-0"})
+			case filterq.FieldTypeBool:
+				@icons.ToggleLeft(icons.Props{Size: "16", Class: "text-200 shrink-0"})
+			default:
+				@icons.ListBullets(icons.Props{Size: "16", Class: "text-200 shrink-0"})
+		}
+		{ field.Label }
+	</button>
+}

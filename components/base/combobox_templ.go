@@ -544,7 +544,7 @@ func Combobox(props ComboboxProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" x-on:keydown.down.prevent=\"$focus.wrap().next()\" x-on:keydown.up.prevent=\"$focus.wrap().previous()\" x-transition x-trap=\"openedWithKeyboard\" x-anchor=\"$refs.trigger\"><template x-for=\"(item, index) in options\" x-bind:key=\"item.value + &#39;:&#39; + index\"><li class=\"combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none\" :class=\"activeValue == item.value ? &#39;bg-surface-400&#39; : &#39;&#39;\" x-on:click=\"setValue(item.value)\" x-on:keydown.enter=\"setValue(item.value)\" x-bind:id=\"$id(&#39;combobox&#39;) + &#39;-option-&#39; + index\" tabindex=\"0\"><span class=\"whitespace-nowrap\" x-text=\"item.textContent\"></span>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 28, "\" x-on:keydown.down.prevent=\"$focus.wrap().next()\" x-on:keydown.up.prevent=\"$focus.wrap().previous()\" x-transition x-trap=\"openedWithKeyboard\" x-anchor=\"$refs.trigger\"><template x-for=\"(item, index) in options\" x-bind:key=\"item.value + &#39;:&#39; + index\"><li class=\"combobox-option inline-flex cursor-pointer justify-between gap-6 px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none\" :class=\"[\n\t\t\t\t\t\t\tactiveValue == item.value ? &#39;bg-surface-400&#39; : &#39;&#39;,\n\t\t\t\t\t\t\titem.disabled ? (item.dataset.fbHeader ? &#39;!cursor-default !py-1 mt-1 text-xs uppercase tracking-wide text-200 pointer-events-none hover:bg-transparent&#39; : &#39;opacity-40 !cursor-not-allowed hover:bg-transparent&#39;) : &#39;&#39;,\n\t\t\t\t\t\t]\" x-on:click=\"setValue(item.value)\" x-on:keydown.enter=\"setValue(item.value)\" x-bind:id=\"$id(&#39;combobox&#39;) + &#39;-option-&#39; + index\" x-bind:tabindex=\"item.disabled ? -1 : 0\"><span class=\"inline-flex min-w-0 items-baseline gap-1.5\"><span class=\"whitespace-nowrap\" x-text=\"item.textContent\"></span> <span class=\"text-xs text-200 whitespace-nowrap\" x-cloak x-show=\"item.dataset.fbCount !== undefined\" x-text=\"item.dataset.fbCount !== undefined ? &#39;(&#39; + Number(item.dataset.fbCount).toLocaleString() + &#39;)&#39; : &#39;&#39;\"></span></span>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -555,54 +555,51 @@ func Combobox(props ComboboxProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</li></template><li x-ref=\"createOption\" x-show=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</li></template>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		if props.CanCreateNew {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "<li x-ref=\"createOption\" x-show=\"options.length == 0\" class=\"cursor-pointer px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, props.CreateProps)
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "><input type=\"hidden\" name=\"_SearchQuery\" :value=\"searchQuery\"> <span class=\"whitespace-nowrap\" x-text=\"searchQuery\"></span></li>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "<li x-show=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var17 string
-		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("options.length == 0 && %t", props.CanCreateNew))
+		templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("options.length == 0 && %t", !props.CanCreateNew))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 293, Col: 98}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 310, Col: 78}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "\" class=\"cursor-pointer px-4 py-2 text-sm rounded-md duration-100 hover:bg-surface-400 focus-visible:bg-surface-400 focus-visible:outline-none\"")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templ.RenderAttributes(ctx, templ_7745c5c3_Buffer, props.CreateProps)
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "><input type=\"hidden\" name=\"_SearchQuery\" :value=\"searchQuery\"> <span class=\"whitespace-nowrap\" x-text=\"searchQuery\"></span></li><li x-show=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "\" class=\"px-4 py-2 text-sm text-200\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var18 string
-		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("options.length == 0 && %t", !props.CanCreateNew))
+		templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(props.NotFoundText)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 297, Col: 78}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 311, Col: 25}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 32, "\" class=\"px-4 py-2 text-sm text-200\">")
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		var templ_7745c5c3_Var19 string
-		templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(props.NotFoundText)
-		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/combobox.templ`, Line: 298, Col: 25}
-		}
-		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
-		if templ_7745c5c3_Err != nil {
-			return templ_7745c5c3_Err
-		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</li></ul></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "</li></ul></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

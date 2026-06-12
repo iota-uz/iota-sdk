@@ -914,6 +914,34 @@
     "Filters": {
       "Title": "Фильтры",
       "SelectAll": "Выбрать все"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Добавить фильтр",
+      "ClearAll": "Сбросить все",
+      "Apply": "Применить",
+      "SearchFields": "Поиск фильтра...",
+      "SelectValues": "Выберите значения...",
+      "NothingFound": "Ничего не найдено",
+      "Remove": "Удалить фильтр",
+      "Operators": {
+        "Is": "является",
+        "IsNot": "не является",
+        "Before": "до",
+        "After": "после",
+        "On": "в дату",
+        "Between": "между",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Этот месяц",
+        "LastMonth": "Прошлый месяц",
+        "Last30Days": "Последние 30 дней",
+        "Next30Days": "Ближайшие 30 дней",
+        "ThisYear": "Этот год",
+        "LastYear": "Прошлый год"
+      }
     }
   },
   "Search": "Поиск",

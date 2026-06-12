@@ -1,0 +1,243 @@
+package filterbuilder
+
+import (
+	"fmt"
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
+	"strconv"
+)
+
+// Chip renders one active filter as `[Field operator value(s) ×]` with its
+// hidden codec input and (for editable types) an inline edit popover.
+templ Chip(props Props, idx int, c filterq.Condition) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		field, ok := props.Registry.Field(c.Field)
+	}}
+	if ok {
+		<div class="relative" data-fb-chip-wrapper x-on:click.outside={ fmt.Sprintf("if (editing === %d) closeAll()", idx) }>
+			<input type="hidden" name={ filterq.ParamName } value={ filterq.EncodeCondition(c) } data-fb-chip={ strconv.Itoa(idx) }/>
+			<div class="inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-primary bg-surface-100 text-sm">
+				<button
+					type="button"
+					class={
+						"inline-flex min-w-0 items-center gap-1.5 pl-3 pr-2 duration-150",
+						templ.KV("cursor-pointer hover:bg-surface-400", field.Type != filterq.FieldTypeBool),
+						templ.KV("cursor-default", field.Type == filterq.FieldTypeBool),
+					}
+					if field.Type != filterq.FieldTypeBool {
+						x-on:click={ fmt.Sprintf("edit(%d)", idx) }
+					}
+				>
+					<span class="font-medium whitespace-nowrap">{ field.Label }</span>
+					if field.Type != filterq.FieldTypeBool {
+						<span class="text-200 whitespace-nowrap">{ pageCtx.T(operatorKey(c.Op)) }</span>
+						<span class="max-w-56 truncate" title={ chipValueSummary(pageCtx, field, c) }>
+							{ chipValueSummary(pageCtx, field, c) }
+						</span>
+					}
+				</button>
+				<button
+					type="button"
+					class="inline-flex items-center border-l border-primary px-1.5 text-200 hover:text-100 hover:bg-surface-400 cursor-pointer duration-150"
+					x-on:click={ fmt.Sprintf("remove(%d)", idx) }
+					aria-label={ pageCtx.T("Scaffold.FilterBuilder.Remove") }
+				>
+					@icons.X(icons.Props{Size: "14"})
+				</button>
+			</div>
+			if field.Type != filterq.FieldTypeBool {
+				<div
+					x-cloak
+					x-show={ fmt.Sprintf("editing === %d", idx) }
+					x-transition.opacity.duration.100ms
+					role="dialog"
+					class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3"
+				>
+					@editorPanel(field, &c, idx)
+				</div>
+			}
+		</div>
+	}
+}
+
+// panelArgs serializes fbPanel's config (field key, type, current operator,
+// target chip index, active preset) for the Alpine factory.
+func panelArgs(field FieldDef, cond *filterq.Condition, chipIdx int) string {
+	op := string(field.operators()[0])
+	preset := ""
+	if cond != nil {
+		op = string(cond.Op)
+		if p, isPreset := cond.Preset(); isPreset {
+			preset = string(p)
+		}
+	}
+	s, err := templ.JSONString(map[string]any{
+		"field":  field.Key,
+		"type":   string(field.Type),
+		"op":     op,
+		"chip":   chipIdx,
+		"preset": preset,
+	})
+	if err != nil {
+		return "{}"
+	}
+	return s
+}
+
+// explicitDates returns the condition's date values unless they are symbolic
+// (preset) — presets prefill nothing, they re-resolve on the server.
+func explicitDates(cond *filterq.Condition) []string {
+	if cond == nil {
+		return nil
+	}
+	if _, isPreset := cond.Preset(); isPreset {
+		return nil
+	}
+	return cond.Values
+}
+
+func numberValue(cond *filterq.Condition, i int) string {
+	if cond == nil || len(cond.Values) <= i {
+		return ""
+	}
+	return cond.Values[i]
+}
+
+// editorPanel is the polymorphic operator+value editor shared by the add
+// popover (cond == nil, chipIdx == -1) and per-chip edit popovers. Every
+// embedded control is nameless so hx-include never serializes editor
+// internals — only the chip `f` inputs reach the server.
+templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
+	{{
+		pageCtx := composables.UsePageCtx(ctx)
+		ops := field.operators()
+	}}
+	<div
+		x-data={ "fbPanel(" + panelArgs(field, cond, chipIdx) + ")" }
+		x-on:keydown.enter.stop.prevent="apply()"
+		class="flex flex-col gap-2.5"
+	>
+		if len(ops) > 1 {
+			@base.Select(&base.SelectProps{
+				Attrs: templ.Attributes{
+					"x-model":    "op",
+					"data-fb-op": "",
+				},
+			}) {
+				for _, op := range ops {
+					<option value={ string(op) } selected?={ cond != nil && cond.Op == op }>
+						{ pageCtx.T(operatorKey(op)) }
+					</option>
+				}
+			}
+		}
+		switch field.Type {
+			case filterq.FieldTypeReference:
+				@base.Combobox(base.ComboboxProps{
+					Multiple:     true,
+					Searchable:   true,
+					Name:         "",
+					Placeholder:  pageCtx.T("Scaffold.FilterBuilder.SelectValues"),
+					NotFoundText: pageCtx.T("Scaffold.FilterBuilder.NothingFound"),
+					ListClass:    "!max-h-60",
+				}) {
+					@GroupedOptions(field.Options, condValues(cond))
+				}
+			case filterq.FieldTypeDate:
+				if len(field.presets()) > 0 {
+					<div class="flex flex-wrap gap-1.5">
+						for _, p := range field.presets() {
+							<button
+								type="button"
+								class="rounded-md border border-primary px-2 py-1 text-xs cursor-pointer hover:bg-surface-400 duration-100"
+								:class={ "preset === '" + string(p) + "' ? 'bg-surface-400 font-medium' : ''" }
+								x-on:click={ "applyPreset('" + string(p) + "')" }
+							>
+								{ pageCtx.T(presetKey(p)) }
+							</button>
+						}
+					</div>
+				}
+				<div x-show="op !== 'between'" data-fb-variant="single">
+					@input.DatePicker(input.DatePickerProps{
+						Mode:     input.DatePickerModeSingle,
+						Name:     "",
+						Selected: singleDateSelected(cond),
+					})
+				</div>
+				<div x-cloak x-show="op === 'between'" data-fb-variant="range">
+					@input.DatePicker(input.DatePickerProps{
+						Mode:      input.DatePickerModeRange,
+						StartName: "",
+						EndName:   "",
+						Selected:  rangeDateSelected(cond),
+					})
+				</div>
+			case filterq.FieldTypeNumber:
+				<div x-show="op !== 'between'" data-fb-variant="single">
+					<input
+						type="number"
+						step="any"
+						data-fb-value
+						class="form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none"
+						value={ numberValue(cond, 0) }
+					/>
+				</div>
+				<div x-cloak x-show="op === 'between'" data-fb-variant="range" class="flex items-center gap-2">
+					<input
+						type="number"
+						step="any"
+						data-fb-value
+						class="form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none"
+						value={ numberValue(cond, 0) }
+					/>
+					<span class="text-200">–</span>
+					<input
+						type="number"
+						step="any"
+						data-fb-value
+						class="form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none"
+						value={ numberValue(cond, 1) }
+					/>
+				</div>
+		}
+		@button.Primary(button.Props{
+			Size:  button.SizeSM,
+			Class: "justify-center",
+			Attrs: templ.Attributes{
+				"type":       "button",
+				"x-on:click": "apply()",
+			},
+		}) {
+			{ pageCtx.T("Scaffold.FilterBuilder.Apply") }
+		}
+	</div>
+}
+
+func condValues(cond *filterq.Condition) []string {
+	if cond == nil {
+		return nil
+	}
+	return cond.Values
+}
+
+func singleDateSelected(cond *filterq.Condition) []string {
+	v := explicitDates(cond)
+	if cond != nil && cond.Op != filterq.OpBetween && len(v) == 1 {
+		return v
+	}
+	return nil
+}
+
+func rangeDateSelected(cond *filterq.Condition) []string {
+	v := explicitDates(cond)
+	if cond != nil && cond.Op == filterq.OpBetween && len(v) == 2 {
+		return v
+	}
+	return nil
+}

@@ -1460,7 +1460,7 @@ func TableSection(config *TableConfig) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
 
-		hxTrigger := "keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type='checkbox']"
+		hxTrigger := "keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type='checkbox'], filter-changed"
 		if config.HxTrigger != "" {
 			hxTrigger = config.HxTrigger
 		}
