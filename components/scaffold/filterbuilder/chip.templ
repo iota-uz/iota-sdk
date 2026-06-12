@@ -56,6 +56,10 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 					x-show={ fmt.Sprintf("editing === %d", idx) }
 					x-transition.opacity.duration.100ms
 					role="dialog"
+					x-on:input.stop=""
+					x-on:keyup.stop=""
+					x-on:change.stop=""
+					x-on:search.stop=""
 					class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3"
 				>
 					@editorPanel(field, &c, idx)

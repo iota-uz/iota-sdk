@@ -68,6 +68,11 @@ func (f FieldDef) presets() []filterq.DatePreset {
 	if f.Type != filterq.FieldTypeDate {
 		return nil
 	}
+	// Presets resolve to ranges, so they require the between operator.
+	allowsBetween := filterq.Field{Key: f.Key, Type: f.Type, Operators: f.Operators}.AllowsOp(filterq.OpBetween)
+	if !allowsBetween {
+		return nil
+	}
 	if f.Presets != nil {
 		return f.Presets
 	}

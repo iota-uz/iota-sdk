@@ -260,7 +260,7 @@ func addFilterButton(props Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</button><div x-cloak x-show=\"adding\" x-transition.opacity.duration.100ms role=\"dialog\" class=\"absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm\"><!-- Stage 1: field picker --><div x-show=\"draftField === null\"><div class=\"flex items-center gap-2 border-b border-secondary px-3 py-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "</button><div x-cloak x-show=\"adding\" x-transition.opacity.duration.100ms role=\"dialog\" x-on:input.stop=\"\" x-on:keyup.stop=\"\" x-on:change.stop=\"\" x-on:search.stop=\"\" class=\"absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm\"><!-- Stage 1: field picker --><div x-show=\"draftField === null\"><div class=\"flex items-center gap-2 border-b border-secondary px-3 py-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -275,7 +275,7 @@ func addFilterButton(props Props) templ.Component {
 		var templ_7745c5c3_Var13 string
 		templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Scaffold.FilterBuilder.SearchFields"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 81, Col: 68}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 85, Col: 68}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 		if templ_7745c5c3_Err != nil {
@@ -294,7 +294,7 @@ func addFilterButton(props Props) templ.Component {
 				var templ_7745c5c3_Var14 string
 				templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(group[0].Group)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 90, Col: 94}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 94, Col: 94}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 				if templ_7745c5c3_Err != nil {
@@ -325,7 +325,7 @@ func addFilterButton(props Props) templ.Component {
 				var templ_7745c5c3_Var15 string
 				templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs("draftField === '" + field.Key + "'")
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 101, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 105, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 				if templ_7745c5c3_Err != nil {
@@ -342,7 +342,7 @@ func addFilterButton(props Props) templ.Component {
 				var templ_7745c5c3_Var16 string
 				templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 108, Col: 20}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 112, Col: 20}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 				if templ_7745c5c3_Err != nil {
@@ -419,7 +419,7 @@ func fieldPickerItem(field FieldDef) templ.Component {
 		var templ_7745c5c3_Var20 string
 		templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 125, Col: 29}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 129, Col: 29}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 		if templ_7745c5c3_Err != nil {
@@ -437,7 +437,7 @@ func fieldPickerItem(field FieldDef) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs("applyFlag('" + field.Key + "')")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 128, Col: 48}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 132, Col: 48}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -455,7 +455,7 @@ func fieldPickerItem(field FieldDef) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs("draftField = '" + field.Key + "'")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 130, Col: 50}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 134, Col: 50}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -495,7 +495,7 @@ func fieldPickerItem(field FieldDef) templ.Component {
 		var templ_7745c5c3_Var23 string
 		templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(field.Label)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 143, Col: 15}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/filterbuilder/builder.templ`, Line: 147, Col: 15}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 		if templ_7745c5c3_Err != nil {

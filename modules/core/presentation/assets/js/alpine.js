@@ -271,6 +271,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeIndex = i;
       }
@@ -279,6 +280,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveValue(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeValue = option.value;
         return option;
