@@ -35,7 +35,10 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 				>
 					<span class="font-medium whitespace-nowrap">{ field.Label }</span>
 					if field.Type != filterq.FieldTypeBool {
-						<span class="text-200 whitespace-nowrap">{ pageCtx.T(operatorKey(c.Op)) }</span>
+						{{ _, isPreset := c.Preset() }}
+						if !isPreset {
+							<span class="text-200 whitespace-nowrap">{ pageCtx.T(operatorKey(c.Op)) }</span>
+						}
 						<span class="max-w-56 truncate" title={ chipValueSummary(pageCtx, field, c) }>
 							{ chipValueSummary(pageCtx, field, c) }
 						</span>
@@ -56,10 +59,7 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 					x-show={ fmt.Sprintf("editing === %d", idx) }
 					x-transition.opacity.duration.100ms
 					role="dialog"
-					x-on:input.stop=""
-					x-on:keyup.stop=""
-					x-on:change.stop=""
-					x-on:search.stop=""
+					data-fb-popover
 					class="absolute z-30 left-0 top-full mt-1 w-80 rounded-md border border-secondary bg-surface-300 drop-shadow-sm p-3"
 				>
 					@editorPanel(field, &c, idx)
