@@ -192,6 +192,7 @@ templ Combobox(props ComboboxProps) {
 				{{
 					searchInputAttrs := templ.Attributes{
 						"@input.debounce":            "onInput",
+						"@click":                     "open = true",
 						"x-on:keydown.enter.prevent": "setValue(activeValue)",
 						"autocomplete":               "off",
 						"x-ref":                      "input",
