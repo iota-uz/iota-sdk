@@ -26,6 +26,15 @@ var sidebarPropsDecorator SidebarPropsDecorator = func(_ context.Context, _ *htt
 	return props
 }
 
+// NavItemsDecorator allows host applications to adjust request-scoped
+// navigation items before permission filtering, pin splitting, workspace
+// grouping, sidebar mapping, and context storage.
+type NavItemsDecorator func(ctx context.Context, r *http.Request, items []types.NavigationItem) []types.NavigationItem
+
+var navItemsDecorator NavItemsDecorator = func(_ context.Context, _ *http.Request, items []types.NavigationItem) []types.NavigationItem {
+	return items
+}
+
 // SetSidebarPropsDecorator overrides the default no-op sidebar props decorator.
 func SetSidebarPropsDecorator(decorator SidebarPropsDecorator) {
 	if decorator == nil {
@@ -35,6 +44,17 @@ func SetSidebarPropsDecorator(decorator SidebarPropsDecorator) {
 		return
 	}
 	sidebarPropsDecorator = decorator
+}
+
+// SetNavItemsDecorator overrides the default no-op nav item decorator.
+func SetNavItemsDecorator(decorator NavItemsDecorator) {
+	if decorator == nil {
+		navItemsDecorator = func(_ context.Context, _ *http.Request, items []types.NavigationItem) []types.NavigationItem {
+			return items
+		}
+		return
+	}
+	navItemsDecorator = decorator
 }
 
 func filterItems(items []types.NavigationItem, user user.User) []types.NavigationItem {
@@ -143,7 +163,8 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					next.ServeHTTP(w, r)
 					return
 				}
-				filtered := filterItems(app.NavItems(localizer), u)
+				items := navItemsDecorator(r.Context(), r, app.NavItems(localizer))
+				filtered := filterItems(items, u)
 				if len(u.Roles()) == 0 {
 					filtered = []types.NavigationItem{}
 				}
