@@ -206,6 +206,19 @@ templ InfiniteScrollSpinner(cfg *TableConfig) {
 	</tr>
 }
 
+// tableLoadingOverlay shows a centered spinner over the table while an HTMX
+// row/content swap is in flight. Visibility is driven entirely by the
+// `.htmx-request` ancestor class (see styles/tailwind/iota.css); paired with
+// `.hide-on-load` row dimming it produces a stale-while-revalidate loading
+// state instead of a blanked table body. Hidden (display:none) at rest.
+templ tableLoadingOverlay() {
+	<div class="table-loading-overlay" aria-hidden="true">
+		<div class="table-loading-overlay__card">
+			@loaders.Spinner(loaders.SpinnerProps{})
+		</div>
+	</div>
+}
+
 type editableRow struct {
 	ID   string `json:"id"`
 	HTML string `json:"html"`
@@ -303,6 +316,7 @@ templ Table(config *TableConfig) {
 templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 	<div
 		id="sortable-table-container"
+		class="relative"
 		hx-disinherit="*"
 		if config.Editable.Enabled {
 			{ setupAlpineData(ctx, config)... }
@@ -375,6 +389,7 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 				</tbody>
 			}
 		}
+		@tableLoadingOverlay()
 		if config.Configurable {
 			@dialog.Drawer(dialog.DrawerProps{
 				Action:    "open-table-settings",

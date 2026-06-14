@@ -630,8 +630,48 @@
     --display: block;
   }
 
+  /*
+   * Loading state (stale-while-revalidate): while an HTMX row/content swap is
+   * in flight, dim the previous rows in place and show a centered spinner via
+   * .table-loading-overlay, instead of hiding the rows and blanking the table
+   * body. Custom class names are used deliberately: `.hidden` collides with
+   * Tailwind's utility (which lives in @layer utilities and wins on layer
+   * order regardless of specificity), so a `.htmx-request .hidden` reveal can
+   * never take effect — see the dead rules below.
+   */
   .htmx-request .hide-on-load {
+    opacity: 0.5;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+  }
+
+  /* Fully self-contained styling (no utility classes) so the overlay renders
+     correctly regardless of which template roots a consumer's Tailwind build
+     scans for class generation. */
+  .table-loading-overlay {
     display: none;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+
+  .htmx-request .table-loading-overlay {
+    display: flex;
+  }
+
+  .table-loading-overlay__card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.875rem;
+    border-radius: 9999px;
+    background-color: #fff;
+    box-shadow:
+      0 6px 18px rgba(2, 6, 23, 0.14),
+      0 1px 3px rgba(2, 6, 23, 0.1);
   }
 
   .htmx-request.hide-on-load {
