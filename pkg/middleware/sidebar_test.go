@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"context"
+	"net/http"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -14,6 +16,24 @@ func keysOf(items []types.NavigationItem) []string {
 		out = append(out, item.Key)
 	}
 	return out
+}
+
+func TestSetNavItemsDecorator(t *testing.T) {
+	t.Cleanup(func() {
+		SetNavItemsDecorator(nil)
+	})
+
+	items := []types.NavigationItem{{Key: "original"}}
+	require.Equal(t, items, navItemsDecorator(context.Background(), nil, items))
+
+	SetNavItemsDecorator(func(_ context.Context, _ *http.Request, items []types.NavigationItem) []types.NavigationItem {
+		return append(items, types.NavigationItem{Key: "added"})
+	})
+	decorated := navItemsDecorator(context.Background(), nil, items)
+	require.Equal(t, []string{"original", "added"}, keysOf(decorated))
+
+	SetNavItemsDecorator(nil)
+	require.Equal(t, items, navItemsDecorator(context.Background(), nil, items))
 }
 
 func TestSplitPinnedItems(t *testing.T) {
