@@ -105,6 +105,7 @@ func New(rt *bootstrap.Runtime, opts ...Option) (*HTTPServer, error) {
 	stack = append(stack, cfg.before...)
 	stack = append(stack,
 		middleware.WithLogger(cfg.logger, middleware.DefaultLoggerOptions()),
+		middleware.HTMXCacheControl(),
 		middleware.TracedMiddleware("database"),
 		middleware.Provide(constants.AppKey, rt.App),
 		middleware.Provide(constants.ContainerKey, rt.Container()),
