@@ -521,7 +521,7 @@ func Table(props TableProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if col.Configurable {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<button x-sort:handle type=\"button\" class=\"-ml-1.5\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<button x-sort:handle type=\"button\" class=\"-ml-1.5 cursor-grab active:cursor-grabbing\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -709,7 +709,7 @@ func Table(props TableProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if col.Configurable {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<button x-sort:handle type=\"button\" class=\"-ml-1.5\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "<button x-sort:handle type=\"button\" class=\"-ml-1.5 cursor-grab active:cursor-grabbing\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1043,7 +1043,7 @@ func Table(props TableProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if col.Configurable {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<button x-sort:handle type=\"button\" class=\"-ml-1.5\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 86, "<button x-sort:handle type=\"button\" class=\"-ml-1.5 cursor-grab active:cursor-grabbing\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
@@ -1231,7 +1231,7 @@ func Table(props TableProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 					if col.Configurable {
-						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "<button x-sort:handle type=\"button\" class=\"-ml-1.5\">")
+						templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 106, "<button x-sort:handle type=\"button\" class=\"-ml-1.5 cursor-grab active:cursor-grabbing\">")
 						if templ_7745c5c3_Err != nil {
 							return templ_7745c5c3_Err
 						}
