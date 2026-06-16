@@ -134,6 +134,10 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "bichat"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 // bichatBundle is the lazily-built BiChat runtime graph. Held as a single
 // provider so buildModuleConfig is invoked at most once per container.
 type bichatBundle struct {
@@ -158,8 +162,6 @@ func provideBundleField[I any](builder *composition.Builder, field func(*bichatB
 
 func (c *component) Build(builder *composition.Builder) error {
 	buildCtx := builder.Context()
-
-	composition.AddLocales(builder, &LocaleFiles)
 
 	// Implicit enablement: the module is on iff BICHAT_OPENAI_APIKEY is set.
 	// The gate helper emits a CapabilityProbe so /system/info reflects state,

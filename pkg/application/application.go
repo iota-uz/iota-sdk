@@ -38,9 +38,12 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 	translated := make([]types.NavigationItem, 0, len(items))
 	for _, item := range items {
 		translated = append(translated, types.NavigationItem{
+			Key: item.Key,
 			Name: intl.MustLocalize(localizer, &i18n.LocalizeConfig{
 				MessageID: item.Name,
 			}),
+			Workspace:   item.Workspace,
+			Pinned:      item.Pinned,
 			Href:        item.Href,
 			Children:    translate(localizer, item.Children),
 			Keywords:    append([]string(nil), item.Keywords...),
@@ -198,6 +201,7 @@ func LoadBundle() *i18n.Bundle {
 	bundle := i18n.NewBundle(language.Russian)
 	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
 	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+	spotlight.MustRegisterTranslations(bundle)
 	return bundle
 }
 
@@ -319,6 +323,13 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 		return nil
 	}
 	return translate(localizer, app.runtimeSource.NavItems())
+}
+
+func (app *application) NavWorkspaces() []types.NavWorkspace {
+	if app.runtimeSource == nil {
+		return nil
+	}
+	return app.runtimeSource.NavWorkspaces()
 }
 
 func navItemsToQuickLinks(items ...types.NavigationItem) []*spotlight.QuickLink {

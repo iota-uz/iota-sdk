@@ -582,7 +582,8 @@
       "Sessions": "会话",
       "Logout": "退出登录",
       "Settings": "设置"
-    }
+    },
+    "Departments": "部门"
   },
   "No": "否",
   "PerPage": "每页",
@@ -918,6 +919,34 @@
     "Filters": {
       "Title": "筛选器",
       "SelectAll": "全选"
+    },
+    "FilterBuilder": {
+      "AddFilter": "添加筛选",
+      "ClearAll": "清除全部",
+      "Apply": "应用",
+      "SearchFields": "搜索筛选...",
+      "SelectValues": "选择值...",
+      "NothingFound": "未找到",
+      "Remove": "移除筛选",
+      "Operators": {
+        "Is": "是",
+        "IsNot": "不是",
+        "Before": "之前",
+        "After": "之后",
+        "On": "在",
+        "Between": "介于",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "本月",
+        "LastMonth": "上月",
+        "Last30Days": "过去30天",
+        "Next30Days": "未来30天",
+        "ThisYear": "今年",
+        "LastYear": "去年"
+      }
     }
   },
   "Search": "搜索",
@@ -926,6 +955,9 @@
   "UploadLabel": "上传文件",
   "UploadPlaceholder": "选择要上传的文件",
   "DownloadTemplate": "下载模板",
+  "Running": "运行中…",
+  "Warnings": "警告",
+  "Confirm": "确认",
   "Example": {
     "Below": "请参见下面的示例"
   },
@@ -1095,6 +1127,7 @@
       "Access": "访问权限"
     },
     "Blocked": "已封禁",
+    "NoRole": "无角色",
     "Block": {
       "Title": "封禁用户",
       "Button": "封禁用户",
@@ -1107,7 +1140,8 @@
       "Errors": {
         "ReasonRequired": "需要输入封禁原因",
         "ReasonTooShort": "封禁原因必须至少为3个字符",
-        "ReasonTooLong": "封禁原因不得超过1024个字符"
+        "ReasonTooLong": "封禁原因不得超过1024个字符",
+        "OperationFailed": "无法封禁该用户，请重试。"
       }
     },
     "Unblock": {
@@ -1277,5 +1311,94 @@
       "Title": "设置",
       "BackToApp": "返回应用"
     }
-  }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "部门列表"
+      },
+      "Edit": {
+        "Title": "编辑部门"
+      },
+      "New": {
+        "Title": "新建部门"
+      }
+    },
+    "List": {
+      "New": "新建部门",
+      "Name": "名称",
+      "Code": "编码",
+      "Parent": "上级",
+      "Status": "状态",
+      "NoDepartments": {
+        "Title": "未找到部门",
+        "_Description": "点击“新建部门”按钮创建您的第一个部门"
+      }
+    },
+    "Single": {
+      "Name": "名称",
+      "Code": "编码",
+      "Parent": "上级部门",
+      "NoParent": "无上级",
+      "Order": "排序",
+      "Status": "状态",
+      "EnterName": "输入名称",
+      "EnterCode": "输入编码",
+      "EnterOrder": "输入排序"
+    },
+    "Status": {
+      "Active": "启用",
+      "Inactive": "停用"
+    },
+    "Errors": {
+      "SelfLoop": "部门不能作为自己的上级。",
+      "Cycle": "该上级会造成循环层级。",
+      "DuplicateCode": "该编码已被其他部门使用。",
+      "ParentNotFound": "未找到所选的上级部门。"
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "职位列表"
+      },
+      "Edit": {
+        "Title": "编辑职位"
+      },
+      "New": {
+        "Title": "新建职位"
+      }
+    },
+    "List": {
+      "New": "新建职位",
+      "Title": "名称",
+      "User": "用户",
+      "Department": "部门",
+      "Role": "角色",
+      "Status": "状态",
+      "NoPositions": {
+        "Title": "未找到职位",
+        "_Description": "点击“新建职位”按钮创建您的第一个职位"
+      }
+    },
+    "Single": {
+      "Title": "名称",
+      "User": "用户",
+      "SelectUser": "选择用户",
+      "Department": "部门",
+      "SelectDepartment": "选择部门",
+      "IsManager": "主管",
+      "IsPrimary": "主要",
+      "Status": "状态",
+      "EnterTitle": "输入名称"
+    },
+    "Status": {
+      "Active": "启用",
+      "Inactive": "停用"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "导入失败"
+  },
+  "DryRunNotice": "这是预览——数据尚未更改。请查看上方结果，然后确认以执行导入。"
 }

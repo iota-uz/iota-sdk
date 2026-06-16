@@ -119,12 +119,21 @@ type ContextConfig struct {
 type HarnessConfig struct {
 	Name       string
 	Components []composition.Component
-	Source     config.Source // optional; forwarded to SetupApplication for ProvideConfig[T]
-	Database   DatabaseConfig
-	Migration  MigrationConfig
-	Isolation  IsolationConfig
-	Seed       SeedConfig
-	Context    ContextConfig
+	// Source is optional; forwarded to SetupApplication for ProvideConfig[T].
+	Source config.Source
+	// Capabilities controls which composition capabilities are active when
+	// the harness compiles its container. Empty defaults to the historical
+	// behaviour of [CapabilityAPI, CapabilityWorker]. Set to a narrower
+	// subset (e.g. just CapabilityAPI) to test capability gating — useful
+	// for verifying that worker-only contributions (NATS consumers,
+	// periodic-task managers, file-locked indices, etc.) stay inactive in
+	// API-only contexts.
+	Capabilities []composition.Capability
+	Database     DatabaseConfig
+	Migration    MigrationConfig
+	Isolation    IsolationConfig
+	Seed         SeedConfig
+	Context      ContextConfig
 }
 
 type Scope struct {
@@ -429,7 +438,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source)
+	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, cfg.Capabilities...)
 	if err != nil {
 		pool.Close()
 		_ = DropDBE(dbName, db)

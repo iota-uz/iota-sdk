@@ -129,7 +129,7 @@ func FormatToolError(code ToolErrorCode, message string, hints ...string) string
 var (
 	// SQL query hints
 	HintCheckSQLSyntax      = "Check SQL syntax - ensure proper SELECT statement format"
-	HintVerifyTableNames    = "Verify table and column names exist using schema_describe tool"
+	HintVerifyTableNames    = "Verify table and column names exist using schema_describe_batch tool"
 	HintUseSchemaList       = "Use schema_list tool to see all available tables and views"
 	HintAddLimitClause      = "Add LIMIT clause to reduce result size (e.g., LIMIT 100)"
 	HintFilterWithWhere     = "Use WHERE clause to filter more specifically"
@@ -138,7 +138,7 @@ var (
 	// Policy hints
 	HintOnlySelectAllowed = "Only SELECT and WITH (CTE) queries are allowed"
 	HintNoWriteOperations = "Write operations (INSERT, UPDATE, DELETE, DROP) are forbidden"
-	HintCheckSchemaAccess = "Use schema_list and schema_describe to check available tables"
+	HintCheckSchemaAccess = "Use schema_list and schema_describe_batch to check available tables"
 
 	// Data hints
 	HintTableMayBeEmpty   = "Table may be empty - use sql_execute to verify with COUNT(*)"
@@ -160,8 +160,8 @@ var (
 	HintCheckAccessibleViews = "Use schema_list tool to see views you have permission to access"
 
 	// SQL-specific diagnostic hints
-	HintUseSchemaDescribe  = "Use schema_describe tool to verify column names and types for the table"
-	HintCheckColumnTypes   = "Column types may differ from expected - verify with schema_describe"
-	HintCheckColumnExists  = "Column may not exist in this table - use schema_describe to check available columns"
+	HintUseSchemaDescribe  = "Use schema_describe_batch tool to verify column names and types for the table"
+	HintCheckColumnTypes   = "Column types may differ from expected - verify with schema_describe_batch"
+	HintCheckColumnExists  = "Column may not exist in this table - use schema_describe_batch to check available columns"
 	HintDisambiguateColumn = "Qualify ambiguous column with table alias (e.g., t.column_name)"
 )

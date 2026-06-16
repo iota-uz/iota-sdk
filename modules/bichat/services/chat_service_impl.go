@@ -23,7 +23,13 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-const streamPersistenceTimeout = 10 * time.Second
+// streamPersistenceTimeout bounds each detached persistence transaction that
+// outlives the client request: stream finalize (assistant message + session,
+// and best-effort artifacts), HITL resume/reject, history clear/compact, and
+// run-state writes. Deep-mode runs produce large payloads, so this is generous:
+// a too-tight budget previously discarded fully-generated answers when
+// persistence overran it (see #2998).
+const streamPersistenceTimeout = 30 * time.Second
 const titleGenerationFallbackTimeout = 15 * time.Second
 const streamSnapshotThrottle = 2 * time.Second
 const remoteResumePollInterval = time.Second
@@ -138,6 +144,15 @@ func (s *chatServiceImpl) logEntry() *logrus.Entry {
 		return nil
 	}
 	return logrus.NewEntry(s.logger)
+}
+
+// log returns the service logger, falling back to the standard logger when none
+// was injected. Used by critical-path error logging that must never be silenced.
+func (s *chatServiceImpl) log() *logrus.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return logrus.StandardLogger()
 }
 
 // CloseSharedRedis releases the shared *redis.Client created by
@@ -1285,6 +1300,12 @@ func (s *chatServiceImpl) runStreamLoop(
 	}
 
 	if processCtx.Err() != nil {
+		s.log().
+			WithError(serrors.E(op, processCtx.Err())).
+			WithField("session_id", req.SessionID.String()).
+			WithField("run_id", runID.String()).
+			WithField("tenant_id", session.TenantID().String()).
+			Error("bichat: stream generation context ended before finalization")
 		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, processCtx.Err()), 0))
 		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
@@ -1335,32 +1356,58 @@ func (s *chatServiceImpl) runStreamLoop(
 		QuestionData: assistantQuestionData,
 	})
 	if err != nil {
+		s.log().
+			WithError(serrors.E(op, serrors.KindValidation, err)).
+			WithField("session_id", req.SessionID.String()).
+			WithField("run_id", runID.String()).
+			WithField("tenant_id", session.TenantID().String()).
+			WithField("content_len", len(assistantContent)).
+			WithField("tool_calls", len(savedToolCalls)).
+			Error("bichat: assistant message failed validation before persistence")
 		active.Broadcast(streamingsvc.TerminalChunk(serrors.E(op, serrors.KindValidation, err), 0))
 		_ = s.cancelRunState(persistCtx, session.TenantID(), req.SessionID, runID)
 		return
 	}
-	persistCtx, persistCancel := context.WithTimeout(persistCtx, streamPersistenceTimeout)
-	defer persistCancel()
 
-	err = s.withinTx(persistCtx, func(txCtx context.Context) error {
-		if err := s.chatRepo.SaveMessage(txCtx, assistantMsg); err != nil {
-			return serrors.E(op, err)
-		}
-		if err := s.persistGeneratedArtifacts(txCtx, session, assistantMsg.ID(), artifactMap); err != nil {
-			return serrors.E(op, err)
-		}
-		session = session.SetPreviousResponseID(providerResponseID, time.Now())
-		if err := s.chatRepo.UpdateSession(txCtx, session); err != nil {
-			return serrors.E(op, err)
-		}
-		return nil
-	})
-	if err != nil {
+	// Persistence is split into a small, retried CRITICAL transaction (the
+	// assistant message + the session's previous-response pointer) and a
+	// BEST-EFFORT artifact transaction. The rendered answer is the
+	// irreplaceable artifact, so it must survive even when artifact writes or a
+	// transient DB hiccup fail — the previous all-or-nothing transaction under a
+	// tight deadline discarded fully-generated answers (see #2998).
+	session = session.SetPreviousResponseID(providerResponseID, time.Now())
+	if err := s.persistAssistantMessageCritical(persistCtx, assistantMsg, session); err != nil {
+		s.log().
+			WithError(err).
+			WithField("session_id", req.SessionID.String()).
+			WithField("run_id", runID.String()).
+			WithField("tenant_id", session.TenantID().String()).
+			WithField("content_len", len(assistantContent)).
+			WithField("tool_calls", len(savedToolCalls)).
+			WithField("artifact_count", len(artifactMap)).
+			WithField("generation_ms", generationMs).
+			Error("bichat: failed to persist assistant message; answer discarded")
 		active.Broadcast(streamingsvc.TerminalChunk(err, 0))
 		runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)
 		defer runStateCancel()
 		_ = s.cancelRunState(runStateCtx, session.TenantID(), req.SessionID, runID)
 		return
+	}
+
+	// Best-effort: the message is already committed and is what the user sees.
+	// A failure here degrades to "answer without its charts/tables" rather than
+	// discarding the whole answer. Artifacts carry idempotency keys, so a later
+	// regeneration won't duplicate them.
+	if len(artifactMap) > 0 {
+		if err := s.persistArtifactsBestEffort(persistCtx, session, assistantMsg.ID(), artifactMap); err != nil {
+			s.log().
+				WithError(err).
+				WithField("session_id", req.SessionID.String()).
+				WithField("run_id", runID.String()).
+				WithField("message_id", assistantMsg.ID().String()).
+				WithField("artifact_count", len(artifactMap)).
+				Error("bichat: failed to persist generated artifacts; answer kept without them")
+		}
 	}
 
 	runStateCtx, runStateCancel := context.WithTimeout(context.Background(), streamPersistenceTimeout)

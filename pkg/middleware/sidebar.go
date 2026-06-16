@@ -26,6 +26,15 @@ var sidebarPropsDecorator SidebarPropsDecorator = func(_ context.Context, _ *htt
 	return props
 }
 
+// NavItemsDecorator allows host applications to adjust request-scoped
+// navigation items before permission filtering, pin splitting, workspace
+// grouping, sidebar mapping, and context storage.
+type NavItemsDecorator func(ctx context.Context, r *http.Request, items []types.NavigationItem) []types.NavigationItem
+
+var navItemsDecorator NavItemsDecorator = func(_ context.Context, _ *http.Request, items []types.NavigationItem) []types.NavigationItem {
+	return items
+}
+
 // SetSidebarPropsDecorator overrides the default no-op sidebar props decorator.
 func SetSidebarPropsDecorator(decorator SidebarPropsDecorator) {
 	if decorator == nil {
@@ -35,6 +44,17 @@ func SetSidebarPropsDecorator(decorator SidebarPropsDecorator) {
 		return
 	}
 	sidebarPropsDecorator = decorator
+}
+
+// SetNavItemsDecorator overrides the default no-op nav item decorator.
+func SetNavItemsDecorator(decorator NavItemsDecorator) {
+	if decorator == nil {
+		navItemsDecorator = func(_ context.Context, _ *http.Request, items []types.NavigationItem) []types.NavigationItem {
+			return items
+		}
+		return
+	}
+	navItemsDecorator = decorator
 }
 
 func filterItems(items []types.NavigationItem, user user.User) []types.NavigationItem {
@@ -47,9 +67,13 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 				continue
 			}
 			filteredItems = append(filteredItems, types.NavigationItem{
+				Key:         item.Key,
 				Name:        item.Name,
+				Workspace:   item.Workspace,
+				Pinned:      item.Pinned,
 				Href:        item.Href,
 				Children:    filteredChildren,
+				Keywords:    append([]string(nil), item.Keywords...),
 				Icon:        item.Icon,
 				Permissions: item.Permissions,
 				IsBeta:      item.IsBeta,
@@ -63,7 +87,14 @@ func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
 	var out []types.NavigationItem
 	for _, item := range items {
 		if len(item.Children) > 0 {
-			children := getEnabledNavItems(item.Children)
+			childrenWithInheritedWorkspace := make([]types.NavigationItem, len(item.Children))
+			copy(childrenWithInheritedWorkspace, item.Children)
+			for i := range childrenWithInheritedWorkspace {
+				if childrenWithInheritedWorkspace[i].Workspace == "" {
+					childrenWithInheritedWorkspace[i].Workspace = item.Workspace
+				}
+			}
+			children := getEnabledNavItems(childrenWithInheritedWorkspace)
 			childrenLen := len(children)
 			if childrenLen == 0 {
 				continue
@@ -80,6 +111,26 @@ func getEnabledNavItems(items []types.NavigationItem) []types.NavigationItem {
 	}
 
 	return out
+}
+
+func splitPinnedItems(items []types.NavigationItem) ([]types.NavigationItem, []types.NavigationItem) {
+	pinned := make([]types.NavigationItem, 0)
+	unpinned := make([]types.NavigationItem, 0, len(items))
+	for _, item := range items {
+		if item.Pinned {
+			pinned = append(pinned, item)
+			continue
+		}
+		hadChildren := len(item.Children) > 0
+		childPinned, childUnpinned := splitPinnedItems(item.Children)
+		pinned = append(pinned, childPinned...)
+		item.Children = childUnpinned
+		if hadChildren && len(childUnpinned) == 0 {
+			continue
+		}
+		unpinned = append(unpinned, item)
+	}
+	return pinned, unpinned
 }
 
 func normalizeTabGroups(collection sidebar.TabGroupCollection) sidebar.TabGroupCollection {
@@ -112,25 +163,36 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					next.ServeHTTP(w, r)
 					return
 				}
-				filtered := filterItems(app.NavItems(localizer), u)
+				items := navItemsDecorator(r.Context(), r, app.NavItems(localizer))
+				filtered := filterItems(items, u)
 				if len(u.Roles()) == 0 {
 					filtered = []types.NavigationItem{}
 				}
-				enabledNavItems := getEnabledNavItems(filtered)
+				pinnedItems, unpinnedItems := splitPinnedItems(filtered)
+				enabledPinnedItems := getEnabledNavItems(pinnedItems)
+				enabledNavItems := getEnabledNavItems(unpinnedItems)
 
 				// Build sidebar props with configurable tab groups
-				tabGroups := normalizeTabGroups(pkgsidebar.BuildTabGroups(enabledNavItems, localizer))
+				tabGroups := normalizeTabGroups(pkgsidebar.BuildTabGroupsWithWorkspaces(
+					enabledNavItems,
+					app.NavWorkspaces(),
+					localizer,
+				))
 
 				sidebarProps := sidebar.Props{
 					Header:       layouts.DefaultSidebarHeader(),
 					TabGroups:    tabGroups,
+					PinnedItems:  layouts.MapNavItemsToSidebar(enabledPinnedItems),
 					Footer:       layouts.DefaultSidebarFooter(),
 					InitialState: initialState,
 				}
 				sidebarProps = sidebarPropsDecorator(r.Context(), r, sidebarProps)
 
 				ctx := context.WithValue(r.Context(), constants.AllNavItemsKey, filtered)
-				ctx = context.WithValue(ctx, constants.NavItemsKey, enabledNavItems)
+				// Fresh allocation to avoid mutating enabledPinnedItems' backing
+				// array (used above for PinnedItems sidebar props).
+				allNavItems := append(append([]types.NavigationItem(nil), enabledPinnedItems...), enabledNavItems...)
+				ctx = context.WithValue(ctx, constants.NavItemsKey, allNavItems)
 				ctx = context.WithValue(ctx, constants.SidebarPropsKey, sidebarProps)
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},

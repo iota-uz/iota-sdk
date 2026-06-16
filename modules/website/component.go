@@ -31,8 +31,11 @@ func (c *component) Descriptor() composition.Descriptor {
 	}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddNavItems(builder, NavItems...)
 	composition.ProvideFunc(builder, persistence.NewAIChatConfigRepository)
 	composition.ProvideFunc(builder, services.NewAIChatConfigService)

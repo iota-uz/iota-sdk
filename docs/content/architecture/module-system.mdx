@@ -109,6 +109,7 @@ Runtime composition is built from `composition.Component` implementations:
 classDiagram
     class Component {
         +Descriptor() Descriptor
+        +LocaleFS() []*embed.FS
         +Build(builder *Builder) error
     }
 
@@ -156,7 +157,6 @@ classDiagram
 | `composition.ContributeMiddleware(b, fn)` | Router-level middleware | Presentation |
 | `composition.ContributeSpotlightProviders(b, fn)` | Spotlight search providers | Navigation / actions |
 | `composition.ContributeSpotlightAgent(b, fn)` | Singleton spotlight AI agent | Navigation / actions |
-| `composition.AddLocales(b, fs)` | Translation bundles (no closure) | Presentation |
 | `composition.AddNavItems(b, items...)` | Sidebar / navigation entries | Presentation |
 | `composition.AddQuickLinks(b, links...)` | Spotlight quick links | Navigation / actions |
 | `composition.AddHashFS(b, fs...)` | Hashed static assets | Presentation |

@@ -337,23 +337,29 @@ func DBOpts(name string, db dbconfig.Config) string {
 // When src is non-nil it is forwarded to the build context for ProvideConfig[T].
 // A *dbconfig.Config is also pulled from the source and passed to ApplicationOptions
 // so that app.Migrations() returns a real manager (not the no-op fallback).
+//
+// capabilities controls which capability set is passed to engine.Compile. When
+// empty (the default for backward compatibility), it expands to
+// [CapabilityAPI, CapabilityWorker]. Pass an explicit, narrower set (for example,
+// just composition.CapabilityAPI) to verify that worker-only contributions stay
+// inactive in API-only contexts.
 func setupApplicationWithSource(
 	pool *pgxpool.Pool,
 	logger *logrus.Logger,
 	components []composition.Component,
-	sources ...config.Source,
+	src config.Source,
+	capabilities ...composition.Capability,
 ) (application.Application, *composition.Container, error) {
 	if logger == nil {
 		logger = logrus.New()
 	}
+	if len(capabilities) == 0 {
+		capabilities = []composition.Capability{composition.CapabilityAPI, composition.CapabilityWorker}
+	}
 
 	// Resolve the config source up front so it can feed both the
 	// composition build context and ApplicationOptions.DBConfig.
-	var src config.Source
-	switch {
-	case len(sources) > 0 && sources[0] != nil:
-		src = sources[0]
-	default:
+	if src == nil {
 		fallback, err := config.Build(envprov.New(".env", ".env.local", ".env.testing"))
 		if err != nil {
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "build fallback config source")
@@ -390,8 +396,7 @@ func setupApplicationWithSource(
 		buildCtx := composition.NewBuildContext(app, src, composition.WithLogger(logger))
 		container, err = engine.Compile(
 			buildCtx,
-			composition.CapabilityAPI,
-			composition.CapabilityWorker,
+			capabilities...,
 		)
 		if err != nil {
 			return nil, nil, serrors.E(serrors.Op("itf.SetupApplication"), err, "compile components")
@@ -405,6 +410,24 @@ func setupApplicationWithSource(
 		}
 	}
 	return app, container, nil
+}
+
+// SetupApplication wires a test application + composition container against
+// `pool` using the provided components. It resolves its config source from the
+// default env files (.env, .env.local, .env.testing).
+//
+// `capabilities` controls which capability set is passed to `engine.Compile`.
+// When empty (the default for backward compatibility), it expands to
+// `[CapabilityAPI, CapabilityWorker]`. Pass an explicit, narrower set (for
+// example, just `composition.CapabilityAPI`) to verify that worker-only
+// contributions (NATS subscribers, periodic tasks, MSSQL pools, Bleve
+// file-locks, etc.) stay inactive in API-only contexts.
+func SetupApplication(
+	pool *pgxpool.Pool,
+	components []composition.Component,
+	capabilities ...composition.Capability,
+) (application.Application, *composition.Container, error) {
+	return setupApplicationWithSource(pool, nil, components, nil, capabilities...)
 }
 
 // LoadDBConfigFromEnv builds a dbconfig.Config from env files (.env, .env.local).

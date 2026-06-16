@@ -578,7 +578,8 @@
       "Sessions": "Sessiyalar",
       "Logout": "Chiqish",
       "Settings": "Sozlamalar"
-    }
+    },
+    "Departments": "Bo'limlar"
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
@@ -914,6 +915,34 @@
     "Filters": {
       "Title": "Filtrlar",
       "SelectAll": "Barchasini tanlash"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Filtr qoʻshish",
+      "ClearAll": "Hammasini tozalash",
+      "Apply": "Qoʻllash",
+      "SearchFields": "Filtr qidirish...",
+      "SelectValues": "Qiymatlarni tanlang...",
+      "NothingFound": "Hech narsa topilmadi",
+      "Remove": "Filtrni olib tashlash",
+      "Operators": {
+        "Is": "ga teng",
+        "IsNot": "ga teng emas",
+        "Before": "gacha",
+        "After": "dan keyin",
+        "On": "sanada",
+        "Between": "oraliqda",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Shu oy",
+        "LastMonth": "Oʻtgan oy",
+        "Last30Days": "Oxirgi 30 kun",
+        "Next30Days": "Keyingi 30 kun",
+        "ThisYear": "Shu yil",
+        "LastYear": "Oʻtgan yil"
+      }
     }
   },
   "Search": "Qidirish",
@@ -922,6 +951,9 @@
   "UploadLabel": "Fayl yuklash",
   "UploadPlaceholder": "Yuklash uchun faylni tanlang",
   "DownloadTemplate": "Shablonni yuklab olish",
+  "Running": "Bajarilmoqda…",
+  "Warnings": "Ogohlantirishlar",
+  "Confirm": "Tasdiqlash",
   "Example": {
     "Below": "Quyida misolni ko'ring"
   },
@@ -1091,6 +1123,7 @@
       "Access": "Kirish"
     },
     "Blocked": "Bloklangan",
+    "NoRole": "Rol biriktirilmagan",
     "Block": {
       "Title": "Foydalanuvchini bloklash",
       "Button": "Bloklash",
@@ -1103,7 +1136,8 @@
       "Errors": {
         "ReasonRequired": "Bloklash sababi talab qilinadi",
         "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
-        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak",
+        "OperationFailed": "Foydalanuvchini bloklab bo'lmadi. Iltimos, qayta urinib ko'ring."
       }
     },
     "Unblock": {
@@ -1273,5 +1307,94 @@
       "Title": "Sozlamalar",
       "BackToApp": "Orqaga"
     }
-  }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Bo'limlar ro'yxati"
+      },
+      "Edit": {
+        "Title": "Bo'limni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi bo'lim"
+      }
+    },
+    "List": {
+      "New": "Yangi bo'lim",
+      "Name": "Nomi",
+      "Code": "Kod",
+      "Parent": "Ota bo'lim",
+      "Status": "Holati",
+      "NoDepartments": {
+        "Title": "Bo'limlar topilmadi",
+        "_Description": "«Yangi bo'lim» tugmasini bosib birinchi bo'limingizni yarating"
+      }
+    },
+    "Single": {
+      "Name": "Nomi",
+      "Code": "Kod",
+      "Parent": "Ota bo'lim",
+      "NoParent": "Ota bo'limsiz",
+      "Order": "Tartib",
+      "Status": "Holati",
+      "EnterName": "Nomini kiriting",
+      "EnterCode": "Kodni kiriting",
+      "EnterOrder": "Tartibni kiriting"
+    },
+    "Status": {
+      "Active": "Faol",
+      "Inactive": "Nofaol"
+    },
+    "Errors": {
+      "SelfLoop": "Bo'lim o'ziga ota-bo'lim bo'la olmaydi.",
+      "Cycle": "Bu ota-bo'lim aylanma ierarxiyani yaratadi.",
+      "DuplicateCode": "Bu kod boshqa bo'lim tomonidan ishlatilmoqda.",
+      "ParentNotFound": "Tanlangan ota-bo'lim topilmadi."
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Lavozimlar ro'yxati"
+      },
+      "Edit": {
+        "Title": "Lavozimni tahrirlash"
+      },
+      "New": {
+        "Title": "Yangi lavozim"
+      }
+    },
+    "List": {
+      "New": "Yangi lavozim",
+      "Title": "Nomi",
+      "User": "Foydalanuvchi",
+      "Department": "Bo'lim",
+      "Role": "Rol",
+      "Status": "Holati",
+      "NoPositions": {
+        "Title": "Lavozimlar topilmadi",
+        "_Description": "«Yangi lavozim» tugmasini bosib birinchi lavozimingizni yarating"
+      }
+    },
+    "Single": {
+      "Title": "Nomi",
+      "User": "Foydalanuvchi",
+      "SelectUser": "Foydalanuvchini tanlang",
+      "Department": "Bo'lim",
+      "SelectDepartment": "Bo'limni tanlang",
+      "IsManager": "Rahbar",
+      "IsPrimary": "Asosiy",
+      "Status": "Holati",
+      "EnterTitle": "Nomini kiriting"
+    },
+    "Status": {
+      "Active": "Faol",
+      "Inactive": "Nofaol"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "Import xatosi"
+  },
+  "DryRunNotice": "Bu — oldindan ko‘rish. Ma’lumotlar hali o‘zgartirilmadi. Yuqoridagi natijalarni tekshiring va importni qo‘llash uchun tasdiqlang."
 }

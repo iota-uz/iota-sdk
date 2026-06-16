@@ -35,7 +35,7 @@ let relativeFormat = () => ({
     let units = ["second", "minute", "hour", "day", "week", "month", "year"];
     let unitIdx = cutoffs.findIndex((cutoff) => cutoff > Math.abs(delta));
     let divisor = unitIdx ? cutoffs[unitIdx - 1] : 1;
-    let rtf = new Intl.RelativeTimeFormat(locale, {numeric: "auto"});
+    let rtf = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
     return rtf.format(Math.floor(delta / divisor), units[unitIdx]);
   },
 });
@@ -154,12 +154,12 @@ let dialog = (initialState) => ({
       });
     });
   }),
-  lightDismiss({target: dialog}) {
+  lightDismiss({ target: dialog }) {
     if (dialog.nodeName === "DIALOG") {
       dialog.close("dismiss");
     }
   },
-  async close({target: dialog}) {
+  async close({ target: dialog }) {
     dialog.setAttribute("inert", "");
     dialog.dispatchEvent(dialogEvents.closing);
     await animationsComplete(dialog);
@@ -220,6 +220,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       }
     }
     if (index == null || index > this.allOptions.length - 1) return;
+    // Disabled options (and filterbuilder group headers) are not selectable.
+    if (this.allOptions[index].disabled) return;
     if (this.multiple) {
       this.allOptions[index].toggleAttribute("selected");
       if (this.selectedValues.has(value)) {
@@ -269,6 +271,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeIndex = i;
       }
@@ -277,6 +280,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveValue(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeValue = option.value;
         return option;
@@ -324,33 +328,45 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     }
     select?.dispatchEvent(new Event("change"));
   },
+  syncSelectedAttrs() {
+    this.selectedValues.clear();
+    for (let i = 0; i < this.allOptions.length; i++) {
+      let option = this.allOptions[i];
+      if (option.hasAttribute("selected")) {
+        this.activeIndex = i;
+        this.activeValue = option.value;
+        if (!this.multiple && this.selectedValues.size > 0) break;
+        this.selectedValues.set(option.value, {
+          label: option.textContent,
+          value: option.value,
+        });
+      }
+    }
+  },
   select: {
     ["x-init"]() {
       this.options = Array.from(this.$el.querySelectorAll("option"));
       this.allOptions = [...this.options];
       this.multiple = this.$el.multiple;
-      for (let i = 0, len = this.options.length; i < len; i++) {
-        let option = this.options[i];
-        if (option.hasAttribute('selected')) {
-          this.activeIndex = i;
-          this.activeValue = option.value;
-          if (this.selectedValues.size > 0 && !this.multiple) continue;
-          this.selectedValues.set(option.value, {
-            label: option.textContent,
-            value: option.value,
-          })
+      this.$nextTick(() => this.syncSelectedAttrs());
+      this.observer = new MutationObserver((mutations) => {
+        if (mutations.some(m => m.type === "childList")) {
+          this.options = Array.from(this.$el.querySelectorAll("option"));
+          this.allOptions = [...this.options];
+          if (this.$refs.input) {
+            this.setActiveIndex(this.$refs.input.value);
+            this.setActiveValue(this.$refs.input.value);
+          }
         }
-      }
-      this.observer = new MutationObserver(() => {
-        this.options = Array.from(this.$el.querySelectorAll("option"));
-        this.allOptions = [...this.options];
-        if (this.$refs.input) {
-          this.setActiveIndex(this.$refs.input.value);
-          this.setActiveValue(this.$refs.input.value);
+        if (mutations.some(m => m.type === "attributes")) {
+          this.syncSelectedAttrs();
         }
       });
       this.observer.observe(this.$el, {
-        childList: true
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["selected"],
       });
     },
   },
@@ -376,14 +392,14 @@ let filtersDropdown = () => ({
     // We use 'filter-changed' custom event instead of 'change' to avoid race condition
     // where HTMX collects form data before Alpine updates checkbox state
     this.$nextTick(() => {
-      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   },
   clearAll() {
     this.selected = [];
     this.$el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
     this.$nextTick(() => {
-      this.$el.dispatchEvent(new CustomEvent('filter-changed', {bubbles: true}));
+      this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
   }
 });
@@ -542,7 +558,7 @@ let spotlight = () => ({
             method: 'POST',
             credentials: 'same-origin',
             keepalive: true,
-          }).catch(() => {});
+          }).catch(() => { });
         }
         return;
       }
@@ -602,7 +618,7 @@ let spotlight = () => ({
         method: 'POST',
         credentials: 'same-origin',
         keepalive: true,
-      }).catch(() => {});
+      }).catch(() => { });
     }
   },
 
@@ -630,7 +646,7 @@ let spotlight = () => ({
           Accept: 'application/json',
         },
         credentials: 'same-origin',
-        body: JSON.stringify({q: query}),
+        body: JSON.stringify({ q: query }),
       });
       if (!response.ok) {
         throw new Error(`AI search failed with ${response.status}`);
@@ -841,7 +857,7 @@ let spotlight = () => ({
       method: 'POST',
       credentials: 'same-origin',
       keepalive: true,
-    }).catch(() => {});
+    }).catch(() => { });
   },
 
   updateAISnapshot(snapshot) {
@@ -1011,7 +1027,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
+        item.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     });
   },
@@ -1034,7 +1050,7 @@ let spotlight = () => ({
     this.$nextTick(() => {
       const item = items[this.highlightedIndex];
       if (item) {
-        item.scrollIntoView({block: 'nearest', behavior: 'auto'});
+        item.scrollIntoView({ block: 'nearest', behavior: 'auto' });
       }
     });
   },
@@ -1078,27 +1094,25 @@ let datePicker = ({
     labelFormat = labelFormat || 'F j, Y';
     dateFormat = dateFormat || 'z';
 
-    this.$el.setAttribute("x-modelable", "selected");
-
-    let {default: flatpickr} = await import("./lib/flatpickr/index.js");
+    let { default: flatpickr } = await import("./lib/flatpickr/index.js");
     let found = this.localeMap[locale];
     if (found) {
-      let {default: localeData} = await import(`./lib/flatpickr/locales/${found.path}`);
+      let { default: localeData } = await import(`./lib/flatpickr/locales/${found.path}`);
       flatpickr.localize(localeData[found.key]);
     }
     let plugins = [];
     if (selectorType === 'month') {
-      let {default: monthSelect} = await import('./lib/flatpickr/plugins/month-select.js');
+      let { default: monthSelect } = await import('./lib/flatpickr/plugins/month-select.js');
       plugins.push(monthSelect({
         altFormat: labelFormat,
         dateFormat: dateFormat,
         shortHand: true,
       }))
     } else if (selectorType === 'week') {
-      let {default: weekSelect} = await import('./lib/flatpickr/plugins/week-select.js');
+      let { default: weekSelect } = await import('./lib/flatpickr/plugins/week-select.js');
       plugins.push(weekSelect())
     } else if (selectorType === 'year') {
-      let {default: yearSelect} = await import('./lib/flatpickr/plugins/year-select.js');
+      let { default: yearSelect } = await import('./lib/flatpickr/plugins/year-select.js');
       plugins.push(yearSelect())
     }
     if (selected) {
@@ -1134,7 +1148,7 @@ let datePicker = ({
         self.$nextTick(() => {
           self.$el.dispatchEvent(new CustomEvent('date-selected', {
             bubbles: true,
-            detail: {selected: self.selected}
+            detail: { selected: self.selected }
           }));
         });
       },
@@ -1161,7 +1175,7 @@ let datePicker = ({
 
 let navTabs = (defaultValue = '') => ({
   activeTab: defaultValue,
-  backgroundStyle: {left: 0, width: 0, opacity: 0},
+  backgroundStyle: { left: 0, width: 0, opacity: 0 },
   restoreHandler: null,
 
   init() {
@@ -1188,7 +1202,7 @@ let navTabs = (defaultValue = '') => ({
     this.activeTab = tabValue;
     this.$nextTick(() => this.updateBackground());
     // Emit event for parent components to handle
-    this.$dispatch('tab-changed', {value: tabValue});
+    this.$dispatch('tab-changed', { value: tabValue });
   },
 
   updateBackground() {
@@ -1239,7 +1253,7 @@ window.initSidebarCollapsed = function() {
   return false;
 }
 
-let createAnchoredOverlayPositioner = ({gap = 8, minTop = 8} = {}) => ({
+let createAnchoredOverlayPositioner = ({ gap = 8, minTop = 8 } = {}) => ({
   rightStart(anchorEl) {
     if (!anchorEl) return null;
     const rect = anchorEl.getBoundingClientRect();
@@ -1289,7 +1303,7 @@ let sidebarShell = () => ({
       if (this.storedTab && this.$el.querySelector('[role="tablist"]')) {
         // Wait a bit for navTabs to initialize
         setTimeout(() => {
-          this.$dispatch('restore-tab', {value: this.storedTab});
+          this.$dispatch('restore-tab', { value: this.storedTab });
         }, 100);
       }
     });
@@ -1300,7 +1314,7 @@ let sidebarNavigation = () => ({
   collapsedMenus: [],
   outsideClickHandler: null,
   escapeHandler: null,
-  overlayPositioner: createAnchoredOverlayPositioner({gap: 8, minTop: 8}),
+  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
 
   onCollapsedGroupTrigger(event) {
     const trigger = event.currentTarget;
@@ -1429,7 +1443,7 @@ let disableFormElementsWhen = (query) => ({
     this.changeHandler = this.onChange.bind(this);
     this.media.addEventListener('change', this.changeHandler);
     this.observer = new MutationObserver(() => this.disableAllFormElements());
-    this.observer.observe(this.$el, {childList: true, subtree: true});
+    this.observer.observe(this.$el, { childList: true, subtree: true });
     this.disableAllFormElements();
   },
   destroy() {
@@ -1446,11 +1460,11 @@ let disableFormElementsWhen = (query) => ({
   }
 })
 
-let editableTableRows = ({rows, emptyRow} = {rows: [], emptyRow: ''}) => ({
+let editableTableRows = ({ rows, emptyRow } = { rows: [], emptyRow: '' }) => ({
   emptyRow,
   rows,
   addRow() {
-    this.rows.push({id: Math.random().toString(32).slice(2), html: this.emptyRow})
+    this.rows.push({ id: Math.random().toString(32).slice(2), html: this.emptyRow })
   },
   removeRow(id) {
     this.rows = this.rows.filter((row) => row.id !== id);
@@ -1550,7 +1564,7 @@ let moneyInput = (config = {}) => ({
     if (hiddenInput) {
       hiddenInput.dispatchEvent(new CustomEvent('money-changed', {
         bubbles: true,
-        detail: {amountInCents: this.amountInCents}
+        detail: { amountInCents: this.amountInCents }
       }));
     }
   },
@@ -1588,7 +1602,7 @@ let moneyInput = (config = {}) => ({
   }
 });
 
-let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
+let dateRangeButtons = ({ formID, hiddenStartID, hiddenEndID } = {}) => ({
   formatDate(d) {
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
@@ -1616,7 +1630,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
         if (typeof htmx !== 'undefined') {
           htmx.trigger(form, 'dateRangeChange');
         } else {
-          const event = new Event('change', {bubbles: true});
+          const event = new Event('change', { bubbles: true });
           form.dispatchEvent(event);
         }
       }, 50);
@@ -1668,7 +1682,7 @@ let dateRangeButtons = ({formID, hiddenStartID, hiddenEndID} = {}) => ({
         if (typeof htmx !== 'undefined') {
           htmx.trigger(form, 'dateRangeChange');
         } else {
-          const event = new Event('change', {bubbles: true});
+          const event = new Event('change', { bubbles: true });
           form.dispatchEvent(event);
         }
       }, 50);
@@ -1717,7 +1731,7 @@ function createPermissionSetData(allChecked, someChecked, permissionIds, setId) 
       checkboxes.forEach(checkbox => {
         if (checkbox) {
           checkbox.checked = checked;
-          checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
         }
       });
 
@@ -1786,7 +1800,7 @@ function createPermissionFormData(allChecked, someChecked, permissionIds) {
       const checkboxes = this.getPermissionCheckboxes();
       checkboxes.forEach(checkbox => {
         checkbox.checked = checked;
-        checkbox.dispatchEvent(new Event('change', {bubbles: true}));
+        checkbox.dispatchEvent(new Event('change', { bubbles: true }));
       });
 
       this.updateVisualToggle();
@@ -1906,7 +1920,7 @@ let fillerRows = (rowHeight = 49) => ({
   },
   _debounce(fn, ms) {
     let t;
-    return (...a) => {clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms);};
+    return (...a) => { clearTimeout(t); t = setTimeout(() => fn.apply(this, a), ms); };
   }
 });
 
@@ -1916,7 +1930,7 @@ let tableConfig = (id) => ({
   },
   columns: [],
   fixedColumns: [],
-  grid: {verticalLines: true, horizontalLines: true},
+  grid: { verticalLines: true, horizontalLines: true },
   table: null,
   rootEl: null,
   observer: null,
@@ -1940,6 +1954,9 @@ let tableConfig = (id) => ({
     let col = this.columns.find(c => c.key === colKey);
     if (!col) return;
     col.visible = !col.visible;
+    // Mark as user-controlled so an explicit show overrides responsive
+    // (max-*:hidden) auto-hiding via inline display.
+    col.userSet = true;
     this.save();
     this.applyConfiguration();
   },
@@ -1973,8 +1990,14 @@ let tableConfig = (id) => ({
       let cell = cellMap.get(col.key);
       if (cell) {
         if (!col.visible) {
+          // Explicitly hidden by the user.
           cell.style.display = 'none';
+        } else if (col.userSet) {
+          // User explicitly showed it: force visible, beating the
+          // responsive max-*:hidden class.
+          cell.style.display = 'table-cell';
         } else {
+          // Let CSS (incl. responsive priority classes) govern visibility.
           cell.style.display = '';
         }
         fragment.appendChild(cell);
@@ -2038,6 +2061,11 @@ let tableConfig = (id) => ({
             ...domCol,
             sticky: savedCol.sticky != undefined ? savedCol.sticky : domCol.sticky,
             visible: savedCol.visible != undefined ? savedCol.visible : true,
+            // userSet defaults to false for legacy configs that predate it.
+            userSet: savedCol.userSet === true,
+            // priority ALWAYS comes from the DOM (never stale localStorage) so
+            // developer-changed priorities take effect on next render.
+            priority: domCol.priority,
           });
         }
       });
@@ -2069,10 +2097,15 @@ let tableConfig = (id) => ({
       let key = th.dataset.col || `col-${index}`;
       let sticky = th.dataset.colSticky != undefined;
       let defaultHidden = th.dataset.colHidden != undefined;
+      let priority = parseInt(th.dataset.colPriority || '0', 10) || 0;
       columns.push({
         key,
         label: th.textContent.trim(),
         sticky,
+        priority,
+        // userSet tracks whether the user explicitly toggled this column,
+        // which lets an explicit "show" override responsive auto-hiding.
+        userSet: false,
         visible: !defaultHidden,
       });
     });
@@ -2087,7 +2120,7 @@ let tableConfig = (id) => ({
   },
 
   save() {
-    let config = JSON.stringify({key: this.key, columns: this.columns, grid: this.grid});
+    let config = JSON.stringify({ key: this.key, columns: this.columns, grid: this.grid });
     window.localStorage.setItem(this.key, config);
     return config;
   },
@@ -2122,7 +2155,7 @@ let tableConfig = (id) => ({
     });
 
     for (let body of tBodies) {
-      this.observer.observe(body, {childList: true});
+      this.observer.observe(body, { childList: true });
     }
   },
 
@@ -2130,6 +2163,259 @@ let tableConfig = (id) => ({
     if (this.observer) this.observer.disconnect();
   },
 })
+
+// cellTruncate enables a tooltip ONLY when a truncated cell's content actually
+// overflows. x-tooltip (Tippy) disables itself when overflowText is falsy.
+let cellTruncate = () => ({
+  overflowText: '',
+  init() {
+    this._measure = () => {
+      const el = this.$el;
+      if (!el) return;
+      this.overflowText = el.scrollWidth > el.clientWidth ? el.textContent.trim() : '';
+    };
+    // Coalesce ResizeObserver callbacks into a single rAF so a burst of resize
+    // notifications (container reflow, gear toggles) does one layout read, not
+    // a forced reflow per callback.
+    this._schedule = () => {
+      if (this._raf) return;
+      this._raf = requestAnimationFrame(() => { this._raf = 0; this._measure(); });
+    };
+    this.$nextTick(() => this._measure());
+    this._ro = new ResizeObserver(() => this._schedule());
+    this._ro.observe(this.$el);
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+    if (this._raf) cancelAnimationFrame(this._raf);
+  },
+});
+
+// scrollAffordance powers the horizontal scroll gradient overlays for the plain
+// (non-ScrollbarUnderHeader) table wrapper. The ScrollbarUnderHeader branch
+// folds this logic into its own inline x-data instead.
+let scrollAffordance = () => ({
+  canScrollLeft: false,
+  canScrollRight: false,
+  stickyR: 0,
+  init() {
+    this.sc = this.$refs.sc;
+    if (!this.sc) return;
+    this.$nextTick(() => this.measure());
+    this._ro = new ResizeObserver(() => this.measure());
+    this._ro.observe(this.sc);
+    this._mo = new MutationObserver(() => requestAnimationFrame(() => this.measure()));
+    this._mo.observe(this.sc.querySelector('tbody') || this.sc, { childList: true, subtree: true });
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+    if (this._mo) this._mo.disconnect();
+  },
+  measure() {
+    const sc = this.sc;
+    if (!sc || !sc.isConnected) return;
+    let sr = 0;
+    sc.querySelectorAll('thead th').forEach(th => {
+      const s = getComputedStyle(th);
+      if (s.position === 'sticky' && s.right !== 'auto') sr += th.offsetWidth;
+    });
+    this.stickyR = sr;
+    this.onScroll();
+  },
+  onScroll() {
+    const sc = this.sc;
+    if (!sc) return;
+    this.canScrollLeft = sc.scrollLeft > 0;
+    this.canScrollRight = sc.scrollLeft + sc.clientWidth < sc.scrollWidth - 1;
+  },
+});
+
+// tableKeyboardNav adds arrow-key row navigation + Enter-to-open for drawer
+// rows. Attached to the TBODY (not the configurable container) to avoid x-data
+// collision with tableConfig. It acts only when focus is on a [data-row-drawer]
+// row, so drawerless tables and inputs are never affected.
+let tableKeyboardNav = () => ({
+  lastRow: null,
+  init() {
+    this._onDrawerClosed = (event) => {
+      // Only react when the swap actually targeted the drawer, otherwise
+      // unrelated table swaps (infinite-scroll, filter, search) would steal
+      // focus back to the last clicked row.
+      if (event?.detail?.target?.id !== 'view-drawer') return;
+      const drawer = document.getElementById('view-drawer');
+      const empty = !drawer || drawer.children.length === 0;
+      if (empty && this.lastRow && this.lastRow.isConnected) {
+        this.lastRow.focus();
+      }
+    };
+    // Refocus the originating row when the drawer is cleared/closed.
+    document.addEventListener('htmx:afterSwap', this._onDrawerClosed);
+  },
+  destroy() {
+    document.removeEventListener('htmx:afterSwap', this._onDrawerClosed);
+  },
+  rows() {
+    return Array.from(this.$el.querySelectorAll('[data-row-drawer]'));
+  },
+  onKey(e) {
+    const active = document.activeElement;
+    if (!active || !active.matches || !active.matches('[data-row-drawer]')) return;
+    // Guard against the handler running more than once for the same keypress
+    // (e.g. if htmx-alpine-init re-initialises the tbody and binds a second
+    // @keydown listener). Both listeners share the event object, so a one-shot
+    // flag keeps a single ArrowDown/ArrowUp to exactly one row of movement.
+    if (e.__rowNavHandled) return;
+    const rows = this.rows();
+    const idx = rows.indexOf(active);
+    if (idx === -1) return;
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Enter') {
+      e.__rowNavHandled = true;
+    }
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const next = rows[idx + 1];
+      if (next) next.focus();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prev = rows[idx - 1];
+      if (prev) prev.focus();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      this.lastRow = active;
+      active.click();
+    }
+  },
+});
+
+// filterBuilder powers components/scaffold/filterbuilder: a chip-based
+// filter constructor. Chips are server-rendered; this factory only manages
+// popover state, writes the hidden `f` inputs (pkg/filterq URL codec) and
+// dispatches a bubbling `filter-changed` event so the enclosing HTMX form
+// resubmits.
+let filterBuilder = () => ({
+  adding: false,
+  editing: null, // chip index with an open edit popover
+  draftField: null, // field key picked in the add popover (stage 2)
+  fieldSearch: '',
+  openAdd() {
+    this.editing = null;
+    this.draftField = null;
+    this.fieldSearch = '';
+    this.adding = !this.adding;
+    if (this.adding) this.$nextTick(() => this.$refs.fieldSearchInput?.focus());
+  },
+  edit(i) {
+    this.adding = false;
+    this.draftField = null;
+    this.editing = this.editing === i ? null : i;
+  },
+  closeAll() {
+    this.adding = false;
+    this.editing = null;
+    this.draftField = null;
+  },
+  fieldMatches(el) {
+    const q = this.fieldSearch.trim().toLowerCase();
+    return !q || (el.dataset.fbLabel || '').toLowerCase().includes(q);
+  },
+  // Mirror of pkg/filterq EncodeCondition. Encode-only on purpose: decoding
+  // lives exclusively in Go, the server re-render is the source of truth.
+  encode({ field, op, values }) {
+    const esc = (v) => String(v).replaceAll('%', '%25').replaceAll(',', '%2C');
+    return field + ':' + op + ':' + values.map(esc).join(',');
+  },
+  applyFlag(field) {
+    this.onApply({ field, op: 'is', values: ['true'], chip: -1 });
+  },
+  onApply(detail) {
+    if (!detail || !detail.values || !detail.values.length) return;
+    const enc = this.encode(detail);
+    if (detail.chip >= 0) {
+      const input = this.$root.querySelector(`input[name="f"][data-fb-chip="${detail.chip}"]`);
+      if (input) input.value = enc;
+    } else {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'f';
+      input.value = enc;
+      this.$root.appendChild(input);
+    }
+    this.closeAll();
+    this.submit();
+  },
+  remove(i) {
+    // Capture nodes before deferring: Alpine magics ($root) are unavailable
+    // inside the $nextTick callback, and removing the wrapper (which contains
+    // the clicked button) synchronously would trip Alpine on the orphaned
+    // node and abort before the submit.
+    const root = this.$root;
+    const input = root.querySelector(`input[name="f"][data-fb-chip="${i}"]`);
+    const wrapper = input?.closest('[data-fb-chip-wrapper]');
+    this.closeAll();
+    this.$nextTick(() => {
+      wrapper?.remove();
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  clearAll() {
+    const root = this.$root;
+    this.closeAll();
+    this.$nextTick(() => {
+      root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
+      root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  submit() {
+    this.$root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+  },
+});
+
+// fbPanel is the polymorphic operator+value editor inside filterBuilder
+// popovers. It collects values from its nameless embedded controls and hands
+// them up to filterBuilder via the `fb-apply` event.
+let fbPanel = (cfg = {}) => ({
+  op: cfg.op,
+  preset: cfg.preset || '',
+  apply() {
+    const values = this.collect();
+    if (!values.length) return;
+    this.$dispatch('fb-apply', { field: cfg.field, op: this.op, values, chip: cfg.chip });
+  },
+  applyPreset(token) {
+    this.op = 'between';
+    this.preset = token;
+    this.$dispatch('fb-apply', {
+      field: cfg.field,
+      op: 'between',
+      values: ['preset:' + token],
+      chip: cfg.chip,
+    });
+  },
+  variantEl() {
+    const variant = this.op === 'between' ? 'range' : 'single';
+    return this.$root.querySelector(`[data-fb-variant="${variant}"]`);
+  },
+  collect() {
+    switch (cfg.type) {
+      case 'reference': {
+        const select = this.$root.querySelector('select[multiple]');
+        return Array.from(select?.selectedOptions ?? [])
+          .map((o) => o.value)
+          .filter((v) => v && !v.startsWith('__group:'));
+      }
+      case 'date': {
+        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"]') ?? [];
+        return Array.from(inputs).map((i) => i.value).filter(Boolean);
+      }
+      case 'number': {
+        const inputs = this.variantEl()?.querySelectorAll('input[data-fb-value]') ?? [];
+        return Array.from(inputs).map((i) => i.value.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  },
+});
 
 Alpine.data("dateTimeFormat", dateTimeFormat)
 Alpine.data("relativeformat", relativeFormat);
@@ -2153,4 +2439,9 @@ Alpine.data("createPermissionFormData", createPermissionFormData);
 Alpine.data("createPermissionSetData", createPermissionSetData);
 Alpine.data("fillerRows", fillerRows);
 Alpine.data("tableConfig", tableConfig);
+Alpine.data("cellTruncate", cellTruncate);
+Alpine.data("scrollAffordance", scrollAffordance);
+Alpine.data("tableKeyboardNav", tableKeyboardNav);
+Alpine.data("filterBuilder", filterBuilder);
+Alpine.data("fbPanel", fbPanel);
 Sortable(Alpine);

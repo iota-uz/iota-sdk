@@ -15,22 +15,6 @@ import (
 // use variadic splats like `AddNavItems(builder, optionalItems...)` without
 // guarding the caller side.
 
-// AddLocales attaches one or more locale embeds without requiring a closure.
-// Equivalent to ContributeLocales(b, func(*Container) ([]*embed.FS, error) {
-// return locales, nil }) but with zero ceremony.
-func AddLocales(builder *Builder, locales ...*embed.FS) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	if len(locales) == 0 {
-		return
-	}
-	captured := append([]*embed.FS(nil), locales...)
-	ContributeLocales(builder, func(*Container) ([]*embed.FS, error) {
-		return captured, nil
-	})
-}
-
 // AddNavItems attaches one or more navigation items.
 func AddNavItems(builder *Builder, items ...types.NavigationItem) {
 	if builder == nil {
@@ -43,6 +27,48 @@ func AddNavItems(builder *Builder, items ...types.NavigationItem) {
 	ContributeNavItems(builder, func(*Container) ([]types.NavigationItem, error) {
 		return captured, nil
 	})
+}
+
+// AddNavWorkspaces attaches one or more sidebar workspace declarations.
+func AddNavWorkspaces(builder *Builder, workspaces ...types.NavWorkspace) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(workspaces) == 0 {
+		return
+	}
+	captured := append([]types.NavWorkspace(nil), workspaces...)
+	ContributeNavWorkspaces(builder, func(*Container) ([]types.NavWorkspace, error) {
+		return captured, nil
+	})
+}
+
+// RemoveNavItemsByKey removes contributed navigation items with matching
+// stable keys after all nav contributions have materialized.
+func RemoveNavItemsByKey(builder *Builder, keys ...string) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	for _, key := range keys {
+		if key == "" {
+			continue
+		}
+		builder.navItemRemovals = append(builder.navItemRemovals, key)
+	}
+}
+
+// ReplaceNavItemsByKey replaces contributed navigation items by their stable
+// keys after all nav contributions have materialized.
+func ReplaceNavItemsByKey(builder *Builder, items ...types.NavigationItem) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	for _, item := range items {
+		if item.Key == "" {
+			continue
+		}
+		builder.navItemOverrides = append(builder.navItemOverrides, item)
+	}
 }
 
 // AddHashFS attaches one or more hashfs.FS asset bundles.

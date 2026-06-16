@@ -162,6 +162,11 @@ templ Rows(cfg *TableConfig) {
 						if !cfg.Columns[i].StickyPos().Unknown() {
 							cellAttrs["data-col-sticky"] = "true"
 						}
+						cellPriority := cfg.resolvedPriority(cfg.Columns[i])
+						if cellPriority > 0 {
+							cellAttrs["data-col-priority"] = strconv.Itoa(cellPriority)
+						}
+						truncate, truncWidth := cfg.resolvedTruncate(cfg.Columns[i])
 						maps.Copy(cellAttrs, cell.Attrs())
 						}}
 						@base.TableCell(base.TableCellProps{
@@ -171,11 +176,18 @@ templ Rows(cfg *TableConfig) {
 								templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								templ.KV("border-l border-primary", cfg.Columns[i].StickyPos() == StickyPositionRight),
 								templ.KV("border-r border-primary", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+								priorityCellClass(cellPriority),
 								cell.Classes(),
 							),
 							Attrs: cellAttrs,
 						}) {
-							@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
+							if truncate && !(cfg.Editable.Enabled && cfg.Columns[i].Editable()) {
+								<div class="truncate" style={ fmt.Sprintf("max-width:%dpx", truncWidth) } x-data="cellTruncate" x-tooltip="overflowText">
+									@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
+								</div>
+							} else {
+								@cell.Component(cfg.Columns[i], cfg.Editable.Enabled, true, templ.Attributes{})
+							}
 						}
 					}
 				}
@@ -192,6 +204,19 @@ templ InfiniteScrollSpinner(cfg *TableConfig) {
 			})
 		</td>
 	</tr>
+}
+
+// tableLoadingOverlay shows a centered spinner over the table while an HTMX
+// row/content swap is in flight. Visibility is driven entirely by the
+// `.htmx-request` ancestor class (see styles/tailwind/iota.css); paired with
+// `.hide-on-load` row dimming it produces a stale-while-revalidate loading
+// state instead of a blanked table body. Hidden (display:none) at rest.
+templ tableLoadingOverlay() {
+	<div class="table-loading-overlay" aria-hidden="true">
+		<div class="table-loading-overlay__card">
+			@loaders.Spinner(loaders.SpinnerProps{})
+		</div>
+	</div>
 }
 
 type editableRow struct {
@@ -291,6 +316,7 @@ templ Table(config *TableConfig) {
 templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 	<div
 		id="sortable-table-container"
+		class="relative"
 		hx-disinherit="*"
 		if config.Editable.Enabled {
 			{ setupAlpineData(ctx, config)... }
@@ -318,6 +344,8 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 			TBodyAttrs: templ.Attributes{
 				"id":          "table-body",
 				"hx-push-url": "false",
+				"x-data":      "tableKeyboardNav",
+				"@keydown":    "onKey",
 			},
 			THead: base.TableHead{
 				Attrs: headAttrs,
@@ -361,6 +389,7 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 				</tbody>
 			}
 		}
+		@tableLoadingOverlay()
 		if config.Configurable {
 			@dialog.Drawer(dialog.DrawerProps{
 				Action:    "open-table-settings",
@@ -590,7 +619,11 @@ templ TableContent(config *TableConfig) {
 templ TableSection(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	{{
-		hxTrigger := "keyup changed delay:300ms from:input, change from:input delay:500ms, change from:select, change from:input[type='checkbox']"
+		// Editor controls inside filter-builder popovers must not resubmit the
+		// form mid-edit. hx-trigger from:<selector> binds listeners directly on
+		// the source elements, so stopPropagation cannot shield them — event
+		// filters on target.closest() are the only reliable guard.
+		hxTrigger := "keyup[!target.closest('[data-fb-popover]')] changed delay:300ms from:input, change[!target.closest('[data-fb-popover]')] from:input delay:500ms, change[!target.closest('[data-fb-popover]')] from:select, change from:input[type='checkbox'], filter-changed"
 		if config.HxTrigger != "" {
 			hxTrigger = config.HxTrigger
 		}
@@ -603,7 +636,11 @@ templ TableSection(config *TableConfig) {
 		hx-swap={ config.ResolvedHxSwap() }
 		hx-indicator={ config.ResolvedHxIndicator() }
 		class={ templ.KV("flex-1 min-h-0", config.FullHeight) }
+		{ config.FormHxAttrs()... }
 	>
+		if len(config.DeferredPanels) > 0 {
+			@DeferredPanels(config)
+		}
 		<div
 			class={
 				templ.Classes(
@@ -651,6 +688,55 @@ templ TableSection(config *TableConfig) {
 			</div>
 		}
 	</form>
+}
+
+// DeferredPanels renders all registered deferred panels as the first child of
+// the table form — inside the form (to inherit filter state via hx-include)
+// but outside the swap target (so row/content swaps never destroy them).
+templ DeferredPanels(config *TableConfig) {
+	<div
+		class={
+			templ.Classes(
+				"flex flex-col gap-3 mb-3",
+				templ.KV("shrink-0", config.FullHeight),
+			),
+		}
+	>
+		for _, panel := range config.DeferredPanels {
+			@deferredPanel(config, panel)
+		}
+	</div>
+}
+
+// deferredPanel wires a single panel: skeleton on first paint, self-load on
+// `load`, reload on the form's RefreshEvent, sending the current filter form.
+templ deferredPanel(config *TableConfig, panel DeferredPanel) {
+	<div
+		id={ panel.ID }
+		class={ panel.Class }
+		hx-get={ panel.URL }
+		hx-trigger={ "load, " + config.RefreshEvent() + " from:closest form" }
+		hx-include="closest form"
+		hx-target="this"
+		hx-swap="innerHTML"
+		hx-sync="this:replace"
+		hx-push-url="false"
+	>
+		if panel.Skeleton != nil {
+			@panel.Skeleton
+		} else {
+			@DefaultPanelSkeleton()
+		}
+	</div>
+}
+
+// DefaultPanelSkeleton renders pulse placeholder chips for a deferred panel.
+templ DefaultPanelSkeleton() {
+	<div class="flex flex-wrap gap-3" aria-busy="true" aria-live="polite">
+		for i := 0; i < 3; i++ {
+			<div class="animate-pulse h-9 w-32 rounded-lg bg-surface-500"></div>
+		}
+	</div>
 }
 
 templ TableSettingsTrigger() {
@@ -721,6 +807,7 @@ templ Page(config *TableConfig) {
 func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.TableColumn {
 	result := make([]*base.TableColumn, len(config.Columns))
 	for i, col := range config.Columns {
+		_, truncWidth := config.resolvedTruncate(col)
 		result[i] = &base.TableColumn{
 			Key:   col.Key(),
 			Label: col.Label(),
@@ -737,6 +824,8 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.
 			Sticky:        !col.StickyPos().Unknown(),
 			DefaultHidden: col.DefaultHidden() && config.Configurable && !col.StickyPos().Left() && !col.StickyPos().Right(),
 			AddonBottom:   col.AddonBottom(),
+			TruncateWidth: truncWidth,
+			Priority:      config.resolvedPriority(col),
 		}
 	}
 

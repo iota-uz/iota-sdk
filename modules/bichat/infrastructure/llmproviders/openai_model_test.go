@@ -96,7 +96,10 @@ func TestOpenAIModel_Info(t *testing.T) {
 	info := model.Info()
 	assert.Equal(t, "gpt-5-mini", info.Name)
 	assert.Equal(t, "openai", info.Provider)
-	assert.Equal(t, 1_050_000, info.ContextWindow)
+	// Bare-major alias resolves to the mini spec (400K context), not the
+	// frontier default. Pre-2026-04 this incorrectly fell through to the
+	// big-model spec while still being charged mini prices.
+	assert.Equal(t, 400_000, info.ContextWindow)
 	assert.Contains(t, info.Capabilities, agents.CapabilityStreaming)
 	assert.Contains(t, info.Capabilities, agents.CapabilityTools)
 	assert.Contains(t, info.Capabilities, agents.CapabilityJSONMode)

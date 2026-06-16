@@ -5,9 +5,11 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/department"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/group"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/userposition"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/currency"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/upload"
@@ -82,6 +84,7 @@ func UploadToViewModel(entity upload.Upload) *viewmodels.Upload {
 		ID:        strconv.FormatUint(uint64(entity.ID()), 10),
 		Hash:      entity.Hash(),
 		Slug:      entity.Slug(),
+		Name:      entity.Name(),
 		URL:       entity.PreviewURL(),
 		Mimetype:  "",
 		Size:      entity.Size().String(),
@@ -138,5 +141,87 @@ func GroupToViewModel(entity group.Group) *viewmodels.Group {
 		UpdatedAt:   entity.UpdatedAt().Format(time.RFC3339),
 		CanUpdate:   entity.CanUpdate(),
 		CanDelete:   entity.CanDelete(),
+	}
+}
+
+// multiLangToMap returns the per-locale values of a MultiLang as a plain map,
+// tolerating a nil value so callers can pre-fill forms without nil checks.
+func multiLangToMap(ml interface{ GetAll() map[string]string }) map[string]string {
+	if ml == nil {
+		return map[string]string{}
+	}
+	all := ml.GetAll()
+	if all == nil {
+		return map[string]string{}
+	}
+	return all
+}
+
+// DepartmentToViewModel maps a department aggregate to its presentation model.
+// locale resolves the display name; parentNames resolves the parent department
+// label for the list view (nil-safe — an unknown parent renders blank).
+func DepartmentToViewModel(
+	entity department.Department,
+	locale string,
+	parentNames map[string]string,
+) *viewmodels.Department {
+	parentID := ""
+	parentName := ""
+	if entity.ParentID() != nil {
+		parentID = entity.ParentID().String()
+		if parentNames != nil {
+			parentName = parentNames[parentID]
+		}
+	}
+	return &viewmodels.Department{
+		ID:         entity.ID().String(),
+		Code:       entity.Code(),
+		Name:       entity.Name(locale),
+		NameI18n:   multiLangToMap(entity.NameI18n()),
+		ParentID:   parentID,
+		ParentName: parentName,
+		Order:      strconv.Itoa(entity.Order()),
+		Status:     string(entity.Status()),
+		CreatedAt:  entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:  entity.UpdatedAt().Format(time.RFC3339),
+		CanUpdate:  true,
+		CanDelete:  true,
+	}
+}
+
+// UserPositionToViewModel maps a user position aggregate to its presentation
+// model. locale resolves the display title; userNames and departmentNames
+// resolve the linked labels for the list view (nil-safe).
+func UserPositionToViewModel(
+	entity userposition.UserPosition,
+	locale string,
+	userNames map[string]string,
+	departmentNames map[string]string,
+) *viewmodels.UserPosition {
+	userID := strconv.FormatUint(uint64(entity.UserID()), 10)
+	departmentID := entity.DepartmentID().String()
+	userName := ""
+	if userNames != nil {
+		userName = userNames[userID]
+	}
+	departmentName := ""
+	if departmentNames != nil {
+		departmentName = departmentNames[departmentID]
+	}
+	return &viewmodels.UserPosition{
+		ID:             entity.ID().String(),
+		UserID:         userID,
+		UserName:       userName,
+		DepartmentID:   departmentID,
+		DepartmentName: departmentName,
+		Title:          entity.Title(locale),
+		TitleI18n:      multiLangToMap(entity.TitleI18n()),
+		IsManager:      entity.IsManager(),
+		IsPrimary:      entity.IsPrimary(),
+		Status:         string(entity.Status()),
+		CreatedAt:      entity.CreatedAt().Format(time.RFC3339),
+		UpdatedAt:      entity.UpdatedAt().Format(time.RFC3339),
+		CanUpdate:      true,
+		CanDelete:      true,
 	}
 }

@@ -20,7 +20,8 @@ templ Container() {
 			}
 		}"
 		@notify.window="addNotification($event.detail)"
-		class="fixed top-0 right-0 z-50 w-full max-w-sm p-4 space-y-3 pointer-events-none"
+		@remove-notification.window="removeNotification($event.detail)"
+		class="fixed top-0 right-0 z-[100] w-full max-w-sm p-4 space-y-3 pointer-events-none"
 		aria-live="assertive"
 	>
 		<template x-for="notification in notifications" :key="notification.id">
@@ -63,7 +64,6 @@ templ Container() {
 						}, 300);
 					}
 				}"
-				@remove-notification.window="if ($event.detail === notification.id) $root.closest('[x-data]').parentElement.querySelector('[x-data]').__x.$data.removeNotification(notification.id)"
 				@mouseenter="pauseTimer()"
 				@mouseleave="resumeTimer()"
 				x-show="isVisible"

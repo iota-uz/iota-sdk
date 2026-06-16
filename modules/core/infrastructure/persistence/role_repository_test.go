@@ -59,6 +59,13 @@ func TestGormRoleRepository_CRUD(t *testing.T) {
 			require.Error(t, err)
 		},
 	)
+
+	t.Run(
+		"DeleteNonExistent", func(t *testing.T) {
+			err := roleRepository.Delete(f.Ctx, roleEntity.ID())
+			require.ErrorIs(t, err, persistence.ErrRoleNotFound)
+		},
+	)
 }
 
 func TestGormRoleRepository_CreatePermissionResolutionScenarios(t *testing.T) {

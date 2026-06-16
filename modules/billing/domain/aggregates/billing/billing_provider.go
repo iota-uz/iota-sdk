@@ -12,6 +12,7 @@ const (
 	Octo       Gateway = "octo"
 	Stripe     Gateway = "stripe"
 	Cash       Gateway = "cash"
+	Transfer   Gateway = "transfer"
 	Integrator Gateway = "integrator"
 )
 

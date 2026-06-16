@@ -578,7 +578,8 @@
       "Sessions": "Sessions",
       "Logout": "Logout",
       "Settings": "Settings"
-    }
+    },
+    "Departments": "Departments"
   },
   "No": "No",
   "PerPage": "Per page",
@@ -914,6 +915,34 @@
     "Filters": {
       "Title": "Filters",
       "SelectAll": "Select All"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Add filter",
+      "ClearAll": "Clear all",
+      "Apply": "Apply",
+      "SearchFields": "Search filters...",
+      "SelectValues": "Select values...",
+      "NothingFound": "Nothing found",
+      "Remove": "Remove filter",
+      "Operators": {
+        "Is": "is",
+        "IsNot": "is not",
+        "Before": "before",
+        "After": "after",
+        "On": "on",
+        "Between": "between",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "This month",
+        "LastMonth": "Last month",
+        "Last30Days": "Last 30 days",
+        "Next30Days": "Next 30 days",
+        "ThisYear": "This year",
+        "LastYear": "Last year"
+      }
     }
   },
   "Search": "Search",
@@ -922,6 +951,9 @@
   "UploadLabel": "Upload File",
   "UploadPlaceholder": "Choose a file to upload",
   "DownloadTemplate": "Download Template",
+  "Running": "Running…",
+  "Warnings": "Warnings",
+  "Confirm": "Confirm",
   "Example": {
     "Below": "See example below"
   },
@@ -1092,6 +1124,7 @@
       "Access": "Access"
     },
     "Blocked": "Blocked",
+    "NoRole": "No role",
     "Block": {
       "Title": "Block User",
       "Button": "Block User",
@@ -1104,7 +1137,8 @@
       "Errors": {
         "ReasonRequired": "Block reason is required",
         "ReasonTooShort": "Block reason must be at least 3 characters",
-        "ReasonTooLong": "Block reason must not exceed 1024 characters"
+        "ReasonTooLong": "Block reason must not exceed 1024 characters",
+        "OperationFailed": "Unable to block user. Please try again."
       }
     },
     "Unblock": {
@@ -1274,5 +1308,94 @@
       "Title": "Settings",
       "BackToApp": "Back to app"
     }
-  }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Departments List"
+      },
+      "Edit": {
+        "Title": "Edit department"
+      },
+      "New": {
+        "Title": "New department"
+      }
+    },
+    "List": {
+      "New": "New department",
+      "Name": "Name",
+      "Code": "Code",
+      "Parent": "Parent",
+      "Status": "Status",
+      "NoDepartments": {
+        "Title": "No departments found",
+        "_Description": "Create your first department by clicking the 'New department' button"
+      }
+    },
+    "Single": {
+      "Name": "Name",
+      "Code": "Code",
+      "Parent": "Parent department",
+      "NoParent": "No parent",
+      "Order": "Order",
+      "Status": "Status",
+      "EnterName": "Enter name",
+      "EnterCode": "Enter code",
+      "EnterOrder": "Enter order"
+    },
+    "Status": {
+      "Active": "Active",
+      "Inactive": "Inactive"
+    },
+    "Errors": {
+      "SelfLoop": "A department cannot be its own parent.",
+      "Cycle": "This parent would create a circular hierarchy.",
+      "DuplicateCode": "This code is already in use by another department.",
+      "ParentNotFound": "The selected parent department was not found."
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Positions List"
+      },
+      "Edit": {
+        "Title": "Edit position"
+      },
+      "New": {
+        "Title": "New position"
+      }
+    },
+    "List": {
+      "New": "New position",
+      "Title": "Title",
+      "User": "User",
+      "Department": "Department",
+      "Role": "Role",
+      "Status": "Status",
+      "NoPositions": {
+        "Title": "No positions found",
+        "_Description": "Create your first position by clicking the 'New position' button"
+      }
+    },
+    "Single": {
+      "Title": "Title",
+      "User": "User",
+      "SelectUser": "Select user",
+      "Department": "Department",
+      "SelectDepartment": "Select department",
+      "IsManager": "Manager",
+      "IsPrimary": "Primary",
+      "Status": "Status",
+      "EnterTitle": "Enter title"
+    },
+    "Status": {
+      "Active": "Active",
+      "Inactive": "Inactive"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "Import Failed"
+  },
+  "DryRunNotice": "This is a preview — no data has been changed yet. Review the results above, then confirm to apply the import."
 }

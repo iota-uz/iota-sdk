@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
@@ -46,6 +47,13 @@ func (s *UserService) GetByID(ctx context.Context, id uint) (user.User, error) {
 		return nil, err
 	}
 	return s.repo.GetByID(ctx, id)
+}
+
+func (s *UserService) GetByIDs(ctx context.Context, ids []uint) ([]user.User, error) {
+	if err := composables.CanUser(ctx, permissions.UserRead); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByIDs(ctx, ids)
 }
 
 func (s *UserService) GetPaginated(ctx context.Context, params *user.FindParams) ([]user.User, error) {
@@ -251,10 +259,11 @@ func (s *UserService) BlockUser(ctx context.Context, userID uint, reason string)
 
 	// Validate reason length
 	reason = strings.TrimSpace(reason)
-	if len(reason) < 3 {
+	reasonLength := utf8.RuneCountInString(reason)
+	if reasonLength < 3 {
 		return nil, errors.New("block reason must be at least 3 characters")
 	}
-	if len(reason) > 1024 {
+	if reasonLength > 1024 {
 		return nil, errors.New("block reason must not exceed 1024 characters")
 	}
 

@@ -69,6 +69,10 @@ type ModuleOptions struct {
 	// registered. Use this for specialized binaries like superadmin that
 	// provide their own admin UI.
 	SkipAdminControllers bool
+
+	// SkipAdminNavItems suppresses contribution of the built-in admin
+	// navigation without affecting controller or spotlight registration.
+	SkipAdminNavItems bool
 }
 
 func NewComponent(opts *ModuleOptions) composition.Component {
@@ -86,10 +90,12 @@ func (c *component) Descriptor() composition.Descriptor {
 	return composition.Descriptor{Name: "core"}
 }
 
+func (c *component) LocaleFS() []*embed.FS {
+	return []*embed.FS{&LocaleFiles}
+}
+
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
-
-	composition.AddLocales(builder, &LocaleFiles)
 	composition.AddHashFS(builder, assets.HashFS)
 	// Self-service quick links are always available (AccountController
 	// is registered regardless of SkipAdminControllers).
@@ -98,11 +104,15 @@ func (c *component) Build(builder *composition.Builder) error {
 		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
 	)
 	if !c.options.SkipAdminControllers {
-		composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
+		if !c.options.SkipAdminNavItems {
+			composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
+		}
 		composition.AddQuickLinks(builder,
 			spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
 			spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
 			spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
+			spotlight.NewQuickLink(DepartmentsLink.Name, DepartmentsLink.Href),
+			spotlight.NewQuickLink(PositionsLink.Name, PositionsLink.Href),
 			spotlight.NewQuickLink("Users.List.New", "/users/new"),
 		)
 	}
@@ -129,9 +139,12 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, persistence.NewRecoveryCodeRepository)
 	composition.ProvideFunc(builder, persistence.NewGroupRepository)
 	composition.ProvideFunc(builder, persistence.NewCurrencyRepository)
+	composition.ProvideFunc(builder, persistence.NewDepartmentRepository)
+	composition.ProvideFunc(builder, persistence.NewUserPositionRepository)
 	composition.ProvideFunc(builder, query.NewPgUserQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgGroupQueryRepository)
 	composition.ProvideFunc(builder, query.NewPgRoleQueryRepository)
+	composition.ProvideFunc(builder, query.NewPgOrgQueryRepository)
 
 	// ----- Services -----
 	composition.ProvideFunc(builder, services.NewTenantService)
@@ -148,6 +161,9 @@ func (c *component) Build(builder *composition.Builder) error {
 	composition.ProvideFunc(builder, services.NewRoleService)
 	composition.ProvideFunc(builder, services.NewPermissionService)
 	composition.ProvideFunc(builder, services.NewGroupService)
+	composition.ProvideFunc(builder, services.NewDepartmentService)
+	composition.ProvideFunc(builder, services.NewUserPositionService)
+	composition.ProvideFunc(builder, services.NewOrgQueryService)
 	composition.ProvideFunc(builder, newCoreTwoFactorService)
 
 	// ----- Event handlers -----
@@ -318,6 +334,8 @@ func (c *component) Build(builder *composition.Builder) error {
 						PermissionSchema: opts.PermissionSchema,
 					}),
 					controllers.NewGroupsController(app),
+					controllers.NewDepartmentsController(app),
+					controllers.NewPositionsController(app),
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
 					controllers.NewSettingsLogoController(tenantService, uploadService),

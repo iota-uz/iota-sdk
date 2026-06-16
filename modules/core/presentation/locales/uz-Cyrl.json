@@ -578,7 +578,8 @@
       "Sessions": "Sessiyalar",
       "Logout": "Chiqish",
       "Settings": "Созламалар"
-    }
+    },
+    "Departments": "Бўлимлар"
   },
   "No": "Yo'q",
   "PerPage": "Sahifada",
@@ -914,6 +915,34 @@
     "Filters": {
       "Title": "Filtrlar",
       "SelectAll": "Barchasini tanlash"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Филтр қўшиш",
+      "ClearAll": "Ҳаммасини тозалаш",
+      "Apply": "Қўллаш",
+      "SearchFields": "Филтр қидириш...",
+      "SelectValues": "Қийматларни танланг...",
+      "NothingFound": "Ҳеч нарса топилмади",
+      "Remove": "Филтрни олиб ташлаш",
+      "Operators": {
+        "Is": "га тенг",
+        "IsNot": "га тенг эмас",
+        "Before": "гача",
+        "After": "дан кейин",
+        "On": "санада",
+        "Between": "оралиқда",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Шу ой",
+        "LastMonth": "Ўтган ой",
+        "Last30Days": "Охирги 30 кун",
+        "Next30Days": "Кейинги 30 кун",
+        "ThisYear": "Шу йил",
+        "LastYear": "Ўтган йил"
+      }
     }
   },
   "Search": "Qidirish",
@@ -922,6 +951,9 @@
   "UploadLabel": "Fayl yuklash",
   "UploadPlaceholder": "Yuklash uchun faylni tanlang",
   "DownloadTemplate": "Shablonni yuklab olish",
+  "Running": "Бажарилмоқда…",
+  "Warnings": "Огоҳлантиришлар",
+  "Confirm": "Тасдиқлаш",
   "Example": {
     "Below": "Quyida misolni ko'ring"
   },
@@ -1091,6 +1123,7 @@
       "Access": "Ruxsat"
     },
     "Blocked": "Bloklangan",
+    "NoRole": "Рол бириктирилмаган",
     "Block": {
       "Title": "Foydalanuvchini bloklash",
       "Button": "Bloklash",
@@ -1103,7 +1136,8 @@
       "Errors": {
         "ReasonRequired": "Bloklash sababi talab qilinadi",
         "ReasonTooShort": "Sabab kamida 3 ta belgidan iborat bo'lishi kerak",
-        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak"
+        "ReasonTooLong": "Sabab 1024 ta belgidan oshmasligi kerak",
+        "OperationFailed": "Фойдаланувчини блоклаб бўлмади. Илтимос, қайта уриниб кўринг."
       }
     },
     "Unblock": {
@@ -1273,5 +1307,94 @@
       "Title": "Созламалар",
       "BackToApp": "Орқага"
     }
-  }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Бўлимлар рўйхати"
+      },
+      "Edit": {
+        "Title": "Бўлимни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги бўлим"
+      }
+    },
+    "List": {
+      "New": "Янги бўлим",
+      "Name": "Номи",
+      "Code": "Код",
+      "Parent": "Она бўлим",
+      "Status": "Ҳолати",
+      "NoDepartments": {
+        "Title": "Бўлимлар топилмади",
+        "_Description": "«Янги бўлим» тугмасини босиб биринчи бўлимингизни яратинг"
+      }
+    },
+    "Single": {
+      "Name": "Номи",
+      "Code": "Код",
+      "Parent": "Она бўлим",
+      "NoParent": "Она бўлимсиз",
+      "Order": "Тартиб",
+      "Status": "Ҳолати",
+      "EnterName": "Номини киритинг",
+      "EnterCode": "Кодни киритинг",
+      "EnterOrder": "Тартибни киритинг"
+    },
+    "Status": {
+      "Active": "Фаол",
+      "Inactive": "Нофаол"
+    },
+    "Errors": {
+      "SelfLoop": "Бўлим ўзига ота-бўлим бўла олмайди.",
+      "Cycle": "Бу ота-бўлим айланма иерархияни яратади.",
+      "DuplicateCode": "Бу код бошқа бўлим томонидан ишлатилмоқда.",
+      "ParentNotFound": "Танланган ота-бўлим топилмади."
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Лавозимлар рўйхати"
+      },
+      "Edit": {
+        "Title": "Лавозимни таҳрирлаш"
+      },
+      "New": {
+        "Title": "Янги лавозим"
+      }
+    },
+    "List": {
+      "New": "Янги лавозим",
+      "Title": "Номи",
+      "User": "Фойдаланувчи",
+      "Department": "Бўлим",
+      "Role": "Рол",
+      "Status": "Ҳолати",
+      "NoPositions": {
+        "Title": "Лавозимлар топилмади",
+        "_Description": "«Янги лавозим» тугмасини босиб биринчи лавозимингизни яратинг"
+      }
+    },
+    "Single": {
+      "Title": "Номи",
+      "User": "Фойдаланувчи",
+      "SelectUser": "Фойдаланувчини танланг",
+      "Department": "Бўлим",
+      "SelectDepartment": "Бўлимни танланг",
+      "IsManager": "Раҳбар",
+      "IsPrimary": "Асосий",
+      "Status": "Ҳолати",
+      "EnterTitle": "Номини киритинг"
+    },
+    "Status": {
+      "Active": "Фаол",
+      "Inactive": "Нофаол"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "Импорт хатоси"
+  },
+  "DryRunNotice": "Бу — олдиндан кўриш. Маълумотлар ҳали ўзгартирилмади. Юқоридаги натижаларни текширинг ва импортни қўллаш учун тасдиқланг."
 }

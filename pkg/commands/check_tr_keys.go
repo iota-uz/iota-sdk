@@ -3,103 +3,72 @@ package commands
 
 import (
 	"bufio"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 
+	"github.com/BurntSushi/toml"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 
-	"github.com/iota-uz/iota-sdk/pkg/commands/common"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/config"
-	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 )
 
-// CheckTrKeys validates translation key consistency across the configured
-// locales. cfg, src, and logger are resolved by the caller (typically a cobra
-// RunE). When logger is nil a default logrus logger is used. When
-// allowedLocales is non-empty, only keys belonging to those locales are
-// validated; an empty slice checks every locale present in the bundle.
-func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger, allowedLocales []language.Tag, components ...composition.Component) error {
-	if logger == nil {
-		logger = logrus.StandardLogger()
+// CheckTrKeys validates translation key consistency across the locale files
+// shipped by the given components. It does NOT boot the application — no
+// database, Redis, NATS, S3 or DI container is initialized — so it is safe
+// to run as a fast pre-commit / CI check.
+//
+// Locale files are read directly from each Component's LocaleFS method.
+// Components without locales return nil and contribute nothing.
+//
+// The check performs three things:
+//  1. Parses every embedded locale file. The underlying go-i18n parser
+//     surfaces an error if a TOML/JSON table mixes reserved plural keys
+//     (one/other/description/hash/…) with regular sub-keys.
+//  2. Reports keys that exist in some locales but are missing from others.
+//  3. Walks rootPath for T()/TSafe() call sites and reports any translation
+//     key that is used in code but never defined in a locale file. rootPath
+//     should be the project root the caller wants scanned (typically the
+//     module's go.mod directory). Empty rootPath skips the undefined-key
+//     scan.
+func CheckTrKeys(allowedLanguages []string, rootPath string, components ...composition.Component) error {
+	logger := newDefaultLogger()
+
+	bundle := i18n.NewBundle(language.Russian)
+	bundle.RegisterUnmarshalFunc("json", json.Unmarshal)
+	bundle.RegisterUnmarshalFunc("toml", toml.Unmarshal)
+
+	if err := loadComponentLocales(bundle, components); err != nil {
+		return err
 	}
-	app, pool, err := common.NewApplicationWithDefaults(cfg, logger, src, components...)
+
+	messages := bundle.Messages()
+	if len(messages) == 0 {
+		return fmt.Errorf("no locale files were discovered from the supplied components")
+	}
+
+	allowedLocales, err := parseAllowedLanguages(allowedLanguages, messages)
 	if err != nil {
-		return fmt.Errorf("failed to initialize application: %w", err)
-	}
-	defer pool.Close()
-
-	messages := app.Bundle().Messages()
-
-	allowed := make(map[language.Tag]bool, len(allowedLocales))
-	for _, tag := range allowedLocales {
-		allowed[tag] = true
-	}
-	filterLocales := len(allowed) > 0
-
-	// Store all keys for each locale
-	allKeys := make(map[string]map[language.Tag]bool)
-	locales := make([]language.Tag, 0)
-
-	// First pass: collect all keys from locales
-	for locale, message := range messages {
-		if message == nil {
-			continue
-		}
-		if filterLocales && !allowed[locale] {
-			continue
-		}
-
-		locales = append(locales, locale)
-
-		for key := range message {
-			if allKeys[key] == nil {
-				allKeys[key] = make(map[language.Tag]bool)
-			}
-			allKeys[key][locale] = true
-		}
+		return err
 	}
 
-	// No locales found
+	allKeys, locales := collectKeys(messages, allowedLocales)
 	if len(locales) == 0 {
 		return fmt.Errorf("no locales found in the application bundle")
 	}
 
-	// Second pass: check for missing keys
-	missingKeys := false
-	for key, localeMap := range allKeys {
-		if len(localeMap) != len(locales) {
-			missingKeys = true
-
-			present := make([]string, 0)
-			missing := make([]string, 0)
-
-			for _, locale := range locales {
-				if localeMap[locale] {
-					present = append(present, locale.String())
-				} else {
-					missing = append(missing, locale.String())
-				}
-			}
-
-			logger.WithFields(logrus.Fields{
-				"key":          key,
-				"present_in":   strings.Join(present, ", "),
-				"missing_from": strings.Join(missing, ", "),
-			}).Error("Translation key mismatch")
-		}
-	}
-
-	if missingKeys {
+	if missing := reportMissingKeys(logger, allKeys, locales); missing {
 		return fmt.Errorf("some translation keys are not consistent across all locales, see logs for details")
 	}
 
@@ -108,11 +77,139 @@ func CheckTrKeys(cfg *dbconfig.Config, src config.Source, logger *logrus.Logger,
 		"key_count":    len(allKeys),
 	}).Info("All translation keys are consistent across all locales")
 
-	if err := checkForUndefinedKeys(allKeys, logger); err != nil {
-		return err
+	if rootPath == "" {
+		return nil
 	}
+	return checkForUndefinedKeys(allKeys, rootPath, logger)
+}
 
+// loadComponentLocales parses every locale file contributed by the components
+// into the supplied bundle. Each component's locale files are loaded in
+// registration order; duplicate filenames across components are tolerated
+// (go-i18n merges them into the same locale).
+func loadComponentLocales(bundle *i18n.Bundle, components []composition.Component) error {
+	for _, comp := range components {
+		for _, embedFS := range comp.LocaleFS() {
+			if embedFS == nil {
+				continue
+			}
+			if err := loadEmbedFSIntoBundle(bundle, embedFS); err != nil {
+				return fmt.Errorf("component %q: %w", comp.Descriptor().Name, err)
+			}
+		}
+	}
 	return nil
+}
+
+func loadEmbedFSIntoBundle(bundle *i18n.Bundle, embedFS *embed.FS) error {
+	return fs.WalkDir(embedFS, ".", func(path string, d fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if d.IsDir() {
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(path))
+		if ext != ".toml" && ext != ".json" {
+			return nil
+		}
+		data, err := embedFS.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read %s: %w", path, err)
+		}
+		if _, err := bundle.ParseMessageFileBytes(data, filepath.Base(path)); err != nil {
+			return fmt.Errorf("parse %s: %w", path, err)
+		}
+		return nil
+	})
+}
+
+func parseAllowedLanguages(allowed []string, messages map[language.Tag]map[string]*i18n.MessageTemplate) (map[string]language.Tag, error) {
+	out := make(map[string]language.Tag, len(allowed))
+	for _, code := range allowed {
+		tag, err := language.Parse(code)
+		if err != nil {
+			return nil, fmt.Errorf("invalid language code in whitelist: %s: %w", code, err)
+		}
+		if messages[tag] == nil {
+			return nil, fmt.Errorf("language %s (%s) is in whitelist but not found in bundle", code, tag)
+		}
+		out[code] = tag
+	}
+	return out, nil
+}
+
+func collectKeys(
+	messages map[language.Tag]map[string]*i18n.MessageTemplate,
+	allowedLocales map[string]language.Tag,
+) (map[string]map[language.Tag]bool, []language.Tag) {
+	allKeys := make(map[string]map[language.Tag]bool)
+	locales := make([]language.Tag, 0)
+
+	for locale, message := range messages {
+		if message == nil {
+			continue
+		}
+		if len(allowedLocales) > 0 {
+			isAllowed := false
+			for _, tag := range allowedLocales {
+				if locale == tag {
+					isAllowed = true
+					break
+				}
+			}
+			if !isAllowed {
+				continue
+			}
+		}
+
+		locales = append(locales, locale)
+		for key := range message {
+			if allKeys[key] == nil {
+				allKeys[key] = make(map[language.Tag]bool)
+			}
+			allKeys[key][locale] = true
+		}
+	}
+	return allKeys, locales
+}
+
+func reportMissingKeys(logger *logrus.Logger, allKeys map[string]map[language.Tag]bool, locales []language.Tag) bool {
+	missing := false
+	for key, localeMap := range allKeys {
+		if len(localeMap) == len(locales) {
+			continue
+		}
+		missing = true
+		present := make([]string, 0, len(locales))
+		absent := make([]string, 0, len(locales))
+		for _, locale := range locales {
+			if localeMap[locale] {
+				present = append(present, locale.String())
+			} else {
+				absent = append(absent, locale.String())
+			}
+		}
+		logger.WithFields(logrus.Fields{
+			"key":          key,
+			"present_in":   strings.Join(present, ", "),
+			"missing_from": strings.Join(absent, ", "),
+		}).Error("Translation key mismatch")
+	}
+	return missing
+}
+
+// newDefaultLogger returns a stdout logger so the command does not depend on
+// configuration.Use() (which loads .env and validates rate-limit / 2FA
+// settings — neither relevant to a static key-parity check).
+func newDefaultLogger() *logrus.Logger {
+	l := logrus.New()
+	l.SetOutput(os.Stdout)
+	l.SetFormatter(&logrus.TextFormatter{
+		FullTimestamp: false,
+		DisableQuote:  true,
+	})
+	return l
 }
 
 func extractKeysFromGoFile(path string, rootPath string, fset *token.FileSet) (map[string][]string, error) {
@@ -128,21 +225,17 @@ func extractKeysFromGoFile(path string, rootPath string, fset *token.FileSet) (m
 		if !ok {
 			return true
 		}
-
 		sel, ok := call.Fun.(*ast.SelectorExpr)
 		if !ok {
 			return true
 		}
-
 		methodName := sel.Sel.Name
 		if methodName != "T" && methodName != "TSafe" {
 			return true
 		}
-
 		if len(call.Args) == 0 {
 			return true
 		}
-
 		if lit, ok := call.Args[0].(*ast.BasicLit); ok && lit.Kind == token.STRING {
 			key := strings.Trim(lit.Value, `"`)
 			relPath, _ := filepath.Rel(rootPath, path)
@@ -150,7 +243,6 @@ func extractKeysFromGoFile(path string, rootPath string, fset *token.FileSet) (m
 			location := fmt.Sprintf("%s:%d", relPath, position.Line)
 			keysWithLocations[key] = append(keysWithLocations[key], location)
 		}
-
 		return true
 	})
 
@@ -175,7 +267,6 @@ func extractKeysFromTemplFile(path string, rootPath string) (map[string][]string
 	for scanner.Scan() {
 		lineNum++
 		line := scanner.Text()
-
 		matches := tCallRegex.FindAllStringSubmatch(line, -1)
 		for _, match := range matches {
 			if len(match) >= 2 {
@@ -186,11 +277,9 @@ func extractKeysFromTemplFile(path string, rootPath string) (map[string][]string
 			}
 		}
 	}
-
 	if err := scanner.Err(); err != nil {
 		return nil, err
 	}
-
 	return keysWithLocations, nil
 }
 
@@ -202,7 +291,6 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 		if err != nil {
 			return err
 		}
-
 		if info.IsDir() {
 			name := info.Name()
 			if name == "vendor" || name == "node_modules" || name == ".git" || name == "dist" || name == "build" {
@@ -225,11 +313,9 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 		if fileErr != nil {
 			return fileErr
 		}
-
 		for key, locations := range fileKeys {
 			keysWithLocations[key] = append(keysWithLocations[key], locations...)
 		}
-
 		return nil
 	})
 
@@ -238,6 +324,7 @@ func extractTranslationKeys(rootPath string) (map[string][]string, error) {
 
 // WriteRequiredKeysFile extracts T/TSafe translation keys from the codebase under projectRoot
 // and writes the unique, sorted list to outputPath as a JSON array of strings.
+// outputPath is created or overwritten. projectRoot is typically the application root (e.g. where go.mod lives).
 func WriteRequiredKeysFile(projectRoot, outputPath string) error {
 	keysWithLocations, err := extractTranslationKeys(projectRoot)
 	if err != nil {
@@ -261,13 +348,8 @@ func WriteRequiredKeysFile(projectRoot, outputPath string) error {
 	return nil
 }
 
-func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, logger *logrus.Logger) error {
-	logger.Info("Scanning codebase for T() and TSafe() calls...")
-
-	rootPath, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("failed to get working directory: %w", err)
-	}
+func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, rootPath string, logger *logrus.Logger) error {
+	logger.WithField("root", rootPath).Info("Scanning codebase for T() and TSafe() calls...")
 
 	usedKeys, err := extractTranslationKeys(rootPath)
 	if err != nil {
@@ -279,7 +361,6 @@ func checkForUndefinedKeys(allKeys map[string]map[language.Tag]bool, logger *log
 		if strings.HasSuffix(key, ".") {
 			continue
 		}
-
 		if _, exists := allKeys[key]; !exists {
 			undefinedKeys = true
 			logger.WithFields(logrus.Fields{
