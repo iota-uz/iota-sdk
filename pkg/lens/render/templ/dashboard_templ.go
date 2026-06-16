@@ -2288,7 +2288,7 @@ func MetricInfoButtonWithText(infoText, class string) templ.Component {
 			return
 		}
 		chartText := localizedChartText(ctx)
-		var templ_7745c5c3_Var108 = []any{"inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:text-slate-500 focus:outline-none cursor-pointer", class}
+		var templ_7745c5c3_Var108 = []any{"inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:text-slate-600 focus:outline-none cursor-pointer", class}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var108...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
