@@ -1795,6 +1795,7 @@ func TestBuildRelations_FullSQLQuery(t *testing.T) {
 
 // newTestPool creates a database pool for integration tests using environment variables.
 // Required env vars: DB_HOST, DB_PORT, DB_USER, DB_PASSWORD, DB_NAME (optional, defaults to "postgres")
+// TODO(W5): replace os.Getenv calls with config.Source lookup once pkg/configuration is deleted.
 func newTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 

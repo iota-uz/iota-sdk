@@ -13,6 +13,8 @@ import (
 func TestSeeder_SeedsAndBuildsOracle(t *testing.T) {
 	t.Parallel()
 
+	// BICHAT_EVAL_TEST_DSN is a dev-tooling env var that gates this integration test.
+	// Keeping os.Getenv here is intentional (test-infra exemption — not a production config dependency).
 	dsn := os.Getenv("BICHAT_EVAL_TEST_DSN")
 	if dsn == "" {
 		t.Skip("BICHAT_EVAL_TEST_DSN is not set")

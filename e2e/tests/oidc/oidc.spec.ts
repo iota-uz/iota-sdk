@@ -1,7 +1,8 @@
 import { test, expect, APIResponse, APIRequestContext } from '@playwright/test';
 
 const baseURL = process.env.BASE_URL ?? 'http://localhost:3201';
-const configuredIssuer = process.env.OIDC_ISSUER_URL ?? `${baseURL}/oidc`;
+// Prefer canonical OIDC_ISSUERURL; fall back to legacy OIDC_ISSUER_URL for operators still on old env names.
+const configuredIssuer = process.env.OIDC_ISSUERURL ?? process.env.OIDC_ISSUER_URL ?? `${baseURL}/oidc`;
 
 function assertOIDCEnabled(response: APIResponse, endpoint: string): void {
 	expect(response.status(), `${endpoint} returned 404. Set OIDC_ISSUER_URL and OIDC_CRYPTO_KEY to enable OIDC.`).not.toBe(404);

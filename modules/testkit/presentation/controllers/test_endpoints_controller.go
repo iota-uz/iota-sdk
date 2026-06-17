@@ -20,7 +20,8 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/testkit/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/twofactorconfig"
 	tf "github.com/iota-uz/iota-sdk/pkg/twofactor"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"golang.org/x/crypto/bcrypt"
@@ -81,15 +82,19 @@ func (c *OTPCache) cleanupExpired() {
 }
 
 type TestEndpointsController struct {
-	testService *services.TestDataService
-	otpCache    *OTPCache
-	mutationMu  sync.Mutex
+	testService  *services.TestDataService
+	otpCache     *OTPCache
+	mutationMu   sync.Mutex
+	appCfg       *appconfig.Config
+	twofactorCfg *twofactorconfig.Config
 }
 
-func NewTestEndpointsController(db *pgxpool.Pool) application.Controller {
+func NewTestEndpointsController(db *pgxpool.Pool, appCfg *appconfig.Config, twofactorCfg *twofactorconfig.Config) application.Controller {
 	return &TestEndpointsController{
-		testService: services.NewTestDataService(db),
-		otpCache:    newOTPCache(),
+		testService:  services.NewTestDataService(db),
+		otpCache:     newOTPCache(),
+		appCfg:       appCfg,
+		twofactorCfg: twofactorCfg,
 	}
 }
 
@@ -122,10 +127,9 @@ func (c *TestEndpointsController) Register(r *mux.Router) {
 
 func (c *TestEndpointsController) testEndpointsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		conf := configuration.Use()
 		logger := composables.UseLogger(r.Context())
 
-		if !conf.EnableTestEndpoints {
+		if c.appCfg == nil || !c.appCfg.EnableTestEndpoints {
 			logger.Warn("Test endpoints accessed but not enabled")
 			http.Error(w, "Test endpoints not enabled", http.StatusNotFound)
 			return
@@ -297,14 +301,19 @@ func (c *TestEndpointsController) handleListSeedScenarios(w http.ResponseWriter,
 func (c *TestEndpointsController) handleHealth(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	logger := composables.UseLogger(ctx)
-	conf := configuration.Use()
+
+	enableTestEndpoints := c.appCfg != nil && c.appCfg.EnableTestEndpoints
+	environment := ""
+	if c.appCfg != nil {
+		environment = c.appCfg.Environment
+	}
 
 	response := map[string]interface{}{
 		"success": true,
 		"message": "Test endpoints are healthy",
 		"config": map[string]interface{}{
-			"enableTestEndpoints": conf.EnableTestEndpoints,
-			"environment":         conf.GoAppEnvironment,
+			"enableTestEndpoints": enableTestEndpoints,
+			"environment":         environment,
 		},
 	}
 
@@ -379,10 +388,15 @@ func (c *TestEndpointsController) handleGenerateOTP(w http.ResponseWriter, r *ht
 	}
 
 	// Generate OTP code (6 digits by default)
-	conf := configuration.Use()
-	codeLength := conf.TwoFactorAuth.OTPCodeLength
-	if codeLength == 0 {
-		codeLength = 6
+	codeLength := 6
+	ttlSeconds := 300
+	if c.twofactorCfg != nil {
+		if c.twofactorCfg.OTP.CodeLength != 0 {
+			codeLength = c.twofactorCfg.OTP.CodeLength
+		}
+		if c.twofactorCfg.OTP.TTLSeconds != 0 {
+			ttlSeconds = c.twofactorCfg.OTP.TTLSeconds
+		}
 	}
 
 	code, err := c.generateOTPCode(codeLength)
@@ -409,10 +423,6 @@ func (c *TestEndpointsController) handleGenerateOTP(w http.ResponseWriter, r *ht
 	}
 
 	// Calculate expiration (5 minutes by default)
-	ttlSeconds := conf.TwoFactorAuth.OTPTTLSeconds
-	if ttlSeconds == 0 {
-		ttlSeconds = 300
-	}
 	expiresAt := time.Now().Add(time.Duration(ttlSeconds) * time.Second)
 
 	// Create OTP entity

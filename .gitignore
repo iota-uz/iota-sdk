@@ -7,6 +7,7 @@ tmp/
 coverage
 node_modules
 static
+!pkg/config/providers/static/
 uploads
 *_templ.txt
 modules/core/presentation/assets/css/main.min.css

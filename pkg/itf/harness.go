@@ -21,7 +21,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -119,6 +119,8 @@ type ContextConfig struct {
 type HarnessConfig struct {
 	Name       string
 	Components []composition.Component
+	// Source is optional; forwarded to SetupApplication for ProvideConfig[T].
+	Source config.Source
 	// Capabilities controls which composition capabilities are active when
 	// the harness compiles its container. Empty defaults to the historical
 	// behaviour of [CapabilityAPI, CapabilityWorker]. Set to a narrower
@@ -401,7 +403,8 @@ func (s *harnessState) close(cleanup CleanupMode) error {
 			s.pool.Close()
 		}
 		if cleanup == CleanupDropOnExit {
-			if err := DropDBE(s.dbName); err != nil {
+			db := LoadDBConfigFromEnv()
+			if err := DropDBE(s.dbName, db); err != nil {
 				closeErr = mergeCloseErrors(closeErr, serrors.E(opDropDB, err, "drop database on close"))
 			}
 		}
@@ -419,36 +422,26 @@ func mergeCloseErrors(existing, next error) error {
 	return errors.Join(existing, next)
 }
 
-func harnessDBOpts(name string) string {
-	c := configuration.Use()
-	return fmt.Sprintf(
-		"host=%s port=%s user=%s dbname=%s password=%s sslmode=disable",
-		c.Database.Host,
-		c.Database.Port,
-		c.Database.User,
-		strings.ToLower(sanitizeDBName(name)),
-		c.Database.Password,
-	)
-}
-
 func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harnessState, error) {
+	db := LoadDBConfigFromEnv()
+
 	dbName := buildDBName(cfg.Name, key, isPerTest)
-	if err := CreateDBE(dbName); err != nil {
+	if err := CreateDBE(dbName, db); err != nil {
 		return nil, serrors.E(opCreateDB, err, "create database")
 	}
 
-	pool, err := newPoolWithConfig(harnessDBOpts(dbName), cfg.Database.Pool)
+	pool, err := newPoolWithConfig(DBOpts(dbName, db), cfg.Database.Pool)
 	if err != nil {
-		if cleanupErr := DropDBE(dbName); cleanupErr != nil {
+		if cleanupErr := DropDBE(dbName, db); cleanupErr != nil {
 			return nil, serrors.E(opCreatePool, cleanupErr, "cleanup database after pool creation failure")
 		}
 		return nil, serrors.E(opCreatePool, err, "create pool")
 	}
 
-	app, container, err := SetupApplication(pool, cfg.Components, cfg.Capabilities...)
+	app, container, err := setupApplicationWithSource(pool, nil, cfg.Components, cfg.Source, cfg.Capabilities...)
 	if err != nil {
 		pool.Close()
-		_ = DropDBE(dbName)
+		_ = DropDBE(dbName, db)
 		return nil, serrors.E(opSetupApplication, err, "setup application")
 	}
 
@@ -456,7 +449,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
 		closeErr := closeApplication(app, container)
 		pool.Close()
-		dropErr := DropDBE(dbName)
+		dropErr := DropDBE(dbName, db)
 		if closeErr != nil {
 			combinedErr = mergeCloseErrors(
 				combinedErr,
@@ -476,7 +469,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 	if err != nil {
 		closeErr := closeApplication(app, container)
 		pool.Close()
-		_ = DropDBE(dbName)
+		_ = DropDBE(dbName, db)
 		if closeErr != nil {
 			return nil, serrors.E(opResolveTenant, closeErr, "failed to close controllers before tenant resolve failure")
 		}
@@ -491,7 +484,7 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		}); err != nil {
 			closeErr := closeApplication(app, container)
 			pool.Close()
-			_ = DropDBE(dbName)
+			_ = DropDBE(dbName, db)
 			if closeErr != nil {
 				return nil, serrors.E(opOncePerHarnessSeed, closeErr, "failed to close controllers before seed failure")
 			}

@@ -3,9 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
-	"runtime/debug"
 
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules/core"
@@ -13,38 +10,28 @@ import (
 	superadminMiddleware "github.com/iota-uz/iota-sdk/modules/superadmin/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 )
 
 func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			configuration.Use().Unload()
-			log.Println(r)
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
-	if err := run(); err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+	bootstrap.Main(run)
 }
 
 func run() error {
-	conf := configuration.Use()
-	serviceName := conf.OpenTelemetry.ServiceName
-	if serviceName != "" {
-		serviceName += "-superadmin"
+	src, err := config.Build(envprov.New(".env", ".env.local"))
+	if err != nil {
+		return fmt.Errorf("failed to build config source: %w", err)
 	}
 
 	rt, cleanup, err := bootstrap.NewRuntime(
 		context.Background(),
-		bootstrap.IotaConfigWithServiceName(conf, serviceName),
+		bootstrap.IotaSourceWithServiceName(src, resolveSuperadminServiceName(src)),
 	)
 	if err != nil {
 		return fmt.Errorf("failed to initialize runtime: %w", err)
@@ -85,13 +72,38 @@ func run() error {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
 
+	httpCfg, err := composition.Resolve[*httpconfig.Config](rt.Container())
+	if err != nil {
+		return fmt.Errorf("failed to resolve httpconfig: %w", err)
+	}
+	appCfg, err := composition.Resolve[*appconfig.Config](rt.Container())
+	if err != nil {
+		return fmt.Errorf("failed to resolve appconfig: %w", err)
+	}
+
+	socketAddr := appCfg.SocketAddress(httpCfg.Port)
 	rt.Logger.Info("Super Admin Server starting...")
-	rt.Logger.Info("Listening on: " + conf.SocketAddress)
+	rt.Logger.Info("Listening on: " + socketAddr)
 	rt.Logger.Info("Core auth/upload controllers and superadmin controllers loaded")
 	rt.Logger.Info("SuperAdmin authentication required for all routes")
 
-	if err := serverInstance.Start(conf.SocketAddress); err != nil {
+	if err := serverInstance.Start(socketAddr); err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 	return nil
+}
+
+// resolveSuperadminServiceName reads the telemetry service name from the source
+// and appends "-superadmin". Falls back to empty string when not configured.
+func resolveSuperadminServiceName(src config.Source) string {
+	type telOnly struct {
+		OTEL struct {
+			ServiceName string `koanf:"servicename"`
+		} `koanf:"otel"`
+	}
+	var t telOnly
+	if err := src.Unmarshal("telemetry", &t); err != nil || t.OTEL.ServiceName == "" {
+		return ""
+	}
+	return t.OTEL.ServiceName + "-superadmin"
 }

@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/logging"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -110,17 +110,17 @@ func WithImageUploadResolver(resolver OpenAIImageUploadLookup) OpenAIModelOption
 	}
 }
 
-// NewOpenAIModel creates a new OpenAI model from environment variables.
-// It reads OPENAI_API_KEY (required) and OPENAI_MODEL (optional, defaults to the provider catalog default).
-func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
-	const op serrors.Op = "llmproviders.NewOpenAIModel"
+// NewOpenAIModelFromConfig creates a new OpenAI model from a typed bichatconfig.OpenAIConfig.
+// Returns an error when APIKey is empty.
+func NewOpenAIModelFromConfig(cfg bichatconfig.OpenAIConfig, opts ...OpenAIModelOption) (agents.Model, error) {
+	const op serrors.Op = "llmproviders.NewOpenAIModelFromConfig"
 
-	apiKey := os.Getenv("OPENAI_API_KEY")
+	apiKey := strings.TrimSpace(cfg.APIKey)
 	if apiKey == "" {
-		return nil, serrors.E(op, "OPENAI_API_KEY environment variable is required")
+		return nil, serrors.E(op, "OpenAI API key is required (bichat.openai.apikey)")
 	}
 
-	modelName := strings.TrimSpace(os.Getenv("OPENAI_MODEL"))
+	modelName := strings.TrimSpace(cfg.Model)
 	if modelName == "" {
 		if defaultName, ok := agents.DefaultModelForProvider(agents.ProviderOpenAI); ok {
 			modelName = defaultName
@@ -129,8 +129,8 @@ func NewOpenAIModel(opts ...OpenAIModelOption) (agents.Model, error) {
 		}
 	}
 
-	baseURL := strings.TrimSpace(os.Getenv("OPENAI_BASE_URL"))
-	resolveIP := strings.TrimSpace(os.Getenv("OPENAI_API_RESOLVE_IP"))
+	baseURL := strings.TrimSpace(cfg.BaseURL)
+	resolveIP := strings.TrimSpace(cfg.ResolveIP)
 	clientOptions := []option.RequestOption{
 		option.WithAPIKey(apiKey),
 	}

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,15 +22,15 @@ func ensureE2EDatabaseEnv() {
 	_ = os.Setenv("DB_NAME", E2EDBName)
 }
 
-// GetE2EPool creates a database connection pool for e2e tests
-func GetE2EPool() (*pgxpool.Pool, error) {
+// GetE2EPool creates a database connection pool for e2e tests.
+func GetE2EPool(cfg *dbconfig.Config) (*pgxpool.Pool, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	pool, err := common.GetDatabasePool(ctx, E2EDBName)
+	pool, err := common.GetDatabasePool(ctx, cfg, E2EDBName)
 	if err != nil {
 		// If connection to e2e database fails, try connecting to postgres database to create it
-		postgresPool, postgresErr := common.GetDatabasePool(ctx, "postgres")
+		postgresPool, postgresErr := common.GetDatabasePool(ctx, cfg, "postgres")
 		if postgresErr != nil {
 			return nil, fmt.Errorf("failed to connect to PostgreSQL: %w", postgresErr)
 		}
@@ -43,7 +44,7 @@ func GetE2EPool() (*pgxpool.Pool, error) {
 		}
 
 		// Try connecting to e2e database again
-		pool, err = common.GetDatabasePool(ctx, E2EDBName)
+		pool, err = common.GetDatabasePool(ctx, cfg, E2EDBName)
 		if err != nil {
 			return nil, err
 		}

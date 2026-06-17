@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"os"
-	"runtime/debug"
 
 	"github.com/iota-uz/applets"
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
@@ -13,29 +11,24 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/bichat"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/server"
 )
 
 func main() {
-	defer func() {
-		if r := recover(); r != nil {
-			configuration.Use().Unload()
-			log.Println(r)
-			debug.PrintStack()
-			os.Exit(1)
-		}
-	}()
-
-	if err := run(); err != nil {
-		log.Println(err)
-		os.Exit(1)
-	}
+	bootstrap.Main(run)
 }
 
 func run() error {
-	conf := configuration.Use()
-	rt, cleanup, err := bootstrap.NewRuntime(context.Background(), bootstrap.IotaConfig(conf))
+	src, err := config.Build(envprov.New(".env", ".env.local"))
+	if err != nil {
+		return fmt.Errorf("failed to build config source: %w", err)
+	}
+
+	rt, cleanup, err := bootstrap.NewRuntime(context.Background(), bootstrap.IotaSource(src))
 	if err != nil {
 		return fmt.Errorf("failed to initialize runtime: %w", err)
 	}
@@ -68,8 +61,18 @@ func run() error {
 		return fmt.Errorf("failed to create server: %w", err)
 	}
 
-	log.Printf("Listening on: %s\n", conf.Origin)
-	if err := serverInstance.Start(conf.SocketAddress); err != nil {
+	httpCfg, err := composition.Resolve[*httpconfig.Config](rt.Container())
+	if err != nil {
+		return fmt.Errorf("failed to resolve httpconfig: %w", err)
+	}
+	appCfg, err := composition.Resolve[*appconfig.Config](rt.Container())
+	if err != nil {
+		return fmt.Errorf("failed to resolve appconfig: %w", err)
+	}
+
+	socketAddr := appCfg.SocketAddress(httpCfg.Port)
+	log.Printf("Listening on: %s\n", httpCfg.Origin(appCfg))
+	if err := serverInstance.Start(socketAddr); err != nil {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 	return nil

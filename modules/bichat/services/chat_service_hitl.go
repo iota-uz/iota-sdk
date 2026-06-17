@@ -17,7 +17,6 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -122,10 +121,9 @@ func (s *chatServiceImpl) markAsyncQuestionRunFailed(
 	if err := s.withinTx(updateCtx, func(txCtx context.Context) error {
 		return s.chatRepo.UpdateMessageQuestionData(txCtx, msgID, failedQuestionData)
 	}); err != nil {
-		configuration.Use().Logger().
-			WithError(err).
-			WithField("message_id", msgID.String()).
-			Error("failed to persist HITL resume failure state")
+		if e := s.logEntry(); e != nil {
+			e.WithError(err).WithField("message_id", msgID.String()).Error("failed to persist HITL resume failure state")
+		}
 	}
 }
 
@@ -258,11 +256,12 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	}
 	resolvedCheckpointID, checkpointMismatch := hitlsvc.ResolveCheckpoint(req.CheckpointID, canonicalCheckpointID)
 	if checkpointMismatch {
-		configuration.Use().Logger().
-			WithField("session_id", req.SessionID.String()).
-			WithField("requested_checkpoint_id", strings.TrimSpace(req.CheckpointID)).
-			WithField("canonical_checkpoint_id", canonicalCheckpointID).
-			Warn("resume request checkpoint mismatch; using canonical checkpoint from pending question")
+		if e := s.logEntry(); e != nil {
+			e.WithField("session_id", req.SessionID.String()).
+				WithField("requested_checkpoint_id", strings.TrimSpace(req.CheckpointID)).
+				WithField("canonical_checkpoint_id", canonicalCheckpointID).
+				Warn("resume request checkpoint mismatch; using canonical checkpoint from pending question")
+		}
 	}
 
 	normalizedAnswerValues, answersMap, err := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
@@ -278,11 +277,12 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	gen, err := s.agentService.ResumeWithAnswer(ctx, req.SessionID, resolvedCheckpointID, answersMap)
 	if err != nil {
 		if errors.Is(err, agents.ErrCheckpointNotFound) {
-			configuration.Use().Logger().
-				WithError(err).
-				WithField("session_id", req.SessionID.String()).
-				WithField("checkpoint_id", resolvedCheckpointID).
-				Warn("resume checkpoint missing; finalizing pending question as answered")
+			if e := s.logEntry(); e != nil {
+				e.WithError(err).
+					WithField("session_id", req.SessionID.String()).
+					WithField("checkpoint_id", resolvedCheckpointID).
+					Warn("resume checkpoint missing; finalizing pending question as answered")
+			}
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, req.SessionID, pendingMsg, answeredQD)
 		}
@@ -294,11 +294,12 @@ func (s *chatServiceImpl) ResumeWithAnswer(ctx context.Context, req bichatservic
 	result, err := consumeAgentEvents(ctx, gen)
 	if err != nil {
 		if errors.Is(err, agents.ErrCheckpointNotFound) {
-			configuration.Use().Logger().
-				WithError(err).
-				WithField("session_id", req.SessionID.String()).
-				WithField("checkpoint_id", resolvedCheckpointID).
-				Warn("resume checkpoint missing during stream consumption; finalizing pending question as answered")
+			if e := s.logEntry(); e != nil {
+				e.WithError(err).
+					WithField("session_id", req.SessionID.String()).
+					WithField("checkpoint_id", resolvedCheckpointID).
+					Warn("resume checkpoint missing during stream consumption; finalizing pending question as answered")
+			}
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, req.SessionID, pendingMsg, answeredQD)
 		}
@@ -376,11 +377,12 @@ func (s *chatServiceImpl) ResumeWithAnswerAsync(ctx context.Context, req bichats
 			var checkpointMismatch bool
 			resolvedCheckpointID, checkpointMismatch = hitlsvc.ResolveCheckpoint(req.CheckpointID, canonicalCheckpointID)
 			if checkpointMismatch {
-				configuration.Use().Logger().
-					WithField("session_id", req.SessionID.String()).
-					WithField("requested_checkpoint_id", strings.TrimSpace(req.CheckpointID)).
-					WithField("canonical_checkpoint_id", canonicalCheckpointID).
-					Warn("async resume request checkpoint mismatch; using canonical checkpoint from pending question")
+				if e := s.logEntry(); e != nil {
+					e.WithField("session_id", req.SessionID.String()).
+						WithField("requested_checkpoint_id", strings.TrimSpace(req.CheckpointID)).
+						WithField("canonical_checkpoint_id", canonicalCheckpointID).
+						Warn("async resume request checkpoint mismatch; using canonical checkpoint from pending question")
+				}
 			}
 
 			normalizedAnswerValues, normalizedAnswersMap, err := hitlsvc.NormalizeAnswers(qd.Questions, req.Answers)
@@ -556,11 +558,12 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	gen, err := s.agentService.ResumeWithAnswer(ctx, sessionID, qd.CheckpointID, rejectionAnswers)
 	if err != nil {
 		if errors.Is(err, agents.ErrCheckpointNotFound) {
-			configuration.Use().Logger().
-				WithError(err).
-				WithField("session_id", sessionID.String()).
-				WithField("checkpoint_id", qd.CheckpointID).
-				Warn("reject checkpoint missing; finalizing pending question as rejected")
+			if e := s.logEntry(); e != nil {
+				e.WithError(err).
+					WithField("session_id", sessionID.String()).
+					WithField("checkpoint_id", qd.CheckpointID).
+					Warn("reject checkpoint missing; finalizing pending question as rejected")
+			}
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, sessionID, pendingMsg, rejectedQD)
 		}
@@ -572,11 +575,12 @@ func (s *chatServiceImpl) RejectPendingQuestion(ctx context.Context, sessionID u
 	result, err := consumeAgentEvents(ctx, gen)
 	if err != nil {
 		if errors.Is(err, agents.ErrCheckpointNotFound) {
-			configuration.Use().Logger().
-				WithError(err).
-				WithField("session_id", sessionID.String()).
-				WithField("checkpoint_id", qd.CheckpointID).
-				Warn("reject checkpoint missing during stream consumption; finalizing pending question as rejected")
+			if e := s.logEntry(); e != nil {
+				e.WithError(err).
+					WithField("session_id", sessionID.String()).
+					WithField("checkpoint_id", qd.CheckpointID).
+					Warn("reject checkpoint missing during stream consumption; finalizing pending question as rejected")
+			}
 
 			return s.finalizeSyncCheckpointMiss(ctx, op, session, sessionID, pendingMsg, rejectedQD)
 		}
@@ -928,15 +932,17 @@ func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID
 			if enqueueErr == nil {
 				return
 			}
-			configuration.Use().Logger().
-				WithError(enqueueErr).
-				WithField("session_id", sessionID.String()).
-				Warn("failed to enqueue title generation job, using sync fallback")
+			if e := s.logEntry(); e != nil {
+				e.WithError(enqueueErr).
+					WithField("session_id", sessionID.String()).
+					Warn("failed to enqueue title generation job, using sync fallback")
+			}
 		} else {
-			configuration.Use().Logger().
-				WithError(tenantErr).
-				WithField("session_id", sessionID.String()).
-				Warn("missing tenant context for title job enqueue, using sync fallback")
+			if e := s.logEntry(); e != nil {
+				e.WithError(tenantErr).
+					WithField("session_id", sessionID.String()).
+					Warn("missing tenant context for title job enqueue, using sync fallback")
+			}
 		}
 	}
 
@@ -945,10 +951,11 @@ func (s *chatServiceImpl) maybeGenerateTitleAsync(ctx context.Context, sessionID
 	defer cancel()
 
 	if err := s.titleService.GenerateSessionTitle(titleCtx, sessionID); err != nil {
-		configuration.Use().Logger().
-			WithError(err).
-			WithField("session_id", sessionID.String()).
-			Warn("failed to auto-generate session title via sync fallback")
+		if e := s.logEntry(); e != nil {
+			e.WithError(err).
+				WithField("session_id", sessionID.String()).
+				Warn("failed to auto-generate session title via sync fallback")
+		}
 	}
 }
 

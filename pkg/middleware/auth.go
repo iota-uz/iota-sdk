@@ -16,14 +16,30 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 )
 
-func getToken(r *http.Request) (string, error) {
-	conf := configuration.Use()
-	token, err := r.Cookie(conf.SidCookieKey)
+// resolveSIDKey returns the session-ID cookie key from the typed cookies.Config
+// registered in the composition container, falling back to "sid" if unavailable.
+func resolveSIDKey(ctx context.Context) string {
+	container, err := composition.UseContainer(ctx)
+	if err != nil {
+		return "sid"
+	}
+	cfg, err := composition.Resolve[*cookies.Config](container)
+	if err != nil || cfg == nil {
+		return "sid"
+	}
+	if cfg.SID == "" {
+		return "sid"
+	}
+	return cfg.SID
+}
+
+func getToken(r *http.Request, sidKey string) (string, error) {
+	token, err := r.Cookie(sidKey)
 	if errors.Is(err, http.ErrNoCookie) {
 		v := r.Header.Get("Authorization")
 		if v == "" {
@@ -41,12 +57,12 @@ func Authorize() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				token, err := getToken(r)
+				ctx := r.Context()
+				token, err := getToken(r, resolveSIDKey(ctx))
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
 				}
-				ctx := r.Context()
 				container, err := composition.UseContainer(ctx)
 				if err != nil {
 					composables.UseLogger(ctx).WithError(err).Error("Authorize: composition container not found in context")
@@ -95,12 +111,12 @@ func AuthorizeAnySession() mux.MiddlewareFunc {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(
 			func(w http.ResponseWriter, r *http.Request) {
-				token, err := getToken(r)
+				ctx := r.Context()
+				token, err := getToken(r, resolveSIDKey(ctx))
 				if err != nil {
 					next.ServeHTTP(w, r)
 					return
 				}
-				ctx := r.Context()
 				container, err := composition.UseContainer(ctx)
 				if err != nil {
 					composables.UseLogger(ctx).WithError(err).Error("AuthorizeAnySession: composition container not found in context")
@@ -173,9 +189,8 @@ func ProvideUser() mux.MiddlewareFunc {
 				// Check if user is blocked
 				if u.IsBlocked() {
 					// Clear session cookie
-					conf := configuration.Use()
 					http.SetCookie(w, &http.Cookie{
-						Name:   conf.SidCookieKey,
+						Name:   resolveSIDKey(ctx),
 						Value:  "",
 						Path:   "/",
 						MaxAge: -1,

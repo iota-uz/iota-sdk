@@ -4,9 +4,11 @@ import (
 	"context"
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sirupsen/logrus"
 )
 
 type OperationKind string
@@ -68,4 +70,8 @@ type ExecutionContext struct {
 	Tx         pgx.Tx
 	JSONOutput bool
 	PolicyPath string
+	Logger     *logrus.Logger
+	// DBConfig provides typed database config for operations that need to
+	// connect to additional databases (e.g. e2e database management).
+	DBConfig *dbconfig.Config
 }

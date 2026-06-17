@@ -5,6 +5,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
+	"github.com/sirupsen/logrus"
 )
 
 // ChatApplicationServices exposes explicit command/query facades over shared use cases.
@@ -36,10 +37,14 @@ func NewChatApplicationServices(
 	model agents.Model,
 	titleService TitleService,
 	titleQueue TitleJobQueue,
+	logger ...*logrus.Logger,
 ) (ChatApplicationServices, error) {
 	core, err := NewChatService(chatRepo, agentService, model, titleService, titleQueue)
 	if err != nil {
 		return ChatApplicationServices{}, err
+	}
+	if len(logger) > 0 && logger[0] != nil {
+		core.WithLogger(logger[0])
 	}
 	return ChatApplicationServices{
 		SessionCommands: &sessionCommandsService{chatServiceImpl: core},
@@ -51,6 +56,15 @@ func NewChatApplicationServices(
 		Observability:   NewStreamObservability(core.runRegistry),
 		core:            core,
 	}, nil
+}
+
+// WithLangfuseBaseURL sets the Langfuse host URL on the underlying chat service
+// so that debug traces include a clickable trace URL. Call immediately after
+// NewChatApplicationServices; safe before concurrent use.
+func (s *ChatApplicationServices) WithLangfuseBaseURL(rawURL string) {
+	if s.core != nil {
+		s.core.WithLangfuseBaseURL(rawURL)
+	}
 }
 
 // CloseSharedRedis releases the shared *redis.Client that backs all Redis

@@ -12,7 +12,6 @@ import (
 	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 )
@@ -33,11 +32,10 @@ func SeedMainOperation() OperationSpec {
 }
 
 func runMainSeed(ctx context.Context, e *ExecutionContext) error {
-	conf := configuration.Use()
 	seedDeps := &application.SeedDeps{
 		Pool:     e.Pool,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		EventBus: eventbus.NewEventPublisher(e.Logger),
+		Logger:   e.Logger,
 	}
 	coreseed.RegisterProviders(seedDeps)
 	websiteseed.RegisterProviders(seedDeps)

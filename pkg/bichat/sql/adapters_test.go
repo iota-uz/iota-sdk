@@ -10,7 +10,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules"
 	bichatsql "github.com/iota-uz/iota-sdk/pkg/bichat/sql"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/assert"
@@ -30,10 +29,20 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
+// requirePostgres skips the test when Postgres is not reachable.
+// Host/port are read from DB_HOST / DB_PORT env vars (defaults: localhost:5432).
+// TODO(W5): replace with config.Source lookup once pkg/configuration is deleted.
 func requirePostgres(t *testing.T) {
 	t.Helper()
-	conf := configuration.Use()
-	addr := net.JoinHostPort(conf.Database.Host, conf.Database.Port)
+	host := os.Getenv("DB_HOST")
+	if host == "" {
+		host = "localhost"
+	}
+	port := os.Getenv("DB_PORT")
+	if port == "" {
+		port = "5432"
+	}
+	addr := net.JoinHostPort(host, port)
 	d := net.Dialer{Timeout: 500 * time.Millisecond}
 	conn, err := d.DialContext(context.Background(), "tcp", addr)
 	if err != nil {

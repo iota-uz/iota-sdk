@@ -10,7 +10,6 @@ import (
 	coreseed "github.com/iota-uz/iota-sdk/modules/core/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -34,6 +33,9 @@ func SeedSuperadminOperation() OperationSpec {
 func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 	const op serrors.Op = "dbctl.ops.runSuperadminSeed"
 
+	// SUPERADMIN_PASSWORD is intentionally read from the environment here.
+	// It is a CLI-only install-time credential that is not appropriate for
+	// the typed config subsystem. Allowed by the W4 grep gate.
 	superadminPassword := os.Getenv("SUPERADMIN_PASSWORD")
 	if superadminPassword == "" {
 		return serrors.E(op, serrors.Invalid, "SUPERADMIN_PASSWORD is required for seed.superadmin")
@@ -57,11 +59,10 @@ func runSuperadminSeed(ctx context.Context, e *ExecutionContext) error {
 	}
 
 	allPermissions := defaults.AllPermissions()
-	conf := configuration.Use()
 	seedDeps := &application.SeedDeps{
 		Pool:     e.Pool,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		EventBus: eventbus.NewEventPublisher(e.Logger),
+		Logger:   e.Logger,
 	}
 	coreseed.RegisterProviders(seedDeps)
 	seeder := application.NewSeeder()

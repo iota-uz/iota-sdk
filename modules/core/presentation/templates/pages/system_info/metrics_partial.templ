@@ -306,11 +306,14 @@ templ MetricsPartial(vm *viewmodels.SystemInfoViewModel) {
 				<h2 class="text-sm font-medium text-300 uppercase tracking-wider mb-3">Capabilities</h2>
 				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
 					for _, capability := range vm.Capabilities {
-						@card.Card(card.Props{Class: "!p-3"}) {
-							<div class="flex items-center gap-2 mb-2">
+						@card.Card(card.Props{Class: "!p-3", Attrs: templ.Attributes{"data-capability": capability.Key}}) {
+							<div class="flex items-center gap-2 mb-1">
 								@statusDot(string(capability.Status))
 								<span class="text-sm font-medium text-100">{ capability.Name }</span>
 							</div>
+							if capability.Source != "" {
+								<div class="text-xs font-mono text-200 mb-2" data-capability-source>{ capability.Source }</div>
+							}
 							<div class="flex flex-wrap items-center gap-1.5">
 								if capability.Enabled {
 									@badge.New(badge.Props{Variant: badge.VariantGreen, Size: badge.SizeNormal}) {

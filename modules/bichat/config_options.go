@@ -308,3 +308,24 @@ func WithReaperLockTTL(d time.Duration) ConfigOption {
 		c.ReaperLockTTL = d
 	}
 }
+
+// withAppletSettings sets the dev-mode Vite proxy settings and OpenAI key status
+// from the typed bichatconfig. Used internally by buildModuleConfig; not exported.
+func withAppletSettings(isDev bool, viteURL, entry, client string, openAIConfigured bool) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.IsDev = isDev
+		c.AppletViteURL = viteURL
+		c.AppletEntry = entry
+		c.AppletClient = client
+		c.OpenAIAPIKeyConfigured = openAIConfigured
+	}
+}
+
+// WithLangfuseBaseURL stores the Langfuse host URL so that debug traces include
+// a clickable trace link. The URL is forwarded to the underlying chat service
+// during BuildServices.
+func WithLangfuseBaseURL(rawURL string) ConfigOption {
+	return func(c *ModuleConfig) {
+		c.LangfuseBaseURL = strings.TrimSpace(rawURL)
+	}
+}

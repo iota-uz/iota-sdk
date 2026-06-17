@@ -13,18 +13,18 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/sirupsen/logrus"
 )
 
 type ClickController struct {
 	billingService *services.BillingService
-	click          configuration.ClickOptions
+	click          paymentsconfig.ClickConfig
 	basePath       string
 }
 
-func NewClickController(billingService *services.BillingService, click configuration.ClickOptions, basePath string) application.Controller {
+func NewClickController(billingService *services.BillingService, click paymentsconfig.ClickConfig, basePath string) application.Controller {
 	return &ClickController{
 		billingService: billingService,
 		click:          click,

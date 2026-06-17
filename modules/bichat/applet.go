@@ -3,7 +3,6 @@ package bichat
 
 import (
 	"context"
-	"os"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -14,8 +13,8 @@ import (
 	bichatrpc "github.com/iota-uz/iota-sdk/modules/bichat/rpc"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/sirupsen/logrus"
 )
 
 var distFS = assets.AppletFS()
@@ -70,7 +69,7 @@ func (a *BiChatApplet) Config() applets.Config {
 			BasePath:     "/assets",             // URL prefix for asset serving (relative to applet base path)
 			ManifestPath: ".vite/manifest.json", // Vite with manifest: true writes to dist/.vite/manifest.json
 			Entrypoint:   "index.html",          // Entry point file name (Vite default, matches manifest key)
-			Dev:          bichatDevAssets(),
+			Dev:          a.buildDevAssets(),
 		},
 
 		Mount: applets.MountConfig{
@@ -116,9 +115,13 @@ func (a *BiChatApplet) Config() applets.Config {
 			if sessionCommands == nil || sessionQueries == nil || turnCommands == nil || turnQueries == nil || hitlCommands == nil || artifactSvc == nil {
 				return nil
 			}
-			cfg := bichatrpc.Router(sessionCommands, sessionQueries, turnCommands, turnQueries, hitlCommands, artifactSvc).Config()
+			var rpcLogger *logrus.Logger
+			if a.config != nil {
+				rpcLogger = a.config.Logger
+			}
+			cfg := bichatrpc.Router(sessionCommands, sessionQueries, turnCommands, turnQueries, hitlCommands, artifactSvc, rpcLogger).Config()
 			// Expose internal error details in development mode.
-			if configuration.Use().IsDev() {
+			if a.config != nil && a.config.IsDev {
 				t := true
 				cfg.ExposeInternalErrors = &t
 			}
@@ -127,24 +130,30 @@ func (a *BiChatApplet) Config() applets.Config {
 	}
 }
 
-func bichatDevAssets() *applets.DevAssetConfig {
-	enabled := configuration.Use().IsDev()
-	target := strings.TrimSpace(os.Getenv("IOTA_APPLET_VITE_URL_BICHAT"))
-	if target == "" {
-		target = "http://localhost:5173"
-	}
-	entry := strings.TrimSpace(os.Getenv("IOTA_APPLET_ENTRY_BICHAT"))
-	if entry == "" {
-		entry = "/src/main.tsx"
-	}
-	client := strings.TrimSpace(os.Getenv("IOTA_APPLET_CLIENT_BICHAT"))
-	if client == "" {
-		client = "/@vite/client"
+// buildDevAssets returns dev-mode Vite config from the ModuleConfig's Applet settings.
+// Falls back to well-known defaults when the applet config is not set.
+func (a *BiChatApplet) buildDevAssets() *applets.DevAssetConfig {
+	isDev := false
+	viteURL := "http://localhost:5173"
+	entry := "/src/main.tsx"
+	client := "/@vite/client"
+
+	if a.config != nil {
+		isDev = a.config.IsDev
+		if v := strings.TrimSpace(a.config.AppletViteURL); v != "" {
+			viteURL = v
+		}
+		if v := strings.TrimSpace(a.config.AppletEntry); v != "" {
+			entry = v
+		}
+		if v := strings.TrimSpace(a.config.AppletClient); v != "" {
+			client = v
+		}
 	}
 
 	return &applets.DevAssetConfig{
-		Enabled:      enabled,
-		TargetURL:    target,
+		Enabled:      isDev,
+		TargetURL:    viteURL,
 		EntryModule:  entry,
 		ClientModule: client,
 	}
@@ -252,10 +261,10 @@ func (a *BiChatApplet) buildCustomContext(ctx context.Context) (map[string]inter
 		modelProvider = strings.ToLower(strings.TrimSpace(info.Provider))
 		modelName = info.Name
 	}
-	apiKeyConfigured := true
-	if modelProvider == "openai" {
-		apiKeyConfigured = strings.TrimSpace(os.Getenv("OPENAI_API_KEY")) != ""
-	}
+	// apiKeyConfigured: determined from the OpenAI API key stored in ModuleConfig.
+	// The config field is set at construction time from bichatconfig, avoiding any
+	// runtime os.Getenv call here.
+	apiKeyConfigured := a.config.OpenAIAPIKeyConfigured
 
 	var reasoningEffortOptions []string
 	if modelName != "" && modelProvider != "" {

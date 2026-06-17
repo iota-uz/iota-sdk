@@ -6,18 +6,21 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 )
 
 type FSStorage struct{}
 
-func NewFSStorage() (*FSStorage, error) {
-	conf := configuration.Use()
+func NewFSStorage(cfg *uploadsconfig.Config) (*FSStorage, error) {
+	uploadsPath := "static"
+	if cfg != nil && cfg.Path != "" {
+		uploadsPath = cfg.Path
+	}
 	workDir, err := os.Getwd()
 	if err != nil {
 		return nil, err
 	}
-	fullPath := filepath.Join(workDir, conf.UploadsPath)
+	fullPath := filepath.Join(workDir, uploadsPath)
 	if err := os.MkdirAll(fullPath, 0777); err != nil {
 		return nil, err
 	}
