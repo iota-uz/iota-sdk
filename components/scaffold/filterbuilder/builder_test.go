@@ -90,6 +90,27 @@ func TestBuilderRendersChipsAndHiddenInputs(t *testing.T) {
 	assert.Contains(t, html, "Scaffold.FilterBuilder.ClearAll")
 }
 
+func TestDateEditorEmitsExplicitFlatpickrFormat(t *testing.T) {
+	// Regression for eai#3080: the date editor's pickers (single + range) must
+	// pass an explicit DateFormat. An empty value serializes as "" and the
+	// datePicker Alpine component falls back to the bogus 'z' flatpickr token
+	// (dateFormat || 'z'), so the hidden input holds a value filterq.Decode
+	// cannot time.Parse against DateLayout (2006-01-02). The condition is then
+	// silently dropped and the date filter never applies. "Y-m-d" == DateLayout.
+	html := renderComponent(t, Props{Registry: testRegistry()}, false)
+
+	// The date field ("issue_at") draft editor renders both flatpickr pickers
+	// (single + range). Each must serialize an explicit Y-m-d dateFormat into
+	// its x-data; assert on the serialized field for BOTH (count >= 2), not just
+	// a loose "Y-m-d" substring, so a regression on one picker is still caught.
+	// HTML-attribute escaping of the JSON quotes is &#34; (verified).
+	const wantFmt = `&#34;dateFormat&#34;:&#34;Y-m-d&#34;`
+	assert.Contains(t, html, "datePicker(")
+	assert.GreaterOrEqual(t, strings.Count(html, wantFmt), 2)
+	// Never the empty value that triggers the bogus 'z' flatpickr fallback.
+	assert.NotContains(t, html, `&#34;dateFormat&#34;:&#34;&#34;`)
+}
+
 func TestBuilderUnknownFieldChipSkipped(t *testing.T) {
 	fs := filterq.FilterSet{{Field: "ghost", Op: filterq.OpIs, Values: []string{"1"}}}
 	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)

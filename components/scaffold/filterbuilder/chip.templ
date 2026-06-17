@@ -169,17 +169,25 @@ templ editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) {
 				}
 				<div x-show="op !== 'between'" data-fb-variant="single">
 					@input.DatePicker(input.DatePickerProps{
-						Mode:     input.DatePickerModeSingle,
-						Name:     "",
-						Selected: singleDateSelected(cond),
+						Mode: input.DatePickerModeSingle,
+						// DateFormat must be set: an empty value serializes as
+						// "" and the datePicker falls back to the bogus 'z'
+						// flatpickr token, so the hidden input holds a string
+						// filterq.Decode can't time.Parse(DateLayout) — the
+						// condition is silently dropped and the filter never
+						// applies. "Y-m-d" matches filterq DateLayout 2006-01-02.
+						DateFormat: "Y-m-d",
+						Name:       "",
+						Selected:   singleDateSelected(cond),
 					})
 				</div>
 				<div x-cloak x-show="op === 'between'" data-fb-variant="range">
 					@input.DatePicker(input.DatePickerProps{
-						Mode:      input.DatePickerModeRange,
-						StartName: "",
-						EndName:   "",
-						Selected:  rangeDateSelected(cond),
+						Mode:       input.DatePickerModeRange,
+						DateFormat: "Y-m-d",
+						StartName:  "",
+						EndName:    "",
+						Selected:   rangeDateSelected(cond),
 					})
 				</div>
 			case filterq.FieldTypeNumber:
