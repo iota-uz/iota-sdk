@@ -99,11 +99,16 @@ func TestDateEditorEmitsExplicitFlatpickrFormat(t *testing.T) {
 	// silently dropped and the date filter never applies. "Y-m-d" == DateLayout.
 	html := renderComponent(t, Props{Registry: testRegistry()}, false)
 
-	// The date field ("issue_at") draft editor renders flatpickr date pickers...
+	// The date field ("issue_at") draft editor renders both flatpickr pickers
+	// (single + range). Each must serialize an explicit Y-m-d dateFormat into
+	// its x-data; assert on the serialized field for BOTH (count >= 2), not just
+	// a loose "Y-m-d" substring, so a regression on one picker is still caught.
+	// HTML-attribute escaping of the JSON quotes is &#34; (verified).
+	const wantFmt = `&#34;dateFormat&#34;:&#34;Y-m-d&#34;`
 	assert.Contains(t, html, "datePicker(")
-	// ...and they must declare the Y-m-d format, never the empty 'z'-fallback.
-	assert.Contains(t, html, "Y-m-d")
-	assert.NotContains(t, html, `dateFormat&#34;:&#34;&#34;`)
+	assert.GreaterOrEqual(t, strings.Count(html, wantFmt), 2)
+	// Never the empty value that triggers the bogus 'z' flatpickr fallback.
+	assert.NotContains(t, html, `&#34;dateFormat&#34;:&#34;&#34;`)
 }
 
 func TestBuilderUnknownFieldChipSkipped(t *testing.T) {
