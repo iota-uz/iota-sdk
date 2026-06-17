@@ -2,6 +2,7 @@ package composition
 
 import (
 	"context"
+	"embed"
 	"strings"
 	"testing"
 
@@ -202,6 +203,7 @@ func TestGatedRegister_DisabledFeature_SkipsAndReturnsNil(t *testing.T) {
 type gatedComponent struct{}
 
 func (gatedComponent) Descriptor() Descriptor { return Descriptor{Name: "gatedcomponent"} }
+func (gatedComponent) LocaleFS() []*embed.FS  { return nil }
 func (gatedComponent) Build(builder *Builder) error {
 	if SkipIfDisabled[gatedCfg](builder) {
 		return nil
