@@ -45,18 +45,6 @@ func WithUserEmailFromContext(fn func(context.Context) string) BridgeOption {
 	}
 }
 
-// WithModelPricing previously seeded per-1M token rates so the bridge could stamp
-// computed cost onto each GenerationObservation. With the migration to the OTel
-// provider (Langfuse computes cost server-side from gen_ai.request.model + token
-// counts), the bridge no longer ships cost on the telemetry path. This option is
-// retained so existing callers compile, but it is a no-op.
-//
-// Deprecated: configure pricing in Langfuse's Models tab (or your OTel sink).
-// This option will be removed in a future release.
-func WithModelPricing(_, _, _, _ float64) BridgeOption {
-	return func(_ *EventBridge) {}
-}
-
 // EventBridge connects BiChat's EventBus to observability providers.
 // It subscribes to BiChat events and maps them to provider observations.
 //
