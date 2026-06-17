@@ -90,6 +90,22 @@ func TestBuilderRendersChipsAndHiddenInputs(t *testing.T) {
 	assert.Contains(t, html, "Scaffold.FilterBuilder.ClearAll")
 }
 
+func TestDateEditorEmitsExplicitFlatpickrFormat(t *testing.T) {
+	// Regression for eai#3080: the date editor's pickers (single + range) must
+	// pass an explicit DateFormat. An empty value serializes as "" and the
+	// datePicker Alpine component falls back to the bogus 'z' flatpickr token
+	// (dateFormat || 'z'), so the hidden input holds a value filterq.Decode
+	// cannot time.Parse against DateLayout (2006-01-02). The condition is then
+	// silently dropped and the date filter never applies. "Y-m-d" == DateLayout.
+	html := renderComponent(t, Props{Registry: testRegistry()}, false)
+
+	// The date field ("issue_at") draft editor renders flatpickr date pickers...
+	assert.Contains(t, html, "datePicker(")
+	// ...and they must declare the Y-m-d format, never the empty 'z'-fallback.
+	assert.Contains(t, html, "Y-m-d")
+	assert.NotContains(t, html, `dateFormat&#34;:&#34;&#34;`)
+}
+
 func TestBuilderUnknownFieldChipSkipped(t *testing.T) {
 	fs := filterq.FilterSet{{Field: "ghost", Op: filterq.OpIs, Values: []string{"1"}}}
 	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)
