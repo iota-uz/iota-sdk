@@ -1,10 +1,7 @@
 // Package db provides shared DB utilities for SDK consumers.
 //
 // DialPool dials a *pgxpool.Pool from a DSN string directly, with graceful
-// fallback when the DSN is empty. DialNamedPool is a convenience wrapper
-// that resolves the DSN from a named environment variable; it is deprecated
-// and will be removed in W5 — callers should resolve the env var themselves
-// and call DialPool instead.
+// fallback when the DSN is empty.
 //
 // This design lets the environment control role-isolated pools independently
 // of a code change — flip the env var when the role lands in the target
@@ -14,7 +11,6 @@ package db
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,11 +43,3 @@ func DialPool(ctx context.Context, dsn string, fallback *pgxpool.Pool) (*pgxpool
 	return pool, true, nil
 }
 
-// DialNamedPool reads envVar from the process environment and calls DialPool
-// with the resolved value.
-//
-// Deprecated: resolve the env var at the call site and call DialPool directly.
-// This wrapper will be removed in W5.
-func DialNamedPool(ctx context.Context, envVar string, fallback *pgxpool.Pool) (*pgxpool.Pool, bool, error) {
-	return DialPool(ctx, os.Getenv(envVar), fallback)
-}

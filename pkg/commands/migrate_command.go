@@ -14,10 +14,6 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-var (
-	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', or 'status' subcommands")
-)
-
 // ensureDirectories creates necessary directories if they don't exist
 func ensureDirectories() error {
 	dirs := []string{"migrations", "modules"}
@@ -50,16 +46,6 @@ func RunMigration(cfg *dbconfig.Config, subcommand string) error {
 	default:
 		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", subcommand)
 	}
-}
-
-// Migrate reads the subcommand from os.Args and delegates to RunMigration.
-// cfg must be resolved by the caller before invoking this.
-// Deprecated: use RunMigration directly from cobra RunE.
-func Migrate(cfg *dbconfig.Config) error {
-	if len(os.Args) < 2 {
-		return ErrNoCommand
-	}
-	return RunMigration(cfg, os.Args[1])
 }
 
 // printMigrationStatus prints the status of migrations in a formatted table
