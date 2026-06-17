@@ -90,6 +90,48 @@ func TestEnv_KeyTransform_LeadingTrailingUnderscore(t *testing.T) {
 	}
 }
 
+// TestEnv_EmptyValuesTreatedAsAbsent guards the strict-mode regression where
+// the `${VAR:-}` container idiom exports optional settings as empty env vars.
+// Such phantom keys must not land in the Source, or an unset optional feature
+// looks "partially configured" (HasPrefix true, IsConfigured false) and trips
+// a production strict-mode boot panic.
+func TestEnv_EmptyValuesTreatedAsAbsent(t *testing.T) {
+	t.Parallel()
+
+	path := writeEnvFile(t, "TELEGRAM_CHAT_ID=\nTELEGRAM_CHAT_SOSTHREADID=\nAPP_HOST=localhost\n")
+	src, err := config.Build(New(path))
+	if err != nil {
+		t.Fatalf("config.Build: %v", err)
+	}
+
+	if _, ok := src.Get("telegram.chat.id"); ok {
+		t.Error("empty TELEGRAM_CHAT_ID must not be present in the source")
+	}
+	if src.HasPrefix("telegram.chat") {
+		t.Error("a prefix whose only env vars are empty must not register as present")
+	}
+	// Non-empty vars are unaffected.
+	if _, ok := src.Get("app.host"); !ok {
+		t.Error("non-empty APP_HOST should still be present")
+	}
+}
+
+// TestEnv_EmptyProcessEnvDoesNotOverrideFile documents that an empty process
+// env var is treated as absent rather than overriding a non-empty file value.
+func TestEnv_EmptyProcessEnvDoesNotOverrideFile(t *testing.T) {
+	path := writeEnvFile(t, "APP_HOST=from-file\n")
+	t.Setenv("APP_HOST", "")
+
+	src, err := config.Build(New(path))
+	if err != nil {
+		t.Fatalf("Build: %v", err)
+	}
+	v, ok := src.Get("app.host")
+	if !ok || v != "from-file" {
+		t.Errorf("empty process env should not erase file value: got %q ok=%v", v, ok)
+	}
+}
+
 func TestEnv_MissingFileIsSilent(t *testing.T) {
 	t.Parallel()
 
