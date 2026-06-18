@@ -38,4 +38,3 @@ func TestDialPool_MalformedDSN_ReturnsError(t *testing.T) {
 	assert.False(t, active)
 	assert.Nil(t, pool)
 }
-

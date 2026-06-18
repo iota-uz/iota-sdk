@@ -2230,6 +2230,34 @@ let scrollAffordance = () => ({
   },
 });
 
+// emptyStateCentering keeps the table empty-state centered in the visible
+// horizontal scroll viewport. The empty-state lives in a <td> that spans the
+// full (often much wider than the screen) table, so a plain justify-center
+// centers it across the entire scroll width and pushes it off to the right /
+// clips it. We pin the wrapper sticky to the scrollport's left edge and size it
+// to the scroll container's visible width so its own justify-center lands in
+// view. Mirrors scrollAffordance's ResizeObserver approach; works for both
+// scroll-wrapper variants since the wrapper is always the <table>'s parent.
+let emptyStateCentering = () => ({
+  init() {
+    const table = this.$el.closest("table");
+    this.sc = table && table.parentElement;
+    this.measure = () => {
+      if (!this.sc || !this.sc.isConnected) return;
+      this.$el.style.width = this.sc.clientWidth + "px";
+    };
+    this.$nextTick(() => this.measure());
+    if (this.sc) {
+      this._ro = new ResizeObserver(() => this.measure());
+      this._ro.observe(this.sc);
+    }
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+  },
+});
+Alpine.data("emptyStateCentering", emptyStateCentering);
+
 // tableKeyboardNav adds arrow-key row navigation + Enter-to-open for drawer
 // rows. Attached to the TBODY (not the configurable container) to avoid x-data
 // collision with tableConfig. It acts only when focus is on a [data-row-drawer]
