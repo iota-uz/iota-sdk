@@ -42,4 +42,3 @@ func DialPool(ctx context.Context, dsn string, fallback *pgxpool.Pool) (*pgxpool
 	}
 	return pool, true, nil
 }
-
