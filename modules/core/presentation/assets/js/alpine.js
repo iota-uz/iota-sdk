@@ -2042,6 +2042,18 @@ let tableConfig = (id) => ({
       return;
     }
     if (fromIndex === toIndex) return;
+    // Sticky (pinned) columns are fixed walls: a column may not be reordered
+    // across one. Clamp the target into the segment bounded by the nearest
+    // sticky columns on each side of the source position.
+    if (this.columns[fromIndex] && this.columns[fromIndex].sticky) return;
+    let lo = 0, hi = this.columns.length - 1;
+    for (let i = 0; i < this.columns.length; i++) {
+      if (!this.columns[i] || !this.columns[i].sticky) continue;
+      if (i < fromIndex) lo = Math.max(lo, i + 1);
+      else if (i > fromIndex) hi = Math.min(hi, i - 1);
+    }
+    toIndex = Math.max(lo, Math.min(hi, toIndex));
+    if (fromIndex === toIndex) return;
     let [col] = this.columns.splice(fromIndex, 1);
     this.columns.splice(toIndex, 0, col);
     if (sync) {
