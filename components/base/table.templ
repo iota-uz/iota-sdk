@@ -326,6 +326,7 @@ templ Table(props TableProps) {
 								x-sort:config="{
 									handle: '[x-sort\\:handle]',
 									filter: '[data-col-sticky]',
+									onMove: (event) => !(event.related && event.related.matches && event.related.matches('[data-col-sticky]')),
 									onEnd: (event) => {
 										moveColumn(event.oldIndex, event.newIndex, true);
 									},
@@ -493,6 +494,7 @@ templ Table(props TableProps) {
 								x-sort.ghost
 								x-sort:config="{
 								draggable: '[data-sortable]',
+								onMove: (event) => !(event.related && event.related.matches && event.related.matches('[data-col-sticky]')),
 								onEnd: (event) => {
 									moveColumn(event.oldIndex, event.newIndex, true);
 								},

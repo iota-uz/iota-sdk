@@ -205,6 +205,82 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   searchQuery: '',
   searchable,
   canCreateNew,
+  init() {
+    // Reposition the (top-layer) dropdown when the page scrolls/resizes while open.
+    this._reflow = () => {
+      if (this.open || this.openedWithKeyboard) this.positionDropdown();
+    };
+    this.$watch('open', () => this.syncDropdown());
+    this.$watch('openedWithKeyboard', () => this.syncDropdown());
+    window.addEventListener('scroll', this._reflow, true);
+    window.addEventListener('resize', this._reflow);
+    // Start hidden. Popover-capable browsers also hide via UA styles; this
+    // covers the in-flow fallback path. Deferred because $refs.list is a child
+    // ref not yet registered when the component's init() runs.
+    this.$nextTick(() => {
+      if (this.$refs.list) this.$refs.list.style.display = 'none';
+    });
+  },
+  destroy() {
+    if (this._reflow) {
+      window.removeEventListener('scroll', this._reflow, true);
+      window.removeEventListener('resize', this._reflow);
+    }
+    let list = this.$refs.list;
+    if (this.supportsPopover(list) && list.matches(':popover-open')) {
+      try { list.hidePopover(); } catch (e) { }
+    }
+  },
+  supportsPopover(el) {
+    return !!el && typeof el.showPopover === 'function' && el.hasAttribute('popover');
+  },
+  // Promote the option list to the top layer (Popover API) on open so it is
+  // never clipped by an overflow-hidden ancestor or hidden behind a modal drawer.
+  syncDropdown() {
+    let list = this.$refs.list;
+    if (!list) return;
+    let show = this.open || this.openedWithKeyboard;
+    if (show) {
+      list.style.display = 'flex';
+      if (this.supportsPopover(list) && !list.matches(':popover-open')) {
+        try { list.showPopover(); } catch (e) { }
+      }
+      this.$nextTick(() => this.positionDropdown());
+    } else {
+      if (this.supportsPopover(list) && list.matches(':popover-open')) {
+        try { list.hidePopover(); } catch (e) { }
+      }
+      list.style.display = 'none';
+    }
+  },
+  // Anchor the dropdown to the trigger using viewport coordinates, flipping
+  // above when there is not enough room below.
+  positionDropdown() {
+    let list = this.$refs.list;
+    let trigger = this.$refs.trigger;
+    if (!list || !trigger) return;
+    let rect = trigger.getBoundingClientRect();
+    let gap = 4;
+    // Match the field width. Callers passing `!w-auto` via ListClass override this.
+    list.style.width = rect.width + 'px';
+    if (this.supportsPopover(list) && list.matches(':popover-open')) {
+      // Top-layer popover: position against the viewport (fixed coordinates)
+      // and reset the UA-default `inset:0; margin:auto` centering.
+      list.style.margin = '0';
+      list.style.inset = 'auto';
+      list.style.position = 'fixed';
+      let listHeight = list.offsetHeight;
+      let spaceBelow = window.innerHeight - rect.bottom;
+      let flipUp = spaceBelow < listHeight + gap && rect.top > spaceBelow;
+      list.style.left = rect.left + 'px';
+      list.style.top = (flipUp ? Math.max(gap, rect.top - listHeight - gap) : rect.bottom + gap) + 'px';
+    } else {
+      // Fallback (no Popover API): sit just below the field, in flow.
+      list.style.position = 'absolute';
+      list.style.left = '0px';
+      list.style.top = '100%';
+    }
+  },
   setValue(value) {
     if (!this.options.length && this.canCreateNew && this.searchQuery.length) {
       this.$refs.createOption.click();
@@ -1965,6 +2041,18 @@ let tableConfig = (id) => ({
     if (fromIndex < 0 || toIndex < 0 || fromIndex >= this.columns.length || toIndex >= this.columns.length) {
       return;
     }
+    if (fromIndex === toIndex) return;
+    // Sticky (pinned) columns are fixed walls: a column may not be reordered
+    // across one. Clamp the target into the segment bounded by the nearest
+    // sticky columns on each side of the source position.
+    if (this.columns[fromIndex] && this.columns[fromIndex].sticky) return;
+    let lo = 0, hi = this.columns.length - 1;
+    for (let i = 0; i < this.columns.length; i++) {
+      if (!this.columns[i] || !this.columns[i].sticky) continue;
+      if (i < fromIndex) lo = Math.max(lo, i + 1);
+      else if (i > fromIndex) hi = Math.min(hi, i - 1);
+    }
+    toIndex = Math.max(lo, Math.min(hi, toIndex));
     if (fromIndex === toIndex) return;
     let [col] = this.columns.splice(fromIndex, 1);
     this.columns.splice(toIndex, 0, col);
