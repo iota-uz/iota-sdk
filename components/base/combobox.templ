@@ -271,16 +271,24 @@ templ Combobox(props ComboboxProps) {
 					},
 				})
 			}
+			<!--
+				The option list renders as a native Popover (top layer) so it is
+				never clipped by an overflow-hidden ancestor nor hidden behind a
+				modal drawer. Visibility, width and position are driven from the
+				combobox Alpine component (syncDropdown/positionDropdown). It stays
+				in the DOM (only painted in the top layer), so $refs and the
+				click.outside guard on the wrapper keep working. `flex` is applied
+				inline (not as a class) so it does not override the UA rule that
+				hides a closed popover.
+			-->
 			<ul
 				x-ref="list"
 				x-cloak
-				x-show="open || openedWithKeyboard"
-				class={ "bg-white absolute z-10 left-0 top-11 mt-1 flex max-h-44 flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm w-full", props.ListClass }
+				popover="manual"
+				class={ "combobox-dropdown bg-white z-10 m-0 max-h-44 flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm", props.ListClass }
 				x-on:keydown.down.prevent="$focus.wrap().next()"
 				x-on:keydown.up.prevent="$focus.wrap().previous()"
-				x-transition
 				x-trap="openedWithKeyboard"
-				x-anchor="$refs.trigger"
 			>
 				<template x-for="(item, index) in options" x-bind:key="item.value + ':' + index">
 					<li
