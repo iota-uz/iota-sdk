@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"io"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -53,10 +53,11 @@ func TestHTMXCacheControl_SniffsAfterExplicitWriteHeader(t *testing.T) {
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
 	require.NoError(t, err)
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, "Hx-Request", resp.Header.Get("Vary"))
@@ -71,10 +72,11 @@ func TestHTMXCacheControl_BufferedStatusNoBody(t *testing.T) {
 	srv := httptest.NewServer(h)
 	defer srv.Close()
 
-	resp, err := http.Get(srv.URL)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, srv.URL, nil)
 	require.NoError(t, err)
-	defer resp.Body.Close()
-	_, _ = io.Copy(io.Discard, resp.Body)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
 	assert.Empty(t, resp.Header.Get("Vary"))
