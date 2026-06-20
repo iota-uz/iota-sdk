@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // serve runs handler through HTMXCacheControl and returns the recorded response.
@@ -36,6 +38,46 @@ func TestHTMXCacheControl_SniffsEmptyContentType(t *testing.T) {
 
 	assert.Equal(t, "Hx-Request", rec.Header().Get("Vary"))
 	assert.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+}
+
+// Regression for the WriteHeader-before-Write path: a handler that explicitly
+// commits a 200 with no Content-Type, then writes an HTML body. This must run
+// against a real server — httptest.ResponseRecorder never freezes its header map
+// so it cannot reproduce the lost-headers bug. The middleware buffers the status
+// until the body can be sniffed.
+func TestHTMXCacheControl_SniffsAfterExplicitWriteHeader(t *testing.T) {
+	h := HTMXCacheControl()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("<!DOCTYPE html><html><body>hi</body></html>"))
+	}))
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "Hx-Request", resp.Header.Get("Vary"))
+	assert.Equal(t, "no-store", resp.Header.Get("Cache-Control"))
+}
+
+// A buffered status with no body (here a 204) must still be written.
+func TestHTMXCacheControl_BufferedStatusNoBody(t *testing.T) {
+	h := HTMXCacheControl()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	srv := httptest.NewServer(h)
+	defer srv.Close()
+
+	resp, err := http.Get(srv.URL)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	_, _ = io.Copy(io.Discard, resp.Body)
+
+	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Empty(t, resp.Header.Get("Vary"))
 }
 
 func TestHTMXCacheControl_NonHTMLUntouched(t *testing.T) {

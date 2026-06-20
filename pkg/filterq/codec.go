@@ -108,7 +108,11 @@ func Decode(q url.Values, s Schema) FilterSet {
 		}
 		key := c.Field + "\x00" + string(c.Op)
 		if at, seen := idx[key]; seen {
-			if c.Op == OpIs || c.Op == OpIsNot {
+			// Merging is for multi-valued set conditions only. A bool flag is
+			// single-valued, so merging duplicate bool params (is:true + is:false)
+			// would resurrect the match-everything case validCondition rejects —
+			// keep the first and drop later duplicates instead.
+			if (c.Op == OpIs || c.Op == OpIsNot) && field.Type != FieldTypeBool {
 				out[at].Values = mergeValues(out[at].Values, c.Values)
 			}
 			continue

@@ -147,6 +147,23 @@ func TestDecodeMergesDuplicates(t *testing.T) {
 	}
 }
 
+// Bool flags are single-valued, so duplicate bool params must NOT merge into a
+// multi-valued match-everything condition; the first param wins.
+func TestDecodeDoesNotMergeBoolDuplicates(t *testing.T) {
+	t.Parallel()
+	q := url.Values{filterq.ParamName: []string{
+		"reissued:is:true",
+		"reissued:is:false",
+	}}
+	got := filterq.Decode(q, testSchema())
+	want := filterq.FilterSet{
+		{Field: "reissued", Op: filterq.OpIs, Values: []string{"true"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Decode() = %#v, want %#v", got, want)
+	}
+}
+
 func TestPresence(t *testing.T) {
 	t.Parallel()
 	if filterq.HasPresence(url.Values{}) {
