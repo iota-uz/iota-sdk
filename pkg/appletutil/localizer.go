@@ -7,8 +7,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/sirupsen/logrus"
 )
 
 // ProvideLocalizerFromAppContext extracts the application handle from the request
@@ -24,7 +24,7 @@ func ProvideLocalizerFromAppContext() mux.MiddlewareFunc {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			app, err := application.UseApp(r.Context())
 			if err != nil {
-				configuration.Use().Logger().
+				logrus.StandardLogger().
 					WithError(err).
 					Error("applet localizer middleware missing app in request context")
 				http.Error(w, "Internal server error", http.StatusInternalServerError)

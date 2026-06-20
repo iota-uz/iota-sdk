@@ -35,7 +35,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/excel"
 	"github.com/iota-uz/iota-sdk/pkg/htmx"
@@ -60,13 +59,15 @@ type ClientRealtimeUpdates struct {
 	app           application.Application
 	clientService *services.ClientService
 	basePath      string
+	logger        *logrus.Logger
 }
 
-func NewClientRealtimeUpdates(app application.Application, clientService *services.ClientService, basePath string) *ClientRealtimeUpdates {
+func NewClientRealtimeUpdates(app application.Application, clientService *services.ClientService, basePath string, logger *logrus.Logger) *ClientRealtimeUpdates {
 	return &ClientRealtimeUpdates{
 		app:           app,
 		clientService: clientService,
 		basePath:      basePath,
+		logger:        logger,
 	}
 }
 
@@ -75,7 +76,7 @@ func (ru *ClientRealtimeUpdates) Register() {
 }
 
 func (ru *ClientRealtimeUpdates) onClientCreated(event *client.CreatedEvent) {
-	logger := configuration.Use().Logger()
+	logger := ru.logger
 
 	component := clients.ClientCreatedEvent(mappers.ClientToViewModel(event.Result), &base.TableRowProps{
 		Attrs: templ.Attributes{},
@@ -143,6 +144,7 @@ func NewClientController(
 	app application.Application,
 	clientService *services.ClientService,
 	chatService *services.ChatService,
+	logger *logrus.Logger,
 	config ...ClientControllerConfig,
 ) application.Controller {
 	// Use default config or the provided one
@@ -167,7 +169,7 @@ func NewClientController(
 
 	// Initialize realtime if enabled
 	if cfg.RealtimeBus {
-		controller.realtime = NewClientRealtimeUpdates(app, clientService, cfg.BasePath)
+		controller.realtime = NewClientRealtimeUpdates(app, clientService, cfg.BasePath, logger)
 	}
 
 	return controller

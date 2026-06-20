@@ -14,19 +14,19 @@ import (
 	websiteseed "github.com/iota-uz/iota-sdk/modules/website/seed"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/defaults"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
+	"github.com/sirupsen/logrus"
 )
 
 // SeedRaw populates the e2e database with test data.
-func SeedRaw() error {
+func SeedRaw(cfg *dbconfig.Config, logger *logrus.Logger) error {
 	_ = os.Setenv("DB_NAME", E2EDBName)
 
-	conf := configuration.Use()
 	ctx := context.Background()
 
-	pool, err := GetE2EPool()
+	pool, err := GetE2EPool(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to connect to e2e database: %w", err)
 	}
@@ -42,8 +42,8 @@ func SeedRaw() error {
 
 	seedDeps := &application.SeedDeps{
 		Pool:     pool,
-		EventBus: eventbus.NewEventPublisher(conf.Logger()),
-		Logger:   conf.Logger(),
+		EventBus: eventbus.NewEventPublisher(logger),
+		Logger:   logger,
 	}
 	coreseed.RegisterProviders(seedDeps)
 	websiteseed.RegisterProviders(seedDeps)
@@ -99,6 +99,6 @@ func SeedRaw() error {
 		return err
 	}
 
-	conf.Logger().Info("Seeded e2e database with test data")
+	logger.Info("Seeded e2e database with test data")
 	return nil
 }

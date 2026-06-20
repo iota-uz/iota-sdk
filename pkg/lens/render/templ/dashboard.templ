@@ -553,7 +553,7 @@ templ MetricInfoButtonWithText(infoText, class string) {
 	{{ chartText := localizedChartText(ctx) }}
 	<button
 		type="button"
-		class={ "inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-300 transition hover:text-slate-500 focus:outline-none cursor-pointer", class }
+		class={ "inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:text-slate-600 focus:outline-none cursor-pointer", class }
 		x-tooltip.placement.bottom-start.interactive.theme.light.html.raw={ metricInfoTooltipHTML(ctx, infoText) }
 		@click.stop=""
 		aria-label={ chartText.MetricInfo }

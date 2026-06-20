@@ -12,7 +12,6 @@ import (
 	model "github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/gqlmodels"
 	"github.com/iota-uz/iota-sdk/modules/core/interfaces/graph/mappers"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 // Authenticate is the resolver for the authenticate field.
@@ -26,16 +25,28 @@ func (r *mutationResolver) Authenticate(ctx context.Context, email string, passw
 	if err != nil {
 		return nil, err
 	}
-	conf := configuration.Use()
+
+	sidKey := "sid"
+	domain := ""
+	secure := false
+	if r.cookiesCfg != nil && r.cookiesCfg.SID != "" {
+		sidKey = r.cookiesCfg.SID
+	}
+	if r.httpCfg != nil {
+		domain = r.httpCfg.Domain
+	}
+	if r.appCfg != nil {
+		secure = r.appCfg.IsProduction()
+	}
 
 	cookie := &http.Cookie{
-		Name:     conf.SidCookieKey,
+		Name:     sidKey,
 		Value:    sess.Token(),
 		Expires:  sess.ExpiresAt(),
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
-		Secure:   conf.GoAppEnvironment == configuration.Production,
-		Domain:   conf.Domain,
+		Secure:   secure,
+		Domain:   domain,
 		Path:     "/",
 	}
 	http.SetCookie(writer, cookie)

@@ -69,6 +69,13 @@ var SettingsLink = types.NavigationItem{
 	Children: nil,
 }
 
+var SystemInfoLink = types.NavigationItem{
+	Name:     "NavigationLinks.SystemInfo",
+	Icon:     nil,
+	Href:     "/system/info",
+	Children: nil,
+}
+
 var AdministrationLink = types.NavigationItem{
 	Key:  "core.administration",
 	Name: "NavigationLinks.Administration",
@@ -81,6 +88,7 @@ var AdministrationLink = types.NavigationItem{
 		DepartmentsLink,
 		PositionsLink,
 		SettingsLink,
+		SystemInfoLink,
 	},
 }
 

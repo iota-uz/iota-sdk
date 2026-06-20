@@ -91,6 +91,8 @@ func Run(ctx context.Context, opts RunOptions) (Report, error) {
 	}
 	apiKey := strings.TrimSpace(opts.OpenAIAPIKey)
 	if apiKey == "" {
+		// CLI-level fallback: --openai-api-key flag not set → try env var.
+		// This is intentional for dev-tooling usage (eval CLI, not production service).
 		apiKey = strings.TrimSpace(os.Getenv("OPENAI_API_KEY"))
 	}
 	if apiKey == "" {

@@ -474,6 +474,7 @@
     "Roles": "Rollar",
     "Groups": "Guruhlar",
     "Settings": "Sozlamalar",
+    "SystemInfo": "Тизим маълумотлари",
     "KnowledgeBase": "Bilimlar bazasi",
     "Operations": "Operatsiyalar",
     "Calendar": "Taqvim",
@@ -914,6 +915,34 @@
     "Filters": {
       "Title": "Filtrlar",
       "SelectAll": "Barchasini tanlash"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Филтр қўшиш",
+      "ClearAll": "Ҳаммасини тозалаш",
+      "Apply": "Қўллаш",
+      "SearchFields": "Филтр қидириш...",
+      "SelectValues": "Қийматларни танланг...",
+      "NothingFound": "Ҳеч нарса топилмади",
+      "Remove": "Филтрни олиб ташлаш",
+      "Operators": {
+        "Is": "га тенг",
+        "IsNot": "га тенг эмас",
+        "Before": "гача",
+        "After": "дан кейин",
+        "On": "санада",
+        "Between": "оралиқда",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Шу ой",
+        "LastMonth": "Ўтган ой",
+        "Last30Days": "Охирги 30 кун",
+        "Next30Days": "Кейинги 30 кун",
+        "ThisYear": "Шу йил",
+        "LastYear": "Ўтган йил"
+      }
     }
   },
   "Search": "Qidirish",

@@ -105,10 +105,6 @@ func defaultMarshalJSON(m Money) ([]byte, error) {
 	return buff.Bytes(), nil
 }
 
-// Amount is a data type alias that stores the amount being used for calculations.
-// Deprecated: Use BigAmount() for values that may exceed int64 range.
-type Amount = int64
-
 // Money represents monetary value information, stores
 // currency and amount value.
 type Money struct {

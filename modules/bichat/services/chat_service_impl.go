@@ -18,9 +18,9 @@ import (
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 // streamPersistenceTimeout bounds each detached persistence transaction that
@@ -69,6 +69,10 @@ type chatServiceImpl struct {
 	streamCancelMu     sync.Mutex
 	activeStreamCancel map[uuid.UUID]context.CancelFunc
 	runRegistry        *streamingsvc.RunRegistry
+	logger             *logrus.Logger
+	// langfuseBaseURL is the Langfuse host URL for building trace links in debug
+	// traces. Set via WithLangfuseBaseURL; empty string disables trace URL generation.
+	langfuseBaseURL string
 }
 
 // NewChatService creates a production implementation of ChatService.
@@ -114,6 +118,41 @@ func NewChatService(
 		activeStreamCancel: make(map[uuid.UUID]context.CancelFunc),
 		runRegistry:        streamingsvc.NewRunRegistry(),
 	}, nil
+}
+
+// WithLogger injects a logrus.Logger into the service. Call immediately after
+// NewChatService; safe before concurrent use. No-op when logger is nil.
+func (s *chatServiceImpl) WithLogger(logger *logrus.Logger) *chatServiceImpl {
+	if logger != nil {
+		s.logger = logger
+	}
+	return s
+}
+
+// WithLangfuseBaseURL stores the Langfuse host URL for trace link generation.
+// The URL may be the BaseURL or Host field from LangfuseConfig; callers should
+// prefer BaseURL, falling back to Host when BaseURL is empty.
+func (s *chatServiceImpl) WithLangfuseBaseURL(rawURL string) *chatServiceImpl {
+	s.langfuseBaseURL = strings.TrimSpace(rawURL)
+	return s
+}
+
+// logEntry returns a logrus.Entry for the given fields, or nil when no logger
+// is configured. Callers do: if e := s.logEntry(); e != nil { e.WithField(...).Warn(...) }
+func (s *chatServiceImpl) logEntry() *logrus.Entry {
+	if s.logger == nil {
+		return nil
+	}
+	return logrus.NewEntry(s.logger)
+}
+
+// log returns the service logger, falling back to the standard logger when none
+// was injected. Used by critical-path error logging that must never be silenced.
+func (s *chatServiceImpl) log() *logrus.Logger {
+	if s.logger != nil {
+		return s.logger
+	}
+	return logrus.StandardLogger()
 }
 
 // CloseSharedRedis releases the shared *redis.Client created by
@@ -1261,7 +1300,7 @@ func (s *chatServiceImpl) runStreamLoop(
 	}
 
 	if processCtx.Err() != nil {
-		configuration.Use().Logger().
+		s.log().
 			WithError(serrors.E(op, processCtx.Err())).
 			WithField("session_id", req.SessionID.String()).
 			WithField("run_id", runID.String()).
@@ -1297,6 +1336,7 @@ func (s *chatServiceImpl) runStreamLoop(
 		req.Content,
 		assistantContent,
 		startedAt,
+		s.langfuseBaseURL,
 	); debugTrace != nil {
 		assistantDebugTrace = debugTrace
 	}
@@ -1316,7 +1356,7 @@ func (s *chatServiceImpl) runStreamLoop(
 		QuestionData: assistantQuestionData,
 	})
 	if err != nil {
-		configuration.Use().Logger().
+		s.log().
 			WithError(serrors.E(op, serrors.KindValidation, err)).
 			WithField("session_id", req.SessionID.String()).
 			WithField("run_id", runID.String()).
@@ -1337,7 +1377,7 @@ func (s *chatServiceImpl) runStreamLoop(
 	// tight deadline discarded fully-generated answers (see #2998).
 	session = session.SetPreviousResponseID(providerResponseID, time.Now())
 	if err := s.persistAssistantMessageCritical(persistCtx, assistantMsg, session); err != nil {
-		configuration.Use().Logger().
+		s.log().
 			WithError(err).
 			WithField("session_id", req.SessionID.String()).
 			WithField("run_id", runID.String()).
@@ -1360,7 +1400,7 @@ func (s *chatServiceImpl) runStreamLoop(
 	// regeneration won't duplicate them.
 	if len(artifactMap) > 0 {
 		if err := s.persistArtifactsBestEffort(persistCtx, session, assistantMsg.ID(), artifactMap); err != nil {
-			configuration.Use().Logger().
+			s.log().
 				WithError(err).
 				WithField("session_id", req.SessionID.String()).
 				WithField("run_id", runID.String()).

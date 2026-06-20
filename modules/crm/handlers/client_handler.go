@@ -13,7 +13,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/client"
 	crmservices "github.com/iota-uz/iota-sdk/modules/crm/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 )
 
 // ClientHandler subscribes to client lifecycle events and creates a chat
@@ -24,28 +23,30 @@ type ClientHandler struct {
 	pool          *pgxpool.Pool
 	chatService   *crmservices.ChatService
 	tenantService *services.TenantService
+	logger        *logrus.Logger
 }
 
 func NewClientHandler(
 	pool *pgxpool.Pool,
 	chatService *crmservices.ChatService,
 	tenantService *services.TenantService,
+	logger *logrus.Logger,
 ) *ClientHandler {
 	return &ClientHandler{
 		pool:          pool,
 		chatService:   chatService,
 		tenantService: tenantService,
+		logger:        logger,
 	}
 }
 
 func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context {
 	ctx := context.Background()
 	ctxWithDB := composables.WithPool(ctx, h.pool)
-	logger := configuration.Use().Logger()
 
 	tenant, err := h.tenantService.GetByID(ctxWithDB, tenantID)
 	if err != nil {
-		logger.WithError(err).Error("failed to get tenant")
+		h.logger.WithError(err).Error("failed to get tenant")
 		return composables.WithPool(ctx, h.pool)
 	}
 
@@ -62,12 +63,11 @@ func (h *ClientHandler) createTenantContext(tenantID uuid.UUID) context.Context 
 // eventbus.EventBus.Subscribe.
 func (h *ClientHandler) OnCreated(event *client.CreatedEvent) {
 	tenantID := event.Result.TenantID()
-	logger := configuration.Use().Logger()
 
 	// Validate tenant exists before creating chat
 	ctxWithDB := composables.WithPool(context.Background(), h.pool)
 	if _, err := h.tenantService.GetByID(ctxWithDB, tenantID); err != nil {
-		logger.WithFields(logrus.Fields{
+		h.logger.WithFields(logrus.Fields{
 			"tenant_id": tenantID,
 		}).WithError(err).Error("failed to get tenant")
 		return
@@ -79,14 +79,14 @@ func (h *ClientHandler) OnCreated(event *client.CreatedEvent) {
 		event.Result.ID(),
 		chat.WithTenantID(tenantID),
 	)); err != nil {
-		logger.WithFields(logrus.Fields{
+		h.logger.WithFields(logrus.Fields{
 			"tenant_id": tenantID,
 			"client_id": event.Result.ID(),
 		}).WithError(err).Error("failed to register client chat")
 		return
 	}
 
-	logger.WithFields(logrus.Fields{
+	h.logger.WithFields(logrus.Fields{
 		"client_id": event.Result.ID(),
 		"tenant_id": tenantID,
 	}).Info("successfully created chat for client")

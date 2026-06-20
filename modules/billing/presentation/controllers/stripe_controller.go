@@ -16,7 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/ports"
 	"github.com/iota-uz/iota-sdk/modules/billing/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/paymentsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/di"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
@@ -26,7 +26,7 @@ import (
 
 type StripeController struct {
 	billingService *services.BillingService
-	stripe         configuration.StripeOptions
+	stripe         paymentsconfig.StripeConfig
 	basePath       string
 	hooks          []ports.StripeEventHook
 	hookQueue      chan stripe.Event
@@ -34,7 +34,7 @@ type StripeController struct {
 
 func NewStripeController(
 	billingService *services.BillingService,
-	stripeOpts configuration.StripeOptions,
+	stripeOpts paymentsconfig.StripeConfig,
 	basePath string,
 	hooks ...ports.StripeEventHook,
 ) application.Controller {

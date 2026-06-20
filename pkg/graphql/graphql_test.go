@@ -103,7 +103,7 @@ func TestMergedIntrospectionIncludesTypesFromAllExecutors(t *testing.T) {
 		})
 	}
 
-	handler := NewBaseServer(coregraph.NewExecutableSchema(coregraph.Config{}))
+	handler := NewBaseServer(coregraph.NewExecutableSchema(coregraph.Config{}), nil)
 	handler.AddExecutor(executor.New(warehousegraph.NewExecutableSchema(warehousegraph.Config{})))
 
 	requestBody := map[string]any{

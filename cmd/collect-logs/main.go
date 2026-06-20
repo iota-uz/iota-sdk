@@ -9,14 +9,15 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/commands"
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/telemetryconfig"
 )
 
 func main() {
-	// Create a context that can be canceled
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Set up signal handling for graceful shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
@@ -26,15 +27,24 @@ func main() {
 		cancel()
 	}()
 
-	// Optional: customize log collector with options
+	src, err := config.Build(envprov.New(".env", ".env.local"))
+	if err != nil {
+		log.Fatalf("failed to build config source: %v", err)
+	}
+
+	reg := config.NewRegistry(src)
+	cfg, err := config.Register[telemetryconfig.Config](reg)
+	if err != nil {
+		log.Fatalf("failed to load telemetryconfig: %v", err)
+	}
+
 	options := []func(*commands.LogCollector){
 		commands.WithBatchSize(100),
 		commands.WithTimeout(5 * time.Second),
 	}
 
-	// Start log collection
 	log.Println("Starting log collector...")
-	if err := commands.CollectLogs(ctx, options...); err != nil {
+	if err := commands.CollectLogs(ctx, cfg, options...); err != nil {
 		if err != context.Canceled {
 			log.Fatalf("Log collector error: %v", err)
 		}

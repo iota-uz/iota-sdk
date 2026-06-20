@@ -18,10 +18,10 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/httpdto"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 )
 
 // StreamController handles Server-Sent Events (SSE) for streaming chat responses.
@@ -30,6 +30,7 @@ type StreamController struct {
 	sessionService    bichatservices.SessionQueries
 	attachmentService bichatservices.AttachmentService
 	opts              ControllerOptions
+	logger            *logrus.Logger
 }
 
 const maxStreamRequestBodyBytes int64 = 32 << 20 // 32 MiB
@@ -42,11 +43,13 @@ func NewStreamController(
 	attachmentService bichatservices.AttachmentService,
 	opts ...ControllerOption,
 ) *StreamController {
+	o := applyControllerOptions(opts...)
 	return &StreamController{
 		streamService:     streamService,
 		sessionService:    sessionService,
 		attachmentService: attachmentService,
-		opts:              applyControllerOptions(opts...),
+		opts:              o,
+		logger:            o.Logger,
 	}
 }
 
@@ -242,9 +245,9 @@ func (c *StreamController) StreamMessage(w http.ResponseWriter, r *http.Request)
 
 	if err != nil {
 		// Log actual error server-side
-		logger := configuration.Use().Logger()
-		entry := logger.WithError(serrors.E(op, err))
-		entry.Error("Stream error")
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("Stream error")
+		}
 
 		// Send sanitized error to client
 		sendEvent("error", httpdto.StreamChunkPayload{
@@ -291,16 +294,19 @@ func (c *StreamController) StopStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := c.streamService.StopGeneration(r.Context(), req.SessionID); err != nil {
-		logger := configuration.Use().Logger()
 		wrapped := serrors.E(op, err)
 		if errors.Is(err, domain.ErrNoActiveRun) || errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
 			// Known condition: stop called when session is no longer streaming.
 			// Preserve idempotent API behavior and just log for observability.
-			logger.WithError(wrapped).Info("StopGeneration called for non-streaming session")
+			if c.logger != nil {
+				c.logger.WithError(wrapped).Info("StopGeneration called for non-streaming session")
+			}
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		logger.WithError(wrapped).Error("StopGeneration failed")
+		if c.logger != nil {
+			c.logger.WithError(wrapped).Error("StopGeneration failed")
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -462,8 +468,9 @@ func (c *StreamController) ResumeStream(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "Run not found or already finished", http.StatusNotFound)
 			return
 		}
-		logger := configuration.Use().Logger()
-		logger.WithError(serrors.E(op, err)).Error("Resume stream error")
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("Resume stream error")
+		}
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
@@ -560,9 +567,10 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 		flusher.Flush()
 	})
 	if err != nil {
-		logger := configuration.Use().Logger()
 		if errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
-			logger.WithError(serrors.E(op, err)).Warn("TailEvents: run event log unavailable")
+			if c.logger != nil {
+				c.logger.WithError(serrors.E(op, err)).Warn("TailEvents: run event log unavailable")
+			}
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
@@ -573,7 +581,9 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if errors.Is(err, bichatservices.ErrRunNotFoundOrFinished) {
-			logger.WithError(serrors.E(op, err)).Warn("TailEvents: run not found or already finished")
+			if c.logger != nil {
+				c.logger.WithError(serrors.E(op, err)).Warn("TailEvents: run not found or already finished")
+			}
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", httpdto.StreamChunkPayload{
@@ -583,7 +593,9 @@ func (c *StreamController) TailEvents(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("TailEvents failed")
+		}
 	}
 }
 
@@ -659,9 +671,10 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 		c.sendSSEEvent(w, flusher, evt.Event, payload)
 	})
 	if err != nil {
-		logger := configuration.Use().Logger()
 		if errors.Is(err, bichatservices.ErrActiveRunIndexUnavailable) || errors.Is(err, bichatservices.ErrRunEventLogUnavailable) {
-			logger.WithError(serrors.E(op, err)).Warn("TailActiveRuns: active-run index unavailable")
+			if c.logger != nil {
+				c.logger.WithError(serrors.E(op, err)).Warn("TailActiveRuns: active-run index unavailable")
+			}
 			writeMu.Lock()
 			defer writeMu.Unlock()
 			c.sendSSEEvent(w, flusher, "error", map[string]string{
@@ -669,7 +682,9 @@ func (c *StreamController) TailActiveRuns(w http.ResponseWriter, r *http.Request
 			})
 			return
 		}
-		logger.WithError(serrors.E(op, err)).Error("TailActiveRuns failed")
+		if c.logger != nil {
+			c.logger.WithError(serrors.E(op, err)).Error("TailActiveRuns failed")
+		}
 	}
 }
 

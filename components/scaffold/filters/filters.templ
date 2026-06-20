@@ -36,7 +36,7 @@ templ Dropdown(props DropdownProps) {
 			</button>
 			<!-- Dropdown Button -->
 			<button
-				@click="open = !open"
+				@click="toggle()"
 				type="button"
 				class={
 					"w-full border border-gray-300 rounded-md shadow-sm cursor-pointer",
@@ -59,7 +59,7 @@ templ Dropdown(props DropdownProps) {
 		<!-- Dropdown Items -->
 		<ul
 			x-show="open"
-			@click.away="open = false"
+			@click.away="close()"
 			x-transition
 			class={
 				"absolute z-20 mt-2 bg-white max-h-80 overflow-y-auto min-w-fit",
@@ -93,10 +93,10 @@ templ DropdownItem(props DropdownItemProps) {
 			Checked: props.Checked,
 			Class:   templ.Classes("p-2"),
 			Attrs: templ.Attributes{
-				"value":    props.Value,
-				"name":     props.Name,
-				"@change":  "toggleValue($event.target.value)",
-				":checked": "selected.includes('" + props.Value + "')",
+				"value":        props.Value,
+				"name":         props.Name,
+				"@change.stop": "toggleValue($event.target.value)",
+				":checked":     "selected.includes('" + props.Value + "')",
 			},
 		})
 	</li>

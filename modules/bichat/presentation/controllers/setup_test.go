@@ -14,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	corepersistence "github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
 	"github.com/iota-uz/iota-sdk/pkg/itf"
 	"github.com/stretchr/testify/require"
@@ -30,8 +29,15 @@ func TestMain(m *testing.M) {
 func requirePostgres(t *testing.T) {
 	t.Helper()
 
-	conf := configuration.Use()
-	addr := net.JoinHostPort(conf.Database.Host, conf.Database.Port)
+	host := os.Getenv("DB_HOST")
+	port := os.Getenv("DB_PORT")
+	if host == "" {
+		host = "localhost"
+	}
+	if port == "" {
+		port = "5432"
+	}
+	addr := net.JoinHostPort(host, port)
 	d := net.Dialer{Timeout: 500 * time.Millisecond}
 	conn, err := d.DialContext(context.Background(), "tcp", addr)
 	if err != nil {

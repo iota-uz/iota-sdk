@@ -10,10 +10,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/commands/common"
-)
-
-var (
-	ErrNoCommand = errors.New("expected 'up', 'down', 'redo', or 'status' subcommands")
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
+	"github.com/sirupsen/logrus"
 )
 
 // ensureDirectories creates necessary directories if they don't exist
@@ -27,29 +25,26 @@ func ensureDirectories() error {
 	return nil
 }
 
-func Migrate() error {
-	if len(os.Args) < 2 {
-		return ErrNoCommand
-	}
-
+// RunMigration executes the given migration subcommand using the provided database config.
+// cfg is resolved by the caller (typically a cobra RunE or MigrateWithSubcommand).
+func RunMigration(cfg *dbconfig.Config, subcommand string) error {
 	if err := ensureDirectories(); err != nil {
 		return err
 	}
 
-	command := os.Args[1]
 	ctx := context.Background()
 
-	switch command {
+	switch subcommand {
 	case "up", "down", "redo", "status":
-		pool, err := common.GetDefaultDatabasePool()
+		pool, err := common.GetDefaultDatabasePool(cfg)
 		if err != nil {
 			return fmt.Errorf("failed to connect to database: %w", err)
 		}
 		defer pool.Close()
-		return handleMigrationCommands(ctx, command, application.NewMigrationManager(pool))
+		return handleMigrationCommands(ctx, subcommand, application.NewMigrationManager(pool, *cfg, logrus.StandardLogger()))
 
 	default:
-		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", command)
+		return fmt.Errorf("unsupported command: %s\nSupported commands: 'up', 'down', 'redo', 'status'", subcommand)
 	}
 }
 
@@ -112,17 +107,4 @@ func handleMigrationCommands(
 	}
 
 	return nil
-}
-
-// MigrateWithSubcommand runs migration with a specific subcommand
-// This is a wrapper for the unified command tool
-func MigrateWithSubcommand(subcommand string) error {
-	// Temporarily modify os.Args to match the expected format
-	originalArgs := os.Args
-	defer func() { os.Args = originalArgs }()
-
-	// Set os.Args to simulate direct migrate command call
-	os.Args = []string{"migrate", subcommand}
-
-	return Migrate()
 }

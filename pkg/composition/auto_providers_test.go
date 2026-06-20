@@ -3,18 +3,15 @@ package composition
 import (
 	"testing"
 
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 )
 
 func TestAutoProvidersInjectFromBuildContext(t *testing.T) {
 	logger := logrus.New()
-	cfg := &configuration.Configuration{}
 
 	engine := NewEngine()
 	var seenLogger *logrus.Logger
-	var seenConfig *configuration.Configuration
 
 	err := engine.Register(testComponent{
 		descriptor: Descriptor{Name: "consumer"},
@@ -25,11 +22,6 @@ func TestAutoProvidersInjectFromBuildContext(t *testing.T) {
 					return "", err
 				}
 				seenLogger = l
-				cf, err := Resolve[*configuration.Configuration](c)
-				if err != nil {
-					return "", err
-				}
-				seenConfig = cf
 				return "ok", nil
 			})
 			return nil
@@ -39,7 +31,6 @@ func TestAutoProvidersInjectFromBuildContext(t *testing.T) {
 
 	bctx := BuildContext{
 		logger: logger,
-		config: cfg,
 	}
 
 	container, err := engine.Compile(bctx)
@@ -49,7 +40,6 @@ func TestAutoProvidersInjectFromBuildContext(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ok", value)
 	require.Same(t, logger, seenLogger)
-	require.Same(t, cfg, seenConfig)
 }
 
 func TestAutoProvidersOverridableByUserProvider(t *testing.T) {

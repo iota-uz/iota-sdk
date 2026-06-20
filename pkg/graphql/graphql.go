@@ -19,7 +19,7 @@ import (
 	"github.com/99designs/gqlgen/graphql/executor"
 	"github.com/99designs/gqlgen/graphql/handler/transport"
 	"github.com/gorilla/websocket"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vektah/gqlparser/v2/parser"
@@ -38,9 +38,9 @@ type Resolver struct {
 // In production builds, this will be a no-op.
 var registerIntrospection = func(server *Handler, rootExecutor *executor.Executor) {}
 
-func NewBaseServer(schema graphql.ExecutableSchema) *Handler {
+func NewBaseServer(schema graphql.ExecutableSchema, cfg *uploadsconfig.Config) *Handler {
 	ex := executor.New(schema)
-	srv := NewHandler(ex)
+	srv := NewHandler(ex, cfg)
 	// for _, schema := range app.GraphSchemas() {
 	// 	srv.execs = append(srv.execs, executor.New(schema.Value))
 	// }
@@ -468,8 +468,21 @@ type Handler struct {
 	transports []graphql.Transport
 }
 
-func NewHandler(rootExecutor *executor.Executor) *Handler {
-	conf := configuration.Use()
+// defaultUploadsConfig returns a Config with documented defaults applied.
+// Used when NewHandler or NewBaseServer receives a nil *uploadsconfig.Config.
+func defaultUploadsConfig() uploadsconfig.Config {
+	return uploadsconfig.Config{
+		Path:      "static",
+		MaxSize:   33554432,
+		MaxMemory: 33554432,
+	}
+}
+
+func NewHandler(rootExecutor *executor.Executor, cfg *uploadsconfig.Config) *Handler {
+	if cfg == nil {
+		d := defaultUploadsConfig()
+		cfg = &d
+	}
 	server := &Handler{}
 	server.execs = append(server.execs, rootExecutor)
 
@@ -486,8 +499,8 @@ func NewHandler(rootExecutor *executor.Executor) *Handler {
 	server.AddTransport(transport.GET{})
 	server.AddTransport(MyPOST{})
 	server.AddTransport(transport.MultipartForm{
-		MaxUploadSize: conf.MaxUploadSize,
-		MaxMemory:     conf.MaxUploadMemory,
+		MaxUploadSize: cfg.MaxSize,
+		MaxMemory:     cfg.MaxMemory,
 	})
 
 	// TODO: make LRU work

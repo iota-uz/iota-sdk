@@ -848,7 +848,14 @@ func panelChartClass(spec panel.Spec, fullscreen bool) string {
 }
 
 func panelCardClass(spec panel.Spec) string {
-	base := "flex h-full flex-col overflow-hidden rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-200"
+	// Stat panels host an info (ⓘ) tooltip that pops outside the card body; keeping
+	// overflow-hidden here would clip it (the tooltip mounts in-tree, not portaled).
+	// Chart/table panels still clip their content to the rounded card.
+	overflow := "overflow-hidden"
+	if spec.Kind == panel.KindStat {
+		overflow = "overflow-visible"
+	}
+	base := "flex h-full flex-col " + overflow + " rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-200"
 	if panelIsInteractive(spec) {
 		base += " hover:border-blue-200 hover:shadow-md"
 	} else {

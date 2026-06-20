@@ -263,7 +263,7 @@ func TestTenantService_GetTenantDetails(t *testing.T) {
 		// Get the test tenant ID from ITF context
 		tenantID := f.TenantID()
 
-		tenant, err := service.GetTenantDetails(f.Ctx, tenantID)
+		tenant, err := service.GetByID(f.Ctx, tenantID)
 		require.NoError(t, err)
 		require.NotNil(t, tenant)
 
@@ -276,7 +276,7 @@ func TestTenantService_GetTenantDetails(t *testing.T) {
 	})
 
 	t.Run("Nil_Tenant_ID", func(t *testing.T) {
-		tenant, err := service.GetTenantDetails(f.Ctx, uuid.Nil)
+		tenant, err := service.GetByID(f.Ctx, uuid.Nil)
 		require.Error(t, err)
 		assert.Nil(t, tenant)
 		assert.Contains(t, err.Error(), "tenant ID cannot be nil")
@@ -285,7 +285,7 @@ func TestTenantService_GetTenantDetails(t *testing.T) {
 	t.Run("Non_Existent_Tenant_ID", func(t *testing.T) {
 		nonExistentID := uuid.New()
 
-		tenant, err := service.GetTenantDetails(f.Ctx, nonExistentID)
+		tenant, err := service.GetByID(f.Ctx, nonExistentID)
 		require.Error(t, err)
 		assert.Nil(t, tenant)
 		assert.Contains(t, err.Error(), "tenant not found")
@@ -296,7 +296,7 @@ func TestTenantService_GetTenantDetails(t *testing.T) {
 		cancel()
 
 		tenantID := f.TenantID()
-		tenant, err := service.GetTenantDetails(ctx, tenantID)
+		tenant, err := service.GetByID(ctx, tenantID)
 		require.Error(t, err)
 		assert.Nil(t, tenant)
 	})
@@ -491,7 +491,7 @@ func TestTenantService_Integration(t *testing.T) {
 
 		if len(tenants) > 0 {
 			// Get details of first tenant
-			tenant, err := service.GetTenantDetails(f.Ctx, tenants[0].ID)
+			tenant, err := service.GetByID(f.Ctx, tenants[0].ID)
 			require.NoError(t, err)
 			require.NotNil(t, tenant)
 
@@ -663,7 +663,7 @@ func TestTenantService_MultiTenant(t *testing.T) {
 	})
 
 	t.Run("Get_Details_Of_Second_Tenant", func(t *testing.T) {
-		tenant, err := service.GetTenantDetails(f.Ctx, tenant2.ID)
+		tenant, err := service.GetByID(f.Ctx, tenant2.ID)
 		require.NoError(t, err)
 		require.NotNil(t, tenant)
 		assert.Equal(t, tenant2.ID, tenant.ID)

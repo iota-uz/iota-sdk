@@ -205,6 +205,105 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   searchQuery: '',
   searchable,
   canCreateNew,
+  init() {
+    // Reposition the (top-layer) dropdown when the page scrolls/resizes while open.
+    this._reflow = () => {
+      if (this.open || this.openedWithKeyboard) this.positionDropdown();
+    };
+    this.$watch('open', () => this.syncDropdown());
+    this.$watch('openedWithKeyboard', () => this.syncDropdown());
+    window.addEventListener('scroll', this._reflow, true);
+    window.addEventListener('resize', this._reflow);
+    // Start hidden. Popover-capable browsers also hide via UA styles; this
+    // covers the in-flow fallback path. Deferred because $refs.list is a child
+    // ref not yet registered when the component's init() runs.
+    this.$nextTick(() => {
+      if (this.$refs.list) this.$refs.list.style.display = 'none';
+    });
+  },
+  destroy() {
+    if (this._reflow) {
+      window.removeEventListener('scroll', this._reflow, true);
+      window.removeEventListener('resize', this._reflow);
+    }
+    let list = this.$refs.list;
+    if (this.supportsPopover(list) && list.matches(':popover-open')) {
+      try { list.hidePopover(); } catch (e) { }
+    }
+  },
+  supportsPopover(el) {
+    return !!el && typeof el.showPopover === 'function' && el.hasAttribute('popover');
+  },
+  // Promote the option list to the top layer (Popover API) on open so it is
+  // never clipped by an overflow-hidden ancestor or hidden behind a modal drawer.
+  syncDropdown() {
+    let list = this.$refs.list;
+    if (!list) return;
+    let show = this.open || this.openedWithKeyboard;
+    if (show) {
+      list.style.display = 'flex';
+      if (this.supportsPopover(list) && !list.matches(':popover-open')) {
+        try { list.showPopover(); } catch (e) { }
+      }
+      this.$nextTick(() => this.positionDropdown());
+    } else {
+      if (this.supportsPopover(list) && list.matches(':popover-open')) {
+        try { list.hidePopover(); } catch (e) { }
+      }
+      list.style.display = 'none';
+    }
+  },
+  // Anchor the dropdown to the trigger using viewport coordinates, flipping
+  // above when there is not enough room below.
+  positionDropdown() {
+    let list = this.$refs.list;
+    let trigger = this.$refs.trigger;
+    if (!list || !trigger) return;
+    let rect = trigger.getBoundingClientRect();
+    let gap = 4;
+    let edge = 8; // keep the menu clear of the viewport edge
+    // Match the field width. Callers passing `!w-auto` via ListClass override this.
+    list.style.width = rect.width + 'px';
+    if (this.supportsPopover(list) && list.matches(':popover-open')) {
+      // Top-layer popover: position against the viewport (fixed coordinates)
+      // and reset the UA-default `inset:0; margin:auto` centering.
+      list.style.margin = '0';
+      list.style.inset = 'auto';
+      list.style.position = 'fixed';
+      // Size the menu to the available space rather than a fixed cap: measure the
+      // natural content height (bounded by any caller-supplied cap such as
+      // `!max-h-60`), then clamp to whichever side of the trigger has more room.
+      // Grows on tall screens; stays clip-safe (never taller than the viewport gap)
+      // when forced to flip up on short ones. Applied `important` so the clip-safe
+      // ceiling also wins over a caller's `!important` cap on short screens, while
+      // still never exceeding that cap (it bounds contentHeight) on tall ones.
+      list.style.removeProperty('max-height');
+      let contentHeight = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2);
+      let spaceBelow = window.innerHeight - rect.bottom - gap - edge;
+      let spaceAbove = rect.top - gap - edge;
+      let flipUp = spaceBelow < contentHeight && spaceAbove > spaceBelow;
+      let height = Math.min(contentHeight, Math.max(0, flipUp ? spaceAbove : spaceBelow));
+      list.style.setProperty('max-height', height + 'px', 'important');
+      list.style.left = rect.left + 'px';
+      list.style.top = (flipUp ? rect.top - height - gap : rect.bottom + gap) + 'px';
+    } else {
+      // Fallback (no Popover API): sit just below the field, in flow.
+      list.style.position = 'absolute';
+      list.style.left = '0px';
+      list.style.top = '100%';
+      list.style.removeProperty('max-height');
+      let avail = Math.max(0, window.innerHeight - rect.bottom - gap - edge);
+      let height = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2, avail);
+      list.style.setProperty('max-height', height + 'px', 'important');
+    }
+  },
+  dropdownMaxHeightCap(list) {
+    // Caller-supplied max-height cap (e.g. ListClass `!max-h-60`) in pixels, or
+    // Infinity when none. Must be read with our own inline max-height cleared.
+    let cap = getComputedStyle(list).maxHeight;
+    let px = cap && cap !== 'none' ? parseFloat(cap) : NaN;
+    return Number.isFinite(px) ? px : Infinity;
+  },
   setValue(value) {
     if (!this.options.length && this.canCreateNew && this.searchQuery.length) {
       this.$refs.createOption.click();
@@ -220,6 +319,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       }
     }
     if (index == null || index > this.allOptions.length - 1) return;
+    // Disabled options (and filterbuilder group headers) are not selectable.
+    if (this.allOptions[index].disabled) return;
     if (this.multiple) {
       this.allOptions[index].toggleAttribute("selected");
       if (this.selectedValues.has(value)) {
@@ -249,8 +350,15 @@ let combobox = (searchable = false, canCreateNew = false) => ({
         label: option.textContent,
       });
     }
-    this.open = false;
-    this.openedWithKeyboard = false;
+    // Single-select picks one value and closes. Multi-select keeps the dropdown
+    // open so the user can tick several options without re-opening it each time;
+    // adding a chip can grow the trigger, so re-anchor the top-layer popover.
+    if (this.multiple) {
+      this.$nextTick(() => this.positionDropdown());
+    } else {
+      this.open = false;
+      this.openedWithKeyboard = false;
+    }
     this.searchQuery = '';
     this.options = [...this.allOptions];
     if (this.selectedValues.size === 0) {
@@ -269,6 +377,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveIndex(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeIndex = i;
       }
@@ -277,6 +386,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   setActiveValue(value) {
     for (let i = 0, len = this.options.length; i < len; i++) {
       let option = this.options[i];
+      if (option.disabled) continue;
       if (option.textContent.toLowerCase().startsWith(value.toLowerCase())) {
         this.activeValue = option.value;
         return option;
@@ -370,6 +480,10 @@ let combobox = (searchable = false, canCreateNew = false) => ({
 
 let filtersDropdown = () => ({
   open: false,
+  // Pending change accumulated while the dropdown is open. Each tick re-renders
+  // the table fragment (this dropdown lives inside the HTMX swap target), which
+  // would collapse the dropdown mid-selection — so we batch and apply on close.
+  dirty: false,
   selected: [],
   init() {
     // Use [checked] attribute selector instead of :checked pseudo-selector
@@ -384,9 +498,25 @@ let filtersDropdown = () => ({
     } else {
       this.selected.splice(index, 1);
     }
-    // Dispatch custom event after Alpine state is updated
-    // We use 'filter-changed' custom event instead of 'change' to avoid race condition
-    // where HTMX collects form data before Alpine updates checkbox state
+    // Defer the reload until the dropdown closes so multiple options can be
+    // ticked without the table re-rendering (and closing the dropdown) on each.
+    this.dirty = true;
+  },
+  toggle() {
+    this.open = !this.open;
+    if (!this.open) this.flush();
+  },
+  close() {
+    if (!this.open) return;
+    this.open = false;
+    this.flush();
+  },
+  flush() {
+    if (!this.dirty) return;
+    this.dirty = false;
+    // Dispatch custom event after Alpine state is updated. We use 'filter-changed'
+    // instead of 'change' to avoid a race where HTMX collects form data before
+    // Alpine updates checkbox state.
     this.$nextTick(() => {
       this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
@@ -394,6 +524,7 @@ let filtersDropdown = () => ({
   clearAll() {
     this.selected = [];
     this.$el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    this.dirty = false;
     this.$nextTick(() => {
       this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
@@ -1962,6 +2093,18 @@ let tableConfig = (id) => ({
       return;
     }
     if (fromIndex === toIndex) return;
+    // Sticky (pinned) columns are fixed walls: a column may not be reordered
+    // across one. Clamp the target into the segment bounded by the nearest
+    // sticky columns on each side of the source position.
+    if (this.columns[fromIndex] && this.columns[fromIndex].sticky) return;
+    let lo = 0, hi = this.columns.length - 1;
+    for (let i = 0; i < this.columns.length; i++) {
+      if (!this.columns[i] || !this.columns[i].sticky) continue;
+      if (i < fromIndex) lo = Math.max(lo, i + 1);
+      else if (i > fromIndex) hi = Math.min(hi, i - 1);
+    }
+    toIndex = Math.max(lo, Math.min(hi, toIndex));
+    if (fromIndex === toIndex) return;
     let [col] = this.columns.splice(fromIndex, 1);
     this.columns.splice(toIndex, 0, col);
     if (sync) {
@@ -2226,6 +2369,34 @@ let scrollAffordance = () => ({
   },
 });
 
+// emptyStateCentering keeps the table empty-state centered in the visible
+// horizontal scroll viewport. The empty-state lives in a <td> that spans the
+// full (often much wider than the screen) table, so a plain justify-center
+// centers it across the entire scroll width and pushes it off to the right /
+// clips it. We pin the wrapper sticky to the scrollport's left edge and size it
+// to the scroll container's visible width so its own justify-center lands in
+// view. Mirrors scrollAffordance's ResizeObserver approach; works for both
+// scroll-wrapper variants since the wrapper is always the <table>'s parent.
+let emptyStateCentering = () => ({
+  init() {
+    const table = this.$el.closest("table");
+    this.sc = table && table.parentElement;
+    this.measure = () => {
+      if (!this.sc || !this.sc.isConnected) return;
+      this.$el.style.width = this.sc.clientWidth + "px";
+    };
+    this.$nextTick(() => this.measure());
+    if (this.sc) {
+      this._ro = new ResizeObserver(() => this.measure());
+      this._ro.observe(this.sc);
+    }
+  },
+  destroy() {
+    if (this._ro) this._ro.disconnect();
+  },
+});
+Alpine.data("emptyStateCentering", emptyStateCentering);
+
 // tableKeyboardNav adds arrow-key row navigation + Enter-to-open for drawer
 // rows. Attached to the TBODY (not the configurable container) to avoid x-data
 // collision with tableConfig. It acts only when focus is on a [data-row-drawer]
@@ -2283,6 +2454,136 @@ let tableKeyboardNav = () => ({
   },
 });
 
+// filterBuilder powers components/scaffold/filterbuilder: a chip-based
+// filter constructor. Chips are server-rendered; this factory only manages
+// popover state, writes the hidden `f` inputs (pkg/filterq URL codec) and
+// dispatches a bubbling `filter-changed` event so the enclosing HTMX form
+// resubmits.
+let filterBuilder = () => ({
+  adding: false,
+  editing: null, // chip index with an open edit popover
+  draftField: null, // field key picked in the add popover (stage 2)
+  fieldSearch: '',
+  openAdd() {
+    this.editing = null;
+    this.draftField = null;
+    this.fieldSearch = '';
+    this.adding = !this.adding;
+    if (this.adding) this.$nextTick(() => this.$refs.fieldSearchInput?.focus());
+  },
+  edit(i) {
+    this.adding = false;
+    this.draftField = null;
+    this.editing = this.editing === i ? null : i;
+  },
+  closeAll() {
+    this.adding = false;
+    this.editing = null;
+    this.draftField = null;
+  },
+  fieldMatches(el) {
+    const q = this.fieldSearch.trim().toLowerCase();
+    return !q || (el.dataset.fbLabel || '').toLowerCase().includes(q);
+  },
+  // Mirror of pkg/filterq EncodeCondition. Encode-only on purpose: decoding
+  // lives exclusively in Go, the server re-render is the source of truth.
+  encode({ field, op, values }) {
+    const esc = (v) => String(v).replaceAll('%', '%25').replaceAll(',', '%2C');
+    return field + ':' + op + ':' + values.map(esc).join(',');
+  },
+  applyFlag(field) {
+    this.onApply({ field, op: 'is', values: ['true'], chip: -1 });
+  },
+  onApply(detail) {
+    if (!detail || !detail.values || !detail.values.length) return;
+    const enc = this.encode(detail);
+    if (detail.chip >= 0) {
+      const input = this.$root.querySelector(`input[name="f"][data-fb-chip="${detail.chip}"]`);
+      if (input) input.value = enc;
+    } else {
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'f';
+      input.value = enc;
+      this.$root.appendChild(input);
+    }
+    this.closeAll();
+    this.submit();
+  },
+  remove(i) {
+    // Capture nodes before deferring: Alpine magics ($root) are unavailable
+    // inside the $nextTick callback, and removing the wrapper (which contains
+    // the clicked button) synchronously would trip Alpine on the orphaned
+    // node and abort before the submit.
+    const root = this.$root;
+    const input = root.querySelector(`input[name="f"][data-fb-chip="${i}"]`);
+    const wrapper = input?.closest('[data-fb-chip-wrapper]');
+    this.closeAll();
+    this.$nextTick(() => {
+      wrapper?.remove();
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  clearAll() {
+    const root = this.$root;
+    this.closeAll();
+    this.$nextTick(() => {
+      root.querySelectorAll('[data-fb-chip-wrapper]').forEach((el) => el.remove());
+      root.querySelectorAll('input[name="f"]').forEach((el) => el.remove());
+      root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+    });
+  },
+  submit() {
+    this.$root.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
+  },
+});
+
+// fbPanel is the polymorphic operator+value editor inside filterBuilder
+// popovers. It collects values from its nameless embedded controls and hands
+// them up to filterBuilder via the `fb-apply` event.
+let fbPanel = (cfg = {}) => ({
+  op: cfg.op,
+  preset: cfg.preset || '',
+  apply() {
+    const values = this.collect();
+    if (!values.length) return;
+    this.$dispatch('fb-apply', { field: cfg.field, op: this.op, values, chip: cfg.chip });
+  },
+  applyPreset(token) {
+    this.op = 'between';
+    this.preset = token;
+    this.$dispatch('fb-apply', {
+      field: cfg.field,
+      op: 'between',
+      values: ['preset:' + token],
+      chip: cfg.chip,
+    });
+  },
+  variantEl() {
+    const variant = this.op === 'between' ? 'range' : 'single';
+    return this.$root.querySelector(`[data-fb-variant="${variant}"]`);
+  },
+  collect() {
+    switch (cfg.type) {
+      case 'reference': {
+        const select = this.$root.querySelector('select[multiple]');
+        return Array.from(select?.selectedOptions ?? [])
+          .map((o) => o.value)
+          .filter((v) => v && !v.startsWith('__group:'));
+      }
+      case 'date': {
+        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"]') ?? [];
+        return Array.from(inputs).map((i) => i.value).filter(Boolean);
+      }
+      case 'number': {
+        const inputs = this.variantEl()?.querySelectorAll('input[data-fb-value]') ?? [];
+        return Array.from(inputs).map((i) => i.value.trim()).filter(Boolean);
+      }
+    }
+    return [];
+  },
+});
+
 Alpine.data("dateTimeFormat", dateTimeFormat)
 Alpine.data("relativeformat", relativeFormat);
 Alpine.data("passwordVisibility", passwordVisibility);
@@ -2308,4 +2609,6 @@ Alpine.data("tableConfig", tableConfig);
 Alpine.data("cellTruncate", cellTruncate);
 Alpine.data("scrollAffordance", scrollAffordance);
 Alpine.data("tableKeyboardNav", tableKeyboardNav);
+Alpine.data("filterBuilder", filterBuilder);
+Alpine.data("fbPanel", fbPanel);
 Sortable(Alpine);

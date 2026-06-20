@@ -97,6 +97,18 @@ func IsHistoryRestoreRequest(r *http.Request) bool {
 	return r.Header.Get("Hx-History-Restore-Request") == "true"
 }
 
+// WantsFullPage reports whether the handler should render a full HTML document
+// (layout + <head>) rather than an HTMX fragment.
+//
+// It is true for a normal navigation and for a history-restore request: htmx
+// fetches the latter on a local history-cache miss and swaps it into the
+// history element, so it must receive the whole page or the layout shell is
+// lost. Branch on this instead of a bare IsHxRequest check when deciding
+// fragment-vs-page, so history restoration keeps the shell and styling intact.
+func WantsFullPage(r *http.Request) bool {
+	return !IsHxRequest(r) || IsHistoryRestoreRequest(r)
+}
+
 // Target returns the ID of the element that triggered the request.
 func Target(r *http.Request) string {
 	return r.Header.Get("Hx-Target")

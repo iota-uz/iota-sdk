@@ -474,6 +474,7 @@
     "Roles": "Rollar",
     "Groups": "Guruhlar",
     "Settings": "Sozlamalar",
+    "SystemInfo": "Tizim ma'lumotlari",
     "KnowledgeBase": "Bilimlar bazasi",
     "Operations": "Operatsiyalar",
     "Calendar": "Taqvim",
@@ -914,6 +915,34 @@
     "Filters": {
       "Title": "Filtrlar",
       "SelectAll": "Barchasini tanlash"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Filtr qoʻshish",
+      "ClearAll": "Hammasini tozalash",
+      "Apply": "Qoʻllash",
+      "SearchFields": "Filtr qidirish...",
+      "SelectValues": "Qiymatlarni tanlang...",
+      "NothingFound": "Hech narsa topilmadi",
+      "Remove": "Filtrni olib tashlash",
+      "Operators": {
+        "Is": "ga teng",
+        "IsNot": "ga teng emas",
+        "Before": "gacha",
+        "After": "dan keyin",
+        "On": "sanada",
+        "Between": "oraliqda",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Shu oy",
+        "LastMonth": "Oʻtgan oy",
+        "Last30Days": "Oxirgi 30 kun",
+        "Next30Days": "Keyingi 30 kun",
+        "ThisYear": "Shu yil",
+        "LastYear": "Oʻtgan yil"
+      }
     }
   },
   "Search": "Qidirish",

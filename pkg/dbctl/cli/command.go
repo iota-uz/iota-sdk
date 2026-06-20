@@ -5,12 +5,45 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/config"
+	envprov "github.com/iota-uz/iota-sdk/pkg/config/providers/env"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/appconfig"
+	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/dbconfig"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/execution"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/ops"
 	"github.com/iota-uz/iota-sdk/pkg/dbctl/policy"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
+
+// resolveRunOptions populates the config-derived fields of RunOptions from the
+// config source. This is the single config-resolution site in the dbctl CLI layer.
+func resolveRunOptions(base execution.RunOptions) (execution.RunOptions, error) {
+	src, err := config.Build(envprov.New(".env", ".env.local"))
+	if err != nil {
+		return base, fmt.Errorf("dbctl: build config source: %w", err)
+	}
+	reg := config.NewRegistry(src)
+
+	dbCfg, err := config.Register[dbconfig.Config](reg)
+	if err != nil {
+		return base, fmt.Errorf("dbctl: load dbconfig: %w", err)
+	}
+	base.DBConfig = dbCfg
+
+	appCfg, err := config.Register[appconfig.Config](reg)
+	if err != nil {
+		return base, fmt.Errorf("dbctl: load appconfig: %w", err)
+	}
+	base.AppEnvironment = appCfg.Environment
+
+	if base.Logger == nil {
+		base.Logger = logrus.StandardLogger()
+	}
+
+	return base, nil
+}
 
 func NewCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -36,7 +69,7 @@ func newPlanCommand() *cobra.Command {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
 			out := cmd.OutOrStdout()
-			plan, err := execution.Plan(ctx, execution.RunOptions{
+			opts, err := resolveRunOptions(execution.RunOptions{
 				Operation:  args[0],
 				Mode:       ops.ExecutionModePlan,
 				Yes:        yes,
@@ -44,6 +77,10 @@ func newPlanCommand() *cobra.Command {
 				JSONOutput: jsonOutput,
 				PolicyPath: policyPath,
 			})
+			if err != nil {
+				return err
+			}
+			plan, err := execution.Plan(ctx, opts)
 			if err != nil {
 				return err
 			}
@@ -80,7 +117,7 @@ func newApplyCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 5*time.Minute)
 			defer cancel()
-			return execution.Apply(ctx, execution.RunOptions{
+			opts, err := resolveRunOptions(execution.RunOptions{
 				Operation:  args[0],
 				Mode:       ops.ExecutionModeApply,
 				Yes:        yes,
@@ -90,6 +127,10 @@ func newApplyCommand() *cobra.Command {
 				Actor:      actor,
 				Out:        cmd.OutOrStdout(),
 			})
+			if err != nil {
+				return err
+			}
+			return execution.Apply(ctx, opts)
 		},
 	}
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Emit JSON events")
@@ -112,11 +153,15 @@ func newDoctorCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			targetPlan, err := execution.Plan(cmd.Context(), execution.RunOptions{
+			opts, err := resolveRunOptions(execution.RunOptions{
 				Operation:  "seed.main",
 				Mode:       ops.ExecutionModePlan,
 				PolicyPath: policyPath,
 			})
+			if err != nil {
+				return err
+			}
+			targetPlan, err := execution.Plan(cmd.Context(), opts)
 			if err != nil {
 				return serrors.E(op, err)
 			}

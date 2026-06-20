@@ -172,6 +172,13 @@ type TableProps struct {
 	ScrollbarPosition    ScrollbarPosition
 	ScrollbarUnderHeader bool
 	ScrollbarGutter      bool
+	// Foot, when set, renders a <tfoot> (e.g. a totals row) as a sibling of the
+	// body. Because <tfoot> sits outside <tbody>, infinite-scroll rows appended
+	// inside <tbody> never displace it.
+	Foot templ.Component
+	// FootSticky pins the footer to the bottom of the scroll viewport
+	// (mirrors the sticky header), keeping it visible while scrolling.
+	FootSticky bool
 }
 
 templ Table(props TableProps) {
@@ -326,6 +333,7 @@ templ Table(props TableProps) {
 								x-sort:config="{
 									handle: '[x-sort\\:handle]',
 									filter: '[data-col-sticky]',
+									onMove: (event) => !(event.related && event.related.matches && event.related.matches('[data-col-sticky]')),
 									onEnd: (event) => {
 										moveColumn(event.oldIndex, event.newIndex, true);
 									},
@@ -357,7 +365,7 @@ templ Table(props TableProps) {
 												hx-include="closest form"
 											>
 												if col.Configurable {
-													<button x-sort:handle type="button" class="-ml-1.5">
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
 														@icons.DotsSixVertical(icons.Props{Size: "20"})
 													</button>
 												}
@@ -403,7 +411,7 @@ templ Table(props TableProps) {
 										<div class="flex flex-col gap-1">
 											<div class="flex items-center gap-2">
 												if col.Configurable {
-													<button x-sort:handle type="button" class="-ml-1.5">
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
 														@icons.DotsSixVertical(icons.Props{Size: "20"})
 													</button>
 												}
@@ -435,6 +443,16 @@ templ Table(props TableProps) {
 						>
 							{ children... }
 						</tbody>
+					}
+					if props.Foot != nil {
+						<tfoot
+							if props.FootSticky {
+								class="z-10"
+								style="position: sticky; bottom: 0; box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1)"
+							}
+						>
+							@props.Foot
+						</tfoot>
 					}
 				</table>
 			</div>
@@ -493,6 +511,7 @@ templ Table(props TableProps) {
 								x-sort.ghost
 								x-sort:config="{
 								draggable: '[data-sortable]',
+								onMove: (event) => !(event.related && event.related.matches && event.related.matches('[data-col-sticky]')),
 								onEnd: (event) => {
 									moveColumn(event.oldIndex, event.newIndex, true);
 								},
@@ -525,7 +544,7 @@ templ Table(props TableProps) {
 												hx-include="closest form"
 											>
 												if col.Configurable {
-													<button x-sort:handle type="button" class="-ml-1.5">
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
 														@icons.DotsSixVertical(icons.Props{Size: "20"})
 													</button>
 												}
@@ -572,7 +591,7 @@ templ Table(props TableProps) {
 										<div class="flex flex-col gap-1">
 											<div class="flex items-center gap-2">
 												if col.Configurable {
-													<button x-sort:handle type="button" class="-ml-1.5">
+													<button x-sort:handle type="button" class="-ml-1.5 cursor-grab active:cursor-grabbing">
 														@icons.DotsSixVertical(icons.Props{Size: "20"})
 													</button>
 												}
@@ -604,6 +623,16 @@ templ Table(props TableProps) {
 						>
 							{ children... }
 						</tbody>
+					}
+					if props.Foot != nil {
+						<tfoot
+							if props.FootSticky {
+								class="z-10"
+								style="position: sticky; bottom: 0; box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1)"
+							}
+						>
+							@props.Foot
+						</tfoot>
 					}
 				</table>
 			</div>

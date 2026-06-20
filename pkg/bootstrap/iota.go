@@ -4,100 +4,17 @@ package bootstrap
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"strings"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/applets"
-	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
-	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/persistence"
-	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"github.com/iota-uz/iota-sdk/pkg/configuration"
 	"github.com/iota-uz/iota-sdk/pkg/constants"
-	"github.com/iota-uz/iota-sdk/pkg/eventbus"
-	"github.com/iota-uz/iota-sdk/pkg/logging"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/sirupsen/logrus"
 	"golang.org/x/text/language"
 )
-
-func IotaConfig(conf *configuration.Configuration) Option {
-	return IotaConfigWithServiceName(conf, conf.OpenTelemetry.ServiceName)
-}
-
-func IotaConfigWithServiceName(conf *configuration.Configuration, serviceName string) Option {
-	return func(o *options) {
-		o.config = conf
-		o.loggerFactory = func(_ context.Context, _ any) (*logrus.Logger, func() error, error) {
-			logger := conf.Logger()
-			if !conf.OpenTelemetry.IsConfigured() {
-				return logger, func() error {
-					conf.Unload()
-					return nil
-				}, nil
-			}
-
-			cleanup := logging.SetupTracing(
-				context.Background(),
-				serviceName,
-				conf.OpenTelemetry.TempoURL,
-			)
-			logger.Info("OpenTelemetry tracing enabled, exporting to Tempo at " + conf.OpenTelemetry.TempoURL)
-			return logger, func() error {
-				cleanup()
-				conf.Unload()
-				return nil
-			}, nil
-		}
-		o.poolFactory = func(ctx context.Context, _ any, _ *logrus.Logger) (*pgxpool.Pool, func() error, error) {
-			poolCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
-			defer cancel()
-
-			poolCfg, err := conf.Database.PoolConfig()
-			if err != nil {
-				return nil, nil, fmt.Errorf("bootstrap: build pgxpool config: %w", err)
-			}
-
-			pool, err := pgxpool.NewWithConfig(poolCtx, poolCfg)
-			if err != nil {
-				return nil, nil, err
-			}
-			return pool, func() error {
-				pool.Close()
-				return nil
-			}, nil
-		}
-		o.bundleFactory = func(context.Context, any) (*i18n.Bundle, error) {
-			return application.LoadBundle(), nil
-		}
-		o.appFactory = func(_ context.Context, rt *Runtime) (application.Application, error) {
-			return application.New(&application.ApplicationOptions{
-				Pool:               rt.Pool,
-				Bundle:             rt.Bundle,
-				EventBus:           eventbus.NewEventPublisher(rt.Logger),
-				Logger:             rt.Logger,
-				SupportedLanguages: application.DefaultSupportedLanguages(),
-				Huber: application.NewHub(&application.HuberOptions{
-					Pool:           rt.Pool,
-					Logger:         rt.Logger,
-					Bundle:         rt.Bundle,
-					UserRepository: persistence.NewUserRepository(persistence.NewUploadRepository()),
-					CheckOrigin: func(r *http.Request) bool {
-						origin := strings.TrimSpace(r.Header.Get("Origin"))
-						if origin == "" {
-							return true
-						}
-						return origin == strings.TrimSpace(conf.Origin)
-					},
-				}),
-			})
-		}
-	}
-}
 
 type sdkAppletUserAdapter struct {
 	user user.User
