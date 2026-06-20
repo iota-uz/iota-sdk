@@ -64,7 +64,9 @@ func (p DatePreset) Range(now time.Time) (time.Time, time.Time) {
 	case PresetLast30D:
 		return today.AddDate(0, 0, -29), today
 	case PresetNext30D:
-		return today, today.AddDate(0, 0, 30)
+		// Inclusive of today, symmetric with PresetLast30D: a 30-day span
+		// (today + 29) rather than 31 days (today + 30).
+		return today, today.AddDate(0, 0, 29)
 	case PresetThisYear:
 		return time.Date(y, 1, 1, 0, 0, 0, 0, loc), time.Date(y, 12, 31, 0, 0, 0, 0, loc)
 	case PresetLastYear:

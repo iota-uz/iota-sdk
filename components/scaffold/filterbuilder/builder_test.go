@@ -172,3 +172,22 @@ func TestChipValueSummaryCollapsesLongLists(t *testing.T) {
 	})
 	assert.Equal(t, "One, Two, Three +2", got)
 }
+
+func TestNewRegistryDeduplicatesKeys(t *testing.T) {
+	reg := NewRegistry(
+		FieldDef{Key: "status", Type: filterq.FieldTypeReference, Label: "First"},
+		FieldDef{Key: "agency", Type: filterq.FieldTypeReference, Label: "Agency"},
+		FieldDef{Key: "status", Type: filterq.FieldTypeReference, Label: "Second"},
+	)
+
+	// Fields(), Field() and Schema() must agree: the duplicate "status" key keeps
+	// only its first registration, so no view of the registry diverges.
+	require.Len(t, reg.Fields(), 2)
+	assert.Equal(t, []string{"status", "agency"}, []string{reg.Fields()[0].Key, reg.Fields()[1].Key})
+
+	f, ok := reg.Field("status")
+	require.True(t, ok)
+	assert.Equal(t, "First", f.Label, "Field() must resolve to the same entry Fields() keeps")
+
+	assert.Len(t, reg.Schema().Fields, 2, "Schema() must not emit duplicate fields")
+}

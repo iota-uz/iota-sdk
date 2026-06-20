@@ -222,6 +222,9 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     });
   },
   destroy() {
+    // Disconnect the <select> mutation observer set up in select x-init so it
+    // isn't leaked when the combobox is removed (e.g. HTMX swaps the subtree).
+    if (this.observer) this.observer.disconnect();
     if (this._reflow) {
       window.removeEventListener('scroll', this._reflow, true);
       window.removeEventListener('resize', this._reflow);

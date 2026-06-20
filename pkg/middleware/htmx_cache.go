@@ -43,25 +43,42 @@ func HTMXCacheControl() mux.MiddlewareFunc {
 				r.Header.Del("Hx-Request")
 				r.Header.Del("Hx-Boosted")
 			}
-			next.ServeHTTP(&htmxCacheControlWriter{ResponseWriter: w}, r)
+			cw := &htmxCacheControlWriter{ResponseWriter: w}
+			next.ServeHTTP(cw, r)
+			// Flush a buffered status that never received a body (e.g. 204 or a
+			// redirect) so the response is still written.
+			cw.finish()
 		})
 	}
 }
 
 type htmxCacheControlWriter struct {
 	http.ResponseWriter
-	decorated bool
+	decorated   bool
+	headerSent  bool
+	pendingCode int // non-zero: a 2xx+ status buffered until Content-Type is known
 }
 
-// decorate sets cache-safety headers for HTML responses. It runs once, on the
-// first WriteHeader/Write, when the handler's Content-Type is known.
-func (w *htmxCacheControlWriter) decorate() {
+// decorate sets cache-safety headers for HTML responses. It runs once, when the
+// response Content-Type becomes known. When the handler left Content-Type unset,
+// net/http sniffs it from the first body bytes; we mirror that with
+// http.DetectContentType(body) so sniffed HTML responses still get protected.
+// With no Content-Type and no body yet (a bare WriteHeader), it stays undecided
+// and re-runs on the following Write.
+func (w *htmxCacheControlWriter) decorate(body []byte) {
 	if w.decorated {
 		return
 	}
-	w.decorated = true
 	h := w.Header()
-	if !strings.HasPrefix(h.Get("Content-Type"), "text/html") {
+	ct := h.Get("Content-Type")
+	if ct == "" {
+		if len(body) == 0 {
+			return
+		}
+		ct = http.DetectContentType(body)
+	}
+	w.decorated = true
+	if !strings.HasPrefix(ct, "text/html") {
 		return
 	}
 	h.Add("Vary", "Hx-Request")
@@ -70,22 +87,69 @@ func (w *htmxCacheControlWriter) decorate() {
 	}
 }
 
+// WriteHeader forwards the status immediately when the Content-Type is already
+// known (the common path). When it is still unset, the status is buffered so a
+// following Write can sniff the body and add cache-safety headers before the
+// real header is committed — net/http freezes the header map once WriteHeader
+// reaches the wire, so adding them after that point is silently dropped.
 func (w *htmxCacheControlWriter) WriteHeader(code int) {
-	// Don't latch on 1xx informational responses.
-	if code >= 200 {
-		w.decorate()
+	if w.headerSent || w.pendingCode != 0 {
+		return // superfluous WriteHeader; ignore as net/http does
 	}
-	w.ResponseWriter.WriteHeader(code)
+	// 1xx informational responses precede the real header; pass them through
+	// without latching.
+	if code < 200 {
+		w.ResponseWriter.WriteHeader(code)
+		return
+	}
+	w.decorate(nil)
+	if w.decorated {
+		w.commit(code)
+		return
+	}
+	w.pendingCode = code
 }
 
 func (w *htmxCacheControlWriter) Write(b []byte) (int, error) {
-	w.decorate()
+	if !w.headerSent {
+		w.decorate(b)
+		code := w.pendingCode
+		if code == 0 {
+			code = http.StatusOK
+		}
+		w.commit(code)
+	}
 	return w.ResponseWriter.Write(b)
+}
+
+// commit writes the (now decorated) header to the underlying writer exactly once.
+func (w *htmxCacheControlWriter) commit(code int) {
+	if w.headerSent {
+		return
+	}
+	w.headerSent = true
+	w.pendingCode = 0
+	w.ResponseWriter.WriteHeader(code)
+}
+
+// finish flushes a buffered status whose Content-Type never became known because
+// no body was written (e.g. 204 No Content or a redirect).
+func (w *htmxCacheControlWriter) finish() {
+	if !w.headerSent && w.pendingCode != 0 {
+		w.decorate(nil)
+		w.commit(w.pendingCode)
+	}
 }
 
 // Flush forwards to the underlying writer so streamed responses
 // (templ WithStreaming) and SSE keep working.
 func (w *htmxCacheControlWriter) Flush() {
+	// A streaming handler may Flush before any body byte; commit a buffered
+	// status first so the header reaches the wire.
+	if !w.headerSent && w.pendingCode != 0 {
+		w.decorate(nil)
+		w.commit(w.pendingCode)
+	}
 	if f, ok := w.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
 	}
