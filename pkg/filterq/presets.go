@@ -64,7 +64,9 @@ func (p DatePreset) Range(now time.Time) (time.Time, time.Time) {
 	case PresetLast30D:
 		return today.AddDate(0, 0, -29), today
 	case PresetNext30D:
-		return today, today.AddDate(0, 0, 30)
+		// Inclusive of today, symmetric with PresetLast30D: a 30-day span
+		// (today + 29) rather than 31 days (today + 30).
+		return today, today.AddDate(0, 0, 29)
 	case PresetThisYear:
 		return time.Date(y, 1, 1, 0, 0, 0, 0, loc), time.Date(y, 12, 31, 0, 0, 0, 0, loc)
 	case PresetLastYear:
@@ -86,9 +88,11 @@ func ParsePresetValue(v string) (DatePreset, bool) {
 }
 
 // Preset returns the condition's preset when the condition is a single
-// symbolic preset value.
+// symbolic preset value. Presets resolve to date ranges, so they are only
+// meaningful for OpBetween — a "preset:" value paired with any other operator
+// is not a preset (it would otherwise mis-render as one in chips).
 func (c Condition) Preset() (DatePreset, bool) {
-	if len(c.Values) != 1 {
+	if c.Op != OpBetween || len(c.Values) != 1 {
 		return "", false
 	}
 	return ParsePresetValue(c.Values[0])

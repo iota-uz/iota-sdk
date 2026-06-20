@@ -136,11 +136,15 @@ func TestEditorControlsAreNameless(t *testing.T) {
 	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)
 
 	// The only named controls are the codec inputs and the presence marker:
-	// editor internals must never serialize into the HTMX form request.
+	// editor internals must never serialize into the HTMX form request, and must
+	// not even carry an empty name="" (the date editors omit the attribute).
 	for _, frag := range strings.Split(html, "name=\"")[1:] {
 		name := frag[:strings.Index(frag, "\"")]
-		assert.Contains(t, []string{"f", "fb", ""}, name, "unexpected named control %q", name)
+		assert.Contains(t, []string{"f", "fb"}, name, "unexpected named control %q", name)
 	}
+	// Guard the templ `else if` trap: omitting the empty name must not leave a
+	// stray literal `else` token in the date editor's hidden inputs.
+	assert.NotContains(t, html, " else", "stray literal else leaked into rendered markup")
 }
 
 func TestGroupedOptionsMarkup(t *testing.T) {
@@ -162,6 +166,15 @@ func TestRegistryDecode(t *testing.T) {
 	assert.Equal(t, "status", fs[0].Field)
 }
 
+func TestPanelArgsEmptyOperatorsNoPanic(t *testing.T) {
+	// A field with an explicit empty operator slice and an unknown type would
+	// otherwise index operators()[0] out of range and panic at chip render.
+	field := FieldDef{Key: "x", Type: filterq.FieldType("mystery"), Operators: []filterq.Operator{}}
+	assert.NotPanics(t, func() {
+		_ = panelArgs(field, nil, -1)
+	})
+}
+
 func TestChipValueSummaryCollapsesLongLists(t *testing.T) {
 	reg := NewRegistry(FieldDef{Key: "r", Type: filterq.FieldTypeReference, Label: "R", Options: []Option{
 		Opt("1", "One"), Opt("2", "Two"), Opt("3", "Three"), Opt("4", "Four"), Opt("5", "Five"),
@@ -171,4 +184,23 @@ func TestChipValueSummaryCollapsesLongLists(t *testing.T) {
 		Field: "r", Op: filterq.OpIs, Values: []string{"1", "2", "3", "4", "5"},
 	})
 	assert.Equal(t, "One, Two, Three +2", got)
+}
+
+func TestNewRegistryDeduplicatesKeys(t *testing.T) {
+	reg := NewRegistry(
+		FieldDef{Key: "status", Type: filterq.FieldTypeReference, Label: "First"},
+		FieldDef{Key: "agency", Type: filterq.FieldTypeReference, Label: "Agency"},
+		FieldDef{Key: "status", Type: filterq.FieldTypeReference, Label: "Second"},
+	)
+
+	// Fields(), Field() and Schema() must agree: the duplicate "status" key keeps
+	// only its first registration, so no view of the registry diverges.
+	require.Len(t, reg.Fields(), 2)
+	assert.Equal(t, []string{"status", "agency"}, []string{reg.Fields()[0].Key, reg.Fields()[1].Key})
+
+	f, ok := reg.Field("status")
+	require.True(t, ok)
+	assert.Equal(t, "First", f.Label, "Field() must resolve to the same entry Fields() keeps")
+
+	assert.Len(t, reg.Schema().Fields, 2, "Schema() must not emit duplicate fields")
 }

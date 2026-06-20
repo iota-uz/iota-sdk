@@ -1,6 +1,7 @@
 package spotlight
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -390,8 +391,61 @@ func TestMeiliRebuildSessionCommitCreatesActiveIndexBeforeSwapWhenMissing(t *tes
 		WaitForTaskWithContext(mock.Anything, int64(22), 100*time.Millisecond).
 		Return(&meilisearch.Task{}, nil).
 		Once()
+	// Post-commit housekeeping: terminal-task prune, then orphan-index prune.
+	service.EXPECT().
+		DeleteTasksWithContext(mock.Anything, mock.AnythingOfType("*meilisearch.DeleteTasksQuery")).
+		Return(&meilisearch.TaskInfo{TaskUID: 23}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTaskWithContext(mock.Anything, int64(23), 100*time.Millisecond).
+		Return(&meilisearch.Task{Details: meilisearch.Details{DeletedTasks: 5}}, nil).
+		Once()
+	service.EXPECT().
+		ListIndexesWithContext(mock.Anything, mock.AnythingOfType("*meilisearch.IndexesQuery")).
+		Return(&meilisearch.IndexesResults{}, nil).
+		Once()
 
 	require.NoError(t, session.Commit(t.Context()))
+}
+
+func TestMeilisearchEnginePruneTasksDeletesTerminalTasksBeforeCutoff(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	engine := &MeilisearchEngine{
+		client:    service,
+		indexName: "spotlight",
+	}
+
+	var captured *meilisearch.DeleteTasksQuery
+	service.EXPECT().
+		DeleteTasksWithContext(mock.Anything, mock.AnythingOfType("*meilisearch.DeleteTasksQuery")).
+		Run(func(_ context.Context, q *meilisearch.DeleteTasksQuery) { captured = q }).
+		Return(&meilisearch.TaskInfo{TaskUID: 70}, nil).
+		Once()
+	service.EXPECT().
+		WaitForTaskWithContext(mock.Anything, int64(70), 100*time.Millisecond).
+		Return(&meilisearch.Task{Details: meilisearch.Details{DeletedTasks: 12}}, nil).
+		Once()
+
+	cutoff := time.Now().Add(-24 * time.Hour)
+	deleted, err := engine.PruneTasks(t.Context(), cutoff)
+	require.NoError(t, err)
+	require.Equal(t, int64(12), deleted)
+	require.NotNil(t, captured)
+	require.Equal(t, cutoff, captured.BeforeEnqueuedAt)
+	require.ElementsMatch(t, []meilisearch.TaskStatus{
+		meilisearch.TaskStatusSucceeded,
+		meilisearch.TaskStatusFailed,
+		meilisearch.TaskStatusCanceled,
+	}, captured.Statuses)
+}
+
+func TestMeilisearchEnginePruneTasksRejectsZeroCutoff(t *testing.T) {
+	service := meilimocks.NewMockmeilisearchServiceManager(t)
+	engine := &MeilisearchEngine{client: service, indexName: "spotlight"}
+
+	deleted, err := engine.PruneTasks(t.Context(), time.Time{})
+	require.Error(t, err)
+	require.Zero(t, deleted)
 }
 
 func TestMeilisearchEngine_DeleteTenant_RemovesOnlyRequestedTenantDocuments(t *testing.T) {

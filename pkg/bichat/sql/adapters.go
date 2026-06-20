@@ -16,6 +16,12 @@ var validIdentifier = regexp.MustCompile(`^[a-zA-Z_][a-zA-Z0-9_]*$`)
 // maxCacheEntries limits the cache map size; stale entries are evicted when exceeded.
 const maxCacheEntries = 256
 
+// systemSchemaExclusion is the WHERE predicate used by the all-schemas
+// (WithAllSchemas / WithDescribeAllSchemas) mode: every schema except the
+// Postgres-internal ones (pg_catalog, pg_toast, pg_temp_*, …) and
+// information_schema. It is a constant — never interpolate user input here.
+const systemSchemaExclusion = `n.nspname NOT LIKE 'pg\_%' AND n.nspname <> 'information_schema'`
+
 // CacheKeyFunc extracts a cache key (typically tenant ID) from context.
 type CacheKeyFunc func(context.Context) (string, error)
 
@@ -47,6 +53,21 @@ func WithSchemaAllowlist(schemas []string) SchemaListerOption {
 	}
 }
 
+// WithAllSchemas opts SchemaList out of the inclusion allowlist entirely:
+// every non-system schema the current role can read becomes visible
+// (system schemas pg_* and information_schema are still excluded). This is
+// for trusted operator tooling that needs to enumerate the whole database;
+// the default (no option / empty allowlist) stays closed so LLM-facing
+// consumers are not silently widened. Per-relation has_table_privilege
+// filtering still applies, so the role's grants remain the real boundary.
+//
+// Takes precedence over WithSchemaAllowlist when both are set.
+func WithAllSchemas() SchemaListerOption {
+	return func(l *QueryExecutorSchemaLister) {
+		l.allSchemas = true
+	}
+}
+
 type cachedCounts struct {
 	counts    map[string]int64
 	fetchedAt time.Time
@@ -59,6 +80,7 @@ type QueryExecutorSchemaLister struct {
 	cacheTTL     time.Duration
 	cacheKeyFunc CacheKeyFunc
 	allowlist    []string
+	allSchemas   bool
 	mu           sync.Mutex
 	cache        map[string]*cachedCounts
 }
@@ -83,7 +105,17 @@ func NewQueryExecutorSchemaLister(executor QueryExecutor, opts ...SchemaListerOp
 // has_table_privilege check filters by per-relation grant so a restricted
 // role (e.g. ai_readonly) sees only what it can actually read.
 func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo, error) {
-	query := `
+	// schemaPredicate / args are the only part that differs between the
+	// inclusion-allowlist mode and the all-schemas mode. Both predicates are
+	// constant SQL (no user input), so the format below cannot inject.
+	schemaPredicate := "n.nspname = ANY($1)"
+	args := []any{l.allowlist}
+	if l.allSchemas {
+		schemaPredicate = systemSchemaExclusion
+		args = nil
+	}
+
+	query := fmt.Sprintf(`
 		SELECT
 			n.nspname AS schema,
 			c.relname AS name,
@@ -92,13 +124,13 @@ func (l *QueryExecutorSchemaLister) SchemaList(ctx context.Context) ([]TableInfo
 			c.relkind::text
 		FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
-		WHERE n.nspname = ANY($1)
+		WHERE %s
 		  AND c.relkind IN ('v', 'r', 'm')
 		  AND has_table_privilege(current_user, c.oid, 'SELECT')
 		ORDER BY n.nspname, c.relname
-	`
+	`, schemaPredicate)
 
-	result, err := l.executor.ExecuteQuery(ctx, query, []any{l.allowlist}, 10*time.Second)
+	result, err := l.executor.ExecuteQuery(ctx, query, args, 10*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list schema: %w", err)
 	}
@@ -246,6 +278,12 @@ func (l *QueryExecutorSchemaLister) fetchViewCounts(ctx context.Context, schema 
 
 // containsString reports whether needle is present in haystack. Small
 // helper used by SchemaDescribe's allowlist-enforcement check.
+// isSystemSchema reports whether name is a Postgres-internal schema that the
+// all-schemas mode keeps hidden (mirrors systemSchemaExclusion in Go).
+func isSystemSchema(name string) bool {
+	return strings.HasPrefix(name, "pg_") || name == "information_schema"
+}
+
 func containsString(haystack []string, needle string) bool {
 	for _, h := range haystack {
 		if h == needle {
@@ -288,6 +326,19 @@ func WithDescribeSchemaAllowlist(schemas []string) SchemaDescriberOption {
 	}
 }
 
+// WithDescribeAllSchemas is the describer counterpart to WithAllSchemas: it
+// lets the describer resolve a table in any non-system schema the role can
+// read, instead of only the allowlisted ones. A schema-qualified reference
+// is accepted as long as it is not a system schema; an unqualified name
+// resolves deterministically with public preferred, then alphabetical.
+//
+// Takes precedence over WithDescribeSchemaAllowlist when both are set.
+func WithDescribeAllSchemas() SchemaDescriberOption {
+	return func(d *QueryExecutorSchemaDescriber) {
+		d.allSchemas = true
+	}
+}
+
 // WithDescribeSampleRows opts the describer into fetching a small
 // preview of actual table rows (up to n) via the executor. The rows
 // land in TableSchema.SampleRows. Setting n <= 0 disables the feature
@@ -310,6 +361,7 @@ func WithDescribeSampleRows(n int) SchemaDescriberOption {
 type QueryExecutorSchemaDescriber struct {
 	executor   QueryExecutor
 	allowlist  []string
+	allSchemas bool
 	sampleRows int
 }
 
@@ -346,21 +398,49 @@ func NewQueryExecutorSchemaDescriber(executor QueryExecutor, opts ...SchemaDescr
 func (d *QueryExecutorSchemaDescriber) SchemaDescribe(ctx context.Context, tableName string) (*TableSchema, error) {
 	schemaFilter := d.allowlist
 	bareName := tableName
+	pinned := ""
 	if idx := strings.Index(tableName, "."); idx > 0 && idx < len(tableName)-1 {
-		pinned := tableName[:idx]
-		if !containsString(d.allowlist, pinned) {
+		pinned = tableName[:idx]
+		switch {
+		case d.allSchemas:
+			// Any non-system schema is describable; system schemas stay
+			// invisible even when qualified explicitly.
+			if isSystemSchema(pinned) {
+				return nil, fmt.Errorf("schema %q is a system schema and cannot be described", pinned)
+			}
+		case !containsString(d.allowlist, pinned):
+			// Allowlist mode: a schema outside the allowlist is rejected
+			// rather than silently widening access.
 			return nil, fmt.Errorf("schema %q is not in the describer allowlist", pinned)
 		}
 		schemaFilter = []string{pinned}
 		bareName = tableName[idx+1:]
 	}
 
-	// Table description (one row) — also asserts the table exists in an
-	// allowed schema. Done as a separate small query to keep the column
-	// query simple. ORDER BY array_position makes the tiebreak for
-	// same-named tables in multiple schemas deterministic: earliest
-	// allowlist entry wins.
-	tableQuery := `
+	// Table description (one row) — also asserts the table exists in a
+	// reachable schema. Done as a separate small query to keep the column
+	// query simple. The tiebreak for same-named tables across schemas is
+	// deterministic: in allowlist mode the earliest allowlist entry wins
+	// (array_position); in all-schemas mode public is preferred, then
+	// alphabetical.
+	var tableQuery string
+	var tableArgs []any
+	if d.allSchemas && pinned == "" {
+		tableQuery = `
+		SELECT
+			n.nspname AS schema,
+			COALESCE(obj_description(c.oid, 'pg_class'), '') AS description
+		FROM pg_class c
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE c.relname = $1
+		  AND ` + systemSchemaExclusion + `
+		  AND has_table_privilege(current_user, c.oid, 'SELECT')
+		ORDER BY (n.nspname <> 'public'), n.nspname
+		LIMIT 1
+	`
+		tableArgs = []any{bareName}
+	} else {
+		tableQuery = `
 		SELECT
 			n.nspname AS schema,
 			COALESCE(obj_description(c.oid, 'pg_class'), '') AS description
@@ -372,7 +452,9 @@ func (d *QueryExecutorSchemaDescriber) SchemaDescribe(ctx context.Context, table
 		ORDER BY array_position($2::text[], n.nspname), n.nspname
 		LIMIT 1
 	`
-	tableRes, err := d.executor.ExecuteQuery(ctx, tableQuery, []any{bareName, schemaFilter}, 10*time.Second)
+		tableArgs = []any{bareName, schemaFilter}
+	}
+	tableRes, err := d.executor.ExecuteQuery(ctx, tableQuery, tableArgs, 10*time.Second)
 	if err != nil {
 		return nil, fmt.Errorf("failed to look up table: %w", err)
 	}

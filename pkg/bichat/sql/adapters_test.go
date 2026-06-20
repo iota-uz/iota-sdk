@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -404,6 +405,86 @@ func TestSchemaDescriber_ReturnsColumns(t *testing.T) {
 	assert.Contains(t, colMap["name"].Type, "text")
 	assert.Equal(t, "numeric(10,2)", colMap["amount"].Type)
 	assert.Contains(t, colMap["created_at"].Type, "timestamp")
+}
+
+func TestSchemaLister_AllSchemas(t *testing.T) {
+	t.Parallel()
+	requirePostgres(t)
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+
+	_, err := env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS _test_allsch`)
+	require.NoError(t, err)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TABLE IF NOT EXISTS _test_allsch.widgets (
+			id SERIAL PRIMARY KEY,
+			name TEXT
+		)
+	`)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP SCHEMA IF EXISTS _test_allsch CASCADE")
+	}()
+
+	executor := newTestExecutor(env.Pool)
+	// No allowlist passed — WithAllSchemas must still surface the table in a
+	// schema no allowlist mentions.
+	lister := bichatsql.NewQueryExecutorSchemaLister(executor, bichatsql.WithAllSchemas())
+
+	tables, err := lister.SchemaList(env.Ctx)
+	require.NoError(t, err)
+
+	var foundWidgets bool
+	for _, tbl := range tables {
+		if tbl.Schema == "_test_allsch" && tbl.Name == "widgets" {
+			foundWidgets = true
+		}
+		// System schemas must never leak through the all-schemas mode.
+		assert.NotEqual(t, "information_schema", tbl.Schema)
+		assert.False(t, strings.HasPrefix(tbl.Schema, "pg_"),
+			"system schema %q should be excluded from WithAllSchemas", tbl.Schema)
+	}
+	assert.True(t, foundWidgets, "expected _test_allsch.widgets via WithAllSchemas")
+}
+
+func TestSchemaDescriber_AllSchemas(t *testing.T) {
+	t.Parallel()
+	requirePostgres(t)
+	env := itf.Setup(t, itf.WithComponents(modules.Components()...))
+
+	_, err := env.Pool.Exec(env.Ctx, `CREATE SCHEMA IF NOT EXISTS _test_allsch_desc`)
+	require.NoError(t, err)
+	_, err = env.Pool.Exec(env.Ctx, `
+		CREATE TABLE IF NOT EXISTS _test_allsch_desc.gadgets (
+			id SERIAL PRIMARY KEY,
+			label TEXT NOT NULL
+		)
+	`)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = env.Pool.Exec(env.Ctx, "DROP SCHEMA IF EXISTS _test_allsch_desc CASCADE")
+	}()
+
+	executor := newTestExecutor(env.Pool)
+	// No allowlist — WithDescribeAllSchemas resolves any non-system schema.
+	describer := bichatsql.NewQueryExecutorSchemaDescriber(executor, bichatsql.WithDescribeAllSchemas())
+
+	// Schema-qualified reference in a schema no allowlist mentions now resolves.
+	qualified, err := describer.SchemaDescribe(env.Ctx, "_test_allsch_desc.gadgets")
+	require.NoError(t, err)
+	require.NotNil(t, qualified)
+	assert.Equal(t, "_test_allsch_desc", qualified.Schema)
+	assert.Equal(t, "gadgets", qualified.Name)
+	require.Len(t, qualified.Columns, 2)
+
+	// Bare name resolves too (uniquely named, so no ambiguity).
+	bare, err := describer.SchemaDescribe(env.Ctx, "gadgets")
+	require.NoError(t, err)
+	require.NotNil(t, bare)
+	assert.Equal(t, "_test_allsch_desc", bare.Schema)
+
+	// System schemas stay invisible even when qualified explicitly.
+	_, err = describer.SchemaDescribe(env.Ctx, "pg_catalog.pg_class")
+	require.Error(t, err)
 }
 
 func TestSchemaDescriber_NonExistentTable(t *testing.T) {

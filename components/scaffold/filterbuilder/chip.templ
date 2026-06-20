@@ -72,7 +72,12 @@ templ Chip(props Props, idx int, c filterq.Condition) {
 // panelArgs serializes fbPanel's config (field key, type, current operator,
 // target chip index, active preset) for the Alpine factory.
 func panelArgs(field FieldDef, cond *filterq.Condition, chipIdx int) string {
-	op := string(field.operators()[0])
+	// Default to the field's first operator; guard against a misconfigured field
+	// with no operators so rendering can't panic on an out-of-range index.
+	op := ""
+	if ops := field.operators(); len(ops) > 0 {
+		op = string(ops[0])
+	}
 	preset := ""
 	if cond != nil {
 		op = string(cond.Op)

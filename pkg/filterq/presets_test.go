@@ -59,11 +59,11 @@ func TestPresetRange(t *testing.T) {
 			to:     date(time.UTC, 2026, 6, 12),
 		},
 		{
-			name:   "next 30 days from today",
+			name:   "next 30 days inclusive of today",
 			preset: filterq.PresetNext30D,
 			now:    time.Date(2026, 6, 12, 9, 0, 0, 0, time.UTC),
 			from:   date(time.UTC, 2026, 6, 12),
-			to:     date(time.UTC, 2026, 7, 12),
+			to:     date(time.UTC, 2026, 7, 11),
 		},
 		{
 			name:   "this year",
@@ -111,6 +111,20 @@ func TestParsePresetValue(t *testing.T) {
 	}
 	if _, ok := filterq.ParsePresetValue("2026-06-01"); ok {
 		t.Error("plain date must not parse as preset")
+	}
+}
+
+func TestConditionPresetRequiresBetween(t *testing.T) {
+	t.Parallel()
+	// A preset value only counts as a preset under OpBetween; with any other
+	// operator it must not resolve (it would otherwise mis-render in chips).
+	if _, ok := (filterq.Condition{Op: filterq.OpBetween, Values: []string{"preset:next_30d"}}).Preset(); !ok {
+		t.Error("OpBetween preset must resolve")
+	}
+	for _, op := range []filterq.Operator{filterq.OpOn, filterq.OpBefore, filterq.OpAfter, filterq.OpIs} {
+		if _, ok := (filterq.Condition{Op: op, Values: []string{"preset:next_30d"}}).Preset(); ok {
+			t.Errorf("preset must not resolve for operator %q", op)
+		}
 	}
 }
 

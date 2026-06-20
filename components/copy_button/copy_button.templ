@@ -43,6 +43,23 @@ const clipboardData = `{
 	}
 }`
 
+// copyableTextData is the CopyableText Alpine handler. Like clipboardData it
+// reads the value from the data-attribute and awaits/catches the clipboard
+// promise so `copied` only flips on a successful write (a denied clipboard no
+// longer shows a false "copied" check).
+const copyableTextData = `{
+	copied: false,
+	async copy() {
+		try {
+			await navigator.clipboard.writeText(this.$el.dataset.copyText);
+			this.copied = true;
+			setTimeout(() => this.copied = false, 1500);
+		} catch (err) {
+			console.error('Failed to copy text: ', err);
+		}
+	}
+}`
+
 templ CopyButton(props Props) {
 	{{ size := props.Size }}
 	if size == "" {
@@ -96,14 +113,18 @@ templ CopyableText(props TextProps) {
 		{ "-" }
 	} else {
 		<span
-			class={ "inline-flex items-center gap-1 cursor-pointer group whitespace-nowrap max-w-full", props.Class }
+			role="button"
+			tabindex="0"
+			class={ "inline-flex items-center gap-1 cursor-pointer group whitespace-nowrap max-w-full focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded", props.Class }
 			data-copy-text={ props.Text }
 			if props.Label != "" {
 				title={ props.Label }
 				aria-label={ props.Label }
 			}
-			x-data="{ copied: false }"
-			@click.stop="navigator.clipboard.writeText($el.dataset.copyText); copied = true; setTimeout(() => copied = false, 1500)"
+			x-data={ copyableTextData }
+			@click.stop="copy()"
+			@keydown.enter.stop.prevent="copy()"
+			@keydown.space.stop.prevent="copy()"
 		>
 			<span class="truncate">{ props.Text }</span>
 			<span x-show="!copied" class="shrink-0 text-current opacity-0 group-hover:opacity-100 transition-opacity">

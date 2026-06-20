@@ -58,7 +58,9 @@ type FieldDef struct {
 }
 
 func (f FieldDef) operators() []filterq.Operator {
-	if f.Operators != nil {
+	// Fall back to the type defaults when no operators are set — treat an empty
+	// (non-nil) slice the same as nil so callers never get a zero-length list.
+	if len(f.Operators) > 0 {
 		return f.Operators
 	}
 	return filterq.DefaultOperators(f.Type)
@@ -86,11 +88,17 @@ type Registry struct {
 }
 
 // NewRegistry builds a registry preserving field order (which drives the
-// "+ Add filter" menu order).
+// "+ Add filter" menu order). Duplicate keys are ignored after the first
+// occurrence so Fields(), Field() and Schema() stay consistent (otherwise the
+// last-wins index would disagree with the all-kept fields slice).
 func NewRegistry(fields ...FieldDef) *Registry {
-	r := &Registry{fields: fields, index: make(map[string]int, len(fields))}
-	for i, f := range fields {
-		r.index[f.Key] = i
+	r := &Registry{index: make(map[string]int, len(fields))}
+	for _, f := range fields {
+		if _, dup := r.index[f.Key]; dup {
+			continue
+		}
+		r.index[f.Key] = len(r.fields)
+		r.fields = append(r.fields, f)
 	}
 	return r
 }

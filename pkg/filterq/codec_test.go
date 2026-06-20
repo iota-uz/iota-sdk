@@ -103,7 +103,11 @@ func TestDecodeDropsInvalid(t *testing.T) {
 		{name: "unknown preset", raw: []string{"issue_at:between:preset:someday"}, want: nil},
 		{name: "preset only valid on date between", raw: []string{"issue_at:on:preset:this_year"}, want: nil},
 		{name: "malformed number", raw: []string{"premium:gt:1e--3"}, want: nil},
+		{name: "NaN number rejected", raw: []string{"premium:gt:NaN"}, want: nil},
+		{name: "Inf number rejected", raw: []string{"premium:gt:Inf"}, want: nil},
+		{name: "+Inf number rejected", raw: []string{"premium:gt:+Inf"}, want: nil},
 		{name: "bool must be true or false", raw: []string{"reissued:is:yes"}, want: nil},
+		{name: "multi-valued bool rejected", raw: []string{"reissued:is:true,false"}, want: nil},
 		{name: "empty values", raw: []string{"status:is:"}, want: nil},
 		{name: "no colons", raw: []string{"garbage"}, want: nil},
 		{name: "empty field", raw: []string{":is:1"}, want: nil},
@@ -137,6 +141,23 @@ func TestDecodeMergesDuplicates(t *testing.T) {
 	want := filterq.FilterSet{
 		{Field: "status", Op: filterq.OpIs, Values: []string{"1", "2", "3"}},
 		{Field: "issue_at", Op: filterq.OpOn, Values: []string{"2026-06-01"}},
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("Decode() = %#v, want %#v", got, want)
+	}
+}
+
+// Bool flags are single-valued, so duplicate bool params must NOT merge into a
+// multi-valued match-everything condition; the first param wins.
+func TestDecodeDoesNotMergeBoolDuplicates(t *testing.T) {
+	t.Parallel()
+	q := url.Values{filterq.ParamName: []string{
+		"reissued:is:true",
+		"reissued:is:false",
+	}}
+	got := filterq.Decode(q, testSchema())
+	want := filterq.FilterSet{
+		{Field: "reissued", Op: filterq.OpIs, Values: []string{"true"}},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Decode() = %#v, want %#v", got, want)

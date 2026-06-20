@@ -222,6 +222,9 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     });
   },
   destroy() {
+    // Disconnect the <select> mutation observer set up in select x-init so it
+    // isn't leaked when the combobox is removed (e.g. HTMX swaps the subtree).
+    if (this.observer) this.observer.disconnect();
     if (this._reflow) {
       window.removeEventListener('scroll', this._reflow, true);
       window.removeEventListener('resize', this._reflow);
@@ -319,8 +322,10 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       }
     }
     if (index == null || index > this.allOptions.length - 1) return;
-    // Disabled options (and filterbuilder group headers) are not selectable.
-    if (this.allOptions[index].disabled) return;
+    // Disabled options (and filterbuilder group headers) can't be newly selected,
+    // but an already-selected value must still be removable (e.g. an option that
+    // became disabled after selection) — only block selecting a fresh one.
+    if (this.allOptions[index].disabled && !this.allOptions[index].hasAttribute("selected")) return;
     if (this.multiple) {
       this.allOptions[index].toggleAttribute("selected");
       if (this.selectedValues.has(value)) {
@@ -2484,6 +2489,14 @@ let filterBuilder = () => ({
   fieldMatches(el) {
     const q = this.fieldSearch.trim().toLowerCase();
     return !q || (el.dataset.fbLabel || '').toLowerCase().includes(q);
+  },
+  // groupMatches hides a whole field group (incl. its header) when the search
+  // filters out every field in it, so no empty group heading lingers.
+  groupMatches(el) {
+    const q = this.fieldSearch.trim().toLowerCase();
+    if (!q) return true;
+    return Array.from(el.querySelectorAll('[data-fb-label]'))
+      .some((n) => (n.dataset.fbLabel || '').toLowerCase().includes(q));
   },
   // Mirror of pkg/filterq EncodeCondition. Encode-only on purpose: decoding
   // lives exclusively in Go, the server re-render is the source of truth.
