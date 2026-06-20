@@ -114,6 +114,20 @@ func TestParsePresetValue(t *testing.T) {
 	}
 }
 
+func TestConditionPresetRequiresBetween(t *testing.T) {
+	t.Parallel()
+	// A preset value only counts as a preset under OpBetween; with any other
+	// operator it must not resolve (it would otherwise mis-render in chips).
+	if _, ok := (filterq.Condition{Op: filterq.OpBetween, Values: []string{"preset:next_30d"}}).Preset(); !ok {
+		t.Error("OpBetween preset must resolve")
+	}
+	for _, op := range []filterq.Operator{filterq.OpOn, filterq.OpBefore, filterq.OpAfter, filterq.OpIs} {
+		if _, ok := (filterq.Condition{Op: op, Values: []string{"preset:next_30d"}}).Preset(); ok {
+			t.Errorf("preset must not resolve for operator %q", op)
+		}
+	}
+}
+
 func TestConditionDateRange(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, 6, 12, 10, 0, 0, 0, time.UTC)

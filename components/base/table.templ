@@ -232,7 +232,7 @@ templ Table(props TableProps) {
 			.table-scrollbar-gutter > table { height: auto; }
 			.table-scrollbar-gutter ~ [class*="z-[11]"] { display: none; }
 
-			@media (hover: none), (pointer: coarse) {
+			@media (hover: none), (pointer: coarse), (any-pointer: coarse) {
 				.sdk-touch-table-scroll {
 					overflow-x: auto !important;
 					-webkit-overflow-scrolling: touch;
@@ -261,7 +261,8 @@ templ Table(props TableProps) {
 				init() {
 					const sc = this.$refs.sc;
 					if (!sc) return;
-					this.touch = window.matchMedia('(hover: none), (pointer: coarse)').matches;
+					this.touch = window.matchMedia('(hover: none), (pointer: coarse), (any-pointer: coarse)').matches
+						|| (navigator.maxTouchPoints || 0) > 0;
 					if (this.touch) {
 						sc.style.overflowX = 'auto';
 						sc.style.webkitOverflowScrolling = 'touch';

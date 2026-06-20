@@ -66,7 +66,9 @@ templ DatePicker(props DatePickerProps) {
 						}
 						if props.StartName != "" {
 							name={ props.StartName }
-						} else {
+						}
+						else
+						if props.Name != "" {
 							name={ props.Name }
 						}
 					/>
@@ -78,7 +80,9 @@ templ DatePicker(props DatePickerProps) {
 						}
 						if props.EndName != "" {
 							name={ props.EndName }
-						} else {
+						}
+						else
+						if props.Name != "" {
 							name={ props.Name }
 						}
 					/>
@@ -88,7 +92,9 @@ templ DatePicker(props DatePickerProps) {
 			<template x-for="date in selected">
 				<input
 					type="hidden"
-					name={ props.Name }
+					if props.Name != "" {
+						name={ props.Name }
+					}
 					x-model="date"
 					if props.Form != "" {
 						form={ props.Form }

@@ -136,10 +136,11 @@ func TestEditorControlsAreNameless(t *testing.T) {
 	html := renderComponent(t, Props{Registry: testRegistry(), Filters: fs}, false)
 
 	// The only named controls are the codec inputs and the presence marker:
-	// editor internals must never serialize into the HTMX form request.
+	// editor internals must never serialize into the HTMX form request, and must
+	// not even carry an empty name="" (the date editors omit the attribute).
 	for _, frag := range strings.Split(html, "name=\"")[1:] {
 		name := frag[:strings.Index(frag, "\"")]
-		assert.Contains(t, []string{"f", "fb", ""}, name, "unexpected named control %q", name)
+		assert.Contains(t, []string{"f", "fb"}, name, "unexpected named control %q", name)
 	}
 }
 
@@ -160,6 +161,15 @@ func TestRegistryDecode(t *testing.T) {
 	fs := testRegistry().Decode(q)
 	require.Len(t, fs, 1)
 	assert.Equal(t, "status", fs[0].Field)
+}
+
+func TestPanelArgsEmptyOperatorsNoPanic(t *testing.T) {
+	// A field with an explicit empty operator slice and an unknown type would
+	// otherwise index operators()[0] out of range and panic at chip render.
+	field := FieldDef{Key: "x", Type: filterq.FieldType("mystery"), Operators: []filterq.Operator{}}
+	assert.NotPanics(t, func() {
+		_ = panelArgs(field, nil, -1)
+	})
 }
 
 func TestChipValueSummaryCollapsesLongLists(t *testing.T) {
