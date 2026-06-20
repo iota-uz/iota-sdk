@@ -59,11 +59,11 @@ func TestPresetRange(t *testing.T) {
 			to:     date(time.UTC, 2026, 6, 12),
 		},
 		{
-			name:   "next 30 days from today",
+			name:   "next 30 days inclusive of today",
 			preset: filterq.PresetNext30D,
 			now:    time.Date(2026, 6, 12, 9, 0, 0, 0, time.UTC),
 			from:   date(time.UTC, 2026, 6, 12),
-			to:     date(time.UTC, 2026, 7, 12),
+			to:     date(time.UTC, 2026, 7, 11),
 		},
 		{
 			name:   "this year",

@@ -53,15 +53,26 @@ type htmxCacheControlWriter struct {
 	decorated bool
 }
 
-// decorate sets cache-safety headers for HTML responses. It runs once, on the
-// first WriteHeader/Write, when the handler's Content-Type is known.
-func (w *htmxCacheControlWriter) decorate() {
+// decorate sets cache-safety headers for HTML responses. It runs once, when the
+// response Content-Type becomes known. When the handler left Content-Type unset,
+// net/http sniffs it from the first body bytes; we mirror that with
+// http.DetectContentType(body) so sniffed HTML responses still get protected.
+// With no Content-Type and no body yet (a bare WriteHeader), it stays undecided
+// and re-runs on the following Write.
+func (w *htmxCacheControlWriter) decorate(body []byte) {
 	if w.decorated {
 		return
 	}
-	w.decorated = true
 	h := w.Header()
-	if !strings.HasPrefix(h.Get("Content-Type"), "text/html") {
+	ct := h.Get("Content-Type")
+	if ct == "" {
+		if len(body) == 0 {
+			return
+		}
+		ct = http.DetectContentType(body)
+	}
+	w.decorated = true
+	if !strings.HasPrefix(ct, "text/html") {
 		return
 	}
 	h.Add("Vary", "Hx-Request")
@@ -73,13 +84,13 @@ func (w *htmxCacheControlWriter) decorate() {
 func (w *htmxCacheControlWriter) WriteHeader(code int) {
 	// Don't latch on 1xx informational responses.
 	if code >= 200 {
-		w.decorate()
+		w.decorate(nil)
 	}
 	w.ResponseWriter.WriteHeader(code)
 }
 
 func (w *htmxCacheControlWriter) Write(b []byte) (int, error) {
-	w.decorate()
+	w.decorate(b)
 	return w.ResponseWriter.Write(b)
 }
 

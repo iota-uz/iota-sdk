@@ -1,6 +1,7 @@
 package filterq
 
 import (
+	"math"
 	"net/url"
 	"strconv"
 	"strings"
@@ -138,6 +139,12 @@ func validCondition(f Field, c Condition) bool {
 			return true
 		}
 	}
+	// A bool flag is single-valued; "is true,false" is contradictory and would
+	// match everything, so reject multi-valued bool conditions even though the
+	// is/isnot operators are otherwise one-or-more.
+	if f.Type == FieldTypeBool && len(c.Values) != 1 {
+		return false
+	}
 	switch arity := c.Op.Arity(); arity {
 	case -1:
 		if len(c.Values) == 0 {
@@ -162,8 +169,10 @@ func validValue(t FieldType, v string) bool {
 		_, err := time.Parse(DateLayout, v)
 		return err == nil
 	case FieldTypeNumber:
-		_, err := strconv.ParseFloat(v, 64)
-		return err == nil
+		// strconv.ParseFloat accepts "NaN"/"Inf"/"+Inf"/"-Inf"; reject these
+		// non-finite values so they can't slip through as numeric filters.
+		f, err := strconv.ParseFloat(v, 64)
+		return err == nil && !math.IsNaN(f) && !math.IsInf(f, 0)
 	case FieldTypeBool:
 		return v == "true" || v == "false"
 	case FieldTypeReference:
