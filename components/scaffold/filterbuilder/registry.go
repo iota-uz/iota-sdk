@@ -58,7 +58,9 @@ type FieldDef struct {
 }
 
 func (f FieldDef) operators() []filterq.Operator {
-	if f.Operators != nil {
+	// Fall back to the type defaults when no operators are set — treat an empty
+	// (non-nil) slice the same as nil so callers never get a zero-length list.
+	if len(f.Operators) > 0 {
 		return f.Operators
 	}
 	return filterq.DefaultOperators(f.Type)

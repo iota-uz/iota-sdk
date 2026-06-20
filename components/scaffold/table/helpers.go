@@ -994,9 +994,17 @@ func WithSearchParamName(name string) TableConfigOpt {
 // WithDeferredPanels registers one or more deferred panels (summary/aggregate
 // regions) rendered inside the table form but outside the swap target, so they
 // persist across row/content swaps and reload on filter/search changes.
+// Panels missing their required ID or URL are skipped (an empty ID/URL yields a
+// broken wrapper and an accidental hx-get="" request), mirroring how
+// NewRegistry silently drops invalid entries.
 func WithDeferredPanels(panels ...DeferredPanel) TableConfigOpt {
 	return func(c *TableConfig) {
-		c.DeferredPanels = append(c.DeferredPanels, panels...)
+		for _, panel := range panels {
+			if strings.TrimSpace(panel.ID) == "" || strings.TrimSpace(panel.URL) == "" {
+				continue
+			}
+			c.DeferredPanels = append(c.DeferredPanels, panel)
+		}
 	}
 }
 
@@ -1067,6 +1075,8 @@ func (c *TableConfig) ResolvedHxIndicator() string {
 // RefreshEvent is the canonical client event the form re-broadcasts after its
 // own (filter/search) request completes; deferred panels listen for it to
 // reload. Namespaced by table ID so multiple tables on a page don't cross-talk.
+// Tables without an explicit ID share the "default" namespace, so set WithID on
+// each when several tables (with deferred panels) live on the same page.
 func (c *TableConfig) RefreshEvent() string {
 	id := c.ID
 	if id == "" {

@@ -37,6 +37,23 @@ type DatePickerProps struct {
 	Form         string   `json:"-"`
 }
 
+// startName / endName resolve the hidden inputs' submit names, falling back to
+// Name. Returning a single computed value keeps the template free of `else if`
+// in the attribute list (templ emits a stray literal `else` for that shape).
+func (p DatePickerProps) startName() string {
+	if p.StartName != "" {
+		return p.StartName
+	}
+	return p.Name
+}
+
+func (p DatePickerProps) endName() string {
+	if p.EndName != "" {
+		return p.EndName
+	}
+	return p.Name
+}
+
 func (p DatePickerProps) json(locale string) (string, error) {
 	if p.Locale == "" {
 		p.Locale = locale
@@ -64,10 +81,8 @@ templ DatePicker(props DatePickerProps) {
 						if props.Form != "" {
 							form={ props.Form }
 						}
-						if props.StartName != "" {
-							name={ props.StartName }
-						} else {
-							name={ props.Name }
+						if props.startName() != "" {
+							name={ props.startName() }
 						}
 					/>
 					<input
@@ -76,10 +91,8 @@ templ DatePicker(props DatePickerProps) {
 						if props.Form != "" {
 							form={ props.Form }
 						}
-						if props.EndName != "" {
-							name={ props.EndName }
-						} else {
-							name={ props.Name }
+						if props.endName() != "" {
+							name={ props.endName() }
 						}
 					/>
 				</div>
@@ -88,7 +101,9 @@ templ DatePicker(props DatePickerProps) {
 			<template x-for="date in selected">
 				<input
 					type="hidden"
-					name={ props.Name }
+					if props.Name != "" {
+						name={ props.Name }
+					}
 					x-model="date"
 					if props.Form != "" {
 						form={ props.Form }

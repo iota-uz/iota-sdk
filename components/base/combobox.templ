@@ -143,7 +143,9 @@ templ Combobox(props ComboboxProps) {
 			class="hidden"
 			:id="$id('combobox')"
 			multiple?={ props.Multiple }
-			name={ props.Name }
+			if props.Name != "" {
+				name={ props.Name }
+			}
 			disabled?={ isDisabled(props) }
 			if props.Form != "" {
 				form={ props.Form }

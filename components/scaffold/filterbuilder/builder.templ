@@ -87,12 +87,14 @@ templ addFilterButton(props Props) {
 				</div>
 				<div class="max-h-72 overflow-y-auto p-1.5">
 					for _, group := range fieldGroups(props.Registry.Fields()) {
-						if group[0].Group != "" {
-							<div class="px-2.5 pt-2 pb-1 text-xs uppercase tracking-wide text-200">{ group[0].Group }</div>
-						}
-						for _, field := range group {
-							@fieldPickerItem(field)
-						}
+						<div x-show="groupMatches($el)">
+							if group[0].Group != "" {
+								<div class="px-2.5 pt-2 pb-1 text-xs uppercase tracking-wide text-200">{ group[0].Group }</div>
+							}
+							for _, field := range group {
+								@fieldPickerItem(field)
+							}
+						</div>
 					}
 				</div>
 			</div>

@@ -88,9 +88,11 @@ func ParsePresetValue(v string) (DatePreset, bool) {
 }
 
 // Preset returns the condition's preset when the condition is a single
-// symbolic preset value.
+// symbolic preset value. Presets resolve to date ranges, so they are only
+// meaningful for OpBetween — a "preset:" value paired with any other operator
+// is not a preset (it would otherwise mis-render as one in chips).
 func (c Condition) Preset() (DatePreset, bool) {
-	if len(c.Values) != 1 {
+	if c.Op != OpBetween || len(c.Values) != 1 {
 		return "", false
 	}
 	return ParsePresetValue(c.Values[0])

@@ -252,7 +252,7 @@ func TestTenantService_FilterByDateRange(t *testing.T) {
 	})
 }
 
-func TestTenantService_GetTenantDetails(t *testing.T) {
+func TestTenantService_GetByID(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)
 
