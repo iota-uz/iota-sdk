@@ -10,12 +10,38 @@ type Props struct {
 	ShowText bool
 }
 
+// TextProps configures CopyableText: an inline value rendered alongside a
+// hover-revealed copy affordance. Label is the localized tooltip / aria-label
+// (the SDK has no i18n, so callers pass a translated string).
+type TextProps struct {
+	Text  string
+	Label string
+	Size  string
+	Class string
+}
+
 type Variant string
 
 const (
 	VariantDefault Variant = "default"
 	VariantMinimal Variant = "minimal"
 )
+
+// clipboardData is the shared Alpine handler. The value to copy is read from the
+// element's data-copy-text attribute (templ-escaped) rather than interpolated
+// into this JS string, so values containing quotes/backslashes/newlines are safe.
+const clipboardData = `{
+	copied: false,
+	async copyText() {
+		try {
+			await navigator.clipboard.writeText(this.$el.dataset.copyText);
+			this.copied = true;
+			setTimeout(() => this.copied = false, 2000);
+		} catch (err) {
+			console.error('Failed to copy text: ', err);
+		}
+	}
+}`
 
 templ CopyButton(props Props) {
 	{{ size := props.Size }}
@@ -34,18 +60,8 @@ templ CopyButton(props Props) {
 			templ.KV("hover:bg-gray-100 p-1", variant == VariantMinimal),
 			props.Class,
 		}
-		x-data={ `{
-			copied: false,
-			async copyText() {
-				try {
-					await navigator.clipboard.writeText('` + props.Text + `');
-					this.copied = true;
-					setTimeout(() => this.copied = false, 2000);
-				} catch (err) {
-					console.error('Failed to copy text: ', err);
-				}
-			}
-		}` }
+		data-copy-text={ props.Text }
+		x-data={ clipboardData }
 		@click="copyText()"
 		x-bind:class="copied ? 'text-green-600' : ''"
 	>
@@ -59,4 +75,43 @@ templ CopyButton(props Props) {
 			<span class="text-xs font-medium" x-text="copied ? 'Copied!' : 'Copy'"></span>
 		}
 	</button>
+}
+
+// CopyableText renders a short identifier (policy/contract number, INN, PINFL,
+// passport, external ID) as a click-to-copy element: clicking anywhere on it
+// copies the value to the clipboard and briefly swaps the hover icon for a green
+// check. The whole element is the click target; the copy icon fades in on hover.
+//
+// The value is carried in a data-attribute and read via $el.dataset at click time
+// — never interpolated into the handler — so values with quotes/backslashes are
+// safe. `@click.stop` prevents the click from also firing a row-level handler
+// (e.g. a drawer-opening table row). Empty values render as a "-" placeholder.
+// Colors inherit the surrounding text color so it reads on any background.
+templ CopyableText(props TextProps) {
+	{{ size := props.Size }}
+	if size == "" {
+		{{ size = "16" }}
+	}
+	if props.Text == "" {
+		{ "-" }
+	} else {
+		<span
+			class={ "inline-flex items-center gap-1 cursor-pointer group whitespace-nowrap max-w-full", props.Class }
+			data-copy-text={ props.Text }
+			if props.Label != "" {
+				title={ props.Label }
+				aria-label={ props.Label }
+			}
+			x-data="{ copied: false }"
+			@click.stop="navigator.clipboard.writeText($el.dataset.copyText); copied = true; setTimeout(() => copied = false, 1500)"
+		>
+			<span class="truncate">{ props.Text }</span>
+			<span x-show="!copied" class="shrink-0 text-current opacity-0 group-hover:opacity-100 transition-opacity">
+				@icons.Copy(icons.Props{Size: size})
+			</span>
+			<span x-show="copied" class="shrink-0 text-green-500">
+				@icons.CheckCircle(icons.Props{Size: size})
+			</span>
+		</span>
+	}
 }
