@@ -62,6 +62,48 @@ func nextChunkURL(dataURL string, page, perPage int, currentParams url.Values) s
 	return fmt.Sprintf("%s?%s", dataURL, params.Encode())
 }
 
+// tableFooter renders the sticky <tfoot> totals row, one cell per column,
+// index-matched to cfg.Columns. Mirrors the body-cell data-col/priority/sticky
+// attributes so responsive auto-hide and pinned columns stay aligned.
+templ tableFooter(cfg *TableConfig) {
+	@base.TableRow(base.TableRowProps{
+		Attrs: templ.Attributes{"class": "bg-surface-300 text-100"},
+	}) {
+		for i, cell := range cfg.Footer {
+			if i < len(cfg.Columns) {
+				{{
+				cellAttrs := templ.Attributes{
+					"data-col": cfg.Columns[i].Key(),
+				}
+				if !cfg.Columns[i].StickyPos().Unknown() {
+					cellAttrs["data-col-sticky"] = "true"
+				}
+				cellPriority := cfg.resolvedPriority(cfg.Columns[i])
+				if cellPriority > 0 {
+					cellAttrs["data-col-priority"] = strconv.Itoa(cellPriority)
+				}
+				maps.Copy(cellAttrs, cell.Attrs())
+				}}
+				@base.TableCell(base.TableCellProps{
+					Classes: templ.Classes(
+						"bg-surface-300 font-bold border-t-2 border-primary",
+						templ.KV("sticky", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
+						templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
+						templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+						templ.KV("border-l border-primary", cfg.Columns[i].StickyPos() == StickyPositionRight),
+						templ.KV("border-r border-primary", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+						priorityCellClass(cellPriority),
+						cell.Classes(),
+					),
+					Attrs: cellAttrs,
+				}) {
+					@cell.Component(cfg.Columns[i], false, true, templ.Attributes{})
+				}
+			}
+		}
+	}
+}
+
 // Rows renders the table rows for a scaffold table
 templ Rows(cfg *TableConfig) {
 	{{
@@ -335,6 +377,12 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 			}
 			maps.Copy(headAttrs, config.Head.Attrs)
 		}}
+		{{
+			var foot templ.Component
+			if len(config.Footer) > 0 {
+				foot = tableFooter(config)
+			}
+		}}
 		@base.Table(base.TableProps{
 			Configurable:         config.Configurable,
 			ScrollbarPosition:    config.ScrollbarPosition,
@@ -355,7 +403,9 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 					templ.KV("sticky top-0 z-10 shadow-lg", config.Head.Sticky),
 				),
 			},
-			NoTBody: config.Editable.Enabled,
+			NoTBody:    config.Editable.Enabled,
+			Foot:       foot,
+			FootSticky: config.Head.Sticky && len(config.Footer) > 0,
 		}) {
 			if len(config.Rows) == 0 && !config.Editable.Enabled {
 				<tr class="h-full">
