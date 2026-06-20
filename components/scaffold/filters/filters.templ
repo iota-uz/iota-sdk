@@ -93,10 +93,10 @@ templ DropdownItem(props DropdownItemProps) {
 			Checked: props.Checked,
 			Class:   templ.Classes("p-2"),
 			Attrs: templ.Attributes{
-				"value":     props.Value,
-				"name":      props.Name,
+				"value":        props.Value,
+				"name":         props.Name,
 				"@change.stop": "toggleValue($event.target.value)",
-				":checked":  "selected.includes('" + props.Value + "')",
+				":checked":     "selected.includes('" + props.Value + "')",
 			},
 		})
 	</li>
