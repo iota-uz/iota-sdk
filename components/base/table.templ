@@ -172,6 +172,13 @@ type TableProps struct {
 	ScrollbarPosition    ScrollbarPosition
 	ScrollbarUnderHeader bool
 	ScrollbarGutter      bool
+	// Foot, when set, renders a <tfoot> (e.g. a totals row) as a sibling of the
+	// body. Because <tfoot> sits outside <tbody>, infinite-scroll rows appended
+	// inside <tbody> never displace it.
+	Foot templ.Component
+	// FootSticky pins the footer to the bottom of the scroll viewport
+	// (mirrors the sticky header), keeping it visible while scrolling.
+	FootSticky bool
 }
 
 templ Table(props TableProps) {
@@ -437,6 +444,16 @@ templ Table(props TableProps) {
 							{ children... }
 						</tbody>
 					}
+					if props.Foot != nil {
+						<tfoot
+							if props.FootSticky {
+								class="z-10"
+								style="position: sticky; bottom: 0; box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1)"
+							}
+						>
+							@props.Foot
+						</tfoot>
+					}
 				</table>
 			</div>
 			<div
@@ -606,6 +623,16 @@ templ Table(props TableProps) {
 						>
 							{ children... }
 						</tbody>
+					}
+					if props.Foot != nil {
+						<tfoot
+							if props.FootSticky {
+								class="z-10"
+								style="position: sticky; bottom: 0; box-shadow: 0 -4px 6px -1px rgba(0, 0, 0, 0.1)"
+							}
+						>
+							@props.Foot
+						</tfoot>
 					}
 				</table>
 			</div>

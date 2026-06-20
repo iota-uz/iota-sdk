@@ -1000,6 +1000,14 @@ func WithDeferredPanels(panels ...DeferredPanel) TableConfigOpt {
 	}
 }
 
+// WithFooter sets the sticky footer row cells (one per column, index-matched to
+// Columns). See TableConfig.Footer.
+func WithFooter(cells ...TableCell) TableConfigOpt {
+	return func(c *TableConfig) {
+		c.Footer = cells
+	}
+}
+
 // resolvedTruncate returns the effective truncation (on, widthPx) for a column,
 // folding in the table-wide WithTruncateDefault. Sticky columns never truncate.
 func (c *TableConfig) resolvedTruncate(col TableColumn) (bool, int) {
@@ -1177,6 +1185,12 @@ type TableConfig struct {
 	// they skeleton-load and reload on filter/search change. See DeferredPanel.
 	DeferredPanels []DeferredPanel
 
+	// Footer, when non-empty, renders a sticky <tfoot> row (e.g. column totals)
+	// aligned with the columns. One cell per column, index-matched to Columns.
+	// Because <tfoot> sits outside <tbody>, infinite-scroll rows never displace
+	// it, and it stays pinned to the bottom when the head is sticky.
+	Footer []TableCell
+
 	// Optional: reference to definition for advanced usage
 	definition *TableDefinition
 }
@@ -1288,6 +1302,13 @@ func (c *TableConfig) AddFilters(filters ...templ.Component) *TableConfig {
 
 func (c *TableConfig) AddRows(rows ...TableRow) *TableConfig {
 	c.Rows = append(c.Rows, rows...)
+	return c
+}
+
+// SetFooter sets the sticky footer row cells (one per column, index-matched to
+// Columns). Use when totals are computed after NewTableConfig. See TableConfig.Footer.
+func (c *TableConfig) SetFooter(cells ...TableCell) *TableConfig {
+	c.Footer = cells
 	return c
 }
 
