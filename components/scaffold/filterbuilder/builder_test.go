@@ -142,6 +142,9 @@ func TestEditorControlsAreNameless(t *testing.T) {
 		name := frag[:strings.Index(frag, "\"")]
 		assert.Contains(t, []string{"f", "fb"}, name, "unexpected named control %q", name)
 	}
+	// Guard the templ `else if` trap: omitting the empty name must not leave a
+	// stray literal `else` token in the date editor's hidden inputs.
+	assert.NotContains(t, html, " else", "stray literal else leaked into rendered markup")
 }
 
 func TestGroupedOptionsMarkup(t *testing.T) {
