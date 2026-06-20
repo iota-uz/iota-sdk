@@ -261,6 +261,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     if (!list || !trigger) return;
     let rect = trigger.getBoundingClientRect();
     let gap = 4;
+    let edge = 8; // keep the menu clear of the viewport edge
     // Match the field width. Callers passing `!w-auto` via ListClass override this.
     list.style.width = rect.width + 'px';
     if (this.supportsPopover(list) && list.matches(':popover-open')) {
@@ -269,17 +270,39 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       list.style.margin = '0';
       list.style.inset = 'auto';
       list.style.position = 'fixed';
-      let listHeight = list.offsetHeight;
-      let spaceBelow = window.innerHeight - rect.bottom;
-      let flipUp = spaceBelow < listHeight + gap && rect.top > spaceBelow;
+      // Size the menu to the available space rather than a fixed cap: measure the
+      // natural content height (bounded by any caller-supplied cap such as
+      // `!max-h-60`), then clamp to whichever side of the trigger has more room.
+      // Grows on tall screens; stays clip-safe (never taller than the viewport gap)
+      // when forced to flip up on short ones. Applied `important` so the clip-safe
+      // ceiling also wins over a caller's `!important` cap on short screens, while
+      // still never exceeding that cap (it bounds contentHeight) on tall ones.
+      list.style.removeProperty('max-height');
+      let contentHeight = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2);
+      let spaceBelow = window.innerHeight - rect.bottom - gap - edge;
+      let spaceAbove = rect.top - gap - edge;
+      let flipUp = spaceBelow < contentHeight && spaceAbove > spaceBelow;
+      let height = Math.min(contentHeight, Math.max(0, flipUp ? spaceAbove : spaceBelow));
+      list.style.setProperty('max-height', height + 'px', 'important');
       list.style.left = rect.left + 'px';
-      list.style.top = (flipUp ? Math.max(gap, rect.top - listHeight - gap) : rect.bottom + gap) + 'px';
+      list.style.top = (flipUp ? rect.top - height - gap : rect.bottom + gap) + 'px';
     } else {
       // Fallback (no Popover API): sit just below the field, in flow.
       list.style.position = 'absolute';
       list.style.left = '0px';
       list.style.top = '100%';
+      list.style.removeProperty('max-height');
+      let avail = Math.max(0, window.innerHeight - rect.bottom - gap - edge);
+      let height = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2, avail);
+      list.style.setProperty('max-height', height + 'px', 'important');
     }
+  },
+  dropdownMaxHeightCap(list) {
+    // Caller-supplied max-height cap (e.g. ListClass `!max-h-60`) in pixels, or
+    // Infinity when none. Must be read with our own inline max-height cleared.
+    let cap = getComputedStyle(list).maxHeight;
+    let px = cap && cap !== 'none' ? parseFloat(cap) : NaN;
+    return Number.isFinite(px) ? px : Infinity;
   },
   setValue(value) {
     if (!this.options.length && this.canCreateNew && this.searchQuery.length) {

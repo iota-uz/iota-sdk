@@ -285,7 +285,7 @@ templ Combobox(props ComboboxProps) {
 				x-ref="list"
 				x-cloak
 				popover="manual"
-				class={ "combobox-dropdown bg-white z-10 m-0 max-h-44 flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm", props.ListClass }
+				class={ "combobox-dropdown bg-white z-10 m-0 flex-col gap-0.5 overflow-hidden overflow-y-auto border border-secondary p-1.5 rounded-md drop-shadow-sm", props.ListClass }
 				x-on:keydown.down.prevent="$focus.wrap().next()"
 				x-on:keydown.up.prevent="$focus.wrap().previous()"
 				x-trap="openedWithKeyboard"
