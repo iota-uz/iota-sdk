@@ -501,6 +501,15 @@ func (s *meiliRebuildSession) Commit(ctx context.Context) error {
 		}
 	}
 
+	// Best-effort housekeeping after a successful swap. The reindex runs on
+	// a tight cron (minutes apart); Meili retains terminal task records and
+	// their update_files payloads indefinitely, and LMDB never returns freed
+	// pages to the OS — so without pruning here the task DB grows unbounded
+	// and orphan build indexes from prior schema versions accumulate. The
+	// rebuild has already committed, so a prune hiccup must NOT surface as a
+	// reindex failure: errors are logged inside, never returned.
+	s.engine.postCommitHousekeeping(ctx)
+
 	return nil
 }
 
@@ -651,6 +660,77 @@ func (e *MeilisearchEngine) PruneOrphanBuildIndexes(ctx context.Context, minAge 
 		}
 	}
 	return pruned, nil
+}
+
+// taskPruneRetention bounds how long terminal Meili tasks — and the
+// update_files payloads they pin on disk — are retained. The periodic
+// reindex enqueues many addDocuments+swap+delete tasks per cycle and Meili
+// never expires task history on its own, so the task DB grows without bound
+// until pruned. 24h keeps a useful operational audit window.
+const taskPruneRetention = 24 * time.Hour
+
+// orphanIndexMinAge is the slack the janitor leaves before deleting a
+// stale rebuild scratch index, matching the production rebuild window so it
+// never removes an index another node is still populating.
+const orphanIndexMinAge = 6 * time.Hour
+
+// PruneTasks deletes terminal (succeeded/failed/canceled) Meili tasks
+// enqueued before `before`, reclaiming the task DB and the update_files
+// payloads those tasks reference. Meili performs the deletion as its own
+// async task; this waits for it so the call is self-verifying, and returns
+// the number of task records removed. Only terminal statuses are targeted,
+// so an in-flight enqueued/processing task is never affected.
+func (e *MeilisearchEngine) PruneTasks(ctx context.Context, before time.Time) (int64, error) {
+	const op serrors.Op = "spotlight.MeilisearchEngine.PruneTasks"
+	if before.IsZero() {
+		return 0, serrors.E(op, errors.New("before timestamp is required"))
+	}
+
+	task, err := e.client.DeleteTasksWithContext(ctx, &meilisearch.DeleteTasksQuery{
+		Statuses: []meilisearch.TaskStatus{
+			meilisearch.TaskStatusSucceeded,
+			meilisearch.TaskStatusFailed,
+			meilisearch.TaskStatusCanceled,
+		},
+		BeforeEnqueuedAt: before,
+	})
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	if task == nil {
+		return 0, nil
+	}
+
+	status, err := waitTaskCtxClient(ctx, e.client, task.TaskUID)
+	if err != nil {
+		return 0, serrors.E(op, err)
+	}
+	if status == nil {
+		return 0, nil
+	}
+	return status.Details.DeletedTasks, nil
+}
+
+// postCommitHousekeeping runs best-effort task-DB and orphan-index pruning
+// after a successful rebuild swap. Every error is logged and swallowed:
+// housekeeping must never fail an already-committed reindex. Safe to call
+// on every Commit — both prunes are idempotent and cheap.
+func (e *MeilisearchEngine) postCommitHousekeeping(ctx context.Context) {
+	if deleted, err := e.PruneTasks(ctx, time.Now().Add(-taskPruneRetention)); err != nil {
+		if e.logger != nil {
+			e.logger.WithError(err).Warn("spotlight janitor: task-DB prune failed (non-fatal)")
+		}
+	} else if deleted > 0 && e.logger != nil {
+		e.logger.WithField("deleted_tasks", deleted).Info("spotlight janitor pruned terminal Meili tasks")
+	}
+
+	if pruned, err := e.PruneOrphanBuildIndexes(ctx, orphanIndexMinAge); err != nil {
+		if e.logger != nil {
+			e.logger.WithError(err).Warn("spotlight janitor: orphan-index prune failed (non-fatal)")
+		}
+	} else if len(pruned) > 0 && e.logger != nil {
+		e.logger.WithField("pruned_indexes", len(pruned)).Info("spotlight janitor pruned orphan build indexes")
+	}
 }
 
 // upsertSplitMaxDepth bounds the 413 split-and-retry recursion so a
