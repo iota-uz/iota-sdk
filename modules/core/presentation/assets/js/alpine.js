@@ -350,8 +350,15 @@ let combobox = (searchable = false, canCreateNew = false) => ({
         label: option.textContent,
       });
     }
-    this.open = false;
-    this.openedWithKeyboard = false;
+    // Single-select picks one value and closes. Multi-select keeps the dropdown
+    // open so the user can tick several options without re-opening it each time;
+    // adding a chip can grow the trigger, so re-anchor the top-layer popover.
+    if (this.multiple) {
+      this.$nextTick(() => this.positionDropdown());
+    } else {
+      this.open = false;
+      this.openedWithKeyboard = false;
+    }
     this.searchQuery = '';
     this.options = [...this.allOptions];
     if (this.selectedValues.size === 0) {
@@ -473,6 +480,10 @@ let combobox = (searchable = false, canCreateNew = false) => ({
 
 let filtersDropdown = () => ({
   open: false,
+  // Pending change accumulated while the dropdown is open. Each tick re-renders
+  // the table fragment (this dropdown lives inside the HTMX swap target), which
+  // would collapse the dropdown mid-selection — so we batch and apply on close.
+  dirty: false,
   selected: [],
   init() {
     // Use [checked] attribute selector instead of :checked pseudo-selector
@@ -487,9 +498,25 @@ let filtersDropdown = () => ({
     } else {
       this.selected.splice(index, 1);
     }
-    // Dispatch custom event after Alpine state is updated
-    // We use 'filter-changed' custom event instead of 'change' to avoid race condition
-    // where HTMX collects form data before Alpine updates checkbox state
+    // Defer the reload until the dropdown closes so multiple options can be
+    // ticked without the table re-rendering (and closing the dropdown) on each.
+    this.dirty = true;
+  },
+  toggle() {
+    this.open = !this.open;
+    if (!this.open) this.flush();
+  },
+  close() {
+    if (!this.open) return;
+    this.open = false;
+    this.flush();
+  },
+  flush() {
+    if (!this.dirty) return;
+    this.dirty = false;
+    // Dispatch custom event after Alpine state is updated. We use 'filter-changed'
+    // instead of 'change' to avoid a race where HTMX collects form data before
+    // Alpine updates checkbox state.
     this.$nextTick(() => {
       this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });
@@ -497,6 +524,7 @@ let filtersDropdown = () => ({
   clearAll() {
     this.selected = [];
     this.$el.querySelectorAll('input[type=checkbox]').forEach(cb => cb.checked = false);
+    this.dirty = false;
     this.$nextTick(() => {
       this.$el.dispatchEvent(new CustomEvent('filter-changed', { bubbles: true }));
     });

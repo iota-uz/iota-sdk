@@ -107,7 +107,7 @@ func Dropdown(props DropdownProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button @click=\"open = !open\" type=\"button\" class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "<button @click=\"toggle()\" type=\"button\" class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -159,7 +159,7 @@ func Dropdown(props DropdownProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<ul x-show=\"open\" @click.away=\"open = false\" x-transition class=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "<ul x-show=\"open\" @click.away=\"close()\" x-transition class=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -249,10 +249,10 @@ func DropdownItem(props DropdownItemProps) templ.Component {
 			Checked: props.Checked,
 			Class:   templ.Classes("p-2"),
 			Attrs: templ.Attributes{
-				"value":    props.Value,
-				"name":     props.Name,
-				"@change":  "toggleValue($event.target.value)",
-				":checked": "selected.includes('" + props.Value + "')",
+				"value":        props.Value,
+				"name":         props.Name,
+				"@change.stop": "toggleValue($event.target.value)",
+				":checked":     "selected.includes('" + props.Value + "')",
 			},
 		}).Render(ctx, templ_7745c5c3_Buffer)
 		if templ_7745c5c3_Err != nil {
