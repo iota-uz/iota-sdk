@@ -52,8 +52,8 @@ func NewRolesController(opts *RolesControllerOptions) application.Controller {
 	}
 }
 
-func (c *RolesController) Key() string {
-	return c.basePath
+func (c *RolesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.roles", 0, application.Route("", c.basePath))
 }
 
 func (c *RolesController) Register(r *mux.Router) {

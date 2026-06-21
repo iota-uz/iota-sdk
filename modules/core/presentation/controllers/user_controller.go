@@ -173,8 +173,8 @@ func NewUsersController(
 	}
 }
 
-func (c *UsersController) Key() string {
-	return c.basePath
+func (c *UsersController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.user", 0, application.Route("", c.basePath))
 }
 
 func (c *UsersController) Register(r *mux.Router) {

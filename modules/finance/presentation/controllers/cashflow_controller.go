@@ -46,8 +46,8 @@ func NewCashflowController(
 	}
 }
 
-func (c *CashflowController) Key() string {
-	return c.basePath + "/cashflow"
+func (c *CashflowController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.cashflow", 0, application.Route("", c.basePath+"/cashflow"))
 }
 
 func (c *CashflowController) Register(r *mux.Router) {

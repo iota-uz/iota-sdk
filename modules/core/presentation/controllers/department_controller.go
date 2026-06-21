@@ -51,8 +51,8 @@ func NewDepartmentsController(app application.Application) application.Controlle
 	}
 }
 
-func (c *DepartmentsController) Key() string {
-	return c.basePath
+func (c *DepartmentsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.department", 0, application.Route("", c.basePath))
 }
 
 func (c *DepartmentsController) Register(r *mux.Router) {

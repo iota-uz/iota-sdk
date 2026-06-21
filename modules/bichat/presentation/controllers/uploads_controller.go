@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	bichatperm "github.com/iota-uz/iota-sdk/modules/bichat/permissions"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
@@ -33,8 +34,8 @@ func NewUploadsController(
 	}
 }
 
-func (c *UploadsController) Key() string {
-	return "bichat.UploadsController"
+func (c *UploadsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("bichat.uploads", 0, application.Route("", c.opts.BasePath))
 }
 
 func (c *UploadsController) Register(r *mux.Router) {

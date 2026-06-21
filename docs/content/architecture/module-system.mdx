@@ -145,7 +145,6 @@ classDiagram
 | `composition.ProvideDefault[T](b, value)` | Overridable default provider — downstream `Provide[T]` wins silently | Services layer |
 | `composition.ProvideDefaultAs[I, C](b, value)` | Overridable default bound to both concrete and interface keys | Services layer |
 | `composition.RemoveProvider[T](b)` | Escape hatch — delete an upstream provider before registering a replacement | Services layer |
-| `composition.RemoveController(b, key)` | Delete an upstream controller whose `Key()` matches | Presentation layer |
 | `composition.RemoveHook(b, name)` | Delete an upstream hook whose `Name` matches | Infrastructure |
 | `composition.ContributeControllers(b, fn)` | Closure returning HTTP handlers | Presentation layer |
 | `composition.ContributeControllersFunc(b, ctor)` | Reflection-injected controller factory | Presentation layer |
@@ -257,18 +256,29 @@ it just evicted.
 
 #### Controller and hook overrides
 
-Controllers and hooks are identified by `Controller.Key()` and `Hook.Name`
-respectively, not by type. Use the string-keyed removal helpers:
+Controllers declare identity, ordering, replacement intent, and route metadata
+through `Controller.Descriptor()`. To override an upstream controller, return a
+descriptor with a stable downstream `ID` and list the upstream controller IDs in
+`Replaces`:
 
 ```go
-composition.RemoveController(builder, "/users")
+func (c *UsersController) Descriptor() application.ControllerDescriptor {
+    descriptor := application.Descriptor("custom.users", 0, application.Route("", "/users"))
+    descriptor.Replaces = []string{"core.users"}
+    return descriptor
+}
+```
+
+Hooks are still identified by `Hook.Name` and can be removed explicitly:
+
+```go
 composition.RemoveHook(builder, "crm-client-handler")
 ```
 
-Controller removals are applied as a filter over the materialised controller
-list — the evicted controller's `Register` method never runs and its route
-never reaches the router. Hook removals work the same way and prevent the
-removed hook's `Start`/`StopFn` from running.
+Controller replacements are applied before duplicate-ID and route-collision
+validation, so the replaced controller's `Register` method never runs and its
+routes never reach the router. Hook removals work as a filter over materialised
+hooks and prevent the removed hook's `Start`/`StopFn` from running.
 
 #### Ordering guarantees
 
@@ -286,7 +296,7 @@ leaving the upstream entry in place and the override silently ineffective.
 | `Provide` + downstream `Provide` | Error — "duplicate provider" |
 | Two `ProvideDefault` for the same key | Error — "duplicate default provider" |
 | `RemoveProvider[T]` for a key never provided | No-op |
-| `RemoveController(key)` for an unknown key | No-op |
+| `ControllerDescriptor.Replaces` for an unknown ID | Error |
 
 ## Controller Registration
 

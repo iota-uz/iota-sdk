@@ -45,8 +45,8 @@ func NewHealthUIController(deps map[string]any) application.Controller {
 }
 
 // Key identifies this controller for registration and lookups.
-func (c *HealthUIController) Key() string {
-	return "health-ui"
+func (c *HealthUIController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.health_ui", 0, application.Route("", c.options.BasePath))
 }
 
 // Register wires system info and metrics routes with shared middleware.

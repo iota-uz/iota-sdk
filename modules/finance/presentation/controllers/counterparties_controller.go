@@ -39,8 +39,8 @@ func NewCounterpartiesController(counterpartiesService *services.CounterpartySer
 	}
 }
 
-func (c *CounterpartiesController) Key() string {
-	return c.basePath
+func (c *CounterpartiesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.counterparties", 0, application.Route("", c.basePath))
 }
 
 func (c *CounterpartiesController) Register(r *mux.Router) {

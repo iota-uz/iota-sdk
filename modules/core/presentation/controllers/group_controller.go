@@ -128,8 +128,8 @@ func NewGroupsController(app application.Application) application.Controller {
 	return controller
 }
 
-func (c *GroupsController) Key() string {
-	return c.basePath
+func (c *GroupsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.group", 0, application.Route("", c.basePath))
 }
 
 func (c *GroupsController) Register(r *mux.Router) {

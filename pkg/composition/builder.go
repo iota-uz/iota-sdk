@@ -185,14 +185,14 @@ type Builder struct {
 
 	// Removals are recorded here and processed after every builder has
 	// contributed, so a downstream component can cleanly replace upstream
-	// providers/controllers/hooks without needing to win a registration race.
+	// providers/hooks without needing to win a registration race. Controllers
+	// declare replacement intent in Controller.Descriptor().Replaces.
 	// See Container.applyRemovals and the override decision table in
 	// Container.addBuilder.
-	providerRemovals   []Key
-	controllerRemovals []string // matched against Controller.Key()
-	navItemRemovals    []string // matched against NavigationItem.Key
-	navItemOverrides   []types.NavigationItem
-	hookRemovals       []string // matched against Hook.Name
+	providerRemovals []Key
+	navItemRemovals  []string // matched against NavigationItem.Key
+	navItemOverrides []types.NavigationItem
+	hookRemovals     []string // matched against Hook.Name
 
 	eventHandlerSeq int // monotonic counter for unique event-handler hook names
 }
@@ -327,19 +327,6 @@ func RemoveProvider[T any](builder *Builder) {
 		panic("composition: builder is nil")
 	}
 	builder.providerRemovals = append(builder.providerRemovals, KeyFor[T]())
-}
-
-// RemoveController schedules every controller whose Key() equals `key` to
-// be filtered out of the final container during materialize. Safe to call
-// even when no such controller is registered (no-op).
-func RemoveController(builder *Builder, key string) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	if key == "" {
-		panic("composition: RemoveController: key must not be empty")
-	}
-	builder.controllerRemovals = append(builder.controllerRemovals, key)
 }
 
 // RemoveHook schedules every hook whose Name equals `name` to be filtered

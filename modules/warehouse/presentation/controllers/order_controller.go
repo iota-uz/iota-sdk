@@ -98,8 +98,8 @@ func NewOrdersController(
 	}
 }
 
-func (c *OrdersController) Key() string {
-	return c.basePath
+func (c *OrdersController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.order", 0, application.Route("", c.basePath))
 }
 
 func (c *OrdersController) Register(r *mux.Router) {

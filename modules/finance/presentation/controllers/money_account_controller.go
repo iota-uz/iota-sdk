@@ -71,8 +71,8 @@ func NewMoneyAccountController(
 	}
 }
 
-func (c *MoneyAccountController) Key() string {
-	return c.basePath
+func (c *MoneyAccountController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.money_account", 0, application.Route("", c.basePath))
 }
 
 func (c *MoneyAccountController) Register(r *mux.Router) {

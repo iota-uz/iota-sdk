@@ -47,8 +47,8 @@ func WithResolverOptions(opts ...graph.ResolverOption) GraphQLControllerOption {
 	}
 }
 
-func (g *GraphQLController) Key() string {
-	return "/graphql/core"
+func (g *GraphQLController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.graphql", 0, application.Route("", "/graphql/core"))
 }
 
 func (g *GraphQLController) Register(r *mux.Router) {

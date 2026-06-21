@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	bichatmodsvcs "github.com/iota-uz/iota-sdk/modules/bichat/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -53,9 +54,8 @@ func NewStreamController(
 	}
 }
 
-// Key returns the controller key for dependency injection.
-func (c *StreamController) Key() string {
-	return "bichat.StreamController"
+func (c *StreamController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("bichat.stream", 0, application.Route("", c.opts.BasePath))
 }
 
 // Register registers HTTP routes for SSE streaming.

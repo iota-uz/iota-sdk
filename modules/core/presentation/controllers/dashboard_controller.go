@@ -164,8 +164,8 @@ func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.Da
 	).Build()
 }
 
-func (c *DashboardController) Key() string {
-	return "/"
+func (c *DashboardController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.dashboard", 0, application.Route("", "/"))
 }
 
 func (c *DashboardController) Register(r *mux.Router) {

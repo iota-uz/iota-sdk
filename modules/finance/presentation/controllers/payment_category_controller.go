@@ -52,8 +52,8 @@ func NewPaymentCategoriesController(paymentCategoryService *services.PaymentCate
 	}
 }
 
-func (c *PaymentCategoriesController) Key() string {
-	return c.basePath
+func (c *PaymentCategoriesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.payment_category", 0, application.Route("", c.basePath))
 }
 
 func (c *PaymentCategoriesController) Register(r *mux.Router) {

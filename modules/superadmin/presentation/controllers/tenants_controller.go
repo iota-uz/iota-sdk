@@ -51,8 +51,8 @@ func NewTenantsController(userService *coreservices.UserService) application.Con
 	}
 }
 
-func (c *TenantsController) Key() string {
-	return c.basePath
+func (c *TenantsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("superadmin.tenants", 0, application.Route("", c.basePath))
 }
 
 func (c *TenantsController) Register(r *mux.Router) {

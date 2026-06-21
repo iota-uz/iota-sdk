@@ -98,8 +98,12 @@ func (d *SeedDeps) RegisterProviders(providers ...di.Provider) {
 
 type Controller interface {
 	Register(r *mux.Router)
-	Key() string
+	Descriptor() ControllerDescriptor
 }
+
+type ControllerDescriptor = applets.ControllerDescriptor
+
+type RouteSpec = applets.RouteSpec
 
 // Applet represents a React/Next.js application that integrates with the SDK
 // This is now an alias for applets.Applet to unify the applet system.

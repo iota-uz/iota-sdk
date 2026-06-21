@@ -40,8 +40,8 @@ func NewProjectStageController() application.Controller {
 	}
 }
 
-func (c *ProjectStageController) Key() string {
-	return c.basePath
+func (c *ProjectStageController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("projects.project_stage", 0, application.Route("", c.basePath))
 }
 
 func (c *ProjectStageController) Register(r *mux.Router) {

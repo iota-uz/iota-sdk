@@ -431,17 +431,8 @@ func (app *application) Controllers() []Controller {
 		return nil
 	}
 	controllers := append([]Controller(nil), app.runtimeSource.Controllers()...)
-	// Register applet controllers first so their asset routes (e.g. /admin/ali/chat/assets)
-	// are added before other controllers that might match /admin/... and return 404 for
-	// dev proxy requests (@vite/client, /src/*, etc.).
-	sort.Slice(controllers, func(i, j int) bool {
-		ki, kj := controllers[i].Key(), controllers[j].Key()
-		appletI := strings.HasPrefix(ki, "applet_")
-		appletJ := strings.HasPrefix(kj, "applet_")
-		if appletI != appletJ {
-			return appletI
-		}
-		return ki < kj
+	sort.SliceStable(controllers, func(i, j int) bool {
+		return controllers[i].Descriptor().Order < controllers[j].Descriptor().Order
 	})
 	return controllers
 }

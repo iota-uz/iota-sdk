@@ -28,8 +28,8 @@ func NewSettingsHubController() application.Controller {
 	return &SettingsHubController{basePath: "/settings"}
 }
 
-func (c *SettingsHubController) Key() string {
-	return c.basePath
+func (c *SettingsHubController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.settings", 0, application.Route("", c.basePath))
 }
 
 func (c *SettingsHubController) Register(r *mux.Router) {
@@ -66,8 +66,8 @@ func NewSettingsLogoController(
 	}
 }
 
-func (c *SettingsLogoController) Key() string {
-	return c.basePath
+func (c *SettingsLogoController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.settings", 0, application.Route("", c.basePath))
 }
 
 func (c *SettingsLogoController) Register(r *mux.Router) {

@@ -26,7 +26,7 @@ import (
 
 type Controller interface {
 	Register(*mux.Router)
-	Key() string
+	Descriptor() applets.ControllerDescriptor
 }
 
 type BuildInput struct {

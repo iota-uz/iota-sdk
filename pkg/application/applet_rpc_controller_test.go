@@ -114,7 +114,7 @@ func TestBuildAppletControllers_GlobalRPCRouteOnly(t *testing.T) {
 
 	hasAppletRPC := false
 	for _, c := range controllers {
-		if c.Key() == "applet_rpc" {
+		if c.Descriptor().ID == "appletengine.rpc" {
 			hasAppletRPC = true
 			break
 		}

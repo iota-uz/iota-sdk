@@ -27,8 +27,10 @@ func NewDashboardController() application.Controller {
 	}
 }
 
-func (c *DashboardController) Key() string {
-	return c.basePath
+func (c *DashboardController) Descriptor() application.ControllerDescriptor {
+	descriptor := application.Descriptor("superadmin.dashboard", 0, application.Route("", c.basePath))
+	descriptor.Replaces = []string{"core.dashboard"}
+	return descriptor
 }
 
 func (c *DashboardController) Register(r *mux.Router) {

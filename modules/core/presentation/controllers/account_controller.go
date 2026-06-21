@@ -51,8 +51,8 @@ func NewAccountController(
 	}
 }
 
-func (c *AccountController) Key() string {
-	return c.basePath
+func (c *AccountController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.account", 0, application.Route("", c.basePath))
 }
 
 func (c *AccountController) Register(r *mux.Router) {

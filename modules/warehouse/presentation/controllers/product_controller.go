@@ -48,8 +48,8 @@ func NewProductsController(
 	}
 }
 
-func (c *ProductsController) Key() string {
-	return c.basePath
+func (c *ProductsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.product", 0, application.Route("", c.basePath))
 }
 
 func (c *ProductsController) Register(r *mux.Router) {

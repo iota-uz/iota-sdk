@@ -80,8 +80,8 @@ func NewChatController(
 	}
 }
 
-func (c *ChatController) Key() string {
-	return c.basePath
+func (c *ChatController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("crm.chat", 0, application.Route("", c.basePath))
 }
 
 func (c *ChatController) Register(r *mux.Router) {

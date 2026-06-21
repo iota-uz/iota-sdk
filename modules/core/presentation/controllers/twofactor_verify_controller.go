@@ -70,8 +70,8 @@ type TwoFactorVerifyController struct {
 
 // Key returns the base route path for this controller.
 // Implements the Controller interface.
-func (c *TwoFactorVerifyController) Key() string {
-	return "/login/2fa/verify"
+func (c *TwoFactorVerifyController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.twofactor_verify", 0, application.Route("", "/login/2fa/verify"))
 }
 
 // Register registers all HTTP routes for 2FA verification flows.

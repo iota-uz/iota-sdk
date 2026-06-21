@@ -60,8 +60,8 @@ func (c *OctoController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Handle)).Methods(http.MethodPost)
 }
 
-func (c *OctoController) Key() string {
-	return c.basePath
+func (c *OctoController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.octo", 0, application.Route("", c.basePath))
 }
 
 func (c *OctoController) Handle(

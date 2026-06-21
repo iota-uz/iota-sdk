@@ -42,8 +42,15 @@ func NewSSRController(applet applets.Applet, runtime *appletengineruntime.Manage
 	}
 }
 
-func (c *SSRController) Key() string {
-	return "applet_ssr_" + c.appletID
+func (c *SSRController) Descriptor() applets.ControllerDescriptor {
+	return applets.ControllerDescriptor{
+		ID:    "appletengine.ssr." + c.appletID,
+		Order: -1000,
+		Routes: []applets.RouteSpec{{
+			Path:   c.basePath,
+			Prefix: true,
+		}},
+	}
 }
 
 func (c *SSRController) Register(router *mux.Router) {

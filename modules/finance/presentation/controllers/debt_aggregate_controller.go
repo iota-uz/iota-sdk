@@ -39,8 +39,8 @@ func NewDebtAggregateController(debtService *services.DebtService, counterpartyS
 	}
 }
 
-func (c *DebtAggregateController) Key() string {
-	return c.basePath
+func (c *DebtAggregateController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.debt_aggregate", 0, application.Route("", c.basePath))
 }
 
 func (c *DebtAggregateController) Register(r *mux.Router) {

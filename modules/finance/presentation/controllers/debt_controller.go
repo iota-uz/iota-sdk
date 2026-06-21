@@ -63,8 +63,8 @@ func NewDebtsController(
 	}
 }
 
-func (c *DebtsController) Key() string {
-	return c.basePath
+func (c *DebtsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.debt", 0, application.Route("", c.basePath))
 }
 
 func (c *DebtsController) Register(r *mux.Router) {

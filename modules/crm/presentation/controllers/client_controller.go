@@ -254,8 +254,8 @@ func (c *ClientController) RegisterTab(tab TabDefinition) {
 	})
 }
 
-func (c *ClientController) Key() string {
-	return c.config.BasePath
+func (c *ClientController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("crm.client", 0, application.Route("", c.config.BasePath))
 }
 
 func (c *ClientController) Register(r *mux.Router) {

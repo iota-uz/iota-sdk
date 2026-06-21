@@ -209,8 +209,8 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 	}
 }
 
-func (c *CrudController[TEntity]) Key() string {
-	return c.basePath
+func (c *CrudController[TEntity]) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.crud", 0, application.Route("", c.basePath))
 }
 
 // RegisterRenderer registers a custom field renderer for the given type

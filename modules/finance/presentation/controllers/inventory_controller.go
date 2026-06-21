@@ -44,8 +44,8 @@ func NewInventoryController(inventoryService *services.InventoryService, currenc
 	}
 }
 
-func (c *InventoryController) Key() string {
-	return c.basePath
+func (c *InventoryController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.inventory", 0, application.Route("", c.basePath))
 }
 
 func (c *InventoryController) Register(r *mux.Router) {

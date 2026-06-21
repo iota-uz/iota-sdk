@@ -55,8 +55,8 @@ func NewPositionsController() application.Controller {
 	}
 }
 
-func (c *PositionsController) Key() string {
-	return c.basePath
+func (c *PositionsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.position", 0, application.Route("", c.basePath))
 }
 
 func (c *PositionsController) Register(r *mux.Router) {

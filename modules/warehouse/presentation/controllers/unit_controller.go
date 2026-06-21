@@ -41,8 +41,8 @@ func NewUnitsController(unitService *services.UnitService) application.Controlle
 	}
 }
 
-func (c *UnitsController) Key() string {
-	return c.basePath
+func (c *UnitsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.unit", 0, application.Route("", c.basePath))
 }
 
 func (c *UnitsController) Register(r *mux.Router) {

@@ -52,8 +52,8 @@ func NewExpenseCategoriesController(expenseCategoryService *services.ExpenseCate
 	}
 }
 
-func (c *ExpenseCategoriesController) Key() string {
-	return c.basePath
+func (c *ExpenseCategoriesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.expense_category", 0, application.Route("", c.basePath))
 }
 
 func (c *ExpenseCategoriesController) Register(r *mux.Router) {

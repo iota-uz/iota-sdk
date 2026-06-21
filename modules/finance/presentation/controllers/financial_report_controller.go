@@ -38,8 +38,8 @@ func NewFinancialReportController(
 	}
 }
 
-func (c *FinancialReportController) Key() string {
-	return c.basePath
+func (c *FinancialReportController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.financial_report", 0, application.Route("", c.basePath))
 }
 
 func (c *FinancialReportController) Register(r *mux.Router) {
