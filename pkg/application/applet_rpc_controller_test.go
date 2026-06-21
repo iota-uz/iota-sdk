@@ -1,8 +1,9 @@
-package application
+package application_test
 
 import (
 	"bytes"
 	"context"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,16 +13,46 @@ import (
 	"testing"
 	"testing/fstest"
 
+	"github.com/benbjohnson/hashfs"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/applets"
+	. "github.com/iota-uz/iota-sdk/pkg/application"
 	compositionapplet "github.com/iota-uz/iota-sdk/pkg/composition/applet"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
+
+type testRuntimeSource struct {
+	applets []Applet
+}
+
+func (s *testRuntimeSource) Controllers() []Controller           { return nil }
+func (s *testRuntimeSource) Middleware() []mux.MiddlewareFunc    { return nil }
+func (s *testRuntimeSource) Assets() []*embed.FS                 { return nil }
+func (s *testRuntimeSource) HashFSAssets() []*hashfs.FS          { return nil }
+func (s *testRuntimeSource) LocaleFiles() []*embed.FS            { return nil }
+func (s *testRuntimeSource) GraphSchemas() []GraphSchema         { return nil }
+func (s *testRuntimeSource) Applets() []Applet                   { return s.applets }
+func (s *testRuntimeSource) NavItems() []types.NavigationItem    { return nil }
+func (s *testRuntimeSource) NavWorkspaces() []types.NavWorkspace { return nil }
+func (s *testRuntimeSource) QuickLinks() []*spotlight.QuickLink  { return nil }
+func (s *testRuntimeSource) SpotlightProviders() []spotlight.SearchProvider {
+	return nil
+}
+func (s *testRuntimeSource) SpotlightAgent() spotlight.Agent { return nil }
+
+func attachRuntimeSource(t *testing.T, app Application, source RuntimeSource) {
+	t.Helper()
+	binder, ok := app.(RuntimeBinder)
+	require.True(t, ok)
+	require.NoError(t, binder.AttachRuntimeSource(source))
+}
 
 type rpcTestApplet struct {
 	name     string

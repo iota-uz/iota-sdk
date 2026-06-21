@@ -4,8 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/stretchr/testify/require"
 )
 
@@ -233,6 +236,7 @@ type overrideCtrl struct {
 	order    int
 	replaces []string
 	routes   []application.RouteSpec
+	nav      []application.NavNode
 }
 
 func (c *overrideCtrl) Descriptor() application.ControllerDescriptor {
@@ -241,6 +245,7 @@ func (c *overrideCtrl) Descriptor() application.ControllerDescriptor {
 		Order:    c.order,
 		Replaces: c.replaces,
 		Routes:   c.routes,
+		Nav:      c.nav,
 	}
 }
 
@@ -478,6 +483,166 @@ func TestControllerDescriptors_OrderControlsFinalControllerOrder(t *testing.T) {
 	require.Equal(t, "first", ctrls[0].Descriptor().ID)
 	require.Equal(t, "middle", ctrls[1].Descriptor().ID)
 	require.Equal(t, "last", ctrls[2].Descriptor().ID)
+}
+
+func TestNavModel_ProjectsDescriptorNavAndQuickLinks(t *testing.T) {
+	viewReports := permission.New(
+		permission.WithName("reports.view"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.index",
+					routes: []application.RouteSpec{application.Get("/reports", application.RequireAll(viewReports))},
+					nav: []application.NavNode{{
+						ID:       "reports.index",
+						TitleKey: "NavigationLinks.Reports",
+						Path:     "/reports?tab=all",
+						Keywords: []string{"NavigationLinks.Reports.Keyword"},
+					}},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	items := container.NavItems()
+	require.Len(t, items, 1)
+	require.Equal(t, "reports.index", items[0].Key)
+	require.Equal(t, "/reports?tab=all", items[0].Href)
+	require.Equal(t, []permission.Permission{viewReports}, items[0].Permissions)
+
+	docs, err := spotlight.CollectDocuments(context.Background(), spotlightQuickLinks(container.QuickLinks()), spotlight.ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+	require.Equal(t, "/reports?tab=all", docs[0].URL)
+	require.Equal(t, []string{"reports.view"}, docs[0].Access.AllowedPermissions)
+	require.Equal(t, spotlight.PermissionLogicAll, docs[0].Access.PermissionLogic)
+}
+
+func TestNavModel_RejectsDuplicateIDs(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder,
+				application.NavNode{ID: "nav.reports", TitleKey: "Reports"},
+				application.NavNode{ID: "nav.reports", TitleKey: "Reports 2"},
+			)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `duplicate nav node ID "nav.reports"`)
+}
+
+func TestNavModel_RejectsUnresolvedPath(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder, application.NavNode{
+				ID:       "nav.missing",
+				TitleKey: "Missing",
+				Path:     "/missing",
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `path "/missing" does not resolve to a controller route`)
+}
+
+func TestNavModel_SameModuleOrphanFailsAndCrossModuleOrphanSkips(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder, application.NavNode{
+				ID:       "finance.expenses",
+				Parent:   "finance.missing",
+				TitleKey: "Expenses",
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `parent "finance.missing" was not contributed`)
+
+	engine = NewEngine()
+	err = engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder, application.NavNode{
+				ID:       "finance.expenses",
+				Parent:   "core.finance",
+				TitleKey: "Expenses",
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+	require.Empty(t, container.NavItems())
+}
+
+func TestRouteAuthLookup_MatchesMuxVariables(t *testing.T) {
+	viewReports := permission.New(
+		permission.WithName("reports.view"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.show",
+					routes: []application.RouteSpec{application.Get("/reports/{id}", application.RequireAny(viewReports))},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	policy, ok := container.AuthPolicyForRoute("GET", "example.test", "/reports/123")
+	require.True(t, ok)
+	require.Equal(t, application.PermissionLogicAny, policy.Logic)
+	require.Equal(t, []permission.Permission{viewReports}, policy.Permissions)
+}
+
+func spotlightQuickLinks(links []*spotlight.QuickLink) *spotlight.QuickLinks {
+	quickLinks := spotlight.NewQuickLinks(nil, nil)
+	quickLinks.Add(links...)
+	return quickLinks
 }
 
 // ----- RemoveHook -----

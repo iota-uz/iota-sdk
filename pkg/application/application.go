@@ -325,6 +325,21 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 	return translate(localizer, app.runtimeSource.NavItems())
 }
 
+type scopedNavSource interface {
+	NavItemsForScope(context.Context, NavScope) []types.NavigationItem
+}
+
+func (app *application) NavItemsForScope(ctx context.Context, localizer *i18n.Localizer, scope NavScope) []types.NavigationItem {
+	if app.runtimeSource == nil {
+		return nil
+	}
+	items := app.runtimeSource.NavItems()
+	if scoped, ok := app.runtimeSource.(scopedNavSource); ok {
+		items = append(items, scoped.NavItemsForScope(ctx, scope)...)
+	}
+	return translate(localizer, items)
+}
+
 func (app *application) NavWorkspaces() []types.NavWorkspace {
 	if app.runtimeSource == nil {
 		return nil
@@ -341,7 +356,8 @@ func navItemsToQuickLinks(items ...types.NavigationItem) []*spotlight.QuickLink 
 			if len(item.Permissions) == 0 {
 				builder.Public()
 			} else {
-				builder.WithPermissions(navPermissionNames(item.Permissions)...)
+				builder.WithPermissions(navPermissionNames(item.Permissions)...).
+					WithPermissionLogic(spotlight.PermissionLogicAll)
 			}
 			out = append(out, builder.Build())
 		}

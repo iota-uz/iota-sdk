@@ -269,6 +269,8 @@ type Container struct {
 	resolutionPath     []string
 
 	controllerFactories   []namedFactory[[]application.Controller]
+	navNodeFactories      []namedFactory[[]application.NavNode]
+	navProviderFactories  []namedFactory[[]application.NavProvider]
 	navItemFactories      []namedFactory[[]types.NavigationItem]
 	navWorkspaceFactories []namedFactory[[]types.NavWorkspace]
 	localeFactories       []namedFactory[[]*embed.FS]
@@ -291,6 +293,9 @@ type Container struct {
 	pendingNavItemOverrides []types.NavigationItem
 
 	controllers        []application.Controller
+	navCatalogNodes    []navNodeContribution
+	navProviders       []application.NavProvider
+	routeAuthRoutes    []controllerRoute
 	navItems           []types.NavigationItem
 	navWorkspaces      []types.NavWorkspace
 	locales            []*embed.FS
@@ -318,6 +323,11 @@ type controllerRoute struct {
 	route     application.RouteSpec
 }
 
+type navNodeContribution struct {
+	component string
+	node      application.NavNode
+}
+
 func newContainer(context BuildContext, activeCapabilities []Capability) *Container {
 	return &Container{
 		context:            context,
@@ -336,6 +346,10 @@ func (c *Container) Controllers() []application.Controller {
 
 func (c *Container) NavItems() []types.NavigationItem {
 	return append([]types.NavigationItem(nil), c.navItems...)
+}
+
+func (c *Container) NavProviders() []application.NavProvider {
+	return append([]application.NavProvider(nil), c.navProviders...)
 }
 
 func (c *Container) NavWorkspaces() []types.NavWorkspace {
@@ -588,6 +602,8 @@ func (c *Container) addBuilder(builder *Builder) error {
 	}
 
 	c.controllerFactories = append(c.controllerFactories, builder.controllerFactories...)
+	c.navNodeFactories = append(c.navNodeFactories, builder.navNodeFactories...)
+	c.navProviderFactories = append(c.navProviderFactories, builder.navProviderFactories...)
 	c.navItemFactories = append(c.navItemFactories, builder.navItemFactories...)
 	c.navWorkspaceFactories = append(c.navWorkspaceFactories, builder.navWorkspaceFactories...)
 	c.localeFactories = append(c.localeFactories, builder.localeFactories...)
@@ -630,17 +646,33 @@ func (c *Container) materialize() error {
 	if err != nil {
 		return err
 	}
+	activeControllerContributions := make([]controllerContribution, 0, len(controllerContributions))
 	if len(controllerContributions) > 0 {
-		filtered, err := resolveControllerDescriptors(controllerContributions)
+		filtered, active, err := resolveControllerDescriptors(controllerContributions)
 		if err != nil {
 			return err
 		}
 		c.controllers = filtered
+		activeControllerContributions = active
+		c.routeAuthRoutes = collectControllerRoutes(active)
 	}
+	if err := collectNavNodeContributions(c, c.navNodeFactories, &c.navCatalogNodes); err != nil {
+		return err
+	}
+	navNodeContributions := append([]navNodeContribution(nil), c.navCatalogNodes...)
+	navNodeContributions = append(navNodeContributions, collectControllerNavNodes(activeControllerContributions)...)
 	if err := collectInto(c, c.navItemFactories, &c.navItems); err != nil {
 		return err
 	}
+	navModel, err := buildNavModel(c.routeAuthRoutes, navNodeContributions, true)
+	if err != nil {
+		return err
+	}
+	c.navItems = append(c.navItems, navModel.items...)
 	c.navItems = applyNavItemOverrides(c.navItems, c.pendingNavItemRemovals, c.pendingNavItemOverrides)
+	if err := collectInto(c, c.navProviderFactories, &c.navProviders); err != nil {
+		return err
+	}
 	if err := collectInto(c, c.navWorkspaceFactories, &c.navWorkspaces); err != nil {
 		return err
 	}
@@ -662,6 +694,7 @@ func (c *Container) materialize() error {
 	if err := collectInto(c, c.quickLinkFactories, &c.quickLinks); err != nil {
 		return err
 	}
+	c.quickLinks = append(c.quickLinks, navModel.quickLinks...)
 	if err := collectInto(c, c.spotlightFactories, &c.spotlightProviders); err != nil {
 		return err
 	}
@@ -796,7 +829,26 @@ func collectControllerContributions(container *Container, factories []namedFacto
 	return contributions, nil
 }
 
-func resolveControllerDescriptors(contributions []controllerContribution) ([]application.Controller, error) {
+func collectNavNodeContributions(container *Container, factories []namedFactory[[]application.NavNode], target *[]navNodeContribution) error {
+	for _, entry := range factories {
+		previousPath := container.resolutionPath
+		container.resolutionPath = []string{entry.component, entry.label}
+		values, err := entry.factory(container)
+		container.resolutionPath = previousPath
+		if err != nil {
+			return fmt.Errorf("composition: %s contribution for %q: %w", entry.label, entry.component, err)
+		}
+		for _, node := range values {
+			*target = append(*target, navNodeContribution{
+				component: entry.component,
+				node:      node,
+			})
+		}
+	}
+	return nil
+}
+
+func resolveControllerDescriptors(contributions []controllerContribution) ([]application.Controller, []controllerContribution, error) {
 	active := make([]controllerContribution, 0, len(contributions))
 	owners := make(map[string]string, len(contributions))
 
@@ -806,7 +858,7 @@ func resolveControllerDescriptors(contributions []controllerContribution) ([]app
 		}
 		descriptor := contribution.controller.Descriptor()
 		if strings.TrimSpace(descriptor.ID) == "" {
-			return nil, fmt.Errorf("composition: controller contributed by %q has empty descriptor ID", contribution.component)
+			return nil, nil, fmt.Errorf("composition: controller contributed by %q has empty descriptor ID", contribution.component)
 		}
 
 		for _, replacedID := range descriptor.Replaces {
@@ -826,7 +878,7 @@ func resolveControllerDescriptors(contributions []controllerContribution) ([]app
 			}
 			active = filtered
 			if !found {
-				return nil, fmt.Errorf(
+				return nil, nil, fmt.Errorf(
 					"composition: controller %q contributed by %q replaces missing controller %q",
 					descriptor.ID,
 					contribution.component,
@@ -836,7 +888,7 @@ func resolveControllerDescriptors(contributions []controllerContribution) ([]app
 		}
 
 		if existing, exists := owners[descriptor.ID]; exists {
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"composition: duplicate controller ID %q contributed by %q and %q; declare Descriptor().Replaces to override a controller",
 				descriptor.ID,
 				existing,
@@ -848,7 +900,7 @@ func resolveControllerDescriptors(contributions []controllerContribution) ([]app
 	}
 
 	if err := validateControllerRoutes(active); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	sort.SliceStable(active, func(i, j int) bool {
@@ -859,7 +911,40 @@ func resolveControllerDescriptors(contributions []controllerContribution) ([]app
 	for _, contribution := range active {
 		controllers = append(controllers, contribution.controller)
 	}
-	return controllers, nil
+	return controllers, active, nil
+}
+
+func collectControllerRoutes(contributions []controllerContribution) []controllerRoute {
+	routes := make([]controllerRoute, 0)
+	for _, contribution := range contributions {
+		descriptor := contribution.controller.Descriptor()
+		for _, route := range descriptor.Routes {
+			route = normalizeRoute(route)
+			if route.Path == "" {
+				continue
+			}
+			routes = append(routes, controllerRoute{
+				component: contribution.component,
+				id:        descriptor.ID,
+				route:     route,
+			})
+		}
+	}
+	return routes
+}
+
+func collectControllerNavNodes(contributions []controllerContribution) []navNodeContribution {
+	nodes := make([]navNodeContribution, 0)
+	for _, contribution := range contributions {
+		descriptor := contribution.controller.Descriptor()
+		for _, node := range descriptor.Nav {
+			nodes = append(nodes, navNodeContribution{
+				component: contribution.component,
+				node:      node,
+			})
+		}
+	}
+	return nodes
 }
 
 func validateControllerRoutes(contributions []controllerContribution) error {

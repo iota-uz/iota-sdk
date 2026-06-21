@@ -170,6 +170,8 @@ type Builder struct {
 
 	providers             []*providerEntry
 	controllerFactories   []namedFactory[[]application.Controller]
+	navNodeFactories      []namedFactory[[]application.NavNode]
+	navProviderFactories  []namedFactory[[]application.NavProvider]
 	navItemFactories      []namedFactory[[]types.NavigationItem]
 	navWorkspaceFactories []namedFactory[[]types.NavWorkspace]
 	localeFactories       []namedFactory[[]*embed.FS]
@@ -383,6 +385,14 @@ func appendProvider[T any](builder *Builder, name string, keyType reflect.Type, 
 
 func ContributeControllers(builder *Builder, factory func(*Container) ([]application.Controller, error)) {
 	appendFactory(builder, "controllers", factory, &builder.controllerFactories)
+}
+
+func ContributeNavNodes(builder *Builder, factory func(*Container) ([]application.NavNode, error)) {
+	appendFactory(builder, "nav-nodes", factory, &builder.navNodeFactories)
+}
+
+func ContributeNavProviders(builder *Builder, factory func(*Container) ([]application.NavProvider, error)) {
+	appendFactory(builder, "nav-providers", factory, &builder.navProviderFactories)
 }
 
 func ContributeNavItems(builder *Builder, factory func(*Container) ([]types.NavigationItem, error)) {

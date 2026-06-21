@@ -29,6 +29,20 @@ func AddNavItems(builder *Builder, items ...types.NavigationItem) {
 	})
 }
 
+// AddNavNodes attaches one or more descriptor-backed navigation catalog nodes.
+func AddNavNodes(builder *Builder, nodes ...application.NavNode) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(nodes) == 0 {
+		return
+	}
+	captured := append([]application.NavNode(nil), nodes...)
+	ContributeNavNodes(builder, func(*Container) ([]application.NavNode, error) {
+		return captured, nil
+	})
+}
+
 // AddNavWorkspaces attaches one or more sidebar workspace declarations.
 func AddNavWorkspaces(builder *Builder, workspaces ...types.NavWorkspace) {
 	if builder == nil {
@@ -39,6 +53,20 @@ func AddNavWorkspaces(builder *Builder, workspaces ...types.NavWorkspace) {
 	}
 	captured := append([]types.NavWorkspace(nil), workspaces...)
 	ContributeNavWorkspaces(builder, func(*Container) ([]types.NavWorkspace, error) {
+		return captured, nil
+	})
+}
+
+// AddNavProviders attaches runtime navigation providers.
+func AddNavProviders(builder *Builder, providers ...application.NavProvider) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(providers) == 0 {
+		return
+	}
+	captured := append([]application.NavProvider(nil), providers...)
+	ContributeNavProviders(builder, func(*Container) ([]application.NavProvider, error) {
 		return captured, nil
 	})
 }

@@ -101,10 +101,6 @@ type Controller interface {
 	Descriptor() ControllerDescriptor
 }
 
-type ControllerDescriptor = applets.ControllerDescriptor
-
-type RouteSpec = applets.RouteSpec
-
 // Applet represents a React/Next.js application that integrates with the SDK
 // This is now an alias for applets.Applet to unify the applet system.
 // All applets should implement applets.Applet directly, which includes Config().

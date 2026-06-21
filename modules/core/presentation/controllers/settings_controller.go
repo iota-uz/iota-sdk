@@ -67,7 +67,7 @@ func NewSettingsLogoController(
 }
 
 func (c *SettingsLogoController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("core.settings", 0, application.Route("", c.basePath))
+	return application.Descriptor("core.settings.logo", 0, application.Route("", c.basePath))
 }
 
 func (c *SettingsLogoController) Register(r *mux.Router) {

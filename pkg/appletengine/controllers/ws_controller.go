@@ -8,8 +8,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
-	"github.com/iota-uz/applets"
 	appletenginewsbridge "github.com/iota-uz/iota-sdk/pkg/appletengine/wsbridge"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/sirupsen/logrus"
 )
 
@@ -30,10 +30,10 @@ func NewWSController(bridge *appletenginewsbridge.Bridge, logger *logrus.Logger)
 	}
 }
 
-func (c *WSController) Descriptor() applets.ControllerDescriptor {
-	return applets.ControllerDescriptor{
+func (c *WSController) Descriptor() application.ControllerDescriptor {
+	return application.ControllerDescriptor{
 		ID: "appletengine.ws",
-		Routes: []applets.RouteSpec{{
+		Routes: []application.RouteSpec{{
 			Path: "/applets/{applet}/ws",
 		}},
 	}

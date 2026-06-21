@@ -13,6 +13,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/applets"
 	appletengineruntime "github.com/iota-uz/iota-sdk/pkg/appletengine/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/sirupsen/logrus"
 )
 
@@ -42,11 +43,11 @@ func NewSSRController(applet applets.Applet, runtime *appletengineruntime.Manage
 	}
 }
 
-func (c *SSRController) Descriptor() applets.ControllerDescriptor {
-	return applets.ControllerDescriptor{
+func (c *SSRController) Descriptor() application.ControllerDescriptor {
+	return application.ControllerDescriptor{
 		ID:    "appletengine.ssr." + c.appletID,
 		Order: -1000,
-		Routes: []applets.RouteSpec{{
+		Routes: []application.RouteSpec{{
 			Path:   c.basePath,
 			Prefix: true,
 		}},
