@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -637,6 +638,93 @@ func TestRouteAuthLookup_MatchesMuxVariables(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, application.PermissionLogicAny, policy.Logic)
 	require.Equal(t, []permission.Permission{viewReports}, policy.Permissions)
+}
+
+func TestNavModel_RequireAnyProjectsAnyLogicToSidebarAndSpotlight(t *testing.T) {
+	viewA := permission.New(
+		permission.WithName("reports.a"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	viewB := permission.New(
+		permission.WithName("reports.b"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.index",
+					routes: []application.RouteSpec{application.Get("/reports", application.RequireAny(viewA, viewB))},
+					nav: []application.NavNode{{
+						ID:       "reports.index",
+						TitleKey: "NavigationLinks.Reports",
+						Path:     "/reports",
+					}},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	items := container.NavItems()
+	require.Len(t, items, 1)
+	require.Equal(t, types.PermissionLogicAny, items[0].Logic)
+
+	docs, err := spotlight.CollectDocuments(context.Background(), spotlightQuickLinks(container.QuickLinks()), spotlight.ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+	require.Equal(t, spotlight.PermissionLogicAny, docs[0].Access.PermissionLogic)
+}
+
+func TestNavModel_RejectsCycle(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder,
+				application.NavNode{ID: "nav.a", Parent: "nav.b", TitleKey: "A"},
+				application.NavNode{ID: "nav.b", Parent: "nav.a", TitleKey: "B"},
+			)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nav cycle detected")
+}
+
+func TestNavModel_PrunesDeepOrphanChains(t *testing.T) {
+	// mid's parent belongs to an absent (optional) module, so it is skipped
+	// rather than failing; child points at mid and must be pruned too.
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder,
+				application.NavNode{ID: "alpha.mid", Parent: "beta.root", TitleKey: "Mid"},
+				application.NavNode{ID: "alpha.child", Parent: "alpha.mid", TitleKey: "Child"},
+			)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+	require.Empty(t, container.NavItems())
 }
 
 func spotlightQuickLinks(links []*spotlight.QuickLink) *spotlight.QuickLinks {

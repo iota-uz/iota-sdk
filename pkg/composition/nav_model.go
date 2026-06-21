@@ -134,34 +134,47 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 }
 
 func filterNavOrphans(nodes []navBuildNode, seen map[string]navBuildNode, failFast bool) ([]navBuildNode, error) {
-	out := make([]navBuildNode, 0, len(nodes))
-	skipped := make(map[string]struct{})
+	// A same-module node pointing at a missing parent is a programmer error; a
+	// cross-module reference to an absent (optional) module is tolerated.
+	if failFast {
+		for _, node := range nodes {
+			parent := node.node.Parent
+			if parent == "" {
+				continue
+			}
+			if _, exists := seen[parent]; !exists && sameNavModule(node.node.ID, parent) {
+				return nil, fmt.Errorf("composition: nav node %q parent %q was not contributed", node.node.ID, parent)
+			}
+		}
+	}
+
+	// Prune orphans to a fixpoint so that deep chains (a node whose grandparent
+	// is missing) are fully removed, not just the first level.
+	valid := make(map[string]bool, len(nodes))
 	for _, node := range nodes {
-		parent := node.node.Parent
-		if parent == "" {
+		valid[node.node.ID] = true
+	}
+	for {
+		removed := false
+		for id := range valid {
+			parent := seen[id].node.Parent
+			if parent != "" && !valid[parent] {
+				delete(valid, id)
+				removed = true
+			}
+		}
+		if !removed {
+			break
+		}
+	}
+
+	out := make([]navBuildNode, 0, len(valid))
+	for _, node := range nodes {
+		if valid[node.node.ID] {
 			out = append(out, node)
-			continue
 		}
-		if _, exists := seen[parent]; exists {
-			out = append(out, node)
-			continue
-		}
-		if failFast && sameNavModule(node.node.ID, parent) {
-			return nil, fmt.Errorf("composition: nav node %q parent %q was not contributed", node.node.ID, parent)
-		}
-		skipped[node.node.ID] = struct{}{}
 	}
-	if len(skipped) == 0 {
-		return out, nil
-	}
-	filtered := out[:0]
-	for _, node := range out {
-		if _, ok := skipped[node.node.Parent]; ok {
-			continue
-		}
-		filtered = append(filtered, node)
-	}
-	return filtered, nil
+	return out, nil
 }
 
 func validateNavCycles(nodes []navBuildNode) error {
@@ -267,8 +280,20 @@ func navNodeToItem(node navBuildNode) types.NavigationItem {
 		Keywords:    keywords,
 		Icon:        icon,
 		Permissions: authPermissions(node.auth),
+		Logic:       navItemPermissionLogic(node.auth),
 		IsBeta:      nav.IsBeta,
 	}
+}
+
+// navItemPermissionLogic maps a route's AuthPolicy logic onto the sidebar's
+// permission-combination semantics so that a RequireAny route stays visible to
+// a user holding any one of its permissions (matching route enforcement),
+// instead of being hidden by the historical AND-only filter.
+func navItemPermissionLogic(auth application.AuthPolicy) types.PermissionLogic {
+	if auth.Logic == application.PermissionLogicAny {
+		return types.PermissionLogicAny
+	}
+	return types.PermissionLogicAll
 }
 
 func navNodeQuickLinks(node navBuildNode) []*spotlight.QuickLink {

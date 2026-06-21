@@ -156,8 +156,10 @@ classDiagram
 | `composition.ContributeMiddleware(b, fn)` | Router-level middleware | Presentation |
 | `composition.ContributeSpotlightProviders(b, fn)` | Spotlight search providers | Navigation / actions |
 | `composition.ContributeSpotlightAgent(b, fn)` | Singleton spotlight AI agent | Navigation / actions |
-| `composition.AddNavItems(b, items...)` | Sidebar / navigation entries | Presentation |
-| `composition.AddQuickLinks(b, links...)` | Spotlight quick links | Navigation / actions |
+| `composition.AddNavItems(b, items...)` | Sidebar / navigation entries (legacy, hand-authored) | Presentation |
+| `composition.AddNavNodes(b, nodes...)` | Descriptor-backed navigation catalog (grouping nodes) | Presentation |
+| `composition.AddNavProviders(b, providers...)` | Request-scoped runtime navigation (tenant/role/data-driven) | Navigation / actions |
+| `composition.AddQuickLinks(b, links...)` | Spotlight quick links (legacy; derived nodes generate these automatically) | Navigation / actions |
 | `composition.AddHashFS(b, fs...)` | Hashed static assets | Presentation |
 | `composition.AddAssets(b, fs...)` | Raw embed.FS asset bundles | Presentation |
 | `composition.AddControllers(b, ctrls...)` | Pre-built controller instances | Presentation |
@@ -279,6 +281,44 @@ Controller replacements are applied before duplicate-ID and route-collision
 validation, so the replaced controller's `Register` method never runs and its
 routes never reach the router. Hook removals work as a filter over materialised
 hooks and prevent the removed hook's `Start`/`StopFn` from running.
+
+#### Navigation and route authorization
+
+A descriptor is the single source of truth not just for routes but for the
+feature's navigation presence and authorization. `RouteSpec` carries an
+`AuthPolicy`, and `ControllerDescriptor.Nav` declares the sidebar/spotlight
+entries the controller exposes:
+
+```go
+func (c *ExpenseCategoriesController) Descriptor() application.ControllerDescriptor {
+    return application.Descriptor("finance.expense_category", 0,
+        application.Get(c.basePath, application.RequireAll("finance.expense_categories.view")),
+    ).WithNav(application.NavNode{
+        ID: "finance.expense_categories", Parent: "finance.enums",
+        TitleKey: "NavigationLinks.ExpenseCategories", Path: c.basePath,
+    })
+}
+```
+
+- **Authorization** is declarative via `application.Public()`,
+  `application.RequireAll(perms...)`, or `application.RequireAny(perms...)`. The
+  `ProvideUser` middleware enforces it (401 unauthenticated, 403 missing
+  permission), and sidebar visibility plus spotlight quick links **derive from
+  the same policy** — including the `All`/`Any` combination logic — so a link is
+  never shown to a user the route would reject.
+- **Projection.** A `NavNode` with a `Path` is a leaf; its `Path` must resolve
+  to a registered route (query strings are ignored when matching). Nodes without
+  a `Path` are grouping/taxonomy nodes, contributed module-level via
+  `composition.AddNavNodes`. Both project into the `types.NavigationItem` tree
+  and the spotlight quick-link set automatically — do not hand-author those.
+- **Validation is fail-fast** at composition: duplicate node IDs, a `Path` that
+  resolves to no route, a same-module orphan parent, or a cycle abort the build.
+  A cross-module orphan (an optional module's group is absent) is skipped with a
+  warning rather than failing.
+- **Runtime navigation.** Tenant-, role-, or data-driven menus (e.g. EDO) are
+  contributed through `application.NavProvider` via
+  `composition.AddNavProviders`; their nodes are validated against the route
+  registry when emitted and dropped with a log on invalid output — never a panic.
 
 #### Ordering guarantees
 
