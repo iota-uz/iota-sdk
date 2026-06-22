@@ -395,14 +395,6 @@ func ContributeNavProviders(builder *Builder, factory func(*Container) ([]applic
 	appendFactory(builder, "nav-providers", factory, &builder.navProviderFactories)
 }
 
-// ContributeNavItems attaches legacy hand-authored sidebar navigation items.
-//
-// Deprecated: add descriptor-derived navigation with ControllerDescriptor.WithNav
-// for route leaves and ContributeNavNodes/AddNavNodes for grouping/taxonomy nodes.
-func ContributeNavItems(builder *Builder, factory func(*Container) ([]types.NavigationItem, error)) {
-	appendFactory(builder, "nav-items", factory, &builder.navItemFactories)
-}
-
 func ContributeNavWorkspaces(builder *Builder, factory func(*Container) ([]types.NavWorkspace, error)) {
 	appendFactory(builder, "nav-workspaces", factory, &builder.navWorkspaceFactories)
 }
@@ -421,14 +413,6 @@ func ContributeAssets(builder *Builder, factory func(*Container) ([]*embed.FS, e
 
 func ContributeHashFS(builder *Builder, factory func(*Container) ([]*hashfs.FS, error)) {
 	appendFactory(builder, "hashfs", factory, &builder.hashFSFactories)
-}
-
-// ContributeQuickLinks attaches legacy hand-authored spotlight quick links.
-//
-// Deprecated: add descriptor-derived navigation with ControllerDescriptor.WithNav;
-// navigation leaves and actions derive spotlight quick links automatically.
-func ContributeQuickLinks(builder *Builder, factory func(*Container) ([]*spotlight.QuickLink, error)) {
-	appendFactory(builder, "quick-links", factory, &builder.quickLinkFactories)
 }
 
 func ContributeSpotlightProviders(builder *Builder, factory func(*Container) ([]spotlight.SearchProvider, error)) {

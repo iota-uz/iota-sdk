@@ -5,32 +5,14 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-uz/iota-sdk/pkg/application"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
 // The Add* helpers panic on a nil builder (a programmer error — the rest of
 // the composition API panics on nil builders too) but treat an empty input
 // slice as a no-op: attaching zero items is always valid and lets callers
-// use variadic splats like `AddNavItems(builder, optionalItems...)` without
+// use variadic splats like `AddNavNodes(builder, optionalNodes...)` without
 // guarding the caller side.
-
-// AddNavItems attaches one or more navigation items.
-//
-// Deprecated: add descriptor-derived navigation with ControllerDescriptor.WithNav
-// for route leaves and AddNavNodes for grouping/taxonomy nodes.
-func AddNavItems(builder *Builder, items ...types.NavigationItem) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	if len(items) == 0 {
-		return
-	}
-	captured := append([]types.NavigationItem(nil), items...)
-	ContributeNavItems(builder, func(*Container) ([]types.NavigationItem, error) {
-		return captured, nil
-	})
-}
 
 // AddNavNodes attaches one or more descriptor-backed navigation catalog nodes.
 func AddNavNodes(builder *Builder, nodes ...application.NavNode) {
@@ -112,23 +94,6 @@ func AddHashFS(builder *Builder, assets ...*hashfs.FS) {
 	}
 	captured := append([]*hashfs.FS(nil), assets...)
 	ContributeHashFS(builder, func(*Container) ([]*hashfs.FS, error) {
-		return captured, nil
-	})
-}
-
-// AddQuickLinks attaches one or more spotlight quick links.
-//
-// Deprecated: add descriptor-derived navigation with ControllerDescriptor.WithNav;
-// navigation leaves and actions derive spotlight quick links automatically.
-func AddQuickLinks(builder *Builder, links ...*spotlight.QuickLink) {
-	if builder == nil {
-		panic("composition: builder is nil")
-	}
-	if len(links) == 0 {
-		return
-	}
-	captured := append([]*spotlight.QuickLink(nil), links...)
-	ContributeQuickLinks(builder, func(*Container) ([]*spotlight.QuickLink, error) {
 		return captured, nil
 	})
 }

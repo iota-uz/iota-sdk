@@ -13,6 +13,7 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/pages/tenants"
@@ -52,7 +53,13 @@ func NewTenantsController(userService *coreservices.UserService) application.Con
 }
 
 func (c *TenantsController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("superadmin.tenants", 0, application.Route("", c.basePath))
+	return application.Descriptor("superadmin.tenants", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "superadmin.tenants",
+			TitleKey: "SuperAdmin.NavigationLinks.Tenants",
+			Path:     c.basePath,
+			Icon:     icons.Buildings(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *TenantsController) Register(r *mux.Router) {
