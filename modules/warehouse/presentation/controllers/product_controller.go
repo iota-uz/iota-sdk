@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/products"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
@@ -49,7 +50,19 @@ func NewProductsController(
 }
 
 func (c *ProductsController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("warehouse.product", 0, application.Route("", c.basePath))
+	return application.Descriptor("warehouse.product", 0, application.Route("", c.basePath, application.RequireAll(permissions.ProductRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.product",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.Products",
+			Path:     c.basePath,
+			Order:    10,
+			Actions: []application.NavAction{{
+				ID:       "warehouse.product.new",
+				TitleKey: "Products.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *ProductsController) Register(r *mux.Router) {

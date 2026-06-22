@@ -12,6 +12,7 @@ import (
 
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	positions2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/positions"
@@ -56,7 +57,19 @@ func NewPositionsController() application.Controller {
 }
 
 func (c *PositionsController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("warehouse.position", 0, application.Route("", c.basePath))
+	return application.Descriptor("warehouse.position", 0, application.Route("", c.basePath, application.RequireAll(permissions.PositionRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.position",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.WarehousePositions",
+			Path:     c.basePath,
+			Order:    20,
+			Actions: []application.NavAction{{
+				ID:       "warehouse.position.new",
+				TitleKey: "WarehousePositions.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *PositionsController) Register(r *mux.Router) {

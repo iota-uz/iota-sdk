@@ -17,6 +17,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/unit"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -42,7 +43,19 @@ func NewUnitsController(unitService *services.UnitService) application.Controlle
 }
 
 func (c *UnitsController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("warehouse.unit", 0, application.Route("", c.basePath))
+	return application.Descriptor("warehouse.unit", 0, application.Route("", c.basePath, application.RequireAll(permissions.UnitRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.unit",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.WarehouseUnits",
+			Path:     c.basePath,
+			Order:    40,
+			Actions: []application.NavAction{{
+				ID:       "warehouse.unit.new",
+				TitleKey: "WarehouseUnits.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *UnitsController) Register(r *mux.Router) {

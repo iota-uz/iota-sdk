@@ -14,7 +14,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/warehouse/services/productservice"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:generate go run github.com/99designs/gqlgen generate
@@ -40,19 +39,8 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddNavItems(builder, NavItems...)
+	composition.AddNavNodes(builder, WarehouseLink)
 	composition.AddAssets(builder, &assets.FS)
-	composition.AddQuickLinks(builder,
-		spotlight.NewQuickLink(ProductsItem.Name, ProductsItem.Href),
-		spotlight.NewQuickLink(PositionsItem.Name, PositionsItem.Href),
-		spotlight.NewQuickLink(OrdersItem.Name, OrdersItem.Href),
-		spotlight.NewQuickLink(UnitsItem.Name, UnitsItem.Href),
-		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewQuickLink("WarehousePositions.List.New", "/warehouse/positions/new"),
-		spotlight.NewQuickLink("Products.List.New", "/warehouse/products/new"),
-		spotlight.NewQuickLink("WarehouseOrders.List.New", "/warehouse/orders/new"),
-		spotlight.NewQuickLink("WarehouseUnits.List.New", "/warehouse/units/new"),
-	)
 
 	composition.ProvideFunc(builder, persistence.NewUnitRepository)
 	composition.ProvideFunc(builder, persistence.NewPositionRepository)
