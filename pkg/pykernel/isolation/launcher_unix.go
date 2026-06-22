@@ -23,6 +23,7 @@ func (l *unixLauncher) Launch(_ context.Context, spec SandboxSpec) (Process, err
 	cmd.Dir = spec.Workdir
 	cmd.Stdout = spec.Stdout
 	cmd.Stderr = spec.Stderr
+	cmd.ExtraFiles = spec.ExtraFiles // inherited starting at fd 3
 
 	// Force an explicit environment. A nil cmd.Env would inherit the host's
 	// environment (and its secrets); an empty non-nil slice yields none.

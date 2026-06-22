@@ -62,6 +62,10 @@ type SandboxSpec struct {
 	// discards them. (The control protocol uses a separate channel, so stdout
 	// stays a clean user-output stream.)
 	Stdout, Stderr io.Writer
+	// ExtraFiles are additional open files passed to the child, inherited
+	// starting at fd 3 (matching os/exec.Cmd.ExtraFiles). The kernel control
+	// socket is passed this way so it needs no filesystem path.
+	ExtraFiles []*os.File
 }
 
 // Process is a handle to a launched sandbox subprocess.
