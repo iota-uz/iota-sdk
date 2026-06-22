@@ -16,6 +16,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/crm/domain/aggregates/chat"
@@ -81,7 +82,14 @@ func NewChatController(
 }
 
 func (c *ChatController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("crm.chat", 0, application.Route("", c.basePath))
+	return application.Descriptor("crm.chat", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "crm.chat",
+			Parent:   "crm",
+			TitleKey: "NavigationLinks.Chats",
+			Path:     c.basePath,
+			Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *ChatController) Register(r *mux.Router) {

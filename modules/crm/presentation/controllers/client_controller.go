@@ -17,6 +17,7 @@ import (
 	"github.com/go-faster/errors"
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/go-i18n/v2/i18n"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/components/export"
@@ -255,7 +256,14 @@ func (c *ClientController) RegisterTab(tab TabDefinition) {
 }
 
 func (c *ClientController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("crm.client", 0, application.Route("", c.config.BasePath))
+	return application.Descriptor("crm.client", 0, application.Route("", c.config.BasePath)).
+		WithNav(application.NavNode{
+			ID:       "crm.client",
+			Parent:   "crm",
+			TitleKey: "NavigationLinks.Clients",
+			Path:     c.config.BasePath,
+			Icon:     icons.Users(icons.Props{Size: "20"}),
+		})
 }
 
 func (c *ClientController) Register(r *mux.Router) {
