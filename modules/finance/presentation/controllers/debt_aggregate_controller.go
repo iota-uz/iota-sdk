@@ -40,7 +40,14 @@ func NewDebtAggregateController(debtService *services.DebtService, counterpartyS
 }
 
 func (c *DebtAggregateController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("finance.debt_aggregate", 0, application.Route("", c.basePath))
+	return application.Descriptor("finance.debt_aggregate", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.debt_aggregate",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.DebtAggregates",
+			Path:     c.basePath,
+			Order:    30,
+		})
 }
 
 func (c *DebtAggregateController) Register(r *mux.Router) {

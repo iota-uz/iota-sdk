@@ -11,7 +11,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/finance/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:embed presentation/locales/*.json
@@ -35,24 +34,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddNavItems(builder, NavItems...)
-	composition.AddQuickLinks(builder,
-		spotlight.NewQuickLink(ExpenseCategoriesItem.Name, ExpenseCategoriesItem.Href),
-		spotlight.NewQuickLink(PaymentCategoriesItem.Name, PaymentCategoriesItem.Href),
-		spotlight.NewQuickLink(PaymentsItem.Name, "/finance/overview?tab=payments"),
-		spotlight.NewQuickLink(ExpensesItem.Name, "/finance/overview?tab=expenses"),
-		spotlight.NewQuickLink(DebtsItem.Name, DebtsItem.Href),
-		spotlight.NewQuickLink(AccountsItem.Name, AccountsItem.Href),
-		spotlight.NewQuickLink(InventoryItem.Name, InventoryItem.Href),
-		spotlight.NewQuickLink("NavigationLinks.IncomeStatement", "/finance/reports/income-statement"),
-		spotlight.NewQuickLink("NavigationLinks.CashflowStatement", "/finance/reports/cashflow"),
-		spotlight.NewQuickLink("Expenses.List.New", "/finance/overview?tab=expenses"),
-		spotlight.NewQuickLink("MoneyAccounts.List.New", "/finance/accounts/new"),
-		spotlight.NewQuickLink("Payments.List.New", "/finance/overview?tab=payments"),
-		spotlight.NewQuickLink("ExpenseCategories.List.New", "/finance/expense-categories/new"),
-		spotlight.NewQuickLink("PaymentCategories.List.New", "/finance/payment-categories/new"),
-		spotlight.NewQuickLink("Inventory.List.New", "/finance/inventory/new"),
-	)
+	composition.AddNavNodes(builder, FinanceLink, FinanceEnumsLink, FinanceReportsLink)
 
 	composition.ProvideFunc(builder, persistence.NewMoneyAccountRepository)
 	composition.ProvideFunc(builder, persistence.NewTransactionRepository)

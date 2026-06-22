@@ -45,7 +45,19 @@ func NewInventoryController(inventoryService *services.InventoryService, currenc
 }
 
 func (c *InventoryController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("finance.inventory", 0, application.Route("", c.basePath))
+	return application.Descriptor("finance.inventory", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.inventory",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Inventory",
+			Path:     c.basePath,
+			Order:    60,
+			Actions: []application.NavAction{{
+				ID:       "finance.inventory.new",
+				TitleKey: "Inventory.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *InventoryController) Register(r *mux.Router) {

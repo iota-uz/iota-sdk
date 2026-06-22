@@ -53,7 +53,19 @@ func NewExpenseCategoriesController(expenseCategoryService *services.ExpenseCate
 }
 
 func (c *ExpenseCategoriesController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("finance.expense_category", 0, application.Route("", c.basePath))
+	return application.Descriptor("finance.expense_category", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.expense_category",
+			Parent:   "finance.enums",
+			TitleKey: "NavigationLinks.ExpenseCategories",
+			Path:     c.basePath,
+			Order:    10,
+			Actions: []application.NavAction{{
+				ID:       "finance.expense_category.new",
+				TitleKey: "ExpenseCategories.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *ExpenseCategoriesController) Register(r *mux.Router) {

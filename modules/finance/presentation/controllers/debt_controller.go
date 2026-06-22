@@ -64,7 +64,14 @@ func NewDebtsController(
 }
 
 func (c *DebtsController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("finance.debt", 0, application.Route("", c.basePath))
+	return application.Descriptor("finance.debt", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.debt",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Debts",
+			Path:     c.basePath,
+			Order:    20,
+		})
 }
 
 func (c *DebtsController) Register(r *mux.Router) {

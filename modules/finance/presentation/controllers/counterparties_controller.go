@@ -40,7 +40,14 @@ func NewCounterpartiesController(counterpartiesService *services.CounterpartySer
 }
 
 func (c *CounterpartiesController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("finance.counterparties", 0, application.Route("", c.basePath))
+	return application.Descriptor("finance.counterparties", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.counterparties",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Counterparties",
+			Path:     c.basePath,
+			Order:    50,
+		})
 }
 
 func (c *CounterpartiesController) Register(r *mux.Router) {
