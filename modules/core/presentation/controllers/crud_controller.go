@@ -72,6 +72,11 @@ type CrudController[TEntity any] struct {
 	updatePerm permission.Permission
 	deletePerm permission.Permission
 
+	// nav quick-link (Spotlight-only; sidebar-hidden)
+	navQuickLink bool
+	navTitleKey  string
+	navKeywords  []string
+
 	// custom actions
 	customHeaderActions []actions.ActionProps
 	customRowActions    []func(primaryKey any) actions.ActionProps
@@ -133,6 +138,18 @@ func WithUpdatePermission[TEntity any](perm permission.Permission) CrudOption[TE
 func WithDeletePermission[TEntity any](perm permission.Permission) CrudOption[TEntity] {
 	return func(c *CrudController[TEntity]) {
 		c.deletePerm = perm
+	}
+}
+
+// WithNavQuickLink declares a Spotlight quick-link (sidebar-hidden) for this
+// controller's list page so the page is searchable in the command palette.
+// Visibility is inherited from the read permission via the descriptor route
+// Auth, so callers should also set WithReadPermission to gate it.
+func WithNavQuickLink[TEntity any](titleKey string, keywords ...string) CrudOption[TEntity] {
+	return func(c *CrudController[TEntity]) {
+		c.navQuickLink = true
+		c.navTitleKey = titleKey
+		c.navKeywords = keywords
 	}
 }
 
@@ -214,7 +231,30 @@ func (c *CrudController[TEntity]) Descriptor() application.ControllerDescriptor 
 	// descriptor ID must be unique per instance — keying it on basePath (which
 	// is already unique per mount) avoids duplicate-ID collisions when an app
 	// registers many CRUD controllers.
-	return application.Descriptor("core.crud:"+c.basePath, 0, application.Route("", c.basePath))
+	//
+	// The read permission gates the list route at the descriptor layer (mirrors
+	// the handler-level accessDenied check) so descriptor-derived route auth and
+	// nav visibility stay consistent.
+	var routeOpts []application.RouteOption
+	if c.readPerm != nil {
+		routeOpts = append(routeOpts, application.RequireAll(c.readPerm))
+	}
+	descriptor := application.Descriptor("core.crud:"+c.basePath, 0, application.Route("", c.basePath, routeOpts...))
+	if c.navQuickLink {
+		descriptor = descriptor.WithNav(application.NavNode{
+			ID:       "core.crud.nav:" + c.basePath,
+			TitleKey: c.navTitleKey,
+			Path:     c.basePath,
+			Keywords: c.navKeywords,
+			// Spotlight-only: hidden from the sidebar, visible to the command
+			// palette (quick-link generation reads the spotlight surface, which
+			// defaults to visible when unset).
+			Surfaces: map[application.Surface]application.SurfaceOptions{
+				application.SurfaceSidebar: {Hidden: true},
+			},
+		})
+	}
+	return descriptor
 }
 
 // RegisterRenderer registers a custom field renderer for the given type
