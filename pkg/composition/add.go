@@ -16,6 +16,9 @@ import (
 // guarding the caller side.
 
 // AddNavItems attaches one or more navigation items.
+//
+// Deprecated: add descriptor-derived navigation with ControllerDescriptor.WithNav
+// for route leaves and AddNavNodes for grouping/taxonomy nodes.
 func AddNavItems(builder *Builder, items ...types.NavigationItem) {
 	if builder == nil {
 		panic("composition: builder is nil")
@@ -114,6 +117,9 @@ func AddHashFS(builder *Builder, assets ...*hashfs.FS) {
 }
 
 // AddQuickLinks attaches one or more spotlight quick links.
+//
+// Deprecated: add descriptor-derived navigation with ControllerDescriptor.WithNav;
+// navigation leaves and actions derive spotlight quick links automatically.
 func AddQuickLinks(builder *Builder, links ...*spotlight.QuickLink) {
 	if builder == nil {
 		panic("composition: builder is nil")

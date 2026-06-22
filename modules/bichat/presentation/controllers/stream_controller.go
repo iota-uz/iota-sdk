@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/bichat/infrastructure/persistence"
 	bichatmodsvcs "github.com/iota-uz/iota-sdk/modules/bichat/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -55,7 +56,14 @@ func NewStreamController(
 }
 
 func (c *StreamController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("bichat.stream", 0, application.Route("", c.opts.BasePath))
+	return application.Descriptor("bichat.stream", 0, application.Route("", c.opts.BasePath)).
+		WithNav(application.NavNode{
+			ID:       "bichat.stream",
+			TitleKey: "NavigationLinks.BiChat",
+			Path:     c.opts.BasePath,
+			Icon:     icons.ChatCircle(icons.Props{Size: "20"}),
+			IsBeta:   true,
+		})
 }
 
 // Register registers HTTP routes for SSE streaming.
