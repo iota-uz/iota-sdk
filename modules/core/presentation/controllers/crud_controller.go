@@ -210,7 +210,11 @@ func (c *CrudController[TEntity]) Register(r *mux.Router) {
 }
 
 func (c *CrudController[TEntity]) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("core.crud", 0, application.Route("", c.basePath))
+	// The generic CRUD controller is instantiated once per entity, so its
+	// descriptor ID must be unique per instance — keying it on basePath (which
+	// is already unique per mount) avoids duplicate-ID collisions when an app
+	// registers many CRUD controllers.
+	return application.Descriptor("core.crud:"+c.basePath, 0, application.Route("", c.basePath))
 }
 
 // RegisterRenderer registers a custom field renderer for the given type
