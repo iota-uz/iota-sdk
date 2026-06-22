@@ -47,7 +47,14 @@ func NewPositionsController(app application.Application) application.Controller 
 }
 
 func (c *PositionsController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("core.user_position", 0, application.Route("", c.basePath))
+	return application.Descriptor("core.user_position", 0, application.Route("", c.basePath, application.RequireAll(permissions.PositionRead))).
+		WithNav(application.NavNode{
+			ID:       "core.positions",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Positions",
+			Path:     c.basePath,
+			Order:    50,
+		})
 }
 
 func (c *PositionsController) Register(r *mux.Router) {

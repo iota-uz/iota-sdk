@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/slot"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	corepermissions "github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/users"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -174,7 +175,19 @@ func NewUsersController(
 }
 
 func (c *UsersController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("core.user", 0, application.Route("", c.basePath))
+	return application.Descriptor("core.user", 0, application.Route("", c.basePath, application.RequireAll(corepermissions.UserRead))).
+		WithNav(application.NavNode{
+			ID:       "core.users",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Users",
+			Path:     c.basePath,
+			Order:    10,
+			Actions: []application.NavAction{{
+				ID:       "core.users.new",
+				TitleKey: "Users.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *UsersController) Register(r *mux.Router) {

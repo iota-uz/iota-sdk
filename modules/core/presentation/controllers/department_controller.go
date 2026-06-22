@@ -52,7 +52,14 @@ func NewDepartmentsController(app application.Application) application.Controlle
 }
 
 func (c *DepartmentsController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("core.department", 0, application.Route("", c.basePath))
+	return application.Descriptor("core.department", 0, application.Route("", c.basePath, application.RequireAll(permissions.DepartmentRead))).
+		WithNav(application.NavNode{
+			ID:       "core.departments",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Departments",
+			Path:     c.basePath,
+			Order:    40,
+		})
 }
 
 func (c *DepartmentsController) Register(r *mux.Router) {

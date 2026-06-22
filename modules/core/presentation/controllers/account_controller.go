@@ -52,7 +52,26 @@ func NewAccountController(
 }
 
 func (c *AccountController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("core.account", 0, application.Route("", c.basePath))
+	return application.Descriptor(
+		"core.account",
+		0,
+		application.Route("", c.basePath),
+		application.Route("", c.basePath+"/sessions"),
+	).WithNav(
+		application.NavNode{
+			ID:       "core.account",
+			TitleKey: "Account.Meta.Index.Title",
+			Path:     c.basePath,
+			Surfaces: spotlightOnlySurface(),
+		},
+		application.NavNode{
+			ID:       "core.account.sessions",
+			Parent:   "core.account",
+			TitleKey: "Account.Sessions.Title",
+			Path:     c.basePath + "/sessions",
+			Surfaces: spotlightOnlySurface(),
+		},
+	)
 }
 
 func (c *AccountController) Register(r *mux.Router) {
