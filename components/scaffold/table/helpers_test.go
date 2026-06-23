@@ -1,13 +1,23 @@
 package table
 
 import (
+	"context"
 	"net/url"
 	"testing"
 
+	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func renderTableCellComponent(t *testing.T, cell TableCell) string {
+	t.Helper()
+
+	html, err := templ.ToGoHTML(context.Background(), cell.Component(Column("name", "Name"), false, true, templ.Attributes{}))
+	require.NoError(t, err)
+	return string(html)
+}
 
 func TestGenerateSortURL(t *testing.T) {
 	tests := []struct {
@@ -187,6 +197,34 @@ func TestColumnDefaultBehavior(t *testing.T) {
 	assert.False(t, col.Sortable()) // Should be false by default
 	assert.Equal(t, SortDirectionNone, col.SortDir())
 	assert.Empty(t, col.SortURL())
+}
+
+func TestCellWithLinkWrapsComponent(t *testing.T) {
+	cell := Cell(
+		templ.Raw(`<span class="font-medium">Reserve #1</span>`),
+		nil,
+		WithCellLink(`/reserves/1?name=a&b="x"`),
+		WithCellClasses(templ.Classes("text-primary")),
+		WithCellAttrs(templ.Attributes{"data-id": "1"}),
+	)
+
+	html := renderTableCellComponent(t, cell)
+
+	assert.Equal(t, `<a class="hover:underline" href="/reserves/1?name=a&amp;b=&#34;x&#34;"><span class="font-medium">Reserve #1</span></a>`, html)
+	assert.Equal(t, "text-primary", cell.Classes().String())
+	assert.Equal(t, templ.Attributes{"data-id": "1"}, cell.Attrs())
+}
+
+func TestCellWithEmptyLinkRendersOriginalComponent(t *testing.T) {
+	cell := Cell(
+		templ.Raw(`<span>Reserve #1</span>`),
+		nil,
+		WithCellLink(""),
+	)
+
+	html := renderTableCellComponent(t, cell)
+
+	assert.Equal(t, `<span>Reserve #1</span>`, html)
 }
 
 func TestColumnWithSortable(t *testing.T) {

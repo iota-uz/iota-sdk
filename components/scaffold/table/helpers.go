@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"maps"
 	"net/http"
 	"net/url"
@@ -78,6 +79,7 @@ type tableCellImpl struct {
 	value     any
 	classes   templ.CSSClasses
 	attrs     templ.Attributes
+	linkHref  string
 }
 
 func (c *tableCellImpl) convertValueToString(value any, fieldType crud.FieldType) string {
@@ -651,7 +653,31 @@ func (c *tableCellImpl) Component(col TableColumn, editMode bool, withValue bool
 			return builder.Build().Component()
 		}
 	}
+	if c.linkHref != "" {
+		return cellLink(c.linkHref, c.component)
+	}
 	return c.component
+}
+
+func cellLink(href string, component templ.Component) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		if _, err := io.WriteString(w, `<a class="hover:underline" href="`); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, templ.EscapeString(string(templ.URL(href)))); err != nil {
+			return err
+		}
+		if _, err := io.WriteString(w, `">`); err != nil {
+			return err
+		}
+		if component != nil {
+			if err := component.Render(ctx, w); err != nil {
+				return err
+			}
+		}
+		_, err := io.WriteString(w, "</a>")
+		return err
+	})
 }
 
 type TableRow interface {
@@ -1257,6 +1283,12 @@ func WithCellClasses(classes templ.CSSClasses) CellOpt {
 func WithCellAttrs(attrs templ.Attributes) CellOpt {
 	return func(c *tableCellImpl) {
 		c.attrs = attrs
+	}
+}
+
+func WithCellLink(href string) CellOpt {
+	return func(c *tableCellImpl) {
+		c.linkHref = href
 	}
 }
 
