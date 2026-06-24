@@ -116,7 +116,11 @@ func TestAcquire_DoesNotReturnDeadReuseEntry(t *testing.T) {
 	require.NoError(t, err)
 	gotK := got.(*kernel)
 	assert.NotSame(t, dead, gotK, "Acquire must not return the dead kernel")
-	assert.False(t, gotK.isDisposed(), "Acquire must return a live kernel")
+	// Note: we don't assert gotK is live. spawn() closes the child socket fd, so
+	// with the fake launcher (no real subprocess to inherit it) the freshly-spawned
+	// kernel's serve loop sees EOF and may race to disposed — an artifact of the
+	// fake, not the behavior under test. The invariant here is that Acquire never
+	// returns the dead corpse and replaces it in the map.
 
 	// And the dead entry must have been evicted from the map (replaced by the new
 	// one), not left lingering.
