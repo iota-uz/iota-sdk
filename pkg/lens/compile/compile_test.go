@@ -55,6 +55,51 @@ func TestDocumentCompilesSemanticDatasetMode(t *testing.T) {
 	require.NotEmpty(t, compiled.Spec.Datasets)
 }
 
+func TestDocumentCompilesMeasureOverrideStaticRef(t *testing.T) {
+	t.Parallel()
+
+	base, err := frame.FromRows("base", frame.Row{"product_code": "osago"})
+	require.NoError(t, err)
+	exact, err := frame.FromRows("exact", frame.Row{"total_policies": 72451})
+	require.NoError(t, err)
+
+	doc := lensspec.Document{
+		Version:     lensspec.DocumentVersion,
+		ID:          "semantic-report",
+		Title:       lensspec.LiteralText("Semantic"),
+		Description: lensspec.LiteralText("Dataset mode"),
+		DataMode:    cube.DataModeDataset,
+		DataRef:     "base_dataset",
+		Dimensions: []lensspec.DimensionSpec{
+			{Name: "product", Label: lensspec.LiteralText("Product"), Field: "product_code", PanelKind: panel.KindBar},
+		},
+		Measures: []lensspec.MeasureSpec{
+			{
+				Name:        "total_policies",
+				Label:       lensspec.LiteralText("Policies"),
+				Aggregation: cube.AggregationCount,
+				Override: &lensspec.DatasetSpec{
+					Kind:      lens.DatasetKindStatic,
+					StaticRef: "exact_total_policies",
+				},
+			},
+		},
+		DefaultDimension: "product",
+	}
+
+	compiled, err := Document(doc, Options{
+		Locale: "en",
+		Values: map[string]any{
+			"base_dataset":         base,
+			"exact_total_policies": exact,
+		},
+	})
+	require.NoError(t, err)
+	require.NotNil(t, compiled.Semantic)
+	require.NotNil(t, compiled.Semantic.Measures[0].Override)
+	require.Equal(t, "cube_stat_total_policies", compiled.Spec.Rows[0].Panels[0].Dataset)
+}
+
 func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	t.Parallel()
 

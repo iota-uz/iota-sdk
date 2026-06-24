@@ -294,6 +294,11 @@ func (b *MeasureBuilder) RequiresJoin(name string) *MeasureBuilder {
 	return b
 }
 
+func (b *MeasureBuilder) Override(dataset lens.DatasetSpec) *MeasureBuilder {
+	b.spec.Override = &dataset
+	return b
+}
+
 func (b *MeasureBuilder) commit() *Builder {
 	b.parent.spec.Measures = append(b.parent.spec.Measures, b.spec)
 	return b.parent
