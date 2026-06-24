@@ -2372,8 +2372,8 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.
 	return result
 }
 
-// cellLink wraps a cell's display content in an <a href>, giving the whole cell a
-// clear, persistent clickable affordance (dotted underline that solidifies-off on
+// cellLink wraps a cell's display content in an <a href>, giving the content a
+// clear, persistent clickable affordance (dotted underline that disappears on
 // hover). Used by WithCellLink. href is treated as a dynamic URL (sanitized).
 func cellLink(href string, content templ.Component) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {

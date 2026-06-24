@@ -79,7 +79,7 @@ type tableCellImpl struct {
 	classes   templ.CSSClasses
 	attrs     templ.Attributes
 	// link, when non-empty, wraps the cell's display content in an <a href> so the
-	// whole cell acts as a link (e.g. a drill-down). Empty → plain content.
+	// content becomes a link (e.g. a drill-down). Empty → plain content.
 	link string
 }
 
@@ -1266,8 +1266,9 @@ func WithCellAttrs(attrs templ.Attributes) CellOpt {
 	}
 }
 
-// WithCellLink wraps the cell's display content in an <a href> so the whole cell
-// acts as a link (e.g. a report drill-down). Works with any templ.Component
+// WithCellLink wraps the cell's display content in an <a href> so the content
+// becomes a link (e.g. a report drill-down). The link covers the rendered
+// content, not the cell's surrounding padding. Works with any templ.Component
 // content, not just text, and composes with WithCellClasses / WithCellAttrs.
 // An empty href leaves the content unwrapped (plain, non-clickable).
 func WithCellLink(href string) CellOpt {
