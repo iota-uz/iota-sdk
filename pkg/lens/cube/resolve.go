@@ -360,6 +360,7 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindBar,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,

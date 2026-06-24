@@ -364,11 +364,9 @@ func buildSegmentBarView(spec panel.Spec, result *runtime.PanelResult) segmentBa
 }
 
 func segmentColorAt(colors []string, i int) string {
-	raw := ""
+	raw := segmentBarPalette[i%len(segmentBarPalette)]
 	if i < len(colors) && strings.TrimSpace(colors[i]) != "" {
 		raw = colors[i]
-	} else {
-		raw = segmentBarPalette[i%len(segmentBarPalette)]
 	}
 	r, g, b := parseHexColor(raw)
 	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
@@ -968,6 +966,7 @@ func panelUsesMetricInfoFallback(spec panel.Spec) bool {
 		panel.KindTabs:
 		return true
 	case panel.KindStat,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGrid,
 		panel.KindSplit,
@@ -989,6 +988,7 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -1091,6 +1091,7 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 	case panel.KindTabs:
 		return "Lens.Chart.Info.Tabs"
 	case panel.KindStat,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGrid,
 		panel.KindSplit,
@@ -1244,6 +1245,7 @@ func panelHasRenderableContent(spec panel.Spec, result *runtime.Result) bool {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,
@@ -1266,7 +1268,7 @@ func panelCanFullscreen(spec panel.Spec, result *runtime.Result) bool {
 	switch spec.Kind {
 	case panel.KindTabs, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return panelHasRenderableContent(spec, result)
-	case panel.KindStat, panel.KindTable, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindSegmentBar, panel.KindTable, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return false
 	}
 
@@ -1298,6 +1300,8 @@ func panelMinimumHeight(spec panel.Spec) string {
 		return "120px"
 	case panel.KindTable:
 		return "220px"
+	case panel.KindSegmentBar:
+		return "240px"
 	case panel.KindTabs:
 		if childHeight := maxChildHeight(spec.Children); childHeight != "" {
 			return "calc(" + childHeight + " + 5rem)"
@@ -1399,7 +1403,7 @@ func panelPlaceholderRows(spec panel.Spec) int {
 		return 5
 	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return 4
-	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindSegmentBar, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return 4
 	}
 	return 4
