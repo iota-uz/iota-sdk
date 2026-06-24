@@ -378,6 +378,12 @@ func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, pan
 		axisFormatter = wrapLogarithmicAxisFormatter(axisFormatter, panelResult.Locale, logPlan)
 		tooltipFormatter = wrapLogarithmicTooltipFormatter(tooltipFormatter, panelResult.Locale, valueAxis.LogBase)
 	}
+	if panelSpec.Kind == panel.KindStackedBar {
+		if options.Tooltip == nil {
+			options.Tooltip = &charts.TooltipConfig{}
+		}
+		options.Tooltip.Custom = stackedBarTooltipWithTotal(panelResult.Locale, tooltipFormatter)
+	}
 	if axisFormatter == "" && tooltipFormatter == "" {
 		return
 	}
@@ -676,6 +682,79 @@ func chartValueFormatters(spec *format.Spec, locale string) (templ.JSExpression,
 	default:
 		return "", ""
 	}
+}
+
+func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) templ.JSExpression {
+	if strings.TrimSpace(locale) == "" {
+		locale = "en-US"
+	}
+	label := "Total"
+	if strings.HasPrefix(locale, "ru") {
+		label = "Итого"
+	} else if strings.HasPrefix(locale, "uz-Cyrl") {
+		label = "Жами"
+	} else if strings.HasPrefix(locale, "uz") {
+		label = "Jami"
+	}
+	valueFormatter := "null"
+	if formatter != "" {
+		valueFormatter = "(" + string(formatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function({ series, dataPointIndex, w }) {
+		const valueFormatter = %s;
+		const locale = %q;
+		const totalLabel = %q;
+		const globals = (w && w.globals) || {};
+		const names = globals.seriesNames || [];
+		const colors = globals.colors || [];
+		const collapsed = new Set(globals.collapsedSeriesIndices || []);
+		const categories = globals.categoryLabels || globals.labels || ((w && w.config && w.config.xaxis && w.config.xaxis.categories) || []);
+		const escapeHTML = (value) => String(value == null ? '' : value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+		const formatValue = (value, seriesIndex) => {
+			const number = Number(value);
+			const normalized = Number.isFinite(number) ? number : value;
+			if (valueFormatter) {
+				return valueFormatter(normalized, { seriesIndex, dataPointIndex, w });
+			}
+			return Number.isFinite(number) ? number.toLocaleString(locale) : String(value == null ? '' : value);
+		};
+		let total = 0;
+		let hasTotal = false;
+		const rows = (series || []).map((points, seriesIndex) => {
+			if (collapsed.has(seriesIndex)) {
+				return '';
+			}
+			const value = points && points[dataPointIndex];
+			const number = Number(value);
+			if (Number.isFinite(number)) {
+				total += number;
+				hasTotal = true;
+			}
+			if (value == null || value === '') {
+				return '';
+			}
+			const color = colors[seriesIndex] || '#9ca3af';
+			const name = names[seriesIndex] || '';
+			return '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;">'
+				+ '<span class="apexcharts-tooltip-marker" style="background-color:' + escapeHTML(color) + ';"></span>'
+				+ '<div class="apexcharts-tooltip-text">'
+				+ '<div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-y-label">' + escapeHTML(name) + ': </span>'
+				+ '<span class="apexcharts-tooltip-text-y-value">' + escapeHTML(formatValue(value, seriesIndex)) + '</span></div>'
+				+ '</div></div>';
+		}).join('');
+		const totalRow = hasTotal
+			? '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;font-weight:600;border-top:1px solid rgba(255,255,255,0.18);margin-top:4px;padding-top:4px;">'
+				+ '<span class="apexcharts-tooltip-marker" style="background-color:transparent;"></span>'
+				+ '<div class="apexcharts-tooltip-text"><div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-y-label">' + escapeHTML(totalLabel) + ': </span>'
+				+ '<span class="apexcharts-tooltip-text-y-value">' + escapeHTML(formatValue(total, -1)) + '</span></div></div></div>'
+			: '';
+		return '<div class="apexcharts-tooltip-title">' + escapeHTML(categories[dataPointIndex] || '') + '</div>' + rows + totalRow;
+	}`, valueFormatter, locale, label))
 }
 
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, panelResult *runtime.PanelResult) templ.JSExpression {
