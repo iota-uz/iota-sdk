@@ -21,9 +21,11 @@ type recordingCap struct {
 	err     error
 }
 
-func (c *recordingCap) Name() string                            { return c.name }
-func (c *recordingCap) Signature() pykernel.CapabilitySignature { return pykernel.CapabilitySignature{} }
-func (c *recordingCap) Access() pykernel.Access                 { return c.access }
+func (c *recordingCap) Name() string { return c.name }
+func (c *recordingCap) Signature() pykernel.CapabilitySignature {
+	return pykernel.CapabilitySignature{}
+}
+func (c *recordingCap) Access() pykernel.Access { return c.access }
 func (c *recordingCap) Invoke(ctx context.Context, _ pykernel.CallArgs) (any, error) {
 	c.calls++
 	c.lastCtx = ctx
