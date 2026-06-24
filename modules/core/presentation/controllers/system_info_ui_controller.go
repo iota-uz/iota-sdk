@@ -44,7 +44,7 @@ func NewHealthUIController(deps map[string]any) application.Controller {
 	}
 }
 
-// Key identifies this controller for registration and lookups.
+// Descriptor identifies this controller for registration and lookups.
 func (c *HealthUIController) Descriptor() application.ControllerDescriptor {
 	return application.Descriptor("core.health_ui", 0, application.Route("", c.options.BasePath)).
 		WithNav(application.NavNode{

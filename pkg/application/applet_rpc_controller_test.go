@@ -129,9 +129,7 @@ func buildRPCAppletControllers(t *testing.T, app Application) ([]Controller, err
 		return nil, err
 	}
 	typed := make([]Controller, 0, len(controllers))
-	for _, controller := range controllers {
-		typed = append(typed, controller.(Controller))
-	}
+	typed = append(typed, controllers...)
 	return typed, nil
 }
 

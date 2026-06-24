@@ -187,9 +187,7 @@ func InstallApplets(opts AppletsOptions) Installer {
 
 		if opts.WithHTTP {
 			appletControllers := make([]application.Controller, 0, len(result.Controllers))
-			for _, controller := range result.Controllers {
-				appletControllers = append(appletControllers, controller.(application.Controller))
-			}
+			appletControllers = append(appletControllers, result.Controllers...)
 			rt.Container().AppendControllers(appletControllers...)
 		}
 

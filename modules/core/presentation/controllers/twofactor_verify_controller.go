@@ -68,7 +68,7 @@ type TwoFactorVerifyController struct {
 	appCfg           *appconfig.Config
 }
 
-// Key returns the base route path for this controller.
+// Descriptor returns the controller descriptor.
 // Implements the Controller interface.
 func (c *TwoFactorVerifyController) Descriptor() application.ControllerDescriptor {
 	return application.Descriptor("core.twofactor_verify", 0, application.Route("", "/login/2fa/verify"))

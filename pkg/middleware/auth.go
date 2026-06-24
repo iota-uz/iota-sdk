@@ -251,6 +251,8 @@ func routeAuthAllowsUser(ctx context.Context, r *http.Request, u interface {
 			}
 		}
 		return false
+	case application.PermissionLogicAll:
+		fallthrough
 	default:
 		for _, perm := range policy.Permissions {
 			if perm == nil {
