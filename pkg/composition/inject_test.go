@@ -268,7 +268,9 @@ func TestContributeControllersFunc_SingleController(t *testing.T) {
 
 	ctrls := container.Controllers()
 	require.Len(t, ctrls, 1)
-	require.Equal(t, "ctrl", ctrls[0].Descriptor().ID)
+	described, ok := ctrls[0].(application.DescribedController)
+	require.True(t, ok)
+	require.Equal(t, "ctrl", described.Descriptor().ID)
 }
 
 func TestContributeControllersFunc_SliceOfControllers(t *testing.T) {
@@ -314,7 +316,9 @@ func TestContributeControllersFunc_DropsNil(t *testing.T) {
 	require.NoError(t, err)
 	ctrls := container.Controllers()
 	require.Len(t, ctrls, 1)
-	require.Equal(t, "real", ctrls[0].Descriptor().ID)
+	described, ok := ctrls[0].(application.DescribedController)
+	require.True(t, ok)
+	require.Equal(t, "real", described.Descriptor().ID)
 }
 
 func TestContributeControllersFunc_PanicsOnBadReturnType(t *testing.T) {

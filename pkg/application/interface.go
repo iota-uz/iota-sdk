@@ -98,6 +98,10 @@ func (d *SeedDeps) RegisterProviders(providers ...di.Provider) {
 
 type Controller interface {
 	Register(r *mux.Router)
+}
+
+type DescribedController interface {
+	Controller
 	Descriptor() ControllerDescriptor
 }
 

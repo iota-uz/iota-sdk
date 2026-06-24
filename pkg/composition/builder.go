@@ -415,6 +415,10 @@ func ContributeHashFS(builder *Builder, factory func(*Container) ([]*hashfs.FS, 
 	appendFactory(builder, "hashfs", factory, &builder.hashFSFactories)
 }
 
+func ContributeQuickLinks(builder *Builder, factory func(*Container) ([]*spotlight.QuickLink, error)) {
+	appendFactory(builder, "quick-links", factory, &builder.quickLinkFactories)
+}
+
 func ContributeSpotlightProviders(builder *Builder, factory func(*Container) ([]spotlight.SearchProvider, error)) {
 	appendFactory(builder, "spotlight", factory, &builder.spotlightFactories)
 }

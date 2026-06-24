@@ -13,6 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func describedID(t *testing.T, controller application.Controller) string {
+	t.Helper()
+	described, ok := controller.(application.DescribedController)
+	require.True(t, ok)
+	return described.Descriptor().ID
+}
+
 // overrideRepo is a minimal concrete type used to exercise
 // ProvideDefault/RemoveProvider semantics.
 type overrideRepo struct{ label string }
@@ -377,8 +384,8 @@ func TestControllerDescriptors_AllowNestedDistinctRoutes(t *testing.T) {
 
 	ctrls := container.Controllers()
 	require.Len(t, ctrls, 2)
-	require.Equal(t, "settings.hub", ctrls[0].Descriptor().ID)
-	require.Equal(t, "settings.logo", ctrls[1].Descriptor().ID)
+	require.Equal(t, "settings.hub", describedID(t, ctrls[0]))
+	require.Equal(t, "settings.logo", describedID(t, ctrls[1]))
 }
 
 func TestControllerDescriptors_DetectDuplicateSurvivingRoutes(t *testing.T) {
@@ -481,9 +488,9 @@ func TestControllerDescriptors_OrderControlsFinalControllerOrder(t *testing.T) {
 
 	ctrls := container.Controllers()
 	require.Len(t, ctrls, 3)
-	require.Equal(t, "first", ctrls[0].Descriptor().ID)
-	require.Equal(t, "middle", ctrls[1].Descriptor().ID)
-	require.Equal(t, "last", ctrls[2].Descriptor().ID)
+	require.Equal(t, "first", describedID(t, ctrls[0]))
+	require.Equal(t, "middle", describedID(t, ctrls[1]))
+	require.Equal(t, "last", describedID(t, ctrls[2]))
 }
 
 func TestNavModel_ProjectsDescriptorNavAndQuickLinks(t *testing.T) {

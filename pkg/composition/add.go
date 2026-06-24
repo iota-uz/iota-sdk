@@ -5,6 +5,7 @@ import (
 
 	"github.com/benbjohnson/hashfs"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -94,6 +95,20 @@ func AddHashFS(builder *Builder, assets ...*hashfs.FS) {
 	}
 	captured := append([]*hashfs.FS(nil), assets...)
 	ContributeHashFS(builder, func(*Container) ([]*hashfs.FS, error) {
+		return captured, nil
+	})
+}
+
+// AddQuickLinks attaches one or more spotlight quick links.
+func AddQuickLinks(builder *Builder, links ...*spotlight.QuickLink) {
+	if builder == nil {
+		panic("composition: builder is nil")
+	}
+	if len(links) == 0 {
+		return
+	}
+	captured := append([]*spotlight.QuickLink(nil), links...)
+	ContributeQuickLinks(builder, func(*Container) ([]*spotlight.QuickLink, error) {
 		return captured, nil
 	})
 }

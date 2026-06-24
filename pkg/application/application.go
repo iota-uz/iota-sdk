@@ -448,7 +448,12 @@ func (app *application) Controllers() []Controller {
 	}
 	controllers := append([]Controller(nil), app.runtimeSource.Controllers()...)
 	sort.SliceStable(controllers, func(i, j int) bool {
-		return controllers[i].Descriptor().Order < controllers[j].Descriptor().Order
+		left, leftOK := controllers[i].(DescribedController)
+		right, rightOK := controllers[j].(DescribedController)
+		if !leftOK || !rightOK {
+			return leftOK && !rightOK
+		}
+		return left.Descriptor().Order < right.Descriptor().Order
 	})
 	return controllers
 }

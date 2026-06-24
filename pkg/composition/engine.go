@@ -850,13 +850,19 @@ func collectNavNodeContributions(container *Container, factories []namedFactory[
 
 func resolveControllerDescriptors(contributions []controllerContribution) ([]application.Controller, []controllerContribution, error) {
 	active := make([]controllerContribution, 0, len(contributions))
+	described := make([]controllerContribution, 0, len(contributions))
 	owners := make(map[string]string, len(contributions))
 
 	for _, contribution := range contributions {
 		if contribution.controller == nil {
 			continue
 		}
-		descriptor := contribution.controller.Descriptor()
+		describedController, ok := contribution.controller.(application.DescribedController)
+		if !ok {
+			active = append(active, contribution)
+			continue
+		}
+		descriptor := describedController.Descriptor()
 		if strings.TrimSpace(descriptor.ID) == "" {
 			return nil, nil, fmt.Errorf("composition: controller contributed by %q has empty descriptor ID", contribution.component)
 		}
@@ -868,15 +874,25 @@ func resolveControllerDescriptors(contributions []controllerContribution) ([]app
 			}
 			found := false
 			filtered := active[:0]
+			filteredDescribed := described[:0]
 			for _, existing := range active {
-				if existing.controller.Descriptor().ID == replacedID {
+				existingDescribed, ok := existing.controller.(application.DescribedController)
+				if ok && existingDescribed.Descriptor().ID == replacedID {
 					delete(owners, replacedID)
 					found = true
 					continue
 				}
 				filtered = append(filtered, existing)
 			}
+			for _, existing := range described {
+				existingDescribed := existing.controller.(application.DescribedController)
+				if existingDescribed.Descriptor().ID == replacedID {
+					continue
+				}
+				filteredDescribed = append(filteredDescribed, existing)
+			}
 			active = filtered
+			described = filteredDescribed
 			if !found {
 				return nil, nil, fmt.Errorf(
 					"composition: controller %q contributed by %q replaces missing controller %q",
@@ -897,27 +913,33 @@ func resolveControllerDescriptors(contributions []controllerContribution) ([]app
 		}
 		owners[descriptor.ID] = contribution.component
 		active = append(active, contribution)
+		described = append(described, contribution)
 	}
 
-	if err := validateControllerRoutes(active); err != nil {
+	if err := validateControllerRoutes(described); err != nil {
 		return nil, nil, err
 	}
 
 	sort.SliceStable(active, func(i, j int) bool {
-		return active[i].controller.Descriptor().Order < active[j].controller.Descriptor().Order
+		left, leftOK := active[i].controller.(application.DescribedController)
+		right, rightOK := active[j].controller.(application.DescribedController)
+		if !leftOK || !rightOK {
+			return leftOK && !rightOK
+		}
+		return left.Descriptor().Order < right.Descriptor().Order
 	})
 
 	controllers := make([]application.Controller, 0, len(active))
 	for _, contribution := range active {
 		controllers = append(controllers, contribution.controller)
 	}
-	return controllers, active, nil
+	return controllers, described, nil
 }
 
 func collectControllerRoutes(contributions []controllerContribution) []controllerRoute {
 	routes := make([]controllerRoute, 0)
 	for _, contribution := range contributions {
-		descriptor := contribution.controller.Descriptor()
+		descriptor := contribution.controller.(application.DescribedController).Descriptor()
 		for _, route := range descriptor.Routes {
 			route = normalizeRoute(route)
 			if route.Path == "" {
@@ -936,7 +958,7 @@ func collectControllerRoutes(contributions []controllerContribution) []controlle
 func collectControllerNavNodes(contributions []controllerContribution) []navNodeContribution {
 	nodes := make([]navNodeContribution, 0)
 	for _, contribution := range contributions {
-		descriptor := contribution.controller.Descriptor()
+		descriptor := contribution.controller.(application.DescribedController).Descriptor()
 		for _, node := range descriptor.Nav {
 			nodes = append(nodes, navNodeContribution{
 				component: contribution.component,
@@ -950,7 +972,7 @@ func collectControllerNavNodes(contributions []controllerContribution) []navNode
 func validateControllerRoutes(contributions []controllerContribution) error {
 	routes := make([]controllerRoute, 0)
 	for _, contribution := range contributions {
-		descriptor := contribution.controller.Descriptor()
+		descriptor := contribution.controller.(application.DescribedController).Descriptor()
 		for _, route := range descriptor.Routes {
 			route = normalizeRoute(route)
 			if route.Path == "" {
