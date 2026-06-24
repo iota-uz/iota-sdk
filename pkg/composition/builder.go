@@ -400,6 +400,10 @@ func ContributeControllers(builder *Builder, factory func(*Container) ([]applica
 	appendFactory(builder, "controllers", factory, &builder.controllerFactories)
 }
 
+func ContributeNavItems(builder *Builder, factory func(*Container) ([]types.NavigationItem, error)) {
+	appendFactory(builder, "nav-items", factory, &builder.navItemFactories)
+}
+
 func ContributeNavNodes(builder *Builder, factory func(*Container) ([]application.NavNode, error)) {
 	appendFactory(builder, "nav-nodes", factory, &builder.navNodeFactories)
 }
