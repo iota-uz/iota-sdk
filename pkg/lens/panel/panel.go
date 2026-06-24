@@ -27,13 +27,13 @@ const (
 	// pure noise.
 	KindSegmentBar Kind = "segment_bar"
 	KindPie        Kind = "pie"
-	KindDonut         Kind = "donut"
-	KindTable         Kind = "table"
-	KindGauge         Kind = "gauge"
-	KindTabs          Kind = "tabs"
-	KindGrid          Kind = "grid"
-	KindSplit         Kind = "split"
-	KindRepeat        Kind = "repeat"
+	KindDonut      Kind = "donut"
+	KindTable      Kind = "table"
+	KindGauge      Kind = "gauge"
+	KindTabs       Kind = "tabs"
+	KindGrid       Kind = "grid"
+	KindSplit      Kind = "split"
+	KindRepeat     Kind = "repeat"
 )
 
 type AxisScale string

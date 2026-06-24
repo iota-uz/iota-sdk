@@ -23,8 +23,8 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_ba8b`,
-		Function: `function __templ_graph_ba8b(id, options){const hiddenSeriesNames = (chart) => {
+		Name: `__templ_graph_a26f`,
+		Function: `function __templ_graph_a26f(id, options){const hiddenSeriesNames = (chart) => {
 		const globals = chart && chart.w && chart.w.globals;
 		if (!globals) {
 			return [];
@@ -81,7 +81,10 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 			// the resulting hidden set next tick and publish it to the shared scope
 			// for sibling charts to adopt on their next render.
 			setTimeout(() => {
-				const names = hiddenSeriesNames(container.__apexChart);
+				// Read the chart that fired this click (chartCtx), not
+				// container.__apexChart — a re-render may have replaced the latter
+				// by the time this tick runs, which would publish the wrong set.
+				const names = hiddenSeriesNames(chartCtx || container.__apexChart);
 				container.__apexHiddenSeries = names;
 				writeSharedHidden(container, names);
 			}, 0);
@@ -101,7 +104,13 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		const sharedHidden = readSharedHidden(container);
 		const hidden = new Set(sharedHidden !== null ? sharedHidden : (container.__apexHiddenSeries || []));
 		if (container.__apexChart && typeof container.__apexChart.destroy === 'function') {
-			hiddenSeriesNames(container.__apexChart).forEach((name) => hidden.add(name));
+			// When a shared scope exists it is the source of truth for the tab
+			// group; merging the outgoing chart's own hidden set would re-hide
+			// series the user un-hid elsewhere. Only fall back to it when there
+			// is no shared selection.
+			if (sharedHidden === null) {
+				hiddenSeriesNames(container.__apexChart).forEach((name) => hidden.add(name));
+			}
 			container.__apexChart.destroy();
 			container.__apexChart = null;
 		}
@@ -110,6 +119,12 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		container.__apexChart = chart;
 		container.__apexHiddenSeries = Array.from(hidden);
 		Promise.resolve(chart.render()).then(() => {
+			// A newer renderChart() may have destroyed this instance while the
+			// render promise was pending; bail so we don't toggle a dead chart
+			// or overwrite __apexHiddenSeries with its empty state.
+			if (container.__apexChart !== chart) {
+				return;
+			}
 			const names = ((chart.w && chart.w.globals && chart.w.globals.seriesNames) || []);
 			hidden.forEach((name) => {
 				if (names.includes(name) && typeof chart.hideSeries === 'function') {
@@ -136,8 +151,8 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		renderChart();
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_graph_ba8b`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_ba8b`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_a26f`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_a26f`, id, options),
 	}
 }
 
@@ -203,7 +218,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 152, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 167, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

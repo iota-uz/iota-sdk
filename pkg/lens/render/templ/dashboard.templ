@@ -512,6 +512,8 @@ templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool, 
 				@TablePanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindStat {
 				@StatPanel(child, childPanel, resolvePanelErrorAction)
+			} else if child.Kind == panel.KindSegmentBar {
+				@SegmentBarPanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindTabs || child.Kind == panel.KindGrid || child.Kind == panel.KindSplit || child.Kind == panel.KindRepeat {
 				@PanelContent(child, result, resolvePanelErrorAction)
 			} else if fullscreen {

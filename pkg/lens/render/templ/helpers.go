@@ -318,7 +318,14 @@ func buildSegmentBarView(spec panel.Spec, result *runtime.PanelResult) segmentBa
 	if len(rows) == 0 {
 		return view
 	}
+	// Validation accepts a SegmentBar with either Label or Category set, so
+	// fall back to Category before the default to honour a category-only spec
+	// (otherwise its segments would render "<nil>" labels from the default
+	// "label" column that the dataset never produced).
 	labelField := spec.Fields.Label
+	if labelField.Empty() {
+		labelField = spec.Fields.Category
+	}
 	if labelField.Empty() {
 		labelField = panel.DefaultLabelField
 	}
@@ -407,6 +414,9 @@ func segmentNumeric(value any) float64 {
 func segmentSliceStyle(pct float64, color string) templpkg.SafeCSS {
 	if pct < 0 {
 		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
 	}
 	return templpkg.SafeCSS(fmt.Sprintf("width:%s%%;background-color:%s", strconv.FormatFloat(pct, 'f', 4, 64), color))
 }
