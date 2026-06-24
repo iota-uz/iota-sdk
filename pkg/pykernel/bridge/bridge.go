@@ -160,7 +160,7 @@ func (b *bridge) handleCall(ctx context.Context, dispatcher CallDispatcher, msg 
 		b.writeError(msg.ID, codeCapabilityArgs, "invalid cap.call params: "+err.Error(), "")
 		return
 	}
-	reply := dispatcher.Dispatch(ctx, Call{ExecID: p.ExecID, Name: p.Name, Args: p.Args})
+	reply := dispatcher.Dispatch(ctx, Call(p))
 	if reply.Err != nil {
 		b.writeError(msg.ID, codeCapabilityError, reply.Err.Message, reply.Err.Type)
 		return

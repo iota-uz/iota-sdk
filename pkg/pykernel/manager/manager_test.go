@@ -50,9 +50,12 @@ func newManager(t *testing.T) *manager.Manager {
 }
 
 // drain collects events until the channel closes or the deadline passes.
-func drain(t *testing.T, ch <-chan pykernel.ExecEvent, d time.Duration) (stdout string, result string, gotDone bool, errEv *pykernel.ExecError) {
+func drain(t *testing.T, ch <-chan pykernel.ExecEvent, d time.Duration) (string, string, bool, *pykernel.ExecError) {
 	t.Helper()
 	var sb strings.Builder
+	var result string
+	var gotDone bool
+	var errEv *pykernel.ExecError
 	deadline := time.After(d)
 	for {
 		select {
@@ -69,6 +72,8 @@ func drain(t *testing.T, ch <-chan pykernel.ExecEvent, d time.Duration) (stdout 
 				errEv = ev.Err
 			case pykernel.EventDone:
 				gotDone = true
+			case pykernel.EventMetric, pykernel.EventLog, pykernel.EventTruncated:
+				// Not asserted by these tests; ignore.
 			}
 		case <-deadline:
 			t.Fatal("timed out draining exec events")

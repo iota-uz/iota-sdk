@@ -103,7 +103,7 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 			return k, nil
 		}
 	}
-	if max := m.cfg.Policy.MaxParallel(); max > 0 && len(m.kernels) >= max {
+	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 && len(m.kernels) >= maxParallel {
 		if !m.evictIdleLocked() {
 			m.mu.Unlock()
 			return nil, pykernel.ErrPoolExhausted
