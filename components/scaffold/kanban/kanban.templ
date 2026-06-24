@@ -21,38 +21,32 @@ templ Content[C Card](cfg *Config[C]) {
 			opacity: 0.4;
 		}
 	</style>
-	{{ currentParams := CurrentQueryParams(ctx) }}
+	{{
+		currentParams := CurrentQueryParams(ctx)
+		columnTriggerID := ColumnTriggerID(cfg.Board.Key())
+		cardTriggerID := CardTriggerID(cfg.Board.Key())
+		columnTriggerFormID := ColumnTriggerFormID(cfg.Board.Key())
+		cardTriggerFormID := CardTriggerFormID(cfg.Board.Key())
+	}}
 	<div x-data="kanban" class="contents">
-		<div class="hidden" id="column-trigger" hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged" hx-swap="none" hx-push-url="false" hx-include="this">
-			<input type="hidden" name="colKey" x-model="col.key"/>
-			<input type="hidden" name="colOldIndex" x-model="col.oldIndex"/>
-			<input type="hidden" name="colNewIndex" x-model="col.newIndex"/>
+		<div class="hidden" id={ columnTriggerID } hx-post={ cfg.ColumnChangeURL } hx-trigger="columnChanged" hx-swap="none" hx-push-url="false" hx-include="this">
+			<input type="hidden" name={ FormParamColumnKey } form={ columnTriggerFormID } x-model="col.key"/>
+			<input type="hidden" name={ FormParamColumnOldIndex } form={ columnTriggerFormID } x-model="col.oldIndex"/>
+			<input type="hidden" name={ FormParamColumnNewIndex } form={ columnTriggerFormID } x-model="col.newIndex"/>
 		</div>
-		<div class="hidden" id="card-trigger" hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged" hx-swap="none" hx-push-url="false" hx-include="this">
-			<input type="hidden" name="cardKey" x-model="card.key"/>
-			<input type="hidden" name="cardOldCol" x-model="card.oldCol"/>
-			<input type="hidden" name="cardNewCol" x-model="card.newCol"/>
-			<input type="hidden" name="cardOldIndex" x-model="card.oldIndex"/>
-			<input type="hidden" name="cardNewIndex" x-model="card.newIndex"/>
+		<div class="hidden" id={ cardTriggerID } hx-post={ cfg.CardChangeURL } hx-trigger="cardChanged" hx-swap="none" hx-push-url="false" hx-include="this">
+			<input type="hidden" name={ FormParamCardKey } form={ cardTriggerFormID } x-model="card.key"/>
+			<input type="hidden" name={ FormParamCardOldColumn } form={ cardTriggerFormID } x-model="card.oldCol"/>
+			<input type="hidden" name={ FormParamCardNewColumn } form={ cardTriggerFormID } x-model="card.newCol"/>
+			<input type="hidden" name={ FormParamCardOldIndex } form={ cardTriggerFormID } x-model="card.oldIndex"/>
+			<input type="hidden" name={ FormParamCardNewIndex } form={ cardTriggerFormID } x-model="card.newIndex"/>
 		</div>
 		<div class="flex bg-gray-200 rounded-lg h-full overflow-hidden">
 			<div class="w-full overflow-x-auto overscroll-x-contain [touch-action:pan-x_pinch-zoom] [-webkit-overflow-scrolling:touch]">
 				<ol
 					class="flex w-max min-w-full divide-x divide-gray-300"
 					x-sort.ghost
-					x-sort:config="{
-					delayOnTouchOnly: true,
-					delay: 150,
-					touchStartThreshold: 8,
-					onEnd: (event) => {
-						changeCol({
-							key: event.item.dataset.colKey,
-							oldIndex: event.oldIndex,
-							newIndex: event.newIndex
-						});
-						$nextTick(() => htmx.trigger('#column-trigger', 'columnChanged'));
-					}
-				}"
+					x-sort:config={ columnSortConfig(columnTriggerID) }
 				>
 					for _, c := range cfg.Board.Columns() {
 						<li data-col-key={ c.Key() } x-sort:item class="flex w-72 shrink-0 flex-col gap-2 p-3">
@@ -65,20 +59,7 @@ templ Content[C Card](cfg *Config[C]) {
 								data-col-key={ c.Key() }
 								x-sort.ghost
 								x-sort:group="cards"
-								x-sort:config="{
-								delayOnTouchOnly: true,
-								delay: 150,
-								touchStartThreshold: 8,
-								onEnd: (event) => {
-								changeCard({
-									key: event.item.dataset.cardKey,
-									newCol: event.to.dataset.colKey,
-									oldCol: event.from.dataset.colKey,
-									oldIndex: event.oldIndex,
-									newIndex: event.newIndex
-								})
-								$nextTick(() => htmx.trigger('#card-trigger', 'cardChanged'));
-							}}"
+								x-sort:config={ cardSortConfig(cardTriggerID) }
 							>
 								@ColumnCards(cfg, c, currentParams)
 							</ol>
