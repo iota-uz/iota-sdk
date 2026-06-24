@@ -288,9 +288,10 @@ type Container struct {
 	// applied as post-collect filters inside materialize.
 	// Provider removals are processed inline at the top of addBuilder
 	// (per-builder ordering) and are not cached on the container.
-	pendingHookRemovals     []string
-	pendingNavItemRemovals  []string
-	pendingNavItemOverrides []types.NavigationItem
+	pendingControllerRemovals []string
+	pendingHookRemovals       []string
+	pendingNavItemRemovals    []string
+	pendingNavItemOverrides   []types.NavigationItem
 
 	controllers        []application.Controller
 	navCatalogNodes    []navNodeContribution
@@ -315,6 +316,40 @@ type Container struct {
 type controllerContribution struct {
 	component  string
 	controller application.Controller
+}
+
+type keyedController interface {
+	Key() string
+}
+
+func filterRemovedControllerContributions(contributions []controllerContribution, removals []string) []controllerContribution {
+	if len(contributions) == 0 || len(removals) == 0 {
+		return contributions
+	}
+	removalSet := stringSet(removals)
+	filtered := contributions[:0]
+	for _, contribution := range contributions {
+		if key := controllerKey(contribution.controller); key != "" {
+			if _, removed := removalSet[key]; removed {
+				continue
+			}
+		}
+		filtered = append(filtered, contribution)
+	}
+	return filtered
+}
+
+func controllerKey(controller application.Controller) string {
+	if controller == nil {
+		return ""
+	}
+	if keyed, ok := controller.(keyedController); ok {
+		return strings.TrimSpace(keyed.Key())
+	}
+	if described, ok := controller.(application.DescribedController); ok {
+		return strings.TrimSpace(described.Descriptor().ID)
+	}
+	return ""
 }
 
 type controllerRoute struct {
@@ -622,10 +657,10 @@ func (c *Container) addBuilder(builder *Builder) error {
 	c.middlewareFactories = append(c.middlewareFactories, builder.middlewareFactories...)
 	c.hookFactories = append(c.hookFactories, builder.hookFactories...)
 
-	// Hook removals cannot be applied here because materialize hasn't run yet
-	// — the contributions they target are still factory closures. Stash them on
-	// the container and let materialize filter the collected slices after each
-	// collectInto call.
+	// Controller and hook removals cannot be applied here because materialize
+	// hasn't run yet — the contributions they target are still factory closures.
+	// Stash them on the container and let materialize filter collected slices.
+	c.pendingControllerRemovals = append(c.pendingControllerRemovals, builder.controllerRemovals...)
 	c.pendingHookRemovals = append(c.pendingHookRemovals, builder.hookRemovals...)
 	c.pendingNavItemRemovals = append(c.pendingNavItemRemovals, builder.navItemRemovals...)
 	c.pendingNavItemOverrides = append(c.pendingNavItemOverrides, builder.navItemOverrides...)
@@ -646,6 +681,7 @@ func (c *Container) materialize() error {
 	if err != nil {
 		return err
 	}
+	controllerContributions = filterRemovedControllerContributions(controllerContributions, c.pendingControllerRemovals)
 	activeControllerContributions := make([]controllerContribution, 0, len(controllerContributions))
 	if len(controllerContributions) > 0 {
 		filtered, active, err := resolveControllerDescriptors(controllerContributions)
