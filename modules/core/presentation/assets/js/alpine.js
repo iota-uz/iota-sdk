@@ -265,8 +265,15 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     let rect = trigger.getBoundingClientRect();
     let gap = 4;
     let edge = 8; // keep the menu clear of the viewport edge
-    // Match the field width. Callers passing `!w-auto` via ListClass override this.
-    list.style.width = rect.width + 'px';
+    // Width: at least the field width, but grow to fit the widest option so long
+    // labels aren't clipped — capped to the viewport so it never overflows. Measure
+    // the natural content width with the constraint cleared first. Callers passing
+    // `!w-auto`/`!w-*` via ListClass still override this inline width.
+    let viewportWidth = Math.max(0, window.innerWidth - 2 * edge);
+    list.style.width = 'auto';
+    list.style.maxWidth = viewportWidth + 'px';
+    let width = Math.min(Math.max(rect.width, list.scrollWidth), viewportWidth);
+    list.style.width = width + 'px';
     if (this.supportsPopover(list) && list.matches(':popover-open')) {
       // Top-layer popover: position against the viewport (fixed coordinates)
       // and reset the UA-default `inset:0; margin:auto` centering.
@@ -287,7 +294,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       let flipUp = spaceBelow < contentHeight && spaceAbove > spaceBelow;
       let height = Math.min(contentHeight, Math.max(0, flipUp ? spaceAbove : spaceBelow));
       list.style.setProperty('max-height', height + 'px', 'important');
-      list.style.left = rect.left + 'px';
+      // Clamp left so a menu wider than the field stays within the viewport.
+      list.style.left = Math.max(edge, Math.min(rect.left, window.innerWidth - width - edge)) + 'px';
       list.style.top = (flipUp ? rect.top - height - gap : rect.bottom + gap) + 'px';
     } else {
       // Fallback (no Popover API): sit just below the field, in flow.
