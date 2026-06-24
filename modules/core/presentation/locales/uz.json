@@ -366,7 +366,8 @@
     "ToExcel": "Excel ga eksport",
     "ToCSV": "CSV ga eksport",
     "ToJSON": "JSON ga eksport",
-    "ToTXT": "TXT ga eksport"
+    "ToTXT": "TXT ga eksport",
+    "Preparing": "Fayl tayyorlanmoqda…"
   },
   "Filters": {
     "CreatedAt": {
