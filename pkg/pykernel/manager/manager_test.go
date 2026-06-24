@@ -72,7 +72,7 @@ func drain(t *testing.T, ch <-chan pykernel.ExecEvent, d time.Duration) (string,
 				errEv = ev.Err
 			case pykernel.EventDone:
 				gotDone = true
-			case pykernel.EventMetric, pykernel.EventLog:
+			case pykernel.EventMetric, pykernel.EventLog, pykernel.EventTruncated:
 				// Not asserted by these tests; ignore.
 			}
 		case <-deadline:
