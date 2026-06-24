@@ -42,7 +42,9 @@
 //
 // # Error convention
 //
-// pykernel is a foundation library and, like pkg/bichat, does not depend on
-// pkg/serrors. Wrap with fmt.Errorf("...: %w", err) and expose sentinel errors
+// pykernel deliberately uses the stdlib errors/fmt.Errorf rather than the SDK
+// pkg/serrors convention because it is a low-level primitive with no tenant or
+// operation context to carry; callers wrap pykernel errors with serrors at the
+// call site. Wrap with fmt.Errorf("...: %w", err) and expose sentinel errors
 // for conditions callers branch on.
 package pykernel

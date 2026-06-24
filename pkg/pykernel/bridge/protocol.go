@@ -112,8 +112,19 @@ func writeFrame(w io.Writer, msg *message) error {
 	buf := make([]byte, 4+len(payload))
 	binary.BigEndian.PutUint32(buf[:4], uint32(len(payload)))
 	copy(buf[4:], payload)
-	if _, err := w.Write(buf); err != nil {
-		return fmt.Errorf("pykernel/bridge: write frame: %w", err)
+	// Loop over the single buffer to tolerate short writes: the length prefix and
+	// payload stay one contiguous slice so frames never interleave, but a writer
+	// is free to accept fewer bytes than requested per call.
+	for len(buf) > 0 {
+		n, err := w.Write(buf)
+		if err != nil {
+			return fmt.Errorf("pykernel/bridge: write frame: %w", err)
+		}
+		if n == 0 {
+			// A nil-error zero-byte write would spin forever; treat it as a fault.
+			return fmt.Errorf("pykernel/bridge: write frame: %w", io.ErrShortWrite)
+		}
+		buf = buf[n:]
 	}
 	return nil
 }

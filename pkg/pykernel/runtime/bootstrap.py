@@ -143,17 +143,27 @@ class _StreamWriter:
         self.truncated = False
 
     def write(self, s):
+        # The cap is measured in UTF-8 bytes (matching the Go-side OutputCap),
+        # not Python code points, so we encode and budget in bytes and never
+        # split a multibyte sequence when truncating.
         if not s:
             return
         if self._sent >= self._cap:
             self.truncated = True
             return
+        encoded = s.encode("utf-8")
         remaining = self._cap - self._sent
-        chunk = s if len(s) <= remaining else s[:remaining]
-        if len(s) > remaining:
-            self.truncated = True
-        self._sent += len(chunk)
-        _notify("out.stdout", {"exec_id": self._exec_id, "chunk": chunk})
+        if len(encoded) <= remaining:
+            self._sent += len(encoded)
+            _notify("out.stdout", {"exec_id": self._exec_id, "chunk": s})
+            return
+        # Truncate on a valid UTF-8 boundary: take the first `remaining` bytes,
+        # then drop any partial trailing char via errors='ignore'.
+        chunk = encoded[:remaining].decode("utf-8", errors="ignore")
+        self.truncated = True
+        self._sent = self._cap
+        if chunk:
+            _notify("out.stdout", {"exec_id": self._exec_id, "chunk": chunk})
 
     def flush(self):
         pass
@@ -210,15 +220,30 @@ def _worker():
     global _worker_tid
     _worker_tid = threading.get_ident()
     while True:
-        item = _exec_queue.get()
-        if item is None:
-            return
-        exec_id, code, output_cap = item
-        _run_code(exec_id, code, output_cap)
+        try:
+            item = _exec_queue.get()
+            if item is None:
+                return
+            exec_id, code, output_cap = item
+            _run_code(exec_id, code, output_cap)
+        except KeyboardInterrupt:
+            # A cancellation can be delivered late (after the target exec
+            # finished) or while the worker is idle in _exec_queue.get(). Such a
+            # stray async exception must NOT terminate the only execution
+            # thread — swallow it and keep serving the queue. The in-exec case
+            # is handled by _run_code's own KeyboardInterrupt handler.
+            continue
 
 
-def _cancel_worker():
+def _cancel_worker(target_exec_id):
     if ctypes is None or _worker_tid is None:
+        return
+    # Best-effort gate: only interrupt when the requested exec is the one
+    # actually running. A tiny TOCTOU window remains but is far safer than
+    # interrupting unconditionally (which could cancel a different exec or land
+    # in the idle worker loop).
+    current = _current_exec
+    if current is None or current != target_exec_id:
         return
     ctypes.pythonapi.PyThreadState_SetAsyncExc(
         ctypes.c_long(_worker_tid), ctypes.py_object(KeyboardInterrupt)
@@ -227,28 +252,55 @@ def _cancel_worker():
 
 # --- Reader loop ---------------------------------------------------------
 
-def _reader():
-    while True:
+def _fail_pending(message):
+    """Unblock every waiting _invoke when the control socket dies, so capability
+    calls raise instead of wedging the worker thread forever."""
+    sentinel = {"error": {"message": message, "data": {"type": "KernelDisconnected"}}}
+    with _pending_lock:
+        pending = list(_pending.values())
+        _pending.clear()
+    for reply_q in pending:
+        # Reply queues are maxsize=1; clear any stale item, then push without
+        # blocking so a full queue cannot deadlock the reader's teardown.
         try:
-            msg = _read_frame()
-        except Exception:
-            return  # socket closed: let the process exit
-        method = msg.get("method")
-        if method == "exec.submit":
-            params = msg.get("params") or {}
-            limits = params.get("limits") or {}
-            _exec_queue.put((
-                params.get("exec_id"),
-                params.get("code", ""),
-                limits.get("output_cap", 0),
-            ))
-        elif method == "exec.cancel":
-            _cancel_worker()
-        elif method is None and "id" in msg:
-            with _pending_lock:
-                reply_q = _pending.get(msg["id"])
-            if reply_q is not None:
-                reply_q.put(msg)
+            reply_q.put_nowait(sentinel)
+        except _queue.Full:
+            try:
+                reply_q.get_nowait()
+            except _queue.Empty:
+                pass
+            try:
+                reply_q.put_nowait(sentinel)
+            except _queue.Full:
+                pass
+
+
+def _reader():
+    try:
+        while True:
+            try:
+                msg = _read_frame()
+            except Exception:
+                return  # socket closed: let the process exit
+            method = msg.get("method")
+            if method == "exec.submit":
+                params = msg.get("params") or {}
+                limits = params.get("limits") or {}
+                _exec_queue.put((
+                    params.get("exec_id"),
+                    params.get("code", ""),
+                    limits.get("output_cap", 0),
+                ))
+            elif method == "exec.cancel":
+                params = msg.get("params") or {}
+                _cancel_worker(params.get("exec_id"))
+            elif method is None and "id" in msg:
+                with _pending_lock:
+                    reply_q = _pending.get(msg["id"])
+                if reply_q is not None:
+                    reply_q.put(msg)
+    finally:
+        _fail_pending("control socket closed")
 
 
 def _main():

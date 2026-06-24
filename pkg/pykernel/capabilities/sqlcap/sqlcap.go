@@ -54,9 +54,9 @@ func New(executor bichatsql.QueryExecutor, opts ...Option) pykernel.Capability {
 		func(ctx context.Context, args pykernel.CallArgs) (any, error) {
 			query, ok := args["query"].(string)
 			if !ok || query == "" {
-				return nil, fmt.Errorf("sql: 'query' must be a non-empty string")
+				return nil, fmt.Errorf("%s: 'query' must be a non-empty string", cfg.name)
 			}
-			params, err := toParams(args["params"])
+			params, err := toParams(cfg.name, args["params"])
 			if err != nil {
 				return nil, err
 			}
@@ -70,13 +70,13 @@ func New(executor bichatsql.QueryExecutor, opts ...Option) pykernel.Capability {
 
 // toParams normalizes the optional params argument (a JSON array or absent)
 // into a []any for the executor.
-func toParams(v any) ([]any, error) {
+func toParams(name string, v any) ([]any, error) {
 	switch p := v.(type) {
 	case nil:
 		return nil, nil
 	case []any:
 		return p, nil
 	default:
-		return nil, fmt.Errorf("sql: 'params' must be a list")
+		return nil, fmt.Errorf("%s: 'params' must be a list", name)
 	}
 }

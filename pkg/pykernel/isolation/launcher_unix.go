@@ -39,10 +39,10 @@ func (l *unixLauncher) Launch(_ context.Context, spec SandboxSpec) (Process, err
 		return nil, fmt.Errorf("pykernel/isolation: start: %w", err)
 	}
 
-	// Apply rlimits to the started child. There is a tiny window between Start
-	// and this call; the kernel shim also self-applies limits at startup via
-	// Python's resource module, which closes the race. On non-Linux this is a
-	// no-op.
+	// Apply rlimits to the started child via prlimit (Linux only). There is a
+	// small window between Start and this call during which the child runs
+	// without limits; the shim does not yet self-apply limits, so this window
+	// is currently unguarded (tracked follow-up). On non-Linux this is a no-op.
 	if err := applyRlimits(cmd.Process.Pid, spec.Limits); err != nil {
 		_ = killGroup(cmd.Process.Pid)
 		_ = cmd.Wait()
@@ -61,6 +61,9 @@ func (p *unixProcess) PID() int { return p.cmd.Process.Pid }
 
 func (p *unixProcess) Wait() error { return p.cmd.Wait() }
 
+// Signal sends sig to the process. For a syscall.Signal it targets the whole
+// process group (negative pid); any other os.Signal falls back to
+// cmd.Process.Signal, which targets only the leader process.
 func (p *unixProcess) Signal(sig os.Signal) error {
 	ssig, ok := sig.(syscall.Signal)
 	if !ok {

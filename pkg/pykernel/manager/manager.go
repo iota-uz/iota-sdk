@@ -98,9 +98,14 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 		return nil, err
 	}
 	if decision == lifecycle.ReuseIdle {
-		if k, ok := m.kernels[sess.Key()]; ok && !k.isDisposed() {
-			m.mu.Unlock()
-			return k, nil
+		if k, ok := m.kernels[sess.Key()]; ok {
+			if !k.isDisposed() {
+				m.mu.Unlock()
+				return k, nil
+			}
+			// The entry is a dead kernel (its serve loop exited); evict it now so
+			// it doesn't linger until Sweep, then fall through to spawn a fresh one.
+			delete(m.kernels, sess.Key())
 		}
 	}
 	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 && len(m.kernels) >= maxParallel {
@@ -123,8 +128,9 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 		_ = k.Dispose(context.Background())
 		return nil, errShuttingDown
 	}
-	if existing, ok := m.kernels[sess.Key()]; ok {
-		// Lost a same-key spawn race: keep the established kernel.
+	if existing, ok := m.kernels[sess.Key()]; ok && !existing.isDisposed() {
+		// Lost a same-key spawn race against a live kernel: keep the established
+		// one and discard our freshly-spawned spare.
 		m.mu.Unlock()
 		_ = k.Dispose(context.Background())
 		return existing, nil

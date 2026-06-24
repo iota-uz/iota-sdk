@@ -75,6 +75,35 @@ func TestFrameRoundTrip(t *testing.T) {
 	assert.JSONEq(t, string(in.Params), string(out.Params))
 }
 
+// shortWriter accepts at most one byte per Write to exercise writeFrame's
+// short-write loop; everything is appended to buf so the frame can be replayed.
+type shortWriter struct{ buf bytes.Buffer }
+
+func (w *shortWriter) Write(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+	return w.buf.Write(p[:1])
+}
+
+func TestWriteFrame_ToleratesShortWrites(t *testing.T) {
+	t.Parallel()
+
+	in := &message{
+		JSONRPC: jsonrpcVersion,
+		Method:  MethodOutStdout,
+		Params:  json.RawMessage(`{"exec_id":"e1","chunk":"a longer chunk so the frame spans many bytes"}`),
+	}
+	w := &shortWriter{}
+	require.NoError(t, writeFrame(w, in))
+
+	// The full frame must have been delivered intact and round-trip cleanly.
+	out, err := readFrame(&w.buf)
+	require.NoError(t, err)
+	assert.Equal(t, in.Method, out.Method)
+	assert.JSONEq(t, string(in.Params), string(out.Params))
+}
+
 func TestBridge_CapCallAndStream(t *testing.T) {
 	t.Parallel()
 

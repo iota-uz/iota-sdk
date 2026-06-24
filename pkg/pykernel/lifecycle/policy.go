@@ -2,8 +2,8 @@
 // kernels. It is the single seam that lets one kernel primitive serve two very
 // different consumers without forking the manager:
 //
-//   - WarmPool — per-session reuse with idle eviction and an LRU cap, for the
-//     interactive Ali REPL;
+//   - WarmPool — per-session reuse with idle-TTL eviction and a MaxParallel
+//     cap, for the interactive Ali REPL;
 //   - Ephemeral — every Acquire spawns and every Release disposes, for the
 //     batch data-migration engine, whose durable state lives host-side so a
 //     kernel is safe to throw away.
@@ -64,11 +64,15 @@ type LifecyclePolicy interface {
 	// OnRelease decides whether to park or dispose a kernel after its exec
 	// completes.
 	OnRelease(info pykernel.KernelInfo) ReleaseAction
-	// ShouldEvict is consulted by the background sweeper (idle TTL, LRU cap).
+	// ShouldEvict is consulted by the background sweeper (idle TTL).
 	ShouldEvict(info pykernel.KernelInfo, pool PoolView) bool
-	// MaxParallel caps the number of concurrently live kernels; the Manager
-	// evicts (LRU) or rejects Acquire beyond it.
+	// MaxParallel caps the number of concurrently live kernels; on Acquire beyond
+	// it the Manager evicts an idle kernel (or rejects with ErrPoolExhausted).
 	MaxParallel() int
 	// ResetMode reports whether reused kernels keep or clear their namespace.
+	//
+	// Currently advisory: namespace reset on reuse is NOT yet enforced (a reused
+	// kernel always keeps its namespace via process reuse) and
+	// pykernel.KernelInfo.NamespaceReset is reserved for when it is.
 	ResetMode() ResetMode
 }

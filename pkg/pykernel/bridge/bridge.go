@@ -90,9 +90,15 @@ type Bridge interface {
 	// inbound output notifications are forwarded to sink. Serve returns the
 	// terminating error (nil on a clean ctx cancel / EOF after Close).
 	Serve(ctx context.Context, dispatcher CallDispatcher, sink EventSink) error
-	// Submit sends an exec.submit notification to the kernel.
+	// Submit sends an exec.submit notification to the kernel. ctx is accepted
+	// for call-site symmetry but is NOT honored for the write itself: conn is a
+	// generic io.ReadWriteCloser with no write deadline, so a stalled write is
+	// unblocked only by Close() (which the manager's watchdog invokes on
+	// timeout/cancel).
 	Submit(ctx context.Context, execID, code string, limits Limits) error
-	// Cancel sends a cooperative exec.cancel notification to the kernel.
+	// Cancel sends a cooperative exec.cancel notification to the kernel. As with
+	// Submit, ctx does not bound the write; a stalled write is unblocked only by
+	// Close().
 	Cancel(ctx context.Context, execID string) error
 	// Close closes the underlying connection, unblocking Serve.
 	Close() error
@@ -160,6 +166,10 @@ func (b *bridge) handleCall(ctx context.Context, dispatcher CallDispatcher, msg 
 		b.writeError(msg.ID, codeCapabilityArgs, "invalid cap.call params: "+err.Error(), "")
 		return
 	}
+	// ctx here is the Serve-lifetime context, not a per-exec context, so per-exec
+	// cancellation/timeout does NOT propagate into a capability handler today; a
+	// hung handler is bounded only by the manager's wall-clock watchdog closing
+	// conn.
 	reply := dispatcher.Dispatch(ctx, Call(p))
 	if reply.Err != nil {
 		b.writeError(msg.ID, codeCapabilityError, reply.Err.Message, reply.Err.Type)

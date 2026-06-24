@@ -32,8 +32,6 @@ const (
 	EventLog
 	// EventError carries an uncaught Python exception.
 	EventError
-	// EventTruncated signals the output cap was hit and a marker was inserted.
-	EventTruncated
 	// EventDone is terminal: the exec finished (successfully or with an error).
 	// Exactly one EventDone closes the stream.
 	EventDone
@@ -51,8 +49,6 @@ func (k ExecEventKind) String() string {
 		return "log"
 	case EventError:
 		return "error"
-	case EventTruncated:
-		return "truncated"
 	case EventDone:
 		return "done"
 	default:

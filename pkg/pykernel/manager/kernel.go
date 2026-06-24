@@ -207,11 +207,13 @@ func (k *kernel) watch(ctx context.Context, execID string, timeout time.Duration
 }
 
 // onServeExit runs after the bridge read loop returns (kernel died or was
-// disposed). If an exec was still in flight, the consumer is unblocked with a
-// synthetic error + closed channel.
+// disposed). The kernel is marked disposed so the pool never hands back this
+// corpse on a later Acquire. If an exec was still in flight, the consumer is
+// unblocked with a synthetic error + closed channel.
 func (k *kernel) onServeExit() {
 	k.mu.Lock()
 	defer k.mu.Unlock()
+	k.disposed = true
 	if k.activeCh != nil {
 		k.finishLocked(&pykernel.ExecEvent{
 			Kind:      pykernel.EventError,
