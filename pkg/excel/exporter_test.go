@@ -92,6 +92,67 @@ func TestExcelExporter_Export(t *testing.T) {
 	}
 }
 
+func TestExcelExporter_ExportToWriter(t *testing.T) {
+	headers := []string{"ID", "Name", "Premium", "Created"}
+	now := time.Now()
+	rows := [][]interface{}{
+		{1, "John Doe", 1234.50, now},
+		{2, "Jane Smith", 9999.99, now.Add(24 * time.Hour)},
+	}
+
+	ds := NewMockDataSource(headers, rows)
+	exporter := excel.NewExcelExporter(nil, nil)
+
+	var buf bytes.Buffer
+	require.NoError(t, exporter.ExportToWriter(context.Background(), &buf, ds))
+	assert.NotEmpty(t, buf.Bytes())
+
+	f, err := excelize.OpenReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	assert.Equal(t, "TestSheet", f.GetSheetName(0))
+
+	// Headers preserved.
+	for i, header := range headers {
+		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		value, err := f.GetCellValue("TestSheet", cell)
+		require.NoError(t, err)
+		assert.Equal(t, header, value)
+	}
+
+	// Money column stays a real number, not text (regression guard): a numeric
+	// cell with the 0.00 format renders "1234.50"; a text cell would render the
+	// raw "1234.5". Also assert it is not stored as a string-typed cell.
+	premiumCell, _ := excelize.CoordinatesToCellName(3, 2)
+	value, err := f.GetCellValue("TestSheet", premiumCell)
+	require.NoError(t, err)
+	assert.Equal(t, "1234.50", value)
+
+	cellType, err := f.GetCellType("TestSheet", premiumCell)
+	require.NoError(t, err)
+	assert.NotEqual(t, excelize.CellTypeSharedString, cellType)
+	assert.NotEqual(t, excelize.CellTypeInlineString, cellType)
+}
+
+func TestExcelExporter_ExportToWriter_MaxRows(t *testing.T) {
+	headers := []string{"ID", "Name"}
+	rows := [][]interface{}{{1, "A"}, {2, "B"}, {3, "C"}, {4, "D"}}
+
+	ds := NewMockDataSource(headers, rows)
+	exporter := excel.NewExcelExporter(&excel.ExportOptions{IncludeHeaders: true, MaxRows: 2}, nil)
+
+	var buf bytes.Buffer
+	require.NoError(t, exporter.ExportToWriter(context.Background(), &buf, ds))
+
+	f, err := excelize.OpenReader(bytes.NewReader(buf.Bytes()))
+	require.NoError(t, err)
+
+	// 1 header + 2 data rows; row 4 must be empty.
+	v, err := f.GetCellValue("TestSheet", "A4")
+	require.NoError(t, err)
+	assert.Empty(t, v)
+}
+
 func TestExcelExporter_WithOptions(t *testing.T) {
 	headers := []string{"ID", "Name"}
 	rows := [][]interface{}{
