@@ -23,8 +23,8 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_d789`,
-		Function: `function __templ_graph_d789(id, options){const hiddenSeriesNames = (chart) => {
+		Name: `__templ_graph_ba8b`,
+		Function: `function __templ_graph_ba8b(id, options){const hiddenSeriesNames = (chart) => {
 		const globals = chart && chart.w && chart.w.globals;
 		if (!globals) {
 			return [];
@@ -48,13 +48,58 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		return Array.from(hidden);
 	}
 
+	// Charts inside the same rerender scope (e.g. the tabs of a KindTabs panel)
+	// share one legend selection, so deselecting a series in one tab carries
+	// over to the others instead of resetting on tab switch.
+	const rerenderScope = (container) => (container && container.closest)
+		? container.closest('[data-lens-rerender-scope]')
+		: null;
+	const readSharedHidden = (container) => {
+		const scope = rerenderScope(container);
+		return scope && Array.isArray(scope.__apexSharedHidden)
+			? scope.__apexSharedHidden
+			: null;
+	}
+	const writeSharedHidden = (container, names) => {
+		const scope = rerenderScope(container);
+		if (scope) {
+			scope.__apexSharedHidden = Array.from(names);
+		}
+	}
+	const bindSharedLegend = (container) => {
+		options.chart = options.chart || {};
+		options.chart.events = options.chart.events || {};
+		if (options.chart.events.__sdkSharedHiddenBound) {
+			return;
+		}
+		const prevLegendClick = options.chart.events.legendClick;
+		options.chart.events.legendClick = function(chartCtx, seriesIndex, opts) {
+			if (typeof prevLegendClick === 'function') {
+				try { prevLegendClick(chartCtx, seriesIndex, opts); } catch (e) { /* ignore */ }
+			}
+			// ApexCharts toggles series visibility after this hook fires, so read
+			// the resulting hidden set next tick and publish it to the shared scope
+			// for sibling charts to adopt on their next render.
+			setTimeout(() => {
+				const names = hiddenSeriesNames(container.__apexChart);
+				container.__apexHiddenSeries = names;
+				writeSharedHidden(container, names);
+			}, 0);
+		};
+		options.chart.events.__sdkSharedHiddenBound = true;
+	}
+
 	const renderChart = () => {
 		const container = document.getElementById(id);
 		if (!container) {
 			console.error(` + "`" + `Chart container with ID ${id} not found.` + "`" + `);
 			return;
 		}
-		const hidden = new Set(container.__apexHiddenSeries || []);
+		bindSharedLegend(container);
+		// Prefer the scope-shared selection (if any) so all charts in a tab group
+		// stay in sync; otherwise fall back to this chart's own state.
+		const sharedHidden = readSharedHidden(container);
+		const hidden = new Set(sharedHidden !== null ? sharedHidden : (container.__apexHiddenSeries || []));
 		if (container.__apexChart && typeof container.__apexChart.destroy === 'function') {
 			hiddenSeriesNames(container.__apexChart).forEach((name) => hidden.add(name));
 			container.__apexChart.destroy();
@@ -91,8 +136,8 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		renderChart();
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_graph_d789`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_d789`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_ba8b`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_ba8b`, id, options),
 	}
 }
 
@@ -158,7 +203,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 107, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 152, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

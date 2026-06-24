@@ -2585,7 +2585,11 @@ let fbPanel = (cfg = {}) => ({
           .filter((v) => v && !v.startsWith('__group:'));
       }
       case 'date': {
-        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"]') ?? [];
+        // Exclude the flatpickr altInput's hidden original (`.flatpickr-input`),
+        // which holds the joined "from — to" display string. Including it yields a
+        // 3rd value for range pickers, breaking the `between` arity check so the
+        // condition is silently dropped (no chip, filter not applied).
+        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"]:not(.flatpickr-input)') ?? [];
         return Array.from(inputs).map((i) => i.value).filter(Boolean);
       }
       case 'number': {

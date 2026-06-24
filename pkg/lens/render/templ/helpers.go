@@ -854,7 +854,7 @@ func jsStringLiteral(value string) string {
 func tabClassExpression(tabID string) string {
 	literal := jsStringLiteral(tabID)
 	return fmt.Sprintf(
-		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-300 hover:text-white': activeTab !== %s }",
+		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-400 hover:text-white': activeTab !== %s }",
 		literal,
 		literal,
 	)
