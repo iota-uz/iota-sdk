@@ -89,6 +89,7 @@ type MeasureSpec struct {
 	Description  string
 	Info         string
 	RequiresJoin []string
+	Override     *lens.DatasetSpec
 	Action       *action.Spec
 }
 

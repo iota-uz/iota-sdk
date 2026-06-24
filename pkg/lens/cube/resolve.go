@@ -14,6 +14,7 @@ import (
 
 const (
 	statsDatasetNamePrefix = "cube_stats"
+	statDatasetNamePrefix  = "cube_stat"
 	dimDatasetNamePrefix   = "cube_dim"
 	leafDatasetNamePrefix  = "cube_leaf"
 )
@@ -22,6 +23,11 @@ type dimensionDatasetResolution struct {
 	Name          string
 	Datasets      []lens.DatasetSpec
 	HasColorValue bool
+}
+
+type statDatasetResolution struct {
+	Datasets         []lens.DatasetSpec
+	DatasetByMeasure map[string]string
 }
 
 func datasetDimensionHasColorValue(dim DimensionSpec) bool {
@@ -93,12 +99,12 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 		dashboard.Datasets = append(dashboard.Datasets, baseDataset(spec))
 	}
 
-	statsDataset, err := resolveStatsDataset(spec, ctx)
+	statsResolution, err := resolveStatDatasets(spec, ctx)
 	if err != nil {
 		return lens.DashboardSpec{}, err
 	}
-	dashboard.Datasets = append(dashboard.Datasets, statsDataset)
-	dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: buildStatPanels(spec, statsDataset.Name)})
+	dashboard.Datasets = append(dashboard.Datasets, statsResolution.Datasets...)
+	dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: buildStatPanels(spec, statsResolution.DatasetByMeasure)})
 
 	if ctx.IsLeaf(spec) {
 		leafSpec, leafDataset, leafErr := resolveLeaf(spec, ctx)
@@ -126,6 +132,37 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 	dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
 
 	return dashboard, nil
+}
+
+func resolveStatDatasets(spec CubeSpec, ctx DrillContext) (statDatasetResolution, error) {
+	resolved := statDatasetResolution{
+		Datasets:         make([]lens.DatasetSpec, 0, 1),
+		DatasetByMeasure: make(map[string]string, len(spec.Measures)),
+	}
+	regularMeasures := make([]MeasureSpec, 0, len(spec.Measures))
+	for _, measure := range spec.Measures {
+		if measure.Override == nil {
+			regularMeasures = append(regularMeasures, measure)
+			continue
+		}
+		name := measureDatasetName(measure.Name)
+		resolved.Datasets = append(resolved.Datasets, resolveOverrideDataset(spec, ctx, *measure.Override, name))
+		resolved.DatasetByMeasure[measure.Name] = name
+	}
+	if len(regularMeasures) == 0 {
+		return resolved, nil
+	}
+	statsSpec := spec
+	statsSpec.Measures = regularMeasures
+	statsDataset, err := resolveStatsDataset(statsSpec, ctx)
+	if err != nil {
+		return statDatasetResolution{}, err
+	}
+	resolved.Datasets = append([]lens.DatasetSpec{statsDataset}, resolved.Datasets...)
+	for _, measure := range regularMeasures {
+		resolved.DatasetByMeasure[measure.Name] = statsDataset.Name
+	}
+	return resolved, nil
 }
 
 func resolveStatsDataset(spec CubeSpec, ctx DrillContext) (lens.DatasetSpec, error) {
@@ -223,10 +260,14 @@ func resolveLeaf(spec CubeSpec, ctx DrillContext) (lens.RowSpec, *lens.DatasetSp
 	}
 }
 
-func buildStatPanels(spec CubeSpec, dataset string) []panel.Spec {
+func buildStatPanels(spec CubeSpec, datasetByMeasure map[string]string) []panel.Spec {
 	panels := make([]panel.Spec, 0, len(spec.Measures))
 	span := statSpan(len(spec.Measures))
 	for _, measure := range spec.Measures {
+		dataset := datasetByMeasure[measure.Name]
+		if strings.TrimSpace(dataset) == "" {
+			dataset = statsDatasetNamePrefix
+		}
 		builder := panel.Stat("stat_"+measure.Name, measure.Label, dataset).
 			Span(span).
 			ValueField(panel.Ref(measure.Name))
@@ -406,6 +447,10 @@ func dimensionSpan(remaining, index int) int {
 
 func datasetName(dimension string) string {
 	return dimDatasetNamePrefix + "_" + strings.ReplaceAll(strings.TrimSpace(dimension), " ", "_")
+}
+
+func measureDatasetName(measure string) string {
+	return statDatasetNamePrefix + "_" + strings.ReplaceAll(strings.TrimSpace(measure), " ", "_")
 }
 
 func resolveOverrideDataset(spec CubeSpec, ctx DrillContext, dataset lens.DatasetSpec, name string) lens.DatasetSpec {
