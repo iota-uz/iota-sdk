@@ -40,7 +40,7 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/gotd/td v0.115.0
 	github.com/hashicorp/golang-lru/v2 v2.0.7
-	github.com/iota-uz/applets v0.4.30
+	github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1
 	github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e
 	github.com/iota-uz/eskiz v0.0.0-20260512120215-4347c50e0295
 	github.com/iota-uz/go-i18n/v2 v2.6.1
@@ -91,6 +91,7 @@ require (
 	golang.org/x/net v0.49.0
 	golang.org/x/oauth2 v0.34.0
 	golang.org/x/sync v0.19.0
+	golang.org/x/sys v0.41.0
 	golang.org/x/text v0.34.0
 	google.golang.org/api v0.209.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -222,7 +223,6 @@ require (
 	golang.org/x/exp v0.0.0-20231006140011-7918f672742d // indirect
 	golang.org/x/image v0.25.0 // indirect
 	golang.org/x/mod v0.32.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/tools v0.41.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260128011058-8636f8732409 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260128011058-8636f8732409 // indirect

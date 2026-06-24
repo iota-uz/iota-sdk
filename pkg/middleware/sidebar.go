@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/go-i18n/v2/i18n"
 
 	"github.com/iota-uz/iota-sdk/components/sidebar"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
@@ -33,6 +34,10 @@ type NavItemsDecorator func(ctx context.Context, r *http.Request, items []types.
 
 var navItemsDecorator NavItemsDecorator = func(_ context.Context, _ *http.Request, items []types.NavigationItem) []types.NavigationItem {
 	return items
+}
+
+type scopedNavApplication interface {
+	NavItemsForScope(context.Context, *i18n.Localizer, application.NavScope) []types.NavigationItem
 }
 
 // SetSidebarPropsDecorator overrides the default no-op sidebar props decorator.
@@ -163,7 +168,16 @@ func NavItemsWithInitialState(initialState sidebar.SidebarState) mux.MiddlewareF
 					next.ServeHTTP(w, r)
 					return
 				}
-				items := navItemsDecorator(r.Context(), r, app.NavItems(localizer))
+				items := app.NavItems(localizer)
+				if scopedApp, ok := app.(scopedNavApplication); ok {
+					items = scopedApp.NavItemsForScope(r.Context(), localizer, application.NavScope{
+						TenantID:    u.TenantID(),
+						UserID:      u.ID(),
+						Roles:       composables.RoleNames(u),
+						Permissions: composables.EffectivePermissionNames(u),
+					})
+				}
+				items = navItemsDecorator(r.Context(), r, items)
 				filtered := filterItems(items, u)
 				if len(u.Roles()) == 0 {
 					filtered = []types.NavigationItem{}

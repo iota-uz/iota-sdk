@@ -46,8 +46,15 @@ func NewCashflowController(
 	}
 }
 
-func (c *CashflowController) Key() string {
-	return c.basePath + "/cashflow"
+func (c *CashflowController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.cashflow", 0, application.Route("", c.basePath+"/cashflow")).
+		WithNav(application.NavNode{
+			ID:       "finance.cashflow",
+			Parent:   "finance.reports",
+			TitleKey: "NavigationLinks.CashflowStatement",
+			Path:     c.basePath + "/cashflow",
+			Order:    20,
+		})
 }
 
 func (c *CashflowController) Register(r *mux.Router) {

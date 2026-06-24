@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/order"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/product"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/controllers/dtos"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/orders"
@@ -98,8 +99,20 @@ func NewOrdersController(
 	}
 }
 
-func (c *OrdersController) Key() string {
-	return c.basePath
+func (c *OrdersController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.order", 0, application.Route("", c.basePath, application.RequireAll(permissions.OrderRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.order",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.WarehouseOrders",
+			Path:     c.basePath,
+			Order:    30,
+			Actions: []application.NavAction{{
+				ID:       "warehouse.order.new",
+				TitleKey: "WarehouseOrders.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *OrdersController) Register(r *mux.Router) {

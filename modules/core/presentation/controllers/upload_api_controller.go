@@ -56,12 +56,12 @@ func NewUploadAPIController(uploadService *services.UploadService, cfg *uploadsc
 	return c
 }
 
-func (c *UploadAPIController) Key() string {
-	return "/api/uploads"
+func (c *UploadAPIController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.upload_api", 0, application.Route("", "/api/uploads"))
 }
 
 func (c *UploadAPIController) Register(r *mux.Router) {
-	router := r.PathPrefix(c.Key()).Subrouter()
+	router := r.PathPrefix("/api/uploads").Subrouter()
 	router.Use(middleware.Authorize())
 	router.Use(middleware.ProvideUser())
 	if c.defaultTenantID != uuid.Nil {

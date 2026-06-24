@@ -4,6 +4,7 @@ package excel
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/xuri/excelize/v2"
@@ -12,6 +13,8 @@ import (
 // Exporter exports data to Excel format
 type Exporter interface {
 	Export(ctx context.Context, datasource DataSource) ([]byte, error)
+	// ExportToWriter streams the export to w with flat memory (large exports).
+	ExportToWriter(ctx context.Context, w io.Writer, datasource DataSource) error
 }
 
 // ExcelExporter implements Exporter using excelize
@@ -135,6 +138,142 @@ func (e *ExcelExporter) Export(ctx context.Context, datasource DataSource) ([]by
 	}
 
 	return buffer.Bytes(), nil
+}
+
+// ExportToWriter streams the datasource to w as an .xlsx using excelize's
+// StreamWriter. Unlike Export (which materializes the whole workbook in memory
+// and then re-walks every row to apply styles), StreamWriter spools rows to a
+// temp file so peak memory stays flat regardless of row count, and styles are
+// attached per cell at write time (no O(N) post-pass). Use this for large
+// exports; Export remains for small exports that want richer styling.
+//
+// Trade-off vs Export: no alternate-row striping or per-cell borders
+// (StreamWriter cannot style a range after the row is flushed). Header styling,
+// column widths and numeric/date cell formats are preserved — so money stays a
+// real number, not text.
+func (e *ExcelExporter) ExportToWriter(ctx context.Context, w io.Writer, datasource DataSource) error {
+	f := excelize.NewFile()
+	defer func() { _ = f.Close() }()
+
+	sheetName := datasource.GetSheetName()
+	index, err := f.NewSheet(sheetName)
+	if err != nil {
+		return fmt.Errorf("failed to create sheet: %w", err)
+	}
+	f.SetActiveSheet(index)
+	_ = f.DeleteSheet("Sheet1")
+
+	headers := datasource.GetHeaders()
+	if len(headers) == 0 {
+		return fmt.Errorf("no columns found in data source")
+	}
+
+	sw, err := f.NewStreamWriter(sheetName)
+	if err != nil {
+		return fmt.Errorf("failed to create stream writer: %w", err)
+	}
+
+	// Column widths must be set before any row is written.
+	for i := range headers {
+		_ = sw.SetColWidth(i+1, i+1, 15)
+	}
+
+	// Pre-create reusable styles once (StreamWriter attaches them per cell).
+	floatStyle, err := f.NewStyle(&excelize.Style{NumFmt: 2}) // 0.00
+	if err != nil {
+		return fmt.Errorf("failed to create numeric style: %w", err)
+	}
+	timeStyle, err := f.NewStyle(&excelize.Style{NumFmt: 22}) // m/d/yy h:mm
+	if err != nil {
+		return fmt.Errorf("failed to create datetime style: %w", err)
+	}
+	intStyle, err := f.NewStyle(&excelize.Style{NumFmt: 1}) // 0
+	if err != nil {
+		return fmt.Errorf("failed to create integer style: %w", err)
+	}
+
+	rowNum := 1
+	if e.options.IncludeHeaders {
+		var headerStyle int
+		if e.styleOptions != nil && e.styleOptions.HeaderStyle != nil {
+			if headerStyle, err = e.createStyle(f, e.styleOptions.HeaderStyle); err != nil {
+				return fmt.Errorf("failed to create header style: %w", err)
+			}
+		}
+		cells := make([]interface{}, len(headers))
+		for i, h := range headers {
+			cells[i] = excelize.Cell{StyleID: headerStyle, Value: h}
+		}
+		if err := sw.SetRow("A1", cells); err != nil {
+			return fmt.Errorf("failed to write headers: %w", err)
+		}
+		rowNum++
+	}
+
+	getRow, err := datasource.GetRows(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get rows: %w", err)
+	}
+
+	rowCount := 0
+	for {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+
+		row, err := getRow()
+		if err != nil {
+			return fmt.Errorf("failed to get row: %w", err)
+		}
+		if row == nil {
+			break
+		}
+		if e.options.MaxRows > 0 && rowCount >= e.options.MaxRows {
+			break
+		}
+
+		cellRef, _ := excelize.CoordinatesToCellName(1, rowNum)
+		cells := make([]interface{}, len(row))
+		for i, v := range row {
+			cells[i] = streamCell(convertPgxValue(v), floatStyle, timeStyle, intStyle)
+		}
+		if err := sw.SetRow(cellRef, cells); err != nil {
+			return fmt.Errorf("failed to write row %d: %w", rowNum, err)
+		}
+
+		rowNum++
+		rowCount++
+	}
+
+	if err := sw.Flush(); err != nil {
+		return fmt.Errorf("failed to flush stream writer: %w", err)
+	}
+
+	if err := f.Write(w); err != nil {
+		return fmt.Errorf("failed to write workbook: %w", err)
+	}
+	return nil
+}
+
+// streamCell wraps a normalized value in an excelize.Cell carrying the right
+// number format so numeric/date cells are typed (not text). Strings and other
+// types pass through unstyled.
+func streamCell(v interface{}, floatStyle, timeStyle, intStyle int) interface{} {
+	switch t := v.(type) {
+	case time.Time:
+		return excelize.Cell{StyleID: timeStyle, Value: t}
+	case *time.Time:
+		if t == nil {
+			return nil
+		}
+		return excelize.Cell{StyleID: timeStyle, Value: *t}
+	case float64, float32:
+		return excelize.Cell{StyleID: floatStyle, Value: v}
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return excelize.Cell{StyleID: intStyle, Value: v}
+	default:
+		return v
+	}
 }
 
 // writeHeaders writes header row to the Excel file

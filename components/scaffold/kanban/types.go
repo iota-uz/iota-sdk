@@ -2,6 +2,7 @@ package kanban
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"slices"
 	"strconv"
@@ -27,12 +28,40 @@ func NewConfig[C Card](board Board[C], columnChangeURL, cardChangeURL string) *C
 	}
 }
 
-const QueryParamColumn = "kanbanColumn"
+const (
+	QueryParamColumn       = "kanbanColumn"
+	LegacyQueryParamColumn = "colKey"
+)
 
 const (
 	queryParamPage  = "page"
 	queryParamLimit = "limit"
 )
+
+const (
+	FormParamColumnKey      = "colKey"
+	FormParamColumnOldIndex = "colOldIndex"
+	FormParamColumnNewIndex = "colNewIndex"
+	FormParamCardKey        = "cardKey"
+	FormParamCardOldColumn  = "cardOldCol"
+	FormParamCardNewColumn  = "cardNewCol"
+	FormParamCardOldIndex   = "cardOldIndex"
+	FormParamCardNewIndex   = "cardNewIndex"
+)
+
+var transportQueryParams = []string{
+	QueryParamColumn,
+	LegacyQueryParamColumn,
+	queryParamPage,
+	queryParamLimit,
+	FormParamColumnOldIndex,
+	FormParamColumnNewIndex,
+	FormParamCardKey,
+	FormParamCardOldColumn,
+	FormParamCardNewColumn,
+	FormParamCardOldIndex,
+	FormParamCardNewIndex,
+}
 
 type ColumnLoadState struct {
 	NextPage int
@@ -87,10 +116,33 @@ func CurrentQueryParams(ctx context.Context) url.Values {
 	params, _ := composables.UseParams(ctx)
 	currentParams := url.Values{}
 	if params != nil && params.Request != nil {
-		currentParams = params.Request.URL.Query()
+		currentParams = CleanQueryParams(params.Request.URL.Query())
 	}
 
 	return currentParams
+}
+
+func ColumnKey(values url.Values) string {
+	if colKey := values.Get(QueryParamColumn); colKey != "" {
+		return colKey
+	}
+
+	return values.Get(LegacyQueryParamColumn)
+}
+
+func CleanQueryParams(values url.Values) url.Values {
+	params := url.Values{}
+	for key, vals := range values {
+		for _, value := range vals {
+			params.Add(key, value)
+		}
+	}
+
+	for _, key := range transportQueryParams {
+		params.Del(key)
+	}
+
+	return params
 }
 
 func ColumnCardsTargetID(columnKey string) string {
@@ -101,23 +153,68 @@ func ColumnSpinnerID(columnKey string) string {
 	return "kanban-column-spinner-" + columnKey
 }
 
+func ColumnTriggerID(boardKey string) string {
+	return "kanban-column-trigger-" + boardKey
+}
+
+func CardTriggerID(boardKey string) string {
+	return "kanban-card-trigger-" + boardKey
+}
+
+func ColumnTriggerFormID(boardKey string) string {
+	return "kanban-column-trigger-form-" + boardKey
+}
+
+func CardTriggerFormID(boardKey string) string {
+	return "kanban-card-trigger-form-" + boardKey
+}
+
 func nextColumnChunkURL(baseURL, columnKey string, state *ColumnLoadState, currentParams url.Values) string {
 	if state == nil {
 		return baseURL
 	}
 
-	params := url.Values{}
-	for key, values := range currentParams {
-		for _, value := range values {
-			params.Add(key, value)
-		}
-	}
+	params := CleanQueryParams(currentParams)
 
 	params.Set(QueryParamColumn, columnKey)
 	params.Set(queryParamPage, strconv.Itoa(state.NextPage))
 	params.Set(queryParamLimit, strconv.Itoa(state.PerPage))
 
 	return baseURL + "?" + params.Encode()
+}
+
+func columnSortConfig(triggerID string) string {
+	return fmt.Sprintf(`{
+		delayOnTouchOnly: true,
+		delay: 150,
+		touchStartThreshold: 8,
+		onEnd: (event) => {
+			changeCol({
+				key: event.item.dataset.colKey,
+				oldIndex: event.oldIndex,
+				newIndex: event.newIndex
+			});
+			$nextTick(() => htmx.trigger(%q, 'columnChanged'));
+		}
+	}`, "#"+triggerID)
+}
+
+func cardSortConfig(triggerID string) string {
+	return fmt.Sprintf(`{
+		delayOnTouchOnly: true,
+		delay: 150,
+		touchStartThreshold: 8,
+		onEnd: (event) => {
+			changeCard({
+				key: event.item.dataset.cardKey,
+				newCol: event.to.dataset.colKey,
+				oldCol: event.from.dataset.colKey,
+				oldIndex: event.oldIndex,
+				newIndex: event.newIndex
+			})
+			$nextTick(() => htmx.trigger(%q, 'cardChanged'));
+		}
+	}`, "#"+triggerID)
 }
 
 type Card interface {

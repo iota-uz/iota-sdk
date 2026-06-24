@@ -36,8 +36,8 @@ func NewSystemHealthController(_ application.Application, options *SystemHealthC
 	}
 }
 
-func (c *SystemHealthController) Key() string {
-	return "system-health"
+func (c *SystemHealthController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.system_health", 0, application.Route("", c.options.BasePath))
 }
 
 func (c *SystemHealthController) Register(r *mux.Router) {

@@ -40,8 +40,8 @@ func (c *PaymeController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Handle))
 }
 
-func (c *PaymeController) Key() string {
-	return c.basePath
+func (c *PaymeController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.payme", 0, application.Route("", c.basePath))
 }
 
 func (c *PaymeController) Handle(

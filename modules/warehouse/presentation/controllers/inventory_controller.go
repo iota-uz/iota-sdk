@@ -13,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/pagination"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/aggregates/position"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/domain/entities/inventory"
+	"github.com/iota-uz/iota-sdk/modules/warehouse/permissions"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/mappers"
 	inventory2 "github.com/iota-uz/iota-sdk/modules/warehouse/presentation/templates/pages/inventory"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
@@ -48,8 +49,15 @@ func NewInventoryController(
 	}
 }
 
-func (c *InventoryController) Key() string {
-	return c.basePath
+func (c *InventoryController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("warehouse.inventory", 0, application.Route("", c.basePath, application.RequireAll(permissions.InventoryRead))).
+		WithNav(application.NavNode{
+			ID:       "warehouse.inventory",
+			Parent:   "warehouse",
+			TitleKey: "NavigationLinks.WarehouseInventory",
+			Path:     c.basePath,
+			Order:    50,
+		})
 }
 
 func (c *InventoryController) Register(r *mux.Router) {

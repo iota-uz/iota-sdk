@@ -38,8 +38,46 @@ func NewFinancialOverviewController(
 	}
 }
 
-func (c *FinancialOverviewController) Key() string {
-	return c.basePath
+func (c *FinancialOverviewController) Descriptor() application.ControllerDescriptor {
+	overviewPath := c.basePath + "/overview"
+	return application.Descriptor("finance.financial_overview", 0, application.Route("", overviewPath)).
+		WithNav(
+			application.NavNode{
+				ID:       "finance.financial_overview",
+				Parent:   "finance",
+				TitleKey: "NavigationLinks.FinancialOverview",
+				Path:     overviewPath,
+				Order:    10,
+			},
+			application.NavNode{
+				ID:       "finance.payments",
+				Parent:   "finance.financial_overview",
+				TitleKey: "NavigationLinks.Payments",
+				Path:     overviewPath + "?tab=payments",
+				Surfaces: map[application.Surface]application.SurfaceOptions{
+					application.SurfaceSpotlight: {},
+				},
+				Actions: []application.NavAction{{
+					ID:       "finance.payments.new",
+					TitleKey: "Payments.List.New",
+					Path:     overviewPath + "?tab=payments",
+				}},
+			},
+			application.NavNode{
+				ID:       "finance.expenses",
+				Parent:   "finance.financial_overview",
+				TitleKey: "NavigationLinks.Expenses",
+				Path:     overviewPath + "?tab=expenses",
+				Surfaces: map[application.Surface]application.SurfaceOptions{
+					application.SurfaceSpotlight: {},
+				},
+				Actions: []application.NavAction{{
+					ID:       "finance.expenses.new",
+					TitleKey: "Expenses.List.New",
+					Path:     overviewPath + "?tab=expenses",
+				}},
+			},
+		)
 }
 
 func (c *FinancialOverviewController) Register(r *mux.Router) {

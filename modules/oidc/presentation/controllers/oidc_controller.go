@@ -13,6 +13,7 @@ import (
 	coreservices "github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/modules/oidc/infrastructure/oidc"
 	oidcservices "github.com/iota-uz/iota-sdk/modules/oidc/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
@@ -52,8 +53,8 @@ func NewOIDCController(
 	}
 }
 
-func (c *OIDCController) Key() string {
-	return "/oidc"
+func (c *OIDCController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("oidc.oidc", 0, application.Route("", "/oidc"))
 }
 
 // Register mounts the OIDC provider router and custom routes

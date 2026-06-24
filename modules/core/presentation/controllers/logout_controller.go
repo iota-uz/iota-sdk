@@ -28,8 +28,8 @@ func NewLogoutController(cfg *httpconfig.Config, cookiesCfg *cookies.Config, app
 	return &LogoutController{cfg: cfg, cookiesCfg: cookiesCfg, appCfg: appCfg}
 }
 
-func (c *LogoutController) Key() string {
-	return "/logout"
+func (c *LogoutController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.logout", 0, application.Route("", "/logout"))
 }
 
 func (c *LogoutController) Register(r *mux.Router) {

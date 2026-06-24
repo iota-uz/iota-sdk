@@ -38,8 +38,15 @@ func NewFinancialReportController(
 	}
 }
 
-func (c *FinancialReportController) Key() string {
-	return c.basePath
+func (c *FinancialReportController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.financial_report", 0, application.Route("", c.basePath+"/income-statement")).
+		WithNav(application.NavNode{
+			ID:       "finance.financial_report",
+			Parent:   "finance.reports",
+			TitleKey: "NavigationLinks.IncomeStatement",
+			Path:     c.basePath + "/income-statement",
+			Order:    10,
+		})
 }
 
 func (c *FinancialReportController) Register(r *mux.Router) {

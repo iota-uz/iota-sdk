@@ -132,8 +132,8 @@ type LoginController struct {
 	options          *LoginControllerOptions
 }
 
-func (c *LoginController) Key() string {
-	return "/login"
+func (c *LoginController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.login", 0, application.Route("", "/login"))
 }
 
 func (c *LoginController) Register(r *mux.Router) {
