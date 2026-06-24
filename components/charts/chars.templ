@@ -10,20 +10,55 @@ import (
 )
 
 script graph(id string, options templ.JSExpression) {
+	const hiddenSeriesNames = (chart) => {
+		const globals = chart && chart.w && chart.w.globals;
+		if (!globals) {
+			return [];
+		}
+		const names = globals.seriesNames || [];
+		const hidden = new Set();
+		(globals.collapsedSeriesIndices || []).forEach((index) => {
+			if (names[index]) {
+				hidden.add(names[index]);
+			}
+		});
+		(globals.collapsedSeries || []).forEach((series) => {
+			if (typeof series === 'string') {
+				hidden.add(series);
+				return;
+			}
+			if (series && typeof series.name === 'string') {
+				hidden.add(series.name);
+			}
+		});
+		return Array.from(hidden);
+	}
+
 	const renderChart = () => {
 		const container = document.getElementById(id);
 		if (!container) {
 			console.error(`Chart container with ID ${id} not found.`);
 			return;
 		}
+		const hidden = new Set(container.__apexHiddenSeries || []);
 		if (container.__apexChart && typeof container.__apexChart.destroy === 'function') {
+			hiddenSeriesNames(container.__apexChart).forEach((name) => hidden.add(name));
 			container.__apexChart.destroy();
 			container.__apexChart = null;
 		}
 		container.innerHTML = '';
 		const chart = new ApexCharts(container, options);
 		container.__apexChart = chart;
-		chart.render();
+		container.__apexHiddenSeries = Array.from(hidden);
+		Promise.resolve(chart.render()).then(() => {
+			const names = ((chart.w && chart.w.globals && chart.w.globals.seriesNames) || []);
+			hidden.forEach((name) => {
+				if (names.includes(name) && typeof chart.hideSeries === 'function') {
+					chart.hideSeries(name);
+				}
+			});
+			container.__apexHiddenSeries = hiddenSeriesNames(chart);
+		});
 	}
 	document.addEventListener('DOMContentLoaded', () => {
 		renderChart();

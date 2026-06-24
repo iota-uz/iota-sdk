@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/a-h/templ"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -375,6 +376,33 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				t.Helper()
 				require.Len(t, options.Colors, 2)
 				require.Equal(t, []string{"#7C3AED", "#2563EB"}, options.Colors)
+			},
+		},
+		{
+			name: "stacked bar tooltip includes localized total",
+			panelSpec: panel.StackedBar("sales-by-product", "Sales by Product", "sales").
+				CategoryField("category").
+				SeriesField("series").
+				ValueField("value").
+				Format(format.MoneyCompact("UZS")).
+				Build(),
+			panelResult: func() *runtime.PanelResult {
+				fr, err := frame.New("sales",
+					frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"Jan", "Jan"}},
+					frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL"}},
+					frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0, 5.0}},
+				)
+				require.NoError(t, err)
+				return &runtime.PanelResult{Frames: mustFrameSet(t, fr), Locale: "ru"}
+			}(),
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Tooltip)
+				require.NotEmpty(t, options.Tooltip.Custom)
+				custom := string(options.Tooltip.Custom.(templ.JSExpression))
+				require.Contains(t, custom, "Итого")
+				require.Contains(t, custom, "collapsedSeriesIndices")
+				require.Contains(t, custom, "formatValue(total, -1)")
 			},
 		},
 		{
