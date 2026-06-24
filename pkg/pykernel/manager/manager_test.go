@@ -24,11 +24,11 @@ type testSession struct {
 	wd     string
 }
 
-func (s *testSession) Key() string                        { return s.key }
-func (s *testSession) TenantID() uuid.UUID                { return s.tenant }
+func (s *testSession) Key() string                          { return s.key }
+func (s *testSession) TenantID() uuid.UUID                  { return s.tenant }
 func (s *testSession) Capabilities() pykernel.CapabilitySet { return s.caps }
-func (s *testSession) Mode() pykernel.Mode                { return s.mode }
-func (s *testSession) Workdir() string                    { return s.wd }
+func (s *testSession) Mode() pykernel.Mode                  { return s.mode }
+func (s *testSession) Workdir() string                      { return s.wd }
 
 func requirePython(t *testing.T) {
 	t.Helper()
