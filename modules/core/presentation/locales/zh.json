@@ -366,7 +366,8 @@
     "ToExcel": "导出到 Excel",
     "ToCSV": "导出到 CSV",
     "ToJSON": "导出到 JSON",
-    "ToTXT": "导出到 TXT"
+    "ToTXT": "导出到 TXT",
+    "Preparing": "正在准备文件…"
   },
   "Filters": {
     "CreatedAt": {
