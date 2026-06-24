@@ -140,6 +140,10 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 	require.Contains(t, onClick.Call, "htmx.ajax")
 	require.Contains(t, onClick.Call, "/contracts?scope=daily")
 	require.Contains(t, onClick.Call, "#report")
+	// Must pass an explicit source so HTMX scopes the htmx-request class to the
+	// clicked element instead of document.body (which lights up every .btn on
+	// the page, e.g. the nav tabs).
+	require.Contains(t, onClick.Call, "source: this")
 }
 
 func TestActionURLPreservesExistingCubeDrillFilters(t *testing.T) {
