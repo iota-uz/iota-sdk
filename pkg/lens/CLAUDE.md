@@ -117,11 +117,23 @@ Example:
 	})
 ```
 
+Use measure `.Override(...)` when a stat card needs an authoritative dataset that differs from the cube's regular aggregate source. For example, a dashboard may render charts from a bounded frame while a KPI card uses an exact precomputed count:
+
+```go
+.Measure("total_policies", "Total Policies").
+	Count().
+	Override(lens.DatasetSpec{
+		Kind: lens.DatasetKindStatic,
+		Static: exactTotalPoliciesFrame,
+	})
+```
+
 Important behavior:
 
 - Override datasets automatically inherit cube params
 - Override datasets automatically receive active drill filters as `@f_<dimension>`
 - In SQL cubes, override query datasets inherit the cube datasource if they do not set one explicitly
+- Dimension overrides back dimension panels; measure overrides back only the corresponding stat panel
 
 That means an override query can safely reference params such as:
 

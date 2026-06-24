@@ -279,6 +279,13 @@ func compileMeasure(item lensspec.MeasureSpec, opts Options) (cube.MeasureSpec, 
 		Info:         resolveText(item.Info, opts),
 		RequiresJoin: resolveStringSlice(item.RequiresJoin, opts.Values),
 	}
+	if item.Override != nil {
+		override, err := compileDataset(*item.Override, opts)
+		if err != nil {
+			return cube.MeasureSpec{}, err
+		}
+		out.Override = &override
+	}
 	if item.Action != nil {
 		actionSpec, err := resolveActionSpec(*item.Action, opts.Values)
 		if err != nil {

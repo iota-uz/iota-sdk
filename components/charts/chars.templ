@@ -10,20 +10,115 @@ import (
 )
 
 script graph(id string, options templ.JSExpression) {
+	const hiddenSeriesNames = (chart) => {
+		const globals = chart && chart.w && chart.w.globals;
+		if (!globals) {
+			return [];
+		}
+		const names = globals.seriesNames || [];
+		const hidden = new Set();
+		(globals.collapsedSeriesIndices || []).forEach((index) => {
+			if (names[index]) {
+				hidden.add(names[index]);
+			}
+		});
+		(globals.collapsedSeries || []).forEach((series) => {
+			if (typeof series === 'string') {
+				hidden.add(series);
+				return;
+			}
+			if (series && typeof series.name === 'string') {
+				hidden.add(series.name);
+			}
+		});
+		return Array.from(hidden);
+	}
+
+	// Charts inside the same rerender scope (e.g. the tabs of a KindTabs panel)
+	// share one legend selection, so deselecting a series in one tab carries
+	// over to the others instead of resetting on tab switch.
+	const rerenderScope = (container) => (container && container.closest)
+		? container.closest('[data-lens-rerender-scope]')
+		: null;
+	const readSharedHidden = (container) => {
+		const scope = rerenderScope(container);
+		return scope && Array.isArray(scope.__apexSharedHidden)
+			? scope.__apexSharedHidden
+			: null;
+	}
+	const writeSharedHidden = (container, names) => {
+		const scope = rerenderScope(container);
+		if (scope) {
+			scope.__apexSharedHidden = Array.from(names);
+		}
+	}
+	const bindSharedLegend = (container) => {
+		options.chart = options.chart || {};
+		options.chart.events = options.chart.events || {};
+		if (options.chart.events.__sdkSharedHiddenBound) {
+			return;
+		}
+		const prevLegendClick = options.chart.events.legendClick;
+		options.chart.events.legendClick = function(chartCtx, seriesIndex, opts) {
+			if (typeof prevLegendClick === 'function') {
+				try { prevLegendClick(chartCtx, seriesIndex, opts); } catch (e) { /* ignore */ }
+			}
+			// ApexCharts toggles series visibility after this hook fires, so read
+			// the resulting hidden set next tick and publish it to the shared scope
+			// for sibling charts to adopt on their next render.
+			setTimeout(() => {
+				// Read the chart that fired this click (chartCtx), not
+				// container.__apexChart — a re-render may have replaced the latter
+				// by the time this tick runs, which would publish the wrong set.
+				const names = hiddenSeriesNames(chartCtx || container.__apexChart);
+				container.__apexHiddenSeries = names;
+				writeSharedHidden(container, names);
+			}, 0);
+		};
+		options.chart.events.__sdkSharedHiddenBound = true;
+	}
+
 	const renderChart = () => {
 		const container = document.getElementById(id);
 		if (!container) {
 			console.error(`Chart container with ID ${id} not found.`);
 			return;
 		}
+		bindSharedLegend(container);
+		// Prefer the scope-shared selection (if any) so all charts in a tab group
+		// stay in sync; otherwise fall back to this chart's own state.
+		const sharedHidden = readSharedHidden(container);
+		const hidden = new Set(sharedHidden !== null ? sharedHidden : (container.__apexHiddenSeries || []));
 		if (container.__apexChart && typeof container.__apexChart.destroy === 'function') {
+			// When a shared scope exists it is the source of truth for the tab
+			// group; merging the outgoing chart's own hidden set would re-hide
+			// series the user un-hid elsewhere. Only fall back to it when there
+			// is no shared selection.
+			if (sharedHidden === null) {
+				hiddenSeriesNames(container.__apexChart).forEach((name) => hidden.add(name));
+			}
 			container.__apexChart.destroy();
 			container.__apexChart = null;
 		}
 		container.innerHTML = '';
 		const chart = new ApexCharts(container, options);
 		container.__apexChart = chart;
-		chart.render();
+		container.__apexHiddenSeries = Array.from(hidden);
+		Promise.resolve(chart.render()).then(() => {
+			// A newer renderChart() may have destroyed this instance while the
+			// render promise was pending; bail so we don't toggle a dead chart
+			// or overwrite __apexHiddenSeries with its empty state.
+			if (container.__apexChart !== chart) {
+				return;
+			}
+			const names = ((chart.w && chart.w.globals && chart.w.globals.seriesNames) || []);
+			hidden.forEach((name) => {
+				if (names.includes(name) && typeof chart.hideSeries === 'function') {
+					chart.hideSeries(name);
+				}
+			});
+			container.__apexHiddenSeries = hiddenSeriesNames(chart);
+		});
 	}
 	document.addEventListener('DOMContentLoaded', () => {
 		renderChart();

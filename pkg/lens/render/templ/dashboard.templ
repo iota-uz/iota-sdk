@@ -381,7 +381,7 @@ templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
 								}
 								@MetricInfoButton(spec, "flex-shrink-0")
 							</div>
-							if spec.Description != "" && spec.Kind != panel.KindStat {
+							if spec.Description != "" && spec.Kind != panel.KindStat && spec.Kind != panel.KindSegmentBar {
 								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
 							}
 						</div>
@@ -414,6 +414,8 @@ templ PanelContent(spec panel.Spec, result *runtime.Result, resolvePanelErrorAct
 			@TablePanel(spec, currentPanel, resolvePanelErrorAction)
 		case panel.KindStat:
 			@StatPanel(spec, currentPanel, resolvePanelErrorAction)
+		case panel.KindSegmentBar:
+			@SegmentBarPanel(spec, currentPanel, resolvePanelErrorAction)
 		default:
 			@ChartPanel(spec, currentPanel, resolvePanelErrorAction)
 	}
@@ -510,6 +512,8 @@ templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool, 
 				@TablePanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindStat {
 				@StatPanel(child, childPanel, resolvePanelErrorAction)
+			} else if child.Kind == panel.KindSegmentBar {
+				@SegmentBarPanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindTabs || child.Kind == panel.KindGrid || child.Kind == panel.KindSplit || child.Kind == panel.KindRepeat {
 				@PanelContent(child, result, resolvePanelErrorAction)
 			} else if fullscreen {
@@ -541,6 +545,69 @@ templ StatPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 	</div>
 }
 
+templ SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	if result == nil || result.Error != nil {
+		@ErrorState(spec, result, resolvePanelErrorAction)
+		{{ return }}
+	}
+	{{ view := buildSegmentBarView(spec, result) }}
+	if !view.HasData {
+		@EmptyState()
+		{{ return }}
+	}
+	{{ row := statRow(result) }}
+	{{ href := actionURL(spec.Action, row, result) }}
+	{{ onClick := actionOnClick(spec.Action, row, result) }}
+	{{ clickable := href != "" || onClick.Call != "" }}
+	<div class="group relative flex h-full flex-col">
+		if href != "" {
+			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-0 block rounded-xl"></a>
+		} else if onClick.Call != "" {
+			<button type="button" onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-0 block h-full w-full rounded-xl"></button>
+		}
+		<div class={ segmentBarBodyClass(clickable) }>
+			<div class="flex items-start justify-between gap-3">
+				<div class="min-w-0">
+					<div class="text-[30px] sm:text-[34px] font-bold leading-none tracking-tight tabular-nums text-slate-900">{ view.Total }</div>
+					if view.Caption != "" {
+						<div class="mt-2 text-xs font-medium uppercase tracking-wide text-slate-400">{ view.Caption }</div>
+					}
+				</div>
+				if clickable {
+					<span class="flex-shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">
+						@icons.ArrowRight(icons.Props{Size: "18"})
+					</span>
+				}
+			</div>
+			<div class="mt-5 flex h-4 w-full gap-[2px] overflow-hidden rounded-full bg-slate-100 ring-1 ring-inset ring-slate-200/60">
+				for _, seg := range view.Segments {
+					if seg.Raw > 0 {
+						<div class="h-full first:rounded-l-full last:rounded-r-full" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></div>
+					}
+				}
+			</div>
+			<div class="mt-5 divide-y divide-slate-100">
+				for _, seg := range view.Segments {
+					<div class="flex items-center justify-between gap-4 py-2.5">
+						<div class="flex min-w-0 items-center gap-2.5">
+							if seg.Raw > 0 {
+								<span class="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={ segmentSwatchStyle(seg.Color) }></span>
+							} else {
+								<span class="h-2.5 w-2.5 flex-shrink-0 rounded-full ring-1 ring-inset ring-slate-300"></span>
+							}
+							<span class={ segmentLegendLabelClass(seg.Raw) }>{ seg.Label }</span>
+						</div>
+						<div class="flex flex-shrink-0 items-baseline gap-3">
+							<span class={ segmentLegendAmountClass(seg.Raw) }>{ seg.Amount }</span>
+							<span class="w-10 text-right text-xs tabular-nums text-slate-400">{ seg.PctTxt }</span>
+						</div>
+					</div>
+				}
+			</div>
+		</div>
+	</div>
+}
+
 templ MetricInfoButton(spec panel.Spec, class string) {
 	{{ infoText := panelMetricInfoText(ctx, spec) }}
 	@MetricInfoButtonWithText(infoText, class)
@@ -555,6 +622,7 @@ templ MetricInfoButtonWithText(infoText, class string) {
 		type="button"
 		class={ "inline-flex h-7 w-7 items-center justify-center rounded-full text-slate-400 transition hover:text-slate-600 focus:outline-none cursor-pointer", class }
 		x-tooltip.placement.bottom-start.interactive.theme.light.html.raw={ metricInfoTooltipHTML(ctx, infoText) }
+		x-init="$nextTick(() => $el.__x_tippy && $el.__x_tippy.setProps({ appendTo: () => document.body }))"
 		@click.stop=""
 		aria-label={ chartText.MetricInfo }
 	>

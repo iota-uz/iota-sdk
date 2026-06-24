@@ -263,16 +263,6 @@
     color: oklch(var(--white));
   }
 
-  :popover-open {
-    width: 200px;
-    height: 100px;
-    position: absolute;
-    inset: unset;
-    bottom: 5px;
-    right: 5px;
-    margin: 0;
-  }
-
   html.dark {
     color-scheme: dark;
     /* Surface */

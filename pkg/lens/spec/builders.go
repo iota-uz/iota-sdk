@@ -30,6 +30,9 @@ func HorizontalBar(id, title, dataset string) *PanelBuilder {
 func StackedBar(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindStackedBar, id, title, dataset)
 }
+func SegmentBar(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindSegmentBar, id, title, dataset)
+}
 func Pie(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindPie, id, title, dataset)
 }

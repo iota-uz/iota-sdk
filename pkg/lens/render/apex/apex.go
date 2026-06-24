@@ -155,7 +155,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 				},
 			}
 		}
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
@@ -182,7 +182,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
@@ -268,6 +268,7 @@ func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -377,6 +378,12 @@ func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, pan
 	if valueAxis.Scale == panel.AxisScaleLogarithmic && manualLogScaleApplied {
 		axisFormatter = wrapLogarithmicAxisFormatter(axisFormatter, panelResult.Locale, logPlan)
 		tooltipFormatter = wrapLogarithmicTooltipFormatter(tooltipFormatter, panelResult.Locale, valueAxis.LogBase)
+	}
+	if panelSpec.Kind == panel.KindStackedBar {
+		if options.Tooltip == nil {
+			options.Tooltip = &charts.TooltipConfig{}
+		}
+		options.Tooltip.Custom = stackedBarTooltipWithTotal(panelResult.Locale, tooltipFormatter)
 	}
 	if axisFormatter == "" && tooltipFormatter == "" {
 		return
@@ -678,6 +685,79 @@ func chartValueFormatters(spec *format.Spec, locale string) (templ.JSExpression,
 	}
 }
 
+func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) templ.JSExpression {
+	if strings.TrimSpace(locale) == "" {
+		locale = "en-US"
+	}
+	label := "Total"
+	if strings.HasPrefix(locale, "ru") {
+		label = "Итого"
+	} else if strings.HasPrefix(locale, "uz-Cyrl") {
+		label = "Жами"
+	} else if strings.HasPrefix(locale, "uz") {
+		label = "Jami"
+	}
+	valueFormatter := "null"
+	if formatter != "" {
+		valueFormatter = "(" + string(formatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function({ series, dataPointIndex, w }) {
+		const valueFormatter = %s;
+		const locale = %q;
+		const totalLabel = %q;
+		const globals = (w && w.globals) || {};
+		const names = globals.seriesNames || [];
+		const colors = globals.colors || [];
+		const collapsed = new Set(globals.collapsedSeriesIndices || []);
+		const categories = globals.categoryLabels || globals.labels || ((w && w.config && w.config.xaxis && w.config.xaxis.categories) || []);
+		const escapeHTML = (value) => String(value == null ? '' : value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+		const formatValue = (value, seriesIndex) => {
+			const number = Number(value);
+			const normalized = Number.isFinite(number) ? number : value;
+			if (valueFormatter) {
+				return valueFormatter(normalized, { seriesIndex, dataPointIndex, w });
+			}
+			return Number.isFinite(number) ? number.toLocaleString(locale) : String(value == null ? '' : value);
+		};
+		let total = 0;
+		let hasTotal = false;
+		const rows = (series || []).map((points, seriesIndex) => {
+			if (collapsed.has(seriesIndex)) {
+				return '';
+			}
+			const value = points && points[dataPointIndex];
+			const number = Number(value);
+			if (Number.isFinite(number)) {
+				total += number;
+				hasTotal = true;
+			}
+			if (value == null || value === '') {
+				return '';
+			}
+			const color = colors[seriesIndex] || '#9ca3af';
+			const name = names[seriesIndex] || '';
+			return '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;">'
+				+ '<span class="apexcharts-tooltip-marker" style="background-color:' + escapeHTML(color) + ';"></span>'
+				+ '<div class="apexcharts-tooltip-text">'
+				+ '<div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-y-label">' + escapeHTML(name) + ': </span>'
+				+ '<span class="apexcharts-tooltip-text-y-value">' + escapeHTML(formatValue(value, seriesIndex)) + '</span></div>'
+				+ '</div></div>';
+		}).join('');
+		const totalRow = hasTotal
+			? '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;font-weight:600;border-top:1px solid rgba(255,255,255,0.18);margin-top:4px;padding-top:4px;">'
+				+ '<span class="apexcharts-tooltip-marker" style="background-color:transparent;"></span>'
+				+ '<div class="apexcharts-tooltip-text"><div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-y-label">' + escapeHTML(totalLabel) + ': </span>'
+				+ '<span class="apexcharts-tooltip-text-y-value">' + escapeHTML(formatValue(total, -1)) + '</span></div></div></div>'
+			: '';
+		return '<div class="apexcharts-tooltip-title">' + escapeHTML(categories[dataPointIndex] || '') + '</div>' + rows + totalRow;
+	}`, valueFormatter, locale, label))
+}
+
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, panelResult *runtime.PanelResult) templ.JSExpression {
 	method := spec.Method
 	if method == "" {
@@ -759,7 +839,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			window.location.href = nextURL;
 		};`
 	case action.KindHtmxSwap:
-		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
+		// `source: cfg.target` scopes the in-flight `htmx-request` class to
+		// the swap target subtree. Without a source, htmx.ajax falls back to
+		// document.body and the loading state cascades onto every .btn on the
+		// page (nav tabs, sidebar, etc.).
+		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {source: cfg.target, target: cfg.target, swap: 'innerHTML'});"
 	case action.KindEmitEvent:
 		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
 	}
@@ -880,6 +964,7 @@ func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.
 		panel.KindTimeSeries,
 		panel.KindPie,
 		panel.KindDonut,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
@@ -1037,7 +1122,7 @@ func chartType(kind panel.Kind) charts.ChartType {
 		return charts.DonutChartType
 	case panel.KindGauge:
 		return charts.RadialBarChartType
-	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return charts.BarChartType
 	}
 	return charts.BarChartType
@@ -1088,6 +1173,7 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,
@@ -1236,6 +1322,7 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		}
 	case panel.KindStat,
 		panel.KindTimeSeries,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
@@ -1260,6 +1347,7 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,

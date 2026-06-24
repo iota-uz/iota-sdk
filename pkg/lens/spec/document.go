@@ -102,6 +102,7 @@ type MeasureSpec struct {
 	Description  Text             `json:"description"`
 	Info         Text             `json:"info"`
 	RequiresJoin []string         `json:"requiresJoin,omitempty"`
+	Override     *DatasetSpec     `json:"override,omitempty"`
 	Action       *action.Spec     `json:"action,omitempty"`
 }
 

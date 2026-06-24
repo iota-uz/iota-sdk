@@ -18,14 +18,22 @@ const (
 	KindBar           Kind = "bar"
 	KindHorizontalBar Kind = "horizontal_bar"
 	KindStackedBar    Kind = "stacked_bar"
-	KindPie           Kind = "pie"
-	KindDonut         Kind = "donut"
-	KindTable         Kind = "table"
-	KindGauge         Kind = "gauge"
-	KindTabs          Kind = "tabs"
-	KindGrid          Kind = "grid"
-	KindSplit         Kind = "split"
-	KindRepeat        Kind = "repeat"
+	// KindSegmentBar renders a part-to-whole value as a single horizontal
+	// segmented bar (a headline total, the segmented track, and a legend)
+	// using native HTML/CSS rather than a chart engine. Each dataset row is
+	// one segment: LabelField → name, ValueField → amount; Colors are applied
+	// positionally. Built for two- or few-part splits (e.g. claims paid =
+	// within reserve + over reserve) where a chart's axes and plot area are
+	// pure noise.
+	KindSegmentBar Kind = "segment_bar"
+	KindPie        Kind = "pie"
+	KindDonut      Kind = "donut"
+	KindTable      Kind = "table"
+	KindGauge      Kind = "gauge"
+	KindTabs       Kind = "tabs"
+	KindGrid       Kind = "grid"
+	KindSplit      Kind = "split"
+	KindRepeat     Kind = "repeat"
 )
 
 type AxisScale string

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -284,6 +285,168 @@ func statRow(result *runtime.PanelResult) map[string]any {
 	return rows[0]
 }
 
+// segmentBarSegment is one part of a part-to-whole segment bar.
+type segmentBarSegment struct {
+	Label  string
+	Amount string  // formatted via the panel formatter
+	Raw    float64 // unformatted amount (drives bar width + zero styling)
+	Pct    float64 // share of the whole, 0..100
+	PctTxt string  // "100%", "0%", "<1%"
+	Color  string
+}
+
+// segmentBarView is the resolved data a SegmentBar panel renders: a headline
+// total plus its constituent segments.
+type segmentBarView struct {
+	HasData  bool
+	Total    string // formatted sum of all segments
+	Caption  string
+	Segments []segmentBarSegment
+}
+
+// segmentBarPalette is the default colour ramp when a SegmentBar panel does
+// not supply its own Colors. Calm-to-warm so the first segment reads as the
+// healthy share and later ones as overflow.
+var segmentBarPalette = []string{"#2563eb", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2"}
+
+func buildSegmentBarView(spec panel.Spec, result *runtime.PanelResult) segmentBarView {
+	view := segmentBarView{Caption: strings.TrimSpace(spec.Description)}
+	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
+		return view
+	}
+	rows := result.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return view
+	}
+	// Validation accepts a SegmentBar with either Label or Category set, so
+	// fall back to Category before the default to honour a category-only spec
+	// (otherwise its segments would render "<nil>" labels from the default
+	// "label" column that the dataset never produced).
+	labelField := spec.Fields.Label
+	if labelField.Empty() {
+		labelField = spec.Fields.Category
+	}
+	if labelField.Empty() {
+		labelField = panel.DefaultLabelField
+	}
+	valueField := spec.Fields.Value
+	if valueField.Empty() {
+		valueField = panel.DefaultValueField
+	}
+
+	raws := make([]float64, len(rows))
+	labels := make([]string, len(rows))
+	var total float64
+	for i, row := range rows {
+		raws[i] = segmentNumeric(row[valueField.Name()])
+		labels[i] = strings.TrimSpace(fmt.Sprint(row[labelField.Name()]))
+		total += raws[i]
+	}
+
+	view.HasData = true
+	view.Total = formatValue(total, spec.Formatter, result.Locale, result.Timezone)
+	view.Segments = make([]segmentBarSegment, len(rows))
+	for i := range rows {
+		pct := 0.0
+		if total > 0 {
+			pct = raws[i] / total * 100
+		}
+		view.Segments[i] = segmentBarSegment{
+			Label:  labels[i],
+			Amount: formatValue(raws[i], spec.Formatter, result.Locale, result.Timezone),
+			Raw:    raws[i],
+			Pct:    pct,
+			PctTxt: formatSharePct(raws[i], pct),
+			Color:  segmentColorAt(spec.Colors, i),
+		}
+	}
+	return view
+}
+
+func segmentColorAt(colors []string, i int) string {
+	raw := segmentBarPalette[i%len(segmentBarPalette)]
+	if i < len(colors) && strings.TrimSpace(colors[i]) != "" {
+		raw = colors[i]
+	}
+	r, g, b := parseHexColor(raw)
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+// formatSharePct renders a segment's share as a compact integer percent,
+// guarding the "rounds to 0% but is non-zero" case so a real overflow never
+// reads as nothing.
+func formatSharePct(raw, pct float64) string {
+	switch {
+	case raw > 0 && pct < 1:
+		return "<1%"
+	case raw <= 0:
+		return "0%"
+	default:
+		return strconv.FormatFloat(math.Round(pct), 'f', 0, 64) + "%"
+	}
+}
+
+func segmentNumeric(value any) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case string:
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+// segmentSliceStyle is the inline width + fill for a segment's slice of the
+// track. color is expected pre-sanitized (segmentColorAt normalizes to
+// #rrggbb).
+func segmentSliceStyle(pct float64, color string) templpkg.SafeCSS {
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return templpkg.SafeCSS(fmt.Sprintf("width:%s%%;background-color:%s", strconv.FormatFloat(pct, 'f', 4, 64), color))
+}
+
+func segmentSwatchStyle(color string) templpkg.SafeCSS {
+	return templpkg.SafeCSS("background-color:" + color)
+}
+
+func segmentBarBodyClass(clickable bool) string {
+	base := "relative flex h-full flex-col"
+	if clickable {
+		// Mirror StatPanel: body ignores pointer events so the inset overlay
+		// link receives the click; fade slightly on hover for affordance.
+		base += " z-10 pointer-events-none transition-opacity group-hover:opacity-95"
+	}
+	return base
+}
+
+func segmentLegendLabelClass(raw float64) string {
+	if raw > 0 {
+		return "truncate text-sm font-medium text-slate-600"
+	}
+	return "truncate text-sm font-medium text-slate-400"
+}
+
+func segmentLegendAmountClass(raw float64) string {
+	if raw > 0 {
+		return "text-sm font-semibold tabular-nums text-slate-900"
+	}
+	return "text-sm font-semibold tabular-nums text-slate-400"
+}
+
 func formatValue(value any, spec *format.Spec, locale, timezone string) string {
 	if spec != nil {
 		return format.Apply(spec, value, locale, timezone)
@@ -369,7 +532,12 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 		if method == "" {
 			method = "GET"
 		}
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
+		// Pass `source: this` so HTMX scopes the in-flight `htmx-request`
+		// class to the clicked element. Without a source, htmx.ajax falls
+		// back to document.body, which cascades the loading state (hidden
+		// label + flashing dots) onto every .btn on the page (nav tabs,
+		// sidebar, etc.).
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {source: this, target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
 		payload := actionPayload(spec, row, resultVariables(result))
 		encoded, err := json.Marshal(payload)
@@ -694,7 +862,7 @@ func jsStringLiteral(value string) string {
 func tabClassExpression(tabID string) string {
 	literal := jsStringLiteral(tabID)
 	return fmt.Sprintf(
-		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-300 hover:text-white': activeTab !== %s }",
+		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-400 hover:text-white': activeTab !== %s }",
 		literal,
 		literal,
 	)
@@ -710,6 +878,8 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 	case panel.KindTimeSeries:
 		return icons.ChartLine(iconProps)
 	case panel.KindBar, panel.KindStackedBar, panel.KindHorizontalBar:
+		return icons.ChartBar(iconProps)
+	case panel.KindSegmentBar:
 		return icons.ChartBar(iconProps)
 	case panel.KindPie, panel.KindDonut:
 		return icons.ChartPie(iconProps)
@@ -796,6 +966,7 @@ func panelUsesMetricInfoFallback(spec panel.Spec) bool {
 		panel.KindTabs:
 		return true
 	case panel.KindStat,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGrid,
 		panel.KindSplit,
@@ -817,6 +988,7 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -919,6 +1091,7 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 	case panel.KindTabs:
 		return "Lens.Chart.Info.Tabs"
 	case panel.KindStat,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGrid,
 		panel.KindSplit,
@@ -1049,6 +1222,8 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 p-4"
 	case panel.KindTabs:
 		return "flex-1 px-5 py-3"
+	case panel.KindSegmentBar:
+		return "flex-1 px-5 py-5"
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return "flex-1 p-3"
 	default:
@@ -1070,6 +1245,7 @@ func panelHasRenderableContent(spec panel.Spec, result *runtime.Result) bool {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,
@@ -1092,7 +1268,7 @@ func panelCanFullscreen(spec panel.Spec, result *runtime.Result) bool {
 	switch spec.Kind {
 	case panel.KindTabs, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return panelHasRenderableContent(spec, result)
-	case panel.KindStat, panel.KindTable, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindSegmentBar, panel.KindTable, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return false
 	}
 
@@ -1124,6 +1300,8 @@ func panelMinimumHeight(spec panel.Spec) string {
 		return "120px"
 	case panel.KindTable:
 		return "220px"
+	case panel.KindSegmentBar:
+		return "240px"
 	case panel.KindTabs:
 		if childHeight := maxChildHeight(spec.Children); childHeight != "" {
 			return "calc(" + childHeight + " + 5rem)"
@@ -1225,7 +1403,7 @@ func panelPlaceholderRows(spec panel.Spec) int {
 		return 5
 	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return 4
-	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindSegmentBar, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return 4
 	}
 	return 4
