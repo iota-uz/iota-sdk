@@ -43,14 +43,11 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddNavItems(builder, NavItems...)
-
 	composition.ProvideFunc(builder, persistence.NewPgAnalyticsQueryRepository)
 	composition.ProvideFunc(builder, services.NewAnalyticsService)
 	composition.ProvideFunc(builder, services.NewTenantService)
 	composition.ProvideFunc(builder, services.NewTenantUsersService)
 
-	composition.RemoveController(builder, "/")
 	composition.ContributeControllersFunc(builder, func(userService *coreservices.UserService) []application.Controller {
 		return []application.Controller{
 			controllers.NewDashboardController(),

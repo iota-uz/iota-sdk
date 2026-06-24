@@ -52,8 +52,15 @@ func NewRolesController(opts *RolesControllerOptions) application.Controller {
 	}
 }
 
-func (c *RolesController) Key() string {
-	return c.basePath
+func (c *RolesController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.roles", 0, application.Route("", c.basePath, application.RequireAll(permissions.RoleRead))).
+		WithNav(application.NavNode{
+			ID:       "core.roles",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Roles",
+			Path:     c.basePath,
+			Order:    20,
+		})
 }
 
 func (c *RolesController) Register(r *mux.Router) {

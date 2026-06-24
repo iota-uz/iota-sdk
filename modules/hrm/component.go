@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/hrm/services"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:embed presentation/locales/*.toml
@@ -32,8 +31,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddNavItems(builder, NavItems...)
-	composition.AddQuickLinks(builder, spotlight.NewQuickLink(EmployeesLink.Name, EmployeesLink.Href))
+	composition.AddNavNodes(builder, HRMNavNode)
 	composition.ProvideFunc(builder, persistence.NewPositionRepository)
 	composition.ProvideFunc(builder, persistence.NewEmployeeRepository)
 	composition.ProvideFunc(builder, services.NewPositionService)

@@ -4,6 +4,7 @@ package controllers
 import (
 	"net/http"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/tenant"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/phone"
@@ -28,8 +29,8 @@ func NewSettingsHubController() application.Controller {
 	return &SettingsHubController{basePath: "/settings"}
 }
 
-func (c *SettingsHubController) Key() string {
-	return c.basePath
+func (c *SettingsHubController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.settings", 0, application.Route("", c.basePath))
 }
 
 func (c *SettingsHubController) Register(r *mux.Router) {
@@ -50,24 +51,34 @@ func (c *SettingsHubController) GetHub(w http.ResponseWriter, r *http.Request) {
 }
 
 type SettingsLogoController struct {
-	tenantService *services.TenantService
-	uploadService *services.UploadService
-	basePath      string
+	tenantService  *services.TenantService
+	uploadService  *services.UploadService
+	basePath       string
+	navPermissions []permission.Permission
 }
 
 func NewSettingsLogoController(
 	tenantService *services.TenantService,
 	uploadService *services.UploadService,
+	navPermissions ...[]permission.Permission,
 ) application.Controller {
 	return &SettingsLogoController{
-		tenantService: tenantService,
-		uploadService: uploadService,
-		basePath:      "/settings/logo",
+		tenantService:  tenantService,
+		uploadService:  uploadService,
+		basePath:       "/settings/logo",
+		navPermissions: firstPermissionSet(navPermissions),
 	}
 }
 
-func (c *SettingsLogoController) Key() string {
-	return c.basePath
+func (c *SettingsLogoController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.settings.logo", 0, application.Route("", c.basePath, navRouteOptions(c.navPermissions)...)).
+		WithNav(application.NavNode{
+			ID:       "core.settings",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Settings",
+			Path:     c.basePath,
+			Order:    60,
+		})
 }
 
 func (c *SettingsLogoController) Register(r *mux.Router) {

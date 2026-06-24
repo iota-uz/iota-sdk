@@ -4,8 +4,12 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
+	"github.com/iota-uz/iota-sdk/pkg/spotlight"
+	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -225,74 +229,37 @@ func TestRemoveProvider_WithoutReplacement_ResolvesToNotProvided(t *testing.T) {
 	require.True(t, IsNotProvided(err))
 }
 
-// ----- RemoveController -----
+// ----- Controller descriptors -----
 
-// overrideCtrl is a minimal application.Controller used to exercise the
-// controller-removal filter in materialize.
 type overrideCtrl struct {
-	key   string
-	label string
+	id       string
+	label    string
+	order    int
+	replaces []string
+	routes   []application.RouteSpec
+	nav      []application.NavNode
 }
 
-func (c *overrideCtrl) Key() string            { return c.key }
+func (c *overrideCtrl) Descriptor() application.ControllerDescriptor {
+	return application.ControllerDescriptor{
+		ID:       c.id,
+		Order:    c.order,
+		Replaces: c.replaces,
+		Routes:   c.routes,
+		Nav:      c.nav,
+	}
+}
+
 func (c *overrideCtrl) Register(_ *mux.Router) {}
 
-func TestRemoveController_FiltersByKey(t *testing.T) {
+func TestControllerDescriptors_MustHaveUniqueIDs(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(
 		testComponent{
 			descriptor: Descriptor{Name: "upstream"},
 			build: func(builder *Builder) error {
 				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
-					return []application.Controller{
-						&overrideCtrl{key: "/keep"},
-						&overrideCtrl{key: "/drop"},
-					}, nil
-				})
-				return nil
-			},
-		},
-		testComponent{
-			descriptor: Descriptor{Name: "downstream", Requires: []string{"upstream"}},
-			build: func(builder *Builder) error {
-				RemoveController(builder, "/drop")
-				return nil
-			},
-		},
-	)
-	require.NoError(t, err)
-
-	container, err := engine.Compile(BuildContext{})
-	require.NoError(t, err)
-
-	ctrls := container.Controllers()
-	require.Len(t, ctrls, 1)
-	require.Equal(t, "/keep", ctrls[0].Key())
-}
-
-func TestRemoveController_NoopForMissingKey(t *testing.T) {
-	engine := NewEngine()
-	err := engine.Register(testComponent{
-		descriptor: Descriptor{Name: "x"},
-		build: func(builder *Builder) error {
-			RemoveController(builder, "/never-registered")
-			return nil
-		},
-	})
-	require.NoError(t, err)
-
-	_, err = engine.Compile(BuildContext{})
-	require.NoError(t, err)
-}
-
-func TestControllerKeys_MustBeUniqueWithoutExplicitRemoval(t *testing.T) {
-	engine := NewEngine()
-	err := engine.Register(
-		testComponent{
-			descriptor: Descriptor{Name: "upstream"},
-			build: func(builder *Builder) error {
-				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
-					return []application.Controller{&overrideCtrl{key: "/settings", label: "upstream"}}, nil
+					return []application.Controller{&overrideCtrl{id: "settings", label: "upstream"}}, nil
 				})
 				return nil
 			},
@@ -301,7 +268,7 @@ func TestControllerKeys_MustBeUniqueWithoutExplicitRemoval(t *testing.T) {
 			descriptor: Descriptor{Name: "downstream", Requires: []string{"upstream"}},
 			build: func(builder *Builder) error {
 				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
-					return []application.Controller{&overrideCtrl{key: "/settings", label: "downstream"}}, nil
+					return []application.Controller{&overrideCtrl{id: "settings", label: "downstream"}}, nil
 				})
 				return nil
 			},
@@ -311,19 +278,19 @@ func TestControllerKeys_MustBeUniqueWithoutExplicitRemoval(t *testing.T) {
 
 	_, err = engine.Compile(BuildContext{})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), `duplicate controller key "/settings"`)
+	require.Contains(t, err.Error(), `duplicate controller ID "settings"`)
 	require.Contains(t, err.Error(), `"upstream"`)
 	require.Contains(t, err.Error(), `"downstream"`)
 }
 
-func TestRemoveController_AllowsExplicitControllerReplacement(t *testing.T) {
+func TestControllerDescriptors_AllowExplicitReplacement(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(
 		testComponent{
 			descriptor: Descriptor{Name: "upstream"},
 			build: func(builder *Builder) error {
 				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
-					return []application.Controller{&overrideCtrl{key: "/settings", label: "upstream"}}, nil
+					return []application.Controller{&overrideCtrl{id: "core.settings", label: "upstream"}}, nil
 				})
 				return nil
 			},
@@ -331,9 +298,12 @@ func TestRemoveController_AllowsExplicitControllerReplacement(t *testing.T) {
 		testComponent{
 			descriptor: Descriptor{Name: "downstream", Requires: []string{"upstream"}},
 			build: func(builder *Builder) error {
-				RemoveController(builder, "/settings")
 				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
-					return []application.Controller{&overrideCtrl{key: "/settings", label: "downstream"}}, nil
+					return []application.Controller{&overrideCtrl{
+						id:       "custom.settings",
+						label:    "downstream",
+						replaces: []string{"core.settings"},
+					}}, nil
 				})
 				return nil
 			},
@@ -351,14 +321,38 @@ func TestRemoveController_AllowsExplicitControllerReplacement(t *testing.T) {
 	require.Equal(t, "downstream", ctrl.label)
 }
 
-func TestControllerKeys_AllowNestedDistinctRoutes(t *testing.T) {
+func TestControllerDescriptors_FailForMissingReplacement(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:       "custom.settings",
+					replaces: []string{"core.settings"},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `replaces missing controller "core.settings"`)
+}
+
+func TestControllerDescriptors_AllowNestedDistinctRoutes(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(
 		testComponent{
 			descriptor: Descriptor{Name: "hub"},
 			build: func(builder *Builder) error {
 				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
-					return []application.Controller{&overrideCtrl{key: "/settings", label: "hub"}}, nil
+					return []application.Controller{&overrideCtrl{
+						id:     "settings.hub",
+						routes: []application.RouteSpec{application.Get("/settings")},
+					}}, nil
 				})
 				return nil
 			},
@@ -367,7 +361,10 @@ func TestControllerKeys_AllowNestedDistinctRoutes(t *testing.T) {
 			descriptor: Descriptor{Name: "logo", Requires: []string{"hub"}},
 			build: func(builder *Builder) error {
 				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
-					return []application.Controller{&overrideCtrl{key: "/settings/logo", label: "logo"}}, nil
+					return []application.Controller{&overrideCtrl{
+						id:     "settings.logo",
+						routes: []application.RouteSpec{application.Get("/settings/logo")},
+					}}, nil
 				})
 				return nil
 			},
@@ -380,8 +377,360 @@ func TestControllerKeys_AllowNestedDistinctRoutes(t *testing.T) {
 
 	ctrls := container.Controllers()
 	require.Len(t, ctrls, 2)
-	require.Equal(t, "/settings", ctrls[0].Key())
-	require.Equal(t, "/settings/logo", ctrls[1].Key())
+	require.Equal(t, "settings.hub", ctrls[0].Descriptor().ID)
+	require.Equal(t, "settings.logo", ctrls[1].Descriptor().ID)
+}
+
+func TestControllerDescriptors_DetectDuplicateSurvivingRoutes(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(
+		testComponent{
+			descriptor: Descriptor{Name: "a"},
+			build: func(builder *Builder) error {
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{
+						id:     "a",
+						routes: []application.RouteSpec{application.Get("/settings")},
+					}}, nil
+				})
+				return nil
+			},
+		},
+		testComponent{
+			descriptor: Descriptor{Name: "b", Requires: []string{"a"}},
+			build: func(builder *Builder) error {
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{&overrideCtrl{
+						id:     "b",
+						routes: []application.RouteSpec{application.Get("/settings")},
+					}}, nil
+				})
+				return nil
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "controller route collision")
+}
+
+func TestControllerDescriptors_AllowDifferentMethodsAndHosts(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{
+					&overrideCtrl{id: "get", routes: []application.RouteSpec{application.Get("/settings")}},
+					&overrideCtrl{id: "post", routes: []application.RouteSpec{application.Post("/settings")}},
+					&overrideCtrl{id: "host-a", routes: []application.RouteSpec{application.WithHost("a.example", application.Get("/hosted"))}},
+					&overrideCtrl{id: "host-b", routes: []application.RouteSpec{application.WithHost("b.example", application.Get("/hosted"))}},
+				}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.NoError(t, err)
+}
+
+func TestControllerDescriptors_DetectPrefixOverlap(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{
+					&overrideCtrl{id: "assets", routes: []application.RouteSpec{application.Prefix("/assets")}},
+					&overrideCtrl{id: "asset-file", routes: []application.RouteSpec{application.Get("/assets/app.js")}},
+				}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "controller route collision")
+}
+
+func TestControllerDescriptors_OrderControlsFinalControllerOrder(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "x"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{
+					&overrideCtrl{id: "last", order: 10},
+					&overrideCtrl{id: "first", order: -10},
+					&overrideCtrl{id: "middle", order: 0},
+				}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	ctrls := container.Controllers()
+	require.Len(t, ctrls, 3)
+	require.Equal(t, "first", ctrls[0].Descriptor().ID)
+	require.Equal(t, "middle", ctrls[1].Descriptor().ID)
+	require.Equal(t, "last", ctrls[2].Descriptor().ID)
+}
+
+func TestNavModel_ProjectsDescriptorNavAndQuickLinks(t *testing.T) {
+	viewReports := permission.New(
+		permission.WithName("reports.view"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.index",
+					routes: []application.RouteSpec{application.Get("/reports", application.RequireAll(viewReports))},
+					nav: []application.NavNode{{
+						ID:       "reports.index",
+						TitleKey: "NavigationLinks.Reports",
+						Path:     "/reports?tab=all",
+						Keywords: []string{"NavigationLinks.Reports.Keyword"},
+					}},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	items := container.NavItems()
+	require.Len(t, items, 1)
+	require.Equal(t, "reports.index", items[0].Key)
+	require.Equal(t, "/reports?tab=all", items[0].Href)
+	require.Equal(t, []permission.Permission{viewReports}, items[0].Permissions)
+
+	docs, err := spotlight.CollectDocuments(context.Background(), spotlightQuickLinks(container.QuickLinks()), spotlight.ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+	require.Equal(t, "/reports?tab=all", docs[0].URL)
+	require.Equal(t, []string{"reports.view"}, docs[0].Access.AllowedPermissions)
+	require.Equal(t, spotlight.PermissionLogicAll, docs[0].Access.PermissionLogic)
+}
+
+func TestNavModel_RejectsDuplicateIDs(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder,
+				application.NavNode{ID: "nav.reports", TitleKey: "Reports"},
+				application.NavNode{ID: "nav.reports", TitleKey: "Reports 2"},
+			)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `duplicate nav node ID "nav.reports"`)
+}
+
+func TestNavModel_RejectsUnresolvedPath(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder, application.NavNode{
+				ID:       "nav.missing",
+				TitleKey: "Missing",
+				Path:     "/missing",
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `path "/missing" does not resolve to a controller route`)
+}
+
+func TestNavModel_SameModuleOrphanFailsAndCrossModuleOrphanSkips(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder, application.NavNode{
+				ID:       "finance.expenses",
+				Parent:   "finance.missing",
+				TitleKey: "Expenses",
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), `parent "finance.missing" was not contributed`)
+
+	engine = NewEngine()
+	err = engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder, application.NavNode{
+				ID:       "finance.expenses",
+				Parent:   "core.finance",
+				TitleKey: "Expenses",
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+	require.Empty(t, container.NavItems())
+}
+
+func TestRouteAuthLookup_MatchesMuxVariables(t *testing.T) {
+	viewReports := permission.New(
+		permission.WithName("reports.view"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.show",
+					routes: []application.RouteSpec{application.Get("/reports/{id}", application.RequireAny(viewReports))},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	policy, ok := container.AuthPolicyForRoute("GET", "example.test", "/reports/123")
+	require.True(t, ok)
+	require.Equal(t, application.PermissionLogicAny, policy.Logic)
+	require.Equal(t, []permission.Permission{viewReports}, policy.Permissions)
+}
+
+func TestNavModel_RequireAnyProjectsAnyLogicToSidebarAndSpotlight(t *testing.T) {
+	viewA := permission.New(
+		permission.WithName("reports.a"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	viewB := permission.New(
+		permission.WithName("reports.b"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.index",
+					routes: []application.RouteSpec{application.Get("/reports", application.RequireAny(viewA, viewB))},
+					nav: []application.NavNode{{
+						ID:       "reports.index",
+						TitleKey: "NavigationLinks.Reports",
+						Path:     "/reports",
+					}},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	items := container.NavItems()
+	require.Len(t, items, 1)
+	require.Equal(t, types.PermissionLogicAny, items[0].Logic)
+
+	docs, err := spotlight.CollectDocuments(context.Background(), spotlightQuickLinks(container.QuickLinks()), spotlight.ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+	require.Equal(t, spotlight.PermissionLogicAny, docs[0].Access.PermissionLogic)
+}
+
+func TestNavModel_RejectsCycle(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder,
+				application.NavNode{ID: "nav.a", Parent: "nav.b", TitleKey: "A"},
+				application.NavNode{ID: "nav.b", Parent: "nav.a", TitleKey: "B"},
+			)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = engine.Compile(BuildContext{})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nav cycle detected")
+}
+
+func TestNavModel_PrunesDeepOrphanChains(t *testing.T) {
+	// mid's parent belongs to an absent (optional) module, so it is skipped
+	// rather than failing; child points at mid and must be pruned too.
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "nav"},
+		build: func(builder *Builder) error {
+			AddNavNodes(builder,
+				application.NavNode{ID: "alpha.mid", Parent: "beta.root", TitleKey: "Mid"},
+				application.NavNode{ID: "alpha.child", Parent: "alpha.mid", TitleKey: "Child"},
+			)
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+	require.Empty(t, container.NavItems())
+}
+
+func spotlightQuickLinks(links []*spotlight.QuickLink) *spotlight.QuickLinks {
+	quickLinks := spotlight.NewQuickLinks(nil, nil)
+	quickLinks.Add(links...)
+	return quickLinks
 }
 
 // ----- RemoveHook -----

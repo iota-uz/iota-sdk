@@ -57,6 +57,14 @@ func NewQuickLinkBuilder(trKey, link string) *QuickLinkBuilder {
 func (b *QuickLinkBuilder) WithPermissions(permissions ...string) *QuickLinkBuilder {
 	b.link.access.Visibility = VisibilityRestricted
 	b.link.access.AllowedPermissions = permissions
+	if b.link.access.PermissionLogic == "" {
+		b.link.access.PermissionLogic = PermissionLogicAny
+	}
+	return b
+}
+
+func (b *QuickLinkBuilder) WithPermissionLogic(logic PermissionLogic) *QuickLinkBuilder {
+	b.link.access.PermissionLogic = logic
 	return b
 }
 

@@ -114,8 +114,8 @@ func NewSpotlightController(app application.Application, aiSearchHolder *spotlig
 	}
 }
 
-func (c *SpotlightController) Key() string {
-	return c.basePath
+func (c *SpotlightController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.spotlight", 0, application.Route("", c.basePath))
 }
 
 func (c *SpotlightController) Register(r *mux.Router) {

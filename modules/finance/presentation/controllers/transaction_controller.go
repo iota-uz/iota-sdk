@@ -54,8 +54,8 @@ func NewTransactionController(transactionService *services.TransactionService) a
 	}
 }
 
-func (c *TransactionController) Key() string {
-	return c.basePath
+func (c *TransactionController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.transaction", 0, application.Route("", c.basePath))
 }
 
 func (c *TransactionController) Register(r *mux.Router) {

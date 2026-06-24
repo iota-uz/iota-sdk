@@ -97,24 +97,11 @@ func (c *component) LocaleFS() []*embed.FS {
 func (c *component) Build(builder *composition.Builder) error {
 	const op serrors.Op = "core.component.Build"
 	composition.AddHashFS(builder, assets.HashFS)
-	// Self-service quick links are always available (AccountController
-	// is registered regardless of SkipAdminControllers).
-	composition.AddQuickLinks(builder,
-		spotlight.NewQuickLink("Account.Meta.Index.Title", "/account"),
-		spotlight.NewQuickLink("Account.Sessions.Title", "/account/sessions"),
-	)
 	if !c.options.SkipAdminControllers {
-		if !c.options.SkipAdminNavItems {
-			composition.AddNavItems(builder, BuildNavItems(c.options.DashboardLinkPermissions, c.options.SettingsLinkPermissions)...)
+		composition.AddNavNodes(builder, AdministrationLink)
+		if c.options.SkipAdminNavItems {
+			composition.RemoveNavItemsByKey(builder, "core.dashboard", "core.administration")
 		}
-		composition.AddQuickLinks(builder,
-			spotlight.NewQuickLink(DashboardLink.Name, DashboardLink.Href),
-			spotlight.NewQuickLink(UsersLink.Name, UsersLink.Href),
-			spotlight.NewQuickLink(GroupsLink.Name, GroupsLink.Href),
-			spotlight.NewQuickLink(DepartmentsLink.Name, DepartmentsLink.Href),
-			spotlight.NewQuickLink(PositionsLink.Name, PositionsLink.Href),
-			spotlight.NewQuickLink("Users.List.New", "/users/new"),
-		)
 	}
 
 	composition.ContributeSpotlightProviders(builder, func(container *composition.Container) ([]spotlight.SearchProvider, error) {
@@ -323,7 +310,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			// (e.g. superadmin) that provide their own admin interface.
 			if !opts.SkipAdminControllers {
 				ctrls = append(ctrls,
-					controllers.NewDashboardController(dbCfg),
+					controllers.NewDashboardController(dbCfg, opts.DashboardLinkPermissions),
 					// aiHolder may be nil when no downstream component registered
 					// an AI search service; the controller is nil-safe and will
 					// surface the feature as unavailable in that case.
@@ -338,7 +325,7 @@ func (c *component) Build(builder *composition.Builder) error {
 					controllers.NewPositionsController(app),
 					controllers.NewWebSocketController(app),
 					controllers.NewSettingsHubController(),
-					controllers.NewSettingsLogoController(tenantService, uploadService),
+					controllers.NewSettingsLogoController(tenantService, uploadService, opts.SettingsLinkPermissions),
 					controllers.NewSessionController("/settings/sessions", cookiesCfg),
 					buildSystemInfoController(container, app.DB(), appCfg),
 				)

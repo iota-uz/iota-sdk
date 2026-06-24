@@ -38,8 +38,8 @@ func NewSessionController(basePath string, cfg *cookies.Config) application.Cont
 	}
 }
 
-func (c *SessionController) Key() string {
-	return c.basePath
+func (c *SessionController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.session", 0, application.Route("", c.basePath))
 }
 
 func (c *SessionController) Register(r *mux.Router) {

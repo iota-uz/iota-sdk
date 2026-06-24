@@ -8,7 +8,6 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/projects/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/projects/services"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
-	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 )
 
 //go:embed presentation/locales/*.json
@@ -32,13 +31,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddNavItems(builder, NavItems...)
-	composition.AddQuickLinks(builder,
-		spotlight.NewQuickLink(ProjectsItem.Name, ProjectsItem.Href),
-		spotlight.NewQuickLink(ProjectStagesItem.Name, ProjectStagesItem.Href),
-		spotlight.NewQuickLink("Projects.List.New", "/projects/new"),
-		spotlight.NewQuickLink("ProjectStages.List.New", "/project-stages/new"),
-	)
+	composition.AddNavNodes(builder, ProjectsNavNode)
 
 	composition.ProvideFunc(builder, persistence.NewProjectRepository)
 	composition.ProvideFunc(builder, persistence.NewProjectStageRepository)

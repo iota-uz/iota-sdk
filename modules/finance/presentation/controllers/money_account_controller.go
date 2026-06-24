@@ -71,8 +71,20 @@ func NewMoneyAccountController(
 	}
 }
 
-func (c *MoneyAccountController) Key() string {
-	return c.basePath
+func (c *MoneyAccountController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.money_account", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "finance.money_account",
+			Parent:   "finance",
+			TitleKey: "NavigationLinks.Accounts",
+			Path:     c.basePath,
+			Order:    40,
+			Actions: []application.NavAction{{
+				ID:       "finance.money_account.new",
+				TitleKey: "MoneyAccounts.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *MoneyAccountController) Register(r *mux.Router) {

@@ -55,8 +55,8 @@ func NewShowcaseController(dbCfg *dbconfig.Config, httpCfg *httpconfig.Config, a
 	return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, ds: ds}
 }
 
-func (c *ShowcaseController) Key() string {
-	return c.basePath
+func (c *ShowcaseController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.showcase", 0, application.Route("", c.basePath))
 }
 
 func (c *ShowcaseController) Register(r *mux.Router) {

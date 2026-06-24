@@ -301,6 +301,23 @@ func TestQuickLinks_FilterAuthorized_RestrictedByPermission(t *testing.T) {
 	}
 }
 
+func TestQuickLinks_FilterAuthorized_RestrictedByAllPermissions(t *testing.T) {
+	policy := AccessPolicy{
+		Visibility:         VisibilityRestricted,
+		AllowedPermissions: []string{"finance.view", "finance.export"},
+		PermissionLogic:    PermissionLogicAll,
+	}
+
+	require.True(t, canReadPolicy(policy, Principal{
+		UserID:      "1",
+		Permissions: []string{"finance.view", "finance.export"},
+	}))
+	require.False(t, canReadPolicy(policy, Principal{
+		UserID:      "2",
+		Permissions: []string{"finance.view"},
+	}))
+}
+
 func TestQuickLinks_FilterAuthorized_RestrictedByRole(t *testing.T) {
 	tenantID := uuid.New()
 	ql := NewQuickLinks(nil, nil)
