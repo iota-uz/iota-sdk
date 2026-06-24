@@ -838,7 +838,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			window.location.href = nextURL;
 		};`
 	case action.KindHtmxSwap:
-		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
+		// `source: cfg.target` scopes the in-flight `htmx-request` class to
+		// the swap target subtree. Without a source, htmx.ajax falls back to
+		// document.body and the loading state cascades onto every .btn on the
+		// page (nav tabs, sidebar, etc.).
+		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {source: cfg.target, target: cfg.target, swap: 'innerHTML'});"
 	case action.KindEmitEvent:
 		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
 	}

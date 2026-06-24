@@ -524,7 +524,12 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 		if method == "" {
 			method = "GET"
 		}
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
+		// Pass `source: this` so HTMX scopes the in-flight `htmx-request`
+		// class to the clicked element. Without a source, htmx.ajax falls
+		// back to document.body, which cascades the loading state (hidden
+		// label + flashing dots) onto every .btn on the page (nav tabs,
+		// sidebar, etc.).
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {source: this, target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
 		payload := actionPayload(spec, row, resultVariables(result))
 		encoded, err := json.Marshal(payload)
