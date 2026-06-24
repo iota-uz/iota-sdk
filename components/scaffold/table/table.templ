@@ -894,3 +894,15 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.
 	}
 	return result
 }
+
+// cellLink wraps a cell's display content in an <a href>, giving the content a
+// clear, persistent clickable affordance (dotted underline that disappears on
+// hover). Used by WithCellLink. href is treated as a dynamic URL (sanitized).
+templ cellLink(href string, content templ.Component) {
+	<a
+		href={ templ.URL(href) }
+		class="text-primary font-medium underline decoration-dotted decoration-1 underline-offset-2 hover:no-underline cursor-pointer"
+	>
+		@content
+	</a>
+}
