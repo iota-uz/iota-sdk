@@ -105,7 +105,9 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 			}
 			// The entry is a dead kernel (its serve loop exited); evict it now so
 			// it doesn't linger until Sweep, then fall through to spawn a fresh one.
+			// Dispose it asynchronously so its process is reaped, not leaked.
 			delete(m.kernels, sess.Key())
+			go func(k *kernel) { _ = k.Dispose(context.Background()) }(k)
 		}
 	}
 	if maxParallel := m.cfg.Policy.MaxParallel(); maxParallel > 0 && len(m.kernels) >= maxParallel {
@@ -128,12 +130,17 @@ func (m *Manager) Acquire(ctx context.Context, sess pykernel.Session) (pykernel.
 		_ = k.Dispose(context.Background())
 		return nil, errShuttingDown
 	}
-	if existing, ok := m.kernels[sess.Key()]; ok && !existing.isDisposed() {
-		// Lost a same-key spawn race against a live kernel: keep the established
-		// one and discard our freshly-spawned spare.
-		m.mu.Unlock()
-		_ = k.Dispose(context.Background())
-		return existing, nil
+	if existing, ok := m.kernels[sess.Key()]; ok {
+		if !existing.isDisposed() {
+			// Lost a same-key spawn race against a live kernel: keep the established
+			// one and discard our freshly-spawned spare.
+			m.mu.Unlock()
+			_ = k.Dispose(context.Background())
+			return existing, nil
+		}
+		// The entry is a dead kernel: replace it with our fresh one and dispose
+		// the stale entry asynchronously so its process is reaped, not leaked.
+		go func(k *kernel) { _ = k.Dispose(context.Background()) }(existing)
 	}
 	m.kernels[sess.Key()] = k
 	m.mu.Unlock()
@@ -144,7 +151,7 @@ func (m *Manager) Get(key string) (pykernel.Kernel, bool) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	k, ok := m.kernels[key]
-	if !ok {
+	if !ok || k.isDisposed() {
 		return nil, false
 	}
 	return k, true

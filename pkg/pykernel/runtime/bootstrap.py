@@ -145,18 +145,21 @@ class _StreamWriter:
     def write(self, s):
         # The cap is measured in UTF-8 bytes (matching the Go-side OutputCap),
         # not Python code points, so we encode and budget in bytes and never
-        # split a multibyte sequence when truncating.
+        # split a multibyte sequence when truncating. A file-like write must
+        # return the number of characters written, so every path returns the
+        # original code-point length of the input.
+        n = len(s)
         if not s:
-            return
+            return 0
         if self._sent >= self._cap:
             self.truncated = True
-            return
+            return n
         encoded = s.encode("utf-8")
         remaining = self._cap - self._sent
         if len(encoded) <= remaining:
             self._sent += len(encoded)
             _notify("out.stdout", {"exec_id": self._exec_id, "chunk": s})
-            return
+            return n
         # Truncate on a valid UTF-8 boundary: take the first `remaining` bytes,
         # then drop any partial trailing char via errors='ignore'.
         chunk = encoded[:remaining].decode("utf-8", errors="ignore")
@@ -164,6 +167,7 @@ class _StreamWriter:
         self._sent = self._cap
         if chunk:
             _notify("out.stdout", {"exec_id": self._exec_id, "chunk": chunk})
+        return n
 
     def flush(self):
         pass
@@ -209,6 +213,21 @@ def _run_code(exec_id, code, output_cap):
     else:
         sys.stdout, sys.stderr = saved_out, saved_err
         if result_text is not None:
+            # Budget the result against the SAME byte cap as stdout so a huge
+            # repr can't exceed the bridge frame cap or balloon memory. Truncate
+            # on a UTF-8 boundary and flag the exec as truncated.
+            remaining = writer._cap - writer._sent
+            encoded = result_text.encode("utf-8")
+            if remaining <= 0:
+                # Budget exhausted by stdout: elide the result entirely.
+                result_text = "… [truncated]"
+                writer.truncated = True
+            elif len(encoded) > remaining:
+                result_text = encoded[:remaining].decode("utf-8", errors="ignore") + "… [truncated]"
+                writer._sent = writer._cap
+                writer.truncated = True
+            else:
+                writer._sent += len(encoded)
             _notify("exec.result", {"exec_id": exec_id, "text": result_text, "mime": "text/plain"})
     finally:
         sys.stdout, sys.stderr = saved_out, saved_err
@@ -245,9 +264,15 @@ def _cancel_worker(target_exec_id):
     current = _current_exec
     if current is None or current != target_exec_id:
         return
-    ctypes.pythonapi.PyThreadState_SetAsyncExc(
+    # PyThreadState_SetAsyncExc returns the number of thread states modified.
+    # 0 = tid not found (nothing to do). >1 = it hit more than the intended
+    # thread, which per CPython requires an immediate revert by calling again
+    # with a NULL exception, and is treated as a failed cancellation.
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(
         ctypes.c_long(_worker_tid), ctypes.py_object(KeyboardInterrupt)
     )
+    if res > 1:
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_long(_worker_tid), None)
 
 
 # --- Reader loop ---------------------------------------------------------
@@ -298,7 +323,20 @@ def _reader():
                 with _pending_lock:
                     reply_q = _pending.get(msg["id"])
                 if reply_q is not None:
-                    reply_q.put(msg)
+                    # Deliver non-blockingly: the reply queue is maxsize=1, so a
+                    # duplicate/late response (or a race with _fail_pending) must
+                    # not wedge the reader. Drop/replace any stale item.
+                    try:
+                        reply_q.put_nowait(msg)
+                    except _queue.Full:
+                        try:
+                            reply_q.get_nowait()
+                        except _queue.Empty:
+                            pass
+                        try:
+                            reply_q.put_nowait(msg)
+                        except _queue.Full:
+                            pass
     finally:
         _fail_pending("control socket closed")
 

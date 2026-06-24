@@ -60,8 +60,10 @@ func (m Mode) String() string {
 // invocation. Keys are the parameter names from the capability Signature.
 type CallArgs map[string]any
 
-// ParamSpec describes one capability parameter. It feeds both the generated
-// Python proxy stub and host-side argument validation.
+// ParamSpec describes one capability parameter. It is advisory metadata used to
+// synthesize the Python proxy signature; it is NOT enforced by a generic
+// host-side validator. Capabilities that need argument validation must perform
+// it themselves (e.g. in their invoke implementation).
 type ParamSpec struct {
 	Name     string
 	Type     string // doc/validation hint, e.g. "str", "list[dict]"

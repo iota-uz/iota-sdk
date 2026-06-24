@@ -14,7 +14,10 @@ func newLauncher() Launcher { return &unixLauncher{} }
 
 type unixLauncher struct{}
 
-func (l *unixLauncher) Launch(_ context.Context, spec SandboxSpec) (Process, error) {
+func (l *unixLauncher) Launch(ctx context.Context, spec SandboxSpec) (Process, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if len(spec.Command) == 0 {
 		return nil, fmt.Errorf("pykernel/isolation: empty command")
 	}
@@ -50,6 +53,15 @@ func (l *unixLauncher) Launch(_ context.Context, spec SandboxSpec) (Process, err
 	}
 	if spec.Nice != 0 {
 		_ = syscall.Setpriority(syscall.PRIO_PROCESS, cmd.Process.Pid, spec.Nice)
+	}
+
+	// Honor a mid-launch cancellation so we don't leak a just-started subprocess.
+	// We do NOT use exec.CommandContext: the kernel must outlive the Acquire
+	// call's ctx, so the only ctx coupling is this one-shot pre-handoff check.
+	if err := ctx.Err(); err != nil {
+		_ = killGroup(cmd.Process.Pid)
+		_ = cmd.Wait()
+		return nil, err
 	}
 
 	return &unixProcess{cmd: cmd}, nil

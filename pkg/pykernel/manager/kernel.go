@@ -28,6 +28,7 @@ type kernel struct {
 
 	mu           sync.Mutex
 	disposed     bool
+	serveExited  bool
 	inFlight     bool
 	nsReset      bool
 	lastActive   time.Time
@@ -81,7 +82,7 @@ func (k *kernel) Info() pykernel.KernelInfo {
 func (k *kernel) isDisposed() bool {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	return k.disposed
+	return k.disposed || k.serveExited
 }
 
 func (k *kernel) Exec(ctx context.Context, req pykernel.ExecRequest) (<-chan pykernel.ExecEvent, error) {
@@ -197,7 +198,9 @@ func (k *kernel) watch(ctx context.Context, execID string, timeout time.Duration
 	case <-timer:
 	}
 	// ctx cancelled or timed out: cooperative cancel, then escalate to kill.
-	_ = k.br.Cancel(context.Background(), execID)
+	// Run the cancel in a goroutine so a stalled Cancel write can't block the
+	// grace/Kill escalation below.
+	go func() { _ = k.br.Cancel(context.Background(), execID) }()
 	select {
 	case <-done:
 	case <-k.closed:
@@ -207,13 +210,15 @@ func (k *kernel) watch(ctx context.Context, execID string, timeout time.Duration
 }
 
 // onServeExit runs after the bridge read loop returns (kernel died or was
-// disposed). The kernel is marked disposed so the pool never hands back this
-// corpse on a later Acquire. If an exec was still in flight, the consumer is
-// unblocked with a synthetic error + closed channel.
+// disposed). It marks the kernel serve-exited (not fully disposed) so the pool
+// treats it as unusable via isDisposed, while leaving full teardown to Dispose
+// — the process may still be alive and must still be reaped. If an exec was
+// still in flight, the consumer is unblocked with a synthetic error + closed
+// channel.
 func (k *kernel) onServeExit() {
 	k.mu.Lock()
 	defer k.mu.Unlock()
-	k.disposed = true
+	k.serveExited = true
 	if k.activeCh != nil {
 		k.finishLocked(&pykernel.ExecEvent{
 			Kind:      pykernel.EventError,

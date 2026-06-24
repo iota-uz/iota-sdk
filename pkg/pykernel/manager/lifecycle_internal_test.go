@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"os"
+	"syscall"
 	"testing"
 	"time"
 
@@ -20,7 +21,14 @@ import (
 // lifecycle without spawning real Python: they use a fake launcher/process and a
 // real bridge over net.Pipe, so serve-exit can be simulated by closing the pipe.
 
-type fakeProcess struct{ killed chan struct{} }
+type fakeProcess struct {
+	killed chan struct{}
+	// childFile, if set, is this fake process's retained copy of the inherited
+	// child socket fd. Holding it open keeps the socketpair peer alive so the
+	// spawned kernel's Serve blocks on read (modeling a real inherited child);
+	// it is closed when the process is killed/waited.
+	childFile *os.File
+}
 
 func newFakeProcess() *fakeProcess { return &fakeProcess{killed: make(chan struct{})} }
 
@@ -32,18 +40,38 @@ func (p *fakeProcess) Kill() error {
 	default:
 		close(p.killed)
 	}
+	if p.childFile != nil {
+		_ = p.childFile.Close()
+	}
 	return nil
 }
-func (p *fakeProcess) Wait() error { return nil }
+func (p *fakeProcess) Wait() error {
+	if p.childFile != nil {
+		_ = p.childFile.Close()
+	}
+	return nil
+}
 
 // fakeLauncher returns a fake process so Acquire can spawn a "live" kernel
-// without a real Python subprocess. The kernel's bridge reads from a socketpair
-// nothing writes to, so the serve loop blocks and the kernel stays live — which
-// is all this test needs from a freshly-spawned kernel.
+// without a real Python subprocess. It OWNS the inherited child socket fd
+// (spec.ExtraFiles[0]) so that spawn()'s post-Launch close of the parent's copy
+// doesn't tear down the socketpair peer: the retained fd keeps the peer open, so
+// the spawned kernel's Serve blocks on read and stays live, modeling a real
+// inherited child. The fd is released when the process is killed/waited.
 type fakeLauncher struct{}
 
-func (l *fakeLauncher) Launch(_ context.Context, _ isolation.SandboxSpec) (isolation.Process, error) {
-	return newFakeProcess(), nil
+func (l *fakeLauncher) Launch(_ context.Context, spec isolation.SandboxSpec) (isolation.Process, error) {
+	p := newFakeProcess()
+	if len(spec.ExtraFiles) > 0 && spec.ExtraFiles[0] != nil {
+		// Dup the fd so we own a copy independent of the parent's, which spawn()
+		// closes right after Launch.
+		fd, err := syscall.Dup(int(spec.ExtraFiles[0].Fd()))
+		if err != nil {
+			return nil, err
+		}
+		p.childFile = os.NewFile(uintptr(fd), "fake-child-socket")
+	}
+	return p, nil
 }
 
 func testSess(key, wd string) pykernel.Session {
@@ -116,11 +144,7 @@ func TestAcquire_DoesNotReturnDeadReuseEntry(t *testing.T) {
 	require.NoError(t, err)
 	gotK := got.(*kernel)
 	assert.NotSame(t, dead, gotK, "Acquire must not return the dead kernel")
-	// Note: we don't assert gotK is live. spawn() closes the child socket fd, so
-	// with the fake launcher (no real subprocess to inherit it) the freshly-spawned
-	// kernel's serve loop sees EOF and may race to disposed — an artifact of the
-	// fake, not the behavior under test. The invariant here is that Acquire never
-	// returns the dead corpse and replaces it in the map.
+	assert.False(t, gotK.isDisposed(), "Acquire must return a live kernel")
 
 	// And the dead entry must have been evicted from the map (replaced by the new
 	// one), not left lingering.
