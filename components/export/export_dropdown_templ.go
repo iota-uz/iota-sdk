@@ -111,16 +111,15 @@ type ExportDropdownProps struct {
 }
 
 // exportDownloadState is the Alpine component driving GET-download mode: it
-// triggers the download via a hidden iframe carrying a unique download_token,
-// then polls document.cookie for that token to clear the busy state (the server
-// echoes the token as a cookie once it starts streaming the response). A
-// 10-minute deadline guarantees the spinner can never hang.
+// fetches the GET export route (which streams the file) and saves the response
+// as a Blob via a temporary <a download>. Awaiting the fetch gives a precise
+// completion signal, so the busy spinner clears exactly when the file is ready —
+// no cookie polling or hidden iframe (an iframe whose response is an attachment
+// has its load aborted, leaving the spinner stuck and showing a phantom status).
 const exportDownloadState = `{
 	exporting: false,
-	_timer: null,
-	runExport(format) {
+	async runExport(format) {
 		if (this.exporting) return;
-		const token = 'dl-' + Date.now() + '-' + Math.random().toString(36).slice(2);
 		const formId = this.$root.dataset.paramsForm;
 		const form = formId ? document.getElementById(formId) : null;
 		if (formId && !(form instanceof HTMLFormElement)) {
@@ -139,29 +138,36 @@ const exportDownloadState = `{
 		}
 		['page', 'limit', 'per_page'].forEach(function (k) { params.delete(k); });
 		params.set('format', format);
-		params.set('download_token', token);
 		// Append (not overwrite) so an ExportURL that already carries a query
 		// string keeps it, and multi-valued filter keys (e.g. repeated f=) survive.
 		const sep = this.$root.dataset.exportUrl.indexOf('?') === -1 ? '?' : '&';
 		const target = this.$root.dataset.exportUrl + sep + params.toString();
-		document.cookie = 'download_token=; path=/; max-age=0';
 		this.$root.querySelectorAll('details').forEach(function (d) { d.removeAttribute('open'); });
 		this.exporting = true;
-		const iframe = document.createElement('iframe');
-		iframe.style.display = 'none';
-		iframe.src = target;
-		document.body.appendChild(iframe);
-		const start = Date.now(), maxMs = 600000, self = this;
-		this._timer = setInterval(function () {
-			const started = document.cookie.split(';').some(function (c) { return c.trim() === 'download_token=' + token; });
-			if (started || Date.now() - start > maxMs) {
-				clearInterval(self._timer);
-				self._timer = null;
-				self.exporting = false;
-				document.cookie = 'download_token=; path=/; max-age=0';
-				setTimeout(function () { iframe.remove(); }, 60000);
-			}
-		}, 250);
+		try {
+			const resp = await fetch(target, { credentials: 'same-origin' });
+			if (!resp.ok) throw new Error('export request failed: ' + resp.status);
+			const blob = await resp.blob();
+			// Content-Disposition is "attachment; filename=NAME"; reuse
+			// URLSearchParams as a tiny key=value parser. Handlers emit an
+			// unquoted, URL-decode-safe NAME, so .get() returns it decoded.
+			const cd = resp.headers.get('content-disposition') || '';
+			const filename = new URLSearchParams(cd.replace(/;\s*/g, '&')).get('filename')
+				|| (format === 'csv' ? 'export.csv' : 'export.xlsx');
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = filename;
+			document.body.appendChild(a);
+			a.click();
+			a.remove();
+			setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+		} catch (e) {
+			console.error('ExportDropdown: export failed', e);
+			window.alert('Export failed. Please try again.');
+		} finally {
+			this.exporting = false;
+		}
 	}
 }`
 
@@ -205,7 +211,7 @@ func ExportDropdown(props ExportDropdownProps) templ.Component {
 				var templ_7745c5c3_Var2 string
 				templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 170, Col: 19}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 176, Col: 19}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 				if templ_7745c5c3_Err != nil {
@@ -215,7 +221,7 @@ func ExportDropdown(props ExportDropdownProps) templ.Component {
 				var templ_7745c5c3_Var3 string
 				templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Export.Title"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 172, Col: 33}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 178, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 				if templ_7745c5c3_Err != nil {
@@ -239,7 +245,7 @@ func ExportDropdown(props ExportDropdownProps) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(props.ExportURL + "?format=" + details.Param)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 182, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 188, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -264,7 +270,7 @@ func ExportDropdown(props ExportDropdownProps) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T(details.LabelKey))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 189, Col: 37}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 195, Col: 37}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -314,7 +320,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 		var templ_7745c5c3_Var7 string
 		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(exportDownloadState)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 207, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 213, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -327,7 +333,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(props.ExportURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 208, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 214, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -340,7 +346,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(props.ParamsFormID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 209, Col: 39}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 215, Col: 39}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -372,7 +378,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(props.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 225, Col: 18}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 231, Col: 18}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -382,7 +388,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Export.Title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 227, Col: 32}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 233, Col: 32}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -406,7 +412,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("runExport('%s')", details.Param))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 238, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 244, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -431,7 +437,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T(details.LabelKey))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 243, Col: 36}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 249, Col: 36}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -442,7 +448,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</ul></details> <details class=\"hidden peer-open:block\" name=\"export-dropdown\"><summary class=\"fixed w-full h-full left-0 top-0\"></summary></details><!-- Busy overlay: clears when the handler echoes the download_token cookie. --><div x-show=\"exporting\" x-cloak x-transition.opacity class=\"fixed bottom-4 right-4 z-50 flex items-center gap-3 bg-surface-300 border border-secondary rounded-lg shadow-lg px-4 py-3 text-sm\" role=\"status\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</ul></details> <details class=\"hidden peer-open:block\" name=\"export-dropdown\"><summary class=\"fixed w-full h-full left-0 top-0\"></summary></details><!-- Busy overlay: visible while the export fetch is in flight. --><div x-show=\"exporting\" x-cloak x-transition.opacity class=\"fixed bottom-4 right-4 z-50 flex items-center gap-3 bg-surface-300 border border-secondary rounded-lg shadow-lg px-4 py-3 text-sm\" role=\"status\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -459,7 +465,7 @@ func exportDownloadDropdown(props ExportDropdownProps) templ.Component {
 		var templ_7745c5c3_Var14 string
 		templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Export.Preparing"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 263, Col: 40}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/export/export_dropdown.templ`, Line: 269, Col: 40}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 		if templ_7745c5c3_Err != nil {

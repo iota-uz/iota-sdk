@@ -54,11 +54,14 @@ func TestExportDropdown_DownloadMode(t *testing.T) {
 	assert.NotContains(t, html, "hx-post", "download mode must not use htmx POST")
 	assert.NotContains(t, html, `hx-swap="none"`)
 
-	// GET-download wiring + token-cookie loader.
+	// GET-download wiring + fetch/Blob saver (not iframe/cookie).
 	assert.Contains(t, html, `data-export-url="/portfolio/policies/export"`)
 	assert.Contains(t, html, `data-params-form="filters-form"`)
 	assert.Contains(t, html, "runExport(")
-	assert.Contains(t, html, "download_token")
+	assert.Contains(t, html, "fetch(target", "download must use fetch, not an iframe")
+	assert.Contains(t, html, "createObjectURL", "response saved as a Blob download")
+	assert.NotContains(t, html, "download_token", "cookie-poll mechanism removed")
+	assert.NotContains(t, html, "createElement(&#39;iframe&#39;)", "iframe mechanism removed")
 	assert.Contains(t, html, "Export.Preparing", "busy overlay label must render")
 	// Per-format triggers wired to runExport with each format param. Assert the
 	// format args are present without pinning the exact HTML-entity encoding of
