@@ -840,15 +840,15 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("duplicate panel %s", spec.ID)
 	}
 	panelIDs[spec.ID] = struct{}{}
-	switch spec.Kind {
-	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	switch {
+	case spec.Kind.IsContainer():
 		for _, child := range spec.Children {
 			if err := validatePanel(child, datasets, panelIDs); err != nil {
 				return err
 			}
 		}
 		return nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindPie, panel.KindDonut, panel.KindTable, panel.KindGauge:
+	case spec.Kind.IsChart() || spec.Kind.RendersNatively():
 		// Leaf panels continue through dataset and field validation below.
 	default:
 		return fmt.Errorf("panel %s has unsupported kind %q", spec.ID, spec.Kind)

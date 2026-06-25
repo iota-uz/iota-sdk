@@ -532,12 +532,12 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 		if method == "" {
 			method = "GET"
 		}
-		// Pass `source: this` so HTMX scopes the in-flight `htmx-request`
-		// class to the clicked element. Without a source, htmx.ajax falls
-		// back to document.body, which cascades the loading state (hidden
-		// label + flashing dots) onto every .btn on the page (nav tabs,
-		// sidebar, etc.).
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {source: this, target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
+		// Route through window.__lensDrillAjax so the htmx `source` is always
+		// set (here `this`, the clicked element). htmx.ajax otherwise defaults
+		// source to document.body, cascading the in-flight `htmx-request`
+		// loading state onto every .btn on the page (nav tabs, sidebar, etc.).
+		// See DashboardScripts() for the helper definition.
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); window.__lensDrillAjax(%s, %s, %s, this);", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
 		payload := actionPayload(spec, row, resultVariables(result))
 		encoded, err := json.Marshal(payload)
@@ -955,25 +955,10 @@ func panelMetricInfoText(ctx context.Context, spec panel.Spec) string {
 }
 
 func panelUsesMetricInfoFallback(spec panel.Spec) bool {
-	switch spec.Kind {
-	case panel.KindTimeSeries,
-		panel.KindBar,
-		panel.KindHorizontalBar,
-		panel.KindStackedBar,
-		panel.KindPie,
-		panel.KindDonut,
-		panel.KindGauge,
-		panel.KindTabs:
-		return true
-	case panel.KindStat,
-		panel.KindSegmentBar,
-		panel.KindTable,
-		panel.KindGrid,
-		panel.KindSplit,
-		panel.KindRepeat:
-		return false
-	}
-	return false
+	// Apex charts plus the tabbed container surface a generic per-kind metric
+	// info fallback; native leaves (stat/segment bar/table) and the other
+	// containers do not.
+	return spec.Kind.IsChart() || spec.Kind == panel.KindTabs
 }
 
 func panelUsesRadialActionSurface(spec panel.Spec) bool {
@@ -1232,28 +1217,18 @@ func panelBodyClass(spec panel.Spec) string {
 }
 
 func panelHasRenderableContent(spec panel.Spec, result *runtime.Result) bool {
-	switch spec.Kind {
-	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	if spec.Kind.IsContainer() {
 		for _, child := range spec.Children {
 			if panelHasRenderableContent(child, result) {
 				return true
 			}
 		}
 		return false
-	case panel.KindStat,
-		panel.KindTimeSeries,
-		panel.KindBar,
-		panel.KindHorizontalBar,
-		panel.KindStackedBar,
-		panel.KindSegmentBar,
-		panel.KindPie,
-		panel.KindDonut,
-		panel.KindTable,
-		panel.KindGauge:
+	}
+	if spec.Kind.IsChart() || spec.Kind.RendersNatively() {
 		panelResult := panelResult(result, spec.ID)
 		return panelResultHasContent(panelResult)
 	}
-
 	return false
 }
 
@@ -1265,13 +1240,12 @@ func panelResultHasContent(result *runtime.PanelResult) bool {
 }
 
 func panelCanFullscreen(spec panel.Spec, result *runtime.Result) bool {
-	switch spec.Kind {
-	case panel.KindTabs, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	// Only apex charts and the tabbed container offer a fullscreen affordance;
+	// native leaves (stat/segment bar/table) and the plain layout containers
+	// (grid/split/repeat) do not.
+	if spec.Kind.IsChart() || spec.Kind == panel.KindTabs {
 		return panelHasRenderableContent(spec, result)
-	case panel.KindStat, panel.KindSegmentBar, panel.KindTable, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return false
 	}
-
 	return false
 }
 
