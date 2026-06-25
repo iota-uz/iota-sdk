@@ -739,6 +739,48 @@ func TestNavModel_SpotlightOnlyNodesBecomePinnedQuickLinks(t *testing.T) {
 	require.Equal(t, "/reports", docs[0].URL)
 }
 
+func TestNavModel_NavVisibilityCanBeStricterThanRouteAuth(t *testing.T) {
+	viewReports := permission.New(
+		permission.WithName("reports.view"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.index",
+					routes: []application.RouteSpec{application.Get("/reports")},
+					nav: []application.NavNode{{
+						ID:       "reports.index",
+						TitleKey: "NavigationLinks.Reports",
+						Path:     "/reports",
+						Visibility: &application.AuthPolicy{
+							Permissions: []permission.Permission{viewReports},
+							Logic:       application.PermissionLogicAll,
+						},
+					}},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	routeAuth, ok := container.AuthPolicyForRoute("GET", "example.test", "/reports")
+	require.True(t, ok)
+	require.Empty(t, routeAuth.Permissions)
+
+	items := container.NavItems()
+	require.Len(t, items, 1)
+	require.Equal(t, []permission.Permission{viewReports}, items[0].Permissions)
+}
+
 func TestNavModel_RejectsCycle(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(testComponent{

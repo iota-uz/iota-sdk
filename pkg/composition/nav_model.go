@@ -104,9 +104,6 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 			index:     index,
 		}
 		if node.Path != "" {
-			if node.Visibility != nil && failFast {
-				return nil, fmt.Errorf("composition: nav leaf %q must inherit visibility from its route Auth", node.ID)
-			}
 			route, ok := routeIndex.routeForPath(node.Path)
 			if !ok {
 				if failFast {
@@ -115,6 +112,9 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 				continue
 			}
 			buildNode.auth = route.Auth
+			if node.Visibility != nil {
+				buildNode.auth = *node.Visibility
+			}
 		} else if node.Visibility != nil {
 			buildNode.auth = *node.Visibility
 		}
