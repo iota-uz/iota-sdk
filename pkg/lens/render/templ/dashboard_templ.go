@@ -656,7 +656,7 @@ func DashboardScripts() templ.Component {
 			templ_7745c5c3_Var30 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<script>\n\t\t(function() {\n\t\t\tif (window.__lensDashboardScriptsBound) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__lensDashboardScriptsBound = true;\n\t\t\twindow.__lensSetSwapTargetLoading = function(target, active) {\n\t\t\t\tif (!target) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst overlay = target.querySelector('[data-lens-loading-overlay]');\n\t\t\t\tconst card = target.querySelector('[data-lens-loading-card]');\n\t\t\t\tconst currentCount = Number.parseInt((target.dataset && target.dataset.lensLoadingCount) || '0', 10) || 0;\n\t\t\t\tconst nextCount = active ? currentCount + 1 : Math.max(currentCount - 1, 0);\n\t\t\t\tif (target.dataset) {\n\t\t\t\t\tif (nextCount > 0) {\n\t\t\t\t\t\ttarget.dataset.lensLoadingCount = String(nextCount);\n\t\t\t\t\t\ttarget.dataset.lensLoading = 'true';\n\t\t\t\t\t} else {\n\t\t\t\t\t\tdelete target.dataset.lensLoadingCount;\n\t\t\t\t\t\tdelete target.dataset.lensLoading;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\ttarget.setAttribute('aria-busy', nextCount > 0 ? 'true' : 'false');\n\t\t\t\tif (overlay) {\n\t\t\t\t\toverlay.classList.toggle('hidden', nextCount === 0);\n\t\t\t\t}\n\t\t\t\tif (card) {\n\t\t\t\t\tcard.classList.toggle('hidden', nextCount === 0);\n\t\t\t\t\tcard.classList.toggle('flex', nextCount > 0);\n\t\t\t\t}\n\t\t\t};\n\t\t\tconst clearSwapTargetLoading = function(target) {\n\t\t\t\tif (!target || !window.__lensSetSwapTargetLoading) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\twindow.__lensSetSwapTargetLoading(target, false);\n\t\t\t};\n\t\t\tdocument.addEventListener('htmx:afterSwap', function(evt) {\n\t\t\t\tconst target = evt.detail && evt.detail.target;\n\t\t\t\tif (!target) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst swapTarget = target.closest('[data-lens-swap-target]') || target.querySelector('[data-lens-swap-target]');\n\t\t\t\tclearSwapTargetLoading(swapTarget || target.closest('[data-lens-dashboard-shell]'));\n\t\t\t\tconst containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');\n\t\t\t\tif (!containsDashboard) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tsetTimeout(() => {\n\t\t\t\t\tdocument.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: { root: target } }));\n\t\t\t\t}, 100);\n\t\t\t});\n\t\t\t['htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout'].forEach(function(eventName) {\n\t\t\t\tdocument.addEventListener(eventName, function(evt) {\n\t\t\t\t\tconst detail = evt && evt.detail ? evt.detail : {};\n\t\t\t\t\tconst target = detail.target || detail.elt;\n\t\t\t\t\tif (!target) {\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tclearSwapTargetLoading(target.closest('[data-lens-swap-target]'));\n\t\t\t\t});\n\t\t\t});\n\t\t})();\n\t</script>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "<script>\n\t\t(function() {\n\t\t\tif (window.__lensDashboardScriptsBound) {\n\t\t\t\treturn;\n\t\t\t}\n\t\t\twindow.__lensDashboardScriptsBound = true;\n\t\t\t// __lensDrillAjax is the single entry point for every Lens drill /\n\t\t\t// swap HTMX request. It exists so the `source` is never omitted:\n\t\t\t// htmx.ajax defaults `source` to document.body, which scopes the\n\t\t\t// in-flight `htmx-request` class to the whole page and cascades the\n\t\t\t// loading state (hidden labels + flashing dots) onto every .btn\n\t\t\t// (nav tabs, sidebar, etc). We always pass an explicit element so\n\t\t\t// the loading state stays scoped to the clicked control / swap\n\t\t\t// target. `source || target` guards against a null source so a new\n\t\t\t// caller can never silently regress back to document.body.\n\t\t\twindow.__lensDrillAjax = function(method, url, target, source) {\n\t\t\t\tif (typeof htmx === 'undefined') {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\thtmx.ajax(method || 'GET', url, {\n\t\t\t\t\tsource: source || target,\n\t\t\t\t\ttarget: target,\n\t\t\t\t\tswap: 'innerHTML',\n\t\t\t\t});\n\t\t\t};\n\t\t\twindow.__lensSetSwapTargetLoading = function(target, active) {\n\t\t\t\tif (!target) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst overlay = target.querySelector('[data-lens-loading-overlay]');\n\t\t\t\tconst card = target.querySelector('[data-lens-loading-card]');\n\t\t\t\tconst currentCount = Number.parseInt((target.dataset && target.dataset.lensLoadingCount) || '0', 10) || 0;\n\t\t\t\tconst nextCount = active ? currentCount + 1 : Math.max(currentCount - 1, 0);\n\t\t\t\tif (target.dataset) {\n\t\t\t\t\tif (nextCount > 0) {\n\t\t\t\t\t\ttarget.dataset.lensLoadingCount = String(nextCount);\n\t\t\t\t\t\ttarget.dataset.lensLoading = 'true';\n\t\t\t\t\t} else {\n\t\t\t\t\t\tdelete target.dataset.lensLoadingCount;\n\t\t\t\t\t\tdelete target.dataset.lensLoading;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\ttarget.setAttribute('aria-busy', nextCount > 0 ? 'true' : 'false');\n\t\t\t\tif (overlay) {\n\t\t\t\t\toverlay.classList.toggle('hidden', nextCount === 0);\n\t\t\t\t}\n\t\t\t\tif (card) {\n\t\t\t\t\tcard.classList.toggle('hidden', nextCount === 0);\n\t\t\t\t\tcard.classList.toggle('flex', nextCount > 0);\n\t\t\t\t}\n\t\t\t};\n\t\t\tconst clearSwapTargetLoading = function(target) {\n\t\t\t\tif (!target || !window.__lensSetSwapTargetLoading) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\twindow.__lensSetSwapTargetLoading(target, false);\n\t\t\t};\n\t\t\tdocument.addEventListener('htmx:afterSwap', function(evt) {\n\t\t\t\tconst target = evt.detail && evt.detail.target;\n\t\t\t\tif (!target) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tconst swapTarget = target.closest('[data-lens-swap-target]') || target.querySelector('[data-lens-swap-target]');\n\t\t\t\tclearSwapTargetLoading(swapTarget || target.closest('[data-lens-dashboard-shell]'));\n\t\t\t\tconst containsDashboard = target.closest('[data-lens-dashboard]') || target.querySelector('[data-lens-dashboard]');\n\t\t\t\tif (!containsDashboard) {\n\t\t\t\t\treturn;\n\t\t\t\t}\n\t\t\t\tsetTimeout(() => {\n\t\t\t\t\tdocument.dispatchEvent(new CustomEvent('sdk:rerenderCharts', { detail: { root: target } }));\n\t\t\t\t}, 100);\n\t\t\t});\n\t\t\t['htmx:responseError', 'htmx:sendError', 'htmx:sendAbort', 'htmx:timeout'].forEach(function(eventName) {\n\t\t\t\tdocument.addEventListener(eventName, function(evt) {\n\t\t\t\t\tconst detail = evt && evt.detail ? evt.detail : {};\n\t\t\t\t\tconst target = detail.target || detail.elt;\n\t\t\t\t\tif (!target) {\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tclearSwapTargetLoading(target.closest('[data-lens-swap-target]'));\n\t\t\t\t});\n\t\t\t});\n\t\t})();\n\t</script>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -693,7 +693,7 @@ func FormURLSyncScript(formID string) templ.Component {
 			var templ_7745c5c3_Var32 string
 			templ_7745c5c3_Var32, templ_7745c5c3_Err = templ.JoinStringErrs(formID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 248, Col: 34}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 267, Col: 34}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var32))
 			if templ_7745c5c3_Err != nil {
@@ -748,7 +748,7 @@ func FilterBar(model filter.Model) templ.Component {
 		var templ_7745c5c3_Var34 string
 		templ_7745c5c3_Var34, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.FiltersTitle)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 302, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 321, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var34))
 		if templ_7745c5c3_Err != nil {
@@ -761,7 +761,7 @@ func FilterBar(model filter.Model) templ.Component {
 		var templ_7745c5c3_Var35 string
 		templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.FiltersApply)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 305, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 324, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 		if templ_7745c5c3_Err != nil {
@@ -779,7 +779,7 @@ func FilterBar(model filter.Model) templ.Component {
 			var templ_7745c5c3_Var36 string
 			templ_7745c5c3_Var36, templ_7745c5c3_Err = templ.JoinStringErrs(input.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 311, Col: 95}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 330, Col: 95}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var36))
 			if templ_7745c5c3_Err != nil {
@@ -798,7 +798,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var37 string
 				templ_7745c5c3_Var37, templ_7745c5c3_Err = templ.JoinStringErrs(dateRangeState(input))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 314, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 333, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var37))
 				if templ_7745c5c3_Err != nil {
@@ -811,7 +811,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var38 string
 				templ_7745c5c3_Var38, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 315, Col: 33}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 334, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var38))
 				if templ_7745c5c3_Err != nil {
@@ -824,7 +824,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var39 string
 				templ_7745c5c3_Var39, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.DefaultRange)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 316, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 335, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var39))
 				if templ_7745c5c3_Err != nil {
@@ -837,7 +837,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var40 string
 				templ_7745c5c3_Var40, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.CustomRange)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 317, Col: 55}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 336, Col: 55}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var40))
 				if templ_7745c5c3_Err != nil {
@@ -855,7 +855,7 @@ func FilterBar(model filter.Model) templ.Component {
 					var templ_7745c5c3_Var41 string
 					templ_7745c5c3_Var41, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.AllTime)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 319, Col: 48}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 338, Col: 48}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var41))
 					if templ_7745c5c3_Err != nil {
@@ -873,7 +873,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var42 string
 				templ_7745c5c3_Var42, templ_7745c5c3_Err = templ.JoinStringErrs(input.DateRange.StartName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 323, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 342, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var42))
 				if templ_7745c5c3_Err != nil {
@@ -886,7 +886,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var43 string
 				templ_7745c5c3_Var43, templ_7745c5c3_Err = templ.JoinStringErrs(input.DateRange.Start)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 323, Col: 92}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 342, Col: 92}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var43))
 				if templ_7745c5c3_Err != nil {
@@ -899,7 +899,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var44 string
 				templ_7745c5c3_Var44, templ_7745c5c3_Err = templ.JoinStringErrs(input.DateRange.EndName)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 324, Col: 58}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 343, Col: 58}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var44))
 				if templ_7745c5c3_Err != nil {
@@ -912,7 +912,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var45 string
 				templ_7745c5c3_Var45, templ_7745c5c3_Err = templ.JoinStringErrs(input.DateRange.End)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 324, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 343, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var45))
 				if templ_7745c5c3_Err != nil {
@@ -930,7 +930,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var46 string
 				templ_7745c5c3_Var46, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 329, Col: 48}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 348, Col: 48}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var46))
 				if templ_7745c5c3_Err != nil {
@@ -953,7 +953,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var47 string
 				templ_7745c5c3_Var47, templ_7745c5c3_Err = templ.JoinStringErrs(input.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 330, Col: 33}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 349, Col: 33}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var47))
 				if templ_7745c5c3_Err != nil {
@@ -972,7 +972,7 @@ func FilterBar(model filter.Model) templ.Component {
 					var templ_7745c5c3_Var48 string
 					templ_7745c5c3_Var48, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 334, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 353, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var48))
 					if templ_7745c5c3_Err != nil {
@@ -990,7 +990,7 @@ func FilterBar(model filter.Model) templ.Component {
 						var templ_7745c5c3_Var49 string
 						templ_7745c5c3_Var49, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.All)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 336, Col: 41}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 355, Col: 41}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var49))
 						if templ_7745c5c3_Err != nil {
@@ -1009,7 +1009,7 @@ func FilterBar(model filter.Model) templ.Component {
 						var templ_7745c5c3_Var50 string
 						templ_7745c5c3_Var50, templ_7745c5c3_Err = templ.JoinStringErrs(option.Value)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 339, Col: 38}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 358, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var50))
 						if templ_7745c5c3_Err != nil {
@@ -1032,7 +1032,7 @@ func FilterBar(model filter.Model) templ.Component {
 						var templ_7745c5c3_Var51 string
 						templ_7745c5c3_Var51, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 339, Col: 85}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 358, Col: 85}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var51))
 						if templ_7745c5c3_Err != nil {
@@ -1055,7 +1055,7 @@ func FilterBar(model filter.Model) templ.Component {
 					var templ_7745c5c3_Var52 string
 					templ_7745c5c3_Var52, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 343, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 362, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var52))
 					if templ_7745c5c3_Err != nil {
@@ -1068,7 +1068,7 @@ func FilterBar(model filter.Model) templ.Component {
 					var templ_7745c5c3_Var53 string
 					templ_7745c5c3_Var53, templ_7745c5c3_Err = templ.JoinStringErrs(inputTextValue(input))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 343, Col: 76}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 362, Col: 76}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var53))
 					if templ_7745c5c3_Err != nil {
@@ -1088,7 +1088,7 @@ func FilterBar(model filter.Model) templ.Component {
 					var templ_7745c5c3_Var54 string
 					templ_7745c5c3_Var54, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 347, Col: 33}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 366, Col: 33}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var54))
 					if templ_7745c5c3_Err != nil {
@@ -1106,7 +1106,7 @@ func FilterBar(model filter.Model) templ.Component {
 						var templ_7745c5c3_Var55 string
 						templ_7745c5c3_Var55, templ_7745c5c3_Err = templ.JoinStringErrs(option.Value)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 349, Col: 38}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 368, Col: 38}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var55))
 						if templ_7745c5c3_Err != nil {
@@ -1129,7 +1129,7 @@ func FilterBar(model filter.Model) templ.Component {
 						var templ_7745c5c3_Var56 string
 						templ_7745c5c3_Var56, templ_7745c5c3_Err = templ.JoinStringErrs(option.Label)
 						if templ_7745c5c3_Err != nil {
-							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 349, Col: 85}
+							return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 368, Col: 85}
 						}
 						_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var56))
 						if templ_7745c5c3_Err != nil {
@@ -1152,7 +1152,7 @@ func FilterBar(model filter.Model) templ.Component {
 					var templ_7745c5c3_Var57 string
 					templ_7745c5c3_Var57, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 353, Col: 44}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 372, Col: 44}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var57))
 					if templ_7745c5c3_Err != nil {
@@ -1165,7 +1165,7 @@ func FilterBar(model filter.Model) templ.Component {
 					var templ_7745c5c3_Var58 string
 					templ_7745c5c3_Var58, templ_7745c5c3_Err = templ.JoinStringErrs(strings.Join(input.Values, ","))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 353, Col: 86}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 372, Col: 86}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var58))
 					if templ_7745c5c3_Err != nil {
@@ -1184,7 +1184,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var59 string
 				templ_7745c5c3_Var59, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 356, Col: 56}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 375, Col: 56}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var59))
 				if templ_7745c5c3_Err != nil {
@@ -1197,7 +1197,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var60 string
 				templ_7745c5c3_Var60, templ_7745c5c3_Err = templ.JoinStringErrs(inputTextValue(input))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 356, Col: 88}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 375, Col: 88}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var60))
 				if templ_7745c5c3_Err != nil {
@@ -1215,7 +1215,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var61 string
 				templ_7745c5c3_Var61, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 358, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 377, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var61))
 				if templ_7745c5c3_Err != nil {
@@ -1228,7 +1228,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var62 string
 				templ_7745c5c3_Var62, templ_7745c5c3_Err = templ.JoinStringErrs(inputTextValue(input))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 358, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 377, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var62))
 				if templ_7745c5c3_Err != nil {
@@ -1246,7 +1246,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var63 string
 				templ_7745c5c3_Var63, templ_7745c5c3_Err = templ.JoinStringErrs(input.Name)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 360, Col: 43}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 379, Col: 43}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var63))
 				if templ_7745c5c3_Err != nil {
@@ -1259,7 +1259,7 @@ func FilterBar(model filter.Model) templ.Component {
 				var templ_7745c5c3_Var64 string
 				templ_7745c5c3_Var64, templ_7745c5c3_Err = templ.JoinStringErrs(inputTextValue(input))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 360, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 379, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var64))
 				if templ_7745c5c3_Err != nil {
@@ -1329,7 +1329,7 @@ func panelCard(spec panel.Spec, bodyClass string, body templ.Component) templ.Co
 		var templ_7745c5c3_Var68 string
 		templ_7745c5c3_Var68, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(panelSpanStyle(spec.Span))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 369, Col: 82}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 388, Col: 82}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var68))
 		if templ_7745c5c3_Err != nil {
@@ -1382,7 +1382,7 @@ func panelCard(spec panel.Spec, bodyClass string, body templ.Component) templ.Co
 				var templ_7745c5c3_Var71 string
 				templ_7745c5c3_Var71, templ_7745c5c3_Err = templ.JoinStringErrs(spec.Title)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 380, Col: 79}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 399, Col: 79}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var71))
 				if templ_7745c5c3_Err != nil {
@@ -1409,7 +1409,7 @@ func panelCard(spec panel.Spec, bodyClass string, body templ.Component) templ.Co
 				var templ_7745c5c3_Var72 string
 				templ_7745c5c3_Var72, templ_7745c5c3_Err = templ.JoinStringErrs(spec.Description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 385, Col: 76}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 404, Col: 76}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var72))
 				if templ_7745c5c3_Err != nil {
@@ -1450,7 +1450,7 @@ func panelCard(spec panel.Spec, bodyClass string, body templ.Component) templ.Co
 		var templ_7745c5c3_Var75 string
 		templ_7745c5c3_Var75, templ_7745c5c3_Err = templ.JoinStringErrs(spec.ID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 391, Col: 58}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 410, Col: 58}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var75))
 		if templ_7745c5c3_Err != nil {
@@ -1646,7 +1646,7 @@ func PanelIsland(spec panel.Spec, props AsyncProps) templ.Component {
 		var templ_7745c5c3_Var81 string
 		templ_7745c5c3_Var81, templ_7745c5c3_Err = templ.JoinStringErrs(indicatorID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 432, Col: 18}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 451, Col: 18}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var81))
 		if templ_7745c5c3_Err != nil {
@@ -1667,7 +1667,7 @@ func PanelIsland(spec panel.Spec, props AsyncProps) templ.Component {
 		var templ_7745c5c3_Var82 string
 		templ_7745c5c3_Var82, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(panelIslandStyle(spec))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 438, Col: 32}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 457, Col: 32}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var82))
 		if templ_7745c5c3_Err != nil {
@@ -1680,7 +1680,7 @@ func PanelIsland(spec panel.Spec, props AsyncProps) templ.Component {
 		var templ_7745c5c3_Var83 string
 		templ_7745c5c3_Var83, templ_7745c5c3_Err = templ.JoinStringErrs(panelFragmentURL(props.PanelBasePath, spec.ID))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 439, Col: 57}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 458, Col: 57}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var83))
 		if templ_7745c5c3_Err != nil {
@@ -1693,7 +1693,7 @@ func PanelIsland(spec panel.Spec, props AsyncProps) templ.Component {
 		var templ_7745c5c3_Var84 string
 		templ_7745c5c3_Var84, templ_7745c5c3_Err = templ.JoinStringErrs(islandTrigger(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 440, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 459, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var84))
 		if templ_7745c5c3_Err != nil {
@@ -1706,7 +1706,7 @@ func PanelIsland(spec panel.Spec, props AsyncProps) templ.Component {
 		var templ_7745c5c3_Var85 string
 		templ_7745c5c3_Var85, templ_7745c5c3_Err = templ.JoinStringErrs("#" + indicatorID)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 443, Col: 34}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 462, Col: 34}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var85))
 		if templ_7745c5c3_Err != nil {
@@ -1719,7 +1719,7 @@ func PanelIsland(spec panel.Spec, props AsyncProps) templ.Component {
 		var templ_7745c5c3_Var86 string
 		templ_7745c5c3_Var86, templ_7745c5c3_Err = templ.JoinStringErrs(islandIncludeSelector(props))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 444, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 463, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var86))
 		if templ_7745c5c3_Err != nil {
@@ -1810,7 +1810,7 @@ func TabsPanel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction 
 		var templ_7745c5c3_Var89 string
 		templ_7745c5c3_Var89, templ_7745c5c3_Err = templ.JoinStringErrs(tabsState(spec))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 461, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 480, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var89))
 		if templ_7745c5c3_Err != nil {
@@ -1967,7 +1967,7 @@ func TabsPanelNav(spec panel.Spec) templ.Component {
 			var templ_7745c5c3_Var93 string
 			templ_7745c5c3_Var93, templ_7745c5c3_Err = templ.JoinStringErrs(activateTabScript(child.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 495, Col: 40}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 514, Col: 40}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var93))
 			if templ_7745c5c3_Err != nil {
@@ -1980,7 +1980,7 @@ func TabsPanelNav(spec panel.Spec) templ.Component {
 			var templ_7745c5c3_Var94 string
 			templ_7745c5c3_Var94, templ_7745c5c3_Err = templ.JoinStringErrs(tabClassExpression(child.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 496, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 515, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var94))
 			if templ_7745c5c3_Err != nil {
@@ -2001,7 +2001,7 @@ func TabsPanelNav(spec panel.Spec) templ.Component {
 			var templ_7745c5c3_Var95 string
 			templ_7745c5c3_Var95, templ_7745c5c3_Err = templ.JoinStringErrs(child.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 501, Col: 17}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 520, Col: 17}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var95))
 			if templ_7745c5c3_Err != nil {
@@ -2054,7 +2054,7 @@ func TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool, r
 			var templ_7745c5c3_Var98 string
 			templ_7745c5c3_Var98, templ_7745c5c3_Err = templ.JoinStringErrs(tabVisibilityExpression(child.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 509, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 528, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var98))
 			if templ_7745c5c3_Err != nil {
@@ -2189,7 +2189,7 @@ func StatPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAc
 			var templ_7745c5c3_Var103 string
 			templ_7745c5c3_Var103, templ_7745c5c3_Err = templ.JoinStringErrs(ariaLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 540, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 559, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var103))
 			if templ_7745c5c3_Err != nil {
@@ -2220,7 +2220,7 @@ func StatPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAc
 			var templ_7745c5c3_Var105 string
 			templ_7745c5c3_Var105, templ_7745c5c3_Err = templ.JoinStringErrs(ariaLabel)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 542, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 561, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var105))
 			if templ_7745c5c3_Err != nil {
@@ -2325,7 +2325,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 			var templ_7745c5c3_Var109 string
 			templ_7745c5c3_Var109, templ_7745c5c3_Err = templ.JoinStringErrs(statAriaLabel(spec))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 564, Col: 83}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 583, Col: 83}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var109))
 			if templ_7745c5c3_Err != nil {
@@ -2356,7 +2356,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 			var templ_7745c5c3_Var111 string
 			templ_7745c5c3_Var111, templ_7745c5c3_Err = templ.JoinStringErrs(statAriaLabel(spec))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 566, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 585, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var111))
 			if templ_7745c5c3_Err != nil {
@@ -2392,7 +2392,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 		var templ_7745c5c3_Var114 string
 		templ_7745c5c3_Var114, templ_7745c5c3_Err = templ.JoinStringErrs(view.Total)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 571, Col: 123}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 590, Col: 123}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var114))
 		if templ_7745c5c3_Err != nil {
@@ -2410,7 +2410,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 			var templ_7745c5c3_Var115 string
 			templ_7745c5c3_Var115, templ_7745c5c3_Err = templ.JoinStringErrs(view.Caption)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 573, Col: 97}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 592, Col: 97}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var115))
 			if templ_7745c5c3_Err != nil {
@@ -2452,7 +2452,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 				var templ_7745c5c3_Var116 string
 				templ_7745c5c3_Var116, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(segmentSliceStyle(seg.Pct, seg.Color))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 585, Col: 112}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 604, Col: 112}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var116))
 				if templ_7745c5c3_Err != nil {
@@ -2465,7 +2465,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 				var templ_7745c5c3_Var117 string
 				templ_7745c5c3_Var117, templ_7745c5c3_Err = templ.JoinStringErrs(seg.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 585, Col: 132}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 604, Col: 132}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var117))
 				if templ_7745c5c3_Err != nil {
@@ -2494,7 +2494,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 				var templ_7745c5c3_Var118 string
 				templ_7745c5c3_Var118, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(segmentSwatchStyle(seg.Color))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 594, Col: 98}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 613, Col: 98}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var118))
 				if templ_7745c5c3_Err != nil {
@@ -2535,7 +2535,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 			var templ_7745c5c3_Var121 string
 			templ_7745c5c3_Var121, templ_7745c5c3_Err = templ.JoinStringErrs(seg.Label)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 598, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 617, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var121))
 			if templ_7745c5c3_Err != nil {
@@ -2570,7 +2570,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 			var templ_7745c5c3_Var124 string
 			templ_7745c5c3_Var124, templ_7745c5c3_Err = templ.JoinStringErrs(seg.Amount)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 601, Col: 69}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 620, Col: 69}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var124))
 			if templ_7745c5c3_Err != nil {
@@ -2583,7 +2583,7 @@ func SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 			var templ_7745c5c3_Var125 string
 			templ_7745c5c3_Var125, templ_7745c5c3_Err = templ.JoinStringErrs(seg.PctTxt)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 602, Col: 85}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 621, Col: 85}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var125))
 			if templ_7745c5c3_Err != nil {
@@ -2682,7 +2682,7 @@ func MetricInfoButtonWithText(infoText, class string) templ.Component {
 		var templ_7745c5c3_Var130 string
 		templ_7745c5c3_Var130, templ_7745c5c3_Err = templ.JoinStringErrs(metricInfoTooltipHTML(ctx, infoText))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 624, Col: 106}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 643, Col: 106}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var130))
 		if templ_7745c5c3_Err != nil {
@@ -2695,7 +2695,7 @@ func MetricInfoButtonWithText(infoText, class string) templ.Component {
 		var templ_7745c5c3_Var131 string
 		templ_7745c5c3_Var131, templ_7745c5c3_Err = templ.JoinStringErrs(chartText.MetricInfo)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 627, Col: 35}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 646, Col: 35}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var131))
 		if templ_7745c5c3_Err != nil {
@@ -2768,7 +2768,7 @@ func statContent(spec panel.Spec, value, description string, clickable bool) tem
 			var templ_7745c5c3_Var135 string
 			templ_7745c5c3_Var135, templ_7745c5c3_Err = templ.JoinStringErrs(spec.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 642, Col: 120}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 661, Col: 120}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var135))
 			if templ_7745c5c3_Err != nil {
@@ -2789,7 +2789,7 @@ func statContent(spec panel.Spec, value, description string, clickable bool) tem
 			var templ_7745c5c3_Var136 string
 			templ_7745c5c3_Var136, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(badgeStyle(spec.Chrome.AccentColor))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 645, Col: 128}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 664, Col: 128}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var136))
 			if templ_7745c5c3_Err != nil {
@@ -2810,7 +2810,7 @@ func statContent(spec panel.Spec, value, description string, clickable bool) tem
 			var templ_7745c5c3_Var137 string
 			templ_7745c5c3_Var137, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 650, Col: 133}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 669, Col: 133}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var137))
 			if templ_7745c5c3_Err != nil {
@@ -2828,7 +2828,7 @@ func statContent(spec panel.Spec, value, description string, clickable bool) tem
 				var templ_7745c5c3_Var138 string
 				templ_7745c5c3_Var138, templ_7745c5c3_Err = templ.JoinStringErrs(description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 652, Col: 71}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 671, Col: 71}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var138))
 				if templ_7745c5c3_Err != nil {
@@ -2869,7 +2869,7 @@ func statContent(spec panel.Spec, value, description string, clickable bool) tem
 			var templ_7745c5c3_Var141 string
 			templ_7745c5c3_Var141, templ_7745c5c3_Err = templ.JoinStringErrs(value)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 658, Col: 124}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 677, Col: 124}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var141))
 			if templ_7745c5c3_Err != nil {
@@ -2887,7 +2887,7 @@ func statContent(spec panel.Spec, value, description string, clickable bool) tem
 				var templ_7745c5c3_Var142 string
 				templ_7745c5c3_Var142, templ_7745c5c3_Err = templ.JoinStringErrs(description)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 660, Col: 75}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 679, Col: 75}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var142))
 				if templ_7745c5c3_Err != nil {
@@ -3135,7 +3135,7 @@ func PanelLogScaleBadge(spec panel.Spec, chartText chartText, className string) 
 			var templ_7745c5c3_Var150 string
 			templ_7745c5c3_Var150, templ_7745c5c3_Err = templ.JoinStringErrs(chartText.LogScaleHint)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 708, Col: 191}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 727, Col: 191}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var150))
 			if templ_7745c5c3_Err != nil {
@@ -3156,7 +3156,7 @@ func PanelLogScaleBadge(spec panel.Spec, chartText chartText, className string) 
 			var templ_7745c5c3_Var151 string
 			templ_7745c5c3_Var151, templ_7745c5c3_Err = templ.JoinStringErrs(chartText.LogScale)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 710, Col: 29}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 729, Col: 29}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var151))
 			if templ_7745c5c3_Err != nil {
@@ -3199,7 +3199,7 @@ func PanelFullscreenButton(chartText chartText) templ.Component {
 		var templ_7745c5c3_Var153 string
 		templ_7745c5c3_Var153, templ_7745c5c3_Err = templ.JoinStringErrs(openFullscreenScript())
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 718, Col: 33}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 737, Col: 33}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var153))
 		if templ_7745c5c3_Err != nil {
@@ -3212,7 +3212,7 @@ func PanelFullscreenButton(chartText chartText) templ.Component {
 		var templ_7745c5c3_Var154 string
 		templ_7745c5c3_Var154, templ_7745c5c3_Err = templ.JoinStringErrs(chartText.ExpandToFullscreen)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 720, Col: 38}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 739, Col: 38}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var154))
 		if templ_7745c5c3_Err != nil {
@@ -3225,7 +3225,7 @@ func PanelFullscreenButton(chartText chartText) templ.Component {
 		var templ_7745c5c3_Var155 string
 		templ_7745c5c3_Var155, templ_7745c5c3_Err = templ.JoinStringErrs(chartText.ExpandToFullscreen)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 721, Col: 43}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 740, Col: 43}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var155))
 		if templ_7745c5c3_Err != nil {
@@ -3348,7 +3348,7 @@ func PanelFullscreenHeader(spec panel.Spec, chartText chartText) templ.Component
 			var templ_7745c5c3_Var160 string
 			templ_7745c5c3_Var160, templ_7745c5c3_Err = templ.JoinStringErrs(spec.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 763, Col: 75}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 782, Col: 75}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var160))
 			if templ_7745c5c3_Err != nil {
@@ -3367,7 +3367,7 @@ func PanelFullscreenHeader(spec panel.Spec, chartText chartText) templ.Component
 			var templ_7745c5c3_Var161 string
 			templ_7745c5c3_Var161, templ_7745c5c3_Err = templ.JoinStringErrs(infoText)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 767, Col: 73}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 786, Col: 73}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var161))
 			if templ_7745c5c3_Err != nil {
@@ -3386,7 +3386,7 @@ func PanelFullscreenHeader(spec panel.Spec, chartText chartText) templ.Component
 			var templ_7745c5c3_Var162 string
 			templ_7745c5c3_Var162, templ_7745c5c3_Err = templ.JoinStringErrs(spec.Description)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 770, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 789, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var162))
 			if templ_7745c5c3_Err != nil {
@@ -3408,7 +3408,7 @@ func PanelFullscreenHeader(spec panel.Spec, chartText chartText) templ.Component
 		var templ_7745c5c3_Var163 string
 		templ_7745c5c3_Var163, templ_7745c5c3_Err = templ.JoinStringErrs(chartText.CloseFullscreen)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 778, Col: 36}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 797, Col: 36}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var163))
 		if templ_7745c5c3_Err != nil {
@@ -3421,7 +3421,7 @@ func PanelFullscreenHeader(spec panel.Spec, chartText chartText) templ.Component
 		var templ_7745c5c3_Var164 string
 		templ_7745c5c3_Var164, templ_7745c5c3_Err = templ.JoinStringErrs(chartText.CloseFullscreen)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 779, Col: 41}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 798, Col: 41}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var164))
 		if templ_7745c5c3_Err != nil {
@@ -3569,7 +3569,7 @@ func TablePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 			var templ_7745c5c3_Var168 string
 			templ_7745c5c3_Var168, templ_7745c5c3_Err = templ.JoinStringErrs(rowContainerID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 815, Col: 26}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 834, Col: 26}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var168))
 			if templ_7745c5c3_Err != nil {
@@ -3600,7 +3600,7 @@ func TablePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var169 string
 				templ_7745c5c3_Var169, templ_7745c5c3_Err = templ.JoinStringErrs(column.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 824, Col: 168}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 843, Col: 168}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var169))
 				if templ_7745c5c3_Err != nil {
@@ -3618,7 +3618,7 @@ func TablePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 			var templ_7745c5c3_Var170 string
 			templ_7745c5c3_Var170, templ_7745c5c3_Err = templ.JoinStringErrs(rowContainerID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 828, Col: 30}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 847, Col: 30}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var170))
 			if templ_7745c5c3_Err != nil {
@@ -3703,7 +3703,7 @@ func TablePanelChunk(result *runtime.PanelResult) templ.Component {
 			var templ_7745c5c3_Var172 string
 			templ_7745c5c3_Var172, templ_7745c5c3_Err = templ.JoinStringErrs("beforeend:#" + rowContainerID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 854, Col: 51}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 873, Col: 51}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var172))
 			if templ_7745c5c3_Err != nil {
@@ -3729,7 +3729,7 @@ func TablePanelChunk(result *runtime.PanelResult) templ.Component {
 			var templ_7745c5c3_Var173 string
 			templ_7745c5c3_Var173, templ_7745c5c3_Err = templ.JoinStringErrs("beforeend:#" + rowContainerID)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 858, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 877, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var173))
 			if templ_7745c5c3_Err != nil {
@@ -3917,7 +3917,7 @@ func TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[s
 					var templ_7745c5c3_Var181 string
 					templ_7745c5c3_Var181, templ_7745c5c3_Err = templ.JoinStringErrs(tableActionText(ctx, column, row, result))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 906, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 925, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var181))
 					if templ_7745c5c3_Err != nil {
@@ -3952,7 +3952,7 @@ func TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[s
 					var templ_7745c5c3_Var183 string
 					templ_7745c5c3_Var183, templ_7745c5c3_Err = templ.JoinStringErrs(tableActionText(ctx, column, row, result))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 915, Col: 50}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 934, Col: 50}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var183))
 					if templ_7745c5c3_Err != nil {
@@ -3996,7 +3996,7 @@ func TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[s
 					var templ_7745c5c3_Var186 string
 					templ_7745c5c3_Var186, templ_7745c5c3_Err = templ.JoinStringErrs(tablePrimaryText(ctx, column, row, result))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 924, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 943, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var186))
 					if templ_7745c5c3_Err != nil {
@@ -4027,7 +4027,7 @@ func TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[s
 					var templ_7745c5c3_Var188 string
 					templ_7745c5c3_Var188, templ_7745c5c3_Err = templ.JoinStringErrs(tablePrimaryText(ctx, column, row, result))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 932, Col: 51}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 951, Col: 51}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var188))
 					if templ_7745c5c3_Err != nil {
@@ -4041,7 +4041,7 @@ func TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[s
 					var templ_7745c5c3_Var189 string
 					templ_7745c5c3_Var189, templ_7745c5c3_Err = templ.JoinStringErrs(formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone))
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 935, Col: 95}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 954, Col: 95}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var189))
 					if templ_7745c5c3_Err != nil {
@@ -4101,7 +4101,7 @@ func TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) templ
 		var templ_7745c5c3_Var192 string
 		templ_7745c5c3_Var192, templ_7745c5c3_Err = templ.JoinStringErrs(tableSentinelID(spec))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 951, Col: 28}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 970, Col: 28}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var192))
 		if templ_7745c5c3_Err != nil {
@@ -4132,7 +4132,7 @@ func TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) templ
 			var templ_7745c5c3_Var194 string
 			templ_7745c5c3_Var194, templ_7745c5c3_Err = templ.JoinStringErrs(nextURL)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 954, Col: 19}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 973, Col: 19}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var194))
 			if templ_7745c5c3_Err != nil {
@@ -4145,7 +4145,7 @@ func TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) templ
 			var templ_7745c5c3_Var195 string
 			templ_7745c5c3_Var195, templ_7745c5c3_Err = templ.JoinStringErrs("#" + tableIndicatorID(spec))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 958, Col: 46}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 977, Col: 46}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var195))
 			if templ_7745c5c3_Err != nil {
@@ -4163,7 +4163,7 @@ func TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) templ
 		var templ_7745c5c3_Var196 string
 		templ_7745c5c3_Var196, templ_7745c5c3_Err = templ.JoinStringErrs(tableIndicatorID(spec))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 962, Col: 30}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 981, Col: 30}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var196))
 		if templ_7745c5c3_Err != nil {
@@ -4176,7 +4176,7 @@ func TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) templ
 		var templ_7745c5c3_Var197 string
 		templ_7745c5c3_Var197, templ_7745c5c3_Err = templ.JoinStringErrs(translate(ctx, "Lens.Table.LoadingMore"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 966, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 985, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var197))
 		if templ_7745c5c3_Err != nil {
@@ -4189,7 +4189,7 @@ func TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) templ
 		var templ_7745c5c3_Var198 string
 		templ_7745c5c3_Var198, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.EmptyTitle)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 968, Col: 45}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 987, Col: 45}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var198))
 		if templ_7745c5c3_Err != nil {
@@ -4251,7 +4251,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 		var templ_7745c5c3_Var200 string
 		templ_7745c5c3_Var200, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(badgeStyle(rowAccentColor(row)))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 992, Col: 141}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1011, Col: 141}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var200))
 		if templ_7745c5c3_Err != nil {
@@ -4264,7 +4264,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 		var templ_7745c5c3_Var201 string
 		templ_7745c5c3_Var201, templ_7745c5c3_Err = templ.JoinStringErrs(primaryText)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 992, Col: 163}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1011, Col: 163}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var201))
 		if templ_7745c5c3_Err != nil {
@@ -4277,7 +4277,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 		var templ_7745c5c3_Var202 string
 		templ_7745c5c3_Var202, templ_7745c5c3_Err = templ.JoinStringErrs(rowMarker(primaryText))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 993, Col: 27}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1012, Col: 27}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var202))
 		if templ_7745c5c3_Err != nil {
@@ -4290,7 +4290,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 		var templ_7745c5c3_Var203 string
 		templ_7745c5c3_Var203, templ_7745c5c3_Err = templ.JoinStringErrs(primaryText)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 996, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1015, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var203))
 		if templ_7745c5c3_Err != nil {
@@ -4303,7 +4303,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 		var templ_7745c5c3_Var204 string
 		templ_7745c5c3_Var204, templ_7745c5c3_Err = templ.JoinStringErrs(primaryText)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 996, Col: 95}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1015, Col: 95}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var204))
 		if templ_7745c5c3_Err != nil {
@@ -4321,7 +4321,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 			var templ_7745c5c3_Var205 string
 			templ_7745c5c3_Var205, templ_7745c5c3_Err = templ.JoinStringErrs(secondaryBadge)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1000, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1019, Col: 22}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var205))
 			if templ_7745c5c3_Err != nil {
@@ -4334,7 +4334,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 			var templ_7745c5c3_Var206 string
 			templ_7745c5c3_Var206, templ_7745c5c3_Err = templ.JoinStringErrs(strings.ToLower(columns[1].Label))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1000, Col: 60}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1019, Col: 60}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var206))
 			if templ_7745c5c3_Err != nil {
@@ -4353,7 +4353,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 			var templ_7745c5c3_Var207 string
 			templ_7745c5c3_Var207, templ_7745c5c3_Err = templ.JoinStringErrs(tertiaryText)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1004, Col: 70}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1023, Col: 70}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var207))
 			if templ_7745c5c3_Err != nil {
@@ -4376,7 +4376,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 			var templ_7745c5c3_Var208 string
 			templ_7745c5c3_Var208, templ_7745c5c3_Err = templ.JoinStringErrs(trailingValue)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1011, Col: 67}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1030, Col: 67}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var208))
 			if templ_7745c5c3_Err != nil {
@@ -4389,7 +4389,7 @@ func CardListRow(columns []panel.TableColumn, row map[string]any, result *runtim
 			var templ_7745c5c3_Var209 string
 			templ_7745c5c3_Var209, templ_7745c5c3_Err = templ.JoinStringErrs(strings.ToLower(columns[2].Label))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1012, Col: 88}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1031, Col: 88}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var209))
 			if templ_7745c5c3_Err != nil {
@@ -4453,7 +4453,7 @@ func EmptyState() templ.Component {
 		var templ_7745c5c3_Var211 string
 		templ_7745c5c3_Var211, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.EmptyTitle)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1029, Col: 73}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1048, Col: 73}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var211))
 		if templ_7745c5c3_Err != nil {
@@ -4466,7 +4466,7 @@ func EmptyState() templ.Component {
 		var templ_7745c5c3_Var212 string
 		templ_7745c5c3_Var212, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.EmptyDescription)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1030, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1049, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var212))
 		if templ_7745c5c3_Err != nil {
@@ -4518,7 +4518,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 		var templ_7745c5c3_Var214 string
 		templ_7745c5c3_Var214, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.ErrorTitle)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1043, Col: 72}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1062, Col: 72}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var214))
 		if templ_7745c5c3_Err != nil {
@@ -4531,7 +4531,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 		var templ_7745c5c3_Var215 string
 		templ_7745c5c3_Var215, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.ErrorDescription)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1044, Col: 74}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1063, Col: 74}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var215))
 		if templ_7745c5c3_Err != nil {
@@ -4554,7 +4554,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var216 string
 				templ_7745c5c3_Var216, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.ErrorPanelLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1049, Col: 61}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1068, Col: 61}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var216))
 				if templ_7745c5c3_Err != nil {
@@ -4567,7 +4567,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var217 string
 				templ_7745c5c3_Var217, templ_7745c5c3_Err = templ.JoinStringErrs(details.PanelID)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1050, Col: 53}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1069, Col: 53}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var217))
 				if templ_7745c5c3_Err != nil {
@@ -4586,7 +4586,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var218 string
 				templ_7745c5c3_Var218, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.ErrorReasonLabel)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1055, Col: 62}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1074, Col: 62}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var218))
 				if templ_7745c5c3_Err != nil {
@@ -4599,7 +4599,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var219 string
 				templ_7745c5c3_Var219, templ_7745c5c3_Err = templ.JoinStringErrs(details.Reason)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1056, Col: 42}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1075, Col: 42}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var219))
 				if templ_7745c5c3_Err != nil {
@@ -4617,7 +4617,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 			var templ_7745c5c3_Var220 string
 			templ_7745c5c3_Var220, templ_7745c5c3_Err = templ.JoinStringErrs(lensText.ErrorLogsHint)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1059, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1078, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var220))
 			if templ_7745c5c3_Err != nil {
@@ -4641,7 +4641,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var221 string
 				templ_7745c5c3_Var221, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.URL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1068, Col: 35}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1087, Col: 35}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var221))
 				if templ_7745c5c3_Err != nil {
@@ -4659,7 +4659,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var222 string
 					templ_7745c5c3_Var222, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Target)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1070, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1089, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var222))
 					if templ_7745c5c3_Err != nil {
@@ -4678,7 +4678,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var223 string
 					templ_7745c5c3_Var223, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Swap)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1073, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1092, Col: 37}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var223))
 					if templ_7745c5c3_Err != nil {
@@ -4697,7 +4697,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var224 string
 					templ_7745c5c3_Var224, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Include)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1076, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1095, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var224))
 					if templ_7745c5c3_Err != nil {
@@ -4716,7 +4716,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var225 string
 					templ_7745c5c3_Var225, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Confirm)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1079, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1098, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var225))
 					if templ_7745c5c3_Err != nil {
@@ -4734,7 +4734,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var226 string
 				templ_7745c5c3_Var226, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1082, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1101, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var226))
 				if templ_7745c5c3_Err != nil {
@@ -4761,7 +4761,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var228 string
 				templ_7745c5c3_Var228, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.URL)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1087, Col: 34}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1106, Col: 34}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var228))
 				if templ_7745c5c3_Err != nil {
@@ -4779,7 +4779,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var229 string
 					templ_7745c5c3_Var229, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Target)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1089, Col: 41}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1108, Col: 41}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var229))
 					if templ_7745c5c3_Err != nil {
@@ -4798,7 +4798,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var230 string
 					templ_7745c5c3_Var230, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Swap)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1092, Col: 37}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1111, Col: 37}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var230))
 					if templ_7745c5c3_Err != nil {
@@ -4817,7 +4817,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var231 string
 					templ_7745c5c3_Var231, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Include)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1095, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1114, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var231))
 					if templ_7745c5c3_Err != nil {
@@ -4836,7 +4836,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 					var templ_7745c5c3_Var232 string
 					templ_7745c5c3_Var232, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Confirm)
 					if templ_7745c5c3_Err != nil {
-						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1098, Col: 43}
+						return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1117, Col: 43}
 					}
 					_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var232))
 					if templ_7745c5c3_Err != nil {
@@ -4854,7 +4854,7 @@ func ErrorState(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorA
 				var templ_7745c5c3_Var233 string
 				templ_7745c5c3_Var233, templ_7745c5c3_Err = templ.JoinStringErrs(details.Action.Label)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1102, Col: 29}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1121, Col: 29}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var233))
 				if templ_7745c5c3_Err != nil {
@@ -4973,7 +4973,7 @@ func LoadingState(spec panel.Spec, overlay bool) templ.Component {
 		var templ_7745c5c3_Var238 string
 		templ_7745c5c3_Var238, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(panelIslandStyle(spec))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1129, Col: 61}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `pkg/lens/render/templ/dashboard.templ`, Line: 1148, Col: 61}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var238))
 		if templ_7745c5c3_Err != nil {

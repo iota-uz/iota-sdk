@@ -182,6 +182,25 @@ templ DashboardScripts() {
 				return;
 			}
 			window.__lensDashboardScriptsBound = true;
+			// __lensDrillAjax is the single entry point for every Lens drill /
+			// swap HTMX request. It exists so the `source` is never omitted:
+			// htmx.ajax defaults `source` to document.body, which scopes the
+			// in-flight `htmx-request` class to the whole page and cascades the
+			// loading state (hidden labels + flashing dots) onto every .btn
+			// (nav tabs, sidebar, etc). We always pass an explicit element so
+			// the loading state stays scoped to the clicked control / swap
+			// target. `source || target` guards against a null source so a new
+			// caller can never silently regress back to document.body.
+			window.__lensDrillAjax = function(method, url, target, source) {
+				if (typeof htmx === 'undefined') {
+					return;
+				}
+				htmx.ajax(method || 'GET', url, {
+					source: source || target,
+					target: target,
+					swap: 'innerHTML',
+				});
+			};
 			window.__lensSetSwapTargetLoading = function(target, active) {
 				if (!target) {
 					return;

@@ -127,7 +127,9 @@ func TestBuildActionJSUsesHtmxSwapForCubeDrill(t *testing.T) {
 	require.Contains(t, js, "document.addEventListener('htmx:afterRequest', clearPending)")
 	require.Contains(t, js, "source.setAttribute('hx-push-url', 'true')")
 	require.Contains(t, js, "return;")
-	require.Contains(t, js, "htmx.ajax")
+	// Drill requests go through the scoped helper, which always passes an
+	// explicit htmx source (never document.body). See DashboardScripts().
+	require.Contains(t, js, "window.__lensDrillAjax(cfg.method || 'GET', nextURL, target, source)")
 }
 
 func TestOptionsResponsiveOverridesDoNotSerializeNilSeries(t *testing.T) {
