@@ -1,17 +1,292 @@
 {
   "nav_items": [
     {
+      "key": "core.quick_links",
+      "name": "NavigationLinks.QuickLinks",
+      "order": 0,
+      "children": [
+        {
+          "key": "finance.payments",
+          "name": "NavigationLinks.Payments",
+          "href": "/finance/overview?tab=payments",
+          "order": 0,
+          "logic": "all"
+        },
+        {
+          "key": "finance.payments.finance.payments.new",
+          "name": "Payments.List.New",
+          "href": "/finance/overview?tab=payments",
+          "order": 1,
+          "logic": "all"
+        },
+        {
+          "key": "finance.expenses",
+          "name": "NavigationLinks.Expenses",
+          "href": "/finance/overview?tab=expenses",
+          "order": 2,
+          "logic": "all"
+        },
+        {
+          "key": "finance.expenses.finance.expenses.new",
+          "name": "Expenses.List.New",
+          "href": "/finance/overview?tab=expenses",
+          "order": 3,
+          "logic": "all"
+        },
+        {
+          "key": "core.account.sessions",
+          "name": "Account.Sessions.Title",
+          "href": "/account/sessions",
+          "order": 4,
+          "logic": "all"
+        },
+        {
+          "key": "core.account",
+          "name": "Account.Meta.Index.Title",
+          "href": "/account",
+          "order": 5,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "finance",
+      "name": "NavigationLinks.Finances",
+      "order": 1,
+      "children": [
+        {
+          "key": "finance.financial_overview",
+          "name": "NavigationLinks.FinancialOverview",
+          "href": "/finance/overview",
+          "order": 0,
+          "logic": "all"
+        },
+        {
+          "key": "finance.debt",
+          "name": "NavigationLinks.Debts",
+          "href": "/finance/debts",
+          "order": 1,
+          "logic": "all"
+        },
+        {
+          "key": "finance.debt_aggregate",
+          "name": "NavigationLinks.DebtAggregates",
+          "href": "/finance/debt-aggregates",
+          "order": 2,
+          "logic": "all"
+        },
+        {
+          "key": "finance.money_account",
+          "name": "NavigationLinks.Accounts",
+          "href": "/finance/accounts",
+          "order": 3,
+          "logic": "all"
+        },
+        {
+          "key": "finance.counterparties",
+          "name": "NavigationLinks.Counterparties",
+          "href": "/finance/counterparties",
+          "order": 4,
+          "logic": "all"
+        },
+        {
+          "key": "finance.inventory",
+          "name": "NavigationLinks.Inventory",
+          "href": "/finance/inventory",
+          "order": 5,
+          "logic": "all"
+        },
+        {
+          "key": "finance.enums",
+          "name": "NavigationLinks.Finance.Enums",
+          "order": 6,
+          "children": [
+            {
+              "key": "finance.expense_category",
+              "name": "NavigationLinks.ExpenseCategories",
+              "href": "/finance/expense-categories",
+              "order": 0,
+              "logic": "all"
+            },
+            {
+              "key": "finance.payment_category",
+              "name": "NavigationLinks.PaymentCategories",
+              "href": "/finance/payment-categories",
+              "order": 1,
+              "logic": "all"
+            }
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "finance.reports",
+          "name": "NavigationLinks.Reports",
+          "order": 7,
+          "children": [
+            {
+              "key": "finance.financial_report",
+              "name": "NavigationLinks.IncomeStatement",
+              "href": "/finance/reports/income-statement",
+              "order": 0,
+              "logic": "all"
+            },
+            {
+              "key": "finance.cashflow",
+              "name": "NavigationLinks.CashflowStatement",
+              "href": "/finance/reports/cashflow",
+              "order": 1,
+              "logic": "all"
+            }
+          ],
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "warehouse",
+      "name": "NavigationLinks.Warehouse",
+      "order": 2,
+      "children": [
+        {
+          "key": "warehouse.product",
+          "name": "NavigationLinks.Products",
+          "href": "/warehouse/products",
+          "order": 0,
+          "permissions": [
+            "Product.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.position",
+          "name": "NavigationLinks.WarehousePositions",
+          "href": "/warehouse/positions",
+          "order": 1,
+          "permissions": [
+            "Position.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.order",
+          "name": "NavigationLinks.WarehouseOrders",
+          "href": "/warehouse/orders",
+          "order": 2,
+          "permissions": [
+            "Order.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.unit",
+          "name": "NavigationLinks.WarehouseUnits",
+          "href": "/warehouse/units",
+          "order": 3,
+          "permissions": [
+            "Unit.Read"
+          ],
+          "logic": "all"
+        },
+        {
+          "key": "warehouse.inventory",
+          "name": "NavigationLinks.WarehouseInventory",
+          "href": "/warehouse/inventory",
+          "order": 4,
+          "permissions": [
+            "Inventory.Read"
+          ],
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "crm",
+      "name": "NavigationLinks.CRM",
+      "order": 3,
+      "children": [
+        {
+          "key": "crm.client",
+          "name": "NavigationLinks.Clients",
+          "href": "/crm/clients",
+          "order": 0,
+          "logic": "all"
+        },
+        {
+          "key": "crm.chat",
+          "name": "NavigationLinks.Chats",
+          "href": "/crm/chats",
+          "order": 1,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "website",
+      "name": "NavigationLinks.Website",
+      "order": 4,
+      "children": [
+        {
+          "key": "website.aichat",
+          "name": "NavigationLinks.AIChatbot",
+          "href": "/website/ai-chat",
+          "order": 0,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "hrm",
+      "name": "NavigationLinks.HRM",
+      "order": 5,
+      "children": [
+        {
+          "key": "hrm.employee",
+          "name": "NavigationLinks.Employees",
+          "href": "/hrm/employees",
+          "order": 0,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
+      "key": "projects",
+      "name": "NavigationLinks.Projects",
+      "order": 6,
+      "children": [
+        {
+          "key": "projects.project",
+          "name": "NavigationLinks.Projects",
+          "href": "/projects",
+          "order": 0,
+          "logic": "all"
+        },
+        {
+          "key": "projects.project_stage",
+          "name": "NavigationLinks.ProjectStages",
+          "href": "/project-stages",
+          "order": 1,
+          "logic": "all"
+        }
+      ],
+      "logic": "all"
+    },
+    {
       "key": "core.dashboard",
       "name": "NavigationLinks.Dashboard",
       "href": "/",
-      "order": 0,
+      "order": 7,
       "logic": "all"
     },
     {
       "key": "core.administration",
       "name": "NavigationLinks.Administration",
-      "href": "#",
-      "order": 1,
+      "order": 8,
       "children": [
         {
           "key": "core.users",
@@ -71,244 +346,10 @@
           "logic": "all"
         },
         {
-          "key": "",
+          "key": "core.system_info",
           "name": "NavigationLinks.SystemInfo",
           "href": "/system/info",
           "order": 6,
-          "logic": "all"
-        }
-      ],
-      "logic": "all"
-    },
-    {
-      "key": "",
-      "name": "NavigationLinks.HRM",
-      "href": "/hrm",
-      "order": 2,
-      "children": [
-        {
-          "key": "",
-          "name": "NavigationLinks.Employees",
-          "href": "/hrm/employees",
-          "order": 0,
-          "logic": "all"
-        }
-      ],
-      "logic": "all"
-    },
-    {
-      "key": "",
-      "name": "NavigationLinks.Finances",
-      "href": "/finance",
-      "order": 3,
-      "children": [
-        {
-          "key": "",
-          "name": "NavigationLinks.FinancialOverview",
-          "href": "/finance/overview",
-          "order": 0,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.Debts",
-          "href": "/finance/debts",
-          "order": 1,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.DebtAggregates",
-          "href": "/finance/debt-aggregates",
-          "order": 2,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.Accounts",
-          "href": "/finance/accounts",
-          "order": 3,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.Counterparties",
-          "href": "/finance/counterparties",
-          "order": 4,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.Inventory",
-          "href": "/finance/inventory",
-          "order": 5,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.Finance.Enums",
-          "href": "/finance/enums",
-          "order": 6,
-          "children": [
-            {
-              "key": "",
-              "name": "NavigationLinks.ExpenseCategories",
-              "href": "/finance/expense-categories",
-              "order": 0,
-              "logic": "all"
-            },
-            {
-              "key": "",
-              "name": "NavigationLinks.PaymentCategories",
-              "href": "/finance/payment-categories",
-              "order": 1,
-              "logic": "all"
-            }
-          ],
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.Reports",
-          "href": "/finance/reports",
-          "order": 7,
-          "children": [
-            {
-              "key": "",
-              "name": "NavigationLinks.IncomeStatement",
-              "href": "/finance/reports/income-statement",
-              "order": 0,
-              "logic": "all"
-            },
-            {
-              "key": "",
-              "name": "NavigationLinks.CashflowStatement",
-              "href": "/finance/reports/cashflow",
-              "order": 1,
-              "logic": "all"
-            }
-          ],
-          "logic": "all"
-        }
-      ],
-      "logic": "all"
-    },
-    {
-      "key": "",
-      "name": "NavigationLinks.Projects",
-      "href": "#projects",
-      "order": 4,
-      "children": [
-        {
-          "key": "",
-          "name": "NavigationLinks.Projects",
-          "href": "/projects",
-          "order": 0,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.ProjectStages",
-          "href": "/project-stages",
-          "order": 1,
-          "logic": "all"
-        }
-      ],
-      "logic": "all"
-    },
-    {
-      "key": "",
-      "name": "NavigationLinks.Warehouse",
-      "href": "/warehouse",
-      "order": 5,
-      "children": [
-        {
-          "key": "",
-          "name": "NavigationLinks.Products",
-          "href": "/warehouse/products",
-          "order": 0,
-          "permissions": [
-            "Product.Read"
-          ],
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.WarehousePositions",
-          "href": "/warehouse/positions",
-          "order": 1,
-          "permissions": [
-            "Position.Read"
-          ],
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.WarehouseOrders",
-          "href": "/warehouse/orders",
-          "order": 2,
-          "permissions": [
-            "Order.Read"
-          ],
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.WarehouseUnits",
-          "href": "/warehouse/units",
-          "order": 3,
-          "permissions": [
-            "Unit.Read"
-          ],
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.WarehouseInventory",
-          "href": "/warehouse/inventory",
-          "order": 4,
-          "permissions": [
-            "Inventory.Read"
-          ],
-          "logic": "all"
-        }
-      ],
-      "logic": "all"
-    },
-    {
-      "key": "",
-      "name": "NavigationLinks.CRM",
-      "href": "/crm",
-      "order": 6,
-      "children": [
-        {
-          "key": "",
-          "name": "NavigationLinks.Clients",
-          "href": "/crm/clients",
-          "order": 0,
-          "logic": "all"
-        },
-        {
-          "key": "",
-          "name": "NavigationLinks.Chats",
-          "href": "/crm/chats",
-          "order": 1,
-          "logic": "all"
-        }
-      ],
-      "logic": "all"
-    },
-    {
-      "key": "",
-      "name": "NavigationLinks.Website",
-      "href": "/website",
-      "order": 7,
-      "children": [
-        {
-          "key": "",
-          "name": "NavigationLinks.AIChatbot",
-          "href": "/website/ai-chat",
-          "order": 0,
           "logic": "all"
         }
       ],
@@ -403,30 +444,6 @@
     {
       "tr_key": "NavigationLinks.Accounts",
       "link": "/finance/accounts",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
-    },
-    {
-      "tr_key": "NavigationLinks.Administration",
-      "link": "#",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
-    },
-    {
-      "tr_key": "NavigationLinks.CRM",
-      "link": "/crm",
       "access": {
         "visibility": "public",
         "owner_id": "",
@@ -574,30 +591,6 @@
       }
     },
     {
-      "tr_key": "NavigationLinks.Finance.Enums",
-      "link": "/finance/enums",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
-    },
-    {
-      "tr_key": "NavigationLinks.Finances",
-      "link": "/finance",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
-    },
-    {
       "tr_key": "NavigationLinks.FinancialOverview",
       "link": "/finance/overview",
       "access": {
@@ -625,18 +618,6 @@
       "permissions": [
         "Group.Read"
       ]
-    },
-    {
-      "tr_key": "NavigationLinks.HRM",
-      "link": "/hrm",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
     },
     {
       "tr_key": "NavigationLinks.IncomeStatement",
@@ -734,31 +715,7 @@
     },
     {
       "tr_key": "NavigationLinks.Projects",
-      "link": "#projects",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
-    },
-    {
-      "tr_key": "NavigationLinks.Projects",
       "link": "/projects",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
-    },
-    {
-      "tr_key": "NavigationLinks.Reports",
-      "link": "/finance/reports",
       "access": {
         "visibility": "public",
         "owner_id": "",
@@ -825,18 +782,6 @@
       "permissions": [
         "User.Read"
       ]
-    },
-    {
-      "tr_key": "NavigationLinks.Warehouse",
-      "link": "/warehouse",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
     },
     {
       "tr_key": "NavigationLinks.WarehouseInventory",
@@ -907,18 +852,6 @@
       ]
     },
     {
-      "tr_key": "NavigationLinks.Website",
-      "link": "/website",
-      "access": {
-        "visibility": "public",
-        "owner_id": "",
-        "allowed_users": null,
-        "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
-    },
-    {
       "tr_key": "PaymentCategories.List.New",
       "link": "/finance/payment-categories/new",
       "access": {
@@ -946,13 +879,18 @@
       "tr_key": "Products.List.New",
       "link": "/warehouse/products/new",
       "access": {
-        "visibility": "public",
+        "visibility": "restricted",
         "owner_id": "",
         "allowed_users": null,
         "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
+        "allowed_permissions": [
+          "Product.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Product.Read"
+      ]
     },
     {
       "tr_key": "ProjectStages.List.New",
@@ -982,49 +920,69 @@
       "tr_key": "Users.List.New",
       "link": "/users/new",
       "access": {
-        "visibility": "public",
+        "visibility": "restricted",
         "owner_id": "",
         "allowed_users": null,
         "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
+        "allowed_permissions": [
+          "User.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "User.Read"
+      ]
     },
     {
       "tr_key": "WarehouseOrders.List.New",
       "link": "/warehouse/orders/new",
       "access": {
-        "visibility": "public",
+        "visibility": "restricted",
         "owner_id": "",
         "allowed_users": null,
         "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
+        "allowed_permissions": [
+          "Order.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Order.Read"
+      ]
     },
     {
       "tr_key": "WarehousePositions.List.New",
       "link": "/warehouse/positions/new",
       "access": {
-        "visibility": "public",
+        "visibility": "restricted",
         "owner_id": "",
         "allowed_users": null,
         "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
+        "allowed_permissions": [
+          "Position.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Position.Read"
+      ]
     },
     {
       "tr_key": "WarehouseUnits.List.New",
       "link": "/warehouse/units/new",
       "access": {
-        "visibility": "public",
+        "visibility": "restricted",
         "owner_id": "",
         "allowed_users": null,
         "allowed_roles": null,
-        "allowed_permissions": null,
-        "permission_logic": ""
-      }
+        "allowed_permissions": [
+          "Unit.Read"
+        ],
+        "permission_logic": "all"
+      },
+      "permissions": [
+        "Unit.Read"
+      ]
     }
   ]
 }

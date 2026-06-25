@@ -19,6 +19,16 @@ func navRouteOptions(perms []permission.Permission) []application.RouteOption {
 	return []application.RouteOption{application.RequireAll(perms...)}
 }
 
+func navAuthPolicy(perms []permission.Permission) *application.AuthPolicy {
+	if len(perms) == 0 {
+		return nil
+	}
+	return &application.AuthPolicy{
+		Permissions: perms,
+		Logic:       application.PermissionLogicAll,
+	}
+}
+
 func spotlightOnlySurface() map[application.Surface]application.SurfaceOptions {
 	return map[application.Surface]application.SurfaceOptions{
 		application.SurfaceSpotlight: {},
