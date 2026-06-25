@@ -1039,6 +1039,14 @@ func badgeStyle(color string) templpkg.SafeCSS {
 	))
 }
 
+// statAccentStyle renders the stat card's family-color accent bar (the
+// icon-less chrome variant). Width is set inline so it does not depend on a
+// Tailwind utility being present in the consumer's compiled CSS.
+func statAccentStyle(color string) templpkg.SafeCSS {
+	r, g, b := parseHexColor(color)
+	return templpkg.SafeCSS(fmt.Sprintf("background-color: #%02x%02x%02x; width: 3px;", r, g, b))
+}
+
 func defaultMetricInfoText(ctx context.Context, spec panel.Spec) string {
 	subject := metricInfoSubject(ctx, spec)
 	parts := make([]string, 0, 3)

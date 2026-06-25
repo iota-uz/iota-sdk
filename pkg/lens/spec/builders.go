@@ -182,6 +182,12 @@ func Row(panels ...PanelSpec) RowSpec {
 	return RowSpec{Panels: panels}
 }
 
+// HeadingRow returns a panel-less row that renders as a section header band,
+// used to group the following panel rows under a labeled section.
+func HeadingRow(heading string) RowSpec {
+	return RowSpec{Heading: LiteralText(heading)}
+}
+
 func Column(field, label string) TableColumnSpec {
 	return TableColumnSpec{
 		Field: field,

@@ -122,6 +122,9 @@ type DatasetSpec struct {
 type RowSpec struct {
 	Panels []PanelSpec `json:"panels"`
 	Class  string      `json:"class,omitempty"`
+	// Heading, when set, renders the row as a section header band instead of
+	// a panel grid. Used to group panels into labeled sections.
+	Heading Text `json:"heading,omitempty"`
 }
 
 type PanelSpec struct {

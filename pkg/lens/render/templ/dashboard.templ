@@ -61,30 +61,120 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result, resolvePa
 			}
 			@FilterBar(filters)
 			for _, row := range spec.Rows {
-				<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
-					for _, panelSpec := range row.Panels {
-						@Panel(panelSpec, result, resolvePanelErrorAction)
-					}
-				</div>
+				if row.Heading != "" {
+					@SectionHeading(row.Heading)
+				} else {
+					<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
+						for _, panelSpec := range row.Panels {
+							@Panel(panelSpec, result, resolvePanelErrorAction)
+						}
+					</div>
+				}
 			}
 		</div>
 	</div>
 	@DashboardScripts()
 }
 
+// SectionHeading renders a row's Heading as a labeled section band — a small
+// uppercase label with a hairline rule — used to group panel rows.
+templ SectionHeading(label string) {
+	<div class="flex items-center gap-3 pt-2 first:pt-0">
+		<h3 class="whitespace-nowrap text-xs font-semibold uppercase tracking-wider text-slate-500">{ label }</h3>
+		<div class="h-px flex-1 bg-slate-200"></div>
+	</div>
+}
+
 templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 	@lensGridStyles()
 	<div class="space-y-6" data-lens-dashboard>
 		for _, row := range spec.Rows {
-			<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
-				for _, panelSpec := range row.Panels {
-					@PanelShell(panelSpec, props)
-				}
-			</div>
+			if row.Heading != "" {
+				@SectionHeading(row.Heading)
+			} else {
+				<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
+					for _, panelSpec := range row.Panels {
+						@PanelShell(panelSpec, props)
+					}
+				</div>
+			}
 		}
 	</div>
 	@FormURLSyncScript(props.FilterFormID)
 	@DashboardScripts()
+}
+
+// DashboardSkeleton renders a layout-mirroring placeholder for a dashboard
+// while it loads. It is derived from the prepared spec so the shimmer matches
+// the real grid (including section headings), and it fills the whole content
+// area so a loading indicator is visible at any scroll position. Use it as the
+// body of an htmx-indicator overlay instead of a single centered spinner.
+templ DashboardSkeleton(spec lens.DashboardSpec) {
+	@lensGridStyles()
+	@lensSkeletonStyles()
+	<div class="space-y-6" aria-hidden="true">
+		for _, row := range spec.Rows {
+			if row.Heading != "" {
+				<div class="flex items-center gap-3 pt-2 first:pt-0">
+					<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:8rem"></div>
+					<div class="h-px flex-1 bg-slate-200"></div>
+				</div>
+			} else {
+				<div class="grid grid-cols-12 gap-3 md:gap-5">
+					for _, panelSpec := range row.Panels {
+						@panelSkeleton(panelSpec)
+					}
+				</div>
+			}
+		}
+	</div>
+}
+
+// lensSkeletonStyles defines the shimmer sweep used by the skeleton bars. It is
+// a custom class (not a Tailwind utility) so it renders regardless of whether
+// the consumer's CSS build scans pkg/lens, and the slate tones read clearly on
+// a white surface (a plain gray pulse is nearly invisible).
+templ lensSkeletonStyles() {
+	<style>
+		@keyframes lensSkeletonShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+		.lens-skeleton-shimmer {
+			background-color: #e2e8f0;
+			background-image: linear-gradient(90deg, rgba(226,232,240,0) 0%, rgba(148,163,184,0.85) 50%, rgba(226,232,240,0) 100%);
+			background-size: 200% 100%;
+			animation: lensSkeletonShimmer 1.5s ease-in-out infinite;
+		}
+		@media (prefers-reduced-motion: reduce) {
+			.lens-skeleton-shimmer { animation: none; background-color: #cbd5e1; background-image: none; }
+		}
+	</style>
+}
+
+// panelSkeleton renders a card-shaped shimmer for one panel. Variable widths
+// and heights are inline so the placeholder renders even if the consumer's
+// Tailwind build does not generate lens-specific utility classes.
+templ panelSkeleton(spec panel.Spec) {
+	<div class="lens-grid-item" style={ panelSpanStyle(spec.Span) }>
+		if spec.Kind == panel.KindStat {
+			<div class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:136px">
+				<div class="lens-skeleton-shimmer flex-shrink-0 rounded-full" style="width:3px"></div>
+				<div class="flex min-w-0 flex-1 flex-col gap-2.5">
+					<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:80%"></div>
+					<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:55%"></div>
+					<div class="lens-skeleton-shimmer mt-auto h-8 rounded-md" style="width:60%"></div>
+				</div>
+			</div>
+		} else if spec.Kind == panel.KindSegmentBar {
+			<div class="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:88px">
+				<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:35%"></div>
+				<div class="lens-skeleton-shimmer h-3 w-full rounded-full"></div>
+			</div>
+		} else {
+			<div class="flex h-full flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:260px">
+				<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:35%"></div>
+				<div class="lens-skeleton-shimmer flex-1 rounded-lg"></div>
+			</div>
+		}
+	</div>
 }
 
 templ DrillNavigation(model drillNavModel) {
@@ -654,7 +744,7 @@ templ statContent(spec panel.Spec, value, description string, clickable bool) {
 	if clickable {
 		{{ bodyClass = bodyClass + " relative z-10 transition-opacity group-hover:opacity-90 pointer-events-none" }}
 	}
-	if statUsesCustomChrome(spec) {
+	if statUsesCustomChrome(spec) && !spec.Chrome.Icon.Empty() {
 		<div class={ bodyClass }>
 			<div class="flex items-center justify-between gap-4 border-b border-slate-100 px-4 py-4">
 				<div class="flex min-w-0 items-center gap-3">
@@ -670,6 +760,24 @@ templ statContent(spec panel.Spec, value, description string, clickable bool) {
 				if description != "" {
 					<div class="mt-2 text-sm font-medium text-slate-400">{ description }</div>
 				}
+			</div>
+		</div>
+	} else if statUsesCustomChrome(spec) {
+		<div class={ bodyClass }>
+			<div class="flex h-full gap-3 px-4 py-4">
+				<div class="w-1 flex-shrink-0 rounded-full" style={ statAccentStyle(spec.Chrome.AccentColor) }></div>
+				<div class="flex min-w-0 flex-1 flex-col">
+					<div class="flex items-start justify-between gap-2">
+						<h3 class="line-clamp-2 text-sm font-medium text-slate-600 transition-colors group-hover:text-slate-900">{ spec.Title }</h3>
+						@MetricInfoButton(spec, "pointer-events-auto -mt-0.5 flex-shrink-0")
+					</div>
+					<div class="mt-auto pt-3">
+						<div class="text-2xl font-bold tabular-nums leading-tight tracking-tight text-slate-900 sm:text-3xl md:text-4xl">{ value }</div>
+						if description != "" {
+							<div class="mt-1.5 text-xs font-medium text-slate-400">{ description }</div>
+						}
+					</div>
+				</div>
 			</div>
 		</div>
 	} else {

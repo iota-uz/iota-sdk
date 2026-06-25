@@ -75,6 +75,9 @@ type DrillFilterMeta struct {
 type RowSpec struct {
 	Panels []panel.Spec
 	Class  string
+	// Heading, when non-empty, renders the row as a section header band
+	// instead of a panel grid.
+	Heading string
 }
 
 type VariableOption struct {

@@ -334,8 +334,9 @@ func compileDataset(item lensspec.DatasetSpec, opts Options) (lens.DatasetSpec, 
 
 func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
 	out := lens.RowSpec{
-		Panels: make([]panel.Spec, 0, len(item.Panels)),
-		Class:  resolveString(item.Class, opts.Values),
+		Panels:  make([]panel.Spec, 0, len(item.Panels)),
+		Class:   resolveString(item.Class, opts.Values),
+		Heading: resolveText(item.Heading, opts),
 	}
 	for _, panelSpec := range item.Panels {
 		resolved, err := compilePanel(panelSpec, opts)
