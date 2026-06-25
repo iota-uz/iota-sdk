@@ -140,10 +140,12 @@ const exportDownloadState = `{
 			const resp = await fetch(target, { credentials: 'same-origin' });
 			if (!resp.ok) throw new Error('export request failed: ' + resp.status);
 			const blob = await resp.blob();
-			let filename = format === 'csv' ? 'export.csv' : 'export.xlsx';
+			// Content-Disposition is "attachment; filename=NAME"; reuse
+			// URLSearchParams as a tiny key=value parser. Handlers emit an
+			// unquoted, URL-decode-safe NAME, so .get() returns it decoded.
 			const cd = resp.headers.get('content-disposition') || '';
-			const m = cd.match(/filename\*?=(?:UTF-8''|"|')?([^";]+)/i);
-			if (m) { try { filename = decodeURIComponent(m[1].replace(/["']$/, '')); } catch (e) { filename = m[1]; } }
+			const filename = new URLSearchParams(cd.replace(/;\s*/g, '&')).get('filename')
+				|| (format === 'csv' ? 'export.csv' : 'export.xlsx');
 			const url = URL.createObjectURL(blob);
 			const a = document.createElement('a');
 			a.href = url;
