@@ -687,6 +687,58 @@ func TestNavModel_RequireAnyProjectsAnyLogicToSidebarAndSpotlight(t *testing.T) 
 	require.Equal(t, spotlight.PermissionLogicAny, docs[0].Access.PermissionLogic)
 }
 
+func TestNavModel_SpotlightOnlyNodesBecomePinnedQuickLinks(t *testing.T) {
+	viewReports := permission.New(
+		permission.WithName("reports.view"),
+		permission.WithResource("reports"),
+		permission.WithAction(permission.ActionRead),
+	)
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "reports"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "reports.index",
+					routes: []application.RouteSpec{application.Get("/reports", application.RequireAll(viewReports))},
+					nav: []application.NavNode{{
+						ID:       "reports.index",
+						TitleKey: "NavigationLinks.Reports",
+						Path:     "/reports",
+						Surfaces: map[application.Surface]application.SurfaceOptions{
+							application.SurfaceSidebar:   {Hidden: true},
+							application.SurfaceSpotlight: {},
+						},
+					}},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	items := container.NavItems()
+	require.Len(t, items, 1)
+	require.Equal(t, quickLinksNavID, items[0].Key)
+	require.True(t, items[0].Pinned)
+	require.Equal(t, "NavigationLinks.QuickLinks", items[0].Name)
+	require.Len(t, items[0].Children, 1)
+	require.Equal(t, "reports.index", items[0].Children[0].Key)
+	require.Equal(t, "/reports", items[0].Children[0].Href)
+	require.Equal(t, []permission.Permission{viewReports}, items[0].Children[0].Permissions)
+
+	docs, err := spotlight.CollectDocuments(context.Background(), spotlightQuickLinks(container.QuickLinks()), spotlight.ProviderScope{
+		TenantID: uuid.New(),
+		Language: "en",
+	})
+	require.NoError(t, err)
+	require.Len(t, docs, 1)
+	require.Equal(t, "/reports", docs[0].URL)
+}
+
 func TestNavModel_RejectsCycle(t *testing.T) {
 	engine := NewEngine()
 	err := engine.Register(testComponent{
