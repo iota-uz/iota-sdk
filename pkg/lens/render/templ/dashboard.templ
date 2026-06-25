@@ -385,7 +385,7 @@ templ FilterBar(model filter.Model) {
 }
 
 templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
-	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
+	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) } data-lens-panel-id={ spec.ID }>
 		<div class={ panelCardClass(spec) }>
 			if showPanelHeader(spec) {
 				<div class="flex items-center justify-between border-b border-slate-100 px-5 py-3">
