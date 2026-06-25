@@ -14,6 +14,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -212,7 +213,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 				if !routeAuthAllowsUser(ctx, r, u) {
-					http.Error(w, "Forbidden", http.StatusForbidden)
+					renderRouteForbidden(w, r.WithContext(ctx))
 					return
 				}
 
@@ -225,6 +226,13 @@ func ProvideUser() mux.MiddlewareFunc {
 				next.ServeHTTP(w, r.WithContext(ctx))
 			},
 		)
+	}
+}
+
+func renderRouteForbidden(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusForbidden)
+	if err := error_pages.Forbidden().Render(r.Context(), w); err != nil {
+		composables.UseLogger(r.Context()).WithError(err).Error("failed to render forbidden page")
 	}
 }
 
