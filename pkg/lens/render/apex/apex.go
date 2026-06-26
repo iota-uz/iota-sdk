@@ -825,7 +825,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 				window.__lensSetSwapTargetLoading(target, true);
 			}
 			try {
-				htmx.ajax(cfg.method || 'GET', nextURL, {source: source || target, target: target, swap: 'innerHTML'});
+				// Route through __lensDrillAjax so the htmx source is always
+				// set (here the clicked chart element, falling back to the swap
+				// target). htmx.ajax otherwise defaults source to document.body,
+				// scoping the htmx-request loading state to the whole page.
+				window.__lensDrillAjax(cfg.method || 'GET', nextURL, target, source);
 			} catch (error) {
 				if (target.dataset) {
 					delete target.dataset.lensDrillPending;
@@ -839,11 +843,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			window.location.href = nextURL;
 		};`
 	case action.KindHtmxSwap:
-		// `source: cfg.target` scopes the in-flight `htmx-request` class to
-		// the swap target subtree. Without a source, htmx.ajax falls back to
-		// document.body and the loading state cascades onto every .btn on the
-		// page (nav tabs, sidebar, etc.).
-		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {source: cfg.target, target: cfg.target, swap: 'innerHTML'});"
+		// Route through __lensDrillAjax so the htmx `source` is always set
+		// (here the swap target subtree). htmx.ajax otherwise defaults source
+		// to document.body and the in-flight `htmx-request` loading state
+		// cascades onto every .btn on the page (nav tabs, sidebar, etc.).
+		actionJS = "window.__lensDrillAjax(cfg.method || 'GET', nextURL, cfg.target, cfg.target);"
 	case action.KindEmitEvent:
 		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
 	}

@@ -137,13 +137,15 @@ func TestActionOnClickSupportsHtmxSwap(t *testing.T) {
 		},
 	}, nil, &runtime.PanelResult{})
 
-	require.Contains(t, onClick.Call, "htmx.ajax")
+	// Routes through the scoped helper so the htmx source is always explicit.
+	require.Contains(t, onClick.Call, "window.__lensDrillAjax")
 	require.Contains(t, onClick.Call, "/contracts?scope=daily")
 	require.Contains(t, onClick.Call, "#report")
-	// Must pass an explicit source so HTMX scopes the htmx-request class to the
-	// clicked element instead of document.body (which lights up every .btn on
-	// the page, e.g. the nav tabs).
-	require.Contains(t, onClick.Call, "source: this")
+	// Must pass an explicit source (the clicked element, `this`) so HTMX scopes
+	// the htmx-request class to it instead of document.body (which lights up
+	// every .btn on the page, e.g. the nav tabs). The helper's signature is
+	// (method, url, target, source); `this` is the final argument.
+	require.Contains(t, onClick.Call, ", this);")
 }
 
 func TestActionURLPreservesExistingCubeDrillFilters(t *testing.T) {

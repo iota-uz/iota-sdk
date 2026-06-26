@@ -36,6 +36,63 @@ const (
 	KindRepeat     Kind = "repeat"
 )
 
+// IsContainer reports whether the kind is a layout container that renders its
+// Children rather than its own dataset. Membership: KindTabs, KindGrid,
+// KindSplit, KindRepeat. These are the kinds the runtime/render code recurses
+// into instead of validating a dataset or drawing a chart body.
+//
+// Keeping this membership in one predicate lets the recursion sites branch on a
+// category instead of re-enumerating the container kinds in every switch, so a
+// new container kind only has to be added here.
+func (k Kind) IsContainer() bool {
+	switch k {
+	case KindTabs, KindGrid, KindSplit, KindRepeat:
+		return true
+	case KindStat, KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
+		KindSegmentBar, KindPie, KindDonut, KindTable, KindGauge:
+		return false
+	}
+	return false
+}
+
+// IsChart reports whether the kind is a leaf panel rendered through the Apex
+// charts engine. Membership: KindTimeSeries, KindBar, KindHorizontalBar,
+// KindStackedBar, KindPie, KindDonut, KindGauge.
+//
+// This is the complement, among leaf panels, of RendersNatively: every leaf is
+// either an apex chart or a native (non-apex) render. KindStat, KindSegmentBar
+// and KindTable draw their own HTML/CSS and are therefore NOT charts.
+func (k Kind) IsChart() bool {
+	switch k {
+	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
+		KindPie, KindDonut, KindGauge:
+		return true
+	case KindStat, KindSegmentBar, KindTable,
+		KindTabs, KindGrid, KindSplit, KindRepeat:
+		return false
+	}
+	return false
+}
+
+// RendersNatively reports whether the kind is a leaf panel drawn with native
+// HTML/CSS rather than the ApexCharts engine. Membership: KindStat,
+// KindSegmentBar, KindTable.
+//
+// Together, IsChart() and RendersNatively() partition the leaf (non-container)
+// panel kinds, so "this kind is a renderable leaf" is exactly
+// `k.IsChart() || k.RendersNatively()`.
+func (k Kind) RendersNatively() bool {
+	switch k {
+	case KindStat, KindSegmentBar, KindTable:
+		return true
+	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
+		KindPie, KindDonut, KindGauge,
+		KindTabs, KindGrid, KindSplit, KindRepeat:
+		return false
+	}
+	return false
+}
+
 type AxisScale string
 
 const (

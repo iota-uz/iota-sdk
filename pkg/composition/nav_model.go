@@ -8,12 +8,16 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/a-h/templ"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/sirupsen/logrus"
 )
+
+const quickLinksNavID = "core.quick_links"
 
 type navModel struct {
 	items      []types.NavigationItem
@@ -100,9 +104,6 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 			index:     index,
 		}
 		if node.Path != "" {
-			if node.Visibility != nil && failFast {
-				return nil, fmt.Errorf("composition: nav leaf %q must inherit visibility from its route Auth", node.ID)
-			}
 			route, ok := routeIndex.routeForPath(node.Path)
 			if !ok {
 				if failFast {
@@ -111,6 +112,9 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 				continue
 			}
 			buildNode.auth = route.Auth
+			if node.Visibility != nil {
+				buildNode.auth = *node.Visibility
+			}
 		} else if node.Visibility != nil {
 			buildNode.auth = *node.Visibility
 		}
@@ -222,6 +226,7 @@ func projectNavModel(nodes []navBuildNode) navModel {
 	}
 
 	var model navModel
+	pinnedQuickLinks := make([]types.NavigationItem, 0)
 	var buildItems func(parent string) []types.NavigationItem
 	buildItems = func(parent string) []types.NavigationItem {
 		out := make([]types.NavigationItem, 0, len(children[parent]))
@@ -231,16 +236,29 @@ func projectNavModel(nodes []navBuildNode) navModel {
 			if item.Href == "" && len(item.Children) == 0 {
 				continue
 			}
-			if navSurfaceVisible(node.node, application.SurfaceSidebar) {
+			sidebarVisible := navSurfaceVisible(node.node, application.SurfaceSidebar)
+			spotlightVisible := navSurfaceVisible(node.node, application.SurfaceSpotlight)
+			if sidebarVisible {
 				out = append(out, item)
+			} else if spotlightVisible {
+				pinnedQuickLinks = append(pinnedQuickLinks, navNodePinnedQuickLinkItems(node)...)
 			}
-			if navSurfaceVisible(node.node, application.SurfaceSpotlight) {
+			if spotlightVisible {
 				model.quickLinks = append(model.quickLinks, navNodeQuickLinks(node)...)
 			}
 		}
 		return out
 	}
 	model.items = buildItems("")
+	if len(pinnedQuickLinks) > 0 {
+		model.items = append([]types.NavigationItem{{
+			Key:      quickLinksNavID,
+			Name:     "NavigationLinks.QuickLinks",
+			Pinned:   true,
+			Icon:     icons.Gauge(icons.Props{Size: "20"}),
+			Children: pinnedQuickLinks,
+		}}, model.items...)
+	}
 	return model
 }
 
@@ -323,6 +341,70 @@ func navNodeQuickLinks(node navBuildNode) []*spotlight.QuickLink {
 		}
 	}
 	return links
+}
+
+func navNodePinnedQuickLinkItems(node navBuildNode) []types.NavigationItem {
+	nav := node.node
+	items := make([]types.NavigationItem, 0, 1+len(nav.Actions))
+	if nav.Path != "" {
+		if item, ok := navPinnedQuickLinkItem(
+			nav.ID,
+			nav.TitleKey,
+			nav.Path,
+			nav.Icon,
+			nav.Keywords,
+			node.auth,
+			nav.Surfaces[application.SurfaceSpotlight],
+			nav.IsBeta,
+		); ok {
+			items = append(items, item)
+		}
+	}
+	for _, action := range nav.Actions {
+		if action.Path == "" || action.TitleKey == "" {
+			continue
+		}
+		options := action.Surfaces[application.SurfaceSpotlight]
+		if options.Hidden {
+			continue
+		}
+		auth := node.auth
+		if action.Auth != nil {
+			auth = *action.Auth
+		}
+		if item, ok := navPinnedQuickLinkItem(
+			nav.ID+"."+action.ID,
+			action.TitleKey,
+			action.Path,
+			nil,
+			nil,
+			auth,
+			options,
+			nav.IsBeta,
+		); ok {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+func navPinnedQuickLinkItem(id, titleKey, path string, icon templ.Component, keywords []string, auth application.AuthPolicy, options application.SurfaceOptions, isBeta bool) (types.NavigationItem, bool) {
+	if options.Hidden || titleKey == "" || path == "" {
+		return types.NavigationItem{}, false
+	}
+	if options.Icon != nil {
+		icon = options.Icon
+	}
+	return types.NavigationItem{
+		Key:         id,
+		Name:        firstNonEmpty(options.TitleKey, titleKey),
+		Href:        firstNonEmpty(options.Path, path),
+		Keywords:    append(append([]string(nil), keywords...), options.Keywords...),
+		Icon:        icon,
+		Permissions: authPermissions(auth),
+		Logic:       navItemPermissionLogic(auth),
+		IsBeta:      isBeta,
+	}, true
 }
 
 func navQuickLink(titleKey, path string, keywords []string, auth application.AuthPolicy, options application.SurfaceOptions) *spotlight.QuickLink {

@@ -2593,11 +2593,15 @@ let fbPanel = (cfg = {}) => ({
           .filter((v) => v && !v.startsWith('__group:'));
       }
       case 'date': {
-        // Exclude the flatpickr altInput's hidden original (`.flatpickr-input`),
-        // which holds the joined "from — to" display string. Including it yields a
-        // 3rd value for range pickers, breaking the `between` arity check so the
-        // condition is silently dropped (no chip, filter not applied).
-        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"]:not(.flatpickr-input)') ?? [];
+        // Select the DatePicker's canonical value inputs by their explicit
+        // `data-datepicker-value` attribute rather than excluding flatpickr's
+        // internal `.flatpickr-input` class. flatpickr's altInput mode leaves a
+        // hidden original input (the joined "from — to" display string) in the
+        // DOM; reading it as a 3rd value breaks the `between` arity check and
+        // the condition is silently dropped (no chip, filter not applied).
+        // Targeting the attribute we own yields exactly the 2 range values
+        // (or the 1 single value) and is robust to flatpickr's class internals.
+        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"][data-datepicker-value]') ?? [];
         return Array.from(inputs).map((i) => i.value).filter(Boolean);
       }
       case 'number': {

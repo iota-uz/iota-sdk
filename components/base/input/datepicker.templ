@@ -75,8 +75,14 @@ templ DatePicker(props DatePickerProps) {
 		if props.Mode == DatePickerModeRange {
 			<template x-if="selected.length === 2">
 				<div class="contents">
+					// data-datepicker-value marks the canonical date value inputs.
+					// flatpickr's altInput mode also leaves a hidden original
+					// input (class `flatpickr-input`) holding the joined "from —
+					// to" display string; collectors must target this attribute
+					// to read exactly the real values and skip that display input.
 					<input
 						type="hidden"
+						data-datepicker-value
 						x-model="selected[0]"
 						if props.Form != "" {
 							form={ props.Form }
@@ -87,6 +93,7 @@ templ DatePicker(props DatePickerProps) {
 					/>
 					<input
 						type="hidden"
+						data-datepicker-value
 						x-model="selected[1]"
 						if props.Form != "" {
 							form={ props.Form }
@@ -101,6 +108,7 @@ templ DatePicker(props DatePickerProps) {
 			<template x-for="date in selected">
 				<input
 					type="hidden"
+					data-datepicker-value
 					if props.Name != "" {
 						name={ props.Name }
 					}

@@ -219,7 +219,10 @@ func TestRolesController_ReadRoutesRequireRoleRead(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	suite.GET("/roles").Assert(t).ExpectForbidden()
+	suite.GET("/roles").Assert(t).
+		ExpectForbidden().
+		ExpectBodyContains("403").
+		ExpectBodyContains("Access Denied")
 	suite.GET(fmt.Sprintf("/roles/%d", createdRole.ID())).Assert(t).ExpectForbidden()
 }
 

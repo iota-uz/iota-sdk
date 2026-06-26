@@ -14,6 +14,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -212,7 +213,7 @@ func ProvideUser() mux.MiddlewareFunc {
 				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
 				if !routeAuthAllowsUser(ctx, r, u) {
-					http.Error(w, "Forbidden", http.StatusForbidden)
+					renderRouteForbidden(w, r.WithContext(ctx))
 					return
 				}
 
@@ -226,6 +227,31 @@ func ProvideUser() mux.MiddlewareFunc {
 			},
 		)
 	}
+}
+
+func renderRouteForbidden(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	if err := renderForbiddenPage(r.Context(), w); err != nil {
+		logForbiddenRenderError(r.Context(), err)
+		_, _ = w.Write([]byte("<h1>403 Forbidden</h1>"))
+	}
+}
+
+func renderForbiddenPage(ctx context.Context, w http.ResponseWriter) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("render forbidden page panic: %v", recovered)
+		}
+	}()
+	return error_pages.Forbidden().Render(ctx, w)
+}
+
+func logForbiddenRenderError(ctx context.Context, err error) {
+	defer func() {
+		_ = recover()
+	}()
+	composables.UseLogger(ctx).WithError(err).Error("failed to render forbidden page")
 }
 
 func routeAuthRequiresUser(ctx context.Context, r *http.Request) bool {
