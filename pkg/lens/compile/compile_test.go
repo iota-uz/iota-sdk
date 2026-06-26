@@ -145,6 +145,58 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
 }
 
+func TestDocumentRejectsHeadingRowWithPanels(t *testing.T) {
+	t.Parallel()
+
+	doc := lensspec.Document{
+		Version: lensspec.DocumentVersion,
+		ID:      "manual-report",
+		Title:   lensspec.LiteralText("Manual"),
+		Rows: []lensspec.RowSpec{
+			{
+				Heading: lensspec.LiteralText("Summary"),
+				Panels: []lensspec.PanelSpec{
+					{
+						ID:   "total",
+						Kind: panel.KindStat,
+					},
+				},
+			},
+		},
+	}
+
+	_, err := Document(doc, Options{Locale: "en"})
+	require.Error(t, err)
+	require.ErrorContains(t, err, `row heading "Summary" cannot be combined with panels`)
+}
+
+func TestDocumentTreatsBlankHeadingAsPanelRow(t *testing.T) {
+	t.Parallel()
+
+	doc := lensspec.Document{
+		Version: lensspec.DocumentVersion,
+		ID:      "manual-report",
+		Title:   lensspec.LiteralText("Manual"),
+		Rows: []lensspec.RowSpec{
+			{
+				Heading: lensspec.LiteralText("   "),
+				Panels: []lensspec.PanelSpec{
+					{
+						ID:   "total",
+						Kind: panel.KindStat,
+					},
+				},
+			},
+		},
+	}
+
+	compiled, err := Document(doc, Options{Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, compiled.Spec.Rows, 1)
+	require.Empty(t, compiled.Spec.Rows[0].Heading)
+	require.Len(t, compiled.Spec.Rows[0].Panels, 1)
+}
+
 func TestResolveTransformSpecsFailsWhenFillValueRefCannotBeResolved(t *testing.T) {
 	t.Parallel()
 

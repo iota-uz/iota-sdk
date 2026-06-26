@@ -169,7 +169,7 @@ func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.Da
 }
 
 func (c *DashboardController) Descriptor() application.ControllerDescriptor {
-	return application.Descriptor("core.dashboard", 0, application.Route("", "/")).
+	return application.Descriptor("core.dashboard", 0, application.Route("", "/", navRouteOptions(c.navPermissions)...)).
 		WithNav(application.NavNode{
 			ID:         "core.dashboard",
 			TitleKey:   "NavigationLinks.Dashboard",

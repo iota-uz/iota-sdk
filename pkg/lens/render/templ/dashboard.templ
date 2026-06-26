@@ -61,9 +61,11 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result, resolvePa
 			}
 			@FilterBar(filters)
 			for _, row := range spec.Rows {
-				if row.Heading != "" {
-					@SectionHeading(row.Heading)
-				} else {
+				{{ heading := strings.TrimSpace(row.Heading) }}
+				if heading != "" {
+					@SectionHeading(heading)
+				}
+				if len(row.Panels) > 0 {
 					<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
 						for _, panelSpec := range row.Panels {
 							@Panel(panelSpec, result, resolvePanelErrorAction)
@@ -89,9 +91,11 @@ templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 	@lensGridStyles()
 	<div class="space-y-6" data-lens-dashboard>
 		for _, row := range spec.Rows {
-			if row.Heading != "" {
-				@SectionHeading(row.Heading)
-			} else {
+			{{ heading := strings.TrimSpace(row.Heading) }}
+			if heading != "" {
+				@SectionHeading(heading)
+			}
+			if len(row.Panels) > 0 {
 				<div class={ "grid grid-cols-12 gap-3 md:gap-5", row.Class }>
 					for _, panelSpec := range row.Panels {
 						@PanelShell(panelSpec, props)
@@ -114,12 +118,14 @@ templ DashboardSkeleton(spec lens.DashboardSpec) {
 	@lensSkeletonStyles()
 	<div class="space-y-6" aria-hidden="true">
 		for _, row := range spec.Rows {
-			if row.Heading != "" {
+			{{ heading := strings.TrimSpace(row.Heading) }}
+			if heading != "" {
 				<div class="flex items-center gap-3 pt-2 first:pt-0">
 					<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:8rem"></div>
 					<div class="h-px flex-1 bg-slate-200"></div>
 				</div>
-			} else {
+			}
+			if len(row.Panels) > 0 {
 				<div class="grid grid-cols-12 gap-3 md:gap-5">
 					for _, panelSpec := range row.Panels {
 						@panelSkeleton(panelSpec)

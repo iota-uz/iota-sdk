@@ -1,9 +1,11 @@
 package spec
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/stretchr/testify/require"
 )
 
@@ -38,6 +40,27 @@ func TestLoadParsesVariableComponentOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, doc.Variables, 1)
 	require.Equal(t, string(lens.VariableComponentTextInput), doc.Variables[0].Component)
+}
+
+func TestRowSpecMarshal_OmitsEmptyHeading(t *testing.T) {
+	t.Parallel()
+
+	payload, err := json.Marshal(RowSpec{ //nolint:musttag // RowSpec is the canonical Lens JSON payload under test.
+		Panels: []PanelSpec{
+			{
+				ID:   "total",
+				Kind: panel.KindStat,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NotContains(t, string(payload), `"heading"`)
+
+	payload, err = json.Marshal(RowSpec{ //nolint:musttag // RowSpec is the canonical Lens JSON payload under test.
+		Heading: LiteralText("Summary"),
+	})
+	require.NoError(t, err)
+	require.Contains(t, string(payload), `"heading":"Summary"`)
 }
 
 func TestDocumentValidate(t *testing.T) {
