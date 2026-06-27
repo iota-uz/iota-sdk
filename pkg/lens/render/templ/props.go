@@ -28,7 +28,9 @@ type FragmentProps struct {
 
 type FacetOptionsProps struct {
 	ApplyURL    string
+	OptionsURL  string
 	Target      string
+	Dimension   string
 	HiddenQuery map[string][]string
 }
 
