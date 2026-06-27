@@ -1404,6 +1404,106 @@ let createAnchoredOverlayPositioner = ({ gap = 8, minTop = 8 } = {}) => ({
   },
 });
 
+let sidebarCollapsedMenus = () => ({
+  menusByNav: {},
+  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
+
+  open(navKey, anchorEl, groupId, depth, isCollapsed) {
+    if (!isCollapsed || !navKey || !groupId || Number.isNaN(depth)) return;
+
+    const menus = this.menusByNav[navKey] || [];
+    const current = menus[depth];
+    if (current && current.id === groupId) {
+      this.setMenus(navKey, menus.slice(0, depth));
+      return;
+    }
+
+    const position = this.overlayPositioner.rightStart(anchorEl);
+    if (!position) return;
+
+    const nextMenus = menus.slice(0, depth);
+    nextMenus[depth] = {
+      id: groupId,
+      left: position.left,
+      top: position.top,
+    };
+    this.setMenus(navKey, nextMenus);
+  },
+
+  close(navKey) {
+    if (!navKey || !this.menusByNav[navKey]) return;
+
+    const next = { ...this.menusByNav };
+    delete next[navKey];
+    this.menusByNav = next;
+  },
+
+  closeAll() {
+    this.menusByNav = {};
+  },
+
+  setMenus(navKey, menus) {
+    const next = { ...this.menusByNav };
+    if (menus.length === 0) {
+      delete next[navKey];
+    } else {
+      next[navKey] = menus;
+    }
+    this.menusByNav = next;
+  },
+
+  navKeyForElement(el) {
+    if (!el) return "";
+
+    const directKey = el.dataset.sidebarNavInstanceId;
+    if (directKey) return directKey;
+
+    const teleportBack = el._x_teleportBack;
+    const sourceNav = teleportBack?.closest('[data-sidebar-nav-instance-id]');
+    if (sourceNav?.dataset.sidebarNavInstanceId) {
+      el.dataset.sidebarNavInstanceId = sourceNav.dataset.sidebarNavInstanceId;
+      return sourceNav.dataset.sidebarNavInstanceId;
+    }
+
+    const sourceMenu = teleportBack?.closest('[data-sidebar-collapsed-menu="true"]');
+    const sourceMenuKey = this.navKeyForElement(sourceMenu);
+    if (sourceMenuKey) {
+      el.dataset.sidebarNavInstanceId = sourceMenuKey;
+      return sourceMenuKey;
+    }
+
+    return el.dataset.sidebarNavId || "";
+  },
+
+  menuForElement(el) {
+    if (!el) return null;
+
+    const navKey = this.navKeyForElement(el);
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    if (!navKey || !groupId || Number.isNaN(depth)) return null;
+
+    const menu = this.menusByNav[navKey]?.[depth];
+    if (!menu || menu.id !== groupId) return null;
+
+    return menu;
+  },
+
+  isOpenFor(el) {
+    return Boolean(this.menuForElement(el));
+  },
+
+  styleFor(el) {
+    const menu = this.menuForElement(el);
+    if (!menu) return {};
+
+    return {
+      left: `${menu.left}px`,
+      top: `${menu.top}px`,
+    };
+  },
+});
+
 let sidebarShell = () => ({
   isCollapsed: initSidebarCollapsed(),
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
@@ -1451,75 +1551,48 @@ let sidebarShell = () => ({
 })
 
 let sidebarNavigation = () => ({
-  collapsedMenus: [],
+  navID: "",
+  navInstanceID: "",
   outsideClickHandler: null,
   escapeHandler: null,
-  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
 
   onCollapsedGroupTrigger(event) {
     const trigger = event.currentTarget;
     if (!trigger) return;
 
+    const navKey = trigger.dataset.sidebarNavInstanceId || this.navInstanceID;
     const groupId = trigger.dataset.groupId;
     const depth = Number(trigger.dataset.depth || 0);
     if (!groupId || Number.isNaN(depth)) return;
 
-    this.openCollapsedMenu(trigger, groupId, depth);
+    this.openCollapsedMenu(navKey, trigger, groupId, depth);
   },
 
-  openCollapsedMenu(anchorEl, groupId, depth) {
-    if (!this.isCollapsed) return;
-
-    const current = this.collapsedMenus[depth];
-    if (current && current.id === groupId) {
-      this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-      return;
-    }
-
-    const position = this.overlayPositioner.rightStart(anchorEl);
-    if (!position) return;
-
-    this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-    this.collapsedMenus[depth] = {
-      id: groupId,
-      left: position.left,
-      top: position.top,
-    };
+  openCollapsedMenu(navKey, anchorEl, groupId, depth) {
+    this.$store.sidebarCollapsedMenus.open(navKey, anchorEl, groupId, depth, this.isCollapsed);
   },
 
   closeCollapsedMenus() {
-    this.collapsedMenus = [];
+    this.$store.sidebarCollapsedMenus.close(this.navInstanceID);
   },
 
   isCollapsedMenuOpen(groupId, depth) {
-    return this.isCollapsed && this.collapsedMenus[depth]?.id === groupId;
+    if (!this.isCollapsed) return false;
+
+    const menu = this.$store.sidebarCollapsedMenus.menusByNav[this.navInstanceID]?.[depth];
+    return menu?.id === groupId;
   },
 
   isCollapsedMenuOpenFor(el) {
-    if (!el) return false;
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return false;
-    return this.isCollapsedMenuOpen(groupId, depth);
+    return this.isCollapsed && this.$store.sidebarCollapsedMenus.isOpenFor(el);
   },
 
   collapsedMenuStyleFor(el) {
-    if (!el) return {};
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return {};
-    if (!this.isCollapsedMenuOpen(groupId, depth)) {
-      return {};
-    }
-    const menu = this.collapsedMenus[depth];
-    return {
-      left: `${menu.left}px`,
-      top: `${menu.top}px`,
-    };
+    return this.$store.sidebarCollapsedMenus.styleFor(el);
   },
 
   handleCollapsedMenuOutsideClick(event) {
-    if (!this.isCollapsed || this.collapsedMenus.length === 0) return;
+    if (!this.isCollapsed || Object.keys(this.$store.sidebarCollapsedMenus.menusByNav).length === 0) return;
 
     const target = event.target;
     if (
@@ -1539,6 +1612,9 @@ let sidebarNavigation = () => ({
   },
 
   initSidebarNavigation() {
+    this.navID = this.$el.dataset.sidebarNavId || this.$el.id || "";
+    this.navInstanceID = `${this.navID || 'sidebar-nav'}-${Math.random().toString(36).slice(2)}`;
+    this.$el.dataset.sidebarNavInstanceId = this.navInstanceID;
     this.outsideClickHandler = this.handleCollapsedMenuOutsideClick.bind(this);
     this.escapeHandler = this.handleCollapsedMenuEscape.bind(this);
     document.addEventListener('click', this.outsideClickHandler);
@@ -1552,6 +1628,7 @@ let sidebarNavigation = () => ({
   },
 
   destroy() {
+    this.closeCollapsedMenus();
     if (this.outsideClickHandler) {
       document.removeEventListener('click', this.outsideClickHandler);
       this.outsideClickHandler = null;
@@ -2655,6 +2732,7 @@ Alpine.data("spotlight", spotlight);
 Alpine.data("dateFns", dateFns);
 Alpine.data("datePicker", datePicker);
 Alpine.data("navTabs", navTabs);
+Alpine.store("sidebarCollapsedMenus", sidebarCollapsedMenus());
 Alpine.data("sidebarShell", sidebarShell);
 Alpine.data("sidebarNavigation", sidebarNavigation);
 Alpine.data("disableFormElementsWhen", disableFormElementsWhen);

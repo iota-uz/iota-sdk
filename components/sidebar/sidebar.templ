@@ -52,6 +52,11 @@ func depthAttr(depth int) string {
 	return strconv.Itoa(depth)
 }
 
+const (
+	sidebarPinnedNavID = "sidebar-pinned-navigation"
+	sidebarMainNavID   = "sidebar-navigation"
+)
+
 // sidebarFallbackInitial returns the uppercase first rune of a nav item's
 // text. It backs the icon stand-in shown in the collapsed sidebar for items
 // that have no icon, so they don't render as empty (invisible) buttons.
@@ -142,13 +147,18 @@ templ Sidebar(props Props) {
 templ SidebarPinnedNav(props Props) {
 	{{ pinnedNodes := buildSidebarNavNodes(ctx, props.PinnedItems) }}
 	if len(pinnedNodes) > 0 {
-		<nav x-data="sidebarNavigation()" x-init="initSidebarNavigation()" class="mt-4">
+		<nav
+			x-data="sidebarNavigation()"
+			x-init="initSidebarNavigation()"
+			data-sidebar-nav-id={ sidebarPinnedNavID }
+			class="mt-4"
+		>
 			<ul
-				id="sidebar-pinned-navigation"
+				id={ sidebarPinnedNavID }
 				class="flex flex-col gap-2 pb-4 border-b border-surface-300"
 			>
 				for _, node := range pinnedNodes {
-					@SidebarNode(node, SidebarRenderModeMain, 0)
+					@SidebarNode(node, SidebarRenderModeMain, 0, sidebarPinnedNavID)
 				}
 			</ul>
 		</nav>
@@ -187,16 +197,21 @@ templ SidebarNav(props Props) {
 	{{
 		tabs := BuildSidebarNavTabs(ctx, props.TabGroups)
 	}}
-	<nav x-data="sidebarNavigation()" x-init="initSidebarNavigation()" class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar">
+	<nav
+		x-data="sidebarNavigation()"
+		x-init="initSidebarNavigation()"
+		data-sidebar-nav-id={ sidebarMainNavID }
+		class="py-4 flex-1 min-h-0 overflow-y-auto hide-scrollbar"
+	>
 		for _, tab := range tabs {
 			@navtabs.Content(tab.Value) {
 				<ul
-					id="sidebar-navigation"
+					id={ sidebarMainNavID }
 					:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
 					class="flex flex-col gap-2 transition-all duration-300"
 				>
 					for _, node := range tab.Nodes {
-						@SidebarNode(node, SidebarRenderModeMain, 0)
+						@SidebarNode(node, SidebarRenderModeMain, 0, sidebarMainNavID)
 					}
 				</ul>
 			}
@@ -204,11 +219,11 @@ templ SidebarNav(props Props) {
 	</nav>
 }
 
-templ SidebarNode(node NavNode, mode SidebarRenderMode, depth int) {
+templ SidebarNode(node NavNode, mode SidebarRenderMode, depth int, navID string) {
 	if node.Kind == NavNodeKindLeaf {
 		@SidebarLinkNode(node, mode)
 	} else {
-		@SidebarGroupNode(node, mode, depth)
+		@SidebarGroupNode(node, mode, depth, navID)
 	}
 }
 
@@ -275,7 +290,7 @@ templ SidebarLinkNode(node NavNode, mode SidebarRenderMode) {
 	}
 }
 
-templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
+templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int, navID string) {
 	{{
 		tooltipText := sidebarTooltipText(node.Text, node.IsBeta)
 		buttonClass := "btn btn-sidebar btn-md gap-2 w-full cursor-pointer"
@@ -296,6 +311,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
 				x-tooltip.placement.right.raw={ tooltipText }
 				aria-label={ tooltipText }
 				data-sidebar-collapsed-group-trigger="true"
+				data-sidebar-nav-id={ navID }
 				data-group-id={ node.ID }
 				data-depth={ depthAttr(depth) }
 				class="accordion-group-collapsed w-full cursor-pointer"
@@ -319,11 +335,11 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
 				</summary>
 				<ul class="ml-4 mt-2 flex flex-col gap-2">
 					for _, child := range node.Children {
-						@SidebarNode(child, SidebarRenderModeMain, depth+1)
+						@SidebarNode(child, SidebarRenderModeMain, depth+1, navID)
 					}
 				</ul>
 			</details>
-			@CollapsedGroupFlyout(node, depth)
+			@CollapsedGroupFlyout(node, depth, navID)
 		</div>
 	} else {
 		<li>
@@ -331,6 +347,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
 				type="button"
 				@click.stop="onCollapsedGroupTrigger($event)"
 				data-sidebar-collapsed-group-trigger="true"
+				data-sidebar-nav-id={ navID }
 				data-group-id={ node.ID }
 				data-depth={ depthAttr(depth) }
 				class={ buttonClass }
@@ -345,17 +362,18 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int) {
 				@icons.CaretRight(icons.Props{Size: "16"})
 			</button>
 		</li>
-		@CollapsedGroupFlyout(node, depth)
+		@CollapsedGroupFlyout(node, depth, navID)
 	}
 }
 
-templ CollapsedGroupFlyout(node NavNode, depth int) {
+templ CollapsedGroupFlyout(node NavNode, depth int, navID string) {
 	<template x-teleport="body">
 		<div
 			x-cloak
-			x-show="isCollapsedMenuOpenFor($el)"
-			:style="collapsedMenuStyleFor($el)"
+			x-show="$store.sidebarCollapsedMenus.isOpenFor($el)"
+			:style="$store.sidebarCollapsedMenus.styleFor($el)"
 			data-sidebar-collapsed-menu="true"
+			data-sidebar-nav-id={ navID }
 			data-group-id={ node.ID }
 			data-depth={ depthAttr(depth) }
 			x-transition
@@ -363,7 +381,7 @@ templ CollapsedGroupFlyout(node NavNode, depth int) {
 		>
 			<ul class="flex flex-col gap-1">
 				for _, child := range node.Children {
-					@SidebarNode(child, SidebarRenderModeFlyout, depth+1)
+					@SidebarNode(child, SidebarRenderModeFlyout, depth+1, navID)
 				}
 			</ul>
 		</div>
