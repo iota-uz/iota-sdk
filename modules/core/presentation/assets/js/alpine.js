@@ -2120,11 +2120,30 @@ let tableConfig = (id) => ({
     if (fromIndex === toIndex) return;
     let [col] = this.columns.splice(fromIndex, 1);
     this.columns.splice(toIndex, 0, col);
+    this.columns = this.normalizeColumnOrder(this.columns);
     if (sync) {
-      this.fixedColumns = this.columns;
+      this.fixedColumns = [...this.columns];
     }
     this.save();
     this.applyConfiguration();
+  },
+
+  normalizeColumnOrder(columns) {
+    let leftSticky = [];
+    let regular = [];
+    let rightSticky = [];
+
+    columns.forEach(col => {
+      if (col.stickyPos === 'left') {
+        leftSticky.push(col);
+      } else if (col.stickyPos === 'right') {
+        rightSticky.push(col);
+      } else {
+        regular.push(col);
+      }
+    });
+
+    return [...leftSticky, ...regular, ...rightSticky];
   },
 
   reorderRow(row) {
@@ -2212,6 +2231,7 @@ let tableConfig = (id) => ({
           mergedColumns.push({
             ...domCol,
             sticky: savedCol.sticky != undefined ? savedCol.sticky : domCol.sticky,
+            stickyPos: domCol.stickyPos,
             visible: savedCol.visible != undefined ? savedCol.visible : true,
             // userSet defaults to false for legacy configs that predate it.
             userSet: savedCol.userSet === true,
@@ -2228,10 +2248,10 @@ let tableConfig = (id) => ({
         }
       });
 
-      return mergedColumns;
+      return this.normalizeColumnOrder(mergedColumns);
     } catch (e) {
       console.error('Failed to parse saved table config:', e);
-      return domColumns;
+      return this.normalizeColumnOrder(domColumns);
     }
   },
 
@@ -2248,12 +2268,22 @@ let tableConfig = (id) => ({
     headerCells.forEach((th, index) => {
       let key = th.dataset.col || `col-${index}`;
       let sticky = th.dataset.colSticky != undefined;
+      let stickyPos = '';
+      if (sticky) {
+        let className = th.getAttribute('class') || '';
+        if (className.includes('right-0')) {
+          stickyPos = 'right';
+        } else if (className.includes('left-0')) {
+          stickyPos = 'left';
+        }
+      }
       let defaultHidden = th.dataset.colHidden != undefined;
       let priority = parseInt(th.dataset.colPriority || '0', 10) || 0;
       columns.push({
         key,
         label: th.textContent.trim(),
         sticky,
+        stickyPos,
         priority,
         // userSet tracks whether the user explicitly toggled this column,
         // which lets an explicit "show" override responsive auto-hiding.
@@ -2262,7 +2292,7 @@ let tableConfig = (id) => ({
       });
     });
 
-    return columns;
+    return this.normalizeColumnOrder(columns);
   },
 
 
@@ -2291,6 +2321,7 @@ let tableConfig = (id) => ({
 
     this.columns = this.syncConfiguration(this.columns);
     this.fixedColumns = [...this.columns];
+    this.save();
     this.applyConfiguration();
     this.applyGridClasses();
 
