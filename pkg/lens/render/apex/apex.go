@@ -253,6 +253,12 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	if panelSpec.Kind == panel.KindStackedBar {
 		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter)
+		// The stacked-bar total badge floats at the top-left of the plot. Reserve a
+		// header band above the plot so it clears the top y-axis label (and the
+		// top-right toolbar/export menu has room too).
+		if options.Grid != nil && options.Grid.Padding != nil {
+			options.Grid.Padding.Top = mapping.Pointer(34)
+		}
 	}
 	if hasChartEvents(chartEvents) {
 		options.Chart.Events = &chartEvents
@@ -793,8 +799,8 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 				badge.setAttribute('data-lens-stacked-total', 'true');
 				badge.style.position = 'absolute';
 				badge.style.top = '6px';
-				badge.style.right = '12px';
-				badge.style.zIndex = '12';
+				badge.style.left = '12px';
+				badge.style.zIndex = '5';
 				badge.style.padding = '4px 8px';
 				badge.style.borderRadius = '6px';
 				badge.style.border = '1px solid rgba(148, 163, 184, 0.35)';
