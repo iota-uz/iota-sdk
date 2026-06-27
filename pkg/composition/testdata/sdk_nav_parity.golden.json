@@ -1,59 +1,9 @@
 {
   "nav_items": [
     {
-      "key": "core.quick_links",
-      "name": "NavigationLinks.QuickLinks",
-      "order": 0,
-      "children": [
-        {
-          "key": "finance.payments",
-          "name": "NavigationLinks.Payments",
-          "href": "/finance/overview?tab=payments",
-          "order": 0,
-          "logic": "all"
-        },
-        {
-          "key": "finance.payments.finance.payments.new",
-          "name": "Payments.List.New",
-          "href": "/finance/overview?tab=payments",
-          "order": 1,
-          "logic": "all"
-        },
-        {
-          "key": "finance.expenses",
-          "name": "NavigationLinks.Expenses",
-          "href": "/finance/overview?tab=expenses",
-          "order": 2,
-          "logic": "all"
-        },
-        {
-          "key": "finance.expenses.finance.expenses.new",
-          "name": "Expenses.List.New",
-          "href": "/finance/overview?tab=expenses",
-          "order": 3,
-          "logic": "all"
-        },
-        {
-          "key": "core.account.sessions",
-          "name": "Account.Sessions.Title",
-          "href": "/account/sessions",
-          "order": 4,
-          "logic": "all"
-        },
-        {
-          "key": "core.account",
-          "name": "Account.Meta.Index.Title",
-          "href": "/account",
-          "order": 5,
-          "logic": "all"
-        }
-      ],
-      "logic": "all"
-    },
-    {
       "key": "finance",
       "name": "NavigationLinks.Finances",
-      "order": 1,
+      "order": 0,
       "children": [
         {
           "key": "finance.financial_overview",
@@ -147,7 +97,7 @@
     {
       "key": "warehouse",
       "name": "NavigationLinks.Warehouse",
-      "order": 2,
+      "order": 1,
       "children": [
         {
           "key": "warehouse.product",
@@ -205,7 +155,7 @@
     {
       "key": "crm",
       "name": "NavigationLinks.CRM",
-      "order": 3,
+      "order": 2,
       "children": [
         {
           "key": "crm.client",
@@ -227,7 +177,7 @@
     {
       "key": "website",
       "name": "NavigationLinks.Website",
-      "order": 4,
+      "order": 3,
       "children": [
         {
           "key": "website.aichat",
@@ -242,7 +192,7 @@
     {
       "key": "hrm",
       "name": "NavigationLinks.HRM",
-      "order": 5,
+      "order": 4,
       "children": [
         {
           "key": "hrm.employee",
@@ -257,7 +207,7 @@
     {
       "key": "projects",
       "name": "NavigationLinks.Projects",
-      "order": 6,
+      "order": 5,
       "children": [
         {
           "key": "projects.project",
@@ -280,13 +230,13 @@
       "key": "core.dashboard",
       "name": "NavigationLinks.Dashboard",
       "href": "/",
-      "order": 7,
+      "order": 6,
       "logic": "all"
     },
     {
       "key": "core.administration",
       "name": "NavigationLinks.Administration",
-      "order": 8,
+      "order": 7,
       "children": [
         {
           "key": "core.users",

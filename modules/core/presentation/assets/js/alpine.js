@@ -1404,6 +1404,89 @@ let createAnchoredOverlayPositioner = ({ gap = 8, minTop = 8 } = {}) => ({
   },
 });
 
+let sidebarCollapsedMenus = () => ({
+  menusByNav: {},
+  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
+
+  open(navKey, anchorEl, groupId, depth, isCollapsed) {
+    if (!isCollapsed || !navKey || !groupId || Number.isNaN(depth)) return;
+
+    const menus = this.menusByNav[navKey] || [];
+    const current = menus[depth];
+    if (current && current.id === groupId) {
+      this.setMenus(navKey, menus.slice(0, depth));
+      return;
+    }
+
+    const position = this.overlayPositioner.rightStart(anchorEl);
+    if (!position) return;
+
+    const nextMenus = menus.slice(0, depth);
+    nextMenus[depth] = {
+      id: groupId,
+      left: position.left,
+      top: position.top,
+    };
+    this.setMenus(navKey, nextMenus);
+  },
+
+  close(navKey) {
+    if (!navKey || !this.menusByNav[navKey]) return;
+
+    const next = { ...this.menusByNav };
+    delete next[navKey];
+    this.menusByNav = next;
+  },
+
+  closeAll() {
+    this.menusByNav = {};
+  },
+
+  setMenus(navKey, menus) {
+    const next = { ...this.menusByNav };
+    if (menus.length === 0) {
+      delete next[navKey];
+    } else {
+      next[navKey] = menus;
+    }
+    this.menusByNav = next;
+  },
+
+  navKeyForElement(el) {
+    if (!el) return "";
+
+    return el.dataset.sidebarNavInstanceId || "";
+  },
+
+  menuForElement(el) {
+    if (!el) return null;
+
+    const navKey = this.navKeyForElement(el);
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    if (!navKey || !groupId || Number.isNaN(depth)) return null;
+
+    const menu = this.menusByNav[navKey]?.[depth];
+    if (!menu || menu.id !== groupId) return null;
+
+    return menu;
+  },
+
+  isOpenFor(el) {
+    return Boolean(this.menuForElement(el));
+  },
+
+  styleFor(el) {
+    const menu = this.menuForElement(el);
+    if (!menu) return {};
+
+    return {
+      left: `${menu.left}px`,
+      top: `${menu.top}px`,
+    };
+  },
+});
+
 let sidebarShell = () => ({
   isCollapsed: initSidebarCollapsed(),
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
@@ -1451,75 +1534,48 @@ let sidebarShell = () => ({
 })
 
 let sidebarNavigation = () => ({
-  collapsedMenus: [],
+  navID: "",
+  navInstanceID: "",
   outsideClickHandler: null,
   escapeHandler: null,
-  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
 
   onCollapsedGroupTrigger(event) {
     const trigger = event.currentTarget;
     if (!trigger) return;
 
+    const navKey = trigger.dataset.sidebarNavInstanceId || this.navInstanceID;
     const groupId = trigger.dataset.groupId;
     const depth = Number(trigger.dataset.depth || 0);
     if (!groupId || Number.isNaN(depth)) return;
 
-    this.openCollapsedMenu(trigger, groupId, depth);
+    this.openCollapsedMenu(navKey, trigger, groupId, depth);
   },
 
-  openCollapsedMenu(anchorEl, groupId, depth) {
-    if (!this.isCollapsed) return;
-
-    const current = this.collapsedMenus[depth];
-    if (current && current.id === groupId) {
-      this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-      return;
-    }
-
-    const position = this.overlayPositioner.rightStart(anchorEl);
-    if (!position) return;
-
-    this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-    this.collapsedMenus[depth] = {
-      id: groupId,
-      left: position.left,
-      top: position.top,
-    };
+  openCollapsedMenu(navKey, anchorEl, groupId, depth) {
+    this.$store.sidebarCollapsedMenus.open(navKey, anchorEl, groupId, depth, this.isCollapsed);
   },
 
   closeCollapsedMenus() {
-    this.collapsedMenus = [];
+    this.$store.sidebarCollapsedMenus.close(this.navInstanceID);
   },
 
   isCollapsedMenuOpen(groupId, depth) {
-    return this.isCollapsed && this.collapsedMenus[depth]?.id === groupId;
+    if (!this.isCollapsed) return false;
+
+    const menu = this.$store.sidebarCollapsedMenus.menusByNav[this.navInstanceID]?.[depth];
+    return menu?.id === groupId;
   },
 
   isCollapsedMenuOpenFor(el) {
-    if (!el) return false;
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return false;
-    return this.isCollapsedMenuOpen(groupId, depth);
+    return this.isCollapsed && this.$store.sidebarCollapsedMenus.isOpenFor(el);
   },
 
   collapsedMenuStyleFor(el) {
-    if (!el) return {};
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return {};
-    if (!this.isCollapsedMenuOpen(groupId, depth)) {
-      return {};
-    }
-    const menu = this.collapsedMenus[depth];
-    return {
-      left: `${menu.left}px`,
-      top: `${menu.top}px`,
-    };
+    return this.$store.sidebarCollapsedMenus.styleFor(el);
   },
 
   handleCollapsedMenuOutsideClick(event) {
-    if (!this.isCollapsed || this.collapsedMenus.length === 0) return;
+    if (!this.isCollapsed || Object.keys(this.$store.sidebarCollapsedMenus.menusByNav).length === 0) return;
 
     const target = event.target;
     if (
@@ -1539,6 +1595,9 @@ let sidebarNavigation = () => ({
   },
 
   initSidebarNavigation() {
+    this.navID = this.$el.dataset.sidebarNavId || this.$el.id || "";
+    this.navInstanceID = `${this.navID || 'sidebar-nav'}-${Math.random().toString(36).slice(2)}`;
+    this.$el.dataset.sidebarNavInstanceId = this.navInstanceID;
     this.outsideClickHandler = this.handleCollapsedMenuOutsideClick.bind(this);
     this.escapeHandler = this.handleCollapsedMenuEscape.bind(this);
     document.addEventListener('click', this.outsideClickHandler);
@@ -1552,6 +1611,7 @@ let sidebarNavigation = () => ({
   },
 
   destroy() {
+    this.closeCollapsedMenus();
     if (this.outsideClickHandler) {
       document.removeEventListener('click', this.outsideClickHandler);
       this.outsideClickHandler = null;
@@ -2120,11 +2180,30 @@ let tableConfig = (id) => ({
     if (fromIndex === toIndex) return;
     let [col] = this.columns.splice(fromIndex, 1);
     this.columns.splice(toIndex, 0, col);
+    this.columns = this.normalizeColumnOrder(this.columns);
     if (sync) {
-      this.fixedColumns = this.columns;
+      this.fixedColumns = [...this.columns];
     }
     this.save();
     this.applyConfiguration();
+  },
+
+  normalizeColumnOrder(columns) {
+    let leftSticky = [];
+    let regular = [];
+    let rightSticky = [];
+
+    columns.forEach(col => {
+      if (col.stickyPos === 'left') {
+        leftSticky.push(col);
+      } else if (col.stickyPos === 'right') {
+        rightSticky.push(col);
+      } else {
+        regular.push(col);
+      }
+    });
+
+    return [...leftSticky, ...regular, ...rightSticky];
   },
 
   reorderRow(row) {
@@ -2212,6 +2291,7 @@ let tableConfig = (id) => ({
           mergedColumns.push({
             ...domCol,
             sticky: savedCol.sticky != undefined ? savedCol.sticky : domCol.sticky,
+            stickyPos: domCol.stickyPos,
             visible: savedCol.visible != undefined ? savedCol.visible : true,
             // userSet defaults to false for legacy configs that predate it.
             userSet: savedCol.userSet === true,
@@ -2228,10 +2308,10 @@ let tableConfig = (id) => ({
         }
       });
 
-      return mergedColumns;
+      return this.normalizeColumnOrder(mergedColumns);
     } catch (e) {
       console.error('Failed to parse saved table config:', e);
-      return domColumns;
+      return this.normalizeColumnOrder(domColumns);
     }
   },
 
@@ -2248,12 +2328,22 @@ let tableConfig = (id) => ({
     headerCells.forEach((th, index) => {
       let key = th.dataset.col || `col-${index}`;
       let sticky = th.dataset.colSticky != undefined;
+      let stickyPos = '';
+      if (sticky) {
+        let className = th.getAttribute('class') || '';
+        if (className.includes('right-0')) {
+          stickyPos = 'right';
+        } else if (className.includes('left-0')) {
+          stickyPos = 'left';
+        }
+      }
       let defaultHidden = th.dataset.colHidden != undefined;
       let priority = parseInt(th.dataset.colPriority || '0', 10) || 0;
       columns.push({
         key,
         label: th.textContent.trim(),
         sticky,
+        stickyPos,
         priority,
         // userSet tracks whether the user explicitly toggled this column,
         // which lets an explicit "show" override responsive auto-hiding.
@@ -2262,7 +2352,7 @@ let tableConfig = (id) => ({
       });
     });
 
-    return columns;
+    return this.normalizeColumnOrder(columns);
   },
 
 
@@ -2273,7 +2363,11 @@ let tableConfig = (id) => ({
 
   save() {
     let config = JSON.stringify({ key: this.key, columns: this.columns, grid: this.grid });
-    window.localStorage.setItem(this.key, config);
+    try {
+      window.localStorage.setItem(this.key, config);
+    } catch (e) {
+      console.warn('Failed to save table config:', e);
+    }
     return config;
   },
 
@@ -2291,6 +2385,7 @@ let tableConfig = (id) => ({
 
     this.columns = this.syncConfiguration(this.columns);
     this.fixedColumns = [...this.columns];
+    this.save();
     this.applyConfiguration();
     this.applyGridClasses();
 
@@ -2624,6 +2719,7 @@ Alpine.data("spotlight", spotlight);
 Alpine.data("dateFns", dateFns);
 Alpine.data("datePicker", datePicker);
 Alpine.data("navTabs", navTabs);
+Alpine.store("sidebarCollapsedMenus", sidebarCollapsedMenus());
 Alpine.data("sidebarShell", sidebarShell);
 Alpine.data("sidebarNavigation", sidebarNavigation);
 Alpine.data("disableFormElementsWhen", disableFormElementsWhen);
