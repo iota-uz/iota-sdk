@@ -71,11 +71,12 @@ type drillNavCrumb struct {
 }
 
 type drillDimensionTab struct {
-	Name     string
-	Label    string
-	URL      string
-	FacetURL string
-	Active   bool
+	Name        string
+	Label       string
+	URL         string
+	FacetURL    string
+	Active      bool
+	ActiveCount int
 }
 
 type drillSummaryItem struct {
@@ -130,14 +131,74 @@ func drillNavigationModelWithInclude(ctx context.Context, result *runtime.Result
 	}
 	for _, dim := range meta.RemainingDimensions {
 		model.Remaining = append(model.Remaining, drillDimensionTab{
-			Name:     dim.Name,
-			Label:    dim.Label,
-			URL:      dimensionTabURL(meta.BaseURL, baseQuery, state.Filters, dim.Name),
-			FacetURL: facetOptionsURL(meta.BaseURL, baseQuery, state.Filters, activeDim, dim.Name),
-			Active:   dim.Name == activeDim,
+			Name:        dim.Name,
+			Label:       dim.Label,
+			URL:         dimensionTabURL(meta.BaseURL, baseQuery, state.Filters, dim.Name),
+			FacetURL:    facetOptionsURL(meta.BaseURL, baseQuery, state.Filters, activeDim, dim.Name),
+			Active:      dim.Name == activeDim,
+			ActiveCount: activeFilterCount(state.Filters, dim.Name),
 		})
 	}
 	return model
+}
+
+// activeFilterCount returns how many distinct values are currently filtered for
+// the given dimension, so a facet trigger can show a "·N" badge.
+func activeFilterCount(filters []cube.DimensionFilter, dimension string) int {
+	count := 0
+	for _, filter := range filters {
+		if filter.Dimension == dimension {
+			count += len(normalizedFilterValues(filter))
+		}
+	}
+	return count
+}
+
+// facetOptionsOrdered returns the options with currently-selected values floated
+// to the top (stable otherwise) so a multi-select dropdown never hides a checked
+// item below the scroll/search fold.
+func facetOptionsOrdered(options []lens.DrillFacetOptionMeta) []lens.DrillFacetOptionMeta {
+	ordered := make([]lens.DrillFacetOptionMeta, 0, len(options))
+	for _, option := range options {
+		if option.Selected {
+			ordered = append(ordered, option)
+		}
+	}
+	for _, option := range options {
+		if !option.Selected {
+			ordered = append(ordered, option)
+		}
+	}
+	return ordered
+}
+
+// facetMaxCount is the largest option count, used to scale the magnitude bars.
+func facetMaxCount(options []lens.DrillFacetOptionMeta) int {
+	maxCount := 0
+	for _, option := range options {
+		if option.Count > maxCount {
+			maxCount = option.Count
+		}
+	}
+	return maxCount
+}
+
+// facetBarPercent scales an option count to a 0-100 width for its magnitude bar,
+// keeping a visible sliver for any non-zero count.
+func facetBarPercent(count, maxCount int) int {
+	if maxCount <= 0 || count <= 0 {
+		return 0
+	}
+	percent := count * 100 / maxCount
+	if percent < 3 {
+		percent = 3
+	}
+	return percent
+}
+
+// facetBarStyle is the inline width style for an option's magnitude bar.
+func facetBarStyle(count, maxCount int) string {
+	return fmt.Sprintf("width:%d%%", facetBarPercent(count, maxCount))
 }
 
 func drillNavigationModelFromSpec(ctx context.Context, spec lens.DashboardSpec) drillNavModel {
