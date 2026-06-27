@@ -709,7 +709,15 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 		const globals = (w && w.globals) || {};
 		const names = globals.seriesNames || [];
 		const colors = globals.colors || [];
-		const collapsed = new Set(globals.collapsedSeriesIndices || []);
+		const hiddenSeriesIndices = new Set([].concat(globals.collapsedSeriesIndices || [], globals.hiddenSeriesIndices || []));
+		const hiddenSeriesNames = new Set([].concat(globals.collapsedSeries || [], globals.hiddenSeries || [])
+			.map((entry) => {
+				if (entry && typeof entry === 'object' && 'name' in entry) {
+					return String(entry.name);
+				}
+				return String(entry);
+			}));
+		const isSeriesHidden = (seriesIndex) => hiddenSeriesIndices.has(seriesIndex) || hiddenSeriesNames.has(String(names[seriesIndex] || ''));
 		const categories = globals.categoryLabels || globals.labels || ((w && w.config && w.config.xaxis && w.config.xaxis.categories) || []);
 		const escapeHTML = (value) => String(value == null ? '' : value)
 			.replace(/&/g, '&amp;')
@@ -728,7 +736,7 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 		let total = 0;
 		let hasTotal = false;
 		const rows = (series || []).map((points, seriesIndex) => {
-			if (collapsed.has(seriesIndex)) {
+			if (isSeriesHidden(seriesIndex)) {
 				return '';
 			}
 			const value = points && points[dataPointIndex];
@@ -813,11 +821,31 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 				el.appendChild(badge);
 			}
 			const globals = w.globals || {};
-			const collapsed = new Set([].concat(globals.collapsedSeriesIndices || [], globals.hiddenSeriesIndices || []));
-			const hiddenNames = new Set([].concat(globals.collapsedSeries || [], globals.hiddenSeries || []).map(String));
 			const seriesNames = globals.seriesNames || [];
 			const configSeries = w.config && Array.isArray(w.config.series) ? w.config.series : [];
 			const runtimeSeries = Array.isArray(globals.series) ? globals.series : [];
+			const seriesHiddenResult = (seriesName) => {
+				if (!seriesName) {
+					return null;
+				}
+				if (ctx && typeof ctx.isSeriesHidden === 'function') {
+					const result = ctx.isSeriesHidden(seriesName);
+					if (result != null) {
+						return result;
+					}
+				}
+				if (ctx && ctx.series && typeof ctx.series.isSeriesHidden === 'function') {
+					return ctx.series.isSeriesHidden(seriesName);
+				}
+				return null;
+			};
+			const isSeriesHidden = (seriesName) => {
+				const result = seriesHiddenResult(seriesName);
+				if (typeof result === 'boolean') {
+					return result;
+				}
+				return Boolean(result && result.isHidden);
+			};
 			let total = 0;
 			const addValue = (value) => {
 				if (value && typeof value === 'object' && 'y' in value) {
@@ -830,7 +858,7 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 			};
 			configSeries.forEach((entry, seriesIndex) => {
 				const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
-				if (collapsed.has(seriesIndex) || hiddenNames.has(String(name))) {
+				if (isSeriesHidden(String(name))) {
 					return;
 				}
 				const points = entry && Array.isArray(entry.data)

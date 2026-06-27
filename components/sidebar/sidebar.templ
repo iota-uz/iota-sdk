@@ -198,6 +198,7 @@ templ SidebarNav(props Props) {
 		tabs := BuildSidebarNavTabs(ctx, props.TabGroups)
 	}}
 	<nav
+		id={ sidebarMainNavID }
 		x-data="sidebarNavigation()"
 		x-init="initSidebarNavigation()"
 		data-sidebar-nav-id={ sidebarMainNavID }
@@ -206,7 +207,6 @@ templ SidebarNav(props Props) {
 		for _, tab := range tabs {
 			@navtabs.Content(tab.Value) {
 				<ul
-					id={ sidebarMainNavID }
 					:class="{ 'px-2': isCollapsed, 'px-6': !isCollapsed }"
 					class="flex flex-col gap-2 transition-all duration-300"
 				>
@@ -311,6 +311,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int, navID st
 				x-tooltip.placement.right.raw={ tooltipText }
 				aria-label={ tooltipText }
 				data-sidebar-collapsed-group-trigger="true"
+				x-bind:data-sidebar-nav-instance-id="navInstanceID"
 				data-sidebar-nav-id={ navID }
 				data-group-id={ node.ID }
 				data-depth={ depthAttr(depth) }
@@ -347,6 +348,7 @@ templ SidebarGroupNode(node NavNode, mode SidebarRenderMode, depth int, navID st
 				type="button"
 				@click.stop="onCollapsedGroupTrigger($event)"
 				data-sidebar-collapsed-group-trigger="true"
+				x-bind:data-sidebar-nav-instance-id="navInstanceID"
 				data-sidebar-nav-id={ navID }
 				data-group-id={ node.ID }
 				data-depth={ depthAttr(depth) }
@@ -373,6 +375,7 @@ templ CollapsedGroupFlyout(node NavNode, depth int, navID string) {
 			x-show="$store.sidebarCollapsedMenus.isOpenFor($el)"
 			:style="$store.sidebarCollapsedMenus.styleFor($el)"
 			data-sidebar-collapsed-menu="true"
+			x-bind:data-sidebar-nav-instance-id="navInstanceID"
 			data-sidebar-nav-id={ navID }
 			data-group-id={ node.ID }
 			data-depth={ depthAttr(depth) }

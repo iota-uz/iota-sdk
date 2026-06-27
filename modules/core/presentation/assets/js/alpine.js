@@ -1455,24 +1455,7 @@ let sidebarCollapsedMenus = () => ({
   navKeyForElement(el) {
     if (!el) return "";
 
-    const directKey = el.dataset.sidebarNavInstanceId;
-    if (directKey) return directKey;
-
-    const teleportBack = el._x_teleportBack;
-    const sourceNav = teleportBack?.closest('[data-sidebar-nav-instance-id]');
-    if (sourceNav?.dataset.sidebarNavInstanceId) {
-      el.dataset.sidebarNavInstanceId = sourceNav.dataset.sidebarNavInstanceId;
-      return sourceNav.dataset.sidebarNavInstanceId;
-    }
-
-    const sourceMenu = teleportBack?.closest('[data-sidebar-collapsed-menu="true"]');
-    const sourceMenuKey = this.navKeyForElement(sourceMenu);
-    if (sourceMenuKey) {
-      el.dataset.sidebarNavInstanceId = sourceMenuKey;
-      return sourceMenuKey;
-    }
-
-    return el.dataset.sidebarNavId || "";
+    return el.dataset.sidebarNavInstanceId || "";
   },
 
   menuForElement(el) {
@@ -2380,7 +2363,11 @@ let tableConfig = (id) => ({
 
   save() {
     let config = JSON.stringify({ key: this.key, columns: this.columns, grid: this.grid });
-    window.localStorage.setItem(this.key, config);
+    try {
+      window.localStorage.setItem(this.key, config);
+    } catch (e) {
+      console.warn('Failed to save table config:', e);
+    }
     return config;
   },
 

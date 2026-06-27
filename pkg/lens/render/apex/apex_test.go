@@ -404,6 +404,8 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				custom := string(options.Tooltip.Custom.(templ.JSExpression))
 				require.Contains(t, custom, "Итого")
 				require.Contains(t, custom, "collapsedSeriesIndices")
+				require.Contains(t, custom, "hiddenSeriesIndices")
+				require.Contains(t, custom, "hiddenSeriesNames")
 				require.Contains(t, custom, "number === 0")
 				require.Contains(t, custom, "formatValue(total, -1)")
 				require.NotNil(t, options.Chart.Events)
@@ -412,8 +414,12 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotEmpty(t, options.Chart.Events.LegendClick)
 				badge := string(options.Chart.Events.LegendClick)
 				require.Contains(t, badge, "data-lens-stacked-total")
-				require.Contains(t, badge, "collapsedSeriesIndices")
-				require.Contains(t, badge, "hiddenSeriesIndices")
+				require.Contains(t, badge, "ctx.isSeriesHidden")
+				require.Contains(t, badge, "ctx.series.isSeriesHidden")
+				require.NotContains(t, badge, "collapsedSeriesIndices")
+				require.NotContains(t, badge, "hiddenSeriesIndices")
+				require.NotContains(t, badge, "collapsedSeries || []")
+				require.NotContains(t, badge, "hiddenSeries || []")
 				require.Contains(t, badge, "badge.textContent = totalLabel + ': ' + formatValue(total)")
 			},
 		},
