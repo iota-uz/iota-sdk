@@ -86,8 +86,10 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 			}).Warn("cube: ignoring filter for unknown dimension")
 		}
 	}
+	groupBy := groupByDimension(spec, ctx)
+	ctx.GroupBy = groupBy.Name
+	ctx.ActiveDimension = groupBy.Name
 	remaining := ctx.RemainingDimensions(spec)
-	remaining = reorderByActiveDimension(remaining, ctx.ActiveDimension)
 	dashboard := lens.DashboardSpec{
 		ID:          spec.ID,
 		Title:       spec.Title,
@@ -106,30 +108,15 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 	dashboard.Datasets = append(dashboard.Datasets, statsResolution.Datasets...)
 	dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: buildStatPanels(spec, statsResolution.DatasetByMeasure)})
 
-	if ctx.IsLeaf(spec) {
-		leafSpec, leafDataset, leafErr := resolveLeaf(spec, ctx)
-		if leafErr != nil {
-			return lens.DashboardSpec{}, leafErr
-		}
-		if leafDataset != nil {
-			dashboard.Datasets = append(dashboard.Datasets, *leafDataset)
-		}
-		if len(leafSpec.Panels) > 0 {
-			dashboard.Rows = append(dashboard.Rows, leafSpec)
-		}
-		return dashboard, nil
-	}
-
-	dimensionPanels := make([]panel.Spec, 0, len(remaining))
-	for idx, dim := range remaining {
-		resolved, err := resolveDimensionDataset(spec, ctx, dim)
+	if strings.TrimSpace(groupBy.Name) != "" {
+		resolved, err := resolveDimensionDataset(spec, ctx, groupBy)
 		if err != nil {
 			return lens.DashboardSpec{}, err
 		}
 		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
-		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(remaining), idx))
+		dimensionPanels := []panel.Spec{buildDimensionPanel(spec, groupBy, resolved, baseURL, 1, 0)}
+		dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
 	}
-	dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
 
 	return dashboard, nil
 }
@@ -296,9 +283,6 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 	// Additional measures appear only in stat panels.
 	measure := spec.Measures[0]
 	actionURL := baseURL
-	if remainingCount == 1 && strings.TrimSpace(spec.Leaf.URL) != "" {
-		actionURL = spec.Leaf.URL
-	}
 	builder := panelBuilder(dim.PanelKind, "panel_"+dim.Name, dim.Label, resolved.Name).
 		Span(dimensionSpan(remainingCount, index)).
 		Height("360px").
@@ -336,6 +320,24 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 		}
 	}
 	return builder.Build()
+}
+
+func groupByDimension(spec CubeSpec, ctx DrillContext) DimensionSpec {
+	groupBy := ctx.normalizedGroupBy()
+	if groupBy != "" {
+		if dim, ok := spec.Dimension(groupBy); ok {
+			return dim
+		}
+	}
+	if strings.TrimSpace(spec.DefaultDimension) != "" {
+		if dim, ok := spec.Dimension(spec.DefaultDimension); ok {
+			return dim
+		}
+	}
+	if len(spec.Dimensions) == 0 {
+		return DimensionSpec{}
+	}
+	return orderedDimensions(spec)[0]
 }
 
 func buildDimensionRows(panels []panel.Spec) []lens.RowSpec {
@@ -490,7 +492,11 @@ func overrideFilterParams(spec CubeSpec, ctx DrillContext) map[string]lens.Param
 		if _, ok := spec.Dimension(filter.Dimension); !ok {
 			continue
 		}
-		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: filter.Value}
+		values := filter.values()
+		if len(values) == 0 {
+			continue
+		}
+		params[sqlFilterParam(filter.Dimension)] = lens.ParamValue{Literal: values}
 	}
 	return params
 }

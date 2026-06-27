@@ -87,10 +87,14 @@ func filteredTransforms(spec CubeSpec, ctx DrillContext) []transform.Spec {
 		if field == "" {
 			continue
 		}
+		values := filter.values()
+		if len(values) == 0 {
+			continue
+		}
 		predicates = append(predicates, transform.Predicate{
 			Field: field,
-			Op:    "=",
-			Value: filter.Value,
+			Op:    "in",
+			Value: values,
 		})
 	}
 	if len(predicates) == 0 {

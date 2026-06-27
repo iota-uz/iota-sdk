@@ -936,7 +936,42 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		if (cfg.drill) {
 			drillValue = %s;
 			if (drillValue !== undefined && drillValue !== null && drillValue !== '') {
-				params.append('_f', cfg.drill.dimension + ':' + String(drillValue));
+				const dimension = cfg.drill.dimension;
+				const value = String(drillValue);
+				const grouped = new Map();
+				const passthrough = [];
+				for (const entry of Array.from(params.getAll('_f'))) {
+					const sep = entry.indexOf(':');
+					if (sep <= 0) {
+						passthrough.push(entry);
+						continue;
+					}
+					const dim = entry.slice(0, sep);
+					const values = entry.slice(sep + 1).split(',').map(function(item) { return item.trim(); }).filter(Boolean);
+					if (!grouped.has(dim)) {
+						grouped.set(dim, []);
+					}
+					values.forEach(function(item) {
+						if (!grouped.get(dim).includes(item)) {
+							grouped.get(dim).push(item);
+						}
+					});
+				}
+				const current = grouped.get(dimension) || [];
+				const existingIdx = current.indexOf(value);
+				if (existingIdx >= 0) {
+					current.splice(existingIdx, 1);
+				} else {
+					current.push(value);
+				}
+				grouped.set(dimension, current);
+				params.delete('_f');
+				passthrough.forEach(function(entry) { params.append('_f', entry); });
+				grouped.forEach(function(values, dim) {
+					if (values.length > 0) {
+						params.append('_f', dim + ':' + values.join(','));
+					}
+				});
 			} else {
 				return;
 			}

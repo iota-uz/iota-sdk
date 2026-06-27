@@ -47,7 +47,7 @@ func TestResolveOverrideDatasetInheritsCubeParamsAndFilters(t *testing.T) {
 	require.Equal(t, "primary", resolved.Datasets[0].Source)
 	require.NotNil(t, resolved.Datasets[0].Query)
 	require.Equal(t, "tenant-1", resolved.Datasets[0].Query.Params["tenant_id"].Literal)
-	require.Equal(t, "osago", resolved.Datasets[0].Query.Params["f_product"].Literal)
+	require.Equal(t, []string{"osago"}, resolved.Datasets[0].Query.Params["f_product"].Literal)
 	require.Contains(t, resolved.Datasets[0].Query.Params, "f_age_group")
 	require.Nil(t, resolved.Datasets[0].Query.Params["f_age_group"].Literal)
 	require.Equal(t, "value", resolved.Datasets[0].Query.Params["custom"].Literal)
@@ -86,7 +86,7 @@ func TestResolveMeasureOverrideDatasetInheritsCubeParamsAndFilters(t *testing.T)
 	require.Equal(t, "primary", resolved.Datasets[0].Source)
 	require.NotNil(t, resolved.Datasets[0].Query)
 	require.Equal(t, "tenant-1", resolved.Datasets[0].Query.Params["tenant_id"].Literal)
-	require.Equal(t, "osago", resolved.Datasets[0].Query.Params["f_product"].Literal)
+	require.Equal(t, []string{"osago"}, resolved.Datasets[0].Query.Params["f_product"].Literal)
 	require.Equal(t, "value", resolved.Datasets[0].Query.Params["custom"].Literal)
 	require.Equal(t, "cube_stat_total_policies", resolved.DatasetByMeasure["total_policies"])
 }
@@ -132,7 +132,7 @@ func TestResolveMeasureOverrideBacksStatPanelOnly(t *testing.T) {
 	require.NotContains(t, names, "cube_stats")
 }
 
-func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
+func TestBuildDimensionPanelUsesBaseURLForFacetToggle(t *testing.T) {
 	t.Parallel()
 
 	spec := New("crm-sales", "Sales").
@@ -147,7 +147,7 @@ func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
 	panelSpec := buildDimensionPanel(spec, spec.Dimensions[0], dimensionDatasetResolution{Name: "cube_dim_payment_method"}, "/crm/reports/sales", 1, 0)
 	require.NotNil(t, panelSpec.Action)
 	require.Equal(t, action.KindCubeDrill, panelSpec.Action.Kind)
-	require.Equal(t, "/crm/reports/sales/drill/policies", panelSpec.Action.URL)
+	require.Equal(t, "/crm/reports/sales", panelSpec.Action.URL)
 }
 
 func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {

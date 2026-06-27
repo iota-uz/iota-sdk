@@ -10,16 +10,19 @@ import (
 const (
 	QueryFilter    = "_f"
 	QueryDimension = "_dim"
+	QueryGroupBy   = "_groupby"
 )
 
 type DimensionFilter struct {
 	Dimension string
 	Value     string
+	Values    []string
 }
 
 type DrillContext struct {
 	Filters         []DimensionFilter
 	ActiveDimension string
+	GroupBy         string
 }
 
 type Breadcrumb struct {
@@ -42,25 +45,30 @@ func ParseDrillContext(values url.Values) DrillContext {
 		if !ok || dimension == "" || value == "" {
 			continue
 		}
-		ctx.Filters = append(ctx.Filters, DimensionFilter{
-			Dimension: dimension,
-			Value:     value,
-		})
+		for _, item := range strings.Split(value, ",") {
+			ctx = ctx.withFilterValue(dimension, item)
+		}
 	}
 	ctx.ActiveDimension = strings.TrimSpace(values.Get(QueryDimension))
+	ctx.GroupBy = strings.TrimSpace(values.Get(QueryGroupBy))
+	if ctx.GroupBy == "" {
+		ctx.GroupBy = ctx.ActiveDimension
+	}
 	return ctx
 }
 
 func (c DrillContext) Encode() url.Values {
 	values := url.Values{}
 	for _, filter := range c.Filters {
-		if strings.TrimSpace(filter.Dimension) == "" || strings.TrimSpace(filter.Value) == "" {
+		dimension := strings.TrimSpace(filter.Dimension)
+		filterValues := filter.values()
+		if dimension == "" || len(filterValues) == 0 {
 			continue
 		}
-		values.Add(QueryFilter, filter.Dimension+":"+filter.Value)
+		values.Add(QueryFilter, dimension+":"+strings.Join(filterValues, ","))
 	}
-	if trimmed := strings.TrimSpace(c.ActiveDimension); trimmed != "" {
-		values.Set(QueryDimension, trimmed)
+	if trimmed := c.normalizedGroupBy(); trimmed != "" {
+		values.Set(QueryGroupBy, trimmed)
 	}
 	return values
 }
@@ -70,31 +78,67 @@ func (c DrillContext) HasFilters() bool {
 }
 
 func (c DrillContext) WithFilter(dimension, value string) DrillContext {
-	next := DrillContext{Filters: append([]DimensionFilter(nil), c.Filters...)}
+	next := c.WithoutDimension(dimension)
+	return next.withFilterValue(dimension, value)
+}
+
+func (c DrillContext) ToggleFilter(dimension, value string) DrillContext {
+	dimension = strings.TrimSpace(dimension)
+	value = strings.TrimSpace(value)
+	if dimension == "" || value == "" {
+		return c
+	}
+	next := c.clone()
 	for idx, filter := range next.Filters {
-		if filter.Dimension == dimension {
-			next.Filters[idx].Value = value
-			next.Filters = next.Filters[:idx+1]
+		if filter.Dimension != dimension {
+			continue
+		}
+		values := filter.values()
+		for valueIdx, current := range values {
+			if current != value {
+				continue
+			}
+			values = append(values[:valueIdx], values[valueIdx+1:]...)
+			if len(values) == 0 {
+				next.Filters = append(next.Filters[:idx], next.Filters[idx+1:]...)
+				return next
+			}
+			next.Filters[idx].Value = values[0]
+			next.Filters[idx].Values = values
 			return next
 		}
+		values = append(values, value)
+		next.Filters[idx].Value = values[0]
+		next.Filters[idx].Values = values
+		return next
 	}
 	next.Filters = append(next.Filters, DimensionFilter{
 		Dimension: dimension,
 		Value:     value,
+		Values:    []string{value},
 	})
 	return next
 }
 
-func (c DrillContext) PopTo(dimension string) DrillContext {
-	if strings.TrimSpace(dimension) == "" {
-		return DrillContext{}
+func (c DrillContext) WithoutDimension(dimension string) DrillContext {
+	dimension = strings.TrimSpace(dimension)
+	if dimension == "" {
+		return c
 	}
-	for idx, filter := range c.Filters {
+	next := c.clone()
+	out := next.Filters[:0]
+	for _, filter := range next.Filters {
 		if filter.Dimension == dimension {
-			return DrillContext{Filters: append([]DimensionFilter(nil), c.Filters[:idx]...)}
+			continue
 		}
+		out = append(out, filter)
 	}
-	return c
+	next.Filters = out
+	return next
+}
+
+func (c DrillContext) PopTo(dimension string) DrillContext {
+	return c.WithoutDimension(dimension)
 }
 
 func (c DrillContext) ContainsDimension(name string) bool {
@@ -107,19 +151,11 @@ func (c DrillContext) ContainsDimension(name string) bool {
 }
 
 func (c DrillContext) RemainingDimensions(spec CubeSpec) []DimensionSpec {
-	dimensions := orderedDimensions(spec)
-	remaining := make([]DimensionSpec, 0, len(dimensions))
-	for _, dim := range dimensions {
-		if c.ContainsDimension(dim.Name) {
-			continue
-		}
-		remaining = append(remaining, dim)
-	}
-	return remaining
+	return orderedDimensions(spec)
 }
 
 func (c DrillContext) IsLeaf(spec CubeSpec) bool {
-	return len(c.RemainingDimensions(spec)) == 0
+	return false
 }
 
 func (c DrillContext) Breadcrumbs(spec CubeSpec, baseURL string) []Breadcrumb {
@@ -129,7 +165,8 @@ func (c DrillContext) Breadcrumbs(spec CubeSpec, baseURL string) []Breadcrumb {
 	dimensions := dimensionLabels(spec)
 	crumbs := make([]Breadcrumb, 0, len(c.Filters))
 	for idx, filter := range c.Filters {
-		part := DrillContext{Filters: append([]DimensionFilter(nil), c.Filters[:idx]...)}
+		part := c
+		part.Filters = append(append([]DimensionFilter(nil), c.Filters[:idx]...), c.Filters[idx+1:]...)
 		crumbs = append(crumbs, Breadcrumb{
 			URL:       mergeURL(baseURL, part.Encode()),
 			Dimension: filter.Dimension,
@@ -144,11 +181,16 @@ func (c DrillContext) WithValues(values url.Values) url.Values {
 	merged := cloneValues(values)
 	delete(merged, QueryFilter)
 	delete(merged, QueryDimension)
+	delete(merged, QueryGroupBy)
 	for _, filter := range c.Filters {
-		merged.Add(QueryFilter, filter.Dimension+":"+filter.Value)
+		filterValues := filter.values()
+		if len(filterValues) == 0 {
+			continue
+		}
+		merged.Add(QueryFilter, filter.Dimension+":"+strings.Join(filterValues, ","))
 	}
-	if trimmed := strings.TrimSpace(c.ActiveDimension); trimmed != "" {
-		merged.Set(QueryDimension, trimmed)
+	if trimmed := c.normalizedGroupBy(); trimmed != "" {
+		merged.Set(QueryGroupBy, trimmed)
 	}
 	return merged
 }
@@ -157,6 +199,7 @@ func Strip(values url.Values) url.Values {
 	clean := cloneValues(values)
 	delete(clean, QueryFilter)
 	delete(clean, QueryDimension)
+	delete(clean, QueryGroupBy)
 	return clean
 }
 
@@ -166,7 +209,8 @@ func drillMeta(spec CubeSpec, drillCtx DrillContext, baseURL string, remaining [
 		Dimensions:          make([]lens.DrillDimensionMeta, 0, len(spec.Dimensions)),
 		Filters:             make([]lens.DrillFilterMeta, 0, len(drillCtx.Filters)),
 		RemainingDimensions: make([]lens.DrillDimensionMeta, 0, len(remaining)),
-		ActiveDimension:     drillCtx.ActiveDimension,
+		ActiveDimension:     drillCtx.normalizedGroupBy(),
+		GroupBy:             drillCtx.normalizedGroupBy(),
 	}
 	for _, dim := range orderedDimensions(spec) {
 		meta.Dimensions = append(meta.Dimensions, lens.DrillDimensionMeta{
@@ -175,11 +219,13 @@ func drillMeta(spec CubeSpec, drillCtx DrillContext, baseURL string, remaining [
 		})
 	}
 	for _, filter := range drillCtx.Filters {
-		meta.Filters = append(meta.Filters, lens.DrillFilterMeta{
-			Dimension: filter.Dimension,
-			Value:     filter.Value,
-			Display:   filter.Value,
-		})
+		for _, value := range filter.values() {
+			meta.Filters = append(meta.Filters, lens.DrillFilterMeta{
+				Dimension: filter.Dimension,
+				Value:     value,
+				Display:   value,
+			})
+		}
 	}
 	for _, dim := range remaining {
 		meta.RemainingDimensions = append(meta.RemainingDimensions, lens.DrillDimensionMeta{
@@ -188,6 +234,77 @@ func drillMeta(spec CubeSpec, drillCtx DrillContext, baseURL string, remaining [
 		})
 	}
 	return meta
+}
+
+func (c DrillContext) clone() DrillContext {
+	next := DrillContext{
+		Filters:         make([]DimensionFilter, len(c.Filters)),
+		ActiveDimension: c.ActiveDimension,
+		GroupBy:         c.GroupBy,
+	}
+	for idx, filter := range c.Filters {
+		next.Filters[idx] = filter
+		next.Filters[idx].Values = append([]string(nil), filter.Values...)
+	}
+	return next
+}
+
+func (c DrillContext) normalizedGroupBy() string {
+	if trimmed := strings.TrimSpace(c.GroupBy); trimmed != "" {
+		return trimmed
+	}
+	return strings.TrimSpace(c.ActiveDimension)
+}
+
+func (c DrillContext) withFilterValue(dimension, value string) DrillContext {
+	dimension = strings.TrimSpace(dimension)
+	value = strings.TrimSpace(value)
+	if dimension == "" || value == "" {
+		return c
+	}
+	next := c.clone()
+	for idx, filter := range next.Filters {
+		if filter.Dimension != dimension {
+			continue
+		}
+		values := filter.values()
+		for _, current := range values {
+			if current == value {
+				return next
+			}
+		}
+		values = append(values, value)
+		next.Filters[idx].Value = values[0]
+		next.Filters[idx].Values = values
+		return next
+	}
+	next.Filters = append(next.Filters, DimensionFilter{
+		Dimension: dimension,
+		Value:     value,
+		Values:    []string{value},
+	})
+	return next
+}
+
+func (f DimensionFilter) values() []string {
+	raw := f.Values
+	if len(raw) == 0 && strings.TrimSpace(f.Value) != "" {
+		raw = []string{f.Value}
+	}
+	values := make([]string, 0, len(raw))
+	seen := make(map[string]struct{}, len(raw))
+	for _, value := range raw {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		values = append(values, value)
+	}
+	return values
 }
 
 func mergeURL(baseURL string, query url.Values) string {
