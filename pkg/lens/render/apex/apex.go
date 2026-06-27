@@ -947,15 +947,16 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 						continue;
 					}
 					const dim = entry.slice(0, sep);
-					const values = entry.slice(sep + 1).split(',').map(function(item) { return item.trim(); }).filter(Boolean);
+					const filterValue = entry.slice(sep + 1).trim();
+					if (!filterValue) {
+						continue;
+					}
 					if (!grouped.has(dim)) {
 						grouped.set(dim, []);
 					}
-					values.forEach(function(item) {
-						if (!grouped.get(dim).includes(item)) {
-							grouped.get(dim).push(item);
-						}
-					});
+					if (!grouped.get(dim).includes(filterValue)) {
+						grouped.get(dim).push(filterValue);
+					}
 				}
 				const current = grouped.get(dimension) || [];
 				const existingIdx = current.indexOf(value);
@@ -968,9 +969,9 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 				params.delete('_f');
 				passthrough.forEach(function(entry) { params.append('_f', entry); });
 				grouped.forEach(function(values, dim) {
-					if (values.length > 0) {
-						params.append('_f', dim + ':' + values.join(','));
-					}
+					values.forEach(function(item) {
+						params.append('_f', dim + ':' + item);
+					});
 				});
 			} else {
 				return;

@@ -53,6 +53,7 @@ func panelResult(result *runtime.Result, panelID string) *runtime.PanelResult {
 
 type drillNavModel struct {
 	HasNav         bool
+	Include        string
 	CurrentTitle   string
 	CurrentValue   string
 	CurrentLabel   string
@@ -90,6 +91,10 @@ type panelErrorModel struct {
 }
 
 func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavModel {
+	return drillNavigationModelWithInclude(ctx, result, "")
+}
+
+func drillNavigationModelWithInclude(ctx context.Context, result *runtime.Result, include string) drillNavModel {
 	if result == nil || result.Drill == nil || result.Spec.Drill == nil {
 		return drillNavModel{}
 	}
@@ -101,8 +106,9 @@ func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavM
 		labels[dim.Name] = dim.Label
 	}
 	model := drillNavModel{
-		HasNav: true,
-		UpURL:  drillURL(meta.BaseURL, baseQuery, nil, meta.GroupBy),
+		HasNav:  true,
+		Include: strings.TrimSpace(include),
+		UpURL:   drillURL(meta.BaseURL, baseQuery, nil, meta.GroupBy),
 	}
 	for idx, filter := range state.Filters {
 		for _, value := range normalizedFilterValues(filter) {
@@ -135,6 +141,10 @@ func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavM
 }
 
 func drillNavigationModelFromSpec(ctx context.Context, spec lens.DashboardSpec) drillNavModel {
+	return drillNavigationModelFromSpecWithInclude(ctx, spec, "")
+}
+
+func drillNavigationModelFromSpecWithInclude(ctx context.Context, spec lens.DashboardSpec, include string) drillNavModel {
 	if spec.Drill == nil {
 		return drillNavModel{}
 	}
@@ -145,11 +155,11 @@ func drillNavigationModelFromSpec(ctx context.Context, spec lens.DashboardSpec) 
 	for _, filter := range spec.Drill.Filters {
 		state = state.ToggleFilter(filter.Dimension, filter.Value)
 	}
-	return drillNavigationModel(ctx, &runtime.Result{
+	return drillNavigationModelWithInclude(ctx, &runtime.Result{
 		Spec:    spec,
 		Drill:   &state,
 		Request: url.Values{},
-	})
+	}, include)
 }
 
 func drillFilterDisplay(meta *lens.DrillMeta, idx int, filter cube.DimensionFilter) string {
@@ -180,45 +190,17 @@ func drillBaseQueryValues(values url.Values) url.Values {
 }
 
 func drillURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter, groupBy string) string {
-	values := cloneURLValues(baseQuery)
-	for _, filter := range filters {
-		filterValues := normalizedFilterValues(filter)
-		if len(filterValues) == 0 {
-			continue
-		}
-		values.Add(cube.QueryFilter, filter.Dimension+":"+strings.Join(filterValues, ","))
-	}
-	if strings.TrimSpace(groupBy) != "" {
-		values.Set(cube.QueryGroupBy, strings.TrimSpace(groupBy))
-	}
+	values := cube.DrillContext{Filters: filters, GroupBy: groupBy}.WithValues(baseQuery)
 	return joinURLQuery(baseURL, values)
 }
 
 func dimensionTabURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter, dimensionName string) string {
-	values := cloneURLValues(baseQuery)
-	for _, filter := range filters {
-		filterValues := normalizedFilterValues(filter)
-		if len(filterValues) == 0 {
-			continue
-		}
-		values.Add(cube.QueryFilter, filter.Dimension+":"+strings.Join(filterValues, ","))
-	}
-	values.Set(cube.QueryGroupBy, dimensionName)
+	values := cube.DrillContext{Filters: filters, GroupBy: dimensionName}.WithValues(baseQuery)
 	return joinURLQuery(baseURL, values)
 }
 
 func facetOptionsURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter, groupBy, dimensionName string) string {
-	values := cloneURLValues(baseQuery)
-	for _, filter := range filters {
-		filterValues := normalizedFilterValues(filter)
-		if len(filterValues) == 0 {
-			continue
-		}
-		values.Add(cube.QueryFilter, filter.Dimension+":"+strings.Join(filterValues, ","))
-	}
-	if strings.TrimSpace(groupBy) != "" {
-		values.Set(cube.QueryGroupBy, strings.TrimSpace(groupBy))
-	}
+	values := cube.DrillContext{Filters: filters, GroupBy: groupBy}.WithValues(baseQuery)
 	values.Set(cube.QueryFacet, dimensionName)
 	return joinURLQuery(baseURL, values)
 }

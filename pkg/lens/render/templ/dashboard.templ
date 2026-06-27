@@ -89,7 +89,7 @@ templ SectionHeading(label string) {
 
 templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 	@lensGridStyles()
-	{{ drillNav := drillNavigationModelFromSpec(ctx, spec) }}
+	{{ drillNav := drillNavigationModelFromSpecWithInclude(ctx, spec, islandIncludeSelector(props)) }}
 	<div class="space-y-6" data-lens-dashboard>
 		if drillNav.HasNav {
 			@DrillNavigation(drillNav)
@@ -199,6 +199,7 @@ templ DrillNavigation(model drillNavModel) {
 								hx-get={ item.FacetURL }
 								hx-trigger="lens:open once"
 								hx-swap="innerHTML"
+								hx-include={ model.Include }
 							>
 								<div class="py-6 text-center text-sm text-slate-500">{ translate(ctx, "Lens.Facets.Loading") }</div>
 							</div>
@@ -216,6 +217,7 @@ templ DrillNavigation(model drillNavModel) {
 						hx-push-url="true"
 						hx-target="closest [data-lens-swap-target]"
 						hx-swap="innerHTML"
+						hx-include={ model.Include }
 						onclick={ swapTargetLoadingScript() }
 						class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
 					>
@@ -241,6 +243,7 @@ templ DrillNavigation(model drillNavModel) {
 							hx-push-url="true"
 							hx-target="closest [data-lens-swap-target]"
 							hx-swap="innerHTML"
+							hx-include={ model.Include }
 							onclick={ swapTargetLoadingScript() }
 							class="inline-flex min-h-8 items-center rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
 						>
@@ -258,6 +261,7 @@ templ FacetOptionsFragment(options []lens.DrillFacetOptionMeta, props FacetOptio
 		hx-get={ props.OptionsURL }
 		hx-target="closest [data-lens-facet-options]"
 		hx-swap="innerHTML"
+		hx-include={ props.Include }
 		class="mb-3"
 	>
 		@HiddenQueryInputs(props.HiddenQuery)
@@ -267,7 +271,12 @@ templ FacetOptionsFragment(options []lens.DrillFacetOptionMeta, props FacetOptio
 			<input
 				type="search"
 				name={ cube.QueryFacetSearch }
+				value={ props.Search }
 				placeholder={ translate(ctx, "Lens.Facets.Search") }
+				hx-get={ props.OptionsURL }
+				hx-target="closest [data-lens-facet-options]"
+				hx-swap="innerHTML"
+				hx-include={ props.Include }
 				hx-trigger="keyup changed delay:350ms, search"
 				class="h-9 w-full rounded-md border border-slate-200 py-1 pl-8 pr-2 text-sm text-slate-700 outline-none focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
 			/>
@@ -278,6 +287,7 @@ templ FacetOptionsFragment(options []lens.DrillFacetOptionMeta, props FacetOptio
 		hx-target={ props.Target }
 		hx-swap="innerHTML"
 		hx-push-url="true"
+		hx-include={ props.Include }
 	>
 		@HiddenQueryInputs(props.HiddenQuery)
 		<div class="max-h-72 space-y-1 overflow-y-auto pr-1">

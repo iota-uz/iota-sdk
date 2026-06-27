@@ -320,6 +320,49 @@ func TestDrillNavigationModelPreservesBaseQueryAndDisplayLabels(t *testing.T) {
 	require.Equal(t, "Tashkent", model.Summary[1].Value)
 }
 
+func TestDrillNavigationModelRendersMultiValueSummaryItems(t *testing.T) {
+	t.Parallel()
+
+	model := drillNavigationModelWithInclude(metricInfoContext(t, language.English), &runtime.Result{
+		Spec: lens.DashboardSpec{
+			Drill: &lens.DrillMeta{
+				BaseURL: "/insurance/sales-report",
+				Dimensions: []lens.DrillDimensionMeta{
+					{Name: "region", Label: "Region"},
+					{Name: "product", Label: "Product"},
+				},
+				Filters: []lens.DrillFilterMeta{
+					{Dimension: "region", Value: "tashkent", Display: "Tashkent"},
+					{Dimension: "region", Value: "samarkand", Display: "Samarkand"},
+				},
+				RemainingDimensions: []lens.DrillDimensionMeta{
+					{Name: "region", Label: "Region"},
+					{Name: "product", Label: "Product"},
+				},
+				GroupBy: "region",
+			},
+		},
+		Drill: &cube.DrillContext{
+			Filters: []cube.DimensionFilter{
+				{Dimension: "region", Value: "tashkent", Values: []string{"tashkent", "samarkand"}},
+			},
+		},
+		Request: urlpkg.Values{
+			"ActualRangeStart": []string{"2026-02-14"},
+		},
+	}, "#filters-form input")
+
+	require.True(t, model.HasNav)
+	require.Equal(t, "#filters-form input", model.Include)
+	require.Len(t, model.Summary, 2)
+	require.Equal(t, "Tashkent", model.Summary[0].Value)
+	require.Equal(t, "Samarkand", model.Summary[1].Value)
+	require.NotContains(t, model.Summary[0].URL, "region%3Atashkent")
+	require.Contains(t, model.Summary[0].URL, "region%3Asamarkand")
+	require.Contains(t, model.Summary[1].URL, "region%3Atashkent")
+	require.NotContains(t, model.Summary[1].URL, "region%3Asamarkand")
+}
+
 func TestTablePaginationURLBuildsNextChunkRequest(t *testing.T) {
 	t.Parallel()
 

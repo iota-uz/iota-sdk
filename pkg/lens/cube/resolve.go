@@ -329,8 +329,8 @@ func groupByDimension(spec CubeSpec, ctx DrillContext) DimensionSpec {
 			return dim
 		}
 	}
-	if strings.TrimSpace(spec.DefaultDimension) != "" {
-		if dim, ok := spec.Dimension(spec.DefaultDimension); ok {
+	if defaultDimension := strings.TrimSpace(spec.DefaultDimension); defaultDimension != "" {
+		if dim, ok := spec.Dimension(defaultDimension); ok {
 			return dim
 		}
 	}
@@ -384,14 +384,15 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 
 func orderedDimensions(spec CubeSpec) []DimensionSpec {
 	dimensions := append([]DimensionSpec(nil), spec.Dimensions...)
-	if strings.TrimSpace(spec.DefaultDimension) == "" {
+	defaultDimension := strings.TrimSpace(spec.DefaultDimension)
+	if defaultDimension == "" {
 		return dimensions
 	}
 	slices.SortStableFunc(dimensions, func(left, right DimensionSpec) int {
 		switch {
-		case left.Name == spec.DefaultDimension && right.Name != spec.DefaultDimension:
+		case left.Name == defaultDimension && right.Name != defaultDimension:
 			return -1
-		case left.Name != spec.DefaultDimension && right.Name == spec.DefaultDimension:
+		case left.Name != defaultDimension && right.Name == defaultDimension:
 			return 1
 		default:
 			return 0

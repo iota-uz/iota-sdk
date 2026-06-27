@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/stretchr/testify/assert"
@@ -124,6 +125,36 @@ func TestErrorState_RendersHTMXAttributesForGetPanelErrorAction(t *testing.T) {
 	assert.Contains(t, rendered, `hx-swap="outerHTML"`)
 	assert.Contains(t, rendered, `hx-include="#filters"`)
 	assert.Contains(t, rendered, `hx-confirm="Retry panel?"`)
+}
+
+func TestFacetOptionsFragmentRendersLiveSearchAndInclude(t *testing.T) {
+	t.Parallel()
+
+	var html bytes.Buffer
+	err := FacetOptionsFragment([]lens.DrillFacetOptionMeta{{
+		Dimension: "region",
+		Value:     "samarkand",
+		Label:     "Samarkand",
+		Count:     12,
+	}}, FacetOptionsProps{
+		ApplyURL:   "/reports",
+		OptionsURL: "/reports",
+		Target:     "closest [data-lens-swap-target]",
+		Dimension:  "region",
+		Search:     "sam",
+		Include:    "#filters-form input",
+		HiddenQuery: map[string][]string{
+			cube.QueryGroupBy: []string{"product"},
+		},
+	}).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, `name="_facet_search" value="sam"`)
+	assert.Contains(t, rendered, `hx-get="/reports"`)
+	assert.Contains(t, rendered, `hx-include="#filters-form input"`)
+	assert.Contains(t, rendered, `hx-trigger="keyup changed delay:350ms, search"`)
+	assert.Contains(t, rendered, `name="_groupby" value="product"`)
 }
 
 func TestDashboard_RendersVariableComponentOverrides(t *testing.T) {

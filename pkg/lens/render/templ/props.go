@@ -31,6 +31,8 @@ type FacetOptionsProps struct {
 	OptionsURL  string
 	Target      string
 	Dimension   string
+	Search      string
+	Include     string
 	HiddenQuery map[string][]string
 }
 

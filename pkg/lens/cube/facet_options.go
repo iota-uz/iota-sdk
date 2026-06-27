@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const (
@@ -14,7 +15,7 @@ const (
 	QueryFacetSearch = "_facet_search"
 )
 
-type SQLFacetOptionsLookup func(context.Context, string, map[string]any, int) ([]lens.DrillFacetOptionMeta, error)
+type SQLFacetOptionsLookup func(context.Context, string, map[string]lens.ParamValue, int) ([]lens.DrillFacetOptionMeta, error)
 
 func ResolveFacetOptions(
 	ctx context.Context,
@@ -25,29 +26,31 @@ func ResolveFacetOptions(
 	limit int,
 	lookup SQLFacetOptionsLookup,
 ) ([]lens.DrillFacetOptionMeta, error) {
+	const op serrors.Op = "cube.ResolveFacetOptions"
+
 	if limit <= 0 {
 		limit = 50
 	}
 	dim, ok := spec.Dimension(strings.TrimSpace(dimension))
 	if !ok {
-		return nil, fmt.Errorf("unknown cube dimension %q", dimension)
+		return nil, serrors.E(op, fmt.Errorf("unknown cube dimension %q", dimension))
 	}
 	switch spec.DataMode {
 	case DataModeDataset:
 		return resolveDatasetFacetOptions(spec, drillCtx, dim, search, limit), nil
 	case DataModeSQL:
 		if lookup == nil {
-			return nil, fmt.Errorf("sql facet lookup is required")
+			return nil, serrors.E(op, fmt.Errorf("sql facet lookup is required"))
 		}
 		text, params := sqlFacetOptionsQuery(spec, drillCtx, dim, search)
 		options, err := lookup(ctx, text, params, limit)
 		if err != nil {
-			return nil, err
+			return nil, serrors.E(op, err)
 		}
 		markSelected(options, drillCtx, dim.Name)
 		return options, nil
 	default:
-		return nil, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
+		return nil, serrors.E(op, fmt.Errorf("unsupported cube mode %q", spec.DataMode))
 	}
 }
 
@@ -115,8 +118,11 @@ func resolveDatasetFacetOptions(spec CubeSpec, drillCtx DrillContext, dim Dimens
 	return options
 }
 
-func sqlFacetOptionsQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpec, search string) (string, map[string]any) {
+func sqlFacetOptionsQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpec, search string) (string, map[string]lens.ParamValue) {
 	facetCtx := drillCtx.WithoutDimension(dim.Name)
+	if dim.Override != nil && dim.Override.Query != nil {
+		return sqlOverrideFacetOptionsQuery(spec, facetCtx, dim, search)
+	}
 	joins := requiredSQLJoins(spec, dim, facetCtx)
 	labelColumn := strings.TrimSpace(dim.LabelColumn)
 	if labelColumn == "" {
@@ -138,14 +144,38 @@ func sqlFacetOptionsQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpe
 	}
 	text += "\nGROUP BY value, label\nORDER BY count DESC, label ASC"
 
-	params := make(map[string]any, len(spec.Params)+len(facetCtx.Filters)+1)
-	for key, value := range sqlParams(spec, facetCtx) {
-		params[key] = value.Literal
-	}
+	params := sqlParams(spec, facetCtx)
 	if search != "" {
-		params["facet_search"] = "%" + search + "%"
+		params["facet_search"] = lens.ParamValue{Literal: "%" + search + "%"}
 	}
 	return text, params
+}
+
+func sqlOverrideFacetOptionsQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpec, search string) (string, map[string]lens.ParamValue) {
+	source := resolveOverrideDataset(spec, drillCtx, *dim.Override, datasetName(dim.Name)+"_facet_source")
+	if source.Query == nil {
+		return "", nil
+	}
+	query := *source.Query
+	countColumn := firstOverrideCountColumn(spec)
+	text := "SELECT\n  filter_value AS value,\n  label,\n  " + countColumn + "::int AS count\nFROM (\n" + query.Text + "\n) facet_options"
+	search = strings.TrimSpace(search)
+	if search != "" {
+		text += "\nWHERE label::text ILIKE @facet_search OR filter_value::text ILIKE @facet_search"
+	}
+	text += "\nORDER BY count DESC, label ASC"
+	params := cloneParamValues(query.Params)
+	if search != "" {
+		params["facet_search"] = lens.ParamValue{Literal: "%" + search + "%"}
+	}
+	return text, params
+}
+
+func firstOverrideCountColumn(spec CubeSpec) string {
+	if len(spec.Measures) > 0 && strings.TrimSpace(spec.Measures[0].Name) != "" {
+		return spec.Measures[0].Name
+	}
+	return "count"
 }
 
 func markSelected(options []lens.DrillFacetOptionMeta, drillCtx DrillContext, dimension string) {

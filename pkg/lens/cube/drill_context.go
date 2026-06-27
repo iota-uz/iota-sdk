@@ -45,9 +45,7 @@ func ParseDrillContext(values url.Values) DrillContext {
 		if !ok || dimension == "" || value == "" {
 			continue
 		}
-		for _, item := range strings.Split(value, ",") {
-			ctx = ctx.withFilterValue(dimension, item)
-		}
+		ctx = ctx.withFilterValue(dimension, value)
 	}
 	ctx.ActiveDimension = strings.TrimSpace(values.Get(QueryDimension))
 	ctx.GroupBy = strings.TrimSpace(values.Get(QueryGroupBy))
@@ -65,7 +63,9 @@ func (c DrillContext) Encode() url.Values {
 		if dimension == "" || len(filterValues) == 0 {
 			continue
 		}
-		values.Add(QueryFilter, dimension+":"+strings.Join(filterValues, ","))
+		for _, value := range filterValues {
+			values.Add(QueryFilter, dimension+":"+value)
+		}
 	}
 	if trimmed := c.normalizedGroupBy(); trimmed != "" {
 		values.Set(QueryGroupBy, trimmed)
@@ -155,7 +155,15 @@ func (c DrillContext) RemainingDimensions(spec CubeSpec) []DimensionSpec {
 }
 
 func (c DrillContext) IsLeaf(spec CubeSpec) bool {
-	return false
+	if len(spec.Dimensions) == 0 {
+		return false
+	}
+	for _, dim := range spec.Dimensions {
+		if !c.ContainsDimension(dim.Name) {
+			return false
+		}
+	}
+	return true
 }
 
 func (c DrillContext) Breadcrumbs(spec CubeSpec, baseURL string) []Breadcrumb {
@@ -182,12 +190,16 @@ func (c DrillContext) WithValues(values url.Values) url.Values {
 	delete(merged, QueryFilter)
 	delete(merged, QueryDimension)
 	delete(merged, QueryGroupBy)
+	delete(merged, QueryFacet)
+	delete(merged, QueryFacetSearch)
 	for _, filter := range c.Filters {
 		filterValues := filter.values()
 		if len(filterValues) == 0 {
 			continue
 		}
-		merged.Add(QueryFilter, filter.Dimension+":"+strings.Join(filterValues, ","))
+		for _, value := range filterValues {
+			merged.Add(QueryFilter, filter.Dimension+":"+value)
+		}
 	}
 	if trimmed := c.normalizedGroupBy(); trimmed != "" {
 		merged.Set(QueryGroupBy, trimmed)
@@ -200,6 +212,8 @@ func Strip(values url.Values) url.Values {
 	delete(clean, QueryFilter)
 	delete(clean, QueryDimension)
 	delete(clean, QueryGroupBy)
+	delete(clean, QueryFacet)
+	delete(clean, QueryFacetSearch)
 	return clean
 }
 
