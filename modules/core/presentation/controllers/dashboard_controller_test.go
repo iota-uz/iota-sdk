@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestDashboardController_RouteIsPermissionlessButNavIsPermissioned(t *testing.T) {
+func TestDashboardController_RouteAndNavUseConfiguredPermissions(t *testing.T) {
 	viewDashboard := permission.New(
 		permission.WithName("dashboard.view"),
 		permission.WithResource("dashboard"),
@@ -18,7 +18,7 @@ func TestDashboardController_RouteIsPermissionlessButNavIsPermissioned(t *testin
 	descriptor := controller.Descriptor()
 	require.Len(t, descriptor.Routes, 1)
 	require.Equal(t, "/", descriptor.Routes[0].Path)
-	require.Empty(t, descriptor.Routes[0].Auth.Permissions)
+	require.Equal(t, []permission.Permission{viewDashboard}, descriptor.Routes[0].Auth.Permissions)
 
 	require.Len(t, descriptor.Nav, 1)
 	require.NotNil(t, descriptor.Nav[0].Visibility)
