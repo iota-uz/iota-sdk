@@ -16,7 +16,7 @@ templ Dashboard(props DashboardProps) {
 	if props.Async != nil && props.Result == nil {
 		@dashboardShell(props.Spec, *props.Async)
 	} else {
-		@dashboardResult(props.Spec, props.Result, props.ResolvePanelErrorAction)
+		@dashboardResult(props.Spec, props.Result, props.ResolvePanelErrorAction, props.AfterDrill)
 	}
 }
 
@@ -35,7 +35,7 @@ templ lensGridStyles() {
 	</style>
 }
 
-templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
+templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver, afterDrill templ.Component) {
 	{{ filters := filter.Build(spec.Variables, nil) }}
 	if result != nil {
 		{{ filters = filterModel(result) }}
@@ -60,6 +60,9 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result, resolvePa
 				@DrillNavigation(drillNav)
 			}
 			@FilterBar(filters)
+			if afterDrill != nil {
+				@afterDrill
+			}
 			for _, row := range spec.Rows {
 				if row.Heading != "" {
 					@SectionHeading(row.Heading)
