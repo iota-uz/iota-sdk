@@ -152,7 +152,7 @@ func TestFacetOptionsFragmentRendersLiveSearchAndInclude(t *testing.T) {
 	rendered := html.String()
 	assert.Contains(t, rendered, `name="_facet_search" value="sam"`)
 	assert.Contains(t, rendered, `hx-get="/reports"`)
-	assert.Contains(t, rendered, `hx-include="#filters-form input"`)
+	assert.Contains(t, rendered, `hx-include="closest form, #filters-form input"`)
 	assert.Contains(t, rendered, `hx-trigger="keyup changed delay:350ms, search"`)
 	assert.Contains(t, rendered, `name="_groupby" value="product"`)
 }

@@ -205,6 +205,14 @@ func facetOptionsURL(baseURL string, baseQuery url.Values, filters []cube.Dimens
 	return joinURLQuery(baseURL, values)
 }
 
+func facetSearchIncludeSelector(include string) string {
+	include = strings.TrimSpace(include)
+	if include == "" {
+		return "closest form"
+	}
+	return "closest form, " + include
+}
+
 func appendDrillSummary(summary []drillSummaryItem, label, value, itemURL string) []drillSummaryItem {
 	label = strings.TrimSpace(label)
 	value = strings.TrimSpace(value)
