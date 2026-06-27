@@ -277,6 +277,7 @@ func navNodeToItem(node navBuildNode) types.NavigationItem {
 	return types.NavigationItem{
 		Key:         nav.ID,
 		Workspace:   nav.Workspace,
+		Pinned:      nav.Pinned,
 		Name:        titleKey,
 		Href:        path,
 		Keywords:    keywords,

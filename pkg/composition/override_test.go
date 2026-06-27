@@ -733,6 +733,38 @@ func TestNavModel_SpotlightOnlyNodesStayOutOfSidebar(t *testing.T) {
 	require.Equal(t, []string{"reports.view"}, docs[0].Access.AllowedPermissions)
 }
 
+func TestNavModel_DescriptorNavCanPinSidebarItem(t *testing.T) {
+	engine := NewEngine()
+	err := engine.Register(testComponent{
+		descriptor: Descriptor{Name: "settings"},
+		build: func(builder *Builder) error {
+			ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+				return []application.Controller{&overrideCtrl{
+					id:     "settings",
+					routes: []application.RouteSpec{application.Get("/settings")},
+					nav: []application.NavNode{{
+						ID:       "settings.quick_links",
+						TitleKey: "NavigationLinks.QuickLinks",
+						Path:     "/settings",
+						Pinned:   true,
+					}},
+				}}, nil
+			})
+			return nil
+		},
+	})
+	require.NoError(t, err)
+
+	container, err := engine.Compile(BuildContext{})
+	require.NoError(t, err)
+
+	items := container.NavItems()
+	require.Len(t, items, 1)
+	require.Equal(t, "settings.quick_links", items[0].Key)
+	require.True(t, items[0].Pinned)
+	require.Equal(t, "/settings", items[0].Href)
+}
+
 func TestNavModel_NavVisibilityCanBeStricterThanRouteAuth(t *testing.T) {
 	viewReports := permission.New(
 		permission.WithName("reports.view"),
