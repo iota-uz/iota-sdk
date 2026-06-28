@@ -143,6 +143,8 @@ That means an override query can safely reference params such as:
 - `@f_product`
 - `@f_region`
 
+Drill-filter params (`@f_<dimension>`) are bound as Postgres text arrays so multi-select drills work, so override SQL must use array semantics — e.g. `WHERE pr.id::text = ANY(@f_product)` rather than `= @f_product`.
+
 If a dimension can be drilled further, still give it a valid `.Column(...)` filter expression so later drill levels and KPI stats can apply that filter outside the override dataset.
 
 ## Drill URL Format

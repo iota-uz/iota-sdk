@@ -718,7 +718,7 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 				return String(entry);
 			}));
 		const isSeriesHidden = (seriesIndex) => hiddenSeriesIndices.has(seriesIndex) || hiddenSeriesNames.has(String(names[seriesIndex] || ''));
-		const categories = globals.categoryLabels || globals.labels || ((w && w.config && w.config.xaxis && w.config.xaxis.categories) || []);
+		const categories = ((w && w.config && w.config.xaxis && w.config.xaxis.categories) || globals.categoryLabels || globals.labels || []);
 		const escapeHTML = (value) => String(value == null ? '' : value)
 			.replace(/&/g, '&amp;')
 			.replace(/</g, '&lt;')
@@ -1098,7 +1098,43 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		if (cfg.drill) {
 			drillValue = %s;
 			if (drillValue !== undefined && drillValue !== null && drillValue !== '') {
-				params.append('_f', cfg.drill.dimension + ':' + String(drillValue));
+				const dimension = cfg.drill.dimension;
+				const value = String(drillValue);
+				const grouped = new Map();
+				const passthrough = [];
+				for (const entry of Array.from(params.getAll('_f'))) {
+					const sep = entry.indexOf(':');
+					if (sep <= 0) {
+						passthrough.push(entry);
+						continue;
+					}
+					const dim = entry.slice(0, sep);
+					const filterValue = entry.slice(sep + 1).trim();
+					if (!filterValue) {
+						continue;
+					}
+					if (!grouped.has(dim)) {
+						grouped.set(dim, []);
+					}
+					if (!grouped.get(dim).includes(filterValue)) {
+						grouped.get(dim).push(filterValue);
+					}
+				}
+				const current = grouped.get(dimension) || [];
+				const existingIdx = current.indexOf(value);
+				if (existingIdx >= 0) {
+					current.splice(existingIdx, 1);
+				} else {
+					current.push(value);
+				}
+				grouped.set(dimension, current);
+				params.delete('_f');
+				passthrough.forEach(function(entry) { params.append('_f', entry); });
+				grouped.forEach(function(values, dim) {
+					values.forEach(function(item) {
+						params.append('_f', dim + ':' + item);
+					});
+				});
 			} else {
 				return;
 			}
@@ -1156,6 +1192,10 @@ func applyVerticalCategoryLabelFormatting(options *charts.ChartOptions, categori
 	options.XAxis.Labels.RotateAlways = &rotateAlways
 	options.XAxis.Labels.MaxHeight = &maxHeight
 	options.XAxis.Labels.Formatter = truncateCategoryLabelFormatter(16)
+	if options.Tooltip == nil {
+		options.Tooltip = &charts.TooltipConfig{}
+	}
+	options.Tooltip.X = &charts.TooltipXConfig{Formatter: fullCategoryTooltipXFormatter()}
 }
 
 func applyHorizontalCategoryLabelFormatting(options *charts.ChartOptions, categories []string) {
@@ -1172,6 +1212,10 @@ func applyHorizontalCategoryLabelFormatting(options *charts.ChartOptions, catego
 	maxWidth := 220
 	options.YAxis[0].Labels.MaxWidth = &maxWidth
 	options.YAxis[0].Labels.Formatter = truncateCategoryLabelFormatter(24)
+	if options.Tooltip == nil {
+		options.Tooltip = &charts.TooltipConfig{}
+	}
+	options.Tooltip.X = &charts.TooltipXConfig{Formatter: fullCategoryTooltipXFormatter()}
 }
 
 func maxCategoryLength(categories []string) int {
@@ -1207,6 +1251,22 @@ func truncateCategoryLabelFormatter(limit int) templ.JSExpression {
 		}
 		return text.slice(0, %d) + '...';
 	}`, limit, limit-3))
+}
+
+// fullCategoryTooltipXFormatter returns the untruncated category label for the
+// hovered data point by reading it directly from w.config.xaxis.categories
+// (which retains full names) instead of the axis-formatted, truncated value
+// ApexCharts passes in. Keeps axis labels truncated while tooltips show full names.
+func fullCategoryTooltipXFormatter() templ.JSExpression {
+	return templ.JSExpression(`function(value, opts) {
+		const w = opts && opts.w;
+		const cats = (w && w.config && w.config.xaxis && w.config.xaxis.categories) || [];
+		const idx = opts && typeof opts.dataPointIndex === 'number' ? opts.dataPointIndex : -1;
+		if (idx >= 0 && idx < cats.length && cats[idx] != null) {
+			return String(cats[idx]);
+		}
+		return value == null ? '' : String(value);
+	}`)
 }
 
 func chartDrillConfig(spec *action.Spec) *chartDrill {

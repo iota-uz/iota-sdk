@@ -1,11 +1,13 @@
 package templ
 
 import (
+	"fmt"
 	"strings"
 
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	apex "github.com/iota-uz/iota-sdk/pkg/lens/render/apex"
@@ -92,7 +94,11 @@ templ SectionHeading(label string) {
 
 templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 	@lensGridStyles()
+	{{ drillNav := drillNavigationModelFromSpecWithInclude(ctx, spec, islandIncludeSelector(props)) }}
 	<div class="space-y-6" data-lens-dashboard>
+		if drillNav.HasNav {
+			@DrillNavigation(drillNav)
+		}
 		for _, row := range spec.Rows {
 			{{ heading := strings.TrimSpace(row.Heading) }}
 			if heading != "" {
@@ -187,83 +193,232 @@ templ panelSkeleton(spec panel.Spec) {
 }
 
 templ DrillNavigation(model drillNavModel) {
-	{{ chartText := localizedChartText(ctx) }}
-	<nav aria-label="Breadcrumb" class="overflow-hidden rounded-xl border border-slate-200/80 bg-white shadow-sm">
-		<div class="flex items-center gap-2 px-4 py-3.5 md:gap-3 md:px-5">
-			if model.UpURL != "" {
-				<a
-					href={ templ.URL(model.UpURL) }
-					hx-get={ model.UpURL }
-					hx-push-url="true"
-					hx-target="closest [data-lens-swap-target]"
-					hx-swap="innerHTML"
-					onclick={ swapTargetLoadingScript() }
-					class="flex-none inline-flex items-center justify-center w-10 h-10 rounded-lg border border-slate-200 text-slate-500 transition hover:bg-slate-50 hover:text-slate-700 hover:border-slate-300"
-					title={ chartText.DrillBack }
-				>
-					@icons.ArrowLeft(icons.Props{Size: "16"})
-				</a>
-			}
-			<div class="min-w-0 flex-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-				<ol class="flex min-w-max items-center gap-1 text-sm pr-2">
-					for _, crumb := range model.Trail {
-						<li class="flex items-center gap-1">
-							<a
-								href={ templ.URL(crumb.URL) }
-								hx-get={ crumb.URL }
-								hx-push-url="true"
-								hx-target="closest [data-lens-swap-target]"
-								hx-swap="innerHTML"
-								onclick={ swapTargetLoadingScript() }
-								class="rounded-md px-2.5 py-2 text-slate-500 transition hover:bg-slate-50 hover:text-blue-600 hover:underline underline-offset-2"
-							>
-								{ crumb.Label }
-							</a>
-							<span class="text-slate-300">
-								@icons.CaretRight(icons.Props{Size: "12"})
-							</span>
-						</li>
-					}
-					<li aria-current="location" class="inline-flex items-center rounded-full bg-slate-100 px-3 py-1 font-semibold text-slate-900">
-						{ model.CurrentDisplay }
-					</li>
-				</ol>
-			</div>
-		</div>
+	@lensFacetStyles()
+	@lensFacetToggleScript()
+	<nav aria-label="Filters" class="overflow-visible rounded-xl border border-slate-200/80 bg-white shadow-sm">
 		if len(model.Remaining) > 0 {
-			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3 md:px-5">
+			<div class="flex flex-wrap items-center gap-2 px-4 py-3 md:px-5">
 				for _, item := range model.Remaining {
-					if item.Active {
-						<span class="inline-flex min-h-9 items-center rounded-full border border-blue-200 bg-blue-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-blue-700">
+					<details class="relative" ontoggle="lensFacetToggle(this)">
+						<summary class={ "inline-flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 [&::-webkit-details-marker]:hidden", templ.KV("lens-facet-trigger--active", item.ActiveCount > 0) }>
 							{ item.Label }
-						</span>
-					} else {
-						<a
-							href={ templ.URL(item.URL) }
-							hx-get={ item.URL }
-							hx-push-url="true"
-							hx-target="closest [data-lens-swap-target]"
-							hx-swap="innerHTML"
-							onclick={ swapTargetLoadingScript() }
-							class="inline-flex min-h-9 cursor-pointer items-center rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 transition hover:border-slate-300 hover:bg-slate-100 hover:text-slate-700"
-						>
-							{ item.Label }
-						</a>
-					}
+							if item.ActiveCount > 0 {
+								<span class="lens-facet-badge">{ fmt.Sprint(item.ActiveCount) }</span>
+							}
+							@icons.CaretDown(icons.Props{Size: "14"})
+						</summary>
+						<div data-lens-facet-panel class="absolute left-0 top-11 z-30 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+							<div
+								data-lens-facet-options
+								hx-get={ item.FacetURL }
+								hx-trigger="lens:open once"
+								hx-swap="innerHTML"
+								hx-include={ model.Include }
+							>
+								@facetLoadingSkeleton()
+							</div>
+						</div>
+					</details>
 				}
 			</div>
 		}
 		if len(model.Summary) > 0 {
 			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-2.5 md:px-5">
 				for _, item := range model.Summary {
-					<span class="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700">
-						<span class="text-blue-500">{ item.Label }</span>
+					<a
+						href={ templ.URL(item.URL) }
+						hx-get={ item.URL }
+						hx-push-url="true"
+						hx-target="closest [data-lens-swap-target]"
+						hx-swap="innerHTML"
+						hx-include={ model.Include }
+						onclick={ swapTargetLoadingScript() }
+						class="lens-chip inline-flex min-h-9 items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition"
+					>
+						<span class="lens-chip-key">{ item.Label }</span>
 						<span>{ item.Value }</span>
-					</span>
+						@icons.X(icons.Props{Size: "12"})
+					</a>
+				}
+				if model.UpURL != "" {
+					<a
+						href={ templ.URL(model.UpURL) }
+						hx-get={ model.UpURL }
+						hx-push-url="true"
+						hx-target="closest [data-lens-swap-target]"
+						hx-swap="innerHTML"
+						hx-include={ model.Include }
+						onclick={ swapTargetLoadingScript() }
+						class="lens-clear-all inline-flex min-h-9 items-center px-2 py-1.5 text-xs font-semibold transition"
+					>
+						{ translate(ctx, "Lens.Facets.ClearAll") }
+					</a>
 				}
 			</div>
 		}
 	</nav>
+}
+
+// facetLoadingSkeleton renders shimmer placeholder rows while a facet's options
+// load lazily, instead of a bare "Loading…" string.
+templ facetLoadingSkeleton() {
+	<div class="space-y-1 py-1" aria-busy="true" aria-label={ translate(ctx, "Lens.Facets.Loading") }>
+		<div class="lens-facet-skel-row"><span class="lens-facet-skel" style="width:62%"></span></div>
+		<div class="lens-facet-skel-row"><span class="lens-facet-skel" style="width:78%"></span></div>
+		<div class="lens-facet-skel-row"><span class="lens-facet-skel" style="width:52%"></span></div>
+		<div class="lens-facet-skel-row"><span class="lens-facet-skel" style="width:70%"></span></div>
+		<div class="lens-facet-skel-row"><span class="lens-facet-skel" style="width:44%"></span></div>
+	</div>
+}
+
+templ lensFacetStyles() {
+	<style>
+		@keyframes lensFacetShimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+		@keyframes lensFacetSpin { to { transform: rotate(360deg); } }
+		.lens-facet-skel-row { display: flex; align-items: center; padding: .375rem .5rem; }
+		.lens-facet-skel { height: .7rem; border-radius: 9999px; background-color: #e2e8f0; background-image: linear-gradient(90deg, rgba(226,232,240,0) 0%, rgba(148,163,184,.85) 50%, rgba(226,232,240,0) 100%); background-size: 200% 100%; animation: lensFacetShimmer 1.4s ease-in-out infinite; }
+		@media (prefers-reduced-motion: reduce) { .lens-facet-skel { animation: none; background-image: none; } }
+		.lens-facet-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 1.1rem; height: 1.1rem; padding: 0 .35rem; border-radius: 9999px; background: oklch(var(--primary-500)); color: #fff; font-size: .65rem; font-weight: 600; line-height: 1; }
+		.lens-facet-trigger--active { border-color: oklch(var(--primary-500)) !important; background: color-mix(in srgb, oklch(var(--primary-500)) 8%, #fff) !important; color: oklch(var(--primary-700)) !important; }
+		.lens-chip { border-color: color-mix(in srgb, oklch(var(--primary-500)) 28%, #fff); background: color-mix(in srgb, oklch(var(--primary-500)) 9%, #fff); color: oklch(var(--primary-700)); }
+		.lens-chip:hover { background: color-mix(in srgb, oklch(var(--primary-500)) 16%, #fff); }
+		.lens-chip-key { color: oklch(var(--primary-500)); }
+		.lens-clear-all { color: #64748b; }
+		.lens-clear-all:hover { color: oklch(var(--primary-600)); text-decoration: underline; }
+		.lens-groupby { display: inline-flex; flex-wrap: wrap; align-items: center; gap: .25rem; padding: .25rem; border-radius: .625rem; background: #f1f5f9; }
+		.lens-groupby-item--active { background: #fff; color: oklch(var(--primary-700)); box-shadow: 0 1px 2px rgba(15,23,42,.08); }
+		.lens-facet-opt { position: relative; isolation: isolate; }
+		.lens-facet-bar { position: absolute; top: 0; bottom: 0; left: 0; z-index: -1; border-radius: .375rem; background: color-mix(in srgb, oklch(var(--primary-500)) 10%, transparent); transition: width .2s ease; }
+		.lens-btn-primary { background: oklch(var(--primary-500)); }
+		.lens-btn-primary:hover { background: oklch(var(--primary-600)); }
+		.lens-spinner { display: none; width: .8rem; height: .8rem; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 9999px; animation: lensFacetSpin .6s linear infinite; }
+		form.htmx-request .lens-spinner { display: inline-block; }
+		.lens-facet-list { max-height: 18rem; overflow-y: auto; }
+		.lens-facet-scroll { position: relative; }
+		.lens-facet-scroll::after { content: ""; position: absolute; left: 0; right: .25rem; bottom: 0; height: 1.5rem; background: linear-gradient(to top, #fff, rgba(255,255,255,0)); pointer-events: none; }
+		.lens-search:focus { border-color: oklch(var(--primary-500)); box-shadow: 0 0 0 2px color-mix(in srgb, oklch(var(--primary-500)) 18%, #fff); }
+	</style>
+}
+
+// lensFacetToggleScript closes sibling dropdowns, lazy-loads options, and flips
+// the panel to right-aligned when it would overflow a scrolling/clipping
+// ancestor (e.g. the dashboard scroll container) on the right edge.
+
+script lensFacetToggleScript() {
+	window.lensFacetToggle = function(d){
+		if(!d.open){ return; }
+		d.parentElement.querySelectorAll('details[open]').forEach(function(x){ if(x!==d){ x.removeAttribute('open'); } });
+		var opts = d.querySelector('[data-lens-facet-options]');
+		if(window.htmx && opts){ htmx.trigger(opts, 'lens:open'); }
+		var p = d.querySelector('[data-lens-facet-panel]');
+		if(!p){ return; }
+		p.style.left = '';
+		p.style.right = '';
+		var bound = window.innerWidth, a = d.parentElement;
+		while(a){
+			var s = getComputedStyle(a);
+			if(/(auto|scroll|hidden|clip)/.test(s.overflowX)){ bound = Math.min(bound, a.getBoundingClientRect().right); break; }
+			a = a.parentElement;
+		}
+		if(p.getBoundingClientRect().right > bound - 8){ p.style.left = 'auto'; p.style.right = '0'; }
+	};
+	if (!window.__lensFacetOutsideBound) {
+		window.__lensFacetOutsideBound = true;
+		document.addEventListener('click', function(e){
+			document.querySelectorAll('details[open] > [data-lens-facet-panel]').forEach(function(panel){
+				var d = panel.parentElement;
+				if (d && !d.contains(e.target)) { d.removeAttribute('open'); }
+			});
+		});
+		document.addEventListener('keydown', function(e){
+			if (e.key === 'Escape') {
+				document.querySelectorAll('details[open] > [data-lens-facet-panel]').forEach(function(panel){
+					panel.parentElement.removeAttribute('open');
+				});
+			}
+		});
+	}
+}
+
+templ FacetOptionsFragment(options []lens.DrillFacetOptionMeta, props FacetOptionsProps) {
+	<form
+		hx-get={ props.OptionsURL }
+		hx-target="closest [data-lens-facet-options]"
+		hx-swap="innerHTML"
+		hx-include={ props.Include }
+		class="mb-3"
+	>
+		@HiddenQueryInputs(props.HiddenQuery)
+		<input type="hidden" name={ cube.QueryFacet } value={ props.Dimension }/>
+		<div class="relative">
+			@icons.MagnifyingGlass(icons.Props{Size: "14", Class: "pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"})
+			<input
+				type="search"
+				name={ cube.QueryFacetSearch }
+				value={ props.Search }
+				placeholder={ translate(ctx, "Lens.Facets.Search") }
+				hx-get={ props.OptionsURL }
+				hx-target="closest [data-lens-facet-options]"
+				hx-swap="innerHTML"
+				hx-include={ facetSearchIncludeSelector(props.Include) }
+				hx-trigger="keyup changed delay:350ms, search"
+				class="lens-search h-9 w-full rounded-md border border-slate-200 py-1 pl-8 pr-2 text-sm text-slate-700 outline-none"
+			/>
+		</div>
+	</form>
+	// NOTE: deliberately NOT using hx-include of the outer filter form here.
+	// This form already carries everything it needs via HiddenQueryInputs
+	// (FacetHiddenQuery: date range + every other dimension's filters, with the
+	// current dimension stripped) plus the checked options below. Pulling in the
+	// outer #filters-form would re-inject this dimension's stale _f values and
+	// make de-selecting / clearing a value impossible.
+	<form
+		hx-get={ props.ApplyURL }
+		hx-target={ props.Target }
+		hx-swap="innerHTML"
+		hx-push-url="true"
+	>
+		@HiddenQueryInputs(props.HiddenQuery)
+		{{ maxCount := facetMaxCount(options) }}
+		<div class="lens-facet-list lens-facet-scroll space-y-0.5 pr-1">
+			if len(options) == 0 {
+				<div class="flex flex-col items-center gap-1.5 py-6 text-center text-sm text-slate-400">
+					@icons.MagnifyingGlass(icons.Props{Size: "18"})
+					{ translate(ctx, "Lens.Facets.Empty") }
+				</div>
+			}
+			for _, option := range facetOptionsOrdered(options) {
+				<label class="lens-facet-opt flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50">
+					if maxCount > 0 {
+						<span class="lens-facet-bar" style={ facetBarStyle(option.Count, maxCount) }></span>
+					}
+					<input
+						type="checkbox"
+						name={ cube.QueryFilter }
+						value={ option.Dimension + ":" + option.Value }
+						checked?={ option.Selected }
+						style="accent-color: var(--primary-500);"
+						class="h-4 w-4 rounded border-slate-300"
+					/>
+					<span class="min-w-0 flex-1 truncate">{ option.Label }</span>
+					<span class="text-xs font-medium tabular-nums text-slate-500">{ fmt.Sprint(option.Count) }</span>
+				</label>
+			}
+		</div>
+		<div class="mt-3 flex items-center justify-end gap-2 border-t border-slate-100 pt-3">
+			<button
+				type="button"
+				onclick="this.closest('form').querySelectorAll('input[type=checkbox]').forEach(function(input){ input.checked = false; }); this.closest('form').requestSubmit();"
+				class="inline-flex min-h-8 items-center rounded-lg border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-50"
+			>
+				{ translate(ctx, "Lens.Facets.Clear") }
+			</button>
+			<button type="submit" class="lens-btn-primary inline-flex min-h-8 items-center gap-1.5 rounded-lg px-3 py-1 text-xs font-semibold text-white">
+				<span class="lens-spinner"></span>
+				{ translate(ctx, "Lens.Facets.Apply") }
+			</button>
+		</div>
+	</form>
 }
 
 templ HiddenQueryInputs(values map[string][]string) {

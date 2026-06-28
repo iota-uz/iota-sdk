@@ -32,6 +32,16 @@ type FragmentProps struct {
 	ResolvePanelErrorAction PanelErrorActionResolver
 }
 
+type FacetOptionsProps struct {
+	ApplyURL    string
+	OptionsURL  string
+	Target      string
+	Dimension   string
+	Search      string
+	Include     string
+	HiddenQuery map[string][]string
+}
+
 type BodyProps struct {
 	ClassName      string
 	ContainerClass string

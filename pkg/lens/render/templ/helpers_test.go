@@ -285,8 +285,11 @@ func TestDrillNavigationModelPreservesBaseQueryAndDisplayLabels(t *testing.T) {
 					{Dimension: "region", Value: "d9206a", Display: "Tashkent"},
 				},
 				RemainingDimensions: []lens.DrillDimensionMeta{
+					{Name: "product", Label: "Product"},
+					{Name: "region", Label: "Region"},
 					{Name: "agency", Label: "Agency"},
 				},
+				GroupBy: "region",
 			},
 		},
 		Drill: &cube.DrillContext{
@@ -303,21 +306,61 @@ func TestDrillNavigationModelPreservesBaseQueryAndDisplayLabels(t *testing.T) {
 	})
 
 	require.True(t, model.HasNav)
-	require.Equal(t, "Tashkent", model.CurrentDisplay)
-	require.Len(t, model.Trail, 2)
-	require.Equal(t, "All", model.Trail[0].Label)
-	require.Contains(t, model.Trail[0].URL, "ActualRangeStart=2026-02-14")
-	require.Contains(t, model.Trail[0].URL, "ActualRangeEnd=2026-03-15")
-	require.Equal(t, "OSAGO", model.Trail[1].Label)
-	require.Contains(t, model.Trail[1].URL, "_f=product%3A9d5877")
-	require.Contains(t, model.Trail[1].URL, "ActualRangeStart=2026-02-14")
-	require.Len(t, model.Remaining, 1)
-	require.Contains(t, model.Remaining[0].URL, "_dim=agency")
-	require.Contains(t, model.Remaining[0].URL, "ActualRangeEnd=2026-03-15")
-	require.Equal(t, []drillSummaryItem{
-		{Label: "Product", Value: "OSAGO"},
-		{Label: "Region", Value: "Tashkent"},
-	}, model.Summary)
+	require.Len(t, model.Remaining, 3)
+	require.True(t, model.Remaining[1].Active)
+	require.Contains(t, model.Remaining[2].URL, "_groupby=agency")
+	require.Contains(t, model.Remaining[2].URL, "ActualRangeEnd=2026-03-15")
+	require.Contains(t, model.Remaining[0].FacetURL, "_facet=product")
+	require.Len(t, model.Summary, 2)
+	require.Equal(t, "Product", model.Summary[0].Label)
+	require.Equal(t, "OSAGO", model.Summary[0].Value)
+	require.NotContains(t, model.Summary[0].URL, "product%3A9d5877")
+	require.Contains(t, model.Summary[0].URL, "region%3Ad9206a")
+	require.Equal(t, "Region", model.Summary[1].Label)
+	require.Equal(t, "Tashkent", model.Summary[1].Value)
+}
+
+func TestDrillNavigationModelRendersMultiValueSummaryItems(t *testing.T) {
+	t.Parallel()
+
+	model := drillNavigationModelWithInclude(metricInfoContext(t, language.English), &runtime.Result{
+		Spec: lens.DashboardSpec{
+			Drill: &lens.DrillMeta{
+				BaseURL: "/insurance/sales-report",
+				Dimensions: []lens.DrillDimensionMeta{
+					{Name: "region", Label: "Region"},
+					{Name: "product", Label: "Product"},
+				},
+				Filters: []lens.DrillFilterMeta{
+					{Dimension: "region", Value: "tashkent", Display: "Tashkent"},
+					{Dimension: "region", Value: "samarkand", Display: "Samarkand"},
+				},
+				RemainingDimensions: []lens.DrillDimensionMeta{
+					{Name: "region", Label: "Region"},
+					{Name: "product", Label: "Product"},
+				},
+				GroupBy: "region",
+			},
+		},
+		Drill: &cube.DrillContext{
+			Filters: []cube.DimensionFilter{
+				{Dimension: "region", Value: "tashkent", Values: []string{"tashkent", "samarkand"}},
+			},
+		},
+		Request: urlpkg.Values{
+			"ActualRangeStart": []string{"2026-02-14"},
+		},
+	}, "#filters-form input")
+
+	require.True(t, model.HasNav)
+	require.Equal(t, "#filters-form input", model.Include)
+	require.Len(t, model.Summary, 2)
+	require.Equal(t, "Tashkent", model.Summary[0].Value)
+	require.Equal(t, "Samarkand", model.Summary[1].Value)
+	require.NotContains(t, model.Summary[0].URL, "region%3Atashkent")
+	require.Contains(t, model.Summary[0].URL, "region%3Asamarkand")
+	require.Contains(t, model.Summary[1].URL, "region%3Atashkent")
+	require.NotContains(t, model.Summary[1].URL, "region%3Asamarkand")
 }
 
 func TestTablePaginationURLBuildsNextChunkRequest(t *testing.T) {
