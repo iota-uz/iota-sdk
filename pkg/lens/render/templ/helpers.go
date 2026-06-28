@@ -203,10 +203,6 @@ func facetBarStyle(count, maxCount int) string {
 	return fmt.Sprintf("width:%d%%", facetBarPercent(count, maxCount))
 }
 
-func drillNavigationModelFromSpec(ctx context.Context, spec lens.DashboardSpec) drillNavModel {
-	return drillNavigationModelFromSpecWithInclude(ctx, spec, "")
-}
-
 func drillNavigationModelFromSpecWithInclude(ctx context.Context, spec lens.DashboardSpec, include string) drillNavModel {
 	if spec.Drill == nil {
 		return drillNavModel{}
