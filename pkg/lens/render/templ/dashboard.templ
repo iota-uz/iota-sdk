@@ -185,11 +185,12 @@ templ panelSkeleton(spec panel.Spec) {
 
 templ DrillNavigation(model drillNavModel) {
 	@lensFacetStyles()
+	@lensFacetToggleScript()
 	<nav aria-label="Filters" class="overflow-visible rounded-xl border border-slate-200/80 bg-white shadow-sm">
 		if len(model.Remaining) > 0 {
 			<div class="flex flex-wrap items-center gap-2 px-4 py-3 md:px-5">
 				for _, item := range model.Remaining {
-					<details class="relative" ontoggle="if(this.open){this.parentElement.querySelectorAll('details[open]').forEach(function(d){if(d!==this)d.removeAttribute('open')}.bind(this));window.htmx&&htmx.trigger(this.querySelector('[data-lens-facet-options]'),'lens:open')}">
+					<details class="relative" ontoggle="lensFacetToggle(this)">
 						<summary class={ "inline-flex min-h-9 cursor-pointer list-none items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 [&::-webkit-details-marker]:hidden", templ.KV("lens-facet-trigger--active", item.ActiveCount > 0) }>
 							{ item.Label }
 							if item.ActiveCount > 0 {
@@ -197,7 +198,7 @@ templ DrillNavigation(model drillNavModel) {
 							}
 							@icons.CaretDown(icons.Props{Size: "14"})
 						</summary>
-						<div class="absolute left-0 top-11 z-30 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
+						<div data-lens-facet-panel class="absolute left-0 top-11 z-30 w-72 rounded-lg border border-slate-200 bg-white p-3 shadow-xl">
 							<div
 								data-lens-facet-options
 								hx-get={ item.FacetURL }
@@ -246,33 +247,6 @@ templ DrillNavigation(model drillNavModel) {
 				}
 			</div>
 		}
-		if len(model.Remaining) > 1 {
-			<div class="flex flex-wrap items-center gap-2 border-t border-slate-100 px-4 py-3 md:px-5">
-				<span class="text-xs font-semibold uppercase tracking-wide text-slate-400">{ translate(ctx, "Lens.GroupBy.Label") }</span>
-				<div class="lens-groupby">
-					for _, item := range model.Remaining {
-						if item.Active {
-							<span class="lens-groupby-item--active inline-flex min-h-7 items-center rounded-md px-2.5 py-1 text-xs font-semibold">
-								{ item.Label }
-							</span>
-						} else {
-							<a
-								href={ templ.URL(item.URL) }
-								hx-get={ item.URL }
-								hx-push-url="true"
-								hx-target="closest [data-lens-swap-target]"
-								hx-swap="innerHTML"
-								hx-include={ model.Include }
-								onclick={ swapTargetLoadingScript() }
-								class="inline-flex min-h-7 items-center rounded-md px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-white"
-							>
-								{ item.Label }
-							</a>
-						}
-					}
-				</div>
-			</div>
-		}
 	</nav>
 }
 
@@ -317,6 +291,29 @@ templ lensFacetStyles() {
 	</style>
 }
 
+// lensFacetToggleScript closes sibling dropdowns, lazy-loads options, and flips
+// the panel to right-aligned when it would overflow a scrolling/clipping
+// ancestor (e.g. the dashboard scroll container) on the right edge.
+script lensFacetToggleScript() {
+	window.lensFacetToggle = function(d){
+		if(!d.open){ return; }
+		d.parentElement.querySelectorAll('details[open]').forEach(function(x){ if(x!==d){ x.removeAttribute('open'); } });
+		var opts = d.querySelector('[data-lens-facet-options]');
+		if(window.htmx && opts){ htmx.trigger(opts, 'lens:open'); }
+		var p = d.querySelector('[data-lens-facet-panel]');
+		if(!p){ return; }
+		p.style.left = '';
+		p.style.right = '';
+		var bound = window.innerWidth, a = d.parentElement;
+		while(a){
+			var s = getComputedStyle(a);
+			if(/(auto|scroll|hidden|clip)/.test(s.overflowX)){ bound = Math.min(bound, a.getBoundingClientRect().right); break; }
+			a = a.parentElement;
+		}
+		if(p.getBoundingClientRect().right > bound - 8){ p.style.left = 'auto'; p.style.right = '0'; }
+	};
+}
+
 templ FacetOptionsFragment(options []lens.DrillFacetOptionMeta, props FacetOptionsProps) {
 	<form
 		hx-get={ props.OptionsURL }
@@ -343,12 +340,17 @@ templ FacetOptionsFragment(options []lens.DrillFacetOptionMeta, props FacetOptio
 			/>
 		</div>
 	</form>
+	// NOTE: deliberately NOT using hx-include of the outer filter form here.
+	// This form already carries everything it needs via HiddenQueryInputs
+	// (FacetHiddenQuery: date range + every other dimension's filters, with the
+	// current dimension stripped) plus the checked options below. Pulling in the
+	// outer #filters-form would re-inject this dimension's stale _f values and
+	// make de-selecting / clearing a value impossible.
 	<form
 		hx-get={ props.ApplyURL }
 		hx-target={ props.Target }
 		hx-swap="innerHTML"
 		hx-push-url="true"
-		hx-include={ props.Include }
 	>
 		@HiddenQueryInputs(props.HiddenQuery)
 		{{ maxCount := facetMaxCount(options) }}
