@@ -115,6 +115,17 @@ func TestTextMarshalJSON_SkipsBlankNormalizedLocales(t *testing.T) {
 	assert.JSONEq(t, `{"en":"Dashboard"}`, string(payload))
 }
 
+func TestTextIsZero_DoesNotDeduplicateLocaleAliases(t *testing.T) {
+	t.Parallel()
+
+	text := Text{Translations: map[string]string{
+		"en": "Summary",
+		"EN": " ",
+	}}
+
+	assert.False(t, text.IsZero())
+}
+
 func TestDurationMarshalRoundTrip(t *testing.T) {
 	t.Parallel()
 

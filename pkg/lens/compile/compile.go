@@ -15,6 +15,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensspec "github.com/iota-uz/iota-sdk/pkg/lens/spec"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 var placeholderPattern = regexp.MustCompile(`\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}`)
@@ -333,10 +334,16 @@ func compileDataset(item lensspec.DatasetSpec, opts Options) (lens.DatasetSpec, 
 }
 
 func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
+	const op serrors.Op = "lens.compile.compileRow"
+
+	heading := strings.TrimSpace(resolveText(item.Heading, opts))
+	if heading != "" && len(item.Panels) > 0 {
+		return lens.RowSpec{}, serrors.E(op, fmt.Errorf("row heading %q cannot be combined with panels", heading))
+	}
 	out := lens.RowSpec{
 		Panels:  make([]panel.Spec, 0, len(item.Panels)),
 		Class:   resolveString(item.Class, opts.Values),
-		Heading: resolveText(item.Heading, opts),
+		Heading: heading,
 	}
 	for _, panelSpec := range item.Panels {
 		resolved, err := compilePanel(panelSpec, opts)

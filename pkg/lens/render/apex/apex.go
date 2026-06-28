@@ -243,7 +243,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		}
 	}
 	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
-	applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
+	tooltipFormatter := applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
 	var chartEvents charts.ChartEvents
 	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
 		chartEvents.DataPointMouseEnter = syncTooltip
@@ -251,7 +251,16 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if panelSpec.Action != nil {
 		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
 	}
-	if chartEvents.DataPointMouseEnter != "" || chartEvents.DataPointSelection != "" {
+	if panelSpec.Kind == panel.KindStackedBar {
+		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter)
+		// The stacked-bar total badge floats at the top-left of the plot. Reserve a
+		// header band above the plot so it clears the top y-axis label (and the
+		// top-right toolbar/export menu has room too).
+		if options.Grid != nil && options.Grid.Padding != nil {
+			options.Grid.Padding.Top = mapping.Pointer(34)
+		}
+	}
+	if hasChartEvents(chartEvents) {
 		options.Chart.Events = &chartEvents
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
@@ -369,9 +378,9 @@ func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) (logari
 	return plan, true
 }
 
-func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, panelResult *runtime.PanelResult, manualLogScaleApplied bool, logPlan logarithmicAxisPlan) {
+func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, panelResult *runtime.PanelResult, manualLogScaleApplied bool, logPlan logarithmicAxisPlan) templ.JSExpression {
 	if options == nil || panelResult == nil {
-		return
+		return ""
 	}
 	axisFormatter, tooltipFormatter := chartValueFormatters(panelSpec.Formatter, panelResult.Locale)
 	valueAxis := normalizedValueAxis(panelSpec.ValueAxis)
@@ -386,7 +395,7 @@ func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, pan
 		options.Tooltip.Custom = stackedBarTooltipWithTotal(panelResult.Locale, tooltipFormatter)
 	}
 	if axisFormatter == "" && tooltipFormatter == "" {
-		return
+		return tooltipFormatter
 	}
 	if axisFormatter != "" {
 		if panelSpec.Kind == panel.KindHorizontalBar {
@@ -403,6 +412,7 @@ func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, pan
 	if tooltipFormatter != "" {
 		options.Tooltip.Y = &charts.TooltipYConfig{Formatter: tooltipFormatter}
 	}
+	return tooltipFormatter
 }
 
 func normalizedValueAxis(axis panel.ValueAxis) panel.ValueAxis {
@@ -686,17 +696,8 @@ func chartValueFormatters(spec *format.Spec, locale string) (templ.JSExpression,
 }
 
 func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) templ.JSExpression {
-	if strings.TrimSpace(locale) == "" {
-		locale = "en-US"
-	}
-	label := "Total"
-	if strings.HasPrefix(locale, "ru") {
-		label = "Итого"
-	} else if strings.HasPrefix(locale, "uz-Cyrl") {
-		label = "Жами"
-	} else if strings.HasPrefix(locale, "uz") {
-		label = "Jami"
-	}
+	locale = normalizedChartLocale(locale)
+	label := stackedBarTotalLabel(locale)
 	valueFormatter := "null"
 	if formatter != "" {
 		valueFormatter = "(" + string(formatter) + ")"
@@ -708,7 +709,15 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 		const globals = (w && w.globals) || {};
 		const names = globals.seriesNames || [];
 		const colors = globals.colors || [];
-		const collapsed = new Set(globals.collapsedSeriesIndices || []);
+		const hiddenSeriesIndices = new Set([].concat(globals.collapsedSeriesIndices || [], globals.hiddenSeriesIndices || []));
+		const hiddenSeriesNames = new Set([].concat(globals.collapsedSeries || [], globals.hiddenSeries || [])
+			.map((entry) => {
+				if (entry && typeof entry === 'object' && 'name' in entry) {
+					return String(entry.name);
+				}
+				return String(entry);
+			}));
+		const isSeriesHidden = (seriesIndex) => hiddenSeriesIndices.has(seriesIndex) || hiddenSeriesNames.has(String(names[seriesIndex] || ''));
 		const categories = globals.categoryLabels || globals.labels || ((w && w.config && w.config.xaxis && w.config.xaxis.categories) || []);
 		const escapeHTML = (value) => String(value == null ? '' : value)
 			.replace(/&/g, '&amp;')
@@ -727,17 +736,20 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 		let total = 0;
 		let hasTotal = false;
 		const rows = (series || []).map((points, seriesIndex) => {
-			if (collapsed.has(seriesIndex)) {
+			if (isSeriesHidden(seriesIndex)) {
 				return '';
 			}
 			const value = points && points[dataPointIndex];
+			if (value == null || value === '') {
+				return '';
+			}
 			const number = Number(value);
+			if (Number.isFinite(number) && number === 0) {
+				return '';
+			}
 			if (Number.isFinite(number)) {
 				total += number;
 				hasTotal = true;
-			}
-			if (value == null || value === '') {
-				return '';
 			}
 			const color = colors[seriesIndex] || '#9ca3af';
 			const name = names[seriesIndex] || '';
@@ -756,6 +768,156 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 			: '';
 		return '<div class="apexcharts-tooltip-title">' + escapeHTML(categories[dataPointIndex] || '') + '</div>' + rows + totalRow;
 	}`, valueFormatter, locale, label))
+}
+
+func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression) {
+	if events == nil {
+		return
+	}
+	totalBadge := stackedBarTotalBadgeJS(locale, formatter)
+	events.Mounted = totalBadge
+	events.Updated = totalBadge
+	events.LegendClick = totalBadge
+}
+
+func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.JSExpression {
+	locale = normalizedChartLocale(locale)
+	label := stackedBarTotalLabel(locale)
+	valueFormatter := "null"
+	if formatter != "" {
+		valueFormatter = "(" + string(formatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function(chartContext) {
+		const valueFormatter = %s;
+		const locale = %q;
+		const totalLabel = %q;
+		const update = () => {
+			const ctx = chartContext || null;
+			const el = ctx && ctx.el ? ctx.el : null;
+			const w = ctx && ctx.w ? ctx.w : null;
+			if (!el || !w) {
+				return;
+			}
+			if (window.getComputedStyle && window.getComputedStyle(el).position === 'static') {
+				el.style.position = 'relative';
+			}
+			let badge = el.querySelector('[data-lens-stacked-total]');
+			if (!badge) {
+				badge = document.createElement('div');
+				badge.setAttribute('data-lens-stacked-total', 'true');
+				badge.style.position = 'absolute';
+				badge.style.top = '6px';
+				badge.style.left = '12px';
+				badge.style.zIndex = '5';
+				badge.style.padding = '4px 8px';
+				badge.style.borderRadius = '6px';
+				badge.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+				badge.style.background = 'rgba(255, 255, 255, 0.92)';
+				badge.style.boxShadow = '0 1px 2px rgba(15, 23, 42, 0.08)';
+				badge.style.color = '#334155';
+				badge.style.font = '600 12px Inter, Helvetica Neue, Arial, sans-serif';
+				badge.style.lineHeight = '16px';
+				badge.style.pointerEvents = 'none';
+				el.appendChild(badge);
+			}
+			const globals = w.globals || {};
+			const seriesNames = globals.seriesNames || [];
+			const configSeries = w.config && Array.isArray(w.config.series) ? w.config.series : [];
+			const runtimeSeries = Array.isArray(globals.series) ? globals.series : [];
+			const seriesHiddenResult = (seriesName) => {
+				if (!seriesName) {
+					return null;
+				}
+				if (ctx && typeof ctx.isSeriesHidden === 'function') {
+					const result = ctx.isSeriesHidden(seriesName);
+					if (result != null) {
+						return result;
+					}
+				}
+				if (ctx && ctx.series && typeof ctx.series.isSeriesHidden === 'function') {
+					return ctx.series.isSeriesHidden(seriesName);
+				}
+				return null;
+			};
+			const isSeriesHidden = (seriesName) => {
+				const result = seriesHiddenResult(seriesName);
+				if (typeof result === 'boolean') {
+					return result;
+				}
+				return Boolean(result && result.isHidden);
+			};
+			let total = 0;
+			const addValue = (value) => {
+				if (value && typeof value === 'object' && 'y' in value) {
+					value = value.y;
+				}
+				const number = Number(value);
+				if (Number.isFinite(number)) {
+					total += number;
+				}
+			};
+			configSeries.forEach((entry, seriesIndex) => {
+				const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
+				if (isSeriesHidden(String(name))) {
+					return;
+				}
+				const points = entry && Array.isArray(entry.data)
+					? entry.data
+					: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
+				points.forEach(addValue);
+			});
+			const formatValue = (value) => {
+				if (valueFormatter) {
+					return valueFormatter(value, { seriesIndex: -1, dataPointIndex: -1, w });
+				}
+				return Number.isFinite(value) ? value.toLocaleString(locale) : String(value == null ? '' : value);
+			};
+			badge.textContent = totalLabel + ': ' + formatValue(total);
+		};
+		setTimeout(update, 0);
+		setTimeout(update, 80);
+	}`, valueFormatter, locale, label))
+}
+
+func normalizedChartLocale(locale string) string {
+	if strings.TrimSpace(locale) == "" {
+		return "en-US"
+	}
+	return locale
+}
+
+func stackedBarTotalLabel(locale string) string {
+	switch {
+	case strings.HasPrefix(locale, "ru"):
+		return "Итого"
+	case strings.HasPrefix(locale, "uz-Cyrl"):
+		return "Жами"
+	case strings.HasPrefix(locale, "uz"):
+		return "Jami"
+	default:
+		return "Total"
+	}
+}
+
+func hasChartEvents(events charts.ChartEvents) bool {
+	return events.AnimationEnd != "" ||
+		events.BeforeMount != "" ||
+		events.Mounted != "" ||
+		events.Updated != "" ||
+		events.MouseMove != "" ||
+		events.MouseLeave != "" ||
+		events.Click != "" ||
+		events.LegendClick != "" ||
+		events.MarkerClick != "" ||
+		events.XAxisLabelClick != "" ||
+		events.Selection != "" ||
+		events.DataPointSelection != "" ||
+		events.DataPointMouseEnter != "" ||
+		events.DataPointMouseLeave != "" ||
+		events.BeforeZoom != "" ||
+		events.BeforeResetZoom != "" ||
+		events.Zoomed != "" ||
+		events.Scrolled != ""
 }
 
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, panelResult *runtime.PanelResult) templ.JSExpression {

@@ -1,11 +1,15 @@
 package panel
 
-import "testing"
+import (
+	"testing"
 
-// allKinds is the full closed set of panel kinds. Keep it in sync with the
-// const block above; the predicate tests below assert exhaustive, mutually
-// consistent membership so a newly added kind that is left out of a predicate
-// is caught here rather than at a far-away switch site.
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// allKinds lists the panel kinds covered by the predicate tests. Keep it in
+// sync with the const block above so the table and partition checks cover every
+// known kind.
 var allKinds = []Kind{
 	KindStat,
 	KindTimeSeries,
@@ -23,7 +27,7 @@ var allKinds = []Kind{
 	KindRepeat,
 }
 
-func TestKindPredicates(t *testing.T) {
+func TestKindPredicates_ClassifiesAllKnownKinds(t *testing.T) {
 	cases := []struct {
 		kind            Kind
 		isContainer     bool
@@ -46,20 +50,21 @@ func TestKindPredicates(t *testing.T) {
 		{KindRepeat, true, false, false},
 	}
 
-	if len(cases) != len(allKinds) {
-		t.Fatalf("predicate table covers %d kinds, want %d (allKinds)", len(cases), len(allKinds))
+	require.Len(t, cases, len(allKinds), "predicate table should cover allKinds")
+	seen := make(map[Kind]int, len(cases))
+	for _, tc := range cases {
+		seen[tc.kind]++
+	}
+	for _, kind := range allKinds {
+		require.Equalf(t, 1, seen[kind], "predicate table should include %q exactly once", kind)
 	}
 
 	for _, tc := range cases {
-		if got := tc.kind.IsContainer(); got != tc.isContainer {
-			t.Errorf("%q.IsContainer() = %v, want %v", tc.kind, got, tc.isContainer)
-		}
-		if got := tc.kind.IsChart(); got != tc.isChart {
-			t.Errorf("%q.IsChart() = %v, want %v", tc.kind, got, tc.isChart)
-		}
-		if got := tc.kind.RendersNatively(); got != tc.rendersNatively {
-			t.Errorf("%q.RendersNatively() = %v, want %v", tc.kind, got, tc.rendersNatively)
-		}
+		t.Run(string(tc.kind), func(t *testing.T) {
+			assert.Equal(t, tc.isContainer, tc.kind.IsContainer())
+			assert.Equal(t, tc.isChart, tc.kind.IsChart())
+			assert.Equal(t, tc.rendersNatively, tc.kind.RendersNatively())
+		})
 	}
 }
 
@@ -80,13 +85,9 @@ func TestKindPredicatesPartition(t *testing.T) {
 		if k.RendersNatively() {
 			matches++
 		}
-		if matches != 1 {
-			t.Errorf("%q matched %d categories, want exactly 1 (container/chart/native)", k, matches)
-		}
+		assert.Equalf(t, 1, matches, "%q matched %d categories, want exactly 1 (container/chart/native)", k, matches)
 
 		leaf := k.IsChart() || k.RendersNatively()
-		if leaf == k.IsContainer() {
-			t.Errorf("%q: leaf=%v but IsContainer()=%v; leaf and container must be mutually exclusive and exhaustive", k, leaf, k.IsContainer())
-		}
+		assert.NotEqualf(t, leaf, k.IsContainer(), "%q: leaf=%v but IsContainer()=%v; leaf and container must be mutually exclusive and exhaustive", k, leaf, k.IsContainer())
 	}
 }

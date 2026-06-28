@@ -34,6 +34,31 @@ func TestDashboard_RendersSectionHeading(t *testing.T) {
 	assert.Contains(t, rendered, "uppercase tracking-wider")
 }
 
+func TestDashboard_RendersPanelsWhenHeadingAlsoPresent(t *testing.T) {
+	t.Parallel()
+
+	spec := lens.DashboardSpec{
+		ID: "sectioned",
+		Rows: []lens.RowSpec{
+			{
+				Heading: " Summary ",
+				Panels: []panel.Spec{
+					panel.Stat("total", "Total", "stats").Build(),
+				},
+			},
+		},
+	}
+
+	var html bytes.Buffer
+	err := Dashboard(DashboardProps{Spec: spec}).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, "Summary")
+	assert.Contains(t, rendered, "Total")
+	assert.Contains(t, rendered, "grid grid-cols-12")
+}
+
 // A Stat with an AccentColor but no Icon renders the icon-less accent chrome: a
 // solid family-color bar, the value, and NO colored icon badge.
 func TestStatPanel_AccentChromeWithoutIcon(t *testing.T) {

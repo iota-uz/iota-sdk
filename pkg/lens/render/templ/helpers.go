@@ -1119,6 +1119,13 @@ func panelCardClass(spec panel.Spec) string {
 		overflow = "overflow-visible"
 	}
 	base := "flex h-full flex-col " + overflow + " rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-200"
+	// Mark stat/segment cards as CSS container-query roots so their headline value
+	// can scale to the card width (e.g. a narrow sidebar column) instead of the
+	// viewport. The container behavior + responsive sizing live in the consumer's
+	// stylesheet, keyed off the `lens-stat-card` / `lens-stat-value` hooks below.
+	if spec.Kind == panel.KindStat || spec.Kind == panel.KindSegmentBar {
+		base += " lens-stat-card"
+	}
 	if panelIsInteractive(spec) {
 		base += " hover:border-blue-200 hover:shadow-md"
 	} else {
