@@ -145,13 +145,15 @@ func drillNavigationModelWithInclude(ctx context.Context, result *runtime.Result
 // activeFilterCount returns how many distinct values are currently filtered for
 // the given dimension, so a facet trigger can show a "·N" badge.
 func activeFilterCount(filters []cube.DimensionFilter, dimension string) int {
-	count := 0
+	seen := make(map[string]struct{})
 	for _, filter := range filters {
 		if filter.Dimension == dimension {
-			count += len(normalizedFilterValues(filter))
+			for _, v := range normalizedFilterValues(filter) {
+				seen[v] = struct{}{}
+			}
 		}
 	}
-	return count
+	return len(seen)
 }
 
 // facetOptionsOrdered returns the options with currently-selected values floated

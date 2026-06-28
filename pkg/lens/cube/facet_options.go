@@ -142,7 +142,7 @@ func sqlFacetOptionsQuery(spec CubeSpec, drillCtx DrillContext, dim DimensionSpe
 	if where != "" {
 		text += "\nWHERE " + where
 	}
-	text += "\nGROUP BY value, label\nORDER BY count DESC, label ASC"
+	text += "\nGROUP BY 1, 2\nORDER BY count DESC, label ASC"
 
 	params := sqlParams(spec, facetCtx)
 	if search != "" {

@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSQLFacetOptionsQueryPreservesParamValues(t *testing.T) {
+func TestSQLFacetOptionsQuery_PreservesParamValues(t *testing.T) {
 	t.Parallel()
 
 	spec := New("sales", "Sales").
@@ -32,7 +32,7 @@ func TestSQLFacetOptionsQueryPreservesParamValues(t *testing.T) {
 	require.Equal(t, "%tash%", params["facet_search"].Literal)
 }
 
-func TestSQLFacetOptionsQueryUsesOverrideDataset(t *testing.T) {
+func TestSQLFacetOptionsQuery_UsesOverrideDataset(t *testing.T) {
 	t.Parallel()
 
 	spec := New("sales", "Sales").
@@ -59,7 +59,7 @@ func TestSQLFacetOptionsQueryUsesOverrideDataset(t *testing.T) {
 	require.Equal(t, "%30%", params["facet_search"].Literal)
 }
 
-func TestResolveFacetOptionsPassesParamValuesToLookup(t *testing.T) {
+func TestResolveFacetOptions_PassesParamValuesToLookup(t *testing.T) {
 	t.Parallel()
 
 	spec := New("sales", "Sales").

@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 )
 
@@ -16,7 +17,6 @@ const (
 	statsDatasetNamePrefix = "cube_stats"
 	statDatasetNamePrefix  = "cube_stat"
 	dimDatasetNamePrefix   = "cube_dim"
-	leafDatasetNamePrefix  = "cube_leaf"
 )
 
 type dimensionDatasetResolution struct {
@@ -74,8 +74,9 @@ func resolvedDimensionTransforms(spec CubeSpec, transformsIn []transform.Spec) [
 }
 
 func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpec, error) {
+	const op serrors.Op = "cube.Resolve"
 	if err := spec.Validate(); err != nil {
-		return lens.DashboardSpec{}, err
+		return lens.DashboardSpec{}, serrors.E(op, err)
 	}
 	for _, filter := range ctx.Filters {
 		if _, ok := spec.Dimension(filter.Dimension); !ok {
@@ -103,7 +104,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 
 	statsResolution, err := resolveStatDatasets(spec, ctx)
 	if err != nil {
-		return lens.DashboardSpec{}, err
+		return lens.DashboardSpec{}, serrors.E(op, err)
 	}
 	dashboard.Datasets = append(dashboard.Datasets, statsResolution.Datasets...)
 	dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: buildStatPanels(spec, statsResolution.DatasetByMeasure)})
@@ -116,7 +117,7 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 	for idx, dim := range ordered {
 		resolved, err := resolveDimensionDataset(spec, ctx, dim)
 		if err != nil {
-			return lens.DashboardSpec{}, err
+			return lens.DashboardSpec{}, serrors.E(op, err)
 		}
 		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
 		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(ordered), idx))
@@ -230,27 +231,6 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 		}, nil
 	default:
 		return dimensionDatasetResolution{}, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
-	}
-}
-
-func resolveLeaf(spec CubeSpec, ctx DrillContext) (lens.RowSpec, *lens.DatasetSpec, error) {
-	switch spec.DataMode {
-	case DataModeDataset:
-		if strings.TrimSpace(spec.Leaf.URL) != "" {
-			return lens.RowSpec{}, nil, nil
-		}
-		dataset := resolveDatasetLeafDataset(spec, ctx, leafDatasetNamePrefix)
-		return lens.RowSpec{
-			Panels: []panel.Spec{
-				panel.Table("leaf_records", "Records", dataset.Name).
-					Span(12).
-					Build(),
-			},
-		}, &dataset, nil
-	case DataModeSQL:
-		return lens.RowSpec{}, nil, nil
-	default:
-		return lens.RowSpec{}, nil, fmt.Errorf("unsupported cube mode %q", spec.DataMode)
 	}
 }
 
