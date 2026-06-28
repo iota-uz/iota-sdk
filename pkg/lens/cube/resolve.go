@@ -108,13 +108,20 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 	dashboard.Datasets = append(dashboard.Datasets, statsResolution.Datasets...)
 	dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: buildStatPanels(spec, statsResolution.DatasetByMeasure)})
 
-	if strings.TrimSpace(groupBy.Name) != "" {
-		resolved, err := resolveDimensionDataset(spec, ctx, groupBy)
+	// Render one panel per dimension (the full overview grid). The group-by
+	// dimension is sorted to the front so the selector still "focuses" a
+	// dimension without collapsing the dashboard to a single chart.
+	ordered := reorderByActiveDimension(remaining, groupBy.Name)
+	dimensionPanels := make([]panel.Spec, 0, len(ordered))
+	for idx, dim := range ordered {
+		resolved, err := resolveDimensionDataset(spec, ctx, dim)
 		if err != nil {
 			return lens.DashboardSpec{}, err
 		}
 		dashboard.Datasets = append(dashboard.Datasets, resolved.Datasets...)
-		dimensionPanels := []panel.Spec{buildDimensionPanel(spec, groupBy, resolved, baseURL, 1, 0)}
+		dimensionPanels = append(dimensionPanels, buildDimensionPanel(spec, dim, resolved, baseURL, len(ordered), idx))
+	}
+	if len(dimensionPanels) > 0 {
 		dashboard.Rows = append(dashboard.Rows, buildDimensionRows(dimensionPanels)...)
 	}
 
