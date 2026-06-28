@@ -1464,9 +1464,15 @@ let sidebarCollapsedMenus = () => ({
     const navKey = this.navKeyForElement(el);
     const groupId = el.dataset.groupId;
     const depth = Number(el.dataset.depth || 0);
+    // Read the reactive store map unconditionally so Alpine tracks `menusByNav`
+    // as a dependency even on the first evaluation — when a teleported flyout's
+    // x-bind dataset attributes are not applied yet and navKey is still empty.
+    // Without this, the early return below skips the reactive read and x-show
+    // never re-evaluates after the store updates (collapsed flyouts never open).
+    const menusForNav = this.menusByNav[navKey];
     if (!navKey || !groupId || Number.isNaN(depth)) return null;
 
-    const menu = this.menusByNav[navKey]?.[depth];
+    const menu = menusForNav?.[depth];
     if (!menu || menu.id !== groupId) return null;
 
     return menu;

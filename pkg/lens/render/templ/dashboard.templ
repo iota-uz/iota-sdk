@@ -321,6 +321,22 @@ script lensFacetToggleScript() {
 		}
 		if(p.getBoundingClientRect().right > bound - 8){ p.style.left = 'auto'; p.style.right = '0'; }
 	};
+	if (!window.__lensFacetOutsideBound) {
+		window.__lensFacetOutsideBound = true;
+		document.addEventListener('click', function(e){
+			document.querySelectorAll('details[open] > [data-lens-facet-panel]').forEach(function(panel){
+				var d = panel.parentElement;
+				if (d && !d.contains(e.target)) { d.removeAttribute('open'); }
+			});
+		});
+		document.addEventListener('keydown', function(e){
+			if (e.key === 'Escape') {
+				document.querySelectorAll('details[open] > [data-lens-facet-panel]').forEach(function(panel){
+					panel.parentElement.removeAttribute('open');
+				});
+			}
+		});
+	}
 }
 
 templ FacetOptionsFragment(options []lens.DrillFacetOptionMeta, props FacetOptionsProps) {
