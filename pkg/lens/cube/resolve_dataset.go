@@ -64,15 +64,6 @@ func resolveDatasetDimensionDataset(spec CubeSpec, ctx DrillContext, dim Dimensi
 	}
 }
 
-func resolveDatasetLeafDataset(spec CubeSpec, ctx DrillContext, name string) lens.DatasetSpec {
-	return lens.DatasetSpec{
-		Name:       name,
-		Kind:       lens.DatasetKindTransform,
-		DependsOn:  []string{baseDatasetName},
-		Transforms: filteredTransforms(spec, ctx),
-	}
-}
-
 func filteredTransforms(spec CubeSpec, ctx DrillContext) []transform.Spec {
 	predicates := make([]transform.Predicate, 0, len(ctx.Filters))
 	for _, filter := range ctx.Filters {
@@ -87,10 +78,14 @@ func filteredTransforms(spec CubeSpec, ctx DrillContext) []transform.Spec {
 		if field == "" {
 			continue
 		}
+		values := filter.values()
+		if len(values) == 0 {
+			continue
+		}
 		predicates = append(predicates, transform.Predicate{
 			Field: field,
-			Op:    "=",
-			Value: filter.Value,
+			Op:    "in",
+			Value: values,
 		})
 	}
 	if len(predicates) == 0 {

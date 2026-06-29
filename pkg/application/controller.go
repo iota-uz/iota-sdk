@@ -74,6 +74,7 @@ type NavNode struct {
 	TitleKey   string
 	Path       string
 	Icon       templ.Component
+	Pinned     bool
 	Order      int
 	Before     string
 	After      string

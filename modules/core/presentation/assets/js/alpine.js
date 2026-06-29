@@ -265,8 +265,15 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     let rect = trigger.getBoundingClientRect();
     let gap = 4;
     let edge = 8; // keep the menu clear of the viewport edge
-    // Match the field width. Callers passing `!w-auto` via ListClass override this.
-    list.style.width = rect.width + 'px';
+    // Width: at least the field width, but grow to fit the widest option so long
+    // labels aren't clipped — capped to the viewport so it never overflows. Measure
+    // the natural content width with the constraint cleared first. Callers passing
+    // `!w-auto`/`!w-*` via ListClass still override this inline width.
+    let viewportWidth = Math.max(0, window.innerWidth - 2 * edge);
+    list.style.width = 'auto';
+    list.style.maxWidth = viewportWidth + 'px';
+    let width = Math.min(Math.max(rect.width, list.scrollWidth), viewportWidth);
+    list.style.width = width + 'px';
     if (this.supportsPopover(list) && list.matches(':popover-open')) {
       // Top-layer popover: position against the viewport (fixed coordinates)
       // and reset the UA-default `inset:0; margin:auto` centering.
@@ -287,7 +294,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       let flipUp = spaceBelow < contentHeight && spaceAbove > spaceBelow;
       let height = Math.min(contentHeight, Math.max(0, flipUp ? spaceAbove : spaceBelow));
       list.style.setProperty('max-height', height + 'px', 'important');
-      list.style.left = rect.left + 'px';
+      // Clamp left so a menu wider than the field stays within the viewport.
+      list.style.left = Math.max(edge, Math.min(rect.left, window.innerWidth - width - edge)) + 'px';
       list.style.top = (flipUp ? rect.top - height - gap : rect.bottom + gap) + 'px';
     } else {
       // Fallback (no Popover API): sit just below the field, in flow.
@@ -1396,6 +1404,95 @@ let createAnchoredOverlayPositioner = ({ gap = 8, minTop = 8 } = {}) => ({
   },
 });
 
+let sidebarCollapsedMenus = () => ({
+  menusByNav: {},
+  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
+
+  open(navKey, anchorEl, groupId, depth, isCollapsed) {
+    if (!isCollapsed || !navKey || !groupId || Number.isNaN(depth)) return;
+
+    const menus = this.menusByNav[navKey] || [];
+    const current = menus[depth];
+    if (current && current.id === groupId) {
+      this.setMenus(navKey, menus.slice(0, depth));
+      return;
+    }
+
+    const position = this.overlayPositioner.rightStart(anchorEl);
+    if (!position) return;
+
+    const nextMenus = menus.slice(0, depth);
+    nextMenus[depth] = {
+      id: groupId,
+      left: position.left,
+      top: position.top,
+    };
+    this.setMenus(navKey, nextMenus);
+  },
+
+  close(navKey) {
+    if (!navKey || !this.menusByNav[navKey]) return;
+
+    const next = { ...this.menusByNav };
+    delete next[navKey];
+    this.menusByNav = next;
+  },
+
+  closeAll() {
+    this.menusByNav = {};
+  },
+
+  setMenus(navKey, menus) {
+    const next = { ...this.menusByNav };
+    if (menus.length === 0) {
+      delete next[navKey];
+    } else {
+      next[navKey] = menus;
+    }
+    this.menusByNav = next;
+  },
+
+  navKeyForElement(el) {
+    if (!el) return "";
+
+    return el.dataset.sidebarNavInstanceId || "";
+  },
+
+  menuForElement(el) {
+    if (!el) return null;
+
+    const navKey = this.navKeyForElement(el);
+    const groupId = el.dataset.groupId;
+    const depth = Number(el.dataset.depth || 0);
+    // Read the reactive store map unconditionally so Alpine tracks `menusByNav`
+    // as a dependency even on the first evaluation — when a teleported flyout's
+    // x-bind dataset attributes are not applied yet and navKey is still empty.
+    // Without this, the early return below skips the reactive read and x-show
+    // never re-evaluates after the store updates (collapsed flyouts never open).
+    const menusForNav = this.menusByNav[navKey];
+    if (!navKey || !groupId || Number.isNaN(depth)) return null;
+
+    const menu = menusForNav?.[depth];
+    if (!menu || menu.id !== groupId) return null;
+
+    return menu;
+  },
+
+  isOpenFor(el) {
+    return Boolean(this.menuForElement(el));
+  },
+
+  styleFor(el) {
+    const menu = this.menuForElement(el);
+    if (!menu) return {};
+
+    return {
+      left: `${menu.left}px`,
+      top: `${menu.top}px`,
+    };
+  },
+});
+
 let sidebarShell = () => ({
   isCollapsed: initSidebarCollapsed(),
   storedTab: localStorage.getItem('sidebar-active-tab') || null,
@@ -1443,75 +1540,48 @@ let sidebarShell = () => ({
 })
 
 let sidebarNavigation = () => ({
-  collapsedMenus: [],
+  navID: "",
+  navInstanceID: "",
   outsideClickHandler: null,
   escapeHandler: null,
-  overlayPositioner: createAnchoredOverlayPositioner({ gap: 8, minTop: 8 }),
 
   onCollapsedGroupTrigger(event) {
     const trigger = event.currentTarget;
     if (!trigger) return;
 
+    const navKey = trigger.dataset.sidebarNavInstanceId || this.navInstanceID;
     const groupId = trigger.dataset.groupId;
     const depth = Number(trigger.dataset.depth || 0);
     if (!groupId || Number.isNaN(depth)) return;
 
-    this.openCollapsedMenu(trigger, groupId, depth);
+    this.openCollapsedMenu(navKey, trigger, groupId, depth);
   },
 
-  openCollapsedMenu(anchorEl, groupId, depth) {
-    if (!this.isCollapsed) return;
-
-    const current = this.collapsedMenus[depth];
-    if (current && current.id === groupId) {
-      this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-      return;
-    }
-
-    const position = this.overlayPositioner.rightStart(anchorEl);
-    if (!position) return;
-
-    this.collapsedMenus = this.collapsedMenus.slice(0, depth);
-    this.collapsedMenus[depth] = {
-      id: groupId,
-      left: position.left,
-      top: position.top,
-    };
+  openCollapsedMenu(navKey, anchorEl, groupId, depth) {
+    this.$store.sidebarCollapsedMenus.open(navKey, anchorEl, groupId, depth, this.isCollapsed);
   },
 
   closeCollapsedMenus() {
-    this.collapsedMenus = [];
+    this.$store.sidebarCollapsedMenus.close(this.navInstanceID);
   },
 
   isCollapsedMenuOpen(groupId, depth) {
-    return this.isCollapsed && this.collapsedMenus[depth]?.id === groupId;
+    if (!this.isCollapsed) return false;
+
+    const menu = this.$store.sidebarCollapsedMenus.menusByNav[this.navInstanceID]?.[depth];
+    return menu?.id === groupId;
   },
 
   isCollapsedMenuOpenFor(el) {
-    if (!el) return false;
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return false;
-    return this.isCollapsedMenuOpen(groupId, depth);
+    return this.isCollapsed && this.$store.sidebarCollapsedMenus.isOpenFor(el);
   },
 
   collapsedMenuStyleFor(el) {
-    if (!el) return {};
-    const groupId = el.dataset.groupId;
-    const depth = Number(el.dataset.depth || 0);
-    if (!groupId || Number.isNaN(depth)) return {};
-    if (!this.isCollapsedMenuOpen(groupId, depth)) {
-      return {};
-    }
-    const menu = this.collapsedMenus[depth];
-    return {
-      left: `${menu.left}px`,
-      top: `${menu.top}px`,
-    };
+    return this.$store.sidebarCollapsedMenus.styleFor(el);
   },
 
   handleCollapsedMenuOutsideClick(event) {
-    if (!this.isCollapsed || this.collapsedMenus.length === 0) return;
+    if (!this.isCollapsed || Object.keys(this.$store.sidebarCollapsedMenus.menusByNav).length === 0) return;
 
     const target = event.target;
     if (
@@ -1531,6 +1601,9 @@ let sidebarNavigation = () => ({
   },
 
   initSidebarNavigation() {
+    this.navID = this.$el.dataset.sidebarNavId || this.$el.id || "";
+    this.navInstanceID = `${this.navID || 'sidebar-nav'}-${Math.random().toString(36).slice(2)}`;
+    this.$el.dataset.sidebarNavInstanceId = this.navInstanceID;
     this.outsideClickHandler = this.handleCollapsedMenuOutsideClick.bind(this);
     this.escapeHandler = this.handleCollapsedMenuEscape.bind(this);
     document.addEventListener('click', this.outsideClickHandler);
@@ -1544,6 +1617,7 @@ let sidebarNavigation = () => ({
   },
 
   destroy() {
+    this.closeCollapsedMenus();
     if (this.outsideClickHandler) {
       document.removeEventListener('click', this.outsideClickHandler);
       this.outsideClickHandler = null;
@@ -2112,11 +2186,30 @@ let tableConfig = (id) => ({
     if (fromIndex === toIndex) return;
     let [col] = this.columns.splice(fromIndex, 1);
     this.columns.splice(toIndex, 0, col);
+    this.columns = this.normalizeColumnOrder(this.columns);
     if (sync) {
-      this.fixedColumns = this.columns;
+      this.fixedColumns = [...this.columns];
     }
     this.save();
     this.applyConfiguration();
+  },
+
+  normalizeColumnOrder(columns) {
+    let leftSticky = [];
+    let regular = [];
+    let rightSticky = [];
+
+    columns.forEach(col => {
+      if (col.stickyPos === 'left') {
+        leftSticky.push(col);
+      } else if (col.stickyPos === 'right') {
+        rightSticky.push(col);
+      } else {
+        regular.push(col);
+      }
+    });
+
+    return [...leftSticky, ...regular, ...rightSticky];
   },
 
   reorderRow(row) {
@@ -2204,6 +2297,7 @@ let tableConfig = (id) => ({
           mergedColumns.push({
             ...domCol,
             sticky: savedCol.sticky != undefined ? savedCol.sticky : domCol.sticky,
+            stickyPos: domCol.stickyPos,
             visible: savedCol.visible != undefined ? savedCol.visible : true,
             // userSet defaults to false for legacy configs that predate it.
             userSet: savedCol.userSet === true,
@@ -2220,10 +2314,10 @@ let tableConfig = (id) => ({
         }
       });
 
-      return mergedColumns;
+      return this.normalizeColumnOrder(mergedColumns);
     } catch (e) {
       console.error('Failed to parse saved table config:', e);
-      return domColumns;
+      return this.normalizeColumnOrder(domColumns);
     }
   },
 
@@ -2240,12 +2334,22 @@ let tableConfig = (id) => ({
     headerCells.forEach((th, index) => {
       let key = th.dataset.col || `col-${index}`;
       let sticky = th.dataset.colSticky != undefined;
+      let stickyPos = '';
+      if (sticky) {
+        let className = th.getAttribute('class') || '';
+        if (className.includes('right-0')) {
+          stickyPos = 'right';
+        } else if (className.includes('left-0')) {
+          stickyPos = 'left';
+        }
+      }
       let defaultHidden = th.dataset.colHidden != undefined;
       let priority = parseInt(th.dataset.colPriority || '0', 10) || 0;
       columns.push({
         key,
         label: th.textContent.trim(),
         sticky,
+        stickyPos,
         priority,
         // userSet tracks whether the user explicitly toggled this column,
         // which lets an explicit "show" override responsive auto-hiding.
@@ -2254,7 +2358,7 @@ let tableConfig = (id) => ({
       });
     });
 
-    return columns;
+    return this.normalizeColumnOrder(columns);
   },
 
 
@@ -2265,7 +2369,11 @@ let tableConfig = (id) => ({
 
   save() {
     let config = JSON.stringify({ key: this.key, columns: this.columns, grid: this.grid });
-    window.localStorage.setItem(this.key, config);
+    try {
+      window.localStorage.setItem(this.key, config);
+    } catch (e) {
+      console.warn('Failed to save table config:', e);
+    }
     return config;
   },
 
@@ -2283,6 +2391,7 @@ let tableConfig = (id) => ({
 
     this.columns = this.syncConfiguration(this.columns);
     this.fixedColumns = [...this.columns];
+    this.save();
     this.applyConfiguration();
     this.applyGridClasses();
 
@@ -2585,7 +2694,15 @@ let fbPanel = (cfg = {}) => ({
           .filter((v) => v && !v.startsWith('__group:'));
       }
       case 'date': {
-        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"]') ?? [];
+        // Select the DatePicker's canonical value inputs by their explicit
+        // `data-datepicker-value` attribute rather than excluding flatpickr's
+        // internal `.flatpickr-input` class. flatpickr's altInput mode leaves a
+        // hidden original input (the joined "from — to" display string) in the
+        // DOM; reading it as a 3rd value breaks the `between` arity check and
+        // the condition is silently dropped (no chip, filter not applied).
+        // Targeting the attribute we own yields exactly the 2 range values
+        // (or the 1 single value) and is robust to flatpickr's class internals.
+        const inputs = this.variantEl()?.querySelectorAll('input[type="hidden"][data-datepicker-value]') ?? [];
         return Array.from(inputs).map((i) => i.value).filter(Boolean);
       }
       case 'number': {
@@ -2608,6 +2725,7 @@ Alpine.data("spotlight", spotlight);
 Alpine.data("dateFns", dateFns);
 Alpine.data("datePicker", datePicker);
 Alpine.data("navTabs", navTabs);
+Alpine.store("sidebarCollapsedMenus", sidebarCollapsedMenus());
 Alpine.data("sidebarShell", sidebarShell);
 Alpine.data("sidebarNavigation", sidebarNavigation);
 Alpine.data("disableFormElementsWhen", disableFormElementsWhen);

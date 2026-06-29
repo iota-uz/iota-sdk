@@ -100,9 +100,6 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 			index:     index,
 		}
 		if node.Path != "" {
-			if node.Visibility != nil && failFast {
-				return nil, fmt.Errorf("composition: nav leaf %q must inherit visibility from its route Auth", node.ID)
-			}
 			route, ok := routeIndex.routeForPath(node.Path)
 			if !ok {
 				if failFast {
@@ -111,6 +108,9 @@ func validateNavNodes(routes []controllerRoute, contributions []navNodeContribut
 				continue
 			}
 			buildNode.auth = route.Auth
+			if node.Visibility != nil {
+				buildNode.auth = *node.Visibility
+			}
 		} else if node.Visibility != nil {
 			buildNode.auth = *node.Visibility
 		}
@@ -231,10 +231,12 @@ func projectNavModel(nodes []navBuildNode) navModel {
 			if item.Href == "" && len(item.Children) == 0 {
 				continue
 			}
-			if navSurfaceVisible(node.node, application.SurfaceSidebar) {
+			sidebarVisible := navSurfaceVisible(node.node, application.SurfaceSidebar)
+			spotlightVisible := navSurfaceVisible(node.node, application.SurfaceSpotlight)
+			if sidebarVisible {
 				out = append(out, item)
 			}
-			if navSurfaceVisible(node.node, application.SurfaceSpotlight) {
+			if spotlightVisible {
 				model.quickLinks = append(model.quickLinks, navNodeQuickLinks(node)...)
 			}
 		}
@@ -275,6 +277,7 @@ func navNodeToItem(node navBuildNode) types.NavigationItem {
 	return types.NavigationItem{
 		Key:         nav.ID,
 		Workspace:   nav.Workspace,
+		Pinned:      nav.Pinned,
 		Name:        titleKey,
 		Href:        path,
 		Keywords:    keywords,

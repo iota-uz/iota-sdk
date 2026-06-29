@@ -59,6 +59,7 @@ type DrillMeta struct {
 	Filters             []DrillFilterMeta
 	RemainingDimensions []DrillDimensionMeta
 	ActiveDimension     string
+	GroupBy             string
 }
 
 type DrillDimensionMeta struct {
@@ -72,9 +73,20 @@ type DrillFilterMeta struct {
 	Display   string
 }
 
+type DrillFacetOptionMeta struct {
+	Dimension string
+	Value     string
+	Label     string
+	Count     int
+	Selected  bool
+}
+
 type RowSpec struct {
 	Panels []panel.Spec
 	Class  string
+	// Heading, when non-empty, renders the row as a section header band
+	// instead of a panel grid.
+	Heading string
 }
 
 type VariableOption struct {

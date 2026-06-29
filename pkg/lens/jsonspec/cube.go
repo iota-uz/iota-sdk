@@ -103,6 +103,7 @@ type MeasureSpec struct {
 	Description  Text             `json:"description"`
 	Info         Text             `json:"info"`
 	RequiresJoin []string         `json:"requiresJoin"`
+	Override     *DatasetSpec     `json:"override"`
 	Action       *action.Spec     `json:"action"`
 }
 
@@ -313,6 +314,13 @@ func (s MeasureSpec) resolve(opts ResolveOptions) (cube.MeasureSpec, error) {
 		Description:  resolveText(s.Description, opts),
 		Info:         resolveText(s.Info, opts),
 		RequiresJoin: resolveStringSlice(s.RequiresJoin, opts.Values),
+	}
+	if s.Override != nil {
+		dataset, err := s.Override.resolve(opts)
+		if err != nil {
+			return cube.MeasureSpec{}, err
+		}
+		resolved.Override = &dataset
 	}
 	if s.Action != nil {
 		actionSpec, err := resolveActionSpec(*s.Action, opts.Values)

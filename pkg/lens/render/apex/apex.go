@@ -155,7 +155,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 				},
 			}
 		}
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
@@ -182,7 +182,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
@@ -243,7 +243,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		}
 	}
 	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
-	applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
+	tooltipFormatter := applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
 	var chartEvents charts.ChartEvents
 	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
 		chartEvents.DataPointMouseEnter = syncTooltip
@@ -251,7 +251,16 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if panelSpec.Action != nil {
 		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
 	}
-	if chartEvents.DataPointMouseEnter != "" || chartEvents.DataPointSelection != "" {
+	if panelSpec.Kind == panel.KindStackedBar {
+		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter)
+		// The stacked-bar total badge floats at the top-left of the plot. Reserve a
+		// header band above the plot so it clears the top y-axis label (and the
+		// top-right toolbar/export menu has room too).
+		if options.Grid != nil && options.Grid.Padding != nil {
+			options.Grid.Padding.Top = mapping.Pointer(34)
+		}
+	}
+	if hasChartEvents(chartEvents) {
 		options.Chart.Events = &chartEvents
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
@@ -268,6 +277,7 @@ func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -368,9 +378,9 @@ func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) (logari
 	return plan, true
 }
 
-func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, panelResult *runtime.PanelResult, manualLogScaleApplied bool, logPlan logarithmicAxisPlan) {
+func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, panelResult *runtime.PanelResult, manualLogScaleApplied bool, logPlan logarithmicAxisPlan) templ.JSExpression {
 	if options == nil || panelResult == nil {
-		return
+		return ""
 	}
 	axisFormatter, tooltipFormatter := chartValueFormatters(panelSpec.Formatter, panelResult.Locale)
 	valueAxis := normalizedValueAxis(panelSpec.ValueAxis)
@@ -378,8 +388,14 @@ func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, pan
 		axisFormatter = wrapLogarithmicAxisFormatter(axisFormatter, panelResult.Locale, logPlan)
 		tooltipFormatter = wrapLogarithmicTooltipFormatter(tooltipFormatter, panelResult.Locale, valueAxis.LogBase)
 	}
+	if panelSpec.Kind == panel.KindStackedBar {
+		if options.Tooltip == nil {
+			options.Tooltip = &charts.TooltipConfig{}
+		}
+		options.Tooltip.Custom = stackedBarTooltipWithTotal(panelResult.Locale, tooltipFormatter)
+	}
 	if axisFormatter == "" && tooltipFormatter == "" {
-		return
+		return tooltipFormatter
 	}
 	if axisFormatter != "" {
 		if panelSpec.Kind == panel.KindHorizontalBar {
@@ -396,6 +412,7 @@ func applyValueFormatter(options *charts.ChartOptions, panelSpec panel.Spec, pan
 	if tooltipFormatter != "" {
 		options.Tooltip.Y = &charts.TooltipYConfig{Formatter: tooltipFormatter}
 	}
+	return tooltipFormatter
 }
 
 func normalizedValueAxis(axis panel.ValueAxis) panel.ValueAxis {
@@ -678,6 +695,231 @@ func chartValueFormatters(spec *format.Spec, locale string) (templ.JSExpression,
 	}
 }
 
+func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) templ.JSExpression {
+	locale = normalizedChartLocale(locale)
+	label := stackedBarTotalLabel(locale)
+	valueFormatter := "null"
+	if formatter != "" {
+		valueFormatter = "(" + string(formatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function({ series, dataPointIndex, w }) {
+		const valueFormatter = %s;
+		const locale = %q;
+		const totalLabel = %q;
+		const globals = (w && w.globals) || {};
+		const names = globals.seriesNames || [];
+		const colors = globals.colors || [];
+		const hiddenSeriesIndices = new Set([].concat(globals.collapsedSeriesIndices || [], globals.hiddenSeriesIndices || []));
+		const hiddenSeriesNames = new Set([].concat(globals.collapsedSeries || [], globals.hiddenSeries || [])
+			.map((entry) => {
+				if (entry && typeof entry === 'object' && 'name' in entry) {
+					return String(entry.name);
+				}
+				return String(entry);
+			}));
+		const isSeriesHidden = (seriesIndex) => hiddenSeriesIndices.has(seriesIndex) || hiddenSeriesNames.has(String(names[seriesIndex] || ''));
+		const categories = ((w && w.config && w.config.xaxis && w.config.xaxis.categories) || globals.categoryLabels || globals.labels || []);
+		const escapeHTML = (value) => String(value == null ? '' : value)
+			.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;')
+			.replace(/"/g, '&quot;')
+			.replace(/'/g, '&#39;');
+		const formatValue = (value, seriesIndex) => {
+			const number = Number(value);
+			const normalized = Number.isFinite(number) ? number : value;
+			if (valueFormatter) {
+				return valueFormatter(normalized, { seriesIndex, dataPointIndex, w });
+			}
+			return Number.isFinite(number) ? number.toLocaleString(locale) : String(value == null ? '' : value);
+		};
+		let total = 0;
+		let hasTotal = false;
+		const rows = (series || []).map((points, seriesIndex) => {
+			if (isSeriesHidden(seriesIndex)) {
+				return '';
+			}
+			const value = points && points[dataPointIndex];
+			if (value == null || value === '') {
+				return '';
+			}
+			const number = Number(value);
+			if (Number.isFinite(number) && number === 0) {
+				return '';
+			}
+			if (Number.isFinite(number)) {
+				total += number;
+				hasTotal = true;
+			}
+			const color = colors[seriesIndex] || '#9ca3af';
+			const name = names[seriesIndex] || '';
+			return '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;">'
+				+ '<span class="apexcharts-tooltip-marker" style="background-color:' + escapeHTML(color) + ';"></span>'
+				+ '<div class="apexcharts-tooltip-text">'
+				+ '<div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-y-label">' + escapeHTML(name) + ': </span>'
+				+ '<span class="apexcharts-tooltip-text-y-value">' + escapeHTML(formatValue(value, seriesIndex)) + '</span></div>'
+				+ '</div></div>';
+		}).join('');
+		const totalRow = hasTotal
+			? '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;font-weight:600;border-top:1px solid rgba(255,255,255,0.18);margin-top:4px;padding-top:4px;">'
+				+ '<span class="apexcharts-tooltip-marker" style="background-color:transparent;"></span>'
+				+ '<div class="apexcharts-tooltip-text"><div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-y-label">' + escapeHTML(totalLabel) + ': </span>'
+				+ '<span class="apexcharts-tooltip-text-y-value">' + escapeHTML(formatValue(total, -1)) + '</span></div></div></div>'
+			: '';
+		return '<div class="apexcharts-tooltip-title">' + escapeHTML(categories[dataPointIndex] || '') + '</div>' + rows + totalRow;
+	}`, valueFormatter, locale, label))
+}
+
+func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression) {
+	if events == nil {
+		return
+	}
+	totalBadge := stackedBarTotalBadgeJS(locale, formatter)
+	events.Mounted = totalBadge
+	events.Updated = totalBadge
+	events.LegendClick = totalBadge
+}
+
+func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.JSExpression {
+	locale = normalizedChartLocale(locale)
+	label := stackedBarTotalLabel(locale)
+	valueFormatter := "null"
+	if formatter != "" {
+		valueFormatter = "(" + string(formatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function(chartContext) {
+		const valueFormatter = %s;
+		const locale = %q;
+		const totalLabel = %q;
+		const update = () => {
+			const ctx = chartContext || null;
+			const el = ctx && ctx.el ? ctx.el : null;
+			const w = ctx && ctx.w ? ctx.w : null;
+			if (!el || !w) {
+				return;
+			}
+			if (window.getComputedStyle && window.getComputedStyle(el).position === 'static') {
+				el.style.position = 'relative';
+			}
+			let badge = el.querySelector('[data-lens-stacked-total]');
+			if (!badge) {
+				badge = document.createElement('div');
+				badge.setAttribute('data-lens-stacked-total', 'true');
+				badge.style.position = 'absolute';
+				badge.style.top = '6px';
+				badge.style.left = '12px';
+				badge.style.zIndex = '5';
+				badge.style.padding = '4px 8px';
+				badge.style.borderRadius = '6px';
+				badge.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+				badge.style.background = 'rgba(255, 255, 255, 0.92)';
+				badge.style.boxShadow = '0 1px 2px rgba(15, 23, 42, 0.08)';
+				badge.style.color = '#334155';
+				badge.style.font = '600 12px Inter, Helvetica Neue, Arial, sans-serif';
+				badge.style.lineHeight = '16px';
+				badge.style.pointerEvents = 'none';
+				el.appendChild(badge);
+			}
+			const globals = w.globals || {};
+			const seriesNames = globals.seriesNames || [];
+			const configSeries = w.config && Array.isArray(w.config.series) ? w.config.series : [];
+			const runtimeSeries = Array.isArray(globals.series) ? globals.series : [];
+			const seriesHiddenResult = (seriesName) => {
+				if (!seriesName) {
+					return null;
+				}
+				if (ctx && typeof ctx.isSeriesHidden === 'function') {
+					const result = ctx.isSeriesHidden(seriesName);
+					if (result != null) {
+						return result;
+					}
+				}
+				if (ctx && ctx.series && typeof ctx.series.isSeriesHidden === 'function') {
+					return ctx.series.isSeriesHidden(seriesName);
+				}
+				return null;
+			};
+			const isSeriesHidden = (seriesName) => {
+				const result = seriesHiddenResult(seriesName);
+				if (typeof result === 'boolean') {
+					return result;
+				}
+				return Boolean(result && result.isHidden);
+			};
+			let total = 0;
+			const addValue = (value) => {
+				if (value && typeof value === 'object' && 'y' in value) {
+					value = value.y;
+				}
+				const number = Number(value);
+				if (Number.isFinite(number)) {
+					total += number;
+				}
+			};
+			configSeries.forEach((entry, seriesIndex) => {
+				const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
+				if (isSeriesHidden(String(name))) {
+					return;
+				}
+				const points = entry && Array.isArray(entry.data)
+					? entry.data
+					: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
+				points.forEach(addValue);
+			});
+			const formatValue = (value) => {
+				if (valueFormatter) {
+					return valueFormatter(value, { seriesIndex: -1, dataPointIndex: -1, w });
+				}
+				return Number.isFinite(value) ? value.toLocaleString(locale) : String(value == null ? '' : value);
+			};
+			badge.textContent = totalLabel + ': ' + formatValue(total);
+		};
+		setTimeout(update, 0);
+		setTimeout(update, 80);
+	}`, valueFormatter, locale, label))
+}
+
+func normalizedChartLocale(locale string) string {
+	if strings.TrimSpace(locale) == "" {
+		return "en-US"
+	}
+	return locale
+}
+
+func stackedBarTotalLabel(locale string) string {
+	switch {
+	case strings.HasPrefix(locale, "ru"):
+		return "Итого"
+	case strings.HasPrefix(locale, "uz-Cyrl"):
+		return "Жами"
+	case strings.HasPrefix(locale, "uz"):
+		return "Jami"
+	default:
+		return "Total"
+	}
+}
+
+func hasChartEvents(events charts.ChartEvents) bool {
+	return events.AnimationEnd != "" ||
+		events.BeforeMount != "" ||
+		events.Mounted != "" ||
+		events.Updated != "" ||
+		events.MouseMove != "" ||
+		events.MouseLeave != "" ||
+		events.Click != "" ||
+		events.LegendClick != "" ||
+		events.MarkerClick != "" ||
+		events.XAxisLabelClick != "" ||
+		events.Selection != "" ||
+		events.DataPointSelection != "" ||
+		events.DataPointMouseEnter != "" ||
+		events.DataPointMouseLeave != "" ||
+		events.BeforeZoom != "" ||
+		events.BeforeResetZoom != "" ||
+		events.Zoomed != "" ||
+		events.Scrolled != ""
+}
+
 func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping, panelResult *runtime.PanelResult) templ.JSExpression {
 	method := spec.Method
 	if method == "" {
@@ -745,7 +987,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 				window.__lensSetSwapTargetLoading(target, true);
 			}
 			try {
-				htmx.ajax(cfg.method || 'GET', nextURL, {source: source || target, target: target, swap: 'innerHTML'});
+				// Route through __lensDrillAjax so the htmx source is always
+				// set (here the clicked chart element, falling back to the swap
+				// target). htmx.ajax otherwise defaults source to document.body,
+				// scoping the htmx-request loading state to the whole page.
+				window.__lensDrillAjax(cfg.method || 'GET', nextURL, target, source);
 			} catch (error) {
 				if (target.dataset) {
 					delete target.dataset.lensDrillPending;
@@ -759,7 +1005,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			window.location.href = nextURL;
 		};`
 	case action.KindHtmxSwap:
-		actionJS = "htmx.ajax(cfg.method || 'GET', nextURL, {target: cfg.target, swap: 'innerHTML'});"
+		// Route through __lensDrillAjax so the htmx `source` is always set
+		// (here the swap target subtree). htmx.ajax otherwise defaults source
+		// to document.body and the in-flight `htmx-request` loading state
+		// cascades onto every .btn on the page (nav tabs, sidebar, etc.).
+		actionJS = "window.__lensDrillAjax(cfg.method || 'GET', nextURL, cfg.target, cfg.target);"
 	case action.KindEmitEvent:
 		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
 	}
@@ -848,7 +1098,43 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		if (cfg.drill) {
 			drillValue = %s;
 			if (drillValue !== undefined && drillValue !== null && drillValue !== '') {
-				params.append('_f', cfg.drill.dimension + ':' + String(drillValue));
+				const dimension = cfg.drill.dimension;
+				const value = String(drillValue);
+				const grouped = new Map();
+				const passthrough = [];
+				for (const entry of Array.from(params.getAll('_f'))) {
+					const sep = entry.indexOf(':');
+					if (sep <= 0) {
+						passthrough.push(entry);
+						continue;
+					}
+					const dim = entry.slice(0, sep);
+					const filterValue = entry.slice(sep + 1).trim();
+					if (!filterValue) {
+						continue;
+					}
+					if (!grouped.has(dim)) {
+						grouped.set(dim, []);
+					}
+					if (!grouped.get(dim).includes(filterValue)) {
+						grouped.get(dim).push(filterValue);
+					}
+				}
+				const current = grouped.get(dimension) || [];
+				const existingIdx = current.indexOf(value);
+				if (existingIdx >= 0) {
+					current.splice(existingIdx, 1);
+				} else {
+					current.push(value);
+				}
+				grouped.set(dimension, current);
+				params.delete('_f');
+				passthrough.forEach(function(entry) { params.append('_f', entry); });
+				grouped.forEach(function(values, dim) {
+					values.forEach(function(item) {
+						params.append('_f', dim + ':' + item);
+					});
+				});
 			} else {
 				return;
 			}
@@ -880,6 +1166,7 @@ func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.
 		panel.KindTimeSeries,
 		panel.KindPie,
 		panel.KindDonut,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
@@ -905,6 +1192,10 @@ func applyVerticalCategoryLabelFormatting(options *charts.ChartOptions, categori
 	options.XAxis.Labels.RotateAlways = &rotateAlways
 	options.XAxis.Labels.MaxHeight = &maxHeight
 	options.XAxis.Labels.Formatter = truncateCategoryLabelFormatter(16)
+	if options.Tooltip == nil {
+		options.Tooltip = &charts.TooltipConfig{}
+	}
+	options.Tooltip.X = &charts.TooltipXConfig{Formatter: fullCategoryTooltipXFormatter()}
 }
 
 func applyHorizontalCategoryLabelFormatting(options *charts.ChartOptions, categories []string) {
@@ -921,6 +1212,10 @@ func applyHorizontalCategoryLabelFormatting(options *charts.ChartOptions, catego
 	maxWidth := 220
 	options.YAxis[0].Labels.MaxWidth = &maxWidth
 	options.YAxis[0].Labels.Formatter = truncateCategoryLabelFormatter(24)
+	if options.Tooltip == nil {
+		options.Tooltip = &charts.TooltipConfig{}
+	}
+	options.Tooltip.X = &charts.TooltipXConfig{Formatter: fullCategoryTooltipXFormatter()}
 }
 
 func maxCategoryLength(categories []string) int {
@@ -956,6 +1251,22 @@ func truncateCategoryLabelFormatter(limit int) templ.JSExpression {
 		}
 		return text.slice(0, %d) + '...';
 	}`, limit, limit-3))
+}
+
+// fullCategoryTooltipXFormatter returns the untruncated category label for the
+// hovered data point by reading it directly from w.config.xaxis.categories
+// (which retains full names) instead of the axis-formatted, truncated value
+// ApexCharts passes in. Keeps axis labels truncated while tooltips show full names.
+func fullCategoryTooltipXFormatter() templ.JSExpression {
+	return templ.JSExpression(`function(value, opts) {
+		const w = opts && opts.w;
+		const cats = (w && w.config && w.config.xaxis && w.config.xaxis.categories) || [];
+		const idx = opts && typeof opts.dataPointIndex === 'number' ? opts.dataPointIndex : -1;
+		if (idx >= 0 && idx < cats.length && cats[idx] != null) {
+			return String(cats[idx]);
+		}
+		return value == null ? '' : String(value);
+	}`)
 }
 
 func chartDrillConfig(spec *action.Spec) *chartDrill {
@@ -1037,7 +1348,7 @@ func chartType(kind panel.Kind) charts.ChartType {
 		return charts.DonutChartType
 	case panel.KindGauge:
 		return charts.RadialBarChartType
-	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return charts.BarChartType
 	}
 	return charts.BarChartType
@@ -1088,6 +1399,7 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,
@@ -1236,6 +1548,7 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		}
 	case panel.KindStat,
 		panel.KindTimeSeries,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
@@ -1260,6 +1573,7 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,

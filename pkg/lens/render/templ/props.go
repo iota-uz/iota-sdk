@@ -18,12 +18,28 @@ type DashboardProps struct {
 	Result                  *runtime.Result
 	Async                   *AsyncProps
 	ResolvePanelErrorAction PanelErrorActionResolver
+	// AfterDrill, when set, is rendered inside the dashboard body right after the
+	// drill navigation + filter bar and before the panel grid. Use it to place a
+	// hero/summary element (e.g. a primary time-series) at the top of the panel
+	// area while keeping the drill breadcrumb above it. Only rendered in result
+	// mode (ignored in the async shell).
+	AfterDrill templpkg.Component
 }
 
 type FragmentProps struct {
 	Panel                   panel.Spec
 	Result                  *runtime.Result
 	ResolvePanelErrorAction PanelErrorActionResolver
+}
+
+type FacetOptionsProps struct {
+	ApplyURL    string
+	OptionsURL  string
+	Target      string
+	Dimension   string
+	Search      string
+	Include     string
+	HiddenQuery map[string][]string
 }
 
 type BodyProps struct {

@@ -47,13 +47,92 @@ func TestResolveOverrideDatasetInheritsCubeParamsAndFilters(t *testing.T) {
 	require.Equal(t, "primary", resolved.Datasets[0].Source)
 	require.NotNil(t, resolved.Datasets[0].Query)
 	require.Equal(t, "tenant-1", resolved.Datasets[0].Query.Params["tenant_id"].Literal)
-	require.Equal(t, "osago", resolved.Datasets[0].Query.Params["f_product"].Literal)
+	require.Equal(t, []string{"osago"}, resolved.Datasets[0].Query.Params["f_product"].Literal)
 	require.Contains(t, resolved.Datasets[0].Query.Params, "f_age_group")
 	require.Nil(t, resolved.Datasets[0].Query.Params["f_age_group"].Literal)
 	require.Equal(t, "value", resolved.Datasets[0].Query.Params["custom"].Literal)
 }
 
-func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
+func TestResolveMeasureOverrideDatasetInheritsCubeParamsAndFilters(t *testing.T) {
+	t.Parallel()
+
+	spec := New("insurance-sales", "Sales").
+		SQL("primary", "insurance.contracts c").
+		ParamLiteral("tenant_id", "tenant-1").
+		Dimension("product", "Product").
+		Column("c.product_id::text").
+		Measure("total_policies", "Total Policies").
+		Column("DISTINCT c.id").
+		Count().
+		Override(lens.DatasetSpec{
+			Kind: lens.DatasetKindQuery,
+			Query: &lens.QuerySpec{
+				Text: "SELECT @tenant_id, @f_product",
+				Kind: datasource.QueryKindRaw,
+				Params: map[string]lens.ParamValue{
+					"custom": {Literal: "value"},
+				},
+			},
+		}).
+		DefaultDimension("product").
+		Build()
+
+	resolved, err := resolveStatDatasets(spec, DrillContext{
+		Filters: []DimensionFilter{{Dimension: "product", Value: "osago"}},
+	})
+	require.NoError(t, err)
+	require.Len(t, resolved.Datasets, 1)
+	require.Equal(t, "cube_stat_total_policies", resolved.Datasets[0].Name)
+	require.Equal(t, "primary", resolved.Datasets[0].Source)
+	require.NotNil(t, resolved.Datasets[0].Query)
+	require.Equal(t, "tenant-1", resolved.Datasets[0].Query.Params["tenant_id"].Literal)
+	require.Equal(t, []string{"osago"}, resolved.Datasets[0].Query.Params["f_product"].Literal)
+	require.Equal(t, "value", resolved.Datasets[0].Query.Params["custom"].Literal)
+	require.Equal(t, "cube_stat_total_policies", resolved.DatasetByMeasure["total_policies"])
+}
+
+func TestResolveMeasureOverrideBacksStatPanelOnly(t *testing.T) {
+	t.Parallel()
+
+	base, err := frame.FromRows("policies",
+		frame.Row{"product": "OSAGO"},
+		frame.Row{"product": "KASKO"},
+	)
+	require.NoError(t, err)
+	exact, err := frame.FromRows("exact_total", frame.Row{"total_policies": 72451})
+	require.NoError(t, err)
+
+	spec := New("crm-sales", "Sales").
+		Dataset(base).
+		Dimension("product", "Product").
+		Field("product").
+		Measure("total_policies", "Total Policies").
+		Count().
+		Override(lens.DatasetSpec{
+			Kind:   lens.DatasetKindStatic,
+			Static: exact,
+		}).
+		DefaultDimension("product").
+		Build()
+
+	dashboard, err := Resolve(spec, DrillContext{}, "/crm/reports/sales")
+	require.NoError(t, err)
+	require.Len(t, dashboard.Rows, 2)
+	require.Equal(t, "cube_stat_total_policies", dashboard.Rows[0].Panels[0].Dataset)
+	require.Equal(t, "total_policies", dashboard.Rows[0].Panels[0].Fields.Value.Name())
+	require.Equal(t, "cube_dim_product", dashboard.Rows[1].Panels[0].Dataset)
+
+	names := make([]string, 0, len(dashboard.Datasets))
+	for _, dataset := range dashboard.Datasets {
+		names = append(names, dataset.Name)
+	}
+	require.Contains(t, names, "cube_base")
+	require.Contains(t, names, "cube_stat_total_policies")
+	require.Contains(t, names, "cube_dim_product")
+	require.NotContains(t, names, "cube_stats")
+}
+
+func TestBuildDimensionPanelUsesBaseURLForFacetToggle(t *testing.T) {
 	t.Parallel()
 
 	spec := New("crm-sales", "Sales").
@@ -68,7 +147,7 @@ func TestBuildDimensionPanelUsesLeafURLForTerminalDrill(t *testing.T) {
 	panelSpec := buildDimensionPanel(spec, spec.Dimensions[0], dimensionDatasetResolution{Name: "cube_dim_payment_method"}, "/crm/reports/sales", 1, 0)
 	require.NotNil(t, panelSpec.Action)
 	require.Equal(t, action.KindCubeDrill, panelSpec.Action.Kind)
-	require.Equal(t, "/crm/reports/sales/drill/policies", panelSpec.Action.URL)
+	require.Equal(t, "/crm/reports/sales", panelSpec.Action.URL)
 }
 
 func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {
@@ -84,7 +163,7 @@ func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {
 		Action(measureAction).
 		Build()
 
-	panels := buildStatPanels(spec, "cube_stats")
+	panels := buildStatPanels(spec, map[string]string{"total_policies": "cube_stats"})
 	require.Len(t, panels, 1)
 	require.NotNil(t, panels[0].Action)
 	require.Equal(t, action.KindNavigate, panels[0].Action.Kind)

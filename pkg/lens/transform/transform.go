@@ -330,6 +330,10 @@ func matches(row map[string]any, predicates []Predicate) bool {
 			if fmt.Sprint(left) != fmt.Sprint(predicate.Value) {
 				return false
 			}
+		case "in":
+			if !containsValue(predicate.Value, left) {
+				return false
+			}
 		case "!=", "<>":
 			if fmt.Sprint(left) == fmt.Sprint(predicate.Value) {
 				return false
@@ -359,6 +363,27 @@ func matches(row map[string]any, predicates []Predicate) bool {
 		}
 	}
 	return true
+}
+
+func containsValue(values any, needle any) bool {
+	needleText := fmt.Sprint(needle)
+	switch current := values.(type) {
+	case []string:
+		for _, value := range current {
+			if value == needleText {
+				return true
+			}
+		}
+	case []any:
+		for _, value := range current {
+			if fmt.Sprint(value) == needleText {
+				return true
+			}
+		}
+	default:
+		return fmt.Sprint(current) == needleText
+	}
+	return false
 }
 
 func project(primary *frame.FrameSet, fields []string) (*frame.FrameSet, error) {
