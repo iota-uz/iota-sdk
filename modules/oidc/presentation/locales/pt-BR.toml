@@ -1,0 +1,10 @@
+[OIDC]
+Title = "OIDC"
+
+[OIDC.Errors]
+InvalidAuthRequest = "Requisição de autorização inválida"
+AuthRequestExpired = "A requisição de autorização expirou"
+AuthRequestNotAuthenticated = "Requisição de autorização não autenticada"
+MissingAuthRequestID = "ID da requisição de autorização ausente"
+InvalidClient = "Cliente inválido"
+UnauthorizedClient = "Cliente não autorizado"
