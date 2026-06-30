@@ -77,8 +77,8 @@ func (p *userProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Val
 }
 
 func (p *serviceProvider) Ok(t reflect.Type) bool {
-	// Basic check: must be a pointer type for services
-	return t.Kind() == reflect.Ptr
+	// Services may be registered as concrete pointers or interface contracts.
+	return t.Kind() == reflect.Ptr || t.Kind() == reflect.Interface
 }
 
 func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.Value, error) {
