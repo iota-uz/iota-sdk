@@ -268,3 +268,30 @@ func TestH_InjectsInterfaceServiceFromContainer(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code)
 	require.Equal(t, "seed", rr.Body.String())
 }
+
+func TestServiceProvider_Provide_RejectsNilService(t *testing.T) {
+	serviceType := reflect.TypeOf((*sampleInterfaceService)(nil)).Elem()
+	container := &mockServiceResolver{
+		services: map[reflect.Type]any{serviceType: nil},
+	}
+	ctx := context.WithValue(context.Background(), constants.ContainerKey, container)
+
+	_, err := (&serviceProvider{}).Provide(serviceType, ctx)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "nil service")
+}
+
+func TestServiceProvider_Provide_RejectsNonAssignableService(t *testing.T) {
+	serviceType := reflect.TypeOf((*sampleInterfaceService)(nil)).Elem()
+	container := &mockServiceResolver{
+		// A string does not satisfy sampleInterfaceService.
+		services: map[reflect.Type]any{serviceType: "not-a-service"},
+	}
+	ctx := context.WithValue(context.Background(), constants.ContainerKey, container)
+
+	_, err := (&serviceProvider{}).Provide(serviceType, ctx)
+
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "not assignable")
+}

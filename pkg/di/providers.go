@@ -94,7 +94,14 @@ func (p *serviceProvider) Provide(t reflect.Type, ctx context.Context) (reflect.
 	if err != nil {
 		return reflect.Value{}, err
 	}
-	return reflect.ValueOf(service), nil
+	if service == nil {
+		return reflect.Value{}, fmt.Errorf("container resolved a nil service for type %v", t)
+	}
+	value := reflect.ValueOf(service)
+	if !value.Type().AssignableTo(t) {
+		return reflect.Value{}, fmt.Errorf("resolved service of type %v is not assignable to %v", value.Type(), t)
+	}
+	return value, nil
 }
 
 func (p *loggerProvider) Ok(t reflect.Type) bool {
