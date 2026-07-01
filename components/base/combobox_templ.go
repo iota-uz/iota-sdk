@@ -516,8 +516,8 @@ func Combobox(props ComboboxProps) templ.Component {
 					"x-on:keydown.enter.prevent": "setValue(activeValue)",
 					"@input.debounce":            "onSearch",
 					"@input":                     "searchQuery = $event.target.value",
-					":size":                      "selectedValues.size > 0 ? (searchQuery.length || 1) : null",
-					":class":                     "selectedValues.size > 0 ? '!w-auto min-w-0 flex-shrink' : 'flex-1'",
+					":size":                      "selectedValues.size > 0 ? Math.max(searchQuery.length, 10) : null",
+					":class":                     "selectedValues.size > 0 ? '!w-auto min-w-[10ch] flex-shrink' : 'flex-1'",
 					":placeholder":               "selectedValues.size > 0 ? '' : '" + props.Placeholder + "'",
 				},
 				AddonRight: &input.Addon{
