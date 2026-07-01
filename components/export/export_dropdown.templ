@@ -102,6 +102,19 @@ type ExportDropdownProps struct {
 	ParamsFormID string
 }
 
+func exportButtonSizeClass(size button.Size) string {
+	switch size {
+	case button.SizeMD:
+		return "btn-md"
+	case button.SizeSM:
+		return "btn-sm"
+	case button.SizeXS:
+		return "btn-xs"
+	default:
+		return "btn-normal"
+	}
+}
+
 // exportDownloadState is the Alpine component driving GET-download mode: it
 // fetches the GET export route (which streams the file) and saves the response
 // as a Blob via a temporary <a download>. Awaiting the fetch gives a precise
@@ -120,13 +133,13 @@ const exportDownloadState = `{
 			console.error('ExportDropdown: ParamsFormID element is missing or not a form:', formId);
 			return;
 		}
-		let params;
+		let params = new URLSearchParams(window.location.search);
 		if (form instanceof HTMLFormElement) {
-			params = new URLSearchParams(new FormData(form));
-			const fromUrl = new URLSearchParams(window.location.search);
-			['sort', 'order'].forEach(function (k) { if (fromUrl.has(k)) params.set(k, fromUrl.get(k)); });
-		} else {
-			params = new URLSearchParams(window.location.search);
+			const formParams = new URLSearchParams(new FormData(form));
+			const formKeys = new Set();
+			formParams.forEach(function (_value, key) { formKeys.add(key); });
+			formKeys.forEach(function (key) { params.delete(key); });
+			formParams.forEach(function (value, key) { params.append(key, value); });
 		}
 		['page', 'limit', 'per_page'].forEach(function (k) { params.delete(k); });
 		params.set('format', format);
@@ -170,7 +183,7 @@ templ ExportDropdown(props ExportDropdownProps) {
 	} else {
 		<div class="relative">
 			<details class="relative z-10 peer" name="export-dropdown">
-				<summary class="list-none cursor-pointer shrink-0 btn btn-secondary btn-normal btn-with-icon flex items-center gap-2">
+				<summary class={ "list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2", exportButtonSizeClass(props.Size), props.Class }>
 					@icons.Download(icons.Props{Size: "18"})
 					if props.Label != "" {
 						{ props.Label }
@@ -216,7 +229,7 @@ templ exportDownloadDropdown(props ExportDropdownProps) {
 	>
 		<details class="relative z-10 peer" name="export-dropdown">
 			<summary
-				class="list-none cursor-pointer shrink-0 btn btn-secondary btn-normal btn-with-icon flex items-center gap-2"
+				class={ "list-none cursor-pointer shrink-0 btn btn-secondary btn-with-icon flex items-center gap-2", exportButtonSizeClass(props.Size), props.Class }
 				x-bind:aria-busy="exporting"
 			>
 				<span x-show="!exporting" class="flex items-center">
