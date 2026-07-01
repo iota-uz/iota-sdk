@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 
+	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/export"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -47,6 +48,8 @@ func TestExportDropdown_DownloadMode(t *testing.T) {
 		ExportURL:    "/portfolio/policies/export",
 		Download:     true,
 		ParamsFormID: "filters-form",
+		Size:         button.SizeSM,
+		Class:        "w-full",
 	})
 
 	// Download mode must NOT emit htmx attributes — those POST to the export URL
@@ -63,6 +66,11 @@ func TestExportDropdown_DownloadMode(t *testing.T) {
 	assert.NotContains(t, html, "download_token", "cookie-poll mechanism removed")
 	assert.NotContains(t, html, "createElement(&#39;iframe&#39;)", "iframe mechanism removed")
 	assert.Contains(t, html, "Export.Preparing", "busy overlay label must render")
+	assert.Contains(t, html, "btn-sm", "download trigger must honor Size")
+	assert.Contains(t, html, "w-full", "download trigger must honor Class")
+	assert.Contains(t, html, "new URLSearchParams(window.location.search)")
+	assert.Contains(t, html, "new URLSearchParams(new FormData(form))")
+	assert.Contains(t, html, "params.delete(key)")
 	// Per-format triggers wired to runExport with each format param. Assert the
 	// format args are present without pinning the exact HTML-entity encoding of
 	// the surrounding quotes (an implementation artifact).
@@ -79,10 +87,14 @@ func TestExportDropdown_LegacyHtmxMode(t *testing.T) {
 	html := renderDropdown(t, export.ExportDropdownProps{
 		Formats:   []export.ExportFormat{export.ExportFormatExcel},
 		ExportURL: "/clients/export",
+		Size:      button.SizeXS,
+		Class:     "min-w-32",
 	})
 
 	assert.Contains(t, html, `hx-post="/clients/export?format=excel"`)
 	assert.Contains(t, html, `hx-swap="none"`)
+	assert.Contains(t, html, "btn-xs", "legacy trigger must honor Size")
+	assert.Contains(t, html, "min-w-32", "legacy trigger must honor Class")
 	assert.NotContains(t, html, "runExport(")
 	assert.NotContains(t, html, "data-export-url")
 }
