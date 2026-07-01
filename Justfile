@@ -286,7 +286,7 @@ _e2e-dev:
   PORT=3201 ORIGIN='http://localhost:3201' DB_NAME=iota_erp_e2e ENABLE_TEST_ENDPOINTS=true OIDC_ISSUER_URL='https://localhost:3201/oidc' OIDC_CRYPTO_KEY='MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=' air
 
 [group("build")]
-[doc("Build commands (dev|local|prod|linux|docker-base|docker-prod)")]
+[doc("Build commands (dev|local|prod|linux|docker-base|docker-prod|docker-pykernel)")]
 build cmd="help" v="":
   case "{{cmd}}" in \
     dev) just _build-dev ;; \
@@ -295,8 +295,9 @@ build cmd="help" v="":
     linux) just _build-linux ;; \
     docker-base) just _build-docker-base {{v}} ;; \
     docker-prod) just _build-docker-prod {{v}} ;; \
+    docker-pykernel) just _build-docker-pykernel ;; \
     *) \
-      echo "Usage: just build [dev|local|prod|linux|docker-base|docker-prod] [version]" ; \
+      echo "Usage: just build [dev|local|prod|linux|docker-base|docker-prod|docker-pykernel] [version]" ; \
       exit 2 ;; \
   esac
 
@@ -325,6 +326,14 @@ _build-docker-base v:
 _build-docker-prod v:
   if [ -z "{{v}}" ]; then echo "Usage: just build docker-prod <version>"; exit 2; fi
   docker buildx build --push --platform linux/amd64,linux/arm64 -t iotauz/sdk:{{v}} --target production .
+
+# The glibc CPython runtime the pykernel manager (datamig + Ali REPL) spawns.
+# Tag is fixed (`3.11-analysis`, matching pkg/pykernel/deploy/README.md), so no
+# version arg. amd64 only: prod hosts are amd64 and the pinned analysis wheels
+# are manylinux/glibc. Application images build `FROM` this (e.g. eai back/Dockerfile).
+[group("build")]
+_build-docker-pykernel:
+  docker buildx build --push --platform linux/amd64 -t iotauz/pykernel-base:3.11-analysis pkg/pykernel/deploy
 
 [group("superadmin")]
 [doc("Superadmin commands (dev|seed)")]
