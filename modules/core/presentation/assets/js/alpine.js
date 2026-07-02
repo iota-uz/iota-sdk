@@ -265,6 +265,21 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     let rect = trigger.getBoundingClientRect();
     let gap = 4;
     let edge = 8; // keep the menu clear of the viewport edge
+    let isPopover = this.supportsPopover(list) && list.matches(':popover-open');
+    // Reset the UA-default top-layer box (`inset:0; margin:auto`) BEFORE measuring
+    // scrollWidth below: with inset:0 still active, `left`/`right` are both pinned
+    // to 0 so the box (and therefore its scrollWidth) is forced to full viewport
+    // width regardless of content — that previously made every popover render
+    // screen-wide the instant it opened.
+    if (isPopover) {
+      list.style.margin = '0';
+      list.style.inset = 'auto';
+      list.style.position = 'fixed';
+    } else {
+      list.style.position = 'absolute';
+      list.style.left = '0px';
+      list.style.top = '100%';
+    }
     // Width: at least the field width, but grow to fit the widest option so long
     // labels aren't clipped — capped to the viewport so it never overflows. Measure
     // the natural content width with the constraint cleared first. Callers passing
@@ -274,12 +289,7 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     list.style.maxWidth = viewportWidth + 'px';
     let width = Math.min(Math.max(rect.width, list.scrollWidth), viewportWidth);
     list.style.width = width + 'px';
-    if (this.supportsPopover(list) && list.matches(':popover-open')) {
-      // Top-layer popover: position against the viewport (fixed coordinates)
-      // and reset the UA-default `inset:0; margin:auto` centering.
-      list.style.margin = '0';
-      list.style.inset = 'auto';
-      list.style.position = 'fixed';
+    if (isPopover) {
       // Size the menu to the available space rather than a fixed cap: measure the
       // natural content height (bounded by any caller-supplied cap such as
       // `!max-h-60`), then clamp to whichever side of the trigger has more room.
@@ -298,10 +308,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       list.style.left = Math.max(edge, Math.min(rect.left, window.innerWidth - width - edge)) + 'px';
       list.style.top = (flipUp ? rect.top - height - gap : rect.bottom + gap) + 'px';
     } else {
-      // Fallback (no Popover API): sit just below the field, in flow.
-      list.style.position = 'absolute';
-      list.style.left = '0px';
-      list.style.top = '100%';
+      // Fallback (no Popover API): sit just below the field, in flow (position/left/top
+      // already set above).
       list.style.removeProperty('max-height');
       let avail = Math.max(0, window.innerHeight - rect.bottom - gap - edge);
       let height = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2, avail);
