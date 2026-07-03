@@ -1097,7 +1097,7 @@ func panelChartClass(spec panel.Spec, fullscreen bool) string {
 	if fullscreen {
 		base = "h-full min-h-[420px] w-full flex-1"
 	} else {
-		base += " h-full"
+		base += " h-[320px]"
 	}
 	if panelIsInteractive(spec) {
 		base += " cursor-pointer"

@@ -120,9 +120,17 @@ script graph(id string, options templ.JSExpression) {
 			container.__apexHiddenSeries = hiddenSeriesNames(chart);
 		});
 	}
-	document.addEventListener('DOMContentLoaded', () => {
+	const renderWhenReady = () => {
 		renderChart();
-	});
+		requestAnimationFrame(() => {
+			setTimeout(renderChart, 0);
+		});
+	};
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', renderWhenReady, { once: true });
+	} else {
+		renderWhenReady();
+	}
 	document.addEventListener('sdk:rerenderCharts', (evt) => {
 		const container = document.getElementById(id);
 		if (!container) {

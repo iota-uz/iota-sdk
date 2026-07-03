@@ -23,8 +23,8 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_a26f`,
-		Function: `function __templ_graph_a26f(id, options){const hiddenSeriesNames = (chart) => {
+		Name: `__templ_graph_83a4`,
+		Function: `function __templ_graph_83a4(id, options){const hiddenSeriesNames = (chart) => {
 		const globals = chart && chart.w && chart.w.globals;
 		if (!globals) {
 			return [];
@@ -134,9 +134,17 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 			container.__apexHiddenSeries = hiddenSeriesNames(chart);
 		});
 	}
-	document.addEventListener('DOMContentLoaded', () => {
+	const renderWhenReady = () => {
 		renderChart();
-	});
+		requestAnimationFrame(() => {
+			setTimeout(renderChart, 0);
+		});
+	};
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', renderWhenReady, { once: true });
+	} else {
+		renderWhenReady();
+	}
 	document.addEventListener('sdk:rerenderCharts', (evt) => {
 		const container = document.getElementById(id);
 		if (!container) {
@@ -151,8 +159,8 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		renderChart();
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_graph_a26f`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_a26f`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_83a4`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_83a4`, id, options),
 	}
 }
 
@@ -218,7 +226,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 167, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 175, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
