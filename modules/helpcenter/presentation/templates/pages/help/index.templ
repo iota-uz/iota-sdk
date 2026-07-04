@@ -2,6 +2,7 @@ package help
 
 import (
 	icons "github.com/iota-uz/icons/phosphor"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -22,37 +23,40 @@ templ Index(props IndexProps) {
 	}) {
 		<div class="h-full flex flex-col bg-white">
 			<div class="border-b border-gray-200 px-4 md:px-6 py-4">
-				<div class="max-w-7xl flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
-					<div class="min-w-0">
-						<h1 class="text-xl font-semibold text-gray-900">{ pageCtx.T("HelpCenter.Meta.Title") }</h1>
-						<p class="text-sm text-gray-500 mt-1">{ pageCtx.T("HelpCenter.Meta.Subtitle") }</p>
-					</div>
-						<form class="relative md:ml-auto w-full md:w-[28rem]" hx-get={ props.BasePath + "/search" } hx-target="#help-search-results" hx-trigger="submit">
-							<div class="relative">
-								<div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-									@icons.MagnifyingGlass(icons.Props{Size: "18"})
-								</div>
-								<input
-									type="search"
-									name="q"
-									placeholder={ pageCtx.T("HelpCenter.Search.Placeholder") }
-									disabled?={ !props.SearchAvailable }
-									hx-get={ props.BasePath + "/search" }
-									hx-target="#help-search-results"
-									hx-trigger="input changed delay:250ms, search"
-									hx-indicator="#help-search-spinner"
-									autocomplete="off"
-									class="form-control-input w-full border border-gray-300 rounded-md pl-10 pr-10 py-2 text-sm shadow-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:text-gray-500"
-								/>
-								<div id="help-search-spinner" class="htmx-indicator absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-									@icons.CircleNotch(icons.Props{Size: "16", Class: "animate-spin"})
-								</div>
+					<div class="max-w-7xl flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
+						<div class="min-w-0">
+							<div class="flex items-center gap-2">
+								<h1 class="text-xl font-semibold text-gray-900">{ pageCtx.T("HelpCenter.Meta.Title") }</h1>
+								@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/help-center.md"})
 							</div>
-							<div id="help-search-results" class="absolute left-0 right-0 top-full z-40 mt-2"></div>
-							if !props.SearchAvailable {
-								<p class="mt-2 text-xs text-gray-500">{ pageCtx.T("HelpCenter.Search.Unavailable") }</p>
-							}
-						</form>
+							<p class="text-sm text-gray-500 mt-1">{ pageCtx.T("HelpCenter.Meta.Subtitle") }</p>
+						</div>
+					<form class="relative md:ml-auto w-full md:w-[28rem]" hx-get={ props.BasePath + "/search" } hx-target="#help-search-results" hx-trigger="submit">
+						<div class="relative">
+							<div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+								@icons.MagnifyingGlass(icons.Props{Size: "18"})
+							</div>
+							<input
+								type="search"
+								name="q"
+								placeholder={ pageCtx.T("HelpCenter.Search.Placeholder") }
+								disabled?={ !props.SearchAvailable }
+								hx-get={ props.BasePath + "/search" }
+								hx-target="#help-search-results"
+								hx-trigger="input changed delay:250ms, search"
+								hx-indicator="#help-search-spinner"
+								autocomplete="off"
+								class="form-control-input w-full border border-gray-300 rounded-md pl-10 pr-10 py-2 text-sm shadow-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:text-gray-500"
+							/>
+							<div id="help-search-spinner" class="htmx-indicator absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+								@icons.CircleNotch(icons.Props{Size: "16", Class: "animate-spin"})
+							</div>
+						</div>
+						<div id="help-search-results" class="absolute left-0 right-0 top-full z-40 mt-2"></div>
+						if !props.SearchAvailable {
+							<p class="mt-2 text-xs text-gray-500">{ pageCtx.T("HelpCenter.Search.Unavailable") }</p>
+						}
+					</form>
 				</div>
 			</div>
 			<div class="flex-1 grid grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)] min-h-0">
