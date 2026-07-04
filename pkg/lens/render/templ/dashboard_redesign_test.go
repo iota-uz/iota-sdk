@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -89,6 +90,40 @@ func TestStatPanel_AccentChromeWithoutIcon(t *testing.T) {
 	// no translucent icon-badge chrome (badgeStyle uses rgba(...))
 	assert.NotContains(t, rendered, "rgba(37, 101, 235")
 	assert.NotContains(t, rendered, "h-10 w-10")
+}
+
+func TestCascadePanel_RendersNativeBridgeRows(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("bridge",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Collected", "After commission", "Remainder"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{4850.0, 4230.0, 2890.0}},
+		frame.Field{Name: "cut", Type: frame.FieldTypeNumber, Values: []any{0.0, 620.0, 1340.0}},
+		frame.Field{Name: "cutLabel", Type: frame.FieldTypeString, Values: []any{"", "Commission", "Claims paid"}},
+		frame.Field{Name: "final", Type: frame.FieldTypeBoolean, Values: []any{false, false, true}},
+	)
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+
+	spec := panel.Cascade("cash-bridge", "Cash bridge", "bridge").
+		Format(format.MoneyCompact("UZS")).
+		Build()
+	result := &runtime.PanelResult{Panel: spec, Frames: set, Locale: "en"}
+
+	var html bytes.Buffer
+	err = CascadePanel(spec, result, nil).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, "Collected")
+	assert.Contains(t, rendered, "After commission")
+	assert.Contains(t, rendered, "- Commission:")
+	assert.Contains(t, rendered, "- Claims paid:")
+	assert.Contains(t, rendered, "bg-emerald-500")
+	assert.Contains(t, rendered, "width:59.5876%")
+	assert.NotContains(t, rendered, "apexcharts")
+	assert.NotContains(t, rendered, "<canvas")
 }
 
 // The skeleton mirrors the prepared layout: a heading band plus card-shaped

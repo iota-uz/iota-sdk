@@ -178,7 +178,7 @@ templ panelSkeleton(spec panel.Spec) {
 					<div class="lens-skeleton-shimmer mt-auto h-8 rounded-md" style="width:60%"></div>
 				</div>
 			</div>
-		} else if spec.Kind == panel.KindSegmentBar {
+		} else if spec.Kind == panel.KindSegmentBar || spec.Kind == panel.KindCascade {
 			<div class="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:88px">
 				<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:35%"></div>
 				<div class="lens-skeleton-shimmer h-3 w-full rounded-full"></div>
@@ -654,7 +654,7 @@ templ panelCard(spec panel.Spec, bodyClass string, body templ.Component) {
 								}
 								@MetricInfoButton(spec, "flex-shrink-0")
 							</div>
-							if spec.Description != "" && spec.Kind != panel.KindStat && spec.Kind != panel.KindSegmentBar {
+							if spec.Description != "" && spec.Kind != panel.KindStat && spec.Kind != panel.KindSegmentBar && spec.Kind != panel.KindCascade {
 								<p class="mt-0.5 truncate text-xs text-slate-400">{ spec.Description }</p>
 							}
 						</div>
@@ -689,6 +689,8 @@ templ PanelContent(spec panel.Spec, result *runtime.Result, resolvePanelErrorAct
 			@StatPanel(spec, currentPanel, resolvePanelErrorAction)
 		case panel.KindSegmentBar:
 			@SegmentBarPanel(spec, currentPanel, resolvePanelErrorAction)
+		case panel.KindCascade:
+			@CascadePanel(spec, currentPanel, resolvePanelErrorAction)
 		default:
 			@ChartPanel(spec, currentPanel, resolvePanelErrorAction)
 	}
@@ -787,6 +789,8 @@ templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool, 
 				@StatPanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindSegmentBar {
 				@SegmentBarPanel(child, childPanel, resolvePanelErrorAction)
+			} else if child.Kind == panel.KindCascade {
+				@CascadePanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindTabs || child.Kind == panel.KindGrid || child.Kind == panel.KindSplit || child.Kind == panel.KindRepeat {
 				@PanelContent(child, result, resolvePanelErrorAction)
 			} else if fullscreen {
@@ -877,6 +881,52 @@ templ SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanel
 					</div>
 				}
 			</div>
+		</div>
+	</div>
+}
+
+templ CascadePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	if result == nil || result.Error != nil {
+		@ErrorState(spec, result, resolvePanelErrorAction)
+		{{ return }}
+	}
+	{{ view := buildCascadeView(spec, result) }}
+	if !view.HasData {
+		@EmptyState()
+		{{ return }}
+	}
+	{{ row := statRow(result) }}
+	{{ href := actionURL(spec.Action, row, result) }}
+	{{ onClick := actionOnClick(spec.Action, row, result) }}
+	{{ clickable := href != "" || onClick.Call != "" }}
+	<div class="group relative flex h-full flex-col">
+		if href != "" {
+			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-0 block rounded-xl"></a>
+		} else if onClick.Call != "" {
+			<button type="button" onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-0 block h-full w-full rounded-xl"></button>
+		}
+		<div class={ segmentBarBodyClass(clickable) + " gap-2" }>
+			for _, stage := range view.Stages {
+				if stage.HasCut {
+					<div class="flex items-center gap-2 px-2 py-0.5 text-xs font-semibold text-red-600">
+						<span class="text-red-400">-&gt;</span>
+						<span class="truncate">- { stage.CutLabel }:</span>
+						<span class="flex-shrink-0 tabular-nums">{ stage.CutValue }</span>
+					</div>
+				}
+				<div class="relative min-h-12 overflow-hidden rounded-xl bg-slate-100 ring-1 ring-inset ring-slate-200/70">
+					<div class={ stage.BarClass } style={ stage.WidthStyle }></div>
+					<div class="relative z-10 flex min-h-12 items-center justify-between gap-4 px-4 py-2.5">
+						<span class="min-w-0 truncate text-sm font-semibold text-slate-800">{ stage.Label }</span>
+						<span class={ stage.ValueClass }>{ stage.Value }</span>
+					</div>
+				</div>
+			}
+			if clickable {
+				<span class="absolute right-0 top-0 flex-shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">
+					@icons.ArrowRight(icons.Props{Size: "18"})
+				</span>
+			}
 		</div>
 	</div>
 }
@@ -1429,6 +1479,12 @@ templ LoadingState(spec panel.Spec, overlay bool) {
 				</div>
 			case panel.KindTable:
 				<div class="flex h-full w-full flex-col gap-3 p-4">
+					for i := 0; i < panelPlaceholderRows(spec); i++ {
+						<div class="h-12 animate-pulse rounded-xl bg-slate-100"></div>
+					}
+				</div>
+			case panel.KindCascade:
+				<div class="flex h-full w-full flex-col gap-3 p-5">
 					for i := 0; i < panelPlaceholderRows(spec); i++ {
 						<div class="h-12 animate-pulse rounded-xl bg-slate-100"></div>
 					}

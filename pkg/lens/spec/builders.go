@@ -33,6 +33,9 @@ func StackedBar(id, title, dataset string) *PanelBuilder {
 func SegmentBar(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindSegmentBar, id, title, dataset)
 }
+func Cascade(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindCascade, id, title, dataset)
+}
 func Pie(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindPie, id, title, dataset)
 }
@@ -80,6 +83,9 @@ func newPanelBuilder(kind panel.Kind, id, title, dataset string) *PanelBuilder {
 				Series:   string(panel.DefaultSeriesField),
 				Category: string(panel.DefaultCategoryField),
 				ID:       string(panel.DefaultIDField),
+				Cut:      string(panel.DefaultCutField),
+				CutLabel: string(panel.DefaultCutLabelField),
+				Final:    string(panel.DefaultFinalField),
 			},
 		},
 	}
@@ -89,6 +95,7 @@ func (b *PanelBuilder) Span(span int) *PanelBuilder           { b.panel.Span = s
 func (b *PanelBuilder) Height(height string) *PanelBuilder    { b.panel.Height = height; return b }
 func (b *PanelBuilder) Colors(colors ...string) *PanelBuilder { b.panel.Colors = colors; return b }
 func (b *PanelBuilder) Legend() *PanelBuilder                 { b.panel.ShowLegend = true; return b }
+func (b *PanelBuilder) TotalBadge() *PanelBuilder             { b.panel.ShowTotalBadge = true; return b }
 func (b *PanelBuilder) Format(spec format.Spec) *PanelBuilder { b.panel.Formatter = &spec; return b }
 func (b *PanelBuilder) Action(spec action.Spec) *PanelBuilder { b.panel.Action = &spec; return b }
 func (b *PanelBuilder) Description(text string) *PanelBuilder {
@@ -153,6 +160,18 @@ func (b *PanelBuilder) StartField(name string) *PanelBuilder {
 }
 func (b *PanelBuilder) EndField(name string) *PanelBuilder {
 	b.panel.Fields.EndTime = name
+	return b
+}
+func (b *PanelBuilder) CutField(name string) *PanelBuilder {
+	b.panel.Fields.Cut = name
+	return b
+}
+func (b *PanelBuilder) CutLabelField(name string) *PanelBuilder {
+	b.panel.Fields.CutLabel = name
+	return b
+}
+func (b *PanelBuilder) FinalField(name string) *PanelBuilder {
+	b.panel.Fields.Final = name
 	return b
 }
 func (b *PanelBuilder) Columns(columns ...TableColumnSpec) *PanelBuilder {

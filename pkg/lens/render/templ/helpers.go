@@ -536,6 +536,135 @@ func segmentBarBodyClass(clickable bool) string {
 	return base
 }
 
+type cascadeView struct {
+	HasData bool
+	Stages  []cascadeStage
+}
+
+type cascadeStage struct {
+	Label      string
+	Value      string
+	CutLabel   string
+	CutValue   string
+	Raw        float64
+	CutRaw     float64
+	WidthPct   float64
+	Final      bool
+	HasCut     bool
+	BarClass   string
+	ValueClass string
+	WidthStyle templpkg.SafeCSS
+}
+
+func buildCascadeView(spec panel.Spec, result *runtime.PanelResult) cascadeView {
+	view := cascadeView{}
+	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
+		return view
+	}
+	rows := result.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return view
+	}
+	labelField := firstField(spec.Fields.Label, spec.Fields.Category, panel.DefaultLabelField)
+	valueField := firstField(spec.Fields.Value, panel.DefaultValueField)
+	cutField := firstField(spec.Fields.Cut, panel.DefaultCutField)
+	cutLabelField := firstField(spec.Fields.CutLabel, panel.DefaultCutLabelField)
+	finalField := firstField(spec.Fields.Final, panel.DefaultFinalField)
+
+	firstPositive := 0.0
+	for _, row := range rows {
+		value := segmentNumeric(row[valueField.Name()])
+		if value > 0 && (firstPositive == 0 || firstPositive == value) {
+			firstPositive = value
+			break
+		}
+	}
+	if firstPositive <= 0 {
+		firstPositive = 1
+	}
+
+	view.HasData = true
+	view.Stages = make([]cascadeStage, 0, len(rows))
+	for i, row := range rows {
+		raw := segmentNumeric(row[valueField.Name()])
+		cutRaw := segmentNumeric(row[cutField.Name()])
+		final := rowBool(row[finalField.Name()])
+		width := 0.0
+		if firstPositive > 0 && raw > 0 {
+			width = raw / firstPositive * 100
+		}
+		if width > 100 {
+			width = 100
+		}
+		if width < 0 {
+			width = 0
+		}
+		cutLabel := strings.TrimSpace(fmt.Sprint(row[cutLabelField.Name()]))
+		view.Stages = append(view.Stages, cascadeStage{
+			Label:      strings.TrimSpace(fmt.Sprint(row[labelField.Name()])),
+			Value:      formatValue(raw, spec.Formatter, result.Locale, result.Timezone),
+			CutLabel:   cutLabel,
+			CutValue:   formatValue(cutRaw, spec.Formatter, result.Locale, result.Timezone),
+			Raw:        raw,
+			CutRaw:     cutRaw,
+			WidthPct:   width,
+			Final:      final,
+			HasCut:     i > 0 && cutLabel != "",
+			BarClass:   cascadeBarClass(final),
+			ValueClass: cascadeValueClass(raw),
+			WidthStyle: cascadeWidthStyle(width),
+		})
+	}
+	return view
+}
+
+func firstField(fields ...panel.FieldRef) panel.FieldRef {
+	for _, field := range fields {
+		if !field.Empty() {
+			return field
+		}
+	}
+	return ""
+}
+
+func rowBool(value any) bool {
+	switch v := value.(type) {
+	case bool:
+		return v
+	case string:
+		parsed, _ := strconv.ParseBool(strings.TrimSpace(v))
+		return parsed
+	case int:
+		return v != 0
+	case int64:
+		return v != 0
+	case float64:
+		return v != 0
+	case float32:
+		return v != 0
+	default:
+		return false
+	}
+}
+
+func cascadeBarClass(final bool) string {
+	if final {
+		return "absolute inset-y-0 left-0 rounded-xl bg-emerald-500"
+	}
+	return "absolute inset-y-0 left-0 rounded-xl bg-brand-500"
+}
+
+func cascadeValueClass(raw float64) string {
+	if raw < 0 {
+		return "text-sm font-semibold tabular-nums text-red-700"
+	}
+	return "text-sm font-semibold tabular-nums text-slate-900"
+}
+
+func cascadeWidthStyle(pct float64) templpkg.SafeCSS {
+	return templpkg.SafeCSS("width:" + strconv.FormatFloat(pct, 'f', 4, 64) + "%")
+}
+
 func segmentLegendLabelClass(raw float64) string {
 	if raw > 0 {
 		return "truncate text-sm font-medium text-slate-600"
@@ -983,7 +1112,7 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 		return icons.ChartLine(iconProps)
 	case panel.KindBar, panel.KindStackedBar, panel.KindHorizontalBar:
 		return icons.ChartBar(iconProps)
-	case panel.KindSegmentBar:
+	case panel.KindSegmentBar, panel.KindCascade:
 		return icons.ChartBar(iconProps)
 	case panel.KindPie, panel.KindDonut:
 		return icons.ChartPie(iconProps)
@@ -1078,6 +1207,7 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
 		panel.KindSegmentBar,
+		panel.KindCascade,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -1196,6 +1326,7 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 		return "Lens.Chart.Info.Tabs"
 	case panel.KindStat,
 		panel.KindSegmentBar,
+		panel.KindCascade,
 		panel.KindTable,
 		panel.KindGrid,
 		panel.KindSplit,
@@ -1328,6 +1459,8 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 px-5 py-3"
 	case panel.KindSegmentBar:
 		return "flex-1 px-5 py-5"
+	case panel.KindCascade:
+		return "flex-1 px-5 py-5"
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return "flex-1 p-3"
 	default:
@@ -1395,6 +1528,8 @@ func panelMinimumHeight(spec panel.Spec) string {
 		return "220px"
 	case panel.KindSegmentBar:
 		return "240px"
+	case panel.KindCascade:
+		return "280px"
 	case panel.KindTabs:
 		if childHeight := maxChildHeight(spec.Children); childHeight != "" {
 			return "calc(" + childHeight + " + 5rem)"
@@ -1496,7 +1631,7 @@ func panelPlaceholderRows(spec panel.Spec) int {
 		return 5
 	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return 4
-	case panel.KindSegmentBar, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindSegmentBar, panel.KindCascade, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return 4
 	}
 	return 4

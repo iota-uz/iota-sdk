@@ -865,7 +865,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	switch spec.Kind {
 	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		// These panel kinds do not require label/category validation here.
-	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindCascade, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires label or category field", spec.ID)
 		}
@@ -957,6 +957,18 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 		}
 		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
 			return err
+		}
+	case panel.KindCascade:
+		if err := requireField(spec, primary, spec.Fields.Value); err != nil {
+			return err
+		}
+		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
+			return err
+		}
+		for _, field := range []panel.FieldRef{spec.Fields.Cut, spec.Fields.CutLabel, spec.Fields.Final} {
+			if err := requireField(spec, primary, field); err != nil {
+				return err
+			}
 		}
 	case panel.KindStackedBar:
 		if err := requireField(spec, primary, spec.Fields.Category); err != nil {

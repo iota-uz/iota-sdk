@@ -155,7 +155,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 				},
 			}
 		}
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
@@ -182,7 +182,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
@@ -277,7 +277,7 @@ func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -1166,7 +1166,7 @@ func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.
 		panel.KindTimeSeries,
 		panel.KindPie,
 		panel.KindDonut,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
@@ -1348,7 +1348,7 @@ func chartType(kind panel.Kind) charts.ChartType {
 		return charts.DonutChartType
 	case panel.KindGauge:
 		return charts.RadialBarChartType
-	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return charts.BarChartType
 	}
 	return charts.BarChartType
@@ -1399,7 +1399,7 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,
@@ -1548,7 +1548,7 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		}
 	case panel.KindStat,
 		panel.KindTimeSeries,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
@@ -1573,7 +1573,7 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,

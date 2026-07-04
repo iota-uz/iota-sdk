@@ -26,14 +26,18 @@ const (
 	// within reserve + over reserve) where a chart's axes and plot area are
 	// pure noise.
 	KindSegmentBar Kind = "segment_bar"
-	KindPie        Kind = "pie"
-	KindDonut      Kind = "donut"
-	KindTable      Kind = "table"
-	KindGauge      Kind = "gauge"
-	KindTabs       Kind = "tabs"
-	KindGrid       Kind = "grid"
-	KindSplit      Kind = "split"
-	KindRepeat     Kind = "repeat"
+	// KindCascade renders a bridge/cascade as narrowing running-total rows
+	// with deduction connectors between them. It is native HTML/CSS rather
+	// than an ApexCharts chart.
+	KindCascade Kind = "cascade"
+	KindPie     Kind = "pie"
+	KindDonut   Kind = "donut"
+	KindTable   Kind = "table"
+	KindGauge   Kind = "gauge"
+	KindTabs    Kind = "tabs"
+	KindGrid    Kind = "grid"
+	KindSplit   Kind = "split"
+	KindRepeat  Kind = "repeat"
 )
 
 // IsContainer reports whether the kind is a layout container that renders its
@@ -49,7 +53,7 @@ func (k Kind) IsContainer() bool {
 	case KindTabs, KindGrid, KindSplit, KindRepeat:
 		return true
 	case KindStat, KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindSegmentBar, KindPie, KindDonut, KindTable, KindGauge:
+		KindSegmentBar, KindCascade, KindPie, KindDonut, KindTable, KindGauge:
 		return false
 	}
 	return false
@@ -60,14 +64,14 @@ func (k Kind) IsContainer() bool {
 // KindStackedBar, KindPie, KindDonut, KindGauge.
 //
 // This is the complement, among leaf panels, of RendersNatively: every leaf is
-// either an apex chart or a native (non-apex) render. KindStat, KindSegmentBar
-// and KindTable draw their own HTML/CSS and are therefore NOT charts.
+// either an apex chart or a native (non-apex) render. KindStat, KindSegmentBar,
+// KindCascade and KindTable draw their own HTML/CSS and are therefore NOT charts.
 func (k Kind) IsChart() bool {
 	switch k {
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
 		KindPie, KindDonut, KindGauge:
 		return true
-	case KindStat, KindSegmentBar, KindTable,
+	case KindStat, KindSegmentBar, KindCascade, KindTable,
 		KindTabs, KindGrid, KindSplit, KindRepeat:
 		return false
 	}
@@ -76,14 +80,14 @@ func (k Kind) IsChart() bool {
 
 // RendersNatively reports whether the kind is a leaf panel drawn with native
 // HTML/CSS rather than the ApexCharts engine. Membership: KindStat,
-// KindSegmentBar, KindTable.
+// KindSegmentBar, KindCascade, KindTable.
 //
 // Together, IsChart() and RendersNatively() partition the leaf (non-container)
 // panel kinds, so "this kind is a renderable leaf" is exactly
 // `k.IsChart() || k.RendersNatively()`.
 func (k Kind) RendersNatively() bool {
 	switch k {
-	case KindStat, KindSegmentBar, KindTable:
+	case KindStat, KindSegmentBar, KindCascade, KindTable:
 		return true
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
 		KindPie, KindDonut, KindGauge,
@@ -121,6 +125,9 @@ const (
 	DefaultSeriesField   FieldRef = "series"
 	DefaultCategoryField FieldRef = "category"
 	DefaultIDField       FieldRef = "id"
+	DefaultCutField      FieldRef = "cut"
+	DefaultCutLabelField FieldRef = "cutLabel"
+	DefaultFinalField    FieldRef = "final"
 )
 
 func (f FieldRef) Name() string {
@@ -132,28 +139,29 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
-	ID          string
-	Title       string
-	Description string
-	Info        string
-	Kind        Kind
-	Dataset     string
-	Span        int
-	Height      string
-	Colors      []string
-	ShowLegend  bool
-	Fields      FieldMapping
-	Formatter   *format.Spec
-	Columns     []TableColumn
-	Transforms  []transform.Spec
-	Action      *action.Spec
-	Children    []Spec
-	ClassName   string
-	Chrome      chrome.Spec
-	ValueAxis   ValueAxis
-	Distributed bool
-	ColorField  FieldRef
-	ColorScale  string
+	ID             string
+	Title          string
+	Description    string
+	Info           string
+	Kind           Kind
+	Dataset        string
+	Span           int
+	Height         string
+	Colors         []string
+	ShowLegend     bool
+	ShowTotalBadge bool
+	Fields         FieldMapping
+	Formatter      *format.Spec
+	Columns        []TableColumn
+	Transforms     []transform.Spec
+	Action         *action.Spec
+	Children       []Spec
+	ClassName      string
+	Chrome         chrome.Spec
+	ValueAxis      ValueAxis
+	Distributed    bool
+	ColorField     FieldRef
+	ColorScale     string
 }
 
 type FieldMapping struct {
@@ -164,6 +172,9 @@ type FieldMapping struct {
 	ID        FieldRef
 	StartTime FieldRef
 	EndTime   FieldRef
+	Cut       FieldRef
+	CutLabel  FieldRef
+	Final     FieldRef
 }
 
 type Builder struct {
@@ -181,10 +192,11 @@ func HorizontalBar(id, title, dataset string) *Builder {
 func StackedBar(id, title, dataset string) *Builder {
 	return newBuilder(KindStackedBar, id, title, dataset)
 }
-func Pie(id, title, dataset string) *Builder   { return newBuilder(KindPie, id, title, dataset) }
-func Donut(id, title, dataset string) *Builder { return newBuilder(KindDonut, id, title, dataset) }
-func Table(id, title, dataset string) *Builder { return newBuilder(KindTable, id, title, dataset) }
-func Gauge(id, title, dataset string) *Builder { return newBuilder(KindGauge, id, title, dataset) }
+func Cascade(id, title, dataset string) *Builder { return newBuilder(KindCascade, id, title, dataset) }
+func Pie(id, title, dataset string) *Builder     { return newBuilder(KindPie, id, title, dataset) }
+func Donut(id, title, dataset string) *Builder   { return newBuilder(KindDonut, id, title, dataset) }
+func Table(id, title, dataset string) *Builder   { return newBuilder(KindTable, id, title, dataset) }
+func Gauge(id, title, dataset string) *Builder   { return newBuilder(KindGauge, id, title, dataset) }
 
 func Tabs(id, title string, children ...Spec) *Builder {
 	return &Builder{
@@ -224,6 +236,9 @@ func newBuilder(kind Kind, id, title, dataset string) *Builder {
 				Series:   DefaultSeriesField,
 				Category: DefaultCategoryField,
 				ID:       DefaultIDField,
+				Cut:      DefaultCutField,
+				CutLabel: DefaultCutLabelField,
+				Final:    DefaultFinalField,
 			},
 		},
 	}
@@ -233,6 +248,7 @@ func (b *Builder) Span(span int) *Builder           { b.spec.Span = span; return
 func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; return b }
 func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
 func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
+func (b *Builder) TotalBadge() *Builder             { b.spec.ShowTotalBadge = true; return b }
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
@@ -275,6 +291,9 @@ func (b *Builder) SeriesField(name FieldRef) *Builder   { b.spec.Fields.Series =
 func (b *Builder) CategoryField(name FieldRef) *Builder { b.spec.Fields.Category = name; return b }
 func (b *Builder) StartField(name FieldRef) *Builder    { b.spec.Fields.StartTime = name; return b }
 func (b *Builder) EndField(name FieldRef) *Builder      { b.spec.Fields.EndTime = name; return b }
+func (b *Builder) CutField(name FieldRef) *Builder      { b.spec.Fields.Cut = name; return b }
+func (b *Builder) CutLabelField(name FieldRef) *Builder { b.spec.Fields.CutLabel = name; return b }
+func (b *Builder) FinalField(name FieldRef) *Builder    { b.spec.Fields.Final = name; return b }
 func (b *Builder) Columns(columns ...TableColumn) *Builder {
 	b.spec.Columns = columns
 	return b
