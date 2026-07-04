@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/card"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/slider"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/website/presentation/viewmodels"
@@ -65,6 +66,12 @@ templ ModelSelectOptions(props ModelSelectProps) {
 templ ConfigureForm(props ConfigureProps) {
 	{{ pgCtx := composables.UsePageCtx(ctx) }}
 	<div class="flex flex-col h-full">
+		<div class="px-6 pt-6 flex items-center gap-2">
+			<h1 class="text-2xl font-medium">
+				{ pgCtx.T("AIChatBot.Meta.Title") }
+			</h1>
+			@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/website.md"})
+		</div>
 		<div class="grid grid-cols-12 gap-4 flex-1 p-6">
 			@card.Card(card.Props{
 				WrapperClass: "col-span-8 h-full",

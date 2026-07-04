@@ -134,6 +134,12 @@ func TestBleveSearch_Basic(t *testing.T) {
 			Content: "PostgreSQL is a powerful relational database system.",
 			Type:    kb.DocumentTypeMarkdown,
 		},
+		{
+			ID:      "4",
+			Title:   "Sanitized Markdown",
+			Content: "Markdown content is rendered and sanitized before display.",
+			Type:    kb.DocumentTypeMarkdown,
+		},
 	}
 
 	err = indexer.IndexDocuments(ctx, docs)
@@ -168,6 +174,12 @@ func TestBleveSearch_Basic(t *testing.T) {
 			query:         "database",
 			expectedCount: 1,
 			shouldContain: "Database",
+		},
+		{
+			name:          "search title prefix",
+			query:         "sani",
+			expectedCount: 1,
+			shouldContain: "Sanitized",
 		},
 	}
 

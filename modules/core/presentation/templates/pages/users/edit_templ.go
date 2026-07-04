@@ -721,7 +721,7 @@ func EditFormInner(props *EditFormProps) templ.Component {
 			if composables.CanUser(ctx, permissions.SessionRead) == nil {
 
 				sessionTabAttrs := templ.Attributes{
-					"hx-get":     templ.URL(fmt.Sprintf("/users/%s/sessions", props.User.ID)),
+					"hx-get":     fmt.Sprintf("/users/%s/sessions", props.User.ID),
 					"hx-trigger": "intersect once",
 					"hx-swap":    "innerHTML",
 				}

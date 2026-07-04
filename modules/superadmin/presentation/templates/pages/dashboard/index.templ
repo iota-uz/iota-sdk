@@ -6,6 +6,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/base/tab"
 	"github.com/iota-uz/iota-sdk/components/charts"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/domain/entities"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -153,12 +154,15 @@ templ MetricsContent(props *MetricsProps) {
 
 templ DashboardContent(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="m-6">
-		<div class="flex justify-between items-center mb-8">
-			<h1 class="text-2xl font-semibold text-gray-800">
-				{ pageCtx.T("SuperAdmin.Dashboard.Title") }
-			</h1>
-			<div class="w-64" id="date-filter">
+		<div class="m-6">
+			<div class="flex justify-between items-center mb-8">
+				<div class="flex items-center gap-2">
+					<h1 class="text-2xl font-semibold text-gray-800">
+						{ pageCtx.T("SuperAdmin.Dashboard.Title") }
+					</h1>
+					@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/super-admin.md"})
+				</div>
+				<div class="w-64" id="date-filter">
 				@input.DatePicker(input.DatePickerProps{
 					Label:      pageCtx.T("SuperAdmin.Dashboard.DateRange"),
 					Mode:       input.DatePickerModeRange,

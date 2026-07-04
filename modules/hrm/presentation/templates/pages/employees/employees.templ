@@ -3,10 +3,11 @@ package employees
 import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/components/base"
-	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+		"github.com/iota-uz/iota-sdk/components/base"
+		"github.com/iota-uz/iota-sdk/components/base/button"
+		"github.com/iota-uz/iota-sdk/components/base/input"
+		sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+		"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/hrm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -63,12 +64,15 @@ templ EmployeesTable(props *IndexPageProps) {
 }
 
 templ EmployeesContent(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ pageCtx.T("NavigationLinks.Employees") }
-		</h1>
-		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+		{{ pageCtx := composables.UsePageCtx(ctx) }}
+		<div class="m-6">
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.Employees") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/hrm.md"})
+			</div>
+			<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
 			<form
 				class="p-4 flex items-center gap-3"
 				hx-get="/hrm/employees"
