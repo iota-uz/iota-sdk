@@ -152,7 +152,7 @@ func TestAccountController_GetSessions(t *testing.T) {
 			Expect(t)
 
 		response.Status(http.StatusOK)
-		// Should contain sessions list
+		response.Contains(fmt.Sprintf(`hx-delete="/account/sessions/%s"`, hashToken("other-token-1")))
 	})
 
 	t.Run("Correctly_Identifies_Current_Session_With_IsCurrent_Flag", func(t *testing.T) {
