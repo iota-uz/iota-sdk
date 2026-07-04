@@ -14,30 +14,36 @@ type SearchResultsProps struct {
 
 templ SearchResults(props SearchResultsProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
-		if !props.Available {
-			<p class="text-sm text-gray-500">{ pageCtx.T("HelpCenter.Search.Unavailable") }</p>
-		} else if props.Query == "" {
-			<div></div>
-		} else if len(props.Results) == 0 {
-			<p class="text-sm text-gray-500">{ pageCtx.T("HelpCenter.Search.NoResults") }</p>
-		} else {
-			<div class="space-y-3">
-				for _, result := range props.Results {
-					<a
-						href={ templ.URL(props.BasePath + "/doc/" + result.Path) }
-						hx-get={ props.BasePath + "/doc/" + result.Path }
-						hx-target="#help-doc-pane"
-						hx-push-url="true"
-						class="block rounded-md border border-gray-200 bg-white p-3 hover:border-blue-300"
-					>
-						<div class="text-sm font-medium text-gray-900">{ result.Title }</div>
-						if result.Excerpt != "" {
-							<div class="text-xs text-gray-500 mt-1">{ result.Excerpt }</div>
-						}
-					</a>
-				}
-			</div>
-		}
-	</div>
+	if props.Query != "" {
+		<div class="overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+			if !props.Available {
+				<div class="px-4 py-3 text-sm text-gray-500">{ pageCtx.T("HelpCenter.Search.Unavailable") }</div>
+			} else if len(props.Results) == 0 {
+				<div class="px-4 py-3 text-sm text-gray-500">{ pageCtx.T("HelpCenter.Search.NoResults") }</div>
+			} else {
+				<div class="max-h-96 overflow-y-auto py-1">
+					for _, result := range props.Results {
+						<a
+							href={ templ.URL(props.BasePath + "/doc/" + result.Path) }
+							hx-get={ props.BasePath + "/doc/" + result.Path }
+							hx-target="#help-doc-pane"
+							hx-push-url="true"
+							hx-on::after-request="this.closest('#help-search-results').innerHTML = ''"
+							class="block border-b border-gray-100 px-4 py-3 last:border-b-0 hover:bg-gray-50"
+						>
+							<div class="flex items-center justify-between gap-3">
+								<div class="min-w-0 text-sm font-medium text-gray-900 truncate">{ result.Title }</div>
+								<div class="shrink-0 text-[11px] text-gray-400 truncate max-w-40">{ result.Path }</div>
+							</div>
+							if result.Excerpt != "" {
+								<div class="text-xs text-gray-500 mt-1 line-clamp-2 [&_mark]:rounded [&_mark]:bg-yellow-100 [&_mark]:px-0.5 [&_mark]:text-gray-900">
+									@templ.Raw(string(result.Excerpt))
+								</div>
+							}
+						</a>
+					}
+				</div>
+			}
+		</div>
+	}
 }

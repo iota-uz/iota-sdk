@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"errors"
+	"html/template"
 	"net/http"
 	"path/filepath"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/markdown"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
+	"github.com/microcosm-cc/bluemonday"
 	"github.com/sirupsen/logrus"
 )
 
@@ -32,6 +34,7 @@ type HelpCenterController struct {
 	contentService *services.ContentService
 	renderer       markdown.Renderer
 	searcher       kb.KBSearcher
+	snippetPolicy  *bluemonday.Policy
 }
 
 func NewHelpCenterController(cfg HelpCenterControllerConfig) application.Controller {
@@ -40,6 +43,7 @@ func NewHelpCenterController(cfg HelpCenterControllerConfig) application.Control
 		contentService: cfg.ContentService,
 		renderer:       cfg.Renderer,
 		searcher:       cfg.Searcher,
+		snippetPolicy:  bluemonday.StrictPolicy().AllowElements("mark"),
 	}
 }
 
@@ -165,11 +169,25 @@ func (c *HelpCenterController) mapSearchResults(results []kb.SearchResult, local
 		hits = append(hits, viewmodels.SearchHit{
 			Title:   result.Document.Title,
 			Path:    path,
-			Excerpt: result.Excerpt,
+			Excerpt: c.sanitizeSearchExcerpt(result),
 			Score:   result.Score,
 		})
 	}
 	return hits
+}
+
+func (c *HelpCenterController) sanitizeSearchExcerpt(result kb.SearchResult) template.HTML {
+	excerpt := strings.TrimSpace(result.Excerpt)
+	if excerpt == "" && len(result.Fragments) > 0 {
+		excerpt = strings.TrimSpace(result.Fragments[0])
+	}
+	if excerpt == "" {
+		excerpt = strings.TrimSpace(result.Document.Content)
+		if len(excerpt) > 180 {
+			excerpt = excerpt[:180] + "..."
+		}
+	}
+	return template.HTML(c.snippetPolicy.Sanitize(excerpt))
 }
 
 func (c *HelpCenterController) renderError(w http.ResponseWriter, r *http.Request, err error) {

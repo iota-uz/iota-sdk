@@ -17,6 +17,6 @@ type DocView struct {
 type SearchHit struct {
 	Title   string
 	Path    string
-	Excerpt string
+	Excerpt template.HTML
 	Score   float64
 }
