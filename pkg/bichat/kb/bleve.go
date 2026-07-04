@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -365,8 +366,7 @@ func (bi *bleveIndex) Search(ctx context.Context, queryStr string, opts SearchOp
 		opts.TopK = 10
 	}
 
-	// Build query
-	q := bleve.NewQueryStringQuery(queryStr)
+	q := buildSearchQuery(queryStr)
 
 	// Build search request
 	searchReq := bleve.NewSearchRequest(q)
@@ -469,6 +469,45 @@ func (bi *bleveIndex) Search(ctx context.Context, queryStr string, opts SearchOp
 	}
 
 	return results, nil
+}
+
+func buildSearchQuery(queryStr string) query.Query {
+	fullTextQuery := bleve.NewQueryStringQuery(queryStr)
+	terms := searchPrefixTerms(queryStr)
+	if len(terms) == 0 {
+		return fullTextQuery
+	}
+
+	prefixQueries := make([]query.Query, 0, len(terms))
+	for _, term := range terms {
+		titleQuery := bleve.NewPrefixQuery(term)
+		titleQuery.SetField("title")
+		titleQuery.SetBoost(4)
+
+		contentQuery := bleve.NewPrefixQuery(term)
+		contentQuery.SetField("content")
+
+		pathQuery := bleve.NewPrefixQuery(term)
+		pathQuery.SetField("path")
+		pathQuery.SetBoost(2)
+
+		prefixQueries = append(prefixQueries, bleve.NewDisjunctionQuery(titleQuery, contentQuery, pathQuery))
+	}
+
+	fullTextQuery.SetBoost(2)
+	return bleve.NewDisjunctionQuery(fullTextQuery, bleve.NewConjunctionQuery(prefixQueries...))
+}
+
+func searchPrefixTerms(queryStr string) []string {
+	fields := strings.Fields(strings.ToLower(queryStr))
+	terms := make([]string, 0, len(fields))
+	for _, field := range fields {
+		term := strings.Trim(field, `"'+-*:~^()[]{}<>!?.,;:/\|&`)
+		if term != "" {
+			terms = append(terms, term)
+		}
+	}
+	return terms
 }
 
 // GetDocument implements KBSearcher.
