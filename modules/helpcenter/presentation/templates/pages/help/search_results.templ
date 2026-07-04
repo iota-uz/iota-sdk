@@ -1,0 +1,43 @@
+package help
+
+import (
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
+
+type SearchResultsProps struct {
+	BasePath  string
+	Query     string
+	Available bool
+	Results   []viewmodels.SearchHit
+}
+
+templ SearchResults(props SearchResultsProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="border-b border-gray-200 bg-gray-50 px-6 py-4">
+		if !props.Available {
+			<p class="text-sm text-gray-500">{ pageCtx.T("HelpCenter.Search.Unavailable") }</p>
+		} else if props.Query == "" {
+			<div></div>
+		} else if len(props.Results) == 0 {
+			<p class="text-sm text-gray-500">{ pageCtx.T("HelpCenter.Search.NoResults") }</p>
+		} else {
+			<div class="space-y-3">
+				for _, result := range props.Results {
+					<a
+						href={ templ.URL(props.BasePath + "/doc/" + result.Path) }
+						hx-get={ props.BasePath + "/doc/" + result.Path }
+						hx-target="#help-doc-pane"
+						hx-push-url="true"
+						class="block rounded-md border border-gray-200 bg-white p-3 hover:border-blue-300"
+					>
+						<div class="text-sm font-medium text-gray-900">{ result.Title }</div>
+						if result.Excerpt != "" {
+							<div class="text-xs text-gray-500 mt-1">{ result.Excerpt }</div>
+						}
+					</a>
+				}
+			</div>
+		}
+	</div>
+}

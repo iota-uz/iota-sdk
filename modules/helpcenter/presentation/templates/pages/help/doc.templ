@@ -1,0 +1,16 @@
+package help
+
+import "github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
+
+type DocProps struct {
+	Doc *viewmodels.DocView
+}
+
+templ Doc(props DocProps) {
+	<article class="max-w-4xl p-6 md:p-8">
+		<h2 class="text-2xl font-semibold text-gray-900 mb-6">{ props.Doc.Title }</h2>
+		<div class="prose prose-slate max-w-none">
+			@templ.Raw(string(props.Doc.HTML))
+		</div>
+	</article>
+}

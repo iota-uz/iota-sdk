@@ -1,0 +1,18 @@
+{
+  "NavigationLinks": {
+    "HelpCenter": "Yordam markazi"
+  },
+  "HelpCenter": {
+    "Meta": {
+      "Title": "Yordam markazi",
+      "Subtitle": "Mahsulot hujjatlari va amaliy qo'llanmalarni ko'rib chiqing."
+    },
+    "Search": {
+      "Placeholder": "Yordam maqolalarini qidirish",
+      "Unavailable": "Qidiruv mavjud emas.",
+      "NoResults": "Natijalar topilmadi."
+    },
+    "Categories": "Kategoriyalar",
+    "Empty": "Yordam maqolalari hali mavjud emas."
+  }
+}
