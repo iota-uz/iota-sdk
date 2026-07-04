@@ -1,0 +1,15 @@
+package help
+
+import icons "github.com/iota-uz/icons/phosphor"
+
+templ Link(props LinkProps) {
+	<a
+		href={ templ.SafeURL(DocURL(props.BasePath, props.Path)) }
+		aria-label={ resolvedLabel(props) }
+		class={ "inline-flex size-5 shrink-0 items-center justify-center rounded-full text-gray-400 transition-colors hover:bg-gray-100 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2", props.Class }
+		{ linkAttrs(props)... }
+	>
+		@icons.Info(icons.Props{Size: "16", Class: "pointer-events-none"})
+		<span class="sr-only">{ resolvedLabel(props) }</span>
+	</a>
+}
