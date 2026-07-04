@@ -8,7 +8,7 @@ type DocProps struct {
 
 templ Doc(props DocProps) {
 	<article class="max-w-4xl p-6 md:p-8">
-		<div class="prose prose-slate max-w-none">
+		<div class="help-article">
 			@templ.Raw(string(props.Doc.HTML))
 		</div>
 	</article>
