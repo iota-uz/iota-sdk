@@ -430,6 +430,15 @@ templ HiddenQueryInputs(values map[string][]string) {
 }
 
 templ DashboardScripts() {
+	<style>
+		/* ApexCharts gives bar rects no pointer affordance by default even when
+		   a click handler is wired. Scoped to DrillHierarchy charts (the only
+		   Bar panels whose click is a real interaction users need to discover)
+		   rather than applied globally to every bar chart. */
+		[data-lens-drill-hierarchy] .apexcharts-bar-area {
+			cursor: pointer;
+		}
+	</style>
 	<script>
 		(function() {
 			if (window.__lensDashboardScriptsBound) {
@@ -637,6 +646,13 @@ templ DashboardScripts() {
 			// therefore re-assert the full numeric axis config, not just the
 			// formatter, mirroring what apex.go's applyValueScale does server-side
 			// for the initial render.
+			// Mirrors apex.go's Grid.Padding.Top precedent for the stacked-bar
+			// total badge: the "← Back" overlay is absolutely positioned inside
+			// the chart's own root element, at the same height ApexCharts places
+			// its topmost y-axis tick label, so the plot area must be pushed down
+			// to clear it whenever the button is visible.
+			const LENS_DRILL_BACK_BUTTON_TOP_PADDING = 34;
+			const LENS_DRILL_DEFAULT_TOP_PADDING = 4;
 			const lensDrillYAxisConfig = function(container, cfg, axis) {
 				const isLog = axis && axis.scale === 'log';
 				return [{
@@ -690,6 +706,7 @@ templ DashboardScripts() {
 					colors: current.colors,
 					legend: { show: true },
 					yaxis: lensDrillYAxisConfig(container, cfg, cfg.others.axis),
+					grid: { padding: { top: LENS_DRILL_BACK_BUTTON_TOP_PADDING } },
 					tooltip: { y: { formatter: lensDrillMakeTooltipFormatter(container, cfg) } },
 				}, true, animate !== false);
 				lensDrillShowBackButton(container, '← ' + cfg.backLabel, function() {
@@ -715,6 +732,7 @@ templ DashboardScripts() {
 					colors: singleColor,
 					legend: { show: false },
 					yaxis: lensDrillYAxisConfig(container, cfg, qb.axis),
+					grid: { padding: { top: LENS_DRILL_BACK_BUTTON_TOP_PADDING } },
 					tooltip: { y: { formatter: lensDrillMakeTooltipFormatter(container, cfg) } },
 				}, true, animate !== false);
 				lensDrillShowBackButton(container, '← ' + yearLabel, function() {
@@ -738,6 +756,7 @@ templ DashboardScripts() {
 					colors: prev.colors,
 					legend: { show: prev.legendShow },
 					yaxis: lensDrillYAxisConfig(container, cfg, prev.axis),
+					grid: { padding: { top: state.stack.length === 0 ? LENS_DRILL_DEFAULT_TOP_PADDING : LENS_DRILL_BACK_BUTTON_TOP_PADDING } },
 					tooltip: { y: { formatter: lensDrillMakeTooltipFormatter(container, cfg) } },
 				}, true, !wasQuarterView);
 				if (state.stack.length === 0) {
@@ -763,6 +782,7 @@ templ DashboardScripts() {
 						return;
 					}
 					const container = chartContext.el;
+					container.setAttribute('data-lens-drill-hierarchy', 'true');
 					container.__lensDrillCfg = cfg;
 					if (!container.__lensDrillState) {
 						container.__lensDrillState = { stack: [], inQuarterView: false, currentNavigateUrls: null };
