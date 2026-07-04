@@ -342,8 +342,9 @@ templ UsersPageContent(props *IndexPageProps) {
 					:class="filtersCollapsed ? 'w-16' : 'w-64'"
 				>
 					<button
+						type="button"
 						@click="filtersCollapsed = !filtersCollapsed"
-						class="w-full p-2 mb-4 flex items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer"
+						class="mx-auto mb-4 flex size-9 items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer"
 						x-tooltip="filtersCollapsed ? expandText : collapseText"
 					>
 						@icons.CaretLeft(icons.Props{

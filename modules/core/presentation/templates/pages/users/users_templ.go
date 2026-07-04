@@ -961,7 +961,7 @@ func UsersPageContent(props *IndexPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" class=\"hidden md:block flex-shrink-0 transition-all\" :class=\"filtersCollapsed ? &#39;w-16&#39; : &#39;w-64&#39;\"><button @click=\"filtersCollapsed = !filtersCollapsed\" class=\"w-full p-2 mb-4 flex items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer\" x-tooltip=\"filtersCollapsed ? expandText : collapseText\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "\" class=\"hidden md:block flex-shrink-0 transition-all\" :class=\"filtersCollapsed ? &#39;w-16&#39; : &#39;w-64&#39;\"><button type=\"button\" @click=\"filtersCollapsed = !filtersCollapsed\" class=\"mx-auto mb-4 flex size-9 items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer\" x-tooltip=\"filtersCollapsed ? expandText : collapseText\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
