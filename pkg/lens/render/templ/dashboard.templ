@@ -512,6 +512,324 @@ templ DashboardScripts() {
 					clearSwapTargetLoading(target.closest('[data-lens-swap-target]'));
 				});
 			});
+
+			// ---- Lens drill-hierarchy client-side zoom/back state machine ----
+			// Shared by every Bar panel carrying a panel.DrillHierarchy (see
+			// render/apex/apex_drill.go). Zooms a chart in-place through:
+			//   level 0 (recent years + "Others" bucket bar)
+			//     -> "Others" expanded (the bucketed years, same shape)
+			//     -> single (year, source) quarter view (Q1..Q4, one series)
+			//     -> terminal: clicking a quarter bar navigates the page.
+			// No server round-trip except that terminal navigation. Every
+			// transition is a full chart.updateOptions() replace of
+			// series/xaxis.categories/colors/yaxis — never a partial merge,
+			// since both series count and category count change together.
+			const lensDrillCapture = function(chartContext) {
+				const config = (chartContext && chartContext.w && chartContext.w.config) || {};
+				const globals = (chartContext && chartContext.w && chartContext.w.globals) || {};
+				const series = Array.isArray(config.series) ? config.series.map(function(s) {
+					return { name: s.name, data: Array.isArray(s.data) ? s.data.slice() : [] };
+				}) : [];
+				const categories = (config.xaxis && Array.isArray(config.xaxis.categories)) ? config.xaxis.categories.slice() : [];
+				const colors = Array.isArray(globals.colors) ? globals.colors.slice()
+					: (Array.isArray(config.colors) ? config.colors.slice() : []);
+				const legendShow = !(config.legend && config.legend.show === false);
+				const yaxis = Array.isArray(config.yaxis) ? config.yaxis[0] : config.yaxis;
+				let axis = { scale: 'linear', base: 10 };
+				if (yaxis && typeof yaxis.min === 'number' && typeof yaxis.max === 'number') {
+					axis = {
+						scale: 'log',
+						base: 10,
+						min: yaxis.min,
+						max: yaxis.max,
+						step: (typeof yaxis.stepSize === 'number' && yaxis.stepSize > 0) ? yaxis.stepSize : 1,
+						tickAmount: yaxis.tickAmount,
+					};
+				}
+				return { series: series, categories: categories, colors: colors, legendShow: legendShow, axis: axis };
+			};
+			const lensDrillDecodeValue = function(axisPlan, rawValue) {
+				if (!axisPlan || axisPlan.scale !== 'log') {
+					return rawValue;
+				}
+				const base = axisPlan.base || 10;
+				const actual = Math.pow(base, rawValue);
+				return Math.abs(actual) < 1e-9 ? 0 : actual;
+			};
+			// The axis-label/tooltip formatters must be level-aware (not baked once
+			// at initial render like the static apex.go formatters), since each zoom
+			// level independently decides log-vs-linear and its own min/step. They
+			// read container.__lensAxisPlan, which every zoom transition below
+			// refreshes *before* calling updateOptions.
+			const lensDrillMakeAxisFormatter = function(container, cfg) {
+				return function(value) {
+					const axisPlan = container.__lensAxisPlan || { scale: 'linear', base: 10 };
+					const scaled = Number(value);
+					if (!Number.isFinite(scaled)) {
+						return '';
+					}
+					if (axisPlan.scale === 'log') {
+						const step = axisPlan.step || 1;
+						const slot = (scaled - axisPlan.min) / step;
+						if (!Number.isFinite(slot) || Math.abs(slot - Math.round(slot)) > 0.001) {
+							return '';
+						}
+					}
+					const actual = lensDrillDecodeValue(axisPlan, scaled);
+					if (cfg && typeof cfg.axisFormatter === 'function') {
+						return cfg.axisFormatter(actual);
+					}
+					return Math.round(actual).toLocaleString();
+				};
+			};
+			const lensDrillMakeTooltipFormatter = function(container, cfg) {
+				return function(value) {
+					const axisPlan = container.__lensAxisPlan || { scale: 'linear', base: 10 };
+					const scaled = Number(value);
+					if (!Number.isFinite(scaled)) {
+						return '';
+					}
+					const actual = lensDrillDecodeValue(axisPlan, scaled);
+					if (cfg && typeof cfg.tooltipFormatter === 'function') {
+						return cfg.tooltipFormatter(actual);
+					}
+					return Math.round(actual).toLocaleString();
+				};
+			};
+			const lensDrillShowBackButton = function(container, label, onClick) {
+				if (window.getComputedStyle && window.getComputedStyle(container).position === 'static') {
+					container.style.position = 'relative';
+				}
+				let btn = container.querySelector('[data-lens-drill-back]');
+				if (!btn) {
+					btn = document.createElement('button');
+					btn.type = 'button';
+					btn.setAttribute('data-lens-drill-back', 'true');
+					btn.style.position = 'absolute';
+					btn.style.top = '6px';
+					btn.style.left = '12px';
+					btn.style.zIndex = '6';
+					btn.style.padding = '4px 10px';
+					btn.style.borderRadius = '6px';
+					btn.style.border = '1px solid rgba(148, 163, 184, 0.35)';
+					btn.style.background = 'rgba(255, 255, 255, 0.92)';
+					btn.style.boxShadow = '0 1px 2px rgba(15, 23, 42, 0.08)';
+					btn.style.color = '#334155';
+					btn.style.font = '600 12px Inter, Helvetica Neue, Arial, sans-serif';
+					btn.style.lineHeight = '16px';
+					btn.style.cursor = 'pointer';
+					container.appendChild(btn);
+				}
+				btn.textContent = label;
+				btn.onclick = onClick;
+			};
+			const lensDrillHideBackButton = function(container) {
+				const btn = container.querySelector('[data-lens-drill-back]');
+				if (btn) {
+					btn.remove();
+				}
+			};
+			// ApexCharts replaces (does not deep-merge) array-valued options like
+			// `yaxis` on updateOptions — passing only `labels.formatter` would wipe
+			// the axis's min/max/tickAmount/stepSize from the previous render,
+			// silently falling back to auto linear scaling over the still
+			// log-transformed data (mislabeled ticks). Every transition must
+			// therefore re-assert the full numeric axis config, not just the
+			// formatter, mirroring what apex.go's applyValueScale does server-side
+			// for the initial render.
+			const lensDrillYAxisConfig = function(container, cfg, axis) {
+				const isLog = axis && axis.scale === 'log';
+				return [{
+					min: isLog ? axis.min : undefined,
+					max: isLog ? axis.max : undefined,
+					tickAmount: isLog ? axis.tickAmount : undefined,
+					stepSize: isLog ? axis.step : undefined,
+					forceNiceScale: isLog ? false : undefined,
+					decimalsInFloat: isLog ? 0 : undefined,
+					labels: { formatter: lensDrillMakeAxisFormatter(container, cfg) },
+				}];
+			};
+			const lensDrillRerenderScope = function(container) {
+				return (container && container.closest) ? container.closest('[data-lens-rerender-scope]') : null;
+			};
+			// Two independent ApexCharts instances exist per panel (the normal
+			// chart and the lazily-mounted fullscreen one), sharing one
+			// [data-lens-rerender-scope] ancestor. Every zoom transition publishes
+			// a small logical descriptor there (not the rendered series/categories
+			// themselves — those differ in shape per level and are cheap to
+			// rebuild from cfg, which every instance embeds independently) so a
+			// freshly-mounted sibling can fast-forward to the same level.
+			const lensDrillWriteSharedState = function(container, drillState) {
+				const scope = lensDrillRerenderScope(container);
+				if (scope) {
+					scope.__lensDrillSharedState = drillState;
+				}
+			};
+			const lensDrillReadSharedState = function(container) {
+				const scope = lensDrillRerenderScope(container);
+				return scope ? scope.__lensDrillSharedState : null;
+			};
+			// stack is a true LIFO of previously-rendered views (the view to
+			// return to on "← Back"), most-recently-entered last. It is NOT a
+			// record of the current view — the currently-rendered chart config
+			// (read live off chartContext.w.config) always is that.
+			const lensDrillZoomToOthers = function(container, chartContext, cfg, animate) {
+				const state = container.__lensDrillState;
+				const current = lensDrillCapture(chartContext);
+				state.stack.push(current);
+				state.inQuarterView = false;
+				state.currentNavigateUrls = null;
+				const displayNames = current.series.map(function(s) { return s.name; });
+				const series = cfg.others.series.map(function(s, i) {
+					return { name: displayNames[i] || s.name, data: s.data };
+				});
+				container.__lensAxisPlan = cfg.others.axis;
+				chartContext.updateOptions({
+					series: series,
+					xaxis: { categories: cfg.others.categories },
+					colors: current.colors,
+					legend: { show: true },
+					yaxis: lensDrillYAxisConfig(container, cfg, cfg.others.axis),
+					tooltip: { y: { formatter: lensDrillMakeTooltipFormatter(container, cfg) } },
+				}, true, animate !== false);
+				lensDrillShowBackButton(container, '← ' + cfg.backLabel, function() {
+					lensDrillZoomBack(container, chartContext, cfg);
+				});
+				lensDrillWriteSharedState(container, { others: true, quarterKey: null });
+			};
+			const lensDrillZoomToQuarter = function(container, chartContext, cfg, qb, yearLabel, sourceKey, animate) {
+				const state = container.__lensDrillState;
+				const cameFromOthers = state.stack.length > 0;
+				const current = lensDrillCapture(chartContext);
+				state.stack.push(current);
+				state.inQuarterView = true;
+				state.currentNavigateUrls = qb.navigateUrls;
+				const sourceIdx = cfg.sources.indexOf(sourceKey);
+				const displayNames = current.series.map(function(s) { return s.name; });
+				const singleColor = (sourceIdx >= 0 && current.colors[sourceIdx]) ? [current.colors[sourceIdx]] : current.colors;
+				const singleName = (sourceIdx >= 0 && displayNames[sourceIdx]) ? displayNames[sourceIdx] : yearLabel;
+				container.__lensAxisPlan = qb.axis;
+				chartContext.updateOptions({
+					series: [{ name: singleName, data: qb.values }],
+					xaxis: { categories: ['Q1', 'Q2', 'Q3', 'Q4'] },
+					colors: singleColor,
+					legend: { show: false },
+					yaxis: lensDrillYAxisConfig(container, cfg, qb.axis),
+					tooltip: { y: { formatter: lensDrillMakeTooltipFormatter(container, cfg) } },
+				}, true, animate !== false);
+				lensDrillShowBackButton(container, '← ' + yearLabel, function() {
+					lensDrillZoomBack(container, chartContext, cfg);
+				});
+				lensDrillWriteSharedState(container, { others: cameFromOthers, quarterKey: yearLabel + '|' + sourceKey });
+			};
+			const lensDrillZoomBack = function(container, chartContext, cfg) {
+				const state = container.__lensDrillState;
+				if (!state || !state.stack.length) {
+					return;
+				}
+				const wasQuarterView = state.inQuarterView;
+				const prev = state.stack.pop();
+				state.inQuarterView = false;
+				state.currentNavigateUrls = null;
+				container.__lensAxisPlan = prev.axis;
+				chartContext.updateOptions({
+					series: prev.series,
+					xaxis: { categories: prev.categories },
+					colors: prev.colors,
+					legend: { show: prev.legendShow },
+					yaxis: lensDrillYAxisConfig(container, cfg, prev.axis),
+					tooltip: { y: { formatter: lensDrillMakeTooltipFormatter(container, cfg) } },
+				}, true, !wasQuarterView);
+				if (state.stack.length === 0) {
+					lensDrillHideBackButton(container);
+					lensDrillWriteSharedState(container, null);
+				} else {
+					// Still one level deep (the "Others" expanded view) — Back
+					// remains available to return all the way to level 0.
+					lensDrillShowBackButton(container, '← ' + cfg.backLabel, function() {
+						lensDrillZoomBack(container, chartContext, cfg);
+					});
+					lensDrillWriteSharedState(container, { others: true, quarterKey: null });
+				}
+			};
+			// Fast-forwards a freshly (re)mounted chart (e.g. the lazy fullscreen
+			// instance, or a chart re-rendered after an htmx filter swap) to
+			// whatever level its sibling in the same rerender scope last left. A
+			// filter/date-range change swaps in a brand-new container with a fresh
+			// id and no shared state, so zoom naturally resets for free there.
+			window.__lensDrillHierarchyMount = function(chartContext, cfg) {
+				try {
+					if (!chartContext || !chartContext.el || !cfg) {
+						return;
+					}
+					const container = chartContext.el;
+					container.__lensDrillCfg = cfg;
+					if (!container.__lensDrillState) {
+						container.__lensDrillState = { stack: [], inQuarterView: false, currentNavigateUrls: null };
+					}
+					const shared = lensDrillReadSharedState(container);
+					if (!shared || container.__lensDrillState.stack.length) {
+						return;
+					}
+					if (shared.quarterKey && cfg.quarters && cfg.quarters[shared.quarterKey]) {
+						const parts = shared.quarterKey.split('|');
+						const yearLabel = parts[0];
+						const sourceKey = parts.slice(1).join('|');
+						if (shared.others && cfg.others) {
+							lensDrillZoomToOthers(container, chartContext, cfg, false);
+						}
+						lensDrillZoomToQuarter(container, chartContext, cfg, cfg.quarters[shared.quarterKey], yearLabel, sourceKey, false);
+					} else if (shared.others && cfg.others) {
+						lensDrillZoomToOthers(container, chartContext, cfg, false);
+					}
+				} catch (e) {
+					// Never throw from a chart lifecycle hook.
+				}
+			};
+			window.__lensDrillHierarchyClick = function(chartContext, opts, cfg) {
+				try {
+					if (!chartContext || !chartContext.el || !cfg) {
+						return;
+					}
+					const container = chartContext.el;
+					container.__lensDrillCfg = cfg;
+					if (!container.__lensDrillState) {
+						container.__lensDrillState = { stack: [], inQuarterView: false, currentNavigateUrls: null };
+					}
+					const state = container.__lensDrillState;
+					const seriesIndex = opts ? opts.seriesIndex : -1;
+					const dataPointIndex = opts ? opts.dataPointIndex : -1;
+					if (seriesIndex == null || seriesIndex < 0 || dataPointIndex == null || dataPointIndex < 0) {
+						return;
+					}
+					if (state.inQuarterView) {
+						const url = (state.currentNavigateUrls || [])[dataPointIndex];
+						if (url) {
+							window.location.href = url;
+						}
+						return;
+					}
+					const atTop = state.stack.length === 0;
+					if (atTop && cfg.othersLabel && cfg.others && dataPointIndex === 0) {
+						lensDrillZoomToOthers(container, chartContext, cfg, true);
+						return;
+					}
+					const config = (chartContext.w && chartContext.w.config) || {};
+					const categories = (config.xaxis && Array.isArray(config.xaxis.categories)) ? config.xaxis.categories : [];
+					const yearLabel = categories[dataPointIndex];
+					const sourceKey = cfg.sources ? cfg.sources[seriesIndex] : null;
+					if (!yearLabel || !sourceKey) {
+						return;
+					}
+					const qb = cfg.quarters ? cfg.quarters[yearLabel + '|' + sourceKey] : null;
+					if (!qb) {
+						return;
+					}
+					lensDrillZoomToQuarter(container, chartContext, cfg, qb, yearLabel, sourceKey, true);
+				} catch (e) {
+					// Never throw inside an ApexCharts event handler.
+				}
+			};
 		})();
 	</script>
 }

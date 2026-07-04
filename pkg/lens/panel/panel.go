@@ -150,6 +150,7 @@ type Spec struct {
 	Colors         []string
 	ShowLegend     bool
 	ShowTotalBadge bool
+	DrillHierarchy *DrillHierarchy
 	Fields         FieldMapping
 	Formatter      *format.Spec
 	Columns        []TableColumn
@@ -162,6 +163,39 @@ type Spec struct {
 	Distributed    bool
 	ColorField     FieldRef
 	ColorScale     string
+}
+
+// DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
+// panel "zoom" client-side (year -> quarter, and expand a trailing-years
+// "Others" bucket) with zero further server round-trips. See EAI's
+// analytics dashboards.buildPremiumBySourceYearChart for the producer and
+// render/apex's buildDrillHierarchyJS for the consumer.
+type DrillHierarchy struct {
+	// Sources lists the raw (untranslated) source keys in the same order as
+	// the chart's series/Colors (index i is series i). Lets the click
+	// handler resolve ApexCharts' numeric seriesIndex to a stable key
+	// without string-matching the locale-dependent series display name.
+	Sources []string
+	// OthersLabel is the already-localized category label for the top-level
+	// bucket bar (e.g. "Остальные"). Empty means the dataset fit within the
+	// recent-years window and there is no bucket.
+	OthersLabel string
+	// OthersYears lists, ascending, every year folded into the bucket. This
+	// is the "expand Others" view's category axis.
+	OthersYears []int
+	// Years maps "<year>|<sourceKey>" to that cell's raw (unfloored,
+	// unscaled) amount, for EVERY year in the dataset — both the recently
+	// shown years and every bucketed year.
+	Years map[string]float64
+	// Quarters maps "<year>|<sourceKey>" to that pair's Q1..Q4 breakdown,
+	// for the same full set of years as Years.
+	Quarters map[string]QuarterBreakdown
+}
+
+// QuarterBreakdown is one (year, source) pair's quarterly detail.
+type QuarterBreakdown struct {
+	Amounts      [4]float64 // Q1..Q4, index 0 = Q1; raw, unfloored
+	NavigateURLs [4]string  // Q1..Q4 navigate target; "" = not navigable
 }
 
 type FieldMapping struct {
@@ -249,6 +283,10 @@ func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; re
 func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
 func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
 func (b *Builder) TotalBadge() *Builder             { b.spec.ShowTotalBadge = true; return b }
+func (b *Builder) DrillHierarchy(h DrillHierarchy) *Builder {
+	b.spec.DrillHierarchy = &h
+	return b
+}
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }

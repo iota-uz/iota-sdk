@@ -96,6 +96,10 @@ func (b *PanelBuilder) Height(height string) *PanelBuilder    { b.panel.Height =
 func (b *PanelBuilder) Colors(colors ...string) *PanelBuilder { b.panel.Colors = colors; return b }
 func (b *PanelBuilder) Legend() *PanelBuilder                 { b.panel.ShowLegend = true; return b }
 func (b *PanelBuilder) TotalBadge() *PanelBuilder             { b.panel.ShowTotalBadge = true; return b }
+func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
+	b.panel.DrillHierarchy = &h
+	return b
+}
 func (b *PanelBuilder) Format(spec format.Spec) *PanelBuilder { b.panel.Formatter = &spec; return b }
 func (b *PanelBuilder) Action(spec action.Spec) *PanelBuilder { b.panel.Action = &spec; return b }
 func (b *PanelBuilder) Description(text string) *PanelBuilder {

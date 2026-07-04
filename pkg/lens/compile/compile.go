@@ -368,6 +368,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		Colors:         resolveStringSlice(item.Colors, opts.Values),
 		ShowLegend:     item.ShowLegend,
 		ShowTotalBadge: item.ShowTotalBadge,
+		DrillHierarchy: item.DrillHierarchy,
 		Fields: panel.FieldMapping{
 			Label:     panel.Ref(resolveString(item.Fields.Label, opts.Values)),
 			Value:     panel.Ref(resolveString(item.Fields.Value, opts.Values)),

@@ -250,6 +250,13 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	if panelSpec.Action != nil {
 		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
+	} else if panelSpec.DrillHierarchy != nil {
+		chartEvents.DataPointSelection = buildDrillHierarchyJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
+		// Mounted re-derives the same cfg blob so the shared JS state machine can
+		// fast-forward a freshly-mounted chart (e.g. the lazy fullscreen instance)
+		// to whatever zoom level its sibling in the same rerender scope is at,
+		// without waiting for a click.
+		chartEvents.Mounted = buildDrillHierarchyMountJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
 	}
 	if panelSpec.Kind == panel.KindStackedBar {
 		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter)
