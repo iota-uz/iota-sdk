@@ -315,6 +315,146 @@ func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableCol
 	return columns
 }
 
+// tableWrapperStyle controls whether a Table panel's scroll container is
+// bounded. Panels marked with the "lens-table-scroll" ClassName token get a
+// fixed max height with a scrolling body (the header row stays sticky);
+// every other table only clips overflow without capping height. The cap is
+// an inline style rather than a Tailwind arbitrary-value class because
+// consumer apps compile their CSS against the *published* SDK sources — a
+// class only this template uses would be purged from their builds.
+func tableWrapperStyle(spec panel.Spec) templpkg.SafeCSS {
+	if panelHasClass(spec, "lens-table-scroll") {
+		return "max-height:26rem"
+	}
+	return ""
+}
+
+// tableIsCompact reports whether a table opted into the denser treatment
+// that pairs with a bounded scrolling body: tighter cell padding and a
+// truncated first column, so a many-column breakdown fits a half-width panel.
+func tableIsCompact(spec panel.Spec) bool {
+	return panelHasClass(spec, "lens-table-scroll")
+}
+
+func tableHeaderCellClass(spec panel.Spec, column panel.TableColumn) string {
+	// Solid header background: scroll-capped tables slide rows underneath
+	// the sticky header, and a translucent one lets them bleed through.
+	base := "sticky top-0 z-10 whitespace-nowrap bg-gray-50 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400"
+	if tableIsCompact(spec) {
+		base += " px-3"
+	} else {
+		base += " px-4"
+	}
+	if column.Align == "right" {
+		return base + " text-right"
+	}
+	return base + " text-left"
+}
+
+func tableCellClass(spec panel.Spec, column panel.TableColumn) string {
+	base := "whitespace-nowrap py-3 md:py-2 text-gray-600"
+	if tableIsCompact(spec) {
+		base += " px-3"
+	} else {
+		base += " px-4"
+	}
+	if column.Align == "right" {
+		return base + " text-right tabular-nums"
+	}
+	return base
+}
+
+// tableColumnBarMax computes, once per render, the max absolute numeric
+// value of each TableCellBar column across every row, so each cell can scale
+// its mini-bar against a shared denominator instead of re-scanning rows.
+func tableColumnBarMax(columns []panel.TableColumn, rows []map[string]any) map[panel.FieldRef]float64 {
+	out := make(map[panel.FieldRef]float64)
+	for _, column := range columns {
+		if column.Cell == nil || column.Cell.Kind != panel.TableCellBar {
+			continue
+		}
+		maxAbs := 0.0
+		for _, row := range rows {
+			abs := math.Abs(segmentNumeric(row[column.Field.Name()]))
+			if abs > maxAbs {
+				maxAbs = abs
+			}
+		}
+		out[column.Field] = maxAbs
+	}
+	return out
+}
+
+// tableBarCellFloorPct keeps a non-zero bar-cell value from rendering an
+// invisible sliver next to the column's max value.
+const tableBarCellFloorPct = 3.0
+
+type tableBarCellView struct {
+	Text       string
+	TextClass  string
+	FillClass  string
+	WidthStyle templpkg.SafeCSS
+}
+
+func buildTableBarCell(column panel.TableColumn, row map[string]any, result *runtime.PanelResult, maxAbs float64) tableBarCellView {
+	value := segmentNumeric(row[column.Field.Name()])
+	view := tableBarCellView{
+		Text:      formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone),
+		TextClass: "text-slate-700",
+		FillClass: "bg-green-500",
+	}
+	if value < 0 {
+		view.TextClass = "text-red-600"
+		view.FillClass = "bg-red-500"
+	}
+	pct := 0.0
+	if value != 0 && maxAbs > 0 {
+		pct = math.Abs(value) / maxAbs * 100
+		if pct > 100 {
+			pct = 100
+		}
+		if pct < tableBarCellFloorPct {
+			pct = tableBarCellFloorPct
+		}
+	}
+	view.WidthStyle = cascadeWidthStyle(pct)
+	return view
+}
+
+type tableDeltaCellView struct {
+	// PctText is the primary line ("+22.2%"); AmountText the secondary
+	// absolute change beneath it. Two lines keep the column narrow enough
+	// to coexist with four numeric columns in a half-width panel.
+	PctText    string
+	AmountText string
+	Class      string
+}
+
+func buildTableDeltaCell(column panel.TableColumn, row map[string]any, result *runtime.PanelResult) tableDeltaCellView {
+	delta := segmentNumeric(row[column.Field.Name()])
+	pct := 0.0
+	if column.Cell != nil {
+		pct = segmentNumeric(row[column.Cell.PercentField.Name()])
+	}
+	sign := ""
+	class := "text-slate-400"
+	switch {
+	case delta > 0:
+		sign = "+"
+		class = "text-green-600"
+	case delta < 0:
+		sign = cascadeMinusSign
+		class = "text-red-600"
+	}
+	amountText := formatValue(math.Abs(delta), column.Formatter, result.Locale, result.Timezone)
+	pctText := strconv.FormatFloat(math.Abs(pct), 'f', 1, 64)
+	return tableDeltaCellView{
+		PctText:    sign + pctText + "%",
+		AmountText: sign + amountText,
+		Class:      class,
+	}
+}
+
 func tableRowContainerID(spec panel.Spec) string {
 	if panelHasClass(spec, "lens-card-list") {
 		return spec.ID + "-cards"
@@ -546,15 +686,21 @@ type cascadeStage struct {
 	Value      string
 	CutLabel   string
 	CutValue   string
+	CutClass   string
 	Raw        float64
 	CutRaw     float64
 	WidthPct   float64
 	Final      bool
 	HasCut     bool
-	BarClass   string
+	FillClass  string
+	LabelClass string
 	ValueClass string
 	WidthStyle templpkg.SafeCSS
 }
+
+// cascadeWidthFloorPct keeps non-zero stage bars from becoming invisible
+// slivers next to a much larger stage.
+const cascadeWidthFloorPct = 2.0
 
 func buildCascadeView(spec panel.Spec, result *runtime.PanelResult) cascadeView {
 	view := cascadeView{}
@@ -571,16 +717,15 @@ func buildCascadeView(spec panel.Spec, result *runtime.PanelResult) cascadeView 
 	cutLabelField := firstField(spec.Fields.CutLabel, panel.DefaultCutLabelField)
 	finalField := firstField(spec.Fields.Final, panel.DefaultFinalField)
 
-	firstPositive := 0.0
+	maxStageValue := 0.0
 	for _, row := range rows {
 		value := segmentNumeric(row[valueField.Name()])
-		if value > 0 && (firstPositive == 0 || firstPositive == value) {
-			firstPositive = value
-			break
+		if value > maxStageValue {
+			maxStageValue = value
 		}
 	}
-	if firstPositive <= 0 {
-		firstPositive = 1
+	if maxStageValue <= 0 {
+		maxStageValue = 1
 	}
 
 	view.HasData = true
@@ -590,32 +735,103 @@ func buildCascadeView(spec panel.Spec, result *runtime.PanelResult) cascadeView 
 		cutRaw := segmentNumeric(row[cutField.Name()])
 		final := rowBool(row[finalField.Name()])
 		width := 0.0
-		if firstPositive > 0 && raw > 0 {
-			width = raw / firstPositive * 100
-		}
-		if width > 100 {
-			width = 100
-		}
-		if width < 0 {
-			width = 0
+		if raw > 0 {
+			width = raw / maxStageValue * 100
+			if width > 100 {
+				width = 100
+			}
+			if width < cascadeWidthFloorPct {
+				width = cascadeWidthFloorPct
+			}
 		}
 		cutLabel := strings.TrimSpace(fmt.Sprint(row[cutLabelField.Name()]))
 		view.Stages = append(view.Stages, cascadeStage{
 			Label:      strings.TrimSpace(fmt.Sprint(row[labelField.Name()])),
 			Value:      formatValue(raw, spec.Formatter, result.Locale, result.Timezone),
 			CutLabel:   cutLabel,
-			CutValue:   formatValue(cutRaw, spec.Formatter, result.Locale, result.Timezone),
+			CutValue:   cascadeCutValue(cutRaw, spec.Formatter, result.Locale, result.Timezone),
+			CutClass:   cascadeCutClass(cutRaw),
 			Raw:        raw,
 			CutRaw:     cutRaw,
 			WidthPct:   width,
 			Final:      final,
 			HasCut:     i > 0 && cutLabel != "",
-			BarClass:   cascadeBarClass(final),
+			FillClass:  cascadeBarClass(final),
+			LabelClass: cascadeLabelClass(final),
 			ValueClass: cascadeValueClass(raw),
 			WidthStyle: cascadeWidthStyle(width),
 		})
 	}
 	return view
+}
+
+// cascadeMinusSign is U+2212 MINUS SIGN, used instead of a hyphen so signed
+// cut values read as arithmetic rather than a hyphenated word.
+const cascadeMinusSign = "−"
+
+// cascadeCutValue renders a cascade stage's deduction with an explicit sign:
+// a positive cut (money leaving the bridge) shows as "−<amount>", a negative
+// cut (money added back) shows as "+<amount>", and a zero cut shows as a
+// plain formatted zero.
+func cascadeCutValue(cutRaw float64, formatter *format.Spec, locale, timezone string) string {
+	switch {
+	case cutRaw > 0:
+		return cascadeMinusSign + formatValue(cutRaw, formatter, locale, timezone)
+	case cutRaw < 0:
+		return "+" + formatValue(-cutRaw, formatter, locale, timezone)
+	default:
+		return formatValue(0, formatter, locale, timezone)
+	}
+}
+
+func cascadeCutClass(cutRaw float64) string {
+	switch {
+	case cutRaw > 0:
+		return "text-red-600"
+	case cutRaw < 0:
+		return "text-green-600"
+	default:
+		return "text-slate-400"
+	}
+}
+
+func cascadeLabelClass(final bool) string {
+	if final {
+		return "font-semibold text-slate-900"
+	}
+	return "font-medium text-slate-700"
+}
+
+// trendChipClass, trendArrow, and trendPercentText back the panel header's
+// TrendSpec chip: a small signed-percent indicator colored/arrowed by sign.
+func trendChipClass(percent float64) string {
+	switch {
+	case percent > 0:
+		return "text-green-600"
+	case percent < 0:
+		return "text-red-600"
+	default:
+		return "text-slate-400"
+	}
+}
+
+func trendArrow(percent float64) string {
+	switch {
+	case percent > 0:
+		return "▲"
+	case percent < 0:
+		return "▼"
+	default:
+		return ""
+	}
+}
+
+func trendPercentText(percent float64) string {
+	sign := ""
+	if percent > 0 {
+		sign = "+"
+	}
+	return sign + strconv.FormatFloat(percent, 'f', 1, 64)
 }
 
 func firstField(fields ...panel.FieldRef) panel.FieldRef {
@@ -649,16 +865,16 @@ func rowBool(value any) bool {
 
 func cascadeBarClass(final bool) string {
 	if final {
-		return "absolute inset-y-0 left-0 rounded-xl bg-emerald-500"
+		return "h-full rounded-full bg-green-500"
 	}
-	return "absolute inset-y-0 left-0 rounded-xl bg-brand-500"
+	return "h-full rounded-full bg-brand-500"
 }
 
 func cascadeValueClass(raw float64) string {
 	if raw < 0 {
-		return "text-sm font-semibold tabular-nums text-red-700"
+		return "text-red-600"
 	}
-	return "text-sm font-semibold tabular-nums text-slate-900"
+	return "text-slate-900"
 }
 
 func cascadeWidthStyle(pct float64) templpkg.SafeCSS {

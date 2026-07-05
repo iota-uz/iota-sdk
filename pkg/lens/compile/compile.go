@@ -369,6 +369,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		ShowLegend:     item.ShowLegend,
 		ShowTotalBadge: item.ShowTotalBadge,
 		DrillHierarchy: item.DrillHierarchy,
+		Trend:          item.Trend,
 		Fields: panel.FieldMapping{
 			Label:     panel.Ref(resolveString(item.Fields.Label, opts.Values)),
 			Value:     panel.Ref(resolveString(item.Fields.Value, opts.Values)),
@@ -409,6 +410,8 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			Formatter: column.Formatter,
 			Action:    actionSpec,
 			Text:      resolveText(column.Text, opts),
+			Align:     column.Align,
+			Cell:      column.Cell,
 		})
 	}
 

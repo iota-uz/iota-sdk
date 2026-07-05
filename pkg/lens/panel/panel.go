@@ -115,6 +115,31 @@ type TableColumn struct {
 	Formatter *format.Spec
 	Action    *action.Spec
 	Text      string
+	// Align controls the column's text alignment: "" (left) or "right".
+	Align string
+	// Cell selects a rich cell renderer (bar / delta) instead of the default
+	// plain-text cell. Nil means plain text.
+	Cell *TableCellSpec
+}
+
+// TableCellKind selects a Table panel's rich cell renderer.
+type TableCellKind string
+
+const (
+	// TableCellBar renders the numeric value alongside a proportional mini-bar
+	// scaled against the column's max absolute value.
+	TableCellBar TableCellKind = "bar"
+	// TableCellDelta renders a signed delta plus a percent change, colored by
+	// sign.
+	TableCellDelta TableCellKind = "delta"
+)
+
+// TableCellSpec configures a Table panel column's rich cell renderer.
+type TableCellSpec struct {
+	Kind TableCellKind
+	// PercentField is used by TableCellDelta cells: the field holding the
+	// percent number rendered alongside the delta.
+	PercentField FieldRef
 }
 
 type FieldRef string
@@ -151,6 +176,7 @@ type Spec struct {
 	ShowLegend     bool
 	ShowTotalBadge bool
 	DrillHierarchy *DrillHierarchy
+	Trend          *TrendSpec
 	Fields         FieldMapping
 	Formatter      *format.Spec
 	Columns        []TableColumn
@@ -196,6 +222,13 @@ type DrillHierarchy struct {
 type QuarterBreakdown struct {
 	Amounts      [4]float64 // Q1..Q4, index 0 = Q1; raw, unfloored
 	NavigateURLs [4]string  // Q1..Q4 navigate target; "" = not navigable
+}
+
+// TrendSpec renders a small colored chip in a panel's header showing a signed
+// percent change alongside a comparison label (e.g. "vs last month").
+type TrendSpec struct {
+	Percent float64
+	Label   string
 }
 
 type FieldMapping struct {
@@ -285,6 +318,10 @@ func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; 
 func (b *Builder) TotalBadge() *Builder             { b.spec.ShowTotalBadge = true; return b }
 func (b *Builder) DrillHierarchy(h DrillHierarchy) *Builder {
 	b.spec.DrillHierarchy = &h
+	return b
+}
+func (b *Builder) Trend(percent float64, label string) *Builder {
+	b.spec.Trend = &TrendSpec{Percent: percent, Label: label}
 	return b
 }
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }

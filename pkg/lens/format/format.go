@@ -41,6 +41,13 @@ func MoneyCompact(currency string) Spec {
 	return Spec{Name: "money_compact", Kind: KindAbbreviatedMoney, Currency: currency, Precision: 2}
 }
 
+// NumberCompact abbreviates like MoneyCompact but without a currency suffix —
+// for dense table columns where repeating the currency on every cell is noise
+// and the surrounding panel already states it.
+func NumberCompact() Spec {
+	return Spec{Name: "number_compact", Kind: KindAbbreviatedMoney, Precision: 2}
+}
+
 func Money(currency string, precision int) Spec {
 	return Spec{Name: "money", Kind: KindMoney, Currency: currency, Precision: precision}
 }
@@ -73,7 +80,10 @@ func Apply(spec *Spec, value any, locale, timezone string) string {
 		if !ok {
 			return defaultFormat(value)
 		}
-		return fmt.Sprintf("%s %s", abbreviate(number, spec.Precision), spec.Currency)
+		if spec.Currency == "" {
+			return abbreviate(number, spec.Precision, locale)
+		}
+		return fmt.Sprintf("%s %s", abbreviate(number, spec.Precision, locale), spec.Currency)
 	case KindInteger:
 		number, ok := coerceNumber(value)
 		if !ok {
@@ -189,20 +199,66 @@ func defaultFormat(value any) string {
 	}
 }
 
-func abbreviate(value float64, precision int) string {
+// abbreviateSuffixes is one locale's compact-number suffix set (thousand,
+// million, billion, trillion) plus whether a space separates the number from
+// the suffix. English keeps the tight "12.50K" convention; the other
+// supported locales spell the magnitude as a word and space it out.
+type abbreviateSuffixes struct {
+	Thousand string
+	Million  string
+	Billion  string
+	Trillion string
+	Spaced   bool
+}
+
+var (
+	abbreviateSuffixesEn = abbreviateSuffixes{Thousand: "K", Million: "M", Billion: "B", Trillion: "T"}
+	abbreviateSuffixesRu = abbreviateSuffixes{Thousand: "тыс", Million: "млн", Billion: "млрд", Trillion: "трлн", Spaced: true}
+	abbreviateSuffixesUz = abbreviateSuffixes{Thousand: "ming", Million: "mln", Billion: "mlrd", Trillion: "trln", Spaced: true}
+	// abbreviateSuffixesUzCyrl is the Cyrillic Uzbek locale ("uz-Cyrl").
+	abbreviateSuffixesUzCyrl = abbreviateSuffixes{Thousand: "минг", Million: "млн", Billion: "млрд", Trillion: "трлн", Spaced: true}
+)
+
+// abbreviateSuffixesFor resolves a locale code to its compact-number suffix
+// set. Matching follows the moneyThousandSeparator convention: a
+// case-insensitive prefix match, with "uz-Cyrl" checked before the bare "uz"
+// prefix so the Cyrillic variant is not shadowed by the Latin one.
+func abbreviateSuffixesFor(locale string) abbreviateSuffixes {
+	normalized := strings.ToLower(strings.TrimSpace(locale))
+	switch {
+	case strings.HasPrefix(normalized, "ru"):
+		return abbreviateSuffixesRu
+	case strings.HasPrefix(normalized, "uz-cyrl"):
+		return abbreviateSuffixesUzCyrl
+	case strings.HasPrefix(normalized, "uz"):
+		return abbreviateSuffixesUz
+	default:
+		return abbreviateSuffixesEn
+	}
+}
+
+func abbreviate(value float64, precision int, locale string) string {
+	suffixes := abbreviateSuffixesFor(locale)
 	abs := math.Abs(value)
 	switch {
 	case abs >= 1_000_000_000_000:
-		return fmt.Sprintf("%.*fT", precision, value/1_000_000_000_000)
+		return formatAbbreviated(value/1_000_000_000_000, precision, suffixes.Trillion, suffixes.Spaced)
 	case abs >= 1_000_000_000:
-		return fmt.Sprintf("%.*fB", precision, value/1_000_000_000)
+		return formatAbbreviated(value/1_000_000_000, precision, suffixes.Billion, suffixes.Spaced)
 	case abs >= 1_000_000:
-		return fmt.Sprintf("%.*fM", precision, value/1_000_000)
+		return formatAbbreviated(value/1_000_000, precision, suffixes.Million, suffixes.Spaced)
 	case abs >= 1_000:
-		return fmt.Sprintf("%.*fK", precision, value/1_000)
+		return formatAbbreviated(value/1_000, precision, suffixes.Thousand, suffixes.Spaced)
 	default:
 		return fmt.Sprintf("%.*f", precision, value)
 	}
+}
+
+func formatAbbreviated(scaled float64, precision int, suffix string, spaced bool) string {
+	if spaced {
+		return fmt.Sprintf("%.*f %s", precision, scaled, suffix)
+	}
+	return fmt.Sprintf("%.*f%s", precision, scaled, suffix)
 }
 
 func coerceNumber(value any) (float64, bool) {

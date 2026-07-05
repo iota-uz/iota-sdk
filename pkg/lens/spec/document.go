@@ -140,6 +140,7 @@ type PanelSpec struct {
 	ShowLegend     bool                  `json:"showLegend,omitempty"`
 	ShowTotalBadge bool                  `json:"showTotalBadge,omitempty"`
 	DrillHierarchy *panel.DrillHierarchy `json:"drillHierarchy,omitempty"`
+	Trend          *panel.TrendSpec      `json:"trend,omitempty"`
 	Fields         FieldMappingSpec      `json:"fields,omitempty"`
 	Formatter      *format.Spec          `json:"formatter,omitempty"`
 	Columns        []TableColumnSpec     `json:"columns,omitempty"`
@@ -157,11 +158,13 @@ type PanelSpec struct {
 }
 
 type TableColumnSpec struct {
-	Field     string       `json:"field,omitempty"`
-	Label     Text         `json:"label"`
-	Formatter *format.Spec `json:"formatter,omitempty"`
-	Action    *action.Spec `json:"action,omitempty"`
-	Text      Text         `json:"text"`
+	Field     string               `json:"field,omitempty"`
+	Label     Text                 `json:"label"`
+	Formatter *format.Spec         `json:"formatter,omitempty"`
+	Action    *action.Spec         `json:"action,omitempty"`
+	Text      Text                 `json:"text"`
+	Align     string               `json:"align,omitempty"`
+	Cell      *panel.TableCellSpec `json:"cell,omitempty"`
 }
 
 type FieldMappingSpec struct {

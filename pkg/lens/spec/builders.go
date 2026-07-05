@@ -100,6 +100,10 @@ func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
 	b.panel.DrillHierarchy = &h
 	return b
 }
+func (b *PanelBuilder) Trend(percent float64, label string) *PanelBuilder {
+	b.panel.Trend = &panel.TrendSpec{Percent: percent, Label: label}
+	return b
+}
 func (b *PanelBuilder) Format(spec format.Spec) *PanelBuilder { b.panel.Formatter = &spec; return b }
 func (b *PanelBuilder) Action(spec action.Spec) *PanelBuilder { b.panel.Action = &spec; return b }
 func (b *PanelBuilder) Description(text string) *PanelBuilder {
@@ -230,6 +234,26 @@ func (c TableColumnSpec) WithAction(spec *action.Spec) TableColumnSpec {
 
 func (c TableColumnSpec) WithText(text string) TableColumnSpec {
 	c.Text = LiteralText(text)
+	return c
+}
+
+// AlignRight right-aligns the column's header and cell text.
+func (c TableColumnSpec) AlignRight() TableColumnSpec {
+	c.Align = "right"
+	return c
+}
+
+// Bar renders the column as a numeric value with a proportional mini-bar,
+// scaled against the column's max absolute value across rows.
+func (c TableColumnSpec) Bar() TableColumnSpec {
+	c.Cell = &panel.TableCellSpec{Kind: panel.TableCellBar}
+	return c
+}
+
+// Delta renders the column as a signed delta plus a percent change read from
+// percentField, colored by the delta's sign.
+func (c TableColumnSpec) Delta(percentField string) TableColumnSpec {
+	c.Cell = &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.FieldRef(percentField)}
 	return c
 }
 

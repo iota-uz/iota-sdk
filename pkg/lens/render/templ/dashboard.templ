@@ -169,25 +169,77 @@ templ lensSkeletonStyles() {
 // Tailwind build does not generate lens-specific utility classes.
 templ panelSkeleton(spec panel.Spec) {
 	<div class="lens-grid-item" style={ panelSpanStyle(spec.Span) }>
-		if spec.Kind == panel.KindStat {
-			<div class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:136px">
-				<div class="lens-skeleton-shimmer flex-shrink-0 rounded-full" style="width:3px"></div>
-				<div class="flex min-w-0 flex-1 flex-col gap-2.5">
-					<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:80%"></div>
-					<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:55%"></div>
-					<div class="lens-skeleton-shimmer mt-auto h-8 rounded-md" style="width:60%"></div>
+		@panelSkeletonCard(spec)
+	</div>
+}
+
+// panelSkeletonCard renders the card content for one panel position (a
+// top-level row panel, or one child slot inside a composite). It mirrors the
+// real PanelContent switch: leaf kinds get a self-contained card, and the
+// composite kinds (Tabs/Grid/Split/Repeat) recurse to match how
+// CompositePanel/TabsPanelFrames actually nest their children.
+templ panelSkeletonCard(spec panel.Spec) {
+	if spec.Kind == panel.KindTabs {
+		@tabsSkeletonCard(spec)
+	} else if spec.Kind == panel.KindGrid || spec.Kind == panel.KindSplit || spec.Kind == panel.KindRepeat {
+		@compositeSkeletonBody(spec)
+	} else if spec.Kind == panel.KindStat {
+		<div class="flex h-full gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:136px">
+			<div class="lens-skeleton-shimmer flex-shrink-0 rounded-full" style="width:3px"></div>
+			<div class="flex min-w-0 flex-1 flex-col gap-2.5">
+				<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:80%"></div>
+				<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:55%"></div>
+				<div class="lens-skeleton-shimmer mt-auto h-8 rounded-md" style="width:60%"></div>
+			</div>
+		</div>
+	} else if spec.Kind == panel.KindSegmentBar || spec.Kind == panel.KindCascade {
+		<div class="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:88px">
+			<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:35%"></div>
+			<div class="lens-skeleton-shimmer h-3 w-full rounded-full"></div>
+		</div>
+	} else {
+		<div class="flex h-full flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:260px">
+			<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:35%"></div>
+			<div class="lens-skeleton-shimmer flex-1 rounded-lg"></div>
+		</div>
+	}
+}
+
+// compositeSkeletonBody mirrors CompositePanel: a bare 12-col grid with each
+// child rendering its own spanned, card-shaped slot — no card of its own.
+templ compositeSkeletonBody(spec panel.Spec) {
+	<div class="grid grid-cols-12 gap-3 md:gap-5">
+		for _, child := range spec.Children {
+			@panelSkeleton(child)
+		}
+	</div>
+}
+
+// tabsSkeletonCard mirrors TabsPanel: one outer card holds the dark pill nav
+// plus the active (first) tab's content. TabsPanelFrames renders a nested
+// composite child (Grid/Split/Repeat/Tabs) as its own card grid, but renders
+// a leaf child (chart/table/stat/cascade) unwrapped inside this same card —
+// so only the composite case gets a nested card grid here.
+templ tabsSkeletonCard(spec panel.Spec) {
+	<div class="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:200px">
+		if spec.Title != "" {
+			<div class="lens-skeleton-shimmer mb-3 h-3 rounded-full" style="width:35%"></div>
+		}
+		<div class="mb-4 flex gap-1.5 rounded-2xl bg-slate-100 p-1.5">
+			for range spec.Children {
+				<div class="lens-skeleton-shimmer h-8 flex-1 rounded-xl"></div>
+			}
+		</div>
+		if len(spec.Children) > 0 {
+			{{ active := spec.Children[0] }}
+			if active.Kind == panel.KindGrid || active.Kind == panel.KindSplit || active.Kind == panel.KindRepeat || active.Kind == panel.KindTabs {
+				@panelSkeletonCard(active)
+			} else {
+				<div class="flex flex-1 flex-col gap-3">
+					<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:30%"></div>
+					<div class="lens-skeleton-shimmer flex-1 rounded-lg" style="min-height:220px"></div>
 				</div>
-			</div>
-		} else if spec.Kind == panel.KindSegmentBar || spec.Kind == panel.KindCascade {
-			<div class="flex h-full flex-col gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:88px">
-				<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:35%"></div>
-				<div class="lens-skeleton-shimmer h-3 w-full rounded-full"></div>
-			</div>
-		} else {
-			<div class="flex h-full flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" style="min-height:260px">
-				<div class="lens-skeleton-shimmer h-3 rounded-full" style="width:35%"></div>
-				<div class="lens-skeleton-shimmer flex-1 rounded-lg"></div>
-			</div>
+			}
 		}
 	</div>
 }
@@ -1104,7 +1156,7 @@ templ TabsPanelNav(spec panel.Spec) {
 		for _, child := range spec.Children {
 			<button
 				type="button"
-				class="flex flex-1 items-center justify-center gap-2 rounded-xl px-2.5 py-2.5 text-xs sm:px-4 sm:py-3 sm:text-sm font-medium transition-all duration-200"
+				class="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-xl px-2.5 py-2.5 text-xs sm:px-4 sm:py-3 sm:text-sm font-medium transition-all duration-200"
 				@click={ activateTabScript(child.ID) }
 				:class={ tabClassExpression(child.ID) }
 			>
@@ -1236,37 +1288,45 @@ templ CascadePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErr
 	{{ row := statRow(result) }}
 	{{ href := actionURL(spec.Action, row, result) }}
 	{{ onClick := actionOnClick(spec.Action, row, result) }}
-	{{ clickable := href != "" || onClick.Call != "" }}
-	<div class="group relative flex h-full flex-col">
+	<div class="group relative flex flex-col gap-1">
 		if href != "" {
 			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-0 block rounded-xl"></a>
 		} else if onClick.Call != "" {
 			<button type="button" onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-0 block h-full w-full rounded-xl"></button>
 		}
-		<div class={ segmentBarBodyClass(clickable) + " gap-2" }>
-			for _, stage := range view.Stages {
-				if stage.HasCut {
-					<div class="flex items-center gap-2 px-2 py-0.5 text-xs font-semibold text-red-600">
-						<span class="text-red-400">-&gt;</span>
-						<span class="truncate">- { stage.CutLabel }:</span>
-						<span class="flex-shrink-0 tabular-nums">{ stage.CutValue }</span>
-					</div>
-				}
-				<div class="relative min-h-12 overflow-hidden rounded-xl bg-slate-100 ring-1 ring-inset ring-slate-200/70">
-					<div class={ stage.BarClass } style={ stage.WidthStyle }></div>
-					<div class="relative z-10 flex min-h-12 items-center justify-between gap-4 px-4 py-2.5">
-						<span class="min-w-0 truncate text-sm font-semibold text-slate-800">{ stage.Label }</span>
-						<span class={ stage.ValueClass }>{ stage.Value }</span>
-					</div>
+		for _, stage := range view.Stages {
+			if stage.HasCut {
+				<div class="ml-1.5 flex items-baseline justify-between gap-3 border-l-2 border-slate-200 py-1.5 pl-4">
+					<span class="truncate text-xs font-medium text-slate-500">{ stage.CutLabel }</span>
+					<span class={ "flex-shrink-0 text-xs font-semibold tabular-nums " + stage.CutClass }>{ stage.CutValue }</span>
 				</div>
 			}
-			if clickable {
-				<span class="absolute right-0 top-0 flex-shrink-0 text-slate-300 transition-colors group-hover:text-slate-500">
-					@icons.ArrowRight(icons.Props{Size: "18"})
-				</span>
-			}
-		</div>
+			<div class="flex flex-col gap-2 py-1.5">
+				<div class="flex items-baseline justify-between gap-4">
+					<span class={ "min-w-0 text-sm " + stage.LabelClass }>{ stage.Label }</span>
+					<span class={ "flex-shrink-0 text-sm font-semibold tabular-nums " + stage.ValueClass }>{ stage.Value }</span>
+				</div>
+				<div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
+					<div class={ stage.FillClass } style={ stage.WidthStyle }></div>
+				</div>
+			</div>
+		}
+		if spec.Trend != nil {
+			<div class="mt-1 flex justify-end">
+				@TrendChip(*spec.Trend)
+			</div>
+		}
 	</div>
+}
+
+templ TrendChip(trend panel.TrendSpec) {
+	<span class={ "flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold " + trendChipClass(trend.Percent) }>
+		if arrow := trendArrow(trend.Percent); arrow != "" {
+			{ arrow }
+		}
+		{ trendPercentText(trend.Percent) }%
+		<span class="font-medium text-slate-400">{ trend.Label }</span>
+	</span>
 }
 
 templ MetricInfoButton(spec panel.Spec, class string) {
@@ -1495,12 +1555,12 @@ templ TablePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelError
 			@TableCardRows(spec, columns, rows, result)
 		</div>
 	} else {
-		<div class="overflow-auto">
+		<div class="overflow-auto" style={ tableWrapperStyle(spec) }>
 			<table class="min-w-full w-full text-[13px]">
 				<thead>
 					<tr class="border-b border-gray-200/80">
 						for _, column := range columns {
-							<th class="sticky top-0 z-10 whitespace-nowrap bg-gray-50/80 px-4 py-2 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400">{ column.Label }</th>
+							<th class={ tableHeaderCellClass(spec, column) }>{ column.Label }</th>
 						}
 					</tr>
 				</thead>
@@ -1568,6 +1628,7 @@ templ TableCardRows(spec panel.Spec, columns []panel.TableColumn, rows []map[str
 }
 
 templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[string]any, result *runtime.PanelResult) {
+	{{ barMax := tableColumnBarMax(columns, rows) }}
 	for _, row := range rows {
 		{{ rowHref := actionURL(spec.Action, row, result) }}
 		{{ rowOnClick := actionOnClick(spec.Action, row, result) }}
@@ -1575,7 +1636,7 @@ templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[
 			for i, column := range columns {
 				{{ columnHref := actionURL(column.Action, row, result) }}
 				{{ columnOnClick := actionOnClick(column.Action, row, result) }}
-				<td class="whitespace-nowrap px-4 py-3 md:py-2 text-gray-600">
+				<td class={ tableCellClass(spec, column) }>
 					if column.Action != nil && columnHref != "" {
 						<a
 							href={ templ.URL(columnHref) }
@@ -1610,6 +1671,13 @@ templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[
 						>
 							{ tablePrimaryText(ctx, column, row, result) }
 						</button>
+					} else if column.Cell != nil && column.Cell.Kind == panel.TableCellBar {
+						@TableBarCell(column, row, result, barMax[column.Field])
+					} else if column.Cell != nil && column.Cell.Kind == panel.TableCellDelta {
+						@TableDeltaCell(column, row, result)
+					} else if i == 0 && tableIsCompact(spec) {
+						{{ cellText := formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }}
+						<span class="block truncate" style="max-width:9rem" title={ cellText }>{ cellText }</span>
 					} else {
 						{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
 					}
@@ -1617,6 +1685,24 @@ templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[
 			}
 		</tr>
 	}
+}
+
+templ TableBarCell(column panel.TableColumn, row map[string]any, result *runtime.PanelResult, maxAbs float64) {
+	{{ view := buildTableBarCell(column, row, result, maxAbs) }}
+	<div class="flex flex-col items-end gap-1 leading-tight">
+		<span class={ "font-medium tabular-nums " + view.TextClass }>{ view.Text }</span>
+		<div class="h-1.5 w-16 overflow-hidden rounded-full bg-slate-100">
+			<div class={ "h-full rounded-full " + view.FillClass } style={ view.WidthStyle }></div>
+		</div>
+	</div>
+}
+
+templ TableDeltaCell(column panel.TableColumn, row map[string]any, result *runtime.PanelResult) {
+	{{ view := buildTableDeltaCell(column, row, result) }}
+	<div class="flex flex-col items-end leading-tight">
+		<span class={ "font-semibold tabular-nums " + view.Class }>{ view.PctText }</span>
+		<span class="text-[11px] font-medium tabular-nums text-slate-400">{ view.AmountText }</span>
+	</div>
 }
 
 templ TablePaginationSentinel(spec panel.Spec, result *runtime.PanelResult) {
