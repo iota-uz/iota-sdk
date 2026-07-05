@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"log"
 
@@ -9,6 +10,9 @@ import (
 	internalassets "github.com/iota-uz/iota-sdk/internal/assets"
 	"github.com/iota-uz/iota-sdk/modules"
 	"github.com/iota-uz/iota-sdk/modules/bichat"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter"
+	"github.com/iota-uz/iota-sdk/pkg/bichat/kb"
+	kbsources "github.com/iota-uz/iota-sdk/pkg/bichat/kb/sources"
 	"github.com/iota-uz/iota-sdk/pkg/bootstrap"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config"
@@ -38,11 +42,25 @@ func run() error {
 		}
 	}()
 
+	previewSearcher, err := buildPreviewHelpCenterSearcher(context.Background())
+	if err != nil {
+		return fmt.Errorf("failed to build help center preview search index: %w", err)
+	}
+
 	if err := rt.Install(
 		context.Background(),
 		bootstrap.InstallComponents(
 			[]composition.Capability{composition.CapabilityAPI, composition.CapabilityWorker},
-			append(modules.Components(), bichat.NewComponent())...,
+			append(
+				modules.Components(),
+				bichat.NewComponent(),
+				previewSearchComponent{searcher: previewSearcher},
+				helpcenter.NewComponent(helpcenter.ContentConfig{
+					Root:          "modules/helpcenter/content",
+					Locales:       []string{"en"},
+					DefaultLocale: "en",
+				}),
+			)...,
 		),
 		bootstrap.InstallHashFS(internalassets.HashFS),
 		bootstrap.InstallApplets(bootstrap.AppletsOptions{
@@ -76,4 +94,38 @@ func run() error {
 		return fmt.Errorf("failed to start server: %w", err)
 	}
 	return nil
+}
+
+type previewSearchComponent struct {
+	searcher kb.KBSearcher
+}
+
+func (c previewSearchComponent) Descriptor() composition.Descriptor {
+	return composition.Descriptor{Name: "helpcenter-preview-search"}
+}
+
+func (c previewSearchComponent) LocaleFS() []*embed.FS {
+	return nil
+}
+
+func (c previewSearchComponent) Build(builder *composition.Builder) error {
+	composition.Provide[kb.KBSearcher](builder, c.searcher)
+	return nil
+}
+
+func buildPreviewHelpCenterSearcher(ctx context.Context) (kb.KBSearcher, error) {
+	indexer, searcher, err := kb.NewBleveIndex("var/helpcenter-preview/search.bleve")
+	if err != nil {
+		return nil, err
+	}
+	source := kbsources.NewFileSystemSource(
+		"modules/helpcenter/content",
+		kbsources.WithExtensions(".md"),
+		kbsources.WithRecursive(true),
+		kbsources.WithExtractTitle(true),
+	)
+	if err := indexer.Rebuild(ctx, source); err != nil {
+		return nil, err
+	}
+	return searcher, nil
 }
