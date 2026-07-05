@@ -207,7 +207,13 @@ let combobox = (searchable = false, canCreateNew = false) => ({
   canCreateNew,
   init() {
     // Reposition the (top-layer) dropdown when the page scrolls/resizes while open.
-    this._reflow = () => {
+    this._reflow = (e) => {
+      // A scroll *inside* the open dropdown must not trigger a reposition:
+      // positionDropdown() clears then re-applies max-height, which resets the
+      // list's scrollTop to 0. Repositioning on the list's own scroll would snap
+      // the user back to the top on every wheel tick, making a long menu
+      // impossible to scroll. Only reposition when an ancestor/the page scrolls.
+      if (e && e.target instanceof Node && this.$refs.list && this.$refs.list.contains(e.target)) return;
       if (this.open || this.openedWithKeyboard) this.positionDropdown();
     };
     this.$watch('open', () => this.syncDropdown());
@@ -262,6 +268,10 @@ let combobox = (searchable = false, canCreateNew = false) => ({
     let list = this.$refs.list;
     let trigger = this.$refs.trigger;
     if (!list || !trigger) return;
+    // Clearing `max-height` below momentarily makes the list non-scrollable,
+    // which resets its scrollTop to 0. Snapshot and restore it so a reposition
+    // (resize, chip add, or an ancestor scroll) never loses the user's place.
+    let prevScrollTop = list.scrollTop;
     let rect = trigger.getBoundingClientRect();
     let gap = 4;
     let edge = 8; // keep the menu clear of the viewport edge
@@ -315,6 +325,8 @@ let combobox = (searchable = false, canCreateNew = false) => ({
       let height = Math.min(this.dropdownMaxHeightCap(list), list.scrollHeight + 2, avail);
       list.style.setProperty('max-height', height + 'px', 'important');
     }
+    // Restore the scroll position lost when max-height was cleared above.
+    list.scrollTop = prevScrollTop;
   },
   dropdownMaxHeightCap(list) {
     // Caller-supplied max-height cap (e.g. ListClass `!max-h-60`) in pixels, or
