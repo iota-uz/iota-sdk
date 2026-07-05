@@ -128,34 +128,37 @@ type RowSpec struct {
 }
 
 type PanelSpec struct {
-	ID             string                `json:"id"`
-	Title          Text                  `json:"title"`
-	Description    Text                  `json:"description"`
-	Info           Text                  `json:"info"`
-	Kind           panel.Kind            `json:"kind"`
-	Dataset        string                `json:"dataset,omitempty"`
-	Span           int                   `json:"span,omitempty"`
-	Height         string                `json:"height,omitempty"`
-	Colors         []string              `json:"colors,omitempty"`
-	ShowLegend     bool                  `json:"showLegend,omitempty"`
-	ShowTotalBadge  bool                 `json:"showTotalBadge,omitempty"`
-	TotalBadgeValue *float64             `json:"totalBadgeValue,omitempty"`
-	DrillHierarchy *panel.DrillHierarchy `json:"drillHierarchy,omitempty"`
-	Trend          *panel.TrendSpec      `json:"trend,omitempty"`
-	Fields         FieldMappingSpec      `json:"fields,omitempty"`
-	Formatter      *format.Spec          `json:"formatter,omitempty"`
-	Columns        []TableColumnSpec     `json:"columns,omitempty"`
-	Transforms     []transform.Spec      `json:"transforms,omitempty"`
-	Action         *action.Spec          `json:"action,omitempty"`
-	Children       []PanelSpec           `json:"children,omitempty"`
-	ClassName      string                `json:"className,omitempty"`
-	Chrome         chrome.Spec           `json:"-"`
-	ChromeIcon     string                `json:"icon,omitempty"`
-	AccentColor    string                `json:"accentColor,omitempty"`
-	ValueAxis      panel.ValueAxis       `json:"valueAxis,omitempty"`
-	Distributed    bool                  `json:"distributed,omitempty"`
-	ColorField     string                `json:"colorField,omitempty"`
-	ColorScale     string                `json:"colorScale,omitempty"`
+	ID              string                `json:"id"`
+	Title           Text                  `json:"title"`
+	Description     Text                  `json:"description"`
+	Info            Text                  `json:"info"`
+	Kind            panel.Kind            `json:"kind"`
+	Dataset         string                `json:"dataset,omitempty"`
+	Span            int                   `json:"span,omitempty"`
+	Height          string                `json:"height,omitempty"`
+	Colors          []string              `json:"colors,omitempty"`
+	ShowLegend      bool                  `json:"showLegend,omitempty"`
+	ShowTotalBadge  bool                  `json:"showTotalBadge,omitempty"`
+	TotalBadgeValue *float64              `json:"totalBadgeValue,omitempty"`
+	DrillHierarchy  *panel.DrillHierarchy `json:"drillHierarchy,omitempty"`
+	Trend           *panel.TrendSpec      `json:"trend,omitempty"`
+	Status          *panel.StatusSpec     `json:"status,omitempty"`
+	Sparkline       *panel.SparklineSpec  `json:"sparkline,omitempty"`
+	GroupLayout     panel.GroupLayout     `json:"groupLayout,omitempty"`
+	Fields          FieldMappingSpec      `json:"fields,omitempty"`
+	Formatter       *format.Spec          `json:"formatter,omitempty"`
+	Columns         []TableColumnSpec     `json:"columns,omitempty"`
+	Transforms      []transform.Spec      `json:"transforms,omitempty"`
+	Action          *action.Spec          `json:"action,omitempty"`
+	Children        []PanelSpec           `json:"children,omitempty"`
+	ClassName       string                `json:"className,omitempty"`
+	Chrome          chrome.Spec           `json:"-"`
+	ChromeIcon      string                `json:"icon,omitempty"`
+	AccentColor     string                `json:"accentColor,omitempty"`
+	ValueAxis       panel.ValueAxis       `json:"valueAxis,omitempty"`
+	Distributed     bool                  `json:"distributed,omitempty"`
+	ColorField      string                `json:"colorField,omitempty"`
+	ColorScale      string                `json:"colorScale,omitempty"`
 }
 
 type TableColumnSpec struct {
@@ -166,6 +169,8 @@ type TableColumnSpec struct {
 	Text      Text                 `json:"text"`
 	Align     string               `json:"align,omitempty"`
 	Cell      *panel.TableCellSpec `json:"cell,omitempty"`
+	// WidthPx, when > 0, sets a min-width (px) on the column's cells.
+	WidthPx int `json:"width,omitempty"`
 }
 
 type FieldMappingSpec struct {

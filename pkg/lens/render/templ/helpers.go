@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/lens/theme"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 )
 
@@ -322,11 +323,31 @@ func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableCol
 // an inline style rather than a Tailwind arbitrary-value class because
 // consumer apps compile their CSS against the *published* SDK sources — a
 // class only this template uses would be purged from their builds.
+//
+// The cap reads from a CSS custom property (falling back to 26rem) rather
+// than a hardcoded value so PanelFullscreenOverlay can relax it: the same
+// compact table that should stay bounded next to a short card in the normal
+// dashboard grid should instead fill the much taller fullscreen card.
 func tableWrapperStyle(spec panel.Spec) templpkg.SafeCSS {
 	if panelHasClass(spec, "lens-table-scroll") {
-		return "max-height:26rem"
+		return "max-height:var(--lens-table-scroll-cap, 26rem)"
 	}
 	return ""
+}
+
+// tableWrapperClass is the scroll container's class list. Only the bounded
+// "lens-table-scroll" variant gets h-full: it has a capped max-height (see
+// tableWrapperStyle) that PanelFullscreenOverlay can relax, so h-full is
+// what lets it actually grow into that relaxed space. The default
+// (uncapped) table variant must stay height:auto — giving it h-full would
+// clip it to whatever height its card happens to resolve to instead of
+// sizing to its content, which is how every other table in the app expects
+// to render.
+func tableWrapperClass(spec panel.Spec) string {
+	if panelHasClass(spec, "lens-table-scroll") {
+		return "h-full overflow-auto"
+	}
+	return "overflow-auto"
 }
 
 // tableIsCompact reports whether a table opted into the denser treatment
@@ -336,30 +357,70 @@ func tableIsCompact(spec panel.Spec) bool {
 	return panelHasClass(spec, "lens-table-scroll")
 }
 
-func tableHeaderCellClass(spec panel.Spec, column panel.TableColumn) string {
-	// Solid header background: scroll-capped tables slide rows underneath
-	// the sticky header, and a translucent one lets them bleed through.
-	base := "sticky top-0 z-10 whitespace-nowrap bg-gray-50 py-2 text-[11px] font-semibold uppercase tracking-wider text-gray-400"
-	if tableIsCompact(spec) {
-		base += " px-3"
-	} else {
-		base += " px-4"
-	}
+// tableColumnIsNumeric reports whether a column should be right-aligned: an
+// explicit Align=="right", or a numeric formatter kind (money, abbreviated
+// money, integer, percent).
+func tableColumnIsNumeric(column panel.TableColumn) bool {
 	if column.Align == "right" {
-		return base + " text-right"
+		return true
 	}
-	return base + " text-left"
+	if column.Formatter == nil {
+		return false
+	}
+	switch column.Formatter.Kind {
+	case format.KindMoney, format.KindAbbreviatedMoney, format.KindInteger, format.KindPercent:
+		return true
+	case format.KindDate, format.KindMonthLabel, format.KindDuration, format.KindLocalizedString:
+		return false
+	}
+	return false
 }
 
-func tableCellClass(spec panel.Spec, column panel.TableColumn) string {
-	base := "whitespace-nowrap py-3 md:py-2 text-gray-600"
-	if tableIsCompact(spec) {
-		base += " px-3"
-	} else {
-		base += " px-4"
+func tableHeaderCellClass(spec panel.Spec, column panel.TableColumn) string {
+	base := "lens-th whitespace-nowrap"
+	if tableColumnIsNumeric(column) {
+		return base + " lens-th--num"
 	}
-	if column.Align == "right" {
-		return base + " text-right tabular-nums"
+	return base
+}
+
+func tableCellClass(spec panel.Spec, column panel.TableColumn, first bool) string {
+	base := "lens-td whitespace-nowrap"
+	if first {
+		base += " lens-td--strong"
+	}
+	if tableColumnIsNumeric(column) {
+		base += " lens-td--num lens-num"
+	}
+	return base
+}
+
+// tableColumnWidthStyle is the inline min-width for a column with WidthPx set.
+func tableColumnWidthStyle(column panel.TableColumn) templpkg.SafeCSS {
+	if column.WidthPx <= 0 {
+		return ""
+	}
+	return templpkg.SafeCSS("min-width:" + strconv.Itoa(column.WidthPx) + "px")
+}
+
+// tableElementClass is the <table> class list; the lens-table-sticky-first
+// ClassName token passes through so the first column pins during horizontal
+// scroll.
+func tableElementClass(spec panel.Spec) string {
+	base := "min-w-full w-full text-[13px]"
+	if panelHasClass(spec, "lens-table-sticky-first") {
+		base += " lens-table-sticky-first"
+	}
+	// Only the bounded "lens-table-scroll" variant stretches to fill its
+	// wrapper's resolved height (see tableWrapperClass) — a short row count
+	// there shouldn't leave the card looking unfinished, and the browser's
+	// table layout distributes the extra height across existing rows rather
+	// than adding blank space below them. When rows exceed the wrapper's
+	// height this has no visible effect: the table overflows and the
+	// wrapper's own scroll behavior still applies. The default (uncapped)
+	// variant is left at its natural height, matching every other table.
+	if panelHasClass(spec, "lens-table-scroll") {
+		base += " h-full"
 	}
 	return base
 }
@@ -390,22 +451,24 @@ func tableColumnBarMax(columns []panel.TableColumn, rows []map[string]any) map[p
 const tableBarCellFloorPct = 3.0
 
 type tableBarCellView struct {
-	Text       string
-	TextClass  string
-	FillClass  string
-	WidthStyle templpkg.SafeCSS
+	Text string
+	// TextStyle / FillStyle are inline styles built on the lens status vars
+	// (var(--lens-pos)/var(--lens-neg)) so the treatment renders regardless of
+	// the consumer's Tailwind build.
+	TextStyle templpkg.SafeCSS
+	FillStyle templpkg.SafeCSS
 }
 
 func buildTableBarCell(column panel.TableColumn, row map[string]any, result *runtime.PanelResult, maxAbs float64) tableBarCellView {
 	value := segmentNumeric(row[column.Field.Name()])
+	fill := "var(--lens-pos)"
 	view := tableBarCellView{
 		Text:      formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone),
-		TextClass: "text-slate-700",
-		FillClass: "bg-green-500",
+		TextStyle: "color:var(--lens-text)",
 	}
 	if value < 0 {
-		view.TextClass = "text-red-600"
-		view.FillClass = "bg-red-500"
+		view.TextStyle = "color:var(--lens-neg)"
+		fill = "var(--lens-neg)"
 	}
 	pct := 0.0
 	if value != 0 && maxAbs > 0 {
@@ -417,7 +480,7 @@ func buildTableBarCell(column panel.TableColumn, row map[string]any, result *run
 			pct = tableBarCellFloorPct
 		}
 	}
-	view.WidthStyle = cascadeWidthStyle(pct)
+	view.FillStyle = templpkg.SafeCSS(string(cascadeWidthStyle(pct)) + ";background-color:" + fill)
 	return view
 }
 
@@ -427,7 +490,7 @@ type tableDeltaCellView struct {
 	// to coexist with four numeric columns in a half-width panel.
 	PctText    string
 	AmountText string
-	Class      string
+	Style      templpkg.SafeCSS
 }
 
 func buildTableDeltaCell(column panel.TableColumn, row map[string]any, result *runtime.PanelResult) tableDeltaCellView {
@@ -437,21 +500,21 @@ func buildTableDeltaCell(column panel.TableColumn, row map[string]any, result *r
 		pct = segmentNumeric(row[column.Cell.PercentField.Name()])
 	}
 	sign := ""
-	class := "text-slate-400"
+	style := templpkg.SafeCSS("color:var(--lens-text-faint)")
 	switch {
 	case delta > 0:
 		sign = "+"
-		class = "text-green-600"
+		style = "color:var(--lens-pos)"
 	case delta < 0:
 		sign = cascadeMinusSign
-		class = "text-red-600"
+		style = "color:var(--lens-neg)"
 	}
 	amountText := formatValue(math.Abs(delta), column.Formatter, result.Locale, result.Timezone)
 	pctText := strconv.FormatFloat(math.Abs(pct), 'f', 1, 64)
 	return tableDeltaCellView{
 		PctText:    sign + pctText + "%",
 		AmountText: sign + amountText,
-		Class:      class,
+		Style:      style,
 	}
 }
 
@@ -526,6 +589,218 @@ func statRow(result *runtime.PanelResult) map[string]any {
 		return nil
 	}
 	return rows[0]
+}
+
+// ---- Stat card v2 ----
+
+// statView is the resolved data one .lens-stat block renders.
+type statView struct {
+	Value string
+	// Zero demotes the card (lens-stat--zero) and suppresses trend +
+	// sparkline when the primary value is 0 or absent.
+	Zero bool
+	// Swatch is the sanitized accent color for the 8x8 label-row swatch;
+	// empty means no swatch.
+	Swatch string
+	// SparkPoints is the pre-computed polyline points attribute for the
+	// native sparkline SVG; empty means no sparkline.
+	SparkPoints string
+	SparkStyle  templpkg.SafeCSS
+}
+
+// sparklineViewBox dimensions must match the viewBox on the .lens-spark SVG.
+const (
+	sparklineWidth  = 72.0
+	sparklineHeight = 22.0
+)
+
+func buildStatView(spec panel.Spec, result *runtime.PanelResult) statView {
+	raw := statRawValue(spec, result)
+	view := statView{
+		Value: formatValue(raw, spec.Formatter, result.Locale, result.Timezone),
+		Zero:  statValueIsZero(raw),
+	}
+	if color := strings.TrimSpace(spec.Chrome.AccentColor); color != "" {
+		r, g, b := parseHexColor(color)
+		view.Swatch = fmt.Sprintf("#%02x%02x%02x", r, g, b)
+	}
+	if !view.Zero && spec.Sparkline != nil {
+		view.SparkPoints = sparklinePoints(spec.Sparkline.Values, sparklineWidth, sparklineHeight)
+		view.SparkStyle = templpkg.SafeCSS("stroke:" + sparklineStroke(spec.Sparkline.Color))
+	}
+	return view
+}
+
+// sparklineStroke sanitizes the sparkline color: hex colors are normalized,
+// anything else falls back to the accent token (the value lands inside an
+// inline style, so it must never carry arbitrary CSS).
+func sparklineStroke(color string) string {
+	color = strings.TrimSpace(color)
+	if strings.HasPrefix(color, "#") {
+		r, g, b := parseHexColor(color)
+		return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+	}
+	return "var(--lens-accent-500)"
+}
+
+// sparklinePoints maps values onto the sparkline viewbox, min..max normalized
+// vertically with padding so the stroke never clips.
+func sparklinePoints(values []float64, width, height float64) string {
+	if len(values) < 2 {
+		return ""
+	}
+	minV, maxV := values[0], values[0]
+	for _, v := range values {
+		if v < minV {
+			minV = v
+		}
+		if v > maxV {
+			maxV = v
+		}
+	}
+	const pad = 1.5
+	span := maxV - minV
+	usableH := height - 2*pad
+	stepX := width / float64(len(values)-1)
+	var b strings.Builder
+	for i, v := range values {
+		x := stepX * float64(i)
+		y := height / 2
+		if span > 0 {
+			y = pad + (1-(v-minV)/span)*usableH
+		}
+		if i > 0 {
+			b.WriteByte(' ')
+		}
+		b.WriteString(strconv.FormatFloat(x, 'f', 1, 64))
+		b.WriteByte(',')
+		b.WriteString(strconv.FormatFloat(y, 'f', 1, 64))
+	}
+	return b.String()
+}
+
+// statValueIsZero reports whether the stat's primary value is zero/absent, in
+// which case the card demotes itself (lens-stat--zero) and drops trend +
+// sparkline noise.
+func statValueIsZero(value any) bool {
+	switch v := value.(type) {
+	case nil:
+		return true
+	case float64:
+		return v == 0
+	case float32:
+		return v == 0
+	case int:
+		return v == 0
+	case int32:
+		return v == 0
+	case int64:
+		return v == 0
+	case string:
+		trimmed := strings.TrimSpace(v)
+		if trimmed == "" || trimmed == "-" {
+			return true
+		}
+		if parsed, err := strconv.ParseFloat(trimmed, 64); err == nil {
+			return parsed == 0
+		}
+		return false
+	}
+	return false
+}
+
+func statClass(zero, clickable bool) string {
+	base := "lens-stat h-full"
+	if zero {
+		base += " lens-stat--zero"
+	}
+	if clickable {
+		// Mirror the pre-v2 behavior: the body ignores pointer events so the
+		// inset overlay link receives the click; fade slightly for affordance.
+		base += " relative z-10 pointer-events-none transition-opacity group-hover:opacity-90"
+	}
+	return base
+}
+
+func statusChipClass(tone panel.StatusTone) string {
+	switch tone {
+	case panel.StatusPositive:
+		return "lens-chip lens-chip--positive"
+	case panel.StatusWarning:
+		return "lens-chip lens-chip--warning"
+	case panel.StatusNeutral:
+		return "lens-chip"
+	}
+	return "lens-chip"
+}
+
+// statTrendClass colors the trend chip: up=green/down=red by default, flipped
+// when TrendSpec.Invert marks the metric down-is-good. The arrow (▲/▼) always
+// follows the raw sign via trendArrow.
+func statTrendClass(trend panel.TrendSpec) string {
+	positive := trend.Percent > 0
+	negative := trend.Percent < 0
+	if trend.Invert {
+		positive, negative = negative, positive
+	}
+	switch {
+	case positive:
+		return "lens-trend lens-trend--up"
+	case negative:
+		return "lens-trend lens-trend--down"
+	}
+	return "lens-trend"
+}
+
+// ---- Stat group ----
+
+func statGroupContainerStyle(spec panel.Spec) templpkg.SafeCSS {
+	if spec.GroupLayout == panel.GroupRows {
+		return "display:flex;flex-direction:column"
+	}
+	return "display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr))"
+}
+
+func statGroupItemStyle(spec panel.Spec, index int) templpkg.SafeCSS {
+	if index == 0 {
+		return "min-width:0"
+	}
+	if spec.GroupLayout == panel.GroupRows {
+		return "min-width:0;border-top:1px solid var(--lens-divider)"
+	}
+	return "min-width:0;border-left:1px solid var(--lens-divider)"
+}
+
+// panelResultAllZero reports whether every row's value field is zero — used to
+// route pie/donut/gauge panels whose slices are all zero to the empty state
+// instead of a blank white chart.
+func panelResultAllZero(spec panel.Spec, result *runtime.PanelResult) bool {
+	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
+		return false
+	}
+	rows := result.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return false
+	}
+	valueField := spec.Fields.Value
+	if valueField.Empty() {
+		valueField = panel.DefaultValueField
+	}
+	for _, row := range rows {
+		if segmentNumeric(row[valueField.Name()]) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+// panelCardNeedsFullscreenScope reports whether the panel card carries the
+// Alpine `{ fullscreen: false }` scope + rerender-scope marker. Chart and
+// tabs cards need it so the header's fullscreen button (rendered by
+// panelCard, outside the body) and the overlay (inside the body) share one
+// scope that also survives HTMX body swaps.
+func panelCardNeedsFullscreenScope(spec panel.Spec) bool {
+	return spec.Kind.IsChart() || spec.Kind == panel.KindTabs
 }
 
 // segmentBarSegment is one part of a part-to-whole segment bar.
@@ -1290,17 +1565,19 @@ func normalizeErrorText(message string) string {
 	return message
 }
 
+// tabsState seeds a Tabs panel's Alpine scope. It deliberately does NOT
+// define `fullscreen`: that lives on the panel card's scope (see panelCard),
+// shared with the header's fullscreen button, and Alpine scope chaining lets
+// the overlay inside the tabs body read it from the ancestor.
 func tabsState(spec panel.Spec) string {
 	activeTab := ""
 	if len(spec.Children) > 0 {
 		activeTab = spec.Children[0].ID
 	}
 	return js.MustToJS(struct {
-		ActiveTab  string `json:"activeTab"`
-		Fullscreen bool   `json:"fullscreen"`
+		ActiveTab string `json:"activeTab"`
 	}{
-		ActiveTab:  activeTab,
-		Fullscreen: false,
+		ActiveTab: activeTab,
 	})
 }
 
@@ -1310,11 +1587,7 @@ func jsStringLiteral(value string) string {
 
 func tabClassExpression(tabID string) string {
 	literal := jsStringLiteral(tabID)
-	return fmt.Sprintf(
-		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-400 hover:text-white': activeTab !== %s }",
-		literal,
-		literal,
-	)
+	return fmt.Sprintf("{ 'lens-seg__item--active': activeTab === %s }", literal)
 }
 
 func tabVisibilityExpression(tabID string) string {
@@ -1336,7 +1609,7 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 		return icons.Gauge(iconProps)
 	case panel.KindTable:
 		return icons.Table(iconProps)
-	case panel.KindStat:
+	case panel.KindStat, panel.KindStatGroup:
 		return icons.HashStraight(iconProps)
 	case panel.KindTabs:
 		return icons.Tabs(iconProps)
@@ -1351,13 +1624,6 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 	}
 }
 
-func panelDisplayIcon(spec panel.Spec) templpkg.Component {
-	if !spec.Chrome.Icon.Empty() {
-		return spec.Chrome.Icon.Render()
-	}
-	return panelIcon(spec.Kind)
-}
-
 func statAriaLabel(spec panel.Spec) string {
 	if trimmed := strings.TrimSpace(spec.Title); trimmed != "" {
 		return trimmed
@@ -1369,14 +1635,12 @@ func statAriaLabel(spec panel.Spec) string {
 }
 
 func showPanelHeader(spec panel.Spec) bool {
-	if statUsesCustomChrome(spec) {
+	// Stat panels render their label inside the stat body (.lens-stat__label-row)
+	// instead of a card header.
+	if spec.Kind == panel.KindStat {
 		return false
 	}
-	return spec.Title != "" || (spec.Description != "" && spec.Kind != panel.KindStat)
-}
-
-func statUsesCustomChrome(spec panel.Spec) bool {
-	return spec.Kind == panel.KindStat && (!spec.Chrome.Icon.Empty() || strings.TrimSpace(spec.Chrome.AccentColor) != "")
+	return spec.Title != ""
 }
 
 func metricInfoTooltipHTML(ctx context.Context, info string) string {
@@ -1405,9 +1669,11 @@ func panelMetricInfoText(ctx context.Context, spec panel.Spec) string {
 
 func panelUsesMetricInfoFallback(spec panel.Spec) bool {
 	// Apex charts plus the tabbed container surface a generic per-kind metric
-	// info fallback; native leaves (stat/segment bar/table) and the other
-	// containers do not.
-	return spec.Kind.IsChart() || spec.Kind == panel.KindTabs
+	// info fallback; native leaves (segment bar/table) and the other
+	// containers do not. Stat panels are included so their Description (which
+	// stat v2 no longer renders as a visible line) still surfaces in the info
+	// tooltip; metricInfoTemplateKey adds no generic template for stats.
+	return spec.Kind.IsChart() || spec.Kind == panel.KindTabs || spec.Kind == panel.KindStat
 }
 
 func panelUsesRadialActionSurface(spec panel.Spec) bool {
@@ -1428,7 +1694,8 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		return false
 	}
 	return false
@@ -1461,27 +1728,19 @@ func panelChartClass(spec panel.Spec, fullscreen bool) string {
 }
 
 func panelCardClass(spec panel.Spec) string {
-	// Stat panels host an info (ⓘ) tooltip that pops outside the card body; keeping
-	// overflow-hidden here would clip it (the tooltip mounts in-tree, not portaled).
-	// Chart/table panels still clip their content to the rounded card.
-	overflow := "overflow-hidden"
-	if spec.Kind == panel.KindStat {
-		overflow = "overflow-visible"
-	}
-	base := "flex h-full flex-col " + overflow + " rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-200"
-	// Mark stat/segment cards as CSS container-query roots so their headline value
-	// can scale to the card width (e.g. a narrow sidebar column) instead of the
-	// viewport. The container behavior + responsive sizing live in the consumer's
-	// stylesheet, keyed off the `lens-stat-card` / `lens-stat-value` hooks below.
-	if spec.Kind == panel.KindStat || spec.Kind == panel.KindSegmentBar {
-		base += " lens-stat-card"
+	// .lens-card provides the full chrome (surface, hairline, radius, shadow,
+	// flex column, h-100%, overflow clipping) — see LensThemeStyles().
+	base := "lens-card"
+	// Stat panels host an info (ⓘ) tooltip that pops outside the card body;
+	// the default overflow-hidden would clip it (the tooltip mounts in-tree,
+	// not portaled). Same for a StatGroup's per-child tooltips.
+	if spec.Kind == panel.KindStat || spec.Kind == panel.KindStatGroup {
+		base += " lens-card--overflow"
 	}
 	if panelIsInteractive(spec) {
-		base += " hover:border-blue-200 hover:shadow-md"
-	} else {
-		base += " hover:shadow-md"
+		base += " lens-card--interactive"
 	}
-	return strings.TrimSpace(base)
+	return base
 }
 
 func panelHasClass(spec panel.Spec, token string) bool {
@@ -1500,14 +1759,6 @@ func badgeStyle(color string) templpkg.SafeCSS {
 		"background-color: rgba(%d, %d, %d, 0.12); border: 1px solid rgba(%d, %d, %d, 0.22); color: %s;",
 		r, g, b, r, g, b, safeColor,
 	))
-}
-
-// statAccentStyle renders the stat card's family-color accent bar (the
-// icon-less chrome variant). Width is set inline so it does not depend on a
-// Tailwind utility being present in the consumer's compiled CSS.
-func statAccentStyle(color string) templpkg.SafeCSS {
-	r, g, b := parseHexColor(color)
-	return templpkg.SafeCSS(fmt.Sprintf("background-color: #%02x%02x%02x; width: 3px;", r, g, b))
 }
 
 func defaultMetricInfoText(ctx context.Context, spec panel.Spec) string {
@@ -1552,7 +1803,8 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 		panel.KindTable,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		return ""
 	}
 	return ""
@@ -1670,20 +1922,21 @@ func firstNonEmptyString(values ...string) string {
 
 func panelBodyClass(spec panel.Spec) string {
 	switch spec.Kind {
-	case panel.KindStat:
-		if statUsesCustomChrome(spec) {
-			return "flex-1 p-0"
-		}
-		return "flex-1 px-5 py-2.5"
+	case panel.KindStat, panel.KindStatGroup:
+		// Stat v2 (.lens-stat) owns its own padding.
+		return "flex-1 p-0"
 	case panel.KindTable:
-		return "flex-1 p-4"
+		// .lens-th/.lens-td own the cell padding; the table sits flush.
+		return "flex-1 p-0"
 	case panel.KindTabs:
-		return "flex-1 px-5 py-3"
+		return "flex-1 px-3 py-2"
 	case panel.KindSegmentBar:
-		return "flex-1 px-5 py-5"
+		return "flex-1 px-4 py-3"
 	case panel.KindCascade:
-		return "flex-1 px-5 py-5"
-	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+		return "flex-1 px-4 py-3"
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+		return "flex-1 px-2 pb-2 pt-1"
+	case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return "flex-1 p-3"
 	default:
 		return "flex-1 p-3"
@@ -1742,10 +1995,16 @@ func panelIslandStyle(spec panel.Spec) templpkg.SafeCSS {
 func panelMinimumHeight(spec panel.Spec) string {
 	switch spec.Kind {
 	case panel.KindStat:
-		if statUsesCustomChrome(spec) {
-			return "164px"
+		return "96px"
+	case panel.KindStatGroup:
+		if spec.GroupLayout == panel.GroupRows {
+			children := len(spec.Children)
+			if children < 1 {
+				children = 1
+			}
+			return strconv.Itoa(children*96) + "px"
 		}
-		return "120px"
+		return "96px"
 	case panel.KindTable:
 		return "220px"
 	case panel.KindSegmentBar:
@@ -1812,7 +2071,15 @@ func islandTrigger(props AsyncProps) string {
 		return "load"
 	}
 	formID := "#" + props.FilterFormID
-	return "load, change delay:800ms from:" + formID + ", dateRangeChange delay:800ms from:" + formID
+	delay := fmt.Sprintf("%dms", theme.DebounceMs)
+	return "load, change delay:" + delay + " from:" + formID + ", dateRangeChange delay:" + delay + " from:" + formID
+}
+
+// formURLSyncDelayMs staggers the URL sync slightly behind the island
+// debounce (theme.DebounceMs) so the address bar reflects the state the
+// panels actually fetched.
+func formURLSyncDelayMs() string {
+	return strconv.Itoa(theme.DebounceMs + 20)
 }
 
 func shellIndicatorID(panelID string) string {
@@ -1847,7 +2114,7 @@ func activateTabScript(tabID string) string {
 
 func panelPlaceholderRows(spec panel.Spec) int {
 	switch spec.Kind {
-	case panel.KindStat:
+	case panel.KindStat, panel.KindStatGroup:
 		return 2
 	case panel.KindTable:
 		return 5

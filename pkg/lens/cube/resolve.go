@@ -355,7 +355,8 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		return panel.Bar(id, title, dataset)
 	case panel.KindHorizontalBar:
 		return panel.HorizontalBar(id, title, dataset)

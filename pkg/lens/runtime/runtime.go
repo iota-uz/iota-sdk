@@ -553,7 +553,7 @@ func datasetDepth(name string, datasets map[string]lens.DatasetSpec, memo map[st
 }
 
 func isCompositePanel(kind panel.Kind) bool {
-	return kind == panel.KindTabs || kind == panel.KindGrid || kind == panel.KindSplit || kind == panel.KindRepeat
+	return kind.IsContainer()
 }
 
 func resolveDependencyFrames(name string, dependencies []string, results map[string]*DatasetResult) (map[string]*frame.FrameSet, error) {
@@ -863,7 +863,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("panel %s is missing value field", spec.ID)
 	}
 	switch spec.Kind {
-	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
 		// These panel kinds do not require label/category validation here.
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindCascade, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
@@ -978,7 +978,7 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 			return err
 		}
 		return requireField(spec, primary, spec.Fields.Value)
-	case panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
 		return nil
 	}
 	return nil

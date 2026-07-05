@@ -75,7 +75,7 @@ func TestFloorAndScaleAppliesLogTransformForWideRangeData(t *testing.T) {
 	})
 	require.Equal(t, "log", axis.Scale)
 	require.Equal(t, 10, axis.Base)
-	require.Greater(t, axis.TickAmount, 0)
+	require.Positive(t, axis.TickAmount)
 	require.NotEmpty(t, series)
 }
 

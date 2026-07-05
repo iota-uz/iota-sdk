@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	lensspec "github.com/iota-uz/iota-sdk/pkg/lens/spec"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/stretchr/testify/require"
@@ -143,6 +144,84 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Len(t, compiled.Spec.Rows, 1)
 	require.Equal(t, "stats", compiled.Spec.Datasets[0].Name)
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
+}
+
+// A stat_group document compiles through to a validated dashboard spec: the
+// group itself carries no dataset, children keep theirs, and the new stat v2
+// fields (status, sparkline, trend.invert, groupLayout) pass through 1:1.
+func TestDocumentCompilesStatGroupWithStatV2Fields(t *testing.T) {
+	t.Parallel()
+
+	statsBuilder := frame.NewBuilder("stats").Number("value", frame.RoleMetric)
+	err := statsBuilder.Append(frame.Row{"value": 7})
+	require.NoError(t, err)
+	stats, err := statsBuilder.FrameSet()
+	require.NoError(t, err)
+
+	child := lensspec.Stat("kpi-a", "Premium", "stats").
+		Status("ON TRACK", panel.StatusPositive).
+		SparklineColored([]float64{1, 2, 3}, "#2563eb").
+		TrendWithInvert(-4.2, "vs LY", true).
+		Build()
+	group := lensspec.StatGroup("kpi-group", "KPIs", child).
+		Layout(panel.GroupRows).
+		Build()
+
+	doc := lensspec.Document{
+		Version: lensspec.DocumentVersion,
+		ID:      "stat-group-report",
+		Title:   lensspec.LiteralText("Stat group"),
+		Datasets: []lensspec.DatasetSpec{
+			{Name: "stats", Kind: lens.DatasetKindStatic, StaticRef: "stats_dataset"},
+		},
+		Rows: []lensspec.RowSpec{{Panels: []lensspec.PanelSpec{group}}},
+	}
+
+	compiled, err := Document(doc, Options{
+		Locale: "en",
+		Values: map[string]any{"stats_dataset": stats},
+	})
+	require.NoError(t, err)
+	require.Len(t, compiled.Spec.Rows, 1)
+
+	compiledGroup := compiled.Spec.Rows[0].Panels[0]
+	require.Equal(t, panel.KindStatGroup, compiledGroup.Kind)
+	require.True(t, compiledGroup.Kind.IsContainer())
+	require.Equal(t, panel.GroupRows, compiledGroup.GroupLayout)
+	require.Empty(t, compiledGroup.Dataset)
+	require.Len(t, compiledGroup.Children, 1)
+
+	compiledChild := compiledGroup.Children[0]
+	require.Equal(t, "stats", compiledChild.Dataset)
+	require.NotNil(t, compiledChild.Status)
+	require.Equal(t, "ON TRACK", compiledChild.Status.Label)
+	require.Equal(t, panel.StatusPositive, compiledChild.Status.Tone)
+	require.NotNil(t, compiledChild.Sparkline)
+	require.Equal(t, []float64{1, 2, 3}, compiledChild.Sparkline.Values)
+	require.Equal(t, "#2563eb", compiledChild.Sparkline.Color)
+	require.NotNil(t, compiledChild.Trend)
+	require.True(t, compiledChild.Trend.Invert)
+	require.InDelta(t, -4.2, compiledChild.Trend.Percent, 0.0001)
+
+	// Runtime validation treats the group as a container and its children as
+	// stat leaves (dataset required on children, none on the group).
+	require.NoError(t, runtime.Validate(compiled.Spec))
+}
+
+// A stat_group child without a dataset fails validation like any stat leaf.
+func TestValidateRejectsStatGroupChildWithoutDataset(t *testing.T) {
+	t.Parallel()
+
+	group := panel.StatGroup("kpi-group", "KPIs",
+		panel.Spec{ID: "kpi-a", Title: "A", Kind: panel.KindStat, Fields: panel.FieldMapping{Value: panel.DefaultValueField}},
+	).Build()
+
+	err := runtime.Validate(lens.DashboardSpec{
+		ID:    "d",
+		Title: "d",
+		Rows:  []lens.RowSpec{{Panels: []panel.Spec{group}}},
+	})
+	require.ErrorContains(t, err, "kpi-a is missing dataset")
 }
 
 func TestDocumentRejectsHeadingRowWithPanels(t *testing.T) {

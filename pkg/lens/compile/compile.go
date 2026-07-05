@@ -357,20 +357,23 @@ func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
 
 func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 	out := panel.Spec{
-		ID:             resolveString(item.ID, opts.Values),
-		Title:          resolveText(item.Title, opts),
-		Description:    resolveText(item.Description, opts),
-		Info:           resolveText(item.Info, opts),
-		Kind:           item.Kind,
-		Dataset:        resolveString(item.Dataset, opts.Values),
-		Span:           item.Span,
-		Height:         resolveString(item.Height, opts.Values),
-		Colors:         resolveStringSlice(item.Colors, opts.Values),
-		ShowLegend:     item.ShowLegend,
+		ID:              resolveString(item.ID, opts.Values),
+		Title:           resolveText(item.Title, opts),
+		Description:     resolveText(item.Description, opts),
+		Info:            resolveText(item.Info, opts),
+		Kind:            item.Kind,
+		Dataset:         resolveString(item.Dataset, opts.Values),
+		Span:            item.Span,
+		Height:          resolveString(item.Height, opts.Values),
+		Colors:          resolveStringSlice(item.Colors, opts.Values),
+		ShowLegend:      item.ShowLegend,
 		ShowTotalBadge:  item.ShowTotalBadge,
 		TotalBadgeValue: item.TotalBadgeValue,
-		DrillHierarchy: item.DrillHierarchy,
-		Trend:          item.Trend,
+		DrillHierarchy:  item.DrillHierarchy,
+		Trend:           item.Trend,
+		Status:          item.Status,
+		Sparkline:       item.Sparkline,
+		GroupLayout:     item.GroupLayout,
 		Fields: panel.FieldMapping{
 			Label:     panel.Ref(resolveString(item.Fields.Label, opts.Values)),
 			Value:     panel.Ref(resolveString(item.Fields.Value, opts.Values)),
@@ -413,6 +416,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			Text:      resolveText(column.Text, opts),
 			Align:     column.Align,
 			Cell:      column.Cell,
+			WidthPx:   column.WidthPx,
 		})
 	}
 

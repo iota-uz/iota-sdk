@@ -69,6 +69,21 @@ func Grid(id, title string, children ...PanelSpec) PanelSpec {
 	}
 }
 
+// StatGroup builds a container that renders its Stat children inside one
+// shared card, separated by hairlines (columns by default; see Layout).
+func StatGroup(id, title string, children ...PanelSpec) *PanelBuilder {
+	return &PanelBuilder{
+		panel: PanelSpec{
+			ID:          id,
+			Title:       LiteralText(title),
+			Kind:        panel.KindStatGroup,
+			Span:        12,
+			GroupLayout: panel.GroupColumns,
+			Children:    children,
+		},
+	}
+}
+
 func newPanelBuilder(kind panel.Kind, id, title, dataset string) *PanelBuilder {
 	return &PanelBuilder{
 		panel: PanelSpec{
@@ -111,6 +126,38 @@ func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
 }
 func (b *PanelBuilder) Trend(percent float64, label string) *PanelBuilder {
 	b.panel.Trend = &panel.TrendSpec{Percent: percent, Label: label}
+	return b
+}
+
+// TrendWithInvert is Trend for down-is-good metrics: invert flips the
+// good/bad color mapping while the arrow still follows the sign.
+func (b *PanelBuilder) TrendWithInvert(percent float64, label string, invert bool) *PanelBuilder {
+	b.panel.Trend = &panel.TrendSpec{Percent: percent, Label: label, Invert: invert}
+	return b
+}
+
+// Status renders a small tone-colored chip in the stat card's label row.
+func (b *PanelBuilder) Status(label string, tone panel.StatusTone) *PanelBuilder {
+	b.panel.Status = &panel.StatusSpec{Label: label, Tone: tone}
+	return b
+}
+
+// Sparkline renders an inline trend polyline in the stat card's footer row
+// using the default accent stroke.
+func (b *PanelBuilder) Sparkline(values []float64) *PanelBuilder {
+	b.panel.Sparkline = &panel.SparklineSpec{Values: values}
+	return b
+}
+
+// SparklineColored is Sparkline with an explicit stroke color.
+func (b *PanelBuilder) SparklineColored(values []float64, color string) *PanelBuilder {
+	b.panel.Sparkline = &panel.SparklineSpec{Values: values, Color: color}
+	return b
+}
+
+// Layout selects a StatGroup's child arrangement (columns or rows).
+func (b *PanelBuilder) Layout(l panel.GroupLayout) *PanelBuilder {
+	b.panel.GroupLayout = l
 	return b
 }
 func (b *PanelBuilder) Format(spec format.Spec) *PanelBuilder { b.panel.Formatter = &spec; return b }
@@ -249,6 +296,12 @@ func (c TableColumnSpec) WithText(text string) TableColumnSpec {
 // AlignRight right-aligns the column's header and cell text.
 func (c TableColumnSpec) AlignRight() TableColumnSpec {
 	c.Align = "right"
+	return c
+}
+
+// Width sets a min-width (px) on the column's cells.
+func (c TableColumnSpec) Width(px int) TableColumnSpec {
+	c.WidthPx = px
 	return c
 }
 

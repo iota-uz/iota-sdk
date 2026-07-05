@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -460,6 +461,58 @@ func TestPanelMetricInfoTextDoesNotFallbackForNonCharts(t *testing.T) {
 
 	require.Empty(t, panelMetricInfoText(context.Background(), panel.Spec{Kind: panel.KindTable}))
 	require.Empty(t, panelMetricInfoText(context.Background(), panel.Spec{Kind: panel.KindStat}))
+}
+
+func TestStatValueIsZero(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, statValueIsZero(nil))
+	require.True(t, statValueIsZero(0.0))
+	require.True(t, statValueIsZero(0))
+	require.True(t, statValueIsZero("-"))
+	require.True(t, statValueIsZero("0"))
+	require.False(t, statValueIsZero(0.5))
+	require.False(t, statValueIsZero("12"))
+	require.False(t, statValueIsZero("n/a"))
+}
+
+func TestSparklinePoints(t *testing.T) {
+	t.Parallel()
+
+	// Fewer than two values cannot form a line.
+	require.Empty(t, sparklinePoints([]float64{5}, 72, 22))
+
+	points := sparklinePoints([]float64{0, 10}, 72, 22)
+	// min maps to the bottom padding line, max to the top.
+	require.Equal(t, "0.0,20.5 72.0,1.5", points)
+
+	// A flat series renders a mid-height line instead of dividing by zero.
+	flat := sparklinePoints([]float64{3, 3, 3}, 72, 22)
+	require.Equal(t, "0.0,11.0 36.0,11.0 72.0,11.0", flat)
+}
+
+func TestTableColumnIsNumeric(t *testing.T) {
+	t.Parallel()
+
+	money := format.MoneyCompact("UZS")
+	count := format.Count()
+	date := format.Date("2006-01-02")
+
+	require.True(t, tableColumnIsNumeric(panel.TableColumn{Align: "right"}))
+	require.True(t, tableColumnIsNumeric(panel.TableColumn{Formatter: &money}))
+	require.True(t, tableColumnIsNumeric(panel.TableColumn{Formatter: &count}))
+	require.False(t, tableColumnIsNumeric(panel.TableColumn{Formatter: &date}))
+	require.False(t, tableColumnIsNumeric(panel.TableColumn{}))
+}
+
+func TestStatTrendClassHonorsInvert(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "lens-trend lens-trend--up", statTrendClass(panel.TrendSpec{Percent: 5}))
+	require.Equal(t, "lens-trend lens-trend--down", statTrendClass(panel.TrendSpec{Percent: -5}))
+	require.Equal(t, "lens-trend lens-trend--down", statTrendClass(panel.TrendSpec{Percent: 5, Invert: true}))
+	require.Equal(t, "lens-trend lens-trend--up", statTrendClass(panel.TrendSpec{Percent: -5, Invert: true}))
+	require.Equal(t, "lens-trend", statTrendClass(panel.TrendSpec{Percent: 0}))
 }
 
 func metricInfoContext(t *testing.T, locale language.Tag) context.Context {
