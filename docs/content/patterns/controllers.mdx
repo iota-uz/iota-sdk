@@ -35,16 +35,31 @@ type ExpenseController struct {
 }
 
 func NewExpensesController() application.Controller {
+	basePath := "/finance/expenses"
+
 	return &ExpenseController{
-		basePath: "/finance/expenses",
+		basePath: basePath,
 	}
 }
 
-// Key returns the unique identifier for this controller
-func (c *ExpenseController) Key() string {
-	return c.basePath
+func (c *ExpenseController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor(
+		"finance.expense",
+		0,
+		application.Route("", c.basePath),
+	)
 }
 ```
+
+`Descriptor().ID` is the stable controller identity used by composition. It is
+not derived from the mux path. `Descriptor().Order` controls registration order,
+and `Descriptor().Routes` gives composition enough metadata to validate route
+collisions before the router is mounted. Override another controller by setting
+`Descriptor().Replaces`; do not remove controllers by path strings.
+
+Applet engine controllers follow the same SDK controller descriptor model when
+they are mounted into the application. New SDK-facing controller examples should
+implement `Descriptor()`, not `Key()`.
 
 ### Route Registration
 
