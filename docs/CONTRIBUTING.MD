@@ -279,10 +279,6 @@ just tunnel
    go install github.com/mrjoshuak/godoc-mcp@latest
    claude mcp add -s user godoc-mcp $(go env GOPATH)/bin/godoc-mcp
 
-   # Code Indexer (semantic code search)
-   # Requires OPENAI_API_KEY and MILVUS_TOKEN environment variables
-   # Contact team lead for MILVUS_TOKEN if you don't have it
-   claude mcp add code-indexer -e OPENAI_API_KEY=$OPENAI_API_KEY -e MILVUS_ADDRESS=https://in03-2c743230eb1daa2.serverless.gcp-us-west1.cloud.zilliz.com -e MILVUS_TOKEN=$MILVUS_TOKEN -- npx @code-indexer/mcp@latest
    ```
 
 3. **Usage**:
@@ -293,10 +289,6 @@ just tunnel
    # Start Claude Code (MCP auto-enabled)
    claude
    ```
-
-### Code Indexing
-
-The repository uses automated code indexing for semantic search. When you push changes, the GitHub Actions workflow automatically indexes the codebase using the `@code-indexer/core` package with OpenAI embeddings.
 
 ## 🤝 Communication Guidelines
 
