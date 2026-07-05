@@ -596,7 +596,8 @@ func buildLogarithmicAxisPlan(series []charts.Series, base int) (logarithmicAxis
 	}
 	logBase := math.Log(float64(base))
 	minExponent := int(math.Floor(math.Log(minPositive) / logBase))
-	maxExponent := int(math.Ceil(math.Log(maxPositive) / logBase))
+	rawMaxExponent := math.Log(maxPositive) / logBase
+	maxExponent := int(math.Ceil(rawMaxExponent))
 	if maxExponent <= minExponent {
 		maxExponent = minExponent + 1
 	}
@@ -610,6 +611,30 @@ func buildLogarithmicAxisPlan(series []charts.Series, base int) (logarithmicAxis
 	tickAmount := (maxTickExponent - minExponent) / step
 	if tickAmount < 1 {
 		tickAmount = 1
+	}
+	// Rounding the axis top up to a full decade can leave most of a decade
+	// empty above the tallest bar (e.g. a 256-billion max stretches the axis
+	// to 1 trillion). When labels sit on every decade anyway, cap the axis at
+	// the next half-decade (×√base) instead: gridlines land on half-decade
+	// steps, the label formatter blanks the non-decade ones, and Apex's tick
+	// generator stays exact because the range remains a multiple of stepSize.
+	if step == 1 {
+		halfMax := math.Ceil(rawMaxExponent*2) / 2
+		// Keep a sliver of headroom so the tallest bar never touches the
+		// axis top (0.04 of a decade ≈ 10% in value terms).
+		if halfMax-rawMaxExponent < 0.04 {
+			halfMax += 0.5
+		}
+		if halfMax < float64(maxTickExponent) && halfMax > float64(minExponent) {
+			halfTicks := int(math.Round((halfMax - float64(minExponent)) * 2))
+			return logarithmicAxisPlan{
+				Base:        base,
+				MinExponent: float64(minExponent),
+				MaxExponent: halfMax,
+				Step:        0.5,
+				TickAmount:  halfTicks,
+			}, true
+		}
 	}
 	return logarithmicAxisPlan{
 		Base:        base,
@@ -666,6 +691,9 @@ func wrapLogarithmicAxisFormatter(formatter templ.JSExpression, locale string, p
 	if formatter != "" {
 		inner = "(" + string(formatter) + ")"
 	}
+	// Labels always sit on whole decades: a sub-decade grid step (the
+	// half-decade axis cap) only adds unlabeled gridlines.
+	labelStep := math.Max(1, plan.Step)
 	return templ.JSExpression(fmt.Sprintf(`function(value) {
 		const scaled = Number(value);
 		if (!Number.isFinite(scaled)) {
@@ -683,7 +711,7 @@ func wrapLogarithmicAxisFormatter(formatter templ.JSExpression, locale string, p
 			return %s(normalized);
 		}
 		return Math.round(normalized).toLocaleString(%q);
-	}`, plan.MinExponent, plan.Step, plan.Base, inner, inner, locale))
+	}`, plan.MinExponent, labelStep, plan.Base, inner, inner, locale))
 }
 
 func wrapLogarithmicTooltipFormatter(formatter templ.JSExpression, locale string, base int) templ.JSExpression {

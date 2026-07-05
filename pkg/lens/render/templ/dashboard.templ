@@ -643,7 +643,9 @@ templ DashboardScripts() {
 						return '';
 					}
 					if (axisPlan.scale === 'log') {
-						const step = axisPlan.step || 1;
+						// Labels sit on whole decades; a sub-decade grid step (the
+						// half-decade axis cap) only adds unlabeled gridlines.
+						const step = Math.max(1, axisPlan.step || 1);
 						const slot = (scaled - axisPlan.min) / step;
 						if (!Number.isFinite(slot) || Math.abs(slot - Math.round(slot)) > 0.001) {
 							return '';

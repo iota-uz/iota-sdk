@@ -458,6 +458,40 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 	}
 }
 
+func TestBuildLogarithmicAxisPlanCapsTopAtHalfDecade(t *testing.T) {
+	t.Parallel()
+
+	// 575M..256B spans exponents 8.76..11.41: rounding the top up to a full
+	// decade (1T) would waste most of a decade above the tallest bar, so the
+	// plan caps at the next half-decade (11.5 ≈ 316B) with half-decade grid
+	// steps. Labels stay on whole decades via the formatter's slot check.
+	plan, ok := buildLogarithmicAxisPlan([]charts.Series{
+		{Name: "Direct", Data: []any{5.75e8, 4.7e10}},
+		{Name: "Inward", Data: []any{9.1e9, 2.56e11}},
+	}, 10)
+	require.True(t, ok)
+	require.InDelta(t, 8.0, plan.MinExponent, 1e-9)
+	require.InDelta(t, 11.5, plan.MaxExponent, 1e-9)
+	require.InDelta(t, 0.5, plan.Step, 1e-9)
+	require.Equal(t, 7, plan.TickAmount)
+}
+
+func TestBuildLogarithmicAxisPlanKeepsFullDecadeWhenMaxIsNearIt(t *testing.T) {
+	t.Parallel()
+
+	// 9.9e11 is within 0.04 exponent of the decade boundary — the half-decade
+	// cap would leave the tallest bar touching the axis top, so the plan keeps
+	// the classic full-decade ceiling.
+	plan, ok := buildLogarithmicAxisPlan([]charts.Series{
+		{Name: "Direct", Data: []any{5.75e8, 9.9e11}},
+	}, 10)
+	require.True(t, ok)
+	require.InDelta(t, 8.0, plan.MinExponent, 1e-9)
+	require.InDelta(t, 12.0, plan.MaxExponent, 1e-9)
+	require.InDelta(t, 1.0, plan.Step, 1e-9)
+	require.Equal(t, 4, plan.TickAmount)
+}
+
 func TestLogarithmicAxisPlanFromAxisOptionsUsesAxisConfig(t *testing.T) {
 	t.Parallel()
 
