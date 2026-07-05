@@ -1448,6 +1448,12 @@ func panelChartClass(spec panel.Spec, fullscreen bool) string {
 	if panelIsInteractive(spec) {
 		base += " cursor-pointer"
 	}
+	if spec.DrillHierarchy != nil {
+		// Server-rendered counterpart of the data-lens-drill-hierarchy attribute
+		// (set client-side on Mounted): gives the bars a pointer cursor from the
+		// first paint instead of after the chart lifecycle hook runs.
+		base += " lens-chart--drill"
+	}
 	if panelUsesRadialActionSurface(spec) {
 		base += " lens-chart--radial-action"
 	}

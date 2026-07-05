@@ -198,6 +198,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if options.PlotOptions != nil && options.PlotOptions.Bar != nil && usesDistributedBarColors(panelSpec, panelResult) {
 		options.PlotOptions.Bar.Distributed = mapping.Pointer(true)
 	}
+	applyBarHoverStates(&options, panelSpec)
 	if panelSpec.Kind == panel.KindTimeSeries {
 		curve := charts.StrokeCurveSmooth
 		options.Stroke = &charts.StrokeConfig{
@@ -272,6 +273,34 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
 	return options
+}
+
+// applyBarHoverStates makes the hovered bar visibly darken (and the selected
+// bar darken further). ApexCharts' default hover filter is a subtle lighten
+// that is invisible on the light pastel palette, so users get no feedback on
+// which bar the shared tooltip describes — nor that a bar is clickable.
+func applyBarHoverStates(options *charts.ChartOptions, panelSpec panel.Spec) {
+	switch panelSpec.Kind {
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindPie, panel.KindDonut, panel.KindGauge,
+		panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+		return
+	default:
+		return
+	}
+	if options.States != nil {
+		return
+	}
+	options.States = &charts.StatesConfig{
+		Hover: &charts.StateFilterConfig{Filter: &charts.StateFilter{
+			Type:  mapping.Pointer("darken"),
+			Value: mapping.Pointer(0.12),
+		}},
+		Active: &charts.StateActiveConfig{Filter: &charts.StateFilter{
+			Type:  mapping.Pointer("darken"),
+			Value: mapping.Pointer(0.2),
+		}},
+	}
 }
 
 func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {

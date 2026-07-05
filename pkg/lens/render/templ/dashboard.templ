@@ -486,8 +486,11 @@ templ DashboardScripts() {
 		/* ApexCharts gives bar rects no pointer affordance by default even when
 		   a click handler is wired. Scoped to DrillHierarchy charts (the only
 		   Bar panels whose click is a real interaction users need to discover)
-		   rather than applied globally to every bar chart. */
-		[data-lens-drill-hierarchy] .apexcharts-bar-area {
+		   rather than applied globally to every bar chart. The class variant is
+		   the server-rendered counterpart of the attribute (which the Mounted
+		   hook sets), so the affordance is there from the first paint. */
+		[data-lens-drill-hierarchy] .apexcharts-bar-area,
+		.lens-chart--drill .apexcharts-bar-area {
 			cursor: pointer;
 		}
 	</style>
