@@ -1,6 +1,7 @@
 package apex
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -421,7 +422,7 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotContains(t, badge, "collapsedSeries || []")
 				require.NotContains(t, badge, "hiddenSeries || []")
 				require.Contains(t, badge, "badge.textContent = totalLabel + ': ' + formatValue(total)")
-				require.Contains(t, badge, "const staticTotal = null;")
+				require.Contains(t, badge, `const staticTotalText = "";`)
 			},
 		},
 		{
@@ -448,8 +449,14 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotEmpty(t, options.Chart.Events.Mounted)
 				badge := string(options.Chart.Events.Mounted)
 				require.Contains(t, badge, "data-lens-stacked-total")
-				require.Contains(t, badge, "const staticTotal = 393069670322.96;")
-				require.Contains(t, badge, "total = staticTotal;")
+				// The total is formatted server-side with the panel's own
+				// formatter — the client-side sum/formatter operate in
+				// (log-transformed) plot space and must not be used.
+				spec := format.MoneyCompact("UZS")
+				expected := format.Apply(&spec, 393069670322.96, "ru", "")
+				require.NotEmpty(t, expected)
+				require.Contains(t, badge, fmt.Sprintf("const staticTotalText = %q;", expected))
+				require.Contains(t, badge, "badge.textContent = totalLabel + ': ' + staticTotalText")
 			},
 		},
 		{

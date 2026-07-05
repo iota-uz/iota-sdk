@@ -260,7 +260,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		chartEvents.Mounted = buildDrillHierarchyMountJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
 	}
 	if panelSpec.Kind == panel.KindStackedBar || panelSpec.ShowTotalBadge {
-		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter, panelSpec.TotalBadgeValue)
+		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter, staticTotalBadgeText(panelSpec, panelResult.Locale))
 		// The stacked-bar total badge floats at the top-left of the plot. Reserve a
 		// header band above the plot so it clears the top y-axis label (and the
 		// top-right toolbar/export menu has room too).
@@ -837,35 +837,40 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 	}`, valueFormatter, locale, label))
 }
 
-func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression, staticTotal *float64) {
+// staticTotalBadgeText formats TotalBadgeValue server-side with the panel's
+// own formatter. The client-side path cannot be reused: on log-scaled panels
+// both the plotted points (floored exponents) and the tooltip formatter
+// (inverse log transform) operate in exponent space, so neither summing the
+// points nor running the raw total through that formatter yields the total.
+func staticTotalBadgeText(panelSpec panel.Spec, locale string) string {
+	if panelSpec.TotalBadgeValue == nil {
+		return ""
+	}
+	return format.Apply(panelSpec.Formatter, *panelSpec.TotalBadgeValue, normalizedChartLocale(locale), "")
+}
+
+func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression, staticTotalText string) {
 	if events == nil {
 		return
 	}
-	totalBadge := stackedBarTotalBadgeJS(locale, formatter, staticTotal)
+	totalBadge := stackedBarTotalBadgeJS(locale, formatter, staticTotalText)
 	events.Mounted = totalBadge
 	events.Updated = totalBadge
 	events.LegendClick = totalBadge
 }
 
-func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticTotal *float64) templ.JSExpression {
+func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticTotalText string) templ.JSExpression {
 	locale = normalizedChartLocale(locale)
 	label := stackedBarTotalLabel(locale)
 	valueFormatter := "null"
 	if formatter != "" {
 		valueFormatter = "(" + string(formatter) + ")"
 	}
-	// A server-computed total bypasses the client-side sum: on log-scaled
-	// panels the plotted points are exponents (with an epsilon floor), so
-	// summing them would be meaningless.
-	staticTotalJS := "null"
-	if staticTotal != nil {
-		staticTotalJS = strconv.FormatFloat(*staticTotal, 'f', -1, 64)
-	}
 	return templ.JSExpression(fmt.Sprintf(`function(chartContext) {
 		const valueFormatter = %s;
 		const locale = %q;
 		const totalLabel = %q;
-		const staticTotal = %s;
+		const staticTotalText = %q;
 		const update = () => {
 			const ctx = chartContext || null;
 			const el = ctx && ctx.el ? ctx.el : null;
@@ -895,6 +900,10 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 				badge.style.pointerEvents = 'none';
 				el.appendChild(badge);
 			}
+			if (staticTotalText) {
+				badge.textContent = totalLabel + ': ' + staticTotalText;
+				return;
+			}
 			const globals = w.globals || {};
 			const seriesNames = globals.seriesNames || [];
 			const configSeries = w.config && Array.isArray(w.config.series) ? w.config.series : [];
@@ -922,29 +931,25 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 				return Boolean(result && result.isHidden);
 			};
 			let total = 0;
-			if (Number.isFinite(staticTotal)) {
-				total = staticTotal;
-			} else {
-				const addValue = (value) => {
-					if (value && typeof value === 'object' && 'y' in value) {
-						value = value.y;
-					}
-					const number = Number(value);
-					if (Number.isFinite(number)) {
-						total += number;
-					}
-				};
-				configSeries.forEach((entry, seriesIndex) => {
-					const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
-					if (isSeriesHidden(String(name))) {
-						return;
-					}
-					const points = entry && Array.isArray(entry.data)
-						? entry.data
-						: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
-					points.forEach(addValue);
-				});
-			}
+			const addValue = (value) => {
+				if (value && typeof value === 'object' && 'y' in value) {
+					value = value.y;
+				}
+				const number = Number(value);
+				if (Number.isFinite(number)) {
+					total += number;
+				}
+			};
+			configSeries.forEach((entry, seriesIndex) => {
+				const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
+				if (isSeriesHidden(String(name))) {
+					return;
+				}
+				const points = entry && Array.isArray(entry.data)
+					? entry.data
+					: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
+				points.forEach(addValue);
+			});
 			const formatValue = (value) => {
 				if (valueFormatter) {
 					return valueFormatter(value, { seriesIndex: -1, dataPointIndex: -1, w });
@@ -955,7 +960,7 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 		};
 		setTimeout(update, 0);
 		setTimeout(update, 80);
-	}`, valueFormatter, locale, label, staticTotalJS))
+	}`, valueFormatter, locale, label, staticTotalText))
 }
 
 func normalizedChartLocale(locale string) string {
