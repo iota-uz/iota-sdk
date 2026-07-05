@@ -741,7 +741,7 @@ func (e *Executor) Execute(ctx context.Context, input Input) types.Generator[Exe
 
 				// Store for ordered message append later.
 				specResults[tr.call.ID] = types.ToolResponse(tr.call.ID, toolOutput)
-				specOutcomes[tr.call.ID] = toolCallOutcomeFromResult(tr.call, tr.result, tr.err, tr.durationMs)
+				specOutcomes[tr.call.ID] = toolCallOutcomeFromResult(tr.call, toolOutput, tr.result, tr.err, tr.durationMs)
 				return true
 			}
 
@@ -1560,7 +1560,7 @@ func (e *Executor) executeToolCalls(
 		}
 
 		ordered[tr.idx] = types.ToolResponse(tr.call.ID, toolOutput)
-		outcomes[tr.idx] = toolCallOutcomeFromResult(tr.call, tr.result, tr.err, tr.durationMs)
+		outcomes[tr.idx] = toolCallOutcomeFromResult(tr.call, toolOutput, tr.result, tr.err, tr.durationMs)
 	}
 
 	results := make([]types.Message, 0, len(ordered))

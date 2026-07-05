@@ -34,6 +34,7 @@ type ReminderState struct {
 type ToolCallOutcome struct {
 	Name       string
 	Arguments  string
+	Output     string
 	DurationMs int64
 	Err        error
 	Truncated  bool
@@ -259,10 +260,11 @@ func reminderMetadataFromPayload(payload any) (bool, int) {
 	}
 }
 
-func toolCallOutcomeFromResult(call types.ToolCall, result toolExecutionResult, err error, durationMs int64) ToolCallOutcome {
+func toolCallOutcomeFromResult(call types.ToolCall, output string, result toolExecutionResult, err error, durationMs int64) ToolCallOutcome {
 	return ToolCallOutcome{
 		Name:       call.Name,
 		Arguments:  call.Arguments,
+		Output:     output,
 		DurationMs: durationMs,
 		Err:        err,
 		Truncated:  result.truncated,
