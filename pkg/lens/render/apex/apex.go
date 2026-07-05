@@ -1029,11 +1029,11 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 				badge = document.createElement('div');
 				badge.setAttribute('data-lens-stacked-total', 'true');
 				badge.style.position = 'absolute';
-				badge.style.top = '6px';
-				// Anchored top-right so it never collides with the drill-back
-				// ("← Back") overlay, which owns the top-left corner; the plot's
-				// y-axis labels live on the left and the legend at the bottom, so
-				// the top-right is clear on both vertical and horizontal bars.
+				// Anchored top-right: the drill-back ("← Back") overlay owns the
+				// top-left corner, the y-axis labels live on the left, and the
+				// legend sits at the bottom. The vertical offset is (re)computed
+				// on every update below so the badge drops clear of the
+				// ApexCharts toolbar when one is present.
 				badge.style.right = '12px';
 				badge.style.zIndex = '5';
 				badge.style.padding = '4px 8px';
@@ -1049,6 +1049,27 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 				badge.style.pointerEvents = 'none';
 				el.appendChild(badge);
 			}
+			// In fullscreen the chart mounts with the ApexCharts toolbar (the
+			// download / zoom "hamburger" menu), which Apex also anchors to the
+			// top-right — this badge's corner. The earlier fix that moved the
+			// badge here from the top-left (to clear the drill-back overlay)
+			// re-introduced the collision against that toolbar. Rather than
+			// relocate to yet another fixed corner, measure the toolbar and drop
+			// the badge just below it whenever a visible one is present; the
+			// in-page chart disables the toolbar, so the badge stays at the top.
+			// Recomputed each update because Apex mounts the toolbar after the
+			// first tick and the fullscreen instance mounts lazily.
+			const toolbar = el.querySelector('.apexcharts-toolbar');
+			let badgeTop = 6;
+			if (toolbar) {
+				const toolbarStyle = window.getComputedStyle ? window.getComputedStyle(toolbar) : null;
+				const toolbarVisible = !toolbarStyle || (toolbarStyle.display !== 'none' && toolbarStyle.visibility !== 'hidden');
+				const toolbarHeight = toolbar.offsetHeight || 0;
+				if (toolbarVisible && toolbarHeight > 0) {
+					badgeTop = toolbarHeight + 10;
+				}
+			}
+			badge.style.top = badgeTop + 'px';
 			if (staticTotalText) {
 				badge.textContent = totalLabel + ': ' + staticTotalText;
 				return;
