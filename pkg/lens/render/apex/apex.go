@@ -275,10 +275,14 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	return options
 }
 
-// applyBarHoverStates makes the hovered bar visibly darken (and the selected
-// bar darken further). ApexCharts' default hover filter is a subtle lighten
-// that is invisible on the light pastel palette, so users get no feedback on
-// which bar the shared tooltip describes — nor that a bar is clickable.
+// applyBarHoverStates disables ApexCharts' own hover filter on bar panels.
+// Under a shared tooltip Apex applies the hover state to EVERY series at the
+// hovered category (all bars of the year darken together), which reads as a
+// group highlight rather than "this is the bar you're on". The per-bar
+// highlight is instead a plain CSS :hover brightness on .apexcharts-bar-area
+// (see DashboardScripts in render/templ/dashboard.templ), which only ever
+// matches the single path under the pointer. The active (clicked) state keeps
+// an explicit darken so drill clicks give press feedback.
 func applyBarHoverStates(options *charts.ChartOptions, panelSpec panel.Spec) {
 	switch panelSpec.Kind {
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade:
@@ -293,8 +297,7 @@ func applyBarHoverStates(options *charts.ChartOptions, panelSpec panel.Spec) {
 	}
 	options.States = &charts.StatesConfig{
 		Hover: &charts.StateFilterConfig{Filter: &charts.StateFilter{
-			Type:  mapping.Pointer("darken"),
-			Value: mapping.Pointer(0.12),
+			Type: mapping.Pointer("none"),
 		}},
 		Active: &charts.StateActiveConfig{Filter: &charts.StateFilter{
 			Type:  mapping.Pointer("darken"),

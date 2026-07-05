@@ -493,6 +493,16 @@ templ DashboardScripts() {
 		.lens-chart--drill .apexcharts-bar-area {
 			cursor: pointer;
 		}
+		/* Per-bar hover highlight. Apex's own states.hover filter is disabled on
+		   bar panels (render/apex applyBarHoverStates) because under a shared
+		   tooltip it darkens the whole hovered category; :hover only ever matches
+		   the single bar under the pointer. */
+		[data-lens-dashboard] .apexcharts-bar-area {
+			transition: filter 120ms ease;
+		}
+		[data-lens-dashboard] .apexcharts-bar-area:hover {
+			filter: brightness(0.85);
+		}
 	</style>
 	<script>
 		(function() {
