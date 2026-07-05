@@ -421,6 +421,35 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotContains(t, badge, "collapsedSeries || []")
 				require.NotContains(t, badge, "hiddenSeries || []")
 				require.Contains(t, badge, "badge.textContent = totalLabel + ': ' + formatValue(total)")
+				require.Contains(t, badge, "const staticTotal = null;")
+			},
+		},
+		{
+			name: "grouped bar with server total renders static badge",
+			panelSpec: panel.Bar("premium-by-year", "Premium by Year", "premium").
+				CategoryField("category").
+				SeriesField("series").
+				ValueField("value").
+				Format(format.MoneyCompact("UZS")).
+				TotalBadgeValue(393069670322.96).
+				Build(),
+			panelResult: func() *runtime.PanelResult {
+				fr, err := frame.New("premium",
+					frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"2024", "2024"}},
+					frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL"}},
+					frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0, 5.0}},
+				)
+				require.NoError(t, err)
+				return &runtime.PanelResult{Frames: mustFrameSet(t, fr), Locale: "ru"}
+			}(),
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Chart.Events)
+				require.NotEmpty(t, options.Chart.Events.Mounted)
+				badge := string(options.Chart.Events.Mounted)
+				require.Contains(t, badge, "data-lens-stacked-total")
+				require.Contains(t, badge, "const staticTotal = 393069670322.96;")
+				require.Contains(t, badge, "total = staticTotal;")
 			},
 		},
 		{

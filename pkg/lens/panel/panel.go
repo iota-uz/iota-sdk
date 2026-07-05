@@ -175,7 +175,13 @@ type Spec struct {
 	Colors         []string
 	ShowLegend     bool
 	ShowTotalBadge bool
-	DrillHierarchy *DrillHierarchy
+	// TotalBadgeValue, when set, renders the total badge with this
+	// server-computed value instead of summing the plotted data points
+	// client-side. Required for panels whose plotted series are not the raw
+	// amounts (e.g. log-transformed values with an epsilon floor). The badge
+	// then stays constant across legend toggles — it is the period total.
+	TotalBadgeValue *float64
+	DrillHierarchy  *DrillHierarchy
 	Trend          *TrendSpec
 	Fields         FieldMapping
 	Formatter      *format.Spec
@@ -316,6 +322,11 @@ func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; re
 func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
 func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
 func (b *Builder) TotalBadge() *Builder             { b.spec.ShowTotalBadge = true; return b }
+func (b *Builder) TotalBadgeValue(v float64) *Builder {
+	b.spec.ShowTotalBadge = true
+	b.spec.TotalBadgeValue = &v
+	return b
+}
 func (b *Builder) DrillHierarchy(h DrillHierarchy) *Builder {
 	b.spec.DrillHierarchy = &h
 	return b

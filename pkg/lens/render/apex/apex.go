@@ -259,8 +259,8 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		// without waiting for a click.
 		chartEvents.Mounted = buildDrillHierarchyMountJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
 	}
-	if panelSpec.Kind == panel.KindStackedBar {
-		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter)
+	if panelSpec.Kind == panel.KindStackedBar || panelSpec.ShowTotalBadge {
+		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter, panelSpec.TotalBadgeValue)
 		// The stacked-bar total badge floats at the top-left of the plot. Reserve a
 		// header band above the plot so it clears the top y-axis label (and the
 		// top-right toolbar/export menu has room too).
@@ -837,27 +837,35 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 	}`, valueFormatter, locale, label))
 }
 
-func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression) {
+func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression, staticTotal *float64) {
 	if events == nil {
 		return
 	}
-	totalBadge := stackedBarTotalBadgeJS(locale, formatter)
+	totalBadge := stackedBarTotalBadgeJS(locale, formatter, staticTotal)
 	events.Mounted = totalBadge
 	events.Updated = totalBadge
 	events.LegendClick = totalBadge
 }
 
-func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.JSExpression {
+func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticTotal *float64) templ.JSExpression {
 	locale = normalizedChartLocale(locale)
 	label := stackedBarTotalLabel(locale)
 	valueFormatter := "null"
 	if formatter != "" {
 		valueFormatter = "(" + string(formatter) + ")"
 	}
+	// A server-computed total bypasses the client-side sum: on log-scaled
+	// panels the plotted points are exponents (with an epsilon floor), so
+	// summing them would be meaningless.
+	staticTotalJS := "null"
+	if staticTotal != nil {
+		staticTotalJS = strconv.FormatFloat(*staticTotal, 'f', -1, 64)
+	}
 	return templ.JSExpression(fmt.Sprintf(`function(chartContext) {
 		const valueFormatter = %s;
 		const locale = %q;
 		const totalLabel = %q;
+		const staticTotal = %s;
 		const update = () => {
 			const ctx = chartContext || null;
 			const el = ctx && ctx.el ? ctx.el : null;
@@ -914,25 +922,29 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 				return Boolean(result && result.isHidden);
 			};
 			let total = 0;
-			const addValue = (value) => {
-				if (value && typeof value === 'object' && 'y' in value) {
-					value = value.y;
-				}
-				const number = Number(value);
-				if (Number.isFinite(number)) {
-					total += number;
-				}
-			};
-			configSeries.forEach((entry, seriesIndex) => {
-				const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
-				if (isSeriesHidden(String(name))) {
-					return;
-				}
-				const points = entry && Array.isArray(entry.data)
-					? entry.data
-					: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
-				points.forEach(addValue);
-			});
+			if (Number.isFinite(staticTotal)) {
+				total = staticTotal;
+			} else {
+				const addValue = (value) => {
+					if (value && typeof value === 'object' && 'y' in value) {
+						value = value.y;
+					}
+					const number = Number(value);
+					if (Number.isFinite(number)) {
+						total += number;
+					}
+				};
+				configSeries.forEach((entry, seriesIndex) => {
+					const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
+					if (isSeriesHidden(String(name))) {
+						return;
+					}
+					const points = entry && Array.isArray(entry.data)
+						? entry.data
+						: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
+					points.forEach(addValue);
+				});
+			}
 			const formatValue = (value) => {
 				if (valueFormatter) {
 					return valueFormatter(value, { seriesIndex: -1, dataPointIndex: -1, w });
@@ -943,7 +955,7 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 		};
 		setTimeout(update, 0);
 		setTimeout(update, 80);
-	}`, valueFormatter, locale, label))
+	}`, valueFormatter, locale, label, staticTotalJS))
 }
 
 func normalizedChartLocale(locale string) string {

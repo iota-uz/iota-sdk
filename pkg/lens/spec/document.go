@@ -138,7 +138,8 @@ type PanelSpec struct {
 	Height         string                `json:"height,omitempty"`
 	Colors         []string              `json:"colors,omitempty"`
 	ShowLegend     bool                  `json:"showLegend,omitempty"`
-	ShowTotalBadge bool                  `json:"showTotalBadge,omitempty"`
+	ShowTotalBadge  bool                 `json:"showTotalBadge,omitempty"`
+	TotalBadgeValue *float64             `json:"totalBadgeValue,omitempty"`
 	DrillHierarchy *panel.DrillHierarchy `json:"drillHierarchy,omitempty"`
 	Trend          *panel.TrendSpec      `json:"trend,omitempty"`
 	Fields         FieldMappingSpec      `json:"fields,omitempty"`

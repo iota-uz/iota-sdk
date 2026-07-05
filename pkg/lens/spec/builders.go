@@ -96,6 +96,15 @@ func (b *PanelBuilder) Height(height string) *PanelBuilder    { b.panel.Height =
 func (b *PanelBuilder) Colors(colors ...string) *PanelBuilder { b.panel.Colors = colors; return b }
 func (b *PanelBuilder) Legend() *PanelBuilder                 { b.panel.ShowLegend = true; return b }
 func (b *PanelBuilder) TotalBadge() *PanelBuilder             { b.panel.ShowTotalBadge = true; return b }
+
+// TotalBadgeValue shows the total badge with a server-computed value instead
+// of the client-side sum of plotted points. Use when the plotted series are
+// not the raw amounts (e.g. log-scaled panels).
+func (b *PanelBuilder) TotalBadgeValue(v float64) *PanelBuilder {
+	b.panel.ShowTotalBadge = true
+	b.panel.TotalBadgeValue = &v
+	return b
+}
 func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
 	b.panel.DrillHierarchy = &h
 	return b
