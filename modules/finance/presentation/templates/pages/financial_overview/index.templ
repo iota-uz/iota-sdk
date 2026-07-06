@@ -2,6 +2,7 @@ package financial_overview
 
 import (
 	"github.com/iota-uz/iota-sdk/components/base/tab"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -14,12 +15,15 @@ templ Index(props *IndexPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("FinancialOverview.Meta.Title")},
-	}) {
-		<div class="m-6">
-			<h1 class="text-2xl font-medium mb-5">
-				{ pageCtx.T("NavigationLinks.FinancialOverview") }
-			</h1>
-			@tab.Root(tab.Props{
+		}) {
+			<div class="m-6">
+				<div class="flex items-center gap-2 mb-5">
+					<h1 class="text-2xl font-medium">
+						{ pageCtx.T("NavigationLinks.FinancialOverview") }
+					</h1>
+					@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/finance.md"})
+				</div>
+				@tab.Root(tab.Props{
 				DefaultValue: props.ActiveTab,
 				Class:        "w-full",
 			}) {

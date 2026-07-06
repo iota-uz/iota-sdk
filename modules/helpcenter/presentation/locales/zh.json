@@ -1,0 +1,18 @@
+{
+  "NavigationLinks": {
+    "HelpCenter": "帮助中心"
+  },
+  "HelpCenter": {
+    "Meta": {
+      "Title": "帮助中心",
+      "Subtitle": "浏览产品文档和操作指南。"
+    },
+    "Search": {
+      "Placeholder": "搜索帮助文章",
+      "Unavailable": "搜索不可用。",
+      "NoResults": "未找到结果。"
+    },
+    "Categories": "分类",
+    "Empty": "暂无帮助文章。"
+  }
+}

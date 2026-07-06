@@ -1,0 +1,1405 @@
+{
+  "Account": {
+    "Meta": {
+      "Index": {
+        "Title": "Conta"
+      },
+      "Settings": {
+        "Title": "Configurações da conta"
+      },
+      "Logo": {
+        "Title": "Configurações de logo"
+      }
+    },
+    "BrowseFilesystem": "Navegar pelo sistema de arquivos",
+    "FirstName": {
+      "Label": "Nome",
+      "Placeholder": "Insira o nome"
+    },
+    "LastName": {
+      "Label": "Sobrenome",
+      "Placeholder": "Insira o sobrenome"
+    },
+    "MiddleName": {
+      "Label": "Nome do meio",
+      "Placeholder": "Insira o nome do meio"
+    },
+    "Email": {
+      "Label": "E-mail",
+      "Placeholder": "Insira o e-mail"
+    },
+    "Phone": {
+      "Label": "Telefone",
+      "Placeholder": "Insira o número de telefone"
+    },
+    "Password": "Senha",
+    "Save": "Salvar",
+    "Logo": {
+      "FullLogo": "Logo completo",
+      "FullLogoDescription": "Este logo será exibido quando a barra lateral estiver expandida",
+      "FullLogoPlaceholder": "Escolha o logo completo da sua empresa (PNG, JPG, SVG)",
+      "CompactLogo": "Logo compacto",
+      "CompactLogoDescription": "Este logo será exibido quando a barra lateral estiver recolhida",
+      "CompactLogoPlaceholder": "Escolha o logo compacto da sua empresa (PNG, JPG, SVG)"
+    },
+    "Contact": {
+      "Information": "Informações de contato",
+      "DescText": "Gerencie os dados de contato da sua organização",
+      "Phone": "Número de telefone",
+      "PhonePlaceholder": "Insira o número de telefone (ex.: +1234567890)",
+      "Email": "Endereço de e-mail",
+      "EmailPlaceholder": "Insira o endereço de e-mail"
+    },
+    "Sessions": {
+      "Title": "Sessões ativas",
+      "DescText": "Gerencie suas sessões ativas em diferentes dispositivos",
+      "CurrentDevice": "Atual",
+      "Device": "Dispositivo",
+      "IPAddress": "Endereço IP",
+      "CreatedAt": "Conectado em",
+      "Actions": "Ações",
+      "Revoke": "Revogar",
+      "RevokeAll": "Sair de todos os outros dispositivos",
+      "ConfirmRevoke": "Tem certeza de que deseja revogar esta sessão?",
+      "ConfirmRevokeAll": "Tem certeza de que deseja sair de todos os outros dispositivos?",
+      "RevokeSuccess": "Sessão revogada com sucesso",
+      "RevokeAllSuccess": "%d sessões revogadas",
+      "EmptyState": "Você está conectado apenas neste dispositivo",
+      "CannotRevokeCurrent": "Não é possível revogar a sessão atual"
+    }
+  },
+  "Actions": "Ações",
+  "Add": "Adicionar",
+  "All": "Todos",
+  "NotFound": "Não encontrado",
+  "Analytics": {
+    "PreviousDay": "Dia anterior",
+    "NextDay": "Próximo dia",
+    "Revenue": "Receita",
+    "Count": "Quantidade",
+    "RevenueByCategory": "Receita por categoria",
+    "CountByCategory": "Quantidade por categoria",
+    "CategoryBreakdown": "Detalhamento por categoria",
+    "NoDataTitle": "Nenhum dado disponível",
+    "NoDataDescription": "Não há dados disponíveis para a data selecionada",
+    "Categories": "Categorias"
+  },
+  "Back": "Voltar",
+  "Cancel": "Cancelar",
+  "Chart": {
+    "CloseFullScreen": "Fechar tela cheia",
+    "ExpandToFullScreen": "Expandir para tela cheia",
+    "LogScale": "Escala logarítmica",
+    "LogScaleHint": "Os valores são mostrados em escala logarítmica",
+    "MetricInfo": "Como esta métrica é calculada"
+  },
+  "Lens": {
+    "Empty": {
+      "_Description": "Tente ajustar os filtros",
+      "Title": "Nenhum dado disponível"
+    },
+    "Error": {
+      "_Description": "Ocorreu um erro ao renderizar este painel",
+      "Title": "Não foi possível carregar os dados",
+      "PanelLabel": "Painel",
+      "ReasonLabel": "Motivo",
+      "LogsHint": "Verifique os logs do servidor para o contexto completo do erro"
+    },
+    "Drill": {
+      "Back": "Voltar",
+      "CurrentScope": "Escopo atual"
+    },
+    "Table": {
+      "OpenRow": "Abrir detalhes"
+    },
+    "Filters": {
+      "All": "Todos",
+      "AllTime": "Todo o período",
+      "Apply": "Aplicar",
+      "CustomRange": "Intervalo personalizado",
+      "DefaultRange": "Intervalo padrão",
+      "Title": "Filtros"
+    }
+  },
+  "Common": {
+    "Loading": "Carregando..."
+  },
+  "ConfirmDelete": "Tem certeza de que deseja excluir este item?",
+  "Countries": {
+    "AF": "Afeganistão",
+    "AL": "Albânia",
+    "AD": "Andorra",
+    "AG": "Antígua e Barbuda",
+    "AR": "Argentina",
+    "AU": "Austrália",
+    "AT": "Áustria",
+    "BA": "Bósnia e Herzegovina",
+    "BW": "Botsuana",
+    "BN": "Brunei",
+    "BS": "Bahamas",
+    "BH": "Bahrein",
+    "BD": "Bangladexe",
+    "BB": "Barbados",
+    "BE": "Bélgica",
+    "BZ": "Belize",
+    "BT": "Butão",
+    "BO": "Bolívia",
+    "BR": "Brasil",
+    "BG": "Bulgária",
+    "CA": "Canadá",
+    "CL": "Chile",
+    "CO": "Colômbia",
+    "CR": "Costa Rica",
+    "HR": "Croácia",
+    "CY": "Chipre",
+    "CZ": "Chéquia",
+    "DK": "Dinamarca",
+    "DO": "República Dominicana",
+    "EC": "Equador",
+    "SV": "El Salvador",
+    "EE": "Estônia",
+    "FI": "Finlândia",
+    "FR": "França",
+    "DE": "Alemanha",
+    "GR": "Grécia",
+    "GT": "Guatemala",
+    "HN": "Honduras",
+    "HU": "Hungria",
+    "IS": "Islândia",
+    "IE": "Irlanda",
+    "IT": "Itália",
+    "JM": "Jamaica",
+    "JP": "Japão",
+    "LV": "Letônia",
+    "LI": "Liechtenstein",
+    "LT": "Lituânia",
+    "LU": "Luxemburgo",
+    "MY": "Malásia",
+    "MT": "Malta",
+    "MX": "México",
+    "MC": "Mônaco",
+    "NL": "Países Baixos",
+    "NZ": "Nova Zelândia",
+    "NI": "Nicarágua",
+    "NO": "Noruega",
+    "PA": "Panamá",
+    "PY": "Paraguai",
+    "PE": "Peru",
+    "PL": "Polônia",
+    "PT": "Portugal",
+    "SM": "San Marino",
+    "SG": "Singapura",
+    "SK": "Eslováquia",
+    "SI": "Eslovênia",
+    "ES": "Espanha",
+    "SE": "Suécia",
+    "CH": "Suíça",
+    "TH": "Tailândia",
+    "TO": "Tonga",
+    "UY": "Uruguai",
+    "DZ": "Argélia",
+    "AO": "Angola",
+    "AM": "Armênia",
+    "AZ": "Azerbaijão",
+    "BY": "Bielorrússia",
+    "BJ": "Benin",
+    "BF": "Burquina Fasso",
+    "BI": "Burundi",
+    "CV": "Cabo Verde",
+    "KH": "Camboja",
+    "CM": "Camarões",
+    "CF": "República Centro-Africana",
+    "TD": "Chade",
+    "CN": "China",
+    "KM": "Comores",
+    "CG": "Congo (Brazzaville)",
+    "CD": "Congo (Kinshasa)",
+    "CU": "Cuba",
+    "DJ": "Djibuti",
+    "DM": "Dominica",
+    "EG": "Egito",
+    "GQ": "Guiné Equatorial",
+    "ER": "Eritreia",
+    "SZ": "Essuatíni",
+    "ET": "Etiópia",
+    "FJ": "Fiji",
+    "GA": "Gabão",
+    "GM": "Gâmbia",
+    "GE": "Geórgia",
+    "GH": "Gana",
+    "GD": "Granada",
+    "GN": "Guiné",
+    "GW": "Guiné-Bissau",
+    "GY": "Guiana",
+    "HT": "Haiti",
+    "IN": "Índia",
+    "IDN": "Indonésia",
+    "IR": "Irã",
+    "IQ": "Iraque",
+    "IL": "Israel",
+    "JO": "Jordânia",
+    "KI": "Kiribati",
+    "KZ": "Cazaquistão",
+    "KE": "Quênia",
+    "KR": "Coreia do Sul",
+    "KP": "Coreia do Norte",
+    "XK": "Kosovo",
+    "KW": "Kuwait",
+    "KG": "Quirguistão",
+    "LA": "Laos",
+    "LB": "Líbano",
+    "LS": "Lesoto",
+    "LR": "Libéria",
+    "LY": "Líbia",
+    "MG": "Madagascar",
+    "MW": "Malavi",
+    "MV": "Maldivas",
+    "ML": "Mali",
+    "MR": "Mauritânia",
+    "MU": "Maurício",
+    "MD": "Moldávia",
+    "MN": "Mongólia",
+    "ME": "Montenegro",
+    "MA": "Marrocos",
+    "MZ": "Moçambique",
+    "MM": "Mianmar",
+    "NA": "Namíbia",
+    "NR": "Nauru",
+    "NP": "Nepal",
+    "NE": "Níger",
+    "NG": "Nigéria",
+    "OM": "Omã",
+    "PK": "Paquistão",
+    "MH": "Ilhas Marshall",
+    "PW": "Palau",
+    "PG": "Papua-Nova Guiné",
+    "QA": "Catar",
+    "RU": "Rússia",
+    "RW": "Ruanda",
+    "WS": "Samoa",
+    "ST": "São Tomé e Príncipe",
+    "SA": "Arábia Saudita",
+    "SN": "Senegal",
+    "RS": "Sérvia",
+    "SC": "Seicheles",
+    "SL": "Serra Leoa",
+    "SB": "Ilhas Salomão",
+    "SO": "Somália",
+    "ZA": "África do Sul",
+    "SS": "Sudão do Sul",
+    "LK": "Sri Lanka",
+    "SD": "Sudão",
+    "SY": "Síria",
+    "TJ": "Tajiquistão",
+    "TZ": "Tanzânia",
+    "TL": "Timor-Leste",
+    "TG": "Togo",
+    "TT": "Trinidad e Tobago",
+    "TN": "Tunísia",
+    "TM": "Turcomenistão",
+    "TV": "Tuvalu",
+    "UG": "Uganda",
+    "UA": "Ucrânia",
+    "AE": "Emirados Árabes Unidos",
+    "GB": "Reino Unido",
+    "US": "Estados Unidos",
+    "UZ": "Uzbequistão",
+    "VU": "Vanuatu",
+    "VA": "Cidade do Vaticano",
+    "VE": "Venezuela",
+    "VN": "Vietnã",
+    "YE": "Iêmen",
+    "ZM": "Zâmbia",
+    "ZW": "Zimbábue",
+    "FM": "Micronésia",
+    "MK": "Macedônia do Norte",
+    "PS": "Palestina",
+    "PH": "Filipinas",
+    "RO": "Romênia",
+    "KN": "São Cristóvão e Nevis",
+    "LC": "Santa Lúcia",
+    "VC": "São Vicente e Granadinas",
+    "SR": "Suriname",
+    "TR": "Turquia"
+  },
+  "CreatedAt": "Criado em",
+  "Dashboard": {
+    "Meta": {
+      "Title": "Painel"
+    },
+    "Welcome": "Bem-vindo ao painel"
+  },
+  "Delete": "Excluir",
+  "Edit": "Editar",
+  "ErrorPages": {
+    "NotFound": {
+      "Title": "404",
+      "Message": "Página não encontrada",
+      "Home": "Início"
+    },
+    "Forbidden": {
+      "Title": "403",
+      "Message": "Acesso negado",
+      "_Description": "Você não tem permissão para acessar este recurso.",
+      "Home": "Início",
+      "GoBack": "Voltar"
+    }
+  },
+  "Errors": {
+    "Internal": "Ocorreu um erro interno no servidor: {{.Error}}",
+    "BadRequest": "Requisição inválida: {{.Error}}",
+    "NotFound": "Recurso não encontrado: {{.Error}}",
+    "Unauthorized": "Não autorizado: {{.Error}}",
+    "Forbidden": "Acesso negado: {{.Error}}",
+    "InvalidFormData": "Dados do formulário inválidos",
+    "InvalidQueryParams": "Parâmetros de consulta inválidos",
+    "FailedToRetrieve": "Falha ao obter os dados",
+    "FailedToSave": "Falha ao salvar os dados",
+    "FailedToUpdate": "Falha ao atualizar os dados",
+    "FailedToDelete": "Falha ao excluir os dados",
+    "EntityNotFound": "Item não encontrado",
+    "InternalServer": "Erro interno do servidor",
+    "FailedToRender": "Falha ao renderizar a página"
+  },
+  "Export": {
+    "Title": "Exportar",
+    "ToExcel": "Exportar para Excel",
+    "ToCSV": "Exportar para CSV",
+    "ToJSON": "Exportar para JSON",
+    "ToTXT": "Exportar para TXT"
+  },
+  "Filters": {
+    "CreatedAt": {
+      "AllTime": "Todo o período",
+      "Today": "Hoje",
+      "Yesterday": "Ontem",
+      "Ereyesterday": "Anteontem",
+      "ThisWeek": "Esta semana",
+      "LastWeek": "Semana passada",
+      "ThisMonth": "Este mês",
+      "LastMonth": "Mês passado"
+    }
+  },
+  "Groups": {
+    "Meta": {
+      "List": {
+        "Title": "Lista de grupos"
+      },
+      "Edit": {
+        "Title": "Editar grupo"
+      },
+      "New": {
+        "Title": "Novo grupo"
+      }
+    },
+    "Cards": {
+      "GroupInfo": "Informações do grupo",
+      "MembershipInfo": "Informações de associação"
+    },
+    "List": {
+      "New": "Novo grupo",
+      "Name": "Nome",
+      "_Description": "Descrição",
+      "Roles": "Funções",
+      "Users": "Usuários",
+      "NoGroups": {
+        "Title": "Nenhum grupo encontrado",
+        "_Description": "Crie seu primeiro grupo clicando no botão 'Novo grupo'"
+      }
+    },
+    "Single": {
+      "Name": "Nome",
+      "_Description": "Descrição",
+      "RoleIDs": "Funções",
+      "UserIDs": "Usuários",
+      "SelectRole": "Selecionar funções",
+      "SelectUser": "Selecionar usuários",
+      "SearchRoles": "Pesquisar funções",
+      "EnterGroupName": "Insira o nome do grupo",
+      "EnterDescription": "Insira a descrição",
+      "NoRoleDescription": "Nenhuma descrição disponível",
+      "Delete": "Excluir grupo",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir este grupo?"
+    }
+  },
+  "Home": {
+    "Meta": {
+      "Title": "Início"
+    }
+  },
+  "Import": {
+    "Error": {
+      "ValidationError": "Erro de validação"
+    }
+  },
+  "Login": {
+    "Meta": {
+      "Title": "Entrar"
+    },
+    "Email": "E-mail",
+    "Password": "Senha",
+    "Login": "Entrar",
+    "WelcomeBack": "Bem-vindo de volta",
+    "LoginToUse": "Entre para usar o IOTA ERP",
+    "LoginWithGoogle": "Entrar com Google",
+    "OrSignInWith": "Ou entre com...",
+    "Errors": {
+      "PasswordInvalid": "E-mail ou senha inválidos",
+      "OauthStateNotFound": "Estado oAuth não encontrado. Por favor, tente novamente.",
+      "OauthStateInvalid": "Estado oAuth inválido. Por favor, tente novamente.",
+      "OauthCodeNotFound": "Código oAuth não encontrado. Por favor, tente novamente.",
+      "UserNotFound": "Usuário não encontrado",
+      "AccountBlocked": "Sua conta foi bloqueada. Entre em contato com o administrador."
+    }
+  },
+  "Modules": {
+    "BiChat": "BI-Chat",
+    "Billing": "Faturamento",
+    "Core": "Administração",
+    "CRM": "CRM",
+    "Finance": "Finanças",
+    "HRM": "Gestão de RH",
+    "Logging": "Logs",
+    "Pipeline": "Pipeline",
+    "Projects": "Projetos",
+    "Superadmin": "Super Administrador",
+    "Testkit": "Kit de Testes",
+    "Warehouse": "Armazém",
+    "Website": "Site"
+  },
+  "NavigationLinks": {
+    "Dashboard": "Painel",
+    "Administration": "Administração",
+    "Users": "Usuários",
+    "Roles": "Funções",
+    "Groups": "Grupos",
+    "Settings": "Configurações",
+    "SystemInfo": "Informações do Sistema",
+    "KnowledgeBase": "Base de conhecimento",
+    "Operations": "Operações",
+    "Calendar": "Calendário",
+    "Enums": "Enumerações",
+    "TaskTypes": "Tipos de Tarefas",
+    "Positions": "Cargos",
+    "Finances": "Finanças",
+    "Projects": "Projetos",
+    "Reports": "Relatórios",
+    "Portfolio": "Portfólio",
+    "SalesReport": "Relatório de Vendas",
+    "OsagoReport": "Relatório OSAGO",
+    "Underwriting": "Subscrição",
+    "Submissions": "Submissões",
+    "Policies": "Apólices",
+    "Files": "Arquivos",
+    "Lookups": "Pesquisas",
+    "PolicyObjects": "Objetos de Apólice",
+    "Persons": "Pessoas",
+    "Organizations": "Organizações",
+    "Vehicles": "Veículos",
+    "VehicleGroups": "Grupos de Veículos",
+    "VehicleTypes": "Tipos de Veículos",
+    "ResidencyTypes": "Tipos de Residência",
+    "Discounts": "Descontos",
+    "ContractTermConclusions": "Conclusões de Termos Contratuais",
+    "ContractStatuses": "Status de Contratos",
+    "ContractSources": "Fontes de Contratos",
+    "UseTerritoryRegions": "Regiões de Uso do Território",
+    "SeasonalInsurances": "Seguros Sazonais",
+    "ForeignVehiclesPolicyDurations": "Durações de apólices de veículos estrangeiros",
+    "AreaTypes": "Tipos de Área",
+    "DocumentAuthorities": "Órgãos emissores de documentos",
+    "Industries": "Indústrias",
+    "InsuranceClasses": "Classes de seguro",
+    "InsuranceObjectTypes": "Tipos de objetos de seguro",
+    "InsuranceTerms": "Termos de seguro",
+    "InsuranceTypes": "Tipos de seguro",
+    "InsuranceClassGroups": "Grupos de classes de seguro",
+    "FormOfInsurances": "Formas de seguro",
+    "AgriculturalTypes": "Tipos Agrícolas",
+    "BuildingTypes": "Tipos de Edificação",
+    "OpoObjectTypes": "Tipos de Objetos OPO",
+    "OtherObjectTypes": "Outros Tipos de Objetos",
+    "PaymentConditions": "Condições de Pagamento",
+    "Risks": "Riscos",
+    "OwnershipForms": "Formas de Propriedade",
+    "RightToLandTypes": "Tipos de Direito à Terra",
+    "Okeds": "OKEDs",
+    "Reinsurance": "Resseguro",
+    "PipelineStatuses": "Status do Pipeline",
+    "PipelineInsuranceTypes": "Tipos de Seguro do Pipeline",
+    "PipelineDeclinedReasons": "Motivos de Recusa do Pipeline",
+    "PipelineStructures": "Estruturas do Pipeline",
+    "PipelinePayables": "Contas a Pagar do Pipeline",
+    "PipelineProbabilityOfBind": "Probabilidade de Vinculação do Pipeline",
+    "PipelineDeductionTypes": "Tipos de Franquia do Pipeline",
+    "PipelineDeductionLevels": "Níveis de Franquia do Pipeline",
+    "PipelineTaxTypes": "Tipos de Impostos do Pipeline",
+    "PipelinePremiumScheduleTypes": "Tipos de Cronograma de Prêmios do Pipeline",
+    "PipelinePremiumScheduleStatus": "Status do Cronograma de Prêmios do Pipeline",
+    "PipelineRiskCodes": "Códigos de Risco do Pipeline",
+    "PipelineInsurancePartiesTypes": "Tipos de Partes Seguradas do Pipeline",
+    "PipelinePaymentTypes": "Tipos de Pagamento do Pipeline",
+    "PipelineChoicesOfLaw": "Escolhas de Lei do Pipeline",
+    "PipelineChoicesOfJurisdiction": "Escolhas de Jurisdição do Pipeline",
+    "Currencies": "Moedas",
+    "Banks": "Bancos",
+    "BankBranches": "Agências Bancárias",
+    "Countries": "Países",
+    "Regions": "Regiões",
+    "Districts": "Distritos",
+    "Genders": "Gêneros",
+    "Relatives": "Parentes",
+    "MeasureTypes": "Unidades de medida",
+    "Agencies": "Agências",
+    "ReferralProgram": "Programa de Indicação",
+    "Chats": "Conversas",
+    "Clients": "Clientes",
+    "Requests": "Solicitações",
+    "KaskoRequests": "Solicitações Kasko",
+    "Questions": "Perguntas",
+    "SOS": "SOS",
+    "PartnerProgramRequests": "Solicitações do Programa de Parceiros",
+    "Commission": "Comissão",
+    "PromoCodes": "Códigos Promocionais",
+    "Payouts": "Pagamentos",
+    "ChatBot": "Chatbot",
+    "AIChatPlayground": "Ambiente de Testes de Chat IA",
+    "AIChatLogs": "Logs de Chat IA",
+    "AIChatConfigurations": "Configurações de Chat IA",
+    "AIChatEvaluation": "Avaliação de Chat IA",
+    "Logs": "Logs",
+    "LiveLogs": "Logs ao vivo",
+    "RequestLogs": "Logs de Solicitações",
+    "RequestLogsList": "Lista de Logs de Solicitações",
+    "Metrics": "Métricas",
+    "Navbar": {
+      "Profile": "Perfil",
+      "Sessions": "Sessões",
+      "Logout": "Sair",
+      "Settings": "Configurações"
+    },
+    "Departments": "Departamentos",
+    "CRM": "CRM",
+    "Employees": "Funcionários",
+    "HRM": "GRH",
+    "Warehouse": "Armazém"
+  },
+  "No": "Não",
+  "PerPage": "Por página",
+  "PermissionSets": {
+    "Core": {
+      "UserView": {
+        "Label": "Visualizar usuários",
+        "_Description": "Somente visualizar informações dos usuários"
+      },
+      "UserManage": {
+        "Label": "Gerenciar usuários",
+        "_Description": "Capacidades completas de gerenciamento de usuários, incluindo bloqueio"
+      },
+      "RoleView": {
+        "Label": "Visualizar funções",
+        "_Description": "Apenas visualizar informações de funções"
+      },
+      "RoleManage": {
+        "Label": "Gerenciar funções",
+        "_Description": "Gerenciamento completo de funções e permissões"
+      },
+      "GroupView": {
+        "Label": "Visualizar grupos",
+        "_Description": "Apenas visualizar informações de grupos"
+      },
+      "GroupManage": {
+        "Label": "Gerenciar grupos",
+        "_Description": "Recursos completos de gerenciamento de grupos"
+      },
+      "UploadView": {
+        "Label": "Visualizar uploads",
+        "_Description": "Somente visualizar arquivos carregados"
+      },
+      "UploadManage": {
+        "Label": "Gerenciar uploads",
+        "_Description": "Gerenciamento completo de upload de arquivos"
+      }
+    },
+    "Finance": {
+      "PaymentView": {
+        "Label": "Visualizar pagamentos",
+        "_Description": "Somente visualizar informações de pagamentos"
+      },
+      "PaymentManage": {
+        "Label": "Gerenciar pagamentos",
+        "_Description": "Capacidades completas de gerenciamento de pagamentos"
+      },
+      "ExpenseView": {
+        "Label": "Visualizar despesas",
+        "_Description": "Somente visualizar informações de despesas"
+      },
+      "ExpenseManage": {
+        "Label": "Gerenciar despesas",
+        "_Description": "Capacidades completas de gerenciamento de despesas"
+      },
+      "ExpenseCategoryView": {
+        "Label": "Visualizar categorias de despesas",
+        "_Description": "Somente visualizar informações das categorias de despesas"
+      },
+      "ExpenseCategoryManage": {
+        "Label": "Gerenciar categorias de despesas",
+        "_Description": "Capacidades completas de gerenciamento de categorias de despesas"
+      },
+      "DebtView": {
+        "Label": "Visualizar dívidas",
+        "_Description": "Somente visualizar informações de dívidas"
+      },
+      "DebtManage": {
+        "Label": "Gerenciar dívidas",
+        "_Description": "Capacidades completas de gerenciamento de dívidas"
+      }
+    },
+    "Projects": {
+      "ProjectView": {
+        "Label": "Visualizar projetos",
+        "_Description": "Apenas visualizar informações do projeto"
+      },
+      "ProjectManage": {
+        "Label": "Gerenciar projetos",
+        "_Description": "Capacidades completas de gerenciamento de projetos"
+      },
+      "ProjectStageView": {
+        "Label": "Visualizar etapas do projeto",
+        "_Description": "Apenas visualizar informações das etapas do projeto"
+      },
+      "ProjectStageManage": {
+        "Label": "Gerenciar etapas do projeto",
+        "_Description": "Capacidades completas de gerenciamento de etapas do projeto"
+      }
+    },
+    "Warehouse": {
+      "ProductView": {
+        "Label": "Visualizar produtos",
+        "_Description": "Apenas visualizar informações do produto"
+      },
+      "ProductManage": {
+        "Label": "Gerenciar produtos",
+        "_Description": "Capacidades completas de gerenciamento de produtos"
+      },
+      "PositionView": {
+        "Label": "Visualizar posições",
+        "_Description": "Apenas visualizar informações da posição"
+      },
+      "PositionManage": {
+        "Label": "Gerenciar posições",
+        "_Description": "Capacidades completas de gerenciamento de posições"
+      },
+      "OrderView": {
+        "Label": "Visualizar pedidos",
+        "_Description": "Apenas visualizar informações do pedido"
+      },
+      "OrderManage": {
+        "Label": "Gerenciar pedidos",
+        "_Description": "Capacidades completas de gerenciamento de pedidos"
+      },
+      "UnitView": {
+        "Label": "Visualizar unidades",
+        "_Description": "Apenas visualizar informações da unidade"
+      },
+      "UnitManage": {
+        "Label": "Gerenciar unidades",
+        "_Description": "Capacidades completas de gerenciamento de unidades"
+      },
+      "InventoryView": {
+        "Label": "Visualizar inventário",
+        "_Description": "Apenas visualizar informações do inventário"
+      },
+      "InventoryManage": {
+        "Label": "Gerenciar inventário",
+        "_Description": "Capacidades completas de gerenciamento de inventário"
+      }
+    },
+    "CRM": {
+      "ClientView": {
+        "Label": "Visualizar clientes",
+        "_Description": "Apenas visualizar informações de clientes"
+      },
+      "ClientManage": {
+        "Label": "Gerenciar clientes",
+        "_Description": "Recursos completos de gerenciamento de clientes"
+      },
+      "PayoutView": {
+        "Label": "Visualizar pagamentos",
+        "_Description": "Visualizar informações de pagamentos"
+      },
+      "PayoutManage": {
+        "Label": "Gerenciar pagamentos",
+        "_Description": "Recursos completos de gerenciamento de pagamentos"
+      }
+    },
+    "Pipeline": {
+      "PipelineView": {
+        "Label": "Visualizar pipelines",
+        "_Description": "Somente visualizar informações de pipelines"
+      },
+      "PipelineManage": {
+        "Label": "Gerenciar pipelines",
+        "_Description": "Capacidades completas de gerenciamento de pipelines"
+      }
+    },
+    "HRM": {
+      "EmployeeView": {
+        "Label": "Visualizar funcionários",
+        "_Description": "Somente visualizar informações dos funcionários"
+      },
+      "EmployeeManage": {
+        "Label": "Gerenciar funcionários",
+        "_Description": "Capacidades completas de gerenciamento de funcionários"
+      }
+    },
+    "BiChat": {
+      "AccessView": {
+        "Label": "Acessar BI Chat",
+        "_Description": "Usar a interface conversacional do BI-Chat"
+      },
+      "ReadAllView": {
+        "Label": "Visualizar todas as sessões",
+        "_Description": "Visualizar as sessões de chat de todos os usuários"
+      },
+      "Export": {
+        "Label": "Exportar dados",
+        "_Description": "Exportar dados do chat"
+      }
+    },
+    "Website": {
+      "WebsiteView": {
+        "Label": "Visualizar site",
+        "_Description": "Visualizar apenas informações do site"
+      },
+      "WebsiteManage": {
+        "Label": "Gerenciar site",
+        "_Description": "Capacidades completas de gerenciamento do site"
+      }
+    }
+  },
+  "Permissions": {
+    "User": {
+      "Create": "Criar usuários",
+      "Read": "Visualizar usuários",
+      "Update": "Atualizar usuários",
+      "Delete": "Excluir usuários",
+      "UpdateBlockStatus": "Bloquear/desbloquear usuários"
+    },
+    "Role": {
+      "Create": "Criar funções",
+      "Read": "Visualizar funções",
+      "Update": "Atualizar funções",
+      "Delete": "Excluir funções"
+    },
+    "Group": {
+      "Create": "Criar grupos",
+      "Read": "Visualizar grupos",
+      "Update": "Atualizar grupos",
+      "Delete": "Excluir grupos"
+    },
+    "Account": {
+      "Create": "Criar contas",
+      "Read": "Visualizar contas",
+      "Update": "Atualizar contas",
+      "Delete": "Excluir contas"
+    },
+    "Settings": {
+      "Update": "Atualizar configurações",
+      "Read": "Visualizar configurações"
+    },
+    "Upload": {
+      "Create": "Criar uploads",
+      "Read": "Visualizar uploads",
+      "Update": "Atualizar uploads",
+      "Delete": "Excluir uploads"
+    },
+    "Payout": {
+      "Pay": "Efetuar pagamento",
+      "PayAll": "Efetuar todos os pagamentos",
+      "Reverse": "Reverter pagamento"
+    },
+    "Pipeline": {
+      "Create": "Criar pipelines",
+      "Read": "Visualizar pipelines",
+      "Update": "Atualizar pipelines",
+      "Delete": "Excluir pipelines",
+      "SubmitForUnderwriting": "Enviar para subscrição",
+      "Approve": "Aprovar pipelines",
+      "Decline": "Recusar pipelines",
+      "RequestAdditionalInfo": "Solicitar informações adicionais",
+      "CompleteAssessment": "Concluir avaliação"
+    },
+    "Session": {
+      "Read": "Visualizar sessões",
+      "Delete": "Excluir sessões"
+    }
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Projetos"
+      },
+      "Edit": {
+        "Title": "Editar projeto"
+      },
+      "New": {
+        "Title": "Adicionar projeto"
+      }
+    },
+    "List": {
+      "New": "Adicionar projeto",
+      "_Description": "Descrição",
+      "Name": "Nome"
+    },
+    "Single": {
+      "Edit": "Editar projeto",
+      "Name": "Nome",
+      "_Description": "Descrição",
+      "Delete": "Excluir projeto",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir este projeto?"
+    }
+  },
+  "Remove": "Remover",
+  "Resources": {
+    "bichat": "BI-Chat",
+    "user": "Usuários",
+    "role": "Papéis",
+    "group": "Grupos",
+    "upload": "Uploads",
+    "payout_request": "Solicitação de pagamento",
+    "pipeline": "Pipeline",
+    "website": "Site",
+    "session": "Sessões"
+  },
+  "Roles": {
+    "Meta": {
+      "List": {
+        "Title": "Papéis"
+      },
+      "Edit": {
+        "Title": "Editar papel"
+      },
+      "New": {
+        "Title": "Novo papel"
+      }
+    },
+    "List": {
+      "New": "Novo papel",
+      "Name": "Nome"
+    },
+    "Single": {
+      "Edit": "Editar papel",
+      "Name": {
+        "Label": "Nome do papel",
+        "Placeholder": "Digite o nome da função"
+      },
+      "_Description": {
+        "Label": "Descrição",
+        "Placeholder": "Digite a descrição da função"
+      },
+      "Delete": "Excluir papel",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir este papel?"
+    }
+  },
+  "Save": "Salvar",
+  "Scaffold": {
+    "Table": {
+      "NoDataTitle": "Nenhum dado disponível",
+      "NoDataDescription": "Não há dados disponíveis para esta tabela.",
+      "NothingFound": "Nada encontrado",
+      "TableSettings": "Configurações da tabela",
+      "ResetSettings": "Redefinir configurações",
+      "Columns": "Colunas",
+      "Grid": "Grade",
+      "GridVertical": "Linhas verticais",
+      "GridHorizontal": "Linhas horizontais"
+    },
+    "Filters": {
+      "Title": "Filtros",
+      "SelectAll": "Selecionar tudo"
+    },
+    "FilterBuilder": {
+      "AddFilter": "Adicionar filtro",
+      "ClearAll": "Limpar tudo",
+      "Apply": "Aplicar",
+      "SearchFields": "Pesquisar filtros...",
+      "SelectValues": "Selecionar valores...",
+      "NothingFound": "Nada encontrado",
+      "Remove": "Remover filtro",
+      "Operators": {
+        "Is": "é",
+        "IsNot": "não é",
+        "Before": "antes",
+        "After": "após",
+        "On": "em",
+        "Between": "entre",
+        "Eq": "=",
+        "Gt": ">",
+        "Lt": "<"
+      },
+      "Presets": {
+        "ThisMonth": "Este mês",
+        "LastMonth": "Mês passado",
+        "Last30Days": "Últimos 30 dias",
+        "Next30Days": "Próximos 30 dias",
+        "ThisYear": "Este ano",
+        "LastYear": "Ano passado"
+      }
+    }
+  },
+  "Search": "Pesquisar",
+  "SignOut": "Sair",
+  "Submit": "Enviar",
+  "UploadLabel": "Carregar arquivo",
+  "UploadPlaceholder": "Escolha um arquivo para carregar",
+  "DownloadTemplate": "Baixar modelo",
+  "Running": "Em execução…",
+  "Warnings": "Avisos",
+  "Confirm": "Confirmar",
+  "Example": {
+    "Below": "Veja o exemplo abaixo"
+  },
+  "Spotlight": {
+    "Placeholder": "Pesquisar...",
+    "NothingFound": "Nada encontrado",
+    "NothingFoundBody": "Tente um termo de pesquisa diferente ou verifique a ortografia.",
+    "Match": {
+      "Exact": "Correspondência exata",
+      "Best": "Melhor correspondência"
+    },
+    "Hint": {
+      "Navigate": "↑ ↓ navegar",
+      "Open": "Enter abrir",
+      "Close": "Esc fechar"
+    },
+    "Empty": {
+      "Title": "Pesquise todo o seu espaço de trabalho a partir de um único lugar",
+      "_Description": "Encontre registros, páginas, pessoas e comandos em um único fluxo.",
+      "Body": "Tente um nome, e-mail, número de referência, nome de página ou comando.",
+      "Footer": "Comece com qualquer pista que você tenha. As melhores correspondências aparecem primeiro e mais resultados são carregados em sequência.",
+      "Example": {
+        "Name": {
+          "Label": "Nome",
+          "Value": "Maria Silva"
+        },
+        "Email": {
+          "Label": "E-mail",
+          "Value": "mail@example.com"
+        },
+        "Identifier": {
+          "Label": "Referência",
+          "Value": "INV-1024"
+        },
+        "Page": {
+          "Label": "Página",
+          "Value": "configurações"
+        },
+        "Command": {
+          "Label": "Comando",
+          "Value": "criar usuário"
+        }
+      }
+    },
+    "Badge": {
+      "Exact": "Exato",
+      "Action": "Ação",
+      "Navigate": "Navegar",
+      "Staff": "Funcionário",
+      "Person": "Pessoa"
+    },
+    "Summary": {
+      "Default": "Melhores correspondências encontradas para sua solicitação",
+      "Help": "Aqui estão as páginas e entradas de conhecimento com a melhor correspondência"
+    },
+    "Actions": {
+      "Open": "Abrir",
+      "AddUser": "Adicionar usuário",
+      "AddAccount": "Adicionar conta"
+    },
+    "Group": {
+      "Navigate": "Navegação",
+      "Actions": "Ações",
+      "Data": "Dados",
+      "Knowledge": "Conhecimento",
+      "People": "Pessoas",
+      "Staff": "Equipe",
+      "_Other": "Outros"
+    },
+    "ConfirmOpenResult": "Abrir este resultado?",
+    "Status": {
+      "SearchingMore": "Pesquisando mais fontes",
+      "FindingMatches": "Procurando correspondências",
+      "SearchComplete": "Pesquisa concluída"
+    },
+    "AI": {
+      "Button": "Pesquisar com IA",
+      "Placeholder": "Pergunte qualquer coisa à IA...",
+      "EmptyHint": "Digite uma pergunta e pressione Enter para pesquisar com IA",
+      "Searching": "Pesquisando",
+      "Candidates": "Correspondências prováveis",
+      "FollowUpPlaceholder": "Faça uma pergunta complementar ou dê outra pista",
+      "Open": "Abrir",
+      "Progress": {
+        "Searching": "Pesquisando registros...",
+        "Checking": "Verificando banco de dados...",
+        "Building": "Gerando resultados..."
+      },
+      "TabHint": "Tab para IA",
+      "FollowUpHint": "Faça uma pergunta complementar...",
+      "EscHint": "Esc para sair da IA",
+      "Status": {
+        "Complete": "Pesquisa de IA concluída"
+      },
+      "Error": {
+        "StartFailed": "Não foi possível iniciar a pesquisa com IA",
+        "MessageFailed": "Não foi possível enviar a mensagem para a IA"
+      }
+    },
+    "MoreResults": {
+      "one": "Mais {{.Count}} resultado",
+      "other": "Mais {{.Count}} resultados",
+      "few": "Mais {{.Count}} resultados"
+    }
+  },
+  "Unknown": "Desconhecido",
+  "System": "Sistema",
+  "UpdatedAt": "Atualizado em",
+  "Users": {
+    "Meta": {
+      "List": {
+        "Title": "Usuários"
+      },
+      "Edit": {
+        "Title": "Editar usuário"
+      },
+      "New": {
+        "Title": "Novo usuário"
+      },
+      "Permissions": {
+        "Title": "Permissões do usuário"
+      }
+    },
+    "List": {
+      "New": "Novo usuário",
+      "FullName": "Nome completo",
+      "Roles": "Papéis",
+      "Email": "E-mail",
+      "AllGroups": "Todos os grupos",
+      "AllRoles": "Todos os papéis",
+      "Filters": "Filtros",
+      "ExpandFilters": "Expandir filtros",
+      "CollapseFilters": "Recolher filtros"
+    },
+    "Cards": {
+      "PersonalInfo": "Informações pessoais",
+      "UserInfo": "Informações do usuário"
+    },
+    "Tabs": {
+      "UserInfo": "Informações do usuário",
+      "Permissions": "Permissões",
+      "Sessions": "Sessões"
+    },
+    "Single": {
+      "EditUser": "Editar usuário",
+      "FirstName": "Nome",
+      "LastName": "Sobrenome",
+      "MiddleName": "Nome do meio",
+      "Email": "E-mail",
+      "Phone": "Telefone",
+      "Password": "Senha",
+      "Language": "Idioma",
+      "UILanguage": "pt-BR",
+      "SelectLanguage": "Selecionar idioma",
+      "ChooseAvatar": "Escolher avatar",
+      "RoleIDs": "Função",
+      "GroupIDs": "Grupo",
+      "SelectRole": "Selecionar função",
+      "SelectGroup": "Selecionar grupo",
+      "EnterPassword": "Informe a senha",
+      "Delete": "Excluir usuário",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir este usuário?",
+      "Permissions": "Permissões do usuário",
+      "Details": "Detalhes",
+      "LastAction": "Última atividade",
+      "CreatedAt": "Criado em",
+      "UpdatedAt": "Atualizado em",
+      "Roles": "Funções",
+      "Access": "Acesso"
+    },
+    "Blocked": "Bloqueado",
+    "NoRole": "Sem papel",
+    "Block": {
+      "Title": "Bloquear usuário",
+      "Button": "Bloquear usuário",
+      "Confirm": "Bloquear usuário",
+      "Reason": "Motivo do bloqueio",
+      "ReasonPlaceholder": "Insira o motivo do bloqueio (mínimo de 3 caracteres)",
+      "ConfirmationText": "Tem certeza de que deseja bloquear este usuário?",
+      "BlockedBy": "Bloqueado por",
+      "BlockedAt": "Bloqueado em",
+      "Errors": {
+        "ReasonRequired": "O motivo do bloqueio é obrigatório",
+        "ReasonTooShort": "O motivo do bloqueio deve ter pelo menos 3 caracteres",
+        "ReasonTooLong": "O motivo do bloqueio não deve exceder 1024 caracteres",
+        "OperationFailed": "Não foi possível bloquear o usuário. Por favor, tente novamente."
+      }
+    },
+    "Unblock": {
+      "Title": "Desbloquear usuário",
+      "Button": "Desbloquear usuário",
+      "Confirm": "Desbloquear",
+      "ConfirmationText": "Tem certeza de que deseja desbloquear este usuário?"
+    },
+    "Errors": {
+      "PhoneUnique": "Número de telefone já está em uso",
+      "EmailUnique": "E-mail já está em uso"
+    },
+    "Delete": {
+      "NotAllowed": "Não é possível excluir: Você é o único usuário neste tenant"
+    },
+    "Sessions": {
+      "Title": "Sessões para:",
+      "Device": "Dispositivo",
+      "Browser": "Navegador",
+      "OS": "Sistema operacional",
+      "IP": "Endereço IP",
+      "CreatedAt": "Criado em",
+      "Actions": "Ações",
+      "Revoke": "Revogar",
+      "RevokeConfirm": "Tem certeza de que deseja revogar esta sessão?",
+      "NoSessions": "Nenhuma sessão ativa",
+      "RevokeSuccess": "Sessão revogada com sucesso",
+      "RevokeFailed": "Falha ao revogar a sessão"
+    }
+  },
+  "ValidationErrors": {
+    "required": "Este campo é obrigatório",
+    "emptySelect": "Selecione um valor",
+    "email": "Formato de e-mail inválido",
+    "min": "{{.Field}} deve ser pelo menos o valor mínimo",
+    "max": "{{.Field}} não deve exceder o valor máximo",
+    "gt": "{{.Field}} deve ser maior que 0",
+    "gte": "{{.Field}} deve ser maior ou igual ao valor especificado",
+    "lte": "{{.Field}} deve ser menor ou igual ao valor especificado",
+    "len": "{{.Field}} deve ter exatamente o comprimento necessário",
+    "uuid": "{{.Field}} deve ser um UUID válido",
+    "custom": "{{.Field}}: {{.Error}}",
+    "alphanum": "{{.Field}} pode conter apenas caracteres alfanuméricos (letras e números).",
+    "oneof": "{{.Field}} deve ser um dos valores permitidos",
+    "datetime": "{{.Field}} deve ser uma data válida",
+    "gtfield": "{{.Field}} deve ser maior que {{.Param}}",
+    "invalidTIN": "Formato de TIN inválido: {{.Details}}",
+    "invalidPIN": "Formato de PIN inválido: {{.Details}}"
+  },
+  "Yes": "Sim",
+  "TwoFactor": {
+    "Setup": {
+      "Meta": {
+        "Title": "Configurar autenticação de dois fatores",
+        "TOTP": "Aplicativo autenticador",
+        "OTP": "Código de verificação",
+        "Complete": "Configuração concluída"
+      },
+      "SetupTwoFactor": "Configurar autenticação de dois fatores",
+      "ChooseMethod": "Escolha como você deseja proteger sua conta",
+      "Continue": "Continuar",
+      "TOTPMethod": "Aplicativo autenticador",
+      "TOTPDescription": "Use um aplicativo autenticador como Google Authenticator, Microsoft Authenticator ou Authy",
+      "SMSMethod": "Mensagem de texto SMS",
+      "SMSDescription": "Receba códigos de verificação por mensagem de texto no seu telefone",
+      "EmailMethod": "E-mail",
+      "EmailDescription": "Receba códigos de verificação por e-mail",
+      "SetupAuthenticator": "Configure seu aplicativo autenticador",
+      "ScanQRCode": "Escaneie este QR code com seu aplicativo autenticador",
+      "ScanWithAuthenticator": "Use um aplicativo autenticador para escanear este QR code ou insira a chave de configuração manualmente",
+      "EnterCode": "Digite o código de 6 dígitos do seu autenticador",
+      "EnterVerificationCode": "Digite o código de verificação",
+      "DigitCode": "Código de 6 dígitos",
+      "Verify": "Verificar e continuar",
+      "VerifyPhone": "Verifique seu número de telefone",
+      "VerifyEmail": "Verifique seu e-mail",
+      "CodeSentToPhone": "Enviamos um código de verificação para o seu telefone",
+      "CodeSentToEmail": "Enviamos um código de verificação para o seu e-mail",
+      "CodeSent": "Código enviado com sucesso",
+      "SMSSent": "Código de verificação enviado para o seu telefone",
+      "EmailSent": "Código de verificação enviado para o seu e-mail",
+      "ResendCode": "Reenviar código",
+      "TOTPHelp": "Se você perder o acesso ao seu aplicativo autenticador, não conseguirá fazer login. Salve seus códigos de recuperação em um local seguro.",
+      "SMSHelp": "O código será válido por 10 minutos. Se você não o receber, verifique sua pasta de spam.",
+      "EmailHelp": "Verifique seu e-mail para obter o código de verificação. Ele será válido por 10 minutos.",
+      "Success": "Autenticação de dois fatores ativada",
+      "SetupComplete": "Sua conta agora está protegida com autenticação de dois fatores",
+      "SaveRecoveryCodes": "Salve seus códigos de recuperação",
+      "RecoveryCodesWarning": "Estes códigos de recuperação são a única forma de acessar sua conta se você perder o acesso ao aplicativo autenticador ou telefone. Armazene-os em um local seguro.",
+      "BackupCodesTip": "Cada código só pode ser usado uma vez. Salve-os em um local seguro, como um gerenciador de senhas.",
+      "BackupCodesTipOTP": "Cada código só pode ser usado uma vez. Se você precisar de novos códigos de recuperação, poderá regenerá-los nas configurações da conta.",
+      "PrintCodes": "Imprimir códigos",
+      "CopyCodes": "Copiar códigos",
+      "RecoveryCodesInfo": "Você pode usar um código de recuperação em vez do seu dispositivo autenticador se perder o acesso a ele. Cada código só pode ser usado uma vez.",
+      "InvalidCode": "O código digitado é inválido ou expirou. Por favor, tente novamente.",
+      "InvalidMethod": "Método de verificação inválido selecionado. Por favor, tente novamente.",
+      "ResendFailed": "Falha ao reenviar o código de verificação. Por favor, tente novamente.",
+      "Error": "Falha ao configurar a autenticação de dois fatores. Por favor, tente novamente."
+    },
+    "Verify": {
+      "Meta": {
+        "Title": "Verifique sua identidade",
+        "Recovery": "Usar código de recuperação"
+      },
+      "EnterCode": "Insira o código de verificação",
+      "EnterAuthenticatorCode": "Insira o código do seu aplicativo autenticador",
+      "VerifyPhone": "Verifique seu número de telefone",
+      "VerifyEmail": "Verifique seu e-mail",
+      "CodeSentToPhone": "Enviamos um código de verificação para seu telefone",
+      "CodeSentToEmail": "Enviamos um código de verificação para seu e-mail",
+      "EnterVerificationCode": "Insira o código de verificação",
+      "DigitCode": "Código de 6 dígitos",
+      "Verify": "Verificar",
+      "ResendCode": "Reenviar código",
+      "CodeSent": "Código enviado com sucesso",
+      "SMSCodeSent": "Código de verificação enviado para o seu telefone",
+      "EmailCodeSent": "Código de verificação enviado para seu e-mail",
+      "ResendError": "Falha ao reenviar o código. Por favor, tente novamente.",
+      "InvalidCode": "O código que você inseriu é inválido ou expirou. Por favor, tente novamente.",
+      "InvalidRecoveryCode": "O código de recuperação que você inseriu é inválido. Por favor, tente novamente.",
+      "Error": "Falha ao verificar sua identidade. Por favor, tente novamente.",
+      "Success": "Identidade verificada com sucesso",
+      "LostAccess": "Não tem acesso ao seu autenticador ou telefone?",
+      "UseRecoveryCode": "Use um código de recuperação em vez disso",
+      "RecoveryCodeLabel": "Insira o código de recuperação",
+      "RecoveryCodeFormat": "Formato: XXXX-XXXX-XXXX (12 caracteres)",
+      "EnterRecoveryCode": "Insira um dos seus códigos de recuperação salvos",
+      "VerifyRecoveryCode": "Verificar código de recuperação",
+      "BackToVerification": "Tem acesso ao autenticador ou telefone?",
+      "TOTPHelp": "Se você perder o acesso ao seu aplicativo autenticador, não conseguirá fazer login. Use um código de recuperação em vez disso.",
+      "SMSHelp": "O código será válido por 10 minutos. Se você não recebê-lo, verifique sua pasta de spam ou use um código de recuperação.",
+      "EmailHelp": "Verifique seu e-mail para obter o código de verificação. Ele será válido por 10 minutos, ou use um código de recuperação.",
+      "RecoveryCodeHelp": "Cada código de recuperação só pode ser usado uma vez. Se os códigos de recuperação acabarem, você pode gerar novos nas configurações da sua conta."
+    }
+  },
+  "multilang": {
+    "empty": "—",
+    "no_translations": "Nenhuma tradução disponível",
+    "add_language": "+ Adicionar idioma",
+    "remove_language": "Remover este idioma",
+    "locale_placeholder": "pt-BR",
+    "text_placeholder": "Digite o texto neste idioma"
+  },
+  "Sessions": {
+    "Meta": {
+      "List": {
+        "Title": "Sessões ativas"
+      }
+    },
+    "List": {
+      "Title": "Sessões ativas",
+      "Search": "Pesquisar por nome ou e-mail do usuário...",
+      "User": "Usuário",
+      "Device": "Dispositivo",
+      "IP": "Endereço IP",
+      "CreatedAt": "Criada em",
+      "Actions": "Ações",
+      "Revoke": "Revogar",
+      "ConfirmRevoke": "Tem certeza de que deseja revogar esta sessão?",
+      "EmptyState": "Nenhuma sessão ativa encontrada",
+      "CurrentSession": "Atual"
+    },
+    "Revoked": "Sessão revogada com sucesso"
+  },
+  "Settings": {
+    "Hub": {
+      "Title": "Configurações",
+      "BackToApp": "Voltar para o aplicativo"
+    }
+  },
+  "Departments": {
+    "Meta": {
+      "List": {
+        "Title": "Lista de departamentos"
+      },
+      "Edit": {
+        "Title": "Editar departamento"
+      },
+      "New": {
+        "Title": "Novo departamento"
+      }
+    },
+    "List": {
+      "New": "Novo departamento",
+      "Name": "Nome",
+      "Code": "Código",
+      "Parent": "Departamento pai",
+      "Status": "Status",
+      "NoDepartments": {
+        "Title": "Nenhum departamento encontrado",
+        "_Description": "Crie seu primeiro departamento clicando no botão 'Novo departamento'"
+      }
+    },
+    "Single": {
+      "Name": "Nome",
+      "Code": "Código",
+      "Parent": "Departamento pai",
+      "NoParent": "Sem departamento pai",
+      "Order": "Ordem",
+      "Status": "Status",
+      "EnterName": "Informe o nome",
+      "EnterCode": "Informe o código",
+      "EnterOrder": "Informe a ordem"
+    },
+    "Status": {
+      "Active": "Ativo",
+      "Inactive": "Inativo"
+    },
+    "Errors": {
+      "SelfLoop": "Um departamento não pode ser seu próprio superior.",
+      "Cycle": "Este departamento superior criaria uma hierarquia circular.",
+      "DuplicateCode": "Este código já está em uso por outro departamento.",
+      "ParentNotFound": "O departamento superior selecionado não foi encontrado."
+    }
+  },
+  "Positions": {
+    "Meta": {
+      "List": {
+        "Title": "Lista de cargos"
+      },
+      "Edit": {
+        "Title": "Editar cargo"
+      },
+      "New": {
+        "Title": "Novo cargo"
+      }
+    },
+    "List": {
+      "New": "Novo cargo",
+      "Title": "Título",
+      "User": "Usuário",
+      "Department": "Departamento",
+      "Role": "Função",
+      "Status": "Status",
+      "NoPositions": {
+        "Title": "Nenhum cargo encontrado",
+        "_Description": "Crie seu primeiro cargo clicando no botão 'Novo cargo'"
+      }
+    },
+    "Single": {
+      "Title": "Título",
+      "User": "Usuário",
+      "SelectUser": "Selecione o usuário",
+      "Department": "Departamento",
+      "SelectDepartment": "Selecione o departamento",
+      "IsManager": "Gerente",
+      "IsPrimary": "Principal",
+      "Status": "Status",
+      "EnterTitle": "Digite o título"
+    },
+    "Status": {
+      "Active": "Ativo",
+      "Inactive": "Inativo"
+    }
+  },
+  "Error": {
+    "ProcessingFailed": "Falha na importação"
+  },
+  "DryRunNotice": "Esta é uma visualização — nenhum dado foi alterado ainda. Revise os resultados acima e confirme para aplicar a importação."
+}

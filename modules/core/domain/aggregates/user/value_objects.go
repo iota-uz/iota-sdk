@@ -6,10 +6,11 @@ import "errors"
 type UILanguage string
 
 const (
-	UILanguageEN UILanguage = "en"
-	UILanguageRU UILanguage = "ru"
-	UILanguageUZ UILanguage = "uz"
-	UILanguageZH UILanguage = "zh"
+	UILanguageEN   UILanguage = "en"
+	UILanguageRU   UILanguage = "ru"
+	UILanguageUZ   UILanguage = "uz"
+	UILanguagePTBR UILanguage = "pt-BR"
+	UILanguageZH   UILanguage = "zh"
 )
 
 func NewUILanguage(l string) (UILanguage, error) {
@@ -22,7 +23,7 @@ func NewUILanguage(l string) (UILanguage, error) {
 
 func (l UILanguage) IsValid() bool {
 	switch l {
-	case UILanguageEN, UILanguageRU, UILanguageUZ, UILanguageZH:
+	case UILanguageEN, UILanguageRU, UILanguageUZ, UILanguagePTBR, UILanguageZH:
 		return true
 	}
 	return false

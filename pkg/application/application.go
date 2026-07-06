@@ -211,6 +211,7 @@ func DefaultSupportedLanguages() []string {
 		string(coreuser.UILanguageEN),
 		string(coreuser.UILanguageRU),
 		string(coreuser.UILanguageUZ),
+		string(coreuser.UILanguagePTBR),
 		string(coreuser.UILanguageZH),
 	}
 }

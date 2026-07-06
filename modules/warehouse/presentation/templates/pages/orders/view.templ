@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/warehouse/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -71,14 +72,15 @@ templ View(props *ViewPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("WarehouseOrders.View.Meta.Title")},
 	}) {
-		<div class="flex flex-col justify-between h-full">
-			@card.Card(card.Props{WrapperClass: "m-6"}) {
-				<div class="mb-2">
-					<h1 class="text-2xl text-gray-950">
-						{ props.Order.LocalizedTitle(props.GetLocalizer()) }
-					</h1>
-				</div>
-				<p>
+			<div class="flex flex-col justify-between h-full">
+				@card.Card(card.Props{WrapperClass: "m-6"}) {
+					<div class="mb-2 flex items-center gap-2">
+						<h1 class="text-2xl text-gray-950">
+							{ props.Order.LocalizedTitle(props.GetLocalizer()) }
+						</h1>
+						@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/warehouse.md"})
+					</div>
+					<p>
 					{ pageCtx.T("WarehouseOrders.View.Status") }:
 					<b>
 						{ props.Order.LocalizedStatus(props.GetLocalizer()) }

@@ -1028,6 +1028,137 @@
   .sidebar-collapse-cursor [role="button"] {
     cursor: pointer;
   }
+
+  .help-article {
+    max-width: 48rem;
+    color: oklch(var(--gray-800));
+    font-size: 0.95rem;
+    line-height: 1.75;
+  }
+
+  .help-article > * + * {
+    margin-top: 1rem;
+  }
+
+  .help-article h1 {
+    color: oklch(var(--gray-950));
+    font-size: 2rem;
+    font-weight: 650;
+    line-height: 1.2;
+    letter-spacing: 0;
+    margin-bottom: 1rem;
+  }
+
+  .help-article h2 {
+    color: oklch(var(--gray-900));
+    font-size: 1.15rem;
+    font-weight: 650;
+    line-height: 1.35;
+    letter-spacing: 0;
+    margin-top: 2rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid oklch(var(--gray-200));
+  }
+
+  .help-article h3 {
+    color: oklch(var(--gray-900));
+    font-size: 1rem;
+    font-weight: 650;
+    line-height: 1.45;
+    margin-top: 1.5rem;
+  }
+
+  .help-article p {
+    max-width: 42rem;
+    color: oklch(var(--gray-700));
+  }
+
+  .help-article ul,
+  .help-article ol {
+    max-width: 42rem;
+    padding-left: 1.35rem;
+    color: oklch(var(--gray-700));
+  }
+
+  .help-article ul {
+    list-style: disc;
+  }
+
+  .help-article ol {
+    list-style: decimal;
+  }
+
+  .help-article li {
+    padding-left: 0.2rem;
+    margin-top: 0.35rem;
+  }
+
+  .help-article li::marker {
+    color: oklch(var(--primary-600));
+    font-weight: 650;
+  }
+
+  .help-article strong {
+    color: oklch(var(--gray-900));
+    font-weight: 650;
+  }
+
+  .help-article a {
+    color: oklch(var(--primary-600));
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+
+  .help-article blockquote {
+    max-width: 42rem;
+    border-left: 3px solid oklch(var(--primary-500));
+    background: oklch(var(--primary-50) / 45%);
+    color: oklch(var(--gray-800));
+    padding: 0.8rem 1rem;
+    border-radius: 0 0.375rem 0.375rem 0;
+  }
+
+  .help-article code {
+    border-radius: 0.25rem;
+    background: oklch(var(--gray-100));
+    color: oklch(var(--gray-900));
+    padding: 0.12rem 0.3rem;
+    font-size: 0.88em;
+  }
+
+  .help-article pre {
+    max-width: 100%;
+    overflow-x: auto;
+    border-radius: 0.5rem;
+    background: oklch(var(--gray-950));
+    color: oklch(var(--gray-50));
+    padding: 1rem;
+  }
+
+  .help-article pre code {
+    background: transparent;
+    color: inherit;
+    padding: 0;
+  }
+
+  .help-article table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+  }
+
+  .help-article th,
+  .help-article td {
+    border-bottom: 1px solid oklch(var(--gray-200));
+    padding: 0.65rem 0.75rem;
+    text-align: left;
+  }
+
+  .help-article th {
+    color: oklch(var(--gray-900));
+    font-weight: 650;
+    background: oklch(var(--gray-50));
+  }
 }
 
 @layer utilities {

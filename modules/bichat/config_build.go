@@ -155,6 +155,7 @@ func (c *ModuleConfig) BuildServices() (*ServiceContainer, error) {
 		SkillsCatalogLimit:     c.SkillsCatalogLimit,
 		SkillsMaxChars:         c.SkillsMaxChars,
 		RuntimeTools:           runtimeTools,
+		ExecutorOptions:        c.ExecutorOptions,
 		Logger:                 c.Logger,
 		FormatterRegistry:      formatters.DefaultFormatterRegistry(),
 	})

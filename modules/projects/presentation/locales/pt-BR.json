@@ -1,0 +1,95 @@
+{
+  "Resources": {
+    "project": "Projetos",
+    "project_stage": "Etapas do projeto"
+  },
+  "Permissions": {
+    "Project": {
+      "Create": "Criar projeto",
+      "Read": "Visualizar projeto",
+      "Update": "Atualizar projeto",
+      "Delete": "Excluir projeto"
+    },
+    "ProjectStage": {
+      "Create": "Criar etapa de projeto",
+      "Read": "Visualizar etapa de projeto",
+      "Update": "Atualizar etapa de projeto",
+      "Delete": "Excluir etapa de projeto"
+    }
+  },
+  "NavigationLinks": {
+    "Projects": "Projetos",
+    "ProjectStages": "Etapas do projeto"
+  },
+  "Projects": {
+    "Meta": {
+      "List": {
+        "Title": "Projetos"
+      },
+      "Edit": {
+        "Title": "Editar projeto"
+      },
+      "New": {
+        "Title": "Novo projeto"
+      }
+    },
+    "List": {
+      "New": "Novo projeto",
+      "Name": "Nome",
+      "Counterparty": "Contraparte",
+      "_Description": "Descrição",
+      "NoProjects": {
+        "Title": "Nenhum projeto encontrado",
+        "_Description": "Ainda não há projetos. Clique em 'Novo projeto' para criar um."
+      }
+    },
+    "Single": {
+      "Name": "Nome",
+      "Counterparty": "Contraparte",
+      "SelectCounterparty": "Selecionar contraparte",
+      "NoCounterpartiesFound": "Nenhuma contraparte encontrada",
+      "_Description": "Descrição",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir este projeto?"
+    }
+  },
+  "ProjectStages": {
+    "Meta": {
+      "List": {
+        "Title": "Etapas de projeto"
+      },
+      "Edit": {
+        "Title": "Editar etapa de projeto"
+      },
+      "New": {
+        "Title": "Nova etapa de projeto"
+      }
+    },
+    "List": {
+      "New": "Nova etapa de projeto",
+      "StageNumber": "Número da etapa",
+      "_Description": "Descrição",
+      "TotalAmount": "Valor total",
+      "PaidAmount": "Valor pago",
+      "StartDate": "Data de início",
+      "PlannedEndDate": "Data planejada de término",
+      "FactualEndDate": "Data real de término",
+      "NoProjectStages": {
+        "Title": "Nenhuma etapa de projeto encontrada",
+        "_Description": "Ainda não há etapas de projeto. Clique em 'Nova etapa de projeto' para criar uma."
+      }
+    },
+    "Single": {
+      "ProjectID": "Projeto",
+      "SelectProject": "Selecione um projeto",
+      "StageNumber": "Número da etapa",
+      "_Description": "Descrição",
+      "Desc": "Descrição",
+      "TotalAmount": "Valor total",
+      "PaidAmount": "Valor pago",
+      "StartDate": "Data de início",
+      "PlannedEndDate": "Data planejada de término",
+      "FactualEndDate": "Data real de término",
+      "DeleteConfirmation": "Tem certeza de que deseja excluir esta etapa de projeto?"
+    }
+  }
+}

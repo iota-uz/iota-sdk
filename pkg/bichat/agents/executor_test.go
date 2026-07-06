@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -17,10 +18,12 @@ import (
 
 // mockModel is a test model that returns predefined responses.
 type mockModel struct {
+	mu            sync.Mutex
 	responses     []mockResponse
 	currentIndex  int
 	streamingMode bool
 	info          agents.ModelInfo
+	requests      []agents.Request
 }
 
 type mockResponse struct {
@@ -46,6 +49,7 @@ func newMockModel(responses ...mockResponse) *mockModel {
 }
 
 func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (*agents.Response, error) {
+	m.recordRequest(req)
 	if m.currentIndex >= len(m.responses) {
 		return nil, fmt.Errorf("no more mock responses")
 	}
@@ -69,6 +73,7 @@ func (m *mockModel) Generate(ctx context.Context, req agents.Request, opts ...ag
 }
 
 func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
+	m.recordRequest(req)
 	return types.NewGenerator(ctx, func(ctx context.Context, yield func(agents.Chunk) bool) error {
 		if m.currentIndex >= len(m.responses) {
 			return fmt.Errorf("no more mock responses")
@@ -116,6 +121,21 @@ func (m *mockModel) Stream(ctx context.Context, req agents.Request, opts ...agen
 
 		return nil
 	}), nil
+}
+
+func (m *mockModel) recordRequest(req agents.Request) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	copied := req
+	copied.Messages = append([]types.Message(nil), req.Messages...)
+	copied.Tools = append([]agents.Tool(nil), req.Tools...)
+	m.requests = append(m.requests, copied)
+}
+
+func (m *mockModel) capturedRequests() []agents.Request {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return append([]agents.Request(nil), m.requests...)
 }
 
 func (m *mockModel) Info() agents.ModelInfo {

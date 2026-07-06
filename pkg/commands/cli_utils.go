@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/iota-uz/iota-sdk/modules"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter"
 	"github.com/iota-uz/iota-sdk/modules/superadmin"
 )
 
@@ -31,7 +32,10 @@ func newCheckTrKeysCmd() *cobra.Command {
 				}
 				rootPath = wd
 			}
-			allComponents := append(modules.Components(), superadmin.NewComponent(&superadmin.ModuleOptions{}))
+			allComponents := append(modules.Components(),
+				superadmin.NewComponent(&superadmin.ModuleOptions{}),
+				helpcenter.NewComponent(helpcenter.ContentConfig{}),
+			)
 			return CheckTrKeys(nil, rootPath, allComponents...)
 		},
 	}

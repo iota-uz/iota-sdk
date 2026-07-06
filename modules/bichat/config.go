@@ -222,6 +222,8 @@ type ModuleConfig struct {
 	// Optional: Token Estimator for cost tracking and budget management
 	// If not provided, a no-op estimator will be used
 	TokenEstimator agents.TokenEstimator
+	// Optional: additional executor options applied to each parent agent run.
+	ExecutorOptions []agents.ExecutorOption
 
 	// Optional: Observability
 	Logger                 *logrus.Logger
