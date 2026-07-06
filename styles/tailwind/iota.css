@@ -676,18 +676,6 @@
     display: revert;
   }
 
-  /* infinite-scroll-spinner: hx-indicator points directly at this row, so
-     htmx adds `.htmx-request` to the element itself (not an ancestor) —
-     reveal targets it in place. Dedicated class for the same reason as
-     `.hide-on-load` above: `.hidden` can't be reveal-overridden. */
-  .infinite-scroll-spinner {
-    display: none;
-  }
-
-  .htmx-request.infinite-scroll-spinner {
-    display: table-row;
-  }
-
   .table {
     --radius: var(--table-radius);
     border-collapse: separate;
@@ -1393,4 +1381,19 @@
   .spotlight-shimmer {
     animation: none;
   }
+}
+
+/*
+ * Infinite-scroll loading spinner reveal (scaffold/table InfiniteScrollSpinner).
+ * The row stays `class="hidden"` so it is display:none at rest AND so the
+ * fillGrid() scroll-guard (`tr:not(.hidden) > td[colspan]` in alpine.js) keeps
+ * excluding it — removing `.hidden` would make fillGrid treat the spinner as an
+ * empty-state row and lock table scrolling. Its `hx-indicator` puts
+ * `.htmx-request` on the row itself while the next page loads; reveal it then.
+ * Unlayered (not @layer) on purpose: Tailwind's `.hidden { display:none }` lives
+ * in @layer utilities and wins over any layered rule regardless of specificity,
+ * so the reveal must be unlayered to override it.
+ */
+#infinite-scroll-spinner.htmx-request {
+  display: table-row;
 }
