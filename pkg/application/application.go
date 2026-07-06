@@ -49,7 +49,12 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 			Keywords:    append([]string(nil), item.Keywords...),
 			Icon:        item.Icon,
 			Permissions: item.Permissions,
-			IsBeta:      item.IsBeta,
+			// Logic must be carried through: dropping it reverts the item to the
+			// zero value (PermissionLogicAll), which turns a RequireAny nav gate
+			// into AND and hides the item from users holding only one of its
+			// permissions.
+			Logic:  item.Logic,
+			IsBeta: item.IsBeta,
 		})
 	}
 	return translated
