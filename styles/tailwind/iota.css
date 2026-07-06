@@ -676,6 +676,18 @@
     display: revert;
   }
 
+  /* infinite-scroll-spinner: hx-indicator points directly at this row, so
+     htmx adds `.htmx-request` to the element itself (not an ancestor) —
+     reveal targets it in place. Dedicated class for the same reason as
+     `.hide-on-load` above: `.hidden` can't be reveal-overridden. */
+  .infinite-scroll-spinner {
+    display: none;
+  }
+
+  .htmx-request.infinite-scroll-spinner {
+    display: table-row;
+  }
+
   .table {
     --radius: var(--table-radius);
     border-collapse: separate;

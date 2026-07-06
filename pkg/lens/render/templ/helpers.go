@@ -1927,6 +1927,15 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 p-0"
 	case panel.KindTable:
 		// .lens-th/.lens-td own the cell padding; the table sits flush.
+		// The scrolling variant additionally needs min-h-0: when its card
+		// has a bounded height (e.g. inside the fullscreen overlay) this flex
+		// body must be allowed to shrink below the table's content height,
+		// otherwise its default min-height:auto pins it to content size, the
+		// table overflows the card, and the wrapper's own overflow-auto never
+		// engages. Harmless for the normal auto-height in-page case.
+		if panelHasClass(spec, "lens-table-scroll") {
+			return "flex-1 p-0 min-h-0"
+		}
 		return "flex-1 p-0"
 	case panel.KindTabs:
 		return "flex-1 px-3 py-2"

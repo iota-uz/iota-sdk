@@ -240,8 +240,14 @@ templ Rows(cfg *TableConfig) {
 	}
 }
 
+// InfiniteScrollSpinner is rendered hidden and revealed only while its
+// `hx-indicator` swap is in flight (see `.infinite-scroll-spinner` in
+// styles/tailwind/iota.css). It deliberately uses a dedicated class instead
+// of Tailwind's `hidden` utility: `.hidden` lives in @layer utilities and
+// always wins over an @layer components reveal rule regardless of
+// specificity, so a `.htmx-request .hidden` reveal can never take effect.
 templ InfiniteScrollSpinner(cfg *TableConfig) {
-	<tr id="infinite-scroll-spinner" class="hidden">
+	<tr id="infinite-scroll-spinner" class="infinite-scroll-spinner">
 		<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) }>
 			@loaders.Spinner(loaders.SpinnerProps{
 				ContainerClass: templ.Classes("flex justify-center items-center py-4"),

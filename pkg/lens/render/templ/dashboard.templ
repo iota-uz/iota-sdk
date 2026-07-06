@@ -34,6 +34,22 @@ templ lensGridStyles() {
 				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
 			}
 		}
+
+		/* Inside the fullscreen overlay the composite grid has a resolved
+		   height, so bound each row to the container (minmax(0, 1fr)) instead
+		   of letting an auto row grow to its content. Without this a tall
+		   child (e.g. a many-row breakdown table) grows the row past the
+		   modal and gets clipped by the overlay card's overflow:hidden;
+		   with it the row stays bounded and the child's own overflow-auto
+		   scrolls internally. min-height:0 lets the grid items shrink to the
+		   bounded row rather than forcing it back to content height. Scoped
+		   to fullscreen so the normal auto-height in-page grid is untouched. */
+		.lens-panel-fullscreen .lens-composite-fill {
+			grid-auto-rows: minmax(0, 1fr);
+		}
+		.lens-panel-fullscreen .lens-composite-fill > .lens-grid-item {
+			min-height: 0;
+		}
 	</style>
 }
 
@@ -1183,7 +1199,7 @@ templ PanelIsland(spec panel.Spec, props AsyncProps) {
 }
 
 templ CompositePanel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver) {
-	<div class="grid h-full flex-1 min-h-0 grid-cols-12 gap-3" style="align-content: stretch;">
+	<div class="grid h-full flex-1 min-h-0 grid-cols-12 gap-3 lens-composite-fill" style="align-content: stretch;">
 		for _, child := range spec.Children {
 			@Panel(child, result, resolvePanelErrorAction)
 		}
@@ -1556,7 +1572,7 @@ templ PanelFullscreenOverlay(spec panel.Spec, chartText chartText, bodyClass str
 		x-transition:leave="transition ease-in duration-150"
 		x-transition:leave-start="opacity-100"
 		x-transition:leave-end="opacity-0"
-		class="fixed inset-0 flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
+		class="lens-panel-fullscreen fixed inset-0 flex min-h-0 flex-col overflow-y-auto bg-white/95 p-2 sm:p-4 xl:p-8 backdrop-blur-sm"
 		style="display: none; z-index: 90; --lens-table-scroll-cap: none;"
 		@click.self="fullscreen = false"
 		@keydown.escape.window="fullscreen = false"
