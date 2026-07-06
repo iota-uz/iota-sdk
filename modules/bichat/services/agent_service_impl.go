@@ -45,6 +45,7 @@ type agentServiceImpl struct {
 	skillsCatalogLimit     int
 	skillsMaxChars         int
 	runtimeTools           []agents.Tool
+	executorOptions        []agents.ExecutorOption
 	logger                 *logrus.Logger
 	formatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
@@ -66,6 +67,7 @@ type AgentServiceConfig struct {
 	SkillsCatalogLimit     int
 	SkillsMaxChars         int
 	RuntimeTools           []agents.Tool
+	ExecutorOptions        []agents.ExecutorOption
 	Logger                 *logrus.Logger
 	FormatterRegistry      *bichatctx.FormatterRegistry // Optional for StructuredTool support
 }
@@ -118,6 +120,7 @@ func NewAgentService(cfg AgentServiceConfig) services.AgentService {
 		skillsCatalogLimit:     limit,
 		skillsMaxChars:         maxChars,
 		runtimeTools:           append([]agents.Tool(nil), cfg.RuntimeTools...),
+		executorOptions:        append([]agents.ExecutorOption(nil), cfg.ExecutorOptions...),
 		logger:                 logger,
 		formatterRegistry:      cfg.FormatterRegistry,
 	}
@@ -324,6 +327,7 @@ func (s *agentServiceImpl) buildExecutor(ctx context.Context, sessionID, tenantI
 	if s.formatterRegistry != nil {
 		opts = append(opts, agents.WithFormatterRegistry(s.formatterRegistry))
 	}
+	opts = append(opts, s.executorOptions...)
 
 	if tools := s.composeExecutorTools(sessionID, tenantID); len(tools) > 0 {
 		opts = append(opts, agents.WithExecutorTools(tools))
