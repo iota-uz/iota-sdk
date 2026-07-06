@@ -39,8 +39,8 @@ func NewUploadController(uploadService *services.UploadService, cfg *uploadsconf
 	}
 }
 
-func (c *UploadController) Key() string {
-	return "/upload"
+func (c *UploadController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.upload", 0, application.Route("", "/upload"))
 }
 
 func (c *UploadController) Register(r *mux.Router) {

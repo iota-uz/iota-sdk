@@ -32,8 +32,8 @@ func NewClickController(billingService *services.BillingService, click paymentsc
 	}
 }
 
-func (c *ClickController) Key() string {
-	return c.basePath
+func (c *ClickController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.click", 0, application.Route("", c.basePath))
 }
 
 func (c *ClickController) Register(r *mux.Router) {

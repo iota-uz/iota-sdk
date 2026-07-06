@@ -40,8 +40,8 @@ func (c *PaymeController) Register(r *mux.Router) {
 	router.HandleFunc("", di.H(c.Handle))
 }
 
-func (c *PaymeController) Key() string {
-	return c.basePath
+func (c *PaymeController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("billing.payme", 0, application.Route("", c.basePath))
 }
 
 func (c *PaymeController) Handle(
@@ -272,13 +272,12 @@ func (c *PaymeController) create(ctx context.Context, r *paymeapi.CreateTransact
 		billing.Payme,
 		filters,
 	)
-	if err != nil || len(entities) != 1 {
+	entity, ok := activePaymeTransaction(entities)
+	if err != nil || !ok {
 		logger.WithError(err).WithField("transaction_id", r.Id).Error("Invalid account in CreateTransaction")
 		errRPC := paymeapi.InvalidAccountError()
 		return nil, &errRPC
 	}
-
-	entity := entities[0]
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
@@ -454,13 +453,12 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 		billing.Payme,
 		filters,
 	)
-	if err != nil || len(entities) != 1 {
+	entity, ok := activePaymeTransaction(entities)
+	if err != nil || !ok {
 		logger.WithError(err).Error("Invalid account in CheckPerformTransaction")
 		errRPC := paymeapi.CheckPerformTransactionInvalidAccountError()
 		return nil, &errRPC
 	}
-
-	entity := entities[0]
 
 	amount := r.Amount / 100
 	if math.Abs(entity.Amount().Quantity()-amount) >= 1e-9 {
@@ -507,6 +505,21 @@ func (c *PaymeController) checkPerform(ctx context.Context, r *paymeapi.CheckPer
 	return &paymeapi.CheckPerformTransactionResponse{
 		Allow: true,
 	}, nil
+}
+
+func activePaymeTransaction(entities []billing.Transaction) (billing.Transaction, bool) {
+	var selected billing.Transaction
+	for _, entity := range entities {
+		if !entity.Status().IsActive() {
+			continue
+		}
+		if selected != nil {
+			return nil, false
+		}
+		selected = entity
+	}
+
+	return selected, selected != nil
 }
 
 func (c *PaymeController) perform(ctx context.Context, r *paymeapi.PerformTransactionRequest, logger *logrus.Entry) (*paymeapi.PerformTransactionResponse, *paymeapi.JSONRPCErrorResponseError) {

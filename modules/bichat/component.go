@@ -4,7 +4,6 @@ import (
 	"context"
 	"embed"
 	"errors"
-	"strings"
 	"time"
 
 	bichatagents "github.com/iota-uz/iota-sdk/modules/bichat/agents"
@@ -93,7 +92,7 @@ func WithExtraAgentOptions(opts ...bichatagents.BIAgentOption) Option {
 }
 
 // WithComponentStreamBasePath overrides the path the BiChat stream controller
-// mounts at. The default is the BiChatLink href.
+// mounts at. The default is /bi-chat.
 func WithComponentStreamBasePath(path string) Option {
 	return func(o *componentOptions) {
 		o.streamBasePath = path
@@ -171,10 +170,6 @@ func (c *component) Build(builder *composition.Builder) error {
 	if composition.SkipIfDisabled[bichatconfig.Config](builder) {
 		return nil
 	}
-
-	_ = strings.TrimSpace // keep strings import used below
-	composition.AddNavItems(builder, NavItems...)
-	composition.AddQuickLinks(builder, spotlight.NewQuickLink(BiChatLink.Name, BiChatLink.Href))
 
 	// Single lazy provider backing the entire BiChat graph. Resolved once per
 	// container instantiation; downstream providers read individual services

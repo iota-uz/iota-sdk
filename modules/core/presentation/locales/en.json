@@ -366,7 +366,8 @@
     "ToExcel": "Export to Excel",
     "ToCSV": "Export to CSV",
     "ToJSON": "Export to JSON",
-    "ToTXT": "Export to TXT"
+    "ToTXT": "Export to TXT",
+    "Preparing": "Preparing your file…"
   },
   "Filters": {
     "CreatedAt": {
@@ -468,6 +469,7 @@
     "Website": "Website"
   },
   "NavigationLinks": {
+    "QuickLinks": "Quick links",
     "Dashboard": "Dashboard",
     "Administration": "Administration",
     "Users": "Users",

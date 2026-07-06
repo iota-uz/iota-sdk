@@ -7,6 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/modules/superadmin/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -27,8 +28,16 @@ func NewDashboardController() application.Controller {
 	}
 }
 
-func (c *DashboardController) Key() string {
-	return c.basePath
+func (c *DashboardController) Descriptor() application.ControllerDescriptor {
+	descriptor := application.Descriptor("superadmin.dashboard", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "superadmin.dashboard",
+			TitleKey: "SuperAdmin.NavigationLinks.Dashboard",
+			Path:     c.basePath,
+			Icon:     icons.ChartLineUp(icons.Props{Size: "20"}),
+		})
+	descriptor.Replaces = []string{"core.dashboard"}
+	return descriptor
 }
 
 func (c *DashboardController) Register(r *mux.Router) {

@@ -53,8 +53,8 @@ func NewExpensesController() application.Controller {
 	return controller
 }
 
-func (c *ExpenseController) Key() string {
-	return c.basePath
+func (c *ExpenseController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("finance.expense", 0, application.Route("", c.basePath))
 }
 
 func (c *ExpenseController) Register(r *mux.Router) {

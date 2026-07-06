@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/dialog"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -138,9 +139,12 @@ templ GroupsContent(props *IndexPageProps) {
 	}
 	<div class="m-6">
 		<div class="flex justify-between md:justify-start">
-			<h1 class="text-2xl font-medium">
-				{ pageCtx.T("NavigationLinks.Groups") }
-			</h1>
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.Groups") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+			</div>
 			<div class="flex md:hidden gap-2">
 				@button.Secondary(button.Props{
 					Size:  button.SizeNormal,

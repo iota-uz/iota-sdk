@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
@@ -56,12 +57,20 @@ func TestEngineCompileNavWorkspacesAndKeyOverrides(t *testing.T) {
 		testComponent{
 			descriptor: Descriptor{Name: "core"},
 			build: func(builder *Builder) error {
-				AddNavItems(builder,
-					types.NavigationItem{Key: "core.dashboard", Name: "Dashboard", Href: "/"},
-					types.NavigationItem{Key: "core.admin", Name: "Admin", Children: []types.NavigationItem{
-						{Key: "core.users", Name: "Users", Href: "/users"},
-					}},
-				)
+				// Seed nav via the descriptor path: a dashboard leaf, plus an
+				// "admin" grouping node with a child leaf — so the override pass
+				// below is exercised against derived navigation.
+				ContributeControllers(builder, func(*Container) ([]application.Controller, error) {
+					return []application.Controller{
+						&overrideCtrl{id: "core.dashboard", routes: []application.RouteSpec{application.Get("/")}, nav: []application.NavNode{
+							{ID: "core.dashboard", TitleKey: "Dashboard", Path: "/"},
+						}},
+						&overrideCtrl{id: "core.users", routes: []application.RouteSpec{application.Get("/users")}, nav: []application.NavNode{
+							{ID: "core.users", Parent: "core.admin", TitleKey: "Users", Path: "/users"},
+						}},
+					}, nil
+				})
+				AddNavNodes(builder, application.NavNode{ID: "core.admin", TitleKey: "Admin"})
 				AddNavWorkspaces(builder, types.NavWorkspace{Key: "erp", Label: "ERP", Default: true})
 				return nil
 			},

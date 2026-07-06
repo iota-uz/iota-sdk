@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"sort"
 	"strings"
 
 	"github.com/benbjohnson/hashfs"
@@ -267,7 +268,9 @@ type Container struct {
 	providerOrder      []*providerEntry
 	resolutionPath     []string
 
-	controllerBatches     []controllerBatch
+	controllerFactories   []namedFactory[[]application.Controller]
+	navNodeFactories      []namedFactory[[]application.NavNode]
+	navProviderFactories  []namedFactory[[]application.NavProvider]
 	navItemFactories      []namedFactory[[]types.NavigationItem]
 	navWorkspaceFactories []namedFactory[[]types.NavWorkspace]
 	localeFactories       []namedFactory[[]*embed.FS]
@@ -290,6 +293,9 @@ type Container struct {
 	pendingNavItemOverrides []types.NavigationItem
 
 	controllers        []application.Controller
+	navCatalogNodes    []navNodeContribution
+	navProviders       []application.NavProvider
+	routeAuthRoutes    []controllerRoute
 	navItems           []types.NavigationItem
 	navWorkspaces      []types.NavWorkspace
 	locales            []*embed.FS
@@ -311,9 +317,15 @@ type controllerContribution struct {
 	controller application.Controller
 }
 
-type controllerBatch struct {
-	factories []namedFactory[[]application.Controller]
-	removals  []string
+type controllerRoute struct {
+	component string
+	id        string
+	route     application.RouteSpec
+}
+
+type navNodeContribution struct {
+	component string
+	node      application.NavNode
 }
 
 func newContainer(context BuildContext, activeCapabilities []Capability) *Container {
@@ -334,6 +346,10 @@ func (c *Container) Controllers() []application.Controller {
 
 func (c *Container) NavItems() []types.NavigationItem {
 	return append([]types.NavigationItem(nil), c.navItems...)
+}
+
+func (c *Container) NavProviders() []application.NavProvider {
+	return append([]application.NavProvider(nil), c.navProviders...)
 }
 
 func (c *Container) NavWorkspaces() []types.NavWorkspace {
@@ -585,10 +601,9 @@ func (c *Container) addBuilder(builder *Builder) error {
 		c.providerOrder = append(c.providerOrder, provider)
 	}
 
-	c.controllerBatches = append(c.controllerBatches, controllerBatch{
-		factories: append([]namedFactory[[]application.Controller](nil), builder.controllerFactories...),
-		removals:  append([]string(nil), builder.controllerRemovals...),
-	})
+	c.controllerFactories = append(c.controllerFactories, builder.controllerFactories...)
+	c.navNodeFactories = append(c.navNodeFactories, builder.navNodeFactories...)
+	c.navProviderFactories = append(c.navProviderFactories, builder.navProviderFactories...)
 	c.navItemFactories = append(c.navItemFactories, builder.navItemFactories...)
 	c.navWorkspaceFactories = append(c.navWorkspaceFactories, builder.navWorkspaceFactories...)
 	c.localeFactories = append(c.localeFactories, builder.localeFactories...)
@@ -627,36 +642,37 @@ func (c *Container) instantiateAll() error {
 }
 
 func (c *Container) materialize() error {
-	controllerContributions, err := c.materializeControllerContributions()
+	controllerContributions, err := collectControllerContributions(c, c.controllerFactories)
 	if err != nil {
 		return err
 	}
+	activeControllerContributions := make([]controllerContribution, 0, len(controllerContributions))
 	if len(controllerContributions) > 0 {
-		filtered := make([]application.Controller, 0, len(controllerContributions))
-		owners := make(map[string]string, len(controllerContributions))
-		for _, contribution := range controllerContributions {
-			controller := contribution.controller
-			if controller == nil {
-				continue
-			}
-			if existing, exists := owners[controller.Key()]; exists {
-				return fmt.Errorf(
-					"composition: duplicate controller key %q contributed by %q and %q; call composition.RemoveController(builder, %q) before contributing a replacement",
-					controller.Key(),
-					existing,
-					contribution.component,
-					controller.Key(),
-				)
-			}
-			owners[controller.Key()] = contribution.component
-			filtered = append(filtered, controller)
+		filtered, active, err := resolveControllerDescriptors(controllerContributions)
+		if err != nil {
+			return err
 		}
 		c.controllers = filtered
+		activeControllerContributions = active
+		c.routeAuthRoutes = collectControllerRoutes(active)
 	}
+	if err := collectNavNodeContributions(c, c.navNodeFactories, &c.navCatalogNodes); err != nil {
+		return err
+	}
+	navNodeContributions := append([]navNodeContribution(nil), c.navCatalogNodes...)
+	navNodeContributions = append(navNodeContributions, collectControllerNavNodes(activeControllerContributions)...)
 	if err := collectInto(c, c.navItemFactories, &c.navItems); err != nil {
 		return err
 	}
+	navModel, err := buildNavModel(c.routeAuthRoutes, navNodeContributions, true)
+	if err != nil {
+		return err
+	}
+	c.navItems = append(c.navItems, navModel.items...)
 	c.navItems = applyNavItemOverrides(c.navItems, c.pendingNavItemRemovals, c.pendingNavItemOverrides)
+	if err := collectInto(c, c.navProviderFactories, &c.navProviders); err != nil {
+		return err
+	}
 	if err := collectInto(c, c.navWorkspaceFactories, &c.navWorkspaces); err != nil {
 		return err
 	}
@@ -678,6 +694,7 @@ func (c *Container) materialize() error {
 	if err := collectInto(c, c.quickLinkFactories, &c.quickLinks); err != nil {
 		return err
 	}
+	c.quickLinks = append(c.quickLinks, navModel.quickLinks...)
 	if err := collectInto(c, c.spotlightFactories, &c.spotlightProviders); err != nil {
 		return err
 	}
@@ -706,35 +723,6 @@ func (c *Container) materialize() error {
 		c.hooks = filtered
 	}
 	return nil
-}
-
-func (c *Container) materializeControllerContributions() ([]controllerContribution, error) {
-	contributions := make([]controllerContribution, 0)
-	for _, batch := range c.controllerBatches {
-		if len(batch.removals) > 0 && len(contributions) > 0 {
-			removalSet := stringSet(batch.removals)
-			filtered := contributions[:0]
-			for _, contribution := range contributions {
-				controller := contribution.controller
-				if controller == nil {
-					continue
-				}
-				if _, removed := removalSet[controller.Key()]; removed {
-					continue
-				}
-				filtered = append(filtered, contribution)
-			}
-			contributions = filtered
-		}
-
-		values, err := collectControllerContributions(c, batch.factories)
-		if err != nil {
-			return nil, err
-		}
-		contributions = append(contributions, values...)
-	}
-
-	return contributions, nil
 }
 
 // stringSet builds a lookup set from a slice. Returns nil for empty input
@@ -839,6 +827,203 @@ func collectControllerContributions(container *Container, factories []namedFacto
 		}
 	}
 	return contributions, nil
+}
+
+func collectNavNodeContributions(container *Container, factories []namedFactory[[]application.NavNode], target *[]navNodeContribution) error {
+	for _, entry := range factories {
+		previousPath := container.resolutionPath
+		container.resolutionPath = []string{entry.component, entry.label}
+		values, err := entry.factory(container)
+		container.resolutionPath = previousPath
+		if err != nil {
+			return fmt.Errorf("composition: %s contribution for %q: %w", entry.label, entry.component, err)
+		}
+		for _, node := range values {
+			*target = append(*target, navNodeContribution{
+				component: entry.component,
+				node:      node,
+			})
+		}
+	}
+	return nil
+}
+
+func resolveControllerDescriptors(contributions []controllerContribution) ([]application.Controller, []controllerContribution, error) {
+	active := make([]controllerContribution, 0, len(contributions))
+	owners := make(map[string]string, len(contributions))
+
+	for _, contribution := range contributions {
+		if contribution.controller == nil {
+			continue
+		}
+		descriptor := contribution.controller.Descriptor()
+		if strings.TrimSpace(descriptor.ID) == "" {
+			return nil, nil, fmt.Errorf("composition: controller contributed by %q has empty descriptor ID", contribution.component)
+		}
+
+		for _, replacedID := range descriptor.Replaces {
+			replacedID = strings.TrimSpace(replacedID)
+			if replacedID == "" {
+				continue
+			}
+			found := false
+			filtered := active[:0]
+			for _, existing := range active {
+				if existing.controller.Descriptor().ID == replacedID {
+					delete(owners, replacedID)
+					found = true
+					continue
+				}
+				filtered = append(filtered, existing)
+			}
+			active = filtered
+			if !found {
+				return nil, nil, fmt.Errorf(
+					"composition: controller %q contributed by %q replaces missing controller %q",
+					descriptor.ID,
+					contribution.component,
+					replacedID,
+				)
+			}
+		}
+
+		if existing, exists := owners[descriptor.ID]; exists {
+			return nil, nil, fmt.Errorf(
+				"composition: duplicate controller ID %q contributed by %q and %q; declare Descriptor().Replaces to override a controller",
+				descriptor.ID,
+				existing,
+				contribution.component,
+			)
+		}
+		owners[descriptor.ID] = contribution.component
+		active = append(active, contribution)
+	}
+
+	if err := validateControllerRoutes(active); err != nil {
+		return nil, nil, err
+	}
+
+	sort.SliceStable(active, func(i, j int) bool {
+		return active[i].controller.Descriptor().Order < active[j].controller.Descriptor().Order
+	})
+
+	controllers := make([]application.Controller, 0, len(active))
+	for _, contribution := range active {
+		controllers = append(controllers, contribution.controller)
+	}
+	return controllers, active, nil
+}
+
+func collectControllerRoutes(contributions []controllerContribution) []controllerRoute {
+	routes := make([]controllerRoute, 0)
+	for _, contribution := range contributions {
+		descriptor := contribution.controller.Descriptor()
+		for _, route := range descriptor.Routes {
+			route = normalizeRoute(route)
+			if route.Path == "" {
+				continue
+			}
+			routes = append(routes, controllerRoute{
+				component: contribution.component,
+				id:        descriptor.ID,
+				route:     route,
+			})
+		}
+	}
+	return routes
+}
+
+func collectControllerNavNodes(contributions []controllerContribution) []navNodeContribution {
+	nodes := make([]navNodeContribution, 0)
+	for _, contribution := range contributions {
+		descriptor := contribution.controller.Descriptor()
+		for _, node := range descriptor.Nav {
+			nodes = append(nodes, navNodeContribution{
+				component: contribution.component,
+				node:      node,
+			})
+		}
+	}
+	return nodes
+}
+
+func validateControllerRoutes(contributions []controllerContribution) error {
+	routes := make([]controllerRoute, 0)
+	for _, contribution := range contributions {
+		descriptor := contribution.controller.Descriptor()
+		for _, route := range descriptor.Routes {
+			route = normalizeRoute(route)
+			if route.Path == "" {
+				continue
+			}
+			for _, existing := range routes {
+				if existing.id == descriptor.ID {
+					continue
+				}
+				if route.AllowCollision || existing.route.AllowCollision {
+					continue
+				}
+				if routesConflict(existing.route, route) {
+					return fmt.Errorf(
+						"composition: controller route collision between %q from %q and %q from %q on %s %s",
+						existing.id,
+						existing.component,
+						descriptor.ID,
+						contribution.component,
+						routeMethodLabel(route),
+						route.Path,
+					)
+				}
+			}
+			routes = append(routes, controllerRoute{
+				component: contribution.component,
+				id:        descriptor.ID,
+				route:     route,
+			})
+		}
+	}
+	return nil
+}
+
+func normalizeRoute(route application.RouteSpec) application.RouteSpec {
+	route.Method = strings.ToUpper(strings.TrimSpace(route.Method))
+	route.Host = strings.ToLower(strings.TrimSpace(route.Host))
+	route.Path = application.NormalizeRoutePath(route.Path)
+	return route
+}
+
+func routesConflict(a, b application.RouteSpec) bool {
+	return methodsOverlap(a.Method, b.Method) &&
+		hostsOverlap(a.Host, b.Host) &&
+		pathsOverlap(a, b)
+}
+
+func methodsOverlap(a, b string) bool {
+	return a == "" || b == "" || a == b
+}
+
+func hostsOverlap(a, b string) bool {
+	return a == "" || b == "" || a == b
+}
+
+func pathsOverlap(a, b application.RouteSpec) bool {
+	switch {
+	case a.Prefix && b.Prefix:
+		return strings.HasPrefix(a.Path, b.Path) || strings.HasPrefix(b.Path, a.Path)
+	case a.Prefix:
+		return strings.HasPrefix(b.Path, a.Path)
+	case b.Prefix:
+		return strings.HasPrefix(a.Path, b.Path)
+	default:
+		return a.Path == b.Path
+	}
+}
+
+func routeMethodLabel(route application.RouteSpec) string {
+	if route.Method == "" {
+		return "*"
+	}
+	return route.Method
 }
 
 func componentActive(descriptor Descriptor, active []Capability) bool {

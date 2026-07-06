@@ -84,7 +84,7 @@ func TestApplication_AttachRuntimeSource_AddsQuickLinks(t *testing.T) {
 }
 
 func TestDefaultSupportedLanguages(t *testing.T) {
-	require.Equal(t, []string{"en", "ru", "uz", "zh"}, DefaultSupportedLanguages())
+	require.Equal(t, []string{"en", "ru", "uz", "pt-BR", "zh"}, DefaultSupportedLanguages())
 }
 
 func TestLoadBundle_RegistersSpotlightDefaults(t *testing.T) {

@@ -53,8 +53,19 @@ func NewProjectController() application.Controller {
 	}
 }
 
-func (c *ProjectController) Key() string {
-	return c.basePath
+func (c *ProjectController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("projects.project", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "projects.project",
+			Parent:   "projects",
+			TitleKey: "NavigationLinks.Projects",
+			Path:     c.basePath,
+			Actions: []application.NavAction{{
+				ID:       "projects.project.new",
+				TitleKey: "Projects.List.New",
+				Path:     c.basePath + "/new",
+			}},
+		})
 }
 
 func (c *ProjectController) Register(r *mux.Router) {

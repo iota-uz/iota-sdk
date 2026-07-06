@@ -41,8 +41,14 @@ func NewEmployeeController(employeeService *services.EmployeeService) applicatio
 	}
 }
 
-func (c *EmployeeController) Key() string {
-	return c.basePath
+func (c *EmployeeController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("hrm.employee", 0, application.Route("", c.basePath)).
+		WithNav(application.NavNode{
+			ID:       "hrm.employee",
+			Parent:   "hrm",
+			TitleKey: "NavigationLinks.Employees",
+			Path:     c.basePath,
+		})
 }
 
 func (c *EmployeeController) Register(r *mux.Router) {

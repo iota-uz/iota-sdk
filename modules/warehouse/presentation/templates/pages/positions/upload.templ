@@ -4,6 +4,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/card"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -103,12 +104,15 @@ templ Upload(props *UploadPageProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("WarehousePositions.Upload.Title")},
-	}) {
-		@card.Card(card.Props{WrapperClass: "m-6"}) {
-			<h1 class="text-xl font-bold mb-4">
-				{ pageCtx.T("WarehousePositions.Upload.Example.Title") }
-			</h1>
-			<p class="text-gray-700 mb-4">
+		}) {
+			@card.Card(card.Props{WrapperClass: "m-6"}) {
+				<div class="flex items-center gap-2 mb-4">
+					<h1 class="text-xl font-bold">
+						{ pageCtx.T("WarehousePositions.Upload.Example.Title") }
+					</h1>
+					@sdkhelp.Link(sdkhelp.LinkProps{Path: "workflows/procurement-and-stock.md"})
+				</div>
+				<p class="text-gray-700 mb-4">
 				{ pageCtx.T("WarehousePositions.Upload.Example._Description") }
 			</p>
 			<ul class="list-disc list-inside text-gray-700 mb-6">

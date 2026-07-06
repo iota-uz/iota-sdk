@@ -840,15 +840,15 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("duplicate panel %s", spec.ID)
 	}
 	panelIDs[spec.ID] = struct{}{}
-	switch spec.Kind {
-	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	switch {
+	case spec.Kind.IsContainer():
 		for _, child := range spec.Children {
 			if err := validatePanel(child, datasets, panelIDs); err != nil {
 				return err
 			}
 		}
 		return nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindTable, panel.KindGauge:
+	case spec.Kind.IsChart() || spec.Kind.RendersNatively():
 		// Leaf panels continue through dataset and field validation below.
 	default:
 		return fmt.Errorf("panel %s has unsupported kind %q", spec.ID, spec.Kind)
@@ -865,7 +865,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	switch spec.Kind {
 	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		// These panel kinds do not require label/category validation here.
-	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires label or category field", spec.ID)
 		}
@@ -951,7 +951,7 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 			return err
 		}
 		return requireField(spec, primary, spec.Fields.Value)
-	case panel.KindBar, panel.KindHorizontalBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if err := requireField(spec, primary, spec.Fields.Value); err != nil {
 			return err
 		}

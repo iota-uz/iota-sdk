@@ -10,7 +10,9 @@ import (
 	"github.com/a-h/templ"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	icons "github.com/iota-uz/icons/phosphor"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/dashboard"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -24,7 +26,8 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
 )
 
-func NewDashboardController(dbCfg *dbconfig.Config) application.Controller {
+func NewDashboardController(dbCfg *dbconfig.Config, navPermissions ...[]permission.Permission) application.Controller {
+	perms := firstPermissionSet(navPermissions)
 	ds, err := lenspostgres.New(lenspostgres.Config{
 		ConnectionString: dbCfg.ConnectionString(),
 		MaxConnections:   5,
@@ -34,13 +37,14 @@ func NewDashboardController(dbCfg *dbconfig.Config) application.Controller {
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for dashboard: %v", err)
-		return &DashboardController{}
+		return &DashboardController{navPermissions: perms}
 	}
-	return &DashboardController{ds: ds}
+	return &DashboardController{ds: ds, navPermissions: perms}
 }
 
 type DashboardController struct {
-	ds datasource.DataSource
+	ds             datasource.DataSource
+	navPermissions []permission.Permission
 }
 
 func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.DashboardSpec {
@@ -164,8 +168,16 @@ func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.Da
 	).Build()
 }
 
-func (c *DashboardController) Key() string {
-	return "/"
+func (c *DashboardController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.dashboard", 0, application.Route("", "/", navRouteOptions(c.navPermissions)...)).
+		WithNav(application.NavNode{
+			ID:         "core.dashboard",
+			TitleKey:   "NavigationLinks.Dashboard",
+			Path:       "/",
+			Icon:       icons.Gauge(icons.Props{Size: "20"}),
+			Order:      10,
+			Visibility: navAuthPolicy(c.navPermissions),
+		})
 }
 
 func (c *DashboardController) Register(r *mux.Router) {

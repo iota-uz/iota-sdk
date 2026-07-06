@@ -69,10 +69,11 @@ templ CopyButton(props Props) {
 	if variant == "" {
 		{{ variant = VariantDefault }}
 	}
+	{{ dim := size + "px" }}
 	<button
 		type="button"
 		class={
-			"inline-flex items-center gap-1 transition-all duration-200 text-gray-300 hover:text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 rounded cursor-pointer",
+			"inline-flex items-center gap-1.5 transition-colors duration-150 text-gray-300 hover:text-gray-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-1 rounded cursor-pointer",
 			templ.KV("bg-gray-100 hover:bg-gray-200 px-2 py-1", variant == VariantDefault),
 			templ.KV("hover:bg-gray-100 p-1", variant == VariantMinimal),
 			props.Class,
@@ -80,13 +81,25 @@ templ CopyButton(props Props) {
 		data-copy-text={ props.Text }
 		x-data={ clipboardData }
 		@click="copyText()"
-		x-bind:class="copied ? 'text-green-600' : ''"
+		:class="copied ? 'text-green-600' : ''"
 	>
-		<span x-show="!copied" x-transition>
-			@icons.Copy(icons.Props{Size: size})
-		</span>
-		<span x-show="copied" x-transition>
-			@icons.CheckCircle(icons.Props{Size: size})
+		// Both icons are stacked in the same cell (rather than x-show'd in/out of
+		// flow) and crossfade+scale via :class. Toggling display with x-show left
+		// both icons in flow for the duration of the transition, so the button
+		// visibly widened then snapped back on every copy click.
+		<span class="relative inline-block shrink-0" style={ "width:" + dim + ";height:" + dim }>
+			<span
+				class="absolute inset-0 flex items-center justify-center transition-all duration-150 ease-out"
+				:class="copied ? 'opacity-0 scale-50' : 'opacity-100 scale-100'"
+			>
+				@icons.Copy(icons.Props{Size: size})
+			</span>
+			<span
+				class="absolute inset-0 flex items-center justify-center transition-all duration-200 ease-out"
+				:class="copied ? 'opacity-100 scale-100' : 'opacity-0 scale-50'"
+			>
+				@icons.CheckCircle(icons.Props{Size: size})
+			</span>
 		</span>
 		if props.ShowText {
 			<span class="text-xs font-medium" x-text="copied ? 'Copied!' : 'Copy'"></span>
@@ -127,11 +140,19 @@ templ CopyableText(props TextProps) {
 			@keydown.space.stop.prevent="copy()"
 		>
 			<span class="truncate">{ props.Text }</span>
-			<span x-show="!copied" class="shrink-0 text-current opacity-0 group-hover:opacity-100 transition-opacity">
-				@icons.Copy(icons.Props{Size: size})
-			</span>
-			<span x-show="copied" class="shrink-0 text-green-500">
-				@icons.CheckCircle(icons.Props{Size: size})
+			<span class="relative inline-block shrink-0" style={ "width:" + size + "px;height:" + size + "px" }>
+				<span
+					class="absolute inset-0 flex items-center justify-center text-current opacity-0 transition-all duration-150 ease-out group-hover:opacity-100"
+					:class="copied ? '!opacity-0 scale-50' : 'scale-100'"
+				>
+					@icons.Copy(icons.Props{Size: size})
+				</span>
+				<span
+					class="absolute inset-0 flex items-center justify-center text-green-500 opacity-0 scale-50 transition-all duration-200 ease-out"
+					:class="copied ? 'opacity-100 scale-100' : ''"
+				>
+					@icons.CheckCircle(icons.Props{Size: size})
+				</span>
 			</span>
 		</span>
 	}

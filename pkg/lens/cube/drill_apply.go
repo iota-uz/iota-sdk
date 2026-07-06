@@ -26,7 +26,9 @@ func ApplyDrillFilters(spec CubeSpec, ctx DrillContext, appliers map[string]Dril
 			}).Warn("cube: drill filter has no applier — dimension will be ignored in detail query")
 			continue
 		}
-		applier(filter.Value)
+		for _, value := range filter.values() {
+			applier(value)
+		}
 	}
 }
 
@@ -37,7 +39,9 @@ func ApplyDrillFilters(spec CubeSpec, ctx DrillContext, appliers map[string]Dril
 func ApplyDrill(ctx DrillContext, appliers map[string]DrillApplier) {
 	for _, filter := range ctx.Filters {
 		if applier, ok := appliers[filter.Dimension]; ok {
-			applier(filter.Value)
+			for _, value := range filter.values() {
+				applier(value)
+			}
 		}
 	}
 }

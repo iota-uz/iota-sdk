@@ -366,7 +366,8 @@
     "ToExcel": "Экспорт в Excel",
     "ToCSV": "Экспорт в CSV",
     "ToJSON": "Экспорт в JSON",
-    "ToTXT": "Экспорт в TXT"
+    "ToTXT": "Экспорт в TXT",
+    "Preparing": "Файл готовится…"
   },
   "Filters": {
     "CreatedAt": {
@@ -468,6 +469,7 @@
     "Website": "Веб-сайт"
   },
   "NavigationLinks": {
+    "QuickLinks": "Быстрые ссылки",
     "Dashboard": "Панель управления",
     "Administration": "Администрирование",
     "Users": "Пользователи",

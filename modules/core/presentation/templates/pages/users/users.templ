@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
 	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -307,9 +308,12 @@ templ UsersPageContent(props *IndexPageProps) {
 		}
 		<div class="m-6">
 			<div class="flex justify-between md:justify-start">
-				<h1 class="text-2xl font-medium">
-					{ pageCtx.T("NavigationLinks.Users") }
-				</h1>
+				<div class="flex items-center gap-2">
+					<h1 class="text-2xl font-medium">
+						{ pageCtx.T("NavigationLinks.Users") }
+					</h1>
+					@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+				</div>
 				<div class="flex md:hidden gap-2">
 					@button.Secondary(button.Props{
 						Size:  button.SizeNormal,
@@ -338,8 +342,9 @@ templ UsersPageContent(props *IndexPageProps) {
 					:class="filtersCollapsed ? 'w-16' : 'w-64'"
 				>
 					<button
+						type="button"
 						@click="filtersCollapsed = !filtersCollapsed"
-						class="w-full p-2 mb-4 flex items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer"
+						class="mx-auto mb-4 flex size-9 items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer"
 						x-tooltip="filtersCollapsed ? expandText : collapseText"
 					>
 						@icons.CaretLeft(icons.Props{

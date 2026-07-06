@@ -2,11 +2,12 @@ package messagetemplatesui
 
 import (
 	"fmt"
-	icons "github.com/iota-uz/icons/phosphor"
-	"github.com/iota-uz/iota-sdk/components/base"
-	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/filters"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+		icons "github.com/iota-uz/icons/phosphor"
+		"github.com/iota-uz/iota-sdk/components/base"
+		"github.com/iota-uz/iota-sdk/components/base/button"
+		"github.com/iota-uz/iota-sdk/components/filters"
+		sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+		"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
@@ -55,13 +56,16 @@ templ TemplatesTable(props *IndexPageProps) {
 }
 
 templ TemplatesContent(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="m-6">
-		<h1 class="text-2xl font-medium">
-			{ pageCtx.T("MessageTemplates.List.Meta.Title") }
-		</h1>
-		<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
-			<form
+		{{ pageCtx := composables.UsePageCtx(ctx) }}
+		<div class="m-6">
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("MessageTemplates.List.Meta.Title") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md"})
+			</div>
+			<div class="mt-5 bg-surface-600 border border-primary rounded-lg">
+				<form
 				class="p-4 flex items-center gap-3"
 				hx-get={ props.BaseURL }
 				hx-trigger="keyup changed delay:500ms from:(form input), change changed from:(form select)"

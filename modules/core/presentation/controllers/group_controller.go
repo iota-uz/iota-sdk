@@ -128,8 +128,15 @@ func NewGroupsController(app application.Application) application.Controller {
 	return controller
 }
 
-func (c *GroupsController) Key() string {
-	return c.basePath
+func (c *GroupsController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.group", 0, application.Route("", c.basePath, application.RequireAll(permissions.GroupRead))).
+		WithNav(application.NavNode{
+			ID:       "core.groups",
+			Parent:   "core.administration",
+			TitleKey: "NavigationLinks.Groups",
+			Path:     c.basePath,
+			Order:    30,
+		})
 }
 
 func (c *GroupsController) Register(r *mux.Router) {

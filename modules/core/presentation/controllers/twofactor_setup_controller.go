@@ -141,10 +141,10 @@ func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.R
 	return updatedSession, nil
 }
 
-// Key returns the base route path for this controller.
+// Descriptor returns the controller descriptor.
 // Implements the Controller interface.
-func (c *TwoFactorSetupController) Key() string {
-	return "/login/2fa/setup"
+func (c *TwoFactorSetupController) Descriptor() application.ControllerDescriptor {
+	return application.Descriptor("core.twofactor_setup", 0, application.Route("", "/login/2fa/setup"))
 }
 
 // Register registers all HTTP routes for 2FA setup flows.

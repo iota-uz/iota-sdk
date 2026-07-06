@@ -10,6 +10,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
 	"github.com/iota-uz/iota-sdk/components/base/input"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
@@ -98,7 +99,7 @@ templ SessionRow(session *viewmodels.AdminSessionViewModel) {
 					Size:  button.SizeSM,
 					Class: "btn-fixed",
 					Attrs: templ.Attributes{
-						"hx-delete":  templ.URL(fmt.Sprintf("/settings/sessions/%s", session.RawToken)),
+						"hx-delete":  fmt.Sprintf("/settings/sessions/%s", session.RawToken),
 						"hx-confirm": pageCtx.T("Sessions.List.ConfirmRevoke"),
 						"hx-swap":    "outerHTML swap:0s",
 						"hx-target":  "closest tr",
@@ -196,12 +197,15 @@ templ Index(props *IndexPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Sessions.Meta.List.Title")},
 	}) {
-		<div class="m-6">
-			<div class="flex justify-between items-center">
-				<h1 class="text-2xl font-medium">
-					{ pageCtx.T("Sessions.List.Title") }
-				</h1>
-			</div>
+			<div class="m-6">
+				<div class="flex justify-between items-center">
+					<div class="flex items-center gap-2">
+						<h1 class="text-2xl font-medium">
+							{ pageCtx.T("Sessions.List.Title") }
+						</h1>
+						@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
+					</div>
+				</div>
 			<div class="mt-5">
 				<div id="sessions-table-wrapper">
 					@SessionsContent(props)

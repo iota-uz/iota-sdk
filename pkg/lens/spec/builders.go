@@ -30,6 +30,9 @@ func HorizontalBar(id, title, dataset string) *PanelBuilder {
 func StackedBar(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindStackedBar, id, title, dataset)
 }
+func SegmentBar(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindSegmentBar, id, title, dataset)
+}
 func Pie(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindPie, id, title, dataset)
 }
@@ -177,6 +180,12 @@ func StaticDataset(name string, static *frame.FrameSet, transforms ...transform.
 
 func Row(panels ...PanelSpec) RowSpec {
 	return RowSpec{Panels: panels}
+}
+
+// HeadingRow returns a panel-less row that renders as a section header band,
+// used to group the following panel rows under a labeled section.
+func HeadingRow(heading string) RowSpec {
+	return RowSpec{Heading: LiteralText(heading)}
 }
 
 func Column(field, label string) TableColumnSpec {

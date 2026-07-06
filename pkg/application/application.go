@@ -49,7 +49,12 @@ func translate(localizer *i18n.Localizer, items []types.NavigationItem) []types.
 			Keywords:    append([]string(nil), item.Keywords...),
 			Icon:        item.Icon,
 			Permissions: item.Permissions,
-			IsBeta:      item.IsBeta,
+			// Logic must be carried through: dropping it reverts the item to the
+			// zero value (PermissionLogicAll), which turns a RequireAny nav gate
+			// into AND and hides the item from users holding only one of its
+			// permissions.
+			Logic:  item.Logic,
+			IsBeta: item.IsBeta,
 		})
 	}
 	return translated
@@ -211,6 +216,7 @@ func DefaultSupportedLanguages() []string {
 		string(coreuser.UILanguageEN),
 		string(coreuser.UILanguageRU),
 		string(coreuser.UILanguageUZ),
+		string(coreuser.UILanguagePTBR),
 		string(coreuser.UILanguageZH),
 	}
 }
@@ -325,6 +331,21 @@ func (app *application) NavItems(localizer *i18n.Localizer) []types.NavigationIt
 	return translate(localizer, app.runtimeSource.NavItems())
 }
 
+type scopedNavSource interface {
+	NavItemsForScope(context.Context, NavScope) []types.NavigationItem
+}
+
+func (app *application) NavItemsForScope(ctx context.Context, localizer *i18n.Localizer, scope NavScope) []types.NavigationItem {
+	if app.runtimeSource == nil {
+		return nil
+	}
+	items := app.runtimeSource.NavItems()
+	if scoped, ok := app.runtimeSource.(scopedNavSource); ok {
+		items = append(items, scoped.NavItemsForScope(ctx, scope)...)
+	}
+	return translate(localizer, items)
+}
+
 func (app *application) NavWorkspaces() []types.NavWorkspace {
 	if app.runtimeSource == nil {
 		return nil
@@ -341,7 +362,8 @@ func navItemsToQuickLinks(items ...types.NavigationItem) []*spotlight.QuickLink 
 			if len(item.Permissions) == 0 {
 				builder.Public()
 			} else {
-				builder.WithPermissions(navPermissionNames(item.Permissions)...)
+				builder.WithPermissions(navPermissionNames(item.Permissions)...).
+					WithPermissionLogic(spotlight.PermissionLogicAll)
 			}
 			out = append(out, builder.Build())
 		}
@@ -431,17 +453,8 @@ func (app *application) Controllers() []Controller {
 		return nil
 	}
 	controllers := append([]Controller(nil), app.runtimeSource.Controllers()...)
-	// Register applet controllers first so their asset routes (e.g. /admin/ali/chat/assets)
-	// are added before other controllers that might match /admin/... and return 404 for
-	// dev proxy requests (@vite/client, /src/*, etc.).
-	sort.Slice(controllers, func(i, j int) bool {
-		ki, kj := controllers[i].Key(), controllers[j].Key()
-		appletI := strings.HasPrefix(ki, "applet_")
-		appletJ := strings.HasPrefix(kj, "applet_")
-		if appletI != appletJ {
-			return appletI
-		}
-		return ki < kj
+	sort.SliceStable(controllers, func(i, j int) bool {
+		return controllers[i].Descriptor().Order < controllers[j].Descriptor().Order
 	})
 	return controllers
 }

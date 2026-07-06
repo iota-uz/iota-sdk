@@ -176,6 +176,21 @@ func canReadPolicy(policy AccessPolicy, principal Principal) bool {
 		}
 	}
 	if len(policy.AllowedPermissions) > 0 {
+		if policy.PermissionLogic == PermissionLogicAll {
+			for _, allowedPermission := range policy.AllowedPermissions {
+				found := false
+				for _, permission := range principal.Permissions {
+					if permission == allowedPermission {
+						found = true
+						break
+					}
+				}
+				if !found {
+					return false
+				}
+			}
+			return true
+		}
 		for _, permission := range principal.Permissions {
 			for _, allowedPermission := range policy.AllowedPermissions {
 				if permission == allowedPermission {

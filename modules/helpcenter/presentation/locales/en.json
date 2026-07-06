@@ -1,0 +1,18 @@
+{
+  "NavigationLinks": {
+    "HelpCenter": "Help Center"
+  },
+  "HelpCenter": {
+    "Meta": {
+      "Title": "Help Center",
+      "Subtitle": "Browse product documentation and operational guides."
+    },
+    "Search": {
+      "Placeholder": "Search help articles",
+      "Unavailable": "Search is unavailable.",
+      "NoResults": "No results found."
+    },
+    "Categories": "Categories",
+    "Empty": "No help articles are available yet."
+  }
+}

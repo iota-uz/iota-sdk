@@ -13,7 +13,10 @@ import (
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"golang.org/x/text/language"
 
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/pages/error_pages"
 	"github.com/iota-uz/iota-sdk/modules/core/services"
+	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/composition"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
@@ -157,6 +160,10 @@ func ProvideUser() mux.MiddlewareFunc {
 				ctx := r.Context()
 				sess, err := composables.UseSession(ctx)
 				if err != nil {
+					if routeAuthRequiresUser(ctx, r) {
+						http.Error(w, "Unauthorized", http.StatusUnauthorized)
+						return
+					}
 					next.ServeHTTP(w, r)
 					return
 				}
@@ -205,6 +212,10 @@ func ProvideUser() mux.MiddlewareFunc {
 
 				// Set the user in context
 				ctx = context.WithValue(ctx, constants.UserKey, u)
+				if !routeAuthAllowsUser(ctx, r, u) {
+					renderRouteForbidden(w, r.WithContext(ctx))
+					return
+				}
 
 				// Check if we already have a tenant in context
 				_, tenantErr := composables.UseTenantID(ctx)
@@ -216,6 +227,77 @@ func ProvideUser() mux.MiddlewareFunc {
 			},
 		)
 	}
+}
+
+func renderRouteForbidden(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	if err := renderForbiddenPage(r.Context(), w); err != nil {
+		logForbiddenRenderError(r.Context(), err)
+		_, _ = w.Write([]byte("<h1>403 Forbidden</h1>"))
+	}
+}
+
+func renderForbiddenPage(ctx context.Context, w http.ResponseWriter) (err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			err = fmt.Errorf("render forbidden page panic: %v", recovered)
+		}
+	}()
+	return error_pages.Forbidden().Render(ctx, w)
+}
+
+func logForbiddenRenderError(ctx context.Context, err error) {
+	defer func() {
+		_ = recover()
+	}()
+	composables.UseLogger(ctx).WithError(err).Error("failed to render forbidden page")
+}
+
+func routeAuthRequiresUser(ctx context.Context, r *http.Request) bool {
+	policy, ok := routeAuthPolicy(ctx, r)
+	if !ok || policy.Public {
+		return false
+	}
+	return len(policy.Permissions) > 0
+}
+
+func routeAuthAllowsUser(ctx context.Context, r *http.Request, u interface {
+	Can(permission.Permission) bool
+}) bool {
+	policy, ok := routeAuthPolicy(ctx, r)
+	if !ok || policy.Public || len(policy.Permissions) == 0 {
+		return true
+	}
+	switch policy.Logic {
+	case application.PermissionLogicAny:
+		for _, perm := range policy.Permissions {
+			if perm != nil && u.Can(perm) {
+				return true
+			}
+		}
+		return false
+	case application.PermissionLogicAll:
+		fallthrough
+	default:
+		for _, perm := range policy.Permissions {
+			if perm == nil {
+				continue
+			}
+			if !u.Can(perm) {
+				return false
+			}
+		}
+		return true
+	}
+}
+
+func routeAuthPolicy(ctx context.Context, r *http.Request) (application.AuthPolicy, bool) {
+	container, err := composition.UseContainer(ctx)
+	if err != nil || container == nil {
+		return application.AuthPolicy{}, false
+	}
+	return container.AuthPolicyForRoute(r.Method, r.Host, r.URL.Path)
 }
 
 // refreshLocalizerForUser rebuilds the localizer on the context using the

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html"
+	"math"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -52,6 +53,7 @@ func panelResult(result *runtime.Result, panelID string) *runtime.PanelResult {
 
 type drillNavModel struct {
 	HasNav         bool
+	Include        string
 	CurrentTitle   string
 	CurrentValue   string
 	CurrentLabel   string
@@ -69,15 +71,18 @@ type drillNavCrumb struct {
 }
 
 type drillDimensionTab struct {
-	Name   string
-	Label  string
-	URL    string
-	Active bool
+	Name        string
+	Label       string
+	URL         string
+	FacetURL    string
+	Active      bool
+	ActiveCount int
 }
 
 type drillSummaryItem struct {
 	Label string
 	Value string
+	URL   string
 }
 
 type panelErrorModel struct {
@@ -87,7 +92,11 @@ type panelErrorModel struct {
 }
 
 func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavModel {
-	if result == nil || result.Drill == nil || result.Spec.Drill == nil || !result.Drill.HasFilters() {
+	return drillNavigationModelWithInclude(ctx, result, "")
+}
+
+func drillNavigationModelWithInclude(ctx context.Context, result *runtime.Result, include string) drillNavModel {
+	if result == nil || result.Drill == nil || result.Spec.Drill == nil {
 		return drillNavModel{}
 	}
 	state := result.Drill
@@ -98,47 +107,118 @@ func drillNavigationModel(ctx context.Context, result *runtime.Result) drillNavM
 		labels[dim.Name] = dim.Label
 	}
 	model := drillNavModel{
-		HasNav:         true,
-		CurrentDisplay: drillFilterDisplay(meta, len(state.Filters)-1, state.Filters[len(state.Filters)-1]),
-		UpURL:          drillURL(meta.BaseURL, baseQuery, nil),
+		HasNav:  true,
+		Include: strings.TrimSpace(include),
+		UpURL:   drillURL(meta.BaseURL, baseQuery, nil, meta.GroupBy),
 	}
-	model.Trail = append(model.Trail, drillNavCrumb{
-		URL:   drillURL(meta.BaseURL, baseQuery, nil),
-		Label: translate(ctx, "Lens.Drill.All"),
-	})
 	for idx, filter := range state.Filters {
-		if idx == len(state.Filters)-1 {
-			break
+		for _, value := range normalizedFilterValues(filter) {
+			itemFilter := cube.DimensionFilter{Dimension: filter.Dimension, Value: value, Values: []string{value}}
+			model.Summary = appendDrillSummary(
+				model.Summary,
+				firstNonEmptyString(labels[filter.Dimension], filter.Dimension),
+				drillFilterDisplay(meta, idx, itemFilter),
+				drillURL(meta.BaseURL, baseQuery, state.ToggleFilter(filter.Dimension, value).Filters, meta.GroupBy),
+			)
 		}
-		model.Trail = append(model.Trail, drillNavCrumb{
-			URL:   drillURL(meta.BaseURL, baseQuery, state.Filters[:idx+1]),
-			Label: drillFilterDisplay(meta, idx, filter),
-		})
 	}
-	if len(state.Filters) > 1 {
-		model.UpURL = drillURL(meta.BaseURL, baseQuery, state.Filters[:len(state.Filters)-1])
-		model.UpLabel = drillFilterDisplay(meta, len(state.Filters)-2, state.Filters[len(state.Filters)-2])
+	activeDim := meta.GroupBy
+	if activeDim == "" {
+		activeDim = meta.ActiveDimension
 	}
-	for idx, filter := range state.Filters {
-		model.Summary = appendDrillSummary(
-			model.Summary,
-			firstNonEmptyString(labels[filter.Dimension], filter.Dimension),
-			drillFilterDisplay(meta, idx, filter),
-		)
-	}
-	activeDim := meta.ActiveDimension
 	if activeDim == "" && len(meta.RemainingDimensions) > 0 {
 		activeDim = meta.RemainingDimensions[0].Name
 	}
 	for _, dim := range meta.RemainingDimensions {
 		model.Remaining = append(model.Remaining, drillDimensionTab{
-			Name:   dim.Name,
-			Label:  dim.Label,
-			URL:    dimensionTabURL(meta.BaseURL, baseQuery, state.Filters, dim.Name),
-			Active: dim.Name == activeDim,
+			Name:        dim.Name,
+			Label:       dim.Label,
+			URL:         dimensionTabURL(meta.BaseURL, baseQuery, state.Filters, dim.Name),
+			FacetURL:    facetOptionsURL(meta.BaseURL, baseQuery, state.Filters, activeDim, dim.Name),
+			Active:      dim.Name == activeDim,
+			ActiveCount: activeFilterCount(state.Filters, dim.Name),
 		})
 	}
 	return model
+}
+
+// activeFilterCount returns how many distinct values are currently filtered for
+// the given dimension, so a facet trigger can show a "·N" badge.
+func activeFilterCount(filters []cube.DimensionFilter, dimension string) int {
+	seen := make(map[string]struct{})
+	for _, filter := range filters {
+		if filter.Dimension == dimension {
+			for _, v := range normalizedFilterValues(filter) {
+				seen[v] = struct{}{}
+			}
+		}
+	}
+	return len(seen)
+}
+
+// facetOptionsOrdered returns the options with currently-selected values floated
+// to the top (stable otherwise) so a multi-select dropdown never hides a checked
+// item below the scroll/search fold.
+func facetOptionsOrdered(options []lens.DrillFacetOptionMeta) []lens.DrillFacetOptionMeta {
+	ordered := make([]lens.DrillFacetOptionMeta, 0, len(options))
+	for _, option := range options {
+		if option.Selected {
+			ordered = append(ordered, option)
+		}
+	}
+	for _, option := range options {
+		if !option.Selected {
+			ordered = append(ordered, option)
+		}
+	}
+	return ordered
+}
+
+// facetMaxCount is the largest option count, used to scale the magnitude bars.
+func facetMaxCount(options []lens.DrillFacetOptionMeta) int {
+	maxCount := 0
+	for _, option := range options {
+		if option.Count > maxCount {
+			maxCount = option.Count
+		}
+	}
+	return maxCount
+}
+
+// facetBarPercent scales an option count to a 0-100 width for its magnitude bar,
+// keeping a visible sliver for any non-zero count.
+func facetBarPercent(count, maxCount int) int {
+	if maxCount <= 0 || count <= 0 {
+		return 0
+	}
+	percent := count * 100 / maxCount
+	if percent < 3 {
+		percent = 3
+	}
+	return percent
+}
+
+// facetBarStyle is the inline width style for an option's magnitude bar.
+func facetBarStyle(count, maxCount int) string {
+	return fmt.Sprintf("width:%d%%", facetBarPercent(count, maxCount))
+}
+
+func drillNavigationModelFromSpecWithInclude(ctx context.Context, spec lens.DashboardSpec, include string) drillNavModel {
+	if spec.Drill == nil {
+		return drillNavModel{}
+	}
+	state := cube.DrillContext{
+		GroupBy:         spec.Drill.GroupBy,
+		ActiveDimension: spec.Drill.ActiveDimension,
+	}
+	for _, filter := range spec.Drill.Filters {
+		state = state.ToggleFilter(filter.Dimension, filter.Value)
+	}
+	return drillNavigationModelWithInclude(ctx, &runtime.Result{
+		Spec:    spec,
+		Drill:   &state,
+		Request: url.Values{},
+	}, include)
 }
 
 func drillFilterDisplay(meta *lens.DrillMeta, idx int, filter cube.DimensionFilter) string {
@@ -162,27 +242,37 @@ func drillBaseQueryValues(values url.Values) url.Values {
 	base := cloneURLValues(values)
 	delete(base, cube.QueryFilter)
 	delete(base, cube.QueryDimension)
+	delete(base, cube.QueryGroupBy)
+	delete(base, cube.QueryFacet)
+	delete(base, cube.QueryFacetSearch)
 	return base
 }
 
-func drillURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter) string {
-	values := cloneURLValues(baseQuery)
-	for _, filter := range filters {
-		values.Add(cube.QueryFilter, filter.Dimension+":"+filter.Value)
-	}
+func drillURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter, groupBy string) string {
+	values := cube.DrillContext{Filters: filters, GroupBy: groupBy}.WithValues(baseQuery)
 	return joinURLQuery(baseURL, values)
 }
 
 func dimensionTabURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter, dimensionName string) string {
-	values := cloneURLValues(baseQuery)
-	for _, filter := range filters {
-		values.Add(cube.QueryFilter, filter.Dimension+":"+filter.Value)
-	}
-	values.Set(cube.QueryDimension, dimensionName)
+	values := cube.DrillContext{Filters: filters, GroupBy: dimensionName}.WithValues(baseQuery)
 	return joinURLQuery(baseURL, values)
 }
 
-func appendDrillSummary(summary []drillSummaryItem, label, value string) []drillSummaryItem {
+func facetOptionsURL(baseURL string, baseQuery url.Values, filters []cube.DimensionFilter, groupBy, dimensionName string) string {
+	values := cube.DrillContext{Filters: filters, GroupBy: groupBy}.WithValues(baseQuery)
+	values.Set(cube.QueryFacet, dimensionName)
+	return joinURLQuery(baseURL, values)
+}
+
+func facetSearchIncludeSelector(include string) string {
+	include = strings.TrimSpace(include)
+	if include == "" {
+		return "closest form"
+	}
+	return "closest form, " + include
+}
+
+func appendDrillSummary(summary []drillSummaryItem, label, value, itemURL string) []drillSummaryItem {
 	label = strings.TrimSpace(label)
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -194,7 +284,21 @@ func appendDrillSummary(summary []drillSummaryItem, label, value string) []drill
 			return summary
 		}
 	}
-	return append(summary, drillSummaryItem{Label: label, Value: value})
+	return append(summary, drillSummaryItem{Label: label, Value: value, URL: itemURL})
+}
+
+func normalizedFilterValues(filter cube.DimensionFilter) []string {
+	values := filter.Values
+	if len(values) == 0 && strings.TrimSpace(filter.Value) != "" {
+		values = []string{filter.Value}
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
 }
 
 func tableColumns(spec panel.Spec, result *runtime.PanelResult) []panel.TableColumn {
@@ -284,6 +388,168 @@ func statRow(result *runtime.PanelResult) map[string]any {
 	return rows[0]
 }
 
+// segmentBarSegment is one part of a part-to-whole segment bar.
+type segmentBarSegment struct {
+	Label  string
+	Amount string  // formatted via the panel formatter
+	Raw    float64 // unformatted amount (drives bar width + zero styling)
+	Pct    float64 // share of the whole, 0..100
+	PctTxt string  // "100%", "0%", "<1%"
+	Color  string
+}
+
+// segmentBarView is the resolved data a SegmentBar panel renders: a headline
+// total plus its constituent segments.
+type segmentBarView struct {
+	HasData  bool
+	Total    string // formatted sum of all segments
+	Caption  string
+	Segments []segmentBarSegment
+}
+
+// segmentBarPalette is the default colour ramp when a SegmentBar panel does
+// not supply its own Colors. Calm-to-warm so the first segment reads as the
+// healthy share and later ones as overflow.
+var segmentBarPalette = []string{"#2563eb", "#f59e0b", "#dc2626", "#7c3aed", "#0891b2"}
+
+func buildSegmentBarView(spec panel.Spec, result *runtime.PanelResult) segmentBarView {
+	view := segmentBarView{Caption: strings.TrimSpace(spec.Description)}
+	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
+		return view
+	}
+	rows := result.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return view
+	}
+	// Validation accepts a SegmentBar with either Label or Category set, so
+	// fall back to Category before the default to honour a category-only spec
+	// (otherwise its segments would render "<nil>" labels from the default
+	// "label" column that the dataset never produced).
+	labelField := spec.Fields.Label
+	if labelField.Empty() {
+		labelField = spec.Fields.Category
+	}
+	if labelField.Empty() {
+		labelField = panel.DefaultLabelField
+	}
+	valueField := spec.Fields.Value
+	if valueField.Empty() {
+		valueField = panel.DefaultValueField
+	}
+
+	raws := make([]float64, len(rows))
+	labels := make([]string, len(rows))
+	var total float64
+	for i, row := range rows {
+		raws[i] = segmentNumeric(row[valueField.Name()])
+		labels[i] = strings.TrimSpace(fmt.Sprint(row[labelField.Name()]))
+		total += raws[i]
+	}
+
+	view.HasData = true
+	view.Total = formatValue(total, spec.Formatter, result.Locale, result.Timezone)
+	view.Segments = make([]segmentBarSegment, len(rows))
+	for i := range rows {
+		pct := 0.0
+		if total > 0 {
+			pct = raws[i] / total * 100
+		}
+		view.Segments[i] = segmentBarSegment{
+			Label:  labels[i],
+			Amount: formatValue(raws[i], spec.Formatter, result.Locale, result.Timezone),
+			Raw:    raws[i],
+			Pct:    pct,
+			PctTxt: formatSharePct(raws[i], pct),
+			Color:  segmentColorAt(spec.Colors, i),
+		}
+	}
+	return view
+}
+
+func segmentColorAt(colors []string, i int) string {
+	raw := segmentBarPalette[i%len(segmentBarPalette)]
+	if i < len(colors) && strings.TrimSpace(colors[i]) != "" {
+		raw = colors[i]
+	}
+	r, g, b := parseHexColor(raw)
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+// formatSharePct renders a segment's share as a compact integer percent,
+// guarding the "rounds to 0% but is non-zero" case so a real overflow never
+// reads as nothing.
+func formatSharePct(raw, pct float64) string {
+	switch {
+	case raw > 0 && pct < 1:
+		return "<1%"
+	case raw <= 0:
+		return "0%"
+	default:
+		return strconv.FormatFloat(math.Round(pct), 'f', 0, 64) + "%"
+	}
+}
+
+func segmentNumeric(value any) float64 {
+	switch v := value.(type) {
+	case float64:
+		return v
+	case float32:
+		return float64(v)
+	case int:
+		return float64(v)
+	case int64:
+		return float64(v)
+	case int32:
+		return float64(v)
+	case string:
+		if parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64); err == nil {
+			return parsed
+		}
+	}
+	return 0
+}
+
+// segmentSliceStyle is the inline width + fill for a segment's slice of the
+// track. color is expected pre-sanitized (segmentColorAt normalizes to
+// #rrggbb).
+func segmentSliceStyle(pct float64, color string) templpkg.SafeCSS {
+	if pct < 0 {
+		pct = 0
+	}
+	if pct > 100 {
+		pct = 100
+	}
+	return templpkg.SafeCSS(fmt.Sprintf("width:%s%%;background-color:%s", strconv.FormatFloat(pct, 'f', 4, 64), color))
+}
+
+func segmentSwatchStyle(color string) templpkg.SafeCSS {
+	return templpkg.SafeCSS("background-color:" + color)
+}
+
+func segmentBarBodyClass(clickable bool) string {
+	base := "relative flex h-full flex-col"
+	if clickable {
+		// Mirror StatPanel: body ignores pointer events so the inset overlay
+		// link receives the click; fade slightly on hover for affordance.
+		base += " z-10 pointer-events-none transition-opacity group-hover:opacity-95"
+	}
+	return base
+}
+
+func segmentLegendLabelClass(raw float64) string {
+	if raw > 0 {
+		return "truncate text-sm font-medium text-slate-600"
+	}
+	return "truncate text-sm font-medium text-slate-400"
+}
+
+func segmentLegendAmountClass(raw float64) string {
+	if raw > 0 {
+		return "text-sm font-semibold tabular-nums text-slate-900"
+	}
+	return "text-sm font-semibold tabular-nums text-slate-400"
+}
+
 func formatValue(value any, spec *format.Spec, locale, timezone string) string {
 	if spec != nil {
 		return format.Apply(spec, value, locale, timezone)
@@ -369,7 +635,12 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 		if method == "" {
 			method = "GET"
 		}
-		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); htmx.ajax(%s, %s, {target: %s, swap: 'innerHTML'});", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
+		// Route through window.__lensDrillAjax so the htmx `source` is always
+		// set (here `this`, the clicked element). htmx.ajax otherwise defaults
+		// source to document.body, cascading the in-flight `htmx-request`
+		// loading state onto every .btn on the page (nav tabs, sidebar, etc.).
+		// See DashboardScripts() for the helper definition.
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); window.__lensDrillAjax(%s, %s, %s, this);", js.MustToJS(method), js.MustToJS(href), js.MustToJS(spec.Target)))
 	case action.KindEmitEvent:
 		payload := actionPayload(spec, row, resultVariables(result))
 		encoded, err := json.Marshal(payload)
@@ -429,7 +700,8 @@ func cubeDrillActionURL(spec *action.Spec, row map[string]any, result *runtime.P
 			if text == "" {
 				return joinURLQuery(interpolateActionURL(spec.URL, row, result.Variables), values)
 			}
-			values.Add(cube.QueryFilter, spec.Drill.Dimension+":"+text)
+			ctx := cube.ParseDrillContext(values).ToggleFilter(spec.Drill.Dimension, text)
+			values = ctx.WithValues(values)
 		}
 	}
 	return joinURLQuery(interpolateActionURL(spec.URL, row, result.Variables), values)
@@ -694,7 +966,7 @@ func jsStringLiteral(value string) string {
 func tabClassExpression(tabID string) string {
 	literal := jsStringLiteral(tabID)
 	return fmt.Sprintf(
-		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-300 hover:text-white': activeTab !== %s }",
+		"{ 'bg-white text-slate-700 shadow-sm': activeTab === %s, 'text-slate-400 hover:text-white': activeTab !== %s }",
 		literal,
 		literal,
 	)
@@ -710,6 +982,8 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 	case panel.KindTimeSeries:
 		return icons.ChartLine(iconProps)
 	case panel.KindBar, panel.KindStackedBar, panel.KindHorizontalBar:
+		return icons.ChartBar(iconProps)
+	case panel.KindSegmentBar:
 		return icons.ChartBar(iconProps)
 	case panel.KindPie, panel.KindDonut:
 		return icons.ChartPie(iconProps)
@@ -785,24 +1059,10 @@ func panelMetricInfoText(ctx context.Context, spec panel.Spec) string {
 }
 
 func panelUsesMetricInfoFallback(spec panel.Spec) bool {
-	switch spec.Kind {
-	case panel.KindTimeSeries,
-		panel.KindBar,
-		panel.KindHorizontalBar,
-		panel.KindStackedBar,
-		panel.KindPie,
-		panel.KindDonut,
-		panel.KindGauge,
-		panel.KindTabs:
-		return true
-	case panel.KindStat,
-		panel.KindTable,
-		panel.KindGrid,
-		panel.KindSplit,
-		panel.KindRepeat:
-		return false
-	}
-	return false
+	// Apex charts plus the tabbed container surface a generic per-kind metric
+	// info fallback; native leaves (stat/segment bar/table) and the other
+	// containers do not.
+	return spec.Kind.IsChart() || spec.Kind == panel.KindTabs
 }
 
 func panelUsesRadialActionSurface(spec panel.Spec) bool {
@@ -817,6 +1077,7 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
@@ -856,6 +1117,13 @@ func panelCardClass(spec panel.Spec) string {
 		overflow = "overflow-visible"
 	}
 	base := "flex h-full flex-col " + overflow + " rounded-xl border border-slate-200/90 bg-white shadow-sm transition-all duration-200"
+	// Mark stat/segment cards as CSS container-query roots so their headline value
+	// can scale to the card width (e.g. a narrow sidebar column) instead of the
+	// viewport. The container behavior + responsive sizing live in the consumer's
+	// stylesheet, keyed off the `lens-stat-card` / `lens-stat-value` hooks below.
+	if spec.Kind == panel.KindStat || spec.Kind == panel.KindSegmentBar {
+		base += " lens-stat-card"
+	}
 	if panelIsInteractive(spec) {
 		base += " hover:border-blue-200 hover:shadow-md"
 	} else {
@@ -880,6 +1148,14 @@ func badgeStyle(color string) templpkg.SafeCSS {
 		"background-color: rgba(%d, %d, %d, 0.12); border: 1px solid rgba(%d, %d, %d, 0.22); color: %s;",
 		r, g, b, r, g, b, safeColor,
 	))
+}
+
+// statAccentStyle renders the stat card's family-color accent bar (the
+// icon-less chrome variant). Width is set inline so it does not depend on a
+// Tailwind utility being present in the consumer's compiled CSS.
+func statAccentStyle(color string) templpkg.SafeCSS {
+	r, g, b := parseHexColor(color)
+	return templpkg.SafeCSS(fmt.Sprintf("background-color: #%02x%02x%02x; width: 3px;", r, g, b))
 }
 
 func defaultMetricInfoText(ctx context.Context, spec panel.Spec) string {
@@ -919,6 +1195,7 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 	case panel.KindTabs:
 		return "Lens.Chart.Info.Tabs"
 	case panel.KindStat,
+		panel.KindSegmentBar,
 		panel.KindTable,
 		panel.KindGrid,
 		panel.KindSplit,
@@ -1049,6 +1326,8 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 p-4"
 	case panel.KindTabs:
 		return "flex-1 px-5 py-3"
+	case panel.KindSegmentBar:
+		return "flex-1 px-5 py-5"
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return "flex-1 p-3"
 	default:
@@ -1057,27 +1336,18 @@ func panelBodyClass(spec panel.Spec) string {
 }
 
 func panelHasRenderableContent(spec panel.Spec, result *runtime.Result) bool {
-	switch spec.Kind {
-	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	if spec.Kind.IsContainer() {
 		for _, child := range spec.Children {
 			if panelHasRenderableContent(child, result) {
 				return true
 			}
 		}
 		return false
-	case panel.KindStat,
-		panel.KindTimeSeries,
-		panel.KindBar,
-		panel.KindHorizontalBar,
-		panel.KindStackedBar,
-		panel.KindPie,
-		panel.KindDonut,
-		panel.KindTable,
-		panel.KindGauge:
+	}
+	if spec.Kind.IsChart() || spec.Kind.RendersNatively() {
 		panelResult := panelResult(result, spec.ID)
 		return panelResultHasContent(panelResult)
 	}
-
 	return false
 }
 
@@ -1089,13 +1359,12 @@ func panelResultHasContent(result *runtime.PanelResult) bool {
 }
 
 func panelCanFullscreen(spec panel.Spec, result *runtime.Result) bool {
-	switch spec.Kind {
-	case panel.KindTabs, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	// Only apex charts and the tabbed container offer a fullscreen affordance;
+	// native leaves (stat/segment bar/table) and the plain layout containers
+	// (grid/split/repeat) do not.
+	if spec.Kind.IsChart() || spec.Kind == panel.KindTabs {
 		return panelHasRenderableContent(spec, result)
-	case panel.KindStat, panel.KindTable, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
-		return false
 	}
-
 	return false
 }
 
@@ -1124,6 +1393,8 @@ func panelMinimumHeight(spec panel.Spec) string {
 		return "120px"
 	case panel.KindTable:
 		return "220px"
+	case panel.KindSegmentBar:
+		return "240px"
 	case panel.KindTabs:
 		if childHeight := maxChildHeight(spec.Children); childHeight != "" {
 			return "calc(" + childHeight + " + 5rem)"
@@ -1225,7 +1496,7 @@ func panelPlaceholderRows(spec panel.Spec) int {
 		return 5
 	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return 4
-	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindSegmentBar, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return 4
 	}
 	return 4
