@@ -3,24 +3,25 @@ package users
 import (
 	"context"
 	"fmt"
+	"net/http"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/badge"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-	"github.com/iota-uz/iota-sdk/components/base/input"
-	"github.com/iota-uz/iota-sdk/components/filters"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
-	"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
+	"github.com/iota-uz/iota-sdk/components/scaffold/table"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
-	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
-	"net/url"
-	"slices"
-	"strconv"
+	"github.com/iota-uz/iota-sdk/pkg/filterq"
 )
 
+// IndexPageProps carries everything the Users list page needs to render:
+// the current page of users plus the data (roles/groups) and state
+// (Registry/Filters/Search) driving the filterbuilder chip bar.
 type IndexPageProps struct {
 	Users   []*viewmodels.User
 	Groups  []*viewmodels.Group
@@ -28,361 +29,213 @@ type IndexPageProps struct {
 	Page    int
 	PerPage int
 	HasMore bool
-	Filters IndexFilterState
+	Search  string
+
+	// Registry is the filterbuilder field registry (role/group/createdAt),
+	// built once by the controller from Roles/Groups so it is not built
+	// twice (BuildTableConfig only consumes it).
+	Registry *filterbuilder.Registry
+	// Filters is the decoded FilterSet for the current request.
+	Filters filterq.FilterSet
 }
 
-type IndexFilterState struct {
-	Search        string
-	RoleIDs       []string
-	GroupIDs      []string
-	CreatedAtFrom string
-	CreatedAtTo   string
-}
-
-func mkInfiniteAttrs(ctx context.Context, props *IndexPageProps) templ.Attributes {
+// TableColumns is the shared column definition for the Users list table,
+// used both by BuildTableConfig (full list render) and UserRow (realtime
+// single-row OOB render) so the two never drift apart.
+func TableColumns(ctx context.Context) []table.TableColumn {
 	pageCtx := composables.UsePageCtx(ctx)
-	currentURL := pageCtx.GetURL()
-	params := url.Values{}
-	for k, vs := range currentURL.Query() {
-		if k == "page" || k == "limit" {
-			continue
-		}
-		for _, v := range vs {
-			params.Add(k, v)
-		}
-	}
-	params.Set("page", strconv.Itoa(props.Page+1))
-	params.Set("limit", strconv.Itoa(props.PerPage))
-
-	return templ.Attributes{
-		"hx-get":     currentURL.Path + "?" + params.Encode(),
-		"hx-trigger": "intersect once",
-		"hx-swap":    "afterend",
-		"hx-target":  "this",
+	return []table.TableColumn{
+		table.Column("fullName", pageCtx.T("Users.List.FullName")),
+		table.Column("roles", pageCtx.T("Users.List.Roles")),
+		table.Column("createdAt", pageCtx.T("CreatedAt")),
+		table.Column("actions", pageCtx.T("Actions"), table.WithClass("w-16")),
 	}
 }
 
+// BuildTableConfig builds the sfui table configuration for the Users list:
+// columns, rows, the filterbuilder chip bar (role/group/createdAt), search
+// value, infinite scroll and the "New user" action gated by permission.
+func BuildTableConfig(ctx context.Context, props *IndexPageProps, r *http.Request) *table.TableConfig {
+	pageCtx := composables.UsePageCtx(ctx)
+
+	cfg := table.NewTableConfig(
+		pageCtx.T("NavigationLinks.Users"),
+		r.URL.Path,
+		table.WithSearchValue(props.Search),
+		table.WithInfiniteScroll(props.HasMore, props.Page, props.PerPage),
+		// Without an explicit ContentID, ResolvedHxTarget() defaults to
+		// "#table-body": filter/search requests would only ever swap the
+		// <tr> rows, never the filterbuilder chip bar itself (which is
+		// entirely server-rendered from props.Filters) — so a newly-applied
+		// chip would filter the rows correctly but never visually appear.
+		table.WithContentID("users-table-content"),
+	)
+
+	cfg.AddCols(TableColumns(ctx)...)
+
+	cfg.AddActions(sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"}))
+
+	if props.Registry != nil {
+		cfg.AddFilters(filterbuilder.Builder(filterbuilder.Props{
+			Registry: props.Registry,
+			Filters:  props.Filters,
+			ID:       "users-filters",
+		}))
+	}
+
+	if composables.CanUser(ctx, permissions.UserCreate) == nil {
+		cfg.AddActions(newUserButton())
+	}
+
+	for _, u := range props.Users {
+		cfg.AddRows(userTableRow(u))
+	}
+
+	return cfg
+}
+
+templ newUserButton() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@button.Primary(button.Props{
+		Size: button.SizeNormal,
+		Href: "/users/new",
+		Icon: icons.PlusCircle(icons.Props{Size: "18"}),
+	}) {
+		{ pageCtx.T("Users.List.New") }
+	}
+}
+
+// userTableCells builds the fullName/roles/createdAt/actions cells for one
+// user, shared by userTableRow (full list render) and UserRow (realtime
+// single-row OOB render) so cell construction never drifts between the two.
+func userTableCells(user *viewmodels.User) []table.TableCell {
+	return []table.TableCell{
+		table.Cell(fullNameCell(user), user.Title()),
+		table.Cell(rolesCell(user), user.RolesVerbose()),
+		table.Cell(createdAtCell(user), user.CreatedAt),
+		table.Cell(actionsCell(user), nil),
+	}
+}
+
+// userTableRow builds the sfui row for one user, plus a stable "user-<id>"
+// row id used by the realtime websocket broadcaster (UserRow/
+// UserCreatedEvent) to target this exact row for update/delete
+// out-of-band swaps.
+func userTableRow(user *viewmodels.User) table.TableRow {
+	return table.Row(userTableCells(user)...).ApplyOpts(table.WithRowAttrs(templ.Attributes{
+		"id": fmt.Sprintf("user-%s", user.ID),
+	}))
+}
+
+templ fullNameCell(user *viewmodels.User) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	<div class="flex items-center gap-3">
+		@avatar.Avatar(avatar.Props{
+			Initials: user.Initials(),
+			Class:    templ.Classes("w-8 h-8 min-w-8 !bg-avatar text-avatar"),
+		})
+		<div class="flex items-center gap-2">
+			<span>
+				{ user.Title() }
+			</span>
+			if user.Type == "system" {
+				@badge.New(badge.Props{
+					Class:   templ.Classes("px-2"),
+					Variant: badge.VariantBlue,
+					Size:    badge.SizeNormal,
+				}) {
+					{ pageCtx.T("System") }
+				}
+			}
+			if user.IsBlocked {
+				@badge.New(badge.Props{
+					Class:   templ.Classes("px-2"),
+					Variant: badge.VariantPink,
+					Size:    badge.SizeNormal,
+				}) {
+					{ pageCtx.T("Users.Blocked") }
+				}
+			}
+		</div>
+	</div>
+}
+
+templ rolesCell(user *viewmodels.User) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	if user.RolesVerbose() != "" {
+		<div>
+			{ user.RolesVerbose() }
+		</div>
+	} else {
+		{ pageCtx.T("Users.NoRole") }
+	}
+}
+
+// createdAtCell keeps the pre-existing Alpine `dateTimeFormat` formatting
+// (user.CreatedAt is a pre-formatted string, not a time.Time) rather than
+// switching to sfui's table.DateTime, which takes a time.Time and would
+// silently change the display format.
+templ createdAtCell(user *viewmodels.User) {
+	<div x-data="dateTimeFormat">
+		<span x-text={ fmt.Sprintf("format('%s')", user.CreatedAt) }></span>
+	</div>
+}
+
+templ actionsCell(user *viewmodels.User) {
+	<div class="flex gap-2">
+		@button.Secondary(button.Props{
+			Fixed: true,
+			Size:  button.SizeSM,
+			Class: "btn-fixed",
+			Href:  fmt.Sprintf("/users/%s", user.ID),
+		}) {
+			@icons.Eye(icons.Props{Size: "20"})
+		}
+		@button.Secondary(button.Props{
+			Fixed:    true,
+			Size:     button.SizeSM,
+			Disabled: !user.CanUpdate,
+			Class:    "btn-fixed",
+			Href:     fmt.Sprintf("/users/%s/edit", user.ID),
+		}) {
+			@icons.PencilSimple(icons.Props{Size: "20"})
+		}
+	</div>
+}
+
+// UserCreatedEvent is the realtime websocket broadcast entry point for a
+// newly-created user: it wraps the row in a <tbody hx-swap-oob="afterbegin:
+// #table-body"> so the ws extension inserts it at the top of the live table
+// body (see components/scaffold/table's Table(), which hardcodes tbody
+// id="table-body").
 templ UserCreatedEvent(user *viewmodels.User, rowProps *base.TableRowProps) {
-	<tbody hx-swap-oob="afterbegin:#users-table-body">
+	<tbody hx-swap-oob="afterbegin:#table-body">
 		@UserRow(user, rowProps)
 	</tbody>
 }
 
+// UserRow is the realtime websocket broadcast entry point for a created,
+// updated or deleted user row. It renders the same cells as userTableRow
+// (via TableColumns/table.Cell) wrapped in base.TableRow/base.TableCell for
+// a standalone single-row render outside a full TableConfig. rowProps.Attrs
+// carries the caller's intent (e.g. hx-swap-oob="delete" for OnUserDeleted);
+// this function always sets id="user-<id>" so out-of-band swaps/deletes
+// match the row rendered by userTableRow in the full list.
 templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 	{{
-		pageCtx := composables.UsePageCtx(ctx)
 		rowProps.Attrs["id"] = fmt.Sprintf("user-%s", user.ID)
 		rowProps.Attrs["class"] = "hide-on-load"
+		cells := userTableCells(user)
+		cols := TableColumns(ctx)
 	}}
 	@base.TableRow(*rowProps) {
-		@base.TableCell(base.TableCellProps{}) {
-			<div class="flex items-center gap-3">
-				@avatar.Avatar(avatar.Props{
-					Initials: user.Initials(),
-					Class:    templ.Classes("w-8 h-8 min-w-8 !bg-avatar text-avatar"),
-				})
-				<div class="flex items-center gap-2">
-					<span>
-						{ user.Title() }
-					</span>
-					if user.Type == "system" {
-						@badge.New(badge.Props{
-							Class:   templ.Classes("px-2"),
-							Variant: badge.VariantBlue,
-							Size:    badge.SizeNormal,
-						}) {
-							{ pageCtx.T("System") }
-						}
-					}
-					if user.IsBlocked {
-						@badge.New(badge.Props{
-							Class:   templ.Classes("px-2"),
-							Variant: badge.VariantPink,
-							Size:    badge.SizeNormal,
-						}) {
-							{ pageCtx.T("Users.Blocked") }
-						}
-					}
-				</div>
-			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
-			if user.RolesVerbose() != "" {
-				<div>
-					{ user.RolesVerbose() }
-				</div>
-			} else {
-				{ pageCtx.T("Users.NoRole") }
+		for i, cell := range cells {
+			@base.TableCell(base.TableCellProps{
+				Classes: cell.Classes(),
+				Attrs:   cell.Attrs(),
+			}) {
+				@cell.Component(cols[i], false, true, templ.Attributes{})
 			}
 		}
-		@base.TableCell(base.TableCellProps{}) {
-			<div x-data="dateTimeFormat">
-				<span x-text={ fmt.Sprintf("format('%s')", user.CreatedAt) }></span>
-			</div>
-		}
-		@base.TableCell(base.TableCellProps{}) {
-			<div class="flex gap-2">
-				@button.Secondary(button.Props{
-					Fixed: true,
-					Size:  button.SizeSM,
-					Class: "btn-fixed",
-					Href:  fmt.Sprintf("/users/%s", user.ID),
-				}) {
-					@icons.Eye(icons.Props{Size: "20"})
-				}
-				@button.Secondary(button.Props{
-					Fixed:    true,
-					Size:     button.SizeSM,
-					Disabled: !user.CanUpdate,
-					Class:    "btn-fixed",
-					Href:     fmt.Sprintf("/users/%s/edit", user.ID),
-				}) {
-					@icons.PencilSimple(icons.Props{Size: "20"})
-				}
-			</div>
-		}
-	}
-}
-
-templ UserRows(props *IndexPageProps) {
-	<tr class="hidden">
-		<td colspan="4">
-			@loaders.Spinner(loaders.SpinnerProps{
-				ContainerClass: templ.Classes(
-					"flex justify-center items-center py-4",
-				),
-			})
-		</td>
-	</tr>
-	for ix, user := range props.Users {
-		{{
-			isLastRow := ix == len(props.Users)-1
-			rowProps := &base.TableRowProps{
-				Attrs: templ.Attributes{},
-			}
-			if isLastRow && props.HasMore {
-				rowProps.Attrs = mkInfiniteAttrs(ctx, props)
-			}
-		}}
-		@UserRow(user, rowProps)
-	}
-}
-
-templ UsersTable(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@base.Table(base.TableProps{
-		Columns: []*base.TableColumn{
-			{Label: pageCtx.T("Users.List.FullName"), Key: "fullName"},
-			{Label: pageCtx.T("Users.List.Roles"), Key: "roles"},
-			{Label: pageCtx.T("CreatedAt"), Key: "createdAt"},
-			{Label: pageCtx.T("Actions"), Class: "w-16"},
-		},
-		TBodyAttrs: templ.Attributes{
-			"id": "users-table-body",
-		},
-	}) {
-		@UserRows(props)
-	}
-}
-
-templ RoleFilter(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<div class="space-y-3" x-data="checkboxes" x-init="init" x-on:DOMNodeRemoved="destroy">
-			<div>
-				@input.Checkbox(&input.CheckboxProps{
-					Label:   pageCtx.T("Users.List.AllRoles"),
-					ID:      "all-roles-checkbox",
-					Checked: len(props.Filters.RoleIDs) == 0,
-					Attrs: templ.Attributes{
-						"class":   "parent",
-						"x-ref":   "parent",
-						"@change": "onParentChange",
-					},
-				})
-			</div>
-			<hr class="my-3 border-t border-surface-400"/>
-			<div class="space-y-3">
-				for _, role := range props.Roles {
-					@input.Checkbox(&input.CheckboxProps{
-						Label:   role.Name,
-						ID:      fmt.Sprintf("role-%s", role.ID),
-						Checked: slices.Contains(props.Filters.RoleIDs, role.ID),
-						Attrs: templ.Attributes{
-							"name":    "roleID",
-							"value":   role.ID,
-							"@change": "onChange",
-						},
-					}) {
-						<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-auto">
-							{ fmt.Sprintf("%d", role.UsersCount) }
-						</span>
-					}
-				}
-			</div>
-		</div>
-	</div>
-}
-
-templ GroupFilter(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
-		<div class="space-y-3" x-data="checkboxes" x-init="init" x-on:DOMNodeRemoved="destroy">
-			<div>
-				@input.Checkbox(&input.CheckboxProps{
-					Label:   pageCtx.T("Users.List.AllGroups"),
-					ID:      "all-groups-checkbox",
-					Checked: len(props.Filters.GroupIDs) == 0,
-					Attrs: templ.Attributes{
-						"class":   "parent",
-						"x-ref":   "parent",
-						"@change": "onParentChange",
-					},
-				})
-			</div>
-			<hr class="my-3 border-t border-surface-400"/>
-			<div class="space-y-3">
-				for _, group := range props.Groups {
-					@input.Checkbox(&input.CheckboxProps{
-						Label:   group.Name,
-						ID:      fmt.Sprintf("group-%s", group.ID),
-						Checked: slices.Contains(props.Filters.GroupIDs, group.ID),
-						Attrs: templ.Attributes{
-							"name":    "groupID",
-							"value":   group.ID,
-							"@change": "onChange",
-						},
-					}) {
-						<span class="text-xs bg-surface-300 px-2 py-0.5 rounded-full ml-auto">
-							{ fmt.Sprintf("%d", group.UsersCount()) }
-						</span>
-					}
-				}
-			</div>
-		</div>
-	</div>
-}
-
-templ UsersContent(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div class="bg-surface-600 border border-primary rounded-lg">
-		<div class="p-4 flex items-center gap-3">
-			<input type="hidden" name="page" value="1"/>
-			<div class="flex-1">
-				@input.Text(&input.Props{
-					AddonLeft: &input.Addon{
-						Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-					},
-					Placeholder: pageCtx.T("Search"),
-					Attrs: templ.Attributes{
-						"name":  "Search",
-						"value": props.Filters.Search,
-					},
-				})
-			</div>
-			<div class="hidden md:flex gap-3">
-				@filters.CreatedAt()
-				if composables.CanUser(ctx, permissions.UserCreate) == nil {
-					@button.Primary(button.Props{
-						Size: button.SizeNormal,
-						Href: "/users/new",
-						Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-					}) {
-						{ pageCtx.T("Users.List.New") }
-					}
-				}
-			</div>
-		</div>
-		@UsersTable(props)
-	</div>
-}
-
-templ UsersPageContent(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	<div id="users-page-content">
-		@filters.Drawer(filters.DrawerProps{
-			Heading: "Filters",
-			Action:  "open-user-filters",
-		}) {
-			@filters.CreatedAt()
-		}
-		<div class="m-6">
-			<div class="flex justify-between md:justify-start">
-				<div class="flex items-center gap-2">
-					<h1 class="text-2xl font-medium">
-						{ pageCtx.T("NavigationLinks.Users") }
-					</h1>
-					@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
-				</div>
-				<div class="flex md:hidden gap-2">
-					@button.Secondary(button.Props{
-						Size:  button.SizeNormal,
-						Class: "bg-transparent",
-						Icon:  icons.List(icons.Props{Size: "18"}),
-						Attrs: templ.Attributes{
-							"x-data": "",
-							"@click": "$dispatch('open-user-filters')",
-						},
-					})
-					if composables.CanUser(ctx, permissions.UserCreate) == nil {
-						@button.Primary(button.Props{
-							Size: button.SizeNormal,
-							Href: "/users/new",
-							Icon: icons.PlusCircle(icons.Props{Size: "18"}),
-						})
-					}
-				</div>
-			</div>
-			<div class="mt-5 flex space-x-5">
-				<div
-					x-data={ fmt.Sprintf("{ filtersCollapsed: false, expandText: '%s', collapseText: '%s' }",
-						pageCtx.T("Users.List.ExpandFilters"),
-						pageCtx.T("Users.List.CollapseFilters")) }
-					class="hidden md:block flex-shrink-0 transition-all"
-					:class="filtersCollapsed ? 'w-16' : 'w-64'"
-				>
-					<button
-						type="button"
-						@click="filtersCollapsed = !filtersCollapsed"
-						class="mx-auto mb-4 flex size-9 items-center justify-center hover:bg-surface-600 rounded-lg transition-colors cursor-pointer"
-						x-tooltip="filtersCollapsed ? expandText : collapseText"
-					>
-						@icons.CaretLeft(icons.Props{
-							Size:  "20",
-							Class: "transition-transform duration-300",
-							Attributes: templ.Attributes{
-								":class": "filtersCollapsed ? 'rotate-180' : ''",
-							},
-						})
-					</button>
-					<div x-show="!filtersCollapsed">
-						@RoleFilter(props)
-						@GroupFilter(props)
-					</div>
-				</div>
-				<div class="flex-1" id="users-table-wrapper">
-					@UsersContent(props)
-				</div>
-			</div>
-		</div>
-	</div>
-}
-
-templ Index(props *IndexPageProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@layouts.Authenticated(layouts.AuthenticatedProps{
-		BaseProps: layouts.BaseProps{Title: pageCtx.T("Users.Meta.List.Title")},
-	}) {
-		<form
-			id="users-query-form"
-			hx-get="/users"
-			hx-target="#users-page-content"
-			hx-swap="outerHTML"
-			hx-push-url="true"
-			hx-indicator="#users-table-body"
-			hx-trigger="keyup changed delay:500ms from:(form input[name='Search']), change from:(form input[type='checkbox']), change from:(form input[name='CreatedAt.From']), change from:(form input[name='CreatedAt.To']), change from:(form select)"
-		>
-			@UsersPageContent(props)
-		</form>
 	}
 }

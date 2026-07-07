@@ -1082,11 +1082,10 @@
       "FullName": "To'liq ism",
       "Roles": "Rollar",
       "Email": "Email",
-      "AllGroups": "Barcha guruhlar",
-      "AllRoles": "Barcha rollar",
       "Filters": "Filterlar",
-      "ExpandFilters": "Filtrlarni kengaytirish",
-      "CollapseFilters": "Filtrlarni yig'ish"
+      "FilterRole": "Rol",
+      "FilterGroup": "Guruh",
+      "FilterCreatedAt": "Yaratilgan sana"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",
