@@ -502,7 +502,7 @@ func searchPrefixTerms(queryStr string) []string {
 	fields := strings.Fields(strings.ToLower(queryStr))
 	terms := make([]string, 0, len(fields))
 	for _, field := range fields {
-		term := strings.Trim(field, `"'+-*:~^()[]{}<>!?.,;:/\|&`)
+		term := strings.Trim(field, `"'+-*:~^()[]{}<>!?.,;/\|&`)
 		if term != "" {
 			terms = append(terms, term)
 		}

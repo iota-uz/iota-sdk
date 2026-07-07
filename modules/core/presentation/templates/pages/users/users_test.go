@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
@@ -153,7 +154,7 @@ func TestBuildTableConfig_ActionGating(t *testing.T) {
 		Page:    1,
 		PerPage: 25,
 	}
-	req := httptest.NewRequest("GET", "/users", nil)
+	req := httptest.NewRequest(http.MethodGet, "/users", nil)
 
 	email, err := internet.NewEmail("action-gating@example.com")
 	require.NoError(t, err)
