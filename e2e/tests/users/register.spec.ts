@@ -29,8 +29,11 @@ test.describe('user auth and registration flow', () => {
 
 		const initialRowCount = await page.locator('tbody tr').count();
 
-		// Click the "New User" link
-		await page.locator('a[href="/users/new"]').filter({ hasText: /.+/ }).first().click();
+		// Click the "New User" link. The scaffold table renders actions twice
+		// (a mobile-only copy and a desktop copy, toggled via responsive CSS),
+		// so :visible is required to avoid matching the hidden one at this
+		// viewport size — see finance/table-wide.spec.ts for the same pattern.
+		await page.locator('a[href="/users/new"]:visible').filter({ hasText: /.+/ }).first().click();
 
 		// Fill in the form
 		await page.locator('[name=FirstName]').fill('Regspec');
