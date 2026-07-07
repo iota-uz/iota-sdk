@@ -38,11 +38,11 @@ templ builderRoot(props Props, oob bool) {
 			@Chip(props, i, c)
 		}
 		@addFilterButton(props)
-		if len(props.Filters) > 1 {
+		if len(props.Filters) > 1 || (props.ShowResetAlways && len(props.Filters) >= 1) {
 			<button
 				type="button"
 				x-on:click="clearAll()"
-				class="text-sm text-200 hover:text-100 cursor-pointer whitespace-nowrap"
+				class="ml-auto text-sm text-200 hover:text-100 cursor-pointer whitespace-nowrap"
 			>
 				{ pageCtx.T("Scaffold.FilterBuilder.ClearAll") }
 			</button>

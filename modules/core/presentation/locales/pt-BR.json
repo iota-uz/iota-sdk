@@ -1090,7 +1090,14 @@
       "Filters": "Filtros",
       "FilterRole": "Função",
       "FilterGroup": "Grupo",
-      "FilterCreatedAt": "Criado em"
+      "FilterCreatedAt": "Criado em",
+      "FilterUpdatedAt": "Atualizado em",
+      "FilterStatus": "Status",
+      "FilterStatusActive": "Ativos",
+      "FilterStatusBlocked": "Bloqueados",
+      "FilterType": "Tipo",
+      "FilterTypeRegular": "Comuns",
+      "FilterTypeSystem": "Sistema"
     },
     "Cards": {
       "PersonalInfo": "Informações pessoais",

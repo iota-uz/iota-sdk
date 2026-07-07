@@ -1085,7 +1085,14 @@
       "Filters": "Filterlar",
       "FilterRole": "Rol",
       "FilterGroup": "Guruh",
-      "FilterCreatedAt": "Yaratilgan sana"
+      "FilterCreatedAt": "Yaratilgan sana",
+      "FilterUpdatedAt": "Янгиланган сана",
+      "FilterStatus": "Ҳолат",
+      "FilterStatusActive": "Фаол",
+      "FilterStatusBlocked": "Блокланган",
+      "FilterType": "Тури",
+      "FilterTypeRegular": "Оддий",
+      "FilterTypeSystem": "Тизим"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",

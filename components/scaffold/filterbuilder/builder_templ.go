@@ -169,8 +169,8 @@ func builderRoot(props Props, oob bool) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		if len(props.Filters) > 1 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" x-on:click=\"clearAll()\" class=\"text-sm text-200 hover:text-100 cursor-pointer whitespace-nowrap\">")
+		if len(props.Filters) > 1 || (props.ShowResetAlways && len(props.Filters) >= 1) {
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<button type=\"button\" x-on:click=\"clearAll()\" class=\"ml-auto text-sm text-200 hover:text-100 cursor-pointer whitespace-nowrap\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

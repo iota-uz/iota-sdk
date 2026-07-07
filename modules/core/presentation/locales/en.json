@@ -1086,7 +1086,14 @@
       "Filters": "Filters",
       "FilterRole": "Role",
       "FilterGroup": "Group",
-      "FilterCreatedAt": "Created at"
+      "FilterCreatedAt": "Created at",
+      "FilterUpdatedAt": "Updated at",
+      "FilterStatus": "Status",
+      "FilterStatusActive": "Active",
+      "FilterStatusBlocked": "Blocked",
+      "FilterType": "Type",
+      "FilterTypeRegular": "Regular",
+      "FilterTypeSystem": "System"
     },
     "Cards": {
       "PersonalInfo": "Personal information",

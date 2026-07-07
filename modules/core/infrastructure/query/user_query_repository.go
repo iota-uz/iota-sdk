@@ -68,6 +68,7 @@ const (
 	FieldTenantID  Field = "tenant_id"
 	FieldGroupID   Field = "group_id"
 	FieldRoleID    Field = "role_id"
+	FieldBlocked   Field = "is_blocked"
 )
 
 type SortBy = repo.SortBy[Field]
@@ -107,6 +108,7 @@ func (r *pgUserQueryRepository) fieldMapping() map[Field]string {
 		FieldTenantID:  "u.tenant_id",
 		FieldGroupID:   "gu.group_id",
 		FieldRoleID:    "ur.role_id",
+		FieldBlocked:   "u.is_blocked",
 	}
 }
 

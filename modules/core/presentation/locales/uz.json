@@ -1085,7 +1085,14 @@
       "Filters": "Filterlar",
       "FilterRole": "Rol",
       "FilterGroup": "Guruh",
-      "FilterCreatedAt": "Yaratilgan sana"
+      "FilterCreatedAt": "Yaratilgan sana",
+      "FilterUpdatedAt": "Yangilangan sana",
+      "FilterStatus": "Holat",
+      "FilterStatusActive": "Faol",
+      "FilterStatusBlocked": "Bloklangan",
+      "FilterType": "Turi",
+      "FilterTypeRegular": "Oddiy",
+      "FilterTypeSystem": "Tizim"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",

@@ -1089,7 +1089,14 @@
       "Filters": "筛选",
       "FilterRole": "角色",
       "FilterGroup": "组",
-      "FilterCreatedAt": "创建时间"
+      "FilterCreatedAt": "创建时间",
+      "FilterUpdatedAt": "更新时间",
+      "FilterStatus": "状态",
+      "FilterStatusActive": "活跃",
+      "FilterStatusBlocked": "已封禁",
+      "FilterType": "类型",
+      "FilterTypeRegular": "普通",
+      "FilterTypeSystem": "系统"
     },
     "Cards": {
       "PersonalInfo": "个人信息",

@@ -15,6 +15,26 @@ import (
 //go:embed presentation/locales/*.json
 var LocaleFiles embed.FS
 
+// ContentFiles embeds the markdown help content so it ships inside the binary
+// and is served without an on-disk content directory (deploy-safe under
+// GOWORK=off). See EmbeddedContentConfig.
+//
+//go:embed content
+var ContentFiles embed.FS
+
+// EmbeddedContentConfig returns a ContentConfig backed by the embedded markdown
+// docs (ContentFiles), rooted at "content". Register with NewComponent to serve
+// /help/doc/... without a disk content dir. Set HideNav on the returned config
+// to suppress the sidebar nav node when only inline help links are wanted.
+func EmbeddedContentConfig() ContentConfig {
+	return ContentConfig{
+		FS:            ContentFiles,
+		Root:          "content",
+		DefaultLocale: "en",
+		Locales:       []string{"en"},
+	}
+}
+
 func NewComponent(config ContentConfig) composition.Component {
 	return &component{config: config.Normalized()}
 }
@@ -32,7 +52,9 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
-	composition.AddNavNodes(builder, HelpCenterNavNode)
+	if !c.config.HideNav {
+		composition.AddNavNodes(builder, HelpCenterNavNode)
+	}
 	composition.Provide[services.ContentConfig](builder, c.config)
 	composition.ProvideFunc(builder, markdown.NewRenderer)
 	composition.ProvideFunc(builder, services.NewContentService)

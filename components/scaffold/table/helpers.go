@@ -967,6 +967,15 @@ func WithContentID(id string) TableConfigOpt {
 	}
 }
 
+// WithStackedToolbar enables the portfolio-style layout: Actions render on the
+// title row (desktop), and search + filter chips stack vertically in a
+// persistent toolbar outside the row-swap target. See TableConfig.StackedToolbar.
+func WithStackedToolbar() TableConfigOpt {
+	return func(c *TableConfig) {
+		c.StackedToolbar = true
+	}
+}
+
 func WithHxTarget(target string) TableConfigOpt {
 	return func(c *TableConfig) {
 		c.HxTarget = target
@@ -1197,6 +1206,21 @@ type TableConfig struct {
 	SearchValue          string // Current search input value (for HTMX re-render)
 	SearchParamName      string // Query/form field name used for the search value
 
+	// StackedToolbar renders the portfolio-style layout: page Actions move to
+	// the title row (desktop), and the search bar + filter chips stack
+	// vertically in a persistent toolbar OUTSIDE the row-swap target so typing
+	// never destroys the search input (search focus is preserved). Pair with
+	// AddFiltersOOB so chips re-render on the rows swap. Opt-in; default
+	// (false) keeps the single-row toolbar. Do NOT combine with WithContentID
+	// (that forces a whole-card swap, defeating the persistent toolbar).
+	StackedToolbar bool
+
+	// FiltersOOB are filter components re-rendered out-of-band on the
+	// rows-path HTMX response (e.g. filterbuilder.BuilderOOB), so the chip bar
+	// stays server-rendered when the toolbar lives outside the swap target.
+	// Only emitted in StackedToolbar mode. See AddFiltersOOB.
+	FiltersOOB []templ.Component
+
 	// Deferred panels rendered inside the form but outside the swap target;
 	// they skeleton-load and reload on filter/search change. See DeferredPanel.
 	DeferredPanels []DeferredPanel
@@ -1324,6 +1348,15 @@ func (c *TableConfig) UpdateColumnsWithSorting(r *http.Request) *TableConfig {
 
 func (c *TableConfig) AddFilters(filters ...templ.Component) *TableConfig {
 	c.Filters = append(c.Filters, filters...)
+	return c
+}
+
+// AddFiltersOOB registers filter components (e.g. filterbuilder.BuilderOOB) to
+// be re-rendered out-of-band on the rows-path HTMX response. Use in
+// StackedToolbar mode so the chip bar stays server-rendered even though the
+// toolbar sits outside the swap target. See TableConfig.FiltersOOB.
+func (c *TableConfig) AddFiltersOOB(filters ...templ.Component) *TableConfig {
+	c.FiltersOOB = append(c.FiltersOOB, filters...)
 	return c
 }
 

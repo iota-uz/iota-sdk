@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/components/scaffold/filterbuilder"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
 	"github.com/iota-uz/iota-sdk/modules/core/infrastructure/query"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -20,6 +21,9 @@ const (
 	userFilterFieldRole      = "roleID"
 	userFilterFieldGroup     = "groupID"
 	userFilterFieldCreatedAt = "createdAt"
+	userFilterFieldStatus    = "status"
+	userFilterFieldType      = "userType"
+	userFilterFieldUpdatedAt = "updatedAt"
 )
 
 // buildUserFilterRegistry builds the filterbuilder registry backing the Users
@@ -68,9 +72,42 @@ func buildUserFilterRegistry(ctx context.Context, roles []*viewmodels.Role, grou
 			Options:   groupOptions,
 		},
 		filterbuilder.FieldDef{
+			Key:       userFilterFieldStatus,
+			Type:      filterq.FieldTypeReference,
+			Label:     pageCtx.T("Users.List.FilterStatus"),
+			Operators: []filterq.Operator{filterq.OpIs},
+			Options: []filterbuilder.Option{
+				filterbuilder.Opt("false", pageCtx.T("Users.List.FilterStatusActive")),
+				filterbuilder.Opt("true", pageCtx.T("Users.List.FilterStatusBlocked")),
+			},
+		},
+		filterbuilder.FieldDef{
+			Key:       userFilterFieldType,
+			Type:      filterq.FieldTypeReference,
+			Label:     pageCtx.T("Users.List.FilterType"),
+			Operators: []filterq.Operator{filterq.OpIs},
+			Options: []filterbuilder.Option{
+				filterbuilder.Opt(string(user.TypeUser), pageCtx.T("Users.List.FilterTypeRegular")),
+				filterbuilder.Opt(string(user.TypeSystem), pageCtx.T("Users.List.FilterTypeSystem")),
+			},
+		},
+		filterbuilder.FieldDef{
 			Key:       userFilterFieldCreatedAt,
 			Type:      filterq.FieldTypeDate,
 			Label:     pageCtx.T("Users.List.FilterCreatedAt"),
+			Operators: []filterq.Operator{filterq.OpBetween},
+			Presets: []filterq.DatePreset{
+				filterq.PresetThisMonth,
+				filterq.PresetLastMonth,
+				filterq.PresetLast30D,
+				filterq.PresetThisYear,
+				filterq.PresetLastYear,
+			},
+		},
+		filterbuilder.FieldDef{
+			Key:       userFilterFieldUpdatedAt,
+			Type:      filterq.FieldTypeDate,
+			Label:     pageCtx.T("Users.List.FilterUpdatedAt"),
 			Operators: []filterq.Operator{filterq.OpBetween},
 			Presets: []filterq.DatePreset{
 				filterq.PresetThisMonth,
@@ -98,19 +135,53 @@ func decodeUserFilterSet(reg *filterbuilder.Registry, q url.Values) filterq.Filt
 func applyUserFilterSet(now time.Time, fs filterq.FilterSet, findParams *query.FindParams) {
 	appendInFilter(findParams, fs, userFilterFieldRole, query.FieldRoleID)
 	appendInFilter(findParams, fs, userFilterFieldGroup, query.FieldGroupID)
+	appendInFilter(findParams, fs, userFilterFieldType, query.FieldType)
+	appendStatusFilter(findParams, fs)
+	appendDateRangeFilter(findParams, fs, now, userFilterFieldCreatedAt, query.FieldCreatedAt)
+	appendDateRangeFilter(findParams, fs, now, userFilterFieldUpdatedAt, query.FieldUpdatedAt)
+}
 
-	for _, cond := range fs.Field(userFilterFieldCreatedAt) {
+// appendStatusFilter translates the Active/Blocked chip into an is_blocked
+// equality. Selecting both values (or neither) imposes no constraint. Values
+// are the "true"/"false" strings declared in buildUserFilterRegistry.
+func appendStatusFilter(findParams *query.FindParams, fs filterq.FilterSet) {
+	for _, cond := range fs.Field(userFilterFieldStatus) {
+		if cond.Op != filterq.OpIs {
+			continue
+		}
+		var blocked *bool
+		for _, v := range cond.Values {
+			b := v == "true"
+			if blocked != nil && *blocked != b {
+				// Both Active and Blocked selected → no constraint.
+				blocked = nil
+				break
+			}
+			blocked = &b
+		}
+		if blocked == nil {
+			continue
+		}
+		findParams.Filters = append(findParams.Filters,
+			query.Filter{Column: query.FieldBlocked, Filter: repo.Eq(*blocked)},
+		)
+	}
+}
+
+// appendDateRangeFilter translates a date chip on fieldKey into inclusive
+// [from, to] bounds on column. DateRange resolves to inclusive date-only bounds
+// (both at midnight); extend the upper bound to the next day's midnight so the
+// "to" day is included in full, matching the inclusive-day semantics of the
+// sidebar/dropdown filter this replaces. Shared by createdAt and updatedAt.
+func appendDateRangeFilter(findParams *query.FindParams, fs filterq.FilterSet, now time.Time, fieldKey string, column query.Field) {
+	for _, cond := range fs.Field(fieldKey) {
 		from, to, ok := cond.DateRange(now)
 		if !ok {
 			continue
 		}
-		// DateRange resolves to inclusive date-only bounds (both at
-		// midnight); extend the upper bound to the next day's midnight so
-		// the "to" day is included in full, matching the inclusive-day
-		// semantics of the sidebar/dropdown filter this replaces.
 		findParams.Filters = append(findParams.Filters,
-			query.Filter{Column: query.FieldCreatedAt, Filter: repo.Gte(from)},
-			query.Filter{Column: query.FieldCreatedAt, Filter: repo.Lt(to.AddDate(0, 0, 1))},
+			query.Filter{Column: column, Filter: repo.Gte(from)},
+			query.Filter{Column: column, Filter: repo.Lt(to.AddDate(0, 0, 1))},
 		)
 	}
 }
