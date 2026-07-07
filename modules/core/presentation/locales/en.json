@@ -1083,11 +1083,10 @@
       "FullName": "Full name",
       "Roles": "Roles",
       "Email": "Email",
-      "AllGroups": "All Groups",
-      "AllRoles": "All Roles",
       "Filters": "Filters",
-      "ExpandFilters": "Expand filters",
-      "CollapseFilters": "Collapse filters"
+      "FilterRole": "Role",
+      "FilterGroup": "Group",
+      "FilterCreatedAt": "Created at"
     },
     "Cards": {
       "PersonalInfo": "Personal information",

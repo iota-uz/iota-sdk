@@ -1086,11 +1086,10 @@
       "FullName": "全名",
       "Roles": "角色",
       "Email": "电子邮件",
-      "AllGroups": "所有组",
-      "AllRoles": "所有角色",
       "Filters": "筛选",
-      "ExpandFilters": "展开过滤器",
-      "CollapseFilters": "折叠过滤器"
+      "FilterRole": "角色",
+      "FilterGroup": "组",
+      "FilterCreatedAt": "创建时间"
     },
     "Cards": {
       "PersonalInfo": "个人信息",

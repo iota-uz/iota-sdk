@@ -366,7 +366,8 @@
     "ToExcel": "Exportar para Excel",
     "ToCSV": "Exportar para CSV",
     "ToJSON": "Exportar para JSON",
-    "ToTXT": "Exportar para TXT"
+    "ToTXT": "Exportar para TXT",
+    "Preparing": "Preparando seu arquivo…"
   },
   "Filters": {
     "CreatedAt": {
@@ -468,6 +469,7 @@
     "Website": "Site"
   },
   "NavigationLinks": {
+    "QuickLinks": "Links rápidos",
     "Dashboard": "Painel",
     "Administration": "Administração",
     "Users": "Usuários",
@@ -1085,11 +1087,10 @@
       "FullName": "Nome completo",
       "Roles": "Papéis",
       "Email": "E-mail",
-      "AllGroups": "Todos os grupos",
-      "AllRoles": "Todos os papéis",
       "Filters": "Filtros",
-      "ExpandFilters": "Expandir filtros",
-      "CollapseFilters": "Recolher filtros"
+      "FilterRole": "Função",
+      "FilterGroup": "Grupo",
+      "FilterCreatedAt": "Criado em"
     },
     "Cards": {
       "PersonalInfo": "Informações pessoais",

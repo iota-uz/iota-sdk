@@ -17,13 +17,13 @@ templ IncomeStatementPage(formData map[string]interface{}) {
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Reports.IncomeStatement.Title")},
 	}) {
 		<div class="container mx-auto px-4 py-6">
-				<div class="flex flex-col gap-4">
-					<div class="flex items-center gap-2">
-						<h1 class="text-2xl font-bold text-gray-900">
-							{ pageCtx.T("Reports.IncomeStatement.Title") }
-						</h1>
-						@sdkhelp.Link(sdkhelp.LinkProps{Path: "workflows/month-end-review.md"})
-					</div>
+			<div class="flex flex-col gap-4">
+				<div class="flex items-center gap-2">
+					<h1 class="text-2xl font-bold text-gray-900">
+						{ pageCtx.T("Reports.IncomeStatement.Title") }
+					</h1>
+					@sdkhelp.Link(sdkhelp.LinkProps{Path: "workflows/month-end-review.md"})
+				</div>
 				<!-- Report Generation Form -->
 				<div class="bg-white rounded-lg shadow p-6">
 					<h2 class="text-lg font-semibold text-gray-900 mb-4">
@@ -109,13 +109,13 @@ templ IncomeStatementPageWithReport(formData map[string]interface{}, report *vie
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Reports.IncomeStatement.Title")},
 	}) {
 		<div class="container mx-auto px-4 py-6">
-				<div class="flex flex-col gap-4">
-					<div class="flex items-center gap-2">
-						<h1 class="text-2xl font-bold text-gray-900">
-							{ pageCtx.T("Reports.IncomeStatement.Title") }
-						</h1>
-						@sdkhelp.Link(sdkhelp.LinkProps{Path: "workflows/month-end-review.md"})
-					</div>
+			<div class="flex flex-col gap-4">
+				<div class="flex items-center gap-2">
+					<h1 class="text-2xl font-bold text-gray-900">
+						{ pageCtx.T("Reports.IncomeStatement.Title") }
+					</h1>
+					@sdkhelp.Link(sdkhelp.LinkProps{Path: "workflows/month-end-review.md"})
+				</div>
 				<!-- Report Generation Form -->
 				<div class="bg-white rounded-lg shadow p-6">
 					<h2 class="text-lg font-semibold text-gray-900 mb-4">

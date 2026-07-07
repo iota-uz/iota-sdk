@@ -1,0 +1,18 @@
+{
+  "NavigationLinks": {
+    "HelpCenter": "Central de Ajuda"
+  },
+  "HelpCenter": {
+    "Meta": {
+      "Title": "Central de Ajuda",
+      "Subtitle": "Navegue pela documentação do produto e guias operacionais."
+    },
+    "Search": {
+      "Placeholder": "Pesquisar artigos de ajuda",
+      "Unavailable": "A pesquisa não está disponível.",
+      "NoResults": "Nenhum resultado encontrado."
+    },
+    "Categories": "Categorias",
+    "Empty": "Ainda não há artigos de ajuda disponíveis."
+  }
+}

@@ -1,3 +1,4 @@
+// Package services provides this package.
 package services
 
 import (
@@ -11,6 +12,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
@@ -233,7 +235,7 @@ func titleFromSegment(segment string) string {
 	segment = strings.TrimSuffix(segment, filepath.Ext(segment))
 	segment = strings.ReplaceAll(segment, "-", " ")
 	segment = strings.ReplaceAll(segment, "_", " ")
-	return strings.Title(segment)
+	return cases.Title(language.English).String(segment)
 }
 
 func insertNode(nodes *[]viewmodels.CategoryNode, categories []string, doc viewmodels.CategoryNode) {

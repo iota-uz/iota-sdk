@@ -5,11 +5,11 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base/avatar"
 	"github.com/iota-uz/iota-sdk/components/base/button"
-		"github.com/iota-uz/iota-sdk/components/base/card"
-		"github.com/iota-uz/iota-sdk/components/base/input"
-		"github.com/iota-uz/iota-sdk/components/filters"
-		sdkhelp "github.com/iota-uz/iota-sdk/components/help"
-		"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/components/base/card"
+	"github.com/iota-uz/iota-sdk/components/base/input"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -405,16 +405,16 @@ templ ChatLayout(props *IndexPageProps) {
 	>
 		<div
 			class="shrink-0 pt-5 px-4 flex flex-wrap gap-2 items-center justify-between border-r"
-			>
-				@button.Secondary(button.Props{
-					Href: "/crm/instant-messages",
-				}) {
-					{ pageCtx.T("Chats.InstantMessages") }
-				}
-				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md", Class: "ml-auto md:ml-0"})
-				@button.Primary(button.Props{
-					Href: props.NewChatURL,
-				}) {
+		>
+			@button.Secondary(button.Props{
+				Href: "/crm/instant-messages",
+			}) {
+				{ pageCtx.T("Chats.InstantMessages") }
+			}
+			@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md", Class: "ml-auto md:ml-0"})
+			@button.Primary(button.Props{
+				Href: props.NewChatURL,
+			}) {
 				{ pageCtx.T("Chats.New.Title") }
 			}
 		</div>

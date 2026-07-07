@@ -81,7 +81,10 @@ func filterItems(items []types.NavigationItem, user user.User) []types.Navigatio
 				Keywords:    append([]string(nil), item.Keywords...),
 				Icon:        item.Icon,
 				Permissions: item.Permissions,
-				IsBeta:      item.IsBeta,
+				// Preserve Logic so a re-filter of the returned items keeps the
+				// RequireAny (OR) semantics instead of reverting to AND.
+				Logic:  item.Logic,
+				IsBeta: item.IsBeta,
 			})
 		}
 	}
