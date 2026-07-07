@@ -4,11 +4,11 @@ import (
 	"fmt"
 	icons "github.com/iota-uz/icons/phosphor"
 	"github.com/iota-uz/iota-sdk/components/base"
-		"github.com/iota-uz/iota-sdk/components/base/button"
-		"github.com/iota-uz/iota-sdk/components/export"
-		"github.com/iota-uz/iota-sdk/components/filters"
-		sdkhelp "github.com/iota-uz/iota-sdk/components/help"
-		"github.com/iota-uz/iota-sdk/components/loaders"
+	"github.com/iota-uz/iota-sdk/components/base/button"
+	"github.com/iota-uz/iota-sdk/components/export"
+	"github.com/iota-uz/iota-sdk/components/filters"
+	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
+	"github.com/iota-uz/iota-sdk/components/loaders"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
 	"github.com/iota-uz/iota-sdk/modules/crm/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
@@ -179,17 +179,17 @@ templ Index(props *IndexPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Clients.List.Meta.Title")},
 	}) {
-			@NewClientDrawer()
-			<div class="m-6">
-				<div class="flex items-center gap-2">
-					<h1 class="text-2xl font-medium">
-						{ pageCtx.T("NavigationLinks.Clients") }
-					</h1>
-					@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md"})
-				</div>
-				<div class="mt-5" id="clients-table-wrapper">
-					@ClientsContent(props)
-				</div>
+		@NewClientDrawer()
+		<div class="m-6">
+			<div class="flex items-center gap-2">
+				<h1 class="text-2xl font-medium">
+					{ pageCtx.T("NavigationLinks.Clients") }
+				</h1>
+				@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/crm.md"})
+			</div>
+			<div class="mt-5" id="clients-table-wrapper">
+				@ClientsContent(props)
+			</div>
 		</div>
 		<template
 			x-data="{ showDialog: new URLSearchParams(window.location.search).has('view') }"

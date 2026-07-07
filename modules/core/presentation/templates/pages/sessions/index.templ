@@ -197,15 +197,15 @@ templ Index(props *IndexPageProps) {
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("Sessions.Meta.List.Title")},
 	}) {
-			<div class="m-6">
-				<div class="flex justify-between items-center">
-					<div class="flex items-center gap-2">
-						<h1 class="text-2xl font-medium">
-							{ pageCtx.T("Sessions.List.Title") }
-						</h1>
-						@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
-					</div>
+		<div class="m-6">
+			<div class="flex justify-between items-center">
+				<div class="flex items-center gap-2">
+					<h1 class="text-2xl font-medium">
+						{ pageCtx.T("Sessions.List.Title") }
+					</h1>
+					@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/core-administration.md"})
 				</div>
+			</div>
 			<div class="mt-5">
 				<div id="sessions-table-wrapper">
 					@SessionsContent(props)
