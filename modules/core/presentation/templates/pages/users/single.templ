@@ -127,18 +127,18 @@ templ UserInfo(user *viewmodels.User, slots slot.Manager) {
 		Class:  "flex flex-wrap w-full gap-2",
 	}) {
 		if user.Phone != "" {
-			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1">
 				<span class="text-200 text-sm">{ pageCtx.T("Users.Single.Phone") }</span>
 				<span class="font-medium text-sm">{ user.Phone }</span>
 			</div>
 		}
 		if user.Email != "" {
-			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+			<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1">
 				<span class="text-200 text-sm">{ pageCtx.T("Users.Single.Email") }</span>
 				<span class="font-medium text-sm">{ user.Email }</span>
 			</div>
 		}
-		<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-gray-500 overflow-hidden basis-72 flex-1">
+		<div class="flex flex-col p-3 items-start justify-between bg-surface-100 gap-2 rounded-xl border border-primary overflow-hidden basis-72 flex-1">
 			<span class="text-200 text-sm">{ pageCtx.T("Users.Single.GroupIDs") }</span>
 			<span class="font-medium text-sm">
 				@slot.Slot(slots.Get(SingleSlotGroups))

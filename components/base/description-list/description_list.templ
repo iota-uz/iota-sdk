@@ -72,7 +72,7 @@ templ Details(list DLList) {
 		</summary>
 		if len(list.Items()) > 0 {
 			<div class="px-4 pb-4">
-				<div class="border border-gray-500 rounded-xl divide-y divide-gray-500 overflow-hidden">
+				<div class="border border-primary rounded-xl divide-y divide-primary overflow-hidden">
 					for _, item := range list.Items() {
 						@item.Component()
 					}
@@ -88,7 +88,7 @@ templ List(list DLList) {
 		Header: list.Header(),
 	}) {
 		if len(list.Items()) > 0 {
-			<div class="border border-gray-500 rounded-xl divide-y divide-gray-500 overflow-hidden">
+			<div class="border border-primary rounded-xl divide-y divide-primary overflow-hidden">
 				for _, item := range list.Items() {
 					@item.Component()
 				}
