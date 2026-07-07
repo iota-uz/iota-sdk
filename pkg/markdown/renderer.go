@@ -1,3 +1,4 @@
+// Package markdown provides this package.
 package markdown
 
 import (

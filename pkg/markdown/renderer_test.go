@@ -1,7 +1,6 @@
 package markdown
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,5 +15,5 @@ func TestRenderer_SanitizesRawHTML(t *testing.T) {
 	out := string(html)
 	require.Contains(t, out, "<h1")
 	require.NotContains(t, out, "<script>")
-	require.False(t, strings.Contains(out, "javascript:"))
+	require.NotContains(t, out, "javascript:")
 }

@@ -1,3 +1,4 @@
+// Package helpcenter provides this package.
 package helpcenter
 
 import (
