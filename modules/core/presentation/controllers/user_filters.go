@@ -23,8 +23,9 @@ const (
 )
 
 // buildUserFilterRegistry builds the filterbuilder registry backing the Users
-// list chip bar. Role and group are single-select reference fields sourced
-// from the tenant's current roles/groups (with usage counts as chip badges).
+// list chip bar. Role and group are multi-select reference fields (OpIs
+// accepts one or more values) sourced from the tenant's current roles/groups
+// (with usage counts as chip badges).
 // CreatedAt is a preset-only date range, matching the preset-dropdown UX of
 // the sidebar filter it replaces — PresetNext30D is deliberately omitted
 // (nonsensical for a past-only "created at" field) and operators are
@@ -95,25 +96,8 @@ func decodeUserFilterSet(reg *filterbuilder.Registry, q url.Values) filterq.Filt
 // buildGroupFilterCondition / the FieldCreatedAt column filter) — that file
 // is not modified.
 func applyUserFilterSet(now time.Time, fs filterq.FilterSet, findParams *query.FindParams) {
-	for _, cond := range fs.Field(userFilterFieldRole) {
-		if cond.Op != filterq.OpIs {
-			continue
-		}
-		findParams.Filters = append(findParams.Filters, query.Filter{
-			Column: query.FieldRoleID,
-			Filter: repo.In(cond.Values),
-		})
-	}
-
-	for _, cond := range fs.Field(userFilterFieldGroup) {
-		if cond.Op != filterq.OpIs {
-			continue
-		}
-		findParams.Filters = append(findParams.Filters, query.Filter{
-			Column: query.FieldGroupID,
-			Filter: repo.In(cond.Values),
-		})
-	}
+	appendInFilter(findParams, fs, userFilterFieldRole, query.FieldRoleID)
+	appendInFilter(findParams, fs, userFilterFieldGroup, query.FieldGroupID)
 
 	for _, cond := range fs.Field(userFilterFieldCreatedAt) {
 		from, to, ok := cond.DateRange(now)
@@ -128,5 +112,20 @@ func applyUserFilterSet(now time.Time, fs filterq.FilterSet, findParams *query.F
 			query.Filter{Column: query.FieldCreatedAt, Filter: repo.Gte(from)},
 			query.Filter{Column: query.FieldCreatedAt, Filter: repo.Lt(to.AddDate(0, 0, 1))},
 		)
+	}
+}
+
+// appendInFilter applies an OpIs condition (one or more selected values) from
+// fieldKey as an "IN" filter on column, shared by the role and group blocks
+// in applyUserFilterSet since both follow the exact same shape.
+func appendInFilter(findParams *query.FindParams, fs filterq.FilterSet, fieldKey string, column query.Field) {
+	for _, cond := range fs.Field(fieldKey) {
+		if cond.Op != filterq.OpIs {
+			continue
+		}
+		findParams.Filters = append(findParams.Filters, query.Filter{
+			Column: column,
+			Filter: repo.In(cond.Values),
+		})
 	}
 }

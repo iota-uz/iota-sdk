@@ -3,6 +3,7 @@ package users
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
 
 	icons "github.com/iota-uz/icons/phosphor"
@@ -230,9 +231,13 @@ templ UserRow(user *viewmodels.User, rowProps *base.TableRowProps) {
 	}}
 	@base.TableRow(*rowProps) {
 		for i, cell := range cells {
+			{{
+			cellAttrs := templ.Attributes{"data-col": cols[i].Key()}
+			maps.Copy(cellAttrs, cell.Attrs())
+			}}
 			@base.TableCell(base.TableCellProps{
 				Classes: cell.Classes(),
-				Attrs:   cell.Attrs(),
+				Attrs:   cellAttrs,
 			}) {
 				@cell.Component(cols[i], false, true, templ.Attributes{})
 			}

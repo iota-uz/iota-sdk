@@ -10,6 +10,10 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/components/base"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/user"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/entities/permission"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/value_objects/internet"
+	"github.com/iota-uz/iota-sdk/modules/core/permissions"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
@@ -136,8 +140,11 @@ func TestUserCreatedEvent_OOBTarget(t *testing.T) {
 
 // TestBuildTableConfig_ActionGating verifies the "New user" action (folded
 // into a single cfg.AddActions call site after the sidebar removal) is
-// omitted entirely for a context with no UserCreate permission, and present
-// when permission is granted.
+// omitted entirely for a context with a user lacking UserCreate permission,
+// and present when permission is granted. composables.CanUser treats an
+// absent user as permitted (fail-open for internal/system callers), so this
+// deliberately exercises both branches with an explicit user in context
+// rather than relying on an empty context to mean "no permission".
 func TestBuildTableConfig_ActionGating(t *testing.T) {
 	t.Parallel()
 
@@ -146,12 +153,19 @@ func TestBuildTableConfig_ActionGating(t *testing.T) {
 		Page:    1,
 		PerPage: 25,
 	}
-
 	req := httptest.NewRequest("GET", "/users", nil)
-	cfg := BuildTableConfig(usersTestCtx(), props, req)
 
-	require.Len(t, cfg.Rows, 1)
-	// The help link action is always present regardless of permission; a
-	// permitted "New user" button adds a second action.
-	assert.GreaterOrEqual(t, len(cfg.Actions), 1)
+	email, err := internet.NewEmail("action-gating@example.com")
+	require.NoError(t, err)
+
+	noPermUser := user.New("No", "Perm", email, user.UILanguageEN)
+	cfgNoPerm := BuildTableConfig(composables.WithUser(usersTestCtx(), noPermUser), props, req)
+	require.Len(t, cfgNoPerm.Rows, 1)
+	// Only the help link action is present without UserCreate.
+	assert.Len(t, cfgNoPerm.Actions, 1)
+
+	permUser := user.New("Has", "Perm", email, user.UILanguageEN, user.WithPermissions([]permission.Permission{permissions.UserCreate}))
+	cfgWithPerm := BuildTableConfig(composables.WithUser(usersTestCtx(), permUser), props, req)
+	// Help link + "New user" button are both present with UserCreate.
+	assert.Len(t, cfgWithPerm.Actions, 2)
 }
