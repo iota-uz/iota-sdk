@@ -5,10 +5,37 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/xuri/excelize/v2"
 )
+
+// decimalNumberRe matches a whole-cell plain decimal number (single dot, digits
+// only) — e.g. "14773814.00". It deliberately excludes dates ("21.01.2026", two
+// dots) and space/letter-formatted money ("14 773 814.00 UZS"), so those are
+// left untouched by the comma conversion.
+var decimalNumberRe = regexp.MustCompile(`^-?\d+\.\d+$`)
+
+// toDecimalComma renders numeric values with a comma decimal separator so
+// locale-neutral Excel (ru/uz) shows "14773814,00". Go floats become 2-dp comma
+// strings; plain decimal-number strings (pgx numeric columns arrive as text to
+// avoid precision loss) have their dot swapped. Everything else passes through.
+func toDecimalComma(v interface{}) interface{} {
+	switch f := v.(type) {
+	case float64:
+		return strings.Replace(strconv.FormatFloat(f, 'f', 2, 64), ".", ",", 1)
+	case float32:
+		return strings.Replace(strconv.FormatFloat(float64(f), 'f', 2, 32), ".", ",", 1)
+	case string:
+		if decimalNumberRe.MatchString(f) {
+			return strings.Replace(f, ".", ",", 1)
+		}
+	}
+	return v
+}
 
 // Exporter exports data to Excel format
 type Exporter interface {
@@ -235,7 +262,11 @@ func (e *ExcelExporter) ExportToWriter(ctx context.Context, w io.Writer, datasou
 		cellRef, _ := excelize.CoordinatesToCellName(1, rowNum)
 		cells := make([]interface{}, len(row))
 		for i, v := range row {
-			cells[i] = streamCell(convertPgxValue(v), floatStyle, timeStyle, intStyle)
+			val := convertPgxValue(v)
+			if e.options != nil && e.options.DecimalComma {
+				val = toDecimalComma(val)
+			}
+			cells[i] = streamCell(val, floatStyle, timeStyle, intStyle)
 		}
 		if err := sw.SetRow(cellRef, cells); err != nil {
 			return fmt.Errorf("failed to write row %d: %w", rowNum, err)
@@ -296,6 +327,11 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 		// Format value based on type
 		formattedValue := formatValue(normalizedValue, e.options)
 
+		decimalComma := e.options != nil && e.options.DecimalComma
+		if decimalComma {
+			formattedValue = toDecimalComma(formattedValue)
+		}
+
 		if err := f.SetCellValue(sheet, cell, formattedValue); err != nil {
 			return err
 		}
@@ -307,6 +343,11 @@ func (e *ExcelExporter) writeRow(f *excelize.File, sheet string, rowNum int, row
 				return err
 			}
 		case float64, float32:
+			// In comma mode the float is now a text cell; a numeric NumFmt would
+			// be a no-op, so skip it.
+			if decimalComma {
+				break
+			}
 			if err := applyCellNumFmt(f, sheet, cell, 2); err != nil { // 0.00
 				return err
 			}
