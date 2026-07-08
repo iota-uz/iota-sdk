@@ -1021,6 +1021,20 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 			if (!el || !w) {
 				return;
 			}
+			// Bail if the chart was destroyed after this callback was queued.
+			// The total-badge JS is bound to mounted/updated/legendClick and
+			// defers via setTimeout(update, 0|80); a re-render (filter/drill
+			// HTMX swap, or the two-pass readiness render) can destroy the
+			// chart inside that window. Apex's Destroy.clear() nulls ctx.series
+			// but leaves ctx.el/ctx.w intact, so the guard above cannot catch a
+			// dead context — the pending timer would then call
+			// ctx.isSeriesHidden() -> this.series.isSeriesHidden -> null deref
+			// ("Cannot read properties of null (reading 'isSeriesHidden')").
+			// ctx.series is truthy on every live (mounted/updated) chart, so it
+			// is the reliable destroyed-marker.
+			if (!ctx.series) {
+				return;
+			}
 			if (window.getComputedStyle && window.getComputedStyle(el).position === 'static') {
 				el.style.position = 'relative';
 			}
