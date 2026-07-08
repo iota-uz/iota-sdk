@@ -37,24 +37,29 @@ var paymentMethodPalette = map[string]string{
 	"CASH":   "#475569",
 }
 
+// genericPalette is the Lens design system v2 categorical palette. The lead
+// hex intentionally matches pkg/lens/theme.Accent500 (theme must not import
+// color and vice versa, so the literal is duplicated here; keep in sync).
 var genericPalette = []string{
 	"#2563EB",
-	"#DC2626",
-	"#16A34A",
+	"#0D9488",
 	"#D97706",
 	"#7C3AED",
-	"#0F766E",
-	"#DB2777",
-	"#0891B2",
-	"#CA8A04",
-	"#9333EA",
-	"#EA580C",
-	"#4F46E5",
-	"#BE123C",
+	"#DC2626",
 	"#0284C7",
-	"#15803D",
-	"#7C2D12",
+	"#DB2777",
+	"#65A30D",
+	"#9333EA",
+	"#64748B",
 }
+
+// Neutral is reserved for "Others" buckets so aggregated remainders read as
+// de-emphasized rather than as another category.
+const Neutral = "#94A3B8"
+
+// Accent returns the primary Lens accent color (pkg/lens/theme.Accent500;
+// literal duplicated to avoid a theme<->color import cycle).
+func Accent() string { return "#2563EB" }
 
 var productAliases = map[string]string{
 	"3":               "OSAGO",
@@ -98,20 +103,28 @@ func Palette(scope string, keys []string) []string {
 	return colors
 }
 
-func Sequence(scope string, size int) []string {
-	if size <= 0 {
+// Categorical returns the first n categorical palette colors, cycling through
+// the palette when n exceeds its length. Every caller gets the same sequence
+// starting at index 0, so all dashboards share one palette.
+func Categorical(n int) []string {
+	if n <= 0 {
 		return nil
 	}
-	scope = normalizeToken(scope)
-	if scope == "" {
-		scope = "DEFAULT"
-	}
-	offset := stableIndex(scope, len(genericPalette))
-	colors := make([]string, size)
-	for i := 0; i < size; i++ {
-		colors[i] = genericPalette[(offset+i)%len(genericPalette)]
+	colors := make([]string, n)
+	for i := 0; i < n; i++ {
+		colors[i] = genericPalette[i%len(genericPalette)]
 	}
 	return colors
+}
+
+// Sequence returns size categorical colors. The scope parameter is ignored:
+// the historical FNV scope-hash offset made different dashboards start at
+// different palette positions, which is exactly the inconsistency the v2
+// design system removes.
+//
+// Deprecated: use Categorical.
+func Sequence(_ string, size int) []string {
+	return Categorical(size)
 }
 
 func CanonicalProductKey(key string) string {

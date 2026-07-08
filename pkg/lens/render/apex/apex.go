@@ -52,10 +52,9 @@ func OptionsWithHeight(panelSpec panel.Spec, panelResult *runtime.PanelResult, h
 }
 
 func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverride string) charts.ChartOptions {
-	fontFamily := "'Inter', 'Helvetica Neue', Arial, sans-serif"
-	axisFontSize := "11px"
-	axisColor := "#9ca3af" // gray-400
-	gridColor := "#f0f0f3" // subtle neutral grid
+	fontFamily := apexTheme.FontFamily
+	axisFontSize := apexTheme.AxisFontSize
+	axisColor := apexTheme.AxisLabelColor
 
 	options := charts.ChartOptions{
 		Chart: charts.ChartConfig{
@@ -67,11 +66,15 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		DataLabels: &charts.DataLabels{Enabled: false},
 		Colors:     panelColors(panelSpec, panelResult),
 		Grid: &charts.GridConfig{
-			BorderColor: gridColor,
-			Padding:     &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
+			BorderColor: apexTheme.GridColor,
+			// Horizontal gridlines only; horizontal_bar panels invert this below.
+			XAxis:   &charts.GridAxisConfig{Lines: &charts.GridLinesConfig{Show: mapping.BoolPointer(false)}},
+			YAxis:   &charts.GridAxisConfig{Lines: &charts.GridLinesConfig{Show: mapping.BoolPointer(true)}},
+			Padding: &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
 		},
 		Tooltip: &charts.TooltipConfig{
-			Theme:     mapping.Pointer("dark"),
+			Theme:     mapping.Pointer("light"),
+			CSSClass:  mapping.Pointer(apexTheme.TooltipCSSClass),
 			Shared:    mapping.Pointer(true),
 			Intersect: mapping.BoolPointer(false),
 			Style:     &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
@@ -84,6 +87,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 					FontSize:   &axisFontSize,
 					FontFamily: &fontFamily,
 					Colors:     axisColor,
+					CSSClass:   mapping.Pointer(apexTheme.NumeralCSSClass),
 				},
 			},
 			AxisBorder: &charts.XAxisBorderConfig{Show: mapping.Pointer(false)},
@@ -96,6 +100,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 						FontSize:   &axisFontSize,
 						FontFamily: &fontFamily,
 						Colors:     axisColor,
+						CSSClass:   mapping.Pointer(apexTheme.NumeralCSSClass),
 					},
 				},
 			},
@@ -121,27 +126,21 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		}
 		options.Labels = labels
 		options.Series = values
-		if panelSpec.Kind == panel.KindDonut {
-			size := "72%"
+		if panelSpec.Kind == panel.KindDonut || panelSpec.Kind == panel.KindPie {
 			position := charts.LegendPositionBottom
-			legendFontSize := "11px"
-			options.Legend = &charts.LegendConfig{
-				Position:   &position,
-				FontSize:   &legendFontSize,
-				FontFamily: &fontFamily,
-				ItemMargin: &charts.LegendItemMargin{Horizontal: mapping.Pointer(6), Vertical: mapping.Pointer(2)},
+			options.Legend = &charts.LegendConfig{Position: &position}
+			applyThemedLegendDefaults(options.Legend)
+			// White hairline between slices so adjacent categories separate
+			// on the light card surface.
+			options.Stroke = &charts.StrokeConfig{
+				Show:   mapping.Pointer(true),
+				Width:  2,
+				Colors: []string{apexTheme.Surface},
 			}
-			options.PlotOptions = &charts.PlotOptions{Pie: &charts.PieDonutConfig{Donut: &charts.DonutSpecifics{Size: &size}}}
 		}
-		if panelSpec.Kind == panel.KindPie {
-			position := charts.LegendPositionBottom
-			legendFontSize := "11px"
-			options.Legend = &charts.LegendConfig{
-				Position:   &position,
-				FontSize:   &legendFontSize,
-				FontFamily: &fontFamily,
-				ItemMargin: &charts.LegendItemMargin{Horizontal: mapping.Pointer(6), Vertical: mapping.Pointer(2)},
-			}
+		if panelSpec.Kind == panel.KindDonut {
+			size := donutSize
+			options.PlotOptions = &charts.PlotOptions{Pie: &charts.PieDonutConfig{Donut: &charts.DonutSpecifics{Size: &size}}}
 		}
 		if panelSpec.Kind == panel.KindGauge {
 			startAngle := -135
@@ -155,7 +154,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 				},
 			}
 		}
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
 		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
@@ -182,24 +181,39 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
 		horizontal := true
-		options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{Horizontal: &horizontal, BorderRadius: 4, ColumnWidth: "50%"}}
+		options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{
+			Horizontal:              &horizontal,
+			BorderRadius:            barBorderRadius,
+			BorderRadiusApplication: mapping.Pointer("end"),
+			BarHeight:               mapping.Pointer(horizontalBarHeight),
+		}}
+		// Bars run along X, so only vertical (x-axis) gridlines carry signal.
+		if options.Grid != nil {
+			options.Grid.XAxis = &charts.GridAxisConfig{Lines: &charts.GridLinesConfig{Show: mapping.BoolPointer(true)}}
+			options.Grid.YAxis = &charts.GridAxisConfig{Lines: &charts.GridLinesConfig{Show: mapping.BoolPointer(false)}}
+		}
 		ensureHorizontalBarLabelPadding(&options)
 	}
 	if panelSpec.Kind == panel.KindBar || panelSpec.Kind == panel.KindStackedBar {
 		if options.PlotOptions == nil {
-			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{BorderRadius: 4, ColumnWidth: "48%"}}
+			options.PlotOptions = &charts.PlotOptions{Bar: &charts.BarConfig{
+				BorderRadius:            barBorderRadius,
+				BorderRadiusApplication: mapping.Pointer("end"),
+				ColumnWidth:             adaptiveColumnWidth(len(options.XAxis.Categories)),
+			}}
 		}
 	}
 	if options.PlotOptions != nil && options.PlotOptions.Bar != nil && usesDistributedBarColors(panelSpec, panelResult) {
 		options.PlotOptions.Bar.Distributed = mapping.Pointer(true)
 	}
+	applyBarHoverStates(&options, panelSpec)
 	if panelSpec.Kind == panel.KindTimeSeries {
-		curve := charts.StrokeCurveSmooth
+		curve := charts.StrokeCurveStraight
 		options.Stroke = &charts.StrokeConfig{
 			Curve:   curve,
 			Width:   2,
@@ -210,21 +224,12 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			StrokeWidth: 0,
 			Hover:       &charts.MarkerHover{SizeOffset: mapping.Pointer(5)},
 		}
-		options.Fill = &charts.FillConfig{
-			Type:    "gradient",
-			Opacity: 1,
-			Gradient: &charts.FillGradient{
-				ShadeIntensity: mapping.Pointer(1.0),
-				OpacityFrom:    mapping.Pointer(0.25),
-				OpacityTo:      mapping.Pointer(0.05),
-				Stops:          []float64{0, 90, 100},
-			},
-		}
+		// Pure lines: no gradient area wash under the stroke.
+		options.Fill = &charts.FillConfig{Type: "solid", Opacity: 1}
 	}
 	applyCategoryLabelFormatting(&options, panelSpec)
 	if panelSpec.ShowLegend {
 		position := charts.LegendPositionBottom
-		legendFontSize := "11px"
 		if options.Legend == nil {
 			options.Legend = &charts.LegendConfig{}
 		}
@@ -232,30 +237,37 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		if options.Legend.Position == nil {
 			options.Legend.Position = &position
 		}
-		if options.Legend.FontSize == nil {
-			options.Legend.FontSize = &legendFontSize
-		}
-		if options.Legend.FontFamily == nil {
-			options.Legend.FontFamily = &fontFamily
-		}
-		if options.Legend.ItemMargin == nil {
-			options.Legend.ItemMargin = &charts.LegendItemMargin{Horizontal: mapping.Pointer(8), Vertical: mapping.Pointer(2)}
-		}
+		applyThemedLegendDefaults(options.Legend)
 	}
 	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
 	tooltipFormatter := applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
+	if panelSpec.Kind == panel.KindDonut {
+		applyDonutTotalLabels(&options, panelResult.Locale, tooltipFormatter)
+	}
+	if panelSpec.Kind == panel.KindDonut || panelSpec.Kind == panel.KindPie {
+		if options.Legend != nil && options.Legend.Formatter == "" {
+			options.Legend.Formatter = pieLegendFormatterJS(panelResult.Locale, tooltipFormatter)
+		}
+	}
 	var chartEvents charts.ChartEvents
 	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
 		chartEvents.DataPointMouseEnter = syncTooltip
 	}
 	if panelSpec.Action != nil {
 		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
+	} else if panelSpec.DrillHierarchy != nil {
+		chartEvents.DataPointSelection = buildDrillHierarchyJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
+		// Mounted re-derives the same cfg blob so the shared JS state machine can
+		// fast-forward a freshly-mounted chart (e.g. the lazy fullscreen instance)
+		// to whatever zoom level its sibling in the same rerender scope is at,
+		// without waiting for a click.
+		chartEvents.Mounted = buildDrillHierarchyMountJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
 	}
-	if panelSpec.Kind == panel.KindStackedBar {
-		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter)
-		// The stacked-bar total badge floats at the top-left of the plot. Reserve a
-		// header band above the plot so it clears the top y-axis label (and the
-		// top-right toolbar/export menu has room too).
+	if panelSpec.Kind == panel.KindStackedBar || panelSpec.ShowTotalBadge {
+		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter, staticTotalBadgeText(panelSpec, panelResult.Locale))
+		// The total badge floats at the top-right of the plot (the drill-back
+		// overlay owns the top-left). Reserve a header band above the plot so it
+		// clears the top y-axis label and the badge itself.
 		if options.Grid != nil && options.Grid.Padding != nil {
 			options.Grid.Padding.Top = mapping.Pointer(34)
 		}
@@ -265,6 +277,168 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
 	return options
+}
+
+// applyBarHoverStates disables ApexCharts' own hover filter on bar panels.
+// Under a shared tooltip Apex applies the hover state to EVERY series at the
+// hovered category (all bars of the year darken together), which reads as a
+// group highlight rather than "this is the bar you're on". The per-bar
+// highlight is instead a plain CSS :hover brightness on .apexcharts-bar-area
+// (see DashboardScripts in render/templ/dashboard.templ), which only ever
+// matches the single path under the pointer. The active (clicked) state keeps
+// an explicit darken so drill clicks give press feedback.
+func applyBarHoverStates(options *charts.ChartOptions, panelSpec panel.Spec) {
+	switch panelSpec.Kind {
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindPie, panel.KindDonut, panel.KindGauge,
+		panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
+		return
+	default:
+		return
+	}
+	if options.States != nil {
+		return
+	}
+	options.States = &charts.StatesConfig{
+		Hover: &charts.StateFilterConfig{Filter: &charts.StateFilter{
+			Type: mapping.Pointer("none"),
+		}},
+		Active: &charts.StateActiveConfig{Filter: &charts.StateFilter{
+			Type:  mapping.Pointer("darken"),
+			Value: mapping.Pointer(0.2),
+		}},
+	}
+}
+
+// applyThemedLegendDefaults fills unset legend styling with the Lens v2
+// legend look: 11px muted labels, small square markers, airy item margins.
+// Explicitly-set values are left alone.
+func applyThemedLegendDefaults(legend *charts.LegendConfig) {
+	if legend == nil {
+		return
+	}
+	if legend.FontSize == nil {
+		legend.FontSize = mapping.Pointer(apexTheme.LegendFontSize)
+	}
+	if legend.FontFamily == nil {
+		legend.FontFamily = mapping.Pointer(apexTheme.FontFamily)
+	}
+	if legend.Labels == nil {
+		legend.Labels = &charts.LegendLabelsConfig{Colors: apexTheme.LegendColor}
+	}
+	if legend.Markers == nil {
+		// mapping.Pointer(0) would collapse to nil (zero value) and Apex's
+		// default marker stroke (1px) would leak back in.
+		markerStrokeWidth := 0
+		legend.Markers = &charts.LegendMarkersConfig{
+			Size:        mapping.Pointer(5),
+			StrokeWidth: &markerStrokeWidth,
+			Shape:       mapping.Pointer("square"),
+		}
+	}
+	if legend.ItemMargin == nil {
+		legend.ItemMargin = &charts.LegendItemMargin{Horizontal: mapping.Pointer(8), Vertical: mapping.Pointer(4)}
+	}
+}
+
+// applyDonutTotalLabels enables the donut's hollow-center labels: the
+// localized "Total" caption plus the summed value formatted with the panel's
+// own tooltip formatter (falling back to a locale-aware integer).
+func applyDonutTotalLabels(options *charts.ChartOptions, locale string, tooltipFormatter templ.JSExpression) {
+	if options == nil || options.PlotOptions == nil || options.PlotOptions.Pie == nil || options.PlotOptions.Pie.Donut == nil {
+		return
+	}
+	locale = normalizedChartLocale(locale)
+	valueFormatter := "null"
+	if tooltipFormatter != "" {
+		valueFormatter = "(" + string(tooltipFormatter) + ")"
+	}
+	show := true
+	totalFormatter := templ.JSExpression(fmt.Sprintf(`function(w) {
+		const fmt = %s;
+		const locale = %q;
+		const totals = (w && w.globals && w.globals.seriesTotals) || [];
+		let total = 0;
+		totals.forEach(function(value) {
+			const number = Number(value);
+			if (Number.isFinite(number)) {
+				total += number;
+			}
+		});
+		if (fmt) {
+			return fmt(total);
+		}
+		return Math.round(total).toLocaleString(locale);
+	}`, valueFormatter, locale))
+	sliceFormatter := templ.JSExpression(fmt.Sprintf(`function(value) {
+		const fmt = %s;
+		const locale = %q;
+		const number = Number(value);
+		if (!Number.isFinite(number)) {
+			return value == null ? '' : String(value);
+		}
+		if (fmt) {
+			return fmt(number);
+		}
+		return Math.round(number).toLocaleString(locale);
+	}`, valueFormatter, locale))
+	options.PlotOptions.Pie.Donut.Labels = &charts.Labels{
+		Show: &show,
+		Name: &charts.LabelNameValue{
+			Show:       &show,
+			FontSize:   mapping.Pointer(apexTheme.LegendFontSize),
+			FontFamily: mapping.Pointer(apexTheme.FontFamily),
+			Color:      mapping.Pointer(apexTheme.LegendColor),
+		},
+		Value: &charts.LabelNameValue{
+			Show:       &show,
+			FontSize:   mapping.Pointer("18px"),
+			FontFamily: mapping.Pointer(apexTheme.FontFamily),
+			FontWeight: mapping.Pointer("600"),
+			Color:      mapping.Pointer(apexTheme.TextStrong),
+			Formatter:  sliceFormatter,
+		},
+		Total: &charts.LabelTotal{
+			Show:       &show,
+			Label:      mapping.Pointer(localizedTotalLabel(locale)),
+			FontSize:   mapping.Pointer(apexTheme.LegendFontSize),
+			FontFamily: mapping.Pointer(apexTheme.FontFamily),
+			FontWeight: mapping.Pointer("500"),
+			Color:      mapping.Pointer(apexTheme.LegendColor),
+			Formatter:  totalFormatter,
+		},
+	}
+}
+
+// pieLegendFormatterJS renders pie/donut legend entries as
+// "label · value (pct%)" using the panel's tooltip formatter for the value.
+func pieLegendFormatterJS(locale string, tooltipFormatter templ.JSExpression) templ.JSExpression {
+	locale = normalizedChartLocale(locale)
+	valueFormatter := "null"
+	if tooltipFormatter != "" {
+		valueFormatter = "(" + string(tooltipFormatter) + ")"
+	}
+	return templ.JSExpression(fmt.Sprintf(`function(seriesName, opts) {
+		const fmt = %s;
+		const locale = %q;
+		const w = opts && opts.w;
+		const index = opts && typeof opts.seriesIndex === 'number' ? opts.seriesIndex : -1;
+		const series = (w && w.globals && w.globals.series) || [];
+		const raw = Number(series[index]);
+		if (!Number.isFinite(raw)) {
+			return seriesName;
+		}
+		let total = 0;
+		series.forEach(function(value) {
+			const number = Number(value);
+			if (Number.isFinite(number)) {
+				total += number;
+			}
+		});
+		const formatted = fmt ? fmt(raw) : Math.round(raw).toLocaleString(locale);
+		const pct = total > 0 ? (raw / total) * 100 : 0;
+		return seriesName + ' · ' + formatted + ' (' + pct.toFixed(1) + '%%)';
+	}`, valueFormatter, locale))
 }
 
 func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
@@ -277,12 +451,13 @@ func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
 		panel.KindBar,
 		panel.KindHorizontalBar,
 		panel.KindStackedBar,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		// Responsive defaults apply to cartesian and table-like layouts.
 	}
 
@@ -557,7 +732,8 @@ func buildLogarithmicAxisPlan(series []charts.Series, base int) (logarithmicAxis
 	}
 	logBase := math.Log(float64(base))
 	minExponent := int(math.Floor(math.Log(minPositive) / logBase))
-	maxExponent := int(math.Ceil(math.Log(maxPositive) / logBase))
+	rawMaxExponent := math.Log(maxPositive) / logBase
+	maxExponent := int(math.Ceil(rawMaxExponent))
 	if maxExponent <= minExponent {
 		maxExponent = minExponent + 1
 	}
@@ -571,6 +747,30 @@ func buildLogarithmicAxisPlan(series []charts.Series, base int) (logarithmicAxis
 	tickAmount := (maxTickExponent - minExponent) / step
 	if tickAmount < 1 {
 		tickAmount = 1
+	}
+	// Rounding the axis top up to a full decade can leave most of a decade
+	// empty above the tallest bar (e.g. a 256-billion max stretches the axis
+	// to 1 trillion). When labels sit on every decade anyway, cap the axis at
+	// the next half-decade (×√base) instead: gridlines land on half-decade
+	// steps, the label formatter blanks the non-decade ones, and Apex's tick
+	// generator stays exact because the range remains a multiple of stepSize.
+	if step == 1 {
+		halfMax := math.Ceil(rawMaxExponent*2) / 2
+		// Keep a sliver of headroom so the tallest bar never touches the
+		// axis top (0.04 of a decade ≈ 10% in value terms).
+		if halfMax-rawMaxExponent < 0.04 {
+			halfMax += 0.5
+		}
+		if halfMax < float64(maxTickExponent) && halfMax > float64(minExponent) {
+			halfTicks := int(math.Round((halfMax - float64(minExponent)) * 2))
+			return logarithmicAxisPlan{
+				Base:        base,
+				MinExponent: float64(minExponent),
+				MaxExponent: halfMax,
+				Step:        0.5,
+				TickAmount:  halfTicks,
+			}, true
+		}
 	}
 	return logarithmicAxisPlan{
 		Base:        base,
@@ -627,6 +827,9 @@ func wrapLogarithmicAxisFormatter(formatter templ.JSExpression, locale string, p
 	if formatter != "" {
 		inner = "(" + string(formatter) + ")"
 	}
+	// Labels always sit on whole decades: a sub-decade grid step (the
+	// half-decade axis cap) only adds unlabeled gridlines.
+	labelStep := math.Max(1, plan.Step)
 	return templ.JSExpression(fmt.Sprintf(`function(value) {
 		const scaled = Number(value);
 		if (!Number.isFinite(scaled)) {
@@ -644,7 +847,7 @@ func wrapLogarithmicAxisFormatter(formatter templ.JSExpression, locale string, p
 			return %s(normalized);
 		}
 		return Math.round(normalized).toLocaleString(%q);
-	}`, plan.MinExponent, plan.Step, plan.Base, inner, inner, locale))
+	}`, plan.MinExponent, labelStep, plan.Base, inner, inner, locale))
 }
 
 func wrapLogarithmicTooltipFormatter(formatter templ.JSExpression, locale string, base int) templ.JSExpression {
@@ -697,7 +900,7 @@ func chartValueFormatters(spec *format.Spec, locale string) (templ.JSExpression,
 
 func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) templ.JSExpression {
 	locale = normalizedChartLocale(locale)
-	label := stackedBarTotalLabel(locale)
+	label := localizedTotalLabel(locale)
 	valueFormatter := "null"
 	if formatter != "" {
 		valueFormatter = "(" + string(formatter) + ")"
@@ -706,6 +909,9 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 		const valueFormatter = %s;
 		const locale = %q;
 		const totalLabel = %q;
+		const fallbackMarkerColor = %q;
+		const dividerColor = %q;
+		const totalTextColor = %q;
 		const globals = (w && w.globals) || {};
 		const names = globals.seriesNames || [];
 		const colors = globals.colors || [];
@@ -751,7 +957,7 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 				total += number;
 				hasTotal = true;
 			}
-			const color = colors[seriesIndex] || '#9ca3af';
+			const color = colors[seriesIndex] || fallbackMarkerColor;
 			const name = names[seriesIndex] || '';
 			return '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;">'
 				+ '<span class="apexcharts-tooltip-marker" style="background-color:' + escapeHTML(color) + ';"></span>'
@@ -761,28 +967,40 @@ func stackedBarTooltipWithTotal(locale string, formatter templ.JSExpression) tem
 				+ '</div></div>';
 		}).join('');
 		const totalRow = hasTotal
-			? '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;font-weight:600;border-top:1px solid rgba(255,255,255,0.18);margin-top:4px;padding-top:4px;">'
+			? '<div class="apexcharts-tooltip-series-group" style="display:flex;align-items:center;font-weight:600;color:' + totalTextColor + ';border-top:1px solid ' + dividerColor + ';margin-top:4px;padding-top:4px;">'
 				+ '<span class="apexcharts-tooltip-marker" style="background-color:transparent;"></span>'
 				+ '<div class="apexcharts-tooltip-text"><div class="apexcharts-tooltip-y-group"><span class="apexcharts-tooltip-text-y-label">' + escapeHTML(totalLabel) + ': </span>'
 				+ '<span class="apexcharts-tooltip-text-y-value">' + escapeHTML(formatValue(total, -1)) + '</span></div></div></div>'
 			: '';
 		return '<div class="apexcharts-tooltip-title">' + escapeHTML(categories[dataPointIndex] || '') + '</div>' + rows + totalRow;
-	}`, valueFormatter, locale, label))
+	}`, valueFormatter, locale, label, apexTheme.TextFaint, apexTheme.TooltipDividerColor, apexTheme.TextStrong))
 }
 
-func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression) {
+// staticTotalBadgeText formats TotalBadgeValue server-side with the panel's
+// own formatter. The client-side path cannot be reused: on log-scaled panels
+// both the plotted points (floored exponents) and the tooltip formatter
+// (inverse log transform) operate in exponent space, so neither summing the
+// points nor running the raw total through that formatter yields the total.
+func staticTotalBadgeText(panelSpec panel.Spec, locale string) string {
+	if panelSpec.TotalBadgeValue == nil {
+		return ""
+	}
+	return format.Apply(panelSpec.Formatter, *panelSpec.TotalBadgeValue, normalizedChartLocale(locale), "")
+}
+
+func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, formatter templ.JSExpression, staticTotalText string) {
 	if events == nil {
 		return
 	}
-	totalBadge := stackedBarTotalBadgeJS(locale, formatter)
+	totalBadge := stackedBarTotalBadgeJS(locale, formatter, staticTotalText)
 	events.Mounted = totalBadge
 	events.Updated = totalBadge
 	events.LegendClick = totalBadge
 }
 
-func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.JSExpression {
+func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticTotalText string) templ.JSExpression {
 	locale = normalizedChartLocale(locale)
-	label := stackedBarTotalLabel(locale)
+	label := localizedTotalLabel(locale)
 	valueFormatter := "null"
 	if formatter != "" {
 		valueFormatter = "(" + string(formatter) + ")"
@@ -791,6 +1009,11 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 		const valueFormatter = %s;
 		const locale = %q;
 		const totalLabel = %q;
+		const staticTotalText = %q;
+		const chipBorderColor = %q;
+		const chipBackground = %q;
+		const chipTextColor = %q;
+		const chipFontFamily = %q;
 		const update = () => {
 			const ctx = chartContext || null;
 			const el = ctx && ctx.el ? ctx.el : null;
@@ -806,19 +1029,50 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 				badge = document.createElement('div');
 				badge.setAttribute('data-lens-stacked-total', 'true');
 				badge.style.position = 'absolute';
-				badge.style.top = '6px';
-				badge.style.left = '12px';
+				// Anchored top-right: the drill-back ("← Back") overlay owns the
+				// top-left corner, the y-axis labels live on the left, and the
+				// legend sits at the bottom. The vertical offset is (re)computed
+				// on every update below so the badge drops clear of the
+				// ApexCharts toolbar when one is present.
+				badge.style.right = '12px';
 				badge.style.zIndex = '5';
 				badge.style.padding = '4px 8px';
 				badge.style.borderRadius = '6px';
-				badge.style.border = '1px solid rgba(148, 163, 184, 0.35)';
-				badge.style.background = 'rgba(255, 255, 255, 0.92)';
+				badge.style.border = '1px solid ' + chipBorderColor;
+				badge.style.background = chipBackground;
 				badge.style.boxShadow = '0 1px 2px rgba(15, 23, 42, 0.08)';
-				badge.style.color = '#334155';
-				badge.style.font = '600 12px Inter, Helvetica Neue, Arial, sans-serif';
+				badge.style.color = chipTextColor;
+				badge.style.fontWeight = '600';
+				badge.style.fontSize = '12px';
+				badge.style.fontFamily = chipFontFamily;
 				badge.style.lineHeight = '16px';
 				badge.style.pointerEvents = 'none';
 				el.appendChild(badge);
+			}
+			// In fullscreen the chart mounts with the ApexCharts toolbar (the
+			// download / zoom "hamburger" menu), which Apex also anchors to the
+			// top-right — this badge's corner. The earlier fix that moved the
+			// badge here from the top-left (to clear the drill-back overlay)
+			// re-introduced the collision against that toolbar. Rather than
+			// relocate to yet another fixed corner, measure the toolbar and drop
+			// the badge just below it whenever a visible one is present; the
+			// in-page chart disables the toolbar, so the badge stays at the top.
+			// Recomputed each update because Apex mounts the toolbar after the
+			// first tick and the fullscreen instance mounts lazily.
+			const toolbar = el.querySelector('.apexcharts-toolbar');
+			let badgeTop = 6;
+			if (toolbar) {
+				const toolbarStyle = window.getComputedStyle ? window.getComputedStyle(toolbar) : null;
+				const toolbarVisible = !toolbarStyle || (toolbarStyle.display !== 'none' && toolbarStyle.visibility !== 'hidden');
+				const toolbarHeight = toolbar.offsetHeight || 0;
+				if (toolbarVisible && toolbarHeight > 0) {
+					badgeTop = toolbarHeight + 10;
+				}
+			}
+			badge.style.top = badgeTop + 'px';
+			if (staticTotalText) {
+				badge.textContent = totalLabel + ': ' + staticTotalText;
+				return;
 			}
 			const globals = w.globals || {};
 			const seriesNames = globals.seriesNames || [];
@@ -876,7 +1130,7 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression) templ.J
 		};
 		setTimeout(update, 0);
 		setTimeout(update, 80);
-	}`, valueFormatter, locale, label))
+	}`, valueFormatter, locale, label, staticTotalText, apexTheme.Border, apexTheme.Surface, apexTheme.Text, apexTheme.FontFamily))
 }
 
 func normalizedChartLocale(locale string) string {
@@ -886,7 +1140,10 @@ func normalizedChartLocale(locale string) string {
 	return locale
 }
 
-func stackedBarTotalLabel(locale string) string {
+// localizedTotalLabel returns the "Total" caption used by the stacked-bar
+// tooltip/badge and the donut center label (this render layer only has a
+// locale string, not the page i18n localizer).
+func localizedTotalLabel(locale string) string {
 	switch {
 	case strings.HasPrefix(locale, "ru"):
 		return "Итого"
@@ -1166,13 +1423,14 @@ func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.
 		panel.KindTimeSeries,
 		panel.KindPie,
 		panel.KindDonut,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		return
 	}
 }
@@ -1348,7 +1606,7 @@ func chartType(kind panel.Kind) charts.ChartType {
 		return charts.DonutChartType
 	case panel.KindGauge:
 		return charts.RadialBarChartType
-	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
+	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
 		return charts.BarChartType
 	}
 	return charts.BarChartType
@@ -1387,7 +1645,13 @@ func panelColors(panelSpec panel.Spec, panelResult *runtime.PanelResult) []strin
 	if len(panelSpec.Colors) > 0 {
 		return panelSpec.Colors
 	}
-	return lenscolor.Sequence(string(panelSpec.Kind), fallbackPanelColorCount(panelSpec, panelResult))
+	count := fallbackPanelColorCount(panelSpec, panelResult)
+	if count <= 1 {
+		// Single-series charts with no explicit colors render in the one
+		// Lens accent, not a per-category rainbow.
+		return []string{lenscolor.Accent()}
+	}
+	return lenscolor.Categorical(count)
 }
 
 func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any, fields panel.FieldMapping) templ.JSExpression {
@@ -1399,7 +1663,7 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,
@@ -1407,7 +1671,8 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 	default:
 		return ""
 	}
@@ -1548,13 +1813,14 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		}
 	case panel.KindStat,
 		panel.KindTimeSeries,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		return 1
 	}
 	return 1
@@ -1573,7 +1839,7 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindStackedBar,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindPie,
 		panel.KindDonut,
 		panel.KindTable,
@@ -1581,7 +1847,8 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		return false
 	}
 	if hasSeries(rows, fields.Series.Name()) {
@@ -1590,10 +1857,12 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 	if panelSpec.Distributed {
 		return true
 	}
-	if len(rows) <= 1 {
-		return false
-	}
-	return strings.TrimSpace(panelSpec.ColorScale) == "" && len(panelSpec.Colors) == 0
+	// A semantic color scale assigns one color per category, which only
+	// renders when Apex distributes colors across data points. There is no
+	// implicit "multi-row single-series ⇒ rainbow" fallback: without an
+	// explicit Distributed flag or a semantic scale, a single-series bar
+	// stays single-colored (lens accent).
+	return strings.TrimSpace(panelSpec.ColorScale) != "" && !panelSpec.ColorField.Empty() && len(rows) > 1
 }
 
 func uniqueDisplayValues(rows []map[string]any, field string) []string {

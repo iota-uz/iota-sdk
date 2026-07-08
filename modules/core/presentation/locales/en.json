@@ -1083,11 +1083,17 @@
       "FullName": "Full name",
       "Roles": "Roles",
       "Email": "Email",
-      "AllGroups": "All Groups",
-      "AllRoles": "All Roles",
       "Filters": "Filters",
-      "ExpandFilters": "Expand filters",
-      "CollapseFilters": "Collapse filters"
+      "FilterRole": "Role",
+      "FilterGroup": "Group",
+      "FilterCreatedAt": "Created at",
+      "FilterUpdatedAt": "Updated at",
+      "FilterStatus": "Status",
+      "FilterStatusActive": "Active",
+      "FilterStatusBlocked": "Blocked",
+      "FilterType": "Type",
+      "FilterTypeRegular": "Regular",
+      "FilterTypeSystem": "System"
     },
     "Cards": {
       "PersonalInfo": "Personal information",

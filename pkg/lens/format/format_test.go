@@ -44,6 +44,34 @@ func TestApplyFormatsDatesInTimezone(t *testing.T) {
 	require.Equal(t, "2026-03-09 05:30", Apply(&spec, value, "", "Asia/Tashkent"))
 }
 
+func TestApplyFormatsAbbreviatedMoneyByLocale(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name     string
+		locale   string
+		input    any
+		expected string
+	}{
+		{name: "en_default", locale: "", input: 12500.0, expected: "12.50K UZS"},
+		{name: "en_explicit", locale: "en-US", input: 12500.0, expected: "12.50K UZS"},
+		{name: "ru_thousand", locale: "ru", input: 12500.0, expected: "12.50 тыс UZS"},
+		{name: "ru_million", locale: "ru", input: 3_400_000.0, expected: "3.40 млн UZS"},
+		{name: "uz_thousand", locale: "uz", input: 12500.0, expected: "12.50 ming UZS"},
+		{name: "uz_billion", locale: "uz", input: 2_100_000_000.0, expected: "2.10 mlrd UZS"},
+		{name: "uz_cyrl_thousand", locale: "uz-Cyrl", input: 12500.0, expected: "12.50 минг UZS"},
+		{name: "uz_cyrl_trillion", locale: "uz-Cyrl", input: 1_417_670_000_000.0, expected: "1.42 трлн UZS"},
+	}
+
+	spec := MoneyCompact("UZS")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, Apply(&spec, tc.input, tc.locale, ""))
+		})
+	}
+}
+
 func TestApplyFormatsMoneyWithLocaleSeparators(t *testing.T) {
 	t.Parallel()
 

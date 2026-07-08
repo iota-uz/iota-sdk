@@ -1,6 +1,7 @@
 package apex
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -8,10 +9,12 @@ import (
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/js"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	lenscolor "github.com/iota-uz/iota-sdk/pkg/lens/color"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/lens/theme"
 	"github.com/stretchr/testify/require"
 )
 
@@ -403,6 +406,11 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotEmpty(t, options.Tooltip.Custom)
 				custom := string(options.Tooltip.Custom.(templ.JSExpression))
 				require.Contains(t, custom, "Итого")
+				// Light-theme totals divider + strong text, not the old
+				// white-on-dark hairline.
+				require.Contains(t, custom, "rgba(15,23,42,0.08)")
+				require.NotContains(t, custom, "rgba(255,255,255,0.18)")
+				require.Contains(t, custom, theme.TextStrong)
 				require.Contains(t, custom, "collapsedSeriesIndices")
 				require.Contains(t, custom, "hiddenSeriesIndices")
 				require.Contains(t, custom, "hiddenSeriesNames")
@@ -421,6 +429,189 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotContains(t, badge, "collapsedSeries || []")
 				require.NotContains(t, badge, "hiddenSeries || []")
 				require.Contains(t, badge, "badge.textContent = totalLabel + ': ' + formatValue(total)")
+				require.Contains(t, badge, `const staticTotalText = "";`)
+			},
+		},
+		{
+			name: "grouped bar with server total renders static badge",
+			panelSpec: panel.Bar("premium-by-year", "Premium by Year", "premium").
+				CategoryField("category").
+				SeriesField("series").
+				ValueField("value").
+				Format(format.MoneyCompact("UZS")).
+				TotalBadgeValue(393069670322.96).
+				Build(),
+			panelResult: func() *runtime.PanelResult {
+				fr, err := frame.New("premium",
+					frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"2024", "2024"}},
+					frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL"}},
+					frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0, 5.0}},
+				)
+				require.NoError(t, err)
+				return &runtime.PanelResult{Frames: mustFrameSet(t, fr), Locale: "ru"}
+			}(),
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Chart.Events)
+				require.NotEmpty(t, options.Chart.Events.Mounted)
+				badge := string(options.Chart.Events.Mounted)
+				require.Contains(t, badge, "data-lens-stacked-total")
+				// The total is formatted server-side with the panel's own
+				// formatter — the client-side sum/formatter operate in
+				// (log-transformed) plot space and must not be used.
+				spec := format.MoneyCompact("UZS")
+				expected := format.Apply(&spec, 393069670322.96, "ru", "")
+				require.NotEmpty(t, expected)
+				require.Contains(t, badge, fmt.Sprintf("const staticTotalText = %q;", expected))
+				require.Contains(t, badge, "badge.textContent = totalLabel + ': ' + staticTotalText")
+			},
+		},
+		{
+			name: "apex theme tokens on axes grid and tooltip",
+			panelSpec: panel.Bar("sales-by-month", "Sales by Month", "sales").
+				CategoryField("category").
+				ValueField("value").
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, heightFrame)},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Tooltip)
+				require.NotNil(t, options.Tooltip.Theme)
+				require.Equal(t, "light", *options.Tooltip.Theme)
+				require.NotNil(t, options.Tooltip.CSSClass)
+				require.Equal(t, "lens-tooltip", *options.Tooltip.CSSClass)
+				require.NotNil(t, options.Grid)
+				require.Equal(t, theme.Divider, options.Grid.BorderColor)
+				require.NotNil(t, options.Grid.XAxis)
+				require.NotNil(t, options.Grid.XAxis.Lines)
+				require.False(t, *options.Grid.XAxis.Lines.Show)
+				require.NotNil(t, options.Grid.YAxis)
+				require.NotNil(t, options.Grid.YAxis.Lines)
+				require.True(t, *options.Grid.YAxis.Lines.Show)
+				require.NotNil(t, options.XAxis.Labels)
+				require.NotNil(t, options.XAxis.Labels.Style)
+				require.Equal(t, theme.TextMuted, options.XAxis.Labels.Style.Colors)
+				require.NotNil(t, options.XAxis.Labels.Style.CSSClass)
+				require.Equal(t, "lens-num", *options.XAxis.Labels.Style.CSSClass)
+				require.Len(t, options.YAxis, 1)
+				require.NotNil(t, options.YAxis[0].Labels)
+				require.NotNil(t, options.YAxis[0].Labels.Style)
+				require.Equal(t, theme.TextMuted, options.YAxis[0].Labels.Style.Colors)
+				require.NotNil(t, options.YAxis[0].Labels.Style.CSSClass)
+				require.Equal(t, "lens-num", *options.YAxis[0].Labels.Style.CSSClass)
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Bar)
+				require.Equal(t, 3, options.PlotOptions.Bar.BorderRadius)
+				require.NotNil(t, options.PlotOptions.Bar.BorderRadiusApplication)
+				require.Equal(t, "end", *options.PlotOptions.Bar.BorderRadiusApplication)
+				// One category → sparse layout keeps bars slim.
+				require.Equal(t, "32%", options.PlotOptions.Bar.ColumnWidth)
+			},
+		},
+		{
+			name: "adaptive column width widens with category count",
+			panelSpec: panel.Bar("monthly", "Monthly", "monthly").
+				CategoryField("category").
+				ValueField("value").
+				Build(),
+			panelResult: func() *runtime.PanelResult {
+				categories := make([]any, 13)
+				values := make([]any, 13)
+				for i := range categories {
+					categories[i] = fmt.Sprintf("2024-%02d", i+1)
+					values[i] = float64(i + 1)
+				}
+				fr, err := frame.New("monthly",
+					frame.Field{Name: "category", Type: frame.FieldTypeString, Values: categories},
+					frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: values},
+				)
+				require.NoError(t, err)
+				return &runtime.PanelResult{Frames: mustFrameSet(t, fr)}
+			}(),
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Bar)
+				require.Equal(t, "62%", options.PlotOptions.Bar.ColumnWidth)
+				require.Equal(t, "48%", adaptiveColumnWidth(6))
+			},
+		},
+		{
+			name: "horizontal bar geometry and gridline inversion",
+			panelSpec: panel.HorizontalBar("by-region", "By Region", "regions").
+				LabelField("label").
+				ValueField("revenue").
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, regionFrame)},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Bar)
+				require.NotNil(t, options.PlotOptions.Bar.BarHeight)
+				require.Equal(t, "55%", *options.PlotOptions.Bar.BarHeight)
+				require.NotNil(t, options.PlotOptions.Bar.BorderRadiusApplication)
+				require.Equal(t, "end", *options.PlotOptions.Bar.BorderRadiusApplication)
+				// Horizontal bars invert gridlines: vertical lines only.
+				require.NotNil(t, options.Grid)
+				require.True(t, *options.Grid.XAxis.Lines.Show)
+				require.False(t, *options.Grid.YAxis.Lines.Show)
+			},
+		},
+		{
+			name: "time series uses straight solid strokes",
+			panelSpec: panel.TimeSeries("trend", "Trend", "sales").
+				CategoryField("category").
+				ValueField("value").
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, heightFrame)},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Stroke)
+				require.Equal(t, charts.StrokeCurveStraight, options.Stroke.Curve)
+				require.Equal(t, 2, options.Stroke.Width)
+				require.NotNil(t, options.Fill)
+				require.Equal(t, "solid", options.Fill.Type)
+				require.Nil(t, options.Fill.Gradient)
+			},
+		},
+		{
+			name: "donut renders center total labels and rich legend",
+			panelSpec: panel.Donut("by-product", "By Product", "products").
+				LabelField("label").
+				ValueField("value").
+				Format(format.MoneyCompact("UZS")).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Pie)
+				require.NotNil(t, options.PlotOptions.Pie.Donut)
+				require.NotNil(t, options.PlotOptions.Pie.Donut.Size)
+				require.Equal(t, "78%", *options.PlotOptions.Pie.Donut.Size)
+				labels := options.PlotOptions.Pie.Donut.Labels
+				require.NotNil(t, labels)
+				require.True(t, *labels.Show)
+				require.NotNil(t, labels.Total)
+				require.True(t, *labels.Total.Show)
+				require.Equal(t, "Итого", *labels.Total.Label)
+				require.Contains(t, string(labels.Total.Formatter), "seriesTotals")
+				require.NotNil(t, labels.Value)
+				require.NotEmpty(t, labels.Value.Formatter)
+				// White hairline separates slices on the light surface.
+				require.NotNil(t, options.Stroke)
+				require.Equal(t, []string{theme.BgCard}, options.Stroke.Colors)
+				require.Equal(t, 2, options.Stroke.Width)
+				// Legend: bottom, themed, "label · value (pct%)" formatter.
+				require.NotNil(t, options.Legend)
+				require.NotNil(t, options.Legend.Position)
+				require.Equal(t, charts.LegendPositionBottom, *options.Legend.Position)
+				require.NotNil(t, options.Legend.Markers)
+				require.Equal(t, "square", *options.Legend.Markers.Shape)
+				require.NotEmpty(t, options.Legend.Formatter)
+				legendJS := string(options.Legend.Formatter)
+				require.Contains(t, legendJS, "seriesName + ' · ' + formatted")
+				require.Contains(t, legendJS, "toFixed(1)")
 			},
 		},
 		{
@@ -456,6 +647,40 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 			tc.assertions(t, options)
 		})
 	}
+}
+
+func TestBuildLogarithmicAxisPlanCapsTopAtHalfDecade(t *testing.T) {
+	t.Parallel()
+
+	// 575M..256B spans exponents 8.76..11.41: rounding the top up to a full
+	// decade (1T) would waste most of a decade above the tallest bar, so the
+	// plan caps at the next half-decade (11.5 ≈ 316B) with half-decade grid
+	// steps. Labels stay on whole decades via the formatter's slot check.
+	plan, ok := buildLogarithmicAxisPlan([]charts.Series{
+		{Name: "Direct", Data: []any{5.75e8, 4.7e10}},
+		{Name: "Inward", Data: []any{9.1e9, 2.56e11}},
+	}, 10)
+	require.True(t, ok)
+	require.InDelta(t, 8.0, plan.MinExponent, 1e-9)
+	require.InDelta(t, 11.5, plan.MaxExponent, 1e-9)
+	require.InDelta(t, 0.5, plan.Step, 1e-9)
+	require.Equal(t, 7, plan.TickAmount)
+}
+
+func TestBuildLogarithmicAxisPlanKeepsFullDecadeWhenMaxIsNearIt(t *testing.T) {
+	t.Parallel()
+
+	// 9.9e11 is within 0.04 exponent of the decade boundary — the half-decade
+	// cap would leave the tallest bar touching the axis top, so the plan keeps
+	// the classic full-decade ceiling.
+	plan, ok := buildLogarithmicAxisPlan([]charts.Series{
+		{Name: "Direct", Data: []any{5.75e8, 9.9e11}},
+	}, 10)
+	require.True(t, ok)
+	require.InDelta(t, 8.0, plan.MinExponent, 1e-9)
+	require.InDelta(t, 12.0, plan.MaxExponent, 1e-9)
+	require.InDelta(t, 1.0, plan.Step, 1e-9)
+	require.Equal(t, 4, plan.TickAmount)
 }
 
 func TestLogarithmicAxisPlanFromAxisOptionsUsesAxisConfig(t *testing.T) {
@@ -559,7 +784,7 @@ func TestOptionsWithHeightEnablesFullscreenToolbar(t *testing.T) {
 	require.Equal(t, "x", *fullscreenOptions.Chart.Zoom.Type)
 }
 
-func TestOptionsAutoDistributesFallbackBarColors(t *testing.T) {
+func TestOptionsSingleSeriesBarStaysAccentColored(t *testing.T) {
 	t.Parallel()
 
 	fr, err := frame.New("vehicle-types",
@@ -576,17 +801,45 @@ func TestOptionsAutoDistributesFallbackBarColors(t *testing.T) {
 		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
 	)
 
+	// No explicit Distributed flag and no semantic scale: single-series bars
+	// keep one color (the Lens accent), never an implicit per-row rainbow.
 	require.NotNil(t, options.PlotOptions)
 	require.NotNil(t, options.PlotOptions.Bar)
-	require.NotNil(t, options.PlotOptions.Bar.Distributed)
-	require.True(t, *options.PlotOptions.Bar.Distributed)
-	require.Len(t, options.Colors, 3)
-	require.NotNil(t, options.Chart.Events)
-	require.NotEmpty(t, options.Chart.Events.DataPointMouseEnter)
+	require.Nil(t, options.PlotOptions.Bar.Distributed)
+	require.Equal(t, []string{lenscolor.Accent()}, options.Colors)
+	if options.Chart.Events != nil {
+		require.Empty(t, options.Chart.Events.DataPointMouseEnter)
+	}
 	require.NotNil(t, options.Grid)
 	require.NotNil(t, options.Grid.Padding)
 	require.NotNil(t, options.Grid.Padding.Right)
 	require.GreaterOrEqual(t, *options.Grid.Padding.Right, 40)
+}
+
+func TestOptionsSemanticScaleDistributesBarColors(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("products",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"OSAGO", "TRAVEL"}},
+		frame.Field{Name: "color_value", Type: frame.FieldTypeString, Values: []any{"osago", "travel"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0, 30.0}},
+	)
+	require.NoError(t, err)
+
+	options := Options(
+		panel.Bar("premium-by-product", "Premium by Product", "products").
+			LabelField("label").
+			ValueField("value").
+			SemanticColors("PRODUCT", panel.Ref("color_value")).
+			Build(),
+		&runtime.PanelResult{Frames: mustFrameSet(t, fr)},
+	)
+
+	require.NotNil(t, options.PlotOptions)
+	require.NotNil(t, options.PlotOptions.Bar)
+	require.NotNil(t, options.PlotOptions.Bar.Distributed)
+	require.True(t, *options.PlotOptions.Bar.Distributed)
+	require.Equal(t, []string{"#7C3AED", "#2563EB"}, options.Colors)
 }
 
 func TestDistributedTooltipMarkerSyncJSPrefersConfiguredPointColors(t *testing.T) {
@@ -602,6 +855,7 @@ func TestDistributedTooltipMarkerSyncJSPrefersConfiguredPointColors(t *testing.T
 		panel.HorizontalBar("vehicle-type", "Vehicle Type", "vehicle-types").
 			LabelField("label").
 			ValueField("value").
+			DistributedColors().
 			Build(),
 		rows,
 		panel.FieldMapping{Label: "label", Value: "value"},

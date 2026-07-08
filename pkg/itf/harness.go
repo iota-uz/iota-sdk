@@ -62,6 +62,24 @@ const (
 	MigrationSkip      MigrationPolicy = "skip"
 )
 
+// migrationAdvisoryLockKey serializes migration application across processes.
+// Parallel harnesses (separate test binaries, and t.Parallel within one) each
+// provision their OWN per-test database but share one Postgres server;
+// migrations that touch cluster-global catalog objects (e.g. the ai_readonly
+// ROLE + RLS in changes-1997500070.sql) otherwise race with
+// "tuple concurrently updated (SQLSTATE XX000)".
+//
+// NOTE: Postgres advisory locks are DATABASE-LOCAL (the lock tag includes the
+// current database OID), so a lock taken on a per-test DB would NOT block a
+// sibling harness on a different per-test DB. The lock is therefore taken on
+// the shared "postgres" maintenance database that every harness connects to
+// (see withMigrationAdvisoryLock), which is the only scope in which all
+// parallel harnesses contend on the same key.
+//
+// The value is an arbitrary stable constant, distinct from other advisory-lock
+// keys in the codebase.
+const migrationAdvisoryLockKey int64 = 6_073_120_419_784_512_301
+
 type IsolationMode string
 
 const (
@@ -445,7 +463,18 @@ func createHarnessState(key string, cfg HarnessConfig, isPerTest bool) (*harness
 		return nil, serrors.E(opSetupApplication, err, "setup application")
 	}
 
-	if err := runMigrationPolicy(context.Background(), pool, app, cfg.Migration); err != nil {
+	migrateErr := func() error {
+		if cfg.Migration.Policy == MigrationApplyOnce {
+			// Serialize concurrent migration runs across all parallel harnesses
+			// by holding an advisory lock on the shared "postgres" admin DB for
+			// the whole run; the per-test pool below applies the migrations.
+			return withMigrationAdvisoryLock(db, func() error {
+				return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
+			})
+		}
+		return runMigrationPolicy(context.Background(), pool, app, cfg.Migration)
+	}()
+	if err := migrateErr; err != nil {
 		combinedErr := serrors.E(opRunMigrationPolicy, err, "migration policy")
 		closeErr := closeApplication(app, container)
 		pool.Close()
@@ -600,6 +629,10 @@ func buildDBName(base, key string, perTest bool) string {
 func runMigrationPolicy(ctx context.Context, pool schemaReadinessQuerier, app application.Application, cfg MigrationConfig) error {
 	switch cfg.Policy {
 	case MigrationApplyOnce:
+		// Cross-process serialization is handled by the caller
+		// (createHarnessState) via withMigrationAdvisoryLock on the shared
+		// "postgres" admin DB; a lock on this per-test pool would be
+		// database-local and would not serialize sibling harnesses.
 		return app.Migrations().Run()
 	case MigrationSkip:
 		if pool == nil {

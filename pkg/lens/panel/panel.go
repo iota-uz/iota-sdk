@@ -26,30 +26,39 @@ const (
 	// within reserve + over reserve) where a chart's axes and plot area are
 	// pure noise.
 	KindSegmentBar Kind = "segment_bar"
-	KindPie        Kind = "pie"
-	KindDonut      Kind = "donut"
-	KindTable      Kind = "table"
-	KindGauge      Kind = "gauge"
-	KindTabs       Kind = "tabs"
-	KindGrid       Kind = "grid"
-	KindSplit      Kind = "split"
-	KindRepeat     Kind = "repeat"
+	// KindCascade renders a bridge/cascade as narrowing running-total rows
+	// with deduction connectors between them. It is native HTML/CSS rather
+	// than an ApexCharts chart.
+	KindCascade Kind = "cascade"
+	KindPie     Kind = "pie"
+	KindDonut   Kind = "donut"
+	KindTable   Kind = "table"
+	KindGauge   Kind = "gauge"
+	KindTabs    Kind = "tabs"
+	KindGrid    Kind = "grid"
+	KindSplit   Kind = "split"
+	KindRepeat  Kind = "repeat"
+	// KindStatGroup renders several Stat children inside ONE card, separated
+	// by hairline dividers (columns or rows per GroupLayout), instead of one
+	// card per KPI. The group is a layout container: it has no dataset of its
+	// own; every child is a regular Stat leaf with its own dataset lookup.
+	KindStatGroup Kind = "stat_group"
 )
 
 // IsContainer reports whether the kind is a layout container that renders its
 // Children rather than its own dataset. Membership: KindTabs, KindGrid,
-// KindSplit, KindRepeat. These are the kinds the runtime/render code recurses
-// into instead of validating a dataset or drawing a chart body.
+// KindSplit, KindRepeat, KindStatGroup. These are the kinds the runtime/render
+// code recurses into instead of validating a dataset or drawing a chart body.
 //
 // Keeping this membership in one predicate lets the recursion sites branch on a
 // category instead of re-enumerating the container kinds in every switch, so a
 // new container kind only has to be added here.
 func (k Kind) IsContainer() bool {
 	switch k {
-	case KindTabs, KindGrid, KindSplit, KindRepeat:
+	case KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
 		return true
 	case KindStat, KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindSegmentBar, KindPie, KindDonut, KindTable, KindGauge:
+		KindSegmentBar, KindCascade, KindPie, KindDonut, KindTable, KindGauge:
 		return false
 	}
 	return false
@@ -60,15 +69,15 @@ func (k Kind) IsContainer() bool {
 // KindStackedBar, KindPie, KindDonut, KindGauge.
 //
 // This is the complement, among leaf panels, of RendersNatively: every leaf is
-// either an apex chart or a native (non-apex) render. KindStat, KindSegmentBar
-// and KindTable draw their own HTML/CSS and are therefore NOT charts.
+// either an apex chart or a native (non-apex) render. KindStat, KindSegmentBar,
+// KindCascade and KindTable draw their own HTML/CSS and are therefore NOT charts.
 func (k Kind) IsChart() bool {
 	switch k {
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
 		KindPie, KindDonut, KindGauge:
 		return true
-	case KindStat, KindSegmentBar, KindTable,
-		KindTabs, KindGrid, KindSplit, KindRepeat:
+	case KindStat, KindSegmentBar, KindCascade, KindTable,
+		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
 		return false
 	}
 	return false
@@ -76,22 +85,56 @@ func (k Kind) IsChart() bool {
 
 // RendersNatively reports whether the kind is a leaf panel drawn with native
 // HTML/CSS rather than the ApexCharts engine. Membership: KindStat,
-// KindSegmentBar, KindTable.
+// KindSegmentBar, KindCascade, KindTable.
 //
 // Together, IsChart() and RendersNatively() partition the leaf (non-container)
 // panel kinds, so "this kind is a renderable leaf" is exactly
 // `k.IsChart() || k.RendersNatively()`.
 func (k Kind) RendersNatively() bool {
 	switch k {
-	case KindStat, KindSegmentBar, KindTable:
+	case KindStat, KindSegmentBar, KindCascade, KindTable:
 		return true
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
 		KindPie, KindDonut, KindGauge,
-		KindTabs, KindGrid, KindSplit, KindRepeat:
+		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
 		return false
 	}
 	return false
 }
+
+// StatusTone selects the color treatment of a stat card's status chip.
+type StatusTone string
+
+const (
+	StatusNeutral  StatusTone = "neutral"
+	StatusPositive StatusTone = "positive"
+	StatusWarning  StatusTone = "warning"
+)
+
+// StatusSpec renders a small uppercase chip in a stat card's label row (e.g.
+// "ON TRACK"), colored by Tone.
+type StatusSpec struct {
+	Label string     `json:"label"`
+	Tone  StatusTone `json:"tone,omitempty"`
+}
+
+// SparklineSpec renders a small inline trend polyline in a stat card's footer
+// row. Values are plotted left-to-right, normalized to the sparkline viewbox.
+// Color overrides the default accent stroke when set (any CSS color).
+type SparklineSpec struct {
+	Values []float64 `json:"values"`
+	Color  string    `json:"color,omitempty"`
+}
+
+// GroupLayout selects how a StatGroup panel arranges its children inside the
+// shared card: side-by-side columns with vertical hairlines, or a vertical
+// list with horizontal hairlines.
+type GroupLayout string
+
+const (
+	GroupColumns GroupLayout = "columns"
+	GroupRows    GroupLayout = "rows"
+)
 
 type AxisScale string
 
@@ -111,6 +154,40 @@ type TableColumn struct {
 	Formatter *format.Spec
 	Action    *action.Spec
 	Text      string
+	// Align controls the column's text alignment: "" (left) or "right".
+	Align string
+	// Cell selects a rich cell renderer (bar / delta) instead of the default
+	// plain-text cell. Nil means plain text.
+	Cell *TableCellSpec
+	// WidthPx, when > 0, sets a min-width (px) on the column's header and
+	// body cells (inline style, so it survives consumer CSS purging).
+	WidthPx int
+}
+
+// Width sets a min-width (px) on the column's cells.
+func (c TableColumn) Width(px int) TableColumn {
+	c.WidthPx = px
+	return c
+}
+
+// TableCellKind selects a Table panel's rich cell renderer.
+type TableCellKind string
+
+const (
+	// TableCellBar renders the numeric value alongside a proportional mini-bar
+	// scaled against the column's max absolute value.
+	TableCellBar TableCellKind = "bar"
+	// TableCellDelta renders a signed delta plus a percent change, colored by
+	// sign.
+	TableCellDelta TableCellKind = "delta"
+)
+
+// TableCellSpec configures a Table panel column's rich cell renderer.
+type TableCellSpec struct {
+	Kind TableCellKind
+	// PercentField is used by TableCellDelta cells: the field holding the
+	// percent number rendered alongside the delta.
+	PercentField FieldRef
 }
 
 type FieldRef string
@@ -121,6 +198,9 @@ const (
 	DefaultSeriesField   FieldRef = "series"
 	DefaultCategoryField FieldRef = "category"
 	DefaultIDField       FieldRef = "id"
+	DefaultCutField      FieldRef = "cut"
+	DefaultCutLabelField FieldRef = "cutLabel"
+	DefaultFinalField    FieldRef = "final"
 )
 
 func (f FieldRef) Name() string {
@@ -132,16 +212,34 @@ func (f FieldRef) Empty() bool {
 }
 
 type Spec struct {
-	ID          string
-	Title       string
-	Description string
-	Info        string
-	Kind        Kind
-	Dataset     string
-	Span        int
-	Height      string
-	Colors      []string
-	ShowLegend  bool
+	ID             string
+	Title          string
+	Description    string
+	Info           string
+	Kind           Kind
+	Dataset        string
+	Span           int
+	Height         string
+	Colors         []string
+	ShowLegend     bool
+	ShowTotalBadge bool
+	// TotalBadgeValue, when set, renders the total badge with this
+	// server-computed value instead of summing the plotted data points
+	// client-side. Required for panels whose plotted series are not the raw
+	// amounts (e.g. log-transformed values with an epsilon floor). The badge
+	// then stays constant across legend toggles — it is the period total.
+	TotalBadgeValue *float64
+	DrillHierarchy  *DrillHierarchy
+	Trend           *TrendSpec
+	// Status renders a small tone-colored chip in a stat card's label row.
+	// Only Stat panels (including StatGroup children) render it.
+	Status *StatusSpec
+	// Sparkline renders a small inline trend polyline in a stat card's footer
+	// row. Only Stat panels (including StatGroup children) render it.
+	Sparkline *SparklineSpec
+	// GroupLayout arranges a StatGroup's children ("columns" default, or
+	// "rows"). Ignored on every other kind.
+	GroupLayout GroupLayout
 	Fields      FieldMapping
 	Formatter   *format.Spec
 	Columns     []TableColumn
@@ -156,6 +254,50 @@ type Spec struct {
 	ColorScale  string
 }
 
+// DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
+// panel "zoom" client-side (year -> quarter, and expand a trailing-years
+// "Others" bucket) with zero further server round-trips. See EAI's
+// analytics dashboards.buildPremiumBySourceYearChart for the producer and
+// render/apex's buildDrillHierarchyJS for the consumer.
+type DrillHierarchy struct {
+	// Sources lists the raw (untranslated) source keys in the same order as
+	// the chart's series/Colors (index i is series i). Lets the click
+	// handler resolve ApexCharts' numeric seriesIndex to a stable key
+	// without string-matching the locale-dependent series display name.
+	Sources []string
+	// OthersLabel is the already-localized category label for the top-level
+	// bucket bar (e.g. "Остальные"). Empty means the dataset fit within the
+	// recent-years window and there is no bucket.
+	OthersLabel string
+	// OthersYears lists, ascending, every year folded into the bucket. This
+	// is the "expand Others" view's category axis.
+	OthersYears []int
+	// Years maps "<year>|<sourceKey>" to that cell's raw (unfloored,
+	// unscaled) amount, for EVERY year in the dataset — both the recently
+	// shown years and every bucketed year.
+	Years map[string]float64
+	// Quarters maps "<year>|<sourceKey>" to that pair's Q1..Q4 breakdown,
+	// for the same full set of years as Years.
+	Quarters map[string]QuarterBreakdown
+}
+
+// QuarterBreakdown is one (year, source) pair's quarterly detail.
+type QuarterBreakdown struct {
+	Amounts      [4]float64 // Q1..Q4, index 0 = Q1; raw, unfloored
+	NavigateURLs [4]string  // Q1..Q4 navigate target; "" = not navigable
+}
+
+// TrendSpec renders a small colored chip in a panel's header showing a signed
+// percent change alongside a comparison label (e.g. "vs last month").
+type TrendSpec struct {
+	Percent float64 `json:"percent"`
+	Label   string  `json:"label,omitempty"`
+	// Invert flips the good/bad color mapping for down-is-good metrics
+	// (e.g. loss ratio): a negative percent renders with the positive
+	// (green) treatment and vice versa. The arrow always follows the sign.
+	Invert bool `json:"invert,omitempty"`
+}
+
 type FieldMapping struct {
 	Label     FieldRef
 	Value     FieldRef
@@ -164,6 +306,9 @@ type FieldMapping struct {
 	ID        FieldRef
 	StartTime FieldRef
 	EndTime   FieldRef
+	Cut       FieldRef
+	CutLabel  FieldRef
+	Final     FieldRef
 }
 
 type Builder struct {
@@ -181,10 +326,11 @@ func HorizontalBar(id, title, dataset string) *Builder {
 func StackedBar(id, title, dataset string) *Builder {
 	return newBuilder(KindStackedBar, id, title, dataset)
 }
-func Pie(id, title, dataset string) *Builder   { return newBuilder(KindPie, id, title, dataset) }
-func Donut(id, title, dataset string) *Builder { return newBuilder(KindDonut, id, title, dataset) }
-func Table(id, title, dataset string) *Builder { return newBuilder(KindTable, id, title, dataset) }
-func Gauge(id, title, dataset string) *Builder { return newBuilder(KindGauge, id, title, dataset) }
+func Cascade(id, title, dataset string) *Builder { return newBuilder(KindCascade, id, title, dataset) }
+func Pie(id, title, dataset string) *Builder     { return newBuilder(KindPie, id, title, dataset) }
+func Donut(id, title, dataset string) *Builder   { return newBuilder(KindDonut, id, title, dataset) }
+func Table(id, title, dataset string) *Builder   { return newBuilder(KindTable, id, title, dataset) }
+func Gauge(id, title, dataset string) *Builder   { return newBuilder(KindGauge, id, title, dataset) }
 
 func Tabs(id, title string, children ...Spec) *Builder {
 	return &Builder{
@@ -210,6 +356,21 @@ func Grid(id, title string, children ...Spec) *Builder {
 	}
 }
 
+// StatGroup builds a container that renders its Stat children inside one
+// shared card, separated by hairlines (columns by default; see Layout).
+func StatGroup(id, title string, children ...Spec) *Builder {
+	return &Builder{
+		spec: Spec{
+			ID:          id,
+			Title:       title,
+			Kind:        KindStatGroup,
+			Span:        12,
+			GroupLayout: GroupColumns,
+			Children:    children,
+		},
+	}
+}
+
 func newBuilder(kind Kind, id, title, dataset string) *Builder {
 	return &Builder{
 		spec: Spec{
@@ -224,6 +385,9 @@ func newBuilder(kind Kind, id, title, dataset string) *Builder {
 				Series:   DefaultSeriesField,
 				Category: DefaultCategoryField,
 				ID:       DefaultIDField,
+				Cut:      DefaultCutField,
+				CutLabel: DefaultCutLabelField,
+				Final:    DefaultFinalField,
 			},
 		},
 	}
@@ -233,6 +397,52 @@ func (b *Builder) Span(span int) *Builder           { b.spec.Span = span; return
 func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; return b }
 func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
 func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
+func (b *Builder) TotalBadge() *Builder             { b.spec.ShowTotalBadge = true; return b }
+func (b *Builder) TotalBadgeValue(v float64) *Builder {
+	b.spec.ShowTotalBadge = true
+	b.spec.TotalBadgeValue = &v
+	return b
+}
+func (b *Builder) DrillHierarchy(h DrillHierarchy) *Builder {
+	b.spec.DrillHierarchy = &h
+	return b
+}
+func (b *Builder) Trend(percent float64, label string) *Builder {
+	b.spec.Trend = &TrendSpec{Percent: percent, Label: label}
+	return b
+}
+
+// TrendWithInvert is Trend for down-is-good metrics: invert flips the
+// good/bad color mapping while the arrow still follows the sign.
+func (b *Builder) TrendWithInvert(percent float64, label string, invert bool) *Builder {
+	b.spec.Trend = &TrendSpec{Percent: percent, Label: label, Invert: invert}
+	return b
+}
+
+// Status renders a small tone-colored chip in the stat card's label row.
+func (b *Builder) Status(label string, tone StatusTone) *Builder {
+	b.spec.Status = &StatusSpec{Label: label, Tone: tone}
+	return b
+}
+
+// Sparkline renders an inline trend polyline in the stat card's footer row
+// using the default accent stroke.
+func (b *Builder) Sparkline(values []float64) *Builder {
+	b.spec.Sparkline = &SparklineSpec{Values: values}
+	return b
+}
+
+// SparklineColored is Sparkline with an explicit stroke color.
+func (b *Builder) SparklineColored(values []float64, color string) *Builder {
+	b.spec.Sparkline = &SparklineSpec{Values: values, Color: color}
+	return b
+}
+
+// Layout selects a StatGroup's child arrangement (columns or rows).
+func (b *Builder) Layout(l GroupLayout) *Builder {
+	b.spec.GroupLayout = l
+	return b
+}
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
@@ -275,6 +485,9 @@ func (b *Builder) SeriesField(name FieldRef) *Builder   { b.spec.Fields.Series =
 func (b *Builder) CategoryField(name FieldRef) *Builder { b.spec.Fields.Category = name; return b }
 func (b *Builder) StartField(name FieldRef) *Builder    { b.spec.Fields.StartTime = name; return b }
 func (b *Builder) EndField(name FieldRef) *Builder      { b.spec.Fields.EndTime = name; return b }
+func (b *Builder) CutField(name FieldRef) *Builder      { b.spec.Fields.Cut = name; return b }
+func (b *Builder) CutLabelField(name FieldRef) *Builder { b.spec.Fields.CutLabel = name; return b }
+func (b *Builder) FinalField(name FieldRef) *Builder    { b.spec.Fields.Final = name; return b }
 func (b *Builder) Columns(columns ...TableColumn) *Builder {
 	b.spec.Columns = columns
 	return b

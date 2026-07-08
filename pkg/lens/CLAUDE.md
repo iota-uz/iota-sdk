@@ -14,6 +14,21 @@ Use plain `lens.DashboardSpec` when:
 - Drill-through is row/panel specific instead of hierarchical cube drilling
 - A dashboard is mostly one-off presentation work
 
+### Native cascade panels
+
+Use `spec.Cascade(id, title, dataset)` or `panel.Cascade(id, title, dataset)`
+for bridge/waterfall-style running totals that should render as server-side
+HTML/CSS instead of ApexCharts. The primary dataset rows should contain:
+
+- `label`: stage label
+- `value`: running total after the stage
+- `cut`: amount deducted to reach this stage (optional for the first row)
+- `cutLabel`: connector label for the deduction
+- `final`: boolean that renders the stage with success styling
+
+Override fields with `LabelField`, `ValueField`, `CutField`, `CutLabelField`,
+and `FinalField` when a dataset uses different column names.
+
 ## Cube Pattern
 
 Use `cube.New(...)` when:

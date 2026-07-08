@@ -1,3 +1,4 @@
+// Package services provides this package.
 package services
 
 import (
@@ -5,12 +6,14 @@ import (
 	"errors"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
+	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
@@ -27,9 +30,19 @@ type Document struct {
 }
 
 type ContentConfig struct {
-	Root          string
+	// Root is the content directory. When FS is nil it is an on-disk path
+	// (read via os.DirFS); when FS is set it is the sub-directory within FS
+	// that holds the per-locale content tree.
+	Root string
+	// FS, when set, serves markdown from an in-memory/embedded filesystem
+	// (e.g. //go:embed) instead of disk — deploy-safe under GOWORK=off where
+	// the on-disk content dir is absent. Rooted at Root.
+	FS            fs.FS
 	Locales       []string
 	DefaultLocale string
+	// HideNav omits the Help Center sidebar nav node when the component is
+	// registered only to serve inline help-article links (see component.go).
+	HideNav bool
 }
 
 func (c ContentConfig) Normalized() ContentConfig {
@@ -44,22 +57,40 @@ func (c ContentConfig) Normalized() ContentConfig {
 
 type ContentService struct {
 	config ContentConfig
+	// fsys is the resolved filesystem the content tree is read from: os.DirFS
+	// rooted at Root for disk mode, or a sub-FS of config.FS for embedded mode.
+	// nil when no content source is configured.
+	fsys fs.FS
 }
 
 func NewContentService(config ContentConfig) *ContentService {
-	return &ContentService{config: config}
+	cfg := config.Normalized()
+	svc := &ContentService{config: cfg}
+	switch {
+	case cfg.FS != nil:
+		if cfg.Root != "" && cfg.Root != "." {
+			if sub, err := fs.Sub(cfg.FS, cfg.Root); err == nil {
+				svc.fsys = sub
+			}
+		} else {
+			svc.fsys = cfg.FS
+		}
+	case cfg.Root != "":
+		svc.fsys = os.DirFS(cfg.Root)
+	}
+	return svc
 }
 
 func (s *ContentService) Tree(ctx context.Context) ([]viewmodels.CategoryNode, error) {
-	root, locale, err := s.localeRoot(ctx)
+	localeDir, locale, err := s.localeRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
-	return s.buildTree(root, locale)
+	return s.buildTree(localeDir, locale)
 }
 
 func (s *ContentService) Get(ctx context.Context, docPath string) (*Document, error) {
-	root, locale, err := s.localeRoot(ctx)
+	localeDir, locale, err := s.localeRoot(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -68,27 +99,17 @@ func (s *ContentService) Get(ctx context.Context, docPath string) (*Document, er
 		return nil, err
 	}
 
-	fullPath := filepath.Join(root, filepath.FromSlash(cleanPath))
-	if !isWithin(root, fullPath) {
-		return nil, ErrInvalidPath
-	}
-
-	content, err := os.ReadFile(fullPath)
+	doc, err := s.readDoc(localeDir, cleanPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) && locale != s.config.DefaultLocale {
+		if errors.Is(err, fs.ErrNotExist) && locale != s.config.DefaultLocale {
 			return s.getFromLocale(s.config.DefaultLocale, cleanPath)
 		}
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, ErrDocumentNotFound
 		}
 		return nil, err
 	}
-
-	return &Document{
-		Title:   titleFromMarkdown(content, cleanPath),
-		Path:    cleanPath,
-		Content: content,
-	}, nil
+	return doc, nil
 }
 
 func (s *ContentService) DefaultDocument(ctx context.Context) (*Document, error) {
@@ -96,11 +117,11 @@ func (s *ContentService) DefaultDocument(ctx context.Context) (*Document, error)
 	if err != nil {
 		return nil, err
 	}
-	path := firstDocPath(nodes)
-	if path == "" {
+	docPath := firstDocPath(nodes)
+	if docPath == "" {
 		return nil, ErrDocumentNotFound
 	}
-	return s.Get(ctx, path)
+	return s.Get(ctx, docPath)
 }
 
 func (s *ContentService) Locale(ctx context.Context) string {
@@ -112,64 +133,86 @@ func (s *ContentService) Locale(ctx context.Context) string {
 }
 
 func (s *ContentService) getFromLocale(locale, docPath string) (*Document, error) {
-	root := filepath.Join(s.config.Root, locale)
-	fullPath := filepath.Join(root, filepath.FromSlash(docPath))
-	if !isWithin(root, fullPath) {
-		return nil, ErrInvalidPath
-	}
-	content, err := os.ReadFile(fullPath)
+	doc, err := s.readDoc(locale, docPath)
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
+		if errors.Is(err, fs.ErrNotExist) {
 			return nil, ErrDocumentNotFound
 		}
 		return nil, err
 	}
-	return &Document{Title: titleFromMarkdown(content, docPath), Path: docPath, Content: content}, nil
+	return doc, nil
 }
 
+// readDoc reads one markdown document at <localeDir>/<cleanPath> from fsys.
+// cleanPath is already validated by cleanDocPath; the joined path is checked
+// against fs.ValidPath as defense in depth.
+func (s *ContentService) readDoc(localeDir, cleanPath string) (*Document, error) {
+	full := path.Join(localeDir, cleanPath)
+	if !fs.ValidPath(full) {
+		return nil, ErrInvalidPath
+	}
+	content, err := fs.ReadFile(s.fsys, full)
+	if err != nil {
+		return nil, err
+	}
+	return &Document{
+		Title:   titleFromMarkdown(content, cleanPath),
+		Path:    cleanPath,
+		Content: content,
+	}, nil
+}
+
+// localeRoot resolves the request locale to a content sub-directory (relative
+// to fsys) that exists, falling back to the default locale. It returns the
+// locale directory and the resolved locale.
 func (s *ContentService) localeRoot(ctx context.Context) (string, string, error) {
-	if s.config.Root == "" {
+	if s.fsys == nil {
 		return "", "", ErrContentRootRequired
 	}
 	locale := localeString(ctx, s.config.DefaultLocale)
 	if !contains(s.config.Locales, locale) {
 		locale = s.config.DefaultLocale
 	}
-	root := filepath.Join(s.config.Root, locale)
-	if _, err := os.Stat(root); err != nil && locale != s.config.DefaultLocale {
+	if locale != s.config.DefaultLocale && !s.localeDirExists(locale) {
 		locale = s.config.DefaultLocale
-		root = filepath.Join(s.config.Root, locale)
 	}
-	return root, locale, nil
+	return locale, locale, nil
 }
 
-func (s *ContentService) buildTree(root, locale string) ([]viewmodels.CategoryNode, error) {
+func (s *ContentService) localeDirExists(locale string) bool {
+	if !fs.ValidPath(locale) {
+		return false
+	}
+	info, err := fs.Stat(s.fsys, locale)
+	return err == nil && info.IsDir()
+}
+
+func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.CategoryNode, error) {
 	var docs []viewmodels.CategoryNode
 
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(s.fsys, localeDir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !isMarkdown(path) {
+		if d.IsDir() || !isMarkdown(p) {
 			return nil
 		}
-		rel, err := filepath.Rel(root, path)
+		rel := strings.TrimPrefix(p, localeDir+"/")
+		content, err := fs.ReadFile(s.fsys, p)
 		if err != nil {
 			return err
 		}
-		slashPath := filepath.ToSlash(rel)
-		content, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		parts := strings.Split(slashPath, "/")
-		doc := viewmodels.CategoryNode{Title: titleFromMarkdown(content, slashPath), Path: slashPath}
+		parts := strings.Split(rel, "/")
+		doc := viewmodels.CategoryNode{Title: titleFromMarkdown(content, rel), Path: rel}
 		insertNode(&docs, parts[:len(parts)-1], doc)
 		return nil
 	})
 	if err != nil {
-		if errors.Is(err, os.ErrNotExist) && locale != s.config.DefaultLocale {
-			return s.buildTree(filepath.Join(s.config.Root, s.config.DefaultLocale), s.config.DefaultLocale)
+		if errors.Is(err, fs.ErrNotExist) && locale != s.config.DefaultLocale {
+			return s.buildTree(s.config.DefaultLocale, s.config.DefaultLocale)
+		}
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, ErrDocumentNotFound
 		}
 		return nil, err
 	}
@@ -190,29 +233,26 @@ func localeString(ctx context.Context, fallback string) string {
 	return base.String()
 }
 
-func cleanDocPath(path string) (string, error) {
-	path = strings.TrimSpace(strings.TrimPrefix(path, "/"))
-	if path == "" || strings.Contains(path, "\x00") {
+// cleanDocPath validates and normalizes a request doc path to a safe,
+// forward-slash relative markdown path (no traversal, no absolute paths).
+func cleanDocPath(p string) (string, error) {
+	p = strings.TrimSpace(strings.TrimPrefix(p, "/"))
+	if p == "" || strings.Contains(p, "\x00") {
 		return "", ErrInvalidPath
 	}
-	clean := filepath.ToSlash(filepath.Clean(path))
-	if clean == "." || strings.HasPrefix(clean, "../") || clean == ".." || filepath.IsAbs(clean) || !isMarkdown(clean) {
+	clean := path.Clean(filepath.ToSlash(p))
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || path.IsAbs(clean) || !isMarkdown(clean) {
 		return "", ErrInvalidPath
 	}
 	return clean, nil
 }
 
-func isWithin(root, path string) bool {
-	rel, err := filepath.Rel(root, path)
-	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
-}
-
-func isMarkdown(path string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
+func isMarkdown(p string) bool {
+	ext := strings.ToLower(path.Ext(p))
 	return ext == ".md" || ext == ".markdown"
 }
 
-func titleFromMarkdown(content []byte, path string) string {
+func titleFromMarkdown(content []byte, docPath string) string {
 	for _, line := range strings.Split(string(content), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
@@ -225,15 +265,15 @@ func titleFromMarkdown(content []byte, path string) string {
 			break
 		}
 	}
-	name := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))
+	name := strings.TrimSuffix(path.Base(docPath), path.Ext(docPath))
 	return titleFromSegment(name)
 }
 
 func titleFromSegment(segment string) string {
-	segment = strings.TrimSuffix(segment, filepath.Ext(segment))
+	segment = strings.TrimSuffix(segment, path.Ext(segment))
 	segment = strings.ReplaceAll(segment, "-", " ")
 	segment = strings.ReplaceAll(segment, "_", " ")
-	return strings.Title(segment)
+	return cases.Title(language.English).String(segment)
 }
 
 func insertNode(nodes *[]viewmodels.CategoryNode, categories []string, doc viewmodels.CategoryNode) {

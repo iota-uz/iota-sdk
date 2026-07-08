@@ -242,10 +242,15 @@ templ Rows(cfg *TableConfig) {
 
 templ InfiniteScrollSpinner(cfg *TableConfig) {
 	<tr id="infinite-scroll-spinner" class="hidden">
-		<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) }>
-			@loaders.Spinner(loaders.SpinnerProps{
-				ContainerClass: templ.Classes("flex justify-center items-center py-4"),
-			})
+		<td colspan={ fmt.Sprintf("%d", len(cfg.Columns)) } class="!p-0">
+			// sticky left-0 + emptyStateCentering sizes the wrapper to the
+			// scrollport's visible width, so justify-center lands in view
+			// instead of centering across the full (often off-screen) table width.
+			<div class="sticky left-0" x-data="emptyStateCentering">
+				@loaders.Spinner(loaders.SpinnerProps{
+					ContainerClass: templ.Classes("flex justify-center items-center py-4"),
+				})
+			</div>
 		</td>
 	</tr>
 }
@@ -573,9 +578,53 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 	</div>
 }
 
+// toolbarSearch renders the search input (clearable or plain), shared by the
+// inline and stacked toolbar layouts so the two never drift. The flex-1
+// wrapper grows to fill a horizontal toolbar and stretches full-width in a
+// vertical (stacked) one.
+templ toolbarSearch(config *TableConfig) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	{{
+	placeholder := pageCtx.T("Search")
+	if config.SearchPlaceholder != "" {
+		placeholder = config.SearchPlaceholder
+	}
+	}}
+	if config.SearchClearable {
+		<div class="flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
+			@input.Text(&input.Props{
+				AddonLeft: &input.Addon{
+					Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+				},
+				AddonRight: &input.Addon{
+					Component: SearchClearButton(),
+				},
+				Placeholder: placeholder,
+				Attrs: templ.Attributes{
+					"name":    config.SearchParamName,
+					"value":   config.SearchValue,
+					"x-model": "searchVal",
+				},
+			})
+		</div>
+	} else {
+		<div class="flex-1">
+			@input.Text(&input.Props{
+				AddonLeft: &input.Addon{
+					Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
+				},
+				Placeholder: placeholder,
+				Attrs: templ.Attributes{
+					"name":  config.SearchParamName,
+					"value": config.SearchValue,
+				},
+			})
+		</div>
+	}
+}
+
 // TableContent renders the inner content card (search, filters, table) without the form wrapper
 templ TableContent(config *TableConfig) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div
 		class={
 			templ.Classes(
@@ -585,77 +634,62 @@ templ TableContent(config *TableConfig) {
 		}
 	>
 		if config.Configurable || !config.WithoutSearch || len(config.Filters) > 0 || len(config.Actions) > 0 {
-			<div
-				class={
-					templ.Classes(
-						"p-4 flex flex-col md:flex-row items-center gap-3",
-						templ.KV("shrink-0", config.FullHeight),
-					),
-				}
-			>
-				if !config.WithoutSearch {
-					if config.SearchClearable {
-						<div class="flex-1" x-data={ fmt.Sprintf("{ searchVal: '%s' }", config.SearchValue) }>
-							{{
-							placeholder := pageCtx.T("Search")
-							if config.SearchPlaceholder != "" {
-								placeholder = config.SearchPlaceholder
+			if config.StackedToolbar {
+				<!-- Stacked toolbar: search on top, filter chips on the row below. -->
+				<!-- Actions render on the title row (see Content), not here. -->
+				<div
+					class={
+						templ.Classes(
+							"p-4 flex flex-col gap-3",
+							templ.KV("shrink-0", config.FullHeight),
+						),
+					}
+				>
+					if !config.WithoutSearch {
+						@toolbarSearch(config)
+					}
+					if len(config.Filters) > 0 {
+						<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:block">
+							for _, filter := range config.Filters {
+								@filter
 							}
-							}}
-							@input.Text(&input.Props{
-								AddonLeft: &input.Addon{
-									Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-								},
-								AddonRight: &input.Addon{
-									Component: SearchClearButton(),
-								},
-								Placeholder: placeholder,
-								Attrs: templ.Attributes{
-									"name":    config.SearchParamName,
-									"value":   config.SearchValue,
-									"x-model": "searchVal",
-								},
-							})
-						</div>
-					} else {
-						<div class="flex-1">
-							{{
-							placeholder := pageCtx.T("Search")
-							if config.SearchPlaceholder != "" {
-								placeholder = config.SearchPlaceholder
-							}
-							}}
-							@input.Text(&input.Props{
-								AddonLeft: &input.Addon{
-									Component: icons.MagnifyingGlass(icons.Props{Size: "20"}),
-								},
-								Placeholder: placeholder,
-								Attrs: templ.Attributes{
-									"name":  config.SearchParamName,
-									"value": config.SearchValue,
-								},
-							})
 						</div>
 					}
-				}
-				if len(config.Filters) > 0 || len(config.Actions) > 0 {
-					<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
-						for _, filter := range config.Filters {
-							@filter
-						}
-						if len(config.Actions) > 0 {
-							<div class="flex gap-3 ml-auto">
-								for _, action := range config.Actions {
-									@action
-								}
-							</div>
-						}
-					</div>
-				}
-				if config.Configurable {
-					@TableSettingsTrigger()
-				}
-			</div>
+					if config.Configurable {
+						@TableSettingsTrigger()
+					}
+				</div>
+			} else {
+				<div
+					class={
+						templ.Classes(
+							"p-4 flex flex-col md:flex-row items-center gap-3",
+							templ.KV("shrink-0", config.FullHeight),
+						),
+					}
+				>
+					if !config.WithoutSearch {
+						@toolbarSearch(config)
+					}
+					if len(config.Filters) > 0 || len(config.Actions) > 0 {
+						<div x-data="disableFormElementsWhen('(max-width: 48rem)')" class="hidden md:flex gap-3 h-full">
+							for _, filter := range config.Filters {
+								@filter
+							}
+							if len(config.Actions) > 0 {
+								<div class="flex gap-3 ml-auto">
+									for _, action := range config.Actions {
+										@action
+									}
+								</div>
+							}
+						</div>
+					}
+					if config.Configurable {
+						@TableSettingsTrigger()
+					}
+				</div>
+			}
 		}
 		if config.FullHeight {
 			<div class="flex-1 min-h-0">
@@ -794,17 +828,18 @@ templ DefaultPanelSkeleton() {
 }
 
 templ TableSettingsTrigger() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@button.Secondary(button.Props{
 		Icon:  icons.Gear(icons.Props{Size: "20"}),
 		Class: "ml-auto",
 		Attrs: templ.Attributes{
 			"type":       "button",
 			"@click":     "$dispatch('open-table-settings')",
-			"aria-label": "Open table settings",
-			"title":      "Table settings",
+			"aria-label": pageCtx.T("Scaffold.Table.TableSettings"),
+			"title":      pageCtx.T("Scaffold.Table.TableSettings"),
 		},
 	}) {
-		<span class="sr-only">Table settings</span>
+		<span class="sr-only">{ pageCtx.T("Scaffold.Table.TableSettings") }</span>
 	}
 }
 
@@ -819,10 +854,31 @@ templ EmbeddedContent(config *TableConfig) {
 templ Content(config *TableConfig) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="m-6">
-		<div class="flex justify-between md:justify-start">
-			<h1 class="text-2xl font-medium">
+		<div
+			class={
+				templ.Classes(
+					// flex-wrap + row gap let the primary action / filters group drop
+					// below the title on narrow viewports (<=390px) instead of being
+					// pushed offscreen. Desktop is unchanged: with room it never wraps.
+					"flex flex-wrap gap-y-3 justify-between",
+					templ.KV("md:justify-start", !config.StackedToolbar),
+					templ.KV("items-center gap-3", config.StackedToolbar),
+				),
+			}
+		>
+			<h1 class="text-2xl font-medium min-w-0">
 				{ config.Title }
 			</h1>
+			if config.StackedToolbar && len(config.Actions) > 0 {
+				<!-- Stacked layout: page actions (help icon, "New" button) sit on the title row, outside the table card. -->
+				<div class="hidden md:flex flex-wrap items-center justify-end gap-3">
+					for _, action := range config.Actions {
+						<div class="shrink-0">
+							@action
+						</div>
+					}
+				</div>
+			}
 			<div class="flex md:hidden flex-wrap justify-end gap-2">
 				@button.Secondary(button.Props{
 					Size:  button.SizeNormal,

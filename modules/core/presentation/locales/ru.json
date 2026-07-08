@@ -1084,11 +1084,17 @@
       "FullName": "Полное имя",
       "Roles": "Роли",
       "Email": "Эл. почта",
-      "AllGroups": "Все группы",
-      "AllRoles": "Все роли",
       "Filters": "Фильтры",
-      "ExpandFilters": "Развернуть фильтры",
-      "CollapseFilters": "Свернуть фильтры"
+      "FilterRole": "Роль",
+      "FilterGroup": "Группа",
+      "FilterCreatedAt": "Дата создания",
+      "FilterUpdatedAt": "Дата обновления",
+      "FilterStatus": "Статус",
+      "FilterStatusActive": "Активные",
+      "FilterStatusBlocked": "Заблокированные",
+      "FilterType": "Тип",
+      "FilterTypeRegular": "Обычные",
+      "FilterTypeSystem": "Системные"
     },
     "Cards": {
       "PersonalInfo": "Персональные данные",

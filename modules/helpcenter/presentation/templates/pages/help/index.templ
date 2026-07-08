@@ -23,14 +23,14 @@ templ Index(props IndexProps) {
 	}) {
 		<div class="h-full flex flex-col bg-white">
 			<div class="border-b border-gray-200 px-4 md:px-6 py-4">
-					<div class="max-w-7xl flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
-						<div class="min-w-0">
-							<div class="flex items-center gap-2">
-								<h1 class="text-xl font-semibold text-gray-900">{ pageCtx.T("HelpCenter.Meta.Title") }</h1>
-								@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/help-center.md"})
-							</div>
-							<p class="text-sm text-gray-500 mt-1">{ pageCtx.T("HelpCenter.Meta.Subtitle") }</p>
+				<div class="max-w-7xl flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
+					<div class="min-w-0">
+						<div class="flex items-center gap-2">
+							<h1 class="text-xl font-semibold text-gray-900">{ pageCtx.T("HelpCenter.Meta.Title") }</h1>
+							@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/help-center.md"})
 						</div>
+						<p class="text-sm text-gray-500 mt-1">{ pageCtx.T("HelpCenter.Meta.Subtitle") }</p>
+					</div>
 					<form class="relative md:ml-auto w-full md:w-[28rem]" hx-get={ props.BasePath + "/search" } hx-target="#help-search-results" hx-trigger="submit">
 						<div class="relative">
 							<div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">

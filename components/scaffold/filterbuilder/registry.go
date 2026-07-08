@@ -136,6 +136,9 @@ type Props struct {
 	// ID lets a page host several builders; defaults to "filter-builder".
 	ID    string
 	Class templ.CSSClasses
+	// ShowResetAlways renders the "Clear all" button whenever at least one
+	// filter is active (default: only shown with more than one active filter).
+	ShowResetAlways bool
 }
 
 func (p Props) id() string {

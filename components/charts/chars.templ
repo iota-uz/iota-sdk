@@ -104,7 +104,12 @@ script graph(id string, options templ.JSExpression) {
 		const chart = new ApexCharts(container, options);
 		container.__apexChart = chart;
 		container.__apexHiddenSeries = Array.from(hidden);
-		Promise.resolve(chart.render()).then(() => {
+		// Return the in-flight render() promise so the render queue can wait for
+		// this mount to settle before the next pass destroys it (destroying a
+		// half-mounted instance nulls its series and throws "isSeriesHidden of
+		// null"). The queue pointer itself is owned by scheduleRender().
+		const renderPromise = Promise.resolve(chart.render());
+		renderPromise.then(() => {
 			// A newer renderChart() may have destroyed this instance while the
 			// render promise was pending; bail so we don't toggle a dead chart
 			// or overwrite __apexHiddenSeries with its empty state.
@@ -119,10 +124,38 @@ script graph(id string, options templ.JSExpression) {
 			});
 			container.__apexHiddenSeries = hiddenSeriesNames(chart);
 		});
+		return renderPromise;
 	}
-	document.addEventListener('DOMContentLoaded', () => {
-		renderChart();
-	});
+	// scheduleRender is the single entry point for every render trigger (initial
+	// mount, both readiness passes, tab switch, fullscreen, resize/theme, and the
+	// sdk:rerenderCharts event fired ~100ms after each lens panel HTMX swap). It
+	// always chains the next renderChart() on the previous render's promise so
+	// destroy() can never run against an unsettled ApexCharts mount, regardless of
+	// which trigger fired.
+	const scheduleRender = () => {
+		const container = document.getElementById(id);
+		const pending = container ? container.__apexRenderPromise : null;
+		const next = Promise.resolve(pending).catch(() => {}).then(renderChart);
+		if (container) {
+			container.__apexRenderPromise = next;
+		}
+		return next;
+	}
+	const renderWhenReady = () => {
+		scheduleRender();
+		requestAnimationFrame(() => {
+			setTimeout(() => {
+				// Second pass is queued behind the first render() so it never
+				// destroys an instance whose mount() has not resolved yet.
+				scheduleRender();
+			}, 0);
+		});
+	};
+	if (document.readyState === 'loading') {
+		document.addEventListener('DOMContentLoaded', renderWhenReady, { once: true });
+	} else {
+		renderWhenReady();
+	}
 	document.addEventListener('sdk:rerenderCharts', (evt) => {
 		const container = document.getElementById(id);
 		if (!container) {
@@ -134,7 +167,7 @@ script graph(id string, options templ.JSExpression) {
 				return;
 			}
 		}
-		renderChart();
+		scheduleRender();
 	});
 }
 

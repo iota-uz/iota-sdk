@@ -186,10 +186,21 @@ type DropShadow struct {
 }
 
 type GridConfig struct {
-	BorderColor string         `json:"borderColor,omitempty"`
-	Row         *GridRowColumn `json:"row,omitempty"`
-	Column      *GridRowColumn `json:"column,omitempty"`
-	Padding     *Padding       `json:"padding,omitempty"`
+	BorderColor string          `json:"borderColor,omitempty"`
+	Row         *GridRowColumn  `json:"row,omitempty"`
+	Column      *GridRowColumn  `json:"column,omitempty"`
+	Padding     *Padding        `json:"padding,omitempty"`
+	XAxis       *GridAxisConfig `json:"xaxis,omitempty"`
+	YAxis       *GridAxisConfig `json:"yaxis,omitempty"`
+}
+
+// GridAxisConfig controls per-axis gridline visibility (grid.xaxis / grid.yaxis).
+type GridAxisConfig struct {
+	Lines *GridLinesConfig `json:"lines,omitempty"`
+}
+
+type GridLinesConfig struct {
+	Show *bool `json:"show,omitempty"`
 }
 
 type GridRowColumn struct {
@@ -213,11 +224,14 @@ type PlotOptions struct {
 }
 
 type BarConfig struct {
-	BorderRadius int       `json:"borderRadius,omitempty"`
-	ColumnWidth  string    `json:"columnWidth,omitempty"`
-	DataLabels   BarLabels `json:"dataLabels,omitempty"`
-	Distributed  *bool     `json:"distributed,omitempty"`
-	Horizontal   *bool     `json:"horizontal,omitempty"`
+	BorderRadius int `json:"borderRadius,omitempty"`
+	// BorderRadiusApplication is 'around' or 'end' (round only the outer end of bars).
+	BorderRadiusApplication *string   `json:"borderRadiusApplication,omitempty"`
+	ColumnWidth             string    `json:"columnWidth,omitempty"`
+	BarHeight               *string   `json:"barHeight,omitempty"` // horizontal bars only
+	DataLabels              BarLabels `json:"dataLabels,omitempty"`
+	Distributed             *bool     `json:"distributed,omitempty"`
+	Horizontal              *bool     `json:"horizontal,omitempty"`
 }
 
 type BarLabels struct {
@@ -696,6 +710,7 @@ type TooltipConfig struct {
 	HideEmptySeries *bool                        `json:"hideEmptySeries,omitempty"`
 	FillSeriesColor *bool                        `json:"fillSeriesColor,omitempty"`
 	Theme           *string                      `json:"theme,omitempty"`
+	CSSClass        *string                      `json:"cssClass,omitempty"`
 	Style           *TooltipStyleConfig          `json:"style,omitempty"`
 	OnDatasetHover  *TooltipOnDatasetHoverConfig `json:"onDatasetHover,omitempty"`
 	X               *TooltipXConfig              `json:"x,omitempty"`
@@ -881,6 +896,10 @@ type LegendLabelsConfig struct {
 }
 
 type LegendMarkersConfig struct {
+	// Size and Shape follow the ApexCharts v4 legend marker API
+	// (legend.markers.size / legend.markers.shape).
+	Size        *int               `json:"size,omitempty"`
+	Shape       *string            `json:"shape,omitempty"` // 'circle', 'square', 'rect', 'line', ...
 	Width       *int               `json:"width,omitempty"`
 	Height      *int               `json:"height,omitempty"`
 	StrokeWidth *int               `json:"strokeWidth,omitempty"`

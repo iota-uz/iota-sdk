@@ -1086,11 +1086,17 @@
       "FullName": "全名",
       "Roles": "角色",
       "Email": "电子邮件",
-      "AllGroups": "所有组",
-      "AllRoles": "所有角色",
       "Filters": "筛选",
-      "ExpandFilters": "展开过滤器",
-      "CollapseFilters": "折叠过滤器"
+      "FilterRole": "角色",
+      "FilterGroup": "组",
+      "FilterCreatedAt": "创建时间",
+      "FilterUpdatedAt": "更新时间",
+      "FilterStatus": "状态",
+      "FilterStatusActive": "活跃",
+      "FilterStatusBlocked": "已封禁",
+      "FilterType": "类型",
+      "FilterTypeRegular": "普通",
+      "FilterTypeSystem": "系统"
     },
     "Cards": {
       "PersonalInfo": "个人信息",

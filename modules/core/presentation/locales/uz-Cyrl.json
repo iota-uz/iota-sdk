@@ -1082,11 +1082,17 @@
       "FullName": "To'liq ism",
       "Roles": "Rollar",
       "Email": "Email",
-      "AllGroups": "Barcha guruhlar",
-      "AllRoles": "Barcha rollar",
       "Filters": "Filterlar",
-      "ExpandFilters": "Filtrlarni kengaytirish",
-      "CollapseFilters": "Filtrlarni yig'ish"
+      "FilterRole": "Rol",
+      "FilterGroup": "Guruh",
+      "FilterCreatedAt": "Yaratilgan sana",
+      "FilterUpdatedAt": "Янгиланган сана",
+      "FilterStatus": "Ҳолат",
+      "FilterStatusActive": "Фаол",
+      "FilterStatusBlocked": "Блокланган",
+      "FilterType": "Тури",
+      "FilterTypeRegular": "Оддий",
+      "FilterTypeSystem": "Тизим"
     },
     "Cards": {
       "PersonalInfo": "Shaxsiy ma'lumotlar",

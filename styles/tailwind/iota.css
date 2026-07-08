@@ -712,7 +712,21 @@
     position: fixed;
     inset: 0;
     overflow: clip;
-    transition: opacity 500ms var(--ease-3);
+    /* `display`/`overlay` are transitioned with allow-discrete so the closed
+       `display: none` (below) is deferred for the 500ms slide-out animation
+       instead of collapsing the box mid-exit. */
+    transition:
+      opacity 500ms var(--ease-3),
+      display 500ms allow-discrete,
+      overlay 500ms allow-discrete;
+  }
+
+  /* Start the open transition from the closed (opacity 0) state so the dialog
+     fades/slides in when it enters the top layer from `display: none`. */
+  @starting-style {
+    .dialog[open] {
+      opacity: 0;
+    }
   }
 
   .dialog-rounded {
@@ -740,6 +754,10 @@
   }
 
   .dialog:not([open]) {
+    /* Remove the closed dialog from layout + the a11y tree. `display` is
+       transitioned with allow-discrete (see `.dialog`) so the slide-out
+       animation still plays before the box collapses. */
+    display: none;
     pointer-events: none;
     opacity: 0;
   }
@@ -1381,4 +1399,19 @@
   .spotlight-shimmer {
     animation: none;
   }
+}
+
+/*
+ * Infinite-scroll loading spinner reveal (scaffold/table InfiniteScrollSpinner).
+ * The row stays `class="hidden"` so it is display:none at rest AND so the
+ * fillGrid() scroll-guard (`tr:not(.hidden) > td[colspan]` in alpine.js) keeps
+ * excluding it — removing `.hidden` would make fillGrid treat the spinner as an
+ * empty-state row and lock table scrolling. Its `hx-indicator` puts
+ * `.htmx-request` on the row itself while the next page loads; reveal it then.
+ * Unlayered (not @layer) on purpose: Tailwind's `.hidden { display:none }` lives
+ * in @layer utilities and wins over any layered rule regardless of specificity,
+ * so the reveal must be unlayered to override it.
+ */
+#infinite-scroll-spinner.htmx-request {
+  display: table-row;
 }

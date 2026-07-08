@@ -1,0 +1,345 @@
+package templ
+
+// LensThemeStyles emits the Lens design system v2 stylesheet: CSS custom
+// properties for every token in pkg/lens/theme plus the shared component
+// classes (cards, segmented controls, chips, trends, stat internals, tables,
+// empty states, tooltip skin). It is a lens-owned <style> block because
+// pkg/lens templates are not scanned by consumers' Tailwind builds, so
+// Tailwind utilities referenced only here would never be generated.
+//
+// The hex values below mirror pkg/lens/theme constants one-to-one; keep both
+// in sync when changing a token.
+templ LensThemeStyles() {
+	<style data-lens-theme-styles>
+		:root {
+			/* Surfaces */
+			--lens-bg-page: #F6F7F9;
+			--lens-bg-card: #FFFFFF;
+			--lens-bg-inset: #F8FAFC;
+			/* Hairlines */
+			--lens-border: #E2E8F0;
+			--lens-border-strong: #CBD5E1;
+			--lens-divider: #F1F5F9;
+			/* Text */
+			--lens-text-strong: #0F172A;
+			--lens-text: #334155;
+			--lens-text-muted: #64748B;
+			--lens-text-faint: #94A3B8;
+			/* Accent ramp */
+			--lens-accent-700: #1D4ED8;
+			--lens-accent-600: #2255D6;
+			--lens-accent-500: #2563EB;
+			--lens-accent-300: #93C5FD;
+			--lens-accent-100: #DBEAFE;
+			--lens-accent-50: #EFF6FF;
+			/* Status */
+			--lens-pos: #059669;
+			--lens-neg: #DC2626;
+			--lens-warn: #D97706;
+			/* Geometry */
+			--lens-radius-card: 8px;
+			--lens-radius-control: 6px;
+			--lens-radius-badge: 4px;
+			/* Elevation */
+			--lens-shadow-card: 0 1px 2px rgba(15,23,42,.04);
+			/* Typography */
+			--lens-font: 'Inter',ui-sans-serif,system-ui,'Helvetica Neue',Arial,sans-serif;
+		}
+
+		/* Typography utilities */
+		.lens-microlabel {
+			font-size: 11px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: .06em;
+			color: var(--lens-text-muted);
+		}
+		.lens-num {
+			font-variant-numeric: tabular-nums lining-nums;
+			font-feature-settings: "tnum" 1, "lnum" 1;
+			letter-spacing: -0.01em;
+		}
+		.lens-value-lg {
+			font-size: 24px;
+			font-weight: 650;
+			color: var(--lens-text-strong);
+			line-height: 1.15;
+		}
+		.lens-value-md {
+			font-size: 18px;
+			font-weight: 600;
+			color: var(--lens-text-strong);
+		}
+		text.apexcharts-text.lens-num,
+		.apexcharts-text.lens-num tspan {
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* Card chrome */
+		.lens-card {
+			background: var(--lens-bg-card);
+			border: 1px solid var(--lens-border);
+			border-radius: 8px;
+			box-shadow: var(--lens-shadow-card);
+			display: flex;
+			flex-direction: column;
+			height: 100%;
+			overflow: hidden;
+			transition: border-color .15s ease;
+		}
+		.lens-card--overflow {
+			overflow: visible;
+		}
+		.lens-card--interactive:hover {
+			border-color: var(--lens-accent-300);
+		}
+		.lens-card__hdr {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 8px;
+			min-height: 40px;
+			padding: 0 14px;
+			border-bottom: 1px solid var(--lens-divider);
+		}
+		.lens-card__title {
+			font-size: 11px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: .06em;
+			color: var(--lens-text-muted);
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+		}
+
+		/* Segmented control (tabs) */
+		.lens-seg {
+			display: inline-flex;
+			background: var(--lens-bg-inset);
+			border: 1px solid var(--lens-border);
+			border-radius: 6px;
+			padding: 2px;
+			gap: 2px;
+		}
+		.lens-seg__item {
+			font-size: 12px;
+			font-weight: 500;
+			color: var(--lens-text-muted);
+			padding: 4px 10px;
+			border-radius: 4px;
+			cursor: pointer;
+			white-space: nowrap;
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			border: 0;
+			background: transparent;
+		}
+		.lens-seg__item[data-active="true"],
+		.lens-seg__item.lens-seg__item--active {
+			background: #fff;
+			color: var(--lens-text-strong);
+			box-shadow: var(--lens-shadow-card);
+			border: 1px solid var(--lens-border);
+		}
+
+		/* Chips */
+		.lens-chip {
+			display: inline-flex;
+			align-items: center;
+			gap: 4px;
+			font-size: 10px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: .05em;
+			padding: 2px 6px;
+			border-radius: 4px;
+			background: var(--lens-bg-inset);
+			color: var(--lens-text-muted);
+			border: 1px solid var(--lens-divider);
+		}
+		.lens-chip--positive {
+			background: #ECFDF5;
+			color: #047857;
+			border-color: #A7F3D0;
+		}
+		.lens-chip--warning {
+			background: #FFFBEB;
+			color: #B45309;
+			border-color: #FDE68A;
+		}
+		.lens-chip--negative {
+			background: #FEF2F2;
+			color: #B91C1C;
+			border-color: #FECACA;
+		}
+
+		/* Trend */
+		.lens-trend {
+			display: inline-flex;
+			gap: 4px;
+			font-size: 12px;
+			font-weight: 600;
+		}
+		.lens-trend--up { color: var(--lens-pos); }
+		.lens-trend--down { color: var(--lens-neg); }
+		.lens-trend__label {
+			color: var(--lens-text-faint);
+			font-weight: 400;
+		}
+
+		/* Stat card internals */
+		.lens-stat {
+			padding: 12px 14px;
+			display: flex;
+			flex-direction: column;
+			gap: 6px;
+			min-height: 96px;
+			justify-content: space-between;
+		}
+		.lens-stat__swatch {
+			width: 8px;
+			height: 8px;
+			border-radius: 2px;
+			flex: none;
+		}
+		.lens-stat__label-row {
+			display: flex;
+			align-items: center;
+			gap: 6px;
+			min-width: 0;
+		}
+		.lens-stat__value {
+			display: flex;
+			align-items: baseline;
+			gap: 6px;
+			flex-wrap: wrap;
+		}
+		.lens-stat__unit {
+			font-size: 13px;
+			font-weight: 500;
+			color: var(--lens-text-muted);
+		}
+		.lens-stat--zero .lens-stat__value {
+			color: var(--lens-text-faint);
+		}
+		.lens-spark {
+			width: 72px;
+			height: 22px;
+			flex: none;
+		}
+		.lens-spark polyline {
+			fill: none;
+			stroke-width: 1.5;
+		}
+
+		/* Table */
+		.lens-th {
+			text-align: left;
+			font-size: 10.5px;
+			font-weight: 600;
+			text-transform: uppercase;
+			letter-spacing: .05em;
+			color: var(--lens-text-faint);
+			padding: 8px 12px;
+			border-bottom: 1px solid var(--lens-border);
+			background: #fff;
+			position: sticky;
+			top: 0;
+			z-index: 1;
+		}
+		.lens-td {
+			font-size: 12.5px;
+			color: var(--lens-text);
+			padding: 6px 12px;
+			border-bottom: 1px solid var(--lens-divider);
+		}
+		.lens-td--strong {
+			color: var(--lens-text-strong);
+			font-weight: 500;
+		}
+		.lens-th--num,
+		.lens-td--num {
+			text-align: right;
+		}
+		.lens-tr:hover > .lens-td {
+			background: var(--lens-bg-inset);
+		}
+		.lens-table-sticky-first td:first-child,
+		.lens-table-sticky-first th:first-child {
+			position: sticky;
+			left: 0;
+			background: inherit;
+			z-index: 2;
+		}
+
+		/* Empty state */
+		.lens-empty {
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 8px;
+			padding: 24px;
+			color: var(--lens-text-muted);
+		}
+		.lens-empty__icon {
+			width: 28px;
+			height: 28px;
+			background: var(--lens-bg-inset);
+			border-radius: 6px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			color: var(--lens-text-faint);
+		}
+		.lens-empty__title {
+			font-size: 12px;
+			font-weight: 500;
+		}
+		.lens-empty__hint {
+			font-size: 11px;
+			color: var(--lens-text-faint);
+		}
+
+		/* Apex tooltip (light skin) */
+		.apexcharts-tooltip.lens-tooltip {
+			background: #fff !important;
+			color: var(--lens-text) !important;
+			border: 1px solid var(--lens-border-strong) !important;
+			border-radius: 6px !important;
+			box-shadow: 0 4px 12px rgba(15,23,42,.08) !important;
+			font-family: var(--lens-font) !important;
+		}
+		.apexcharts-tooltip.lens-tooltip .apexcharts-tooltip-text-y-value,
+		.apexcharts-tooltip.lens-tooltip .apexcharts-tooltip-text-goals-value,
+		.apexcharts-tooltip.lens-tooltip .apexcharts-tooltip-text-z-value {
+			font-variant-numeric: tabular-nums;
+		}
+
+		/* Dashboard shell */
+		[data-lens-dashboard-shell] {
+			font-family: var(--lens-font);
+		}
+
+		/* Stat headline values scale to the CARD width (container query), so
+		   big numbers stay on one line in narrow columns. The base size is
+		   24px (.lens-value-lg); narrow cards step down. */
+		.lens-card {
+			container-type: inline-size;
+		}
+		@container (max-width: 19rem) {
+			.lens-card .lens-stat__value {
+				font-size: 20px;
+				line-height: 1.15;
+			}
+		}
+		@container (max-width: 14rem) {
+			.lens-card .lens-stat__value {
+				font-size: 17px;
+				line-height: 1.15;
+			}
+		}
+	</style>
+}

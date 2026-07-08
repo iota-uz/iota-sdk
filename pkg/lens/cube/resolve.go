@@ -349,13 +349,14 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 	case panel.KindStat,
 		panel.KindTimeSeries,
 		panel.KindBar,
-		panel.KindSegmentBar,
+		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
 		panel.KindGrid,
 		panel.KindSplit,
-		panel.KindRepeat:
+		panel.KindRepeat,
+		panel.KindStatGroup:
 		return panel.Bar(id, title, dataset)
 	case panel.KindHorizontalBar:
 		return panel.HorizontalBar(id, title, dataset)

@@ -313,6 +313,59 @@ func dropDB(name string, db dbconfig.Config) error {
 	return err
 }
 
+// withMigrationAdvisoryLock runs fn while holding a session-level Postgres
+// advisory lock on the shared "postgres" maintenance database. Because advisory
+// locks are database-local, taking the lock on the admin DB that every parallel
+// harness connects to is what actually serializes concurrent migration runs
+// (which touch cluster-global catalog objects such as roles/RLS). The lock is
+// acquired and released on a single pinned connection, as a session lock
+// requires. If the lock cannot be acquired, fn is still run unlocked (best
+// effort) so a transient lock hiccup degrades to prior behavior rather than
+// failing the whole test run.
+func withMigrationAdvisoryLock(db dbconfig.Config, fn func() error) error {
+	ctx := context.Background()
+	adminConnStr := fmt.Sprintf(
+		"host=%s port=%s user=%s dbname=postgres password=%s sslmode=disable",
+		db.Host, db.Port, db.User, db.Password,
+	)
+
+	sqlDB, err := sql.Open("postgres", adminConnStr)
+	if err != nil {
+		log.Printf("[WARNING] migration advisory lock: open admin connection failed, running unlocked: %v", err)
+		return fn()
+	}
+	defer func() {
+		if cerr := sqlDB.Close(); cerr != nil {
+			log.Printf("[WARNING] migration advisory lock: closing admin pool: %v", cerr)
+		}
+	}()
+
+	// Pin a single connection: a session advisory lock must be acquired and
+	// released on the SAME connection, which a pool would not guarantee.
+	conn, err := sqlDB.Conn(ctx)
+	if err != nil {
+		log.Printf("[WARNING] migration advisory lock: pin connection failed, running unlocked: %v", err)
+		return fn()
+	}
+	defer func() {
+		if cerr := conn.Close(); cerr != nil {
+			log.Printf("[WARNING] migration advisory lock: closing pinned connection: %v", cerr)
+		}
+	}()
+
+	if _, err := conn.ExecContext(ctx, "SELECT pg_advisory_lock($1)", migrationAdvisoryLockKey); err != nil {
+		log.Printf("[WARNING] migration advisory lock: acquire failed, running unlocked: %v", err)
+		return fn()
+	}
+	defer func() {
+		if _, uerr := conn.ExecContext(ctx, "SELECT pg_advisory_unlock($1)", migrationAdvisoryLockKey); uerr != nil {
+			log.Printf("[WARNING] migration advisory lock: release failed: %v", uerr)
+		}
+	}()
+
+	return fn()
+}
+
 // DropDBE drops a test database and returns an error instead of panicking.
 func DropDBE(name string, db dbconfig.Config) (err error) {
 	defer func() {
