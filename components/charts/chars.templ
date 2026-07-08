@@ -104,7 +104,12 @@ script graph(id string, options templ.JSExpression) {
 		const chart = new ApexCharts(container, options);
 		container.__apexChart = chart;
 		container.__apexHiddenSeries = Array.from(hidden);
-		Promise.resolve(chart.render()).then(() => {
+		// Expose the in-flight render() promise so a follow-up render pass can wait
+		// for this one to settle instead of destroying a half-mounted instance
+		// (which nulls its internal series and throws "isSeriesHidden of null").
+		const renderPromise = Promise.resolve(chart.render());
+		container.__apexRenderPromise = renderPromise;
+		renderPromise.then(() => {
 			// A newer renderChart() may have destroyed this instance while the
 			// render promise was pending; bail so we don't toggle a dead chart
 			// or overwrite __apexHiddenSeries with its empty state.
@@ -123,7 +128,13 @@ script graph(id string, options templ.JSExpression) {
 	const renderWhenReady = () => {
 		renderChart();
 		requestAnimationFrame(() => {
-			setTimeout(renderChart, 0);
+			setTimeout(() => {
+				// Serialize the second pass behind the first render() so it never
+				// destroys an instance whose mount() has not resolved yet.
+				const container = document.getElementById(id);
+				const pending = container ? container.__apexRenderPromise : null;
+				Promise.resolve(pending).finally(renderChart);
+			}, 0);
 		});
 	};
 	if (document.readyState === 'loading') {

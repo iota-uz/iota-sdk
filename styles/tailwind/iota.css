@@ -712,7 +712,21 @@
     position: fixed;
     inset: 0;
     overflow: clip;
-    transition: opacity 500ms var(--ease-3);
+    /* `display`/`overlay` are transitioned with allow-discrete so the closed
+       `display: none` (below) is deferred for the 500ms slide-out animation
+       instead of collapsing the box mid-exit. */
+    transition:
+      opacity 500ms var(--ease-3),
+      display 500ms allow-discrete,
+      overlay 500ms allow-discrete;
+  }
+
+  /* Start the open transition from the closed (opacity 0) state so the dialog
+     fades/slides in when it enters the top layer from `display: none`. */
+  @starting-style {
+    .dialog[open] {
+      opacity: 0;
+    }
   }
 
   .dialog-rounded {
@@ -740,6 +754,10 @@
   }
 
   .dialog:not([open]) {
+    /* Remove the closed dialog from layout + the a11y tree. `display` is
+       transitioned with allow-discrete (see `.dialog`) so the slide-out
+       animation still plays before the box collapses. */
+    display: none;
     pointer-events: none;
     opacity: 0;
   }

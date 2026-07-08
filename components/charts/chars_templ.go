@@ -23,8 +23,8 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_83a4`,
-		Function: `function __templ_graph_83a4(id, options){const hiddenSeriesNames = (chart) => {
+		Name: `__templ_graph_2347`,
+		Function: `function __templ_graph_2347(id, options){const hiddenSeriesNames = (chart) => {
 		const globals = chart && chart.w && chart.w.globals;
 		if (!globals) {
 			return [];
@@ -118,7 +118,12 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		const chart = new ApexCharts(container, options);
 		container.__apexChart = chart;
 		container.__apexHiddenSeries = Array.from(hidden);
-		Promise.resolve(chart.render()).then(() => {
+		// Expose the in-flight render() promise so a follow-up render pass can wait
+		// for this one to settle instead of destroying a half-mounted instance
+		// (which nulls its internal series and throws "isSeriesHidden of null").
+		const renderPromise = Promise.resolve(chart.render());
+		container.__apexRenderPromise = renderPromise;
+		renderPromise.then(() => {
 			// A newer renderChart() may have destroyed this instance while the
 			// render promise was pending; bail so we don't toggle a dead chart
 			// or overwrite __apexHiddenSeries with its empty state.
@@ -137,7 +142,13 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	const renderWhenReady = () => {
 		renderChart();
 		requestAnimationFrame(() => {
-			setTimeout(renderChart, 0);
+			setTimeout(() => {
+				// Serialize the second pass behind the first render() so it never
+				// destroys an instance whose mount() has not resolved yet.
+				const container = document.getElementById(id);
+				const pending = container ? container.__apexRenderPromise : null;
+				Promise.resolve(pending).finally(renderChart);
+			}, 0);
 		});
 	};
 	if (document.readyState === 'loading') {
@@ -159,8 +170,8 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		renderChart();
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_graph_83a4`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_83a4`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_2347`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_2347`, id, options),
 	}
 }
 
@@ -226,7 +237,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 175, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 186, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
