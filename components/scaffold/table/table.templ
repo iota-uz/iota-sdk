@@ -828,17 +828,18 @@ templ DefaultPanelSkeleton() {
 }
 
 templ TableSettingsTrigger() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@button.Secondary(button.Props{
 		Icon:  icons.Gear(icons.Props{Size: "20"}),
 		Class: "ml-auto",
 		Attrs: templ.Attributes{
 			"type":       "button",
 			"@click":     "$dispatch('open-table-settings')",
-			"aria-label": "Open table settings",
-			"title":      "Table settings",
+			"aria-label": pageCtx.T("Scaffold.Table.TableSettings"),
+			"title":      pageCtx.T("Scaffold.Table.TableSettings"),
 		},
 	}) {
-		<span class="sr-only">Table settings</span>
+		<span class="sr-only">{ pageCtx.T("Scaffold.Table.TableSettings") }</span>
 	}
 }
 
@@ -856,13 +857,16 @@ templ Content(config *TableConfig) {
 		<div
 			class={
 				templ.Classes(
-					"flex justify-between",
+					// flex-wrap + row gap let the primary action / filters group drop
+					// below the title on narrow viewports (<=390px) instead of being
+					// pushed offscreen. Desktop is unchanged: with room it never wraps.
+					"flex flex-wrap gap-y-3 justify-between",
 					templ.KV("md:justify-start", !config.StackedToolbar),
 					templ.KV("items-center gap-3", config.StackedToolbar),
 				),
 			}
 		>
-			<h1 class="text-2xl font-medium">
+			<h1 class="text-2xl font-medium min-w-0">
 				{ config.Title }
 			</h1>
 			if config.StackedToolbar && len(config.Actions) > 0 {

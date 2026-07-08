@@ -23,8 +23,8 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_2347`,
-		Function: `function __templ_graph_2347(id, options){const hiddenSeriesNames = (chart) => {
+		Name: `__templ_graph_31bd`,
+		Function: `function __templ_graph_31bd(id, options){const hiddenSeriesNames = (chart) => {
 		const globals = chart && chart.w && chart.w.globals;
 		if (!globals) {
 			return [];
@@ -118,11 +118,11 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		const chart = new ApexCharts(container, options);
 		container.__apexChart = chart;
 		container.__apexHiddenSeries = Array.from(hidden);
-		// Expose the in-flight render() promise so a follow-up render pass can wait
-		// for this one to settle instead of destroying a half-mounted instance
-		// (which nulls its internal series and throws "isSeriesHidden of null").
+		// Return the in-flight render() promise so the render queue can wait for
+		// this mount to settle before the next pass destroys it (destroying a
+		// half-mounted instance nulls its series and throws "isSeriesHidden of
+		// null"). The queue pointer itself is owned by scheduleRender().
 		const renderPromise = Promise.resolve(chart.render());
-		container.__apexRenderPromise = renderPromise;
 		renderPromise.then(() => {
 			// A newer renderChart() may have destroyed this instance while the
 			// render promise was pending; bail so we don't toggle a dead chart
@@ -138,16 +138,30 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 			});
 			container.__apexHiddenSeries = hiddenSeriesNames(chart);
 		});
+		return renderPromise;
+	}
+	// scheduleRender is the single entry point for every render trigger (initial
+	// mount, both readiness passes, tab switch, fullscreen, resize/theme, and the
+	// sdk:rerenderCharts event fired ~100ms after each lens panel HTMX swap). It
+	// always chains the next renderChart() on the previous render's promise so
+	// destroy() can never run against an unsettled ApexCharts mount, regardless of
+	// which trigger fired.
+	const scheduleRender = () => {
+		const container = document.getElementById(id);
+		const pending = container ? container.__apexRenderPromise : null;
+		const next = Promise.resolve(pending).catch(() => {}).then(renderChart);
+		if (container) {
+			container.__apexRenderPromise = next;
+		}
+		return next;
 	}
 	const renderWhenReady = () => {
-		renderChart();
+		scheduleRender();
 		requestAnimationFrame(() => {
 			setTimeout(() => {
-				// Serialize the second pass behind the first render() so it never
+				// Second pass is queued behind the first render() so it never
 				// destroys an instance whose mount() has not resolved yet.
-				const container = document.getElementById(id);
-				const pending = container ? container.__apexRenderPromise : null;
-				Promise.resolve(pending).finally(renderChart);
+				scheduleRender();
 			}, 0);
 		});
 	};
@@ -167,11 +181,11 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 				return;
 			}
 		}
-		renderChart();
+		scheduleRender();
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_graph_2347`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_2347`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_31bd`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_31bd`, id, options),
 	}
 }
 
@@ -237,7 +251,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 186, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 200, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
