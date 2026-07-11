@@ -36,12 +36,22 @@ type Spec struct {
 	Kind          Kind
 	Method        string
 	URL           string
+	URLSource     *ValueSource
 	Target        string
 	Event         string
 	Payload       map[string]ValueSource
 	Params        []Param
 	Drill         *DrillSpec
 	PreserveQuery bool
+}
+
+func (s Spec) WithURLSource(source ValueSource) Spec {
+	s.URLSource = &source
+	return s
+}
+
+func (s Spec) WithFieldURL(field string) Spec {
+	return s.WithURLSource(FieldValue(field))
 }
 
 func Navigate(url string, params ...Param) Spec {

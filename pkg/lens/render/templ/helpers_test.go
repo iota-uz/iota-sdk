@@ -89,6 +89,28 @@ func TestActionURLSupportsHtmxActions(t *testing.T) {
 	require.Equal(t, "/contracts?product=osago", url)
 }
 
+func TestActionURLResolvesFullURLFromRow(t *testing.T) {
+	t.Parallel()
+
+	spec := action.Navigate("").WithFieldURL("action_url")
+	url := actionURL(&spec, map[string]any{
+		"action_url": "/analytics/drill/rnp?token=signed-token",
+	}, &runtime.PanelResult{})
+
+	require.Equal(t, "/analytics/drill/rnp?token=signed-token", url)
+}
+
+func TestActionURLResolvesFullURLFromRowForHtmxSwap(t *testing.T) {
+	t.Parallel()
+
+	spec := action.HtmxSwap("", "#drawer").WithFieldURL("action_url")
+	url := actionURL(&spec, map[string]any{
+		"action_url": "/analytics/drill/acquisition_cost?token=signed-token",
+	}, &runtime.PanelResult{})
+
+	require.Equal(t, "/analytics/drill/acquisition_cost?token=signed-token", url)
+}
+
 func TestActionOnClickSupportsEmitEventFallbacks(t *testing.T) {
 	t.Parallel()
 

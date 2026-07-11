@@ -101,6 +101,52 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 	require.Contains(t, js, `resolveValue(variables["active_only"], true)`)
 }
 
+func TestBuildActionJSResolvesFullURLFromClickedRow(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("costs",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Acquisition"}},
+		frame.Field{Name: "action_url", Type: frame.FieldTypeString, Values: []any{"/analytics/drill/acquisition_cost?token=signed-token"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	spec := action.Navigate("").WithFieldURL("action_url")
+	js := string(buildActionJS(
+		&spec,
+		fr,
+		panel.FieldMapping{Label: "segment", Value: "value"},
+		&runtime.PanelResult{},
+	))
+
+	require.Contains(t, js, `resolveValue(row["action_url"], undefined)`)
+	require.Contains(t, js, "nextURL = String(resolvedURL)")
+	require.Contains(t, js, "window.location.href = nextURL")
+}
+
+func TestBuildActionJSResolvesFullURLFromClickedRowForHtmxSwap(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("costs",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Acquisition"}},
+		frame.Field{Name: "action_url", Type: frame.FieldTypeString, Values: []any{"/analytics/drill/acquisition_cost?token=signed-token"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	spec := action.HtmxSwap("", "#drawer").WithFieldURL("action_url")
+	js := string(buildActionJS(
+		&spec,
+		fr,
+		panel.FieldMapping{Label: "segment", Value: "value"},
+		&runtime.PanelResult{},
+	))
+
+	require.Contains(t, js, `resolveValue(row["action_url"], undefined)`)
+	require.Contains(t, js, "nextURL = String(resolvedURL)")
+	require.Contains(t, js, "window.__lensDrillAjax(cfg.method || 'GET', nextURL, cfg.target, cfg.target)")
+}
+
 func TestBuildActionJSUsesHtmxSwapForCubeDrill(t *testing.T) {
 	t.Parallel()
 

@@ -1350,6 +1350,11 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			});
 		}
 	`, configJS)
+	if spec.URLSource != nil {
+		expr := actionValueJS(*spec.URLSource, fields)
+		js += fmt.Sprintf("const resolvedURL = %s;\nif (resolvedURL !== undefined && resolvedURL !== null && resolvedURL !== '') { nextURL = String(resolvedURL); }\n", expr)
+	}
+	js += "if (!nextURL) { return; }\n"
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
 		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { replaceParam(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)

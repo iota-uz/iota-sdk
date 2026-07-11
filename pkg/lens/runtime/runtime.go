@@ -877,7 +877,7 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 			return fmt.Errorf("panel %s requires series field", spec.ID)
 		}
 	}
-	if spec.Action != nil && strings.TrimSpace(spec.Action.URL) == "" && spec.Action.Kind != action.KindEmitEvent {
+	if spec.Action != nil && strings.TrimSpace(spec.Action.URL) == "" && spec.Action.URLSource == nil && spec.Action.Kind != action.KindEmitEvent {
 		return fmt.Errorf("panel %s action requires url", spec.ID)
 	}
 	if spec.Action != nil {
@@ -891,6 +891,11 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		}
 		if spec.Action.Kind == action.KindHtmxSwap && strings.TrimSpace(spec.Action.Target) == "" {
 			return fmt.Errorf("panel %s htmx action requires target", spec.ID)
+		}
+		if spec.Action.URLSource != nil {
+			if err := validateValueSource(spec.ID, "url", *spec.Action.URLSource); err != nil {
+				return err
+			}
 		}
 		for _, param := range spec.Action.Params {
 			if err := validateValueSource(spec.ID, param.Name, param.Source); err != nil {
@@ -928,6 +933,11 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 		}
 	}
 	if spec.Action != nil {
+		if spec.Action.URLSource != nil {
+			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, *spec.Action.URLSource); err != nil {
+				return err
+			}
+		}
 		for _, param := range spec.Action.Params {
 			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, param.Source); err != nil {
 				return err

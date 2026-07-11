@@ -1207,6 +1207,16 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 	default:
 		return ""
 	}
+	resolvedSpec := *spec
+	if spec.URLSource != nil {
+		if value, ok := action.ResolveValue(*spec.URLSource, row, resultVariables(result)); ok {
+			resolvedSpec.URL = fmt.Sprint(value)
+		}
+	}
+	if strings.TrimSpace(resolvedSpec.URL) == "" {
+		return ""
+	}
+	spec = &resolvedSpec
 	if spec.Kind == action.KindCubeDrill {
 		return cubeDrillActionURL(spec, row, result)
 	}
