@@ -117,7 +117,7 @@ templ UploadTarget(p *UploadInputProps) {
 			{{ rowID := fmt.Sprintf("uploaded-file-%s-%d", p.ID, i) }}
 			{{ name := uploadDisplayName(upload) }}
 			{{ previewURL := strings.TrimSpace(upload.URL) }}
-			<div id={ rowID } class="rounded-md border border-primary bg-surface-100 p-2">
+			<div id={ rowID } class="rounded-md border border-subtle bg-surface-100 p-2">
 				<div class="flex items-start justify-between gap-3">
 					<div class="min-w-0">
 						if previewURL != "" {
@@ -168,7 +168,7 @@ templ UploadTarget(p *UploadInputProps) {
 
 templ (p *UploadInputProps) render() {
 	<div
-		class={ "relative border border-gray-400 border-dashed rounded-md p-4 flex flex-col items-center transition-colors", p.Class }
+		class={ "relative border border-default border-dashed rounded-md p-4 flex flex-col items-center transition-colors", p.Class }
 		{ uploadInputDropAttrs(p.ID)... }
 	>
 		<div
@@ -301,17 +301,17 @@ templ UploadHelpersScript() {
 				function dragenter(el, event) {
 					event.preventDefault();
 					event.stopPropagation();
-					el.classList.add('border-primary');
+					el.classList.add('border-brand');
 				}
 
 				function dragleave(el, event) {
-					if (event.target === el) el.classList.remove('border-primary');
+					if (event.target === el) el.classList.remove('border-brand');
 				}
 
 				function drop(el, event, inputId) {
 					event.preventDefault();
 					event.stopPropagation();
-					el.classList.remove('border-primary');
+					el.classList.remove('border-brand');
 					var inp = document.getElementById(inputId);
 					if (!inp || !event.dataTransfer || !event.dataTransfer.files || !event.dataTransfer.files.length) return;
 					try {

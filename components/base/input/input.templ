@@ -203,7 +203,7 @@ templ Color(props *Props) {
 		</label>
 		<input
 			type="color"
-			class="p-1 h-10 w-14 block bg-white border border-gray-200 cursor-pointer rounded-lg disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700"
+			class="p-1 h-10 w-14 block bg-white border border-default cursor-pointer rounded-lg disabled:border-disabled disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900"
 			id={ props.id }
 			title="Choose your color"
 		/>
@@ -246,7 +246,7 @@ templ (p *CheckboxProps) render() {
 		/>
 		<!-- Visual checkbox box -->
 		<div
-			class="w-5 h-5 rounded-[5px] border border-gray-300 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
+			class="w-5 h-5 rounded-[5px] border border-default duration-200 flex items-center justify-center hover:border-brand peer-disabled:border-disabled peer-indeterminate:bg-brand-500 peer-checked:border-brand peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group"
 		>
 			@icons.Check(icons.Props{
 				Size:  "16",

@@ -86,12 +86,12 @@ templ tableFooter(cfg *TableConfig) {
 				}}
 				@base.TableCell(base.TableCellProps{
 					Classes: templ.Classes(
-						"bg-surface-300 font-bold border-t-2 border-primary",
+						"bg-surface-300 font-bold border-t-2 border-strong",
 						templ.KV("sticky", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
 						templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
 						templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
-						templ.KV("border-l border-primary", cfg.Columns[i].StickyPos() == StickyPositionRight),
-						templ.KV("border-r border-primary", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+						templ.KV("border-l border-default", cfg.Columns[i].StickyPos() == StickyPositionRight),
+						templ.KV("border-r border-default", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 						priorityCellClass(cellPriority),
 						cell.Classes(),
 					),
@@ -149,8 +149,8 @@ templ Rows(cfg *TableConfig) {
 							@base.TableCell(base.TableCellProps{
 								Classes: templ.Classes(
 									templ.KV("sticky bg-surface-600", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
-									templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-primary))]", cfg.Columns[i].StickyPos() == StickyPositionRight),
-									templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-primary))]", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+									templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-default))]", cfg.Columns[i].StickyPos() == StickyPositionRight),
+									templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-default))]", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 									cell.Classes(),
 								),
 								Attrs: cell.Attrs(),
@@ -218,8 +218,8 @@ templ Rows(cfg *TableConfig) {
 								templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
 								templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
-								templ.KV("border-l border-primary", cfg.Columns[i].StickyPos() == StickyPositionRight),
-								templ.KV("border-r border-primary", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+								templ.KV("border-l border-default", cfg.Columns[i].StickyPos() == StickyPositionRight),
+								templ.KV("border-r border-default", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 								priorityCellClass(cellPriority),
 								cell.Classes(),
 							),
@@ -433,7 +433,7 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 			if config.Editable.Enabled {
 				<tbody>
 					<tr @click="addRow">
-						<td colspan="100%" class={ "border-t border-primary", templ.KV("pt-4 px-4", !config.Editable.WithoutCreate) } id={ fmt.Sprintf("%s-add", config.Editable.Key) } hx-swap-oob="true">
+						<td colspan="100%" class={ "border-t border-subtle", templ.KV("pt-4 px-4", !config.Editable.WithoutCreate) } id={ fmt.Sprintf("%s-add", config.Editable.Key) } hx-swap-oob="true">
 							if  !config.Editable.WithoutCreate {
 								@button.Secondary(button.Props{Size: button.SizeMD, Icon: icons.Plus(icons.Props{Size: "20"}), Class: "w-full justify-center", Attrs: templ.Attributes{"type": "button"}}) {
 									if len(config.Editable.CreateLabel) > 0 {
@@ -458,7 +458,7 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 				<div class="p-4 w-full">
 					<div class="flex flex-col h-full bg-white rounded-lg">
 						<div class="flex flex-col h-full">
-							<div class="flex justify-between px-4 py-3 border-b border-primary">
+							<div class="flex justify-between px-4 py-3 border-b border-subtle">
 								<h3 class="font-medium">
 									{ pageCtx.T("Scaffold.Table.TableSettings") }
 								</h3>
@@ -561,10 +561,10 @@ templ tableInner(config *TableConfig, pageCtx types.PageContext) {
 									</div>
 								</div>
 							</div>
-							<div class="px-4 py-3 border-t border-primary">
+							<div class="px-4 py-3 border-t border-subtle">
 								<button
 									type="button"
-									class="w-full text-sm text-center py-2 px-3 rounded-md border border-primary hover:bg-surface-400 transition-colors cursor-pointer"
+									class="w-full text-sm text-center py-2 px-3 rounded-md border border-default hover:border-brand hover:bg-surface-400 transition-colors cursor-pointer"
 									@click="resetConfiguration()"
 								>
 									{ pageCtx.T("Scaffold.Table.ResetSettings") }
@@ -628,7 +628,7 @@ templ TableContent(config *TableConfig) {
 	<div
 		class={
 			templ.Classes(
-				"bg-surface-600 border border-primary rounded-lg",
+				"bg-surface-600 border border-subtle rounded-lg",
 				templ.KV("flex flex-col h-full min-h-0 overflow-hidden", config.FullHeight),
 			),
 		}
@@ -923,8 +923,8 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.
 			Label: col.Label(),
 			Class: templ.Classes(
 				templ.KV("bg-surface-500 sticky", col.StickyPos().Right() || col.StickyPos().Left()),
-				templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-primary))]", col.StickyPos().Right()),
-				templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-primary))]", col.StickyPos().Left()),
+				templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-default))]", col.StickyPos().Right()),
+				templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-default))]", col.StickyPos().Left()),
 				col.Class(),
 			).String(),
 			Sortable:      col.Sortable(),

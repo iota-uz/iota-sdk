@@ -37,7 +37,7 @@ func OverviewContent() templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"p-8 max-w-6xl mx-auto\"><!-- Hero Section --><div class=\"text-center mb-12\"><h1 class=\"text-4xl font-bold text-black mb-4\">IOTA SDK Component Showcase</h1><p class=\"text-xl text-gray-700 max-w-2xl mx-auto\">Explore our comprehensive collection of UI components built with Templ and styled with Tailwind CSS.  Perfect for building modern, responsive web applications.</p></div><!-- Quick Stats --><div class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mb-12\"><div class=\"bg-badge-blue rounded-lg p-6 text-center\"><div class=\"text-3xl font-bold text-blue mb-2\">20+</div><div class=\"text-gray-700\">Form Components</div></div><div class=\"bg-badge-green rounded-lg p-6 text-center\"><div class=\"text-3xl font-bold text-green mb-2\">15+</div><div class=\"text-gray-700\">UI Elements</div></div><div class=\"bg-badge-purple rounded-lg p-6 text-center\"><div class=\"text-3xl font-bold text-purple mb-2\">8+</div><div class=\"text-gray-700\">Chart Types</div></div></div><!-- Component Categories --><div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 mb-12\"><!-- Form Components Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"p-8 max-w-6xl mx-auto\"><!-- Hero Section --><div class=\"text-center mb-12\"><h1 class=\"text-4xl font-bold text-black mb-4\">IOTA SDK Component Showcase</h1><p class=\"text-xl text-gray-700 max-w-2xl mx-auto\">Explore our comprehensive collection of UI components built with Templ and styled with Tailwind CSS.  Perfect for building modern, responsive web applications.</p></div><!-- Quick Stats --><div class=\"grid grid-cols-1 md:grid-cols-3 gap-6 mb-12\"><div class=\"bg-badge-blue rounded-lg p-6 text-center\"><div class=\"text-3xl font-bold text-blue mb-2\">20+</div><div class=\"text-gray-700\">Form Components</div></div><div class=\"bg-badge-green rounded-lg p-6 text-center\"><div class=\"text-3xl font-bold text-green mb-2\">15+</div><div class=\"text-gray-700\">UI Elements</div></div><div class=\"bg-badge-purple rounded-lg p-6 text-center\"><div class=\"text-3xl font-bold text-purple mb-2\">8+</div><div class=\"text-gray-700\">Chart Types</div></div></div><!-- Component Categories --><div class=\"grid grid-cols-1 md:grid-cols-2 gap-8 mb-12\"><!-- Form Components Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -189,7 +189,7 @@ func OverviewContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div></div><!-- Loaders Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div></div><!-- Loaders Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -297,7 +297,7 @@ func OverviewContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div></div><!-- Charts Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div></div><!-- Charts Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -427,7 +427,7 @@ func OverviewContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div></div><!-- Other Components Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-primary\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 25, "</div></div><!-- Other Components Card --><div class=\"bg-surface-100 rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 border border-subtle\"><div class=\"p-6\"><div class=\"flex items-center mb-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -557,7 +557,7 @@ func OverviewContent() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></div></div><!-- Getting Started --><div class=\"text-center\"><h2 class=\"text-2xl font-semibold text-gray-700 mb-4\">Ready to Get Started?</h2><p class=\"text-gray-700 mb-6\">Use the sidebar navigation to explore different component categories and see live examples with code snippets.</p><div class=\"flex flex-col sm:flex-row gap-4 justify-center\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "</div></div></div><section class=\"mb-12 rounded-xl border border-subtle bg-surface-300 p-6\"><h2 class=\"mb-2 text-2xl font-semibold text-100\">Semantic border tokens</h2><p class=\"mb-6 text-200\">The same contract is used in light and dark themes.</p><div class=\"grid gap-4 md:grid-cols-4\"><div class=\"rounded-lg border border-subtle p-4\">Subtle<br><span class=\"text-sm text-200\">Cards and dividers</span></div><div class=\"rounded-lg border border-default p-4\">Default<br><span class=\"text-sm text-200\">Controls and tables</span></div><div class=\"rounded-lg border-2 border-strong p-4\">Strong<br><span class=\"text-sm text-200\">Selected regions</span></div><div class=\"rounded-lg border border-brand p-4\">Brand<br><span class=\"text-sm text-200\">Active and focus</span></div><div class=\"rounded-lg border border-success p-4\">Success</div><div class=\"rounded-lg border border-warning p-4\">Warning</div><div class=\"rounded-lg border border-danger p-4\">Danger</div><div class=\"rounded-lg border border-disabled p-4 opacity-50\">Disabled</div></div><div class=\"mt-6 grid gap-4 md:grid-cols-2\"><div class=\"rounded-lg border border-subtle bg-surface-100 p-4\"><div class=\"rounded-md border border-subtle bg-surface-300 p-4\">Nested card</div></div><div class=\"rounded-lg border border-subtle bg-surface-300 p-4\"><input class=\"form-control form-control-input w-full\" placeholder=\"Default control\"><div class=\"mt-3 rounded-md border border-danger p-3 text-sm\">Invalid state</div></div></div></section><!-- Getting Started --><div class=\"text-center\"><h2 class=\"text-2xl font-semibold text-gray-700 mb-4\">Ready to Get Started?</h2><p class=\"text-gray-700 mb-6\">Use the sidebar navigation to explore different component categories and see live examples with code snippets.</p><div class=\"flex flex-col sm:flex-row gap-4 justify-center\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

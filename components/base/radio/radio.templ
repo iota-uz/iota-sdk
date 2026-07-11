@@ -85,7 +85,7 @@ templ CardItem(props CardItemProps) {
 		class={
 			twmerge.Merge(
 				"flex items-center gap-2 bg-surface-100 text-text-300 p-2.5 rounded-lg",
-				"border border-primary duration-300 has-[input:checked]:border-brand-500 cursor-pointer",
+				"border border-default duration-300 has-[input:checked]:border-brand has-[input:disabled]:border-disabled cursor-pointer",
 				props.WrapperClass.String(),
 			),
 		}
@@ -102,7 +102,7 @@ templ CardItem(props CardItemProps) {
 		<div
 			class={
 				twmerge.Merge(
-					"w-5 h-5 border border-primary rounded-full druation-300 peer-checked:border-brand-500 relative after:absolute after:duration-300 after:w-3 after:h-3 after:rounded-full after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 peer-checked:after:bg-brand-500",
+					"w-5 h-5 border border-default rounded-full druation-300 peer-checked:border-brand peer-disabled:border-disabled relative after:absolute after:duration-300 after:w-3 after:h-3 after:rounded-full after:left-1/2 after:top-1/2 after:-translate-x-1/2 after:-translate-y-1/2 peer-checked:after:bg-brand-500",
 					props.Class.String(),
 				),
 			}

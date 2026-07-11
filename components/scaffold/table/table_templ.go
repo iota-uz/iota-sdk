@@ -216,12 +216,12 @@ func tableFooter(cfg *TableConfig) templ.Component {
 					})
 					templ_7745c5c3_Err = base.TableCell(base.TableCellProps{
 						Classes: templ.Classes(
-							"bg-surface-300 font-bold border-t-2 border-primary",
+							"bg-surface-300 font-bold border-t-2 border-strong",
 							templ.KV("sticky", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
 							templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
 							templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
-							templ.KV("border-l border-primary", cfg.Columns[i].StickyPos() == StickyPositionRight),
-							templ.KV("border-r border-primary", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+							templ.KV("border-l border-default", cfg.Columns[i].StickyPos() == StickyPositionRight),
+							templ.KV("border-r border-default", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 							priorityCellClass(cellPriority),
 							cell.Classes(),
 						),
@@ -373,8 +373,8 @@ func Rows(cfg *TableConfig) templ.Component {
 							templ_7745c5c3_Err = base.TableCell(base.TableCellProps{
 								Classes: templ.Classes(
 									templ.KV("sticky bg-surface-600", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
-									templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-primary))]", cfg.Columns[i].StickyPos() == StickyPositionRight),
-									templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-primary))]", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+									templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-default))]", cfg.Columns[i].StickyPos() == StickyPositionRight),
+									templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-default))]", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 									cell.Classes(),
 								),
 								Attrs: cell.Attrs(),
@@ -529,8 +529,8 @@ func Rows(cfg *TableConfig) templ.Component {
 									templ.KV("sticky bg-surface-600 shadow-lg", cfg.Columns[i].StickyPos() == StickyPositionRight || cfg.Columns[i].StickyPos() == StickyPositionLeft),
 									templ.KV("right-0", cfg.Columns[i].StickyPos() == StickyPositionRight),
 									templ.KV("left-0", cfg.Columns[i].StickyPos() == StickyPositionLeft),
-									templ.KV("border-l border-primary", cfg.Columns[i].StickyPos() == StickyPositionRight),
-									templ.KV("border-r border-primary", cfg.Columns[i].StickyPos() == StickyPositionLeft),
+									templ.KV("border-l border-default", cfg.Columns[i].StickyPos() == StickyPositionRight),
+									templ.KV("border-r border-default", cfg.Columns[i].StickyPos() == StickyPositionLeft),
 									priorityCellClass(cellPriority),
 									cell.Classes(),
 								),
@@ -1046,7 +1046,7 @@ func tableInner(config *TableConfig, pageCtx types.PageContext) templ.Component 
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				var templ_7745c5c3_Var33 = []any{"border-t border-primary", templ.KV("pt-4 px-4", !config.Editable.WithoutCreate)}
+				var templ_7745c5c3_Var33 = []any{"border-t border-subtle", templ.KV("pt-4 px-4", !config.Editable.WithoutCreate)}
 				templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var33...)
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
@@ -1071,7 +1071,7 @@ func tableInner(config *TableConfig, pageCtx types.PageContext) templ.Component 
 				var templ_7745c5c3_Var35 string
 				templ_7745c5c3_Var35, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%s-add", config.Editable.Key))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 436, Col: 163}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/scaffold/table/table.templ`, Line: 436, Col: 162}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var35))
 				if templ_7745c5c3_Err != nil {
@@ -1173,7 +1173,7 @@ func tableInner(config *TableConfig, pageCtx types.PageContext) templ.Component 
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div class=\"p-4 w-full\"><div class=\"flex flex-col h-full bg-white rounded-lg\"><div class=\"flex flex-col h-full\"><div class=\"flex justify-between px-4 py-3 border-b border-primary\"><h3 class=\"font-medium\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div class=\"p-4 w-full\"><div class=\"flex flex-col h-full bg-white rounded-lg\"><div class=\"flex flex-col h-full\"><div class=\"flex justify-between px-4 py-3 border-b border-subtle\"><h3 class=\"font-medium\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1321,7 +1321,7 @@ func tableInner(config *TableConfig, pageCtx types.PageContext) templ.Component 
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</li></ul></div></div></div><div class=\"px-4 py-3 border-t border-primary\"><button type=\"button\" class=\"w-full text-sm text-center py-2 px-3 rounded-md border border-primary hover:bg-surface-400 transition-colors cursor-pointer\" @click=\"resetConfiguration()\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 51, "</li></ul></div></div></div><div class=\"px-4 py-3 border-t border-subtle\"><button type=\"button\" class=\"w-full text-sm text-center py-2 px-3 rounded-md border border-default hover:border-brand hover:bg-surface-400 transition-colors cursor-pointer\" @click=\"resetConfiguration()\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1478,7 +1478,7 @@ func TableContent(config *TableConfig) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		var templ_7745c5c3_Var49 = []any{
 			templ.Classes(
-				"bg-surface-600 border border-primary rounded-lg",
+				"bg-surface-600 border border-subtle rounded-lg",
 				templ.KV("flex flex-col h-full min-h-0 overflow-hidden", config.FullHeight),
 			),
 		}
@@ -2511,8 +2511,8 @@ func toBaseTableColumns(config *TableConfig, pageCtx types.PageContext) []*base.
 			Label: col.Label(),
 			Class: templ.Classes(
 				templ.KV("bg-surface-500 sticky", col.StickyPos().Right() || col.StickyPos().Left()),
-				templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-primary))]", col.StickyPos().Right()),
-				templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-primary))]", col.StickyPos().Left()),
+				templ.KV("right-0 shadow-[inset_1px_0_0_0_oklch(var(--clr-border-default))]", col.StickyPos().Right()),
+				templ.KV("left-0 shadow-[inset_-1px_0_0_0_oklch(var(--clr-border-default))]", col.StickyPos().Left()),
 				col.Class(),
 			).String(),
 			Sortable:      col.Sortable(),

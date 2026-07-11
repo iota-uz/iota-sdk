@@ -29,7 +29,7 @@ templ Dropdown(props DropdownProps) {
 				type="button"
 				class={
 					"flex items-center justify-center cursor-pointer",
-					"border border-gray-300 rounded-md rounded-r-none px-2",
+					"border border-default rounded-md rounded-r-none px-2",
 				}
 			>
 				@icons.X(icons.Props{Size: "16"})
@@ -39,7 +39,7 @@ templ Dropdown(props DropdownProps) {
 				@click="toggle()"
 				type="button"
 				class={
-					"w-full border border-gray-300 rounded-md shadow-sm cursor-pointer",
+					"w-full border border-default rounded-md shadow-sm cursor-pointer",
 					"flex items-center justify-between px-4 py-2",
 				}
 				:class="selected.length ? 'rounded-l-none border-l-0' : ''"
@@ -63,7 +63,7 @@ templ Dropdown(props DropdownProps) {
 			x-transition
 			class={
 				"absolute z-20 mt-2 bg-white max-h-80 overflow-y-auto min-w-fit",
-				"border border-gray-200 rounded-md shadow-lg",
+				"border border-subtle rounded-md shadow-lg",
 			}
 		>
 			{ children... }
@@ -142,7 +142,7 @@ templ (t *TableFilter) AsSideFilter() {
 		pageCtx := composables.UsePageCtx(ctx)
 		id := random.String(12, random.LowerCharSet)
 	}}
-	<div class="bg-surface-600 border border-primary rounded-lg p-4 mb-4">
+	<div class="bg-surface-600 border border-subtle rounded-lg p-4 mb-4">
 		<div
 			class="space-y-3"
 			x-data="checkboxes"

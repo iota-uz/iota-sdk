@@ -676,7 +676,7 @@ func Color(props *Props) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</small></label> <input type=\"color\" class=\"p-1 h-10 w-14 block bg-white border border-gray-200 cursor-pointer rounded-lg disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900 dark:border-neutral-700\" id=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "</small></label> <input type=\"color\" class=\"p-1 h-10 w-14 block bg-white border border-default cursor-pointer rounded-lg disabled:border-disabled disabled:opacity-50 disabled:pointer-events-none dark:bg-neutral-900\" id=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -798,7 +798,7 @@ func (p *CheckboxProps) render() templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "><!-- Visual checkbox box --><div class=\"w-5 h-5 rounded-[5px] border border-gray-300 duration-200 flex items-center justify-center hover:border-brand-500 peer-indeterminate:bg-brand-500 peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "><!-- Visual checkbox box --><div class=\"w-5 h-5 rounded-[5px] border border-default duration-200 flex items-center justify-center hover:border-brand peer-disabled:border-disabled peer-indeterminate:bg-brand-500 peer-checked:border-brand peer-checked:bg-brand-500 peer-checked:text-white peer-indeterminate:text-white group\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
