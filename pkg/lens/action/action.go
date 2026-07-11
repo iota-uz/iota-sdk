@@ -1,7 +1,11 @@
 // Package action defines panel actions and action value sources for Lens dashboards.
 package action
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+	"strings"
+)
 
 type Kind string
 
@@ -149,6 +153,19 @@ func LiteralValue(value any) ValueSource {
 
 func VariableValue(variable string) ValueSource {
 	return ValueSource{Kind: SourceVariable, Name: variable}
+}
+
+// SafeRelativeURL accepts URLs that cannot navigate outside the current origin.
+func SafeRelativeURL(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || strings.ContainsRune(raw, '\\') || strings.HasPrefix(raw, "//") {
+		return "", false
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil || parsed.Opaque != "" {
+		return "", false
+	}
+	return raw, true
 }
 
 // ResolveValue resolves a ValueSource against a data row and variable map,

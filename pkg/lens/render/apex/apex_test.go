@@ -120,7 +120,8 @@ func TestBuildActionJSResolvesFullURLFromClickedRow(t *testing.T) {
 	))
 
 	require.Contains(t, js, `resolveValue(row["action_url"], undefined)`)
-	require.Contains(t, js, "nextURL = String(resolvedURL)")
+	require.Contains(t, js, "const resolvedURL = safeActionURL")
+	require.Contains(t, js, "if (!resolvedURL) { return; }")
 	require.Contains(t, js, "window.location.href = nextURL")
 }
 
@@ -143,8 +144,30 @@ func TestBuildActionJSResolvesFullURLFromClickedRowForHtmxSwap(t *testing.T) {
 	))
 
 	require.Contains(t, js, `resolveValue(row["action_url"], undefined)`)
-	require.Contains(t, js, "nextURL = String(resolvedURL)")
+	require.Contains(t, js, "const resolvedURL = safeActionURL")
+	require.Contains(t, js, "if (!resolvedURL) { return; }")
 	require.Contains(t, js, "window.__lensDrillAjax(cfg.method || 'GET', nextURL, cfg.target, cfg.target)")
+}
+
+func TestBuildActionJSRejectsUnsafeURLSourceForNavigateAndHtmx(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("costs",
+		frame.Field{Name: "action_url", Type: frame.FieldTypeString, Values: []any{"javascript:alert(1)"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	for _, spec := range []action.Spec{
+		action.Navigate("").WithFieldURL("action_url"),
+		action.HtmxSwap("", "#drawer").WithFieldURL("action_url"),
+	} {
+		js := string(buildActionJS(&spec, fr, panel.FieldMapping{Value: "value"}, &runtime.PanelResult{}))
+		require.Contains(t, js, "const resolvedURL = safeActionURL")
+		require.Contains(t, js, "raw.startsWith('//')")
+		require.Contains(t, js, "parsed.origin !== window.location.origin")
+		require.Contains(t, js, "if (!resolvedURL) { return; }")
+	}
 }
 
 func TestBuildActionJSUsesHtmxSwapForCubeDrill(t *testing.T) {

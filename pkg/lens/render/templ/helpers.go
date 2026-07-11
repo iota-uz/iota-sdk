@@ -1210,7 +1210,11 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 	resolvedSpec := *spec
 	if spec.URLSource != nil {
 		if value, ok := action.ResolveValue(*spec.URLSource, row, resultVariables(result)); ok {
-			resolvedSpec.URL = fmt.Sprint(value)
+			resolvedURL, safe := action.SafeRelativeURL(fmt.Sprint(value))
+			if !safe {
+				return ""
+			}
+			resolvedSpec.URL = resolvedURL
 		}
 	}
 	if strings.TrimSpace(resolvedSpec.URL) == "" {

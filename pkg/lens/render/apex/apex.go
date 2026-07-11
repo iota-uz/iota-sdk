@@ -1312,6 +1312,24 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 			}
 			return value;
 		};
+		const safeActionURL = function(value) {
+			if (value === undefined || value === null) {
+				return '';
+			}
+			const raw = String(value).trim();
+			if (!raw || raw.includes('\\\\') || raw.startsWith('//')) {
+				return '';
+			}
+			try {
+				const parsed = new URL(raw, window.location.href);
+				if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.origin !== window.location.origin) {
+					return '';
+				}
+				return parsed.pathname + parsed.search + parsed.hash;
+			} catch (_) {
+				return '';
+			}
+		};
 		const replaceParam = function(name, value) {
 			params.delete(name);
 			if (Array.isArray(value)) {
@@ -1352,7 +1370,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	`, configJS)
 	if spec.URLSource != nil {
 		expr := actionValueJS(*spec.URLSource, fields)
-		js += fmt.Sprintf("const resolvedURL = %s;\nif (resolvedURL !== undefined && resolvedURL !== null && resolvedURL !== '') { nextURL = String(resolvedURL); }\n", expr)
+		js += fmt.Sprintf("const resolvedURL = safeActionURL(%s);\nif (!resolvedURL) { return; }\nnextURL = resolvedURL;\n", expr)
 	}
 	js += "if (!nextURL) { return; }\n"
 	for idx, param := range spec.Params {
