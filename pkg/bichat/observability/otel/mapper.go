@@ -142,7 +142,7 @@ func generationToAttributes(obs observability.GenerationObservation) []attribute
 		}
 	}
 
-	return attrs
+	return sanitizeAttributes(attrs)
 }
 
 // spanToAttributes maps a SpanObservation to attributes using the eai.span.*
@@ -187,7 +187,7 @@ func spanToAttributes(obs observability.SpanObservation) []attribute.KeyValue {
 		}
 	}
 
-	return attrs
+	return sanitizeAttributes(attrs)
 }
 
 // eventToAttributes maps an EventObservation to attributes using the
@@ -220,7 +220,7 @@ func eventToAttributes(obs observability.EventObservation) []attribute.KeyValue 
 		}
 	}
 
-	return attrs
+	return sanitizeAttributes(attrs)
 }
 
 // traceToAttributes maps a TraceObservation to attributes. Cost is omitted
@@ -256,6 +256,31 @@ func traceToAttributes(obs observability.TraceObservation) []attribute.KeyValue 
 		}
 	}
 
+	return sanitizeAttributes(attrs)
+}
+
+// sanitizeAttributes guarantees that every dynamically sourced string sent to
+// an OTLP exporter is valid UTF-8. Protobuf string fields reject malformed
+// bytes, and a single invalid model/tool payload would otherwise drop the
+// entire batch of spans during export.
+func sanitizeAttributes(attrs []attribute.KeyValue) []attribute.KeyValue {
+	for i, kv := range attrs {
+		key := strings.ToValidUTF8(string(kv.Key), "\uFFFD")
+		switch kv.Value.Type() {
+		case attribute.STRING:
+			attrs[i] = attribute.String(key, strings.ToValidUTF8(kv.Value.AsString(), "\uFFFD"))
+		case attribute.STRINGSLICE:
+			values := kv.Value.AsStringSlice()
+			for j := range values {
+				values[j] = strings.ToValidUTF8(values[j], "\uFFFD")
+			}
+			attrs[i] = attribute.StringSlice(key, values)
+		default:
+			if key != string(kv.Key) {
+				attrs[i] = attribute.KeyValue{Key: attribute.Key(key), Value: kv.Value}
+			}
+		}
+	}
 	return attrs
 }
 
