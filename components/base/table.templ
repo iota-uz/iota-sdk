@@ -147,7 +147,7 @@ templ TableRow(props TableRowProps) {
 
 templ TableCell(props TableCellProps) {
 	<td
-		class={ twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-primary last-of-type:border-r-0", props.Classes}).String()) }
+		class={ twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-subtle last-of-type:border-r-0", props.Classes}).String()) }
 		{ props.Attrs... }
 	>
 		{ children... }
@@ -198,18 +198,18 @@ templ Table(props TableProps) {
 			.table-nowrap td, .table-nowrap th { white-space: nowrap; }
 
 			/* Filler rows */
-			.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-primary)); }
+			.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-subtle)); }
 			.table-filler-rows .grid-filler td {
 				padding: 0;
-				border-right: 1px solid oklch(var(--clr-border-primary));
-				border-bottom: 1px solid oklch(var(--clr-border-primary));
+				border-right: 1px solid oklch(var(--clr-border-subtle));
+				border-bottom: 1px solid oklch(var(--clr-border-subtle));
 			}
 			.table-filler-rows .grid-filler td:last-child { border-right: 0; }
 			.table-filler-rows .grid-filler td.grid-sticky-right {
 				position: sticky;
 				right: 0;
 				background-color: oklch(var(--clr-surface-600));
-				border-left: 1px solid oklch(var(--clr-border-primary));
+				border-left: 1px solid oklch(var(--clr-border-default));
 				border-right: 0;
 			}
 			.table-filler-rows .grid-filler td:has(+ td.grid-sticky-right) { border-right: 0; }
@@ -344,7 +344,7 @@ templ Table(props TableProps) {
 							for _, col := range props.Columns {
 								if col.Sortable {
 									<th
-										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class }
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class }
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }
@@ -396,7 +396,7 @@ templ Table(props TableProps) {
 									</th>
 								} else {
 									<th
-										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class }
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class }
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }
@@ -522,7 +522,7 @@ templ Table(props TableProps) {
 							for _, col := range props.Columns {
 								if col.Sortable {
 									<th
-										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class }
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class }
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }
@@ -575,7 +575,7 @@ templ Table(props TableProps) {
 									</th>
 								} else {
 									<th
-										class={ "px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class }
+										class={ "px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class }
 										if props.Configurable {
 											data-col={ col.Key }
 											data-col-sticky?={ col.Sticky }

@@ -63,7 +63,7 @@ templ listHeader(list DLList) {
 }
 
 templ Details(list DLList) {
-	<details class="bg-surface-300 rounded-lg border border-primary group">
+	<details class="bg-surface-300 rounded-lg border border-subtle group">
 		<summary class="flex items-center justify-between cursor-pointer">
 			@list.Header()
 			<div class="pr-4">
@@ -72,7 +72,7 @@ templ Details(list DLList) {
 		</summary>
 		if len(list.Items()) > 0 {
 			<div class="px-4 pb-4">
-				<div class="border border-primary rounded-xl divide-y divide-primary overflow-hidden">
+				<div class="border border-subtle rounded-xl divide-y divide-subtle overflow-hidden">
 					for _, item := range list.Items() {
 						@item.Component()
 					}
@@ -88,7 +88,7 @@ templ List(list DLList) {
 		Header: list.Header(),
 	}) {
 		if len(list.Items()) > 0 {
-			<div class="border border-primary rounded-xl divide-y divide-primary overflow-hidden">
+			<div class="border border-subtle rounded-xl divide-y divide-subtle overflow-hidden">
 				for _, item := range list.Items() {
 					@item.Component()
 				}

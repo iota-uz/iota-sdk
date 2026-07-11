@@ -168,7 +168,7 @@
     --clr-form-control-bg: var(--transparent);
     --clr-form-control-bg-active: var(--transparent);
     --clr-form-control-placeholder: var(--gray-400);
-    --clr-form-control-border: var(--gray-300);
+    --clr-form-control-border: var(--clr-border-default);
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--black);
     --clr-form-control-ring: var(--primary-650) / 20%;
@@ -201,7 +201,16 @@
     --clr-avatar-text: var(--primary-500);
 
     /* Border */
-    --clr-border-primary: var(--gray-300);
+    --clr-border-subtle: var(--gray-200);
+    --clr-border-default: var(--gray-300);
+    --clr-border-strong: var(--gray-500);
+    --clr-border-brand: var(--primary-500);
+    --clr-border-danger: var(--red-500);
+    --clr-border-warning: var(--yellow-500);
+    --clr-border-success: var(--green-500);
+    --clr-border-disabled: var(--gray-200);
+    /* Deprecated compatibility alias. */
+    --clr-border-primary: var(--clr-border-default);
     --clr-border-secondary: var(--gray-100);
     --clr-border-green: var(--green-500);
     --clr-border-pink: var(--pink-500);
@@ -255,7 +264,8 @@
   ::before,
   ::after,
   ::backdrop {
-    border-color: oklch(var(--clr-surface-400));
+    /* Compatibility fallback only. Visible component borders use semantic tokens. */
+    border-color: oklch(var(--clr-border-subtle));
   }
 
   ::selection {
@@ -291,7 +301,15 @@
     --clr-avatar-text: var(--primary-400);
 
     /* Border */
-    --clr-border-primary: var(--black-800);
+    --clr-border-subtle: var(--gray-800);
+    --clr-border-default: var(--gray-700);
+    --clr-border-strong: var(--gray-500);
+    --clr-border-brand: var(--primary-400);
+    --clr-border-danger: var(--red-500);
+    --clr-border-warning: var(--yellow-500);
+    --clr-border-success: var(--green-600);
+    --clr-border-disabled: var(--gray-800);
+    --clr-border-primary: var(--clr-border-default);
     --clr-border-secondary: var(--black-950);
     --clr-border-green: var(--green-600);
     --clr-border-pink: var(--pink-600);
@@ -310,7 +328,7 @@
     --clr-form-control-bg: var(--black);
     --clr-form-control-bg-active: var(--black);
     --clr-form-control-placeholder: var(--gray-100);
-    --clr-form-control-border: var(--black-800);
+    --clr-form-control-border: var(--clr-border-default);
     --clr-form-control-border-hover: var(--primary-500);
     --clr-form-control-text: var(--white);
     --clr-form-control-ring: var(--primary-650);
@@ -705,6 +723,7 @@
     display: grid;
     align-content: start;
     background-color: oklch(var(--bg-color));
+    border: 1px solid oklch(var(--clr-border-subtle));
     color: oklch(var(--text-color));
     max-inline-size: min(90vw, var(--size-content-3));
     margin: auto;

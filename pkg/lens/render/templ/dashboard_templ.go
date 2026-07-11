@@ -1682,7 +1682,7 @@ func FilterBar(model filter.Model) templ.Component {
 		if len(model.Inputs) == 0 {
 			return
 		}
-		controlClass := "h-8 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-1 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
+		controlClass := "h-8 w-full rounded-md border border-default bg-gray-50 px-3 py-1 text-sm text-gray-700 transition focus:border-brand focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200"
 		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 114, "<form class=\"lens-card lens-card--overflow\"><div class=\"flex items-center justify-between px-5 py-2.5\"><div class=\"flex items-center gap-2\" style=\"color: var(--lens-text-faint);\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -1717,7 +1717,7 @@ func FilterBar(model filter.Model) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "</button></div><div class=\"grid gap-x-4 gap-y-3 border-t border-gray-100 px-5 py-4 md:grid-cols-2 xl:grid-cols-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 117, "</button></div><div class=\"grid gap-x-4 gap-y-3 border-t border-subtle px-5 py-4 md:grid-cols-2 xl:grid-cols-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -1939,7 +1939,7 @@ func FilterBar(model filter.Model) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			case lens.VariableComponentToggle:
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 138, "<label class=\"inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600 transition hover:bg-gray-100\"><input type=\"checkbox\" name=\"")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 138, "<label class=\"inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-default bg-gray-50 px-3 text-sm text-gray-600 transition hover:border-brand hover:bg-gray-100\"><input type=\"checkbox\" name=\"")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -1962,7 +1962,7 @@ func FilterBar(model filter.Model) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				}
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, " class=\"rounded border-gray-300 text-blue-600 focus:ring-blue-200\"> <span>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 141, " class=\"rounded border-default text-blue-600 focus:border-brand focus:ring-blue-200\"> <span>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -2146,7 +2146,7 @@ func FilterBar(model filter.Model) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 159, "\" multiple class=\"min-h-32 w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-blue-300 focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 159, "\" multiple class=\"min-h-32 w-full rounded-md border border-default bg-gray-50 px-3 py-2 text-sm text-gray-700 transition focus:border-brand focus:bg-white focus:outline-none focus:ring-1 focus:ring-blue-200\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

@@ -178,7 +178,7 @@ func StdViewDrawer(props StdDrawerProps) templ.Component {
 			}
 			var templ_7745c5c3_Var6 = []any{
 				"flex justify-between px-4 py-3",
-				"border-b border-primary",
+				"border-b border-subtle",
 			}
 			templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var6...)
 			if templ_7745c5c3_Err != nil {

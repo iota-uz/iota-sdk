@@ -533,7 +533,7 @@ func Details(list DLList) templ.Component {
 			templ_7745c5c3_Var25 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<details class=\"bg-surface-300 rounded-lg border border-primary group\"><summary class=\"flex items-center justify-between cursor-pointer\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 31, "<details class=\"bg-surface-300 rounded-lg border border-subtle group\"><summary class=\"flex items-center justify-between cursor-pointer\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -554,7 +554,7 @@ func Details(list DLList) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if len(list.Items()) > 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<div class=\"px-4 pb-4\"><div class=\"border border-primary rounded-xl divide-y divide-primary overflow-hidden\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 34, "<div class=\"px-4 pb-4\"><div class=\"border border-subtle rounded-xl divide-y divide-subtle overflow-hidden\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -611,7 +611,7 @@ func List(list DLList) templ.Component {
 			}
 			ctx = templ.InitializeContext(ctx)
 			if len(list.Items()) > 0 {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<div class=\"border border-primary rounded-xl divide-y divide-primary overflow-hidden\">")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 37, "<div class=\"border border-subtle rounded-xl divide-y divide-subtle overflow-hidden\">")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}

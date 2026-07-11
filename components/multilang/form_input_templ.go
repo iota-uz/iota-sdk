@@ -37,7 +37,7 @@ func FormInputWithLabel(ctx context.Context, field crud.Field, ml models.MultiLa
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<fieldset class=\"multilang-field border border-gray-300 rounded-lg p-4\"><legend class=\"text-sm font-medium text-gray-900 px-2\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<fieldset class=\"multilang-field border border-subtle rounded-lg p-4\"><legend class=\"text-sm font-medium text-gray-900 px-2\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -160,7 +160,7 @@ func LocaleInput(ctx context.Context, locale, value string, removable bool) temp
 			templ_7745c5c3_Var7 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"locale-row flex items-center space-x-2\"><input type=\"text\" class=\"locale-code w-16 px-2 py-1 text-xs border border-gray-300 rounded uppercase\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<div class=\"locale-row flex items-center space-x-2\"><input type=\"text\" class=\"locale-code w-16 px-2 py-1 text-xs border border-default rounded uppercase\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -186,7 +186,7 @@ func LocaleInput(ctx context.Context, locale, value string, removable bool) temp
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" maxlength=\"5\" onchange=\"validateAndUpdateJSON(this)\" onblur=\"validateLocaleCode(this)\"> <input type=\"text\" class=\"locale-value flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" maxlength=\"5\" onchange=\"validateAndUpdateJSON(this)\" onblur=\"validateLocaleCode(this)\"> <input type=\"text\" class=\"locale-value flex-1 px-3 py-2 border border-default rounded-md focus:ring-primary-500 focus:border-brand\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -265,8 +265,8 @@ func getJSONValue(ml models.MultiLang) string {
 // Enhanced JavaScript helpers with validation and UX improvements
 func multilangHelpers() templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_multilangHelpers_7fdf`,
-		Function: `function __templ_multilangHelpers_7fdf(){// Common language codes with validation
+		Name: `__templ_multilangHelpers_1e1b`,
+		Function: `function __templ_multilangHelpers_1e1b(){// Common language codes with validation
 	const commonLanguages = ['en', 'ru', 'uz', 'uz-cyrl', 'es', 'fr', 'de', 'it', 'pt', 'ja', 'ko', 'zh', 'ar'];
 	
 	// Get existing locale codes to avoid duplicates
@@ -352,7 +352,7 @@ func multilangHelpers() templ.ComponentScript {
 		// Create locale code input with safe value setting
 		const localeInput = document.createElement('input');
 		localeInput.type = 'text';
-		localeInput.className = 'locale-code w-16 px-2 py-1 text-xs border border-gray-300 rounded uppercase';
+		localeInput.className = 'locale-code w-16 px-2 py-1 text-xs border border-default rounded uppercase';
 		localeInput.placeholder = 'en';
 		localeInput.maxLength = 5;
 		localeInput.value = suggestedLocale; // Safe - no HTML injection possible
@@ -362,7 +362,7 @@ func multilangHelpers() templ.ComponentScript {
 		// Create locale value input
 		const valueInput = document.createElement('input');
 		valueInput.type = 'text';
-		valueInput.className = 'locale-value flex-1 px-3 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500';
+		valueInput.className = 'locale-value flex-1 px-3 py-2 border border-default rounded-md focus:ring-primary-500 focus:border-brand';
 		valueInput.placeholder = 'Enter text in this language';
 		valueInput.onchange = function() { updateMultilangJSON(this); };
 		valueInput.oninput = function() { updateMultilangJSON(this); };
@@ -508,8 +508,8 @@ func multilangHelpers() templ.ComponentScript {
 		});
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_multilangHelpers_7fdf`),
-		CallInline: templ.SafeScriptInline(`__templ_multilangHelpers_7fdf`),
+		Call:       templ.SafeScript(`__templ_multilangHelpers_1e1b`),
+		CallInline: templ.SafeScriptInline(`__templ_multilangHelpers_1e1b`),
 	}
 }
 

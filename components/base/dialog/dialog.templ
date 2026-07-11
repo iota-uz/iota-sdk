@@ -27,7 +27,7 @@ templ Confirmation(p *Props) {
 			{ p.Attrs... }
 		>
 			<form method="dialog">
-				<header class="flex items-center gap-3 justify-between px-4 py-3 border-b border-primary">
+				<header class="flex items-center gap-3 justify-between px-4 py-3 border-b border-subtle">
 					<h3 class="font-medium">{ p.Heading }</h3>
 					@button.Secondary(button.Props{Size: button.SizeSM, Fixed: true, Rounded: true}) {
 						@icons.XCircle(icons.Props{Size: "20"})

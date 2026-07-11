@@ -10,14 +10,14 @@ type Props struct {
 }
 
 templ DefaultHeader(text string) {
-	<div class="border-b border-gray-200 p-4">
+	<div class="border-b border-subtle p-4">
 		<p>{ text }</p>
 	</div>
 }
 
 templ Card(props Props) {
 	<div
-		class={ twmerge.Merge("bg-surface-300 rounded-lg border border-primary", props.WrapperClass) }
+		class={ twmerge.Merge("bg-surface-300 rounded-lg border border-subtle", props.WrapperClass) }
 		{ props.Attrs... }
 	>
 		if props.Header != nil {

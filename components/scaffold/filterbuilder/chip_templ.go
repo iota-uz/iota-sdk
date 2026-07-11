@@ -98,7 +98,7 @@ func Chip(props Props, idx int, c filterq.Condition) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"><div class=\"inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-primary bg-surface-100 text-sm\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "\"><div class=\"inline-flex h-8 items-stretch overflow-hidden rounded-lg border border-default bg-surface-100 text-sm\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -216,7 +216,7 @@ func Chip(props Props, idx int, c filterq.Condition) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</button> <button type=\"button\" class=\"inline-flex items-center border-l border-primary px-1.5 text-200 hover:text-100 hover:bg-surface-400 cursor-pointer duration-150\" x-on:click=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</button> <button type=\"button\" class=\"inline-flex items-center border-l border-default px-1.5 text-200 hover:text-100 hover:bg-surface-400 cursor-pointer duration-150\" x-on:click=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -488,7 +488,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 					return templ_7745c5c3_Err
 				}
 				for _, p := range field.presets() {
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<button type=\"button\" class=\"rounded-md border border-primary px-2 py-1 text-xs cursor-pointer hover:bg-surface-400 duration-100\" :class=\"")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 33, "<button type=\"button\" class=\"rounded-md border border-default px-2 py-1 text-xs cursor-pointer hover:border-brand hover:bg-surface-400 duration-100\" :class=\"")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
@@ -575,7 +575,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 				return templ_7745c5c3_Err
 			}
 		case filterq.FieldTypeNumber:
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div x-show=\"op !== &#39;between&#39;\" data-fb-variant=\"single\"><input type=\"number\" step=\"any\" data-fb-value class=\"form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 41, "<div x-show=\"op !== &#39;between&#39;\" data-fb-variant=\"single\"><input type=\"number\" step=\"any\" data-fb-value class=\"form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -588,7 +588,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "\"></div><div x-cloak x-show=\"op === &#39;between&#39;\" data-fb-variant=\"range\" class=\"flex items-center gap-2\"><input type=\"number\" step=\"any\" data-fb-value class=\"form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 42, "\"></div><div x-cloak x-show=\"op === &#39;between&#39;\" data-fb-variant=\"range\" class=\"flex items-center gap-2\"><input type=\"number\" step=\"any\" data-fb-value class=\"form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -601,7 +601,7 @@ func editorPanel(field FieldDef, cond *filterq.Condition, chipIdx int) templ.Com
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "\"> <span class=\"text-200\">–</span> <input type=\"number\" step=\"any\" data-fb-value class=\"form-control-input input w-full rounded-md border border-primary bg-transparent px-3 py-2 text-sm outline-none\" value=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 43, "\"> <span class=\"text-200\">–</span> <input type=\"number\" step=\"any\" data-fb-value class=\"form-control-input input w-full rounded-md border border-default bg-transparent px-3 py-2 text-sm outline-none\" value=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

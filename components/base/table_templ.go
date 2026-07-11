@@ -213,7 +213,7 @@ func TableCell(props TableCellProps) templ.Component {
 			templ_7745c5c3_Var2 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		var templ_7745c5c3_Var3 = []any{twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-primary last-of-type:border-r-0", props.Classes}).String())}
+		var templ_7745c5c3_Var3 = []any{twmerge.Merge(templ.CSSClasses([]any{"p-4 border-r border-subtle last-of-type:border-r-0", props.Classes}).String())}
 		templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var3...)
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
@@ -315,7 +315,7 @@ func Table(props TableProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<style>\n\t\t\t/* Dynamic viewport height prevents extra overflow on Safari/iPadOS UI chrome changes. */\n\t\t\t@supports (height: 100dvh) {\n\t\t\t\t.sdk-h-dvh { height: 100dvh; }\n\t\t\t\t.sdk-min-h-dvh { min-height: 100dvh; }\n\t\t\t}\n\n\t\t\tth:has(+ .sticky),\n\t\t\ttd:has(+ .sticky) {\n\t\t\t\tborder-right-color: transparent !important;\n\t\t\t}\n\t\t\t/* Nowrap utility */\n\t\t\t.table-nowrap td, .table-nowrap th { white-space: nowrap; }\n\n\t\t\t/* Filler rows */\n\t\t\t.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-primary)); }\n\t\t\t.table-filler-rows .grid-filler td {\n\t\t\t\tpadding: 0;\n\t\t\t\tborder-right: 1px solid oklch(var(--clr-border-primary));\n\t\t\t\tborder-bottom: 1px solid oklch(var(--clr-border-primary));\n\t\t\t}\n\t\t\t.table-filler-rows .grid-filler td:last-child { border-right: 0; }\n\t\t\t.table-filler-rows .grid-filler td.grid-sticky-right {\n\t\t\t\tposition: sticky;\n\t\t\t\tright: 0;\n\t\t\t\tbackground-color: oklch(var(--clr-surface-600));\n\t\t\t\tborder-left: 1px solid oklch(var(--clr-border-primary));\n\t\t\t\tborder-right: 0;\n\t\t\t}\n\t\t\t.table-filler-rows .grid-filler td:has(+ td.grid-sticky-right) { border-right: 0; }\n\n\t\t\t/* Grid toggle */\n\t\t\t.table-grid-no-vertical td,\n\t\t\t.table-grid-no-vertical th { border-right-color: transparent !important; }\n\t\t\t.table-grid-no-vertical .grid-sticky-right { border-left-color: transparent !important; }\n\t\t\t.table-grid-no-horizontal tbody td { border-bottom-color: transparent !important; }\n\n\t\t\t/* Container height (filler rows need 100% height through the full chain) */\n\t\t\t.table-filler-container,\n\t\t\t.table-filler-container > #sortable-table-container,\n\t\t\t.table-filler-container > #sortable-table-container > div { height: 100%; }\n\t\t\t/* scrollAffordance (Branch B) wrapper — stable hook, avoids matching Branch A overlay divs */\n\t\t\t.table-filler-container .table-scroll-wrap { height: 100%; }\n\n\t\t\t/* Scrollbar gutter */\n\t\t\t.table-scrollbar-gutter { scrollbar-gutter: stable; }\n\t\t\t.table-scrollbar-gutter > table { height: auto; }\n\t\t\t.table-scrollbar-gutter ~ [class*=\"z-[11]\"] { display: none; }\n\n\t\t\t@media (hover: none), (pointer: coarse), (any-pointer: coarse) {\n\t\t\t\t.sdk-touch-table-scroll {\n\t\t\t\t\toverflow-x: auto !important;\n\t\t\t\t\t-webkit-overflow-scrolling: touch;\n\t\t\t\t\toverscroll-behavior-x: contain;\n\t\t\t\t\ttouch-action: pan-x pan-y;\n\t\t\t\t}\n\n\t\t\t\t.sdk-touch-table-scroll + .proxy-scrollbar {\n\t\t\t\t\tdisplay: none;\n\t\t\t\t}\n\t\t\t}\n\t\t</style>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "<style>\n\t\t\t/* Dynamic viewport height prevents extra overflow on Safari/iPadOS UI chrome changes. */\n\t\t\t@supports (height: 100dvh) {\n\t\t\t\t.sdk-h-dvh { height: 100dvh; }\n\t\t\t\t.sdk-min-h-dvh { min-height: 100dvh; }\n\t\t\t}\n\n\t\t\tth:has(+ .sticky),\n\t\t\ttd:has(+ .sticky) {\n\t\t\t\tborder-right-color: transparent !important;\n\t\t\t}\n\t\t\t/* Nowrap utility */\n\t\t\t.table-nowrap td, .table-nowrap th { white-space: nowrap; }\n\n\t\t\t/* Filler rows */\n\t\t\t.table-filler-rows tbody td { border-bottom: 1px solid oklch(var(--clr-border-subtle)); }\n\t\t\t.table-filler-rows .grid-filler td {\n\t\t\t\tpadding: 0;\n\t\t\t\tborder-right: 1px solid oklch(var(--clr-border-subtle));\n\t\t\t\tborder-bottom: 1px solid oklch(var(--clr-border-subtle));\n\t\t\t}\n\t\t\t.table-filler-rows .grid-filler td:last-child { border-right: 0; }\n\t\t\t.table-filler-rows .grid-filler td.grid-sticky-right {\n\t\t\t\tposition: sticky;\n\t\t\t\tright: 0;\n\t\t\t\tbackground-color: oklch(var(--clr-surface-600));\n\t\t\t\tborder-left: 1px solid oklch(var(--clr-border-default));\n\t\t\t\tborder-right: 0;\n\t\t\t}\n\t\t\t.table-filler-rows .grid-filler td:has(+ td.grid-sticky-right) { border-right: 0; }\n\n\t\t\t/* Grid toggle */\n\t\t\t.table-grid-no-vertical td,\n\t\t\t.table-grid-no-vertical th { border-right-color: transparent !important; }\n\t\t\t.table-grid-no-vertical .grid-sticky-right { border-left-color: transparent !important; }\n\t\t\t.table-grid-no-horizontal tbody td { border-bottom-color: transparent !important; }\n\n\t\t\t/* Container height (filler rows need 100% height through the full chain) */\n\t\t\t.table-filler-container,\n\t\t\t.table-filler-container > #sortable-table-container,\n\t\t\t.table-filler-container > #sortable-table-container > div { height: 100%; }\n\t\t\t/* scrollAffordance (Branch B) wrapper — stable hook, avoids matching Branch A overlay divs */\n\t\t\t.table-filler-container .table-scroll-wrap { height: 100%; }\n\n\t\t\t/* Scrollbar gutter */\n\t\t\t.table-scrollbar-gutter { scrollbar-gutter: stable; }\n\t\t\t.table-scrollbar-gutter > table { height: auto; }\n\t\t\t.table-scrollbar-gutter ~ [class*=\"z-[11]\"] { display: none; }\n\n\t\t\t@media (hover: none), (pointer: coarse), (any-pointer: coarse) {\n\t\t\t\t.sdk-touch-table-scroll {\n\t\t\t\t\toverflow-x: auto !important;\n\t\t\t\t\t-webkit-overflow-scrolling: touch;\n\t\t\t\t\toverscroll-behavior-x: contain;\n\t\t\t\t\ttouch-action: pan-x pan-y;\n\t\t\t\t}\n\n\t\t\t\t.sdk-touch-table-scroll + .proxy-scrollbar {\n\t\t\t\t\tdisplay: none;\n\t\t\t\t}\n\t\t\t}\n\t\t</style>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -432,7 +432,7 @@ func Table(props TableProps) templ.Component {
 			}
 			for _, col := range props.Columns {
 				if col.Sortable {
-					var templ_7745c5c3_Var13 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class}
+					var templ_7745c5c3_Var13 = []any{"px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class}
 					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var13...)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -633,7 +633,7 @@ func Table(props TableProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					var templ_7745c5c3_Var21 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class}
+					var templ_7745c5c3_Var21 = []any{"px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class}
 					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var21...)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -978,7 +978,7 @@ func Table(props TableProps) templ.Component {
 			}
 			for _, col := range props.Columns {
 				if col.Sortable {
-					var templ_7745c5c3_Var36 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class}
+					var templ_7745c5c3_Var36 = []any{"px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0 cursor-pointer hover:bg-surface-400 transition-colors", priorityClass(col.Priority), col.Class}
 					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var36...)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
@@ -1179,7 +1179,7 @@ func Table(props TableProps) templ.Component {
 						return templ_7745c5c3_Err
 					}
 				} else {
-					var templ_7745c5c3_Var44 = []any{"px-4 py-3 font-medium text-left border-r border-primary last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class}
+					var templ_7745c5c3_Var44 = []any{"px-4 py-3 font-medium text-left border-r border-subtle last-of-type:border-r-0 border-b-0", priorityClass(col.Priority), col.Class}
 					templ_7745c5c3_Err = templ.RenderCSSItems(ctx, templ_7745c5c3_Buffer, templ_7745c5c3_Var44...)
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
