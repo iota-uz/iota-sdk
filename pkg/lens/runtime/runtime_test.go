@@ -348,6 +348,43 @@ func TestValidateRejectsMissingActionFieldSource(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestValidateAcceptsActionURLFieldSource(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("actions", "Actions",
+		lensbuild.Row(
+			panel.Bar("sales", "Sales", "dataset").
+				LabelField("label").
+				ValueField("value").
+				Action(action.Navigate("").WithFieldURL("label")).
+				Build(),
+		),
+	).Datasets(
+		lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
+	).Build()
+
+	require.NoError(t, Validate(spec))
+}
+
+func TestValidateRejectsEmptyActionURLFieldSource(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("actions", "Actions",
+		lensbuild.Row(
+			panel.Bar("sales", "Sales", "dataset").
+				LabelField("label").
+				ValueField("value").
+				Action(action.Navigate("").WithFieldURL("")).
+				Build(),
+		),
+	).Datasets(
+		lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
+	).Build()
+
+	err := Validate(spec)
+	require.ErrorContains(t, err, "action value url requires source name")
+}
+
 func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {
 	t.Parallel()
 

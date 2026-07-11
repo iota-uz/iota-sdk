@@ -89,6 +89,48 @@ func TestActionURLSupportsHtmxActions(t *testing.T) {
 	require.Equal(t, "/contracts?product=osago", url)
 }
 
+func TestActionURLResolvesFullURLFromRow(t *testing.T) {
+	t.Parallel()
+
+	spec := action.Navigate("").WithFieldURL("action_url")
+	url := actionURL(&spec, map[string]any{
+		"action_url": "/analytics/drill/rnp?token=signed-token",
+	}, &runtime.PanelResult{})
+
+	require.Equal(t, "/analytics/drill/rnp?token=signed-token", url)
+}
+
+func TestActionURLResolvesFullURLFromRowForHtmxSwap(t *testing.T) {
+	t.Parallel()
+
+	spec := action.HtmxSwap("", "#drawer").WithFieldURL("action_url")
+	url := actionURL(&spec, map[string]any{
+		"action_url": "/analytics/drill/acquisition_cost?token=signed-token",
+	}, &runtime.PanelResult{})
+
+	require.Equal(t, "/analytics/drill/acquisition_cost?token=signed-token", url)
+}
+
+func TestActionURLRejectsUnsafeURLSource(t *testing.T) {
+	t.Parallel()
+
+	unsafeURLs := []string{
+		"javascript:alert(1)",
+		"data:text/html,pwned",
+		"//evil.example/steal",
+		"https://evil.example/steal",
+		`\\evil.example\steal`,
+	}
+	for _, kind := range []action.Kind{action.KindNavigate, action.KindHtmxSwap} {
+		for _, unsafeURL := range unsafeURLs {
+			t.Run(string(kind)+"/"+unsafeURL, func(t *testing.T) {
+				spec := action.Spec{Kind: kind}.WithURLSource(action.FieldValue("action_url"))
+				require.Empty(t, actionURL(&spec, map[string]any{"action_url": unsafeURL}, &runtime.PanelResult{}))
+			})
+		}
+	}
+}
+
 func TestActionOnClickSupportsEmitEventFallbacks(t *testing.T) {
 	t.Parallel()
 
