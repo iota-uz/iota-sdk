@@ -2,6 +2,7 @@ package otel
 
 import (
 	"testing"
+	"unicode/utf8"
 
 	"github.com/google/uuid"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/observability"
@@ -220,4 +221,71 @@ func TestReadIntAttr(t *testing.T) {
 
 	_, ok = readIntAttr(nil, "n")
 	assert.False(t, ok)
+}
+
+func TestAttributeMappers_SanitizeInvalidUTF8(t *testing.T) {
+	invalid := "valid\xfftext"
+
+	tests := []struct {
+		name  string
+		attrs []attribute.KeyValue
+	}{
+		{
+			name: "generation strings and slices",
+			attrs: generationToAttributes(observability.GenerationObservation{
+				Model:        invalid,
+				FinishReason: invalid,
+				Input:        invalid,
+				Output:       invalid,
+				ModelParameters: map[string]interface{}{
+					invalid: invalid,
+				},
+			}),
+		},
+		{
+			name: "span payload and dynamic attribute key",
+			attrs: spanToAttributes(observability.SpanObservation{
+				Input:  invalid,
+				Output: invalid,
+				Attributes: map[string]interface{}{
+					invalid: invalid,
+				},
+			}),
+		},
+		{
+			name: "event payload",
+			attrs: eventToAttributes(observability.EventObservation{
+				Message: invalid,
+				Attributes: map[string]interface{}{
+					invalid: invalid,
+				},
+			}),
+		},
+		{
+			name: "trace payload",
+			attrs: traceToAttributes(observability.TraceObservation{
+				Name: invalid,
+				Attributes: map[string]interface{}{
+					invalid: invalid,
+				},
+			}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.NotEmpty(t, tt.attrs)
+			for _, kv := range tt.attrs {
+				assert.True(t, utf8.ValidString(string(kv.Key)), "invalid attribute key %q", kv.Key)
+				switch kv.Value.Type() {
+				case attribute.STRING:
+					assert.True(t, utf8.ValidString(kv.Value.AsString()), "invalid string value for %q", kv.Key)
+				case attribute.STRINGSLICE:
+					for _, value := range kv.Value.AsStringSlice() {
+						assert.True(t, utf8.ValidString(value), "invalid string slice value for %q", kv.Key)
+					}
+				}
+			}
+		})
+	}
 }
