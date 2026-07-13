@@ -1763,20 +1763,30 @@ templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[
 							@icons.ArrowUpRight(icons.Props{Size: "14"})
 						</button>
 					} else if i == 0 && rowHref != "" {
+						{{ primaryText := tablePrimaryText(ctx, column, row, result) }}
 						<a
 							href={ templ.URL(rowHref) }
 							onclick={ stopPropagationScript(rowOnClick) }
 							class="font-medium text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
 						>
-							{ tablePrimaryText(ctx, column, row, result) }
+							if tableIsCompact(spec) {
+								<span class="lens-compact-primary" title={ primaryText }>{ primaryText }</span>
+							} else {
+								{ primaryText }
+							}
 						</a>
 					} else if i == 0 && rowOnClick.Call != "" {
+						{{ primaryText := tablePrimaryText(ctx, column, row, result) }}
 						<button
 							type="button"
 							onclick={ rowOnClick }
 							class="font-medium text-left text-gray-800 underline-offset-2 hover:text-gray-900 hover:underline focus:outline-none focus:ring-2 focus:ring-brand-200"
 						>
-							{ tablePrimaryText(ctx, column, row, result) }
+							if tableIsCompact(spec) {
+								<span class="lens-compact-primary" title={ primaryText }>{ primaryText }</span>
+							} else {
+								{ primaryText }
+							}
 						</button>
 					} else if column.Cell != nil && column.Cell.Kind == panel.TableCellBar {
 						@TableBarCell(column, row, result, barMax[column.Field])
@@ -1784,7 +1794,7 @@ templ TableDesktopRows(spec panel.Spec, columns []panel.TableColumn, rows []map[
 						@TableDeltaCell(column, row, result)
 					} else if i == 0 && tableIsCompact(spec) {
 						{{ cellText := formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }}
-						<span class="block truncate" style="max-width:9rem" title={ cellText }>{ cellText }</span>
+						<span class="lens-compact-primary" title={ cellText }>{ cellText }</span>
 					} else {
 						{ formatValue(row[column.Field.Name()], column.Formatter, result.Locale, result.Timezone) }
 					}
