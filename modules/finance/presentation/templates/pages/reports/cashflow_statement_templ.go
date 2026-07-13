@@ -101,7 +101,7 @@ func CashflowStatementPage(formData map[string]interface{}) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</label> <select id=\"account_id\" name=\"account_id\" required class=\"w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500\"><option value=\"\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</label> <select id=\"account_id\" name=\"account_id\" required class=\"w-full px-3 py-2 border border-default rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500\"><option value=\"\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -287,7 +287,7 @@ func CashflowStatementPage(formData map[string]interface{}) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</span></div></div></div><!-- Report Container --><div id=\"cashflow-report-content\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center\"><div class=\"text-gray-300\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 21, "</span></div></div></div><!-- Report Container --><div id=\"cashflow-report-content\" class=\"min-h-[200px]\"><div class=\"bg-gray-50 rounded-lg border-2 border-dashed border-default p-8 text-center\"><div class=\"text-gray-300\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -418,7 +418,7 @@ func CashflowStatementPageWithReport(formData map[string]interface{}, report *vi
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</label> <select id=\"account_id\" name=\"account_id\" required class=\"w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500\"><option value=\"\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 29, "</label> <select id=\"account_id\" name=\"account_id\" required class=\"w-full px-3 py-2 border border-default rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500\"><option value=\"\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -650,7 +650,7 @@ func CashflowStatementReport(report *viewmodels.CashflowStatement) templ.Compone
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div class=\"bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden\"><!-- Report Header --><div class=\"px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-gray-200 dark:border-gray-600\"><div class=\"flex justify-between items-center\"><div><h2 class=\"text-xl font-semibold text-gray-900 dark:text-white\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "<div class=\"bg-white dark:bg-gray-800 rounded-lg shadow-lg overflow-hidden\"><!-- Report Header --><div class=\"px-6 py-4 bg-gray-50 dark:bg-gray-700 border-b border-subtle\"><div class=\"flex justify-between items-center\"><div><h2 class=\"text-xl font-semibold text-gray-900 dark:text-white\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -689,7 +689,7 @@ func CashflowStatementReport(report *viewmodels.CashflowStatement) templ.Compone
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</p></div></div></div><!-- Balance Summary --><div class=\"px-6 py-4 bg-blue-50 dark:bg-blue-900/20 border-b border-gray-200 dark:border-gray-600\"><div class=\"grid grid-cols-1 md:grid-cols-3 gap-6\"><div><p class=\"text-sm font-medium text-gray-600 dark:text-gray-400\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 50, "</p></div></div></div><!-- Balance Summary --><div class=\"px-6 py-4 bg-blue-50 dark:bg-blue-900/20 border-b border-subtle\"><div class=\"grid grid-cols-1 md:grid-cols-3 gap-6\"><div><p class=\"text-sm font-medium text-gray-600 dark:text-gray-400\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -827,7 +827,7 @@ func CashflowStatementTable(report *viewmodels.CashflowStatement) templ.Componen
 		}
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<table class=\"min-w-full divide-y divide-gray-200 dark:divide-gray-600\"><thead><tr class=\"bg-gray-50 dark:bg-gray-700\"><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 60, "<table class=\"min-w-full divide-y divide-subtle\"><thead><tr class=\"bg-gray-50 dark:bg-gray-700\"><th class=\"px-6 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -891,7 +891,7 @@ func CashflowStatementTable(report *viewmodels.CashflowStatement) templ.Componen
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</th></tr></thead> <tbody class=\"bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-600\"><!-- Operating Activities -->")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 66, "</th></tr></thead> <tbody class=\"bg-white dark:bg-gray-800 divide-y divide-subtle\"><!-- Operating Activities -->")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

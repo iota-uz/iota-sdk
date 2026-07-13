@@ -22,7 +22,7 @@ templ SessionRow(session *viewmodels.Session) {
 	{{
 		pageCtx := composables.UsePageCtx(ctx)
 	}}
-	<tr id={ fmt.Sprintf("session-row-%s", session.TokenID) } class="border-b border-gray-200 dark:border-gray-700">
+	<tr id={ fmt.Sprintf("session-row-%s", session.TokenID) } class="border-b border-subtle">
 		<td class="px-6 py-4">
 			<div class="flex items-center gap-3">
 				<div class="flex-shrink-0">
@@ -88,7 +88,7 @@ templ SessionsList(props *SessionsPageProps) {
 		@card.Card(card.Props{
 			Class: "p-0",
 		}) {
-			<table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+			<table class="min-w-full divide-y divide-subtle">
 				<thead class="bg-gray-50 dark:bg-gray-800">
 					<tr>
 						<th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -105,7 +105,7 @@ templ SessionsList(props *SessionsPageProps) {
 						</th>
 					</tr>
 				</thead>
-				<tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700" id="sessions-table-body">
+				<tbody class="bg-white dark:bg-gray-900 divide-y divide-subtle" id="sessions-table-body">
 					for _, session := range props.Sessions {
 						@SessionRow(session)
 					}

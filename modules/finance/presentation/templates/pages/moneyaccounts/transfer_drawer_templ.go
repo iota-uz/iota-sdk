@@ -197,7 +197,7 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500\" onchange=\"checkCurrencyMismatch()\"><option value=\"\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "\" class=\"w-full rounded-md border-default shadow-sm focus:border-blue-500 focus:ring-blue-500\" onchange=\"checkCurrencyMismatch()\"><option value=\"\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -390,7 +390,7 @@ func TransferDrawer(props *TransferDrawerProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></div><!-- Footer with buttons --><div class=\"p-6 border-t border-gray-200 flex justify-end gap-3\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 30, "</div></div><!-- Footer with buttons --><div class=\"p-6 border-t border-subtle flex justify-end gap-3\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

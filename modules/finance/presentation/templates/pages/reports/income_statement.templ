@@ -86,7 +86,7 @@ templ IncomeStatementPage(formData map[string]interface{}) {
 				</div>
 				<!-- Report Container -->
 				<div id="report-container" class="min-h-[200px]">
-					<div class="bg-gray-50 rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
+					<div class="bg-gray-50 rounded-lg border-2 border-dashed border-default p-8 text-center">
 						<div class="text-gray-300">
 							@icons.ChartLine(icons.Props{Size: "48", Class: "mx-auto mb-4 text-gray-400"})
 							<h3 class="text-lg font-medium text-gray-900 mb-2">
@@ -189,7 +189,7 @@ templ IncomeStatementReport(report *viewmodels.IncomeStatement) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="bg-white rounded-lg shadow">
 		<!-- Report Header -->
-		<div class="px-6 py-4 border-b border-gray-200">
+		<div class="px-6 py-4 border-b border-subtle">
 			<div class="flex justify-between items-center">
 				<div>
 					<h2 class="text-xl font-semibold text-gray-900">
@@ -216,7 +216,7 @@ templ IncomeStatementTable(report *viewmodels.IncomeStatement) {
 		<table class="min-w-full table-auto border-collapse">
 			<!-- Table Header -->
 			<thead>
-				<tr class="border-b-2 border-gray-900">
+				<tr class="border-b-2 border-strong">
 					<th class="text-left py-3 px-4 font-semibold text-gray-900 sticky left-0 bg-white z-10 min-w-[200px]">
 						{ pageCtx.T("Reports.IncomeStatement.Category") }
 					</th>
@@ -234,14 +234,14 @@ templ IncomeStatementTable(report *viewmodels.IncomeStatement) {
 			</thead>
 			<tbody>
 				<!-- Revenue Section -->
-				<tr class="bg-green-50 border-b border-gray-200">
+				<tr class="bg-green-50 border-b border-subtle">
 					<td colspan={ fmt.Sprintf("%d", len(report.Months)+2) } class="py-2 px-4 font-semibold text-green-800">
 						{ report.RevenueSection.Title }
 					</td>
 				</tr>
 				@IncomeStatementTableSection(report.RevenueSection, report.Months)
 				<!-- Revenue Subtotal -->
-				<tr class="bg-green-100 border-b border-gray-300 font-semibold">
+				<tr class="bg-green-100 border-b border-default font-semibold">
 					<td class="py-3 px-4 sticky left-0 bg-green-100 z-10">
 						{ pageCtx.T("Reports.IncomeStatement.OperationalIncome") }
 					</td>
@@ -264,7 +264,7 @@ templ IncomeStatementTable(report *viewmodels.IncomeStatement) {
 				</tr>
 				<!-- Gross Profit (if different from revenue) -->
 				if report.GrossProfitWithCurrency != report.RevenueSection.SubtotalWithCurrency {
-					<tr class="bg-gray-50 border-b border-gray-300 font-semibold">
+					<tr class="bg-gray-50 border-b border-default font-semibold">
 						<td class="py-3 px-4 sticky left-0 bg-gray-50 z-10">
 							{ pageCtx.T("Reports.IncomeStatement.GrossProfit") }
 						</td>
@@ -299,14 +299,14 @@ templ IncomeStatementTable(report *viewmodels.IncomeStatement) {
 					</tr>
 				}
 				<!-- Expense Section -->
-				<tr class="bg-red-50 border-b border-gray-200">
+				<tr class="bg-red-50 border-b border-subtle">
 					<td colspan={ fmt.Sprintf("%d", len(report.Months)+2) } class="py-2 px-4 font-semibold text-red-800">
 						{ report.ExpenseSection.Title }
 					</td>
 				</tr>
 				@IncomeStatementTableSection(report.ExpenseSection, report.Months)
 				<!-- Expense Subtotal -->
-				<tr class="bg-gray-200 border-b border-gray-300 font-semibold">
+				<tr class="bg-gray-200 border-b border-default font-semibold">
 					<td class="py-3 px-4 sticky left-0 bg-gray-200 z-10">
 						{ pageCtx.T("Reports.IncomeStatement.TotalExpenses") }
 					</td>
@@ -328,7 +328,7 @@ templ IncomeStatementTable(report *viewmodels.IncomeStatement) {
 					</td>
 				</tr>
 				<!-- Net Profit -->
-				<tr class="bg-gray-100 border-t-2 border-gray-900 font-bold">
+				<tr class="bg-gray-100 border-t-2 border-strong font-bold">
 					<td class="py-4 px-4 sticky left-0 bg-gray-100 z-10 text-lg">
 						{ pageCtx.T("Reports.IncomeStatement.NetProfit") }
 					</td>
@@ -369,7 +369,7 @@ templ IncomeStatementTable(report *viewmodels.IncomeStatement) {
 templ IncomeStatementTableSection(section viewmodels.IncomeStatementSection, months []string) {
 	if len(section.LineItems) > 0 {
 		for _, item := range section.LineItems {
-			<tr class="border-b border-gray-100 hover:bg-gray-50">
+			<tr class="border-b border-subtle hover:bg-gray-50">
 				<td class="py-2 px-4 text-gray-700 sticky left-0 bg-white z-10">
 					{ item.Name }
 				</td>
@@ -405,7 +405,7 @@ templ IncomeStatementSection(section viewmodels.IncomeStatementSection) {
 		} else {
 			<div class="space-y-2">
 				for _, item := range section.LineItems {
-					<div class="flex justify-between items-center py-2 border-b border-gray-100">
+					<div class="flex justify-between items-center py-2 border-b border-subtle">
 						<span class="text-gray-700">{ item.Name }</span>
 						<div class="text-right">
 							<span class="font-medium">{ item.AmountWithCurrency }</span>
@@ -418,7 +418,7 @@ templ IncomeStatementSection(section viewmodels.IncomeStatementSection) {
 					</div>
 				}
 				<!-- Subtotal -->
-				<div class="flex justify-between items-center pt-3 font-semibold text-lg border-t border-gray-300">
+				<div class="flex justify-between items-center pt-3 font-semibold text-lg border-t border-default">
 					<span>{ pageCtx.T("Reports.IncomeStatement.Total") } { section.Title }</span>
 					<span>{ section.SubtotalWithCurrency }</span>
 				</div>

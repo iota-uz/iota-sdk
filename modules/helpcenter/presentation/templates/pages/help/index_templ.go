@@ -58,7 +58,7 @@ func Index(props IndexProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"h-full flex flex-col bg-white\"><div class=\"border-b border-gray-200 px-4 md:px-6 py-4\"><div class=\"max-w-7xl flex flex-col md:flex-row md:items-center gap-3 md:gap-6\"><div class=\"min-w-0\"><div class=\"flex items-center gap-2\"><h1 class=\"text-xl font-semibold text-gray-900\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"h-full flex flex-col bg-white\"><div class=\"border-b border-subtle px-4 md:px-6 py-4\"><div class=\"max-w-7xl flex flex-col md:flex-row md:items-center gap-3 md:gap-6\"><div class=\"min-w-0\"><div class=\"flex items-center gap-2\"><h1 class=\"text-xl font-semibold text-gray-900\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -149,7 +149,7 @@ func Index(props IndexProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" hx-target=\"#help-search-results\" hx-trigger=\"input changed delay:250ms, search\" hx-indicator=\"#help-search-spinner\" autocomplete=\"off\" class=\"form-control-input w-full border border-gray-300 rounded-md pl-10 pr-10 py-2 text-sm shadow-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:text-gray-500\"><div id=\"help-search-spinner\" class=\"htmx-indicator absolute right-3 top-1/2 -translate-y-1/2 text-gray-400\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "\" hx-target=\"#help-search-results\" hx-trigger=\"input changed delay:250ms, search\" hx-indicator=\"#help-search-spinner\" autocomplete=\"off\" class=\"form-control-input w-full border border-default rounded-md pl-10 pr-10 py-2 text-sm shadow-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:text-gray-500\"><div id=\"help-search-spinner\" class=\"htmx-indicator absolute right-3 top-1/2 -translate-y-1/2 text-gray-400\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -180,7 +180,7 @@ func Index(props IndexProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</form></div></div><div class=\"flex-1 grid grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)] min-h-0\"><aside class=\"border-b lg:border-b-0 lg:border-r border-gray-200 overflow-auto\"><div class=\"p-4\"><div class=\"text-xs font-semibold uppercase text-gray-500 mb-3\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "</form></div></div><div class=\"flex-1 grid grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)] min-h-0\"><aside class=\"border-b lg:border-b-0 lg:border-r border-subtle overflow-auto\"><div class=\"p-4\"><div class=\"text-xs font-semibold uppercase text-gray-500 mb-3\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -342,7 +342,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div><div class=\"ml-2 border-l border-gray-200 pl-2\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 26, "</div><div class=\"ml-2 border-l border-subtle pl-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

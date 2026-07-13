@@ -43,7 +43,7 @@ func SearchResults(props SearchResultsProps) templ.Component {
 		ctx = templ.ClearChildren(ctx)
 		pageCtx := composables.UsePageCtx(ctx)
 		if props.Query != "" {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"overflow-hidden rounded-md border border-subtle bg-white shadow-lg\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -111,7 +111,7 @@ func SearchResults(props SearchResultsProps) templ.Component {
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}
-					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" hx-target=\"#help-doc-pane\" hx-push-url=\"true\" hx-on::after-request=\"this.closest(&#39;#help-search-results&#39;).innerHTML = &#39;&#39;\" class=\"block border-b border-gray-100 px-4 py-3 last:border-b-0 hover:bg-gray-50\"><div class=\"flex items-center justify-between gap-3\"><div class=\"min-w-0 text-sm font-medium text-gray-900 truncate\">")
+					templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" hx-target=\"#help-doc-pane\" hx-push-url=\"true\" hx-on::after-request=\"this.closest(&#39;#help-search-results&#39;).innerHTML = &#39;&#39;\" class=\"block border-b border-subtle px-4 py-3 last:border-b-0 hover:bg-gray-50\"><div class=\"flex items-center justify-between gap-3\"><div class=\"min-w-0 text-sm font-medium text-gray-900 truncate\">")
 					if templ_7745c5c3_Err != nil {
 						return templ_7745c5c3_Err
 					}

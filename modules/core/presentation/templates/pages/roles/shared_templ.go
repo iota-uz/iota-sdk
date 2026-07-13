@@ -102,7 +102,7 @@ func Permission(props SharedProps) templ.Component {
 		}
 		ctx = templ.ClearChildren(ctx)
 		id := random.String(12, random.LowerCharSet)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"border border-gray-400 bg-surface-100 rounded-md py-2 px-3\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"border border-default bg-surface-100 rounded-md py-2 px-3\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -159,7 +159,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 		toggleId := fmt.Sprintf("toggle-%s", setId)
 		label := tOrKey(props.PageContext, props.Set.Label)
 		if len(props.Set.Permissions) == 1 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"border border-gray-400 bg-surface-100 rounded-md py-2 px-3\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<div class=\"border border-default bg-surface-100 rounded-md py-2 px-3\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -197,7 +197,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " <div class=\"border border-gray-400 bg-surface-100 rounded-md\" x-data=\"")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, " <div class=\"border border-default bg-surface-100 rounded-md\" x-data=\"")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -240,7 +240,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			toggleClasses := "bg-gray-200 after:border-gray-300"
+			toggleClasses := "bg-gray-200 after:border-default"
 
 			if props.Set.Checked {
 				toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
@@ -311,7 +311,7 @@ func PermissionSet(props PermissionSetProps) templ.Component {
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div x-show=\"expanded\" x-collapse class=\"border-t border-gray-300\"><div class=\"p-3 space-y-2\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 17, "</div><div x-show=\"expanded\" x-collapse class=\"border-t border-default\"><div class=\"p-3 space-y-2\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -425,7 +425,7 @@ func ResourceGroup(props ResourceGroupProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		toggleClasses := "bg-gray-200 after:border-gray-300"
+		toggleClasses := "bg-gray-200 after:border-default"
 
 		if allChecked {
 			toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"

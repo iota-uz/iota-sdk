@@ -75,7 +75,7 @@ type SharedProps struct {
 templ Permission(props SharedProps) {
 	{{ id := random.String(12, random.LowerCharSet) }}
 	<div
-		class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3"
+		class="border border-default bg-surface-100 rounded-md py-2 px-3"
 	>
 		@input.Switch(&input.SwitchProps{
 			ID:           id,
@@ -103,7 +103,7 @@ templ PermissionSet(props PermissionSetProps) {
 	{{ label := tOrKey(props.PageContext, props.Set.Label) }}
 	// For single permission sets, render a simple toggle
 	if len(props.Set.Permissions) == 1 {
-		<div class="border border-gray-400 bg-surface-100 rounded-md py-2 px-3">
+		<div class="border border-default bg-surface-100 rounded-md py-2 px-3">
 			@input.Switch(&input.SwitchProps{
 				ID:           toggleId,
 				Label:        label,
@@ -118,7 +118,7 @@ templ PermissionSet(props PermissionSetProps) {
 	} else {
 		// For multiple permissions, render with accordion
 		<div
-			class="border border-gray-400 bg-surface-100 rounded-md"
+			class="border border-default bg-surface-100 rounded-md"
 			x-data={ fmt.Sprintf("createPermissionSetData(%t, %t, %s, '%s')", props.Set.Checked, props.Set.Partial, toJSON(getPermissionIds(props.Set.Permissions)), setId) }
 			x-init="init()"
 			@change="updateState()"
@@ -129,7 +129,7 @@ templ PermissionSet(props PermissionSetProps) {
 					<div class="flex items-center gap-3 flex-1">
 						<button type="button" class="flex items-center justify-between w-full" @click="toggleAll()">
 							<span class="text-sm">{ label }</span>
-							{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
+							{{ toggleClasses := "bg-gray-200 after:border-default" }}
 							{{
 								if props.Set.Checked {
 									toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
@@ -157,7 +157,7 @@ templ PermissionSet(props PermissionSetProps) {
 			<div
 				x-show="expanded"
 				x-collapse
-				class="border-t border-gray-300"
+				class="border-t border-default"
 			>
 				<div class="p-3 space-y-2">
 					for _, perm := range props.Set.Permissions {
@@ -219,7 +219,7 @@ templ ResourceGroup(props ResourceGroupProps) {
 		<div class="flex items-center mb-2">
 			<button type="button" class="flex items-center justify-between w-full font-medium text-lg cursor-pointer" @click="toggleAll()">
 				<span>{ tOrKey(props.PageContext,fmt.Sprintf("Resources.%s", props.ResourceGroup.Resource)) }</span>
-				{{ toggleClasses := "bg-gray-200 after:border-gray-300" }}
+				{{ toggleClasses := "bg-gray-200 after:border-default" }}
 				{{
 					if allChecked {
 						toggleClasses = "bg-brand-600 after:translate-x-full after:border-white"
