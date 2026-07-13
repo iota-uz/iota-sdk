@@ -273,6 +273,18 @@ templ LensThemeStyles() {
 			background: inherit;
 			z-index: 2;
 		}
+		/* Compact table's primary (first) column: clamp to two lines
+		   instead of stretching to the label's full natural width, so a
+		   long label can't blow out the table past its card. */
+		.lens-compact-primary {
+			display: -webkit-box;
+			-webkit-box-orient: vertical;
+			-webkit-line-clamp: 2;
+			overflow: hidden;
+			max-width: 15rem;
+			white-space: normal;
+			word-break: break-word;
+		}
 
 		/* Empty state */
 		.lens-empty {
