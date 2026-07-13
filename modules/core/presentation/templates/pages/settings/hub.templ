@@ -42,7 +42,7 @@ templ Hub(props *HubPageProps) {
 templ settingsCard(page types.SettingsPage) {
 	<a
 		href={ templ.SafeURL(page.Href) }
-		class="block p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all group"
+		class="block p-4 rounded-lg border border-subtle hover:border-blue-300 hover:shadow-sm transition-all group"
 	>
 		<div class="flex items-start gap-3">
 			if page.Icon != nil {

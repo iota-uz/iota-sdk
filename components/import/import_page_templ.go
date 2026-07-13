@@ -313,7 +313,7 @@ func ImportContent(props *ImportPageProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div><div class=\"bg-white border-t border-gray-200 shadow-lg\"><div class=\"px-6 py-4 flex justify-end items-center gap-4\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 19, "</div><div class=\"bg-white border-t border-subtle shadow-lg\"><div class=\"px-6 py-4 flex justify-end items-center gap-4\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

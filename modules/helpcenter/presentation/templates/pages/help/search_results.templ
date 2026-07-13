@@ -15,7 +15,7 @@ type SearchResultsProps struct {
 templ SearchResults(props SearchResultsProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	if props.Query != "" {
-		<div class="overflow-hidden rounded-md border border-gray-200 bg-white shadow-lg">
+		<div class="overflow-hidden rounded-md border border-subtle bg-white shadow-lg">
 			if !props.Available {
 				<div class="px-4 py-3 text-sm text-gray-500">{ pageCtx.T("HelpCenter.Search.Unavailable") }</div>
 			} else if len(props.Results) == 0 {
@@ -29,7 +29,7 @@ templ SearchResults(props SearchResultsProps) {
 							hx-target="#help-doc-pane"
 							hx-push-url="true"
 							hx-on::after-request="this.closest('#help-search-results').innerHTML = ''"
-							class="block border-b border-gray-100 px-4 py-3 last:border-b-0 hover:bg-gray-50"
+							class="block border-b border-subtle px-4 py-3 last:border-b-0 hover:bg-gray-50"
 						>
 							<div class="flex items-center justify-between gap-3">
 								<div class="min-w-0 text-sm font-medium text-gray-900 truncate">{ result.Title }</div>

@@ -78,7 +78,7 @@ templ Container() {
 				<!-- Success Variant -->
 				<div
 					x-show="notification.variant === 'success'"
-					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-800"
+					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle"
 					role="status"
 				>
 					<div class="flex-shrink-0 w-5 h-5 text-green-500">
@@ -100,7 +100,7 @@ templ Container() {
 				<!-- Error/Danger Variant -->
 				<div
 					x-show="notification.variant === 'error' || notification.variant === 'danger'"
-					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-800"
+					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle"
 					role="alert"
 				>
 					<div class="flex-shrink-0 w-5 h-5 text-red-500">
@@ -122,7 +122,7 @@ templ Container() {
 				<!-- Warning Variant -->
 				<div
 					x-show="notification.variant === 'warning'"
-					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-800"
+					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle"
 					role="alert"
 				>
 					<div class="flex-shrink-0 w-5 h-5 text-yellow-500">
@@ -144,7 +144,7 @@ templ Container() {
 				<!-- Info Variant -->
 				<div
 					x-show="notification.variant === 'info'"
-					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-neutral-200 dark:border-neutral-800"
+					class="flex items-start gap-3 w-full p-4 bg-white dark:bg-neutral-900 rounded-lg shadow-lg border border-subtle"
 					role="status"
 				>
 					<div class="flex-shrink-0 w-5 h-5 text-blue-500">

@@ -39,7 +39,7 @@ templ quantityInput(item OrderItem) {
 				name={ fmt.Sprintf("Quantity[%s]", item.PositionID) }
 				type="number"
 				value={ item.Quantity }
-				class="bg-gray-50 border border-gray-300 text-center text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-16 p-1.5"
+				class="bg-gray-50 border border-default text-center text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-16 p-1.5"
 			/>
 		</label>
 		if item.Error != "" {

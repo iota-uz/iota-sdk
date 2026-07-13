@@ -153,7 +153,7 @@ func settingsCard(page types.SettingsPage) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"block p-4 rounded-lg border border-gray-200 hover:border-blue-300 hover:shadow-sm transition-all group\"><div class=\"flex items-start gap-3\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "\" class=\"block p-4 rounded-lg border border-subtle hover:border-blue-300 hover:shadow-sm transition-all group\"><div class=\"flex items-start gap-3\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
