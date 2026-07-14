@@ -549,6 +549,8 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.Equal(t, "light", *options.Tooltip.Theme)
 				require.NotNil(t, options.Tooltip.CSSClass)
 				require.Equal(t, "lens-tooltip", *options.Tooltip.CSSClass)
+				require.NotNil(t, options.Tooltip.FillSeriesColor)
+				require.False(t, *options.Tooltip.FillSeriesColor)
 				require.NotNil(t, options.Grid)
 				require.Equal(t, theme.Divider, options.Grid.BorderColor)
 				require.NotNil(t, options.Grid.XAxis)
