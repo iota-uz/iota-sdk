@@ -101,6 +101,34 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 	require.Contains(t, js, `resolveValue(variables["active_only"], true)`)
 }
 
+func TestBuildActionJSEmitEventDoesNotRequireURL(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("premium-composition",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Earned"}},
+		frame.Field{Name: "metric", Type: frame.FieldTypeString, Values: []any{"earned_premium"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	js := string(buildActionJS(
+		&action.Spec{
+			Kind:  action.KindEmitEvent,
+			Event: "analytics:premium-year-breakdown",
+			Payload: map[string]action.ValueSource{
+				"metric": action.FieldValue("metric"),
+			},
+		},
+		fr,
+		panel.FieldMapping{Category: "segment", Value: "amount"},
+		&runtime.PanelResult{},
+	))
+
+	require.NotContains(t, js, "if (!nextURL) { return; }")
+	require.Contains(t, js, `document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));`)
+	require.Contains(t, js, `resolveValue(row["metric"], undefined)`)
+}
+
 func TestBuildActionJSResolvesFullURLFromClickedRow(t *testing.T) {
 	t.Parallel()
 
@@ -683,6 +711,60 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				legendJS := string(options.Legend.Formatter)
 				require.Contains(t, legendJS, "seriesName + ' · ' + formatted")
 				require.Contains(t, legendJS, "toFixed(1)")
+			},
+		},
+		{
+			name: "money pie renders total badge",
+			panelSpec: panel.Pie("premium-mix", "Premium Mix", "products").
+				LabelField("label").
+				ValueField("value").
+				Format(format.MoneyCompact("UZS")).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Chart.Events)
+				require.NotEmpty(t, options.Chart.Events.Mounted)
+				badge := string(options.Chart.Events.Mounted)
+				require.Contains(t, badge, "data-lens-stacked-total")
+				require.Contains(t, badge, `const totalLabel = "Итого";`)
+				require.Contains(t, badge, "const isFlatSeries = configSeries.length > 0")
+				require.Contains(t, badge, "configSeries.forEach(addValue)")
+				require.NotNil(t, options.Grid)
+				require.NotNil(t, options.Grid.Padding)
+				require.Equal(t, 34, *options.Grid.Padding.Top)
+			},
+		},
+		{
+			name: "percentage pie omits additive total",
+			panelSpec: panel.Pie("share-mix", "Share Mix", "products").
+				LabelField("label").
+				ValueField("value").
+				Format(format.Percent(1)).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.Nil(t, options.Chart.Events)
+				require.NotNil(t, options.Grid)
+				require.NotNil(t, options.Grid.Padding)
+				require.Equal(t, 4, *options.Grid.Padding.Top)
+			},
+		},
+		{
+			name: "percentage donut omits center total",
+			panelSpec: panel.Donut("share-donut", "Share Donut", "products").
+				LabelField("label").
+				ValueField("value").
+				Format(format.Percent(1)).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Pie)
+				require.NotNil(t, options.PlotOptions.Pie.Donut)
+				require.Nil(t, options.PlotOptions.Pie.Donut.Labels)
 			},
 		},
 		{

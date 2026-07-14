@@ -242,7 +242,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
 	tooltipFormatter := applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
-	if panelSpec.Kind == panel.KindDonut {
+	if panelSpec.Kind == panel.KindDonut && hasAdditiveTotal(panelSpec.Formatter) {
 		applyDonutTotalLabels(&options, panelResult.Locale, tooltipFormatter)
 	}
 	if panelSpec.Kind == panel.KindDonut || panelSpec.Kind == panel.KindPie {
@@ -264,7 +264,8 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		// without waiting for a click.
 		chartEvents.Mounted = buildDrillHierarchyMountJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
 	}
-	if panelSpec.Kind == panel.KindStackedBar || panelSpec.ShowTotalBadge {
+	showPieTotal := panelSpec.Kind == panel.KindPie && hasAdditiveTotal(panelSpec.Formatter)
+	if panelSpec.Kind == panel.KindStackedBar || panelSpec.ShowTotalBadge || showPieTotal {
 		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter, staticTotalBadgeText(panelSpec, panelResult.Locale))
 		// The total badge floats at the top-right of the plot (the drill-back
 		// overlay owns the top-left). Reserve a header band above the plot so it
@@ -278,6 +279,18 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
 	return options
+}
+
+func hasAdditiveTotal(spec *format.Spec) bool {
+	if spec == nil {
+		return false
+	}
+	switch spec.Kind {
+	case format.KindMoney, format.KindAbbreviatedMoney, format.KindInteger:
+		return true
+	default:
+		return false
+	}
 }
 
 // applyBarHoverStates disables ApexCharts' own hover filter on bar panels.
@@ -1125,16 +1138,28 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 					total += number;
 				}
 			};
-			configSeries.forEach((entry, seriesIndex) => {
-				const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
-				if (isSeriesHidden(String(name))) {
-					return;
-				}
-				const points = entry && Array.isArray(entry.data)
-					? entry.data
-					: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
-				points.forEach(addValue);
+			// Pie/donut series are a flat number array (series: [10, 20]),
+			// while cartesian charts use named objects with a data array. Treat
+			// the flat form as values directly; otherwise the generic object loop
+			// below sees no points and leaves the badge at zero after an async
+			// chart update.
+			const isFlatSeries = configSeries.length > 0 && configSeries.every((entry) => {
+				return entry == null || typeof entry !== 'object';
 			});
+			if (isFlatSeries) {
+				configSeries.forEach(addValue);
+			} else {
+				configSeries.forEach((entry, seriesIndex) => {
+					const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
+					if (isSeriesHidden(String(name))) {
+						return;
+					}
+					const points = entry && Array.isArray(entry.data)
+						? entry.data
+						: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
+					points.forEach(addValue);
+				});
+			}
 			const formatValue = (value) => {
 				if (valueFormatter) {
 					return valueFormatter(value, { seriesIndex: -1, dataPointIndex: -1, w });
@@ -1373,7 +1398,12 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		expr := actionValueJS(*spec.URLSource, fields)
 		js += fmt.Sprintf("const resolvedURL = safeActionURL(%s);\nif (!resolvedURL) { return; }\nnextURL = resolvedURL;\n", expr)
 	}
-	js += "if (!nextURL) { return; }\n"
+	// Emit-event actions intentionally have no URL. Requiring nextURL here
+	// makes their chart click handler return before it can build the payload
+	// and dispatch the CustomEvent.
+	if spec.Kind != action.KindEmitEvent {
+		js += "if (!nextURL) { return; }\n"
+	}
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
 		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { replaceParam(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)
