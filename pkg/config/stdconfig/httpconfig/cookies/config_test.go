@@ -32,6 +32,9 @@ func TestDefaults_Cookies(t *testing.T) {
 	if cfg.OAuthState != "oauthState" {
 		t.Errorf("OAuthState default: got %q, want \"oauthState\"", cfg.OAuthState)
 	}
+	if cfg.Domain != "" {
+		t.Errorf("Domain default: got %q, want host-only cookie", cfg.Domain)
+	}
 }
 
 func TestRoundTrip_Cookies(t *testing.T) {
@@ -40,6 +43,7 @@ func TestRoundTrip_Cookies(t *testing.T) {
 	r := config.NewRegistry(buildSource(t, map[string]any{
 		"http.cookies.sid":        "session_id",
 		"http.cookies.oauthstate": "oauth_state",
+		"http.cookies.domain":     ".example.com",
 	}))
 	cfg, err := config.Register[cookies.Config](r)
 	if err != nil {
@@ -51,5 +55,8 @@ func TestRoundTrip_Cookies(t *testing.T) {
 	}
 	if cfg.OAuthState != "oauth_state" {
 		t.Errorf("OAuthState: got %q", cfg.OAuthState)
+	}
+	if cfg.Domain != ".example.com" {
+		t.Errorf("Domain: got %q", cfg.Domain)
 	}
 }

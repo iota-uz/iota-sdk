@@ -805,12 +805,14 @@ func panelCardNeedsFullscreenScope(spec panel.Spec) bool {
 
 // segmentBarSegment is one part of a part-to-whole segment bar.
 type segmentBarSegment struct {
-	Label  string
-	Amount string  // formatted via the panel formatter
-	Raw    float64 // unformatted amount (drives bar width + zero styling)
-	Pct    float64 // share of the whole, 0..100
-	PctTxt string  // "100%", "0%", "<1%"
-	Color  string
+	Label   string
+	Amount  string  // formatted via the panel formatter
+	Raw     float64 // unformatted amount (drives bar width + zero styling)
+	Pct     float64 // share of the whole, 0..100
+	PctTxt  string  // "100%", "0%", "<1%"
+	Color   string
+	Href    string
+	OnClick templpkg.ComponentScript
 }
 
 // segmentBarView is the resolved data a SegmentBar panel renders: a headline
@@ -862,7 +864,11 @@ func buildSegmentBarView(spec panel.Spec, result *runtime.PanelResult) segmentBa
 	}
 
 	view.HasData = true
-	view.Total = formatValue(total, spec.Formatter, result.Locale, result.Timezone)
+	headline := total
+	if spec.HeadlineValue != nil {
+		headline = *spec.HeadlineValue
+	}
+	view.Total = formatValue(headline, spec.Formatter, result.Locale, result.Timezone)
 	view.Segments = make([]segmentBarSegment, len(rows))
 	for i := range rows {
 		pct := 0.0
@@ -870,12 +876,14 @@ func buildSegmentBarView(spec panel.Spec, result *runtime.PanelResult) segmentBa
 			pct = raws[i] / total * 100
 		}
 		view.Segments[i] = segmentBarSegment{
-			Label:  labels[i],
-			Amount: formatValue(raws[i], spec.Formatter, result.Locale, result.Timezone),
-			Raw:    raws[i],
-			Pct:    pct,
-			PctTxt: formatSharePct(raws[i], pct),
-			Color:  segmentColorAt(spec.Colors, i),
+			Label:   labels[i],
+			Amount:  formatValue(raws[i], spec.Formatter, result.Locale, result.Timezone),
+			Raw:     raws[i],
+			Pct:     pct,
+			PctTxt:  formatSharePct(raws[i], pct),
+			Color:   segmentColorAt(spec.Colors, i),
+			Href:    actionURL(spec.Action, rows[i], result),
+			OnClick: actionOnClick(spec.Action, rows[i], result),
 		}
 	}
 	return view
@@ -949,6 +957,10 @@ func segmentBarBodyClass(clickable bool) string {
 		base += " z-10 pointer-events-none transition-opacity group-hover:opacity-95"
 	}
 	return base
+}
+
+func segmentBarUsesRowActions(spec panel.Spec) bool {
+	return spec.Action != nil && spec.Action.URLSource != nil
 }
 
 type cascadeView struct {

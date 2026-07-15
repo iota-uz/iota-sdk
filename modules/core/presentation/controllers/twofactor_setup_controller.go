@@ -134,7 +134,7 @@ func (c *TwoFactorSetupController) activateSession(ctx context.Context, w http.R
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   c.appCfg.IsProduction(),
-		Domain:   c.httpCfg.Domain,
+		Domain:   c.cookiesCfg.Domain,
 		Path:     "/",
 	})
 

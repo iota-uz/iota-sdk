@@ -136,6 +136,18 @@ const (
 	GroupRows    GroupLayout = "rows"
 )
 
+// LegendPosition controls where a chart places its legend. Empty keeps the
+// renderer default (bottom). A side legend preserves vertical plot area for
+// charts with long category labels, especially pies and donuts.
+type LegendPosition string
+
+const (
+	LegendTop    LegendPosition = "top"
+	LegendRight  LegendPosition = "right"
+	LegendBottom LegendPosition = "bottom"
+	LegendLeft   LegendPosition = "left"
+)
+
 type AxisScale string
 
 const (
@@ -222,6 +234,8 @@ type Spec struct {
 	Height         string
 	Colors         []string
 	ShowLegend     bool
+	LegendPosition LegendPosition
+	LegendWidthPx  int
 	ShowTotalBadge bool
 	// TotalBadgeValue, when set, renders the total badge with this
 	// server-computed value instead of summing the plotted data points
@@ -229,8 +243,16 @@ type Spec struct {
 	// amounts (e.g. log-transformed values with an epsilon floor). The badge
 	// then stays constant across legend toggles — it is the period total.
 	TotalBadgeValue *float64
-	DrillHierarchy  *DrillHierarchy
-	Trend           *TrendSpec
+	// HeadlineValue overrides the computed headline without changing the
+	// values used for chart geometry. SegmentBar uses it for a focal result
+	// whose allocation segments still sum to a different denominator.
+	HeadlineValue  *float64
+	DrillHierarchy *DrillHierarchy
+	// CircularDrillHierarchy lets a Pie/Donut panel replace one aggregate
+	// slice (typically "Other") with its pre-computed members in-place. The
+	// chart keeps ordinary panel actions for every non-aggregate slice.
+	CircularDrillHierarchy *CircularDrillHierarchy
+	Trend                  *TrendSpec
 	// Status renders a small tone-colored chip in a stat card's label row.
 	// Only Stat panels (including StatGroup children) render it.
 	Status *StatusSpec
@@ -287,6 +309,29 @@ type QuarterBreakdown struct {
 	NavigateURLs [4]string  // Q1..Q4 navigate target; "" = not navigable
 }
 
+// CircularDrillHierarchy carries pre-computed in-place drill branches for a
+// Pie or Donut panel. Branches may be nested through CircularDrillSlice.Detail;
+// a leaf may carry an optional same-origin navigation URL. TriggerLabel and
+// Detail remain as the backwards-compatible shorthand for one branch.
+type CircularDrillHierarchy struct {
+	TriggerLabel string
+	Detail       []CircularDrillSlice
+	Branches     []CircularDrillBranch
+}
+
+type CircularDrillBranch struct {
+	TriggerLabel string
+	Detail       []CircularDrillSlice
+}
+
+type CircularDrillSlice struct {
+	Label     string
+	Value     float64
+	Color     string
+	ActionURL string
+	Detail    []CircularDrillSlice
+}
+
 // TrendSpec renders a small colored chip in a panel's header showing a signed
 // percent change alongside a comparison label (e.g. "vs last month").
 type TrendSpec struct {
@@ -325,6 +370,9 @@ func HorizontalBar(id, title, dataset string) *Builder {
 }
 func StackedBar(id, title, dataset string) *Builder {
 	return newBuilder(KindStackedBar, id, title, dataset)
+}
+func SegmentBar(id, title, dataset string) *Builder {
+	return newBuilder(KindSegmentBar, id, title, dataset)
 }
 func Cascade(id, title, dataset string) *Builder { return newBuilder(KindCascade, id, title, dataset) }
 func Pie(id, title, dataset string) *Builder     { return newBuilder(KindPie, id, title, dataset) }
@@ -397,14 +445,32 @@ func (b *Builder) Span(span int) *Builder           { b.spec.Span = span; return
 func (b *Builder) Height(height string) *Builder    { b.spec.Height = height; return b }
 func (b *Builder) Colors(colors ...string) *Builder { b.spec.Colors = colors; return b }
 func (b *Builder) Legend() *Builder                 { b.spec.ShowLegend = true; return b }
-func (b *Builder) TotalBadge() *Builder             { b.spec.ShowTotalBadge = true; return b }
+func (b *Builder) LegendAt(position LegendPosition) *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendPosition = position
+	return b
+}
+func (b *Builder) LegendWidth(px int) *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendWidthPx = px
+	return b
+}
+func (b *Builder) TotalBadge() *Builder { b.spec.ShowTotalBadge = true; return b }
 func (b *Builder) TotalBadgeValue(v float64) *Builder {
 	b.spec.ShowTotalBadge = true
 	b.spec.TotalBadgeValue = &v
 	return b
 }
+func (b *Builder) HeadlineValue(v float64) *Builder {
+	b.spec.HeadlineValue = &v
+	return b
+}
 func (b *Builder) DrillHierarchy(h DrillHierarchy) *Builder {
 	b.spec.DrillHierarchy = &h
+	return b
+}
+func (b *Builder) CircularDrillHierarchy(h CircularDrillHierarchy) *Builder {
+	b.spec.CircularDrillHierarchy = &h
 	return b
 }
 func (b *Builder) Trend(percent float64, label string) *Builder {

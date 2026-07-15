@@ -58,7 +58,7 @@ func (c *LogoutController) Logout(
 		w, &http.Cookie{
 			Name:     c.cookiesCfg.SID,
 			Value:    "",
-			Domain:   c.cfg.Domain,
+			Domain:   c.cookiesCfg.Domain,
 			Path:     "/",
 			MaxAge:   -1,
 			Expires:  time.Unix(0, 0),

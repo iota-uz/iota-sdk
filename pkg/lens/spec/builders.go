@@ -110,7 +110,17 @@ func (b *PanelBuilder) Span(span int) *PanelBuilder           { b.panel.Span = s
 func (b *PanelBuilder) Height(height string) *PanelBuilder    { b.panel.Height = height; return b }
 func (b *PanelBuilder) Colors(colors ...string) *PanelBuilder { b.panel.Colors = colors; return b }
 func (b *PanelBuilder) Legend() *PanelBuilder                 { b.panel.ShowLegend = true; return b }
-func (b *PanelBuilder) TotalBadge() *PanelBuilder             { b.panel.ShowTotalBadge = true; return b }
+func (b *PanelBuilder) LegendAt(position panel.LegendPosition) *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendPosition = position
+	return b
+}
+func (b *PanelBuilder) LegendWidth(px int) *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendWidthPx = px
+	return b
+}
+func (b *PanelBuilder) TotalBadge() *PanelBuilder { b.panel.ShowTotalBadge = true; return b }
 
 // TotalBadgeValue shows the total badge with a server-computed value instead
 // of the client-side sum of plotted points. Use when the plotted series are
@@ -120,8 +130,19 @@ func (b *PanelBuilder) TotalBadgeValue(v float64) *PanelBuilder {
 	b.panel.TotalBadgeValue = &v
 	return b
 }
+
+// HeadlineValue overrides the computed headline of native summary panels
+// while leaving their plotted denominator and segment shares unchanged.
+func (b *PanelBuilder) HeadlineValue(v float64) *PanelBuilder {
+	b.panel.HeadlineValue = &v
+	return b
+}
 func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
 	b.panel.DrillHierarchy = &h
+	return b
+}
+func (b *PanelBuilder) CircularDrillHierarchy(h panel.CircularDrillHierarchy) *PanelBuilder {
+	b.panel.CircularDrillHierarchy = &h
 	return b
 }
 func (b *PanelBuilder) Trend(percent float64, label string) *PanelBuilder {

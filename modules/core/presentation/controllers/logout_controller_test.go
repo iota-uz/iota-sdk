@@ -72,7 +72,7 @@ func TestLogoutController_Scenarios(t *testing.T) {
 				require.NotNil(t, deletedCookie, "expected cleared session cookie to be present")
 				require.Empty(t, deletedCookie.Value)
 				require.Equal(t, cfg.cookiesCfg.SID, deletedCookie.Name)
-				require.Equal(t, cfg.httpCfg.Domain, deletedCookie.Domain)
+				require.Equal(t, cfg.cookiesCfg.Domain, deletedCookie.Domain)
 				require.Equal(t, "/", deletedCookie.Path)
 				require.Equal(t, -1, deletedCookie.MaxAge)
 				require.True(t, deletedCookie.HttpOnly)

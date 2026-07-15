@@ -10,6 +10,11 @@ type Config struct {
 	SID string `koanf:"sid" default:"sid"`
 	// OAuthState is the OAuth state cookie key.
 	OAuthState string `koanf:"oauthstate" default:"oauthState"`
+	// Domain optionally enables a shared-domain cookie. Leave empty (the
+	// default) for a host-only cookie so the same server can be reached through
+	// localhost, a LAN hostname, or another development alias without browsers
+	// rejecting the cookie. Maps from HTTP_COOKIES_DOMAIN.
+	Domain string `koanf:"domain"`
 }
 
 // ConfigPrefix returns the koanf prefix for cookies ("http.cookies").

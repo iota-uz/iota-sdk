@@ -47,6 +47,19 @@ type ChartOptions struct {
 	Fill        *FillConfig            `json:"fill,omitempty"`
 	Annotations *Annotations           `json:"annotations,omitempty"`
 	Responsive  []ResponsiveBreakpoint `json:"responsive,omitempty"`
+	SDK         *SDKOptions            `json:"_sdk,omitempty"`
+}
+
+// SDKOptions carries renderer metadata consumed by the SDK chart wrapper.
+// ApexCharts ignores this private top-level option; it lets the wrapper retain
+// semantic information that is lost after data is transformed for rendering.
+type SDKOptions struct {
+	ManualLogScale *ManualLogScaleOptions `json:"manualLogScale,omitempty"`
+}
+
+type ManualLogScaleOptions struct {
+	Base       int  `json:"base"`
+	Horizontal bool `json:"horizontal,omitempty"`
 }
 
 type ResponsiveBreakpoint struct {
