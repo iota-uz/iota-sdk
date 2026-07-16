@@ -64,8 +64,13 @@ script graph(id string, options templ.JSExpression) {
 			});
 		});
 		if (values.length === 0) return null;
-		const minExponent = Math.floor(Math.min(...values));
-		const rawMaxExponent = Math.max(...values);
+		let rawMinExponent = values[0];
+		let rawMaxExponent = values[0];
+		for (let index = 1; index < values.length; index += 1) {
+			rawMinExponent = Math.min(rawMinExponent, values[index]);
+			rawMaxExponent = Math.max(rawMaxExponent, values[index]);
+		}
+		const minExponent = Math.floor(rawMinExponent);
 		let maxExponent = Math.ceil(rawMaxExponent);
 		if (maxExponent <= minExponent) maxExponent = minExponent + 1;
 		const span = maxExponent - minExponent;

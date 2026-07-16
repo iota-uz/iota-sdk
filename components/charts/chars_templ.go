@@ -23,8 +23,8 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_6147`,
-		Function: `function __templ_graph_6147(id, options){const hiddenSeriesNames = (chart) => {
+		Name: `__templ_graph_478b`,
+		Function: `function __templ_graph_478b(id, options){const hiddenSeriesNames = (chart) => {
 		const globals = chart && chart.w && chart.w.globals;
 		if (!globals) {
 			return [];
@@ -78,8 +78,13 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 			});
 		});
 		if (values.length === 0) return null;
-		const minExponent = Math.floor(Math.min(...values));
-		const rawMaxExponent = Math.max(...values);
+		let rawMinExponent = values[0];
+		let rawMaxExponent = values[0];
+		for (let index = 1; index < values.length; index += 1) {
+			rawMinExponent = Math.min(rawMinExponent, values[index]);
+			rawMaxExponent = Math.max(rawMaxExponent, values[index]);
+		}
+		const minExponent = Math.floor(rawMinExponent);
 		let maxExponent = Math.ceil(rawMaxExponent);
 		if (maxExponent <= minExponent) maxExponent = minExponent + 1;
 		const span = maxExponent - minExponent;
@@ -374,8 +379,8 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		scheduleRender();
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_graph_6147`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_6147`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_478b`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_478b`, id, options),
 	}
 }
 
@@ -441,7 +446,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 390, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 395, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
