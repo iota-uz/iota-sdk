@@ -333,6 +333,8 @@ func hasAdditiveTotal(spec *format.Spec) bool {
 	switch spec.Kind {
 	case format.KindMoney, format.KindAbbreviatedMoney, format.KindInteger:
 		return true
+	case format.KindPercent, format.KindDate, format.KindMonthLabel, format.KindDuration, format.KindLocalizedString:
+		return false
 	default:
 		return false
 	}
