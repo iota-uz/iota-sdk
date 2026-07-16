@@ -120,6 +120,24 @@ func (b *PanelBuilder) LegendWidth(px int) *PanelBuilder {
 	b.panel.LegendWidthPx = px
 	return b
 }
+func (b *PanelBuilder) LegendOffsetY(px int) *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendOffsetY = px
+	return b
+}
+func (b *PanelBuilder) FloatingLegend() *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendFloating = true
+	return b
+}
+func (b *PanelBuilder) CircularScale(scale float64) *PanelBuilder {
+	b.panel.CircularScale = scale
+	return b
+}
+func (b *PanelBuilder) CircularOffsetX(px int) *PanelBuilder {
+	b.panel.CircularOffsetX = px
+	return b
+}
 func (b *PanelBuilder) TotalBadge() *PanelBuilder { b.panel.ShowTotalBadge = true; return b }
 
 // TotalBadgeValue shows the total badge with a server-computed value instead

@@ -140,6 +140,10 @@ type PanelSpec struct {
 	ShowLegend             bool                          `json:"showLegend,omitempty"`
 	LegendPosition         panel.LegendPosition          `json:"legendPosition,omitempty"`
 	LegendWidthPx          int                           `json:"legendWidth,omitempty"`
+	LegendOffsetY          int                           `json:"legendOffsetY,omitempty"`
+	LegendFloating         bool                          `json:"legendFloating,omitempty"`
+	CircularScale          float64                       `json:"circularScale,omitempty"`
+	CircularOffsetX        int                           `json:"circularOffsetX,omitempty"`
 	ShowTotalBadge         bool                          `json:"showTotalBadge,omitempty"`
 	TotalBadgeValue        *float64                      `json:"totalBadgeValue,omitempty"`
 	HeadlineValue          *float64                      `json:"headlineValue,omitempty"`

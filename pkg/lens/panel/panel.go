@@ -236,7 +236,14 @@ type Spec struct {
 	ShowLegend     bool
 	LegendPosition LegendPosition
 	LegendWidthPx  int
-	ShowTotalBadge bool
+	LegendOffsetY  int
+	LegendFloating bool
+	// CircularScale and CircularOffsetX let dense pie/donut panels reserve a
+	// stable plot area while a floating side legend occupies the other half.
+	// They are ignored by non-circular panels.
+	CircularScale   float64
+	CircularOffsetX int
+	ShowTotalBadge  bool
 	// TotalBadgeValue, when set, renders the total badge with this
 	// server-computed value instead of summing the plotted data points
 	// client-side. Required for panels whose plotted series are not the raw
@@ -453,6 +460,24 @@ func (b *Builder) LegendAt(position LegendPosition) *Builder {
 func (b *Builder) LegendWidth(px int) *Builder {
 	b.spec.ShowLegend = true
 	b.spec.LegendWidthPx = px
+	return b
+}
+func (b *Builder) LegendOffsetY(px int) *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendOffsetY = px
+	return b
+}
+func (b *Builder) FloatingLegend() *Builder {
+	b.spec.ShowLegend = true
+	b.spec.LegendFloating = true
+	return b
+}
+func (b *Builder) CircularScale(scale float64) *Builder {
+	b.spec.CircularScale = scale
+	return b
+}
+func (b *Builder) CircularOffsetX(px int) *Builder {
+	b.spec.CircularOffsetX = px
 	return b
 }
 func (b *Builder) TotalBadge() *Builder { b.spec.ShowTotalBadge = true; return b }
