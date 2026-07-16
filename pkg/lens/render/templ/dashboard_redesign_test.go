@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -14,6 +15,68 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
+
+func TestSegmentBar_HeadlineOverrideAndRowActions(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("allocation",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Reserve", "Earned"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{40.0, 60.0}},
+		frame.Field{Name: "action_url", Type: frame.FieldTypeString, Values: []any{"/drill/reserve", "/drill/earned"}},
+	)
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+
+	spec := panel.SegmentBar("allocation", "Premium allocation", "allocation").
+		LabelField("segment").
+		ValueField("amount").
+		HeadlineValue(40).
+		Action(action.HtmxSwap("", "#drawer").WithFieldURL("action_url")).
+		Build()
+	result := &runtime.PanelResult{Panel: spec, Frames: set, Locale: "en"}
+
+	view := buildSegmentBarView(spec, result)
+	require.Equal(t, "40.00", view.Total)
+	require.Len(t, view.Segments, 2)
+	require.Equal(t, "/drill/reserve", view.Segments[0].Href)
+	require.Equal(t, "/drill/earned", view.Segments[1].Href)
+
+	var html bytes.Buffer
+	err = SegmentBarPanel(spec, result, nil).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+	rendered := html.String()
+	assert.Equal(t, 2, strings.Count(rendered, `href="/drill/reserve"`), "track and legend must both open the reserve drill")
+	assert.Equal(t, 2, strings.Count(rendered, `href="/drill/earned"`), "track and legend must both open the earned drill")
+	assert.Contains(t, rendered, "window.__lensDrillAjax")
+}
+
+func TestPie_HeadlineValueAndDescription(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("allocation",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Reserve", "Earned"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{40.0, 60.0}},
+	)
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+
+	spec := panel.Pie("allocation", "Premium allocation", "allocation").
+		LabelField("segment").
+		ValueField("amount").
+		HeadlineValue(40).
+		Description("Remaining in reserve · allocation of received premium").
+		Build()
+	result := &runtime.PanelResult{Panel: spec, Frames: set, Locale: "en"}
+
+	var html bytes.Buffer
+	err = ChartPanel(spec, result, nil).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+	rendered := html.String()
+	assert.Contains(t, rendered, "40.00")
+	assert.Contains(t, rendered, "Remaining in reserve · allocation of received premium")
+}
 
 // A row carrying a Heading renders as a section band (label + hairline rule),
 // not a panel grid.
@@ -459,6 +522,22 @@ func TestDashboardSkeleton_MirrorsLayout(t *testing.T) {
 	assert.NotContains(t, rendered, "animate-spin")
 }
 
+func TestDashboardSkeleton_PreservesRowClass(t *testing.T) {
+	spec := lens.DashboardSpec{
+		Rows: []lens.RowSpec{{
+			Class: "hidden lg:grid",
+			Panels: []panel.Spec{panel.Stat("hidden-until-large", "Hidden", "ds").
+				ClassName("invisible-panel").Build()},
+		}},
+	}
+
+	var html strings.Builder
+	err := DashboardSkeleton(spec).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+	require.Contains(t, html.String(), "hidden lg:grid")
+	require.Contains(t, html.String(), "invisible-panel")
+}
+
 // The skeleton mirrors a Tabs panel nesting a Grid of Cascade+Table children
 // (the profitability bridge shape): one outer card with a pill-nav shimmer
 // per tab, then the active tab's Grid rendered as its own bare child cards —
@@ -491,5 +570,5 @@ func TestDashboardSkeleton_MirrorsNestedTabsGridComposite(t *testing.T) {
 	assert.Contains(t, rendered, "min-height:88px")  // cascade-shaped card
 	assert.Contains(t, rendered, "min-height:260px") // table-shaped card
 	// ...nested inside the outer row grid (2 total: the dashboard row + the tab's Grid)
-	assert.Equal(t, 2, strings.Count(rendered, `grid grid-cols-12 gap-3"`))
+	assert.Equal(t, 2, strings.Count(rendered, `grid grid-cols-12 gap-3`))
 }

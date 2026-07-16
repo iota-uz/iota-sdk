@@ -246,7 +246,7 @@ func (c *TwoFactorVerifyController) PostVerify(w http.ResponseWriter, r *http.Re
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   c.appCfg.IsProduction(),
-		Domain:   c.httpCfg.Domain,
+		Domain:   c.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	http.SetCookie(w, sessionCookie)
@@ -374,7 +374,7 @@ func (c *TwoFactorVerifyController) PostRecovery(w http.ResponseWriter, r *http.
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   c.appCfg.IsProduction(),
-		Domain:   c.httpCfg.Domain,
+		Domain:   c.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	http.SetCookie(w, sessionCookie)

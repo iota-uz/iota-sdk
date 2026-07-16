@@ -137,7 +137,7 @@ func (s *AuthService) CookieGoogleAuthenticate(ctx context.Context, code string)
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   s.appCfg.IsProduction(),
-		Domain:   s.httpCfg.Domain,
+		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
@@ -331,7 +331,7 @@ func (s *AuthService) CookieAuthenticateWithUserID(ctx context.Context, id uint,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   s.appCfg.IsProduction(),
-		Domain:   s.httpCfg.Domain,
+		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
@@ -387,7 +387,7 @@ func (s *AuthService) CookieAuthenticate(ctx context.Context, email, password st
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   s.appCfg.IsProduction(),
-		Domain:   s.httpCfg.Domain,
+		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
 	return cookie, nil
@@ -439,7 +439,7 @@ func (s *AuthService) generateStateOauthCookie() (*http.Cookie, error) {
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   s.appCfg.IsProduction(),
-		Domain:   s.httpCfg.Domain,
+		Domain:   s.cookiesCfg.Domain,
 	}
 	return cookie, nil
 }

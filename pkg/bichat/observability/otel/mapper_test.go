@@ -284,6 +284,10 @@ func TestAttributeMappers_SanitizeInvalidUTF8(t *testing.T) {
 					for _, value := range kv.Value.AsStringSlice() {
 						assert.True(t, utf8.ValidString(value), "invalid string slice value for %q", kv.Key)
 					}
+				case attribute.INVALID, attribute.BOOL, attribute.INT64, attribute.FLOAT64,
+					attribute.BOOLSLICE, attribute.INT64SLICE, attribute.FLOAT64SLICE:
+					// Non-string kinds carry no UTF-8 content. Keep these cases in sync
+					// with sanitizeAttributes when OpenTelemetry adds a value type.
 				}
 			}
 		})

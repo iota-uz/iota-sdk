@@ -101,6 +101,64 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 	require.Contains(t, js, `resolveValue(variables["active_only"], true)`)
 }
 
+func TestBuildActionJS_EmitEventDoesNotRequireURL(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("premium-composition",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Earned"}},
+		frame.Field{Name: "metric", Type: frame.FieldTypeString, Values: []any{"earned_premium"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	js := string(buildActionJS(
+		&action.Spec{
+			Kind:  action.KindEmitEvent,
+			Event: "analytics:premium-year-breakdown",
+			Payload: map[string]action.ValueSource{
+				"metric": action.FieldValue("metric"),
+			},
+		},
+		fr,
+		panel.FieldMapping{Category: "segment", Value: "amount"},
+		&runtime.PanelResult{},
+	))
+
+	require.NotContains(t, js, "if (!nextURL) { return; }")
+	require.Contains(t, js, `document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));`)
+	require.Contains(t, js, `resolveValue(row["metric"], undefined)`)
+}
+
+func TestBuildActionJS_CircularChartsUseSliceIndexForClickedRow(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("premium-composition",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Earned", "Unearned"}},
+		frame.Field{Name: "metric", Type: frame.FieldTypeString, Values: []any{"earned_premium", "unearned_premium"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{42.0, 8.0}},
+	)
+	require.NoError(t, err)
+
+	js := string(buildActionJS(
+		&action.Spec{
+			Kind:  action.KindEmitEvent,
+			Event: "analytics:premium-year-breakdown",
+			Payload: map[string]action.ValueSource{
+				"metric": action.FieldValue("metric"),
+			},
+		},
+		fr,
+		panel.FieldMapping{Category: "segment", Value: "amount"},
+		&runtime.PanelResult{},
+	))
+
+	require.Contains(t, js, `const isCircularChart = chartType === 'pie' || chartType === 'donut' || chartType === 'radialBar';`)
+	require.Contains(t, js, `event.target.closest('.apexcharts-pie-area')`)
+	require.Contains(t, js, `Number(sliceTarget.getAttribute('j'))`)
+	require.Contains(t, js, `isCircularChart && Number.isInteger(sliceIndex)`)
+	require.Contains(t, js, `let row = rows[rowIndex] || {};`)
+}
+
 func TestBuildActionJSResolvesFullURLFromClickedRow(t *testing.T) {
 	t.Parallel()
 
@@ -372,6 +430,10 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.InDelta(t, 2.0, *options.YAxis[0].StepSize, 1e-9)
 				require.NotNil(t, options.YAxis[0].TickAmount)
 				require.Equal(t, 4, *options.YAxis[0].TickAmount)
+				require.NotNil(t, options.SDK)
+				require.NotNil(t, options.SDK.ManualLogScale)
+				require.Equal(t, 10, options.SDK.ManualLogScale.Base)
+				require.False(t, options.SDK.ManualLogScale.Horizontal)
 				require.NotNil(t, options.YAxis[0].Labels)
 				require.NotEmpty(t, options.YAxis[0].Labels.Formatter)
 				require.NotNil(t, options.Tooltip)
@@ -493,8 +555,8 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.Contains(t, badge, "data-lens-stacked-total")
 				require.Contains(t, badge, "ctx.isSeriesHidden")
 				require.Contains(t, badge, "ctx.series.isSeriesHidden")
-				require.NotContains(t, badge, "collapsedSeriesIndices")
-				require.NotContains(t, badge, "hiddenSeriesIndices")
+				require.Contains(t, badge, "collapsedSeriesIndices")
+				require.Contains(t, badge, "hiddenSeriesIndices")
 				require.NotContains(t, badge, "collapsedSeries || []")
 				require.NotContains(t, badge, "hiddenSeries || []")
 				require.Contains(t, badge, "badge.textContent = totalLabel + ': ' + formatValue(total)")
@@ -549,6 +611,10 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.Equal(t, "light", *options.Tooltip.Theme)
 				require.NotNil(t, options.Tooltip.CSSClass)
 				require.Equal(t, "lens-tooltip", *options.Tooltip.CSSClass)
+				require.NotNil(t, options.Tooltip.FillSeriesColor)
+				require.False(t, *options.Tooltip.FillSeriesColor)
+				require.NotNil(t, options.Tooltip.Shared)
+				require.True(t, *options.Tooltip.Shared)
 				require.NotNil(t, options.Grid)
 				require.Equal(t, theme.Divider, options.Grid.BorderColor)
 				require.NotNil(t, options.Grid.XAxis)
@@ -671,16 +737,88 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.NotNil(t, options.Stroke)
 				require.Equal(t, []string{theme.BgCard}, options.Stroke.Colors)
 				require.Equal(t, 2, options.Stroke.Width)
-				// Legend: bottom, themed, "label · value (pct%)" formatter.
+				// Percentages live on slices; the legend carries exact values only.
+				require.NotNil(t, options.DataLabels)
+				require.True(t, options.DataLabels.Enabled)
+				require.NotEmpty(t, options.DataLabels.Formatter)
+				dataLabelJS := string(options.DataLabels.Formatter)
+				require.Contains(t, dataLabelJS, "maximumFractionDigits: 1")
+				require.Contains(t, dataLabelJS, "+ '%'")
+				require.NotNil(t, options.DataLabels.Style)
+				require.Equal(t, []string{theme.BgCard}, options.DataLabels.Style.Colors)
+				require.NotNil(t, options.DataLabels.DropShadow)
+				require.True(t, options.DataLabels.DropShadow.Enabled)
 				require.NotNil(t, options.Legend)
 				require.NotNil(t, options.Legend.Position)
 				require.Equal(t, charts.LegendPositionBottom, *options.Legend.Position)
 				require.NotNil(t, options.Legend.Markers)
 				require.Equal(t, "square", *options.Legend.Markers.Shape)
+				require.NotNil(t, options.Legend.OnItemClick)
+				require.True(t, *options.Legend.OnItemClick.ToggleDataSeries)
 				require.NotEmpty(t, options.Legend.Formatter)
 				legendJS := string(options.Legend.Formatter)
 				require.Contains(t, legendJS, "seriesName + ' · ' + formatted")
-				require.Contains(t, legendJS, "toFixed(1)")
+				require.NotContains(t, legendJS, "toFixed")
+				require.NotContains(t, legendJS, "pct")
+				totalJS := string(labels.Total.Formatter)
+				require.Contains(t, totalJS, "collapsedSeriesIndices")
+				require.Contains(t, totalJS, "hiddenIndices.has(index)")
+			},
+		},
+		{
+			name: "money pie renders total badge",
+			panelSpec: panel.Pie("premium-mix", "Premium Mix", "products").
+				LabelField("label").
+				ValueField("value").
+				Format(format.MoneyCompact("UZS")).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Chart.Events)
+				require.NotEmpty(t, options.Chart.Events.Mounted)
+				badge := string(options.Chart.Events.Mounted)
+				require.Contains(t, badge, "data-lens-stacked-total")
+				require.Contains(t, badge, `const totalLabel = "Итого";`)
+				require.Contains(t, badge, "collapsedSeriesIndices")
+				require.Contains(t, badge, "!hiddenSeriesIndices.has(seriesIndex)")
+				require.Contains(t, badge, "const isFlatSeries = configSeries.length > 0")
+				require.Contains(t, badge, "configSeries.forEach((value, seriesIndex)")
+				require.NotNil(t, options.Grid)
+				require.NotNil(t, options.Grid.Padding)
+				require.Equal(t, 34, *options.Grid.Padding.Top)
+			},
+		},
+		{
+			name: "percentage pie omits additive total",
+			panelSpec: panel.Pie("share-mix", "Share Mix", "products").
+				LabelField("label").
+				ValueField("value").
+				Format(format.Percent(1)).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.Nil(t, options.Chart.Events)
+				require.NotNil(t, options.Grid)
+				require.NotNil(t, options.Grid.Padding)
+				require.Equal(t, 4, *options.Grid.Padding.Top)
+			},
+		},
+		{
+			name: "percentage donut omits center total",
+			panelSpec: panel.Donut("share-donut", "Share Donut", "products").
+				LabelField("label").
+				ValueField("value").
+				Format(format.Percent(1)).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Pie)
+				require.NotNil(t, options.PlotOptions.Pie.Donut)
+				require.Nil(t, options.PlotOptions.Pie.Donut.Labels)
 			},
 		},
 		{
@@ -778,6 +916,22 @@ func TestLogarithmicAxisPlanFromAxisOptionsUsesAxisConfig(t *testing.T) {
 	require.InDelta(t, 3.0, plan.MinExponent, 1e-9)
 	require.InDelta(t, 9.0, plan.MaxExponent, 1e-9)
 	require.InDelta(t, 2.0, plan.Step, 1e-9)
+}
+
+func TestLogarithmicAxisFormatter_DoesNotBakeInitialAxisBounds(t *testing.T) {
+	t.Parallel()
+
+	formatter := wrapLogarithmicAxisFormatter("", "ru", logarithmicAxisPlan{
+		Base:        10,
+		MinExponent: 5,
+		MaxExponent: 11,
+		Step:        2,
+		TickAmount:  3,
+	})
+
+	js := string(formatter)
+	require.Contains(t, js, "Math.abs(scaled - Math.round(scaled))")
+	require.NotContains(t, js, "minExponent", "legend-driven replanning must not retain the initial axis bounds")
 }
 
 func TestOptionsDoesNotWrapLogFormattersWhenManualScaleIsSkipped(t *testing.T) {

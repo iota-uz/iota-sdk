@@ -246,7 +246,7 @@ func (s *AuthFlowService) sessionCookie(token string, expiresAt time.Time) *http
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		Secure:   s.appCfg.IsProduction(),
-		Domain:   s.httpCfg.Domain,
+		Domain:   s.cookiesCfg.Domain,
 		Path:     "/",
 	}
 }

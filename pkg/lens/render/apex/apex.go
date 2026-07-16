@@ -73,11 +73,12 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			Padding: &charts.Padding{Top: mapping.Pointer(4), Right: mapping.Pointer(12), Bottom: mapping.Pointer(0), Left: mapping.Pointer(12)},
 		},
 		Tooltip: &charts.TooltipConfig{
-			Theme:     mapping.Pointer("light"),
-			CSSClass:  mapping.Pointer(apexTheme.TooltipCSSClass),
-			Shared:    mapping.Pointer(true),
-			Intersect: mapping.BoolPointer(false),
-			Style:     &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
+			Theme:           mapping.Pointer("light"),
+			CSSClass:        mapping.Pointer(apexTheme.TooltipCSSClass),
+			Shared:          mapping.Pointer(true),
+			Intersect:       mapping.BoolPointer(false),
+			FillSeriesColor: mapping.BoolPointer(false),
+			Style:           &charts.TooltipStyleConfig{FontSize: mapping.Pointer("12px"), FontFamily: &fontFamily},
 		},
 		XAxis: charts.XAxisConfig{
 			Labels: &charts.XAxisLabelsConfig{
@@ -127,8 +128,13 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		options.Labels = labels
 		options.Series = values
 		if panelSpec.Kind == panel.KindDonut || panelSpec.Kind == panel.KindPie {
-			position := charts.LegendPositionBottom
-			options.Legend = &charts.LegendConfig{Position: &position}
+			position := chartLegendPosition(panelSpec.LegendPosition)
+			options.Legend = &charts.LegendConfig{
+				Position: &position,
+				OnItemClick: &charts.LegendOnItemClick{
+					ToggleDataSeries: mapping.Pointer(true),
+				},
+			}
 			applyThemedLegendDefaults(options.Legend)
 			// White hairline between slices so adjacent categories separate
 			// on the light card surface.
@@ -229,7 +235,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	applyCategoryLabelFormatting(&options, panelSpec)
 	if panelSpec.ShowLegend {
-		position := charts.LegendPositionBottom
+		position := chartLegendPosition(panelSpec.LegendPosition)
 		if options.Legend == nil {
 			options.Legend = &charts.LegendConfig{}
 		}
@@ -239,9 +245,13 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		}
 		applyThemedLegendDefaults(options.Legend)
 	}
+	applyPanelLegendLayout(options.Legend, panelSpec)
 	logPlan, manualLogScaleApplied := applyValueScale(&options, panelSpec)
 	tooltipFormatter := applyValueFormatter(&options, panelSpec, panelResult, manualLogScaleApplied, logPlan)
-	if panelSpec.Kind == panel.KindDonut {
+	if panelSpec.Kind == panel.KindDonut || panelSpec.Kind == panel.KindPie {
+		applyPiePercentDataLabels(&options, panelResult.Locale)
+	}
+	if panelSpec.Kind == panel.KindDonut && hasAdditiveTotal(panelSpec.Formatter) {
 		applyDonutTotalLabels(&options, panelResult.Locale, tooltipFormatter)
 	}
 	if panelSpec.Kind == panel.KindDonut || panelSpec.Kind == panel.KindPie {
@@ -253,7 +263,14 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
 		chartEvents.DataPointMouseEnter = syncTooltip
 	}
-	if panelSpec.Action != nil {
+	if panelSpec.CircularDrillHierarchy != nil && (panelSpec.Kind == panel.KindPie || panelSpec.Kind == panel.KindDonut) {
+		var fallback templ.JSExpression
+		if panelSpec.Action != nil {
+			fallback = buildActionJS(panelSpec.Action, fr, fields, panelResult)
+		}
+		chartEvents.DataPointSelection = buildCircularDrillHierarchyJS(panelSpec.CircularDrillHierarchy, panelSpec.Formatter, panelResult.Locale, panelSpec.Action, fallback)
+		chartEvents.Mounted = buildCircularDrillHierarchyMountJS(panelSpec.CircularDrillHierarchy, panelSpec.Formatter, panelResult.Locale, panelSpec.Action)
+	} else if panelSpec.Action != nil {
 		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
 	} else if panelSpec.DrillHierarchy != nil {
 		chartEvents.DataPointSelection = buildDrillHierarchyJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
@@ -263,7 +280,8 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		// without waiting for a click.
 		chartEvents.Mounted = buildDrillHierarchyMountJS(panelSpec.DrillHierarchy, panelSpec.Formatter, panelResult.Locale)
 	}
-	if panelSpec.Kind == panel.KindStackedBar || panelSpec.ShowTotalBadge {
+	showPieTotal := panelSpec.Kind == panel.KindPie && hasAdditiveTotal(panelSpec.Formatter)
+	if panelSpec.Kind == panel.KindStackedBar || panelSpec.ShowTotalBadge || showPieTotal {
 		applyStackedBarTotalBadgeEvents(&chartEvents, panelResult.Locale, tooltipFormatter, staticTotalBadgeText(panelSpec, panelResult.Locale))
 		// The total badge floats at the top-right of the plot (the drill-back
 		// overlay owns the top-left). Reserve a header band above the plot so it
@@ -277,6 +295,49 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 	appendResponsiveDefaults(&options, panelSpec.Kind)
 	return options
+}
+
+func applyPanelLegendLayout(legend *charts.LegendConfig, panelSpec panel.Spec) {
+	if legend == nil {
+		return
+	}
+	if panelSpec.LegendWidthPx > 0 {
+		width := panelSpec.LegendWidthPx
+		legend.Width = &width
+	}
+	if panelSpec.LegendPosition == panel.LegendLeft || panelSpec.LegendPosition == panel.LegendRight {
+		align := charts.LegendHorizontalAlignLeft
+		legend.HorizontalAlign = &align
+	}
+}
+
+func chartLegendPosition(position panel.LegendPosition) charts.LegendPosition {
+	switch position {
+	case panel.LegendTop:
+		return charts.LegendPositionTop
+	case panel.LegendRight:
+		return charts.LegendPositionRight
+	case panel.LegendLeft:
+		return charts.LegendPositionLeft
+	case panel.LegendBottom, "":
+		return charts.LegendPositionBottom
+	default:
+		return charts.LegendPositionBottom
+	}
+}
+
+func hasAdditiveTotal(spec *format.Spec) bool {
+	if spec == nil {
+		return false
+	}
+	switch spec.Kind {
+	case format.KindMoney, format.KindAbbreviatedMoney, format.KindInteger:
+		return true
+	case format.KindPercent, format.KindDate, format.KindMonthLabel, format.KindDuration, format.KindLocalizedString:
+		return false
+	default:
+		return false
+	}
 }
 
 // applyBarHoverStates disables ApexCharts' own hover filter on bar panels.
@@ -358,8 +419,13 @@ func applyDonutTotalLabels(options *charts.ChartOptions, locale string, tooltipF
 		const fmt = %s;
 		const locale = %q;
 		const totals = (w && w.globals && w.globals.seriesTotals) || [];
+		const globals = (w && w.globals) || {};
+		const hiddenIndices = new Set([].concat(globals.collapsedSeriesIndices || [], globals.hiddenSeriesIndices || []));
 		let total = 0;
-		totals.forEach(function(value) {
+		totals.forEach(function(value, index) {
+			if (hiddenIndices.has(index)) {
+				return;
+			}
 			const number = Number(value);
 			if (Number.isFinite(number)) {
 				total += number;
@@ -410,8 +476,38 @@ func applyDonutTotalLabels(options *charts.ChartOptions, locale string, tooltipF
 	}
 }
 
-// pieLegendFormatterJS renders pie/donut legend entries as
-// "label · value (pct%)" using the panel's tooltip formatter for the value.
+func applyPiePercentDataLabels(options *charts.ChartOptions, locale string) {
+	if options == nil {
+		return
+	}
+	locale = normalizedChartLocale(locale)
+	options.DataLabels = &charts.DataLabels{
+		Enabled: true,
+		Formatter: templ.JSExpression(fmt.Sprintf(`function(value) {
+			const number = Number(value);
+			if (!Number.isFinite(number)) {
+				return '';
+			}
+			return number.toLocaleString(%q, { minimumFractionDigits: 0, maximumFractionDigits: 1 }) + '%%';
+		}`, locale)),
+		Style: &charts.DataLabelStyle{
+			Colors:     []string{apexTheme.Surface},
+			FontSize:   "12px",
+			FontWeight: "600",
+		},
+		DropShadow: &charts.DropShadow{
+			Enabled: true,
+			Blur:    2,
+			Color:   "#111827",
+			Opacity: 0.55,
+		},
+	}
+}
+
+// pieLegendFormatterJS renders pie/donut legend entries as "label · value"
+// using the panel's tooltip formatter for the value. Percentages live on the
+// slices themselves, where they communicate composition without duplicating
+// the legend.
 func pieLegendFormatterJS(locale string, tooltipFormatter templ.JSExpression) templ.JSExpression {
 	locale = normalizedChartLocale(locale)
 	valueFormatter := "null"
@@ -423,28 +519,36 @@ func pieLegendFormatterJS(locale string, tooltipFormatter templ.JSExpression) te
 		const locale = %q;
 		const w = opts && opts.w;
 		const index = opts && typeof opts.seriesIndex === 'number' ? opts.seriesIndex : -1;
-		const series = (w && w.globals && w.globals.series) || [];
-		const raw = Number(series[index]);
+		const globals = (w && w.globals) || {};
+		const configuredSeries = (w && w.config && Array.isArray(w.config.series)) ? w.config.series : [];
+		const series = Array.isArray(globals.series) ? globals.series : [];
+		const sourceSeries = configuredSeries.length > 0 ? configuredSeries : series;
+		const raw = Number(sourceSeries[index]);
 		if (!Number.isFinite(raw)) {
 			return seriesName;
 		}
-		let total = 0;
-		series.forEach(function(value) {
-			const number = Number(value);
-			if (Number.isFinite(number)) {
-				total += number;
-			}
-		});
 		const formatted = fmt ? fmt(raw) : Math.round(raw).toLocaleString(locale);
-		const pct = total > 0 ? (raw / total) * 100 : 0;
-		return seriesName + ' · ' + formatted + ' (' + pct.toFixed(1) + '%%)';
+		return seriesName + ' · ' + formatted;
 	}`, valueFormatter, locale))
 }
 
 func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
-	// Skip for pie/donut/gauge — they scale via SVG naturally
+	// Circular charts scale via SVG naturally. Side legends still need one
+	// mobile override so the plot is not squeezed into a narrow column.
 	switch kind {
-	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindPie, panel.KindDonut:
+		if options.Legend != nil && options.Legend.Position != nil &&
+			(*options.Legend.Position == charts.LegendPositionLeft || *options.Legend.Position == charts.LegendPositionRight) {
+			bottom := charts.LegendPositionBottom
+			options.Responsive = []charts.ResponsiveBreakpoint{{
+				Breakpoint: 769,
+				Options: charts.ResponsiveOptions{Legend: &charts.LegendConfig{
+					Position: &bottom,
+				}},
+			}}
+		}
+		return
+	case panel.KindGauge:
 		return
 	case panel.KindStat,
 		panel.KindTimeSeries,
@@ -531,6 +635,10 @@ func applyValueScale(options *charts.ChartOptions, panelSpec panel.Spec) (logari
 		series[i].Data = logarithmicSeriesData(series[i].Data, axis.LogBase)
 	}
 	options.Series = series
+	options.SDK = &charts.SDKOptions{ManualLogScale: &charts.ManualLogScaleOptions{
+		Base:       axis.LogBase,
+		Horizontal: panelSpec.Kind == panel.KindHorizontalBar,
+	}}
 	step := plan.Step
 	if panelSpec.Kind == panel.KindHorizontalBar {
 		options.XAxis.Min = mapping.Pointer(plan.MinExponent)
@@ -827,18 +935,15 @@ func wrapLogarithmicAxisFormatter(formatter templ.JSExpression, locale string, p
 	if formatter != "" {
 		inner = "(" + string(formatter) + ")"
 	}
-	// Labels always sit on whole decades: a sub-decade grid step (the
-	// half-decade axis cap) only adds unlabeled gridlines.
-	labelStep := math.Max(1, plan.Step)
 	return templ.JSExpression(fmt.Sprintf(`function(value) {
 		const scaled = Number(value);
 		if (!Number.isFinite(scaled)) {
 			return '';
 		}
-		const minExponent = %f;
-		const step = %f;
-		const slot = (scaled - minExponent) / step;
-		if (!Number.isFinite(slot) || Math.abs(slot - Math.round(slot)) > 0.001) {
+		// Axis plans can be recomputed client-side after a legend toggle.
+		// Whole exponents are always the labeled decades; half-decade gridlines
+		// remain unlabeled without baking the initial min/step into this closure.
+		if (Math.abs(scaled - Math.round(scaled)) > 0.001) {
 			return '';
 		}
 		const actual = Math.pow(%d, scaled);
@@ -847,7 +952,7 @@ func wrapLogarithmicAxisFormatter(formatter templ.JSExpression, locale string, p
 			return %s(normalized);
 		}
 		return Math.round(normalized).toLocaleString(%q);
-	}`, plan.MinExponent, labelStep, plan.Base, inner, inner, locale))
+	}`, plan.Base, inner, inner, locale))
 }
 
 func wrapLogarithmicTooltipFormatter(formatter templ.JSExpression, locale string, base int) templ.JSExpression {
@@ -993,9 +1098,24 @@ func applyStackedBarTotalBadgeEvents(events *charts.ChartEvents, locale string, 
 		return
 	}
 	totalBadge := stackedBarTotalBadgeJS(locale, formatter, staticTotalText)
-	events.Mounted = totalBadge
-	events.Updated = totalBadge
-	events.LegendClick = totalBadge
+	events.Mounted = chainChartEvent(events.Mounted, totalBadge)
+	events.Updated = chainChartEvent(events.Updated, totalBadge)
+	events.LegendClick = chainChartEvent(events.LegendClick, totalBadge)
+}
+
+func chainChartEvent(first, second templ.JSExpression) templ.JSExpression {
+	if first == "" {
+		return second
+	}
+	if second == "" {
+		return first
+	}
+	return templ.JSExpression(fmt.Sprintf(`function() {
+		var first = (%s);
+		var second = (%s);
+		first.apply(this, arguments);
+		second.apply(this, arguments);
+	}`, first, second))
 }
 
 func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticTotalText string) templ.JSExpression {
@@ -1084,12 +1204,17 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 				}
 			}
 			badge.style.top = badgeTop + 'px';
+			if (el.__lensTotalBadgeTextOverride) {
+				badge.textContent = totalLabel + ': ' + el.__lensTotalBadgeTextOverride;
+				return;
+			}
 			if (staticTotalText) {
 				badge.textContent = totalLabel + ': ' + staticTotalText;
 				return;
 			}
 			const globals = w.globals || {};
 			const seriesNames = globals.seriesNames || [];
+			const hiddenSeriesIndices = new Set([].concat(globals.collapsedSeriesIndices || [], globals.hiddenSeriesIndices || []));
 			const configSeries = w.config && Array.isArray(w.config.series) ? w.config.series : [];
 			const runtimeSeries = Array.isArray(globals.series) ? globals.series : [];
 			const seriesHiddenResult = (seriesName) => {
@@ -1124,16 +1249,32 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 					total += number;
 				}
 			};
-			configSeries.forEach((entry, seriesIndex) => {
-				const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
-				if (isSeriesHidden(String(name))) {
-					return;
-				}
-				const points = entry && Array.isArray(entry.data)
-					? entry.data
-					: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
-				points.forEach(addValue);
+			// Pie/donut series are a flat number array (series: [10, 20]),
+			// while cartesian charts use named objects with a data array. Treat
+			// the flat form as values directly; otherwise the generic object loop
+			// below sees no points and leaves the badge at zero after an async
+			// chart update.
+			const isFlatSeries = configSeries.length > 0 && configSeries.every((entry) => {
+				return entry == null || typeof entry !== 'object';
 			});
+			if (isFlatSeries) {
+				configSeries.forEach((value, seriesIndex) => {
+					if (!hiddenSeriesIndices.has(seriesIndex)) {
+						addValue(value);
+					}
+				});
+			} else {
+				configSeries.forEach((entry, seriesIndex) => {
+					const name = seriesNames[seriesIndex] || (entry && entry.name) || '';
+					if (isSeriesHidden(String(name))) {
+						return;
+					}
+					const points = entry && Array.isArray(entry.data)
+						? entry.data
+						: (Array.isArray(runtimeSeries[seriesIndex]) ? runtimeSeries[seriesIndex] : []);
+					points.forEach(addValue);
+				});
+			}
 			const formatValue = (value) => {
 				if (valueFormatter) {
 					return valueFormatter(value, { seriesIndex: -1, dataPointIndex: -1, w });
@@ -1290,6 +1431,15 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		const variables = cfg.variables || {};
 		const config = chartContext.w.config;
 		const categories = (config.xaxis && config.xaxis.categories) ? config.xaxis.categories : [];
+		const chartType = config.chart && config.chart.type ? config.chart.type : '';
+		const isCircularChart = chartType === 'pie' || chartType === 'donut' || chartType === 'radialBar';
+		const sliceTarget = isCircularChart && event && event.target && event.target.closest
+			? event.target.closest('.apexcharts-pie-area')
+			: null;
+		const sliceIndex = sliceTarget ? Number(sliceTarget.getAttribute('j')) : Number.NaN;
+		const rowIndex = isCircularChart && Number.isInteger(sliceIndex)
+			? sliceIndex
+			: opts.dataPointIndex;
 		const seriesName = config.series && config.series[opts.seriesIndex] ? config.series[opts.seriesIndex].name : '';
 		const categoryName = categories[opts.dataPointIndex] || '';
 		const normalizeCategoryValue = function(value) {
@@ -1344,7 +1494,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 				params.append(name, String(value));
 			}
 		};
-		let row = rows[opts.dataPointIndex] || {};
+		let row = rows[rowIndex] || {};
 		const groupedMatch = rows.find(function(item) {
 			const categoryValue = item[cfg.categoryField] || item[cfg.labelField] || item[cfg.startTimeField];
 			const seriesValue = item[cfg.seriesField] || '';
@@ -1372,7 +1522,12 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		expr := actionValueJS(*spec.URLSource, fields)
 		js += fmt.Sprintf("const resolvedURL = safeActionURL(%s);\nif (!resolvedURL) { return; }\nnextURL = resolvedURL;\n", expr)
 	}
-	js += "if (!nextURL) { return; }\n"
+	// Emit-event actions intentionally have no URL. Requiring nextURL here
+	// makes their chart click handler return before it can build the payload
+	// and dispatch the CustomEvent.
+	if spec.Kind != action.KindEmitEvent {
+		js += "if (!nextURL) { return; }\n"
+	}
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
 		js += fmt.Sprintf("const paramValue%d = %s;\nif (paramValue%d !== undefined) { replaceParam(%q, paramValue%d); payload[%q] = paramValue%d; }\n", idx, expr, idx, param.Name, idx, param.Name, idx)

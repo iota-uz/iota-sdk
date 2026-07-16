@@ -154,7 +154,7 @@ templ DashboardSkeleton(spec lens.DashboardSpec) {
 				</div>
 			}
 			if len(row.Panels) > 0 {
-				<div class="grid grid-cols-12 gap-3">
+				<div class={ "grid grid-cols-12 gap-3", row.Class }>
 					for _, panelSpec := range row.Panels {
 						@panelSkeleton(panelSpec)
 					}
@@ -187,7 +187,7 @@ templ lensSkeletonStyles() {
 // and heights are inline so the placeholder renders even if the consumer's
 // Tailwind build does not generate lens-specific utility classes.
 templ panelSkeleton(spec panel.Spec) {
-	<div class="lens-grid-item" style={ panelSpanStyle(spec.Span) }>
+	<div class={ "lens-grid-item", spec.ClassName } style={ panelSpanStyle(spec.Span) }>
 		@panelSkeletonCard(spec)
 	</div>
 }
@@ -523,6 +523,9 @@ templ DashboardScripts() {
 		   hook sets), so the affordance is there from the first paint. */
 		[data-lens-drill-hierarchy] .apexcharts-bar-area,
 		.lens-chart--drill .apexcharts-bar-area {
+			cursor: pointer;
+		}
+		[data-lens-circular-drill] .apexcharts-pie-area {
 			cursor: pointer;
 		}
 		/* Per-bar hover highlight. Apex's own states.hover filter is disabled on
@@ -949,6 +952,193 @@ templ DashboardScripts() {
 					// Never throw inside an ApexCharts event handler.
 				}
 			};
+
+			// ---- Lens circular drill-hierarchy zoom/back state machine ----
+			// Pie and donut panels may replace any configured top-level slice with
+			// a pre-computed child composition, then keep drilling through nested
+			// child compositions until a leaf navigates. Ordinary top-level slice
+			// actions keep working because this handler returns false unless it
+			// consumed the click.
+			const lensCircularCapture = function(chartContext) {
+				const container = chartContext && chartContext.el;
+				const config = (chartContext && chartContext.w && chartContext.w.config) || {};
+				const globals = (chartContext && chartContext.w && chartContext.w.globals) || {};
+				return {
+					series: Array.isArray(config.series) ? config.series.slice() : [],
+					labels: Array.isArray(config.labels) ? config.labels.slice() : [],
+					colors: Array.isArray(globals.colors) ? globals.colors.slice()
+						: (Array.isArray(config.colors) ? config.colors.slice() : []),
+					legendShow: !(config.legend && config.legend.show === false),
+					totalBadgeText: container && container.__lensTotalBadgeTextOverride
+						? container.__lensTotalBadgeTextOverride : '',
+				};
+			};
+			const lensCircularWriteSharedState = function(container, path) {
+				const scope = lensDrillRerenderScope(container);
+				if (scope) {
+					scope.__lensCircularDrillSharedState = Array.isArray(path) && path.length
+						? { path: path.slice() } : null;
+				}
+			};
+			const lensCircularReadSharedState = function(container) {
+				const scope = lensDrillRerenderScope(container);
+				return scope ? scope.__lensCircularDrillSharedState : null;
+			};
+			const lensCircularShowBack = function(container, chartContext, cfg) {
+				lensDrillShowBackButton(container, '← ' + cfg.backLabel, function() {
+					const state = container.__lensCircularDrillState;
+					if (!state || !state.stack.length) {
+						return;
+					}
+					const previous = state.stack.pop();
+					state.items = previous.items;
+					state.path.pop();
+					if (previous.view.totalBadgeText) {
+						container.__lensTotalBadgeTextOverride = previous.view.totalBadgeText;
+					} else {
+						delete container.__lensTotalBadgeTextOverride;
+					}
+					chartContext.updateOptions({
+						series: previous.view.series,
+						labels: previous.view.labels,
+						colors: previous.view.colors,
+						legend: { show: previous.view.legendShow },
+					}, true, true);
+					container.__apexCircularOriginalSeries = Array.from(previous.view.series);
+					if (state.stack.length) {
+						lensCircularShowBack(container, chartContext, cfg);
+					} else {
+						lensDrillHideBackButton(container);
+					}
+					lensCircularWriteSharedState(container, state.path);
+				});
+			};
+			const lensCircularZoomToDetail = function(container, chartContext, cfg, detail, detailTotal, pathIndex, animate) {
+				const state = container.__lensCircularDrillState;
+				if (!state || !Array.isArray(detail) || !detail.length) {
+					return;
+				}
+				const current = lensCircularCapture(chartContext);
+				state.stack.push({ view: current, items: state.items });
+				state.items = detail;
+				state.path.push(pathIndex);
+				const fallbackColors = current.colors.length ? current.colors : ['#2563eb'];
+				const colors = detail.map(function(item, index) {
+					return item.color || fallbackColors[index % fallbackColors.length];
+				});
+				container.__lensTotalBadgeTextOverride = detailTotal || '';
+				const detailSeries = detail.map(function(item) { return item.value; });
+				chartContext.updateOptions({
+					series: detailSeries,
+					labels: detail.map(function(item) { return item.label; }),
+					colors: colors,
+					legend: { show: true },
+				}, true, animate !== false);
+				container.__apexCircularOriginalSeries = Array.from(detailSeries);
+				lensCircularShowBack(container, chartContext, cfg);
+				lensCircularWriteSharedState(container, state.path);
+			};
+			const lensCircularNavigate = function(container, cfg, actionURL) {
+				if (!actionURL) {
+					return;
+				}
+				const parsed = new URL(actionURL, window.location.href);
+				if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.origin !== window.location.origin) {
+					return;
+				}
+				const nextURL = parsed.pathname + parsed.search + parsed.hash;
+				if (cfg.actionKind === 'htmx_swap' && cfg.actionTarget && typeof htmx !== 'undefined') {
+					const target = document.querySelector(cfg.actionTarget);
+					if (target && window.__lensDrillAjax) {
+						window.__lensDrillAjax(cfg.actionMethod || 'GET', nextURL, target, container);
+					}
+				} else {
+					window.location.href = nextURL;
+				}
+			};
+			window.__lensCircularDrillMount = function(chartContext, cfg) {
+				try {
+					if (!chartContext || !chartContext.el || !cfg) {
+						return;
+					}
+					const container = chartContext.el;
+					container.setAttribute('data-lens-circular-drill', 'true');
+					if (!container.__lensCircularDrillState) {
+						container.__lensCircularDrillState = { stack: [], items: null, path: [] };
+					}
+					const shared = lensCircularReadSharedState(container);
+					const state = container.__lensCircularDrillState;
+					if (!shared || !Array.isArray(shared.path) || !shared.path.length || state.stack.length) {
+						return;
+					}
+					const branchIndex = shared.path[0];
+					const branch = Array.isArray(cfg.branches) ? cfg.branches[branchIndex] : null;
+					if (!branch || !Array.isArray(branch.detail) || !branch.detail.length) {
+						return;
+					}
+					lensCircularZoomToDetail(container, chartContext, cfg, branch.detail, branch.detailTotal, branchIndex, false);
+					for (let depth = 1; depth < shared.path.length; depth++) {
+						const itemIndex = shared.path[depth];
+						const item = Array.isArray(state.items) ? state.items[itemIndex] : null;
+						if (!item || !Array.isArray(item.detail) || !item.detail.length) {
+							break;
+						}
+						lensCircularZoomToDetail(container, chartContext, cfg, item.detail, item.detailTotal, itemIndex, false);
+					}
+				} catch (_) {
+					// Never throw from a chart lifecycle hook.
+				}
+			};
+			window.__lensCircularDrillClick = function(event, chartContext, opts, cfg) {
+				try {
+					if (!chartContext || !chartContext.el || !cfg) {
+						return false;
+					}
+					const container = chartContext.el;
+					if (!container.__lensCircularDrillState) {
+						container.__lensCircularDrillState = { stack: [], items: null, path: [] };
+					}
+					// Apex can report the previous pie's dataPointIndex briefly after
+					// updateOptions() replaces the series. The SVG path's `j` belongs
+					// to the currently visible pie, so it is the authoritative index;
+					// retain the event payload only as a defensive fallback.
+					const sliceTarget = event && event.target && event.target.closest
+						? event.target.closest('.apexcharts-pie-area')
+						: null;
+					const eventIndex = sliceTarget ? Number(sliceTarget.getAttribute('j')) : Number.NaN;
+					const optionIndex = opts ? Number(opts.dataPointIndex) : Number.NaN;
+					const index = Number.isInteger(eventIndex) && eventIndex >= 0 ? eventIndex : optionIndex;
+					if (index == null || index < 0) {
+						return false;
+					}
+					const state = container.__lensCircularDrillState;
+					if (Array.isArray(state.items)) {
+						const item = state.items[index];
+						if (item && Array.isArray(item.detail) && item.detail.length) {
+							lensCircularZoomToDetail(container, chartContext, cfg, item.detail, item.detailTotal, index, true);
+						} else if (item && item.actionUrl) {
+							lensCircularNavigate(container, cfg, item.actionUrl);
+						}
+						return true;
+					}
+					const config = (chartContext.w && chartContext.w.config) || {};
+					const labels = Array.isArray(config.labels) ? config.labels : [];
+					const branches = Array.isArray(cfg.branches) ? cfg.branches : [];
+					const branchIndex = branches.findIndex(function(branch) {
+						return branch && branch.triggerLabel === labels[index];
+					});
+					if (branchIndex < 0) {
+						return false;
+					}
+					const branch = branches[branchIndex];
+					lensCircularZoomToDetail(container, chartContext, cfg, branch.detail, branch.detailTotal, branchIndex, true);
+					return true;
+				} catch (_) {
+					// Preserve the panel's ordinary action if the drill handler
+					// cannot safely identify/consume the clicked slice.
+					return false;
+				}
+			};
 		})();
 	</script>
 }
@@ -1321,9 +1511,14 @@ templ SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanel
 		@EmptyState(spec)
 		{{ return }}
 	}
+	{{ rowActions := segmentBarUsesRowActions(spec) }}
 	{{ row := statRow(result) }}
-	{{ href := actionURL(spec.Action, row, result) }}
-	{{ onClick := actionOnClick(spec.Action, row, result) }}
+	{{ href := "" }}
+	{{ onClick := templ.ComponentScript{} }}
+	if !rowActions {
+		{{ href = actionURL(spec.Action, row, result) }}
+		{{ onClick = actionOnClick(spec.Action, row, result) }}
+	}
 	{{ clickable := href != "" || onClick.Call != "" }}
 	<div class="group relative flex h-full flex-col">
 		if href != "" {
@@ -1348,29 +1543,57 @@ templ SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanel
 			<div class="mt-5 flex h-4 w-full gap-[2px] overflow-hidden rounded-full bg-slate-100 ring-1 ring-inset ring-slate-200/60">
 				for _, seg := range view.Segments {
 					if seg.Raw > 0 {
-						<div class="h-full first:rounded-l-full last:rounded-r-full" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></div>
+						@segmentBarTrackSegment(seg)
 					}
 				}
 			</div>
 			<div class="mt-5 divide-y divide-subtle">
 				for _, seg := range view.Segments {
-					<div class="flex items-center justify-between gap-4 py-2.5">
-						<div class="flex min-w-0 items-center gap-2.5">
-							if seg.Raw > 0 {
-								<span class="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={ segmentSwatchStyle(seg.Color) }></span>
-							} else {
-								<span class="h-2.5 w-2.5 flex-shrink-0 rounded-full ring-1 ring-inset ring-slate-300"></span>
-							}
-							<span class={ segmentLegendLabelClass(seg.Raw) }>{ seg.Label }</span>
-						</div>
-						<div class="flex flex-shrink-0 items-baseline gap-3">
-							<span class={ segmentLegendAmountClass(seg.Raw) }>{ seg.Amount }</span>
-							<span class="w-10 text-right text-xs tabular-nums text-slate-400">{ seg.PctTxt }</span>
-						</div>
-					</div>
+					@segmentBarLegendRow(seg)
 				}
 			</div>
 		</div>
+	</div>
+}
+
+templ segmentBarTrackSegment(seg segmentBarSegment) {
+	if seg.Href != "" {
+		<a href={ templ.URL(seg.Href) } onclick={ seg.OnClick } aria-label={ seg.Label } class="block h-full cursor-pointer first:rounded-l-full last:rounded-r-full transition-[filter] hover:brightness-90" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></a>
+	} else if seg.OnClick.Call != "" {
+		<button type="button" onclick={ seg.OnClick } aria-label={ seg.Label } class="block h-full cursor-pointer border-0 p-0 first:rounded-l-full last:rounded-r-full transition-[filter] hover:brightness-90" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></button>
+	} else {
+		<div class="h-full first:rounded-l-full last:rounded-r-full" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></div>
+	}
+}
+
+templ segmentBarLegendRow(seg segmentBarSegment) {
+	if seg.Href != "" {
+		<a href={ templ.URL(seg.Href) } onclick={ seg.OnClick } class="flex items-center justify-between gap-4 rounded-md py-2.5 transition-colors hover:bg-surface-100" aria-label={ seg.Label }>
+			@segmentBarLegendContent(seg)
+		</a>
+	} else if seg.OnClick.Call != "" {
+		<button type="button" onclick={ seg.OnClick } class="flex w-full items-center justify-between gap-4 rounded-md py-2.5 text-left transition-colors hover:bg-surface-100" aria-label={ seg.Label }>
+			@segmentBarLegendContent(seg)
+		</button>
+	} else {
+		<div class="flex items-center justify-between gap-4 py-2.5">
+			@segmentBarLegendContent(seg)
+		</div>
+	}
+}
+
+templ segmentBarLegendContent(seg segmentBarSegment) {
+	<div class="flex min-w-0 items-center gap-2.5">
+		if seg.Raw > 0 {
+			<span class="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={ segmentSwatchStyle(seg.Color) }></span>
+		} else {
+			<span class="h-2.5 w-2.5 flex-shrink-0 rounded-full ring-1 ring-inset ring-slate-300"></span>
+		}
+		<span class={ segmentLegendLabelClass(seg.Raw) }>{ seg.Label }</span>
+	</div>
+	<div class="flex flex-shrink-0 items-baseline gap-3">
+		<span class={ segmentLegendAmountClass(seg.Raw) }>{ seg.Amount }</span>
+		<span class="w-10 text-right text-xs tabular-nums text-slate-400">{ seg.PctTxt }</span>
 	</div>
 }
 
@@ -1533,6 +1756,16 @@ templ chartPanelContent(spec panel.Spec, result *runtime.PanelResult, showContro
 	// Log-scale badge + fullscreen button live in the card header
 	// (panelHeaderControls); `fullscreen` lives on the card's Alpine scope.
 	<div class="flex h-full min-h-0 flex-1 flex-col">
+		if spec.HeadlineValue != nil {
+			<div class="px-4 pt-3">
+				<div class="lens-num text-[30px] sm:text-[34px] font-bold leading-none tracking-tight text-slate-900">
+					{ formatValue(*spec.HeadlineValue, spec.Formatter, result.Locale, result.Timezone) }
+				</div>
+				if spec.Description != "" {
+					<div class="mt-2 text-xs font-medium uppercase tracking-wide text-slate-400">{ spec.Description }</div>
+				}
+			</div>
+		}
 		@ChartCanvas(spec, result)
 		@PanelFullscreenOverlay(spec, chartText, panelFullscreenBodyClass(spec), FullscreenChartCanvas(spec, result))
 	</div>

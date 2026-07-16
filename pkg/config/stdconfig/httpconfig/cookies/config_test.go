@@ -6,14 +6,13 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config"
 	"github.com/iota-uz/iota-sdk/pkg/config/providers/static"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/httpconfig/cookies"
+	"github.com/stretchr/testify/require"
 )
 
 func buildSource(t *testing.T, values map[string]any) config.Source {
 	t.Helper()
 	src, err := config.Build(static.New(values))
-	if err != nil {
-		t.Fatalf("config.Build: %v", err)
-	}
+	require.NoError(t, err)
 	return src
 }
 
@@ -22,16 +21,10 @@ func TestDefaults_Cookies(t *testing.T) {
 
 	r := config.NewRegistry(buildSource(t, nil))
 	cfg, err := config.Register[cookies.Config](r)
-	if err != nil {
-		t.Fatalf("Register: %v", err)
-	}
-
-	if cfg.SID != "sid" {
-		t.Errorf("SID default: got %q, want \"sid\"", cfg.SID)
-	}
-	if cfg.OAuthState != "oauthState" {
-		t.Errorf("OAuthState default: got %q, want \"oauthState\"", cfg.OAuthState)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "sid", cfg.SID)
+	require.Equal(t, "oauthState", cfg.OAuthState)
+	require.Empty(t, cfg.Domain)
 }
 
 func TestRoundTrip_Cookies(t *testing.T) {
@@ -40,16 +33,11 @@ func TestRoundTrip_Cookies(t *testing.T) {
 	r := config.NewRegistry(buildSource(t, map[string]any{
 		"http.cookies.sid":        "session_id",
 		"http.cookies.oauthstate": "oauth_state",
+		"http.cookies.domain":     ".example.com",
 	}))
 	cfg, err := config.Register[cookies.Config](r)
-	if err != nil {
-		t.Fatalf("Register: %v", err)
-	}
-
-	if cfg.SID != "session_id" {
-		t.Errorf("SID: got %q", cfg.SID)
-	}
-	if cfg.OAuthState != "oauth_state" {
-		t.Errorf("OAuthState: got %q", cfg.OAuthState)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "session_id", cfg.SID)
+	require.Equal(t, "oauth_state", cfg.OAuthState)
+	require.Equal(t, ".example.com", cfg.Domain)
 }

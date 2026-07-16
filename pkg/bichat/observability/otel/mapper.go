@@ -275,7 +275,8 @@ func sanitizeAttributes(attrs []attribute.KeyValue) []attribute.KeyValue {
 				values[j] = strings.ToValidUTF8(values[j], "\uFFFD")
 			}
 			attrs[i] = attribute.StringSlice(key, values)
-		default:
+		case attribute.INVALID, attribute.BOOL, attribute.INT64, attribute.FLOAT64,
+			attribute.BOOLSLICE, attribute.INT64SLICE, attribute.FLOAT64SLICE:
 			if key != string(kv.Key) {
 				attrs[i] = attribute.KeyValue{Key: attribute.Key(key), Value: kv.Value}
 			}

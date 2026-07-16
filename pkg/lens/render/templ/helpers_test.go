@@ -46,6 +46,32 @@ func TestActionURLIncludesVariableParams(t *testing.T) {
 	require.Equal(t, "report", parsed.Query().Get("scope"))
 }
 
+func TestSegmentBarUsesRowActions_ActionSources(t *testing.T) {
+	t.Parallel()
+
+	field := action.FieldValue("row_url")
+	tests := []struct {
+		name   string
+		action *action.Spec
+		want   bool
+	}{
+		{name: "no action"},
+		{name: "static navigation", action: &action.Spec{Kind: action.KindNavigate, URL: "/all"}},
+		{name: "row URL", action: &action.Spec{Kind: action.KindNavigate, URLSource: &field}, want: true},
+		{name: "event", action: &action.Spec{Kind: action.KindEmitEvent, Event: "selected"}, want: true},
+		{name: "field parameter", action: &action.Spec{Kind: action.KindNavigate, Params: []action.Param{action.FieldParam("id", "id")}}, want: true},
+		{name: "field payload", action: &action.Spec{Kind: action.KindNavigate, Payload: map[string]action.ValueSource{"id": action.FieldValue("id")}}, want: true},
+		{name: "field drill value", action: &action.Spec{Kind: action.KindCubeDrill, Drill: &action.DrillSpec{Value: action.FieldValue("id")}}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, segmentBarUsesRowActions(panel.Spec{Action: tt.action}))
+		})
+	}
+}
+
 func TestActionURLPreservesExistingQueryForNavigateActions(t *testing.T) {
 	t.Parallel()
 
