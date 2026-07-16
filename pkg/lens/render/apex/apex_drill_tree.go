@@ -171,6 +171,8 @@ func drillTreeAction(spec *action.Spec, panelResult *runtime.PanelResult) *drill
 	}
 	switch spec.Kind {
 	case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent:
+	case action.KindCubeDrill:
+		return nil
 	default:
 		return nil
 	}
