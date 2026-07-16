@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCircularDrillHierarchyConfigIncludesDetailAndLocalizedBackLabel(t *testing.T) {
+func TestCircularDrillHierarchyConfig_IncludesDetailAndLocalizedBackLabel(t *testing.T) {
 	t.Parallel()
 
 	spec := &panel.CircularDrillHierarchy{
@@ -31,7 +31,7 @@ func TestCircularDrillHierarchyConfigIncludesDetailAndLocalizedBackLabel(t *test
 	require.Contains(t, config, `/reinsurance?Search=A`)
 }
 
-func TestCircularDrillHierarchyConfigSupportsMultipleNestedBranches(t *testing.T) {
+func TestCircularDrillHierarchyConfig_SupportsMultipleNestedBranches(t *testing.T) {
 	t.Parallel()
 
 	spec := &panel.CircularDrillHierarchy{Branches: []panel.CircularDrillBranch{
@@ -64,7 +64,7 @@ func TestCircularDrillHierarchyConfigSupportsMultipleNestedBranches(t *testing.T
 	require.Contains(t, config, `"actionUrl":"/portfolio/policies?year=2025"`)
 }
 
-func TestOptionsWiresCircularDrillBeforeFallbackAction(t *testing.T) {
+func TestOptions_WiresCircularDrillBeforeFallbackAction(t *testing.T) {
 	t.Parallel()
 
 	fr, err := frame.New("reinsurance",
@@ -95,7 +95,7 @@ func TestOptionsWiresCircularDrillBeforeFallbackAction(t *testing.T) {
 	require.Contains(t, string(opts.Chart.Events.Mounted), "__lensCircularDrillMount")
 }
 
-func TestChainChartEventPreservesBothHandlers(t *testing.T) {
+func TestChainChartEvent_PreservesBothHandlers(t *testing.T) {
 	t.Parallel()
 
 	combined := string(chainChartEvent("function(){ window.first = true; }", "function(){ window.second = true; }"))
@@ -105,7 +105,7 @@ func TestChainChartEventPreservesBothHandlers(t *testing.T) {
 	require.Contains(t, combined, "second.apply(this, arguments)")
 }
 
-func TestPieSupportsRightLegendWithMobileBottomFallback(t *testing.T) {
+func TestPie_SupportsRightLegendWithMobileBottomFallback(t *testing.T) {
 	t.Parallel()
 
 	fr, err := frame.New("composition",

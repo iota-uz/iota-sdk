@@ -53,9 +53,11 @@ script graph(id string, options templ.JSExpression) {
 			scope.__apexSharedHidden = Array.from(names);
 		}
 	}
-	const manualLogAxisPlan = (series, base) => {
+	const manualLogAxisPlan = (series, base, collapsedSeriesIndices) => {
 		const values = [];
-		(series || []).forEach((entry) => {
+		const collapsed = new Set(collapsedSeriesIndices || []);
+		(series || []).forEach((entry, seriesIndex) => {
+			if (collapsed.has(seriesIndex)) return;
 			(entry && Array.isArray(entry.data) ? entry.data : []).forEach((point) => {
 				const value = Number(point);
 				if (Number.isFinite(value)) values.push(value);
@@ -94,7 +96,8 @@ script graph(id string, options templ.JSExpression) {
 			: (Array.isArray(config.yaxis) ? config.yaxis[0] : config.yaxis);
 		// Drill levels may deliberately switch back to a linear axis.
 		if (!currentAxis || typeof currentAxis.min !== 'number' || typeof currentAxis.max !== 'number') return;
-		const plan = manualLogAxisPlan(config.series, metadata.base);
+		const collapsed = chartCtx.w.globals.collapsedSeriesIndices || [];
+		const plan = manualLogAxisPlan(config.series, metadata.base, collapsed);
 		if (!plan) return;
 		container.__lensAxisPlan = plan;
 		if (metadata.horizontal) {
@@ -195,6 +198,9 @@ script graph(id string, options templ.JSExpression) {
 				return;
 			}
 			const collapsed = chartCtx.w.globals.collapsedSeriesIndices || [];
+			if (collapsed.length === 0) {
+				container.__apexCircularOriginalSeries = Array.from(chartCtx.w.config.series || []);
+			}
 			const handled = setCircularSeriesHidden(
 				chartCtx,
 				seriesIndex,

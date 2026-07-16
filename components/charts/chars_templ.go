@@ -23,8 +23,8 @@ import (
 
 func graph(id string, options templ.JSExpression) templ.ComponentScript {
 	return templ.ComponentScript{
-		Name: `__templ_graph_f5f1`,
-		Function: `function __templ_graph_f5f1(id, options){const hiddenSeriesNames = (chart) => {
+		Name: `__templ_graph_6147`,
+		Function: `function __templ_graph_6147(id, options){const hiddenSeriesNames = (chart) => {
 		const globals = chart && chart.w && chart.w.globals;
 		if (!globals) {
 			return [];
@@ -67,9 +67,11 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 			scope.__apexSharedHidden = Array.from(names);
 		}
 	}
-	const manualLogAxisPlan = (series, base) => {
+	const manualLogAxisPlan = (series, base, collapsedSeriesIndices) => {
 		const values = [];
-		(series || []).forEach((entry) => {
+		const collapsed = new Set(collapsedSeriesIndices || []);
+		(series || []).forEach((entry, seriesIndex) => {
+			if (collapsed.has(seriesIndex)) return;
 			(entry && Array.isArray(entry.data) ? entry.data : []).forEach((point) => {
 				const value = Number(point);
 				if (Number.isFinite(value)) values.push(value);
@@ -108,7 +110,8 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 			: (Array.isArray(config.yaxis) ? config.yaxis[0] : config.yaxis);
 		// Drill levels may deliberately switch back to a linear axis.
 		if (!currentAxis || typeof currentAxis.min !== 'number' || typeof currentAxis.max !== 'number') return;
-		const plan = manualLogAxisPlan(config.series, metadata.base);
+		const collapsed = chartCtx.w.globals.collapsedSeriesIndices || [];
+		const plan = manualLogAxisPlan(config.series, metadata.base, collapsed);
 		if (!plan) return;
 		container.__lensAxisPlan = plan;
 		if (metadata.horizontal) {
@@ -209,6 +212,9 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 				return;
 			}
 			const collapsed = chartCtx.w.globals.collapsedSeriesIndices || [];
+			if (collapsed.length === 0) {
+				container.__apexCircularOriginalSeries = Array.from(chartCtx.w.config.series || []);
+			}
 			const handled = setCircularSeriesHidden(
 				chartCtx,
 				seriesIndex,
@@ -368,8 +374,8 @@ func graph(id string, options templ.JSExpression) templ.ComponentScript {
 		scheduleRender();
 	});
 }`,
-		Call:       templ.SafeScript(`__templ_graph_f5f1`, id, options),
-		CallInline: templ.SafeScriptInline(`__templ_graph_f5f1`, id, options),
+		Call:       templ.SafeScript(`__templ_graph_6147`, id, options),
+		CallInline: templ.SafeScriptInline(`__templ_graph_6147`, id, options),
 	}
 }
 
@@ -435,7 +441,7 @@ func Chart(props Props) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(id)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 384, Col: 9}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/charts/chars.templ`, Line: 390, Col: 9}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {

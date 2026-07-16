@@ -960,7 +960,26 @@ func segmentBarBodyClass(clickable bool) string {
 }
 
 func segmentBarUsesRowActions(spec panel.Spec) bool {
-	return spec.Action != nil && spec.Action.URLSource != nil
+	if spec.Action == nil {
+		return false
+	}
+	usesField := func(source action.ValueSource) bool {
+		return source.Kind == action.SourceField
+	}
+	if spec.Action.URLSource != nil || spec.Action.Kind == action.KindEmitEvent {
+		return true
+	}
+	for _, param := range spec.Action.Params {
+		if usesField(param.Source) {
+			return true
+		}
+	}
+	for _, source := range spec.Action.Payload {
+		if usesField(source) {
+			return true
+		}
+	}
+	return spec.Action.Drill != nil && usesField(spec.Action.Drill.Value)
 }
 
 type cascadeView struct {

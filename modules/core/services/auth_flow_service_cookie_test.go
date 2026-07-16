@@ -9,29 +9,41 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAuthFlowSessionCookieIsHostOnlyByDefault(t *testing.T) {
+func TestAuthFlowSessionCookie_DomainAndSecurity(t *testing.T) {
 	t.Parallel()
 
-	service := &AuthFlowService{
-		cookiesCfg: &cookies.Config{SID: "granite_sid"},
-		appCfg:     &appconfig.Config{Environment: "development"},
+	tests := []struct {
+		name        string
+		domain      string
+		environment string
+		wantDomain  string
+		wantSecure  bool
+	}{
+		{
+			name:        "host only by default",
+			environment: "development",
+		},
+		{
+			name:        "explicit shared domain",
+			domain:      ".example.com",
+			environment: "production",
+			wantDomain:  ".example.com",
+			wantSecure:  true,
+		},
 	}
-	cookie := service.sessionCookie("token", time.Now().Add(time.Hour))
 
-	require.Equal(t, "granite_sid", cookie.Name)
-	require.Empty(t, cookie.Domain)
-	require.False(t, cookie.Secure)
-}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			service := &AuthFlowService{
+				cookiesCfg: &cookies.Config{SID: "granite_sid", Domain: tt.domain},
+				appCfg:     &appconfig.Config{Environment: tt.environment},
+			}
+			cookie := service.sessionCookie("token", time.Now().Add(time.Hour))
 
-func TestAuthFlowSessionCookieSupportsExplicitSharedDomain(t *testing.T) {
-	t.Parallel()
-
-	service := &AuthFlowService{
-		cookiesCfg: &cookies.Config{SID: "granite_sid", Domain: ".example.com"},
-		appCfg:     &appconfig.Config{Environment: "production"},
+			require.Equal(t, "granite_sid", cookie.Name)
+			require.Equal(t, tt.wantDomain, cookie.Domain)
+			require.Equal(t, tt.wantSecure, cookie.Secure)
+		})
 	}
-	cookie := service.sessionCookie("token", time.Now().Add(time.Hour))
-
-	require.Equal(t, ".example.com", cookie.Domain)
-	require.True(t, cookie.Secure)
 }

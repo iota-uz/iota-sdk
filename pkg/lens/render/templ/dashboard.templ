@@ -1004,6 +1004,7 @@ templ DashboardScripts() {
 						colors: previous.view.colors,
 						legend: { show: previous.view.legendShow },
 					}, true, true);
+					container.__apexCircularOriginalSeries = Array.from(previous.view.series);
 					if (state.stack.length) {
 						lensCircularShowBack(container, chartContext, cfg);
 					} else {
@@ -1026,12 +1027,14 @@ templ DashboardScripts() {
 					return item.color || fallbackColors[index % fallbackColors.length];
 				});
 				container.__lensTotalBadgeTextOverride = detailTotal || '';
+				const detailSeries = detail.map(function(item) { return item.value; });
 				chartContext.updateOptions({
-					series: detail.map(function(item) { return item.value; }),
+					series: detailSeries,
 					labels: detail.map(function(item) { return item.label; }),
 					colors: colors,
 					legend: { show: true },
 				}, true, animate !== false);
+				container.__apexCircularOriginalSeries = Array.from(detailSeries);
 				lensCircularShowBack(container, chartContext, cfg);
 				lensCircularWriteSharedState(container, state.path);
 			};
@@ -1555,9 +1558,9 @@ templ SegmentBarPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanel
 
 templ segmentBarTrackSegment(seg segmentBarSegment) {
 	if seg.Href != "" {
-		<a href={ templ.URL(seg.Href) } onclick={ seg.OnClick } aria-label={ seg.Label } class="h-full cursor-pointer first:rounded-l-full last:rounded-r-full transition-[filter] hover:brightness-90" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></a>
+		<a href={ templ.URL(seg.Href) } onclick={ seg.OnClick } aria-label={ seg.Label } class="block h-full cursor-pointer first:rounded-l-full last:rounded-r-full transition-[filter] hover:brightness-90" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></a>
 	} else if seg.OnClick.Call != "" {
-		<button type="button" onclick={ seg.OnClick } aria-label={ seg.Label } class="h-full cursor-pointer first:rounded-l-full last:rounded-r-full transition-[filter] hover:brightness-90" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></button>
+		<button type="button" onclick={ seg.OnClick } aria-label={ seg.Label } class="block h-full cursor-pointer border-0 p-0 first:rounded-l-full last:rounded-r-full transition-[filter] hover:brightness-90" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></button>
 	} else {
 		<div class="h-full first:rounded-l-full last:rounded-r-full" style={ segmentSliceStyle(seg.Pct, seg.Color) } title={ seg.Label }></div>
 	}

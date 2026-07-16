@@ -101,7 +101,7 @@ func TestBuildActionJSHonorsFallbacks(t *testing.T) {
 	require.Contains(t, js, `resolveValue(variables["active_only"], true)`)
 }
 
-func TestBuildActionJSEmitEventDoesNotRequireURL(t *testing.T) {
+func TestBuildActionJS_EmitEventDoesNotRequireURL(t *testing.T) {
 	t.Parallel()
 
 	fr, err := frame.New("premium-composition",
@@ -129,7 +129,7 @@ func TestBuildActionJSEmitEventDoesNotRequireURL(t *testing.T) {
 	require.Contains(t, js, `resolveValue(row["metric"], undefined)`)
 }
 
-func TestBuildActionJSCircularChartsUseSliceIndexForClickedRow(t *testing.T) {
+func TestBuildActionJS_CircularChartsUseSliceIndexForClickedRow(t *testing.T) {
 	t.Parallel()
 
 	fr, err := frame.New("premium-composition",
@@ -613,6 +613,8 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 				require.Equal(t, "lens-tooltip", *options.Tooltip.CSSClass)
 				require.NotNil(t, options.Tooltip.FillSeriesColor)
 				require.False(t, *options.Tooltip.FillSeriesColor)
+				require.NotNil(t, options.Tooltip.Shared)
+				require.True(t, *options.Tooltip.Shared)
 				require.NotNil(t, options.Grid)
 				require.Equal(t, theme.Divider, options.Grid.BorderColor)
 				require.NotNil(t, options.Grid.XAxis)
@@ -916,7 +918,7 @@ func TestLogarithmicAxisPlanFromAxisOptionsUsesAxisConfig(t *testing.T) {
 	require.InDelta(t, 2.0, plan.Step, 1e-9)
 }
 
-func TestLogarithmicAxisFormatterDoesNotBakeInitialAxisBounds(t *testing.T) {
+func TestLogarithmicAxisFormatter_DoesNotBakeInitialAxisBounds(t *testing.T) {
 	t.Parallel()
 
 	formatter := wrapLogarithmicAxisFormatter("", "ru", logarithmicAxisPlan{
