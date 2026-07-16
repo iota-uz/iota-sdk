@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"context"
+	"math"
 	"net/url"
 	"sync/atomic"
 	"testing"
@@ -383,6 +384,119 @@ func TestValidateRejectsEmptyActionURLFieldSource(t *testing.T) {
 
 	err := Validate(spec)
 	require.ErrorContains(t, err, "action value url requires source name")
+}
+
+func TestValidateAcceptsKeyedPieDrillTree(t *testing.T) {
+	t.Parallel()
+
+	spec := drillTreeDashboard(t, panel.KindPie, panel.DrillTree{Branches: []panel.DrillBranch{{
+		TriggerKey: "earned",
+		Label:      "Earned",
+		Children: []panel.DrillNode{
+			{Key: "direct", Label: "Direct", Value: 70, Action: actionSpec(action.Navigate("/portfolio"))},
+			{Key: "reinsurance", Label: "Reinsurance", Value: 30, Action: actionSpec(action.HtmxSwap("/reinsurance", "#drawer"))},
+		},
+	}}}, frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
+
+	require.NoError(t, Validate(spec))
+	result, err := Run(context.Background(), spec, Request{})
+	require.NoError(t, err)
+	require.NoError(t, result.Panels["drill"].Error)
+}
+
+func TestValidateRejectsInvalidDrillTrees(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		kind    panel.Kind
+		tree    panel.DrillTree
+		mutate  func(*panel.Spec)
+		wantErr string
+	}{
+		{name: "unsupported panel kind", kind: panel.KindBar, tree: validDrillTree(), wantErr: `unsupported for kind "bar"`},
+		{name: "empty branches", kind: panel.KindPie, tree: panel.DrillTree{}, wantErr: "requires at least one branch"},
+		{name: "blank branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "requires trigger key"},
+		{name: "duplicate branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}, {TriggerKey: "earned", Label: "Other", Children: []panel.DrillNode{{Key: "other", Label: "Other", Value: 1}}}}}, wantErr: `duplicate branch key "earned"`},
+		{name: "branch without children", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned"}}}, wantErr: "requires children"},
+		{name: "duplicate sibling key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}, {Key: "direct", Label: "Again", Value: 2}}}}}, wantErr: `duplicate child key "direct"`},
+		{name: "negative value", kind: panel.KindDonut, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: -1}}}}}, wantErr: "finite nonnegative value"},
+		{name: "nonfinite value", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: math.Inf(1)}}}}}, wantErr: "finite nonnegative value"},
+		{name: "children and action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("/portfolio")), Children: []panel.DrillNode{{Key: "q1", Label: "Q1", Value: 1}}}}}}}, wantErr: "cannot have both children and action"},
+		{name: "cube action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.CubeDrill("/portfolio", "source"))}}}}}, wantErr: `unsupported kind "cube_drill"`},
+		{name: "field action source", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("").WithFieldURL("url"))}}}}}, wantErr: "cannot use a field source"},
+		{name: "bar hierarchy coexistence", kind: panel.KindPie, tree: validDrillTree(), mutate: func(spec *panel.Spec) { spec.DrillHierarchy = &panel.DrillHierarchy{} }, wantErr: "cannot be combined with bar drill hierarchy"},
+		{name: "missing id mapping", kind: panel.KindPie, tree: validDrillTree(), mutate: func(spec *panel.Spec) { spec.Fields.ID = "" }, wantErr: "requires id field"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			built := panel.Pie("drill", "Drill", "dataset").LabelField("label").ValueField("value").DrillTree(test.tree).Build()
+			built.Kind = test.kind
+			if test.mutate != nil {
+				test.mutate(&built)
+			}
+			spec := lensbuild.Dashboard("drill", "Drill", lensbuild.Row(built)).Datasets(
+				lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
+			).Build()
+			err := Validate(spec)
+			require.ErrorContains(t, err, test.wantErr)
+		})
+	}
+}
+
+func TestExecuteRejectsDrillTreeWithoutUniqueMatchingDatasetID(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		rows    []frame.Row
+		wantErr string
+	}{
+		{name: "missing id field", rows: []frame.Row{{"label": "Earned", "value": 100.0}}, wantErr: `missing id field "id"`},
+		{name: "missing branch key", rows: []frame.Row{{"id": "unearned", "label": "Unearned", "value": 100.0}}, wantErr: `branch key "earned" is missing`},
+		{name: "duplicate branch key", rows: []frame.Row{{"id": "earned", "label": "Earned", "value": 60.0}, {"id": "earned", "label": "Earned", "value": 40.0}}, wantErr: `id field "id" has duplicate key "earned"`},
+		{name: "duplicate nonbranch key", rows: []frame.Row{{"id": "earned", "label": "Earned", "value": 60.0}, {"id": "unearned", "label": "Unearned", "value": 20.0}, {"id": "unearned", "label": "Unearned", "value": 20.0}}, wantErr: `id field "id" has duplicate key "unearned"`},
+		{name: "id with surrounding whitespace", rows: []frame.Row{{"id": " earned ", "label": "Earned", "value": 100.0}}, wantErr: `requires a nonblank string`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), test.rows...)
+			result, err := Run(context.Background(), spec, Request{})
+			require.NoError(t, err)
+			require.ErrorContains(t, result.Panels["drill"].Error, test.wantErr)
+		})
+	}
+}
+
+func validDrillTree() panel.DrillTree {
+	return panel.DrillTree{Branches: []panel.DrillBranch{{
+		TriggerKey: "earned",
+		Label:      "Earned",
+		Children:   []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 100}},
+	}}}
+}
+
+func drillTreeDashboard(t *testing.T, kind panel.Kind, tree panel.DrillTree, rows ...frame.Row) lens.DashboardSpec {
+	t.Helper()
+	set, err := frame.FromRows("dataset", rows...)
+	require.NoError(t, err)
+	chart := panel.Pie("drill", "Drill", "dataset").
+		LabelField("label").
+		ValueField("value").
+		DrillTree(tree).
+		Build()
+	chart.Kind = kind
+	return lensbuild.Dashboard("drill", "Drill", lensbuild.Row(chart)).Datasets(
+		lensbuild.StaticDataset("dataset", set),
+	).Build()
+}
+
+func actionSpec(spec action.Spec) *action.Spec {
+	return &spec
 }
 
 func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {

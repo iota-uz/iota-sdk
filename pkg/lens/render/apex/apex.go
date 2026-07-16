@@ -266,13 +266,18 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
 		chartEvents.DataPointMouseEnter = syncTooltip
 	}
-	if panelSpec.CircularDrillHierarchy != nil && (panelSpec.Kind == panel.KindPie || panelSpec.Kind == panel.KindDonut) {
+	isCircular := panelSpec.Kind == panel.KindPie || panelSpec.Kind == panel.KindDonut
+	if panelSpec.DrillTree != nil && isCircular {
 		var fallback templ.JSExpression
 		if panelSpec.Action != nil {
 			fallback = buildActionJS(panelSpec.Action, fr, fields, panelResult)
 		}
-		chartEvents.DataPointSelection = buildCircularDrillHierarchyJS(panelSpec.CircularDrillHierarchy, panelSpec.Formatter, panelResult.Locale, panelSpec.Action, fallback)
-		chartEvents.Mounted = buildCircularDrillHierarchyMountJS(panelSpec.CircularDrillHierarchy, panelSpec.Formatter, panelResult.Locale, panelSpec.Action)
+		if _, ok := drillTreeConfigJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult); ok {
+			chartEvents.DataPointSelection = buildDrillTreeJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult, fallback)
+			chartEvents.Mounted = buildDrillTreeMountJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult, panelSpec.Action != nil)
+		} else {
+			chartEvents.DataPointSelection = fallback
+		}
 	} else if panelSpec.Action != nil {
 		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
 	} else if panelSpec.DrillHierarchy != nil {
@@ -1249,7 +1254,7 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 				badge.textContent = totalLabel + ': ' + el.__lensTotalBadgeTextOverride;
 				return;
 			}
-			if (staticTotalText) {
+			if (staticTotalText && !el.__lensTotalBadgeUseDynamicSeries) {
 				badge.textContent = totalLabel + ': ' + staticTotalText;
 				return;
 			}

@@ -255,11 +255,11 @@ type Spec struct {
 	// whose allocation segments still sum to a different denominator.
 	HeadlineValue  *float64
 	DrillHierarchy *DrillHierarchy
-	// CircularDrillHierarchy lets a Pie/Donut panel replace one aggregate
-	// slice (typically "Other") with its pre-computed members in-place. The
-	// chart keeps ordinary panel actions for every non-aggregate slice.
-	CircularDrillHierarchy *CircularDrillHierarchy
-	Trend                  *TrendSpec
+	// DrillTree enables stable, key-based in-place navigation for Pie and
+	// Donut panels. Its branch keys match the panel's ID field in the initial
+	// dataset; nested node keys remain stable when labels or ordering change.
+	DrillTree *DrillTree
+	Trend     *TrendSpec
 	// Status renders a small tone-colored chip in a stat card's label row.
 	// Only Stat panels (including StatGroup children) render it.
 	Status *StatusSpec
@@ -316,27 +316,36 @@ type QuarterBreakdown struct {
 	NavigateURLs [4]string  // Q1..Q4 navigate target; "" = not navigable
 }
 
-// CircularDrillHierarchy carries pre-computed in-place drill branches for a
-// Pie or Donut panel. Branches may be nested through CircularDrillSlice.Detail;
-// a leaf may carry an optional same-origin navigation URL. TriggerLabel and
-// Detail remain as the backwards-compatible shorthand for one branch.
-type CircularDrillHierarchy struct {
-	TriggerLabel string
-	Detail       []CircularDrillSlice
-	Branches     []CircularDrillBranch
+// DrillTree carries pre-computed, key-based branches for in-place Pie and
+// Donut navigation. Every DrillBranch.TriggerKey must match exactly one value
+// in the panel's ID field. Keys are identity and must stay stable across
+// translation and reordering; labels are presentation only.
+//
+// Branches must contain at least one child. Node keys must be nonblank and
+// unique among siblings, values must be finite and nonnegative, and a node may
+// have either Children or Action, but not both. Leaf nodes may be informational
+// and omit Action.
+type DrillTree struct {
+	Branches []DrillBranch `json:"branches"`
 }
 
-type CircularDrillBranch struct {
-	TriggerLabel string
-	Detail       []CircularDrillSlice
+// DrillBranch binds one initial chart point to its first detail level.
+type DrillBranch struct {
+	TriggerKey string      `json:"triggerKey"`
+	Label      string      `json:"label"`
+	Children   []DrillNode `json:"children"`
 }
 
-type CircularDrillSlice struct {
-	Label     string
-	Value     float64
-	Color     string
-	ActionURL string
-	Detail    []CircularDrillSlice
+// DrillNode is one stable item in a DrillTree detail level. Navigate,
+// HtmxSwap, and EmitEvent actions are supported on leaves; actions that depend
+// on an unresolved dataset row are not supported.
+type DrillNode struct {
+	Key      string       `json:"key"`
+	Label    string       `json:"label"`
+	Value    float64      `json:"value"`
+	Color    string       `json:"color,omitempty"`
+	Action   *action.Spec `json:"action,omitempty"`
+	Children []DrillNode  `json:"children,omitempty"`
 }
 
 // TrendSpec renders a small colored chip in a panel's header showing a signed
@@ -494,10 +503,14 @@ func (b *Builder) DrillHierarchy(h DrillHierarchy) *Builder {
 	b.spec.DrillHierarchy = &h
 	return b
 }
-func (b *Builder) CircularDrillHierarchy(h CircularDrillHierarchy) *Builder {
-	b.spec.CircularDrillHierarchy = &h
+
+// DrillTree enables stable, key-based in-place navigation. Configure IDField
+// with the initial dataset field whose values match branch trigger keys.
+func (b *Builder) DrillTree(tree DrillTree) *Builder {
+	b.spec.DrillTree = &tree
 	return b
 }
+
 func (b *Builder) Trend(percent float64, label string) *Builder {
 	b.spec.Trend = &TrendSpec{Percent: percent, Label: label}
 	return b
@@ -574,6 +587,7 @@ func (b *Builder) LabelField(name FieldRef) *Builder    { b.spec.Fields.Label = 
 func (b *Builder) ValueField(name FieldRef) *Builder    { b.spec.Fields.Value = name; return b }
 func (b *Builder) SeriesField(name FieldRef) *Builder   { b.spec.Fields.Series = name; return b }
 func (b *Builder) CategoryField(name FieldRef) *Builder { b.spec.Fields.Category = name; return b }
+func (b *Builder) IDField(name FieldRef) *Builder       { b.spec.Fields.ID = name; return b }
 func (b *Builder) StartField(name FieldRef) *Builder    { b.spec.Fields.StartTime = name; return b }
 func (b *Builder) EndField(name FieldRef) *Builder      { b.spec.Fields.EndTime = name; return b }
 func (b *Builder) CutField(name FieldRef) *Builder      { b.spec.Fields.Cut = name; return b }

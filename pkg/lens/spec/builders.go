@@ -159,10 +159,14 @@ func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
 	b.panel.DrillHierarchy = &h
 	return b
 }
-func (b *PanelBuilder) CircularDrillHierarchy(h panel.CircularDrillHierarchy) *PanelBuilder {
-	b.panel.CircularDrillHierarchy = &h
+
+// DrillTree enables stable, key-based in-place navigation. Configure IDField
+// with the initial dataset field whose values match branch trigger keys.
+func (b *PanelBuilder) DrillTree(tree panel.DrillTree) *PanelBuilder {
+	b.panel.DrillTree = &tree
 	return b
 }
+
 func (b *PanelBuilder) Trend(percent float64, label string) *PanelBuilder {
 	b.panel.Trend = &panel.TrendSpec{Percent: percent, Label: label}
 	return b
@@ -255,6 +259,10 @@ func (b *PanelBuilder) SeriesField(name string) *PanelBuilder {
 }
 func (b *PanelBuilder) CategoryField(name string) *PanelBuilder {
 	b.panel.Fields.Category = name
+	return b
+}
+func (b *PanelBuilder) IDField(name string) *PanelBuilder {
+	b.panel.Fields.ID = name
 	return b
 }
 func (b *PanelBuilder) StartField(name string) *PanelBuilder {

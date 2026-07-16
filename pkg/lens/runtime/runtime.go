@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/url"
 	"slices"
 	"strconv"
@@ -877,33 +878,139 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 			return fmt.Errorf("panel %s requires series field", spec.ID)
 		}
 	}
-	if spec.Action != nil && strings.TrimSpace(spec.Action.URL) == "" && spec.Action.URLSource == nil && spec.Action.Kind != action.KindEmitEvent {
-		return fmt.Errorf("panel %s action requires url", spec.ID)
+	if err := validateAction("panel "+spec.ID, spec.Action, actionValidationOptions{allowCubeDrill: true, allowFieldSources: true}); err != nil {
+		return err
 	}
-	if spec.Action != nil {
-		switch spec.Action.Kind {
-		case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent, action.KindCubeDrill:
-		default:
-			return fmt.Errorf("panel %s action has unsupported kind %q", spec.ID, spec.Action.Kind)
+	if err := validateDrillTree(spec); err != nil {
+		return err
+	}
+	return nil
+}
+
+type actionValidationOptions struct {
+	allowCubeDrill    bool
+	allowFieldSources bool
+}
+
+func validateAction(owner string, spec *action.Spec, opts actionValidationOptions) error {
+	if spec == nil {
+		return nil
+	}
+	if strings.TrimSpace(spec.URL) == "" && spec.URLSource == nil && spec.Kind != action.KindEmitEvent {
+		return fmt.Errorf("%s action requires url", owner)
+	}
+	switch spec.Kind {
+	case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent:
+	case action.KindCubeDrill:
+		if !opts.allowCubeDrill {
+			return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)
 		}
-		if spec.Action.Kind == action.KindEmitEvent && strings.TrimSpace(spec.Action.Event) == "" {
-			return fmt.Errorf("panel %s emit event action requires event name", spec.ID)
+	default:
+		return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)
+	}
+	if spec.Kind == action.KindEmitEvent && strings.TrimSpace(spec.Event) == "" {
+		return fmt.Errorf("%s emit event action requires event name", owner)
+	}
+	if spec.Kind == action.KindHtmxSwap && strings.TrimSpace(spec.Target) == "" {
+		return fmt.Errorf("%s htmx action requires target", owner)
+	}
+	if spec.URLSource != nil {
+		if err := validateActionValueSource(owner, "url", *spec.URLSource, opts); err != nil {
+			return err
 		}
-		if spec.Action.Kind == action.KindHtmxSwap && strings.TrimSpace(spec.Action.Target) == "" {
-			return fmt.Errorf("panel %s htmx action requires target", spec.ID)
+	}
+	for _, param := range spec.Params {
+		if err := validateActionValueSource(owner, param.Name, param.Source, opts); err != nil {
+			return err
 		}
-		if spec.Action.URLSource != nil {
-			if err := validateValueSource(spec.ID, "url", *spec.Action.URLSource); err != nil {
-				return err
-			}
+	}
+	for name, source := range spec.Payload {
+		if err := validateActionValueSource(owner, name, source, opts); err != nil {
+			return err
 		}
-		for _, param := range spec.Action.Params {
-			if err := validateValueSource(spec.ID, param.Name, param.Source); err != nil {
-				return err
-			}
+	}
+	return nil
+}
+
+func validateActionValueSource(owner, name string, source action.ValueSource, opts actionValidationOptions) error {
+	if source.Kind == action.SourceField && !opts.allowFieldSources {
+		return fmt.Errorf("%s action value %s cannot use a field source", owner, name)
+	}
+	return validateValueSource(owner, name, source)
+}
+
+func validateDrillTree(spec panel.Spec) error {
+	if spec.DrillTree == nil {
+		return nil
+	}
+	if spec.DrillHierarchy != nil {
+		return fmt.Errorf("panel %s drill tree cannot be combined with bar drill hierarchy", spec.ID)
+	}
+	if spec.Kind != panel.KindPie && spec.Kind != panel.KindDonut {
+		return fmt.Errorf("panel %s drill tree is unsupported for kind %q", spec.ID, spec.Kind)
+	}
+	if spec.Fields.ID.Empty() {
+		return fmt.Errorf("panel %s drill tree requires id field", spec.ID)
+	}
+	if len(spec.DrillTree.Branches) == 0 {
+		return fmt.Errorf("panel %s drill tree requires at least one branch", spec.ID)
+	}
+
+	branchKeys := make(map[string]struct{}, len(spec.DrillTree.Branches))
+	for i, branch := range spec.DrillTree.Branches {
+		key := strings.TrimSpace(branch.TriggerKey)
+		if key == "" {
+			return fmt.Errorf("panel %s drill tree branch %d requires trigger key", spec.ID, i)
 		}
-		for name, source := range spec.Action.Payload {
-			if err := validateValueSource(spec.ID, name, source); err != nil {
+		if key != branch.TriggerKey {
+			return fmt.Errorf("panel %s drill tree branch key %q has surrounding whitespace", spec.ID, branch.TriggerKey)
+		}
+		if _, exists := branchKeys[key]; exists {
+			return fmt.Errorf("panel %s drill tree has duplicate branch key %q", spec.ID, key)
+		}
+		branchKeys[key] = struct{}{}
+		if strings.TrimSpace(branch.Label) == "" {
+			return fmt.Errorf("panel %s drill tree branch %q requires label", spec.ID, key)
+		}
+		if len(branch.Children) == 0 {
+			return fmt.Errorf("panel %s drill tree branch %q requires children", spec.ID, key)
+		}
+		if err := validateDrillNodes(spec.ID, key, branch.Children); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateDrillNodes(panelID, parentPath string, nodes []panel.DrillNode) error {
+	keys := make(map[string]struct{}, len(nodes))
+	for i, node := range nodes {
+		key := strings.TrimSpace(node.Key)
+		if key == "" {
+			return fmt.Errorf("panel %s drill tree node %s[%d] requires key", panelID, parentPath, i)
+		}
+		if key != node.Key {
+			return fmt.Errorf("panel %s drill tree node key %q has surrounding whitespace", panelID, node.Key)
+		}
+		if _, exists := keys[key]; exists {
+			return fmt.Errorf("panel %s drill tree node %s has duplicate child key %q", panelID, parentPath, key)
+		}
+		keys[key] = struct{}{}
+		path := parentPath + "/" + key
+		if strings.TrimSpace(node.Label) == "" {
+			return fmt.Errorf("panel %s drill tree node %s requires label", panelID, path)
+		}
+		if math.IsNaN(node.Value) || math.IsInf(node.Value, 0) || node.Value < 0 {
+			return fmt.Errorf("panel %s drill tree node %s requires finite nonnegative value", panelID, path)
+		}
+		if len(node.Children) > 0 && node.Action != nil {
+			return fmt.Errorf("panel %s drill tree node %s cannot have both children and action", panelID, path)
+		}
+		if err := validateAction("panel "+panelID+" drill tree node "+path, node.Action, actionValidationOptions{}); err != nil {
+			return err
+		}
+		if len(node.Children) > 0 {
+			if err := validateDrillNodes(panelID, path, node.Children); err != nil {
 				return err
 			}
 		}
@@ -918,6 +1025,11 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 	primary := frames.Primary()
 	if err := validateRequiredPanelFields(spec, primary); err != nil {
 		return err
+	}
+	if spec.DrillTree != nil {
+		if err := validateDrillTreeFrame(spec, primary); err != nil {
+			return err
+		}
 	}
 	if spec.Kind == panel.KindTable {
 		for _, column := range spec.Columns {
@@ -947,6 +1059,32 @@ func validatePanelFrames(spec panel.Spec, frames *frame.FrameSet) error {
 			if err := validateFrameValueSource(spec.ID, spec.Dataset, primary, source); err != nil {
 				return err
 			}
+		}
+	}
+	return nil
+}
+
+func validateDrillTreeFrame(spec panel.Spec, primary *frame.Frame) error {
+	field, ok := primary.Field(spec.Fields.ID.Name())
+	if !ok {
+		return fmt.Errorf("panel %s drill tree is missing id field %q in dataset %s", spec.ID, spec.Fields.ID.Name(), spec.Dataset)
+	}
+	counts := make(map[string]int, len(field.Values))
+	for i, value := range field.Values {
+		key, ok := value.(string)
+		if !ok || strings.TrimSpace(key) == "" || key != strings.TrimSpace(key) {
+			return fmt.Errorf("panel %s drill tree id field %q row %d requires a nonblank string", spec.ID, spec.Fields.ID.Name(), i)
+		}
+		counts[key]++
+		if counts[key] > 1 {
+			return fmt.Errorf("panel %s drill tree id field %q has duplicate key %q in dataset %s", spec.ID, spec.Fields.ID.Name(), key, spec.Dataset)
+		}
+	}
+	for _, branch := range spec.DrillTree.Branches {
+		switch counts[branch.TriggerKey] {
+		case 1:
+		case 0:
+			return fmt.Errorf("panel %s drill tree branch key %q is missing from dataset %s", spec.ID, branch.TriggerKey, spec.Dataset)
 		}
 	}
 	return nil
@@ -1034,18 +1172,18 @@ func validateFrameValueSource(panelID, dataset string, primary *frame.Frame, sou
 	return fmt.Errorf("panel %s action references missing field %q in dataset %s", panelID, source.Name, dataset)
 }
 
-func validateValueSource(panelID, name string, source action.ValueSource) error {
+func validateValueSource(owner, name string, source action.ValueSource) error {
 	switch source.Kind {
 	case action.SourceField, action.SourceVariable:
 		if strings.TrimSpace(source.Name) == "" {
-			return fmt.Errorf("panel %s action value %s requires source name", panelID, name)
+			return fmt.Errorf("%s action value %s requires source name", owner, name)
 		}
 	case action.SourceLiteral:
 		if source.Value == nil {
-			return fmt.Errorf("panel %s action value %s requires literal value", panelID, name)
+			return fmt.Errorf("%s action value %s requires literal value", owner, name)
 		}
 	default:
-		return fmt.Errorf("panel %s action value %s has unsupported source kind %q", panelID, name, source.Kind)
+		return fmt.Errorf("%s action value %s has unsupported source kind %q", owner, name, source.Kind)
 	}
 	return nil
 }

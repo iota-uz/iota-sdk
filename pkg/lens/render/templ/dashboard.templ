@@ -525,8 +525,209 @@ templ DashboardScripts() {
 		.lens-chart--drill .apexcharts-bar-area {
 			cursor: pointer;
 		}
-		[data-lens-circular-drill] .apexcharts-pie-area {
+		[data-lens-drill-tree] {
+			position: relative;
+			outline: none;
+		}
+		[data-lens-drill-tree] .apexcharts-pie-area[data-lens-drill-actionable="true"] {
 			cursor: pointer;
+			transition: filter 120ms ease, opacity 120ms ease;
+		}
+		[data-lens-drill-tree] .apexcharts-pie-area[data-lens-drill-actionable="true"]:hover,
+		[data-lens-drill-tree] .apexcharts-pie-area[data-lens-drill-actionable="true"]:focus-visible {
+			filter: brightness(.9);
+			outline: 2px solid var(--lens-accent-600, #2255d6);
+			outline-offset: 2px;
+		}
+		.lens-drill-back,
+		.lens-drill-tree__control {
+			display: inline-flex;
+			min-width: 44px;
+			min-height: 44px;
+			align-items: center;
+			justify-content: center;
+			gap: 6px;
+			border: 1px solid var(--lens-border-strong, #cbd5e1);
+			border-radius: var(--lens-radius-control, 6px);
+			background: color-mix(in srgb, var(--lens-bg-card, #fff) 94%, transparent);
+			box-shadow: var(--lens-shadow-card, 0 1px 2px rgba(15, 23, 42, .08));
+			color: var(--lens-text, #334155);
+			font: 600 12px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+			cursor: pointer;
+			transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+		}
+		.lens-drill-back:hover,
+		.lens-drill-tree__control:hover {
+			border-color: var(--lens-accent-300, #93c5fd);
+			background: var(--lens-accent-50, #eff6ff);
+			color: var(--lens-accent-700, #1d4ed8);
+		}
+		.lens-drill-back:focus-visible,
+		.lens-drill-tree__control:focus-visible,
+		.lens-drill-tree__crumb:focus-visible,
+		[data-lens-drill-tree] .apexcharts-legend-series:focus-visible {
+			outline: 2px solid var(--lens-accent-500, #2563eb);
+			outline-offset: 2px;
+		}
+		.lens-drill-back {
+			position: absolute;
+			top: 4px;
+			left: 12px;
+			z-index: 7;
+			padding: 0 12px;
+		}
+		.lens-drill-tree__nav {
+			position: absolute;
+			top: 2px;
+			left: 12px;
+			right: 170px;
+			z-index: 8;
+			display: flex;
+			min-width: 0;
+			align-items: center;
+			gap: 8px;
+			pointer-events: none;
+		}
+		.lens-drill-tree__nav > * {
+			pointer-events: auto;
+		}
+		.lens-drill-tree__path {
+			display: flex;
+			min-width: 0;
+			flex: 1;
+			align-items: center;
+			gap: 4px;
+			overflow: hidden;
+		}
+		.lens-drill-tree__crumb {
+			min-width: 0;
+			max-width: 190px;
+			border: 0;
+			border-radius: 4px;
+			background: transparent;
+			padding: 3px 5px;
+			color: var(--lens-text-muted, #64748b);
+			font: 500 11px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			overflow: hidden;
+			cursor: pointer;
+		}
+		.lens-drill-tree__crumb:hover {
+			background: var(--lens-bg-inset, #f8fafc);
+			color: var(--lens-text-strong, #0f172a);
+		}
+		.lens-drill-tree__crumb[aria-current="page"] {
+			color: var(--lens-text-strong, #0f172a);
+			font-weight: 650;
+			cursor: default;
+		}
+		.lens-drill-tree__separator {
+			flex: none;
+			color: var(--lens-text-faint, #94a3b8);
+			font-size: 11px;
+		}
+		.lens-drill-tree__context {
+			min-width: 0;
+			max-width: 210px;
+			border-left: 1px solid var(--lens-border, #e2e8f0);
+			padding-left: 8px;
+			color: var(--lens-text-muted, #64748b);
+			font: 600 11px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+			font-variant-numeric: tabular-nums;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			overflow: hidden;
+		}
+		.lens-drill-tree__home {
+			flex: none;
+			padding: 0 10px;
+		}
+		[data-lens-drill-tree] .apexcharts-legend-series {
+			min-height: 36px;
+			align-items: center;
+			border-radius: 5px;
+		}
+		[data-lens-drill-tree] .apexcharts-legend-series[role="checkbox"] {
+			cursor: pointer;
+		}
+		.lens-drill-tree__empty {
+			position: absolute;
+			inset: 72px 16px 16px;
+			z-index: 6;
+			display: flex;
+			flex-direction: column;
+			align-items: center;
+			justify-content: center;
+			gap: 10px;
+			border-radius: 8px;
+			background: color-mix(in srgb, var(--lens-bg-card, #fff) 96%, transparent);
+			color: var(--lens-text-muted, #64748b);
+			font: 500 12px/18px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+		}
+		.lens-drill-tree__show-all {
+			padding: 0 14px;
+		}
+		[data-lens-drill-tree] .apexcharts-canvas {
+			transition: opacity 90ms ease, transform 90ms ease;
+			transform-origin: center;
+		}
+		[data-lens-drill-tree].lens-drill-tree--leaving-forward .apexcharts-canvas {
+			opacity: .12;
+			transform: translateX(-8px) scale(.98);
+		}
+		[data-lens-drill-tree].lens-drill-tree--leaving-back .apexcharts-canvas {
+			opacity: .12;
+			transform: translateX(8px) scale(.98);
+		}
+		[data-lens-drill-tree].lens-drill-tree--entering-forward .apexcharts-canvas {
+			opacity: .12;
+			transform: translateX(8px) scale(.98);
+		}
+		[data-lens-drill-tree].lens-drill-tree--entering-back .apexcharts-canvas {
+			opacity: .12;
+			transform: translateX(-8px) scale(.98);
+		}
+		[data-lens-drill-tree][aria-busy="true"] .lens-drill-tree__nav button,
+		[data-lens-drill-tree][aria-busy="true"] .apexcharts-legend-series,
+		[data-lens-drill-tree][aria-busy="true"] .apexcharts-pie-area {
+			pointer-events: none;
+		}
+		.lens-drill-tree__sr {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			padding: 0;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
+			border: 0;
+		}
+		@media (max-width: 639px) {
+			.lens-drill-tree__nav {
+				top: 42px;
+				right: 12px;
+			}
+			.lens-drill-tree__crumb--collapsed,
+			.lens-drill-tree__separator--collapsed,
+			.lens-drill-tree__context {
+				display: none;
+			}
+			.lens-drill-tree__crumb {
+				max-width: 125px;
+			}
+			[data-lens-drill-tree] .apexcharts-legend-series {
+				min-height: 44px;
+			}
+		}
+		@media (prefers-reduced-motion: reduce) {
+			[data-lens-drill-tree] .apexcharts-canvas,
+			[data-lens-drill-tree] .apexcharts-pie-area,
+			.lens-drill-back,
+			.lens-drill-tree__control {
+				transition: none !important;
+			}
 		}
 		/* Per-bar hover highlight. Apex's own states.hover filter is disabled on
 		   bar panels (render/apex applyBarHoverStates) because under a shared
@@ -716,22 +917,11 @@ templ DashboardScripts() {
 					btn = document.createElement('button');
 					btn.type = 'button';
 					btn.setAttribute('data-lens-drill-back', 'true');
-					btn.style.position = 'absolute';
-					btn.style.top = '6px';
-					btn.style.left = '12px';
-					btn.style.zIndex = '6';
-					btn.style.padding = '4px 10px';
-					btn.style.borderRadius = '6px';
-					btn.style.border = '1px solid rgba(148, 163, 184, 0.35)';
-					btn.style.background = 'rgba(255, 255, 255, 0.92)';
-					btn.style.boxShadow = '0 1px 2px rgba(15, 23, 42, 0.08)';
-					btn.style.color = '#334155';
-					btn.style.font = '600 12px Inter, Helvetica Neue, Arial, sans-serif';
-					btn.style.lineHeight = '16px';
-					btn.style.cursor = 'pointer';
+					btn.className = 'lens-drill-back';
 					container.appendChild(btn);
 				}
 				btn.textContent = label;
+				btn.setAttribute('aria-label', label);
 				btn.onclick = onClick;
 			};
 			const lensDrillHideBackButton = function(container) {
@@ -753,7 +943,7 @@ templ DashboardScripts() {
 			// the chart's own root element, at the same height ApexCharts places
 			// its topmost y-axis tick label, so the plot area must be pushed down
 			// to clear it whenever the button is visible.
-			const LENS_DRILL_BACK_BUTTON_TOP_PADDING = 34;
+			const LENS_DRILL_BACK_BUTTON_TOP_PADDING = 52;
 			const LENS_DRILL_DEFAULT_TOP_PADDING = 4;
 			const lensDrillYAxisConfig = function(container, cfg, axis) {
 				const isLog = axis && axis.scale === 'log';
@@ -953,192 +1143,657 @@ templ DashboardScripts() {
 				}
 			};
 
-			// ---- Lens circular drill-hierarchy zoom/back state machine ----
-			// Pie and donut panels may replace any configured top-level slice with
-			// a pre-computed child composition, then keep drilling through nested
-			// child compositions until a leaf navigates. Ordinary top-level slice
-			// actions keep working because this handler returns false unless it
-			// consumed the click.
-			const lensCircularCapture = function(chartContext) {
+			// ---- Lens first-class keyed DrillTree state machine ----
+			const LENS_DRILL_TREE_TOP_PADDING = 82;
+			const lensDrillTreeText = function() {
+				const lang = String(document.documentElement.lang || '').toLowerCase();
+				if (lang.startsWith('ru')) {
+					return { home: 'К началу', showAll: 'Показать все', allHidden: 'Все сегменты скрыты', details: 'Открыть детализацию', instructions: 'Стрелки переключают сегменты, Enter открывает детализацию, Escape возвращает назад.' };
+				}
+				if (lang.startsWith('uz-cyrl')) {
+					return { home: 'Бошига', showAll: 'Барчасини кўрсатиш', allHidden: 'Барча сегментлар яширилган', details: 'Тафсилотларни очиш', instructions: 'Стрелкалар сегментларни алмаштиради, Enter тафсилотларни очади, Escape орқага қайтаради.' };
+				}
+				if (lang.startsWith('uz')) {
+					return { home: 'Boshiga', showAll: 'Barchasini ko‘rsatish', allHidden: 'Barcha segmentlar yashirilgan', details: 'Tafsilotlarni ochish', instructions: 'Strelkalar segmentlarni almashtiradi, Enter tafsilotlarni ochadi, Escape orqaga qaytaradi.' };
+				}
+				return { home: 'Back to start', showAll: 'Show all', allHidden: 'All segments are hidden', details: 'Open details', instructions: 'Use arrow keys to move between segments, Enter to open, and Escape to go back.' };
+			};
+			const lensDrillTreeLevelKey = function(path) {
+				return JSON.stringify(Array.isArray(path) ? path : []);
+			};
+			const lensDrillTreeCapture = function(chartContext, cfg) {
 				const container = chartContext && chartContext.el;
 				const config = (chartContext && chartContext.w && chartContext.w.config) || {};
 				const globals = (chartContext && chartContext.w && chartContext.w.globals) || {};
+				const gridPadding = config.grid && config.grid.padding ? config.grid.padding : {};
 				return {
 					series: Array.isArray(config.series) ? config.series.slice() : [],
 					labels: Array.isArray(config.labels) ? config.labels.slice() : [],
+					keys: Array.isArray(cfg.rootKeys) ? cfg.rootKeys.slice() : [],
+					valuesFormatted: Array.isArray(cfg.rootValuesFormatted) ? cfg.rootValuesFormatted.slice() : [],
 					colors: Array.isArray(globals.colors) ? globals.colors.slice()
 						: (Array.isArray(config.colors) ? config.colors.slice() : []),
 					legendShow: !(config.legend && config.legend.show === false),
+					gridTop: typeof gridPadding.top === 'number' ? gridPadding.top : 4,
 					totalBadgeText: container && container.__lensTotalBadgeTextOverride
 						? container.__lensTotalBadgeTextOverride : '',
 				};
 			};
-			const lensCircularWriteSharedState = function(container, path) {
+			const lensDrillTreeLiveChartContext = function(container, fallback) {
+				const current = container && container.__lensDrillTreeChartContext;
+				if (current && current.series) {
+					return current;
+				}
+				return fallback && fallback.series ? fallback : null;
+			};
+			const lensDrillTreeRootItems = function(state) {
+				return state.rootView.keys.map(function(key, index) {
+					return {
+						key: key,
+						label: state.rootView.labels[index] || key,
+						value: Number(state.rootView.series[index]) || 0,
+						valueFormatted: state.rootView.valuesFormatted[index] || '',
+						color: state.rootView.colors[index] || '',
+					};
+				});
+			};
+			const lensDrillTreeResolve = function(cfg, state, requestedPath) {
+				const path = Array.isArray(requestedPath) ? requestedPath.slice() : [];
+				const rootItems = lensDrillTreeRootItems(state);
+				if (!path.length) {
+					return {
+						path: [],
+						items: rootItems,
+						context: { key: '', label: cfg.rootLabel || '', totalFormatted: '' },
+						crumbs: [{ key: '', label: cfg.rootLabel || '', path: [] }],
+					};
+				}
+				const branches = Array.isArray(cfg.branches) ? cfg.branches : [];
+				const branch = branches.find(function(candidate) { return candidate && candidate.triggerKey === path[0]; });
+				if (!branch || !Array.isArray(branch.children) || !branch.children.length) {
+					return lensDrillTreeResolve(cfg, state, []);
+				}
+				const validPath = [branch.triggerKey];
+				const crumbs = [
+					{ key: '', label: cfg.rootLabel || '', path: [] },
+					{ key: branch.triggerKey, label: branch.label, path: validPath.slice() },
+				];
+				let items = branch.children;
+				let context = branch;
+				for (let depth = 1; depth < path.length; depth++) {
+					const node = items.find(function(candidate) { return candidate && candidate.key === path[depth]; });
+					if (!node || !Array.isArray(node.children) || !node.children.length) {
+						break;
+					}
+					validPath.push(node.key);
+					crumbs.push({ key: node.key, label: node.label, path: validPath.slice() });
+					items = node.children;
+					context = node;
+				}
+				return { path: validPath, items: items, context: context, crumbs: crumbs };
+			};
+			const lensDrillTreeHiddenSnapshot = function(hiddenByLevel) {
+				const snapshot = {};
+				Object.keys(hiddenByLevel || {}).forEach(function(level) {
+					snapshot[level] = Array.from(hiddenByLevel[level] || []);
+				});
+				return snapshot;
+			};
+			const lensDrillTreeHiddenState = function(snapshot) {
+				const hidden = {};
+				Object.keys(snapshot || {}).forEach(function(level) {
+					hidden[level] = new Set(Array.isArray(snapshot[level]) ? snapshot[level] : []);
+				});
+				return hidden;
+			};
+			const lensDrillTreeWriteSharedState = function(container, state) {
 				const scope = lensDrillRerenderScope(container);
 				if (scope) {
-					scope.__lensCircularDrillSharedState = Array.isArray(path) && path.length
-						? { path: path.slice() } : null;
+					scope.__lensDrillTreeSharedState = {
+						path: state.path.slice(),
+						hiddenByLevel: lensDrillTreeHiddenSnapshot(state.hiddenByLevel),
+					};
 				}
 			};
-			const lensCircularReadSharedState = function(container) {
+			const lensDrillTreeReadSharedState = function(container) {
 				const scope = lensDrillRerenderScope(container);
-				return scope ? scope.__lensCircularDrillSharedState : null;
+				return scope ? scope.__lensDrillTreeSharedState : null;
 			};
-			const lensCircularShowBack = function(container, chartContext, cfg) {
-				lensDrillShowBackButton(container, '← ' + cfg.backLabel, function() {
-					const state = container.__lensCircularDrillState;
-					if (!state || !state.stack.length) {
-						return;
-					}
-					const previous = state.stack.pop();
-					state.items = previous.items;
-					state.path.pop();
-					if (previous.view.totalBadgeText) {
-						container.__lensTotalBadgeTextOverride = previous.view.totalBadgeText;
-					} else {
-						delete container.__lensTotalBadgeTextOverride;
-					}
-					chartContext.updateOptions({
-						series: previous.view.series,
-						labels: previous.view.labels,
-						colors: previous.view.colors,
-						legend: { show: previous.view.legendShow },
-					}, true, true);
-					container.__apexCircularOriginalSeries = Array.from(previous.view.series);
-					if (state.stack.length) {
-						lensCircularShowBack(container, chartContext, cfg);
-					} else {
-						lensDrillHideBackButton(container);
-					}
-					lensCircularWriteSharedState(container, state.path);
-				});
+			const lensDrillTreeEnsureA11y = function(container, cfg) {
+				if (!container.__lensDrillTreeA11yID) {
+					window.__lensDrillTreeA11yCount = (window.__lensDrillTreeA11yCount || 0) + 1;
+					container.__lensDrillTreeA11yID = 'lens-drill-tree-' + window.__lensDrillTreeA11yCount;
+				}
+				const id = container.__lensDrillTreeA11yID;
+				container.setAttribute('role', 'group');
+				container.setAttribute('aria-label', cfg.rootLabel || 'Chart details');
+				container.setAttribute('tabindex', '0');
+				let instructions = container.querySelector('[data-lens-drill-tree-instructions]');
+				if (!instructions) {
+					instructions = document.createElement('span');
+					instructions.className = 'lens-drill-tree__sr';
+					instructions.id = id + '-instructions';
+					instructions.setAttribute('data-lens-drill-tree-instructions', 'true');
+					instructions.textContent = lensDrillTreeText().instructions;
+					container.appendChild(instructions);
+				}
+				container.setAttribute('aria-describedby', instructions.id);
+				let live = container.querySelector('[data-lens-drill-tree-live]');
+				if (!live) {
+					live = document.createElement('span');
+					live.className = 'lens-drill-tree__sr';
+					live.setAttribute('data-lens-drill-tree-live', 'true');
+					live.setAttribute('aria-live', 'polite');
+					live.setAttribute('aria-atomic', 'true');
+					container.appendChild(live);
+				}
 			};
-			const lensCircularZoomToDetail = function(container, chartContext, cfg, detail, detailTotal, pathIndex, animate) {
-				const state = container.__lensCircularDrillState;
-				if (!state || !Array.isArray(detail) || !detail.length) {
+			const lensDrillTreeAnnounce = function(container, resolution) {
+				const live = container.querySelector('[data-lens-drill-tree-live]');
+				if (!live) {
 					return;
 				}
-				const current = lensCircularCapture(chartContext);
-				state.stack.push({ view: current, items: state.items });
-				state.items = detail;
-				state.path.push(pathIndex);
-				const fallbackColors = current.colors.length ? current.colors : ['#2563eb'];
-				const colors = detail.map(function(item, index) {
-					return item.color || fallbackColors[index % fallbackColors.length];
-				});
-				container.__lensTotalBadgeTextOverride = detailTotal || '';
-				const detailSeries = detail.map(function(item) { return item.value; });
-				chartContext.updateOptions({
-					series: detailSeries,
-					labels: detail.map(function(item) { return item.label; }),
-					colors: colors,
-					legend: { show: true },
-				}, true, animate !== false);
-				container.__apexCircularOriginalSeries = Array.from(detailSeries);
-				lensCircularShowBack(container, chartContext, cfg);
-				lensCircularWriteSharedState(container, state.path);
+				const total = resolution.context.totalFormatted || '';
+				live.textContent = [resolution.context.label, total, String(resolution.items.length)].filter(Boolean).join('. ');
 			};
-			const lensCircularNavigate = function(container, cfg, actionURL) {
-				if (!actionURL) {
+			const lensDrillTreeRemoveNav = function(container) {
+				const nav = container.querySelector('[data-lens-drill-tree-nav]');
+				if (nav) {
+					nav.remove();
+				}
+			};
+			const lensDrillTreeRenderNav = function(container, chartContext, cfg, resolution) {
+				lensDrillTreeRemoveNav(container);
+				if (!resolution.path.length) {
 					return;
 				}
-				const parsed = new URL(actionURL, window.location.href);
+				const state = container.__lensDrillTreeState;
+				const text = lensDrillTreeText();
+				const nav = document.createElement('div');
+				nav.className = 'lens-drill-tree__nav';
+				nav.setAttribute('data-lens-drill-tree-nav', 'true');
+
+				const back = document.createElement('button');
+				back.type = 'button';
+				back.className = 'lens-drill-tree__control';
+				back.setAttribute('data-lens-drill-tree-back', 'true');
+				back.setAttribute('aria-label', cfg.backLabel);
+				back.textContent = '← ' + cfg.backLabel;
+				back.addEventListener('click', function() {
+					lensDrillTreeGo(container, chartContext, cfg, state.path.slice(0, -1), 'back', state.path[state.path.length - 1]);
+				});
+				nav.appendChild(back);
+
+				const path = document.createElement('nav');
+				path.className = 'lens-drill-tree__path';
+				path.setAttribute('aria-label', cfg.rootLabel || 'Drill path');
+				resolution.crumbs.forEach(function(crumb, index) {
+					if (index > 0) {
+						const separator = document.createElement('span');
+						separator.className = 'lens-drill-tree__separator';
+						if (index < resolution.crumbs.length - 1) {
+							separator.classList.add('lens-drill-tree__separator--collapsed');
+						}
+						separator.setAttribute('aria-hidden', 'true');
+						separator.textContent = '/';
+						path.appendChild(separator);
+					}
+					const button = document.createElement('button');
+					button.type = 'button';
+					button.className = 'lens-drill-tree__crumb';
+					button.textContent = crumb.label;
+					button.title = crumb.label;
+					if (index < resolution.crumbs.length - 2) {
+						button.classList.add('lens-drill-tree__crumb--collapsed');
+					}
+					if (index === resolution.crumbs.length - 1) {
+						button.setAttribute('aria-current', 'page');
+						button.disabled = true;
+					} else {
+						button.addEventListener('click', function() {
+							lensDrillTreeGo(container, chartContext, cfg, crumb.path, 'back', '');
+						});
+					}
+					path.appendChild(button);
+				});
+				nav.appendChild(path);
+
+				const context = document.createElement('div');
+				context.className = 'lens-drill-tree__context';
+				context.setAttribute('data-lens-drill-tree-context', 'true');
+				context.setAttribute('tabindex', '-1');
+				context.textContent = resolution.context.totalFormatted || '';
+				nav.appendChild(context);
+
+				if (resolution.path.length > 1) {
+					const home = document.createElement('button');
+					home.type = 'button';
+					home.className = 'lens-drill-tree__control lens-drill-tree__home';
+					home.setAttribute('aria-label', text.home);
+					home.title = text.home;
+					home.textContent = '⌂';
+					home.addEventListener('click', function() {
+						lensDrillTreeGo(container, chartContext, cfg, [], 'back', '');
+					});
+					nav.appendChild(home);
+				}
+				container.appendChild(nav);
+			};
+			const lensDrillTreeCurrentHidden = function(state) {
+				const level = lensDrillTreeLevelKey(state.path);
+				if (!state.hiddenByLevel[level]) {
+					state.hiddenByLevel[level] = new Set();
+				}
+				return state.hiddenByLevel[level];
+			};
+			const lensDrillTreeSyncContextTotal = function(container) {
+				const context = container.querySelector('[data-lens-drill-tree-context]');
+				const badge = container.querySelector('[data-lens-stacked-total]');
+				if (!context || !badge) {
+					return;
+				}
+				const text = String(badge.textContent || '');
+				const separator = text.indexOf(':');
+				context.textContent = separator >= 0 ? text.slice(separator + 1).trim() : text;
+			};
+			const lensDrillTreeShowEmpty = function(container, chartContext, state, visible) {
+				let empty = container.querySelector('[data-lens-drill-tree-empty]');
+				if (!visible) {
+					if (empty) {
+						empty.remove();
+					}
+					return;
+				}
+				if (empty) {
+					return;
+				}
+				const text = lensDrillTreeText();
+				empty = document.createElement('div');
+				empty.className = 'lens-drill-tree__empty';
+				empty.setAttribute('data-lens-drill-tree-empty', 'true');
+				empty.setAttribute('role', 'status');
+				const label = document.createElement('span');
+				label.textContent = text.allHidden;
+				empty.appendChild(label);
+				const showAll = document.createElement('button');
+				showAll.type = 'button';
+				showAll.className = 'lens-drill-tree__control lens-drill-tree__show-all';
+				showAll.textContent = text.showAll;
+				showAll.addEventListener('click', function() {
+					const legends = Array.from(container.querySelectorAll('.apexcharts-legend-series'));
+					legends.forEach(function(item) {
+						if (item.classList.contains('apexcharts-inactive-legend')) {
+							item.click();
+						}
+					});
+					state.hiddenByLevel[lensDrillTreeLevelKey(state.path)] = new Set();
+					setTimeout(function() { lensDrillTreeEnhance(container, chartContext); }, 80);
+				});
+				empty.appendChild(showAll);
+				container.appendChild(empty);
+			};
+			const lensDrillTreeNodeActionable = function(cfg, state, item) {
+				if (!item) {
+					return false;
+				}
+				if (!state.path.length) {
+					return (cfg.branches || []).some(function(branch) { return branch.triggerKey === item.key; });
+				}
+				return (Array.isArray(item.children) && item.children.length > 0) || Boolean(item.action);
+			};
+			const lensDrillTreeApplyParams = function(params, name, value) {
+				params.delete(name);
+				const values = Array.isArray(value) ? value : [value];
+				values.forEach(function(item) {
+					if (item !== undefined && item !== null && item !== '') {
+						params.append(name, String(item));
+					}
+				});
+			};
+			const lensDrillTreeExecuteAction = function(container, action) {
+				if (!action) {
+					return;
+				}
+				const payload = Object.assign({}, action.payload || {});
+				(action.params || []).forEach(function(param) { payload[param.name] = param.value; });
+				if (action.kind === 'emit_event') {
+					document.dispatchEvent(new CustomEvent(action.event, { detail: payload }));
+					return;
+				}
+				let parsed;
+				try {
+					parsed = new URL(action.url || '', window.location.href);
+				} catch (_) {
+					return;
+				}
 				if ((parsed.protocol !== 'http:' && parsed.protocol !== 'https:') || parsed.origin !== window.location.origin) {
 					return;
 				}
+				const params = new URLSearchParams(parsed.search);
+				Object.entries(action.baseQuery || {}).forEach(function(entry) {
+					const name = entry[0];
+					params.delete(name);
+					(Array.isArray(entry[1]) ? entry[1] : []).forEach(function(value) { params.append(name, String(value)); });
+				});
+				(action.params || []).forEach(function(param) { lensDrillTreeApplyParams(params, param.name, param.value); });
+				parsed.search = params.toString();
 				const nextURL = parsed.pathname + parsed.search + parsed.hash;
-				if (cfg.actionKind === 'htmx_swap' && cfg.actionTarget && typeof htmx !== 'undefined') {
-					const target = document.querySelector(cfg.actionTarget);
-					if (target && window.__lensDrillAjax) {
-						window.__lensDrillAjax(cfg.actionMethod || 'GET', nextURL, target, container);
+				if (action.kind === 'htmx_swap' && typeof htmx !== 'undefined') {
+					let target = null;
+					try {
+						target = action.target ? document.querySelector(action.target) : null;
+					} catch (_) {
+						return;
 					}
+					if (target && window.__lensDrillAjax) {
+						window.__lensDrillAjax(action.method || 'GET', nextURL, target, container);
+					}
+					return;
+				}
+				window.location.href = nextURL;
+			};
+			const lensDrillTreeActivate = function(container, chartContext, cfg, index) {
+				const state = container.__lensDrillTreeState;
+				if (!state || state.locked || index < 0 || index >= state.currentItems.length) {
+					return;
+				}
+				const item = state.currentItems[index];
+				if (!state.path.length) {
+					const branch = (cfg.branches || []).find(function(candidate) { return candidate.triggerKey === item.key; });
+					if (branch && Array.isArray(branch.children) && branch.children.length) {
+						lensDrillTreeGo(container, chartContext, cfg, [branch.triggerKey], 'forward', '');
+					}
+					return;
+				}
+				if (Array.isArray(item.children) && item.children.length) {
+					lensDrillTreeGo(container, chartContext, cfg, state.path.concat(item.key), 'forward', '');
+					return;
+				}
+				lensDrillTreeExecuteAction(container, item.action);
+			};
+			const lensDrillTreeCaptureHidden = function(container, chartContext) {
+				const state = container.__lensDrillTreeState;
+				if (!state || state.restoringHidden) {
+					return;
+				}
+				const legends = Array.from(container.querySelectorAll('.apexcharts-legend-series'));
+				const hidden = new Set();
+				legends.forEach(function(legend, index) {
+					const item = state.currentItems[index];
+					if (item && legend.classList.contains('apexcharts-inactive-legend')) {
+						hidden.add(item.key);
+					}
+				});
+				state.hiddenByLevel[lensDrillTreeLevelKey(state.path)] = hidden;
+				lensDrillTreeWriteSharedState(container, state);
+				lensDrillTreeShowEmpty(container, chartContext, state, state.currentItems.length > 0 && hidden.size === state.currentItems.length);
+				setTimeout(function() {
+					lensDrillTreeSyncContextTotal(container);
+					lensDrillTreeEnhance(container, chartContext);
+				}, 90);
+			};
+			const lensDrillTreeEnhance = function(container, chartContext) {
+				const state = container.__lensDrillTreeState;
+				const cfg = container.__lensDrillTreeCfg;
+				if (!state || !cfg) {
+					return;
+				}
+				const items = state.currentItems || [];
+				const total = items.reduce(function(sum, item) { return sum + (Number(item.value) || 0); }, 0);
+				const legends = Array.from(container.querySelectorAll('.apexcharts-legend-series'));
+				const slices = Array.from(container.querySelectorAll('.apexcharts-pie-area'));
+				const hidden = lensDrillTreeCurrentHidden(state);
+				state.restoringHidden = true;
+				legends.forEach(function(legend, index) {
+					const item = items[index];
+					if (!item) {
+						return;
+					}
+					legend.setAttribute('role', 'checkbox');
+					legend.setAttribute('tabindex', '0');
+					legend.setAttribute('data-lens-drill-key', item.key);
+					legend.setAttribute('aria-checked', legend.classList.contains('apexcharts-inactive-legend') ? 'false' : 'true');
+					legend.setAttribute('aria-label', item.label + ', ' + (item.valueFormatted || item.value));
+					if (hidden.has(item.key) && !legend.classList.contains('apexcharts-inactive-legend')) {
+						legend.click();
+					}
+					if (!legend.__lensDrillTreeBound) {
+						legend.__lensDrillTreeBound = true;
+						legend.addEventListener('click', function() {
+							setTimeout(function() { lensDrillTreeCaptureHidden(container, chartContext); }, 80);
+						});
+						legend.addEventListener('keydown', function(event) {
+							if (event.target !== legend) {
+								return;
+							}
+							if (event.key === 'Enter' || event.key === ' ') {
+								event.preventDefault();
+								legend.click();
+								return;
+							}
+							if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+								event.preventDefault();
+								const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+								const next = legends[(index + direction + legends.length) % legends.length];
+								if (next) { next.focus(); }
+							}
+						});
+					}
+				});
+				state.restoringHidden = false;
+				slices.forEach(function(slice, index) {
+					const item = items[index];
+					if (!item) {
+						return;
+					}
+					const share = total > 0 ? Math.round((Number(item.value) || 0) / total * 1000) / 10 : 0;
+					const rootFallback = !state.path.length && cfg.hasFallbackAction;
+					const actionable = rootFallback || lensDrillTreeNodeActionable(cfg, state, item);
+					slice.setAttribute('role', actionable ? 'button' : 'img');
+					slice.setAttribute('tabindex', actionable && index === 0 ? '0' : '-1');
+					slice.setAttribute('data-lens-drill-key', item.key);
+					slice.setAttribute('data-lens-drill-actionable', actionable ? 'true' : 'false');
+					slice.setAttribute('aria-label', [item.label, item.valueFormatted || item.value, share + '%', actionable ? lensDrillTreeText().details : ''].filter(Boolean).join(', '));
+					if (!slice.__lensDrillTreeBound) {
+						slice.__lensDrillTreeBound = true;
+						slice.addEventListener('keydown', function(event) {
+							if (event.key === 'Enter' || event.key === ' ') {
+								event.preventDefault();
+								const currentItem = (state.currentItems || [])[index];
+								if (!currentItem) {
+									return;
+								}
+								if (!state.path.length && !(cfg.branches || []).some(function(branch) { return branch.triggerKey === currentItem.key; })) {
+									if (cfg.hasFallbackAction) {
+										slice.click();
+									}
+								} else {
+									lensDrillTreeActivate(container, chartContext, cfg, index);
+								}
+								return;
+							}
+							if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+								event.preventDefault();
+								const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+								const nextIndex = (index + direction + slices.length) % slices.length;
+								slices.forEach(function(candidate, candidateIndex) { candidate.setAttribute('tabindex', candidateIndex === nextIndex ? '0' : '-1'); });
+								if (slices[nextIndex]) { slices[nextIndex].focus(); }
+							}
+						});
+					}
+				});
+				lensDrillTreeShowEmpty(container, chartContext, state, items.length > 0 && hidden.size === items.length);
+				setTimeout(function() { lensDrillTreeSyncContextTotal(container); }, 100);
+			};
+			const lensDrillTreeRender = function(container, chartContext, cfg, requestedPath, skipRootUpdate) {
+				const state = container.__lensDrillTreeState;
+				chartContext = lensDrillTreeLiveChartContext(container, chartContext);
+				if (!state || !chartContext) {
+					return null;
+				}
+				const resolution = lensDrillTreeResolve(cfg, state, requestedPath);
+				state.path = resolution.path;
+				state.currentItems = resolution.items;
+				state.currentResolution = resolution;
+				if (!resolution.path.length) {
+					delete container.__lensTotalBadgeUseDynamicSeries;
+					if (state.rootView.totalBadgeText) {
+						container.__lensTotalBadgeTextOverride = state.rootView.totalBadgeText;
+					} else {
+						delete container.__lensTotalBadgeTextOverride;
+					}
+					if (!skipRootUpdate) {
+						chartContext.updateOptions({
+							series: state.rootView.series,
+							labels: state.rootView.labels,
+							colors: state.rootView.colors,
+							legend: { show: state.rootView.legendShow },
+							grid: { padding: { top: state.rootView.gridTop } },
+						}, true, false, false);
+					}
+					container.__apexCircularOriginalSeries = Array.from(state.rootView.series);
 				} else {
-					window.location.href = nextURL;
+					delete container.__lensTotalBadgeTextOverride;
+					container.__lensTotalBadgeUseDynamicSeries = true;
+					const fallbackColors = state.rootView.colors.length ? state.rootView.colors : ['#2563eb'];
+					const colors = resolution.items.map(function(item, index) { return item.color || fallbackColors[index % fallbackColors.length]; });
+					const series = resolution.items.map(function(item) { return item.value; });
+					chartContext.updateOptions({
+						series: series,
+						labels: resolution.items.map(function(item) { return item.label; }),
+						colors: colors,
+						legend: { show: true },
+						grid: { padding: { top: LENS_DRILL_TREE_TOP_PADDING } },
+					}, true, false, false);
+					container.__apexCircularOriginalSeries = Array.from(series);
+				}
+				lensDrillTreeRenderNav(container, chartContext, cfg, resolution);
+				lensDrillTreeWriteSharedState(container, state);
+				lensDrillTreeAnnounce(container, resolution);
+				setTimeout(function() { lensDrillTreeEnhance(container, chartContext); }, 0);
+				setTimeout(function() { lensDrillTreeEnhance(container, chartContext); }, 100);
+				return resolution;
+			};
+			const lensDrillTreeFocusAfter = function(container, restoreKey) {
+				if (restoreKey) {
+					const legend = Array.from(container.querySelectorAll('.apexcharts-legend-series')).find(function(item) {
+						return item.getAttribute('data-lens-drill-key') === restoreKey;
+					});
+					if (legend) {
+						legend.focus();
+						return;
+					}
+				}
+				const context = container.querySelector('[data-lens-drill-tree-context]');
+				if (context) {
+					context.focus();
+				} else {
+					container.focus();
 				}
 			};
-			window.__lensCircularDrillMount = function(chartContext, cfg) {
+			const lensDrillTreeGo = function(container, chartContext, cfg, path, direction, restoreKey) {
+				const state = container.__lensDrillTreeState;
+				chartContext = lensDrillTreeLiveChartContext(container, chartContext);
+				if (!state || !chartContext || state.locked) {
+					return;
+				}
+				const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+				state.locked = true;
+				container.setAttribute('aria-busy', 'true');
+				const finish = function() {
+					state.locked = false;
+					container.setAttribute('aria-busy', 'false');
+					setTimeout(function() { lensDrillTreeFocusAfter(container, restoreKey); }, 0);
+				};
+				if (reduceMotion) {
+					lensDrillTreeRender(container, chartContext, cfg, path);
+					finish();
+					return;
+				}
+				const leaving = direction === 'back' ? 'lens-drill-tree--leaving-back' : 'lens-drill-tree--leaving-forward';
+				const entering = direction === 'back' ? 'lens-drill-tree--entering-back' : 'lens-drill-tree--entering-forward';
+				container.classList.add(leaving);
+				setTimeout(function() {
+					lensDrillTreeRender(container, chartContext, cfg, path);
+					container.classList.remove(leaving);
+					container.classList.add(entering);
+					void container.offsetWidth;
+					requestAnimationFrame(function() { container.classList.remove(entering); });
+					setTimeout(finish, 140);
+				}, 80);
+			};
+			window.__lensDrillTreeMount = function(chartContext, cfg) {
 				try {
 					if (!chartContext || !chartContext.el || !cfg) {
 						return;
 					}
 					const container = chartContext.el;
-					container.setAttribute('data-lens-circular-drill', 'true');
-					if (!container.__lensCircularDrillState) {
-						container.__lensCircularDrillState = { stack: [], items: null, path: [] };
-					}
-					const shared = lensCircularReadSharedState(container);
-					const state = container.__lensCircularDrillState;
-					if (!shared || !Array.isArray(shared.path) || !shared.path.length || state.stack.length) {
-						return;
-					}
-					const branchIndex = shared.path[0];
-					const branch = Array.isArray(cfg.branches) ? cfg.branches[branchIndex] : null;
-					if (!branch || !Array.isArray(branch.detail) || !branch.detail.length) {
-						return;
-					}
-					lensCircularZoomToDetail(container, chartContext, cfg, branch.detail, branch.detailTotal, branchIndex, false);
-					for (let depth = 1; depth < shared.path.length; depth++) {
-						const itemIndex = shared.path[depth];
-						const item = Array.isArray(state.items) ? state.items[itemIndex] : null;
-						if (!item || !Array.isArray(item.detail) || !item.detail.length) {
-							break;
-						}
-						lensCircularZoomToDetail(container, chartContext, cfg, item.detail, item.detailTotal, itemIndex, false);
+					container.setAttribute('data-lens-drill-tree', 'true');
+					container.__lensDrillTreeCfg = cfg;
+					container.__lensDrillTreeChartContext = chartContext;
+					lensDrillTreeEnsureA11y(container, cfg);
+					const shared = lensDrillTreeReadSharedState(container);
+					container.__lensDrillTreeState = {
+						rootView: lensDrillTreeCapture(chartContext, cfg),
+						path: [],
+						currentItems: [],
+						hiddenByLevel: lensDrillTreeHiddenState(shared && shared.hiddenByLevel),
+						locked: false,
+						restoringHidden: false,
+					};
+					const sharedPath = shared && Array.isArray(shared.path) ? shared.path : [];
+					lensDrillTreeRender(container, chartContext, cfg, sharedPath, sharedPath.length === 0);
+					if (!container.__lensDrillTreeKeyboardBound) {
+						container.__lensDrillTreeKeyboardBound = true;
+						container.addEventListener('keydown', function(event) {
+							const state = container.__lensDrillTreeState;
+							if (event.key !== 'Escape' || !state || !state.path.length || state.locked) {
+								return;
+							}
+							event.preventDefault();
+							event.stopPropagation();
+							lensDrillTreeGo(container, container.__lensDrillTreeChartContext, cfg, state.path.slice(0, -1), 'back', state.path[state.path.length - 1]);
+						});
 					}
 				} catch (_) {
 					// Never throw from a chart lifecycle hook.
 				}
 			};
-			window.__lensCircularDrillClick = function(event, chartContext, opts, cfg) {
+			window.__lensDrillTreeClick = function(event, chartContext, opts, cfg) {
 				try {
 					if (!chartContext || !chartContext.el || !cfg) {
 						return false;
 					}
 					const container = chartContext.el;
-					if (!container.__lensCircularDrillState) {
-						container.__lensCircularDrillState = { stack: [], items: null, path: [] };
+					const state = container.__lensDrillTreeState;
+					if (!state) {
+						return false;
 					}
-					// Apex can report the previous pie's dataPointIndex briefly after
-					// updateOptions() replaces the series. The SVG path's `j` belongs
-					// to the currently visible pie, so it is the authoritative index;
-					// retain the event payload only as a defensive fallback.
 					const sliceTarget = event && event.target && event.target.closest
-						? event.target.closest('.apexcharts-pie-area')
-						: null;
+						? event.target.closest('.apexcharts-pie-area') : null;
 					const eventIndex = sliceTarget ? Number(sliceTarget.getAttribute('j')) : Number.NaN;
 					const optionIndex = opts ? Number(opts.dataPointIndex) : Number.NaN;
 					const index = Number.isInteger(eventIndex) && eventIndex >= 0 ? eventIndex : optionIndex;
-					if (index == null || index < 0) {
+					if (!Number.isInteger(index) || index < 0 || index >= state.currentItems.length) {
 						return false;
 					}
-					const state = container.__lensCircularDrillState;
-					if (Array.isArray(state.items)) {
-						const item = state.items[index];
-						if (item && Array.isArray(item.detail) && item.detail.length) {
-							lensCircularZoomToDetail(container, chartContext, cfg, item.detail, item.detailTotal, index, true);
-						} else if (item && item.actionUrl) {
-							lensCircularNavigate(container, cfg, item.actionUrl);
+					if (!state.path.length) {
+						const key = state.currentItems[index].key;
+						const branch = (cfg.branches || []).find(function(candidate) { return candidate.triggerKey === key; });
+						if (!branch) {
+							return false;
 						}
+					}
+					if (state.locked) {
 						return true;
 					}
-					const config = (chartContext.w && chartContext.w.config) || {};
-					const labels = Array.isArray(config.labels) ? config.labels : [];
-					const branches = Array.isArray(cfg.branches) ? cfg.branches : [];
-					const branchIndex = branches.findIndex(function(branch) {
-						return branch && branch.triggerLabel === labels[index];
-					});
-					if (branchIndex < 0) {
-						return false;
-					}
-					const branch = branches[branchIndex];
-					lensCircularZoomToDetail(container, chartContext, cfg, branch.detail, branch.detailTotal, branchIndex, true);
+					lensDrillTreeActivate(container, chartContext, cfg, index);
 					return true;
 				} catch (_) {
-					// Preserve the panel's ordinary action if the drill handler
-					// cannot safely identify/consume the clicked slice.
 					return false;
 				}
 			};
+
 		})();
 	</script>
 }
