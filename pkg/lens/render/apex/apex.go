@@ -275,6 +275,10 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		if _, ok := drillTreeConfigJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult); ok {
 			chartEvents.DataPointSelection = buildDrillTreeJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult, fallback)
 			chartEvents.Mounted = buildDrillTreeMountJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult, panelSpec.Action != nil)
+			// Apex re-renders (legend toggles, resizes) wipe the chart
+			// element's children, taking the drill toolbar and SR nodes with
+			// them; the sync hook re-establishes the chrome after every update.
+			chartEvents.Updated = chainChartEvent(chartEvents.Updated, drillTreeSyncJS())
 		} else {
 			chartEvents.DataPointSelection = fallback
 		}

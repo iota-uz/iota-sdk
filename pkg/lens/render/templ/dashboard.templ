@@ -514,6 +514,20 @@ templ HiddenQueryInputs(values map[string][]string) {
 }
 
 templ DashboardScripts() {
+	<!-- Server-rendered Phosphor glyphs for the runtime-built drill navigation.
+	     The DrillTree JS clones these instead of embedding SVG paths or falling
+	     back to unicode glyphs, so the chrome stays on the SDK icon system. -->
+	<div data-lens-drill-icons hidden aria-hidden="true">
+		<span data-lens-icon="back">
+			@icons.CaretLeft(icons.Props{Size: "14"})
+		</span>
+		<span data-lens-icon="home">
+			@icons.House(icons.Props{Size: "14"})
+		</span>
+		<span data-lens-icon="sep">
+			@icons.CaretRight(icons.Props{Size: "11"})
+		</span>
+	</div>
 	<style>
 		/* ApexCharts gives bar rects no pointer affordance by default even when
 		   a click handler is wired. Scoped to DrillHierarchy charts (the only
@@ -533,85 +547,111 @@ templ DashboardScripts() {
 			cursor: pointer;
 			transition: filter 120ms ease, opacity 120ms ease;
 		}
-		[data-lens-drill-tree] .apexcharts-pie-area[data-lens-drill-actionable="true"]:hover,
+		[data-lens-drill-tree] .apexcharts-pie-area[data-lens-drill-actionable="true"]:hover {
+			filter: brightness(.92);
+		}
 		[data-lens-drill-tree] .apexcharts-pie-area[data-lens-drill-actionable="true"]:focus-visible {
 			filter: brightness(.9);
-			outline: 2px solid var(--lens-accent-600, #2255d6);
+			outline: 2px solid var(--lens-accent-500, #2563eb);
 			outline-offset: 2px;
 		}
+		/* Ghost controls: quiet by default, surface on hover. Compact on
+		   desktop; the mobile media block below restores 44px touch targets. */
 		.lens-drill-back,
 		.lens-drill-tree__control {
+			position: relative;
 			display: inline-flex;
-			min-width: 44px;
-			min-height: 44px;
+			min-width: 28px;
+			height: 28px;
+			flex: none;
 			align-items: center;
 			justify-content: center;
-			gap: 6px;
-			border: 1px solid var(--lens-border-strong, #cbd5e1);
+			gap: 4px;
+			border: 0;
 			border-radius: var(--lens-radius-control, 6px);
-			background: color-mix(in srgb, var(--lens-bg-card, #fff) 94%, transparent);
-			box-shadow: var(--lens-shadow-card, 0 1px 2px rgba(15, 23, 42, .08));
-			color: var(--lens-text, #334155);
-			font: 600 12px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+			background: transparent;
+			box-shadow: none;
+			color: var(--lens-text-muted, #64748b);
+			font: 550 12px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
 			cursor: pointer;
-			transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+			transition: background-color 120ms ease, color 120ms ease;
 		}
 		.lens-drill-back:hover,
 		.lens-drill-tree__control:hover {
-			border-color: var(--lens-accent-300, #93c5fd);
-			background: var(--lens-accent-50, #eff6ff);
-			color: var(--lens-accent-700, #1d4ed8);
+			background: var(--lens-bg-inset, #f8fafc);
+			color: var(--lens-text-strong, #0f172a);
+		}
+		.lens-drill-back svg,
+		.lens-drill-tree__control svg {
+			display: block;
+			flex: none;
 		}
 		.lens-drill-back:focus-visible,
 		.lens-drill-tree__control:focus-visible,
 		.lens-drill-tree__crumb:focus-visible,
 		[data-lens-drill-tree] .apexcharts-legend-series:focus-visible {
 			outline: 2px solid var(--lens-accent-500, #2563eb);
-			outline-offset: 2px;
+			outline-offset: 1px;
 		}
 		.lens-drill-back {
 			position: absolute;
-			top: 4px;
+			top: 8px;
 			left: 12px;
 			z-index: 7;
-			padding: 0 12px;
+			padding: 0 10px;
 		}
+		/* The toolbar owns the reserved band above the plot (the drilled-state
+		   Apex grid padding); it must never overlap the pie itself. */
 		.lens-drill-tree__nav {
 			position: absolute;
-			top: 2px;
+			top: 8px;
 			left: 12px;
-			right: 170px;
+			right: 12px;
 			z-index: 8;
 			display: flex;
 			min-width: 0;
+			height: 28px;
 			align-items: center;
-			gap: 8px;
+			gap: 2px;
 			pointer-events: none;
 		}
 		.lens-drill-tree__nav > * {
 			pointer-events: auto;
 		}
+		[data-lens-drill-tree][aria-busy="true"] .lens-drill-tree__nav {
+			opacity: .55;
+		}
+		/* Clear the Apex export menu (fullscreen charts render it top-right). */
+		[data-lens-drill-tree]:has(.apexcharts-toolbar) .lens-drill-tree__nav {
+			right: 44px;
+		}
+		/* While the toolbar is up it shows the level total itself, so the
+		   floating top-right badge would be a duplicate — suppress it. */
+		[data-lens-drill-tree][data-lens-drill-nav-active="true"] [data-lens-stacked-total] {
+			display: none;
+		}
 		.lens-drill-tree__path {
 			display: flex;
 			min-width: 0;
-			flex: 1;
+			flex: 0 1 auto;
 			align-items: center;
-			gap: 4px;
+			gap: 2px;
 			overflow: hidden;
 		}
 		.lens-drill-tree__crumb {
 			min-width: 0;
-			max-width: 190px;
+			max-width: 180px;
 			border: 0;
-			border-radius: 4px;
+			border-radius: var(--lens-radius-badge, 4px);
 			background: transparent;
-			padding: 3px 5px;
+			padding: 4px 6px;
 			color: var(--lens-text-muted, #64748b);
-			font: 500 11px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+			font: 500 12px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
 			text-overflow: ellipsis;
 			white-space: nowrap;
 			overflow: hidden;
 			cursor: pointer;
+			transition: background-color 120ms ease, color 120ms ease;
 		}
 		.lens-drill-tree__crumb:hover {
 			background: var(--lens-bg-inset, #f8fafc);
@@ -619,41 +659,49 @@ templ DashboardScripts() {
 		}
 		.lens-drill-tree__crumb[aria-current="page"] {
 			color: var(--lens-text-strong, #0f172a);
-			font-weight: 650;
+			font-weight: 600;
 			cursor: default;
 		}
 		.lens-drill-tree__separator {
 			flex: none;
+			display: inline-flex;
+			align-items: center;
 			color: var(--lens-text-faint, #94a3b8);
 			font-size: 11px;
 		}
+		.lens-drill-tree__separator svg {
+			display: block;
+		}
+		.lens-drill-tree__ellipsis {
+			flex: none;
+			padding: 4px 2px;
+			color: var(--lens-text-faint, #94a3b8);
+			font: 500 12px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+		}
 		.lens-drill-tree__context {
-			min-width: 0;
-			max-width: 210px;
-			border-left: 1px solid var(--lens-border, #e2e8f0);
-			padding-left: 8px;
-			color: var(--lens-text-muted, #64748b);
-			font: 600 11px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
+			flex: none;
+			margin-left: auto;
+			padding: 4px 2px 4px 12px;
+			color: var(--lens-text-strong, #0f172a);
+			font: 600 12px/16px var(--lens-font, Inter, ui-sans-serif, system-ui, sans-serif);
 			font-variant-numeric: tabular-nums;
-			text-overflow: ellipsis;
 			white-space: nowrap;
-			overflow: hidden;
+			outline: none;
 		}
 		.lens-drill-tree__home {
 			flex: none;
-			padding: 0 10px;
 		}
 		[data-lens-drill-tree] .apexcharts-legend-series {
-			min-height: 36px;
+			min-height: 32px;
 			align-items: center;
-			border-radius: 5px;
+			border-radius: var(--lens-radius-badge, 4px);
 		}
 		[data-lens-drill-tree] .apexcharts-legend-series[role="checkbox"] {
 			cursor: pointer;
 		}
 		.lens-drill-tree__empty {
 			position: absolute;
-			inset: 72px 16px 16px;
+			inset: 48px 16px 16px;
 			z-index: 6;
 			display: flex;
 			flex-direction: column;
@@ -667,26 +715,30 @@ templ DashboardScripts() {
 		}
 		.lens-drill-tree__show-all {
 			padding: 0 14px;
+			border: 1px solid var(--lens-border, #e2e8f0);
+			color: var(--lens-text, #334155);
 		}
+		/* Directional slide+fade: quick, subtle, no scale pulse and no
+		   near-blank flash (opacity floor keeps the plot readable mid-swap). */
 		[data-lens-drill-tree] .apexcharts-canvas {
-			transition: opacity 90ms ease, transform 90ms ease;
+			transition: opacity 200ms cubic-bezier(.2, 0, .2, 1), transform 200ms cubic-bezier(.2, 0, .2, 1);
 			transform-origin: center;
 		}
 		[data-lens-drill-tree].lens-drill-tree--leaving-forward .apexcharts-canvas {
-			opacity: .12;
-			transform: translateX(-8px) scale(.98);
+			opacity: .35;
+			transform: translateX(-12px);
 		}
 		[data-lens-drill-tree].lens-drill-tree--leaving-back .apexcharts-canvas {
-			opacity: .12;
-			transform: translateX(8px) scale(.98);
+			opacity: .35;
+			transform: translateX(12px);
 		}
 		[data-lens-drill-tree].lens-drill-tree--entering-forward .apexcharts-canvas {
-			opacity: .12;
-			transform: translateX(8px) scale(.98);
+			opacity: .35;
+			transform: translateX(12px);
 		}
 		[data-lens-drill-tree].lens-drill-tree--entering-back .apexcharts-canvas {
-			opacity: .12;
-			transform: translateX(-8px) scale(.98);
+			opacity: .35;
+			transform: translateX(-12px);
 		}
 		[data-lens-drill-tree][aria-busy="true"] .lens-drill-tree__nav button,
 		[data-lens-drill-tree][aria-busy="true"] .apexcharts-legend-series,
@@ -705,17 +757,27 @@ templ DashboardScripts() {
 			border: 0;
 		}
 		@media (max-width: 639px) {
-			.lens-drill-tree__nav {
-				top: 42px;
-				right: 12px;
-			}
+			/* Mobile: current context + Back win; earlier crumbs and the
+			   duplicate total drop out. Visible controls stay compact while an
+			   expanded hit area restores the 44px touch target. */
 			.lens-drill-tree__crumb--collapsed,
 			.lens-drill-tree__separator--collapsed,
+			.lens-drill-tree__ellipsis,
 			.lens-drill-tree__context {
 				display: none;
 			}
 			.lens-drill-tree__crumb {
-				max-width: 125px;
+				max-width: 140px;
+			}
+			.lens-drill-back::after,
+			.lens-drill-tree__control::after,
+			.lens-drill-tree__crumb::after {
+				content: "";
+				position: absolute;
+				inset: -8px;
+			}
+			.lens-drill-tree__crumb {
+				position: relative;
 			}
 			[data-lens-drill-tree] .apexcharts-legend-series {
 				min-height: 44px;
@@ -920,8 +982,16 @@ templ DashboardScripts() {
 					btn.className = 'lens-drill-back';
 					container.appendChild(btn);
 				}
-				btn.textContent = label;
-				btn.setAttribute('aria-label', label);
+				const cleanLabel = String(label || '').replace(/^←\s*/, '');
+				btn.textContent = '';
+				const iconSource = document.querySelector('[data-lens-drill-icons] [data-lens-icon="back"] svg');
+				if (iconSource) {
+					btn.appendChild(iconSource.cloneNode(true));
+					btn.appendChild(document.createTextNode(cleanLabel));
+				} else {
+					btn.textContent = '← ' + cleanLabel;
+				}
+				btn.setAttribute('aria-label', cleanLabel);
 				btn.onclick = onClick;
 			};
 			const lensDrillHideBackButton = function(container) {
@@ -1144,7 +1214,13 @@ templ DashboardScripts() {
 			};
 
 			// ---- Lens first-class keyed DrillTree state machine ----
-			const LENS_DRILL_TREE_TOP_PADDING = 82;
+			// Reserved band above the plot while drilled: 8px inset + 28px
+			// toolbar + 12px clearance. Must track .lens-drill-tree__nav CSS.
+			const LENS_DRILL_TREE_TOP_PADDING = 48;
+			const lensDrillTreeIcon = function(name) {
+				const source = document.querySelector('[data-lens-drill-icons] [data-lens-icon="' + name + '"] svg');
+				return source ? source.cloneNode(true) : null;
+			};
 			const lensDrillTreeText = function() {
 				const lang = String(document.documentElement.lang || '').toLowerCase();
 				if (lang.startsWith('ru')) {
@@ -1285,21 +1361,36 @@ templ DashboardScripts() {
 					live.setAttribute('data-lens-drill-tree-live', 'true');
 					live.setAttribute('aria-live', 'polite');
 					live.setAttribute('aria-atomic', 'true');
+					// Apex re-renders wipe the node right after a drill announce;
+					// restore the pending message so screen readers still get it.
+					live.textContent = container.__lensDrillTreeLastAnnounce || '';
 					container.appendChild(live);
 				}
 			};
 			const lensDrillTreeAnnounce = function(container, resolution) {
-				const live = container.querySelector('[data-lens-drill-tree-live]');
-				if (!live) {
-					return;
-				}
 				const total = resolution.context.totalFormatted || '';
-				live.textContent = [resolution.context.label, total, String(resolution.items.length)].filter(Boolean).join('. ');
+				const message = [resolution.context.label, total, String(resolution.items.length)].filter(Boolean).join('. ');
+				// Record the message even when Apex has just wiped the live
+				// node — EnsureA11y restores it on the recreated node.
+				container.__lensDrillTreeLastAnnounce = message;
+				const live = container.querySelector('[data-lens-drill-tree-live]');
+				if (live) {
+					live.textContent = message;
+				}
 			};
 			const lensDrillTreeRemoveNav = function(container) {
 				const nav = container.querySelector('[data-lens-drill-tree-nav]');
 				if (nav) {
 					nav.remove();
+				}
+				container.removeAttribute('data-lens-drill-nav-active');
+			};
+			const lensDrillTreeControlIcon = function(button, name, fallbackText) {
+				const icon = lensDrillTreeIcon(name);
+				if (icon) {
+					button.appendChild(icon);
+				} else {
+					button.textContent = fallbackText;
 				}
 			};
 			const lensDrillTreeRenderNav = function(container, chartContext, cfg, resolution) {
@@ -1313,12 +1404,16 @@ templ DashboardScripts() {
 				nav.className = 'lens-drill-tree__nav';
 				nav.setAttribute('data-lens-drill-tree-nav', 'true');
 
+				const crumbs = resolution.crumbs;
+				const parentCrumb = crumbs.length > 1 ? crumbs[crumbs.length - 2] : null;
 				const back = document.createElement('button');
 				back.type = 'button';
 				back.className = 'lens-drill-tree__control';
 				back.setAttribute('data-lens-drill-tree-back', 'true');
-				back.setAttribute('aria-label', cfg.backLabel);
-				back.textContent = '← ' + cfg.backLabel;
+				const backName = parentCrumb ? cfg.backLabel + ': ' + parentCrumb.label : cfg.backLabel;
+				back.setAttribute('aria-label', backName);
+				back.title = backName;
+				lensDrillTreeControlIcon(back, 'back', '‹');
 				back.addEventListener('click', function() {
 					lensDrillTreeGo(container, chartContext, cfg, state.path.slice(0, -1), 'back', state.path[state.path.length - 1]);
 				});
@@ -1327,15 +1422,38 @@ templ DashboardScripts() {
 				const path = document.createElement('nav');
 				path.className = 'lens-drill-tree__path';
 				path.setAttribute('aria-label', cfg.rootLabel || 'Drill path');
-				resolution.crumbs.forEach(function(crumb, index) {
-					if (index > 0) {
+				// Deep paths collapse to «root … parent current»: every level
+				// stays reachable through Back, so middle crumbs fold into a
+				// single non-interactive ellipsis instead of a crumb wall.
+				let ellipsisRendered = false;
+				crumbs.forEach(function(crumb, index) {
+					const isLast = index === crumbs.length - 1;
+					const isParent = index === crumbs.length - 2;
+					const isRoot = index === 0;
+					if (!isRoot && !isParent && !isLast) {
+						if (!ellipsisRendered) {
+							ellipsisRendered = true;
+							const ellipsis = document.createElement('span');
+							ellipsis.className = 'lens-drill-tree__ellipsis';
+							ellipsis.setAttribute('aria-hidden', 'true');
+							ellipsis.textContent = '…';
+							path.appendChild(ellipsis);
+						}
+						return;
+					}
+					if (index > 0 && !(ellipsisRendered && isParent)) {
 						const separator = document.createElement('span');
 						separator.className = 'lens-drill-tree__separator';
-						if (index < resolution.crumbs.length - 1) {
+						if (!isLast) {
 							separator.classList.add('lens-drill-tree__separator--collapsed');
 						}
 						separator.setAttribute('aria-hidden', 'true');
-						separator.textContent = '/';
+						const separatorIcon = lensDrillTreeIcon('sep');
+						if (separatorIcon) {
+							separator.appendChild(separatorIcon);
+						} else {
+							separator.textContent = '›';
+						}
 						path.appendChild(separator);
 					}
 					const button = document.createElement('button');
@@ -1343,10 +1461,10 @@ templ DashboardScripts() {
 					button.className = 'lens-drill-tree__crumb';
 					button.textContent = crumb.label;
 					button.title = crumb.label;
-					if (index < resolution.crumbs.length - 2) {
+					if (!isLast && !isParent) {
 						button.classList.add('lens-drill-tree__crumb--collapsed');
 					}
-					if (index === resolution.crumbs.length - 1) {
+					if (isLast) {
 						button.setAttribute('aria-current', 'page');
 						button.disabled = true;
 					} else {
@@ -1371,13 +1489,14 @@ templ DashboardScripts() {
 					home.className = 'lens-drill-tree__control lens-drill-tree__home';
 					home.setAttribute('aria-label', text.home);
 					home.title = text.home;
-					home.textContent = '⌂';
+					lensDrillTreeControlIcon(home, 'home', '⌂');
 					home.addEventListener('click', function() {
 						lensDrillTreeGo(container, chartContext, cfg, [], 'back', '');
 					});
 					nav.appendChild(home);
 				}
 				container.appendChild(nav);
+				container.setAttribute('data-lens-drill-nav-active', 'true');
 			};
 			const lensDrillTreeCurrentHidden = function(state) {
 				const level = lensDrillTreeLevelKey(state.path);
@@ -1420,14 +1539,23 @@ templ DashboardScripts() {
 				showAll.className = 'lens-drill-tree__control lens-drill-tree__show-all';
 				showAll.textContent = text.showAll;
 				showAll.addEventListener('click', function() {
-					const legends = Array.from(container.querySelectorAll('.apexcharts-legend-series'));
-					legends.forEach(function(item) {
-						if (item.classList.contains('apexcharts-inactive-legend')) {
-							item.click();
-						}
-					});
-					state.hiddenByLevel[lensDrillTreeLevelKey(state.path)] = new Set();
-					setTimeout(function() { lensDrillTreeEnhance(container, chartContext); }, 80);
+					// Restoring via legend clicks is unreliable here: our drill
+					// updateOptions calls can wipe Apex's collapsed-series stash
+					// while the zeroed series and collapsed indices survive,
+					// leaving toggles permanently stuck. The level's true values
+					// live in drill state — clear Apex's collapse bookkeeping
+					// and re-render the level from state instead. Chart
+					// re-mounts replace the state object, so always read the
+					// live one off the container rather than the closure.
+					const liveState = container.__lensDrillTreeState || state;
+					liveState.hiddenByLevel[lensDrillTreeLevelKey(liveState.path)] = new Set();
+					lensDrillTreeWriteSharedState(container, liveState);
+					const ctx = lensDrillTreeLiveChartContext(container, chartContext);
+					if (ctx && ctx.w && ctx.w.globals) {
+						ctx.w.globals.collapsedSeries = [];
+						ctx.w.globals.collapsedSeriesIndices = [];
+					}
+					lensDrillTreeRender(container, ctx, container.__lensDrillTreeCfg, liveState.path);
 				});
 				empty.appendChild(showAll);
 				container.appendChild(empty);
@@ -1511,19 +1639,47 @@ templ DashboardScripts() {
 				}
 				lensDrillTreeExecuteAction(container, item.action);
 			};
+			// Apex updates `globals.collapsedSeriesIndices` synchronously on
+			// legend toggles, while the legend's inactive CSS classes are only
+			// rebuilt on the next (animated) redraw. Reading the globals avoids
+			// reconciling against a mid-rebuild legend and re-hiding rows the
+			// user just restored.
+			const lensDrillTreeHiddenFromChart = function(container, chartContext, state) {
+				const hidden = new Set();
+				const items = state.currentItems || [];
+				const ctx = lensDrillTreeLiveChartContext(container, chartContext);
+				const collapsed = ctx && ctx.w && ctx.w.globals && Array.isArray(ctx.w.globals.collapsedSeriesIndices)
+					? ctx.w.globals.collapsedSeriesIndices
+					: null;
+				if (collapsed) {
+					collapsed.forEach(function(index) {
+						const item = items[index];
+						if (item) {
+							hidden.add(item.key);
+						}
+					});
+					return hidden;
+				}
+				Array.from(container.querySelectorAll('.apexcharts-legend-series')).forEach(function(legend, index) {
+					const item = items[index];
+					if (item && legend.classList.contains('apexcharts-inactive-legend')) {
+						hidden.add(item.key);
+					}
+				});
+				return hidden;
+			};
 			const lensDrillTreeCaptureHidden = function(container, chartContext) {
 				const state = container.__lensDrillTreeState;
 				if (!state || state.restoringHidden) {
 					return;
 				}
-				const legends = Array.from(container.querySelectorAll('.apexcharts-legend-series'));
-				const hidden = new Set();
-				legends.forEach(function(legend, index) {
-					const item = state.currentItems[index];
-					if (item && legend.classList.contains('apexcharts-inactive-legend')) {
-						hidden.add(item.key);
-					}
-				});
+				if (lensDrillTreeChartResetToRoot(container, chartContext, state)) {
+					// The chart is showing stale (root) rows; capturing against
+					// the drilled item list would record garbage keys. The
+					// enhance pass re-asserts the level first.
+					return;
+				}
+				const hidden = lensDrillTreeHiddenFromChart(container, chartContext, state);
 				state.hiddenByLevel[lensDrillTreeLevelKey(state.path)] = hidden;
 				lensDrillTreeWriteSharedState(container, state);
 				lensDrillTreeShowEmpty(container, chartContext, state, state.currentItems.length > 0 && hidden.size === state.currentItems.length);
@@ -1532,17 +1688,57 @@ templ DashboardScripts() {
 					lensDrillTreeEnhance(container, chartContext);
 				}, 90);
 			};
-			const lensDrillTreeEnhance = function(container, chartContext) {
+			// Apex can silently reset a chart to its INITIAL (root) options —
+			// e.g. restoring the last collapsed pie slice triggers an internal
+			// resetSeries. Detects a drilled state whose chart shows different
+			// labels than the current level expects.
+			const lensDrillTreeChartResetToRoot = function(container, chartContext, state) {
+				if (!state.path.length) {
+					return false;
+				}
+				const ctx = lensDrillTreeLiveChartContext(container, chartContext);
+				const config = ctx && ctx.w && ctx.w.config;
+				const chartLabels = config && Array.isArray(config.labels) ? config.labels : [];
+				const expected = (state.currentItems || []).map(function(item) { return item.label; });
+				if (!chartLabels.length || !expected.length) {
+					return false;
+				}
+				return chartLabels.join('') !== expected.join('');
+			};
+			// restoreFromState re-applies the stored hidden set onto a freshly
+			// rendered level (drill navigation, mount resume). Passes driven by
+			// user interaction leave the DOM authoritative — clicking from
+			// state there races Apex re-renders and undoes what the user did.
+			const lensDrillTreeEnhance = function(container, chartContext, restoreFromState) {
 				const state = container.__lensDrillTreeState;
 				const cfg = container.__lensDrillTreeCfg;
 				if (!state || !cfg) {
 					return;
+				}
+				if (lensDrillTreeChartResetToRoot(container, chartContext, state)) {
+					// Apex resets to its initial options when the last collapsed
+					// pie slice is restored, and its own semantic for that
+					// interaction is "show everything" — mirror it, then
+					// re-assert the drilled level on top of the reset chart.
+					state.hiddenByLevel[lensDrillTreeLevelKey(state.path)] = new Set();
+					lensDrillTreeWriteSharedState(container, state);
+					lensDrillTreeRender(container, lensDrillTreeLiveChartContext(container, chartContext), cfg, state.path);
+					return;
+				}
+				// Apex re-renders (legend toggles, container resizes, the lazy
+				// fullscreen mount) wipe every child of the chart element,
+				// including the toolbar and the SR live region. Re-establish
+				// both so navigation never silently disappears mid-drill.
+				lensDrillTreeEnsureA11y(container, cfg);
+				if (state.currentResolution && state.path.length && !container.querySelector('[data-lens-drill-tree-nav]')) {
+					lensDrillTreeRenderNav(container, lensDrillTreeLiveChartContext(container, chartContext), cfg, state.currentResolution);
 				}
 				const items = state.currentItems || [];
 				const total = items.reduce(function(sum, item) { return sum + (Number(item.value) || 0); }, 0);
 				const legends = Array.from(container.querySelectorAll('.apexcharts-legend-series'));
 				const slices = Array.from(container.querySelectorAll('.apexcharts-pie-area'));
 				const hidden = lensDrillTreeCurrentHidden(state);
+				let restoreClicks = 0;
 				state.restoringHidden = true;
 				legends.forEach(function(legend, index) {
 					const item = items[index];
@@ -1554,7 +1750,20 @@ templ DashboardScripts() {
 					legend.setAttribute('data-lens-drill-key', item.key);
 					legend.setAttribute('aria-checked', legend.classList.contains('apexcharts-inactive-legend') ? 'false' : 'true');
 					legend.setAttribute('aria-label', item.label + ', ' + (item.valueFormatted || item.value));
-					if (hidden.has(item.key) && !legend.classList.contains('apexcharts-inactive-legend')) {
+					// Apex rebuilds hidden rows with a zeroed series value; keep
+					// the original text so the row stays readable while hidden.
+					const legendText = legend.querySelector('.apexcharts-legend-text');
+					const textCache = container.__lensDrillTreeLegendText = container.__lensDrillTreeLegendText || {};
+					const textKey = lensDrillTreeLevelKey(state.path) + '::' + item.key;
+					if (legendText) {
+						if (!legend.classList.contains('apexcharts-inactive-legend')) {
+							textCache[textKey] = legendText.textContent;
+						} else {
+							legendText.textContent = textCache[textKey] || (item.label + ' · ' + (item.valueFormatted || item.value));
+						}
+					}
+					if (restoreFromState && hidden.has(item.key) && !legend.classList.contains('apexcharts-inactive-legend')) {
+						restoreClicks++;
 						legend.click();
 					}
 					if (!legend.__lensDrillTreeBound) {
@@ -1622,7 +1831,20 @@ templ DashboardScripts() {
 						});
 					}
 				});
-				lensDrillTreeShowEmpty(container, chartContext, state, items.length > 0 && hidden.size === items.length);
+				// The DOM is authoritative after user legend toggles (the 80ms
+				// capture can race Apex's re-render); reconcile state from the
+				// settled classes so the all-hidden state and shared drill
+				// state never drift from what the user actually sees. Skip the
+				// pass that issued restore clicks — its DOM is mid-flight, and
+				// the follow-up `updated` enhance reconciles on settled markup.
+				// Likewise skip while a render's updateOptions is still
+				// in flight: the legend classes are stale until it resolves.
+				if (!restoreClicks && !container.__lensDrillTreeRenderPending) {
+					const domHidden = lensDrillTreeHiddenFromChart(container, chartContext, state);
+					state.hiddenByLevel[lensDrillTreeLevelKey(state.path)] = domHidden;
+					lensDrillTreeWriteSharedState(container, state);
+					lensDrillTreeShowEmpty(container, chartContext, state, items.length > 0 && domHidden.size === items.length);
+				}
 				setTimeout(function() { lensDrillTreeSyncContextTotal(container); }, 100);
 			};
 			const lensDrillTreeRender = function(container, chartContext, cfg, requestedPath, skipRootUpdate) {
@@ -1635,6 +1857,19 @@ templ DashboardScripts() {
 				state.path = resolution.path;
 				state.currentItems = resolution.items;
 				state.currentResolution = resolution;
+				// updateOptions is async; until it settles the legend DOM still
+				// reflects the previous level/toggles, so the enhance-side
+				// DOM→state reconcile must not run against it.
+				let updatePromise = null;
+				// Apex's collapse-restore path assumes axis-series objects and
+				// throws on numeric pie series ("Cannot create property 'data'
+				// on number") if updateOptions runs while a slice is collapsed.
+				// Each level owns its hidden set in drill state and reapplies
+				// it after the swap, so drop Apex's bookkeeping first.
+				if (chartContext.w && chartContext.w.globals) {
+					chartContext.w.globals.collapsedSeries = [];
+					chartContext.w.globals.collapsedSeriesIndices = [];
+				}
 				if (!resolution.path.length) {
 					delete container.__lensTotalBadgeUseDynamicSeries;
 					if (state.rootView.totalBadgeText) {
@@ -1643,7 +1878,7 @@ templ DashboardScripts() {
 						delete container.__lensTotalBadgeTextOverride;
 					}
 					if (!skipRootUpdate) {
-						chartContext.updateOptions({
+						updatePromise = chartContext.updateOptions({
 							series: state.rootView.series,
 							labels: state.rootView.labels,
 							colors: state.rootView.colors,
@@ -1658,7 +1893,7 @@ templ DashboardScripts() {
 					const fallbackColors = state.rootView.colors.length ? state.rootView.colors : ['#2563eb'];
 					const colors = resolution.items.map(function(item, index) { return item.color || fallbackColors[index % fallbackColors.length]; });
 					const series = resolution.items.map(function(item) { return item.value; });
-					chartContext.updateOptions({
+					updatePromise = chartContext.updateOptions({
 						series: series,
 						labels: resolution.items.map(function(item) { return item.label; }),
 						colors: colors,
@@ -1670,8 +1905,17 @@ templ DashboardScripts() {
 				lensDrillTreeRenderNav(container, chartContext, cfg, resolution);
 				lensDrillTreeWriteSharedState(container, state);
 				lensDrillTreeAnnounce(container, resolution);
-				setTimeout(function() { lensDrillTreeEnhance(container, chartContext); }, 0);
-				setTimeout(function() { lensDrillTreeEnhance(container, chartContext); }, 100);
+				container.__lensDrillTreeRenderPending = (container.__lensDrillTreeRenderPending || 0) + 1;
+				const settle = function() {
+					container.__lensDrillTreeRenderPending = Math.max(0, (container.__lensDrillTreeRenderPending || 1) - 1);
+					lensDrillTreeEnhance(container, chartContext, true);
+				};
+				if (updatePromise && typeof updatePromise.then === 'function') {
+					updatePromise.then(settle, settle);
+				} else {
+					setTimeout(settle, 0);
+				}
+				setTimeout(function() { lensDrillTreeEnhance(container, chartContext, true); }, 100);
 				return resolution;
 			};
 			const lensDrillTreeFocusAfter = function(container, restoreKey) {
@@ -1706,21 +1950,27 @@ templ DashboardScripts() {
 					setTimeout(function() { lensDrillTreeFocusAfter(container, restoreKey); }, 0);
 				};
 				if (reduceMotion) {
-					lensDrillTreeRender(container, chartContext, cfg, path);
-					finish();
+					try {
+						lensDrillTreeRender(container, chartContext, cfg, path);
+					} finally {
+						finish();
+					}
 					return;
 				}
 				const leaving = direction === 'back' ? 'lens-drill-tree--leaving-back' : 'lens-drill-tree--leaving-forward';
 				const entering = direction === 'back' ? 'lens-drill-tree--entering-back' : 'lens-drill-tree--entering-forward';
 				container.classList.add(leaving);
 				setTimeout(function() {
-					lensDrillTreeRender(container, chartContext, cfg, path);
-					container.classList.remove(leaving);
-					container.classList.add(entering);
-					void container.offsetWidth;
-					requestAnimationFrame(function() { container.classList.remove(entering); });
-					setTimeout(finish, 140);
-				}, 80);
+					try {
+						lensDrillTreeRender(container, chartContext, cfg, path);
+					} finally {
+						container.classList.remove(leaving);
+						container.classList.add(entering);
+						void container.offsetWidth;
+						requestAnimationFrame(function() { container.classList.remove(entering); });
+						setTimeout(finish, 220);
+					}
+				}, 100);
 			};
 			window.__lensDrillTreeMount = function(chartContext, cfg) {
 				try {
@@ -1755,6 +2005,21 @@ templ DashboardScripts() {
 							lensDrillTreeGo(container, container.__lensDrillTreeChartContext, cfg, state.path.slice(0, -1), 'back', state.path[state.path.length - 1]);
 						});
 					}
+				} catch (_) {
+					// Never throw from a chart lifecycle hook.
+				}
+			};
+			// Re-applies drill chrome after any Apex re-render (legend toggle,
+			// resize, responsive re-layout). Apex wipes the chart element's
+			// children on those paths, which used to strand a drilled chart
+			// with no toolbar. Bound to the chart's `updated` event.
+			window.__lensDrillTreeSync = function(chartContext) {
+				try {
+					const container = chartContext && chartContext.el;
+					if (!container || !container.__lensDrillTreeState || !container.__lensDrillTreeCfg) {
+						return;
+					}
+					lensDrillTreeEnhance(container, chartContext);
 				} catch (_) {
 					// Never throw from a chart lifecycle hook.
 				}

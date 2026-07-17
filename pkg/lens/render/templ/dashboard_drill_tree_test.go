@@ -71,7 +71,7 @@ func TestDashboardScripts_DrillTreeTransitionsRespectMotionPreference(t *testing
 	assert.Contains(t, rendered, "lens-drill-tree--entering-back")
 	assert.Contains(t, rendered, "container.setAttribute('aria-busy', 'true')")
 	assert.Contains(t, rendered, "container.setAttribute('aria-busy', 'false')")
-	assert.Contains(t, rendered, "setTimeout(finish, 140)")
+	assert.Contains(t, rendered, "setTimeout(finish, 220)")
 }
 
 func TestDashboardScripts_DrillControlsUseReusableStyles(t *testing.T) {
@@ -80,7 +80,40 @@ func TestDashboardScripts_DrillControlsUseReusableStyles(t *testing.T) {
 	rendered := renderDashboardScripts(t)
 
 	assert.Contains(t, rendered, ".lens-drill-back,")
-	assert.Contains(t, rendered, "min-height: 44px")
+	// Desktop controls are compact; mobile restores 44px touch targets via an
+	// expanded ::after hit area inside the max-width media block.
+	assert.Contains(t, rendered, "inset: -8px")
 	assert.Contains(t, rendered, "btn.className = 'lens-drill-back'")
 	assert.NotContains(t, rendered, "btn.style.position = 'absolute'")
+}
+
+func TestDashboardScripts_DrillTreeChromeSurvivesApexRerenders(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	// Apex re-renders wipe the chart element's children; the sync hook and the
+	// enhance-side re-establish keep the toolbar and SR nodes alive mid-drill.
+	assert.Contains(t, rendered, "window.__lensDrillTreeSync")
+	assert.Contains(t, rendered, "lensDrillTreeEnsureA11y(container, cfg)")
+	assert.Contains(t, rendered, "data-lens-drill-nav-active")
+}
+
+func TestDashboardScripts_DrillTreeNavUsesIconTemplates(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	// The runtime-built toolbar clones server-rendered Phosphor glyphs instead
+	// of unicode arrows.
+	assert.Contains(t, rendered, "data-lens-drill-icons")
+	assert.Contains(t, rendered, `data-lens-icon="back"`)
+	assert.Contains(t, rendered, `data-lens-icon="home"`)
+	assert.Contains(t, rendered, `data-lens-icon="sep"`)
+	// The DrillTree toolbar must not fall back to text glyphs (the legacy bar
+	// DrillHierarchy keeps its own back-button path with a text fallback).
+	assert.NotContains(t, rendered, "back.textContent = '← '")
+	assert.NotContains(t, rendered, "home.textContent = '⌂'")
+	assert.Contains(t, rendered, "lensDrillTreeControlIcon(back, 'back'")
+	assert.Contains(t, rendered, "lensDrillTreeControlIcon(home, 'home'")
 }

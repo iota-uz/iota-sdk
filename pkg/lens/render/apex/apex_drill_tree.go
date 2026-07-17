@@ -71,6 +71,17 @@ func buildDrillTreeMountJS(
 	}`, configJS, hasFallbackAction))
 }
 
+// drillTreeSyncJS re-applies the DrillTree chrome (toolbar, a11y nodes,
+// legend/slice roles) after any Apex `updated` re-render, which clears the
+// chart element's children.
+func drillTreeSyncJS() templ.JSExpression {
+	return templ.JSExpression(`function(chartContext) {
+		if (window.__lensDrillTreeSync) {
+			window.__lensDrillTreeSync(chartContext);
+		}
+	}`)
+}
+
 func drillTreeConfigJS(
 	spec *panel.DrillTree,
 	fr *frame.Frame,
