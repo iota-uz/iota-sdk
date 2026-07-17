@@ -15,6 +15,13 @@ const (
 	downloadCookiePrefix = "lens_export_"
 )
 
+type DownloadSignal string
+
+const (
+	DownloadSignalStarted DownloadSignal = "started"
+	DownloadSignalError   DownloadSignal = "error"
+)
+
 type ResolveRequest struct {
 	DashboardID, PanelID, SnapshotID string
 	Query                            url.Values
@@ -35,25 +42,25 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
 	snapshotID := strings.TrimSpace(r.URL.Query().Get("snapshot"))
 	if dashboardID == "" {
-		setDownloadSignal(w, r, "error")
+		SetDownloadSignal(w, r, DownloadSignalError)
 		http.Error(w, "dashboard is required", http.StatusBadRequest)
 		return
 	}
 	if h.Authorize != nil {
 		if err := h.Authorize(r.Context(), dashboardID, panelID); err != nil {
-			setDownloadSignal(w, r, "error")
+			SetDownloadSignal(w, r, DownloadSignalError)
 			http.Error(w, "Forbidden", http.StatusForbidden)
 			return
 		}
 	}
 	if h.Resolver == nil {
-		setDownloadSignal(w, r, "error")
+		SetDownloadSignal(w, r, DownloadSignalError)
 		http.Error(w, "export resolver is not configured", http.StatusInternalServerError)
 		return
 	}
 	result, err := h.Resolver.ResolveLensExport(r.Context(), ResolveRequest{DashboardID: dashboardID, PanelID: panelID, SnapshotID: snapshotID, Query: r.URL.Query()})
 	if err != nil {
-		setDownloadSignal(w, r, "error")
+		SetDownloadSignal(w, r, DownloadSignalError)
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
@@ -65,7 +72,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		filename = "dashboard"
 	}
 	filename += ".xlsx"
-	setDownloadSignal(w, r, "started")
+	SetDownloadSignal(w, r, DownloadSignalStarted)
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
 	exporter := h.Exporter
@@ -77,14 +84,17 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func setDownloadSignal(w http.ResponseWriter, r *http.Request, value string) {
+// SetDownloadSignal completes the browser-side export loading state. Custom
+// authorized Lens endpoints must use it as well as the canonical Handler so a
+// failed export cannot leave its button busy indefinitely.
+func SetDownloadSignal(w http.ResponseWriter, r *http.Request, value DownloadSignal) {
 	token := strings.TrimSpace(r.URL.Query().Get(downloadTokenParam))
 	if !validDownloadToken(token) {
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
 		Name:     downloadCookiePrefix + token,
-		Value:    value,
+		Value:    string(value),
 		Path:     "/",
 		MaxAge:   600,
 		SameSite: http.SameSiteLaxMode,
