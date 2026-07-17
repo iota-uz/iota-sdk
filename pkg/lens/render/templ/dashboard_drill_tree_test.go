@@ -1,0 +1,137 @@
+package templ
+
+import (
+	"bytes"
+	"context"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func renderDashboardScripts(t *testing.T) string {
+	t.Helper()
+
+	var html bytes.Buffer
+	require.NoError(t, DashboardScripts().Render(context.Background(), &html))
+	return html.String()
+}
+
+func TestDashboardScripts_DrillTreeUsesStableKeyedState(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "window.__lensDrillTreeMount")
+	assert.Contains(t, rendered, "window.__lensDrillTreeClick")
+	assert.Contains(t, rendered, "candidate.triggerKey === path[0]")
+	assert.Contains(t, rendered, "candidate.key === path[depth]")
+	assert.Contains(t, rendered, "JSON.stringify(Array.isArray(path) ? path : [])")
+	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState")
+	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key]")
+	assert.Contains(t, rendered, "cfg.chartID")
+	assert.Contains(t, rendered, "hiddenByLevel: lensDrillTreeHiddenSnapshot")
+	assert.Contains(t, rendered, "return lensDrillTreeResolve(cfg, state, [])")
+	// Drill updates must stay local to their chart. ApexCharts otherwise updates
+	// every chart in the shared group and strips the sibling trees' enhanced
+	// slice roles, stable keys, and keyboard bindings during the redraw.
+	assert.Contains(t, rendered, "}, true, false, false);")
+}
+
+func TestDashboardScripts_DrillTreeKeepsTabbedChartStateIndependent(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "lensDrillTreeStateKey")
+	assert.Contains(t, rendered, "Object.create(null)")
+	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key] = {")
+	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key] : null")
+}
+
+func TestDashboardScripts_DrillTreeRendersAccessibleNavigation(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "lens-drill-tree__nav")
+	assert.Contains(t, rendered, "data-lens-drill-tree-back")
+	assert.Contains(t, rendered, "aria-current")
+	assert.Contains(t, rendered, "data-lens-drill-tree-context")
+	assert.Contains(t, rendered, "data-lens-drill-tree-live")
+	assert.Contains(t, rendered, "aria-live")
+	assert.Contains(t, rendered, "legend.setAttribute('role', 'checkbox')")
+	assert.Contains(t, rendered, "legend.setAttribute('aria-checked'")
+	assert.Contains(t, rendered, "slice.setAttribute('role', actionable ? 'button' : 'img')")
+	assert.Contains(t, rendered, "!state.path.length && cfg.hasFallbackAction")
+	assert.Contains(t, rendered, "container.__lensTotalBadgeUseDynamicSeries = true")
+	assert.Contains(t, rendered, "delete container.__lensTotalBadgeUseDynamicSeries")
+	assert.Contains(t, rendered, "const currentItem = (state.currentItems || [])[currentIndex]")
+	assert.NotContains(t, rendered, "data-lens-drill-tree-action")
+	assert.Contains(t, rendered, "event.key !== 'Escape'")
+	assert.Contains(t, rendered, "event.key === 'Enter' || event.key === ' '")
+	assert.Contains(t, rendered, "event.key === 'ArrowRight'")
+	assert.Contains(t, rendered, "const lensDrillTreeActionableIndexes")
+	assert.Contains(t, rendered, "actionableIndexes[0] === index")
+	assert.Contains(t, rendered, "const position = liveActionableIndexes.indexOf(currentIndex)")
+	assert.Contains(t, rendered, "chartLabels.some(function(label, index)")
+	assert.NotContains(t, rendered, "chartLabels.join(")
+}
+
+func TestDashboardScripts_DrillTreeTransitionsRespectMotionPreference(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "prefers-reduced-motion: reduce")
+	assert.Contains(t, rendered, "matchMedia('(prefers-reduced-motion: reduce)').matches")
+	assert.Contains(t, rendered, "lens-drill-tree--leaving-forward")
+	assert.Contains(t, rendered, "lens-drill-tree--entering-back")
+	assert.Contains(t, rendered, "container.setAttribute('aria-busy', 'true')")
+	assert.Contains(t, rendered, "container.setAttribute('aria-busy', 'false')")
+	assert.Contains(t, rendered, "setTimeout(finish, 220)")
+}
+
+func TestDashboardScripts_DrillControlsUseReusableStyles(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, ".lens-drill-back,")
+	// Desktop controls are compact; mobile restores 44px touch targets via an
+	// expanded ::after hit area inside the max-width media block.
+	assert.Contains(t, rendered, "inset: -8px")
+	assert.Contains(t, rendered, "btn.className = 'lens-drill-back'")
+	assert.NotContains(t, rendered, "btn.style.position = 'absolute'")
+}
+
+func TestDashboardScripts_DrillTreeChromeSurvivesApexRerenders(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	// Apex re-renders wipe the chart element's children; the sync hook and the
+	// enhance-side re-establish keep the toolbar and SR nodes alive mid-drill.
+	assert.Contains(t, rendered, "window.__lensDrillTreeSync")
+	assert.Contains(t, rendered, "lensDrillTreeEnsureA11y(container, cfg)")
+	assert.Contains(t, rendered, "data-lens-drill-nav-active")
+}
+
+func TestDashboardScripts_DrillTreeNavUsesIconTemplates(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	// The runtime-built toolbar clones server-rendered Phosphor glyphs instead
+	// of unicode arrows.
+	assert.Contains(t, rendered, "data-lens-drill-icons")
+	assert.Contains(t, rendered, `data-lens-icon="back"`)
+	assert.Contains(t, rendered, `data-lens-icon="home"`)
+	assert.Contains(t, rendered, `data-lens-icon="sep"`)
+	// The DrillTree toolbar must not fall back to text glyphs (the legacy bar
+	// DrillHierarchy keeps its own back-button path with a text fallback).
+	assert.NotContains(t, rendered, "back.textContent = '← '")
+	assert.NotContains(t, rendered, "home.textContent = '⌂'")
+	assert.Contains(t, rendered, "lensDrillTreeControlIcon(back, 'back'")
+	assert.Contains(t, rendered, "lensDrillTreeControlIcon(home, 'home'")
+}

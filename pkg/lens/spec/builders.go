@@ -120,6 +120,24 @@ func (b *PanelBuilder) LegendWidth(px int) *PanelBuilder {
 	b.panel.LegendWidthPx = px
 	return b
 }
+func (b *PanelBuilder) LegendOffsetY(px int) *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendOffsetY = px
+	return b
+}
+func (b *PanelBuilder) FloatingLegend() *PanelBuilder {
+	b.panel.ShowLegend = true
+	b.panel.LegendFloating = true
+	return b
+}
+func (b *PanelBuilder) CircularScale(scale float64) *PanelBuilder {
+	b.panel.CircularScale = scale
+	return b
+}
+func (b *PanelBuilder) CircularOffsetX(px int) *PanelBuilder {
+	b.panel.CircularOffsetX = px
+	return b
+}
 func (b *PanelBuilder) TotalBadge() *PanelBuilder { b.panel.ShowTotalBadge = true; return b }
 
 // TotalBadgeValue shows the total badge with a server-computed value instead
@@ -141,10 +159,14 @@ func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
 	b.panel.DrillHierarchy = &h
 	return b
 }
-func (b *PanelBuilder) CircularDrillHierarchy(h panel.CircularDrillHierarchy) *PanelBuilder {
-	b.panel.CircularDrillHierarchy = &h
+
+// DrillTree enables stable, key-based in-place navigation. Configure IDField
+// with the initial dataset field whose values match branch trigger keys.
+func (b *PanelBuilder) DrillTree(tree panel.DrillTree) *PanelBuilder {
+	b.panel.DrillTree = &tree
 	return b
 }
+
 func (b *PanelBuilder) Trend(percent float64, label string) *PanelBuilder {
 	b.panel.Trend = &panel.TrendSpec{Percent: percent, Label: label}
 	return b
@@ -237,6 +259,10 @@ func (b *PanelBuilder) SeriesField(name string) *PanelBuilder {
 }
 func (b *PanelBuilder) CategoryField(name string) *PanelBuilder {
 	b.panel.Fields.Category = name
+	return b
+}
+func (b *PanelBuilder) IDField(name string) *PanelBuilder {
+	b.panel.Fields.ID = name
 	return b
 }
 func (b *PanelBuilder) StartField(name string) *PanelBuilder {

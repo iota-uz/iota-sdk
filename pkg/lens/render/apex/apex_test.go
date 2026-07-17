@@ -790,6 +790,57 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 			},
 		},
 		{
+			name: "circular chart supports floating side legend without shrinking the plot",
+			panelSpec: panel.Pie("reinsurance", "Reinsurance", "products").
+				LabelField("label").
+				ValueField("value").
+				LegendAt(panel.LegendRight).
+				LegendWidth(300).
+				LegendOffsetY(48).
+				FloatingLegend().
+				CircularScale(1.25).
+				CircularOffsetX(-120).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.Legend)
+				require.True(t, *options.Legend.Floating)
+				require.Equal(t, 300, *options.Legend.Width)
+				require.Equal(t, 48, *options.Legend.OffsetY)
+				require.NotNil(t, options.PlotOptions)
+				require.NotNil(t, options.PlotOptions.Pie)
+				require.InDelta(t, 1.25, *options.PlotOptions.Pie.CustomScale, 0.001)
+				require.Equal(t, -120, *options.PlotOptions.Pie.OffsetX)
+				require.Len(t, options.Responsive, 1)
+				mobile := options.Responsive[0].Options
+				require.False(t, *mobile.Legend.Floating)
+				require.Zero(t, *mobile.Legend.Width)
+				require.Zero(t, *mobile.Legend.OffsetY)
+				require.InDelta(t, 1, *mobile.PlotOptions.Pie.CustomScale, 0.001)
+				require.Zero(t, *mobile.PlotOptions.Pie.OffsetX)
+			},
+		},
+		{
+			name: "responsive circular layout preserves donut configuration",
+			panelSpec: panel.Donut("reinsurance", "Reinsurance", "products").
+				LabelField("label").
+				ValueField("value").
+				LegendAt(panel.LegendRight).
+				CircularScale(1.2).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions.Pie.Donut)
+				require.NotNil(t, options.PlotOptions.Pie.Donut.Size)
+				require.Len(t, options.Responsive, 1)
+				mobileDonut := options.Responsive[0].Options.PlotOptions.Pie.Donut
+				require.NotNil(t, mobileDonut)
+				require.Equal(t, *options.PlotOptions.Pie.Donut.Size, *mobileDonut.Size)
+			},
+		},
+		{
 			name: "percentage pie omits additive total",
 			panelSpec: panel.Pie("share-mix", "Share Mix", "products").
 				LabelField("label").

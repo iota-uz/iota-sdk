@@ -148,6 +148,9 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 			size := donutSize
 			options.PlotOptions = &charts.PlotOptions{Pie: &charts.PieDonutConfig{Donut: &charts.DonutSpecifics{Size: &size}}}
 		}
+		if panelSpec.Kind == panel.KindDonut || panelSpec.Kind == panel.KindPie {
+			applyCircularPlotLayout(&options, panelSpec)
+		}
 		if panelSpec.Kind == panel.KindGauge {
 			startAngle := -135
 			endAngle := 225
@@ -263,13 +266,22 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if syncTooltip := distributedTooltipMarkerSyncJS(panelSpec, rows, fields); syncTooltip != "" {
 		chartEvents.DataPointMouseEnter = syncTooltip
 	}
-	if panelSpec.CircularDrillHierarchy != nil && (panelSpec.Kind == panel.KindPie || panelSpec.Kind == panel.KindDonut) {
+	isCircular := panelSpec.Kind == panel.KindPie || panelSpec.Kind == panel.KindDonut
+	if panelSpec.DrillTree != nil && isCircular {
 		var fallback templ.JSExpression
 		if panelSpec.Action != nil {
 			fallback = buildActionJS(panelSpec.Action, fr, fields, panelResult)
 		}
-		chartEvents.DataPointSelection = buildCircularDrillHierarchyJS(panelSpec.CircularDrillHierarchy, panelSpec.Formatter, panelResult.Locale, panelSpec.Action, fallback)
-		chartEvents.Mounted = buildCircularDrillHierarchyMountJS(panelSpec.CircularDrillHierarchy, panelSpec.Formatter, panelResult.Locale, panelSpec.Action)
+		if _, ok := drillTreeConfigJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult); ok {
+			chartEvents.DataPointSelection = buildDrillTreeJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult, fallback)
+			chartEvents.Mounted = buildDrillTreeMountJS(panelSpec.DrillTree, fr, fields, panelSpec.Formatter, panelResult.Locale, panelSpec.Title, panelResult, panelSpec.Action != nil)
+			// Apex re-renders (legend toggles, resizes) wipe the chart
+			// element's children, taking the drill toolbar and SR nodes with
+			// them; the sync hook re-establishes the chrome after every update.
+			chartEvents.Updated = chainChartEvent(chartEvents.Updated, drillTreeSyncJS())
+		} else {
+			chartEvents.DataPointSelection = fallback
+		}
 	} else if panelSpec.Action != nil {
 		chartEvents.DataPointSelection = buildActionJS(panelSpec.Action, fr, fields, panelResult)
 	} else if panelSpec.DrillHierarchy != nil {
@@ -293,8 +305,28 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	if hasChartEvents(chartEvents) {
 		options.Chart.Events = &chartEvents
 	}
-	appendResponsiveDefaults(&options, panelSpec.Kind)
+	appendResponsiveDefaults(&options, panelSpec)
 	return options
+}
+
+func applyCircularPlotLayout(options *charts.ChartOptions, panelSpec panel.Spec) {
+	if options == nil || (panelSpec.Kind != panel.KindPie && panelSpec.Kind != panel.KindDonut) {
+		return
+	}
+	if options.PlotOptions == nil {
+		options.PlotOptions = &charts.PlotOptions{}
+	}
+	if options.PlotOptions.Pie == nil {
+		options.PlotOptions.Pie = &charts.PieDonutConfig{}
+	}
+	if panelSpec.CircularScale > 0 {
+		scale := panelSpec.CircularScale
+		options.PlotOptions.Pie.CustomScale = &scale
+	}
+	if panelSpec.CircularOffsetX != 0 {
+		offset := panelSpec.CircularOffsetX
+		options.PlotOptions.Pie.OffsetX = &offset
+	}
 }
 
 func applyPanelLegendLayout(legend *charts.LegendConfig, panelSpec panel.Spec) {
@@ -304,6 +336,13 @@ func applyPanelLegendLayout(legend *charts.LegendConfig, panelSpec panel.Spec) {
 	if panelSpec.LegendWidthPx > 0 {
 		width := panelSpec.LegendWidthPx
 		legend.Width = &width
+	}
+	if panelSpec.LegendOffsetY != 0 {
+		offset := panelSpec.LegendOffsetY
+		legend.OffsetY = &offset
+	}
+	if panelSpec.LegendFloating {
+		legend.Floating = mapping.Pointer(true)
 	}
 	if panelSpec.LegendPosition == panel.LegendLeft || panelSpec.LegendPosition == panel.LegendRight {
 		align := charts.LegendHorizontalAlignLeft
@@ -532,20 +571,35 @@ func pieLegendFormatterJS(locale string, tooltipFormatter templ.JSExpression) te
 	}`, valueFormatter, locale))
 }
 
-func appendResponsiveDefaults(options *charts.ChartOptions, kind panel.Kind) {
+func appendResponsiveDefaults(options *charts.ChartOptions, panelSpec panel.Spec) {
 	// Circular charts scale via SVG naturally. Side legends still need one
 	// mobile override so the plot is not squeezed into a narrow column.
-	switch kind {
+	switch panelSpec.Kind {
 	case panel.KindPie, panel.KindDonut:
 		if options.Legend != nil && options.Legend.Position != nil &&
 			(*options.Legend.Position == charts.LegendPositionLeft || *options.Legend.Position == charts.LegendPositionRight) {
 			bottom := charts.LegendPositionBottom
+			zero := 0
+			one := 1.0
 			options.Responsive = []charts.ResponsiveBreakpoint{{
 				Breakpoint: 769,
 				Options: charts.ResponsiveOptions{Legend: &charts.LegendConfig{
 					Position: &bottom,
+					Floating: mapping.BoolPointer(false),
+					Width:    &zero,
+					OffsetY:  &zero,
 				}},
 			}}
+			if panelSpec.CircularScale > 0 || panelSpec.CircularOffsetX != 0 {
+				pie := &charts.PieDonutConfig{
+					CustomScale: &one,
+					OffsetX:     &zero,
+				}
+				if options.PlotOptions != nil && options.PlotOptions.Pie != nil {
+					pie.Donut = options.PlotOptions.Pie.Donut
+				}
+				options.Responsive[0].Options.PlotOptions = &charts.PlotOptions{Pie: pie}
+			}
 		}
 		return
 	case panel.KindGauge:
@@ -1208,7 +1262,7 @@ func stackedBarTotalBadgeJS(locale string, formatter templ.JSExpression, staticT
 				badge.textContent = totalLabel + ': ' + el.__lensTotalBadgeTextOverride;
 				return;
 			}
-			if (staticTotalText) {
+			if (staticTotalText && !el.__lensTotalBadgeUseDynamicSeries) {
 				badge.textContent = totalLabel + ': ' + staticTotalText;
 				return;
 			}

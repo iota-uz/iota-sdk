@@ -146,6 +146,25 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
 }
 
+func TestCompilePanelPreservesDrillTree(t *testing.T) {
+	t.Parallel()
+
+	tree := panel.DrillTree{Branches: []panel.DrillBranch{{
+		TriggerKey: "earned",
+		Label:      "Earned",
+		Children:   []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 100}},
+	}}}
+	item := lensspec.Pie("premium", "Premium", "premium_dataset").
+		IDField("metric_key").
+		DrillTree(tree).
+		Build()
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.Equal(t, panel.Ref("metric_key"), compiled.Fields.ID)
+	require.Equal(t, &tree, compiled.DrillTree)
+}
+
 // A stat_group document compiles through to a validated dashboard spec: the
 // group itself carries no dataset, children keep theirs, and the new stat v2
 // fields (status, sparkline, trend.invert, groupLayout) pass through 1:1.
