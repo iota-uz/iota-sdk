@@ -1,7 +1,9 @@
 package apex
 
 import (
+	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -119,13 +121,23 @@ func drillTreeConfigJS(
 	if len(branches) == 0 {
 		return "", false
 	}
-	return mustJSONJS(drillTreeConfig{
+	chartID := ""
+	if panelResult != nil {
+		chartID = panelResult.Panel.ID
+	}
+	config := drillTreeConfig{
+		ChartID:             chartID,
 		RootKeys:            rootKeys,
 		RootValuesFormatted: rootValuesFormatted,
 		RootLabel:           rootLabel,
 		BackLabel:           drillBackLabel(locale),
 		Branches:            branches,
-	}), true
+	}
+	encoded, err := json.Marshal(config)
+	if err != nil {
+		return "", false
+	}
+	return string(encoded), true
 }
 
 func drillTreeRootValues(fr *frame.Frame, idField, valueField panel.FieldRef, formatterSpec *format.Spec, locale string) ([]string, []string, bool) {
@@ -135,7 +147,7 @@ func drillTreeRootValues(fr *frame.Frame, idField, valueField panel.FieldRef, fo
 	for i, row := range rows {
 		value, exists := row[idField.Name()]
 		key, isString := value.(string)
-		if !exists || !isString || strings.TrimSpace(key) == "" {
+		if !exists || !isString || strings.TrimSpace(key) == "" || key != strings.TrimSpace(key) {
 			return nil, nil, false
 		}
 		keys[i] = key
@@ -153,7 +165,7 @@ func drillTreeNodesConfig(
 	configured := make([]drillTreeNodeConfig, 0, len(nodes))
 	total := 0.0
 	for _, node := range nodes {
-		if strings.TrimSpace(node.Key) == "" || strings.TrimSpace(node.Label) == "" || node.Value < 0 {
+		if strings.TrimSpace(node.Key) == "" || node.Key != strings.TrimSpace(node.Key) || strings.TrimSpace(node.Label) == "" || node.Value < 0 || math.IsNaN(node.Value) || math.IsInf(node.Value, 0) {
 			continue
 		}
 		children, childTotal := drillTreeNodesConfig(node.Children, formatterSpec, locale, panelResult)
@@ -172,6 +184,9 @@ func drillTreeNodesConfig(
 		}
 		configured = append(configured, configuredNode)
 		total += node.Value
+		if math.IsNaN(total) || math.IsInf(total, 0) {
+			return nil, 0
+		}
 	}
 	return configured, total
 }
@@ -246,6 +261,7 @@ func drillTreeAction(spec *action.Spec, panelResult *runtime.PanelResult) *drill
 }
 
 type drillTreeConfig struct {
+	ChartID             string                  `json:"chartID,omitempty"`
 	RootKeys            []string                `json:"rootKeys"`
 	RootValuesFormatted []string                `json:"rootValuesFormatted"`
 	RootLabel           string                  `json:"rootLabel,omitempty"`

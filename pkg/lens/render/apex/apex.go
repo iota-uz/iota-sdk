@@ -591,10 +591,14 @@ func appendResponsiveDefaults(options *charts.ChartOptions, panelSpec panel.Spec
 				}},
 			}}
 			if panelSpec.CircularScale > 0 || panelSpec.CircularOffsetX != 0 {
-				options.Responsive[0].Options.PlotOptions = &charts.PlotOptions{Pie: &charts.PieDonutConfig{
+				pie := &charts.PieDonutConfig{
 					CustomScale: &one,
 					OffsetX:     &zero,
-				}}
+				}
+				if options.PlotOptions != nil && options.PlotOptions.Pie != nil {
+					pie.Donut = options.PlotOptions.Pie.Donut
+				}
+				options.Responsive[0].Options.PlotOptions = &charts.PlotOptions{Pie: pie}
 			}
 		}
 		return

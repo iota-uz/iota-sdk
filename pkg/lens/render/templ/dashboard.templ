@@ -1322,10 +1322,18 @@ templ DashboardScripts() {
 				});
 				return hidden;
 			};
+			const lensDrillTreeStateKey = function(container) {
+				const cfg = container && container.__lensDrillTreeCfg;
+				return cfg && typeof cfg.chartID === 'string' && cfg.chartID ? cfg.chartID : null;
+			};
 			const lensDrillTreeWriteSharedState = function(container, state) {
 				const scope = lensDrillRerenderScope(container);
-				if (scope) {
-					scope.__lensDrillTreeSharedState = {
+				const key = lensDrillTreeStateKey(container);
+				if (scope && key) {
+					if (!scope.__lensDrillTreeSharedState) {
+						scope.__lensDrillTreeSharedState = Object.create(null);
+					}
+					scope.__lensDrillTreeSharedState[key] = {
 						path: state.path.slice(),
 						hiddenByLevel: lensDrillTreeHiddenSnapshot(state.hiddenByLevel),
 					};
@@ -1333,7 +1341,8 @@ templ DashboardScripts() {
 			};
 			const lensDrillTreeReadSharedState = function(container) {
 				const scope = lensDrillRerenderScope(container);
-				return scope ? scope.__lensDrillTreeSharedState : null;
+				const key = lensDrillTreeStateKey(container);
+				return scope && key && scope.__lensDrillTreeSharedState ? scope.__lensDrillTreeSharedState[key] : null;
 			};
 			const lensDrillTreeEnsureA11y = function(container, cfg) {
 				if (!container.__lensDrillTreeA11yID) {
@@ -1569,6 +1578,16 @@ templ DashboardScripts() {
 				}
 				return (Array.isArray(item.children) && item.children.length > 0) || Boolean(item.action);
 			};
+			const lensDrillTreeActionableIndexes = function(cfg, state) {
+				const hidden = lensDrillTreeCurrentHidden(state);
+				return (state.currentItems || []).reduce(function(indexes, item, index) {
+					const rootFallback = !state.path.length && cfg.hasFallbackAction;
+					if (!hidden.has(item.key) && (rootFallback || lensDrillTreeNodeActionable(cfg, state, item))) {
+						indexes.push(index);
+					}
+					return indexes;
+				}, []);
+			};
 			const lensDrillTreeApplyParams = function(params, name, value) {
 				params.delete(name);
 				const values = Array.isArray(value) ? value : [value];
@@ -1703,7 +1722,10 @@ templ DashboardScripts() {
 				if (!chartLabels.length || !expected.length) {
 					return false;
 				}
-				return chartLabels.join('') !== expected.join('');
+				if (chartLabels.length !== expected.length) {
+					return true;
+				}
+				return chartLabels.some(function(label, index) { return label !== expected[index]; });
 			};
 			// restoreFromState re-applies the stored hidden set onto a freshly
 			// rendered level (drill navigation, mount resume). Passes driven by
@@ -1790,6 +1812,7 @@ templ DashboardScripts() {
 					}
 				});
 				state.restoringHidden = false;
+				const actionableIndexes = lensDrillTreeActionableIndexes(cfg, state);
 				slices.forEach(function(slice, index) {
 					const item = items[index];
 					if (!item) {
@@ -1799,16 +1822,21 @@ templ DashboardScripts() {
 					const rootFallback = !state.path.length && cfg.hasFallbackAction;
 					const actionable = rootFallback || lensDrillTreeNodeActionable(cfg, state, item);
 					slice.setAttribute('role', actionable ? 'button' : 'img');
-					slice.setAttribute('tabindex', actionable && index === 0 ? '0' : '-1');
+					slice.setAttribute('tabindex', actionableIndexes[0] === index ? '0' : '-1');
 					slice.setAttribute('data-lens-drill-key', item.key);
 					slice.setAttribute('data-lens-drill-actionable', actionable ? 'true' : 'false');
 					slice.setAttribute('aria-label', [item.label, item.valueFormatted || item.value, share + '%', actionable ? lensDrillTreeText().details : ''].filter(Boolean).join(', '));
 					if (!slice.__lensDrillTreeBound) {
 						slice.__lensDrillTreeBound = true;
 						slice.addEventListener('keydown', function(event) {
+							const liveSlices = Array.from(container.querySelectorAll('.apexcharts-pie-area'));
+							const currentIndex = liveSlices.indexOf(slice);
+							if (currentIndex < 0) {
+								return;
+							}
 							if (event.key === 'Enter' || event.key === ' ') {
 								event.preventDefault();
-								const currentItem = (state.currentItems || [])[index];
+								const currentItem = (state.currentItems || [])[currentIndex];
 								if (!currentItem) {
 									return;
 								}
@@ -1817,16 +1845,21 @@ templ DashboardScripts() {
 										slice.click();
 									}
 								} else {
-									lensDrillTreeActivate(container, chartContext, cfg, index);
+									lensDrillTreeActivate(container, chartContext, cfg, currentIndex);
 								}
 								return;
 							}
 							if (event.key === 'ArrowRight' || event.key === 'ArrowDown' || event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
 								event.preventDefault();
+								const liveActionableIndexes = lensDrillTreeActionableIndexes(cfg, state);
+								if (!liveActionableIndexes.length) {
+									return;
+								}
 								const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
-								const nextIndex = (index + direction + slices.length) % slices.length;
-								slices.forEach(function(candidate, candidateIndex) { candidate.setAttribute('tabindex', candidateIndex === nextIndex ? '0' : '-1'); });
-								if (slices[nextIndex]) { slices[nextIndex].focus(); }
+								const position = liveActionableIndexes.indexOf(currentIndex);
+								const nextIndex = liveActionableIndexes[(Math.max(position, 0) + direction + liveActionableIndexes.length) % liveActionableIndexes.length];
+								liveSlices.forEach(function(candidate, candidateIndex) { candidate.setAttribute('tabindex', candidateIndex === nextIndex ? '0' : '-1'); });
+								if (liveSlices[nextIndex]) { liveSlices[nextIndex].focus(); }
 							}
 						});
 					}

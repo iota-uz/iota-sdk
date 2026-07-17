@@ -386,7 +386,7 @@ func TestValidateRejectsEmptyActionURLFieldSource(t *testing.T) {
 	require.ErrorContains(t, err, "action value url requires source name")
 }
 
-func TestValidateAcceptsKeyedPieDrillTree(t *testing.T) {
+func TestValidate_AcceptsKeyedPieDrillTree(t *testing.T) {
 	t.Parallel()
 
 	spec := drillTreeDashboard(t, panel.KindPie, panel.DrillTree{Branches: []panel.DrillBranch{{
@@ -404,7 +404,7 @@ func TestValidateAcceptsKeyedPieDrillTree(t *testing.T) {
 	require.NoError(t, result.Panels["drill"].Error)
 }
 
-func TestValidateRejectsInvalidDrillTrees(t *testing.T) {
+func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -422,6 +422,7 @@ func TestValidateRejectsInvalidDrillTrees(t *testing.T) {
 		{name: "duplicate sibling key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}, {Key: "direct", Label: "Again", Value: 2}}}}}, wantErr: `duplicate child key "direct"`},
 		{name: "negative value", kind: panel.KindDonut, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: -1}}}}}, wantErr: "finite nonnegative value"},
 		{name: "nonfinite value", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: math.Inf(1)}}}}}, wantErr: "finite nonnegative value"},
+		{name: "overflowed sibling total", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: math.MaxFloat64}, {Key: "reinsurance", Label: "Reinsurance", Value: math.MaxFloat64}}}}}, wantErr: "requires finite total"},
 		{name: "children and action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("/portfolio")), Children: []panel.DrillNode{{Key: "q1", Label: "Q1", Value: 1}}}}}}}, wantErr: "cannot have both children and action"},
 		{name: "cube action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.CubeDrill("/portfolio", "source"))}}}}}, wantErr: `unsupported kind "cube_drill"`},
 		{name: "field action source", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("").WithFieldURL("url"))}}}}}, wantErr: "cannot use a field source"},
@@ -444,6 +445,15 @@ func TestValidateRejectsInvalidDrillTrees(t *testing.T) {
 			require.ErrorContains(t, err, test.wantErr)
 		})
 	}
+}
+
+func TestValidate_RejectsNonFiniteCircularScale(t *testing.T) {
+	t.Parallel()
+
+	spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
+	spec.Rows[0].Panels[0].CircularScale = math.Inf(1)
+
+	require.ErrorContains(t, Validate(spec), "circular scale must be finite")
 }
 
 func TestExecuteRejectsDrillTreeWithoutUniqueMatchingDatasetID(t *testing.T) {

@@ -28,12 +28,25 @@ func TestDashboardScripts_DrillTreeUsesStableKeyedState(t *testing.T) {
 	assert.Contains(t, rendered, "candidate.key === path[depth]")
 	assert.Contains(t, rendered, "JSON.stringify(Array.isArray(path) ? path : [])")
 	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState")
+	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key]")
+	assert.Contains(t, rendered, "cfg.chartID")
 	assert.Contains(t, rendered, "hiddenByLevel: lensDrillTreeHiddenSnapshot")
 	assert.Contains(t, rendered, "return lensDrillTreeResolve(cfg, state, [])")
 	// Drill updates must stay local to their chart. ApexCharts otherwise updates
 	// every chart in the shared group and strips the sibling trees' enhanced
 	// slice roles, stable keys, and keyboard bindings during the redraw.
 	assert.Contains(t, rendered, "}, true, false, false);")
+}
+
+func TestDashboardScripts_DrillTreeKeepsTabbedChartStateIndependent(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "lensDrillTreeStateKey")
+	assert.Contains(t, rendered, "Object.create(null)")
+	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key] = {")
+	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key] : null")
 }
 
 func TestDashboardScripts_DrillTreeRendersAccessibleNavigation(t *testing.T) {
@@ -53,11 +66,16 @@ func TestDashboardScripts_DrillTreeRendersAccessibleNavigation(t *testing.T) {
 	assert.Contains(t, rendered, "!state.path.length && cfg.hasFallbackAction")
 	assert.Contains(t, rendered, "container.__lensTotalBadgeUseDynamicSeries = true")
 	assert.Contains(t, rendered, "delete container.__lensTotalBadgeUseDynamicSeries")
-	assert.Contains(t, rendered, "const currentItem = (state.currentItems || [])[index]")
+	assert.Contains(t, rendered, "const currentItem = (state.currentItems || [])[currentIndex]")
 	assert.NotContains(t, rendered, "data-lens-drill-tree-action")
 	assert.Contains(t, rendered, "event.key !== 'Escape'")
 	assert.Contains(t, rendered, "event.key === 'Enter' || event.key === ' '")
 	assert.Contains(t, rendered, "event.key === 'ArrowRight'")
+	assert.Contains(t, rendered, "const lensDrillTreeActionableIndexes")
+	assert.Contains(t, rendered, "actionableIndexes[0] === index")
+	assert.Contains(t, rendered, "const position = liveActionableIndexes.indexOf(currentIndex)")
+	assert.Contains(t, rendered, "chartLabels.some(function(label, index)")
+	assert.NotContains(t, rendered, "chartLabels.join(")
 }
 
 func TestDashboardScripts_DrillTreeTransitionsRespectMotionPreference(t *testing.T) {

@@ -884,6 +884,9 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	if err := validateDrillTree(spec); err != nil {
 		return err
 	}
+	if math.IsNaN(spec.CircularScale) || math.IsInf(spec.CircularScale, 0) {
+		return fmt.Errorf("panel %s circular scale must be finite", spec.ID)
+	}
 	return nil
 }
 
@@ -984,6 +987,7 @@ func validateDrillTree(spec panel.Spec) error {
 
 func validateDrillNodes(panelID, parentPath string, nodes []panel.DrillNode) error {
 	keys := make(map[string]struct{}, len(nodes))
+	total := 0.0
 	for i, node := range nodes {
 		key := strings.TrimSpace(node.Key)
 		if key == "" {
@@ -1002,6 +1006,10 @@ func validateDrillNodes(panelID, parentPath string, nodes []panel.DrillNode) err
 		}
 		if math.IsNaN(node.Value) || math.IsInf(node.Value, 0) || node.Value < 0 {
 			return fmt.Errorf("panel %s drill tree node %s requires finite nonnegative value", panelID, path)
+		}
+		total += node.Value
+		if math.IsNaN(total) || math.IsInf(total, 0) {
+			return fmt.Errorf("panel %s drill tree node group %s requires finite total", panelID, parentPath)
 		}
 		if len(node.Children) > 0 && node.Action != nil {
 			return fmt.Errorf("panel %s drill tree node %s cannot have both children and action", panelID, path)

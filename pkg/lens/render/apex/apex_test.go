@@ -822,6 +822,25 @@ func TestOptionsPanelEnhancements(t *testing.T) {
 			},
 		},
 		{
+			name: "responsive circular layout preserves donut configuration",
+			panelSpec: panel.Donut("reinsurance", "Reinsurance", "products").
+				LabelField("label").
+				ValueField("value").
+				LegendAt(panel.LegendRight).
+				CircularScale(1.2).
+				Build(),
+			panelResult: &runtime.PanelResult{Frames: mustFrameSet(t, productsFrame), Locale: "ru"},
+			assertions: func(t *testing.T, options charts.ChartOptions) {
+				t.Helper()
+				require.NotNil(t, options.PlotOptions.Pie.Donut)
+				require.NotNil(t, options.PlotOptions.Pie.Donut.Size)
+				require.Len(t, options.Responsive, 1)
+				mobileDonut := options.Responsive[0].Options.PlotOptions.Pie.Donut
+				require.NotNil(t, mobileDonut)
+				require.Equal(t, *options.PlotOptions.Pie.Donut.Size, *mobileDonut.Size)
+			},
+		},
+		{
 			name: "percentage pie omits additive total",
 			panelSpec: panel.Pie("share-mix", "Share Mix", "products").
 				LabelField("label").
