@@ -71,7 +71,7 @@ type CachePolicy struct {
 }
 
 // ExportSpec describes the evidence graph exposed by the canonical Lens Excel
-// exporter. EvidenceDataset is intentionally explicit for manual SQL: Lens
+// exporter. EvidenceDatasets are intentionally explicit for manual SQL: Lens
 // cannot safely infer raw contributing rows from arbitrary aggregates.
 type DrillMeta struct {
 	BaseURL             string

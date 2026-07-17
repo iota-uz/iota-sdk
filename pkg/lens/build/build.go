@@ -99,8 +99,8 @@ func StaticDataset(name string, set *frame.FrameSet) lens.DatasetSpec {
 	return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: set.Clone()}
 }
 
-func DatasetExport(spec lens.DatasetSpec, evidenceDataset string, includeUpstream bool) lens.DatasetSpec {
-	spec.Export = exportmeta.Spec{Enabled: true, EvidenceDataset: evidenceDataset, IncludeUpstream: includeUpstream}
+func DatasetExport(spec lens.DatasetSpec, includeUpstream bool, evidenceDatasets ...string) lens.DatasetSpec {
+	spec.Export = exportmeta.Spec{Enabled: true, EvidenceDatasets: append([]string(nil), evidenceDatasets...), IncludeUpstream: includeUpstream}
 	return spec
 }
 

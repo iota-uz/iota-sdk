@@ -554,8 +554,8 @@ func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; 
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
-func (b *Builder) Export(url, evidenceDataset string) *Builder {
-	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDataset: evidenceDataset}
+func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
+	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDatasets: append([]string(nil), evidenceDatasets...)}
 	return b
 }
 func (b *Builder) ClassName(name string) *Builder { b.spec.ClassName = name; return b }

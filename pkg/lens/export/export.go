@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/xuri/excelize/v2"
@@ -93,9 +94,19 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 
 	panels := selectedPanels(req.Result, req.PanelID)
 	exportedDatasets := map[string]bool{}
+	exportOrder := make([]string, 0)
+	addDataset := func(dataset string) bool {
+		dataset = strings.TrimSpace(dataset)
+		if dataset == "" || exportedDatasets[dataset] {
+			return false
+		}
+		exportedDatasets[dataset] = true
+		exportOrder = append(exportOrder, dataset)
+		return true
+	}
 	if req.PanelID == "" {
 		for _, dataset := range req.Result.Spec.Export.EvidenceDatasets {
-			exportedDatasets[dataset] = true
+			addDataset(dataset)
 		}
 	}
 	for _, panelResult := range panels {
@@ -109,31 +120,41 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 		if err := writeFrameSet(file, sheet, panelResult.Frames); err != nil {
 			return err
 		}
-		exportedDatasets[panelResult.Panel.Dataset] = true
-		evidence := panelResult.Panel.Export.EvidenceDataset
-		if evidence == "" {
-			evidence = datasetExport(req.Result.Spec, panelResult.Panel.Dataset).EvidenceDataset
+		addDataset(panelResult.Panel.Dataset)
+		evidence := panelResult.Panel.Export.EvidenceDatasets
+		if len(evidence) == 0 {
+			evidence = datasetExport(req.Result.Spec, panelResult.Panel.Dataset).EvidenceDatasets
 		}
-		if evidence != "" {
-			exportedDatasets[evidence] = true
+		for _, dataset := range evidence {
+			addDataset(dataset)
 		}
 		if panelResult.Panel.Export.IncludeUpstream || datasetExport(req.Result.Spec, panelResult.Panel.Dataset).IncludeUpstream {
-			collectUpstream(req.Result.Spec, panelResult.Panel.Dataset, exportedDatasets)
+			collectUpstream(req.Result.Spec, panelResult.Panel.Dataset, addDataset)
 		}
 	}
-	for dataset := range exportedDatasets {
+	for _, dataset := range exportOrder {
 		if containsPanelDataset(panels, dataset) {
 			continue
 		}
 		result := req.Result.Datasets[dataset]
 		if result == nil || result.Frames == nil {
-			continue
+			return fmt.Errorf("declared export evidence dataset %q is unavailable", dataset)
 		}
-		sheet, sheetErr := newSheet(labels.Breakdown + " " + dataset)
+		datasetSpec := findDataset(req.Result.Spec, dataset)
+		sheetName := labels.Breakdown + " " + dataset
+		if datasetSpec.Export.SheetName != "" {
+			sheetName = datasetSpec.Export.SheetName
+		} else if datasetSpec.Title != "" {
+			sheetName = datasetSpec.Title
+		}
+		sheet, sheetErr := newSheet(sheetName)
 		if sheetErr != nil {
 			return sheetErr
 		}
 		if err := writeFrameSet(file, sheet, result.Frames); err != nil {
+			return err
+		}
+		if err := configureEvidenceSheet(file, sheet, result.Frames, datasetSpec.Export); err != nil {
 			return err
 		}
 	}
@@ -152,6 +173,13 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 		return err
 	}
 	if err := file.DeleteSheet(defaultSheet); err != nil {
+		return err
+	}
+	if err := file.SetCalcProps(&excelize.CalcPropsOptions{
+		CalcMode:       pointer("auto"),
+		FullCalcOnLoad: pointer(true),
+		ForceFullCalc:  pointer(true),
+	}); err != nil {
 		return err
 	}
 	index, _ := file.GetSheetIndex(summary)
@@ -180,29 +208,37 @@ func selectedPanels(result *lensruntime.DashboardResult, id string) []*lensrunti
 	return out
 }
 func datasetExport(spec lens.DashboardSpec, name string) (out struct {
-	EvidenceDataset string
-	IncludeUpstream bool
+	EvidenceDatasets []string
+	IncludeUpstream  bool
 }) {
 	for _, d := range spec.Datasets {
 		if d.Name == name {
-			out.EvidenceDataset = d.Export.EvidenceDataset
+			out.EvidenceDatasets = append([]string(nil), d.Export.EvidenceDatasets...)
 			out.IncludeUpstream = d.Export.IncludeUpstream
 		}
 	}
 	return
 }
-func collectUpstream(spec lens.DashboardSpec, name string, set map[string]bool) {
+func collectUpstream(spec lens.DashboardSpec, name string, add func(string) bool) {
 	for _, d := range spec.Datasets {
 		if d.Name != name {
 			continue
 		}
 		for _, dep := range d.DependsOn {
-			if !set[dep] {
-				set[dep] = true
-				collectUpstream(spec, dep, set)
+			if add(dep) {
+				collectUpstream(spec, dep, add)
 			}
 		}
 	}
+}
+
+func findDataset(spec lens.DashboardSpec, name string) lens.DatasetSpec {
+	for _, dataset := range spec.Datasets {
+		if dataset.Name == name {
+			return dataset
+		}
+	}
+	return lens.DatasetSpec{}
 }
 func containsPanelDataset(panels []*lensruntime.PanelResult, name string) bool {
 	for _, p := range panels {
@@ -263,7 +299,7 @@ func writeFrameSet(file *excelize.File, sheet string, frames *frame.FrameSet) er
 		for i := 0; i < fr.RowCount; i++ {
 			values := make([]any, len(fr.Fields))
 			for col, f := range fr.Fields {
-				values[col] = excelValue(f.Values[i])
+				values[col] = f.Values[i]
 			}
 			if err := writeRow(file, sheet, row, values); err != nil {
 				return err
@@ -283,13 +319,74 @@ func writeRows(file *excelize.File, sheet string, rows [][]any) error {
 }
 func writeRow(file *excelize.File, sheet string, row int, values []any) error {
 	for col, value := range values {
-		if err := file.SetCellValue(sheet, cell(col+1, row), excelValue(value)); err != nil {
+		if err := writeCell(file, sheet, cell(col+1, row), value); err != nil {
 			return err
 		}
 	}
 	return nil
 }
-func cell(col, row int) string { name, _ := excelize.CoordinatesToCellName(col, row); return name }
+
+func writeCell(file *excelize.File, sheet, coordinate string, value any) error {
+	switch item := value.(type) {
+	case frame.Formula:
+		formula := strings.TrimPrefix(strings.TrimSpace(item.Expression), "=")
+		if formula == "" {
+			return file.SetCellValue(sheet, coordinate, excelValue(item.Result))
+		}
+		return file.SetCellFormula(sheet, coordinate, formula)
+	case *frame.Formula:
+		if item == nil {
+			return nil
+		}
+		return writeCell(file, sheet, coordinate, *item)
+	case frame.Hyperlink:
+		if err := file.SetCellValue(sheet, coordinate, item.Label); err != nil {
+			return err
+		}
+		return file.SetCellHyperLink(sheet, coordinate, item.URL, "External")
+	case *frame.Hyperlink:
+		if item == nil {
+			return nil
+		}
+		return writeCell(file, sheet, coordinate, *item)
+	default:
+		return file.SetCellValue(sheet, coordinate, excelValue(value))
+	}
+}
+
+func configureEvidenceSheet(file *excelize.File, sheet string, frames *frame.FrameSet, spec exportmeta.Spec) error {
+	if frames == nil || frames.Primary() == nil {
+		return nil
+	}
+	primary := frames.Primary()
+	if spec.FreezeHeader {
+		if err := file.SetPanes(sheet, &excelize.Panes{Freeze: true, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"}); err != nil {
+			return err
+		}
+	}
+	if tableName := strings.TrimSpace(spec.TableName); tableName != "" && len(primary.Fields) > 0 {
+		endColumn, err := excelize.ColumnNumberToName(len(primary.Fields))
+		if err != nil {
+			return err
+		}
+		endRow := primary.RowCount + 1
+		if endRow < 2 {
+			endRow = 2
+		}
+		if err := file.AddTable(sheet, &excelize.Table{
+			Range:          fmt.Sprintf("A1:%s%d", endColumn, endRow),
+			Name:           tableName,
+			StyleName:      "TableStyleMedium2",
+			ShowRowStripes: pointer(true),
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func pointer[T any](value T) *T { return &value }
+func cell(col, row int) string  { name, _ := excelize.CoordinatesToCellName(col, row); return name }
 func fieldLabel(f frame.Field) string {
 	if label := f.Labels["default"]; label != "" {
 		return label

@@ -3,6 +3,7 @@ package export
 import (
 	"bytes"
 	"context"
+	"io"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -17,16 +18,27 @@ import (
 func TestExporterWritesPanelAndEvidenceWithoutDatasourceQueries(t *testing.T) {
 	t.Parallel()
 	chart := mustFrames(t, "chart", frame.Field{Name: "label", Values: []any{"A"}}, frame.Field{Name: "value", Values: []any{42.0}})
-	evidence := mustFrames(t, "evidence", frame.Field{Name: "policy", Values: []any{"P-1"}}, frame.Field{Name: "amount", Values: []any{42.0}})
+	evidence := mustFrames(t, "evidence",
+		frame.Field{Name: "policy", Values: []any{frame.Hyperlink{URL: "https://example.test/policies/1", Label: "P-1"}}},
+		frame.Field{Name: "amount", Values: []any{42.0}},
+		frame.Field{Name: "verified", Values: []any{frame.Formula{Expression: "[@amount]", Result: 42.0}}},
+	)
 	panelSpec := panel.Spec{ID: "premium", Title: "Premium", Kind: panel.KindPie, Dataset: "chart", Fields: panel.FieldMapping{Label: panel.Ref("label"), Value: panel.Ref("value")}}
-	result := &lensruntime.DashboardResult{SnapshotID: "snap", Spec: lens.DashboardSpec{Title: "Dashboard", Datasets: []lens.DatasetSpec{{Name: "chart", Export: exportmeta.Spec{EvidenceDataset: "evidence"}}, {Name: "evidence"}}}, Variables: map[string]any{"year": 2026}, Datasets: map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}, "evidence": {Frames: evidence}}, Panels: map[string]*lensruntime.PanelResult{"premium": {Panel: panelSpec, Frames: chart}}}
+	result := &lensruntime.DashboardResult{SnapshotID: "snap", Spec: lens.DashboardSpec{Title: "Dashboard", Datasets: []lens.DatasetSpec{{Name: "chart", Export: exportmeta.Spec{EvidenceDatasets: []string{"evidence"}}}, {Name: "evidence", Title: "Policy evidence", Export: exportmeta.Spec{SheetName: "Policies", TableName: "Policies", FreezeHeader: true}}}}, Variables: map[string]any{"year": 2026}, Datasets: map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}, "evidence": {Frames: evidence}}, Panels: map[string]*lensruntime.PanelResult{"premium": {Panel: panelSpec, Frames: chart}}}
 	var out bytes.Buffer
 	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result, PanelID: "premium"}))
 	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
 	require.NoError(t, err)
 	defer func() { _ = book.Close() }()
 	require.Contains(t, book.GetSheetList(), "Premium")
-	require.Contains(t, book.GetSheetList(), "Breakdown evidence")
+	require.Contains(t, book.GetSheetList(), "Policies")
+	formula, err := book.GetCellFormula("Policies", "C2")
+	require.NoError(t, err)
+	require.Equal(t, "[@amount]", formula)
+	tables, err := book.GetTables("Policies")
+	require.NoError(t, err)
+	require.Len(t, tables, 1)
+	require.Equal(t, "Policies", tables[0].Name)
 }
 
 func TestLabelsForLocaleSupportsEAILocales(t *testing.T) {
@@ -35,6 +47,19 @@ func TestLabelsForLocaleSupportsEAILocales(t *testing.T) {
 	require.Equal(t, "Xulosa", LabelsForLocale("uz").Summary)
 	require.Equal(t, "Хулоса", LabelsForLocale("uz-Cyrl").Summary)
 	require.Equal(t, "Summary", LabelsForLocale("en").Summary)
+}
+
+func TestExporterRejectsMissingDeclaredEvidence(t *testing.T) {
+	t.Parallel()
+	chart := mustFrames(t, "chart", frame.Field{Name: "value", Values: []any{1}})
+	panelSpec := panel.Spec{ID: "premium", Title: "Premium", Dataset: "chart", Export: exportmeta.Spec{EvidenceDatasets: []string{"missing"}}}
+	result := &lensruntime.DashboardResult{
+		Spec:     lens.DashboardSpec{Datasets: []lens.DatasetSpec{{Name: "chart"}}},
+		Datasets: map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}},
+		Panels:   map[string]*lensruntime.PanelResult{"premium": {Panel: panelSpec, Frames: chart}},
+	}
+	err := New().Write(context.Background(), io.Discard, Request{Result: result, PanelID: "premium"})
+	require.ErrorContains(t, err, `declared export evidence dataset "missing" is unavailable`)
 }
 
 func mustFrames(t *testing.T, name string, fields ...frame.Field) *frame.FrameSet {
