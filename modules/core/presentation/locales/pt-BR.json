@@ -90,6 +90,7 @@
     "CloseFullScreen": "Fechar tela cheia",
     "ExpandToFullScreen": "Expandir para tela cheia",
     "ExportExcel": "Exportar para Excel",
+    "ExportGenerating": "Gerando relatório Excel…",
     "LogScale": "Escala logarítmica",
     "LogScaleHint": "Os valores são mostrados em escala logarítmica",
     "MetricInfo": "Como esta métrica é calculada"

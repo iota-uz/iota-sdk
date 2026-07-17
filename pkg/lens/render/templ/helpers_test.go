@@ -589,6 +589,8 @@ func metricInfoContext(t *testing.T, locale language.Tag) context.Context {
 	bundle := i18n.NewBundle(language.English)
 	require.NoError(t, bundle.AddMessages(language.English,
 		&i18n.Message{ID: "Chart.MetricInfo", Other: "How this metric is calculated"},
+		&i18n.Message{ID: "Chart.ExportExcel", Other: "Export to Excel"},
+		&i18n.Message{ID: "Chart.ExportGenerating", Other: "Generating Excel report…"},
 		&i18n.Message{ID: "Lens.Drill.All", Other: "All"},
 		&i18n.Message{ID: "Lens.Chart.Info.SubjectFallback", Other: "this metric"},
 		&i18n.Message{ID: "Lens.Chart.Info.TimeSeries", Other: `Shows how "{{.Subject}}" changes over time. Each point or bar aggregates records into its time period after applying the selected date range and active filters.`},
@@ -601,6 +603,8 @@ func metricInfoContext(t *testing.T, locale language.Tag) context.Context {
 	))
 	require.NoError(t, bundle.AddMessages(language.Russian,
 		&i18n.Message{ID: "Chart.MetricInfo", Other: "Как рассчитывается метрика"},
+		&i18n.Message{ID: "Chart.ExportExcel", Other: "Экспортировать в Excel"},
+		&i18n.Message{ID: "Chart.ExportGenerating", Other: "Формируем Excel-отчёт…"},
 		&i18n.Message{ID: "Lens.Drill.All", Other: "Все"},
 		&i18n.Message{ID: "Lens.Chart.Info.SubjectFallback", Other: "этот показатель"},
 		&i18n.Message{ID: "Lens.Chart.Info.Distribution", Other: "Показывает, как общий итог распределяется по сегментам «{{.Subject}}». Каждый сектор отражает агрегированную долю одной категории за выбранный период и с учетом активных фильтров."},

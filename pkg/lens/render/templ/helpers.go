@@ -1495,6 +1495,7 @@ type chartText struct {
 	MetricInfo         string
 	DrillBack          string
 	ExportExcel        string
+	ExportGenerating   string
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -1522,6 +1523,7 @@ func localizedChartText(ctx context.Context) chartText {
 		MetricInfo:         translate(ctx, "Chart.MetricInfo"),
 		DrillBack:          translate(ctx, "Lens.Drill.Back"),
 		ExportExcel:        translate(ctx, "Chart.ExportExcel"),
+		ExportGenerating:   translate(ctx, "Chart.ExportGenerating"),
 	}
 }
 

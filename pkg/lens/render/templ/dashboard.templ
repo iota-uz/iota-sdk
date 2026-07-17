@@ -801,6 +801,11 @@ templ DashboardScripts() {
 		[data-lens-dashboard] .apexcharts-bar-area:hover {
 			filter: brightness(0.85);
 		}
+		[data-lens-export-button][aria-busy="true"] {
+			cursor: wait;
+			opacity: .7;
+			pointer-events: none;
+		}
 	</style>
 	<script>
 		(function() {
@@ -883,6 +888,84 @@ templ DashboardScripts() {
 					}
 					clearSwapTargetLoading(target.closest('[data-lens-swap-target]'));
 				});
+			});
+
+			const lensExportCookieValue = function(name) {
+				const prefix = name + '=';
+				const row = document.cookie.split('; ').find(function(candidate) { return candidate.indexOf(prefix) === 0; });
+				return row ? row.slice(prefix.length) : '';
+			};
+			const lensExportSetLoading = function(button, active) {
+				if (!button) {
+					return;
+				}
+				const idle = button.querySelector('[data-lens-export-idle]');
+				const loading = button.querySelector('[data-lens-export-loading]');
+				if (idle) {
+					idle.classList.toggle('hidden', active);
+				}
+				if (loading) {
+					loading.classList.toggle('hidden', !active);
+				}
+				if (active) {
+					button.setAttribute('aria-busy', 'true');
+					button.setAttribute('aria-disabled', 'true');
+					button.setAttribute('title', button.dataset.lensExportLoadingLabel || button.title);
+					button.setAttribute('aria-label', button.dataset.lensExportLoadingLabel || button.getAttribute('aria-label'));
+					return;
+				}
+				button.removeAttribute('aria-busy');
+				button.removeAttribute('aria-disabled');
+				button.setAttribute('title', button.dataset.lensExportIdleLabel || button.title);
+				button.setAttribute('aria-label', button.dataset.lensExportIdleLabel || button.getAttribute('aria-label'));
+			};
+			window.__lensStartExport = function(button) {
+				if (!button || button.getAttribute('aria-busy') === 'true') {
+					return;
+				}
+				const token = window.crypto && typeof window.crypto.randomUUID === 'function'
+					? window.crypto.randomUUID()
+					: Date.now().toString(36) + Math.random().toString(36).slice(2);
+				const cookieName = 'lens_export_' + token;
+				const url = new URL(button.href, window.location.href);
+				url.searchParams.set('lens_download_token', token);
+				document.cookie = cookieName + '=; Max-Age=0; path=/; SameSite=Lax';
+				lensExportSetLoading(button, true);
+
+				const frame = document.createElement('iframe');
+				frame.hidden = true;
+				frame.setAttribute('aria-hidden', 'true');
+				frame.src = url.toString();
+				document.body.appendChild(frame);
+
+				let settled = false;
+				let poll = 0;
+				let timeout = 0;
+				const finish = function() {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					window.clearInterval(poll);
+					window.clearTimeout(timeout);
+					document.cookie = cookieName + '=; Max-Age=0; path=/; SameSite=Lax';
+					lensExportSetLoading(button, false);
+					window.setTimeout(function() { frame.remove(); }, 1000);
+				};
+				poll = window.setInterval(function() {
+					if (lensExportCookieValue(cookieName)) {
+						finish();
+					}
+				}, 200);
+				timeout = window.setTimeout(finish, 10 * 60 * 1000);
+			};
+			document.addEventListener('click', function(event) {
+				const button = event.target && event.target.closest ? event.target.closest('[data-lens-export-button]') : null;
+				if (!button) {
+					return;
+				}
+				event.preventDefault();
+				window.__lensStartExport(button);
 			});
 
 			// ---- Lens drill-hierarchy client-side zoom/back state machine ----
@@ -2284,8 +2367,14 @@ templ PanelExportButton(spec panel.Spec) {
 			style="width: 28px; height: 28px; border-radius: 6px; border-color: var(--lens-border); color: var(--lens-text-faint);"
 			title={ chartText.ExportExcel }
 			aria-label={ chartText.ExportExcel }
+			data-lens-export-button
+			data-lens-export-idle-label={ chartText.ExportExcel }
+			data-lens-export-loading-label={ chartText.ExportGenerating }
 		>
-			@icons.DownloadSimple(icons.Props{Size: "14"})
+			<span data-lens-export-idle>
+				@icons.DownloadSimple(icons.Props{Size: "14"})
+			</span>
+			<span class="hidden h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" data-lens-export-loading aria-hidden="true"></span>
 		</a>
 	}
 }

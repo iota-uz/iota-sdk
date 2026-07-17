@@ -90,6 +90,7 @@
     "CloseFullScreen": "Закрыть полноэкранный режим",
     "ExpandToFullScreen": "Развернуть на весь экран",
     "ExportExcel": "Экспортировать в Excel",
+    "ExportGenerating": "Формируем Excel-отчёт…",
     "LogScale": "Логарифмическая шкала",
     "LogScaleHint": "Значения показаны в логарифмической шкале",
     "MetricInfo": "Как рассчитывается метрика"

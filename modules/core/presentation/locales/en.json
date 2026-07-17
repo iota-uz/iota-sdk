@@ -90,6 +90,7 @@
     "CloseFullScreen": "Close fullscreen",
     "ExpandToFullScreen": "Expand to fullscreen",
     "ExportExcel": "Export to Excel",
+    "ExportGenerating": "Generating Excel report…",
     "LogScale": "Log scale",
     "LogScaleHint": "Values are shown on a logarithmic scale",
     "MetricInfo": "How this metric is calculated"
