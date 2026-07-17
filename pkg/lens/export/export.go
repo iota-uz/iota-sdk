@@ -340,10 +340,7 @@ func writeCell(file *excelize.File, sheet, coordinate string, value any) error {
 		}
 		return writeCell(file, sheet, coordinate, *item)
 	case frame.Hyperlink:
-		if err := file.SetCellValue(sheet, coordinate, item.Label); err != nil {
-			return err
-		}
-		return file.SetCellHyperLink(sheet, coordinate, item.URL, "External")
+		return file.SetCellFormula(sheet, coordinate, fmt.Sprintf(`HYPERLINK("%s","%s")`, excelFormulaString(item.URL), excelFormulaString(item.Label)))
 	case *frame.Hyperlink:
 		if item == nil {
 			return nil
@@ -385,8 +382,9 @@ func configureEvidenceSheet(file *excelize.File, sheet string, frames *frame.Fra
 	return nil
 }
 
-func pointer[T any](value T) *T { return &value }
-func cell(col, row int) string  { name, _ := excelize.CoordinatesToCellName(col, row); return name }
+func pointer[T any](value T) *T              { return &value }
+func excelFormulaString(value string) string { return strings.ReplaceAll(value, `"`, `""`) }
+func cell(col, row int) string               { name, _ := excelize.CoordinatesToCellName(col, row); return name }
 func fieldLabel(f frame.Field) string {
 	if label := f.Labels["default"]; label != "" {
 		return label
