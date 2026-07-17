@@ -884,8 +884,8 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	if err := validateDrillTree(spec); err != nil {
 		return err
 	}
-	if math.IsNaN(spec.CircularScale) || math.IsInf(spec.CircularScale, 0) {
-		return fmt.Errorf("panel %s circular scale must be finite", spec.ID)
+	if math.IsNaN(spec.CircularScale) || math.IsInf(spec.CircularScale, 0) || spec.CircularScale < 0 {
+		return fmt.Errorf("panel %s circular scale must be zero or a positive finite value", spec.ID)
 	}
 	return nil
 }
@@ -923,14 +923,31 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 		}
 	}
 	for _, param := range spec.Params {
+		if err := validateActionKey(owner, "parameter name", param.Name); err != nil {
+			return err
+		}
 		if err := validateActionValueSource(owner, param.Name, param.Source, opts); err != nil {
 			return err
 		}
 	}
 	for name, source := range spec.Payload {
+		if err := validateActionKey(owner, "payload key", name); err != nil {
+			return err
+		}
 		if err := validateActionValueSource(owner, name, source, opts); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateActionKey(owner, kind, key string) error {
+	trimmed := strings.TrimSpace(key)
+	if trimmed == "" {
+		return fmt.Errorf("%s action %s cannot be blank", owner, kind)
+	}
+	if trimmed != key {
+		return fmt.Errorf("%s action %s %q has surrounding whitespace", owner, kind, key)
 	}
 	return nil
 }

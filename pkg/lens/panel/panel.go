@@ -240,7 +240,8 @@ type Spec struct {
 	LegendFloating bool
 	// CircularScale and CircularOffsetX let dense pie/donut panels reserve a
 	// stable plot area while a floating side legend occupies the other half.
-	// They are ignored by non-circular panels.
+	// CircularScale is zero when unset and must be positive when configured.
+	// Both settings are ignored by non-circular panels.
 	CircularScale   float64
 	CircularOffsetX int
 	ShowTotalBadge  bool

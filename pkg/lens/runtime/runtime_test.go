@@ -447,13 +447,55 @@ func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
 	}
 }
 
-func TestValidate_RejectsNonFiniteCircularScale(t *testing.T) {
+func TestValidate_RejectsInvalidCircularScale(t *testing.T) {
 	t.Parallel()
 
-	spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
-	spec.Rows[0].Panels[0].CircularScale = math.Inf(1)
+	tests := []struct {
+		name  string
+		scale float64
+	}{
+		{name: "negative", scale: -1},
+		{name: "positive infinity", scale: math.Inf(1)},
+		{name: "negative infinity", scale: math.Inf(-1)},
+		{name: "not a number", scale: math.NaN()},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
+			spec.Rows[0].Panels[0].CircularScale = test.scale
+			require.ErrorContains(t, Validate(spec), "circular scale must be zero or a positive finite value")
+		})
+	}
+}
 
-	require.ErrorContains(t, Validate(spec), "circular scale must be finite")
+func TestValidate_RejectsInvalidActionKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		action  action.Spec
+		wantErr string
+	}{
+		{name: "blank parameter name", action: action.Navigate("/contracts", action.LiteralParam(" ", "active")), wantErr: "action parameter name cannot be blank"},
+		{name: "parameter name with surrounding whitespace", action: action.Navigate("/contracts", action.LiteralParam(" status ", "active")), wantErr: "action parameter name \" status \" has surrounding whitespace"},
+		{name: "blank payload key", action: action.Spec{Kind: action.KindEmitEvent, Event: "selected", Payload: map[string]action.ValueSource{"": action.LiteralValue("active")}}, wantErr: "action payload key cannot be blank"},
+		{name: "payload key with surrounding whitespace", action: action.Spec{Kind: action.KindEmitEvent, Event: "selected", Payload: map[string]action.ValueSource{" status ": action.LiteralValue("active")}}, wantErr: "action payload key \" status \" has surrounding whitespace"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			panelSpec := panel.Bar("sales", "Sales", "dataset").
+				LabelField("label").
+				ValueField("value").
+				Action(test.action).
+				Build()
+			spec := lensbuild.Dashboard("actions", "Actions", lensbuild.Row(panelSpec)).Datasets(
+				lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
+			).Build()
+			require.ErrorContains(t, Validate(spec), test.wantErr)
+		})
+	}
 }
 
 func TestExecuteRejectsDrillTreeWithoutUniqueMatchingDatasetID(t *testing.T) {
