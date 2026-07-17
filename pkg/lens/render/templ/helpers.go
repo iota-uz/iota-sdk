@@ -45,6 +45,21 @@ func panelSpanStyle(span int) templpkg.SafeCSS {
 	return templpkg.SafeCSS("--lens-col-span:" + strconv.Itoa(normalizedSpan(span)))
 }
 
+func panelExportURL(spec panel.Spec) string {
+	base := strings.TrimSpace(spec.Export.URL)
+	if base == "" {
+		return ""
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	query := u.Query()
+	query.Set("panel", spec.ID)
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
 func panelResult(result *runtime.Result, panelID string) *runtime.PanelResult {
 	if result == nil {
 		return nil
@@ -1479,6 +1494,7 @@ type chartText struct {
 	LogScaleHint       string
 	MetricInfo         string
 	DrillBack          string
+	ExportExcel        string
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -1505,6 +1521,7 @@ func localizedChartText(ctx context.Context) chartText {
 		LogScaleHint:       translate(ctx, "Chart.LogScaleHint"),
 		MetricInfo:         translate(ctx, "Chart.MetricInfo"),
 		DrillBack:          translate(ctx, "Lens.Drill.Back"),
+		ExportExcel:        translate(ctx, "Chart.ExportExcel"),
 	}
 }
 

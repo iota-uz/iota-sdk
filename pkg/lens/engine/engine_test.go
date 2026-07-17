@@ -35,7 +35,7 @@ func TestRunExecutesManualStaticDashboard(t *testing.T) {
 		},
 	}
 
-	result, err := Run(context.Background(), doc, lenscompile.Options{
+	result, err := New(nil).Run(context.Background(), doc, lenscompile.Options{
 		Locale: "en",
 		Values: map[string]any{"stats_dataset": stats},
 	}, Request{

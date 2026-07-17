@@ -89,6 +89,7 @@
   "Chart": {
     "CloseFullScreen": "To'liq ekran rejimini yopish",
     "ExpandToFullScreen": "To'liq ekranga kengaytirish",
+    "ExportExcel": "Excel formatiga eksport qilish",
     "LogScale": "Logarifmik shkala",
     "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan",
     "MetricInfo": "Bu metrika qanday hisoblanadi"

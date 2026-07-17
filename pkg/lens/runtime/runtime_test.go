@@ -22,6 +22,10 @@ type stubDataSource struct {
 	calls atomic.Int32
 }
 
+func execute(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
+	return New(Options{}).Execute(ctx, spec, req, DashboardScope())
+}
+
 func (s *stubDataSource) Run(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
 	s.calls.Add(1)
 	fr, err := frame.New(req.Source,
@@ -51,7 +55,7 @@ func TestRunReusesDatasetAcrossPanels(t *testing.T) {
 		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
 	).Build()
 
-	result, err := Run(context.Background(), spec, Request{
+	result, err := execute(context.Background(), spec, Request{
 		DataSources: map[string]datasource.DataSource{"primary": ds},
 	})
 	require.NoError(t, err)
@@ -71,7 +75,7 @@ func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {
 		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
 	).Build()
 
-	result, err := Run(context.Background(), spec, Request{
+	result, err := execute(context.Background(), spec, Request{
 		Path: "/reports/drill/contracts",
 		Request: url.Values{
 			TablePaginationPanelQuery: []string{"p1"},
@@ -208,7 +212,7 @@ func TestRun_Scenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := &stubDataSource{}
-			result, err := Run(context.Background(), tt.spec, Request{
+			result, err := execute(context.Background(), tt.spec, Request{
 				DataSources: map[string]datasource.DataSource{"primary": ds},
 			})
 			require.NoError(t, err)
@@ -399,7 +403,7 @@ func TestValidate_AcceptsKeyedPieDrillTree(t *testing.T) {
 	}}}, frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
 
 	require.NoError(t, Validate(spec))
-	result, err := Run(context.Background(), spec, Request{})
+	result, err := execute(context.Background(), spec, Request{})
 	require.NoError(t, err)
 	require.NoError(t, result.Panels["drill"].Error)
 }
@@ -517,7 +521,7 @@ func TestExecuteRejectsDrillTreeWithoutUniqueMatchingDatasetID(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), test.rows...)
-			result, err := Run(context.Background(), spec, Request{})
+			result, err := execute(context.Background(), spec, Request{})
 			require.NoError(t, err)
 			require.ErrorContains(t, result.Panels["drill"].Error, test.wantErr)
 		})
@@ -565,7 +569,7 @@ func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {
 		lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
 	).Build()
 
-	result, err := Run(context.Background(), spec, Request{})
+	result, err := execute(context.Background(), spec, Request{})
 	require.NoError(t, err)
 	require.Error(t, result.Panels["sales"].Error)
 	require.Contains(t, result.Panels["sales"].Error.Error(), "missing field")

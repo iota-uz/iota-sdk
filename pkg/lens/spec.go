@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -51,8 +52,27 @@ type DashboardSpec struct {
 	Variables   []VariableSpec
 	Datasets    []DatasetSpec
 	Drill       *DrillMeta
+	Cache       CachePolicy
+	Export      exportmeta.Spec
 }
 
+type CacheMode string
+
+const (
+	CacheDefault  CacheMode = "default"
+	CacheDisabled CacheMode = "disabled"
+)
+
+// CachePolicy controls reuse of immutable execution snapshots. Zero values use
+// the Runtime defaults.
+type CachePolicy struct {
+	Mode CacheMode
+	TTL  time.Duration
+}
+
+// ExportSpec describes the evidence graph exposed by the canonical Lens Excel
+// exporter. EvidenceDataset is intentionally explicit for manual SQL: Lens
+// cannot safely infer raw contributing rows from arbitrary aggregates.
 type DrillMeta struct {
 	BaseURL             string
 	Dimensions          []DrillDimensionMeta
@@ -155,6 +175,8 @@ type DatasetSpec struct {
 	Transforms  []transform.Spec
 	Static      *frame.FrameSet
 	Description string
+	Cache       CachePolicy
+	Export      exportmeta.Spec
 }
 
 func ResolveTimeRange(value any) datasource.TimeRange {
@@ -196,6 +218,34 @@ func FindPanel(spec DashboardSpec, panelID string) (panel.Spec, bool) {
 		}
 	}
 	return panel.Spec{}, false
+}
+
+// ApplyExportDefaults enables zero-config panel exports from the dashboard
+// endpoint while preserving panel/dataset evidence overrides.
+func ApplyExportDefaults(spec *DashboardSpec) {
+	if spec == nil || !spec.Export.Enabled {
+		return
+	}
+	var apply func([]panel.Spec)
+	apply = func(items []panel.Spec) {
+		for i := range items {
+			if !items[i].Kind.IsContainer() {
+				if !items[i].Export.Enabled {
+					items[i].Export.Enabled = true
+				}
+				if items[i].Export.URL == "" {
+					items[i].Export.URL = spec.Export.URL
+				}
+				if items[i].Export.Filename == "" {
+					items[i].Export.Filename = spec.Export.Filename
+				}
+			}
+			apply(items[i].Children)
+		}
+	}
+	for i := range spec.Rows {
+		apply(spec.Rows[i].Panels)
+	}
 }
 
 func flattenPanel(spec panel.Spec) []panel.Spec {

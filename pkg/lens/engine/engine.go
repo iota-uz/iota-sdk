@@ -19,16 +19,23 @@ type Result struct {
 	Dashboard *lensruntime.DashboardResult
 }
 
+type Engine struct{ runtime *lensruntime.Runtime }
+
+func New(runtime *lensruntime.Runtime) *Engine {
+	if runtime == nil {
+		runtime = lensruntime.New(lensruntime.Options{})
+	}
+	return &Engine{runtime: runtime}
+}
+
+func (e *Engine) Runtime() *lensruntime.Runtime { return e.runtime }
+
 func Prepare(doc lensspec.Document, opts lenscompile.Options) (lenscompile.CompiledDocument, error) {
 	return lenscompile.Document(doc, opts)
 }
 
-func RunPrepared(ctx context.Context, compiled lenscompile.CompiledDocument, req Request) (*Result, error) {
-	runtimeReq := req.Runtime
-	if runtimeReq.Cache == nil {
-		runtimeReq.Cache = lensruntime.NewMemoryCache()
-	}
-	result, err := lensruntime.RunScope(ctx, compiled.Spec, runtimeReq, req.Scope)
+func (e *Engine) RunPrepared(ctx context.Context, compiled lenscompile.CompiledDocument, req Request) (*Result, error) {
+	result, err := e.runtime.Execute(ctx, compiled.Spec, req.Runtime, req.Scope)
 	if err != nil {
 		return nil, err
 	}
@@ -38,10 +45,10 @@ func RunPrepared(ctx context.Context, compiled lenscompile.CompiledDocument, req
 	}, nil
 }
 
-func Run(ctx context.Context, doc lensspec.Document, compileOpts lenscompile.Options, req Request) (*Result, error) {
+func (e *Engine) Run(ctx context.Context, doc lensspec.Document, compileOpts lenscompile.Options, req Request) (*Result, error) {
 	compiled, err := Prepare(doc, compileOpts)
 	if err != nil {
 		return nil, err
 	}
-	return RunPrepared(ctx, compiled, req)
+	return e.RunPrepared(ctx, compiled, req)
 }

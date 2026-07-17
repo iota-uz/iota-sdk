@@ -69,7 +69,10 @@ func Document(doc lensspec.Document, opts Options) (CompiledDocument, error) {
 			Datasets:    datasets,
 			Rows:        rows,
 			Drill:       doc.Drill,
+			Cache:       lens.CachePolicy{Mode: doc.Cache.Mode, TTL: doc.Cache.TTL.Std()},
+			Export:      doc.Export,
 		}
+		lens.ApplyExportDefaults(&compiled.Spec)
 		return compiled, nil
 	}
 
@@ -86,6 +89,9 @@ func Document(doc lensspec.Document, opts Options) (CompiledDocument, error) {
 	if len(variables) > 0 {
 		compiled.Spec.Variables = variables
 	}
+	compiled.Spec.Cache = lens.CachePolicy{Mode: doc.Cache.Mode, TTL: doc.Cache.TTL.Std()}
+	compiled.Spec.Export = doc.Export
+	lens.ApplyExportDefaults(&compiled.Spec)
 
 	return compiled, nil
 }
@@ -306,6 +312,8 @@ func compileDataset(item lensspec.DatasetSpec, opts Options) (lens.DatasetSpec, 
 		DependsOn:   resolveStringSlice(item.DependsOn, opts.Values),
 		Description: resolveText(item.Description, opts),
 		Static:      item.Static,
+		Cache:       lens.CachePolicy{Mode: item.Cache.Mode, TTL: item.Cache.TTL.Std()},
+		Export:      item.Export,
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
 	if err != nil {
@@ -400,6 +408,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		Distributed: item.Distributed,
 		ColorField:  panel.Ref(resolveString(item.ColorField, opts.Values)),
 		ColorScale:  resolveString(item.ColorScale, opts.Values),
+		Export:      item.Export,
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
 	if err != nil {

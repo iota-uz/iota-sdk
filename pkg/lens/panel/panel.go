@@ -6,6 +6,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
+	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -282,6 +283,7 @@ type Spec struct {
 	Distributed bool
 	ColorField  FieldRef
 	ColorScale  string
+	Export      exportmeta.Spec
 }
 
 // DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
@@ -552,7 +554,11 @@ func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; 
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
-func (b *Builder) ClassName(name string) *Builder   { b.spec.ClassName = name; return b }
+func (b *Builder) Export(url, evidenceDataset string) *Builder {
+	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDataset: evidenceDataset}
+	return b
+}
+func (b *Builder) ClassName(name string) *Builder { b.spec.ClassName = name; return b }
 func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
 	b.spec.ValueAxis.Scale = scale
 	if base > 1 {

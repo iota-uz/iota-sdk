@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
+	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -49,6 +50,13 @@ type Document struct {
 	Measures         []MeasureSpec              `json:"measures,omitempty"`
 	DefaultDimension string                     `json:"defaultDimension,omitempty"`
 	Leaf             *cube.LeafSpec             `json:"leaf,omitempty"`
+	Cache            CachePolicy                `json:"cache,omitempty"`
+	Export           exportmeta.Spec            `json:"export,omitempty"`
+}
+
+type CachePolicy struct {
+	Mode lens.CacheMode `json:"mode,omitempty"`
+	TTL  Duration       `json:"ttl,omitempty"`
 }
 
 type VariableSpec struct {
@@ -117,6 +125,8 @@ type DatasetSpec struct {
 	StaticRef   string           `json:"staticRef,omitempty"`
 	Static      *frame.FrameSet  `json:"-"`
 	Description Text             `json:"description"`
+	Cache       CachePolicy      `json:"cache,omitempty"`
+	Export      exportmeta.Spec  `json:"export,omitempty"`
 }
 
 type RowSpec struct {
@@ -167,6 +177,7 @@ type PanelSpec struct {
 	Distributed     bool                  `json:"distributed,omitempty"`
 	ColorField      string                `json:"colorField,omitempty"`
 	ColorScale      string                `json:"colorScale,omitempty"`
+	Export          exportmeta.Spec       `json:"export,omitempty"`
 }
 
 type TableColumnSpec struct {

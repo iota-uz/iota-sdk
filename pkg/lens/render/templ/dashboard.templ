@@ -2269,8 +2269,24 @@ templ panelCard(spec panel.Spec, bodyClass string, headerExtra templ.Component, 
 templ panelHeaderControls(spec panel.Spec, canFullscreen bool) {
 	{{ chartText := localizedChartText(ctx) }}
 	@PanelLogScaleBadge(spec, chartText, "")
+	@PanelExportButton(spec)
 	if canFullscreen {
 		@PanelFullscreenButton(chartText)
+	}
+}
+
+templ PanelExportButton(spec panel.Spec) {
+	{{ chartText := localizedChartText(ctx) }}
+	if spec.Export.Enabled && panelExportURL(spec) != "" {
+		<a
+			href={ templ.URL(panelExportURL(spec)) }
+			class="inline-flex cursor-pointer items-center justify-center border transition hover:bg-slate-50 hover:text-slate-600"
+			style="width: 28px; height: 28px; border-radius: 6px; border-color: var(--lens-border); color: var(--lens-text-faint);"
+			title={ chartText.ExportExcel }
+			aria-label={ chartText.ExportExcel }
+		>
+			@icons.DownloadSimple(icons.Props{Size: "14"})
+		</a>
 	}
 }
 

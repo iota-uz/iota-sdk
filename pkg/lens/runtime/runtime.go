@@ -25,6 +25,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 )
 
 type DatasetResult struct {
@@ -61,6 +62,7 @@ type DashboardResult struct {
 	Drill       *cube.DrillContext
 	StartedAt   time.Time
 	Duration    time.Duration
+	SnapshotID  string
 }
 
 type Result = DashboardResult
@@ -89,10 +91,51 @@ type Request struct {
 	Request     url.Values
 	Overrides   map[string]any
 	DataSources map[string]datasource.DataSource
-	Cache       Cache
+	// DataScope is a stable, non-secret identity for tenant/authz/data access.
+	// Host applications must change it whenever the visible row set changes.
+	DataScope            string
+	Namespace            string
+	DataSourceIdentities map[string]string
 }
 
-type Runtime = Request
+type Options struct {
+	Store        SnapshotStore
+	DefaultTTL   time.Duration
+	CacheVersion string
+	Observer     Observer
+}
+
+type Observer interface {
+	SnapshotHit(string)
+	SnapshotMiss(string)
+	DatasetExecuted(string, time.Duration)
+}
+
+// Runtime is a long-lived Lens execution service. A process should normally
+// construct one instance and share it across render, fragment and export paths.
+type Runtime struct {
+	store    SnapshotStore
+	ttl      time.Duration
+	version  string
+	observer Observer
+	flights  singleflight.Group
+	mergeMu  sync.Mutex
+}
+
+func New(opts Options) *Runtime {
+	if opts.Store == nil {
+		opts.Store = NewMemorySnapshotStore(MemoryStoreOptions{})
+	}
+	if opts.DefaultTTL <= 0 {
+		opts.DefaultTTL = 5 * time.Minute
+	}
+	if strings.TrimSpace(opts.CacheVersion) == "" {
+		opts.CacheVersion = "v1"
+	}
+	return &Runtime{store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer}
+}
+
+func (r *Runtime) Store() SnapshotStore { return r.store }
 
 type Scope struct {
 	PanelIDs []string
@@ -110,53 +153,12 @@ func PanelScope(panelID string) Scope {
 	return Scope{PanelIDs: []string{panelID}}
 }
 
-type Cache interface {
-	Get(key string) (*frame.FrameSet, bool)
-	Set(key string, value *frame.FrameSet)
-}
-
-type memoryCache struct {
-	mu    sync.RWMutex
-	items map[string]*frame.FrameSet
-}
-
-func NewMemoryCache() Cache {
-	return &memoryCache{items: make(map[string]*frame.FrameSet)}
-}
-
-func (m *memoryCache) Get(key string) (*frame.FrameSet, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	value, ok := m.items[key]
-	if !ok {
-		return nil, false
-	}
-	return value.Clone(), true
-}
-
-func (m *memoryCache) Set(key string, value *frame.FrameSet) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.items[key] = value.Clone()
-}
-
-func Run(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
-	return run(ctx, spec, req, DashboardScope())
-}
-
-func RunScope(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
-	return run(ctx, spec, req, scope)
-}
-
-func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
+func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
 	op := serrors.Op("lens/runtime.Run")
 	if err := Validate(spec); err != nil {
 		return nil, serrors.E(op, err)
 	}
 	startedAt := time.Now()
-	if req.Cache == nil {
-		req.Cache = NewMemoryCache()
-	}
 	variables, err := resolveVariables(spec.Variables, req)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -184,8 +186,27 @@ func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope)
 	state := plannedExecutor{
 		spec:      spec,
 		runtime:   req,
+		executor:  r,
 		variables: variables,
 		drill:     result.Drill,
+	}
+	state.snapshotKey, state.specFingerprint = r.executionIdentity(spec, req, variables)
+	result.SnapshotID = state.snapshotKey
+	if spec.Cache.Mode != lens.CacheDisabled {
+		if snapshot, ok := r.store.Load(ctx, state.snapshotKey); ok {
+			if r.observer != nil {
+				r.observer.SnapshotHit(snapshot.ID)
+			}
+			for _, stage := range internalPlan.datasetStages {
+				for _, datasetSpec := range stage {
+					if frames := snapshot.Datasets[datasetSpec.Name]; frames != nil {
+						result.Datasets[datasetSpec.Name] = &DatasetResult{Frames: frames.Clone()}
+					}
+				}
+			}
+		} else if r.observer != nil {
+			r.observer.SnapshotMiss(state.snapshotKey)
+		}
 	}
 
 	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
@@ -195,14 +216,20 @@ func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope)
 		return nil, serrors.E(op, err)
 	}
 	result.Duration = time.Since(startedAt)
+	if spec.Cache.Mode != lens.CacheDisabled {
+		r.saveSnapshot(ctx, state, result)
+	}
 	return result, nil
 }
 
 type plannedExecutor struct {
-	spec      lens.DashboardSpec
-	runtime   Request
-	variables map[string]any
-	drill     *cube.DrillContext
+	spec            lens.DashboardSpec
+	runtime         Request
+	executor        *Runtime
+	variables       map[string]any
+	drill           *cube.DrillContext
+	snapshotKey     string
+	specFingerprint string
 }
 
 type executionPlan struct {
@@ -310,6 +337,9 @@ func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.D
 		var mu sync.Mutex
 		group, groupCtx := errgroup.WithContext(ctx)
 		for _, datasetSpec := range stage {
+			if _, cached := results[datasetSpec.Name]; cached {
+				continue
+			}
 			group.Go(func() error {
 				start := time.Now()
 				frames, err := s.executeDatasetSpec(groupCtx, datasetSpec, results)
@@ -456,16 +486,72 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		MaxRows:   spec.Query.MaxRows,
 		Kind:      spec.Query.Kind,
 	}
-	cacheKey := queryCacheKey(request)
-	if cached, ok := s.runtime.Cache.Get(cacheKey); ok {
-		return cached, nil
-	}
-	frames, err := ds.Run(ctx, request)
+	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryCacheKey(request)
+	value, err, _ := s.executor.flights.Do(flightKey, func() (any, error) {
+		started := time.Now()
+		frames, err := ds.Run(ctx, request)
+		if err == nil && s.executor.observer != nil {
+			s.executor.observer.DatasetExecuted(spec.Name, time.Since(started))
+		}
+		return frames, err
+	})
 	if err != nil {
 		return nil, err
 	}
-	s.runtime.Cache.Set(cacheKey, frames)
-	return frames, nil
+	frames, ok := value.(*frame.FrameSet)
+	if !ok {
+		return nil, fmt.Errorf("dataset %q returned unexpected result %T", spec.Name, value)
+	}
+	return frames.Clone(), nil
+}
+
+func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string) {
+	specBytes, err := json.Marshal(spec)
+	if err != nil {
+		specBytes = []byte(fmt.Sprintf("%#v", spec))
+	}
+	specSum := sha256.Sum256(specBytes)
+	specFingerprint := fmt.Sprintf("%x", specSum[:])
+	payload, _ := json.Marshal(struct {
+		Version, Namespace, Spec, Locale, Timezone, DataScope string
+		Variables                                             map[string]any
+		DataSources                                           map[string]string
+	}{r.version, req.Namespace, specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities})
+	sum := sha256.Sum256(payload)
+	return strings.TrimSpace(req.Namespace) + ":" + fmt.Sprintf("%x", sum[:]), specFingerprint
+}
+
+func (r *Runtime) saveSnapshot(ctx context.Context, state plannedExecutor, result *DashboardResult) {
+	if result == nil {
+		return
+	}
+	r.mergeMu.Lock()
+	defer r.mergeMu.Unlock()
+	datasets := map[string]*frame.FrameSet{}
+	provenance := map[string]DatasetProvenance{}
+	if existing, ok := r.store.Load(ctx, state.snapshotKey); ok {
+		for name, frames := range existing.Datasets {
+			datasets[name] = frames.Clone()
+		}
+		for name, item := range existing.Provenance {
+			provenance[name] = item
+		}
+	}
+	byName := indexDatasets(state.spec.Datasets)
+	for name, item := range result.Datasets {
+		datasetSpec := byName[name]
+		if datasetSpec.Cache.Mode == lens.CacheDisabled || item == nil || item.Error != nil || item.Frames == nil {
+			continue
+		}
+		datasets[name] = item.Frames.Clone()
+		provenance[name] = DatasetProvenance{Dataset: name, Source: datasetSpec.Source, DependsOn: append([]string(nil), datasetSpec.DependsOn...), Duration: item.Duration}
+	}
+	ttl := state.spec.Cache.TTL
+	if ttl <= 0 {
+		ttl = r.ttl
+	}
+	now := time.Now()
+	r.store.Save(ctx, state.snapshotKey, &ExecutionSnapshot{ID: state.snapshotKey, SpecFingerprint: state.specFingerprint, Variables: cloneMap(state.variables), DataScope: state.runtime.DataScope, Locale: state.runtime.Locale, Timezone: state.runtime.Timezone, Datasets: datasets, Provenance: provenance, CreatedAt: now, ExpiresAt: now.Add(ttl)}, ttl)
 }
 
 func (s *plannedExecutor) runDerivedDataset(spec lens.DatasetSpec, results map[string]*DatasetResult) (*frame.FrameSet, error) {

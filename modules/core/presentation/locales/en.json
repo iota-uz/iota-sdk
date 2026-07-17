@@ -89,6 +89,7 @@
   "Chart": {
     "CloseFullScreen": "Close fullscreen",
     "ExpandToFullScreen": "Expand to fullscreen",
+    "ExportExcel": "Export to Excel",
     "LogScale": "Log scale",
     "LogScaleHint": "Values are shown on a logarithmic scale",
     "MetricInfo": "How this metric is calculated"
