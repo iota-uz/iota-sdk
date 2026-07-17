@@ -23,6 +23,19 @@ func DefaultLabels() Labels {
 	return Labels{"Summary", "Chart data", "Breakdown", "Parameters", "Sources", "Metric", "Value", "Parameter", "Dataset", "Source", "Depends on"}
 }
 
+func LabelsForLocale(locale string) Labels {
+	switch strings.ToLower(strings.TrimSpace(locale)) {
+	case "ru", "ru-ru":
+		return Labels{"Сводка", "Данные графика", "Разбивка", "Параметры", "Источники", "Показатель", "Значение", "Параметр", "Набор данных", "Источник", "Зависит от"}
+	case "uz-cyrl", "uz-cyrl-uz", "oz":
+		return Labels{"Хулоса", "График маълумотлари", "Тафсилот", "Параметрлар", "Манбалар", "Кўрсаткич", "Қиймат", "Параметр", "Маълумотлар тўплами", "Манба", "Боғлиқ"}
+	case "uz", "uz-latn", "uz-latn-uz":
+		return Labels{"Xulosa", "Grafik ma’lumotlari", "Tafsilot", "Parametrlar", "Manbalar", "Ko‘rsatkich", "Qiymat", "Parametr", "Ma’lumotlar to‘plami", "Manba", "Bog‘liq"}
+	default:
+		return DefaultLabels()
+	}
+}
+
 type Request struct {
 	Result    *lensruntime.DashboardResult
 	PanelID   string
@@ -43,7 +56,7 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 	}
 	labels := req.Labels
 	if labels.Summary == "" {
-		labels = DefaultLabels()
+		labels = LabelsForLocale(req.Result.Locale)
 	}
 	file := excelize.NewFile()
 	defer func() { _ = file.Close() }()

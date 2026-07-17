@@ -29,6 +29,14 @@ func TestExporterWritesPanelAndEvidenceWithoutDatasourceQueries(t *testing.T) {
 	require.Contains(t, book.GetSheetList(), "Breakdown evidence")
 }
 
+func TestLabelsForLocaleSupportsEAILocales(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "Сводка", LabelsForLocale("ru").Summary)
+	require.Equal(t, "Xulosa", LabelsForLocale("uz").Summary)
+	require.Equal(t, "Хулоса", LabelsForLocale("uz-Cyrl").Summary)
+	require.Equal(t, "Summary", LabelsForLocale("en").Summary)
+}
+
 func mustFrames(t *testing.T, name string, fields ...frame.Field) *frame.FrameSet {
 	t.Helper()
 	fr, err := frame.New(name, fields...)
