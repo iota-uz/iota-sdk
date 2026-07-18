@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
@@ -35,6 +36,7 @@ type Handler struct {
 	Resolver  Resolver
 	Authorize Authorize
 	Exporter  *Exporter
+	Now       func() time.Time
 }
 
 func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -64,17 +66,14 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
-	filename := safeFilename(result.Spec.Export.Filename)
-	if filename == "" {
-		filename = safeFilename(result.Spec.Title)
+	now := time.Now()
+	if h.Now != nil {
+		now = h.Now()
 	}
-	if filename == "" {
-		filename = "dashboard"
-	}
-	filename += ".xlsx"
+	filename := WorkbookFilename(result, panelID, now)
 	SetDownloadSignal(w, r, DownloadSignalStarted)
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	w.Header().Set("Content-Disposition", ContentDisposition(filename))
 	exporter := h.Exporter
 	if exporter == nil {
 		exporter = New()
@@ -82,6 +81,44 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err := exporter.Write(r.Context(), w, Request{Result: result, PanelID: panelID}); err != nil {
 		return
 	}
+}
+
+func WorkbookFilename(result *runtime.DashboardResult, panelID string, generatedAt time.Time) string {
+	base := "dashboard"
+	if result != nil {
+		if configured := safeFilename(result.Spec.Export.Filename); configured != "" {
+			base = configured
+		} else if title := safeFilename(result.Spec.Title); title != "" {
+			base = title
+		}
+		if panelID = strings.TrimSpace(panelID); panelID != "" {
+			panelName := panelID
+			if panel := result.Panel(panelID); panel != nil && strings.TrimSpace(panel.Panel.Title) != "" {
+				panelName = panel.Panel.Title
+			}
+			if panelName = safeFilename(panelName); panelName != "" && !strings.EqualFold(panelName, base) {
+				base += "-" + panelName
+			}
+		}
+	}
+	if !generatedAt.IsZero() {
+		base += "-" + generatedAt.Format("20060102-1504")
+	}
+	return base + ".xlsx"
+}
+
+func ContentDisposition(filename string) string {
+	filename = strings.TrimSpace(filename)
+	if filename == "" {
+		filename = "dashboard.xlsx"
+	}
+	base := strings.TrimSuffix(filename, ".xlsx")
+	ascii := safeASCIIFilename(base)
+	if ascii == "" {
+		ascii = "dashboard"
+	}
+	ascii += ".xlsx"
+	return fmt.Sprintf(`attachment; filename="%s"; filename*=UTF-8''%s`, ascii, url.PathEscape(filename))
 }
 
 // SetDownloadSignal completes the browser-side export loading state. Custom
@@ -125,5 +162,26 @@ func safeFilename(value string) string {
 			b.WriteByte('-')
 		}
 	}
-	return strings.Trim(b.String(), "-")
+	result := strings.Trim(b.String(), "-")
+	for strings.Contains(result, "--") {
+		result = strings.ReplaceAll(result, "--", "-")
+	}
+	return result
+}
+
+func safeASCIIFilename(value string) string {
+	value = strings.TrimSpace(value)
+	var b strings.Builder
+	for _, r := range value {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '-' || r == '_' {
+			b.WriteRune(r)
+		} else if r == ' ' {
+			b.WriteByte('-')
+		}
+	}
+	result := strings.Trim(b.String(), "-")
+	for strings.Contains(result, "--") {
+		result = strings.ReplaceAll(result, "--", "-")
+	}
+	return result
 }
