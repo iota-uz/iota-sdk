@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/xuri/excelize/v2"
 )
@@ -42,6 +43,11 @@ type Request struct {
 	PanelID   string
 	DrillPath []string
 	Labels    Labels
+}
+
+type sheetTarget struct {
+	Sheet string
+	Cell  string
 }
 
 type Exporter struct{}
@@ -104,7 +110,7 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 
 	panels := selectedPanels(req.Result, req.PanelID)
 	exportedDatasets := map[string]bool{}
-	datasetSheets := map[string]string{}
+	datasetTargets := map[string]sheetTarget{}
 	exportOrder := make([]string, 0)
 	addDataset := func(dataset string) bool {
 		dataset = strings.TrimSpace(dataset)
@@ -161,22 +167,31 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 		if err := configureEvidenceSheet(file, sheet, result.Frames, datasetSpec.Export); err != nil {
 			return err
 		}
-		datasetSheets[dataset] = sheet
+		datasetTargets[dataset] = sheetTarget{Sheet: sheet, Cell: "A1"}
 	}
+	dashboardRow := 7
+	dashboardColumns := 2
 	for _, panelResult := range panels {
 		if panelResult == nil || panelResult.Frames == nil {
 			continue
 		}
-		sheet, sheetErr := newSheet(panelResult.Panel.Title)
-		if sheetErr != nil {
-			return sheetErr
-		}
-		if err := writeFrameSet(file, sheet, panelResult.Frames); err != nil {
+		panelCell := cell(1, dashboardRow)
+		if err := file.SetCellValue(summary, panelCell, panelResult.Panel.Title); err != nil {
 			return err
 		}
-		if _, exists := datasetSheets[panelResult.Panel.Dataset]; !exists {
-			datasetSheets[panelResult.Panel.Dataset] = sheet
+		datasetTargets[panelResult.Panel.Dataset] = sheetTarget{Sheet: summary, Cell: panelCell}
+		dashboardRow++
+		nextRow, columns, writeErr := writeFrameSetAt(file, summary, panelResult.Frames, dashboardRow)
+		if writeErr != nil {
+			return writeErr
 		}
+		if columns > dashboardColumns {
+			dashboardColumns = columns
+		}
+		dashboardRow = nextRow + 2
+	}
+	if err := setSheetDimension(file, summary, dashboardRow-3, dashboardColumns); err != nil {
+		return err
 	}
 	sourceRows := [][]any{{labels.Dataset, labels.Source, labels.DependsOn}}
 	for _, datasetName := range exportOrder {
@@ -186,8 +201,8 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 			datasetTitle = datasetName
 		}
 		title := any(datasetTitle)
-		if sheet := datasetSheets[datasetName]; sheet != "" {
-			title = sheetHyperlink(sheet, datasetTitle)
+		if target, ok := datasetTargets[datasetName]; ok {
+			title = sheetCellHyperlink(target.Sheet, target.Cell, datasetTitle)
 		}
 		sourceRows = append(sourceRows, []any{title, dataset.Source, strings.Join(dataset.DependsOn, ", ")})
 	}
@@ -216,16 +231,32 @@ func selectedPanels(result *lensruntime.DashboardResult, id string) []*lensrunti
 		}
 		return nil
 	}
-	ids := make([]string, 0, len(result.Panels))
-	for id := range result.Panels {
-		ids = append(ids, id)
-	}
-	sort.Strings(ids)
-	out := make([]*lensruntime.PanelResult, 0, len(ids))
-	for _, id := range ids {
-		if !result.Panels[id].Panel.Kind.IsContainer() {
-			out = append(out, result.Panels[id])
+	out := make([]*lensruntime.PanelResult, 0, len(result.Panels))
+	seen := make(map[string]bool, len(result.Panels))
+	var appendPanel func(panel.Spec)
+	appendPanel = func(spec panel.Spec) {
+		if panelResult := result.Panels[spec.ID]; panelResult != nil && !panelResult.Panel.Kind.IsContainer() && !seen[spec.ID] {
+			out = append(out, panelResult)
+			seen[spec.ID] = true
 		}
+		for _, child := range spec.Children {
+			appendPanel(child)
+		}
+	}
+	for _, row := range result.Spec.Rows {
+		for _, spec := range row.Panels {
+			appendPanel(spec)
+		}
+	}
+	remaining := make([]string, 0, len(result.Panels)-len(seen))
+	for id, panelResult := range result.Panels {
+		if !seen[id] && !panelResult.Panel.Kind.IsContainer() {
+			remaining = append(remaining, id)
+		}
+	}
+	sort.Strings(remaining)
+	for _, id := range remaining {
+		out = append(out, result.Panels[id])
 	}
 	return out
 }
@@ -301,10 +332,17 @@ func dashboardTotal(result *lensruntime.DashboardResult, panelID string) float64
 }
 
 func writeFrameSet(file *excelize.File, sheet string, frames *frame.FrameSet) error {
-	row := 1
+	nextRow, maxColumns, err := writeFrameSetAt(file, sheet, frames, 1)
+	if err != nil {
+		return err
+	}
+	return setSheetDimension(file, sheet, nextRow-1, maxColumns)
+}
+func writeFrameSetAt(file *excelize.File, sheet string, frames *frame.FrameSet, startRow int) (int, int, error) {
+	row := startRow
 	maxColumns := 1
-	for _, fr := range frames.Frames {
-		if row > 1 {
+	for index, fr := range frames.Frames {
+		if index > 0 {
 			row += 2
 		}
 		if fr.Meta.Title != "" {
@@ -319,7 +357,7 @@ func writeFrameSet(file *excelize.File, sheet string, frames *frame.FrameSet) er
 			headers[i] = fieldLabel(f)
 		}
 		if err := writeRow(file, sheet, row, headers); err != nil {
-			return err
+			return row, maxColumns, err
 		}
 		row++
 		for i := 0; i < fr.RowCount; i++ {
@@ -328,12 +366,12 @@ func writeFrameSet(file *excelize.File, sheet string, frames *frame.FrameSet) er
 				values[col] = f.Values[i]
 			}
 			if err := writeRow(file, sheet, row, values); err != nil {
-				return err
+				return row, maxColumns, err
 			}
 			row++
 		}
 	}
-	return setSheetDimension(file, sheet, row-1, maxColumns)
+	return row, maxColumns, nil
 }
 func writeRows(file *excelize.File, sheet string, rows [][]any) error {
 	maxColumns := 1
@@ -416,7 +454,10 @@ func pointer[T any](value T) *T              { return &value }
 func excelFormulaString(value string) string { return strings.ReplaceAll(value, `"`, `""`) }
 func cell(col, row int) string               { name, _ := excelize.CoordinatesToCellName(col, row); return name }
 func sheetHyperlink(sheet, label string) frame.Hyperlink {
-	return frame.Hyperlink{URL: "#'" + strings.ReplaceAll(sheet, "'", "''") + "'!A1", Label: label}
+	return sheetCellHyperlink(sheet, "A1", label)
+}
+func sheetCellHyperlink(sheet, coordinate, label string) frame.Hyperlink {
+	return frame.Hyperlink{URL: "#'" + strings.ReplaceAll(sheet, "'", "''") + "'!" + coordinate, Label: label}
 }
 func setSheetDimension(file *excelize.File, sheet string, rows, columns int) error {
 	if rows < 1 {

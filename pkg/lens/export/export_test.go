@@ -30,15 +30,27 @@ func TestExporterWritesPanelAndEvidenceWithoutDatasourceQueries(t *testing.T) {
 	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
 	require.NoError(t, err)
 	defer func() { _ = book.Close() }()
-	require.Contains(t, book.GetSheetList(), "Premium")
+	require.NotContains(t, book.GetSheetList(), "Premium")
 	require.Contains(t, book.GetSheetList(), "Policies")
-	require.Equal(t, []string{"Summary", "Parameters", "Sources", "Policies", "Premium"}, book.GetSheetList())
+	require.Equal(t, []string{"Summary", "Parameters", "Sources", "Policies"}, book.GetSheetList())
 	formula, err := book.GetCellFormula("Summary", "B5")
 	require.NoError(t, err)
 	require.Equal(t, `HYPERLINK("#'Sources'!A1","Sources")`, formula)
+	formula, err = book.GetCellFormula("Sources", "A2")
+	require.NoError(t, err)
+	require.Equal(t, `HYPERLINK("#'Summary'!A7","chart")`, formula)
 	formula, err = book.GetCellFormula("Sources", "A3")
 	require.NoError(t, err)
 	require.Equal(t, `HYPERLINK("#'Policies'!A1","Policy evidence")`, formula)
+	value, err := book.GetCellValue("Summary", "A7")
+	require.NoError(t, err)
+	require.Equal(t, "Premium", value)
+	value, err = book.GetCellValue("Summary", "A8")
+	require.NoError(t, err)
+	require.Equal(t, "label", value)
+	value, err = book.GetCellValue("Summary", "B9")
+	require.NoError(t, err)
+	require.Equal(t, "42", value)
 	dimension, err := book.GetSheetDimension("Policies")
 	require.NoError(t, err)
 	require.Equal(t, "A1:C2", dimension)
@@ -60,6 +72,25 @@ func TestLabelsForLocaleSupportsEAILocales(t *testing.T) {
 	require.Equal(t, "Xulosa", LabelsForLocale("uz").Summary)
 	require.Equal(t, "Хулоса", LabelsForLocale("uz-Cyrl").Summary)
 	require.Equal(t, "Summary", LabelsForLocale("en").Summary)
+}
+
+func TestSelectedPanelsFollowsDashboardLayout(t *testing.T) {
+	t.Parallel()
+	result := &lensruntime.DashboardResult{
+		Spec: lens.DashboardSpec{Rows: []lens.RowSpec{{Panels: []panel.Spec{
+			{ID: "second", Kind: panel.KindStat},
+			{ID: "group", Kind: panel.KindStatGroup, Children: []panel.Spec{{ID: "first", Kind: panel.KindStat}}},
+		}}}},
+		Panels: map[string]*lensruntime.PanelResult{
+			"first":  {Panel: panel.Spec{ID: "first", Kind: panel.KindStat}},
+			"second": {Panel: panel.Spec{ID: "second", Kind: panel.KindStat}},
+		},
+	}
+
+	panels := selectedPanels(result, "")
+	require.Len(t, panels, 2)
+	require.Equal(t, "second", panels[0].Panel.ID)
+	require.Equal(t, "first", panels[1].Panel.ID)
 }
 
 func TestExporterRejectsMissingDeclaredEvidence(t *testing.T) {
