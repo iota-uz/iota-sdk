@@ -72,11 +72,21 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 	if err != nil {
 		return err
 	}
-	if err := writeRows(file, summary, [][]any{{labels.Metric, labels.Value}, {req.Result.Spec.Title, dashboardTotal(req.Result, req.PanelID)}, {"Snapshot", req.Result.SnapshotID}, {"Drill", strings.Join(req.DrillPath, " > ")}}); err != nil {
-		return err
-	}
 	parameters, err := newSheet(labels.Parameters)
 	if err != nil {
+		return err
+	}
+	sources, err := newSheet(labels.Sources)
+	if err != nil {
+		return err
+	}
+	if err := writeRows(file, summary, [][]any{
+		{labels.Metric, labels.Value},
+		{req.Result.Spec.Title, dashboardTotal(req.Result, req.PanelID)},
+		{"Snapshot", req.Result.SnapshotID},
+		{"Drill", strings.Join(req.DrillPath, " > ")},
+		{labels.Sources, sheetHyperlink(sources, labels.Sources)},
+	}); err != nil {
 		return err
 	}
 	parameterRows := [][]any{{labels.Parameter, labels.Value}}
@@ -94,6 +104,7 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 
 	panels := selectedPanels(req.Result, req.PanelID)
 	exportedDatasets := map[string]bool{}
+	datasetSheets := map[string]string{}
 	exportOrder := make([]string, 0)
 	addDataset := func(dataset string) bool {
 		dataset = strings.TrimSpace(dataset)
@@ -112,13 +123,6 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 	for _, panelResult := range panels {
 		if panelResult == nil || panelResult.Frames == nil {
 			continue
-		}
-		sheet, sheetErr := newSheet(panelResult.Panel.Title)
-		if sheetErr != nil {
-			return sheetErr
-		}
-		if err := writeFrameSet(file, sheet, panelResult.Frames); err != nil {
-			return err
 		}
 		addDataset(panelResult.Panel.Dataset)
 		evidence := panelResult.Panel.Export.EvidenceDatasets
@@ -157,17 +161,35 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 		if err := configureEvidenceSheet(file, sheet, result.Frames, datasetSpec.Export); err != nil {
 			return err
 		}
+		datasetSheets[dataset] = sheet
 	}
-	sources, err := newSheet(labels.Sources)
-	if err != nil {
-		return err
-	}
-	sourceRows := [][]any{{labels.Dataset, labels.Source, labels.DependsOn}}
-	for _, dataset := range req.Result.Spec.Datasets {
-		if !exportedDatasets[dataset.Name] {
+	for _, panelResult := range panels {
+		if panelResult == nil || panelResult.Frames == nil {
 			continue
 		}
-		sourceRows = append(sourceRows, []any{dataset.Title, dataset.Source, strings.Join(dataset.DependsOn, ", ")})
+		sheet, sheetErr := newSheet(panelResult.Panel.Title)
+		if sheetErr != nil {
+			return sheetErr
+		}
+		if err := writeFrameSet(file, sheet, panelResult.Frames); err != nil {
+			return err
+		}
+		if _, exists := datasetSheets[panelResult.Panel.Dataset]; !exists {
+			datasetSheets[panelResult.Panel.Dataset] = sheet
+		}
+	}
+	sourceRows := [][]any{{labels.Dataset, labels.Source, labels.DependsOn}}
+	for _, datasetName := range exportOrder {
+		dataset := findDataset(req.Result.Spec, datasetName)
+		datasetTitle := strings.TrimSpace(dataset.Title)
+		if datasetTitle == "" {
+			datasetTitle = datasetName
+		}
+		title := any(datasetTitle)
+		if sheet := datasetSheets[datasetName]; sheet != "" {
+			title = sheetHyperlink(sheet, datasetTitle)
+		}
+		sourceRows = append(sourceRows, []any{title, dataset.Source, strings.Join(dataset.DependsOn, ", ")})
 	}
 	if err := writeRows(file, sources, sourceRows); err != nil {
 		return err
@@ -280,6 +302,7 @@ func dashboardTotal(result *lensruntime.DashboardResult, panelID string) float64
 
 func writeFrameSet(file *excelize.File, sheet string, frames *frame.FrameSet) error {
 	row := 1
+	maxColumns := 1
 	for _, fr := range frames.Frames {
 		if row > 1 {
 			row += 2
@@ -289,6 +312,9 @@ func writeFrameSet(file *excelize.File, sheet string, frames *frame.FrameSet) er
 			row++
 		}
 		headers := make([]any, len(fr.Fields))
+		if len(fr.Fields) > maxColumns {
+			maxColumns = len(fr.Fields)
+		}
 		for i, f := range fr.Fields {
 			headers[i] = fieldLabel(f)
 		}
@@ -307,15 +333,19 @@ func writeFrameSet(file *excelize.File, sheet string, frames *frame.FrameSet) er
 			row++
 		}
 	}
-	return nil
+	return setSheetDimension(file, sheet, row-1, maxColumns)
 }
 func writeRows(file *excelize.File, sheet string, rows [][]any) error {
+	maxColumns := 1
 	for i, row := range rows {
+		if len(row) > maxColumns {
+			maxColumns = len(row)
+		}
 		if err := writeRow(file, sheet, i+1, row); err != nil {
 			return err
 		}
 	}
-	return nil
+	return setSheetDimension(file, sheet, len(rows), maxColumns)
 }
 func writeRow(file *excelize.File, sheet string, row int, values []any) error {
 	for col, value := range values {
@@ -385,6 +415,18 @@ func configureEvidenceSheet(file *excelize.File, sheet string, frames *frame.Fra
 func pointer[T any](value T) *T              { return &value }
 func excelFormulaString(value string) string { return strings.ReplaceAll(value, `"`, `""`) }
 func cell(col, row int) string               { name, _ := excelize.CoordinatesToCellName(col, row); return name }
+func sheetHyperlink(sheet, label string) frame.Hyperlink {
+	return frame.Hyperlink{URL: "#'" + strings.ReplaceAll(sheet, "'", "''") + "'!A1", Label: label}
+}
+func setSheetDimension(file *excelize.File, sheet string, rows, columns int) error {
+	if rows < 1 {
+		rows = 1
+	}
+	if columns < 1 {
+		columns = 1
+	}
+	return file.SetSheetDimension(sheet, "A1:"+cell(columns, rows))
+}
 func fieldLabel(f frame.Field) string {
 	if label := f.Labels["default"]; label != "" {
 		return label
