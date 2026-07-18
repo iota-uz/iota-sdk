@@ -1496,6 +1496,26 @@ type chartText struct {
 	DrillBack          string
 	ExportExcel        string
 	ExportGenerating   string
+	ExportFailed       string
+}
+
+// DashboardExportButtonProps configures the first-class Lens export action for
+// a whole dashboard. It intentionally shares the same runtime and download
+// handshake as panel exports; ParamsFormID lets filter forms contribute their
+// current values without requiring the page URL to be up to date first.
+type DashboardExportButtonProps struct {
+	URL          string
+	Label        string
+	ParamsFormID string
+	Class        string
+}
+
+type exportButtonProps struct {
+	URL          string
+	Label        string
+	ParamsFormID string
+	Class        string
+	IconOnly     bool
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -1524,6 +1544,7 @@ func localizedChartText(ctx context.Context) chartText {
 		DrillBack:          translate(ctx, "Lens.Drill.Back"),
 		ExportExcel:        translate(ctx, "Chart.ExportExcel"),
 		ExportGenerating:   translate(ctx, "Chart.ExportGenerating"),
+		ExportFailed:       translate(ctx, "Chart.ExportFailed"),
 	}
 }
 

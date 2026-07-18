@@ -118,6 +118,37 @@ func TestPanelExportButton_RendersDownloadHandshakeState(t *testing.T) {
 	assert.Contains(t, rendered, "animate-spin")
 }
 
+func TestDashboardExportButton_UsesCanonicalDownloadHandshake(t *testing.T) {
+	t.Parallel()
+
+	var html bytes.Buffer
+	err := DashboardExportButton(DashboardExportButtonProps{
+		URL:          "/analytics/export?format=excel",
+		ParamsFormID: "analytics-filters",
+	}).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, "data-lens-export-button")
+	assert.Contains(t, rendered, `data-lens-export-params-form="analytics-filters"`)
+	assert.Contains(t, rendered, "Export to Excel")
+	assert.Contains(t, rendered, "Generating Excel report…")
+	assert.Contains(t, rendered, "Export failed. Please try again.")
+}
+
+func TestDashboardScripts_SerializesExportFiltersAndHandlesFailure(t *testing.T) {
+	t.Parallel()
+
+	var html bytes.Buffer
+	require.NoError(t, DashboardScripts().Render(metricInfoContext(t, language.English), &html))
+
+	rendered := html.String()
+	assert.Contains(t, rendered, "button.dataset.lensExportParamsForm")
+	assert.Contains(t, rendered, "new FormData(form)")
+	assert.Contains(t, rendered, "finish(signal)")
+	assert.Contains(t, rendered, "signal !== 'started'")
+}
+
 func TestDashboard_RendersPanelsWhenHeadingAlsoPresent(t *testing.T) {
 	t.Parallel()
 

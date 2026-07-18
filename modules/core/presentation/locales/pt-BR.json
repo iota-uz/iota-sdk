@@ -91,6 +91,7 @@
     "ExpandToFullScreen": "Expandir para tela cheia",
     "ExportExcel": "Exportar para Excel",
     "ExportGenerating": "Gerando relatório Excel…",
+    "ExportFailed": "Não foi possível gerar o relatório. Tente novamente.",
     "LogScale": "Escala logarítmica",
     "LogScaleHint": "Os valores são mostrados em escala logarítmica",
     "MetricInfo": "Como esta métrica é calculada"

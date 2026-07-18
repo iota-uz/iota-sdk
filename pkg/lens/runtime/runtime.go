@@ -138,7 +138,8 @@ func New(opts Options) *Runtime {
 func (r *Runtime) Store() SnapshotStore { return r.store }
 
 type Scope struct {
-	PanelIDs []string
+	PanelIDs              []string
+	IncludeExportEvidence bool
 }
 
 func DashboardScope() Scope {
@@ -153,6 +154,24 @@ func PanelScope(panelID string) Scope {
 	return Scope{PanelIDs: []string{panelID}}
 }
 
+// DashboardExportScope executes the visible dashboard datasets plus every
+// evidence dataset declared by the dashboard and its panels. Ordinary
+// DashboardScope deliberately excludes export-only evidence so loading a page
+// never pays the cost of materialising large audit tables.
+func DashboardExportScope() Scope {
+	return Scope{IncludeExportEvidence: true}
+}
+
+// PanelsExportScope is the export-aware counterpart of PanelsScope.
+func PanelsExportScope(panelIDs ...string) Scope {
+	return Scope{PanelIDs: append([]string(nil), panelIDs...), IncludeExportEvidence: true}
+}
+
+// PanelExportScope is the export-aware counterpart of PanelScope.
+func PanelExportScope(panelID string) Scope {
+	return PanelsExportScope(panelID)
+}
+
 func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
 	op := serrors.Op("lens/runtime.Run")
 	if err := Validate(spec); err != nil {
@@ -163,7 +182,7 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	internalPlan, err := compileExecutionPlan(spec, scope.PanelIDs)
+	internalPlan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -243,20 +262,20 @@ func Plan(spec lens.DashboardSpec, scope Scope) (ExecutionPlan, error) {
 	if err := Validate(spec); err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
-	plan, err := compileExecutionPlan(spec, scope.PanelIDs)
+	plan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
 	return plan.view, nil
 }
 
-func compileExecutionPlan(spec lens.DashboardSpec, panelIDs []string) (executionPlan, error) {
+func compileExecutionPlan(spec lens.DashboardSpec, scope Scope) (executionPlan, error) {
 	datasets := indexDatasets(spec.Datasets)
-	targetPanels, err := scopedPanels(spec, panelIDs)
+	targetPanels, err := scopedPanels(spec, scope.PanelIDs)
 	if err != nil {
 		return executionPlan{}, err
 	}
-	required := requiredDatasetNames(targetPanels, datasets)
+	required := requiredDatasetNames(spec, targetPanels, datasets, scope.IncludeExportEvidence)
 	stageMap := make(map[int][]string)
 	depthMemo := make(map[string]int, len(required))
 	visiting := make(map[string]bool, len(required))
@@ -580,13 +599,29 @@ func indexDatasets(specs []lens.DatasetSpec) map[string]lens.DatasetSpec {
 	return datasets
 }
 
-func requiredDatasetNames(panels []panel.Spec, datasets map[string]lens.DatasetSpec) []string {
+func requiredDatasetNames(spec lens.DashboardSpec, panels []panel.Spec, datasets map[string]lens.DatasetSpec, includeExportEvidence bool) []string {
 	seen := make(map[string]struct{})
 	for _, panelSpec := range panels {
 		if isCompositePanel(panelSpec.Kind) || strings.TrimSpace(panelSpec.Dataset) == "" {
 			continue
 		}
 		markRequiredDataset(panelSpec.Dataset, datasets, seen)
+	}
+	if includeExportEvidence {
+		for _, name := range spec.Export.EvidenceDatasets {
+			markRequiredDataset(name, datasets, seen)
+		}
+		for _, panelSpec := range panels {
+			evidence := panelSpec.Export.EvidenceDatasets
+			if len(evidence) == 0 {
+				if datasetSpec, ok := datasets[panelSpec.Dataset]; ok {
+					evidence = datasetSpec.Export.EvidenceDatasets
+				}
+			}
+			for _, name := range evidence {
+				markRequiredDataset(name, datasets, seen)
+			}
+		}
 	}
 	names := make([]string, 0, len(seen))
 	for name := range seen {

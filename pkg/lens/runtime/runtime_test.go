@@ -182,6 +182,29 @@ func TestPlan_Scenarios(t *testing.T) {
 	}
 }
 
+func TestPlan_ExportScopeMaterializesEvidenceWithoutSlowingDashboardScope(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("audit", "Audit",
+		lensbuild.Row(panel.Bar("sales", "Sales", "sales").Export("/export", "panel_evidence").Build()),
+	).Datasets(
+		lensbuild.QueryDataset("sales", "primary", "select 1"),
+		lensbuild.QueryDataset("panel_evidence", "primary", "select 2"),
+		lensbuild.QueryDataset("dashboard_evidence", "primary", "select 3"),
+	).Export("/export", "audit").Build()
+	spec.Export.EvidenceDatasets = []string{"dashboard_evidence"}
+
+	dashboardPlan, err := Plan(spec, DashboardScope())
+	require.NoError(t, err)
+	require.Len(t, dashboardPlan.DatasetStages, 1)
+	assert.Equal(t, []string{"sales"}, dashboardPlan.DatasetStages[0].Datasets)
+
+	exportPlan, err := Plan(spec, DashboardExportScope())
+	require.NoError(t, err)
+	require.Len(t, exportPlan.DatasetStages, 1)
+	assert.ElementsMatch(t, []string{"sales", "panel_evidence", "dashboard_evidence"}, exportPlan.DatasetStages[0].Datasets)
+}
+
 func TestRun_Scenarios(t *testing.T) {
 	t.Parallel()
 

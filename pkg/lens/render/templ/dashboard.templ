@@ -906,6 +906,7 @@ templ DashboardScripts() {
 				}
 				if (loading) {
 					loading.classList.toggle('hidden', !active);
+					loading.classList.toggle('inline-flex', active);
 				}
 				if (active) {
 					button.setAttribute('aria-busy', 'true');
@@ -923,11 +924,25 @@ templ DashboardScripts() {
 				if (!button || button.getAttribute('aria-busy') === 'true') {
 					return;
 				}
+				const formId = button.dataset.lensExportParamsForm || '';
+				const form = formId ? document.getElementById(formId) : null;
+				if (formId && !(form instanceof HTMLFormElement)) {
+					window.alert(button.dataset.lensExportErrorLabel || 'Export failed. Please try again.');
+					return;
+				}
 				const token = window.crypto && typeof window.crypto.randomUUID === 'function'
 					? window.crypto.randomUUID()
 					: Date.now().toString(36) + Math.random().toString(36).slice(2);
 				const cookieName = 'lens_export_' + token;
 				const url = new URL(button.href, window.location.href);
+				if (form instanceof HTMLFormElement) {
+					const formParams = new URLSearchParams(new FormData(form));
+					const formKeys = new Set();
+					formParams.forEach(function(_value, key) { formKeys.add(key); });
+					formKeys.forEach(function(key) { url.searchParams.delete(key); });
+					formParams.forEach(function(value, key) { url.searchParams.append(key, value); });
+				}
+				['page', 'limit', 'per_page'].forEach(function(key) { url.searchParams.delete(key); });
 				url.searchParams.set('lens_download_token', token);
 				document.cookie = cookieName + '=; Max-Age=0; path=/; SameSite=Lax';
 				lensExportSetLoading(button, true);
@@ -941,7 +956,7 @@ templ DashboardScripts() {
 				let settled = false;
 				let poll = 0;
 				let timeout = 0;
-				const finish = function() {
+				const finish = function(signal) {
 					if (settled) {
 						return;
 					}
@@ -951,13 +966,17 @@ templ DashboardScripts() {
 					document.cookie = cookieName + '=; Max-Age=0; path=/; SameSite=Lax';
 					lensExportSetLoading(button, false);
 					window.setTimeout(function() { frame.remove(); }, 1000);
+					if (signal !== 'started') {
+						window.alert(button.dataset.lensExportErrorLabel || 'Export failed. Please try again.');
+					}
 				};
 				poll = window.setInterval(function() {
-					if (lensExportCookieValue(cookieName)) {
-						finish();
+					const signal = lensExportCookieValue(cookieName);
+					if (signal) {
+						finish(signal);
 					}
 				}, 200);
-				timeout = window.setTimeout(finish, 10 * 60 * 1000);
+				timeout = window.setTimeout(function() { finish('timeout'); }, 10 * 60 * 1000);
 			};
 			document.addEventListener('click', function(event) {
 				const button = event.target && event.target.closest ? event.target.closest('[data-lens-export-button]') : null;
@@ -2358,24 +2377,57 @@ templ panelHeaderControls(spec panel.Spec, canFullscreen bool) {
 	}
 }
 
-templ PanelExportButton(spec panel.Spec) {
+templ exportButton(props exportButtonProps) {
 	{{ chartText := localizedChartText(ctx) }}
-	if spec.Export.Enabled && panelExportURL(spec) != "" {
+	{{ idleLabel := props.Label }}
+	if idleLabel == "" {
+		{{ idleLabel = chartText.ExportExcel }}
+	}
+	if props.URL != "" {
 		<a
-			href={ templ.URL(panelExportURL(spec)) }
-			class="inline-flex cursor-pointer items-center justify-center border transition hover:bg-slate-50 hover:text-slate-600"
-			style="width: 28px; height: 28px; border-radius: 6px; border-color: var(--lens-border); color: var(--lens-text-faint);"
-			title={ chartText.ExportExcel }
-			aria-label={ chartText.ExportExcel }
+			href={ templ.URL(props.URL) }
+			if props.IconOnly {
+				class={ "inline-flex cursor-pointer items-center justify-center border transition hover:bg-slate-50 hover:text-slate-600", props.Class }
+				style="width: 28px; height: 28px; border-radius: 6px; border-color: var(--lens-border); color: var(--lens-text-faint);"
+			} else {
+				class={ "btn btn-secondary btn-sm inline-flex shrink-0 cursor-pointer items-center gap-2", props.Class }
+			}
+			title={ idleLabel }
+			aria-label={ idleLabel }
 			data-lens-export-button
-			data-lens-export-idle-label={ chartText.ExportExcel }
+			data-lens-export-params-form={ props.ParamsFormID }
+			data-lens-export-idle-label={ idleLabel }
 			data-lens-export-loading-label={ chartText.ExportGenerating }
+			data-lens-export-error-label={ chartText.ExportFailed }
 		>
-			<span data-lens-export-idle>
+			<span class="inline-flex items-center gap-2" data-lens-export-idle>
 				@icons.DownloadSimple(icons.Props{Size: "14"})
+				if !props.IconOnly {
+					<span>{ idleLabel }</span>
+				}
 			</span>
-			<span class="hidden h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" data-lens-export-loading aria-hidden="true"></span>
+			<span class="hidden items-center gap-2" data-lens-export-loading aria-hidden="true">
+				<span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"></span>
+				if !props.IconOnly {
+					<span>{ chartText.ExportGenerating }</span>
+				}
+			</span>
 		</a>
+	}
+}
+
+// DashboardExportButton renders the whole-dashboard counterpart of the panel
+// export action. Both delegate to exportButton and therefore have identical
+// loading, filter serialization, download signalling and error behaviour.
+templ DashboardExportButton(props DashboardExportButtonProps) {
+	@exportButton(exportButtonProps{
+		URL: props.URL, Label: props.Label, ParamsFormID: props.ParamsFormID, Class: props.Class,
+	})
+}
+
+templ PanelExportButton(spec panel.Spec) {
+	if spec.Export.Enabled && panelExportURL(spec) != "" {
+		@exportButton(exportButtonProps{URL: panelExportURL(spec), IconOnly: true})
 	}
 }
 
