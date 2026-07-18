@@ -72,9 +72,7 @@ type CachePolicy struct {
 	TTL  time.Duration
 }
 
-// ExportSpec describes the evidence graph exposed by the canonical Lens Excel
-// exporter. EvidenceDatasets are intentionally explicit for manual SQL: Lens
-// cannot safely infer raw contributing rows from arbitrary aggregates.
+// DrillMeta describes the active drill path and available dimensions.
 type DrillMeta struct {
 	BaseURL             string
 	Dimensions          []DrillDimensionMeta

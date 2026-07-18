@@ -215,7 +215,7 @@ func resolvedExplorationEdges(explorerID string, perspective explore.Perspective
 		return nil, fmt.Errorf("exploration node %q with edges requires loaded panel %q to define an id field", node.Key, panelResult.Panel.ID)
 	}
 	if panelResult.Error != nil {
-		return edges, nil
+		return edges, nil //nolint:nilerr // Panel errors are rendered by the fragment; edge validation requires successful rows.
 	}
 	primary := panelResult.Frames.Primary()
 	if primary == nil {

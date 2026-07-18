@@ -1248,7 +1248,7 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 	}
 	switch spec.Kind {
 	case action.KindNavigate, action.KindHtmxSwap, action.KindCubeDrill:
-	case action.KindEmitEvent:
+	case action.KindEmitEvent, action.KindExplore:
 		return ""
 	default:
 		return ""

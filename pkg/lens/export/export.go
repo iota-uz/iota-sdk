@@ -296,17 +296,21 @@ func selectedPanels(result *lensruntime.DashboardResult, id string) []*lensrunti
 	}
 	return out
 }
-func datasetExport(spec lens.DashboardSpec, name string) (out struct {
+
+type datasetExportOptions struct {
 	EvidenceDatasets []string
 	IncludeUpstream  bool
-}) {
+}
+
+func datasetExport(spec lens.DashboardSpec, name string) datasetExportOptions {
+	out := datasetExportOptions{}
 	for _, d := range spec.Datasets {
 		if d.Name == name {
 			out.EvidenceDatasets = append([]string(nil), d.Export.EvidenceDatasets...)
 			out.IncludeUpstream = d.Export.IncludeUpstream
 		}
 	}
-	return
+	return out
 }
 func collectUpstream(spec lens.DashboardSpec, name string, add func(string) bool) {
 	for _, d := range spec.Datasets {

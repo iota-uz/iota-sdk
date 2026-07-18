@@ -102,7 +102,7 @@ func TestHandlerIgnoresInvalidDownloadToken(t *testing.T) {
 func TestParseExplorationExportRequest_CurrentAndFullModes(t *testing.T) {
 	t.Parallel()
 
-	current, err := ParseExplorationExportRequest(map[string][]string{
+	current, ok, err := ParseExplorationExportRequest(map[string][]string{
 		ExplorationIDQuery:          {"premium"},
 		ExplorationBranchQuery:      {"unearned"},
 		ExplorationPerspectiveQuery: {"products"},
@@ -111,16 +111,18 @@ func TestParseExplorationExportRequest_CurrentAndFullModes(t *testing.T) {
 		ExplorationNodeQuery:        {"property"},
 	})
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.Equal(t, explore.ExportCurrentView, current.Mode)
 	require.Equal(t, []string{"root", "property"}, current.Path)
 	require.Equal(t, []explore.PathStep{{NodeKey: "root"}, {NodeKey: "property", PointKey: "other"}}, current.Steps)
 
-	full, err := ParseExplorationExportRequest(map[string][]string{
+	full, ok, err := ParseExplorationExportRequest(map[string][]string{
 		ExplorationModeQuery:   {string(explore.ExportFull)},
 		ExplorationIDQuery:     {"premium"},
 		ExplorationBranchQuery: {"unearned"},
 	})
 	require.NoError(t, err)
+	require.True(t, ok)
 	require.Equal(t, explore.ExportFull, full.Mode)
 }
 

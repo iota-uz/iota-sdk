@@ -526,17 +526,26 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 }
 
 func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string) {
-	specBytes, err := json.Marshal(spec)
+	specBytes, err := json.Marshal(spec) //nolint:musttag // Runtime specs intentionally retain their Go field names in the fingerprint.
 	if err != nil {
 		specBytes = []byte(fmt.Sprintf("%#v", spec))
 	}
 	specSum := sha256.Sum256(specBytes)
 	specFingerprint := fmt.Sprintf("%x", specSum[:])
-	payload, _ := json.Marshal(struct {
-		Version, Namespace, Spec, Locale, Timezone, DataScope string
-		Variables                                             map[string]any
-		DataSources                                           map[string]string
-	}{r.version, req.Namespace, specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities})
+	identity := struct {
+		Version     string            `json:"version"`
+		Namespace   string            `json:"namespace"`
+		Spec        string            `json:"spec"`
+		Locale      string            `json:"locale"`
+		Timezone    string            `json:"timezone"`
+		DataScope   string            `json:"dataScope"`
+		Variables   map[string]any    `json:"variables"`
+		DataSources map[string]string `json:"dataSources"`
+	}{r.version, req.Namespace, specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities}
+	payload, err := json.Marshal(identity)
+	if err != nil {
+		payload = []byte(fmt.Sprintf("%#v", identity))
+	}
 	sum := sha256.Sum256(payload)
 	return strings.TrimSpace(req.Namespace) + ":" + fmt.Sprintf("%x", sum[:]), specFingerprint
 }

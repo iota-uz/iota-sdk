@@ -45,11 +45,14 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	dashboardID := strings.TrimSpace(r.URL.Query().Get("dashboard"))
 	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
 	snapshotID := strings.TrimSpace(r.URL.Query().Get("snapshot"))
-	exploration, err := ParseExplorationExportRequest(r.URL.Query())
+	exploration, hasExploration, err := ParseExplorationExportRequest(r.URL.Query())
 	if err != nil {
 		SetDownloadSignal(w, r, DownloadSignalError)
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
+	}
+	if !hasExploration {
+		exploration = nil
 	}
 	if dashboardID == "" {
 		SetDownloadSignal(w, r, DownloadSignalError)
@@ -148,11 +151,11 @@ const (
 	ExplorationNodeQuery        = "lens_explore_node"
 )
 
-func ParseExplorationExportRequest(values url.Values) (*explore.ExportRequest, error) {
+func ParseExplorationExportRequest(values url.Values) (*explore.ExportRequest, bool, error) {
 	mode := explore.ExportMode(strings.TrimSpace(values.Get(ExplorationModeQuery)))
 	if mode == "" {
 		if strings.TrimSpace(values.Get(ExplorationIDQuery)) == "" {
-			return nil, nil
+			return nil, false, nil
 		}
 		mode = explore.ExportCurrentView
 	}
@@ -176,9 +179,9 @@ func ParseExplorationExportRequest(values url.Values) (*explore.ExportRequest, e
 		NodeKey:        strings.TrimSpace(values.Get(ExplorationNodeQuery)),
 	}
 	if err := request.Validate(); err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return request, nil
+	return request, true, nil
 }
 
 func resolveExplorationExportLabels(result *runtime.DashboardResult, request explore.ExportRequest) (explore.ExportRequest, error) {

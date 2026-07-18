@@ -96,8 +96,10 @@ func LookupMemoJSON[T any](ctx context.Context, runtime *Runtime, req MemoReques
 
 func memoIdentity(runtime *Runtime, req MemoRequest) (string, error) {
 	payload, err := json.Marshal(struct {
-		Version, Namespace, DataScope string
-		Input                         any
+		Version   string `json:"version"`
+		Namespace string `json:"namespace"`
+		DataScope string `json:"dataScope"`
+		Input     any    `json:"input"`
 	}{runtime.version, req.Namespace, req.DataScope, req.Input})
 	if err != nil {
 		return "", err
