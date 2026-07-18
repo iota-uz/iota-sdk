@@ -35,3 +35,18 @@ func TestSafeRelativeURL(t *testing.T) {
 		})
 	}
 }
+
+func TestExploreBuildsStableBranchAction(t *testing.T) {
+	t.Parallel()
+
+	base := Explore("premium", "unearned")
+	products := base.WithExplorePerspective("products")
+	dynamic := base.WithExploreBranch(FieldValue("metric_key"))
+
+	require.Equal(t, KindExplore, base.Kind)
+	require.Equal(t, "unearned", base.Explore.Branch.Value)
+	require.Empty(t, base.Explore.Perspective)
+	require.Equal(t, "products", products.Explore.Perspective)
+	require.Equal(t, SourceField, dynamic.Explore.Branch.Kind)
+	require.Equal(t, "metric_key", dynamic.Explore.Branch.Name)
+}

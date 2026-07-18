@@ -1412,6 +1412,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		SeriesField:    fields.Series.Name(),
 		BaseQuery:      baseQuery,
 		Drill:          chartDrillConfig(spec),
+		Explore:        chartExploreConfig(spec),
 	})
 	var actionJS string
 	switch spec.Kind {
@@ -1478,6 +1479,14 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 		actionJS = "window.__lensDrillAjax(cfg.method || 'GET', nextURL, cfg.target, cfg.target);"
 	case action.KindEmitEvent:
 		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
+	case action.KindExplore:
+		actionJS = `if (window.__lensExploreOpen) {
+			window.__lensExploreOpen(chartContext && chartContext.el, {
+				explorerId: cfg.explore.explorerId,
+				branchKey: exploreBranch,
+				perspectiveKey: cfg.explore.perspective || ''
+			});
+		}`
 	}
 	js := fmt.Sprintf(`function(event, chartContext, opts) {
 		const cfg = %s;
@@ -1579,8 +1588,12 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	// Emit-event actions intentionally have no URL. Requiring nextURL here
 	// makes their chart click handler return before it can build the payload
 	// and dispatch the CustomEvent.
-	if spec.Kind != action.KindEmitEvent {
+	if spec.Kind != action.KindEmitEvent && spec.Kind != action.KindExplore {
 		js += "if (!nextURL) { return; }\n"
+	}
+	if spec.Kind == action.KindExplore && spec.Explore != nil {
+		branchExpr := actionValueJS(spec.Explore.Branch, fields)
+		js += fmt.Sprintf("const exploreBranch = %s;\nif (exploreBranch === undefined || exploreBranch === null || exploreBranch === '') { return; }\n", branchExpr)
 	}
 	for idx, param := range spec.Params {
 		expr := actionValueJS(param.Source, fields)
@@ -1836,10 +1849,23 @@ type chartActionConfig struct {
 	SeriesField    string              `json:"seriesField"`
 	BaseQuery      map[string][]string `json:"baseQuery,omitempty"`
 	Drill          *chartDrill         `json:"drill,omitempty"`
+	Explore        *chartExplore       `json:"explore,omitempty"`
 }
 
 type chartDrill struct {
 	Dimension string `json:"dimension,omitempty"`
+}
+
+type chartExplore struct {
+	ExplorerID  string `json:"explorerId"`
+	Perspective string `json:"perspective,omitempty"`
+}
+
+func chartExploreConfig(spec *action.Spec) *chartExplore {
+	if spec == nil || spec.Kind != action.KindExplore || spec.Explore == nil {
+		return nil
+	}
+	return &chartExplore{ExplorerID: spec.Explore.ExplorerID, Perspective: spec.Explore.Perspective}
 }
 
 func chartType(kind panel.Kind) charts.ChartType {

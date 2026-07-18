@@ -7,6 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -44,6 +45,11 @@ func (b *DashboardBuilder) Datasets(datasets ...lens.DatasetSpec) *DashboardBuil
 
 func (b *DashboardBuilder) Variables(variables ...lens.VariableSpec) *DashboardBuilder {
 	b.spec.Variables = append(b.spec.Variables, variables...)
+	return b
+}
+
+func (b *DashboardBuilder) Explorers(explorers ...explore.Spec) *DashboardBuilder {
+	b.spec.Explorers = append(b.spec.Explorers, explorers...)
 	return b
 }
 

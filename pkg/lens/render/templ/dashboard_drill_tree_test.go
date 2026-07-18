@@ -38,6 +38,104 @@ func TestDashboardScripts_DrillTreeUsesStableKeyedState(t *testing.T) {
 	assert.Contains(t, rendered, "}, true, false, false);")
 }
 
+func TestDashboardScripts_MetricExplorerOwnsPerspectiveAndLazyViewState(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "window.__lensExploreOpen")
+	assert.Contains(t, rendered, "lensExploreSelectPerspective")
+	assert.Contains(t, rendered, "pathByPerspective")
+	assert.Contains(t, rendered, "data-lens-explorer-tabs")
+	assert.Contains(t, rendered, "data-lens-explorer-crumbs")
+	assert.Contains(t, rendered, "state.requestVersion !== version")
+	assert.Contains(t, rendered, "new AbortController()")
+	assert.Contains(t, rendered, "state.abortController.abort()")
+	assert.Contains(t, rendered, "error.name === 'AbortError'")
+	assert.Contains(t, rendered, "data-lens-explorer-retry")
+	assert.Contains(t, rendered, "lensExploreCaptureHidden")
+	assert.Contains(t, rendered, "hiddenByView[lensExploreHiddenKey")
+	assert.Contains(t, rendered, "apexcharts-inactive-legend")
+	assert.Contains(t, rendered, "setTimeout(function()")
+	assert.Contains(t, rendered, "}, 150)")
+	assert.Contains(t, rendered, "prefers-reduced-motion: reduce")
+	assert.Contains(t, rendered, "window.__lensExploreToggleFullscreen")
+	assert.Contains(t, rendered, "const lensExploreSetFullscreen")
+	assert.Contains(t, rendered, "button.setAttribute('aria-label', label)")
+	assert.Contains(t, rendered, "button.setAttribute('title', label)")
+	assert.Contains(t, rendered, "lensExploreSetFullscreen(fullscreen, false)")
+	assert.Contains(t, rendered, "lensExploreEnableVisibleTotals")
+	assert.Contains(t, rendered, "container.__lensTotalBadgeUseDynamicSeries = true")
+	assert.Contains(t, rendered, "chart.updateOptions({}, false, false, false)")
+	assert.Contains(t, rendered, "metadata.manualLogScale")
+	assert.Contains(t, rendered, "lens_explorer")
+	assert.Contains(t, rendered, "lens_path")
+}
+
+func TestDashboardScripts_MetricExplorerSameViewActivationIsNoOp(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "if (state.perspectiveKey === key) { return; }")
+	assert.Contains(t, rendered, "const resolvedViewKey = lensExploreResolvedViewKey(state, steps)")
+	assert.Contains(t, rendered, "if (state.activeViewKey === resolvedViewKey && (state.status === 'loading' || state.status === 'skeleton' || state.status === 'ready')) { return; }")
+	assert.Contains(t, rendered, "const requestKey = lensExploreResolvedViewKey(state, steps)")
+	assert.Contains(t, rendered, "if (state.pendingViewKey === requestKey && (state.status === 'loading' || state.status === 'skeleton')) { return; }")
+	assert.Contains(t, rendered, "state.pendingViewKey = requestKey")
+}
+
+func TestDashboardScripts_MetricExplorerAppliesResolvedDynamicEdges(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "data-lens-explorer-resolved-edges")
+	assert.Contains(t, rendered, "const lensExploreApplyResolvedEdges")
+	assert.Contains(t, rendered, "node.edges = Array.isArray(edges) ? edges : []")
+	assert.Contains(t, rendered, "lensExploreApplyResolvedEdges(content, node)")
+	assert.Contains(t, rendered, "const edge = node && (node.edges || []).find")
+	assert.Contains(t, rendered, "state.stepsByPerspective[key] = steps.concat({nodeKey: edge.toNode, pointKey: clickedKey})")
+	assert.Contains(t, rendered, "if (edge.toNode)")
+	assert.Contains(t, rendered, "const action = edge.action")
+	assert.Contains(t, rendered, "if (action.kind === 'navigate')")
+}
+
+func TestDashboardScripts_MetricExplorerRestoresTypedPathAndExportsPoints(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "stepsByPerspective: {}")
+	assert.Contains(t, rendered, "state.stepsByPerspective[key] = (state.stepsByPerspective[key] || []).slice(0, -1)")
+	assert.Contains(t, rendered, "points: params.getAll('lens_explore_point')")
+	assert.Contains(t, rendered, "state.stepsByPerspective[key] = requestedPath.map")
+	assert.Contains(t, rendered, "next.searchParams.append('lens_path', step.nodeKey)")
+	assert.Contains(t, rendered, "next.searchParams.append('lens_explore_point', step.pointKey || '')")
+	assert.Contains(t, rendered, "url.searchParams.append('lens_explore_path', step.nodeKey)")
+	assert.Contains(t, rendered, "url.searchParams.append('lens_explore_point', step.pointKey || '')")
+}
+
+func TestDashboardScripts_MetricExplorerExportTracksActiveViewAndRestoresRoot(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	assert.Contains(t, rendered, "const lensExploreSyncExport")
+	assert.Contains(t, rendered, "button.dataset.lensExplorerRootHref = button.getAttribute('href')")
+	assert.Contains(t, rendered, "button.setAttribute('href', button.dataset.lensExplorerRootHref)")
+	assert.Contains(t, rendered, "url.searchParams.set('lens_explore_export', 'current_view')")
+	assert.Contains(t, rendered, "url.searchParams.set('lens_explorer', host.__lensExplorerCfg.id)")
+	assert.Contains(t, rendered, "url.searchParams.set('lens_explore_branch', state.branchKey)")
+	assert.Contains(t, rendered, "url.searchParams.set('lens_explore_perspective', state.perspectiveKey)")
+	assert.Contains(t, rendered, "url.searchParams.append('lens_explore_path', step.nodeKey)")
+	assert.Contains(t, rendered, "url.searchParams.append('lens_explore_point', step.pointKey || '')")
+	assert.Contains(t, rendered, "url.searchParams.set('lens_explore_node', steps[steps.length - 1].nodeKey)")
+	assert.Contains(t, rendered, "lensExploreSyncExport(host)")
+	assert.Contains(t, rendered, "const card = host.closest('.lens-card')")
+	assert.Contains(t, rendered, "card.classList.toggle('lens-explorer--fullscreen', active)")
+}
+
 func TestDashboardScripts_DrillTreeKeepsTabbedChartStateIndependent(t *testing.T) {
 	t.Parallel()
 
@@ -47,6 +145,16 @@ func TestDashboardScripts_DrillTreeKeepsTabbedChartStateIndependent(t *testing.T
 	assert.Contains(t, rendered, "Object.create(null)")
 	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key] = {")
 	assert.Contains(t, rendered, "scope.__lensDrillTreeSharedState[key] : null")
+}
+
+func TestDashboardScripts_DrillTreeClearsApexSelectionBetweenLevels(t *testing.T) {
+	t.Parallel()
+
+	rendered := renderDashboardScripts(t)
+
+	// Apex replays the clicked pie slice's explode transform on redraw. A drill
+	// level owns a different series, so that selection must never cross levels.
+	assert.Contains(t, rendered, "chartContext.w.globals.selectedDataPoints = []")
 }
 
 func TestDashboardScripts_DrillTreeRendersAccessibleNavigation(t *testing.T) {
@@ -66,6 +174,11 @@ func TestDashboardScripts_DrillTreeRendersAccessibleNavigation(t *testing.T) {
 	assert.Contains(t, rendered, "!state.path.length && cfg.hasFallbackAction")
 	assert.Contains(t, rendered, "container.__lensTotalBadgeUseDynamicSeries = true")
 	assert.Contains(t, rendered, "delete container.__lensTotalBadgeUseDynamicSeries")
+	assert.Contains(t, rendered, "let view = branch.view || null")
+	assert.Contains(t, rendered, "if (node.view)")
+	assert.Contains(t, rendered, "legend: drilledLegend")
+	assert.Contains(t, rendered, "plotOptions: { pie: drilledPie }")
+	assert.NotContains(t, rendered, "lens-drill-tree__shortcut")
 	assert.Contains(t, rendered, "const currentItem = (state.currentItems || [])[currentIndex]")
 	assert.NotContains(t, rendered, "data-lens-drill-tree-action")
 	assert.Contains(t, rendered, "event.key !== 'Escape'")

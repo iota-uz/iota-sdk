@@ -113,6 +113,7 @@ func drillTreeConfigJS(
 		branches = append(branches, drillTreeBranchConfig{
 			TriggerKey:     branch.TriggerKey,
 			Label:          branch.Label,
+			View:           drillTreeViewConfigFrom(branch.View),
 			Children:       children,
 			Total:          total,
 			TotalFormatted: format.Apply(formatterSpec, total, locale, ""),
@@ -131,6 +132,7 @@ func drillTreeConfigJS(
 		RootValuesFormatted: rootValuesFormatted,
 		RootLabel:           rootLabel,
 		BackLabel:           drillBackLabel(locale),
+		ExpandedSpan:        spec.ExpandedSpan,
 		Branches:            branches,
 	}
 	encoded, err := json.Marshal(config)
@@ -176,6 +178,7 @@ func drillTreeNodesConfig(
 			ValueFormatted: format.Apply(formatterSpec, node.Value, locale, ""),
 			Color:          node.Color,
 			Action:         drillTreeAction(node.Action, panelResult),
+			View:           drillTreeViewConfigFrom(node.View),
 			Children:       children,
 		}
 		if len(children) > 0 {
@@ -189,6 +192,20 @@ func drillTreeNodesConfig(
 		}
 	}
 	return configured, total
+}
+
+func drillTreeViewConfigFrom(view *panel.DrillLevelView) *drillTreeViewConfig {
+	if view == nil {
+		return nil
+	}
+	return &drillTreeViewConfig{
+		LegendPosition:  string(view.LegendPosition),
+		LegendWidthPx:   view.LegendWidthPx,
+		LegendOffsetY:   view.LegendOffsetY,
+		LegendFloating:  view.LegendFloating,
+		CircularScale:   view.CircularScale,
+		CircularOffsetX: view.CircularOffsetX,
+	}
 }
 
 func drillTreeAction(spec *action.Spec, panelResult *runtime.PanelResult) *drillTreeActionConfig {
@@ -266,12 +283,14 @@ type drillTreeConfig struct {
 	RootValuesFormatted []string                `json:"rootValuesFormatted"`
 	RootLabel           string                  `json:"rootLabel,omitempty"`
 	BackLabel           string                  `json:"backLabel"`
+	ExpandedSpan        int                     `json:"expandedSpan,omitempty"`
 	Branches            []drillTreeBranchConfig `json:"branches"`
 }
 
 type drillTreeBranchConfig struct {
 	TriggerKey     string                `json:"triggerKey"`
 	Label          string                `json:"label"`
+	View           *drillTreeViewConfig  `json:"view,omitempty"`
 	Children       []drillTreeNodeConfig `json:"children"`
 	Total          float64               `json:"total"`
 	TotalFormatted string                `json:"totalFormatted"`
@@ -284,9 +303,19 @@ type drillTreeNodeConfig struct {
 	ValueFormatted string                 `json:"valueFormatted"`
 	Color          string                 `json:"color,omitempty"`
 	Action         *drillTreeActionConfig `json:"action,omitempty"`
+	View           *drillTreeViewConfig   `json:"view,omitempty"`
 	Children       []drillTreeNodeConfig  `json:"children,omitempty"`
 	Total          float64                `json:"total,omitempty"`
 	TotalFormatted string                 `json:"totalFormatted,omitempty"`
+}
+
+type drillTreeViewConfig struct {
+	LegendPosition  string  `json:"legendPosition,omitempty"`
+	LegendWidthPx   int     `json:"legendWidthPx,omitempty"`
+	LegendOffsetY   int     `json:"legendOffsetY,omitempty"`
+	LegendFloating  bool    `json:"legendFloating,omitempty"`
+	CircularScale   float64 `json:"circularScale,omitempty"`
+	CircularOffsetX int     `json:"circularOffsetX,omitempty"`
 }
 
 type drillTreeActionConfig struct {

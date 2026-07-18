@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -104,6 +105,44 @@ func TestExporterRejectsMissingDeclaredEvidence(t *testing.T) {
 	}
 	err := New().Write(context.Background(), io.Discard, Request{Result: result, PanelID: "premium"})
 	require.ErrorContains(t, err, `declared export evidence dataset "missing" is unavailable`)
+}
+
+func TestExporterWritesExplorationMetadataWithoutChangingLegacyLayout(t *testing.T) {
+	t.Parallel()
+
+	chart := mustFrames(t, "chart", frame.Field{Name: "label", Values: []any{"A"}}, frame.Field{Name: "value", Values: []any{42.0}})
+	panelSpec := panel.Spec{ID: "premium", Title: "Premium", Kind: panel.KindPie, Dataset: "chart", Fields: panel.FieldMapping{Label: panel.Ref("label"), Value: panel.Ref("value")}}
+	result := &lensruntime.DashboardResult{
+		Spec:     lens.DashboardSpec{Title: "Dashboard", Datasets: []lens.DatasetSpec{{Name: "chart"}}},
+		Datasets: map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}},
+		Panels:   map[string]*lensruntime.PanelResult{"premium": {Panel: panelSpec, Frames: chart}},
+	}
+	selection := &explore.ExportRequest{
+		Mode:           explore.ExportCurrentView,
+		ExplorerID:     "premium-explorer",
+		BranchKey:      "unearned",
+		PerspectiveKey: "products",
+		Path:           []string{"root", "property"},
+		NodeKey:        "property",
+		Labels: explore.ExportLabels{
+			Explorer: "Premium analysis", Branch: "Unearned", Perspective: "Products", Node: "Property",
+		},
+	}
+	var out bytes.Buffer
+	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result, PanelID: "premium", Exploration: selection}))
+	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
+	require.NoError(t, err)
+	defer func() { _ = book.Close() }()
+
+	value, err := book.GetCellValue("Summary", "B9")
+	require.NoError(t, err)
+	require.Equal(t, "Products", value)
+	value, err = book.GetCellValue("Summary", "B10")
+	require.NoError(t, err)
+	require.Equal(t, "Property", value)
+	value, err = book.GetCellValue("Summary", "A13")
+	require.NoError(t, err)
+	require.Equal(t, "Premium", value)
 }
 
 func mustFrames(t *testing.T, name string, fields ...frame.Field) *frame.FrameSet {

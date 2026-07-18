@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -96,6 +97,43 @@ func TestHandlerIgnoresInvalidDownloadToken(t *testing.T) {
 	handler.ServeHTTP(recorder, request)
 
 	require.Empty(t, recorder.Result().Cookies())
+}
+
+func TestParseExplorationExportRequest_CurrentAndFullModes(t *testing.T) {
+	t.Parallel()
+
+	current, err := ParseExplorationExportRequest(map[string][]string{
+		ExplorationIDQuery:          {"premium"},
+		ExplorationBranchQuery:      {"unearned"},
+		ExplorationPerspectiveQuery: {"products"},
+		ExplorationPathQuery:        {"root", "property"},
+		ExplorationPointQuery:       {"", "other"},
+		ExplorationNodeQuery:        {"property"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, explore.ExportCurrentView, current.Mode)
+	require.Equal(t, []string{"root", "property"}, current.Path)
+	require.Equal(t, []explore.PathStep{{NodeKey: "root"}, {NodeKey: "property", PointKey: "other"}}, current.Steps)
+
+	full, err := ParseExplorationExportRequest(map[string][]string{
+		ExplorationModeQuery:   {string(explore.ExportFull)},
+		ExplorationIDQuery:     {"premium"},
+		ExplorationBranchQuery: {"unearned"},
+	})
+	require.NoError(t, err)
+	require.Equal(t, explore.ExportFull, full.Mode)
+}
+
+func TestWorkbookFilename_UsesResolvedExplorationLabel(t *testing.T) {
+	t.Parallel()
+
+	result := &runtime.DashboardResult{Spec: lens.DashboardSpec{Export: exportmeta.Spec{Filename: "profitability"}}}
+	selection := &explore.ExportRequest{
+		Mode:   explore.ExportCurrentView,
+		Labels: explore.ExportLabels{Node: "Product mix"},
+	}
+	filename := WorkbookFilename(result, "", time.Time{}, selection)
+	require.Equal(t, "profitability-Product-mix.xlsx", filename)
 }
 
 func responseCookieValue(response *http.Response, name string) string {

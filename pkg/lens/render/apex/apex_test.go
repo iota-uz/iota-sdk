@@ -129,6 +129,32 @@ func TestBuildActionJS_EmitEventDoesNotRequireURL(t *testing.T) {
 	require.Contains(t, js, `resolveValue(row["metric"], undefined)`)
 }
 
+func TestBuildActionJS_ExploreOpensStableBranchWithoutURL(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("premium",
+		frame.Field{Name: "metric", Type: frame.FieldTypeString, Values: []any{"unearned"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+	)
+	require.NoError(t, err)
+
+	exploreAction := action.Explore("premium-explorer", "unused").
+		WithExploreBranch(action.FieldValue("metric")).
+		WithExplorePerspective("products")
+	js := string(buildActionJS(
+		&exploreAction,
+		fr,
+		panel.FieldMapping{ID: "metric", Value: "value"},
+		&runtime.PanelResult{},
+	))
+
+	require.NotContains(t, js, "if (!nextURL) { return; }")
+	require.Contains(t, js, `"explorerId":"premium-explorer"`)
+	require.Contains(t, js, `"perspective":"products"`)
+	require.Contains(t, js, `const exploreBranch = resolveValue(row["metric"], undefined)`)
+	require.Contains(t, js, "window.__lensExploreOpen")
+}
+
 func TestBuildActionJS_CircularChartsUseSliceIndexForClickedRow(t *testing.T) {
 	t.Parallel()
 

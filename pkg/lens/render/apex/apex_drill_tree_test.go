@@ -24,9 +24,17 @@ func TestDrillTreeConfig_UsesStableRootKeysAndSerializesContext(t *testing.T) {
 	)
 	require.NoError(t, err)
 	formatter := format.Money("UZS", 0)
-	tree := &panel.DrillTree{Branches: []panel.DrillBranch{{
+	tree := &panel.DrillTree{ExpandedSpan: 12, Branches: []panel.DrillBranch{{
 		TriggerKey: "earned",
 		Label:      "Заработанная премия",
+		View: &panel.DrillLevelView{
+			LegendPosition:  panel.LegendRight,
+			LegendWidthPx:   300,
+			LegendOffsetY:   48,
+			LegendFloating:  true,
+			CircularScale:   0.9,
+			CircularOffsetX: -130,
+		},
 		Children: []panel.DrillNode{{
 			Key:   "2026",
 			Label: "2026",
@@ -61,6 +69,8 @@ func TestDrillTreeConfig_UsesStableRootKeysAndSerializesContext(t *testing.T) {
 	require.Contains(t, config, `"totalFormatted":"100 so’m"`)
 	require.Contains(t, config, `"backLabel":"Назад"`)
 	require.Contains(t, config, `"chartID":"accumulated-premium"`)
+	require.Contains(t, config, `"expandedSpan":12`)
+	require.Contains(t, config, `"view":{"legendPosition":"right","legendWidthPx":300,"legendOffsetY":48,"legendFloating":true,"circularScale":0.9,"circularOffsetX":-130}`)
 }
 
 func TestDrillTreeConfig_RejectsInvalidRootIdentity(t *testing.T) {

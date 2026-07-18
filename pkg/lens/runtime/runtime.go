@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -951,6 +952,92 @@ func Validate(spec lens.DashboardSpec) error {
 			}
 		}
 	}
+	if err := validateExplorers(spec, datasets, panelIDs); err != nil {
+		return wrap(err)
+	}
+	return nil
+}
+
+func validateExplorers(spec lens.DashboardSpec, datasets map[string]lens.DatasetSpec, panelIDs map[string]struct{}) error {
+	seen := make(map[string]struct{}, len(spec.Explorers))
+	explorers := make(map[string]explore.Spec, len(spec.Explorers))
+	for _, explorerSpec := range spec.Explorers {
+		if err := explorerSpec.Validate(); err != nil {
+			return err
+		}
+		if _, ok := seen[explorerSpec.ID]; ok {
+			return fmt.Errorf("duplicate explorer %s", explorerSpec.ID)
+		}
+		seen[explorerSpec.ID] = struct{}{}
+		explorers[explorerSpec.ID] = explorerSpec
+		if _, ok := panelIDs[explorerSpec.HostPanelID]; !ok {
+			return fmt.Errorf("explorer %s references missing host panel %s", explorerSpec.ID, explorerSpec.HostPanelID)
+		}
+		for _, branch := range explorerSpec.Branches {
+			for _, perspective := range branch.Perspectives {
+				for _, node := range perspective.Nodes {
+					if node.Panel != nil {
+						if err := validatePanel(*node.Panel, datasets, make(map[string]struct{})); err != nil {
+							return fmt.Errorf("explorer %s branch %s perspective %s node %s: %w", explorerSpec.ID, branch.Key, perspective.Key, node.Key, err)
+						}
+					}
+					for _, edge := range node.Edges {
+						if err := validateAction("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, actionValidationOptions{allowFieldSources: true}); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+	for _, row := range spec.Rows {
+		for _, panelSpec := range row.Panels {
+			if err := validatePanelExploreReferences(panelSpec, explorers); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validatePanelExploreReferences(panelSpec panel.Spec, explorers map[string]explore.Spec) error {
+	if err := validateExploreReference("panel "+panelSpec.ID, panelSpec.Action, explorers); err != nil {
+		return err
+	}
+	for _, column := range panelSpec.Columns {
+		if err := validateExploreReference("panel "+panelSpec.ID+" column "+column.Field.Name(), column.Action, explorers); err != nil {
+			return err
+		}
+	}
+	for _, child := range panelSpec.Children {
+		if err := validatePanelExploreReferences(child, explorers); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateExploreReference(owner string, actionSpec *action.Spec, explorers map[string]explore.Spec) error {
+	if actionSpec == nil || actionSpec.Kind != action.KindExplore || actionSpec.Explore == nil {
+		return nil
+	}
+	explorerSpec, ok := explorers[actionSpec.Explore.ExplorerID]
+	if !ok {
+		return fmt.Errorf("%s references missing explorer %q", owner, actionSpec.Explore.ExplorerID)
+	}
+	if actionSpec.Explore.Branch.Kind != action.SourceLiteral {
+		return nil
+	}
+	branchKey := fmt.Sprint(actionSpec.Explore.Branch.Value)
+	branch, ok := explorerSpec.Branch(branchKey)
+	if !ok {
+		return fmt.Errorf("%s references missing explorer branch %q", owner, branchKey)
+	}
+	if actionSpec.Explore.Perspective != "" {
+		if _, ok := branch.Perspective(actionSpec.Explore.Perspective); !ok {
+			return fmt.Errorf("%s references missing explorer perspective %q", owner, actionSpec.Explore.Perspective)
+		}
+	}
 	return nil
 }
 
@@ -1020,7 +1107,7 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 	if spec == nil {
 		return nil
 	}
-	if strings.TrimSpace(spec.URL) == "" && spec.URLSource == nil && spec.Kind != action.KindEmitEvent {
+	if strings.TrimSpace(spec.URL) == "" && spec.URLSource == nil && spec.Kind != action.KindEmitEvent && spec.Kind != action.KindExplore {
 		return fmt.Errorf("%s action requires url", owner)
 	}
 	switch spec.Kind {
@@ -1028,6 +1115,16 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 	case action.KindCubeDrill:
 		if !opts.allowCubeDrill {
 			return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)
+		}
+	case action.KindExplore:
+		if spec.Explore == nil {
+			return fmt.Errorf("%s explore action requires explore spec", owner)
+		}
+		if strings.TrimSpace(spec.Explore.ExplorerID) == "" {
+			return fmt.Errorf("%s explore action requires explorer id", owner)
+		}
+		if err := validateActionValueSource(owner, "branch", spec.Explore.Branch, opts); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)
@@ -1096,6 +1193,9 @@ func validateDrillTree(spec panel.Spec) error {
 	if len(spec.DrillTree.Branches) == 0 {
 		return fmt.Errorf("panel %s drill tree requires at least one branch", spec.ID)
 	}
+	if spec.DrillTree.ExpandedSpan < 0 || spec.DrillTree.ExpandedSpan > 12 {
+		return fmt.Errorf("panel %s drill tree expanded span must be between 1 and 12 when configured", spec.ID)
+	}
 
 	branchKeys := make(map[string]struct{}, len(spec.DrillTree.Branches))
 	for i, branch := range spec.DrillTree.Branches {
@@ -1116,9 +1216,30 @@ func validateDrillTree(spec panel.Spec) error {
 		if len(branch.Children) == 0 {
 			return fmt.Errorf("panel %s drill tree branch %q requires children", spec.ID, key)
 		}
+		if err := validateDrillLevelView(spec.ID, "branch "+key, branch.View); err != nil {
+			return err
+		}
 		if err := validateDrillNodes(spec.ID, key, branch.Children); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateDrillLevelView(panelID, owner string, view *panel.DrillLevelView) error {
+	if view == nil {
+		return nil
+	}
+	switch view.LegendPosition {
+	case "", panel.LegendTop, panel.LegendRight, panel.LegendBottom, panel.LegendLeft:
+	default:
+		return fmt.Errorf("panel %s drill tree %s has invalid legend position %q", panelID, owner, view.LegendPosition)
+	}
+	if view.LegendWidthPx < 0 {
+		return fmt.Errorf("panel %s drill tree %s legend width cannot be negative", panelID, owner)
+	}
+	if math.IsNaN(view.CircularScale) || math.IsInf(view.CircularScale, 0) || view.CircularScale < 0 {
+		return fmt.Errorf("panel %s drill tree %s circular scale must be zero or a positive finite value", panelID, owner)
 	}
 	return nil
 }
@@ -1151,6 +1272,9 @@ func validateDrillNodes(panelID, parentPath string, nodes []panel.DrillNode) err
 		}
 		if len(node.Children) > 0 && node.Action != nil {
 			return fmt.Errorf("panel %s drill tree node %s cannot have both children and action", panelID, path)
+		}
+		if err := validateDrillLevelView(panelID, "node "+path, node.View); err != nil {
+			return err
 		}
 		if err := validateAction("panel "+panelID+" drill tree node "+path, node.Action, actionValidationOptions{}); err != nil {
 			return err

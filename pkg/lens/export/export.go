@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -19,30 +20,34 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-type Labels struct{ Summary, ChartData, Breakdown, Parameters, Sources, Metric, Value, Parameter, Dataset, Source, DependsOn string }
+type Labels struct {
+	Summary, ChartData, Breakdown, Parameters, Sources, Metric, Value, Parameter, Dataset, Source, DependsOn string
+	Explorer, Branch, Perspective, Node, Path, ExportMode                                                    string
+}
 
 func DefaultLabels() Labels {
-	return Labels{"Summary", "Chart data", "Breakdown", "Parameters", "Sources", "Metric", "Value", "Parameter", "Dataset", "Source", "Depends on"}
+	return Labels{"Summary", "Chart data", "Breakdown", "Parameters", "Sources", "Metric", "Value", "Parameter", "Dataset", "Source", "Depends on", "Explorer", "Branch", "Perspective", "Node", "Path", "Export mode"}
 }
 
 func LabelsForLocale(locale string) Labels {
 	switch strings.ToLower(strings.TrimSpace(locale)) {
 	case "ru", "ru-ru":
-		return Labels{"Сводка", "Данные графика", "Разбивка", "Параметры", "Источники", "Показатель", "Значение", "Параметр", "Набор данных", "Источник", "Зависит от"}
+		return Labels{"Сводка", "Данные графика", "Разбивка", "Параметры", "Источники", "Показатель", "Значение", "Параметр", "Набор данных", "Источник", "Зависит от", "Исследование", "Раздел", "Представление", "Узел", "Путь", "Режим экспорта"}
 	case "uz-cyrl", "uz-cyrl-uz", "oz":
-		return Labels{"Хулоса", "График маълумотлари", "Тафсилот", "Параметрлар", "Манбалар", "Кўрсаткич", "Қиймат", "Параметр", "Маълумотлар тўплами", "Манба", "Боғлиқ"}
+		return Labels{"Хулоса", "График маълумотлари", "Тафсилот", "Параметрлар", "Манбалар", "Кўрсаткич", "Қиймат", "Параметр", "Маълумотлар тўплами", "Манба", "Боғлиқ", "Таҳлил", "Бўлим", "Кўриниш", "Тугун", "Йўл", "Экспорт режими"}
 	case "uz", "uz-latn", "uz-latn-uz":
-		return Labels{"Xulosa", "Grafik ma’lumotlari", "Tafsilot", "Parametrlar", "Manbalar", "Ko‘rsatkich", "Qiymat", "Parametr", "Ma’lumotlar to‘plami", "Manba", "Bog‘liq"}
+		return Labels{"Xulosa", "Grafik ma’lumotlari", "Tafsilot", "Parametrlar", "Manbalar", "Ko‘rsatkich", "Qiymat", "Parametr", "Ma’lumotlar to‘plami", "Manba", "Bog‘liq", "Tahlil", "Bo‘lim", "Ko‘rinish", "Tugun", "Yo‘l", "Eksport rejimi"}
 	default:
 		return DefaultLabels()
 	}
 }
 
 type Request struct {
-	Result    *lensruntime.DashboardResult
-	PanelID   string
-	DrillPath []string
-	Labels    Labels
+	Result      *lensruntime.DashboardResult
+	PanelID     string
+	DrillPath   []string
+	Labels      Labels
+	Exploration *explore.ExportRequest
 }
 
 type sheetTarget struct {
@@ -86,13 +91,20 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 	if err != nil {
 		return err
 	}
-	if err := writeRows(file, summary, [][]any{
+	summaryRows := [][]any{
 		{labels.Metric, labels.Value},
 		{req.Result.Spec.Title, dashboardTotal(req.Result, req.PanelID)},
 		{"Snapshot", req.Result.SnapshotID},
 		{"Drill", strings.Join(req.DrillPath, " > ")},
 		{labels.Sources, sheetHyperlink(sources, labels.Sources)},
-	}); err != nil {
+	}
+	if req.Exploration != nil {
+		if err := req.Exploration.Validate(); err != nil {
+			return err
+		}
+		summaryRows = append(summaryRows, explorationSummaryRows(labels, *req.Exploration)...)
+	}
+	if err := writeRows(file, summary, summaryRows); err != nil {
 		return err
 	}
 	parameterRows := [][]any{{labels.Parameter, labels.Value}}
@@ -169,7 +181,7 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 		}
 		datasetTargets[dataset] = sheetTarget{Sheet: sheet, Cell: "A1"}
 	}
-	dashboardRow := 7
+	dashboardRow := len(summaryRows) + 2
 	dashboardColumns := 2
 	for _, panelResult := range panels {
 		if panelResult == nil || panelResult.Frames == nil {
@@ -222,6 +234,30 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 	index, _ := file.GetSheetIndex(summary)
 	file.SetActiveSheet(index)
 	return file.Write(w)
+}
+
+func explorationSummaryRows(labels Labels, req explore.ExportRequest) [][]any {
+	value := func(label, fallback string) string {
+		if strings.TrimSpace(label) != "" {
+			return label
+		}
+		return fallback
+	}
+	rows := [][]any{
+		{labels.ExportMode, string(req.Mode)},
+		{labels.Explorer, value(req.Labels.Explorer, req.ExplorerID)},
+		{labels.Branch, value(req.Labels.Branch, req.BranchKey)},
+	}
+	if req.PerspectiveKey != "" {
+		rows = append(rows, []any{labels.Perspective, value(req.Labels.Perspective, req.PerspectiveKey)})
+	}
+	if req.NodeKey != "" {
+		rows = append(rows, []any{labels.Node, value(req.Labels.Node, req.NodeKey)})
+	}
+	if len(req.Path) > 0 {
+		rows = append(rows, []any{labels.Path, strings.Join(req.Path, " > ")})
+	}
+	return rows
 }
 
 func selectedPanels(result *lensruntime.DashboardResult, id string) []*lensruntime.PanelResult {

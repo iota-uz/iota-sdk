@@ -1328,6 +1328,18 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 			return templpkg.ComponentScript{}
 		}
 		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%s, {detail: %s}));", js.MustToJS(spec.Event), encoded))
+	case action.KindExplore:
+		if spec.Explore == nil {
+			return templpkg.ComponentScript{}
+		}
+		branch, ok := action.ResolveValue(spec.Explore.Branch, row, resultVariables(result))
+		if !ok || strings.TrimSpace(fmt.Sprint(branch)) == "" {
+			return templpkg.ComponentScript{}
+		}
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf(
+			"event.preventDefault(); if (window.__lensExploreOpen) { window.__lensExploreOpen(this, {explorerId: %s, branchKey: %s, perspectiveKey: %s}); }",
+			js.MustToJS(spec.Explore.ExplorerID), js.MustToJS(fmt.Sprint(branch)), js.MustToJS(spec.Explore.Perspective),
+		))
 	default:
 		return templpkg.ComponentScript{}
 	}

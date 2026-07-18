@@ -11,6 +11,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensspec "github.com/iota-uz/iota-sdk/pkg/lens/spec"
@@ -59,6 +60,10 @@ func Document(doc lensspec.Document, opts Options) (CompiledDocument, error) {
 	if err != nil {
 		return CompiledDocument{}, err
 	}
+	explorers, err := compileExplorers(doc.Explorers, opts)
+	if err != nil {
+		return CompiledDocument{}, err
+	}
 
 	if compiled.Semantic == nil {
 		compiled.Spec = lens.DashboardSpec{
@@ -71,6 +76,7 @@ func Document(doc lensspec.Document, opts Options) (CompiledDocument, error) {
 			Drill:       doc.Drill,
 			Cache:       lens.CachePolicy{Mode: doc.Cache.Mode, TTL: doc.Cache.TTL.Std()},
 			Export:      doc.Export,
+			Explorers:   explorers,
 		}
 		lens.ApplyExportDefaults(&compiled.Spec)
 		return compiled, nil
@@ -91,9 +97,95 @@ func Document(doc lensspec.Document, opts Options) (CompiledDocument, error) {
 	}
 	compiled.Spec.Cache = lens.CachePolicy{Mode: doc.Cache.Mode, TTL: doc.Cache.TTL.Std()}
 	compiled.Spec.Export = doc.Export
+	compiled.Spec.Explorers = explorers
 	lens.ApplyExportDefaults(&compiled.Spec)
 
 	return compiled, nil
+}
+
+func compileExplorers(items []lensspec.ExplorerSpec, opts Options) ([]explore.Spec, error) {
+	out := make([]explore.Spec, 0, len(items))
+	for _, item := range items {
+		explorerSpec := explore.Spec{
+			ID:           resolveString(item.ID, opts.Values),
+			HostPanelID:  resolveString(item.HostPanelID, opts.Values),
+			ExpandedSpan: item.ExpandedSpan,
+			Branches:     make([]explore.Branch, 0, len(item.Branches)),
+		}
+		for _, branchItem := range item.Branches {
+			branch := explore.Branch{
+				Key:                resolveString(branchItem.Key, opts.Values),
+				Label:              resolveText(branchItem.Label, opts),
+				DefaultPerspective: resolveString(branchItem.DefaultPerspective, opts.Values),
+				Perspectives:       make([]explore.Perspective, 0, len(branchItem.Perspectives)),
+			}
+			for _, perspectiveItem := range branchItem.Perspectives {
+				perspective := explore.Perspective{
+					Key:       resolveString(perspectiveItem.Key, opts.Values),
+					Label:     resolveText(perspectiveItem.Label, opts),
+					Semantics: explore.Semantics(resolveString(perspectiveItem.Semantics, opts.Values)),
+					RootNode:  resolveString(perspectiveItem.RootNode, opts.Values),
+					Export:    perspectiveItem.Export,
+					Nodes:     make([]explore.Node, 0, len(perspectiveItem.Nodes)),
+				}
+				for _, nodeItem := range perspectiveItem.Nodes {
+					node := explore.Node{
+						Key:            resolveString(nodeItem.Key, opts.Values),
+						Label:          resolveText(nodeItem.Label, opts),
+						Edges:          make([]explore.Edge, 0, len(nodeItem.Edges)),
+						DynamicEdges:   nodeItem.DynamicEdges,
+						DynamicTargets: make([]string, 0, len(nodeItem.DynamicTargets)),
+					}
+					for _, target := range nodeItem.DynamicTargets {
+						node.DynamicTargets = append(node.DynamicTargets, resolveString(target, opts.Values))
+					}
+					if nodeItem.Panel != nil {
+						compiledPanel, err := compilePanel(*nodeItem.Panel, opts)
+						if err != nil {
+							return nil, fmt.Errorf("compile explorer %q node %q panel: %w", item.ID, nodeItem.Key, err)
+						}
+						node.Panel = &compiledPanel
+					}
+					if nodeItem.Load != nil {
+						node.Load = &explore.LoadSpec{
+							URL:           resolveString(nodeItem.Load.URL, opts.Values),
+							Method:        resolveString(nodeItem.Load.Method, opts.Values),
+							PreserveQuery: nodeItem.Load.PreserveQuery,
+						}
+					}
+					if nodeItem.Check != nil {
+						node.Check = &explore.BalanceCheck{
+							Expected:  nodeItem.Check.Expected,
+							Actual:    nodeItem.Check.Actual,
+							Tolerance: nodeItem.Check.Tolerance,
+						}
+					}
+					for _, edgeItem := range nodeItem.Edges {
+						edge := explore.Edge{
+							PointKey: resolveString(edgeItem.PointKey, opts.Values),
+							ToNode:   resolveString(edgeItem.ToNode, opts.Values),
+						}
+						if edgeItem.Action != nil {
+							resolvedAction, err := resolveActionSpec(*edgeItem.Action, opts.Values)
+							if err != nil {
+								return nil, fmt.Errorf("compile explorer %q node %q edge %q action: %w", item.ID, nodeItem.Key, edgeItem.PointKey, err)
+							}
+							edge.Action = &resolvedAction
+						}
+						node.Edges = append(node.Edges, edge)
+					}
+					perspective.Nodes = append(perspective.Nodes, node)
+				}
+				branch.Perspectives = append(branch.Perspectives, perspective)
+			}
+			explorerSpec.Branches = append(explorerSpec.Branches, branch)
+		}
+		if err := explorerSpec.Validate(); err != nil {
+			return nil, err
+		}
+		out = append(out, explorerSpec)
+	}
+	return out, nil
 }
 
 func LeafURL(doc lensspec.Document, opts Options) (string, bool, error) {
@@ -519,6 +611,17 @@ func resolveActionSpec(spec action.Spec, values map[string]any) (action.Spec, er
 		drill.Dimension = resolveString(drill.Dimension, values)
 		drill.Value = value
 		resolved.Drill = &drill
+	}
+	if spec.Explore != nil {
+		exploreSpec := *spec.Explore
+		branch, err := resolveValueSource(spec.Explore.Branch, values)
+		if err != nil {
+			return action.Spec{}, err
+		}
+		exploreSpec.ExplorerID = resolveString(exploreSpec.ExplorerID, values)
+		exploreSpec.Perspective = resolveString(exploreSpec.Perspective, values)
+		exploreSpec.Branch = branch
+		resolved.Explore = &exploreSpec
 	}
 	if len(spec.Params) > 0 {
 		resolved.Params = make([]action.Param, 0, len(spec.Params))

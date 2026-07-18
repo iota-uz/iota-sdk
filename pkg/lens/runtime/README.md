@@ -22,3 +22,26 @@ uses the same bounded store and singleflight domain.
 
 The former request-scoped `Cache` / `NewMemoryCache` API was intentionally
 removed. There is no compatibility path.
+
+## Metric exploration fragments
+
+Metric explorers stay out of `DashboardScope`. The prepared root dashboard
+contains only the explorer manifest; it does not add embedded or lazy node
+panels to the ordinary execution plan.
+
+Transport adapters pass a prepared dashboard plus typed explorer state to
+`ExplorationFragmentHandler.Handle`. The host-owned `ExplorationLoader`
+resolves one node to a small `DashboardSpec` and panel ID. Lens then executes
+that definition with `PanelScope(panelID)`, returning the resulting
+`PanelResult` on `ExplorationFragmentResponse.Panel`.
+
+This keeps these guarantees:
+
+- opening the dashboard never materializes exploration-only datasets;
+- a lazy node executes only its selected panel and dependencies;
+- tenant/authz identity, variables, snapshots and cache semantics come from
+  the normal `runtime.Request`;
+- an edge-bearing lazy node must return a panel with `Fields.ID`, so clicks use
+  the same stable point keys declared by the explorer edges;
+- embedded nodes may reuse an already-materialized root dataset, while nodes
+  needing independent data should use `LoadSpec` and the fragment contract.

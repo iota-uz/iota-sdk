@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -54,6 +55,7 @@ type DashboardSpec struct {
 	Drill       *DrillMeta
 	Cache       CachePolicy
 	Export      exportmeta.Spec
+	Explorers   []explore.Spec
 }
 
 type CacheMode string

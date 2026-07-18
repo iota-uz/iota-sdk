@@ -38,3 +38,15 @@ func RenderPanelFragmentWithOptions(
 	})).ServeHTTP(w, r)
 	return true
 }
+
+// RenderExplorationFragment renders the panel returned by
+// runtime.ExecuteExploration. Host applications can use it as the response for
+// an explore.LoadSpec URL; the fragment wires stable point IDs back into the
+// client-side explorer state machine.
+func RenderExplorationFragment(w http.ResponseWriter, r *http.Request, result *runtime.ExplorationResult) bool {
+	if result == nil || result.Panel == nil {
+		return false
+	}
+	templ.Handler(ExplorationFragment(result)).ServeHTTP(w, r)
+	return true
+}

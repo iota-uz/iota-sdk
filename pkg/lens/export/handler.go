@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 )
 
@@ -26,6 +27,7 @@ const (
 type ResolveRequest struct {
 	DashboardID, PanelID, SnapshotID string
 	Query                            url.Values
+	Exploration                      *explore.ExportRequest
 }
 type Resolver interface {
 	ResolveLensExport(context.Context, ResolveRequest) (*runtime.DashboardResult, error)
@@ -43,6 +45,12 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	dashboardID := strings.TrimSpace(r.URL.Query().Get("dashboard"))
 	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
 	snapshotID := strings.TrimSpace(r.URL.Query().Get("snapshot"))
+	exploration, err := ParseExplorationExportRequest(r.URL.Query())
+	if err != nil {
+		SetDownloadSignal(w, r, DownloadSignalError)
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	if dashboardID == "" {
 		SetDownloadSignal(w, r, DownloadSignalError)
 		http.Error(w, "dashboard is required", http.StatusBadRequest)
@@ -60,7 +68,7 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "export resolver is not configured", http.StatusInternalServerError)
 		return
 	}
-	result, err := h.Resolver.ResolveLensExport(r.Context(), ResolveRequest{DashboardID: dashboardID, PanelID: panelID, SnapshotID: snapshotID, Query: r.URL.Query()})
+	result, err := h.Resolver.ResolveLensExport(r.Context(), ResolveRequest{DashboardID: dashboardID, PanelID: panelID, SnapshotID: snapshotID, Query: r.URL.Query(), Exploration: exploration})
 	if err != nil {
 		SetDownloadSignal(w, r, DownloadSignalError)
 		http.Error(w, "export failed", http.StatusInternalServerError)
@@ -70,7 +78,18 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if h.Now != nil {
 		now = h.Now()
 	}
-	filename := WorkbookFilename(result, panelID, now)
+	if exploration != nil {
+		if len(result.Spec.Explorers) > 0 {
+			resolved, resolveErr := resolveExplorationExportLabels(result, *exploration)
+			if resolveErr != nil {
+				SetDownloadSignal(w, r, DownloadSignalError)
+				http.Error(w, "export failed", http.StatusInternalServerError)
+				return
+			}
+			exploration = &resolved
+		}
+	}
+	filename := WorkbookFilename(result, panelID, now, exploration)
 	SetDownloadSignal(w, r, DownloadSignalStarted)
 	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 	w.Header().Set("Content-Disposition", ContentDisposition(filename))
@@ -78,12 +97,12 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if exporter == nil {
 		exporter = New()
 	}
-	if err := exporter.Write(r.Context(), w, Request{Result: result, PanelID: panelID}); err != nil {
+	if err := exporter.Write(r.Context(), w, Request{Result: result, PanelID: panelID, Exploration: exploration}); err != nil {
 		return
 	}
 }
 
-func WorkbookFilename(result *runtime.DashboardResult, panelID string, generatedAt time.Time) string {
+func WorkbookFilename(result *runtime.DashboardResult, panelID string, generatedAt time.Time, exploration ...*explore.ExportRequest) string {
 	base := "dashboard"
 	if result != nil {
 		if configured := safeFilename(result.Spec.Export.Filename); configured != "" {
@@ -100,11 +119,78 @@ func WorkbookFilename(result *runtime.DashboardResult, panelID string, generated
 				base += "-" + panelName
 			}
 		}
+		if len(exploration) > 0 && exploration[0] != nil {
+			selection := exploration[0]
+			name := selection.Labels.Node
+			if selection.Mode == explore.ExportFull {
+				name = selection.Labels.Branch
+			} else if strings.TrimSpace(name) == "" {
+				name = selection.Labels.Perspective
+			}
+			if name = safeFilename(name); name != "" && !strings.EqualFold(name, base) {
+				base += "-" + name
+			}
+		}
 	}
 	if !generatedAt.IsZero() {
 		base += "-" + generatedAt.Format("20060102-1504")
 	}
 	return base + ".xlsx"
+}
+
+const (
+	ExplorationModeQuery        = "lens_explore_export"
+	ExplorationIDQuery          = "lens_explorer"
+	ExplorationBranchQuery      = "lens_explore_branch"
+	ExplorationPerspectiveQuery = "lens_explore_perspective"
+	ExplorationPathQuery        = "lens_explore_path"
+	ExplorationPointQuery       = "lens_explore_point"
+	ExplorationNodeQuery        = "lens_explore_node"
+)
+
+func ParseExplorationExportRequest(values url.Values) (*explore.ExportRequest, error) {
+	mode := explore.ExportMode(strings.TrimSpace(values.Get(ExplorationModeQuery)))
+	if mode == "" {
+		if strings.TrimSpace(values.Get(ExplorationIDQuery)) == "" {
+			return nil, nil
+		}
+		mode = explore.ExportCurrentView
+	}
+	path := append([]string(nil), values[ExplorationPathQuery]...)
+	points := values[ExplorationPointQuery]
+	steps := make([]explore.PathStep, 0, len(path))
+	for index, nodeKey := range path {
+		step := explore.PathStep{NodeKey: nodeKey}
+		if index < len(points) {
+			step.PointKey = points[index]
+		}
+		steps = append(steps, step)
+	}
+	request := &explore.ExportRequest{
+		Mode:           mode,
+		ExplorerID:     strings.TrimSpace(values.Get(ExplorationIDQuery)),
+		BranchKey:      strings.TrimSpace(values.Get(ExplorationBranchQuery)),
+		PerspectiveKey: strings.TrimSpace(values.Get(ExplorationPerspectiveQuery)),
+		Path:           path,
+		Steps:          steps,
+		NodeKey:        strings.TrimSpace(values.Get(ExplorationNodeQuery)),
+	}
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	return request, nil
+}
+
+func resolveExplorationExportLabels(result *runtime.DashboardResult, request explore.ExportRequest) (explore.ExportRequest, error) {
+	if result == nil {
+		return request, fmt.Errorf("lens export result is required")
+	}
+	for _, explorerSpec := range result.Spec.Explorers {
+		if explorerSpec.ID == request.ExplorerID {
+			return explore.ResolveExportRequest(explorerSpec, request)
+		}
+	}
+	return request, fmt.Errorf("explorer %q not found", request.ExplorerID)
 }
 
 func ContentDisposition(filename string) string {
