@@ -1,12 +1,12 @@
 import fixture from '../fixtures/small.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { PlaceholderPanel } from './PlaceholderPanel'
-import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
+import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
 
 export interface LensDashboardProps {
   src?: string
   locale?: string
-  theme?: 'light' | 'dark'
+  theme?: LensThemeMode
   csrf?: string
   fetcher?: typeof fetch
   initialDocument?: DashboardDocument

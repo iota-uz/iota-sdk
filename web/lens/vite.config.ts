@@ -20,7 +20,7 @@ export default defineConfig({
     outDir: path.resolve(rootDir, '../../pkg/lens/render/react/dist'),
     emptyOutDir: true,
     manifest: true,
-    cssCodeSplit: false,
+    cssCodeSplit: true,
     rollupOptions: {
       input: path.resolve(rootDir, 'index.html'),
       output: {
