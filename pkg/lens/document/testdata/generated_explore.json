@@ -1,0 +1,193 @@
+{
+  "version": "1.0.0",
+  "snapshotId": "snapshot-generated",
+  "meta": {
+    "dashboardId": "overview",
+    "title": "Overview",
+    "generatedAt": "2026-07-19T10:00:00Z",
+    "locale": "en"
+  },
+  "layout": {
+    "rows": [
+      {
+        "panels": [
+          {
+            "panelId": "host",
+            "span": 6
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "host",
+      "kind": "pie",
+      "title": "Premium",
+      "semantics": "partition",
+      "frame": "panel:host",
+      "encoding": {
+        "label": "label",
+        "value": "value",
+        "id": "id"
+      },
+      "format": {},
+      "drillRoot": "metric",
+      "actions": []
+    }
+  ],
+  "frames": {
+    "panel:host": {
+      "columns": [
+        {
+          "name": "id",
+          "type": "string"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        [
+          "a",
+          "Alpha",
+          60
+        ],
+        [
+          "b",
+          "Beta",
+          40
+        ]
+      ]
+    }
+  },
+  "drill": {
+    "edges": {
+      "metric": {
+        "path": [
+          "metric"
+        ],
+        "label": "",
+        "children": [
+          {
+            "key": "metric/focus",
+            "path": [
+              "metric",
+              "metric/focus"
+            ],
+            "label": "Focus",
+            "target": "metric/focus"
+          }
+        ],
+        "frame": "panel:host",
+        "perspectives": []
+      },
+      "metric/focus": {
+        "path": [
+          "metric",
+          "metric/focus"
+        ],
+        "label": "Focus",
+        "children": [],
+        "perspectives": [
+          {
+            "id": "metric/focus/composition"
+          }
+        ]
+      },
+      "metric/focus/composition/detail": {
+        "path": [
+          "metric",
+          "metric/focus",
+          "metric/focus/composition",
+          "metric/focus/composition/detail"
+        ],
+        "label": "Detail",
+        "children": [
+          {
+            "key": "metric/focus/composition/detail/leaf",
+            "path": [
+              "metric",
+              "metric/focus",
+              "metric/focus/composition",
+              "metric/focus/composition/detail",
+              "metric/focus/composition/detail/leaf"
+            ],
+            "label": "",
+            "action": {
+              "kind": "navigate_to_leaf",
+              "method": "GET",
+              "urlTemplate": "/policies/{policyId}",
+              "params": [
+                {
+                  "name": "policyId",
+                  "source": {
+                    "kind": "literal",
+                    "value": "selected"
+                  }
+                }
+              ],
+              "payload": {}
+            }
+          }
+        ],
+        "perspectives": [
+          {
+            "id": "metric/focus/composition"
+          }
+        ]
+      },
+      "metric/focus/composition/root": {
+        "path": [
+          "metric",
+          "metric/focus",
+          "metric/focus/composition",
+          "metric/focus/composition/root"
+        ],
+        "label": "Root",
+        "children": [
+          {
+            "key": "metric/focus/composition/root/a",
+            "path": [
+              "metric",
+              "metric/focus",
+              "metric/focus/composition",
+              "metric/focus/composition/root",
+              "metric/focus/composition/root/a"
+            ],
+            "label": "",
+            "target": "metric/focus/composition/detail"
+          }
+        ],
+        "perspectives": [
+          {
+            "id": "metric/focus/composition"
+          }
+        ]
+      }
+    },
+    "inlineDepth": 1
+  },
+  "perspectives": [
+    {
+      "id": "metric/focus/composition",
+      "explorerId": "metric",
+      "branchKey": "metric/focus",
+      "key": "composition",
+      "label": "Composition",
+      "semantics": "partition",
+      "root": "metric/focus/composition/root"
+    }
+  ],
+  "endpoints": {},
+  "i18n": {},
+  "theme": {
+    "palette": {},
+    "series": {}
+  }
+}

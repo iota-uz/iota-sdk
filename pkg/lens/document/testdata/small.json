@@ -1,0 +1,79 @@
+{
+  "version": "1.0.0",
+  "snapshotId": "snapshot-test",
+  "meta": {
+    "dashboardId": "overview",
+    "title": "Overview",
+    "generatedAt": "2026-07-19T09:30:00Z",
+    "locale": "en"
+  },
+  "layout": {
+    "rows": [
+      {
+        "panels": [
+          {
+            "panelId": "total",
+            "span": 6
+          }
+        ]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "total",
+      "kind": "stat",
+      "title": "Total",
+      "semantics": "series",
+      "frame": "panel:total",
+      "encoding": {
+        "label": "label",
+        "value": "value"
+      },
+      "format": {},
+      "actions": []
+    }
+  ],
+  "frames": {
+    "panel:total": {
+      "columns": [
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "value",
+          "type": "number"
+        }
+      ],
+      "rows": [
+        [
+          "Total",
+          42
+        ]
+      ]
+    }
+  },
+  "drill": {
+    "edges": {},
+    "inlineDepth": 0
+  },
+  "perspectives": [],
+  "endpoints": {
+    "query": "/lens/query",
+    "export": "/lens/export"
+  },
+  "i18n": {
+    "dashboard.title": "Overview",
+    "dashboard.total": "Total"
+  },
+  "theme": {
+    "palette": {
+      "accent": "#2563eb",
+      "danger": "#dc2626"
+    },
+    "series": {
+      "total": "accent"
+    }
+  }
+}
