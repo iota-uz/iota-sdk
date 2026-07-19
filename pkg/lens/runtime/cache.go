@@ -263,10 +263,21 @@ func cloneReflect(value reflect.Value) reflect.Value {
 			out.SetMapIndex(iter.Key(), cloneReflect(iter.Value()))
 		}
 		return out
+	case reflect.Struct:
+		for i := range value.NumField() {
+			if value.Type().Field(i).PkgPath != "" {
+				return value
+			}
+		}
+		out := reflect.New(value.Type()).Elem()
+		for i := range value.NumField() {
+			out.Field(i).Set(cloneReflect(value.Field(i)))
+		}
+		return out
 	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Chan,
-		reflect.Func, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		reflect.Func, reflect.String, reflect.UnsafePointer:
 		return value
 	}
 	return value
