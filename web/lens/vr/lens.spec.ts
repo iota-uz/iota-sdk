@@ -8,11 +8,11 @@ const storyIds = [
   'chart-adapter--line-and-area-light',
   'chart-adapter--pie-and-donut-dark',
   'chart-adapter--pie-and-donut-light',
-  'explore--full-drill-flow-·-three-levels',
+  'explore--full-drill-flow--three-levels',
   'explore--keyboard-walkthrough',
   'explore--perspective-switching-on-a-segment',
-  'panel-matrix--all-kinds-and-states-·-dark',
-  'panel-matrix--all-kinds-and-states-·-light',
+  'panel-matrix--all-kinds-and-states--dark',
+  'panel-matrix--all-kinds-and-states--light',
   'panels-v2--cascade-final-stage',
   'panels-v2--export-idle',
   'panels-v2--export-pending',
@@ -30,8 +30,8 @@ const staticStories = [
   ['chart-adapter--pie-and-donut-dark', 2],
   ['chart-adapter--pie-and-donut-light', 2],
   ['explore--keyboard-walkthrough', 1],
-  ['panel-matrix--all-kinds-and-states-·-dark', 0],
-  ['panel-matrix--all-kinds-and-states-·-light', 0],
+  ['panel-matrix--all-kinds-and-states--dark', 0],
+  ['panel-matrix--all-kinds-and-states--light', 0],
   ['panels-v2--cascade-final-stage', 0],
   ['panels-v2--export-idle', 0],
   ['panels-v2--export-pending', 0],
@@ -54,6 +54,9 @@ async function openStory(page: Page, storyId: string, canvasCount: number): Prom
 }
 
 async function screenshot(page: Page, name: string): Promise<void> {
+  // Baseline files ship inside the Go module zip, which rejects paths with
+  // characters like the middle dot Ladle inherits from story names.
+  expect(name).toMatch(/^[A-Za-z0-9._-]+$/)
   await page.evaluate(async () => {
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
@@ -94,12 +97,12 @@ for (const [storyId, canvasCount] of staticStories) {
 }
 
 const keyframeCovered = [
-  'explore--full-drill-flow-·-three-levels',
+  'explore--full-drill-flow--three-levels',
   'explore--perspective-switching-on-a-segment',
 ] as const
 
 test('explore full drill flow keyframes', async ({ page }) => {
-  await openStory(page, 'explore--full-drill-flow-·-three-levels', 1)
+  await openStory(page, 'explore--full-drill-flow--three-levels', 1)
   await screenshot(page, 'explore-full-drill-01-root')
 
   await page.getByRole('treeitem', { name: /Operating margin/ }).click()

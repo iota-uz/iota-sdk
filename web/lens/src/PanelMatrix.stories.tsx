@@ -259,7 +259,7 @@ function PanelMatrix({ theme }: { theme: 'light' | 'dark' }) {
 }
 
 export const Light: Story = () => <PanelMatrix theme="light" />
-Light.storyName = 'All kinds and states · light'
+Light.storyName = 'All kinds and states - light'
 
 export const Dark: Story = () => <PanelMatrix theme="dark" />
-Dark.storyName = 'All kinds and states · dark'
+Dark.storyName = 'All kinds and states - dark'
