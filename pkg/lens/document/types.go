@@ -218,3 +218,33 @@ type Theme struct {
 	Palette map[string]string `json:"palette"`
 	Series  map[string]string `json:"series"`
 }
+
+type QueryRequest struct {
+	SnapshotID  string   `json:"snapshotId"`
+	Path        NodePath `json:"path"`
+	Perspective string   `json:"perspective,omitempty"`
+	Page        int      `json:"page,omitempty"`
+}
+
+type QueryPage struct {
+	Number int `json:"number"`
+	Size   int `json:"size"`
+}
+
+type QueryResponse struct {
+	Frames map[FrameRef]Frame `json:"frames"`
+	Page   *QueryPage         `json:"page,omitempty"`
+}
+
+type QueryErrorCode string
+
+const (
+	QueryErrorSnapshotGone QueryErrorCode = "snapshot_gone"
+	QueryErrorBadRequest   QueryErrorCode = "bad_request"
+	QueryErrorInternal     QueryErrorCode = "internal"
+)
+
+type QueryErrorResponse struct {
+	Error   QueryErrorCode `json:"error"`
+	Message string         `json:"message"`
+}

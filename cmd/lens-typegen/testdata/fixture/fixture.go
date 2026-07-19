@@ -33,3 +33,7 @@ type Nested struct {
 	Name     string `json:"name"`
 	Optional string `json:"optional,omitempty"`
 }
+
+type FixtureResponse struct {
+	Item Nested `json:"item"`
+}

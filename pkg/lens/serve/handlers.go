@@ -19,35 +19,15 @@ import (
 
 const maxQueryBodyBytes = 1 << 20
 
-type errorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
-}
-
-// QueryRequest is the snapshot-scoped level request accepted by Query.
-type QueryRequest struct {
-	SnapshotID  string            `json:"snapshotId"`
-	Path        document.NodePath `json:"path"`
-	Perspective string            `json:"perspective,omitempty"`
-	Page        int               `json:"page,omitempty"`
-}
-
-// Page describes an Evidence response page.
-type Page struct {
-	Number int `json:"number"`
-	Size   int `json:"size"`
-}
-
-// QueryResponse contains the frames materialized for one requested level.
-type QueryResponse struct {
-	Frames map[document.FrameRef]document.Frame `json:"frames"`
-	Page   *Page                                `json:"page,omitempty"`
-}
+type errorResponse = document.QueryErrorResponse
+type QueryRequest = document.QueryRequest
+type Page = document.QueryPage
+type QueryResponse = document.QueryResponse
 
 // Document executes and returns a new snapshot-backed dashboard document.
 func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "bad_request", "method must be GET")
+		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be GET")
 		return
 	}
 	req := h.runtimeRequest(r)
@@ -103,25 +83,25 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 // snapshot parameters. Evidence levels are always executed live.
 func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		writeError(w, http.StatusMethodNotAllowed, "bad_request", "method must be POST")
+		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be POST")
 		return
 	}
 	var req QueryRequest
 	if err := decodeJSON(w, r, &req); err != nil {
-		writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
 	if req.SnapshotID == "" {
-		writeError(w, http.StatusBadRequest, "bad_request", "snapshotId is required")
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "snapshotId is required")
 		return
 	}
 	if len(req.Path) == 0 {
-		writeError(w, http.StatusBadRequest, "bad_request", "path is required")
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "path is required")
 		return
 	}
 	if req.Page < 0 {
-		writeError(w, http.StatusBadRequest, "bad_request", "page cannot be negative")
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "page cannot be negative")
 		return
 	}
 	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
@@ -131,7 +111,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	target, err := resolveTarget(h.spec, req.Path, req.Perspective)
 	if err != nil {
-		writeError(w, http.StatusBadRequest, "bad_request", err.Error())
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
 		return
 	}
 	if !target.evidence {
@@ -213,12 +193,12 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 // Export writes a snapshot-keyed workbook for one panel or the full document.
 func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		writeError(w, http.StatusMethodNotAllowed, "bad_request", "method must be GET")
+		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be GET")
 		return
 	}
 	snapshotID := strings.TrimSpace(r.URL.Query().Get("snapshot"))
 	if snapshotID == "" {
-		writeError(w, http.StatusBadRequest, "bad_request", "snapshot is required")
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "snapshot is required")
 		return
 	}
 	snapshot, err := h.snapshots.Get(r.Context(), snapshotID)
@@ -234,7 +214,7 @@ func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 	}
 	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
 	if panelID != "" && result.Panel(panelID) == nil {
-		writeError(w, http.StatusBadRequest, "bad_request", "panel is not available in the snapshot")
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available in the snapshot")
 		return
 	}
 	var workbook bytes.Buffer
@@ -258,7 +238,7 @@ func (h *Handlers) writeSnapshotError(ctx context.Context, w http.ResponseWriter
 		return
 	}
 	if errors.Is(err, document.ErrSnapshotGone) {
-		writeError(w, http.StatusGone, "snapshot_gone", "snapshot is unknown or expired")
+		writeError(w, http.StatusGone, document.QueryErrorSnapshotGone, "snapshot is unknown or expired")
 		return
 	}
 	h.writeInternalError(ctx, w, "lens/serve.writeSnapshotError", "snapshot lookup failed", err)
@@ -277,7 +257,7 @@ func (h *Handlers) writeInternalError(ctx context.Context, w http.ResponseWriter
 	}
 	wrapped := serrors.E(serrors.Op(op), err)
 	h.observer.OnError(ctx, op, wrapped)
-	writeError(w, http.StatusInternalServerError, "internal", message)
+	writeError(w, http.StatusInternalServerError, document.QueryErrorInternal, message)
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
@@ -296,7 +276,7 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	return nil
 }
 
-func writeError(w http.ResponseWriter, status int, code, message string) {
+func writeError(w http.ResponseWriter, status int, code document.QueryErrorCode, message string) {
 	writeJSON(w, status, errorResponse{Error: code, Message: message})
 }
 

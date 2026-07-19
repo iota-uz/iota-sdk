@@ -22,6 +22,7 @@ func run() error {
 		dir:             root,
 		packagePattern:  "./pkg/lens/document",
 		rootType:        "DashboardDocument",
+		additionalTypes: []string{"QueryRequest", "QueryResponse", "QueryErrorResponse"},
 		versionConstant: "ContractVersion",
 	})
 	if err != nil {

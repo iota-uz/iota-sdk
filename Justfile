@@ -54,7 +54,10 @@ lens cmd="help" *args="":
     dev|build|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     typegen) go run ./cmd/lens-typegen ;; \
-    check) go run ./cmd/lens-typegen && git diff --exit-code -- web/lens/src/contract && (cd web/lens && pnpm check {{args}}) ;; \
+    check) \
+      go run ./cmd/lens-typegen ; \
+      git diff --exit-code -- web/lens/src/contract ; \
+      (cd web/lens && pnpm check {{args}}) ;; \
     *) \
       echo "Usage: just lens [dev|build|fixture|check|typegen|ladle|install]" ; \
       exit 2 ;; \

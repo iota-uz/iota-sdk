@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  .lens-root {
     --lens-bg-page: #f6f7f9;
     --lens-bg-card: #ffffff;
     --lens-bg-inset: #f8fafc;
@@ -66,5 +66,29 @@
 
   .lens-placeholder-state {
     @apply lens-box-border lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-sm lens-text-muted lens-shadow-card;
+  }
+
+  .lens-panel-stale {
+    @apply lens-opacity-55 lens-transition-opacity;
+  }
+
+  .lens-skeleton {
+    @apply lens-animate-pulse lens-bg-inset lens-text-faint;
+  }
+
+  .lens-panel-error {
+    @apply lens-mt-4 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-bg-inset lens-p-3 lens-text-sm lens-text-neg;
+  }
+
+  .lens-panel-error button {
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-semibold lens-text-text;
+  }
+
+  .lens-runtime-notice {
+    @apply lens-mb-3 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-bg-accent-50 lens-p-3 lens-text-sm lens-text-accent-700;
+  }
+
+  .lens-runtime-notice button {
+    @apply lens-border-0 lens-bg-transparent lens-text-lg lens-text-accent-700;
   }
 }

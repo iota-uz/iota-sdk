@@ -190,13 +190,13 @@ func TestHandlers_SnapshotGone(t *testing.T) {
 	require.Equal(t, http.StatusGone, recorder.Code)
 	var response errorResponse
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-	require.Equal(t, "snapshot_gone", response.Error)
+	require.Equal(t, document.QueryErrorSnapshotGone, response.Error)
 
 	recorder = httptest.NewRecorder()
 	handlers.Export(recorder, httptest.NewRequest(http.MethodGet, "/dash/export?snapshot=gone", nil))
 	require.Equal(t, http.StatusGone, recorder.Code)
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-	require.Equal(t, "snapshot_gone", response.Error)
+	require.Equal(t, document.QueryErrorSnapshotGone, response.Error)
 }
 
 func TestHandlers_ExpiredSnapshotReturnsGone(t *testing.T) {
@@ -212,7 +212,7 @@ func TestHandlers_ExpiredSnapshotReturnsGone(t *testing.T) {
 	require.Equal(t, http.StatusGone, recorder.Code, recorder.Body.String())
 	var response errorResponse
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-	require.Equal(t, "snapshot_gone", response.Error)
+	require.Equal(t, document.QueryErrorSnapshotGone, response.Error)
 }
 
 func TestHandlers_EvidenceIsLiveAndPaginated(t *testing.T) {
@@ -584,7 +584,7 @@ func TestHandlers_BadRequestsAreJSON(t *testing.T) {
 	require.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
 	var response errorResponse
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-	assert.Equal(t, "bad_request", response.Error)
+	assert.Equal(t, document.QueryErrorBadRequest, response.Error)
 	assert.NotEmpty(t, response.Message)
 }
 
