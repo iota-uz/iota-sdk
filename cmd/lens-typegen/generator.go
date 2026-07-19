@@ -20,6 +20,7 @@ type config struct {
 	dir             string
 	packagePattern  string
 	rootType        string
+	additionalTypes []string
 	versionConstant string
 }
 
@@ -95,6 +96,13 @@ func loadContract(cfg config) (*contractModel, error) {
 		enums:   make(map[string][]string),
 	}
 	collectNamedTypes(model, root)
+	for _, name := range cfg.additionalTypes {
+		object, ok := pkg.Scope().Lookup(name).(*types.TypeName)
+		if !ok {
+			return nil, fmt.Errorf("additional type %s not found", name)
+		}
+		collectNamedTypes(model, object.Type())
+	}
 	collectEnums(model)
 	return model, nil
 }

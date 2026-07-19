@@ -149,6 +149,30 @@ export interface PerspectiveRef {
   id: string
 }
 
+export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
+
+export interface QueryErrorResponse {
+  error: string
+  message: string
+}
+
+export interface QueryPage {
+  number: number
+  size: number
+}
+
+export interface QueryRequest {
+  snapshotId: string
+  path: NodePath
+  perspective?: string
+  page?: number
+}
+
+export interface QueryResponse {
+  frames: Record<FrameRef, Frame>
+  page?: QueryPage
+}
+
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"
 
 export interface Source {

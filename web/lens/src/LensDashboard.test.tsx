@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../fixtures/small.json'
 import { LensDashboard } from './LensDashboard'
+import { parseDocument } from './contract'
 import { registerLensDashboardElement } from './element'
 
 afterEach(() => {
@@ -35,6 +36,37 @@ describe('LensDashboard', () => {
       }),
     )
   })
+
+  it('renders initial loading and fetch error states', async () => {
+    let rejectRequest: ((reason: Error) => void) | undefined
+    const fetcher = vi.fn(() => new Promise<Response>((_resolve, reject) => { rejectRequest = reject }))
+    render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+
+    expect(screen.getByText('Loading dashboard…')).toHaveAttribute('aria-busy', 'true')
+    rejectRequest?.(new Error('offline'))
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load Lens document: offline')
+  })
+
+  it('renders the no-panel fallback', () => {
+    const empty = parseDocument({
+      ...fixture,
+      layout: { rows: [] },
+      panels: [],
+    })
+    render(<LensDashboard initialDocument={empty} />)
+    expect(screen.getByText('The fixture contains no panels.')).toBeInTheDocument()
+  })
+
+  it('aborts the document fetch on unmount', () => {
+    let signal: AbortSignal | undefined
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      signal = init?.signal as AbortSignal
+      return new Promise<Response>(() => undefined)
+    })
+    const view = render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+    view.unmount()
+    expect(signal?.aborted).toBe(true)
+  })
 })
 
 describe('<lens-dashboard>', () => {
@@ -50,5 +82,6 @@ describe('<lens-dashboard>', () => {
 
     act(() => element.remove())
     expect(element.childElementCount).toBe(0)
+    expect(Reflect.get(element, 'root')).toBeUndefined()
   })
 })

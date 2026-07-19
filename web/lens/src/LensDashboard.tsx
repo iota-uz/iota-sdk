@@ -1,66 +1,27 @@
-import { useEffect, useState } from 'react'
 import fixture from '../fixtures/small.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { PlaceholderPanel } from './PlaceholderPanel'
+import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
 
 export interface LensDashboardProps {
   src?: string
   locale?: string
   theme?: 'light' | 'dark'
   csrf?: string
+  fetcher?: typeof fetch
+  initialDocument?: DashboardDocument
 }
-
-type LoadState =
-  | { status: 'ready'; document: DashboardDocument }
-  | { status: 'loading' }
-  | { status: 'error'; message: string }
 
 const bundledFixture = parseDocument(fixture)
 
-export function LensDashboard({ src, locale = 'en', theme = 'light', csrf }: LensDashboardProps) {
-  const [state, setState] = useState<LoadState>(() => ({
-    status: 'ready',
-    document: bundledFixture,
-  }))
-
-  useEffect(() => {
-    if (!src) {
-      setState({ status: 'ready', document: bundledFixture })
-      return
-    }
-
-    const controller = new AbortController()
-    setState({ status: 'loading' })
-
-    void fetch(src, {
-      credentials: 'same-origin',
-      headers: csrf ? { 'X-CSRF-Token': csrf } : undefined,
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error(`request failed with ${response.status}`)
-        }
-        return parseDocument(await response.json())
-      })
-      .then((document) => setState({ status: 'ready', document }))
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return
-        setState({ status: 'error', message: error instanceof Error ? error.message : 'request failed' })
-      })
-
-    return () => controller.abort()
-  }, [csrf, src])
-
+export function LensDashboard({ src, locale = 'en', theme = 'light', csrf, fetcher, initialDocument = bundledFixture }: LensDashboardProps) {
   return (
     <div className="lens-root" data-theme={theme} lang={locale}>
-      {state.status === 'loading' && <div className="lens-placeholder-state">Loading dashboard…</div>}
-      {state.status === 'error' && (
-        <div className="lens-placeholder-state" role="alert">
-          Unable to load Lens document: {state.message}
-        </div>
-      )}
-      {state.status === 'ready' && <PlaceholderPanel document={state.document} locale={locale} src={src} />}
+      <DocumentProvider src={src} initialDocument={initialDocument} csrf={csrf} fetcher={fetcher}>
+        <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher}>
+          <PlaceholderPanel src={src} />
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
     </div>
   )
 }

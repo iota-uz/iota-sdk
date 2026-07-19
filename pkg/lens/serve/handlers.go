@@ -19,30 +19,10 @@ import (
 
 const maxQueryBodyBytes = 1 << 20
 
-type errorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
-}
-
-// QueryRequest is the snapshot-scoped level request accepted by Query.
-type QueryRequest struct {
-	SnapshotID  string            `json:"snapshotId"`
-	Path        document.NodePath `json:"path"`
-	Perspective string            `json:"perspective,omitempty"`
-	Page        int               `json:"page,omitempty"`
-}
-
-// Page describes an Evidence response page.
-type Page struct {
-	Number int `json:"number"`
-	Size   int `json:"size"`
-}
-
-// QueryResponse contains the frames materialized for one requested level.
-type QueryResponse struct {
-	Frames map[document.FrameRef]document.Frame `json:"frames"`
-	Page   *Page                                `json:"page,omitempty"`
-}
+type errorResponse = document.QueryErrorResponse
+type QueryRequest = document.QueryRequest
+type Page = document.QueryPage
+type QueryResponse = document.QueryResponse
 
 // Document executes and returns a new snapshot-backed dashboard document.
 func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {

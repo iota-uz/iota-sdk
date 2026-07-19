@@ -15,6 +15,7 @@ func TestGenerateRepresentativeContract(t *testing.T) {
 		dir:             ".",
 		packagePattern:  "./testdata/fixture",
 		rootType:        "FixtureDocument",
+		additionalTypes: []string{"FixtureResponse"},
 		versionConstant: "ContractVersion",
 	})
 	require.NoError(t, err)
@@ -29,6 +30,7 @@ func TestGenerateRepresentativeContract(t *testing.T) {
 	require.Contains(t, typesFile, "optional?: string")
 	require.Contains(t, typesFile, "maybe?: Nested")
 	require.Contains(t, typesFile, "createdAt: string")
+	require.Contains(t, typesFile, "export interface FixtureResponse")
 
 	schemasFile := files["schemas.ts"]
 	require.Contains(t, schemasFile, "const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0] ?? CONTRACT_VERSION")
@@ -37,6 +39,7 @@ func TestGenerateRepresentativeContract(t *testing.T) {
 	require.Contains(t, schemasFile, "createdAt: z.string().datetime({ offset: true })")
 	require.Contains(t, schemasFile, "count: z.number().int()")
 	require.Contains(t, schemasFile, "payload: z.unknown()")
+	require.Contains(t, schemasFile, "export const FixtureResponseSchema")
 	require.NotContains(t, schemasFile, "z.any()")
 }
 

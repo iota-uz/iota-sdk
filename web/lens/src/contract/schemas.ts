@@ -172,6 +172,30 @@ export const PerspectiveRefSchema: z.ZodType<Contract.PerspectiveRef> = z.lazy((
   id: z.string(),
 }).strict())
 
+export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.lazy(() => z.enum(["bad_request", "internal", "snapshot_gone"]))
+
+export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = z.lazy(() => z.object({
+  error: z.string(),
+  message: z.string(),
+}).strict())
+
+export const QueryPageSchema: z.ZodType<Contract.QueryPage> = z.lazy(() => z.object({
+  number: z.number().int(),
+  size: z.number().int(),
+}).strict())
+
+export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.lazy(() => z.object({
+  snapshotId: z.string(),
+  path: z.lazy(() => NodePathSchema),
+  perspective: z.string().optional(),
+  page: z.number().int().optional(),
+}).strict())
+
+export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.lazy(() => z.object({
+  frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)),
+  page: z.lazy(() => QueryPageSchema).optional(),
+}).strict())
+
 export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.lazy(() => z.enum(["evidence", "partition", "reconciliation", "series"]))
 
 export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
