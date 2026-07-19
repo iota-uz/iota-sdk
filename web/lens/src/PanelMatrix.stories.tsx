@@ -200,11 +200,15 @@ const storyChartAdapter: ChartAdapter = {
   },
 }
 
-function TriggerQuery({ enabled }: { enabled: boolean }) {
+function TriggerQuery({ enabled, panelId }: { enabled: boolean; panelId: string }) {
   const { drillInto } = useDrill()
   useEffect(() => {
-    if (enabled) drillInto('root')
-  }, [drillInto, enabled])
+    // Needs a real child key AND the panel id: invalid drill transitions
+    // no-op (A8), and without the panel id the in-flight query is never
+    // associated with the panel's frame state — either way loading/error/
+    // stale would silently collapse into the empty state.
+    if (enabled) drillInto('root/north', panelId)
+  }, [drillInto, enabled, panelId])
   return null
 }
 
@@ -231,7 +235,7 @@ function MatrixCell({ kind, state }: { kind: StoryKind; state: PanelState }) {
       <span className="lens-story-cell-label">{kind} · {state}</span>
       <DocumentProvider initialDocument={document} fetcher={fetcher}>
         <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
-          <TriggerQuery enabled={state === 'loading' || state === 'stale' || state === 'error'} />
+          <TriggerQuery enabled={state === 'loading' || state === 'stale' || state === 'error'} panelId={document.panels[0]!.id} />
           <StoryPanel panel={document.panels[0]!} />
         </DashboardRuntimeProvider>
       </DocumentProvider>
