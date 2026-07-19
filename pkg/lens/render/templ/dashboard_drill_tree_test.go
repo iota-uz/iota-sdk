@@ -56,8 +56,11 @@ func TestDashboardScripts_MetricExplorerOwnsPerspectiveAndLazyViewState(t *testi
 	assert.Contains(t, rendered, "lensExploreCaptureHidden")
 	assert.Contains(t, rendered, "hiddenByView[lensExploreHiddenKey")
 	assert.Contains(t, rendered, "apexcharts-inactive-legend")
-	assert.Contains(t, rendered, "setTimeout(function()")
-	assert.Contains(t, rendered, "}, 150)")
+	assert.Contains(t, rendered, "const lensExploreSetPending")
+	assert.Contains(t, rendered, "data-lens-explorer-pending")
+	assert.Contains(t, rendered, "lensExploreActivateWorkspace(host)")
+	assert.Contains(t, rendered, "host.setAttribute('aria-busy', pending ? 'true' : 'false')")
+	assert.NotContains(t, rendered, "lensExploreSetStatus(host, 'skeleton')")
 	assert.Contains(t, rendered, "prefers-reduced-motion: reduce")
 	assert.Contains(t, rendered, "window.__lensExploreToggleFullscreen")
 	assert.Contains(t, rendered, "const lensExploreSetFullscreen")
@@ -79,9 +82,9 @@ func TestDashboardScripts_MetricExplorerSameViewActivationIsNoOp(t *testing.T) {
 
 	assert.Contains(t, rendered, "if (state.perspectiveKey === key) { return; }")
 	assert.Contains(t, rendered, "const resolvedViewKey = lensExploreResolvedViewKey(state, steps)")
-	assert.Contains(t, rendered, "if (state.activeViewKey === resolvedViewKey && (state.status === 'loading' || state.status === 'skeleton' || state.status === 'ready')) { return; }")
+	assert.Contains(t, rendered, "if (state.activeViewKey === resolvedViewKey && (state.status === 'loading' || state.status === 'ready')) { return; }")
 	assert.Contains(t, rendered, "const requestKey = lensExploreResolvedViewKey(state, steps)")
-	assert.Contains(t, rendered, "if (state.pendingViewKey === requestKey && (state.status === 'loading' || state.status === 'skeleton')) { return; }")
+	assert.Contains(t, rendered, "if (state.pendingViewKey === requestKey && state.status === 'loading') { return; }")
 	assert.Contains(t, rendered, "state.pendingViewKey = requestKey")
 }
 

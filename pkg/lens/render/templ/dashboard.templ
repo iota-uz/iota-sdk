@@ -2452,7 +2452,7 @@ templ DashboardScripts() {
 				if (home) { home.setAttribute('aria-label', lensExploreText(cfg, 'home', 'Back to start')); }
 			};
 			const lensExploreSetStatus = function(host, status, message, retryable) {
-				['loading', 'skeleton', 'message', 'content'].forEach(function(name) {
+				['message', 'content'].forEach(function(name) {
 					const node = host.querySelector('[data-lens-explorer-' + name + ']');
 					if (node) { node.classList.toggle('hidden', name !== status); node.classList.toggle('flex', name === status && name !== 'content'); }
 				});
@@ -2463,6 +2463,21 @@ templ DashboardScripts() {
 					retry.textContent = lensExploreText(host.__lensExplorerCfg, 'retry', 'Retry');
 					retry.classList.toggle('hidden', !retryable);
 				}
+			};
+			const lensExploreSetPending = function(host, pending) {
+				const overlay = host.querySelector('[data-lens-explorer-pending]');
+				if (overlay) {
+					overlay.classList.toggle('hidden', !pending);
+					overlay.classList.toggle('flex', pending);
+					overlay.setAttribute('aria-hidden', pending ? 'false' : 'true');
+				}
+				host.setAttribute('aria-busy', pending ? 'true' : 'false');
+			};
+			const lensExploreActivateWorkspace = function(host) {
+				host.querySelector('[data-lens-explorer-root]').classList.add('hidden');
+				const workspace = host.querySelector('[data-lens-explorer-workspace]');
+				workspace.classList.remove('hidden');
+				workspace.classList.add('flex');
 			};
 			const lensExploreHiddenKey = function(state, node) {
 				const steps = state.stepsByPerspective[lensExploreViewKey(state)] || [{nodeKey: node ? node.key : '', pointKey: ''}];
@@ -2519,6 +2534,8 @@ templ DashboardScripts() {
 				node.edges = Array.isArray(edges) ? edges : [];
 			};
 			const lensExploreReady = function(host, node) {
+				lensExploreActivateWorkspace(host);
+				lensExploreSetPending(host, false);
 				lensExploreSetStatus(host, 'content');
 				setTimeout(function() { lensExploreEnableVisibleTotals(host); lensExploreEnhanceHidden(host, node); window.dispatchEvent(new Event('resize')); }, 0);
 				setTimeout(function() { lensExploreEnableVisibleTotals(host); lensExploreEnhanceHidden(host, node); }, 120);
@@ -2531,7 +2548,7 @@ templ DashboardScripts() {
 				const perspective = lensExplorePerspective(branch, state.perspectiveKey);
 				const steps = lensExploreSteps(state, perspective);
 				const requestKey = lensExploreResolvedViewKey(state, steps);
-				if (state.pendingViewKey === requestKey && (state.status === 'loading' || state.status === 'skeleton')) { return; }
+				if (state.pendingViewKey === requestKey && state.status === 'loading') { return; }
 				if (state.abortController) { state.abortController.abort(); }
 				state.pendingViewKey = requestKey;
 				state.requestVersion += 1;
@@ -2553,14 +2570,12 @@ templ DashboardScripts() {
 					lensExploreReady(host, node);
 					return;
 				}
-				lensExploreSetStatus(host, 'loading');
-				const skeletonTimer = setTimeout(function() {
-					if (state.requestVersion === version && state.status === 'loading') { lensExploreSetStatus(host, 'skeleton'); }
-				}, 150);
+				lensExploreSetPending(host, true);
 				if (!node || !node.load || !node.load.url) {
-					clearTimeout(skeletonTimer);
 					state.status = 'empty';
 					state.pendingViewKey = '';
+					lensExploreActivateWorkspace(host);
+					lensExploreSetPending(host, false);
 					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'unavailable', 'This view has no data.'), false);
 					return;
 				}
@@ -2568,9 +2583,10 @@ templ DashboardScripts() {
 				let url;
 				try { url = new URL(node.load.url, window.location.href); } catch (_) { url = null; }
 				if (!url || url.origin !== window.location.origin) {
-					clearTimeout(skeletonTimer);
 					state.status = 'error';
 					state.pendingViewKey = '';
+					lensExploreActivateWorkspace(host);
+					lensExploreSetPending(host, false);
 					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'error', 'Unable to load this view.'), true);
 					return;
 				}
@@ -2587,9 +2603,10 @@ templ DashboardScripts() {
 					url.searchParams.append('lens_explore_point', step.pointKey || '');
 				});
 				if (!content || typeof htmx === 'undefined' || typeof fetch === 'undefined' || typeof AbortController === 'undefined') {
-					clearTimeout(skeletonTimer);
 					state.status = 'error';
 					state.pendingViewKey = '';
+					lensExploreActivateWorkspace(host);
+					lensExploreSetPending(host, false);
 					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'error', 'Unable to load this view.'), true);
 					return;
 				}
@@ -2604,7 +2621,6 @@ templ DashboardScripts() {
 					return response.text();
 				}).then(function(markup) {
 					if (state.requestVersion !== version || controller.signal.aborted) { return; }
-					clearTimeout(skeletonTimer);
 					htmx.swap(content, markup, {swapStyle: 'innerHTML'});
 					htmx.process(content);
 					lensExploreApplyResolvedEdges(content, node);
@@ -2613,12 +2629,13 @@ templ DashboardScripts() {
 					state.pendingViewKey = '';
 					lensExploreReady(host, node);
 				}).catch(function(error) {
-					clearTimeout(skeletonTimer);
 					if (error && error.name === 'AbortError') { return; }
 					if (state.requestVersion !== version) { return; }
 					state.status = 'error';
 					state.abortController = null;
 					state.pendingViewKey = '';
+					lensExploreActivateWorkspace(host);
+					lensExploreSetPending(host, false);
 					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'error', 'Unable to load this view.'), true);
 				});
 			};
@@ -2632,11 +2649,8 @@ templ DashboardScripts() {
 				const steps = lensExploreSteps(state, perspective);
 				const node = lensExploreNode(perspective, path[path.length - 1]);
 				const resolvedViewKey = lensExploreResolvedViewKey(state, steps);
-				if (state.activeViewKey === resolvedViewKey && (state.status === 'loading' || state.status === 'skeleton' || state.status === 'ready')) { return; }
+				if (state.activeViewKey === resolvedViewKey && (state.status === 'loading' || state.status === 'ready')) { return; }
 				state.activeViewKey = resolvedViewKey;
-				host.querySelector('[data-lens-explorer-root]').classList.add('hidden');
-				host.querySelector('[data-lens-explorer-workspace]').classList.remove('hidden');
-				host.querySelector('[data-lens-explorer-workspace]').classList.add('flex');
 				lensExploreSyncSpan(host, true);
 				lensExploreRenderChrome(host, branch, perspective, path);
 				lensExploreSyncExport(host);
@@ -2651,6 +2665,7 @@ templ DashboardScripts() {
 				state.activeViewKey = '';
 				state.pendingViewKey = '';
 				state.requestVersion += 1;
+				lensExploreSetPending(host, false);
 				host.querySelector('[data-lens-explorer-root]').classList.remove('hidden');
 				const workspace = host.querySelector('[data-lens-explorer-workspace]');
 				workspace.classList.add('hidden'); workspace.classList.remove('flex');
@@ -3140,18 +3155,17 @@ templ ExplorerWorkspace() {
 			<div class="lens-seg flex w-full overflow-x-auto" role="tablist" data-lens-explorer-tabs></div>
 		</div>
 		<div class="relative flex min-h-[260px] flex-1 flex-col" data-lens-explorer-viewport>
-			<div class="hidden h-full min-h-[260px] flex-1 items-center justify-center" data-lens-explorer-loading role="status">
-				<div class="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600"></div>
-			</div>
-			<div class="hidden h-full min-h-[260px] flex-1 flex-col gap-3 p-5" data-lens-explorer-skeleton aria-hidden="true">
-				<div class="lens-skeleton-shimmer h-4 w-1/3 rounded"></div>
-				<div class="lens-skeleton-shimmer min-h-[210px] flex-1 rounded-lg"></div>
-			</div>
 			<div class="hidden h-full min-h-[260px] flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-slate-500" data-lens-explorer-message>
 				<span data-lens-explorer-message-text></span>
 				<button type="button" class="hidden rounded-md border border-default bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" data-lens-explorer-retry></button>
 			</div>
 			<div class="hidden h-full min-h-0 flex-1 flex-col" data-lens-explorer-content></div>
+		</div>
+	</div>
+	<div class="absolute inset-0 z-30 hidden items-center justify-center bg-white/60 backdrop-blur-[1px]" data-lens-explorer-pending role="status" aria-hidden="true">
+		<div class="flex items-center gap-3 rounded-lg border border-subtle bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-sm">
+			<div class="h-5 w-5 animate-spin rounded-full border-2 border-slate-200 border-t-brand-500"></div>
+			<span>{ localizedExplorerText(ctx).Loading }</span>
 		</div>
 	</div>
 }
