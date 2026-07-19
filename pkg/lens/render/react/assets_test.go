@@ -6,7 +6,6 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -63,6 +62,6 @@ func TestLensDashboardCanOmitAssetTags(t *testing.T) {
 	require.NoError(t, err)
 
 	html := output.String()
-	assert.False(t, strings.Contains(html, "<script"))
-	assert.False(t, strings.Contains(html, "<link"))
+	assert.NotContains(t, html, "<script")
+	assert.NotContains(t, html, "<link")
 }
