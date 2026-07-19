@@ -1,12 +1,11 @@
 {
   "index.html": {
-    "file": "assets/lens-dashboard-JoOQ0M0l.js",
+    "file": "assets/lens-dashboard-DujOML7n.js",
     "name": "index",
     "src": "index.html",
-    "isEntry": true
-  },
-  "style.css": {
-    "file": "assets/style-B5c5DN8C.css",
-    "src": "style.css"
+    "isEntry": true,
+    "css": [
+      "assets/index-B5c5DN8C.css"
+    ]
   }
 }

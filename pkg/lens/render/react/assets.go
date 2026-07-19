@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io/fs"
 	"sort"
-	"strings"
 )
 
 const DefaultAssetBasePath = "/assets/lens"
@@ -21,8 +20,10 @@ type AssetBundle struct {
 }
 
 type manifestEntry struct {
-	File string   `json:"file"`
-	CSS  []string `json:"css"`
+	File           string   `json:"file"`
+	CSS            []string `json:"css"`
+	Imports        []string `json:"imports"`
+	DynamicImports []string `json:"dynamicImports"`
 }
 
 var productionAssets = mustLoadAssetBundle()
@@ -47,7 +48,10 @@ func mustLoadAssetBundle() AssetBundle {
 	if err != nil {
 		panic(fmt.Sprintf("lens react: read Vite manifest: %v", err))
 	}
+	return loadAssetBundle(data)
+}
 
+func loadAssetBundle(data []byte) AssetBundle {
 	manifest := map[string]manifestEntry{}
 	if err := json.Unmarshal(data, &manifest); err != nil {
 		panic(fmt.Sprintf("lens react: decode Vite manifest: %v", err))
@@ -59,14 +63,25 @@ func mustLoadAssetBundle() AssetBundle {
 	}
 
 	stylesheetSet := make(map[string]struct{})
-	for _, stylesheet := range entry.CSS {
-		stylesheetSet[stylesheet] = struct{}{}
-	}
-	for _, item := range manifest {
-		if strings.HasSuffix(item.File, ".css") {
-			stylesheetSet[item.File] = struct{}{}
+	visited := make(map[string]struct{})
+	var walk func(string)
+	walk = func(key string) {
+		if _, ok := visited[key]; ok {
+			return
+		}
+		visited[key] = struct{}{}
+		item, ok := manifest[key]
+		if !ok {
+			return
+		}
+		for _, stylesheet := range item.CSS {
+			stylesheetSet[stylesheet] = struct{}{}
+		}
+		for _, imported := range item.Imports {
+			walk(imported)
 		}
 	}
+	walk("index.html")
 
 	stylesheets := make([]string, 0, len(stylesheetSet))
 	for stylesheet := range stylesheetSet {
