@@ -270,6 +270,18 @@
     @apply lens-text-xs lens-text-faint;
   }
 
+  .lens-explore-story {
+    @apply lens-flex lens-flex-col lens-gap-4;
+  }
+
+  .lens-story-guide {
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-sm lens-leading-6 lens-text-muted lens-shadow-card;
+  }
+
+  .lens-story-guide strong {
+    @apply lens-text-strong;
+  }
+
   .lens-fake-chart {
     @apply lens-flex lens-h-full lens-min-h-48 lens-flex-col lens-gap-3;
   }
@@ -323,5 +335,213 @@
 
   .lens-runtime-notice button {
     @apply lens-border-0 lens-bg-transparent lens-text-lg lens-text-accent-700;
+  }
+
+  .lens-explore {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-3;
+  }
+
+  .lens-explore-path {
+    @apply lens-flex lens-min-h-10 lens-items-center lens-justify-between lens-gap-3;
+  }
+
+  .lens-explore-path ol {
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-list-none lens-items-center lens-overflow-x-auto lens-p-0;
+  }
+
+  .lens-explore-path li {
+    @apply lens-flex lens-shrink-0 lens-items-center;
+  }
+
+  .lens-explore-path li + li::before {
+    content: '';
+    @apply lens-mx-1 lens-h-px lens-w-4 lens-bg-border-strong;
+  }
+
+  .lens-crumb,
+  .lens-explore-back {
+    @apply lens-min-h-9 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-2 lens-font-sans lens-text-sm lens-font-medium lens-text-muted lens-transition-colors;
+  }
+
+  .lens-crumb {
+    @apply lens-flex lens-items-center lens-gap-2;
+  }
+
+  .lens-crumb:hover,
+  .lens-explore-back:hover {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
+  .lens-crumb[aria-current='page'] {
+    @apply lens-border-border lens-bg-card lens-text-strong lens-shadow-card;
+  }
+
+  .lens-crumb-perspective,
+  .lens-perspective-affordance {
+    @apply lens-rounded-badge lens-bg-accent-50 lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-text-accent-700;
+  }
+
+  .lens-explore-back {
+    @apply lens-shrink-0;
+  }
+
+  .lens-perspective-set {
+    @apply lens-flex lens-flex-wrap lens-items-stretch lens-gap-1 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-inset lens-p-1;
+  }
+
+  .lens-perspective-label {
+    @apply lens-flex lens-items-center lens-px-3 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  .lens-perspective-set button {
+    @apply lens-flex lens-min-h-11 lens-min-w-32 lens-flex-col lens-items-start lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-py-1 lens-font-sans lens-text-sm lens-font-semibold lens-text-text lens-transition-colors;
+  }
+
+  .lens-perspective-set button:hover {
+    @apply lens-bg-card;
+  }
+
+  .lens-perspective-set button[aria-selected='true'] {
+    @apply lens-border-border lens-bg-card lens-text-accent-700 lens-shadow-card;
+  }
+
+  .lens-perspective-set small {
+    @apply lens-text-xs lens-font-normal lens-capitalize lens-text-muted;
+  }
+
+  .lens-explore-level {
+    @apply lens-min-w-0 lens-rounded-card;
+  }
+
+  .lens-explore-level-enter {
+    animation: lens-level-enter 180ms ease-out;
+  }
+
+  .lens-explore-level:focus {
+    outline: 2px solid var(--lens-accent-300);
+    outline-offset: 3px;
+  }
+
+  .lens-segment-tree {
+    @apply lens-grid lens-grid-cols-1 lens-gap-2 sm:lens-grid-cols-2 lg:lens-grid-cols-3;
+  }
+
+  .lens-segment {
+    @apply lens-box-border lens-flex lens-min-h-11 lens-w-full lens-items-center lens-gap-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-text-left lens-font-sans lens-text-sm lens-font-semibold lens-text-strong lens-no-underline lens-shadow-card lens-transition-colors;
+  }
+
+  .lens-segment:hover {
+    @apply lens-border-strong lens-bg-accent-50;
+  }
+
+  .lens-segment > :first-child {
+    @apply lens-mr-auto;
+  }
+
+  .lens-segment-arrow {
+    @apply lens-text-accent-700;
+  }
+
+  .lens-interim-view {
+    @apply lens-flex lens-flex-1 lens-flex-col lens-overflow-hidden lens-bg-card;
+  }
+
+  .lens-interim-header {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-px-4 lens-py-3 lens-text-xs lens-text-muted;
+  }
+
+  .lens-interim-kicker {
+    @apply lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-py-1 lens-font-semibold lens-uppercase lens-tracking-wider lens-text-accent-700;
+  }
+
+  .lens-interim-rows {
+    @apply lens-m-0 lens-list-none lens-divide-y lens-divide-border lens-p-0;
+  }
+
+  .lens-interim-row {
+    @apply lens-flex lens-items-center lens-gap-4 lens-p-4;
+  }
+
+  .lens-interim-row dl {
+    @apply lens-m-0 lens-grid lens-flex-1 lens-grid-cols-1 lens-gap-x-6 lens-gap-y-2 sm:lens-grid-cols-2 lg:lens-grid-cols-3;
+  }
+
+  .lens-interim-row dl > div {
+    @apply lens-min-w-0;
+  }
+
+  .lens-interim-row dt {
+    @apply lens-text-xs lens-font-medium lens-text-muted;
+  }
+
+  .lens-interim-row dd {
+    @apply lens-m-0 lens-overflow-hidden lens-text-ellipsis lens-text-sm lens-font-semibold lens-text-strong;
+  }
+
+  .lens-leaf-action {
+    @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-sm lens-font-semibold lens-text-white lens-no-underline;
+  }
+
+  .lens-crumb:focus-visible,
+  .lens-explore-back:focus-visible,
+  .lens-perspective-set button:focus-visible,
+  .lens-segment:focus-visible,
+  .lens-leaf-action:focus-visible {
+    outline: 2px solid var(--lens-accent-500);
+    outline-offset: 2px;
+  }
+
+  @keyframes lens-level-enter {
+    from {
+      opacity: .72;
+      transform: translateY(4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes lens-level-exit {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: .72;
+      transform: translateY(-4px);
+    }
+  }
+
+  html.lens-explore-transition-active::view-transition-group(root),
+  html.lens-explore-transition-active::view-transition-old(root),
+  html.lens-explore-transition-active::view-transition-new(root) {
+    animation: none;
+  }
+
+  ::view-transition-group(.lens-explore-level-transition) {
+    animation-duration: 180ms;
+    animation-timing-function: ease-out;
+  }
+
+  ::view-transition-old(.lens-explore-level-transition) {
+    animation: lens-level-exit 180ms ease-out both;
+  }
+
+  ::view-transition-new(.lens-explore-level-transition) {
+    animation: lens-level-enter 180ms ease-out both;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-explore-level-enter {
+      animation: none;
+    }
+
+    .lens-crumb,
+    .lens-explore-back,
+    .lens-perspective-set button,
+    .lens-segment {
+      transition: none;
+    }
   }
 }

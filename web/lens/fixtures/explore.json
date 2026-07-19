@@ -1,0 +1,160 @@
+{
+  "version": "1.0.0",
+  "snapshotId": "explore-story-1",
+  "meta": {
+    "dashboardId": "profitability-explore",
+    "title": "Profitability explorer",
+    "generatedAt": "2026-07-19T10:00:00Z",
+    "locale": "en"
+  },
+  "layout": {
+    "rows": [
+      {
+        "heading": "Margin anatomy",
+        "panels": [{ "panelId": "margin", "span": 12 }]
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": "margin",
+      "kind": "donut",
+      "title": "Profitability",
+      "semantics": "partition",
+      "frame": "panel:margin",
+      "encoding": { "id": "id", "label": "label", "value": "value" },
+      "format": { "value": { "kind": "money", "currency": "USD", "minorUnits": false, "precision": 0 } },
+      "drillRoot": "profitability",
+      "actions": [
+        {
+          "kind": "navigate_to_leaf",
+          "method": "GET",
+          "urlTemplate": "/transactions/{transactionId}",
+          "params": [{ "name": "transactionId", "source": { "kind": "field", "name": "transactionId" } }],
+          "payload": {},
+          "preserveQuery": true
+        }
+      ]
+    }
+  ],
+  "frames": {
+    "panel:margin": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [["profitability/operating-margin", "Operating margin", 1840000]]
+    },
+    "composition:root": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [["services", "Services", 1140000], ["products", "Products", 700000]]
+    },
+    "composition:detail": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [["sales", "Sales", 730000], ["delivery", "Delivery", 410000]]
+    },
+    "composition:leaf": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "label", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [["TX-1042", "Invoice TX-1042", 284000], ["TX-1098", "Invoice TX-1098", 197000]]
+    },
+    "trend:root": {
+      "columns": [{ "name": "id", "type": "string" }, { "name": "period", "type": "time" }, { "name": "series", "type": "string" }, { "name": "value", "type": "number" }],
+      "rows": [["q1", "2026-01-01T00:00:00Z", "Actual", 12.4], ["q2", "2026-04-01T00:00:00Z", "Actual", 14.8], ["q3", "2026-07-01T00:00:00Z", "Plan", 16.1]]
+    },
+    "bridge:root": {
+      "columns": [{ "name": "label", "type": "string" }, { "name": "value", "type": "number" }, { "name": "final", "type": "bool" }],
+      "rows": [["Gross margin", 3120000, false], ["Operating expenses", -1280000, false], ["Operating margin", 1840000, true]]
+    },
+    "evidence:root": {
+      "columns": [{ "name": "transactionId", "type": "string" }, { "name": "counterparty", "type": "string" }, { "name": "amount", "type": "number" }],
+      "rows": [["TX-1042", "Orion Services", 284000], ["TX-1098", "Northstar Supply", 197000]]
+    }
+  },
+  "drill": {
+    "inlineDepth": 3,
+    "edges": {
+      "profitability": {
+        "path": ["profitability"],
+        "label": "Profitability",
+        "children": [{ "key": "profitability/operating-margin", "path": ["profitability", "profitability/operating-margin"], "label": "Operating margin", "target": "profitability/operating-margin" }],
+        "frame": "panel:margin",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": []
+      },
+      "profitability/operating-margin": {
+        "path": ["profitability", "profitability/operating-margin"],
+        "label": "Operating margin",
+        "children": [],
+        "perspectives": [
+          { "id": "profitability/operating-margin/composition" },
+          { "id": "profitability/operating-margin/trend" },
+          { "id": "profitability/operating-margin/bridge" },
+          { "id": "profitability/operating-margin/evidence" }
+        ]
+      },
+      "profitability/operating-margin/composition/root": {
+        "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/root"],
+        "label": "Composition root",
+        "children": [
+          { "key": "profitability/operating-margin/composition/root/services", "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/root", "profitability/operating-margin/composition/root/services"], "label": "", "target": "profitability/operating-margin/composition/cost-centers" },
+          { "key": "profitability/operating-margin/composition/root/products", "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/root", "profitability/operating-margin/composition/root/products"], "label": "", "target": "profitability/operating-margin/composition/cost-centers" }
+        ],
+        "frame": "composition:root",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": [{ "id": "profitability/operating-margin/composition" }]
+      },
+      "profitability/operating-margin/composition/cost-centers": {
+        "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/cost-centers"],
+        "label": "Cost centers",
+        "children": [{ "key": "profitability/operating-margin/composition/cost-centers/sales", "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/cost-centers", "profitability/operating-margin/composition/cost-centers/sales"], "label": "", "target": "profitability/operating-margin/composition/transactions" }],
+        "frame": "composition:detail",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": [{ "id": "profitability/operating-margin/composition" }]
+      },
+      "profitability/operating-margin/composition/transactions": {
+        "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/transactions"],
+        "label": "Transactions",
+        "children": [
+          { "key": "profitability/operating-margin/composition/transactions/TX-1042", "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/transactions", "profitability/operating-margin/composition/transactions/TX-1042"], "label": "Invoice TX-1042", "action": { "kind": "navigate_to_leaf", "method": "GET", "urlTemplate": "/transactions/{transactionId}", "params": [{ "name": "transactionId", "source": { "kind": "literal", "value": "TX-1042" } }], "payload": {}, "preserveQuery": true } },
+          { "key": "profitability/operating-margin/composition/transactions/TX-1098", "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/composition", "profitability/operating-margin/composition/transactions", "profitability/operating-margin/composition/transactions/TX-1098"], "label": "Invoice TX-1098", "action": { "kind": "navigate_to_leaf", "method": "GET", "urlTemplate": "/transactions/{transactionId}", "params": [{ "name": "transactionId", "source": { "kind": "literal", "value": "TX-1098" } }], "payload": {} } }
+        ],
+        "frame": "composition:leaf",
+        "encoding": { "id": "id", "label": "label", "value": "value" },
+        "perspectives": [{ "id": "profitability/operating-margin/composition" }]
+      },
+      "profitability/operating-margin/trend/root": {
+        "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/trend", "profitability/operating-margin/trend/root"],
+        "label": "Quarterly trend",
+        "children": [],
+        "frame": "trend:root",
+        "encoding": { "id": "id", "category": "period", "series": "series", "value": "value" },
+        "perspectives": [{ "id": "profitability/operating-margin/trend" }]
+      },
+      "profitability/operating-margin/bridge/root": {
+        "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/bridge", "profitability/operating-margin/bridge/root"],
+        "label": "Margin bridge",
+        "children": [],
+        "frame": "bridge:root",
+        "encoding": { "label": "label", "value": "value", "final": "final" },
+        "perspectives": [{ "id": "profitability/operating-margin/bridge" }]
+      },
+      "profitability/operating-margin/evidence/root": {
+        "path": ["profitability", "profitability/operating-margin", "profitability/operating-margin/evidence", "profitability/operating-margin/evidence/root"],
+        "label": "Source transactions",
+        "children": [],
+        "frame": "evidence:root",
+        "encoding": { "id": "transactionId", "label": "counterparty", "value": "amount" },
+        "perspectives": [{ "id": "profitability/operating-margin/evidence" }]
+      }
+    }
+  },
+  "perspectives": [
+    { "id": "profitability/operating-margin/composition", "explorerId": "profitability", "branchKey": "profitability/operating-margin", "key": "composition", "label": "Composition", "semantics": "partition", "root": "profitability/operating-margin/composition/root" },
+    { "id": "profitability/operating-margin/trend", "explorerId": "profitability", "branchKey": "profitability/operating-margin", "key": "trend", "label": "Trend", "semantics": "series", "root": "profitability/operating-margin/trend/root" },
+    { "id": "profitability/operating-margin/bridge", "explorerId": "profitability", "branchKey": "profitability/operating-margin", "key": "bridge", "label": "Bridge", "semantics": "reconciliation", "root": "profitability/operating-margin/bridge/root" },
+    { "id": "profitability/operating-margin/evidence", "explorerId": "profitability", "branchKey": "profitability/operating-margin", "key": "evidence", "label": "Evidence", "semantics": "evidence", "root": "profitability/operating-margin/evidence/root" }
+  ],
+  "endpoints": {},
+  "i18n": {},
+  "theme": {
+    "palette": { "accent": "#2563eb", "muted": "#94a3b8" },
+    "series": { "Services": "#2563eb", "Products": "#7c3aed", "Actual": "#2563eb", "Plan": "#94a3b8" }
+  }
+}
