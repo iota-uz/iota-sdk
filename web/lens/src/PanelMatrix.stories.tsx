@@ -2,14 +2,14 @@ import type { Story } from '@ladle/react'
 import { useEffect } from 'react'
 import type { DashboardDocument, Frame, Panel, PanelKind } from './contract'
 import type { ChartAdapter, ChartInput } from './charts/adapter'
-import { BarPanel, LinePanel, PiePanel, StatPanel } from './panels'
+import { BarPanel, CascadePanel, LinePanel, PiePanel, StatPanel, TablePanel } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider, useDrill } from './runtime'
 import './styles.css'
 
 type PanelState = 'loading' | 'empty' | 'error' | 'stale' | 'data'
-type V1Kind = Extract<PanelKind, 'stat' | 'pie' | 'donut' | 'bar' | 'hbar' | 'line' | 'area'>
+type StoryKind = PanelKind
 
-const kinds: V1Kind[] = ['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area']
+const kinds: StoryKind[] = ['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'table']
 const states: PanelState[] = ['loading', 'empty', 'error', 'stale', 'data']
 
 const chartFrame: Frame = {
@@ -36,31 +36,65 @@ const statFrame: Frame = {
   rows: [['Net revenue', 12486000, 7.4]],
 }
 
-function storyPanel(kind: V1Kind): Panel {
+const cascadeFrame: Frame = {
+  columns: [
+    { name: 'label', type: 'string' },
+    { name: 'value', type: 'number' },
+    { name: 'cut', type: 'number' },
+    { name: 'cutLabel', type: 'string' },
+    { name: 'final', type: 'bool' },
+  ],
+  rows: [
+    ['Gross margin', 3120000, 0, '', false],
+    ['After operating costs', 1840000, 1280000, 'Operating costs', false],
+    ['Operating margin', 1840000, 0, 'Reconciled', true],
+  ],
+}
+
+const tableFrame: Frame = {
+  columns: [
+    { name: 'transactionId', type: 'string' },
+    { name: 'counterparty', type: 'string' },
+    { name: 'amount', type: 'number' },
+    { name: 'posted', type: 'bool' },
+  ],
+  rows: [['TX-1042', 'Orion Services', 284000, true], ['TX-1098', 'Northstar Supply', 197000, false]],
+}
+
+function storyPanel(kind: StoryKind): Panel {
   const chart = kind !== 'stat'
   return {
     id: `${kind}-panel`,
     kind,
     title: chart ? `${kind} performance` : 'Revenue this quarter',
-    semantics: kind === 'pie' || kind === 'donut' ? 'partition' : 'series',
+    semantics: kind === 'pie' || kind === 'donut' ? 'partition' : kind === 'cascade' ? 'reconciliation' : kind === 'table' ? 'evidence' : 'series',
     frame: `${kind}-frame`,
-    encoding: chart
+    encoding: kind === 'cascade'
+      ? { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' }
+      : kind === 'table'
+        ? { id: 'transactionId', label: 'counterparty', value: 'amount' }
+        : chart
       ? { id: 'id', label: 'label', category: 'period', series: 'series', value: 'value' }
       : { label: 'label', value: 'value', final: 'delta' },
-    format: chart
+    format: kind === 'cascade' || kind === 'table'
+      ? { value: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 }, amount: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 } }
+      : chart
       ? { value: { kind: 'number', minorUnits: false, precision: 0 } }
       : {
           value: { kind: 'money', currency: 'USD', minorUnits: true, precision: 0 },
           delta: { kind: 'percent', minorUnits: false, precision: 1 },
         },
     drillRoot: 'root',
-    actions: [],
+    actions: kind === 'table' ? [{
+      kind: 'navigate_to_leaf', urlTemplate: '/transactions/{id}',
+      params: [{ name: 'id', source: { kind: 'field', name: 'transactionId' } }], payload: {},
+    }] : [],
   }
 }
 
-function storyDocument(kind: V1Kind, state: PanelState): DashboardDocument {
+function storyDocument(kind: StoryKind, state: PanelState): DashboardDocument {
   const panel = storyPanel(kind)
-  const sourceFrame = kind === 'stat' ? statFrame : chartFrame
+  const sourceFrame = kind === 'stat' ? statFrame : kind === 'cascade' ? cascadeFrame : kind === 'table' ? tableFrame : chartFrame
   const includeFrame = state === 'data' || state === 'stale' || state === 'empty'
   return {
     version: '1.0.0',
@@ -176,12 +210,14 @@ function TriggerQuery({ enabled }: { enabled: boolean }) {
 
 function StoryPanel({ panel }: { panel: Panel }) {
   if (panel.kind === 'stat') return <StatPanel panel={panel} />
+  if (panel.kind === 'cascade') return <CascadePanel panel={panel} />
+  if (panel.kind === 'table') return <TablePanel panel={panel} />
   if (panel.kind === 'pie' || panel.kind === 'donut') return <PiePanel panel={panel} adapter={storyChartAdapter} />
   if (panel.kind === 'bar' || panel.kind === 'hbar') return <BarPanel panel={panel} adapter={storyChartAdapter} />
   return <LinePanel panel={panel} adapter={storyChartAdapter} />
 }
 
-function MatrixCell({ kind, state }: { kind: V1Kind; state: PanelState }) {
+function MatrixCell({ kind, state }: { kind: StoryKind; state: PanelState }) {
   const document = storyDocument(kind, state)
   const fetcher: typeof fetch = () => state === 'error'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'Data source unavailable' }), {

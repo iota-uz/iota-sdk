@@ -182,6 +182,7 @@ export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = 
 export const QueryPageSchema: z.ZodType<Contract.QueryPage> = z.lazy(() => z.object({
   number: z.number().int(),
   size: z.number().int(),
+  hasNext: z.boolean().optional(),
 }).strict())
 
 export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.lazy(() => z.object({

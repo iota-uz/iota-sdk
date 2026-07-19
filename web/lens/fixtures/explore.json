@@ -59,8 +59,8 @@
       "rows": [["q1", "2026-01-01T00:00:00Z", "Actual", 12.4], ["q2", "2026-04-01T00:00:00Z", "Actual", 14.8], ["q3", "2026-07-01T00:00:00Z", "Plan", 16.1]]
     },
     "bridge:root": {
-      "columns": [{ "name": "label", "type": "string" }, { "name": "value", "type": "number" }, { "name": "final", "type": "bool" }],
-      "rows": [["Gross margin", 3120000, false], ["Operating expenses", -1280000, false], ["Operating margin", 1840000, true]]
+      "columns": [{ "name": "label", "type": "string" }, { "name": "value", "type": "number" }, { "name": "cut", "type": "number" }, { "name": "cutLabel", "type": "string" }, { "name": "final", "type": "bool" }],
+      "rows": [["Gross margin", 3120000, 0, "", false], ["After expenses", 1840000, 1280000, "Operating expenses", false], ["Operating margin", 1840000, 0, "Reconciled", true]]
     },
     "evidence:root": {
       "columns": [{ "name": "transactionId", "type": "string" }, { "name": "counterparty", "type": "string" }, { "name": "amount", "type": "number" }],
@@ -132,7 +132,7 @@
         "label": "Margin bridge",
         "children": [],
         "frame": "bridge:root",
-        "encoding": { "label": "label", "value": "value", "final": "final" },
+        "encoding": { "label": "label", "value": "value", "cut": "cut", "cutLabel": "cutLabel", "final": "final" },
         "perspectives": [{ "id": "profitability/operating-margin/bridge" }]
       },
       "profitability/operating-margin/evidence/root": {

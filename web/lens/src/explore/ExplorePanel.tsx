@@ -9,10 +9,10 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { Action, Frame, Level, Node, Panel } from '../contract'
-import { PanelFrame, RegisteredPanel, type PanelRegistry } from '../panels'
+import type { Encoding, FieldFormat, Frame, Level, Node, Panel } from '../contract'
+import { RegisteredPanel, type PanelRegistry } from '../panels'
 import { levelForPath, useDashboard, useDrill, usePanelFrame } from '../runtime'
-import { resolveLeafActionURL } from './actions'
+import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './actions'
 import {
   breadcrumbsForNavigation,
   labelForNode,
@@ -52,78 +52,21 @@ function runViewTransition(update: () => void): void {
   })
 }
 
-function recordForRow(frame: Frame, row: Array<unknown>): Record<string, unknown> {
-  return Object.fromEntries(frame.columns.map((column, index) => [column.name, row[index]]))
-}
-
-function variablesFromLocation(location: URL): Record<string, unknown> {
-  const variables: Record<string, unknown> = {}
-  for (const name of new Set(location.searchParams.keys())) {
-    const values = location.searchParams.getAll(name)
-    variables[name] = values.length > 1 ? values : values[0]
-  }
-  return variables
-}
-
-function matchingNode(level: Level, panel: Panel, frame: Frame, row: Array<unknown>): Node | undefined {
-  const idField = level.encoding?.id ?? panel.encoding.id
-  const idIndex = idField ? frame.columns.findIndex(({ name }) => name === idField) : -1
-  const id = idIndex >= 0 ? String(row[idIndex]) : undefined
-  return level.children.find(({ key }) => key === id || Boolean(id && key.endsWith(`/${id}`)))
-}
-
 function fieldsForNode(level: Level, frame: Frame | undefined, node: Node): Record<string, unknown> {
   if (!frame) return {}
   const row = rowForNode(node, level, frame)
   return row ? recordForRow(frame, row) : {}
 }
 
-function leafAction(node: Node | undefined, panel: Panel): Action | undefined {
-  return node?.action ?? panel.actions.find(({ kind }) => kind === 'navigate_to_leaf')
-}
-
-function displayCell(value: unknown): string {
-  if (value === null || value === undefined || value === '') return '—'
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'bigint' || typeof value === 'boolean') {
-    return String(value)
+function formatsForEncoding(panel: Panel, encoding: Encoding): Record<string, FieldFormat> {
+  const formats = { ...panel.format }
+  for (const [role, targetField] of Object.entries(encoding) as Array<[keyof Encoding, string | undefined]>) {
+    const sourceField = panel.encoding[role]
+    if (targetField && sourceField && panel.format[sourceField] && !formats[targetField]) {
+      formats[targetField] = panel.format[sourceField]
+    }
   }
-  return JSON.stringify(value) ?? '—'
-}
-
-function InterimRows({ panel, level, frame, kind }: { panel: Panel; level: Level; frame?: Frame; kind: 'cascade' | 'table' }) {
-  const location = new URL(globalThis.location.href)
-  const variables = variablesFromLocation(location)
-  const rows = frame?.rows ?? []
-
-  return (
-    <section className="lens-interim-view" aria-label={`${panel.title} interim ${kind} view`}>
-      <header className="lens-interim-header">
-        <span className="lens-interim-kicker">Interim {kind} view</span>
-        <span>Structured {kind} rendering arrives in A9.</span>
-      </header>
-      <ul className="lens-interim-rows">
-        {rows.map((row, rowIndex) => {
-          const fields = frame ? recordForRow(frame, row) : {}
-          const node = frame ? matchingNode(level, panel, frame, row) : undefined
-          const action = node || level.children.length === 0 ? leafAction(node, panel) : undefined
-          const href = action ? resolveLeafActionURL(action, { fields, variables, location }) : undefined
-          return (
-            <li className="lens-interim-row" key={node?.key ?? rowIndex}>
-              <dl>
-                {frame?.columns.map((column, columnIndex) => (
-                  <div key={column.name}>
-                    <dt>{column.name}</dt>
-                    <dd>{displayCell(row[columnIndex])}</dd>
-                  </div>
-                ))}
-              </dl>
-              {href && <a className="lens-leaf-action" href={href}>Open record</a>}
-            </li>
-          )
-        })}
-      </ul>
-    </section>
-  )
+  return formats
 }
 
 interface SegmentTreeProps {
@@ -235,13 +178,17 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const hasPerspectiveChoice = perspectives.length > 1
   const semantics = perspective?.semantics ?? panel.semantics
   const kind = viewForSemantics(semantics, panel.kind)
-  const viewPanel = useMemo<Panel>(() => ({
-    ...panel,
-    kind,
-    title: level?.label.trim() || panel.title,
-    semantics,
-    encoding: level?.encoding ?? panel.encoding,
-  }), [kind, level?.encoding, level?.label, panel, semantics])
+  const viewPanel = useMemo<Panel>(() => {
+    const encoding = level?.encoding ?? panel.encoding
+    return {
+      ...panel,
+      kind,
+      title: level?.label.trim() || panel.title,
+      semantics,
+      encoding,
+      format: formatsForEncoding(panel, encoding),
+    }
+  }, [kind, level?.encoding, level?.label, panel, semantics])
   const breadcrumbs = breadcrumbsForNavigation(document, panel, navigation)
   const focusRef = useRef<HTMLDivElement>(null)
   const perspectiveItems = useRef<Array<HTMLButtonElement | null>>([])
@@ -308,15 +255,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
 
   let content: ReactNode
   if (!level) content = <div className="lens-placeholder-state">This exploration level is unavailable.</div>
-  else if (kind === 'cascade' || kind === 'table') {
-    content = (
-      <PanelFrame panel={viewPanel} frame={frame}>
-        <InterimRows panel={viewPanel} level={level} frame={frame.data} kind={kind} />
-      </PanelFrame>
-    )
-  } else {
-    content = <RegisteredPanel panel={viewPanel} registry={registry} />
-  }
+  else content = <RegisteredPanel panel={viewPanel} registry={registry} />
 
   return (
     <article className="lens-explore" onKeyDown={onKeyDown} aria-label={`Explore ${panel.title}`}>

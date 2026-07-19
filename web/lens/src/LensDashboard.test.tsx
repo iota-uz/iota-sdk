@@ -59,6 +59,14 @@ describe('LensDashboard', () => {
     expect(screen.getByText('The document contains no panels.')).toBeInTheDocument()
   })
 
+  it('wires dashboard and panel exports when the document exposes an endpoint', () => {
+    const exportable = parseDocument({ ...fixture, endpoints: { export: '/lens/export' } })
+    render(<LensDashboard initialDocument={exportable} />)
+
+    expect(screen.getByRole('button', { name: 'Export dashboard' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export panel' })).toBeInTheDocument()
+  })
+
   it('aborts the document fetch on unmount', () => {
     let signal: AbortSignal | undefined
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {

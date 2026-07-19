@@ -126,7 +126,8 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	if page == 0 {
 		page = lensruntime.DefaultTablePage
 	}
-	panelResult, err := h.executeLevel(r.Context(), thawRuntimeRequest(h.runtimeRequest(r), snapshot.Params), snapshot.Params, target, page)
+	base := thawRuntimeRequest(h.runtimeRequest(r), snapshot.Params)
+	panelResult, err := h.executeLevel(r.Context(), base, snapshot.Params, target, page)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
 		return
@@ -136,10 +137,45 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "level result conversion failed", err)
 		return
 	}
+	hasNext, err := h.evidenceHasNext(r.Context(), base, snapshot.Params, target, page, panelResult, &wire)
+	if err != nil {
+		h.writeExecutionError(r.Context(), w, err)
+		return
+	}
 	writeJSON(w, http.StatusOK, QueryResponse{
 		Frames: map[document.FrameRef]document.Frame{target.ref: wire},
-		Page:   &Page{Number: page, Size: h.pageSize},
+		Page:   &Page{Number: page, Size: h.pageSize, HasNext: hasNext},
 	})
+}
+
+func (h *Handlers) evidenceHasNext(
+	ctx context.Context,
+	base lensruntime.Request,
+	params map[string]any,
+	target levelTarget,
+	page int,
+	result *lensruntime.PanelResult,
+	wire *document.Frame,
+) (bool, error) {
+	if len(wire.Rows) > h.pageSize {
+		wire.Rows = wire.Rows[:h.pageSize]
+		return true, nil
+	}
+	if result.TablePagination != nil {
+		return result.TablePagination.HasMore, nil
+	}
+	if len(wire.Rows) < h.pageSize {
+		return false, nil
+	}
+	next, err := h.executeLevel(ctx, base, params, target, page+1)
+	if err != nil {
+		return false, err
+	}
+	nextWire, err := wireFrame(target.ref, next)
+	if err != nil {
+		return false, err
+	}
+	return len(nextWire.Rows) > 0, nil
 }
 
 func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req QueryRequest, snapshot *document.Snapshot, target levelTarget) {

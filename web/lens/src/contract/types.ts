@@ -159,6 +159,7 @@ export interface QueryErrorResponse {
 export interface QueryPage {
   number: number
   size: number
+  hasNext?: boolean
 }
 
 export interface QueryRequest {

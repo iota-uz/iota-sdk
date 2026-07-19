@@ -1,12 +1,14 @@
 import type { ReactNode } from 'react'
 import type { Panel } from '../contract'
 import type { PanelFrameState } from '../runtime'
+import { ExportButton } from './ExportButton'
 
 export interface PanelFrameProps {
   panel: Panel
   frame: PanelFrameState
   children: ReactNode
   variant?: 'stat' | 'chart'
+  allowEmptyContent?: boolean
 }
 
 function PanelSkeleton({ variant }: { variant: 'stat' | 'chart' }) {
@@ -24,7 +26,7 @@ function PanelSkeleton({ variant }: { variant: 'stat' | 'chart' }) {
   )
 }
 
-export function PanelFrame({ panel, frame, children, variant = 'chart' }: PanelFrameProps) {
+export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
   const hasRows = Boolean(frame.data?.rows.length)
   const showInitialLoading = frame.isLoading && !frame.data
 
@@ -38,7 +40,10 @@ export function PanelFrame({ panel, frame, children, variant = 'chart' }: PanelF
     >
       <header className="lens-panel-header">
         <h3 className="lens-panel-title">{panel.title}</h3>
-        {frame.isStale && <span className="lens-panel-status" role="status">Updating</span>}
+        <div className="lens-panel-actions">
+          {frame.isStale && <span className="lens-panel-status" role="status">Updating</span>}
+          <ExportButton panelId={panel.id} />
+        </div>
       </header>
       <div className="lens-panel-body">
         {showInitialLoading ? (
@@ -48,7 +53,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart' }: PanelF
             <span>{frame.error.message}</span>
             <button type="button" onClick={frame.retry}>Retry</button>
           </div>
-        ) : !hasRows ? (
+        ) : !hasRows && !allowEmptyContent ? (
           <div className="lens-panel-state lens-panel-state-empty">
             <span className="lens-empty-mark" aria-hidden="true">—</span>
             <span>No data</span>

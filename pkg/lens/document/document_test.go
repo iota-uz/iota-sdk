@@ -137,6 +137,13 @@ func TestDashboardDocumentValidate_MoneyMetadata(t *testing.T) {
 	require.Contains(t, string(payload), `"minorUnits":false`)
 }
 
+func TestQueryPageJSON_EmitsFalseHasNext(t *testing.T) {
+	t.Parallel()
+	payload, err := json.Marshal(QueryPage{Number: 1, Size: 50})
+	require.NoError(t, err)
+	require.JSONEq(t, `{"number":1,"size":50,"hasNext":false}`, string(payload))
+}
+
 func TestDashboardDocumentJSON_IsDeterministicAndPinsVersion(t *testing.T) {
 	t.Parallel()
 	doc := testDocument()
