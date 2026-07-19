@@ -23,6 +23,8 @@
     --lens-pos: #059669;
     --lens-neg: #dc2626;
     --lens-warn: #d97706;
+    --lens-pos-soft: #ecfdf5;
+    --lens-neg-soft: #fef2f2;
     --lens-radius-card: 8px;
     --lens-radius-control: 6px;
     --lens-radius-badge: 4px;
@@ -52,16 +54,74 @@
     --lens-text: #e2e8f0;
     --lens-text-muted: #cbd5e1;
     --lens-text-faint: #94a3b8;
+    --lens-accent-100: rgba(37, 99, 235, 0.2);
+    --lens-accent-50: rgba(37, 99, 235, 0.12);
     --lens-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --lens-pos-soft: rgba(5, 150, 105, 0.16);
+    --lens-neg-soft: rgba(220, 38, 38, 0.16);
     color-scheme: dark;
   }
 
-  .lens-stat-card {
-    @apply lens-box-border lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-shadow-card;
+  .lens-dashboard {
+    @apply lens-mx-auto lens-w-full lens-max-w-screen-2xl;
   }
 
-  .lens-runtime-badge {
+  .lens-dashboard-header {
+    @apply lens-mb-5 lens-flex lens-items-end lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
+  }
+
+  .lens-dashboard-header h1 {
+    @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+  }
+
+  .lens-dashboard-rows {
+    @apply lens-flex lens-flex-col lens-gap-6;
+  }
+
+  .lens-dashboard-row {
+    @apply lens-min-w-0;
+  }
+
+  .lens-row-heading {
+    @apply lens-m-0 lens-mb-3 lens-text-sm lens-font-semibold lens-text-strong;
+  }
+
+  .lens-panel-grid {
+    @apply lens-grid lens-grid-cols-1 lens-gap-4 md:lens-grid-cols-12;
+  }
+
+  .lens-grid-item {
+    @apply lens-col-span-1 lens-min-w-0;
+  }
+
+  @media (min-width: 768px) {
+    .lens-grid-item {
+      grid-column: span var(--lens-panel-span, 12) / span var(--lens-panel-span, 12);
+    }
+  }
+
+  .lens-panel {
+    @apply lens-box-border lens-flex lens-h-full lens-min-h-44 lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-card;
+  }
+
+  .lens-panel-stat {
+    @apply lens-min-h-40;
+  }
+
+  .lens-panel-header {
+    @apply lens-flex lens-min-h-10 lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
+  }
+
+  .lens-panel-title {
+    @apply lens-m-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  .lens-panel-status {
     @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
+  }
+
+  .lens-panel-body {
+    @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
   }
 
   .lens-placeholder-state {
@@ -69,7 +129,7 @@
   }
 
   .lens-panel-stale {
-    @apply lens-opacity-55 lens-transition-opacity;
+    @apply lens-opacity-60 lens-transition-opacity;
   }
 
   .lens-skeleton {
@@ -77,11 +137,184 @@
   }
 
   .lens-panel-error {
-    @apply lens-mt-4 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-bg-inset lens-p-3 lens-text-sm lens-text-neg;
+    @apply lens-flex lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-bg-inset lens-p-3 lens-text-sm lens-text-neg;
   }
 
   .lens-panel-error button {
     @apply lens-rounded-control lens-border lens-border-solid lens-border-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-semibold lens-text-text;
+  }
+
+  .lens-panel-state {
+    @apply lens-flex lens-min-h-32 lens-flex-1 lens-items-center lens-justify-center lens-gap-3 lens-p-5 lens-text-center lens-text-sm lens-text-muted;
+  }
+
+  .lens-panel-state-error {
+    @apply lens-flex-col lens-text-neg;
+  }
+
+  .lens-panel-state-error button {
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1.5 lens-font-semibold lens-text-text;
+  }
+
+  .lens-empty-mark {
+    @apply lens-flex lens-size-7 lens-items-center lens-justify-center lens-rounded-control lens-bg-inset lens-text-faint;
+  }
+
+  .lens-panel-skeleton {
+    @apply lens-flex lens-flex-1 lens-animate-pulse lens-flex-col lens-gap-3 lens-p-4;
+  }
+
+  .lens-skeleton-line,
+  .lens-skeleton-chart {
+    @apply lens-block lens-rounded-control lens-bg-inset;
+  }
+
+  .lens-skeleton-line-label {
+    @apply lens-h-3 lens-w-24;
+  }
+
+  .lens-skeleton-line-value {
+    @apply lens-h-8 lens-w-36;
+  }
+
+  .lens-skeleton-chart {
+    @apply lens-mt-2 lens-min-h-32 lens-flex-1;
+  }
+
+  .lens-stat-content {
+    @apply lens-flex lens-min-h-28 lens-flex-1 lens-flex-col lens-justify-center lens-gap-3 lens-p-4;
+  }
+
+  .lens-stat-label {
+    @apply lens-m-0 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  .lens-stat-value-row {
+    @apply lens-flex lens-flex-wrap lens-items-baseline lens-gap-3;
+  }
+
+  .lens-stat-value {
+    @apply lens-m-0 lens-text-3xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-stat-delta {
+    @apply lens-rounded-badge lens-px-2 lens-py-1 lens-text-xs lens-font-semibold;
+    background: var(--lens-pos-soft);
+    color: var(--lens-pos);
+  }
+
+  .lens-stat-delta-negative {
+    background: var(--lens-neg-soft);
+    color: var(--lens-neg);
+  }
+
+  .lens-chart-host {
+    @apply lens-relative lens-flex lens-min-h-56 lens-flex-1 lens-p-3;
+  }
+
+  .lens-chart-host-drillable {
+    @apply lens-cursor-pointer lens-border-0 lens-border-l-2 lens-border-solid lens-border-accent-500 lens-transition-colors;
+  }
+
+  .lens-chart-host-drillable:hover {
+    @apply lens-bg-accent-50;
+  }
+
+  .lens-chart-canvas {
+    @apply lens-min-h-52 lens-w-full lens-flex-1;
+  }
+
+  .lens-chart-placeholder {
+    @apply lens-flex lens-h-full lens-min-h-52 lens-w-full lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-dashed lens-border-border-strong lens-bg-inset lens-p-4 lens-font-sans lens-text-sm lens-text-muted;
+  }
+
+  .lens-chart-placeholder:disabled {
+    @apply lens-cursor-default;
+  }
+
+  .lens-chart-load-error {
+    @apply lens-absolute lens-inset-3 lens-flex lens-items-center lens-justify-center lens-rounded-control lens-bg-inset lens-text-sm lens-text-neg;
+  }
+
+  .lens-chart-drill-hint {
+    @apply lens-pointer-events-none lens-absolute lens-bottom-3 lens-right-3 lens-rounded-badge lens-bg-card lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-accent-700 lens-shadow-card;
+  }
+
+  .lens-panel-unsupported {
+    @apply lens-border-dashed;
+  }
+
+  .lens-story-matrix {
+    @apply lens-min-w-max lens-p-6;
+  }
+
+  .lens-story-matrix-grid {
+    @apply lens-grid lens-items-stretch lens-gap-3;
+    grid-template-columns: 5rem repeat(5, minmax(16rem, 1fr));
+  }
+
+  .lens-story-matrix-grid > strong {
+    @apply lens-pb-1 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  .lens-story-row-label {
+    @apply lens-flex lens-items-center;
+  }
+
+  .lens-story-cell {
+    @apply lens-flex lens-min-h-72 lens-flex-col lens-gap-2;
+  }
+
+  .lens-story-cell-label {
+    @apply lens-text-xs lens-text-faint;
+  }
+
+  .lens-fake-chart {
+    @apply lens-flex lens-h-full lens-min-h-48 lens-flex-col lens-gap-3;
+  }
+
+  .lens-fake-chart-plot {
+    @apply lens-flex lens-min-h-32 lens-flex-1 lens-items-end lens-justify-around lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-3 lens-pt-3;
+  }
+
+  .lens-fake-chart-mark {
+    @apply lens-flex lens-min-h-8 lens-flex-1 lens-items-start lens-justify-center lens-rounded-badge lens-border-0 lens-bg-accent-500 lens-p-1 lens-text-xs lens-font-semibold lens-text-white lens-opacity-80;
+    height: var(--lens-mark-size);
+  }
+
+  .lens-fake-chart-pie .lens-fake-chart-plot,
+  .lens-fake-chart-donut .lens-fake-chart-plot {
+    @apply lens-items-center lens-border-0;
+  }
+
+  .lens-fake-chart-pie .lens-fake-chart-mark,
+  .lens-fake-chart-donut .lens-fake-chart-mark {
+    @apply lens-aspect-square lens-flex-none lens-rounded-full;
+    width: calc(var(--lens-mark-size) * .62);
+    height: auto;
+  }
+
+  .lens-fake-chart-line .lens-fake-chart-mark,
+  .lens-fake-chart-area .lens-fake-chart-mark {
+    @apply lens-relative lens-h-2 lens-min-h-2 lens-rounded-full;
+    margin-bottom: calc(var(--lens-mark-size) * .65);
+  }
+
+  .lens-fake-chart-footer {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-text-xs lens-text-muted;
+  }
+
+  .lens-fake-chart-footer > span {
+    @apply lens-mr-auto lens-font-semibold lens-text-strong;
+  }
+
+  .lens-fake-chart-footer button {
+    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-text-muted;
+  }
+
+  .lens-fake-chart-footer button[aria-pressed='false'] {
+    @apply lens-line-through lens-opacity-50;
   }
 
   .lens-runtime-notice {

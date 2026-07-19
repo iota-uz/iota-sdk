@@ -1,6 +1,6 @@
-import fixture from '../fixtures/small.json'
+import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
-import { PlaceholderPanel } from './PlaceholderPanel'
+import { DashboardPanels } from './DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
 
 export interface LensDashboardProps {
@@ -19,7 +19,7 @@ export function LensDashboard({ src, locale = 'en', theme = 'light', csrf, fetch
     <div className="lens-root" data-theme={theme} lang={locale}>
       <DocumentProvider src={src} initialDocument={initialDocument} csrf={csrf} fetcher={fetcher}>
         <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher}>
-          <PlaceholderPanel src={src} />
+          <DashboardPanels />
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
