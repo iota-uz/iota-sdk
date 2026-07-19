@@ -1,8 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
-import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
+import { DashboardRuntimeProvider, DocumentProvider, exportWorkbook } from '../runtime'
 import { ExportButton } from './ExportButton'
 
 const firstDocument = parseDocument({
@@ -21,6 +22,46 @@ afterEach(() => {
 })
 
 describe('ExportButton snapshot recovery', () => {
+  it('falls back to filename when filename* is malformed', async () => {
+    const workbook = await exportWorkbook({
+      endpoint: '/lens/export',
+      snapshotId: 'snapshot',
+      fetcher: vi.fn<typeof fetch>().mockResolvedValue(new Response(new Blob(['workbook']), {
+        status: 200,
+        headers: { 'Content-Disposition': `attachment; filename="report.xlsx"; filename*=UTF-8''bad%ZZ.xlsx` },
+      })),
+    })
+
+    expect(workbook.filename).toBe('report.xlsx')
+  })
+
+  it('clears export errors when the document snapshot changes', async () => {
+    const nextDocument = parseDocument({ ...firstDocument, snapshotId: 'navigated-snapshot' })
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ message: 'Export failed' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+
+    function Fixture() {
+      const [current, setCurrent] = useState(firstDocument)
+      return (
+        <DocumentProvider initialDocument={current}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <button type="button" onClick={() => setCurrent(nextDocument)}>Navigate</button>
+            <ExportButton panelId="total" />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      )
+    }
+
+    render(<Fixture />)
+    fireEvent.click(screen.getByRole('button', { name: 'Export panel' }))
+    expect(await screen.findByText('Export failed')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Navigate' }))
+    await waitFor(() => expect(screen.queryByText('Export failed')).not.toBeInTheDocument())
+  })
+
   it('refreshes after 410, offers retry, and uses the server filename', async () => {
     let documentRequests = 0
     const exportSnapshots: string[] = []

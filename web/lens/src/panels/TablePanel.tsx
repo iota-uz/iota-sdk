@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel } from '../contract'
 import { resolveRowLeafActionURL } from '../explore/actions'
 import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination } from '../runtime'
@@ -77,18 +77,26 @@ export function TablePanel({ panel }: TablePanelProps) {
   const pagination = usePanelPagination()
   const [sort, setSort] = useState<SortState>()
   const [requestedPage, setRequestedPage] = useState(frame.page?.number ?? 1)
+  const requestedSnapshotId = useRef(document.snapshotId)
   const level: Level | undefined = navigation.panelId === panel.id && navigation.path.length
     ? levelForPath(document, navigation.path)
     : undefined
   const rows = useMemo(() => frame.data ? sortedRows(frame.data, sort) : [], [frame.data, sort])
   const page = frame.page?.number ?? 1
   const pageSize = frame.page?.size
-  const hasNext = Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
+  const loadingPage = requestedSnapshotId.current === document.snapshotId ? requestedPage : 1
+  // The row-count check keeps pagination working with older servers that omit hasNext.
+  const hasNext = frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
   const location = new URL(globalThis.location.href)
 
   useEffect(() => {
+    if (requestedSnapshotId.current !== document.snapshotId) {
+      requestedSnapshotId.current = document.snapshotId
+      setRequestedPage(1)
+      return
+    }
     if (frame.page?.number) setRequestedPage(frame.page.number)
-  }, [frame.page?.number])
+  }, [document.snapshotId, frame.page?.number])
 
   const changePage = (next: number) => {
     setRequestedPage(next)
@@ -146,7 +154,7 @@ export function TablePanel({ panel }: TablePanelProps) {
             {frame.page && (
               <nav aria-label={`${panel.title} pages`} className="lens-table-pagination">
                 <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">Previous</button>
-                <span aria-live="polite">{frame.isLoading && requestedPage !== page ? `Loading page ${requestedPage}` : `Page ${page}`}</span>
+                <span aria-live="polite">{frame.isLoading && loadingPage !== page ? `Loading page ${loadingPage}` : `Page ${page}`}</span>
                 <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">Next</button>
               </nav>
             )}

@@ -227,8 +227,20 @@ type QueryRequest struct {
 }
 
 type QueryPage struct {
-	Number int `json:"number"`
-	Size   int `json:"size"`
+	Number  int  `json:"number"`
+	Size    int  `json:"size"`
+	HasNext bool `json:"hasNext,omitempty"`
+}
+
+func (p QueryPage) MarshalJSON() ([]byte, error) {
+	// Keep older responses parseable by generated clients while always emitting
+	// an authoritative false value from current servers.
+	type queryPageWire struct {
+		Number  int  `json:"number"`
+		Size    int  `json:"size"`
+		HasNext bool `json:"hasNext"`
+	}
+	return json.Marshal(queryPageWire(p))
 }
 
 type QueryResponse struct {

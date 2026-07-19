@@ -43,7 +43,7 @@ const tableDocument: DashboardDocument = {
   theme: { palette: {}, series: {} },
 }
 
-function pageResponse(page: number): Response {
+function pageResponse(page: number, hasNext = page === 1): Response {
   const rows = page === 1
     ? [['A 1', 'Alpha', 20, true], ['B-2', 'Beta', 10, false]]
     : page === 2 ? [['C-3', 'Gamma', 30, true]] : []
@@ -59,7 +59,7 @@ function pageResponse(page: number): Response {
         rows,
       },
     },
-    page: { number: page, size: 2 },
+    page: { number: page, size: 2, hasNext },
   }), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
@@ -69,6 +69,26 @@ afterEach(() => {
 })
 
 describe('TablePanel pagination', () => {
+  it.each([
+    { hasNext: false, disabled: true },
+    { hasNext: true, disabled: false },
+  ])('uses hasNext=$hasNext for an exact-multiple page', async ({ hasNext, disabled }) => {
+    window.history.replaceState(null, '', '/?path=evidence&panel=evidence')
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(pageResponse(1, hasNext))
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={tableDocument}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <TablePanel panel={tablePanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    expect(await screen.findByText('Alpha')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Next' })).toHaveProperty('disabled', disabled)
+  })
+
   it('queries and caches each server page while sorting only the fetched page', async () => {
     window.history.replaceState(null, '', '/?path=evidence&panel=evidence&region=north')
     const requestedPages: number[] = []

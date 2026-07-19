@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -35,6 +36,7 @@ type fakeExecutor struct {
 	cancelPanel string
 	delay       time.Duration
 	frames      map[string]*frame.FrameSet
+	pageFrames  map[string]map[int]*frame.FrameSet
 	executeErrs map[string]error
 	panelErrs   map[string]error
 	startOnce   sync.Once
@@ -84,7 +86,12 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 	if !ok {
 		return nil, errors.New("scoped panel is missing")
 	}
-	result.Panels[panelID] = panelResult(target, f.frames[panelID], req)
+	frames := f.frames[panelID]
+	if pages := f.pageFrames[panelID]; pages != nil {
+		page, _ := strconv.Atoi(req.Request.Get(lensruntime.TablePaginationPageQuery))
+		frames = pages[page]
+	}
+	result.Panels[panelID] = panelResult(target, frames, req)
 	result.Panels[panelID].Error = f.panelErrs[panelID]
 	return result, nil
 }
@@ -223,7 +230,7 @@ func TestHandlers_EvidenceIsLiveAndPaginated(t *testing.T) {
 
 	first := queryLevel(t, handlers, request)
 	second := queryLevel(t, handlers, request)
-	require.Equal(t, &Page{Number: 3, Size: 17}, first.Page)
+	require.Equal(t, &Page{Number: 3, Size: 17, HasNext: false}, first.Page)
 	require.Equal(t, first.Page, second.Page)
 	require.Equal(t, 2, executor.callCount("evidence-panel"))
 	call := executor.lastCall("evidence-panel")
@@ -234,6 +241,40 @@ func TestHandlers_EvidenceIsLiveAndPaginated(t *testing.T) {
 	snapshot, err := store.Get(t.Context(), doc.SnapshotID)
 	require.NoError(t, err)
 	require.NotContains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/evidence:evidence"))
+}
+
+func TestHandlers_EvidenceHasNext(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		nextRows int
+		want     bool
+	}{
+		{name: "exact final page", nextRows: 0, want: false},
+		{name: "full page with following rows", nextRows: 1, want: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			handlers, executor, _ := newTestHandlers(t, 0)
+			executor.pageFrames = map[string]map[int]*frame.FrameSet{
+				"evidence-panel": {
+					1: evidenceFramesWithRows(t, 17),
+					2: evidenceFramesWithRows(t, tt.nextRows),
+				},
+			}
+			doc := requestDocument(t, handlers, "/dash/document")
+
+			response := queryLevel(t, handlers, QueryRequest{
+				SnapshotID: doc.SnapshotID, Path: document.NodePath{"evidence"}, Perspective: "evidence", Page: 1,
+			})
+
+			require.Equal(t, &Page{Number: 1, Size: 17, HasNext: tt.want}, response.Page)
+			require.Len(t, response.Frames[document.FrameRef("explore:metric/focus/evidence:evidence")].Rows, 17)
+			require.Equal(t, 2, executor.callCount("evidence-panel"))
+		})
+	}
 }
 
 func TestHandlers_DocumentSkipsErroredExplorePanelAndQueryReportsIt(t *testing.T) {
@@ -519,10 +560,20 @@ func testFrames(t *testing.T, name string, value float64) *frame.FrameSet {
 }
 
 func evidenceFrames(t *testing.T) *frame.FrameSet {
+	return evidenceFramesWithRows(t, 1)
+}
+
+func evidenceFramesWithRows(t *testing.T, count int) *frame.FrameSet {
 	t.Helper()
+	policies := make([]any, count)
+	amounts := make([]any, count)
+	for index := range count {
+		policies[index] = "P-" + strconv.Itoa(index+1)
+		amounts[index] = float64(index + 1)
+	}
 	primary, err := frame.New("evidence",
-		frame.Field{Name: "policy", Type: frame.FieldTypeString, Values: []any{"P-1"}},
-		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{25.0}},
+		frame.Field{Name: "policy", Type: frame.FieldTypeString, Values: policies},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: amounts},
 	)
 	require.NoError(t, err)
 	result, err := frame.NewFrameSet(primary)

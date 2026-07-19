@@ -32,7 +32,7 @@ function responseFilename(header: string | null): string | undefined {
     try {
       return decodeURIComponent(encoded)
     } catch {
-      return undefined
+      // Fall through to the legacy filename parameter.
     }
   }
   return /filename="([^"]+)"/i.exec(header)?.[1]

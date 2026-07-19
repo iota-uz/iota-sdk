@@ -50,21 +50,25 @@ export function buildCascadeStages(
   const cutField = panelField(panel, 'cut') ?? 'cut'
   const cutLabelField = panelField(panel, 'cutLabel') ?? 'cutLabel'
   const finalField = panelField(panel, 'final') ?? 'final'
+  const labelIndex = columnIndex(frame, labelField)
   const valueIndex = columnIndex(frame, valueField)
+  const cutIndex = columnIndex(frame, cutField)
+  const cutLabelIndex = columnIndex(frame, cutLabelField)
+  const finalIndex = columnIndex(frame, finalField)
   const maximum = Math.max(1, ...frame.rows.map((row) => Math.max(0, numeric(row[valueIndex]))))
 
   return frame.rows.map((row, index) => {
     const value = numeric(row[valueIndex])
-    const cut = numeric(row[columnIndex(frame, cutField)])
+    const cut = numeric(row[cutIndex])
     const rawWidth = value > 0 ? Math.min(100, value / maximum * 100) : 0
     return {
-      label: displayText(row[columnIndex(frame, labelField)], `Stage ${index + 1}`),
+      label: displayText(row[labelIndex], `Stage ${index + 1}`),
       value,
       formattedValue: formatValue(value),
       cut,
       formattedCut: signedCut(cut, formatCut),
-      cutLabel: displayText(row[columnIndex(frame, cutLabelField)], ''),
-      final: boolean(row[columnIndex(frame, finalField)]),
+      cutLabel: displayText(row[cutLabelIndex], ''),
+      final: boolean(row[finalIndex]),
       width: rawWidth > 0 ? Math.max(widthFloor, rawWidth) : 0,
     }
   })

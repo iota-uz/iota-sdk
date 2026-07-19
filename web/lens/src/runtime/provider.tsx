@@ -356,6 +356,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
   )
   const [notice, setNotice] = useState<string>()
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
+  const exportSnapshotId = useRef(document.snapshotId)
   const [retryToken, setRetryToken] = useState(0)
   const forceRetry = useRef(false)
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
@@ -382,6 +383,12 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
   const queryClient = useMemo(() => endpoint ? new QueryClient(endpoint, { csrf, fetcher }) : undefined, [csrf, endpoint, fetcher])
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])
+
+  useEffect(() => {
+    if (exportSnapshotId.current === document.snapshotId) return
+    exportSnapshotId.current = document.snapshotId
+    setExportStates({})
+  }, [document.snapshotId])
 
   useEffect(() => {
     for (const panel of document.panels) {
