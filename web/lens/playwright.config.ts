@@ -8,7 +8,7 @@ export default defineConfig({
   outputDir: './vr/results',
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
-  retries: process.env.CI ? 1 : 0,
+  retries: 0,
   workers: 1,
   reporter: process.env.CI ? [['list']] : [['line']],
   snapshotPathTemplate: path.join('vr', 'baselines', platform, '{arg}{ext}'),
@@ -25,6 +25,11 @@ export default defineConfig({
     baseURL: 'http://127.0.0.1:61000',
     colorScheme: 'light',
     deviceScaleFactor: 1,
+    // Canvas output must not depend on the host GPU: hardware raster is
+    // nondeterministic run-to-run at maxDiffPixels 0.
+    launchOptions: {
+      args: ['--disable-gpu', '--force-color-profile=srgb', '--disable-lcd-text'],
+    },
     locale: 'en-US',
     timezoneId: 'UTC',
     trace: 'retain-on-failure',
@@ -35,9 +40,9 @@ export default defineConfig({
     use: { browserName: 'chromium' },
   }],
   webServer: {
-    command: 'pnpm ladle --host 127.0.0.1 --port 61000 --noWatch',
+    command: 'pnpm ladle:build && pnpm ladle:preview',
     url: 'http://127.0.0.1:61000',
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     timeout: 120_000,
   },
 })

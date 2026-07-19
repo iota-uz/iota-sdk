@@ -177,6 +177,21 @@ jobs:
         working-directory: web/lens
         run: pnpm exec playwright install chromium
 
+      - name: Reject deleted approved Linux baselines
+        if: inputs.lens_vr_update != true
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+          base_count="$(git ls-tree -r --name-only origin/main -- web/lens/vr/baselines/linux | awk '/\.png$/ { count++ } END { print count + 0 }')"
+          checkout_count=0
+          if [[ -d web/lens/vr/baselines/linux ]]; then
+            checkout_count="$(find web/lens/vr/baselines/linux -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')"
+          fi
+          if (( base_count > checkout_count )); then
+            echo "::error::Approved Lens VR baselines were removed: origin/main has ${base_count} Linux PNGs, but this checkout has ${checkout_count}. Bootstrap mode is only allowed when origin/main has no baselines."
+            exit 1
+          fi
+
       - name: Detect approved Linux baselines
         id: baselines
         shell: bash
@@ -196,7 +211,7 @@ jobs:
         run: just lens vr-update
 
       - name: Upload visual regression diffs
-        if: failure()
+        if: failure() && steps.baselines.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: lens-vr-linux-diffs-${{ github.sha }}

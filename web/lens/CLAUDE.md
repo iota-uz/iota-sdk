@@ -35,13 +35,15 @@ just lens vr-update   # intentionally replace current-OS baselines
 just lens build       # rebuild the embedded runtime distribution
 ```
 
-The VR profile uses Chromium only, a 1600×1000 CSS viewport, device scale 1,
-UTC, `en-US`, reduced motion, and the Inter variable font bundled for the
-story environment at `.ladle/fonts/` (the runtime dist never embeds it —
-embedded dashboards inherit the Granite host page's fonts). URLs include
-`lens-vr=1`; the Ladle hook disables CSS animations, View Transitions, and
-ECharts animation before a story renders. Tests wait for the expected canvases,
-font readiness, and two animation frames before taking full-page screenshots.
+The VR profile builds the Ladle story bundle and starts a fresh static preview
+for each run. It uses Chromium only, a 1600×1000 CSS viewport, device scale 1,
+UTC, `en-US`, reduced motion, and the Inter variable font bundled for the story
+environment at `.ladle/fonts/` (the runtime dist never embeds it — embedded
+dashboards inherit the Granite host page's fonts). URLs include `lens-vr=1`; the
+Ladle build hook sets `data-lens-vr`, Playwright disables CSS animations, and
+app code disables View Transitions and ECharts animation through
+`isVisualRegression()`. Tests wait for the expected canvases, font readiness,
+and two animation frames before taking full-page screenshots.
 
 ## Fixtures
 
@@ -92,9 +94,11 @@ only approved references. Baselines live in `vr/baselines/linux`; macOS and
 Windows baselines are local, per-platform, and gitignored. Never copy a local
 macOS image into the Linux directory.
 
-When no Linux PNGs are committed, the regular CI lane enters bootstrap mode: it
-generates candidates, passes without pretending to compare them, and uploads
-`lens-vr-linux-candidates-<sha>`. To promote an honest reference:
+When neither `origin/main` nor the checkout has committed Linux PNGs, the regular
+CI lane enters bootstrap mode: it generates candidates, passes without
+pretending to compare them, and uploads `lens-vr-linux-candidates-<sha>`. Removing
+or mass-deleting baselines that exist on `origin/main` fails before bootstrap.
+To promote an honest reference:
 
 1. Run the `Test, lint & build` workflow manually on the target commit with
    `lens_vr_update` enabled.

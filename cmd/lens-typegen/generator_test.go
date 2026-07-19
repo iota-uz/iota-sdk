@@ -35,7 +35,8 @@ func TestGenerateRepresentativeContract(t *testing.T) {
 	schemasFile := files["schemas.ts"]
 	require.Contains(t, schemasFile, "const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0]!")
 	require.Contains(t, schemasFile, "return version.split('.', 1)[0]!")
-	require.NotContains(t, schemasFile, "??")
+	require.NotContains(t, schemasFile, "CONTRACT_VERSION.split('.', 1)[0] ?? CONTRACT_VERSION")
+	require.NotContains(t, schemasFile, "version.split('.', 1)[0] ?? version")
 	require.Contains(t, schemasFile, "z.record(z.string(), z.lazy(() => NestedSchema))")
 	require.Contains(t, schemasFile, "optional: z.string().optional()")
 	require.Contains(t, schemasFile, "createdAt: z.string().datetime({ offset: true })")

@@ -62,14 +62,28 @@ async function screenshot(page: Page, name: string): Promise<void> {
 }
 
 test('VR manifest covers every Ladle story', async ({ request }) => {
-  const response = await request.get('/@id/__x00__virtual:generated-list')
+  const response = await request.get('/meta.json')
   expect(response.ok()).toBe(true)
-  const source = await response.text()
-  const discovered = [...source.matchAll(/^ {2}"([^"]+)": \{$/gm)]
-    .map((match) => match[1]!.replaceAll('\\xB7', '·'))
-    .sort()
+  const metadata: unknown = await response.json()
+  if (
+    typeof metadata !== 'object'
+    || metadata === null
+    || !('stories' in metadata)
+    || typeof metadata.stories !== 'object'
+    || metadata.stories === null
+    || Array.isArray(metadata.stories)
+  ) {
+    throw new Error('Ladle meta.json does not contain a stories object')
+  }
+  const discovered = Object.keys(metadata.stories).sort()
 
   expect(discovered).toEqual([...storyIds].sort())
+  const covered = new Set<string>([
+    ...staticStories.map(([storyId]) => storyId),
+    ...keyframeCovered,
+  ])
+
+  expect(storyIds.filter((storyId) => !covered.has(storyId))).toEqual([])
 })
 
 for (const [storyId, canvasCount] of staticStories) {
@@ -78,6 +92,11 @@ for (const [storyId, canvasCount] of staticStories) {
     await screenshot(page, storyId)
   })
 }
+
+const keyframeCovered = [
+  'explore--full-drill-flow-·-three-levels',
+  'explore--perspective-switching-on-a-segment',
+] as const
 
 test('explore full drill flow keyframes', async ({ page }) => {
   await openStory(page, 'explore--full-drill-flow-·-three-levels', 1)

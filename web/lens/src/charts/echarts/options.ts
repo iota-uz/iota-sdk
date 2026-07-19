@@ -189,7 +189,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
 
   return {
     ...baseOption(theme),
-    grid: { left: 16, right: 16, top: 24, bottom: 12, containLabel: true },
+    // In VR mode the grid inset is pinned: containLabel derives it from
+    // canvas text measurement, which lands on a rounding boundary for the
+    // variable font and shifts the whole plot by 1px between runs.
+    grid: isVisualRegression()
+      ? { left: 96, right: 32, top: 24, bottom: 32, containLabel: false }
+      : { left: 16, right: 16, top: 24, bottom: 12, containLabel: true },
     tooltip: {
       trigger: 'axis',
       renderMode: timeAxis ? 'richText' : undefined,
