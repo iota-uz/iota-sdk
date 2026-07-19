@@ -37,14 +37,15 @@ func NewDashboardController(dbCfg *dbconfig.Config, navPermissions ...[]permissi
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for dashboard: %v", err)
-		return &DashboardController{navPermissions: perms}
+		return &DashboardController{navPermissions: perms, runtime: runtime.New(runtime.Options{})}
 	}
-	return &DashboardController{ds: ds, navPermissions: perms}
+	return &DashboardController{ds: ds, navPermissions: perms, runtime: runtime.New(runtime.Options{})}
 }
 
 type DashboardController struct {
 	ds             datasource.DataSource
 	navPermissions []permission.Permission
+	runtime        *runtime.Runtime
 }
 
 func (c *DashboardController) createFinanceDashboard(tenantID uuid.UUID) lens.DashboardSpec {
@@ -207,11 +208,12 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 		err = composables.InTx(r.Context(), func(txCtx context.Context) error {
 			ctx, cancel := context.WithTimeout(txCtx, 30*time.Second)
 			defer cancel()
-			executed, execErr := runtime.Run(ctx, dash, runtime.Request{
+			executed, execErr := c.runtime.Execute(ctx, dash, runtime.Request{
 				DataSources: map[string]datasource.DataSource{
 					"primary": c.ds,
 				},
-			})
+				DataScope: tenantID.String(), Namespace: "core.dashboard",
+			}, runtime.DashboardScope())
 			results = executed
 			return execErr
 		})

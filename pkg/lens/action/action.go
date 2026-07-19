@@ -14,6 +14,7 @@ const (
 	KindHtmxSwap  Kind = "htmx_swap"
 	KindEmitEvent Kind = "emit_event"
 	KindCubeDrill Kind = "cube_drill"
+	KindExplore   Kind = "explore"
 )
 
 type ValueSourceKind string
@@ -46,6 +47,7 @@ type Spec struct {
 	Payload       map[string]ValueSource
 	Params        []Param
 	Drill         *DrillSpec
+	Explore       *ExploreSpec
 	PreserveQuery bool
 }
 
@@ -88,6 +90,47 @@ func CubeDrill(url, dimension string, params ...Param) Spec {
 			Value:     FieldValue("filter_value"),
 		},
 	}
+}
+
+// Explore opens a branch in a dashboard's metric explorer. branch identifies
+// a stable branch key and may be replaced with WithExploreBranch for actions
+// whose branch is resolved from a dataset row.
+func Explore(explorerID, branch string) Spec {
+	return Spec{
+		Kind:   KindExplore,
+		Method: "GET",
+		Explore: &ExploreSpec{
+			ExplorerID: explorerID,
+			Branch:     LiteralValue(branch),
+		},
+	}
+}
+
+func (s Spec) withClonedExplore() Spec {
+	if s.Explore == nil {
+		return s
+	}
+	explore := *s.Explore
+	s.Explore = &explore
+	return s
+}
+
+func (s Spec) WithExploreBranch(source ValueSource) Spec {
+	if s.Explore == nil {
+		return s
+	}
+	s = s.withClonedExplore()
+	s.Explore.Branch = source
+	return s
+}
+
+func (s Spec) WithExplorePerspective(perspective string) Spec {
+	if s.Explore == nil {
+		return s
+	}
+	s = s.withClonedExplore()
+	s.Explore.Perspective = perspective
+	return s
 }
 
 func (s Spec) withClonedDrill() Spec {

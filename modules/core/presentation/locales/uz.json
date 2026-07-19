@@ -89,6 +89,9 @@
   "Chart": {
     "CloseFullScreen": "To'liq ekran rejimini yopish",
     "ExpandToFullScreen": "To'liq ekranga kengaytirish",
+    "ExportExcel": "Excel formatiga eksport qilish",
+    "ExportGenerating": "Excel hisoboti tayyorlanmoqda…",
+    "ExportFailed": "Hisobotni tayyorlab bo‘lmadi. Qayta urinib ko‘ring.",
     "LogScale": "Logarifmik shkala",
     "LogScaleHint": "Qiymatlar logarifmik shkala asosida ko'rsatilgan",
     "MetricInfo": "Bu metrika qanday hisoblanadi"

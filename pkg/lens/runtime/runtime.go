@@ -18,6 +18,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -25,6 +26,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/singleflight"
 )
 
 type DatasetResult struct {
@@ -61,6 +63,7 @@ type DashboardResult struct {
 	Drill       *cube.DrillContext
 	StartedAt   time.Time
 	Duration    time.Duration
+	SnapshotID  string
 }
 
 type Result = DashboardResult
@@ -89,13 +92,60 @@ type Request struct {
 	Request     url.Values
 	Overrides   map[string]any
 	DataSources map[string]datasource.DataSource
-	Cache       Cache
+	// DataScope is a stable, non-secret identity for tenant/authz/data access.
+	// Host applications must change it whenever the visible row set changes.
+	DataScope            string
+	Namespace            string
+	DataSourceIdentities map[string]string
 }
 
-type Runtime = Request
+type Options struct {
+	Store        SnapshotStore
+	DefaultTTL   time.Duration
+	CacheVersion string
+	Observer     Observer
+	WorkTimeout  time.Duration
+}
+
+type Observer interface {
+	SnapshotHit(string)
+	SnapshotMiss(string)
+	DatasetExecuted(string, time.Duration)
+}
+
+// Runtime is a long-lived Lens execution service. A process should normally
+// construct one instance and share it across render, fragment and export paths.
+type Runtime struct {
+	store       SnapshotStore
+	ttl         time.Duration
+	version     string
+	observer    Observer
+	flights     singleflight.Group
+	workTimeout time.Duration
+}
+
+func New(opts Options) *Runtime {
+	if opts.Store == nil {
+		opts.Store = NewMemorySnapshotStore(MemoryStoreOptions{})
+	}
+	if opts.DefaultTTL <= 0 {
+		opts.DefaultTTL = 5 * time.Minute
+	}
+	if strings.TrimSpace(opts.CacheVersion) == "" {
+		opts.CacheVersion = "v1"
+	}
+	if opts.WorkTimeout <= 0 {
+		opts.WorkTimeout = 2 * time.Minute
+	}
+	return &Runtime{store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout}
+}
+
+func (r *Runtime) Store() SnapshotStore { return r.store }
 
 type Scope struct {
-	PanelIDs []string
+	PanelIDs                 []string
+	IncludeExportEvidence    bool
+	includeDashboardEvidence bool
 }
 
 func DashboardScope() Scope {
@@ -110,58 +160,38 @@ func PanelScope(panelID string) Scope {
 	return Scope{PanelIDs: []string{panelID}}
 }
 
-type Cache interface {
-	Get(key string) (*frame.FrameSet, bool)
-	Set(key string, value *frame.FrameSet)
+// DashboardExportScope executes the visible dashboard datasets plus every
+// evidence dataset declared by the dashboard and its panels. Ordinary
+// DashboardScope deliberately excludes export-only evidence so loading a page
+// never pays the cost of materialising large audit tables.
+func DashboardExportScope() Scope {
+	return Scope{IncludeExportEvidence: true, includeDashboardEvidence: true}
 }
 
-type memoryCache struct {
-	mu    sync.RWMutex
-	items map[string]*frame.FrameSet
+// PanelsExportScope is the export-aware counterpart of PanelsScope.
+func PanelsExportScope(panelIDs ...string) Scope {
+	return Scope{PanelIDs: append([]string(nil), panelIDs...), IncludeExportEvidence: true}
 }
 
-func NewMemoryCache() Cache {
-	return &memoryCache{items: make(map[string]*frame.FrameSet)}
+// PanelExportScope is the export-aware counterpart of PanelScope.
+func PanelExportScope(panelID string) Scope {
+	return PanelsExportScope(panelID)
 }
 
-func (m *memoryCache) Get(key string) (*frame.FrameSet, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	value, ok := m.items[key]
-	if !ok {
-		return nil, false
-	}
-	return value.Clone(), true
-}
-
-func (m *memoryCache) Set(key string, value *frame.FrameSet) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.items[key] = value.Clone()
-}
-
-func Run(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
-	return run(ctx, spec, req, DashboardScope())
-}
-
-func RunScope(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
-	return run(ctx, spec, req, scope)
-}
-
-func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
-	op := serrors.Op("lens/runtime.Run")
+func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
+	op := serrors.Op("lens/runtime.Execute")
 	if err := Validate(spec); err != nil {
 		return nil, serrors.E(op, err)
 	}
-	startedAt := time.Now()
-	if req.Cache == nil {
-		req.Cache = NewMemoryCache()
+	if err := validateExecutionIdentity(spec, req); err != nil {
+		return nil, serrors.E(op, err)
 	}
+	startedAt := time.Now()
 	variables, err := resolveVariables(spec.Variables, req)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
-	internalPlan, err := compileExecutionPlan(spec, scope.PanelIDs)
+	internalPlan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -184,8 +214,31 @@ func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope)
 	state := plannedExecutor{
 		spec:      spec,
 		runtime:   req,
+		executor:  r,
 		variables: variables,
 		drill:     result.Drill,
+	}
+	state.snapshotKey, state.specFingerprint, err = r.executionIdentity(spec, req, variables)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	result.SnapshotID = state.snapshotKey
+	if spec.Cache.Mode != lens.CacheDisabled {
+		if snapshot, ok := r.store.Load(ctx, state.snapshotKey); ok {
+			if r.observer != nil {
+				r.observer.SnapshotHit(snapshot.ID)
+			}
+			for _, stage := range internalPlan.datasetStages {
+				for _, datasetSpec := range stage {
+					if frames := snapshot.Datasets[datasetSpec.Name]; frames != nil {
+						provenance := snapshot.Provenance[datasetSpec.Name]
+						result.Datasets[datasetSpec.Name] = &DatasetResult{Frames: frames.Clone(), Duration: provenance.Duration}
+					}
+				}
+			}
+		} else if r.observer != nil {
+			r.observer.SnapshotMiss(state.snapshotKey)
+		}
 	}
 
 	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
@@ -195,14 +248,20 @@ func run(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope)
 		return nil, serrors.E(op, err)
 	}
 	result.Duration = time.Since(startedAt)
+	if spec.Cache.Mode != lens.CacheDisabled {
+		r.saveSnapshot(ctx, state, result)
+	}
 	return result, nil
 }
 
 type plannedExecutor struct {
-	spec      lens.DashboardSpec
-	runtime   Request
-	variables map[string]any
-	drill     *cube.DrillContext
+	spec            lens.DashboardSpec
+	runtime         Request
+	executor        *Runtime
+	variables       map[string]any
+	drill           *cube.DrillContext
+	snapshotKey     string
+	specFingerprint string
 }
 
 type executionPlan struct {
@@ -216,20 +275,20 @@ func Plan(spec lens.DashboardSpec, scope Scope) (ExecutionPlan, error) {
 	if err := Validate(spec); err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
-	plan, err := compileExecutionPlan(spec, scope.PanelIDs)
+	plan, err := compileExecutionPlan(spec, scope)
 	if err != nil {
 		return ExecutionPlan{}, serrors.E(op, err)
 	}
 	return plan.view, nil
 }
 
-func compileExecutionPlan(spec lens.DashboardSpec, panelIDs []string) (executionPlan, error) {
+func compileExecutionPlan(spec lens.DashboardSpec, scope Scope) (executionPlan, error) {
 	datasets := indexDatasets(spec.Datasets)
-	targetPanels, err := scopedPanels(spec, panelIDs)
+	targetPanels, err := scopedPanels(spec, scope.PanelIDs)
 	if err != nil {
 		return executionPlan{}, err
 	}
-	required := requiredDatasetNames(targetPanels, datasets)
+	required := requiredDatasetNames(spec, targetPanels, datasets, scope.IncludeExportEvidence, scope.includeDashboardEvidence)
 	stageMap := make(map[int][]string)
 	depthMemo := make(map[string]int, len(required))
 	visiting := make(map[string]bool, len(required))
@@ -310,6 +369,9 @@ func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.D
 		var mu sync.Mutex
 		group, groupCtx := errgroup.WithContext(ctx)
 		for _, datasetSpec := range stage {
+			if _, cached := results[datasetSpec.Name]; cached {
+				continue
+			}
 			group.Go(func() error {
 				start := time.Now()
 				frames, err := s.executeDatasetSpec(groupCtx, datasetSpec, results)
@@ -456,16 +518,120 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		MaxRows:   spec.Query.MaxRows,
 		Kind:      spec.Query.Kind,
 	}
-	cacheKey := queryCacheKey(request)
-	if cached, ok := s.runtime.Cache.Get(cacheKey); ok {
-		return cached, nil
+	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryCacheKey(request)
+	result := s.executor.flights.DoChan(flightKey, func() (any, error) {
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.executor.workTimeout)
+		defer cancel()
+		started := time.Now()
+		frames, err := ds.Run(workCtx, request)
+		if err == nil && s.executor.observer != nil {
+			s.executor.observer.DatasetExecuted(spec.Name, time.Since(started))
+		}
+		return frames, err
+	})
+	var value any
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case flight := <-result:
+		if flight.Err != nil {
+			return nil, flight.Err
+		}
+		value = flight.Val
 	}
-	frames, err := ds.Run(ctx, request)
+	frames, ok := value.(*frame.FrameSet)
+	if !ok {
+		return nil, fmt.Errorf("dataset %q returned unexpected result %T", spec.Name, value)
+	}
+	return frames.Clone(), nil
+}
+
+func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string, error) {
+	op := serrors.Op("lens/runtime.executionIdentity")
+	specBytes, err := json.Marshal(spec) //nolint:musttag // Runtime specs intentionally retain their Go field names in the fingerprint.
 	if err != nil {
-		return nil, err
+		return "", "", serrors.E(op, err)
 	}
-	s.runtime.Cache.Set(cacheKey, frames)
-	return frames, nil
+	specSum := sha256.Sum256(specBytes)
+	specFingerprint := fmt.Sprintf("%x", specSum[:])
+	identity := struct {
+		Version     string            `json:"version"`
+		Namespace   string            `json:"namespace"`
+		Spec        string            `json:"spec"`
+		Locale      string            `json:"locale"`
+		Timezone    string            `json:"timezone"`
+		DataScope   string            `json:"dataScope"`
+		Variables   map[string]any    `json:"variables"`
+		DataSources map[string]string `json:"dataSources"`
+	}{r.version, strings.TrimSpace(req.Namespace), specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities}
+	payload, err := json.Marshal(identity)
+	if err != nil {
+		return "", "", serrors.E(op, err)
+	}
+	sum := sha256.Sum256(payload)
+	return strings.TrimSpace(req.Namespace) + ":" + fmt.Sprintf("%x", sum[:]), specFingerprint, nil
+}
+
+func validateExecutionIdentity(spec lens.DashboardSpec, req Request) error {
+	if strings.TrimSpace(req.DataScope) == "" {
+		return fmt.Errorf("data scope is required")
+	}
+	for _, dataset := range spec.Datasets {
+		if dataset.Kind != lens.DatasetKindQuery {
+			continue
+		}
+		if strings.TrimSpace(req.DataSourceIdentities[dataset.Source]) == "" {
+			return fmt.Errorf("datasource identity for %q is required", dataset.Source)
+		}
+	}
+	return nil
+}
+
+func (r *Runtime) saveSnapshot(ctx context.Context, state plannedExecutor, result *DashboardResult) {
+	if result == nil {
+		return
+	}
+	byName := indexDatasets(state.spec.Datasets)
+	ttl := state.spec.Cache.TTL
+	if ttl <= 0 {
+		ttl = r.ttl
+	}
+	for name, item := range result.Datasets {
+		policy := byName[name].Cache
+		if item != nil && item.Error == nil && item.Frames != nil && policy.Mode != lens.CacheDisabled && policy.TTL > 0 && policy.TTL < ttl {
+			ttl = policy.TTL
+		}
+	}
+	now := time.Now()
+	r.store.Update(ctx, state.snapshotKey, ttl, func(existing *ExecutionSnapshot) *ExecutionSnapshot {
+		datasets := map[string]*frame.FrameSet{}
+		provenance := map[string]DatasetProvenance{}
+		createdAt := now
+		if existing != nil {
+			createdAt = existing.CreatedAt
+			for name, frames := range existing.Datasets {
+				if frames != nil {
+					datasets[name] = frames.Clone()
+				}
+			}
+			for name, item := range existing.Provenance {
+				provenance[name] = item
+			}
+		}
+		for name, item := range result.Datasets {
+			datasetSpec := byName[name]
+			if datasetSpec.Cache.Mode == lens.CacheDisabled || item == nil || item.Error != nil || item.Frames == nil {
+				continue
+			}
+			datasets[name] = item.Frames.Clone()
+			duration := item.Duration
+			if duration == 0 {
+				duration = provenance[name].Duration
+			}
+			provenance[name] = DatasetProvenance{Dataset: name, Source: datasetSpec.Source, DependsOn: append([]string(nil), datasetSpec.DependsOn...), Duration: duration}
+		}
+		return &ExecutionSnapshot{ID: state.snapshotKey, SpecFingerprint: state.specFingerprint, Variables: cloneMap(state.variables), DataScope: state.runtime.DataScope, Locale: state.runtime.Locale, Timezone: state.runtime.Timezone, Datasets: datasets, Provenance: provenance, CreatedAt: createdAt, ExpiresAt: now.Add(ttl)}
+	})
 }
 
 func (s *plannedExecutor) runDerivedDataset(spec lens.DatasetSpec, results map[string]*DatasetResult) (*frame.FrameSet, error) {
@@ -494,13 +660,31 @@ func indexDatasets(specs []lens.DatasetSpec) map[string]lens.DatasetSpec {
 	return datasets
 }
 
-func requiredDatasetNames(panels []panel.Spec, datasets map[string]lens.DatasetSpec) []string {
+func requiredDatasetNames(spec lens.DashboardSpec, panels []panel.Spec, datasets map[string]lens.DatasetSpec, includeExportEvidence, includeDashboardEvidence bool) []string {
 	seen := make(map[string]struct{})
 	for _, panelSpec := range panels {
 		if isCompositePanel(panelSpec.Kind) || strings.TrimSpace(panelSpec.Dataset) == "" {
 			continue
 		}
 		markRequiredDataset(panelSpec.Dataset, datasets, seen)
+	}
+	if includeExportEvidence {
+		if includeDashboardEvidence {
+			for _, name := range spec.Export.EvidenceDatasets {
+				markRequiredDataset(name, datasets, seen)
+			}
+		}
+		for _, panelSpec := range panels {
+			evidence := panelSpec.Export.EvidenceDatasets
+			if len(evidence) == 0 {
+				if datasetSpec, ok := datasets[panelSpec.Dataset]; ok {
+					evidence = datasetSpec.Export.EvidenceDatasets
+				}
+			}
+			for _, name := range evidence {
+				markRequiredDataset(name, datasets, seen)
+			}
+		}
 	}
 	names := make([]string, 0, len(seen))
 	for name := range seen {
@@ -830,6 +1014,110 @@ func Validate(spec lens.DashboardSpec) error {
 			}
 		}
 	}
+	if err := validateExplorers(spec, datasets, panelIDs); err != nil {
+		return wrap(err)
+	}
+	return nil
+}
+
+func validateExplorers(spec lens.DashboardSpec, datasets map[string]lens.DatasetSpec, panelIDs map[string]struct{}) error {
+	seen := make(map[string]struct{}, len(spec.Explorers))
+	explorers := make(map[string]explore.Spec, len(spec.Explorers))
+	for _, explorerSpec := range spec.Explorers {
+		if err := explorerSpec.Validate(); err != nil {
+			return err
+		}
+		if _, ok := seen[explorerSpec.ID]; ok {
+			return fmt.Errorf("duplicate explorer %s", explorerSpec.ID)
+		}
+		seen[explorerSpec.ID] = struct{}{}
+		explorers[explorerSpec.ID] = explorerSpec
+		if _, ok := panelIDs[explorerSpec.HostPanelID]; !ok {
+			return fmt.Errorf("explorer %s references missing host panel %s", explorerSpec.ID, explorerSpec.HostPanelID)
+		}
+		for _, branch := range explorerSpec.Branches {
+			for _, perspective := range branch.Perspectives {
+				for _, node := range perspective.Nodes {
+					if node.Panel != nil {
+						if err := validatePanel(*node.Panel, datasets, make(map[string]struct{})); err != nil {
+							return fmt.Errorf("explorer %s branch %s perspective %s node %s: %w", explorerSpec.ID, branch.Key, perspective.Key, node.Key, err)
+						}
+					}
+					for _, edge := range node.Edges {
+						if err := validateAction("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, actionValidationOptions{}); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+	for _, row := range spec.Rows {
+		for _, panelSpec := range row.Panels {
+			if err := validatePanelExploreReferences(panelSpec, explorers); err != nil {
+				return err
+			}
+		}
+	}
+	for _, explorerSpec := range spec.Explorers {
+		for _, branch := range explorerSpec.Branches {
+			for _, perspective := range branch.Perspectives {
+				for _, node := range perspective.Nodes {
+					if node.Panel != nil {
+						if err := validatePanelExploreReferences(*node.Panel, explorers); err != nil {
+							return err
+						}
+					}
+					for _, edge := range node.Edges {
+						if err := validateExploreReference("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, explorers); err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func validatePanelExploreReferences(panelSpec panel.Spec, explorers map[string]explore.Spec) error {
+	if err := validateExploreReference("panel "+panelSpec.ID, panelSpec.Action, explorers); err != nil {
+		return err
+	}
+	for _, column := range panelSpec.Columns {
+		if err := validateExploreReference("panel "+panelSpec.ID+" column "+column.Field.Name(), column.Action, explorers); err != nil {
+			return err
+		}
+	}
+	for _, child := range panelSpec.Children {
+		if err := validatePanelExploreReferences(child, explorers); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateExploreReference(owner string, actionSpec *action.Spec, explorers map[string]explore.Spec) error {
+	if actionSpec == nil || actionSpec.Kind != action.KindExplore || actionSpec.Explore == nil {
+		return nil
+	}
+	explorerSpec, ok := explorers[actionSpec.Explore.ExplorerID]
+	if !ok {
+		return fmt.Errorf("%s references missing explorer %q", owner, actionSpec.Explore.ExplorerID)
+	}
+	if actionSpec.Explore.Branch.Kind != action.SourceLiteral {
+		return nil
+	}
+	branchKey := fmt.Sprint(actionSpec.Explore.Branch.Value)
+	branch, ok := explorerSpec.Branch(branchKey)
+	if !ok {
+		return fmt.Errorf("%s references missing explorer branch %q", owner, branchKey)
+	}
+	if actionSpec.Explore.Perspective != "" {
+		if _, ok := branch.Perspective(actionSpec.Explore.Perspective); !ok {
+			return fmt.Errorf("%s references missing explorer perspective %q", owner, actionSpec.Explore.Perspective)
+		}
+	}
 	return nil
 }
 
@@ -899,7 +1187,7 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 	if spec == nil {
 		return nil
 	}
-	if strings.TrimSpace(spec.URL) == "" && spec.URLSource == nil && spec.Kind != action.KindEmitEvent {
+	if strings.TrimSpace(spec.URL) == "" && spec.URLSource == nil && spec.Kind != action.KindEmitEvent && spec.Kind != action.KindExplore {
 		return fmt.Errorf("%s action requires url", owner)
 	}
 	switch spec.Kind {
@@ -907,6 +1195,16 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 	case action.KindCubeDrill:
 		if !opts.allowCubeDrill {
 			return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)
+		}
+	case action.KindExplore:
+		if spec.Explore == nil {
+			return fmt.Errorf("%s explore action requires explore spec", owner)
+		}
+		if strings.TrimSpace(spec.Explore.ExplorerID) == "" {
+			return fmt.Errorf("%s explore action requires explorer id", owner)
+		}
+		if err := validateActionValueSource(owner, "branch", spec.Explore.Branch, opts); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)
@@ -975,6 +1273,9 @@ func validateDrillTree(spec panel.Spec) error {
 	if len(spec.DrillTree.Branches) == 0 {
 		return fmt.Errorf("panel %s drill tree requires at least one branch", spec.ID)
 	}
+	if spec.DrillTree.ExpandedSpan < 0 || spec.DrillTree.ExpandedSpan > 12 {
+		return fmt.Errorf("panel %s drill tree expanded span must be between 1 and 12 when configured", spec.ID)
+	}
 
 	branchKeys := make(map[string]struct{}, len(spec.DrillTree.Branches))
 	for i, branch := range spec.DrillTree.Branches {
@@ -995,9 +1296,30 @@ func validateDrillTree(spec panel.Spec) error {
 		if len(branch.Children) == 0 {
 			return fmt.Errorf("panel %s drill tree branch %q requires children", spec.ID, key)
 		}
+		if err := validateDrillLevelView(spec.ID, "branch "+key, branch.View); err != nil {
+			return err
+		}
 		if err := validateDrillNodes(spec.ID, key, branch.Children); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateDrillLevelView(panelID, owner string, view *panel.DrillLevelView) error {
+	if view == nil {
+		return nil
+	}
+	switch view.LegendPosition {
+	case "", panel.LegendTop, panel.LegendRight, panel.LegendBottom, panel.LegendLeft:
+	default:
+		return fmt.Errorf("panel %s drill tree %s has invalid legend position %q", panelID, owner, view.LegendPosition)
+	}
+	if view.LegendWidthPx < 0 {
+		return fmt.Errorf("panel %s drill tree %s legend width cannot be negative", panelID, owner)
+	}
+	if math.IsNaN(view.CircularScale) || math.IsInf(view.CircularScale, 0) || view.CircularScale < 0 {
+		return fmt.Errorf("panel %s drill tree %s circular scale must be zero or a positive finite value", panelID, owner)
 	}
 	return nil
 }
@@ -1030,6 +1352,9 @@ func validateDrillNodes(panelID, parentPath string, nodes []panel.DrillNode) err
 		}
 		if len(node.Children) > 0 && node.Action != nil {
 			return fmt.Errorf("panel %s drill tree node %s cannot have both children and action", panelID, path)
+		}
+		if err := validateDrillLevelView(panelID, "node "+path, node.View); err != nil {
+			return err
 		}
 		if err := validateAction("panel "+panelID+" drill tree node "+path, node.Action, actionValidationOptions{}); err != nil {
 			return err

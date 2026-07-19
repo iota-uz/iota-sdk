@@ -45,6 +45,21 @@ func panelSpanStyle(span int) templpkg.SafeCSS {
 	return templpkg.SafeCSS("--lens-col-span:" + strconv.Itoa(normalizedSpan(span)))
 }
 
+func panelExportURL(spec panel.Spec) string {
+	base := strings.TrimSpace(spec.Export.URL)
+	if base == "" {
+		return ""
+	}
+	u, err := url.Parse(base)
+	if err != nil {
+		return ""
+	}
+	query := u.Query()
+	query.Set("panel", spec.ID)
+	u.RawQuery = query.Encode()
+	return u.String()
+}
+
 func panelResult(result *runtime.Result, panelID string) *runtime.PanelResult {
 	if result == nil {
 		return nil
@@ -1233,7 +1248,7 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 	}
 	switch spec.Kind {
 	case action.KindNavigate, action.KindHtmxSwap, action.KindCubeDrill:
-	case action.KindEmitEvent:
+	case action.KindEmitEvent, action.KindExplore:
 		return ""
 	default:
 		return ""
@@ -1313,6 +1328,18 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 			return templpkg.ComponentScript{}
 		}
 		return templpkg.JSUnsafeFuncCall(fmt.Sprintf("event.preventDefault(); document.dispatchEvent(new CustomEvent(%s, {detail: %s}));", js.MustToJS(spec.Event), encoded))
+	case action.KindExplore:
+		if spec.Explore == nil {
+			return templpkg.ComponentScript{}
+		}
+		branch, ok := action.ResolveValue(spec.Explore.Branch, row, resultVariables(result))
+		if !ok || strings.TrimSpace(fmt.Sprint(branch)) == "" {
+			return templpkg.ComponentScript{}
+		}
+		return templpkg.JSUnsafeFuncCall(fmt.Sprintf(
+			"event.preventDefault(); if (window.__lensExploreOpen) { window.__lensExploreOpen(this, {explorerId: %s, branchKey: %s, perspectiveKey: %s}); }",
+			js.MustToJS(spec.Explore.ExplorerID), js.MustToJS(fmt.Sprint(branch)), js.MustToJS(spec.Explore.Perspective),
+		))
 	default:
 		return templpkg.ComponentScript{}
 	}
@@ -1479,6 +1506,28 @@ type chartText struct {
 	LogScaleHint       string
 	MetricInfo         string
 	DrillBack          string
+	ExportExcel        string
+	ExportGenerating   string
+	ExportFailed       string
+}
+
+// DashboardExportButtonProps configures the first-class Lens export action for
+// a whole dashboard. It intentionally shares the same runtime and download
+// handshake as panel exports; ParamsFormID lets filter forms contribute their
+// current values without requiring the page URL to be up to date first.
+type DashboardExportButtonProps struct {
+	URL          string
+	Label        string
+	ParamsFormID string
+	Class        string
+}
+
+type exportButtonProps struct {
+	URL          string
+	Label        string
+	ParamsFormID string
+	Class        string
+	IconOnly     bool
 }
 
 func pageContext(ctx context.Context) types.PageContext {
@@ -1505,6 +1554,9 @@ func localizedChartText(ctx context.Context) chartText {
 		LogScaleHint:       translate(ctx, "Chart.LogScaleHint"),
 		MetricInfo:         translate(ctx, "Chart.MetricInfo"),
 		DrillBack:          translate(ctx, "Lens.Drill.Back"),
+		ExportExcel:        translate(ctx, "Chart.ExportExcel"),
+		ExportGenerating:   translate(ctx, "Chart.ExportGenerating"),
+		ExportFailed:       translate(ctx, "Chart.ExportFailed"),
 	}
 }
 

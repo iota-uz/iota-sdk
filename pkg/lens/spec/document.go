@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
+	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -49,6 +50,14 @@ type Document struct {
 	Measures         []MeasureSpec              `json:"measures,omitempty"`
 	DefaultDimension string                     `json:"defaultDimension,omitempty"`
 	Leaf             *cube.LeafSpec             `json:"leaf,omitempty"`
+	Cache            CachePolicy                `json:"cache,omitempty"`
+	Export           exportmeta.Spec            `json:"export,omitempty"`
+	Explorers        []ExplorerSpec             `json:"explorers,omitempty"`
+}
+
+type CachePolicy struct {
+	Mode lens.CacheMode `json:"mode,omitempty"`
+	TTL  Duration       `json:"ttl,omitempty"`
 }
 
 type VariableSpec struct {
@@ -117,6 +126,8 @@ type DatasetSpec struct {
 	StaticRef   string           `json:"staticRef,omitempty"`
 	Static      *frame.FrameSet  `json:"-"`
 	Description Text             `json:"description"`
+	Cache       CachePolicy      `json:"cache,omitempty"`
+	Export      exportmeta.Spec  `json:"export,omitempty"`
 }
 
 type RowSpec struct {
@@ -167,6 +178,7 @@ type PanelSpec struct {
 	Distributed     bool                  `json:"distributed,omitempty"`
 	ColorField      string                `json:"colorField,omitempty"`
 	ColorScale      string                `json:"colorScale,omitempty"`
+	Export          exportmeta.Spec       `json:"export,omitempty"`
 }
 
 type TableColumnSpec struct {
@@ -192,6 +204,58 @@ type FieldMappingSpec struct {
 	Cut       string `json:"cut,omitempty"`
 	CutLabel  string `json:"cutLabel,omitempty"`
 	Final     string `json:"final,omitempty"`
+}
+
+type ExplorerSpec struct {
+	ID           string           `json:"id"`
+	HostPanelID  string           `json:"hostPanelId"`
+	ExpandedSpan int              `json:"expandedSpan,omitempty"`
+	Branches     []ExplorerBranch `json:"branches"`
+}
+
+type ExplorerBranch struct {
+	Key                string                `json:"key"`
+	Label              Text                  `json:"label"`
+	DefaultPerspective string                `json:"defaultPerspective"`
+	Perspectives       []ExplorerPerspective `json:"perspectives"`
+}
+
+type ExplorerPerspective struct {
+	Key       string          `json:"key"`
+	Label     Text            `json:"label"`
+	Semantics string          `json:"semantics"`
+	RootNode  string          `json:"rootNode"`
+	Nodes     []ExplorerNode  `json:"nodes"`
+	Export    exportmeta.Spec `json:"export,omitempty"`
+}
+
+type ExplorerNode struct {
+	Key            string                `json:"key"`
+	Label          Text                  `json:"label"`
+	Panel          *PanelSpec            `json:"panel,omitempty"`
+	Load           *ExplorerLoadSpec     `json:"load,omitempty"`
+	Edges          []ExplorerEdge        `json:"edges,omitempty"`
+	DynamicEdges   bool                  `json:"dynamicEdges,omitempty"`
+	DynamicTargets []string              `json:"dynamicTargets,omitempty"`
+	Check          *ExplorerBalanceCheck `json:"check,omitempty"`
+}
+
+type ExplorerLoadSpec struct {
+	URL           string `json:"url"`
+	Method        string `json:"method,omitempty"`
+	PreserveQuery bool   `json:"preserveQuery,omitempty"`
+}
+
+type ExplorerEdge struct {
+	PointKey string       `json:"pointKey"`
+	ToNode   string       `json:"toNode,omitempty"`
+	Action   *action.Spec `json:"action,omitempty"`
+}
+
+type ExplorerBalanceCheck struct {
+	Expected  float64 `json:"expected"`
+	Actual    float64 `json:"actual"`
+	Tolerance float64 `json:"tolerance,omitempty"`
 }
 
 func Load(data []byte) (Document, error) {

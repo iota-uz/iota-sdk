@@ -89,6 +89,9 @@
   "Chart": {
     "CloseFullScreen": "关闭全屏",
     "ExpandToFullScreen": "全屏展开",
+    "ExportExcel": "导出到 Excel",
+    "ExportGenerating": "正在生成 Excel 报表…",
+    "ExportFailed": "无法生成报告，请重试。",
     "LogScale": "对数刻度",
     "LogScaleHint": "这些数值使用对数刻度显示",
     "MetricInfo": "该指标的计算方式"

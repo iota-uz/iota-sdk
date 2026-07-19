@@ -7,6 +7,8 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
+	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
@@ -46,7 +48,26 @@ func (b *DashboardBuilder) Variables(variables ...lens.VariableSpec) *DashboardB
 	return b
 }
 
+func (b *DashboardBuilder) Explorers(explorers ...explore.Spec) *DashboardBuilder {
+	b.spec.Explorers = append(b.spec.Explorers, explorers...)
+	return b
+}
+
+func (b *DashboardBuilder) Cache(ttl time.Duration) *DashboardBuilder {
+	b.spec.Cache = lens.CachePolicy{TTL: ttl}
+	return b
+}
+func (b *DashboardBuilder) NoCache() *DashboardBuilder {
+	b.spec.Cache = lens.CachePolicy{Mode: lens.CacheDisabled}
+	return b
+}
+func (b *DashboardBuilder) Export(url, filename string) *DashboardBuilder {
+	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, Filename: filename}
+	return b
+}
+
 func (b *DashboardBuilder) Build() lens.DashboardSpec {
+	lens.ApplyExportDefaults(&b.spec)
 	return b.spec
 }
 
@@ -82,6 +103,20 @@ func StaticDataset(name string, set *frame.FrameSet) lens.DatasetSpec {
 		return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: empty}
 	}
 	return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: set.Clone()}
+}
+
+func DatasetExport(spec lens.DatasetSpec, includeUpstream bool, evidenceDatasets ...string) lens.DatasetSpec {
+	spec.Export = exportmeta.Spec{Enabled: true, EvidenceDatasets: append([]string(nil), evidenceDatasets...), IncludeUpstream: includeUpstream}
+	return spec
+}
+
+func DatasetCache(spec lens.DatasetSpec, ttl time.Duration) lens.DatasetSpec {
+	spec.Cache.TTL = ttl
+	return spec
+}
+func DatasetNoCache(spec lens.DatasetSpec) lens.DatasetSpec {
+	spec.Cache.Mode = lens.CacheDisabled
+	return spec
 }
 
 func DateRangeVariable(name, label string, defaultDuration time.Duration) lens.VariableSpec {

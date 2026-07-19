@@ -8,6 +8,7 @@ import (
 	"github.com/iota-uz/iota-sdk/components/charts"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
+	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	apex "github.com/iota-uz/iota-sdk/pkg/lens/render/apex"
@@ -33,6 +34,33 @@ templ lensGridStyles() {
 			.lens-grid-item {
 				grid-column: span var(--lens-col-span, 12) / span var(--lens-col-span, 12);
 			}
+			.lens-grid-item[data-lens-drill-expanded] {
+				transition: grid-column .22s ease;
+			}
+		}
+		@media (prefers-reduced-motion: reduce) {
+			.lens-grid-item[data-lens-drill-expanded] {
+				transition: none;
+			}
+		}
+		.lens-card.lens-explorer--fullscreen {
+			position: fixed;
+			inset: 16px;
+			z-index: 90;
+			max-height: calc(100vh - 32px);
+			background: white;
+			box-shadow: 0 24px 72px rgba(15, 23, 42, .22);
+		}
+		.lens-card.lens-explorer--fullscreen [data-lens-explorer-host] {
+			min-height: 0;
+			height: 100%;
+		}
+		.lens-card.lens-explorer--fullscreen [data-lens-explorer-workspace] {
+			min-height: 0;
+			height: 100%;
+		}
+		@media (max-width: 767px) {
+			.lens-card.lens-explorer--fullscreen { inset: 0; max-height: 100vh; border-radius: 0; }
 		}
 
 		/* Inside the fullscreen overlay the composite grid has a resolved
@@ -90,7 +118,7 @@ templ dashboardResult(spec lens.DashboardSpec, result *runtime.Result, resolvePa
 				if len(row.Panels) > 0 {
 					<div class={ "grid grid-cols-12 gap-3", row.Class }>
 						for _, panelSpec := range row.Panels {
-							@Panel(panelSpec, result, resolvePanelErrorAction)
+							@DashboardPanel(panelSpec, result, resolvePanelErrorAction, explorerForHost(spec.Explorers, panelSpec.ID))
 						}
 					</div>
 				}
@@ -125,7 +153,7 @@ templ dashboardShell(spec lens.DashboardSpec, props AsyncProps) {
 			if len(row.Panels) > 0 {
 				<div class={ "grid grid-cols-12 gap-3", row.Class }>
 					for _, panelSpec := range row.Panels {
-						@PanelShell(panelSpec, props)
+						@DashboardPanelShell(panelSpec, props, explorerForHost(spec.Explorers, panelSpec.ID))
 					}
 				</div>
 			}
@@ -801,6 +829,11 @@ templ DashboardScripts() {
 		[data-lens-dashboard] .apexcharts-bar-area:hover {
 			filter: brightness(0.85);
 		}
+		[data-lens-export-button][aria-busy="true"] {
+			cursor: wait;
+			opacity: .7;
+			pointer-events: none;
+		}
 	</style>
 	<script>
 		(function() {
@@ -883,6 +916,117 @@ templ DashboardScripts() {
 					}
 					clearSwapTargetLoading(target.closest('[data-lens-swap-target]'));
 				});
+			});
+
+			const lensExportCookieValue = function(name) {
+				const prefix = name + '=';
+				const row = document.cookie.split('; ').find(function(candidate) { return candidate.indexOf(prefix) === 0; });
+				return row ? row.slice(prefix.length) : '';
+			};
+			const lensExportSetLoading = function(button, active) {
+				if (!button) {
+					return;
+				}
+				const idle = button.querySelector('[data-lens-export-idle]');
+				const loading = button.querySelector('[data-lens-export-loading]');
+				if (idle) {
+					idle.classList.toggle('hidden', active);
+				}
+				if (loading) {
+					loading.classList.toggle('hidden', !active);
+					loading.classList.toggle('inline-flex', active);
+				}
+				if (active) {
+					button.setAttribute('aria-busy', 'true');
+					button.setAttribute('aria-disabled', 'true');
+					button.setAttribute('title', button.dataset.lensExportLoadingLabel || button.title);
+					button.setAttribute('aria-label', button.dataset.lensExportLoadingLabel || button.getAttribute('aria-label'));
+					return;
+				}
+				button.removeAttribute('aria-busy');
+				button.removeAttribute('aria-disabled');
+				button.setAttribute('title', button.dataset.lensExportIdleLabel || button.title);
+				button.setAttribute('aria-label', button.dataset.lensExportIdleLabel || button.getAttribute('aria-label'));
+			};
+			window.__lensStartExport = function(button) {
+				if (!button || button.getAttribute('aria-busy') === 'true') {
+					return;
+				}
+				const formId = button.dataset.lensExportParamsForm || '';
+				const form = formId ? document.getElementById(formId) : null;
+				if (formId && !(form instanceof HTMLFormElement)) {
+					window.alert(button.dataset.lensExportErrorLabel || 'Export failed. Please try again.');
+					return;
+				}
+				const token = window.crypto && typeof window.crypto.randomUUID === 'function'
+					? window.crypto.randomUUID()
+					: Date.now().toString(36) + Math.random().toString(36).slice(2);
+				const cookieName = 'lens_export_' + token;
+				const url = new URL(button.href, window.location.href);
+				const current = new URL(window.location.href);
+				const exportIdentityKeys = new Set([
+					'dashboard', 'panel', 'lens_explore_export', 'lens_explorer',
+					'lens_explore_branch', 'lens_explore_perspective', 'lens_explore_path',
+					'lens_explore_point', 'lens_explore_node'
+				]);
+				const currentKeys = new Set();
+				current.searchParams.forEach(function(_value, key) {
+					if (!exportIdentityKeys.has(key)) { currentKeys.add(key); }
+				});
+				currentKeys.forEach(function(key) { url.searchParams.delete(key); });
+				current.searchParams.forEach(function(value, key) {
+					if (!exportIdentityKeys.has(key)) { url.searchParams.append(key, value); }
+				});
+				if (form instanceof HTMLFormElement) {
+					const formParams = new URLSearchParams(new FormData(form));
+					const formKeys = new Set();
+					formParams.forEach(function(_value, key) { formKeys.add(key); });
+					formKeys.forEach(function(key) { url.searchParams.delete(key); });
+					formParams.forEach(function(value, key) { url.searchParams.append(key, value); });
+				}
+				['page', 'limit', 'per_page'].forEach(function(key) { url.searchParams.delete(key); });
+				url.searchParams.set('lens_download_token', token);
+				document.cookie = cookieName + '=; Max-Age=0; path=/; SameSite=Lax';
+				lensExportSetLoading(button, true);
+
+				const frame = document.createElement('iframe');
+				frame.hidden = true;
+				frame.setAttribute('aria-hidden', 'true');
+				frame.src = url.toString();
+				document.body.appendChild(frame);
+
+				let settled = false;
+				let poll = 0;
+				let timeout = 0;
+				const finish = function(signal) {
+					if (settled) {
+						return;
+					}
+					settled = true;
+					window.clearInterval(poll);
+					window.clearTimeout(timeout);
+					document.cookie = cookieName + '=; Max-Age=0; path=/; SameSite=Lax';
+					lensExportSetLoading(button, false);
+					window.setTimeout(function() { frame.remove(); }, 1000);
+					if (signal !== 'started') {
+						window.alert(button.dataset.lensExportErrorLabel || 'Export failed. Please try again.');
+					}
+				};
+				poll = window.setInterval(function() {
+					const signal = lensExportCookieValue(cookieName);
+					if (signal) {
+						finish(signal);
+					}
+				}, 200);
+				timeout = window.setTimeout(function() { finish('timeout'); }, 10 * 60 * 1000);
+			};
+			document.addEventListener('click', function(event) {
+				const button = event.target && event.target.closest ? event.target.closest('[data-lens-export-button]') : null;
+				if (!button) {
+					return;
+				}
+				event.preventDefault();
+				window.__lensStartExport(button);
 			});
 
 			// ---- Lens drill-hierarchy client-side zoom/back state machine ----
@@ -1242,6 +1386,8 @@ templ DashboardScripts() {
 				const config = (chartContext && chartContext.w && chartContext.w.config) || {};
 				const globals = (chartContext && chartContext.w && chartContext.w.globals) || {};
 				const gridPadding = config.grid && config.grid.padding ? config.grid.padding : {};
+				const legend = config.legend || {};
+				const pie = config.plotOptions && config.plotOptions.pie ? config.plotOptions.pie : {};
 				return {
 					series: Array.isArray(config.series) ? config.series.slice() : [],
 					labels: Array.isArray(config.labels) ? config.labels.slice() : [],
@@ -1250,6 +1396,13 @@ templ DashboardScripts() {
 					colors: Array.isArray(globals.colors) ? globals.colors.slice()
 						: (Array.isArray(config.colors) ? config.colors.slice() : []),
 					legendShow: !(config.legend && config.legend.show === false),
+					legendPosition: legend.position || 'bottom',
+					legendWidthPx: typeof legend.width === 'number' ? legend.width : null,
+					legendOffsetY: typeof legend.offsetY === 'number' ? legend.offsetY : 0,
+					legendFloating: legend.floating === true,
+					legendHorizontalAlign: legend.horizontalAlign || 'center',
+					circularScale: typeof pie.customScale === 'number' ? pie.customScale : 1,
+					circularOffsetX: typeof pie.offsetX === 'number' ? pie.offsetX : 0,
 					gridTop: typeof gridPadding.top === 'number' ? gridPadding.top : 4,
 					totalBadgeText: container && container.__lensTotalBadgeTextOverride
 						? container.__lensTotalBadgeTextOverride : '',
@@ -1273,6 +1426,31 @@ templ DashboardScripts() {
 					};
 				});
 			};
+			const lensDrillTreeSyncPanelSpan = function(container, cfg, drilled) {
+				const expandedSpan = Number(cfg && cfg.expandedSpan) || 0;
+				if (!container || expandedSpan < 1 || expandedSpan > 12) {
+					return;
+				}
+				const slot = container.closest('.lens-grid-item');
+				if (!slot) {
+					return;
+				}
+				if (slot.__lensDrillTreeRootSpan === undefined) {
+					slot.__lensDrillTreeRootSpan = slot.style.getPropertyValue('--lens-col-span');
+				}
+				if (drilled) {
+					slot.style.setProperty('--lens-col-span', String(expandedSpan));
+					slot.setAttribute('data-lens-drill-expanded', 'true');
+					return;
+				}
+				const rootSpan = slot.__lensDrillTreeRootSpan;
+				if (rootSpan) {
+					slot.style.setProperty('--lens-col-span', rootSpan);
+				} else {
+					slot.style.removeProperty('--lens-col-span');
+				}
+				slot.removeAttribute('data-lens-drill-expanded');
+			};
 			const lensDrillTreeResolve = function(cfg, state, requestedPath) {
 				const path = Array.isArray(requestedPath) ? requestedPath.slice() : [];
 				const rootItems = lensDrillTreeRootItems(state);
@@ -1280,6 +1458,7 @@ templ DashboardScripts() {
 					return {
 						path: [],
 						items: rootItems,
+						view: null,
 						context: { key: '', label: cfg.rootLabel || '', totalFormatted: '' },
 						crumbs: [{ key: '', label: cfg.rootLabel || '', path: [] }],
 					};
@@ -1296,6 +1475,7 @@ templ DashboardScripts() {
 				];
 				let items = branch.children;
 				let context = branch;
+				let view = branch.view || null;
 				for (let depth = 1; depth < path.length; depth++) {
 					const node = items.find(function(candidate) { return candidate && candidate.key === path[depth]; });
 					if (!node || !Array.isArray(node.children) || !node.children.length) {
@@ -1305,8 +1485,11 @@ templ DashboardScripts() {
 					crumbs.push({ key: node.key, label: node.label, path: validPath.slice() });
 					items = node.children;
 					context = node;
+					if (node.view) {
+						view = node.view;
+					}
 				}
-				return { path: validPath, items: items, context: context, crumbs: crumbs };
+				return { path: validPath, items: items, view: view, context: context, crumbs: crumbs };
 			};
 			const lensDrillTreeHiddenSnapshot = function(hiddenByLevel) {
 				const snapshot = {};
@@ -1890,6 +2073,7 @@ templ DashboardScripts() {
 				state.path = resolution.path;
 				state.currentItems = resolution.items;
 				state.currentResolution = resolution;
+				lensDrillTreeSyncPanelSpan(container, cfg, resolution.path.length > 0);
 				// updateOptions is async; until it settles the legend DOM still
 				// reflects the previous level/toggles, so the enhance-side
 				// DOM→state reconcile must not run against it.
@@ -1902,7 +2086,24 @@ templ DashboardScripts() {
 				if (chartContext.w && chartContext.w.globals) {
 					chartContext.w.globals.collapsedSeries = [];
 					chartContext.w.globals.collapsedSeriesIndices = [];
+					// Pie charts remember the clicked (expanded) slice in
+					// selectedDataPoints and replay that transform when Apex redraws.
+					// A selection belongs to the old drill level, so carrying it into
+					// a differently shaped series leaves an unrelated slice exploded.
+					chartContext.w.globals.selectedDataPoints = [];
 				}
+				const rootLegend = {
+					show: state.rootView.legendShow,
+					position: state.rootView.legendPosition,
+					width: state.rootView.legendWidthPx,
+					offsetY: state.rootView.legendOffsetY,
+					floating: state.rootView.legendFloating,
+					horizontalAlign: state.rootView.legendHorizontalAlign,
+				};
+				const rootPie = {
+					customScale: state.rootView.circularScale,
+					offsetX: state.rootView.circularOffsetX,
+				};
 				if (!resolution.path.length) {
 					delete container.__lensTotalBadgeUseDynamicSeries;
 					if (state.rootView.totalBadgeText) {
@@ -1915,7 +2116,8 @@ templ DashboardScripts() {
 							series: state.rootView.series,
 							labels: state.rootView.labels,
 							colors: state.rootView.colors,
-							legend: { show: state.rootView.legendShow },
+							legend: rootLegend,
+							plotOptions: { pie: rootPie },
 							grid: { padding: { top: state.rootView.gridTop } },
 						}, true, false, false);
 					}
@@ -1926,11 +2128,29 @@ templ DashboardScripts() {
 					const fallbackColors = state.rootView.colors.length ? state.rootView.colors : ['#2563eb'];
 					const colors = resolution.items.map(function(item, index) { return item.color || fallbackColors[index % fallbackColors.length]; });
 					const series = resolution.items.map(function(item) { return item.value; });
+					const view = resolution.view || {};
+					const legendPosition = view.legendPosition || rootLegend.position;
+					const sideLegend = legendPosition === 'left' || legendPosition === 'right';
+					const drilledLegend = {
+						show: true,
+						position: legendPosition,
+						width: Number(view.legendWidthPx) > 0 ? Number(view.legendWidthPx) : rootLegend.width,
+						offsetY: Number.isFinite(Number(view.legendOffsetY)) && Number(view.legendOffsetY) !== 0
+							? Number(view.legendOffsetY) : rootLegend.offsetY,
+						floating: view.legendFloating === true ? true : rootLegend.floating,
+						horizontalAlign: sideLegend ? 'left' : rootLegend.horizontalAlign,
+					};
+					const drilledPie = {
+						customScale: Number(view.circularScale) > 0 ? Number(view.circularScale) : rootPie.customScale,
+						offsetX: Number.isFinite(Number(view.circularOffsetX)) && Number(view.circularOffsetX) !== 0
+							? Number(view.circularOffsetX) : rootPie.offsetX,
+					};
 					updatePromise = chartContext.updateOptions({
 						series: series,
 						labels: resolution.items.map(function(item) { return item.label; }),
 						colors: colors,
-						legend: { show: true },
+						legend: drilledLegend,
+						plotOptions: { pie: drilledPie },
 						grid: { padding: { top: LENS_DRILL_TREE_TOP_PADDING } },
 					}, true, false, false);
 					container.__apexCircularOriginalSeries = Array.from(series);
@@ -2091,6 +2311,492 @@ templ DashboardScripts() {
 					return false;
 				}
 			};
+
+			const lensExploreParse = function(host) {
+				try { return JSON.parse(host.getAttribute('data-lens-explorer-config') || '{}'); } catch (_) { return {}; }
+			};
+			const lensExploreBranch = function(cfg, key) {
+				return (cfg.branches || []).find(function(item) { return item.key === key; }) || null;
+			};
+			const lensExplorePerspective = function(branch, key) {
+				return branch && (branch.perspectives || []).find(function(item) { return item.key === key; }) || null;
+			};
+			const lensExploreNode = function(perspective, key) {
+				return perspective && (perspective.nodes || []).find(function(item) { return item.key === key; }) || null;
+			};
+			const lensExploreViewKey = function(state) { return state.branchKey + '/' + state.perspectiveKey; };
+			const lensExploreSteps = function(state, perspective) {
+				const key = lensExploreViewKey(state);
+				if (!Array.isArray(state.stepsByPerspective[key]) || !state.stepsByPerspective[key].length) {
+					const path = state.pathByPerspective[key] || [perspective.rootNode];
+					state.stepsByPerspective[key] = path.map(function(nodeKey) { return {nodeKey: nodeKey, pointKey: ''}; });
+				}
+				return state.stepsByPerspective[key];
+			};
+			const lensExploreResolvedViewKey = function(state, steps) {
+				return JSON.stringify([state.branchKey, state.perspectiveKey, Array.isArray(steps) ? steps : []]);
+			};
+			const lensExplorePath = function(state, perspective) {
+				const key = lensExploreViewKey(state);
+				if (!Array.isArray(state.pathByPerspective[key]) || !state.pathByPerspective[key].length) {
+					state.pathByPerspective[key] = [perspective.rootNode];
+				}
+				return state.pathByPerspective[key];
+			};
+			const lensExploreText = function(cfg, key, fallback) {
+				const value = cfg.text && cfg.text[key];
+				return value && !String(value).startsWith('Lens.') ? value : fallback;
+			};
+			const lensExploreSyncSpan = function(host, open) {
+				const slot = host.closest('.lens-grid-item');
+				const cfg = host.__lensExplorerCfg;
+				if (!slot || !cfg || !cfg.expandedSpan) { return; }
+				if (slot.__lensExplorerRootSpan === undefined) {
+					slot.__lensExplorerRootSpan = slot.style.getPropertyValue('--lens-col-span');
+				}
+				if (open) {
+					slot.style.setProperty('--lens-col-span', String(cfg.expandedSpan));
+					slot.setAttribute('data-lens-drill-expanded', 'true');
+				} else {
+					if (slot.__lensExplorerRootSpan) { slot.style.setProperty('--lens-col-span', slot.__lensExplorerRootSpan); }
+					else { slot.style.removeProperty('--lens-col-span'); }
+					slot.removeAttribute('data-lens-drill-expanded');
+				}
+			};
+			const lensExploreSyncURL = function(host, mode) {
+				const state = host.__lensExplorerState;
+				const next = new URL(window.location.href);
+				['lens_explorer', 'lens_branch', 'lens_perspective', 'lens_path', 'lens_explore_point'].forEach(function(key) { next.searchParams.delete(key); });
+				if (state.branchKey) {
+					next.searchParams.set('lens_explorer', host.__lensExplorerCfg.id);
+					next.searchParams.set('lens_branch', state.branchKey);
+					next.searchParams.set('lens_perspective', state.perspectiveKey);
+					const branch = lensExploreBranch(host.__lensExplorerCfg, state.branchKey);
+					const perspective = lensExplorePerspective(branch, state.perspectiveKey);
+					lensExploreSteps(state, perspective).forEach(function(step) {
+						next.searchParams.append('lens_path', step.nodeKey);
+						next.searchParams.append('lens_explore_point', step.pointKey || '');
+					});
+				}
+				window.history[mode === 'push' ? 'pushState' : 'replaceState']({}, '', next.toString());
+			};
+			const lensExploreSyncExport = function(host) {
+				const card = host.closest('.lens-card');
+				const header = card && card.querySelector('.lens-card__hdr');
+				const button = header && header.querySelector('[data-lens-export-button]');
+				if (!button) { return; }
+				if (!button.dataset.lensExplorerRootHref) {
+					button.dataset.lensExplorerRootHref = button.getAttribute('href') || '';
+				}
+				const state = host.__lensExplorerState;
+				if (!state || !state.branchKey) {
+					button.setAttribute('href', button.dataset.lensExplorerRootHref);
+					return;
+				}
+				let url;
+				try { url = new URL(button.dataset.lensExplorerRootHref, window.location.href); } catch (_) { return; }
+				['lens_explore_export', 'lens_explorer', 'lens_explore_branch', 'lens_explore_perspective', 'lens_explore_path', 'lens_explore_point', 'lens_explore_node'].forEach(function(key) { url.searchParams.delete(key); });
+				const branch = lensExploreBranch(host.__lensExplorerCfg, state.branchKey);
+				const perspective = lensExplorePerspective(branch, state.perspectiveKey);
+				const steps = lensExploreSteps(state, perspective);
+				if (!steps.length) { return; }
+				url.searchParams.set('lens_explore_export', 'current_view');
+				url.searchParams.set('lens_explorer', host.__lensExplorerCfg.id);
+				url.searchParams.set('lens_explore_branch', state.branchKey);
+				url.searchParams.set('lens_explore_perspective', state.perspectiveKey);
+				steps.forEach(function(step) {
+					url.searchParams.append('lens_explore_path', step.nodeKey);
+					url.searchParams.append('lens_explore_point', step.pointKey || '');
+				});
+				url.searchParams.set('lens_explore_node', steps[steps.length - 1].nodeKey);
+				button.setAttribute('href', url.pathname + url.search + url.hash);
+			};
+			const lensExploreRenderChrome = function(host, branch, perspective, path) {
+				const cfg = host.__lensExplorerCfg;
+				const tabs = host.querySelector('[data-lens-explorer-tabs]');
+				const crumbs = host.querySelector('[data-lens-explorer-crumbs]');
+				if (!tabs || !crumbs) { return; }
+				tabs.replaceChildren();
+				(branch.perspectives || []).forEach(function(item, index) {
+					const button = document.createElement('button');
+					button.type = 'button';
+					button.className = 'lens-seg__item min-w-max flex-1 justify-center';
+					button.textContent = item.label;
+					button.setAttribute('role', 'tab');
+					button.setAttribute('aria-selected', item.key === perspective.key ? 'true' : 'false');
+					button.tabIndex = item.key === perspective.key ? 0 : -1;
+					if (item.key === perspective.key) { button.classList.add('lens-seg__item--active'); }
+					button.addEventListener('click', function() { lensExploreSelectPerspective(host, item.key); });
+					button.addEventListener('keydown', function(event) {
+						if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') { return; }
+						event.preventDefault();
+						const all = Array.from(tabs.querySelectorAll('[role=tab]'));
+						const next = all[(index + (event.key === 'ArrowRight' ? 1 : -1) + all.length) % all.length];
+						if (next) { next.focus(); next.click(); }
+					});
+					tabs.appendChild(button);
+				});
+				crumbs.replaceChildren();
+				const labels = [branch.label];
+				path.forEach(function(key) { const node = lensExploreNode(perspective, key); if (node) { labels.push(node.label); } });
+				labels.forEach(function(label, index) {
+					if (index) { const sep = document.createElement('span'); sep.textContent = '›'; sep.setAttribute('aria-hidden', 'true'); crumbs.appendChild(sep); }
+					const item = document.createElement('span');
+					item.className = index === labels.length - 1 ? 'truncate font-semibold text-slate-800' : 'truncate';
+					item.textContent = label;
+					crumbs.appendChild(item);
+				});
+				const back = host.querySelector('[data-lens-explorer-back]');
+				const home = host.querySelector('[data-lens-explorer-home]');
+				if (back) { back.setAttribute('aria-label', lensExploreText(cfg, 'back', 'Back')); }
+				if (home) { home.setAttribute('aria-label', lensExploreText(cfg, 'home', 'Back to start')); }
+			};
+			const lensExploreSetStatus = function(host, status, message, retryable) {
+				['loading', 'skeleton', 'message', 'content'].forEach(function(name) {
+					const node = host.querySelector('[data-lens-explorer-' + name + ']');
+					if (node) { node.classList.toggle('hidden', name !== status); node.classList.toggle('flex', name === status && name !== 'content'); }
+				});
+				const messageNode = host.querySelector('[data-lens-explorer-message-text]');
+				if (messageNode) { messageNode.textContent = message || ''; }
+				const retry = host.querySelector('[data-lens-explorer-retry]');
+				if (retry) {
+					retry.textContent = lensExploreText(host.__lensExplorerCfg, 'retry', 'Retry');
+					retry.classList.toggle('hidden', !retryable);
+				}
+			};
+			const lensExploreHiddenKey = function(state, node) {
+				const steps = state.stepsByPerspective[lensExploreViewKey(state)] || [{nodeKey: node ? node.key : '', pointKey: ''}];
+				return lensExploreResolvedViewKey(state, steps);
+			};
+			const lensExploreCaptureHidden = function(host, node) {
+				const state = host.__lensExplorerState;
+				if (!state || state.restoringHidden) { return; }
+				const content = host.querySelector('[data-lens-explorer-content]');
+				if (!content) { return; }
+				state.hiddenByView[lensExploreHiddenKey(state, node)] = Array.from(content.querySelectorAll('.apexcharts-legend-series')).reduce(function(hidden, legend, index) {
+					if (legend.classList.contains('apexcharts-inactive-legend')) { hidden.push(String(index)); }
+					return hidden;
+				}, []);
+			};
+			const lensExploreEnhanceHidden = function(host, node) {
+				const state = host.__lensExplorerState;
+				const content = host.querySelector('[data-lens-explorer-content]');
+				if (!state || !content) { return; }
+				const hidden = new Set(state.hiddenByView[lensExploreHiddenKey(state, node)] || []);
+				const legends = Array.from(content.querySelectorAll('.apexcharts-legend-series'));
+				state.restoringHidden = true;
+				legends.forEach(function(legend, index) {
+					if (hidden.has(String(index)) && !legend.classList.contains('apexcharts-inactive-legend')) { legend.click(); }
+					if (legend.__lensExplorerHiddenBound) { return; }
+					legend.__lensExplorerHiddenBound = true;
+					legend.addEventListener('click', function() {
+						setTimeout(function() { lensExploreCaptureHidden(host, node); lensExploreEnhanceHidden(host, node); }, 100);
+					});
+				});
+				state.restoringHidden = false;
+			};
+			const lensExploreEnableVisibleTotals = function(host) {
+				const content = host.querySelector('[data-lens-explorer-content]');
+				if (!content) { return; }
+				Array.from(content.querySelectorAll('div')).forEach(function(container) {
+					const chart = container.__apexChart;
+					if (!chart) { return; }
+					const metadata = chart.w && chart.w.config && chart.w.config._sdk;
+					if (metadata && metadata.manualLogScale) { return; }
+					const wasDynamic = container.__lensTotalBadgeUseDynamicSeries === true;
+					container.__lensTotalBadgeUseDynamicSeries = true;
+					if (!wasDynamic && typeof chart.updateOptions === 'function') {
+						chart.updateOptions({}, false, false, false);
+					}
+				});
+			};
+			const lensExploreApplyResolvedEdges = function(content, node) {
+				if (!content || !node) { return; }
+				const marker = content.querySelector('[data-lens-explorer-resolved-edges]');
+				if (!marker) { return; }
+				let edges = [];
+				try { edges = JSON.parse(marker.getAttribute('data-lens-explorer-resolved-edges') || '[]'); } catch (_) { edges = []; }
+				node.edges = Array.isArray(edges) ? edges : [];
+			};
+			const lensExploreReady = function(host, node) {
+				lensExploreSetStatus(host, 'content');
+				setTimeout(function() { lensExploreEnableVisibleTotals(host); lensExploreEnhanceHidden(host, node); window.dispatchEvent(new Event('resize')); }, 0);
+				setTimeout(function() { lensExploreEnableVisibleTotals(host); lensExploreEnhanceHidden(host, node); }, 120);
+				setTimeout(function() { lensExploreEnableVisibleTotals(host); }, 320);
+			};
+			const lensExploreLoad = function(host, node) {
+				const cfg = host.__lensExplorerCfg;
+				const state = host.__lensExplorerState;
+				const branch = lensExploreBranch(cfg, state.branchKey);
+				const perspective = lensExplorePerspective(branch, state.perspectiveKey);
+				const steps = lensExploreSteps(state, perspective);
+				const requestKey = lensExploreResolvedViewKey(state, steps);
+				if (state.pendingViewKey === requestKey && (state.status === 'loading' || state.status === 'skeleton')) { return; }
+				if (state.abortController) { state.abortController.abort(); }
+				state.pendingViewKey = requestKey;
+				state.requestVersion += 1;
+				const version = state.requestVersion;
+				const content = host.querySelector('[data-lens-explorer-content]');
+				const cache = host.querySelector('[data-lens-explorer-eager-cache]');
+				if (content && cache) {
+					const previous = content.querySelector('[data-lens-explorer-eager]');
+					if (previous) { previous.hidden = true; cache.appendChild(previous); }
+				}
+				const eagerKey = state.branchKey + '/' + state.perspectiveKey + '/' + (node ? node.key : '');
+				const eager = cache && Array.from(cache.querySelectorAll('[data-lens-explorer-eager]')).find(function(item) { return item.getAttribute('data-lens-explorer-eager') === eagerKey; });
+				if (eager && content) {
+					content.replaceChildren(eager);
+					eager.hidden = false;
+					lensExploreApplyResolvedEdges(content, node);
+					state.status = 'ready';
+					state.pendingViewKey = '';
+					lensExploreReady(host, node);
+					return;
+				}
+				lensExploreSetStatus(host, 'loading');
+				const skeletonTimer = setTimeout(function() {
+					if (state.requestVersion === version && state.status === 'loading') { lensExploreSetStatus(host, 'skeleton'); }
+				}, 150);
+				if (!node || !node.load || !node.load.url) {
+					clearTimeout(skeletonTimer);
+					state.status = 'empty';
+					state.pendingViewKey = '';
+					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'unavailable', 'This view has no data.'), false);
+					return;
+				}
+				state.status = 'loading';
+				let url;
+				try { url = new URL(node.load.url, window.location.href); } catch (_) { url = null; }
+				if (!url || url.origin !== window.location.origin) {
+					clearTimeout(skeletonTimer);
+					state.status = 'error';
+					state.pendingViewKey = '';
+					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'error', 'Unable to load this view.'), true);
+					return;
+				}
+				if (node.load.preserveQuery) {
+					new URL(window.location.href).searchParams.forEach(function(value, key) { if (!url.searchParams.has(key)) { url.searchParams.append(key, value); } });
+				}
+				url.searchParams.set('lens_explorer', cfg.id);
+				url.searchParams.set('lens_branch', state.branchKey);
+				url.searchParams.set('lens_perspective', state.perspectiveKey);
+				url.searchParams.delete('lens_path');
+				url.searchParams.delete('lens_explore_point');
+				steps.forEach(function(step) {
+					url.searchParams.append('lens_path', step.nodeKey);
+					url.searchParams.append('lens_explore_point', step.pointKey || '');
+				});
+				if (!content || typeof htmx === 'undefined' || typeof fetch === 'undefined' || typeof AbortController === 'undefined') {
+					clearTimeout(skeletonTimer);
+					state.status = 'error';
+					state.pendingViewKey = '';
+					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'error', 'Unable to load this view.'), true);
+					return;
+				}
+				const controller = new AbortController();
+				state.abortController = controller;
+				fetch(url.pathname + url.search, {
+					method: String(node.load.method || 'GET').toUpperCase(),
+					signal: controller.signal,
+					headers: {'HX-Request': 'true', 'HX-Target': 'lens-explorer-content'},
+				}).then(function(response) {
+					if (!response.ok) { throw new Error('HTTP ' + response.status); }
+					return response.text();
+				}).then(function(markup) {
+					if (state.requestVersion !== version || controller.signal.aborted) { return; }
+					clearTimeout(skeletonTimer);
+					htmx.swap(content, markup, {swapStyle: 'innerHTML'});
+					htmx.process(content);
+					lensExploreApplyResolvedEdges(content, node);
+					state.status = 'ready';
+					state.abortController = null;
+					state.pendingViewKey = '';
+					lensExploreReady(host, node);
+				}).catch(function(error) {
+					clearTimeout(skeletonTimer);
+					if (error && error.name === 'AbortError') { return; }
+					if (state.requestVersion !== version) { return; }
+					state.status = 'error';
+					state.abortController = null;
+					state.pendingViewKey = '';
+					lensExploreSetStatus(host, 'message', lensExploreText(cfg, 'error', 'Unable to load this view.'), true);
+				});
+			};
+			const lensExploreRender = function(host, historyMode) {
+				const cfg = host.__lensExplorerCfg;
+				const state = host.__lensExplorerState;
+				const branch = lensExploreBranch(cfg, state.branchKey);
+				const perspective = lensExplorePerspective(branch, state.perspectiveKey);
+				if (!branch || !perspective) { return; }
+				const path = lensExplorePath(state, perspective);
+				const steps = lensExploreSteps(state, perspective);
+				const node = lensExploreNode(perspective, path[path.length - 1]);
+				const resolvedViewKey = lensExploreResolvedViewKey(state, steps);
+				if (state.activeViewKey === resolvedViewKey && (state.status === 'loading' || state.status === 'skeleton' || state.status === 'ready')) { return; }
+				state.activeViewKey = resolvedViewKey;
+				host.querySelector('[data-lens-explorer-root]').classList.add('hidden');
+				host.querySelector('[data-lens-explorer-workspace]').classList.remove('hidden');
+				host.querySelector('[data-lens-explorer-workspace]').classList.add('flex');
+				lensExploreSyncSpan(host, true);
+				lensExploreRenderChrome(host, branch, perspective, path);
+				lensExploreSyncExport(host);
+				lensExploreLoad(host, node);
+				lensExploreSyncURL(host, historyMode || 'replace');
+			};
+			const lensExploreClose = function(host, historyMode) {
+				const state = host.__lensExplorerState;
+				if (state.abortController) { state.abortController.abort(); state.abortController = null; }
+				state.branchKey = '';
+				state.perspectiveKey = '';
+				state.activeViewKey = '';
+				state.pendingViewKey = '';
+				state.requestVersion += 1;
+				host.querySelector('[data-lens-explorer-root]').classList.remove('hidden');
+				const workspace = host.querySelector('[data-lens-explorer-workspace]');
+				workspace.classList.add('hidden'); workspace.classList.remove('flex');
+				lensExploreSyncSpan(host, false);
+				lensExploreSyncExport(host);
+				lensExploreSyncURL(host, historyMode || 'replace');
+			};
+			const lensExploreSelectPerspective = function(host, key) {
+				const state = host.__lensExplorerState;
+				const branch = lensExploreBranch(host.__lensExplorerCfg, state.branchKey);
+				if (!lensExplorePerspective(branch, key)) { return; }
+				if (state.perspectiveKey === key) { return; }
+				state.perspectiveKey = key;
+				lensExploreRender(host, 'replace');
+			};
+			const lensExploreBack = function(host) {
+				const state = host.__lensExplorerState;
+				const key = lensExploreViewKey(state);
+				const path = state.pathByPerspective[key] || [];
+				if (path.length <= 1) { lensExploreClose(host, 'push'); return; }
+				state.pathByPerspective[key] = path.slice(0, -1);
+				state.stepsByPerspective[key] = (state.stepsByPerspective[key] || []).slice(0, -1);
+				lensExploreRender(host, 'push');
+			};
+			const lensExploreMount = function(host) {
+				if (!host || host.__lensExplorerCfg) { return; }
+				const cfg = lensExploreParse(host);
+				host.__lensExplorerCfg = cfg;
+				host.__lensExplorerState = {branchKey: '', perspectiveKey: '', pathByPerspective: {}, stepsByPerspective: {}, hiddenByView: {}, status: 'idle', requestVersion: 0, abortController: null, restoringHidden: false, activeViewKey: '', pendingViewKey: ''};
+				lensExploreSyncExport(host);
+				const back = host.querySelector('[data-lens-explorer-back]');
+				const home = host.querySelector('[data-lens-explorer-home]');
+				if (back) { back.addEventListener('click', function() { lensExploreBack(host); }); }
+				if (home) { home.addEventListener('click', function() { lensExploreClose(host, 'push'); }); }
+				const retry = host.querySelector('[data-lens-explorer-retry]');
+				if (retry) {
+					retry.addEventListener('click', function() {
+						const state = host.__lensExplorerState;
+						const branch = lensExploreBranch(cfg, state.branchKey);
+						const perspective = lensExplorePerspective(branch, state.perspectiveKey);
+						const path = state.pathByPerspective[lensExploreViewKey(state)] || [];
+						lensExploreLoad(host, lensExploreNode(perspective, path[path.length - 1]));
+					});
+				}
+				const params = new URL(window.location.href).searchParams;
+				if (params.get('lens_explorer') === cfg.id) {
+					window.__lensExploreOpen(host, {explorerId: cfg.id, branchKey: params.get('lens_branch'), perspectiveKey: params.get('lens_perspective'), path: params.getAll('lens_path'), points: params.getAll('lens_explore_point'), historyMode: 'replace'});
+				}
+			};
+			window.__lensExploreOpen = function(source, detail) {
+				const host = source && source.closest ? source.closest('[data-lens-explorer-host]') : document.querySelector('[data-lens-explorer-host="' + detail.explorerId + '"]');
+				if (!host) { return; }
+				lensExploreMount(host);
+				const cfg = host.__lensExplorerCfg;
+				const branch = lensExploreBranch(cfg, String(detail.branchKey || ''));
+				if (!branch) { return; }
+				const perspective = lensExplorePerspective(branch, detail.perspectiveKey) || lensExplorePerspective(branch, branch.defaultPerspective);
+				if (!perspective) { return; }
+				const state = host.__lensExplorerState;
+				state.branchKey = branch.key; state.perspectiveKey = perspective.key;
+				const key = lensExploreViewKey(state);
+				const requestedPath = Array.isArray(detail.path) && detail.path.length ? detail.path : null;
+				if (requestedPath) {
+					const points = Array.isArray(detail.points) ? detail.points : [];
+					state.pathByPerspective[key] = requestedPath;
+					state.stepsByPerspective[key] = requestedPath.map(function(nodeKey, index) { return {nodeKey: nodeKey, pointKey: points[index] || ''}; });
+				} else if (!state.pathByPerspective[key] || !state.pathByPerspective[key].length) {
+					state.pathByPerspective[key] = [perspective.rootNode];
+					state.stepsByPerspective[key] = [{nodeKey: perspective.rootNode, pointKey: ''}];
+				}
+				lensExploreRender(host, detail.historyMode || 'push');
+			};
+			const lensExploreSetFullscreen = function(card, active) {
+				if (!card) { return; }
+				card.classList.toggle('lens-explorer--fullscreen', active);
+				document.documentElement.style.overflow = active ? 'hidden' : '';
+				const button = card.querySelector('[data-lens-explorer-fullscreen]');
+				if (button) {
+					const label = active
+						? (button.dataset.lensExplorerCollapseLabel || 'Close fullscreen')
+						: (button.dataset.lensExplorerExpandLabel || 'Expand chart');
+					button.setAttribute('aria-pressed', active ? 'true' : 'false');
+					button.setAttribute('aria-label', label);
+					button.setAttribute('title', label);
+				}
+				setTimeout(function() { window.dispatchEvent(new Event('resize')); }, 0);
+			};
+			window.__lensExploreToggleFullscreen = function(button) {
+				const card = button && button.closest('.lens-card');
+				if (!card) { return; }
+				lensExploreSetFullscreen(card, !card.classList.contains('lens-explorer--fullscreen'));
+			};
+			document.addEventListener('lens:explorer-point', function(event) {
+				const detail = event.detail || {};
+				const host = document.querySelector('[data-lens-explorer-host="' + detail.explorerId + '"]');
+				if (!host) { return; }
+				const state = host.__lensExplorerState;
+				const branch = lensExploreBranch(host.__lensExplorerCfg, state.branchKey);
+				const perspective = lensExplorePerspective(branch, state.perspectiveKey);
+				const key = lensExploreViewKey(state);
+				const path = state.pathByPerspective[key] || [];
+				const steps = lensExploreSteps(state, perspective);
+				const node = lensExploreNode(perspective, path[path.length - 1]);
+				const clickedKey = String(detail.pointKey);
+				const edge = node && (node.edges || []).find(function(item) { return item.pointKey === clickedKey; });
+				if (!edge) { return; }
+				if (edge.toNode) {
+					state.pathByPerspective[key] = path.concat(edge.toNode);
+					state.stepsByPerspective[key] = steps.concat({nodeKey: edge.toNode, pointKey: clickedKey});
+					lensExploreRender(host, 'push');
+					return;
+				}
+				const action = edge.action;
+				if (!action) { return; }
+				if (action.kind === 'emit_event') { document.dispatchEvent(new CustomEvent(action.event, {detail: Object.assign({}, action.payload || {}, detail.payload || {})})); return; }
+				let url; try { url = new URL(action.url || '', window.location.href); } catch (_) { return; }
+				if (url.origin !== window.location.origin) { return; }
+				if (action.preserveQuery) {
+					new URL(window.location.href).searchParams.forEach(function(value, key) { if (!url.searchParams.has(key)) { url.searchParams.append(key, value); } });
+				}
+				Object.entries(action.params || {}).forEach(function(entry) {
+					url.searchParams.delete(entry[0]);
+					(Array.isArray(entry[1]) ? entry[1] : [entry[1]]).forEach(function(value) {
+						if (value !== undefined && value !== null && value !== '') { url.searchParams.append(entry[0], String(value)); }
+					});
+				});
+				if (action.kind === 'htmx_swap' && typeof htmx !== 'undefined' && action.target) { htmx.ajax(action.method || 'GET', url.pathname + url.search, {target: action.target, source: host}); return; }
+				if (action.kind === 'navigate') { window.location.href = url.pathname + url.search + url.hash; }
+			});
+			document.addEventListener('keydown', function(event) {
+				if (event.key !== 'Escape') { return; }
+				const fullscreen = document.querySelector('.lens-card.lens-explorer--fullscreen');
+				if (fullscreen) { lensExploreSetFullscreen(fullscreen, false); return; }
+				const host = document.querySelector('[data-lens-explorer-workspace]:not(.hidden)');
+				if (host) { lensExploreBack(host.closest('[data-lens-explorer-host]')); }
+			});
+			document.querySelectorAll('[data-lens-explorer-host]').forEach(lensExploreMount);
+			document.addEventListener('htmx:load', function(event) { (event.target || document).querySelectorAll && (event.target || document).querySelectorAll('[data-lens-explorer-host]').forEach(lensExploreMount); });
+			window.addEventListener('popstate', function() {
+				document.querySelectorAll('[data-lens-explorer-host]').forEach(function(host) {
+					const params = new URL(window.location.href).searchParams;
+					if (params.get('lens_explorer') === host.__lensExplorerCfg.id) {
+						window.__lensExploreOpen(host, {explorerId: host.__lensExplorerCfg.id, branchKey: params.get('lens_branch'), perspectiveKey: params.get('lens_perspective'), path: params.getAll('lens_path'), points: params.getAll('lens_explore_point'), historyMode: 'replace'});
+					} else if (host.__lensExplorerState.branchKey) { lensExploreClose(host, 'replace'); }
+				});
+			});
 
 		})();
 	</script>
@@ -2269,8 +2975,63 @@ templ panelCard(spec panel.Spec, bodyClass string, headerExtra templ.Component, 
 templ panelHeaderControls(spec panel.Spec, canFullscreen bool) {
 	{{ chartText := localizedChartText(ctx) }}
 	@PanelLogScaleBadge(spec, chartText, "")
+	@PanelExportButton(spec)
 	if canFullscreen {
 		@PanelFullscreenButton(chartText)
+	}
+}
+
+templ exportButton(props exportButtonProps) {
+	{{ chartText := localizedChartText(ctx) }}
+	{{ idleLabel := props.Label }}
+	if idleLabel == "" {
+		{{ idleLabel = chartText.ExportExcel }}
+	}
+	if props.URL != "" {
+		<a
+			href={ templ.URL(props.URL) }
+			if props.IconOnly {
+				class={ "inline-flex cursor-pointer items-center justify-center border transition hover:bg-slate-50 hover:text-slate-600", props.Class }
+				style="width: 28px; height: 28px; border-radius: 6px; border-color: var(--lens-border); color: var(--lens-text-faint);"
+			} else {
+				class={ "btn btn-secondary btn-sm inline-flex shrink-0 cursor-pointer items-center gap-2", props.Class }
+			}
+			title={ idleLabel }
+			aria-label={ idleLabel }
+			data-lens-export-button
+			data-lens-export-params-form={ props.ParamsFormID }
+			data-lens-export-idle-label={ idleLabel }
+			data-lens-export-loading-label={ chartText.ExportGenerating }
+			data-lens-export-error-label={ chartText.ExportFailed }
+		>
+			<span class="inline-flex items-center gap-2" data-lens-export-idle>
+				@icons.DownloadSimple(icons.Props{Size: "14"})
+				if !props.IconOnly {
+					<span>{ idleLabel }</span>
+				}
+			</span>
+			<span class="hidden items-center gap-2" data-lens-export-loading aria-hidden="true">
+				<span class="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600"></span>
+				if !props.IconOnly {
+					<span>{ chartText.ExportGenerating }</span>
+				}
+			</span>
+		</a>
+	}
+}
+
+// DashboardExportButton renders the whole-dashboard counterpart of the panel
+// export action. Both delegate to exportButton and therefore have identical
+// loading, filter serialization, download signalling and error behaviour.
+templ DashboardExportButton(props DashboardExportButtonProps) {
+	@exportButton(exportButtonProps{
+		URL: props.URL, Label: props.Label, ParamsFormID: props.ParamsFormID, Class: props.Class,
+	})
+}
+
+templ PanelExportButton(spec panel.Spec) {
+	if spec.Export.Enabled && panelExportURL(spec) != "" {
+		@exportButton(exportButtonProps{URL: panelExportURL(spec), IconOnly: true})
 	}
 }
 
@@ -2280,6 +3041,119 @@ templ Panel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction Pan
 	} else {
 		@panelCard(spec, panelBodyClass(spec), nil, PanelContent(spec, result, resolvePanelErrorAction))
 	}
+}
+
+templ DashboardPanel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver, explorerSpec *explore.Spec) {
+	if explorerSpec == nil {
+		@Panel(spec, result, resolvePanelErrorAction)
+	} else {
+		@ExplorerPanel(spec, result, resolvePanelErrorAction, *explorerSpec)
+	}
+}
+
+templ DashboardPanelShell(spec panel.Spec, props AsyncProps, explorerSpec *explore.Spec) {
+	if explorerSpec == nil {
+		@PanelShell(spec, props)
+	} else {
+		@ExplorerPanelShell(spec, props, *explorerSpec)
+	}
+}
+
+templ ExplorerPanel(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver, explorerSpec explore.Spec) {
+	@panelCard(spec, panelBodyClass(spec), ExplorerHeaderControls(spec), ExplorerPanelContent(spec, result, resolvePanelErrorAction, explorerSpec))
+}
+
+templ ExplorerPanelShell(spec panel.Spec, props AsyncProps, explorerSpec explore.Spec) {
+	@panelCard(spec, panelShellBodyClass(spec), ExplorerHeaderControls(spec), ExplorerPanelShellContent(spec, props, explorerSpec))
+}
+
+templ ExplorerHeaderControls(spec panel.Spec) {
+	{{ explorerText := localizedExplorerText(ctx) }}
+	@PanelExportButton(spec)
+	<button
+		type="button"
+		onclick="window.__lensExploreToggleFullscreen && window.__lensExploreToggleFullscreen(this)"
+		data-lens-explorer-fullscreen
+		data-lens-explorer-expand-label={ explorerText.Expand }
+		data-lens-explorer-collapse-label={ explorerText.Collapse }
+		class="inline-flex cursor-pointer items-center justify-center border transition hover:bg-slate-50 hover:text-slate-600"
+		style="width: 28px; height: 28px; border-radius: 6px; border-color: var(--lens-border); color: var(--lens-text-faint);"
+		aria-label={ explorerText.Expand }
+		title={ explorerText.Expand }
+	>
+		@icons.ArrowsOut(icons.Props{Size: "14"})
+	</button>
+}
+
+templ ExplorerPanelContent(spec panel.Spec, result *runtime.Result, resolvePanelErrorAction PanelErrorActionResolver, explorerSpec explore.Spec) {
+	<div
+		class="relative flex h-full min-h-0 flex-1 flex-col"
+		data-lens-explorer-host={ explorerSpec.ID }
+		data-lens-explorer-config={ explorerClientConfigJSON(localizedExplorerText(ctx), explorerSpec) }
+	>
+		<div class="flex h-full min-h-0 flex-1 flex-col" data-lens-explorer-root>
+			@PanelContent(spec, result, resolvePanelErrorAction)
+		</div>
+		<div hidden data-lens-explorer-eager-cache>
+			for _, branch := range explorerSpec.Branches {
+				for _, perspective := range branch.Perspectives {
+					for _, node := range perspective.Nodes {
+						if node.Panel != nil && result != nil && result.Panel(node.Panel.ID) != nil {
+							{{ eagerPanel := explorerNodePanel(explorerSpec.ID, node) }}
+							<div data-lens-explorer-eager={ explorerNodeCacheKey(branch.Key, perspective.Key, node.Key) }>
+								@PanelContent(eagerPanel, result, resolvePanelErrorAction)
+							</div>
+						}
+					}
+				}
+			}
+		</div>
+		@ExplorerWorkspace()
+	</div>
+}
+
+templ ExplorerPanelShellContent(spec panel.Spec, props AsyncProps, explorerSpec explore.Spec) {
+	<div
+		class="relative flex h-full min-h-0 flex-1 flex-col"
+		data-lens-explorer-host={ explorerSpec.ID }
+		data-lens-explorer-config={ explorerClientConfigJSON(localizedExplorerText(ctx), explorerSpec) }
+	>
+		<div class="flex h-full min-h-0 flex-1 flex-col" data-lens-explorer-root>
+			@PanelIsland(spec, props)
+		</div>
+		@ExplorerWorkspace()
+	</div>
+}
+
+templ ExplorerWorkspace() {
+	<div class="hidden h-full min-h-0 flex-1 flex-col" data-lens-explorer-workspace aria-live="polite">
+		<div class="flex flex-col gap-3 border-b border-subtle px-4 py-3">
+			<div class="flex min-w-0 items-center gap-2">
+				<button type="button" class="lens-drill-tree__control h-9 w-9" data-lens-explorer-back>
+					@icons.CaretLeft(icons.Props{Size: "16"})
+				</button>
+				<nav class="flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-sm text-slate-500" data-lens-explorer-crumbs></nav>
+				<button type="button" class="lens-drill-tree__control h-9 w-9" data-lens-explorer-home>
+					@icons.House(icons.Props{Size: "16"})
+				</button>
+			</div>
+			<div class="lens-seg flex w-full overflow-x-auto" role="tablist" data-lens-explorer-tabs></div>
+		</div>
+		<div class="relative flex min-h-[260px] flex-1 flex-col" data-lens-explorer-viewport>
+			<div class="hidden h-full min-h-[260px] flex-1 items-center justify-center" data-lens-explorer-loading role="status">
+				<div class="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-blue-600"></div>
+			</div>
+			<div class="hidden h-full min-h-[260px] flex-1 flex-col gap-3 p-5" data-lens-explorer-skeleton aria-hidden="true">
+				<div class="lens-skeleton-shimmer h-4 w-1/3 rounded"></div>
+				<div class="lens-skeleton-shimmer min-h-[210px] flex-1 rounded-lg"></div>
+			</div>
+			<div class="hidden h-full min-h-[260px] flex-1 flex-col items-center justify-center gap-3 p-6 text-center text-sm text-slate-500" data-lens-explorer-message>
+				<span data-lens-explorer-message-text></span>
+				<button type="button" class="hidden rounded-md border border-default bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50" data-lens-explorer-retry></button>
+			</div>
+			<div class="hidden h-full min-h-0 flex-1 flex-col" data-lens-explorer-content></div>
+		</div>
+	</div>
 }
 
 templ PanelShell(spec panel.Spec, props AsyncProps) {
@@ -2317,6 +3191,14 @@ templ PanelContent(spec panel.Spec, result *runtime.Result, resolvePanelErrorAct
 
 templ PanelFragment(props FragmentProps) {
 	@PanelContent(props.Panel, props.Result, props.ResolvePanelErrorAction)
+}
+
+templ ExplorationFragment(result *runtime.ExplorationResult) {
+	{{ panelSpec, dashboardResult, ok := explorationFragmentResult(result) }}
+	if ok {
+		<div hidden data-lens-explorer-resolved-edges={ explorationFragmentEdgesJSON(result) }></div>
+		@PanelContent(panelSpec, dashboardResult, nil)
+	}
 }
 
 templ PanelIsland(spec panel.Spec, props AsyncProps) {

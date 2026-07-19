@@ -38,6 +38,7 @@ type ShowcaseController struct {
 	httpCfg  *httpconfig.Config
 	appCfg   *appconfig.Config
 	ds       datasource.DataSource
+	runtime  *runtime.Runtime
 }
 
 func NewShowcaseController(dbCfg *dbconfig.Config, httpCfg *httpconfig.Config, appCfg *appconfig.Config) application.Controller {
@@ -50,9 +51,9 @@ func NewShowcaseController(dbCfg *dbconfig.Config, httpCfg *httpconfig.Config, a
 	})
 	if err != nil {
 		log.Printf("Failed to create lens data source for showcase: %v", err)
-		return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg}
+		return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, runtime: runtime.New(runtime.Options{})}
 	}
-	return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, ds: ds}
+	return &ShowcaseController{basePath: "/_dev", httpCfg: httpCfg, appCfg: appCfg, ds: ds, runtime: runtime.New(runtime.Options{})}
 }
 
 func (c *ShowcaseController) Descriptor() application.ControllerDescriptor {
@@ -273,11 +274,13 @@ func (c *ShowcaseController) Lens(
 	} else if c.ds != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
-		executed, err := runtime.Run(ctx, dash, runtime.Request{
+		tenantID, _ := composables.UseTenantID(r.Context())
+		executed, err := c.runtime.Execute(ctx, dash, runtime.Request{
 			DataSources: map[string]datasource.DataSource{
 				"primary": c.ds,
 			},
-		})
+			DataScope: tenantID.String(), Namespace: "core.showcase",
+		}, runtime.DashboardScope())
 		if err != nil {
 			logger.WithError(err).Error("failed to execute lens showcase dashboard")
 		} else {

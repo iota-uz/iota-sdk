@@ -89,6 +89,9 @@
   "Chart": {
     "CloseFullScreen": "Закрыть полноэкранный режим",
     "ExpandToFullScreen": "Развернуть на весь экран",
+    "ExportExcel": "Экспортировать в Excel",
+    "ExportGenerating": "Формируем Excel-отчёт…",
+    "ExportFailed": "Не удалось сформировать отчёт. Попробуйте ещё раз.",
     "LogScale": "Логарифмическая шкала",
     "LogScaleHint": "Значения показаны в логарифмической шкале",
     "MetricInfo": "Как рассчитывается метрика"

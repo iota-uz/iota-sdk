@@ -22,6 +22,38 @@ type stubDataSource struct {
 	calls atomic.Int32
 }
 
+func execute(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
+	if req.DataScope == "" {
+		req.DataScope = "test"
+	}
+	if req.DataSourceIdentities == nil {
+		req.DataSourceIdentities = map[string]string{}
+	}
+	for name := range req.DataSources {
+		req.DataSourceIdentities[name] = "test:" + name
+	}
+	return New(Options{}).Execute(ctx, spec, req, DashboardScope())
+}
+
+func TestExecute_RejectsIncompleteCacheIdentity(t *testing.T) {
+	t.Parallel()
+	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Bar("chart", "Chart", "data").Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+	ds := &stubDataSource{}
+	_, err := New(Options{}).Execute(context.Background(), spec, Request{DataSources: map[string]datasource.DataSource{"primary": ds}}, DashboardScope())
+	require.ErrorContains(t, err, "data scope is required")
+	_, err = New(Options{}).Execute(context.Background(), spec, Request{DataScope: "tenant:a", DataSources: map[string]datasource.DataSource{"primary": ds}}, DashboardScope())
+	require.ErrorContains(t, err, `datasource identity for "primary" is required`)
+}
+
+func TestExecute_FailsClosedForUnserializableIdentity(t *testing.T) {
+	t.Parallel()
+	frames := mustFrameSet(t, "static")
+	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Table("table", "Table", "data").Build())).Datasets(lensbuild.StaticDataset("data", frames)).Build()
+	spec.Variables = []lens.VariableSpec{{Name: "invalid", Default: "valid"}}
+	_, err := New(Options{}).Execute(context.Background(), spec, Request{DataScope: "tenant:a", Overrides: map[string]any{"invalid": func() {}}}, DashboardScope())
+	require.Error(t, err)
+}
+
 func (s *stubDataSource) Run(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
 	s.calls.Add(1)
 	fr, err := frame.New(req.Source,
@@ -51,7 +83,7 @@ func TestRunReusesDatasetAcrossPanels(t *testing.T) {
 		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
 	).Build()
 
-	result, err := Run(context.Background(), spec, Request{
+	result, err := execute(context.Background(), spec, Request{
 		DataSources: map[string]datasource.DataSource{"primary": ds},
 	})
 	require.NoError(t, err)
@@ -71,7 +103,7 @@ func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {
 		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
 	).Build()
 
-	result, err := Run(context.Background(), spec, Request{
+	result, err := execute(context.Background(), spec, Request{
 		Path: "/reports/drill/contracts",
 		Request: url.Values{
 			TablePaginationPanelQuery: []string{"p1"},
@@ -178,6 +210,35 @@ func TestPlan_Scenarios(t *testing.T) {
 	}
 }
 
+func TestPlan_ExportScopeMaterializesEvidenceWithoutSlowingDashboardScope(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("audit", "Audit",
+		lensbuild.Row(panel.Bar("sales", "Sales", "sales").Export("/export", "panel_evidence").Build()),
+	).Datasets(
+		lensbuild.QueryDataset("sales", "primary", "select 1"),
+		lensbuild.QueryDataset("panel_evidence", "primary", "select 2"),
+		lensbuild.QueryDataset("dashboard_evidence", "primary", "select 3"),
+	).Export("/export", "audit").Build()
+	spec.Export.EvidenceDatasets = []string{"dashboard_evidence"}
+
+	dashboardPlan, err := Plan(spec, DashboardScope())
+	require.NoError(t, err)
+	require.Len(t, dashboardPlan.DatasetStages, 1)
+	assert.Equal(t, []string{"sales"}, dashboardPlan.DatasetStages[0].Datasets)
+
+	exportPlan, err := Plan(spec, DashboardExportScope())
+	require.NoError(t, err)
+	require.Len(t, exportPlan.DatasetStages, 1)
+	assert.ElementsMatch(t, []string{"sales", "panel_evidence", "dashboard_evidence"}, exportPlan.DatasetStages[0].Datasets)
+
+	panelExportPlan, err := Plan(spec, PanelExportScope("sales"))
+	require.NoError(t, err)
+	require.Len(t, panelExportPlan.DatasetStages, 1)
+	assert.ElementsMatch(t, []string{"sales", "panel_evidence"}, panelExportPlan.DatasetStages[0].Datasets)
+	assert.NotContains(t, panelExportPlan.DatasetStages[0].Datasets, "dashboard_evidence")
+}
+
 func TestRun_Scenarios(t *testing.T) {
 	t.Parallel()
 
@@ -208,7 +269,7 @@ func TestRun_Scenarios(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ds := &stubDataSource{}
-			result, err := Run(context.Background(), tt.spec, Request{
+			result, err := execute(context.Background(), tt.spec, Request{
 				DataSources: map[string]datasource.DataSource{"primary": ds},
 			})
 			require.NoError(t, err)
@@ -399,7 +460,7 @@ func TestValidate_AcceptsKeyedPieDrillTree(t *testing.T) {
 	}}}, frame.Row{"id": "earned", "label": "Earned", "value": 100.0})
 
 	require.NoError(t, Validate(spec))
-	result, err := Run(context.Background(), spec, Request{})
+	result, err := execute(context.Background(), spec, Request{})
 	require.NoError(t, err)
 	require.NoError(t, result.Panels["drill"].Error)
 }
@@ -419,6 +480,9 @@ func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
 		{name: "blank branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "requires trigger key"},
 		{name: "duplicate branch key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}, {TriggerKey: "earned", Label: "Other", Children: []panel.DrillNode{{Key: "other", Label: "Other", Value: 1}}}}}, wantErr: `duplicate branch key "earned"`},
 		{name: "branch without children", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned"}}}, wantErr: "requires children"},
+		{name: "invalid branch view legend", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", View: &panel.DrillLevelView{LegendPosition: "diagonal"}, Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "invalid legend position"},
+		{name: "negative node view width", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, View: &panel.DrillLevelView{LegendWidthPx: -1}}}}}}, wantErr: "legend width cannot be negative"},
+		{name: "nonfinite branch view scale", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", View: &panel.DrillLevelView{CircularScale: math.Inf(1)}, Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}}}}}, wantErr: "circular scale must be zero or a positive finite value"},
 		{name: "duplicate sibling key", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1}, {Key: "direct", Label: "Again", Value: 2}}}}}, wantErr: `duplicate child key "direct"`},
 		{name: "negative value", kind: panel.KindDonut, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: -1}}}}}, wantErr: "finite nonnegative value"},
 		{name: "nonfinite value", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: math.Inf(1)}}}}}, wantErr: "finite nonnegative value"},
@@ -428,6 +492,7 @@ func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
 		{name: "field action source", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("").WithFieldURL("url"))}}}}}, wantErr: "cannot use a field source"},
 		{name: "bar hierarchy coexistence", kind: panel.KindPie, tree: validDrillTree(), mutate: func(spec *panel.Spec) { spec.DrillHierarchy = &panel.DrillHierarchy{} }, wantErr: "cannot be combined with bar drill hierarchy"},
 		{name: "missing id mapping", kind: panel.KindPie, tree: validDrillTree(), mutate: func(spec *panel.Spec) { spec.Fields.ID = "" }, wantErr: "requires id field"},
+		{name: "invalid expanded span", kind: panel.KindPie, tree: panel.DrillTree{ExpandedSpan: 13, Branches: validDrillTree().Branches}, wantErr: "expanded span must be between 1 and 12"},
 	}
 
 	for _, test := range tests {
@@ -517,7 +582,7 @@ func TestExecuteRejectsDrillTreeWithoutUniqueMatchingDatasetID(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			spec := drillTreeDashboard(t, panel.KindPie, validDrillTree(), test.rows...)
-			result, err := Run(context.Background(), spec, Request{})
+			result, err := execute(context.Background(), spec, Request{})
 			require.NoError(t, err)
 			require.ErrorContains(t, result.Panels["drill"].Error, test.wantErr)
 		})
@@ -565,7 +630,7 @@ func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {
 		lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
 	).Build()
 
-	result, err := Run(context.Background(), spec, Request{})
+	result, err := execute(context.Background(), spec, Request{})
 	require.NoError(t, err)
 	require.Error(t, result.Panels["sales"].Error)
 	require.Contains(t, result.Panels["sales"].Error.Error(), "missing field")

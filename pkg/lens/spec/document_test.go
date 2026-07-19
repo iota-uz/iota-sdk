@@ -69,14 +69,19 @@ func TestPanelSpecMarshal_UsesDrillTreeJSONContract(t *testing.T) {
 	payload, err := json.Marshal(PanelSpec{ //nolint:musttag // PanelSpec is the canonical Lens JSON payload under test.
 		ID:   "premium",
 		Kind: panel.KindPie,
-		DrillTree: &panel.DrillTree{Branches: []panel.DrillBranch{{
+		DrillTree: &panel.DrillTree{ExpandedSpan: 12, Branches: []panel.DrillBranch{{
 			TriggerKey: "earned",
 			Label:      "Earned premium",
-			Children:   []panel.DrillNode{{Key: "year:2026", Label: "2026", Value: 100}},
+			View: &panel.DrillLevelView{
+				LegendPosition: panel.LegendRight,
+				LegendWidthPx:  300,
+			},
+			Children: []panel.DrillNode{{Key: "year:2026", Label: "2026", Value: 100}},
 		}}},
 	})
 	require.NoError(t, err)
-	require.Contains(t, string(payload), `"drillTree":{"branches":[{"triggerKey":"earned","label":"Earned premium","children":[{"key":"year:2026","label":"2026","value":100}]`) //nolint:lll // exact public JSON contract
+	require.Contains(t, string(payload), `"drillTree":{"branches":[{"triggerKey":"earned","label":"Earned premium","view":{"legendPosition":"right","legendWidthPx":300},"children":[{"key":"year:2026","label":"2026","value":100}]}]`) //nolint:lll // exact public JSON contract
+	require.Contains(t, string(payload), `"expandedSpan":12`)
 	require.NotContains(t, string(payload), `"Branches"`)
 }
 

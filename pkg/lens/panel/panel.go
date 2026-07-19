@@ -6,6 +6,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/chrome"
+	"github.com/iota-uz/iota-sdk/pkg/lens/exportmeta"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -282,6 +283,7 @@ type Spec struct {
 	Distributed bool
 	ColorField  FieldRef
 	ColorScale  string
+	Export      exportmeta.Spec
 }
 
 // DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
@@ -328,25 +330,44 @@ type QuarterBreakdown struct {
 // and omit Action.
 type DrillTree struct {
 	Branches []DrillBranch `json:"branches"`
+	// ExpandedSpan optionally widens the panel's dashboard grid slot while
+	// the user is inside any drill level. Zero preserves the panel's root
+	// span. Returning to the root restores the original span automatically.
+	ExpandedSpan int `json:"expandedSpan,omitempty"`
 }
 
 // DrillBranch binds one initial chart point to its first detail level.
 type DrillBranch struct {
-	TriggerKey string      `json:"triggerKey"`
-	Label      string      `json:"label"`
-	Children   []DrillNode `json:"children"`
+	TriggerKey string          `json:"triggerKey"`
+	Label      string          `json:"label"`
+	View       *DrillLevelView `json:"view,omitempty"`
+	Children   []DrillNode     `json:"children"`
+}
+
+// DrillLevelView controls the presentation of a branch's or node's child
+// level. The closest configured ancestor is inherited by deeper levels, so a
+// dense detail journey can keep a side legend without repeating the layout on
+// every node. Returning to the root restores the panel's original layout.
+type DrillLevelView struct {
+	LegendPosition  LegendPosition `json:"legendPosition,omitempty"`
+	LegendWidthPx   int            `json:"legendWidthPx,omitempty"`
+	LegendOffsetY   int            `json:"legendOffsetY,omitempty"`
+	LegendFloating  bool           `json:"legendFloating,omitempty"`
+	CircularScale   float64        `json:"circularScale,omitempty"`
+	CircularOffsetX int            `json:"circularOffsetX,omitempty"`
 }
 
 // DrillNode is one stable item in a DrillTree detail level. Navigate,
 // HtmxSwap, and EmitEvent actions are supported on leaves; actions that depend
 // on an unresolved dataset row are not supported.
 type DrillNode struct {
-	Key      string       `json:"key"`
-	Label    string       `json:"label"`
-	Value    float64      `json:"value"`
-	Color    string       `json:"color,omitempty"`
-	Action   *action.Spec `json:"action,omitempty"`
-	Children []DrillNode  `json:"children,omitempty"`
+	Key      string          `json:"key"`
+	Label    string          `json:"label"`
+	Value    float64         `json:"value"`
+	Color    string          `json:"color,omitempty"`
+	Action   *action.Spec    `json:"action,omitempty"`
+	View     *DrillLevelView `json:"view,omitempty"`
+	Children []DrillNode     `json:"children,omitempty"`
 }
 
 // TrendSpec renders a small colored chip in a panel's header showing a signed
@@ -552,7 +573,11 @@ func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; 
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
-func (b *Builder) ClassName(name string) *Builder   { b.spec.ClassName = name; return b }
+func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
+	b.spec.Export = exportmeta.Spec{Enabled: true, URL: url, EvidenceDatasets: append([]string(nil), evidenceDatasets...)}
+	return b
+}
+func (b *Builder) ClassName(name string) *Builder { b.spec.ClassName = name; return b }
 func (b *Builder) ValueAxisScale(scale AxisScale, base int) *Builder {
 	b.spec.ValueAxis.Scale = scale
 	if base > 1 {

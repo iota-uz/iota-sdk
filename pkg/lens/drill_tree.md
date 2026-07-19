@@ -37,6 +37,29 @@ chart := panel.Pie("premium", "Premium", "premium_breakdown").
     Build()
 ```
 
+When a compact root chart needs more room for a detailed level, configure an
+expanded dashboard-grid span on the tree. Lens widens the panel on the first
+drill step and restores its original span when the user returns to the root:
+
+```go
+tree.ExpandedSpan = 12
+```
+
+Dense detail levels can override the root chart's layout. The closest
+configured view is inherited by deeper descendants, and the root layout is
+restored automatically on return:
+
+```go
+tree.Branches[0].View = &panel.DrillLevelView{
+	LegendPosition: panel.LegendRight,
+	LegendWidthPx:  300,
+	LegendOffsetY:  48,
+	LegendFloating: true,
+	CircularScale:  0.9,
+	CircularOffsetX: -130,
+}
+```
+
 Every initial `premium_breakdown` row must have a unique, nonblank
 `segment_key`, and exactly one row must use `earned`. Initial rows without a
 matching branch continue to use the panel action, when one is configured.

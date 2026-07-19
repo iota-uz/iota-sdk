@@ -8,6 +8,37 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestFromRecords_PreservesTimeCells(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
+	type record struct {
+		At       time.Time  `json:"at"`
+		Optional *time.Time `json:"optional"`
+	}
+	frames, err := FromRecords("records", []record{{At: now, Optional: &now}})
+	require.NoError(t, err)
+	fr := frames.Primary()
+	at, ok := fr.Field("at")
+	require.True(t, ok)
+	require.Equal(t, FieldTypeTime, at.Type)
+	require.Equal(t, now, at.Values[0])
+	optional, ok := fr.Field("optional")
+	require.True(t, ok)
+	require.Equal(t, FieldTypeTime, optional.Type)
+	require.Equal(t, now, optional.Values[0])
+}
+
+func TestFrameClone_ClonesHyperlinkPointers(t *testing.T) {
+	t.Parallel()
+	link := &Hyperlink{URL: "https://example.test", Label: "original"}
+	fr, err := New("links", Field{Name: "link", Values: []any{link}})
+	require.NoError(t, err)
+	cloned := fr.Clone()
+	clonedLink := cloned.Fields[0].Values[0].(*Hyperlink)
+	clonedLink.Label = "changed"
+	require.Equal(t, "original", link.Label)
+}
+
 func TestNormalizeRejectsUnevenFields(t *testing.T) {
 	t.Parallel()
 
