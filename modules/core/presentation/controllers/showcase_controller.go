@@ -279,7 +279,8 @@ func (c *ShowcaseController) Lens(
 			DataSources: map[string]datasource.DataSource{
 				"primary": c.ds,
 			},
-			DataScope: tenantID.String(), Namespace: "core.showcase",
+			DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
+			DataScope:            tenantID.String(), Namespace: "core.showcase",
 		}, runtime.DashboardScope())
 		if err != nil {
 			logger.WithError(err).Error("failed to execute lens showcase dashboard")

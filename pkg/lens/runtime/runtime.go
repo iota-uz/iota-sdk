@@ -368,7 +368,8 @@ func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.D
 		stageResults := make(map[string]*DatasetResult, len(stage))
 		var mu sync.Mutex
 		group, groupCtx := errgroup.WithContext(ctx)
-		for _, datasetSpec := range stage {
+		for index := range stage {
+			datasetSpec := stage[index]
 			if _, cached := results[datasetSpec.Name]; cached {
 				continue
 			}
