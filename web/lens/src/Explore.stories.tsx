@@ -35,7 +35,7 @@ export const FullDrillFlow: Story = () => (
     <strong> Services</strong> and <strong>Sales</strong>. Use the path rail to jump back to any level.
   </Walkthrough>
 )
-FullDrillFlow.storyName = 'Full drill flow · three levels'
+FullDrillFlow.storyName = 'Full drill flow - three levels'
 
 export const PerspectiveSwitching: Story = () => (
   <Walkthrough startAtBranch>
