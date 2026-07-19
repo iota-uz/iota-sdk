@@ -560,6 +560,7 @@ func testFrames(t *testing.T, name string, value float64) *frame.FrameSet {
 }
 
 func evidenceFrames(t *testing.T) *frame.FrameSet {
+	t.Helper()
 	return evidenceFramesWithRows(t, 1)
 }
 
