@@ -212,7 +212,8 @@ func (c *DashboardController) Get(w http.ResponseWriter, r *http.Request) {
 				DataSources: map[string]datasource.DataSource{
 					"primary": c.ds,
 				},
-				DataScope: tenantID.String(), Namespace: "core.dashboard",
+				DataSourceIdentities: map[string]string{"primary": "core-postgres:v1"},
+				DataScope:            tenantID.String(), Namespace: "core.dashboard",
 			}, runtime.DashboardScope())
 			results = executed
 			return execErr

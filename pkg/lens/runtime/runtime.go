@@ -368,7 +368,8 @@ func (s *plannedExecutor) executeDatasets(ctx context.Context, stages [][]lens.D
 		stageResults := make(map[string]*DatasetResult, len(stage))
 		var mu sync.Mutex
 		group, groupCtx := errgroup.WithContext(ctx)
-		for _, datasetSpec := range stage {
+		for index := range stage {
+			datasetSpec := stage[index]
 			if _, cached := results[datasetSpec.Name]; cached {
 				continue
 			}
@@ -609,13 +610,13 @@ func (r *Runtime) saveSnapshot(ctx context.Context, state plannedExecutor, resul
 		createdAt := now
 		if existing != nil {
 			createdAt = existing.CreatedAt
-			for name, frames := range existing.Datasets {
-				if frames != nil {
-					datasets[name] = frames.Clone()
-				}
+			datasets = existing.Datasets
+			provenance = existing.Provenance
+			if datasets == nil {
+				datasets = map[string]*frame.FrameSet{}
 			}
-			for name, item := range existing.Provenance {
-				provenance[name] = item
+			if provenance == nil {
+				provenance = map[string]DatasetProvenance{}
 			}
 		}
 		for name, item := range result.Datasets {

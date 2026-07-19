@@ -57,6 +57,8 @@ func (s *ExecutionSnapshot) Clone() *ExecutionSnapshot {
 type SnapshotStore interface {
 	Load(context.Context, string) (*ExecutionSnapshot, bool)
 	Save(context.Context, string, *ExecutionSnapshot, time.Duration)
+	// Update atomically supplies a clone-safe snapshot to update and transfers
+	// ownership of the callback result to the store.
 	Update(context.Context, string, time.Duration, func(*ExecutionSnapshot) *ExecutionSnapshot)
 	Invalidate(context.Context, string)
 	Stats() CacheStats
@@ -167,7 +169,6 @@ func (m *MemorySnapshotStore) Update(_ context.Context, key string, ttl time.Dur
 		ttl = m.ttl
 	}
 	expiresAt := m.clock().Add(ttl)
-	next = next.Clone()
 	next.ExpiresAt = expiresAt
 	if existing, ok := m.items[key]; ok {
 		entry := existing.Value.(*memoryEntry)
@@ -263,10 +264,21 @@ func cloneReflect(value reflect.Value) reflect.Value {
 			out.SetMapIndex(iter.Key(), cloneReflect(iter.Value()))
 		}
 		return out
+	case reflect.Struct:
+		for i := range value.NumField() {
+			if value.Type().Field(i).PkgPath != "" {
+				return value
+			}
+		}
+		out := reflect.New(value.Type()).Elem()
+		for i := range value.NumField() {
+			out.Field(i).Set(cloneReflect(value.Field(i)))
+		}
+		return out
 	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
 		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
 		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Chan,
-		reflect.Func, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		reflect.Func, reflect.String, reflect.UnsafePointer:
 		return value
 	}
 	return value

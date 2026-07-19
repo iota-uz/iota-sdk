@@ -72,14 +72,18 @@ func TestRuntimeSnapshot_UsesShortestDatasetTTL(t *testing.T) {
 func TestMemorySnapshotStore_DeepClonesTypedNestedVariables(t *testing.T) {
 	t.Parallel()
 	store := NewMemorySnapshotStore(MemoryStoreOptions{})
-	variables := map[string]any{"rows": []map[string][]int{{"values": {1, 2}}}}
+	type nested struct{ Values []int }
+	variables := map[string]any{"rows": []map[string][]int{{"values": {1, 2}}}, "struct": nested{Values: []int{3, 4}}}
 	store.Save(context.Background(), "core:key", &ExecutionSnapshot{Variables: variables}, time.Minute)
 	loaded, ok := store.Load(context.Background(), "core:key")
 	require.True(t, ok)
 	loaded.Variables["rows"].([]map[string][]int)[0]["values"][0] = 99
+	structValue := loaded.Variables["struct"].(nested)
+	structValue.Values[0] = 88
 	again, ok := store.Load(context.Background(), "core:key")
 	require.True(t, ok)
 	require.Equal(t, 1, again.Variables["rows"].([]map[string][]int)[0]["values"][0])
+	require.Equal(t, 3, again.Variables["struct"].(nested).Values[0])
 }
 
 func TestMemorySnapshotStore_InvalidateMatchesNamespaceBoundary(t *testing.T) {
