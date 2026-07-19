@@ -75,10 +75,20 @@ function rowValue(frame: Frame | undefined, row: Array<unknown> | undefined, fie
   return index < 0 ? undefined : row[index]
 }
 
+export function rowForNode(node: Node, level: Level, frame: Frame | undefined): Array<unknown> | undefined {
+  if (!frame || !level.encoding?.id) return undefined
+  return frame.rows.find((row) => {
+    const id = rowValue(frame, row, level.encoding?.id)
+    if (typeof id !== 'string' && typeof id !== 'number' && typeof id !== 'bigint' && typeof id !== 'boolean') return false
+    const value = String(id)
+    return node.key === value || node.key.endsWith(`/${value}`)
+  })
+}
+
 export function labelForNode(node: Node, level: Level, document: DashboardDocument, frame: Frame | undefined): string {
   if (node.label.trim()) return node.label
   const id = node.key.split('/').at(-1)
-  const row = frame?.rows.find((candidate) => String(rowValue(frame, candidate, level.encoding?.id)) === id)
+  const row = rowForNode(node, level, frame)
   const label = rowValue(frame, row, level.encoding?.label)
   if (typeof label === 'string' && label.trim()) return label
   const targetLabel = node.target ? document.drill.edges[node.target]?.label.trim() : ''

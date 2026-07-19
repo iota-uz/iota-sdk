@@ -1,4 +1,14 @@
-import { type KeyboardEvent, type ReactNode, useCallback, useEffect, useMemo, useRef } from 'react'
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import type { Action, Frame, Level, Node, Panel } from '../contract'
 import { PanelFrame, RegisteredPanel, type PanelRegistry } from '../panels'
 import { levelForPath, useDashboard, useDrill, usePanelFrame } from '../runtime'
@@ -7,17 +17,39 @@ import {
   breadcrumbsForNavigation,
   labelForNode,
   perspectivesForLevel,
+  rowForNode,
   viewForSemantics,
 } from './model'
 
-interface TransitionDocument {
-  startViewTransition?: (update: () => void) => unknown
+interface ViewTransition {
+  ready?: Promise<unknown>
+  finished?: Promise<unknown>
 }
+
+interface TransitionDocument {
+  startViewTransition?: (update: () => void) => ViewTransition
+}
+
+let activeLensTransitions = 0
 
 function runViewTransition(update: () => void): void {
   const transitionDocument = globalThis.document as unknown as TransitionDocument
-  if (transitionDocument.startViewTransition) transitionDocument.startViewTransition(update)
-  else update()
+  const reduceMotion = globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  if (!transitionDocument.startViewTransition || reduceMotion) {
+    update()
+    return
+  }
+
+  activeLensTransitions += 1
+  globalThis.document.documentElement.classList.add('lens-explore-transition-active')
+  const transition = transitionDocument.startViewTransition(update)
+  void transition.ready?.catch(() => undefined)
+  void transition.finished?.catch(() => undefined).finally(() => {
+    activeLensTransitions -= 1
+    if (activeLensTransitions === 0) {
+      globalThis.document.documentElement.classList.remove('lens-explore-transition-active')
+    }
+  })
 }
 
 function recordForRow(frame: Frame, row: Array<unknown>): Record<string, unknown> {
@@ -33,19 +65,16 @@ function variablesFromLocation(location: URL): Record<string, unknown> {
   return variables
 }
 
-function matchingNode(level: Level, panel: Panel, frame: Frame, row: Array<unknown>, rowIndex: number): Node | undefined {
+function matchingNode(level: Level, panel: Panel, frame: Frame, row: Array<unknown>): Node | undefined {
   const idField = level.encoding?.id ?? panel.encoding.id
   const idIndex = idField ? frame.columns.findIndex(({ name }) => name === idField) : -1
   const id = idIndex >= 0 ? String(row[idIndex]) : undefined
-  return level.children.find(({ key }) => key === id || Boolean(id && key.endsWith(`/${id}`))) ?? level.children[rowIndex]
+  return level.children.find(({ key }) => key === id || Boolean(id && key.endsWith(`/${id}`)))
 }
 
 function fieldsForNode(level: Level, frame: Frame | undefined, node: Node): Record<string, unknown> {
   if (!frame) return {}
-  const idField = level.encoding?.id
-  const idIndex = idField ? frame.columns.findIndex(({ name }) => name === idField) : -1
-  const id = node.key.split('/').at(-1)
-  const row = idIndex >= 0 ? frame.rows.find((candidate) => String(candidate[idIndex]) === id) : undefined
+  const row = rowForNode(node, level, frame)
   return row ? recordForRow(frame, row) : {}
 }
 
@@ -75,8 +104,8 @@ function InterimRows({ panel, level, frame, kind }: { panel: Panel; level: Level
       <ul className="lens-interim-rows">
         {rows.map((row, rowIndex) => {
           const fields = frame ? recordForRow(frame, row) : {}
-          const node = frame ? matchingNode(level, panel, frame, row, rowIndex) : undefined
-          const action = leafAction(node, panel)
+          const node = frame ? matchingNode(level, panel, frame, row) : undefined
+          const action = node || level.children.length === 0 ? leafAction(node, panel) : undefined
           const href = action ? resolveLeafActionURL(action, { fields, variables, location }) : undefined
           return (
             <li className="lens-interim-row" key={node?.key ?? rowIndex}>
@@ -106,7 +135,10 @@ interface SegmentTreeProps {
 
 function SegmentTree({ document, level, frame, onDrill }: SegmentTreeProps) {
   const items = useRef<Array<HTMLElement | null>>([])
+  const [rovingKey, setRovingKey] = useState(level.children[0]?.key)
   if (!level.children.length) return null
+
+  const rovingIndex = Math.max(0, level.children.findIndex(({ key }) => key === rovingKey))
 
   const moveFocus = (event: KeyboardEvent<HTMLElement>, index: number) => {
     const keys = ['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End']
@@ -117,6 +149,7 @@ function SegmentTree({ document, level, frame, onDrill }: SegmentTreeProps) {
     if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') target = (index - 1 + level.children.length) % level.children.length
     if (event.key === 'Home') target = 0
     if (event.key === 'End') target = level.children.length - 1
+    setRovingKey(level.children[target]?.key)
     items.current[target]?.focus()
   }
 
@@ -137,9 +170,18 @@ function SegmentTree({ document, level, frame, onDrill }: SegmentTreeProps) {
                 className="lens-segment"
                 href={action}
                 key={node.key}
-                onKeyDown={(event) => moveFocus(event, index)}
+                onFocus={() => setRovingKey(node.key)}
+                onKeyDown={(event) => {
+                  if (event.key === ' ') {
+                    event.preventDefault()
+                    event.currentTarget.click()
+                    return
+                  }
+                  moveFocus(event, index)
+                }}
                 ref={(element) => { items.current[index] = element }}
                 role="treeitem"
+                tabIndex={index === rovingIndex ? 0 : -1}
               >
                 <span>{label}</span><span aria-hidden="true">↗</span>
               </a>
@@ -148,13 +190,17 @@ function SegmentTree({ document, level, frame, onDrill }: SegmentTreeProps) {
         }
         return (
           <button
-            aria-haspopup={perspectiveCount > 1 ? 'listbox' : undefined}
             className="lens-segment"
             key={node.key}
-            onClick={() => onDrill(node)}
+            onClick={() => {
+              setRovingKey(node.key)
+              onDrill(node)
+            }}
+            onFocus={() => setRovingKey(node.key)}
             onKeyDown={(event) => moveFocus(event, index)}
             ref={(element) => { items.current[index] = element }}
             role="treeitem"
+            tabIndex={index === rovingIndex ? 0 : -1}
             type="button"
           >
             <span>{label}</span>
@@ -184,7 +230,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const level = active
     ? levelForPath(document, navigation.path)
     : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
-  const perspectives = perspectivesForLevel(document, level)
+  const perspectives = useMemo(() => perspectivesForLevel(document, level), [document, level])
   const perspective = active ? document.perspectives.find(({ id }) => id === navigation.perspectiveId) : undefined
   const hasPerspectiveChoice = perspectives.length > 1
   const semantics = perspective?.semantics ?? panel.semantics
@@ -198,23 +244,45 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   }), [kind, level?.encoding, level?.label, panel, semantics])
   const breadcrumbs = breadcrumbsForNavigation(document, panel, navigation)
   const focusRef = useRef<HTMLDivElement>(null)
-  const perspectiveFocusRef = useRef<HTMLButtonElement | null>(null)
   const perspectiveItems = useRef<Array<HTMLButtonElement | null>>([])
+  const [rovingPerspectiveId, setRovingPerspectiveId] = useState<string>()
+  const instanceId = useId()
   const viewKey = `${active ? navigation.path.join('|') : panel.drillRoot ?? panel.id}:${navigation.perspectiveId ?? ''}`
   const previousView = useRef(viewKey)
+  const selectedPerspectiveIndex = Math.max(0, perspectives.findIndex(({ id }) => id === navigation.perspectiveId))
+  const storedPerspectiveIndex = perspectives.findIndex(({ id }) => id === rovingPerspectiveId)
+  const rovingPerspectiveIndex = storedPerspectiveIndex >= 0 ? storedPerspectiveIndex : selectedPerspectiveIndex
+  const transitionName = useMemo(() => {
+    const identifier = `${panel.id}-${instanceId}`.replace(/[^a-zA-Z0-9_-]/g, '-')
+    return `lens-explore-${identifier}`
+  }, [instanceId, panel.id])
+  const transitionStyle = useMemo(() => ({
+    viewTransitionName: transitionName,
+    viewTransitionClass: 'lens-explore-level-transition',
+  }) as CSSProperties, [transitionName])
 
   useEffect(() => {
     if (!active || perspectives.length !== 1 || perspectives[0]?.id === navigation.perspectiveId) return
-    runViewTransition(() => drill.switchPerspective(perspectives[0]!.id))
+    runViewTransition(() => drill.switchPerspective(perspectives[0]!.id, { replace: true }))
   }, [active, drill, navigation.perspectiveId, perspectives])
 
   useEffect(() => {
     if (previousView.current !== viewKey) {
       previousView.current = viewKey
-      const target = hasPerspectiveChoice ? perspectiveFocusRef.current : focusRef.current
+      const target = hasPerspectiveChoice ? perspectiveItems.current[rovingPerspectiveIndex] : focusRef.current
       target?.focus({ preventScroll: true })
     }
-  }, [hasPerspectiveChoice, viewKey])
+  }, [hasPerspectiveChoice, rovingPerspectiveIndex, viewKey])
+
+  useEffect(() => {
+    const element = focusRef.current
+    const transitionDocument = globalThis.document as unknown as TransitionDocument
+    if (!element || transitionDocument.startViewTransition ||
+      globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    element.classList.remove('lens-explore-level-enter')
+    const animationFrame = globalThis.requestAnimationFrame(() => element.classList.add('lens-explore-level-enter'))
+    return () => globalThis.cancelAnimationFrame(animationFrame)
+  }, [viewKey])
 
   const selectNode = useCallback((node: Node) => {
     runViewTransition(() => drill.drillInto(node.key, panel.id))
@@ -227,10 +295,14 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   }
 
   const movePerspectiveFocus = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
-    if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp'].includes(event.key)) return
+    if (!['ArrowRight', 'ArrowDown', 'ArrowLeft', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
-    const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1
-    const target = (index + direction + perspectives.length) % perspectives.length
+    let target = index
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') target = (index + 1) % perspectives.length
+    if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') target = (index - 1 + perspectives.length) % perspectives.length
+    if (event.key === 'Home') target = 0
+    if (event.key === 'End') target = perspectives.length - 1
+    setRovingPerspectiveId(perspectives[target]?.id)
     perspectiveItems.current[target]?.focus()
   }
 
@@ -284,15 +356,15 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
             <button
               aria-selected={item.id === navigation.perspectiveId}
               key={item.id}
-              onClick={() => runViewTransition(() => drill.switchPerspective(item.id))}
-              onKeyDown={(event) => movePerspectiveFocus(event, index)}
-              ref={(element) => {
-                perspectiveItems.current[index] = element
-                if (item.id === navigation.perspectiveId || (!navigation.perspectiveId && index === 0)) {
-                  perspectiveFocusRef.current = element
-                }
+              onClick={() => {
+                setRovingPerspectiveId(item.id)
+                runViewTransition(() => drill.switchPerspective(item.id))
               }}
+              onFocus={() => setRovingPerspectiveId(item.id)}
+              onKeyDown={(event) => movePerspectiveFocus(event, index)}
+              ref={(element) => { perspectiveItems.current[index] = element }}
               role="option"
+              tabIndex={index === rovingPerspectiveIndex ? 0 : -1}
               type="button"
             >
               <span>{item.label}</span>
@@ -305,8 +377,8 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       <div
         className="lens-explore-level"
         data-explore-view={kind}
-        key={viewKey}
         ref={focusRef}
+        style={transitionStyle}
         tabIndex={-1}
       >
         {content}

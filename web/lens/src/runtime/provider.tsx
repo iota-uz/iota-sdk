@@ -115,7 +115,7 @@ export interface DrillContextValue {
   drillInto: (nodeKey: string, panelId?: string) => void
   back: () => void
   jumpTo: (breadcrumbIndex: number) => void
-  switchPerspective: (id: string) => void
+  switchPerspective: (id: string, options?: { replace?: boolean }) => void
   reset: () => void
   canGoBack: boolean
 }
@@ -277,7 +277,7 @@ function runtimeNavigationReducer(
     const perspective = document.perspectives.find((candidate) => candidate.id === action.perspectiveId)
     const root = perspective ? document.drill.edges[perspective.root] : undefined
     if (!root) return state
-    return navigationReducer(state, navigationActions.switchPerspective(action.perspectiveId, root.path))
+    return navigationReducer(state, navigationActions.switchPerspective(action.perspectiveId, root.path, action.replace))
   }
   if (action.type === 'jumpTo') {
     const next = navigationReducer(state, action)
@@ -464,7 +464,10 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
     back: () => dispatch(navigationActions.back()),
     jumpTo: (breadcrumbIndex) => dispatch(navigationActions.jumpTo(breadcrumbIndex)),
-    switchPerspective: (id) => dispatch(navigationActions.switchPerspective(id)),
+    switchPerspective: (id, options) => {
+      if (options?.replace) replaceNextURL.current = true
+      dispatch(navigationActions.switchPerspective(id, undefined, options?.replace))
+    },
     reset: () => dispatch(navigationActions.reset()),
     canGoBack: navigation.history.length > 0,
   }), [navigation.history.length])

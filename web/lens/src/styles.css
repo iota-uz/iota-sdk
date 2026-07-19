@@ -411,6 +411,9 @@
 
   .lens-explore-level {
     @apply lens-min-w-0 lens-rounded-card;
+  }
+
+  .lens-explore-level-enter {
     animation: lens-level-enter 180ms ease-out;
   }
 
@@ -499,8 +502,38 @@
     }
   }
 
+  @keyframes lens-level-exit {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: .72;
+      transform: translateY(-4px);
+    }
+  }
+
+  html.lens-explore-transition-active::view-transition-group(root),
+  html.lens-explore-transition-active::view-transition-old(root),
+  html.lens-explore-transition-active::view-transition-new(root) {
+    animation: none;
+  }
+
+  ::view-transition-group(.lens-explore-level-transition) {
+    animation-duration: 180ms;
+    animation-timing-function: ease-out;
+  }
+
+  ::view-transition-old(.lens-explore-level-transition) {
+    animation: lens-level-exit 180ms ease-out both;
+  }
+
+  ::view-transition-new(.lens-explore-level-transition) {
+    animation: lens-level-enter 180ms ease-out both;
+  }
+
   @media (prefers-reduced-motion: reduce) {
-    .lens-explore-level {
+    .lens-explore-level-enter {
       animation: none;
     }
 
