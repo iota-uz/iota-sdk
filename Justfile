@@ -48,18 +48,18 @@ docs cmd="help" *args="":
   esac
 
 [group("lens")]
-[doc("Lens React runtime commands (dev|build|fixture|check|typegen|ladle|install)")]
+[doc("Lens React runtime commands (dev|build|fixture|check|typegen|ladle|vr|vr-update|install)")]
 lens cmd="help" *args="":
   case "{{cmd}}" in \
     dev|build|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
+    vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
     typegen) go run ./cmd/lens-typegen ;; \
     check) \
-      go run ./cmd/lens-typegen ; \
-      git diff --exit-code -- web/lens/src/contract ; \
+      node web/lens/scripts/check-typegen.mjs ; \
       (cd web/lens && pnpm check {{args}}) ;; \
     *) \
-      echo "Usage: just lens [dev|build|fixture|check|typegen|ladle|install]" ; \
+      echo "Usage: just lens [dev|build|fixture|check|typegen|ladle|vr|vr-update|install]" ; \
       exit 2 ;; \
   esac
 

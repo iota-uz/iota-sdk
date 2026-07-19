@@ -1,3 +1,7 @@
 node_modules/
 build/
 coverage/
+playwright-report/
+vr/results/
+vr/baselines/darwin/
+vr/baselines/win32/

@@ -12,6 +12,7 @@ import {
 import type { Encoding, FieldFormat, Frame, Level, Node, Panel } from '../contract'
 import { RegisteredPanel, type PanelRegistry } from '../panels'
 import { levelForPath, useDashboard, useDrill, usePanelFrame } from '../runtime'
+import { isVisualRegression } from '../visualRegression'
 import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './actions'
 import {
   breadcrumbsForNavigation,
@@ -35,7 +36,7 @@ let activeLensTransitions = 0
 function runViewTransition(update: () => void): void {
   const transitionDocument = globalThis.document as unknown as TransitionDocument
   const reduceMotion = globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  if (!transitionDocument.startViewTransition || reduceMotion) {
+  if (isVisualRegression() || !transitionDocument.startViewTransition || reduceMotion) {
     update()
     return
   }
@@ -224,7 +225,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   useEffect(() => {
     const element = focusRef.current
     const transitionDocument = globalThis.document as unknown as TransitionDocument
-    if (!element || transitionDocument.startViewTransition ||
+    if (!element || isVisualRegression() || transitionDocument.startViewTransition ||
       globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
     element.classList.remove('lens-explore-level-enter')
     const animationFrame = globalThis.requestAnimationFrame(() => element.classList.add('lens-explore-level-enter'))

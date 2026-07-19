@@ -4,10 +4,10 @@ import { z } from 'zod'
 import { CONTRACT_VERSION } from './types'
 import type * as Contract from './types'
 
-const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0] ?? CONTRACT_VERSION
+const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0]!
 
 function contractMajor(version: string): string {
-  return version.split('.', 1)[0] ?? version
+  return version.split('.', 1)[0]!
 }
 
 export class ContractVersionMismatchError extends Error {
@@ -35,7 +35,7 @@ export const ActionSchema: z.ZodType<Contract.Action> = z.lazy(() => z.object({
   preserveQuery: z.boolean().optional(),
 }).strict())
 
-export const ActionKindSchema: z.ZodType<Contract.ActionKind> = z.lazy(() => z.enum(["emit_event", "navigate", "navigate_to_leaf"]))
+export const ActionKindSchema: z.ZodType<Contract.ActionKind> = z.enum(["emit_event", "navigate", "navigate_to_leaf"])
 
 export const ActionParamSchema: z.ZodType<Contract.ActionParam> = z.lazy(() => z.object({
   name: z.string(),
@@ -47,7 +47,7 @@ export const ColumnSchema: z.ZodType<Contract.Column> = z.lazy(() => z.object({
   type: z.lazy(() => ColumnTypeSchema),
 }).strict())
 
-export const ColumnTypeSchema: z.ZodType<Contract.ColumnType> = z.lazy(() => z.enum(["bool", "number", "string", "time"]))
+export const ColumnTypeSchema: z.ZodType<Contract.ColumnType> = z.enum(["bool", "number", "string", "time"])
 
 export const DashboardDocumentSchema: z.ZodType<Contract.DashboardDocument> = z.lazy(() => z.object({
   version: ContractVersionSchema,
@@ -68,7 +68,7 @@ export const DrillSchema: z.ZodType<Contract.Drill> = z.lazy(() => z.object({
   inlineDepth: z.number().int(),
 }).strict())
 
-export const EncodingSchema: z.ZodType<Contract.Encoding> = z.lazy(() => z.object({
+export const EncodingSchema: z.ZodType<Contract.Encoding> = z.object({
   label: z.string().optional(),
   value: z.string().optional(),
   id: z.string().optional(),
@@ -77,12 +77,12 @@ export const EncodingSchema: z.ZodType<Contract.Encoding> = z.lazy(() => z.objec
   cut: z.string().optional(),
   cutLabel: z.string().optional(),
   final: z.string().optional(),
-}).strict())
+}).strict()
 
-export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.lazy(() => z.object({
+export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.object({
   query: z.string().optional(),
   export: z.string().optional(),
-}).strict())
+}).strict()
 
 export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z.object({
   kind: z.lazy(() => FormatKindSchema),
@@ -92,29 +92,29 @@ export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z
   layout: z.string().optional(),
 }).strict())
 
-export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.lazy(() => z.enum(["date", "money", "number", "percent", "string"]))
+export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.enum(["date", "money", "number", "percent", "string"])
 
-export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({
+export const FrameSchema: z.ZodType<Contract.Frame> = z.object({
   columns: z.array(z.lazy(() => ColumnSchema)),
   rows: z.array(z.array(z.unknown())),
-}).strict())
+}).strict()
 
-export const FrameRefSchema: z.ZodType<Contract.FrameRef> = z.lazy(() => z.string())
+export const FrameRefSchema: z.ZodType<Contract.FrameRef> = z.string()
 
 export const LayoutSchema: z.ZodType<Contract.Layout> = z.lazy(() => z.object({
   rows: z.array(z.lazy(() => LayoutRowSchema)),
 }).strict())
 
-export const LayoutItemSchema: z.ZodType<Contract.LayoutItem> = z.lazy(() => z.object({
+export const LayoutItemSchema: z.ZodType<Contract.LayoutItem> = z.object({
   panelId: z.string(),
   span: z.number().int(),
-}).strict())
+}).strict()
 
-export const LayoutRowSchema: z.ZodType<Contract.LayoutRow> = z.lazy(() => z.object({
+export const LayoutRowSchema: z.ZodType<Contract.LayoutRow> = z.object({
   heading: z.string().optional(),
   class: z.string().optional(),
   panels: z.array(z.lazy(() => LayoutItemSchema)),
-}).strict())
+}).strict()
 
 export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   path: z.lazy(() => NodePathSchema),
@@ -125,12 +125,12 @@ export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   perspectives: z.array(z.lazy(() => PerspectiveRefSchema)),
 }).strict())
 
-export const MetaSchema: z.ZodType<Contract.Meta> = z.lazy(() => z.object({
+export const MetaSchema: z.ZodType<Contract.Meta> = z.object({
   dashboardId: z.string(),
   title: z.string(),
   generatedAt: z.string().datetime({ offset: true }),
   locale: z.string(),
-}).strict())
+}).strict()
 
 export const NodeSchema: z.ZodType<Contract.Node> = z.lazy(() => z.object({
   key: z.lazy(() => NodeKeySchema),
@@ -140,9 +140,9 @@ export const NodeSchema: z.ZodType<Contract.Node> = z.lazy(() => z.object({
   action: z.lazy(() => ActionSchema).optional(),
 }).strict())
 
-export const NodeKeySchema: z.ZodType<Contract.NodeKey> = z.lazy(() => z.string())
+export const NodeKeySchema: z.ZodType<Contract.NodeKey> = z.string()
 
-export const NodePathSchema: z.ZodType<Contract.NodePath> = z.lazy(() => z.array(z.lazy(() => NodeKeySchema)))
+export const NodePathSchema: z.ZodType<Contract.NodePath> = z.array(z.lazy(() => NodeKeySchema))
 
 export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   id: z.string(),
@@ -156,7 +156,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   actions: z.array(z.lazy(() => ActionSchema)),
 }).strict())
 
-export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.lazy(() => z.enum(["area", "bar", "cascade", "donut", "hbar", "line", "pie", "stat", "table"]))
+export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "cascade", "donut", "hbar", "line", "pie", "stat", "table"])
 
 export const PerspectiveSchema: z.ZodType<Contract.Perspective> = z.lazy(() => z.object({
   id: z.string(),
@@ -168,36 +168,36 @@ export const PerspectiveSchema: z.ZodType<Contract.Perspective> = z.lazy(() => z
   root: z.lazy(() => NodeKeySchema),
 }).strict())
 
-export const PerspectiveRefSchema: z.ZodType<Contract.PerspectiveRef> = z.lazy(() => z.object({
+export const PerspectiveRefSchema: z.ZodType<Contract.PerspectiveRef> = z.object({
   id: z.string(),
-}).strict())
+}).strict()
 
-export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.lazy(() => z.enum(["bad_request", "internal", "snapshot_gone"]))
+export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum(["bad_request", "internal", "snapshot_gone"])
 
-export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = z.lazy(() => z.object({
+export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = z.object({
   error: z.lazy(() => QueryErrorCodeSchema),
   message: z.string(),
-}).strict())
+}).strict()
 
-export const QueryPageSchema: z.ZodType<Contract.QueryPage> = z.lazy(() => z.object({
+export const QueryPageSchema: z.ZodType<Contract.QueryPage> = z.object({
   number: z.number().int(),
   size: z.number().int(),
   hasNext: z.boolean().optional(),
-}).strict())
+}).strict()
 
-export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.lazy(() => z.object({
+export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.object({
   snapshotId: z.string(),
   path: z.lazy(() => NodePathSchema),
   perspective: z.string().optional(),
   page: z.number().int().optional(),
-}).strict())
+}).strict()
 
-export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.lazy(() => z.object({
+export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.object({
   frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)),
   page: z.lazy(() => QueryPageSchema).optional(),
-}).strict())
+}).strict()
 
-export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.lazy(() => z.enum(["evidence", "partition", "reconciliation", "series"]))
+export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.enum(["evidence", "partition", "reconciliation", "series"])
 
 export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   kind: z.lazy(() => ValueSourceKindSchema),
@@ -206,12 +206,12 @@ export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   fallback: z.unknown().optional(),
 }).strict())
 
-export const ThemeSchema: z.ZodType<Contract.Theme> = z.lazy(() => z.object({
+export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
   palette: z.record(z.string(), z.string()),
   series: z.record(z.string(), z.string()),
-}).strict())
+}).strict()
 
-export const ValueSourceKindSchema: z.ZodType<Contract.ValueSourceKind> = z.lazy(() => z.enum(["field", "literal", "variable"]))
+export const ValueSourceKindSchema: z.ZodType<Contract.ValueSourceKind> = z.enum(["field", "literal", "variable"])
 
 const DocumentVersionSchema = z.object({ version: z.string() }).passthrough()
 

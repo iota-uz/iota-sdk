@@ -33,13 +33,20 @@ func TestGenerateRepresentativeContract(t *testing.T) {
 	require.Contains(t, typesFile, "export interface FixtureResponse")
 
 	schemasFile := files["schemas.ts"]
-	require.Contains(t, schemasFile, "const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0] ?? CONTRACT_VERSION")
+	require.Contains(t, schemasFile, "const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0]!")
+	require.Contains(t, schemasFile, "return version.split('.', 1)[0]!")
+	require.NotContains(t, schemasFile, "CONTRACT_VERSION.split('.', 1)[0] ?? CONTRACT_VERSION")
+	require.NotContains(t, schemasFile, "version.split('.', 1)[0] ?? version")
 	require.Contains(t, schemasFile, "z.record(z.string(), z.lazy(() => NestedSchema))")
 	require.Contains(t, schemasFile, "optional: z.string().optional()")
 	require.Contains(t, schemasFile, "createdAt: z.string().datetime({ offset: true })")
 	require.Contains(t, schemasFile, "count: z.number().int()")
 	require.Contains(t, schemasFile, "payload: z.unknown()")
 	require.Contains(t, schemasFile, "export const FixtureResponseSchema")
+	require.Contains(t, schemasFile, "export const FixtureDocumentSchema: z.ZodType<Contract.FixtureDocument> = z.lazy(() => z.object(")
+	require.Contains(t, schemasFile, "export const FixtureKindSchema: z.ZodType<Contract.FixtureKind> = z.enum(")
+	require.Contains(t, schemasFile, "export const FixtureResponseSchema: z.ZodType<Contract.FixtureResponse> = z.lazy(() => z.object(")
+	require.Contains(t, schemasFile, "export const NestedSchema: z.ZodType<Contract.Nested> = z.object(")
 	require.NotContains(t, schemasFile, "z.any()")
 }
 

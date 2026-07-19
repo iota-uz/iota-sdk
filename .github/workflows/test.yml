@@ -1,6 +1,13 @@
 name: Test, lint & build
 
 on:
+  workflow_dispatch:
+    inputs:
+      lens_vr_update:
+        description: Generate Linux Lens VR candidates for manual promotion
+        required: false
+        type: boolean
+        default: false
   push:
     branches:
       - staging
@@ -119,6 +126,107 @@ jobs:
 
       - name: Verify committed Lens assets
         run: git diff --exit-code -- pkg/lens/render/react/dist
+
+  lens-vr:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.lens == 'true')
+    concurrency:
+      group: lens-vr-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
+    name: Lens Visual Regression
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Install dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-lens-playwright-${{ hashFiles('web/lens/pnpm-lock.yaml') }}
+
+      - name: Install Chromium system dependencies
+        working-directory: web/lens
+        run: pnpm exec playwright install-deps chromium
+
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        working-directory: web/lens
+        run: pnpm exec playwright install chromium
+
+      - name: Reject deleted approved Linux baselines
+        if: inputs.lens_vr_update != true
+        shell: bash
+        run: |
+          git fetch --no-tags --depth=1 origin +refs/heads/main:refs/remotes/origin/main
+          base_count="$(git ls-tree -r --name-only origin/main -- web/lens/vr/baselines/linux | awk '/\.png$/ { count++ } END { print count + 0 }')"
+          checkout_count=0
+          if [[ -d web/lens/vr/baselines/linux ]]; then
+            checkout_count="$(find web/lens/vr/baselines/linux -maxdepth 1 -type f -name '*.png' | wc -l | tr -d ' ')"
+          fi
+          if (( base_count > checkout_count )); then
+            echo "::error::Approved Lens VR baselines were removed: origin/main has ${base_count} Linux PNGs, but this checkout has ${checkout_count}. Bootstrap mode is only allowed when origin/main has no baselines."
+            exit 1
+          fi
+
+      - name: Detect approved Linux baselines
+        id: baselines
+        shell: bash
+        run: |
+          if compgen -G 'web/lens/vr/baselines/linux/*.png' > /dev/null; then
+            echo 'available=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'available=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Compare visual regression baselines
+        if: inputs.lens_vr_update != true
+        run: just lens vr
+
+      - name: Generate visual regression candidates
+        if: inputs.lens_vr_update == true
+        run: just lens vr-update
+
+      - name: Upload visual regression diffs
+        if: failure() && steps.baselines.outcome == 'success'
+        uses: actions/upload-artifact@v4
+        with:
+          name: lens-vr-linux-diffs-${{ github.sha }}
+          path: web/lens/vr/results/
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload Linux baseline candidates
+        if: ${{ always() && (steps.baselines.outputs.available != 'true' || inputs.lens_vr_update == true) }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: lens-vr-linux-candidates-${{ github.sha }}
+          path: web/lens/vr/baselines/linux/
+          if-no-files-found: error
+          retention-days: 14
 
   security-gosec:
     needs: changes

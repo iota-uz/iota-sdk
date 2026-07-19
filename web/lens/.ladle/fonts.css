@@ -1,0 +1,10 @@
+/* Story/VR environment only: bundle the same variable Inter the Granite host
+   page serves, so screenshots are font-deterministic. The runtime dist never
+   includes this file — embedded dashboards inherit the host page's fonts. */
+@font-face {
+  font-family: 'Inter';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  src: url('./fonts/Inter.var.woff2') format('woff2-variations');
+}

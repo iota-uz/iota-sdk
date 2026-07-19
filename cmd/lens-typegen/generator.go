@@ -232,8 +232,8 @@ func emitSchemas(model *contractModel) (string, error) {
 	var output strings.Builder
 	output.WriteString(generatedHeader)
 	output.WriteString("\nimport { z } from 'zod'\nimport { CONTRACT_VERSION } from './types'\nimport type * as Contract from './types'\n\n")
-	output.WriteString("const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0] ?? CONTRACT_VERSION\n\n")
-	output.WriteString("function contractMajor(version: string): string {\n  return version.split('.', 1)[0] ?? version\n}\n\n")
+	output.WriteString("const CONTRACT_MAJOR_VERSION = CONTRACT_VERSION.split('.', 1)[0]!\n\n")
+	output.WriteString("function contractMajor(version: string): string {\n  return version.split('.', 1)[0]!\n}\n\n")
 	output.WriteString("export class ContractVersionMismatchError extends Error {\n")
 	output.WriteString("  readonly code = 'CONTRACT_VERSION_MISMATCH'\n  readonly expectedMajor = CONTRACT_MAJOR_VERSION\n\n")
 	output.WriteString("  constructor(readonly actualVersion: string) {\n")
@@ -265,9 +265,15 @@ func emitSchemas(model *contractModel) (string, error) {
 		output.WriteString(name)
 		output.WriteString("Schema: z.ZodType<Contract.")
 		output.WriteString(name)
-		output.WriteString("> = z.lazy(() => ")
-		output.WriteString(expression)
-		output.WriteString(")\n\n")
+		output.WriteString("> = ")
+		if hasForwardSchemaReference(model.types[name].Underlying(), name) {
+			output.WriteString("z.lazy(() => ")
+			output.WriteString(expression)
+			output.WriteString(")")
+		} else {
+			output.WriteString(expression)
+		}
+		output.WriteString("\n\n")
 	}
 
 	output.WriteString("const DocumentVersionSchema = z.object({ version: z.string() }).passthrough()\n\n")
@@ -281,6 +287,34 @@ func emitSchemas(model *contractModel) (string, error) {
 	output.WriteString(model.root)
 	output.WriteString("Schema.parse(input)\n}\n")
 	return output.String(), nil
+}
+
+func hasForwardSchemaReference(typ types.Type, schemaName string) bool {
+	typ = types.Unalias(typ)
+	switch typed := typ.(type) {
+	case *types.Named:
+		return !isTime(typed) && typed.Obj().Name() > schemaName
+	case *types.Pointer:
+		return hasForwardSchemaReference(typed.Elem(), schemaName)
+	case *types.Slice:
+		return hasForwardSchemaReference(typed.Elem(), schemaName)
+	case *types.Array:
+		return hasForwardSchemaReference(typed.Elem(), schemaName)
+	case *types.Map:
+		return hasForwardSchemaReference(typed.Key(), schemaName) || hasForwardSchemaReference(typed.Elem(), schemaName)
+	case *types.Struct:
+		for index := 0; index < typed.NumFields(); index++ {
+			field := typed.Field(index)
+			if !field.Exported() {
+				continue
+			}
+			_, _, skip := parseJSONTag(field.Name(), typed.Tag(index))
+			if !skip && hasForwardSchemaReference(field.Type(), schemaName) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func emitTSType(typ types.Type, omitNilPointer bool) (string, error) {

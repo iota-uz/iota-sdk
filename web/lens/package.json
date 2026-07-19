@@ -16,7 +16,10 @@
     "check": "pnpm typecheck && pnpm lint && pnpm test",
     "ladle": "CHOKIDAR_USEPOLLING=1 ladle serve --viteConfig .ladle/vite.config.ts",
     "ladle:build": "ladle build --viteConfig .ladle/vite.config.ts",
-    "fixture": "node ./scripts/fetch-fixture.mjs"
+    "ladle:preview": "ladle preview --viteConfig .ladle/vite.config.ts --host 127.0.0.1 --port 61000",
+    "fixture": "node ./scripts/fetch-fixture.mjs",
+    "vr": "node ./scripts/vr.mjs",
+    "vr-update": "node ./scripts/vr.mjs --update"
   },
   "dependencies": {
     "echarts": "^6.1.0",
@@ -27,6 +30,7 @@
   "devDependencies": {
     "@eslint/js": "9.17.0",
     "@ladle/react": "5.1.1",
+    "@playwright/test": "1.55.1",
     "@testing-library/jest-dom": "6.6.3",
     "@testing-library/react": "16.1.0",
     "@types/node": "22.10.2",
