@@ -287,8 +287,6 @@ github.com/hexops/gotextdiff v1.0.3 h1:gitA9+qJrrTCsiCl7+kh75nPqQt1cx4ZkudSTLoUq
 github.com/hexops/gotextdiff v1.0.3/go.mod h1:pSWU5MAI3yDq+fZBTazCSJysOMbxWL1BSow5/V2vxeg=
 github.com/inconshreveable/mousetrap v1.1.0 h1:wN+x4NVGpMsO7ErUn/mUI3vEoE6Jt13X2s0bqwp9tc8=
 github.com/inconshreveable/mousetrap v1.1.0/go.mod h1:vpF70FUmC8bwa3OWnCshd2FqLfsEA9PFc4w1p2J65bw=
-github.com/iota-uz/applets v0.4.30 h1:gf6Cg01vVnijrI2OYnuwDu0NDzrFZ2nW/O2BYvcOOzE=
-github.com/iota-uz/applets v0.4.30/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
 github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1 h1:IBZOzA13zSdWGgqig0QJfFSzQKVgVaCIy0EcOWjTCL0=
 github.com/iota-uz/applets v0.4.32-0.20260621150342-5bc121489de1/go.mod h1:PnaI9UI+C+cnx9HaV8kTMzozO7h+ycBvQUn1hFHIARY=
 github.com/iota-uz/click v1.0.5-0.20260429132149-cf24863b0f7e h1:837CEXuzIT0a2l7Ll55Lyau6k4S1i+xIXy8lOfGakPU=
