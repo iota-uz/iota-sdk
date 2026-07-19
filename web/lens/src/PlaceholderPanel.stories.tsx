@@ -1,12 +1,14 @@
 import type { Story } from '@ladle/react'
 import fixture from '../fixtures/small.json'
-import type { LensDocument } from './document'
+import { parseDocument } from './contract'
 import { PlaceholderPanel } from './PlaceholderPanel'
 import './styles.css'
 
+const document = parseDocument(fixture)
+
 export const PlaceholderStat: Story = () => (
   <div className="lens-root">
-    <PlaceholderPanel document={fixture as LensDocument} locale="en" />
+    <PlaceholderPanel document={document} locale="en" />
   </div>
 )
 

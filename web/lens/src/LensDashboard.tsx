@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import fixture from '../fixtures/small.json'
-import type { LensDocument } from './document'
+import { parseDocument, type DashboardDocument } from './contract'
 import { PlaceholderPanel } from './PlaceholderPanel'
 
 export interface LensDashboardProps {
@@ -11,11 +11,11 @@ export interface LensDashboardProps {
 }
 
 type LoadState =
-  | { status: 'ready'; document: LensDocument }
+  | { status: 'ready'; document: DashboardDocument }
   | { status: 'loading' }
   | { status: 'error'; message: string }
 
-const bundledFixture = fixture as LensDocument
+const bundledFixture = parseDocument(fixture)
 
 export function LensDashboard({ src, locale = 'en', theme = 'light', csrf }: LensDashboardProps) {
   const [state, setState] = useState<LoadState>(() => ({
@@ -41,7 +41,7 @@ export function LensDashboard({ src, locale = 'en', theme = 'light', csrf }: Len
         if (!response.ok) {
           throw new Error(`request failed with ${response.status}`)
         }
-        return (await response.json()) as LensDocument
+        return parseDocument(await response.json())
       })
       .then((document) => setState({ status: 'ready', document }))
       .catch((error: unknown) => {
