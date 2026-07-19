@@ -1,5 +1,5 @@
 import type { EChartsOption } from 'echarts'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
 import { buildChartOption } from './options'
 import type { EChartsTheme } from './theme'
@@ -62,9 +62,16 @@ interface TestAxis {
   axisLabel?: { formatter?: (value: unknown) => string }
 }
 
+interface TestTooltip {
+  formatter?: (params: unknown) => string
+  renderMode?: string
+  valueFormatter?: (value: unknown) => string
+}
+
 function testOption(option: EChartsOption) {
   return option as unknown as {
     series: TestSeries[]
+    tooltip: TestTooltip
     xAxis: TestAxis
     yAxis: TestAxis
   }
@@ -127,5 +134,58 @@ describe('buildChartOption', () => {
     expect(chart.series.every((series) => series.type === 'line')).toBe(true)
     expect(chart.series[0]?.areaStyle !== undefined).toBe(hasArea)
     expect(chart.yAxis.axisLabel?.formatter?.(1200)).toBe('$1200')
+  })
+
+  it.each(['line', 'area'] as const)('uses sorted timestamp pairs on a time axis for %s', (kind) => {
+    const chartInput = input(kind)
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+    chartInput.frame.rows = [
+      ['late', '2026-04-10T00:00:00Z', 'Revenue', 300],
+      ['early', '2026-01-01T00:00:00Z', 'Revenue', 100],
+      ['middle', '2026-01-03T00:00:00Z', 'Revenue', 200],
+    ]
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.xAxis.type).toBe('time')
+    expect(chart.xAxis.data).toBeUndefined()
+    expect(chart.series[0]?.data?.map((item) => item?.value)).toEqual([
+      [Date.parse('2026-01-01T00:00:00Z'), 100],
+      [Date.parse('2026-01-03T00:00:00Z'), 200],
+      [Date.parse('2026-04-10T00:00:00Z'), 300],
+    ])
+  })
+
+  it('keeps non-time line categories unchanged', () => {
+    const chart = testOption(buildChartOption(input('line'), theme))
+
+    expect(chart.xAxis).toMatchObject({ type: 'category', data: ['Jan', 'Feb'] })
+    expect(chart.series[0]?.data?.map((item) => item?.value)).toEqual([1200, 1500])
+  })
+
+  it('keeps bars categorical even when the category column is time', () => {
+    const chartInput = input('bar')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.xAxis).toMatchObject({ type: 'category', data: ['Jan', 'Feb'] })
+  })
+
+  it('delegates time axis and tooltip formatting to the chart input', () => {
+    const chartInput = input('line')
+    const format = vi.fn((field: string, value: unknown) => `${field}=${String(value)}`)
+    const time = Date.parse('2026-01-01T00:00:00Z')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+    chartInput.format = format
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.xAxis.axisLabel?.formatter?.(time)).toBe(`category=${time}`)
+    expect(chart.tooltip.renderMode).toBe('richText')
+    expect(chart.tooltip.formatter?.([{ axisValue: time, seriesName: 'Revenue', value: [time, 1200] }]))
+      .toBe(`category=${time}\nRevenue: value=1200`)
+    expect(format).toHaveBeenCalledWith('category', time)
+    expect(format).toHaveBeenCalledWith('value', 1200)
   })
 })

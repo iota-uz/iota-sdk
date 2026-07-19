@@ -8,6 +8,7 @@ interface RowPoint {
   category: string
   nodeKey?: string
   series: string
+  timestamp?: number
   value: ChartValue
 }
 
@@ -31,6 +32,17 @@ function chartValue(value: unknown): ChartValue {
   return '-'
 }
 
+function timestamp(value: unknown): number | undefined {
+  if (value instanceof Date) {
+    const parsed = value.getTime()
+    return Number.isFinite(parsed) ? parsed : undefined
+  }
+  if (typeof value === 'number') return Number.isFinite(value) ? value : undefined
+  if (typeof value !== 'string' || value.trim() === '') return undefined
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
 function rowPoints(input: ChartInput): RowPoint[] {
   const categoryField = input.encoding.category ?? input.encoding.label
   const categoryIndex = columnIndex(input, categoryField)
@@ -42,6 +54,7 @@ function rowPoints(input: ChartInput): RowPoint[] {
     category: text(row[categoryIndex]),
     nodeKey: idIndex >= 0 ? text(row[idIndex]) || undefined : undefined,
     series: seriesIndex >= 0 ? text(row[seriesIndex]) : '',
+    timestamp: timestamp(row[categoryIndex]),
     value: chartValue(row[valueIndex]),
   }))
 }
@@ -63,6 +76,25 @@ function dataItem(point: RowPoint, input: ChartInput, theme: EChartsTheme) {
 function valueFormatter(input: ChartInput) {
   const field = input.encoding.value ?? ''
   return (value: unknown) => input.format(field, value)
+}
+
+function tooltipValue(value: unknown): unknown {
+  return Array.isArray(value) ? (value as unknown[])[1] : value
+}
+
+function timeTooltipFormatter(input: ChartInput, categoryField: string) {
+  const valueField = input.encoding.value ?? ''
+  return (params: unknown) => {
+    const entries = Array.isArray(params) ? params : [params]
+    const records = entries.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    const header = input.format(categoryField, records[0]?.axisValue)
+    const lines = records.map((entry) => {
+      const seriesName = text(entry.seriesName)
+      const formatted = input.format(valueField, tooltipValue(entry.value))
+      return seriesName ? `${seriesName}: ${formatted}` : formatted
+    })
+    return [header, ...lines].join('\n')
+  }
 }
 
 function baseOption(theme: EChartsTheme): EChartsOption {
@@ -123,18 +155,30 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const formatter = valueFormatter(input)
   const isBar = input.kind === 'bar' || input.kind === 'hbar'
   const horizontal = input.kind === 'hbar'
+  const categoryField = input.encoding.category ?? input.encoding.label ?? ''
+  const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
   const series = seriesNames.map((name) => ({
     type: isBar ? 'bar' as const : 'line' as const,
     name: name || undefined,
     itemStyle: { color: theme.seriesColor(name) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
     showSymbol: !isBar,
-    data: categories.map((category) => {
-      const point = points.find((candidate) => candidate.category === category && candidate.series === name)
-      return point ? dataItem(point, input, theme) : null
-    }),
+    data: timeAxis
+      ? points
+        .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
+        .sort((left, right) => left.timestamp - right.timestamp)
+        .map((point) => ({ ...dataItem(point, input, theme), value: [point.timestamp, point.value] }))
+      : categories.map((category) => {
+        const point = points.find((candidate) => candidate.category === category && candidate.series === name)
+        return point ? dataItem(point, input, theme) : null
+      }),
   }))
   const categoryAxis = { type: 'category' as const, data: categories, ...axisStyle(theme) }
+  const temporalAxis = {
+    type: 'time' as const,
+    ...axisStyle(theme),
+    axisLabel: { color: theme.mutedText, formatter: (value: number) => input.format(categoryField, value) },
+  }
   const valueAxis = {
     type: 'value' as const,
     ...axisStyle(theme),
@@ -146,12 +190,14 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     grid: { left: 16, right: 16, top: 24, bottom: 12, containLabel: true },
     tooltip: {
       trigger: 'axis',
+      renderMode: timeAxis ? 'richText' : undefined,
       backgroundColor: theme.card,
       borderColor: theme.border,
       textStyle: { color: theme.text },
-      valueFormatter: formatter,
+      formatter: timeAxis ? timeTooltipFormatter(input, categoryField) : undefined,
+      valueFormatter: timeAxis ? undefined : formatter,
     },
-    xAxis: horizontal ? valueAxis : categoryAxis,
+    xAxis: horizontal ? valueAxis : timeAxis ? temporalAxis : categoryAxis,
     yAxis: horizontal ? categoryAxis : valueAxis,
     series,
   }

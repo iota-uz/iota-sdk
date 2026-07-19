@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
-import { PlaceholderPanel } from '../PlaceholderPanel'
+import { StatPanel } from '../panels'
 import { DashboardRuntimeProvider, DocumentProvider, useDashboard, useDrill, usePanelFrame } from './provider'
 
 const document = parseDocument({
@@ -20,6 +20,7 @@ const document = parseDocument({
     },
   },
 })
+const statPanel = document.panels[0]!
 
 function response(value: number): Response {
   return new Response(JSON.stringify({
@@ -54,7 +55,7 @@ function RuntimeFixture({ fetcher }: { fetcher: typeof fetch }) {
       <DocumentProvider initialDocument={document} fetcher={fetcher}>
         <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
           <Controls />
-          <PlaceholderPanel />
+          <StatPanel panel={statPanel} />
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>
@@ -109,7 +110,7 @@ describe('DashboardRuntimeProvider', () => {
         <DocumentProvider initialDocument={document}>
           <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
             <Controls />
-            <PlaceholderPanel />
+            <StatPanel panel={statPanel} />
             <FrameProbe panelId="unrelated" onRender={unrelatedRender} />
           </DashboardRuntimeProvider>
         </DocumentProvider>

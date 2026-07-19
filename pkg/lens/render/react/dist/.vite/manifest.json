@@ -1,11 +1,35 @@
 {
   "index.html": {
-    "file": "assets/lens-dashboard-DujOML7n.js",
+    "file": "assets/lens-dashboard-Bfghl-F6.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
+    "dynamicImports": [
+      "src/charts/index.ts"
+    ],
     "css": [
-      "assets/index-B5c5DN8C.css"
+      "assets/index-DY-B492t.css"
+    ]
+  },
+  "src/charts/echarts/adapter.ts": {
+    "file": "assets/adapter-BhioMeQ5.js",
+    "name": "adapter",
+    "src": "src/charts/echarts/adapter.ts",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ]
+  },
+  "src/charts/index.ts": {
+    "file": "assets/index-Uy_9LNt8.js",
+    "name": "index",
+    "src": "src/charts/index.ts",
+    "isDynamicEntry": true,
+    "imports": [
+      "index.html"
+    ],
+    "dynamicImports": [
+      "src/charts/echarts/adapter.ts"
     ]
   }
 }

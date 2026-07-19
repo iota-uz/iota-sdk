@@ -12,10 +12,12 @@ afterEach(() => {
 
 describe('LensDashboard', () => {
   it('renders the bundled document when src is omitted', () => {
-    render(<LensDashboard locale="en" />)
+    const view = render(<LensDashboard locale="en" />)
 
-    expect(screen.getByText('42')).toBeInTheDocument()
-    expect(screen.getByText(/Bundled fixture/)).toBeInTheDocument()
+    expect(screen.getByText('$4,286,000')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Operations overview' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Headline metrics' })).toBeInTheDocument()
+    expect(view.container.querySelector('[style*="--lens-panel-span: 4"]')).not.toBeNull()
   })
 
   it('loads a document with same-origin credentials and csrf', async () => {
@@ -54,7 +56,7 @@ describe('LensDashboard', () => {
       panels: [],
     })
     render(<LensDashboard initialDocument={empty} />)
-    expect(screen.getByText('The fixture contains no panels.')).toBeInTheDocument()
+    expect(screen.getByText('The document contains no panels.')).toBeInTheDocument()
   })
 
   it('aborts the document fetch on unmount', () => {
