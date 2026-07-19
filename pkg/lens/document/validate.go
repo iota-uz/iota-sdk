@@ -3,7 +3,6 @@ package document
 import (
 	"fmt"
 	"math"
-	"reflect"
 	"strings"
 	"time"
 
@@ -178,7 +177,7 @@ func (d *DashboardDocument) validateDrill() error {
 				return fmt.Errorf("drill level %q has duplicate child key %q", key, child.Key)
 			}
 			seen[child.Key] = struct{}{}
-			if err := validateNodePath("drill child", child.Key, child.Path); err != nil {
+			if err := validateChildPath(key, level.Path, child); err != nil {
 				return err
 			}
 			pathID := pathIdentity(child.Path)
@@ -391,6 +390,21 @@ func validateNodePath(owner string, key NodeKey, path NodePath) error {
 	return nil
 }
 
+func validateChildPath(parentKey NodeKey, parentPath NodePath, child Node) error {
+	if err := validateNodePath("drill child", child.Key, child.Path); err != nil {
+		return err
+	}
+	if len(child.Path) != len(parentPath)+1 {
+		return fmt.Errorf("drill child %q path must extend parent level %q path", child.Key, parentKey)
+	}
+	for index, segment := range parentPath {
+		if child.Path[index] != segment {
+			return fmt.Errorf("drill child %q path must extend parent level %q path", child.Key, parentKey)
+		}
+	}
+	return nil
+}
+
 func findPerspective(perspectives []Perspective, id string) Perspective {
 	for _, perspective := range perspectives {
 		if perspective.ID == id {
@@ -409,17 +423,31 @@ func pathIdentity(path NodePath) string {
 }
 
 func numericValue(value any) (float64, bool) {
-	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() {
-		return 0, false
-	}
-	switch reflected.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return float64(reflected.Int()), true
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		return float64(reflected.Uint()), true
-	case reflect.Float32, reflect.Float64:
-		return reflected.Float(), true
+	switch number := value.(type) {
+	case int:
+		return float64(number), true
+	case int8:
+		return float64(number), true
+	case int16:
+		return float64(number), true
+	case int32:
+		return float64(number), true
+	case int64:
+		return float64(number), true
+	case uint:
+		return float64(number), true
+	case uint8:
+		return float64(number), true
+	case uint16:
+		return float64(number), true
+	case uint32:
+		return float64(number), true
+	case uint64:
+		return float64(number), true
+	case float32:
+		return float64(number), true
+	case float64:
+		return number, true
 	default:
 		return 0, false
 	}

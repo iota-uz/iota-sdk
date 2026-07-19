@@ -2,6 +2,7 @@ package document
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"path/filepath"
@@ -41,11 +42,32 @@ func TestDashboardDocumentValidate_DrillIdentity(t *testing.T) {
 		}
 		require.ErrorContains(t, doc.Validate(), "duplicate child key")
 	})
-	t.Run("duplicate full path", func(t *testing.T) {
+	t.Run("duplicate full paths cannot bypass parent consistency", func(t *testing.T) {
 		doc := testDocument()
 		doc.Drill.Edges["first"] = Level{Path: NodePath{"first"}, Children: []Node{{Key: "leaf", Path: NodePath{"root", "leaf"}, Label: "One"}}, Perspectives: []PerspectiveRef{}}
 		doc.Drill.Edges["second"] = Level{Path: NodePath{"second"}, Children: []Node{{Key: "leaf", Path: NodePath{"root", "leaf"}, Label: "Two"}}, Perspectives: []PerspectiveRef{}}
-		require.ErrorContains(t, doc.Validate(), "duplicates full path")
+		require.ErrorContains(t, doc.Validate(), "must extend parent level")
+	})
+	t.Run("level path must end with registered edge key", func(t *testing.T) {
+		doc := testDocument()
+		doc.Drill.Edges["root"] = Level{Path: NodePath{"other"}, Children: []Node{}, Perspectives: []PerspectiveRef{}}
+		require.ErrorContains(t, doc.Validate(), "invalid full path")
+	})
+	t.Run("child path must extend parent path", func(t *testing.T) {
+		doc := testDocument()
+		doc.Drill.Edges["root"] = Level{
+			Path: NodePath{"root"}, Perspectives: []PerspectiveRef{},
+			Children: []Node{{Key: "leaf", Path: NodePath{"unrelated", "leaf"}}},
+		}
+		require.ErrorContains(t, doc.Validate(), "must extend parent level")
+	})
+	t.Run("child path cannot skip a parent segment", func(t *testing.T) {
+		doc := testDocument()
+		doc.Drill.Edges["root"] = Level{
+			Path: NodePath{"root"}, Perspectives: []PerspectiveRef{},
+			Children: []Node{{Key: "leaf", Path: NodePath{"root", "extra", "leaf"}}},
+		}
+		require.ErrorContains(t, doc.Validate(), "must extend parent level")
 	})
 }
 
@@ -82,9 +104,16 @@ func TestDashboardDocumentValidate_Semantics(t *testing.T) {
 		doc.Panels[0].Actions = []Action{{Kind: ActionNavigateToLeaf, URLTemplate: "/evidence/{id}", Params: []ActionParam{}, Payload: map[string]Source{}}}
 		require.NoError(t, doc.Validate())
 	})
+	t.Run("emit event action", func(t *testing.T) {
+		doc := testDocument()
+		doc.Panels[0].Actions = []Action{{
+			Kind: ActionEmitEvent, Event: "lens.selected", Params: []ActionParam{},
+			Payload: map[string]Source{"id": {Kind: ValueSourceField, Name: "label"}},
+		}}
+		require.NoError(t, doc.Validate())
+	})
 	for _, value := range []float64{-1, math.Inf(1), math.NaN()} {
-		value := value
-		t.Run("invalid partition value", func(t *testing.T) {
+		t.Run(fmt.Sprintf("invalid partition value %v", value), func(t *testing.T) {
 			doc := testDocument()
 			doc.Panels[0].Semantics = SemanticsPartition
 			frame := doc.Frames[doc.Panels[0].Frame]

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +42,7 @@ type memorySnapshot struct {
 	expiresAt time.Time
 }
 
+// NewMemoryStore returns a bounded store whose TTL slides on Get and Append.
 func NewMemoryStore(ttl time.Duration, maxEntries int) SnapshotStore {
 	if ttl <= 0 {
 		ttl = defaultSnapshotTTL
@@ -103,10 +103,12 @@ func (m *memoryStore) Get(ctx context.Context, id string) (*Snapshot, error) {
 		return nil, ErrSnapshotGone
 	}
 	entry := element.Value.(*memorySnapshot)
-	if !entry.expiresAt.After(m.clock()) {
+	now := m.clock()
+	if !entry.expiresAt.After(now) {
 		m.remove(element)
 		return nil, ErrSnapshotGone
 	}
+	entry.expiresAt = now.Add(m.ttl)
 	m.lru.MoveToFront(element)
 	return cloneSnapshot(entry.snapshot), nil
 }
@@ -123,7 +125,8 @@ func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef
 		return ErrSnapshotGone
 	}
 	entry := element.Value.(*memorySnapshot)
-	if !entry.expiresAt.After(m.clock()) {
+	now := m.clock()
+	if !entry.expiresAt.After(now) {
 		m.remove(element)
 		return ErrSnapshotGone
 	}
@@ -136,6 +139,7 @@ func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef
 		}
 		entry.snapshot.Frames[ref] = cloneFrame(frame)
 	}
+	entry.expiresAt = now.Add(m.ttl)
 	m.lru.MoveToFront(element)
 	return nil
 }
@@ -178,71 +182,32 @@ func cloneFrame(frame Frame) Frame {
 }
 
 func cloneAny(value any) any {
-	if value == nil {
-		return nil
-	}
-	return cloneReflect(reflect.ValueOf(value)).Interface()
-}
-
-func cloneReflect(value reflect.Value) reflect.Value {
-	if !value.IsValid() {
-		return reflect.ValueOf((*any)(nil)).Elem()
-	}
-	if value.Type() == reflect.TypeOf(time.Time{}) {
-		return value
-	}
-	switch value.Kind() {
-	case reflect.Interface:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
+	switch typed := value.(type) {
+	case nil, bool, string,
+		int, int8, int16, int32, int64,
+		uint, uint8, uint16, uint32, uint64,
+		float32, float64, time.Time:
+		return typed
+	case []any:
+		if typed == nil {
+			return []any(nil)
 		}
-		cloned := cloneReflect(value.Elem())
-		result := reflect.New(value.Type()).Elem()
-		result.Set(cloned)
-		return result
-	case reflect.Pointer:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-		result := reflect.New(value.Type().Elem())
-		result.Elem().Set(cloneReflect(value.Elem()))
-		return result
-	case reflect.Map:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
-		}
-		result := reflect.MakeMapWithSize(value.Type(), value.Len())
-		iterator := value.MapRange()
-		for iterator.Next() {
-			result.SetMapIndex(cloneReflect(iterator.Key()), cloneReflect(iterator.Value()))
+		result := make([]any, len(typed))
+		for index, item := range typed {
+			result[index] = cloneAny(item)
 		}
 		return result
-	case reflect.Slice:
-		if value.IsNil() {
-			return reflect.Zero(value.Type())
+	case map[string]any:
+		if typed == nil {
+			return map[string]any(nil)
 		}
-		result := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
-		for index := 0; index < value.Len(); index++ {
-			result.Index(index).Set(cloneReflect(value.Index(index)))
-		}
-		return result
-	case reflect.Array:
-		result := reflect.New(value.Type()).Elem()
-		for index := 0; index < value.Len(); index++ {
-			result.Index(index).Set(cloneReflect(value.Index(index)))
-		}
-		return result
-	case reflect.Struct:
-		result := reflect.New(value.Type()).Elem()
-		result.Set(value)
-		for index := 0; index < value.NumField(); index++ {
-			if result.Field(index).CanSet() && value.Type().Field(index).IsExported() {
-				result.Field(index).Set(cloneReflect(value.Field(index)))
-			}
+		result := make(map[string]any, len(typed))
+		for key, item := range typed {
+			result[key] = cloneAny(item)
 		}
 		return result
 	default:
-		return value
+		return typed
 	}
 }
 

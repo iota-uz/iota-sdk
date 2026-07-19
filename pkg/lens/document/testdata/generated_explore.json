@@ -72,7 +72,7 @@
         "path": [
           "metric"
         ],
-        "label": "metric",
+        "label": "",
         "children": [
           {
             "key": "metric/focus",
@@ -118,7 +118,7 @@
               "metric/focus/composition/detail",
               "metric/focus/composition/detail/leaf"
             ],
-            "label": "leaf",
+            "label": "",
             "action": {
               "kind": "navigate_to_leaf",
               "method": "GET",
@@ -160,7 +160,7 @@
               "metric/focus/composition/root",
               "metric/focus/composition/root/a"
             ],
-            "label": "a",
+            "label": "",
             "target": "metric/focus/composition/detail"
           }
         ],

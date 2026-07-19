@@ -154,6 +154,7 @@ func appendPanelTree(doc *DashboardDocument, spec panel.Spec, result *runtime.Re
 }
 
 func panelKind(kind panel.Kind) (PanelKind, error) {
+	//nolint:exhaustive // Container/gauge kinds are not part of the wire contract; default rejects them.
 	switch kind {
 	case panel.KindStat:
 		return PanelKindStat, nil
@@ -177,6 +178,7 @@ func panelKind(kind panel.Kind) (PanelKind, error) {
 }
 
 func inferSemantics(kind PanelKind) Semantics {
+	//nolint:exhaustive // Remaining kinds are series-shaped by default.
 	switch kind {
 	case PanelKindPie, PanelKindDonut:
 		return SemanticsPartition
@@ -231,6 +233,7 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 
 func convertFormat(spec format.Spec) (FieldFormat, bool) {
 	result := FieldFormat{Precision: spec.Precision, Layout: spec.Layout}
+	//nolint:exhaustive // Formats without a wire representation are dropped via default.
 	switch spec.Kind {
 	case format.KindMoney:
 		result.Kind = FormatMoney
@@ -279,6 +282,7 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 }
 
 func columnType(kind frame.FieldType) (ColumnType, error) {
+	//nolint:exhaustive // FieldTypeUnknown is rejected via default.
 	switch kind {
 	case frame.FieldTypeString, frame.FieldTypeLocalized:
 		return ColumnString, nil
@@ -316,6 +320,7 @@ func convertAction(spec action.Spec, leaf bool) (Action, bool) {
 		Method: spec.Method, URLTemplate: spec.URL, Event: spec.Event, PreserveQuery: spec.PreserveQuery,
 		Params: make([]ActionParam, 0, len(spec.Params)), Payload: make(map[string]Source),
 	}
+	//nolint:exhaustive // HTMX/cube-drill/explore actions are legacy renderer concerns, not wire actions.
 	switch spec.Kind {
 	case action.KindNavigate:
 		if leaf {
@@ -373,7 +378,7 @@ func defaultExplorerSemantics(spec explore.Spec, fallback Semantics) Semantics {
 func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Result) error {
 	rootKey := explorerRootKey(spec.ID)
 	rootPath := NodePath{rootKey}
-	root := Level{Path: rootPath, Label: spec.ID, Children: make([]Node, 0, len(spec.Branches)), Perspectives: make([]PerspectiveRef, 0)}
+	root := Level{Path: rootPath, Label: "", Children: make([]Node, 0, len(spec.Branches)), Perspectives: make([]PerspectiveRef, 0)}
 	if host := findDocumentPanel(doc.Panels, spec.HostPanelID); host != nil {
 		root.Frame = host.Frame
 	}
@@ -411,7 +416,7 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				for _, edge := range nodeSpec.Edges {
 					pointKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key, edge.PointKey)
 					childPath := appendPath(nodePath, pointKey)
-					child := Node{Key: pointKey, Path: childPath, Label: edge.PointKey}
+					child := Node{Key: pointKey, Path: childPath, Label: ""}
 					if edge.ToNode != "" {
 						child.Target = qualifiedKey(spec.ID, branch.Key, view.Key, edge.ToNode)
 					}

@@ -33,6 +33,10 @@ func TestBuild_ExistingExploreSpec(t *testing.T) {
 	require.Contains(t, doc.Drill.Edges, *doc.Panels[0].DrillRoot)
 	require.Len(t, doc.Perspectives, 1)
 	require.Equal(t, NodeKey("metric/focus/composition/root"), doc.Perspectives[0].Root)
+	require.Empty(t, doc.Drill.Edges["metric"].Label)
+	require.Equal(t, "Focus", doc.Drill.Edges["metric/focus"].Label)
+	require.Equal(t, "Root", doc.Drill.Edges["metric/focus/composition/root"].Label)
+	require.Empty(t, doc.Drill.Edges["metric/focus/composition/root"].Children[0].Label)
 
 	payload, err := json.MarshalIndent(doc, "", "  ")
 	require.NoError(t, err)

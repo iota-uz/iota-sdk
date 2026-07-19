@@ -2,7 +2,6 @@ package document
 
 import (
 	"context"
-	"errors"
 	"testing"
 	"time"
 
@@ -52,6 +51,29 @@ func TestMemoryStore_ExpiryAndUnknownSnapshots(t *testing.T) {
 	require.ErrorIs(t, err, ErrSnapshotGone)
 }
 
+func TestMemoryStore_TTLSlidesOnAccess(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.July, 19, 12, 0, 0, 0, time.UTC)
+	store := NewMemoryStore(time.Minute, 3).(*memoryStore)
+	store.clock = func() time.Time { return now }
+	require.NoError(t, store.Put(context.Background(), &Snapshot{ID: "visited"}))
+	require.NoError(t, store.Put(context.Background(), &Snapshot{ID: "appended"}))
+	require.NoError(t, store.Put(context.Background(), &Snapshot{ID: "untouched"}))
+
+	now = now.Add(45 * time.Second)
+	_, err := store.Get(context.Background(), "visited")
+	require.NoError(t, err)
+	require.NoError(t, store.Append(context.Background(), "appended", map[FrameRef]Frame{"detail": testFrame(1)}))
+
+	now = now.Add(30 * time.Second)
+	_, err = store.Get(context.Background(), "visited")
+	require.NoError(t, err)
+	_, err = store.Get(context.Background(), "appended")
+	require.NoError(t, err)
+	_, err = store.Get(context.Background(), "untouched")
+	require.ErrorIs(t, err, ErrSnapshotGone)
+}
+
 func TestMemoryStore_DefaultsAndBound(t *testing.T) {
 	t.Parallel()
 	defaults := NewMemoryStore(0, 0).(*memoryStore)
@@ -62,7 +84,7 @@ func TestMemoryStore_DefaultsAndBound(t *testing.T) {
 	require.NoError(t, store.Put(context.Background(), &Snapshot{ID: "first"}))
 	require.NoError(t, store.Put(context.Background(), &Snapshot{ID: "second"}))
 	_, err := store.Get(context.Background(), "first")
-	require.True(t, errors.Is(err, ErrSnapshotGone))
+	require.ErrorIs(t, err, ErrSnapshotGone)
 	_, err = store.Get(context.Background(), "second")
 	require.NoError(t, err)
 }
