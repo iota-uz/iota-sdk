@@ -1,7 +1,8 @@
 import { useCallback, useMemo, useState } from 'react'
 import type { NodeKey, Panel } from '../contract'
 import type { ChartAdapter, ChartFormatResolver, ChartKind } from '../charts/adapter'
-import { useDashboard, useDrill, useFormat, usePanelFrame } from '../runtime'
+import { childForSelection } from '../explore/model'
+import { levelForPath, useDashboard, useDrill, useFormat, usePanelFrame } from '../runtime'
 import { ChartHost } from './ChartHost'
 import { encodingRoles } from './data'
 import { PanelFrame } from './PanelFrame'
@@ -35,12 +36,16 @@ function useChartFormat(panel: Panel): ChartFormatResolver {
 
 export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const frame = usePanelFrame(panel.id)
-  const { document } = useDashboard()
+  const { document, navigation } = useDashboard()
   const { drillInto } = useDrill()
   const format = useChartFormat(panel)
   const [selectedKey, setSelectedKey] = useState<NodeKey>()
   const [hoveredKey, setHoveredKey] = useState<NodeKey | null>(null)
-  const drillable = Boolean(panel.drillRoot)
+  const active = navigation.panelId === panel.id && navigation.path.length > 0
+  const level = active
+    ? levelForPath(document, navigation.path)
+    : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
+  const drillable = level ? level.children.some(({ target }) => target) : Boolean(panel.drillRoot)
   const kind = panel.kind as ChartKind
   const input = useMemo(() => frame.data ? ({
     kind,
@@ -52,9 +57,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   }) : undefined, [document.theme, format, frame.data, kind, panel.encoding, selectedKey])
   const select = useCallback((key: NodeKey) => {
     if (!drillable) return
+    const node = childForSelection(level, key)
+    if (level && !node?.target) return
     setSelectedKey(key)
-    drillInto(key, panel.id)
-  }, [drillInto, drillable, panel.id])
+    drillInto(node?.key ?? key, panel.id)
+  }, [drillInto, drillable, level, panel.id])
 
   return (
     <PanelFrame panel={panel} frame={frame}>

@@ -7,7 +7,8 @@ import type { ChartAdapter, ChartInput } from '../charts/adapter'
 const runtime = vi.hoisted(() => ({
   frame: undefined as PanelFrameState | undefined,
   drillInto: vi.fn(),
-  document: { theme: { palette: {}, series: {} } } as DashboardDocument,
+  document: { theme: { palette: {}, series: {} }, drill: { edges: {}, inlineDepth: 0 } } as DashboardDocument,
+  navigation: { path: [], history: [] },
 }))
 
 vi.mock('../runtime', () => ({
@@ -20,7 +21,7 @@ vi.mock('../runtime', () => ({
     return '—'
   },
   useDrill: () => ({ drillInto: runtime.drillInto }),
-  useDashboard: () => ({ document: runtime.document }),
+  useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
 }))
 
 import { BarPanel, LinePanel, PiePanel } from './ChartPanel'

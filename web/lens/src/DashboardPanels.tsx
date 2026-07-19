@@ -1,6 +1,7 @@
 import type { CSSProperties } from 'react'
 import { useDashboard } from './runtime'
 import { RegisteredPanel, type PanelRegistry } from './panels'
+import { ExplorePanel } from './explore'
 
 export interface DashboardPanelsProps {
   registry?: PanelRegistry
@@ -44,7 +45,9 @@ export function DashboardPanels({ registry }: DashboardPanelsProps) {
                 }
                 return (
                   <div className="lens-grid-item" key={panel.id} style={spanStyle(item.span)}>
-                    <RegisteredPanel panel={panel} registry={registry} />
+                    {panel.drillRoot
+                      ? <ExplorePanel panel={panel} registry={registry} />
+                      : <RegisteredPanel panel={panel} registry={registry} />}
                   </div>
                 )
               })}

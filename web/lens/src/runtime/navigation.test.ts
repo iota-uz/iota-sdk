@@ -49,6 +49,20 @@ describe('navigationReducer', () => {
     expect(navigationReducer(next, navigationActions.switchPerspective('new'))).toBe(next)
   })
 
+  it('accepts resolved contract paths for drill and perspective transitions', () => {
+    const initial = createNavigationState({ panelId: 'host', path: ['root', 'branch'] })
+    const perspective = navigationReducer(initial, navigationActions.switchPerspective('composition', [
+      'root', 'branch', 'composition', 'composition/root',
+    ]))
+    const detail = navigationReducer(perspective, navigationActions.drillInto('point', 'host', [
+      'root', 'branch', 'composition', 'composition/detail',
+    ]))
+
+    expect(perspective.path).toEqual(['root', 'branch', 'composition', 'composition/root'])
+    expect(detail.path).toEqual(['root', 'branch', 'composition', 'composition/detail'])
+    expect(detail.history).toHaveLength(2)
+  })
+
   it('resets the view and history', () => {
     const state = navigationReducer(createNavigationState({ path: ['root'] }), navigationActions.drillInto('detail'))
     expect(navigationReducer(state, navigationActions.reset())).toEqual({ path: [], history: [] })

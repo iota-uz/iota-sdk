@@ -256,12 +256,33 @@ function runtimeNavigationReducer(
   action: Parameters<typeof navigationReducer>[1],
 ): NavigationState {
   if (action.type === 'drillInto') {
-    const path = [...state.path, action.nodeKey]
-    if (!pathResolves(document, path, state.perspectiveId)) return state
+    const panelChanged = Boolean(action.panelId && action.panelId !== state.panelId)
+    const panel = action.panelId ? document.panels.find((candidate) => candidate.id === action.panelId) : undefined
+    const level = panelChanged || state.path.length === 0
+      ? (panel?.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
+      : levelForPath(document, state.path)
+    const child = level?.children.find((candidate) => candidate.key === action.nodeKey)
+    const target = child?.target ? document.drill.edges[child.target] : undefined
+    const path = action.nodeKey === panel?.drillRoot
+      ? document.drill.edges[action.nodeKey]?.path
+      : target?.path ?? child?.path
+    const perspectiveId = panelChanged ? undefined : state.perspectiveId
+    if (!path || !pathResolves(document, path, perspectiveId)) return state
+    const next = navigationReducer(state, navigationActions.drillInto(action.nodeKey, action.panelId, path))
+    return panelChanged ? { ...next, perspectiveId: undefined } : next
   }
   if (action.type === 'switchPerspective') {
     const level = levelForPath(document, state.path)
     if (!level?.perspectives.some((perspective) => perspective.id === action.perspectiveId)) return state
+    const perspective = document.perspectives.find((candidate) => candidate.id === action.perspectiveId)
+    const root = perspective ? document.drill.edges[perspective.root] : undefined
+    if (!root) return state
+    return navigationReducer(state, navigationActions.switchPerspective(action.perspectiveId, root.path))
+  }
+  if (action.type === 'jumpTo') {
+    const next = navigationReducer(state, action)
+    if (next === state || pathResolves(document, next.path, next.perspectiveId)) return next
+    return pathResolves(document, next.path) ? { ...next, perspectiveId: undefined } : state
   }
   return navigationReducer(state, action)
 }
@@ -278,6 +299,14 @@ function frameForPanel(
   }
   const level = levelForPath(document, navigation.path)
   if (!level) return { frame: document.frames[panel.frame], shouldQuery: false }
+  const levelKey = level.path.at(-1)
+  const isPerspectiveSegment = level.perspectives.some(({ id }) => {
+    const perspective = document.perspectives.find((candidate) => candidate.id === id)
+    return perspective?.branchKey === levelKey
+  })
+  if (isPerspectiveSegment && !level.frame) {
+    return { frame: document.frames[panel.frame], shouldQuery: false }
+  }
   if (level.frame) {
     const frame = loadedFrames.get(level.frame) ?? document.frames[level.frame]
     if (frame) return { frame, shouldQuery: false }

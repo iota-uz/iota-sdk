@@ -11,10 +11,10 @@ export interface NavigationState extends NavigationView {
 }
 
 export type NavigationAction =
-  | { type: 'drillInto'; nodeKey: NodeKey; panelId?: string }
+  | { type: 'drillInto'; nodeKey: NodeKey; panelId?: string; path?: NodePath }
   | { type: 'back' }
   | { type: 'jumpTo'; breadcrumbIndex: number }
-  | { type: 'switchPerspective'; perspectiveId: string }
+  | { type: 'switchPerspective'; perspectiveId: string; path?: NodePath }
   | { type: 'reset' }
   | { type: 'restore'; view: NavigationView; history?: Array<NavigationView> }
 
@@ -61,7 +61,7 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
     case 'drillInto':
       return transition(state, {
         panelId: action.panelId ?? state.panelId,
-        path: [...state.path, action.nodeKey],
+        path: action.path ?? [...state.path, action.nodeKey],
         perspectiveId: state.perspectiveId,
       })
     case 'back': {
@@ -74,7 +74,11 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
       return transition(state, { ...state, path: state.path.slice(0, action.breadcrumbIndex + 1) })
     }
     case 'switchPerspective':
-      return transition(state, { ...state, perspectiveId: action.perspectiveId })
+      return transition(state, {
+        ...state,
+        path: action.path ?? state.path,
+        perspectiveId: action.perspectiveId,
+      })
     case 'reset':
       return createNavigationState()
     case 'restore':
@@ -83,10 +87,10 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
 }
 
 export const navigationActions = {
-  drillInto: (nodeKey: NodeKey, panelId?: string): NavigationAction => ({ type: 'drillInto', nodeKey, panelId }),
+  drillInto: (nodeKey: NodeKey, panelId?: string, path?: NodePath): NavigationAction => ({ type: 'drillInto', nodeKey, panelId, path }),
   back: (): NavigationAction => ({ type: 'back' }),
   jumpTo: (breadcrumbIndex: number): NavigationAction => ({ type: 'jumpTo', breadcrumbIndex }),
-  switchPerspective: (perspectiveId: string): NavigationAction => ({ type: 'switchPerspective', perspectiveId }),
+  switchPerspective: (perspectiveId: string, path?: NodePath): NavigationAction => ({ type: 'switchPerspective', perspectiveId, path }),
   reset: (): NavigationAction => ({ type: 'reset' }),
   restore: (view: NavigationView, history?: Array<NavigationView>): NavigationAction => ({ type: 'restore', view, history }),
 }
