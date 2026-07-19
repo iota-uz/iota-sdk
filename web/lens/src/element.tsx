@@ -1,5 +1,4 @@
 import { createRoot, type Root } from 'react-dom/client'
-import { getChartAdapter } from './charts'
 import { LensDashboard } from './LensDashboard'
 import { normalizeLensTheme } from './runtime'
 
@@ -7,8 +6,6 @@ const tagName = 'lens-dashboard'
 
 export class LensDashboardElement extends HTMLElement {
   static readonly observedAttributes = ['src', 'locale', 'theme', 'csrf']
-  static readonly getChartAdapter = getChartAdapter
-
   private root?: Root
 
   connectedCallback() {

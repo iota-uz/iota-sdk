@@ -11,4 +11,14 @@ describe('normalizeLensTheme', () => {
   ] as const)('normalizes %s to %s', (input, expected) => {
     expect(normalizeLensTheme(input)).toBe(expected)
   })
+
+  it('uses a dark root class when no explicit valid theme is set', () => {
+    expect(normalizeLensTheme(undefined, true)).toBe('dark')
+    expect(normalizeLensTheme('system', true)).toBe('dark')
+  })
+
+  it('gives an explicit theme precedence over the root class', () => {
+    expect(normalizeLensTheme('light', true)).toBe('light')
+    expect(normalizeLensTheme('dark', false)).toBe('dark')
+  })
 })

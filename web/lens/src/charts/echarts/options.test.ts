@@ -5,14 +5,11 @@ import { buildChartOption } from './options'
 import type { EChartsTheme } from './theme'
 
 const theme: EChartsTheme = {
-  mode: 'light',
-  background: '#f6f7f9',
   card: '#fff',
   text: '#334155',
   mutedText: '#64748b',
   border: '#e2e8f0',
   divider: '#f1f5f9',
-  accent: '#2563eb',
   selectedBorder: '#0f172a',
   fontFamily: 'Inter',
   colors: ['#2563eb', '#059669'],
@@ -46,7 +43,7 @@ function input(kind: ChartInput['kind']): ChartInput {
 interface TestDataItem {
   name?: string
   nodeKey?: string
-  itemStyle?: { opacity?: number }
+  itemStyle?: { borderColor?: string; borderWidth?: number; color?: string; opacity?: number }
   value?: unknown
 }
 
@@ -55,6 +52,7 @@ interface TestSeries {
   name?: string
   areaStyle?: unknown
   radius?: string[]
+  itemStyle?: { color?: string }
   data?: Array<TestDataItem | null>
 }
 
@@ -87,6 +85,20 @@ describe('buildChartOption', () => {
     expect(series?.data?.[0]).toMatchObject({ itemStyle: { opacity: 0.35 } })
   })
 
+  it('does not select id-less points when no selection exists', () => {
+    const chartInput = input('bar')
+    chartInput.encoding = { category: 'category', series: 'series', value: 'value' }
+    chartInput.selectedKey = undefined
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.data?.[0]).toMatchObject({
+      nodeKey: undefined,
+      itemStyle: { borderWidth: 0, opacity: 1 },
+    })
+    expect(chart.series[0]?.data?.[0]?.itemStyle?.borderColor).toBeUndefined()
+  })
+
   it.each([
     ['bar', 'category', 'value'],
     ['hbar', 'value', 'category'],
@@ -98,6 +110,12 @@ describe('buildChartOption', () => {
     expect(chart.series.every((series) => series.type === 'bar')).toBe(true)
     expect(chart.series.map((series) => series.name)).toEqual(['Revenue', 'Cost'])
     expect(chart.series[0]?.data?.[1]).toMatchObject({ value: 1500, nodeKey: 'feb-revenue' })
+  })
+
+  it.each(['bar', 'line'] as const)('applies configured series brand colors to %s series', (kind) => {
+    const chart = testOption(buildChartOption(input(kind), theme))
+
+    expect(chart.series[0]?.itemStyle?.color).toBe('#059669')
   })
 
   it.each([

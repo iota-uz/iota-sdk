@@ -48,13 +48,14 @@ function rowPoints(input: ChartInput): RowPoint[] {
 
 function dataItem(point: RowPoint, input: ChartInput, theme: EChartsTheme) {
   const dimmed = input.selectedKey !== undefined && point.nodeKey !== input.selectedKey
+  const selected = input.selectedKey !== undefined && point.nodeKey === input.selectedKey
   return {
     value: point.value,
     nodeKey: point.nodeKey,
     itemStyle: {
       opacity: dimmed ? 0.35 : 1,
-      borderColor: point.nodeKey === input.selectedKey ? theme.selectedBorder : undefined,
-      borderWidth: point.nodeKey === input.selectedKey ? 2 : 0,
+      borderColor: selected ? theme.selectedBorder : undefined,
+      borderWidth: selected ? 2 : 0,
     },
   }
 }
@@ -91,14 +92,17 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       selectedMode: false,
       label: { color: theme.text },
       labelLine: { lineStyle: { color: theme.border } },
-      data: points.map((point) => ({
-        ...dataItem(point, input, theme),
-        name: point.category,
-        itemStyle: {
-          ...dataItem(point, input, theme).itemStyle,
-          color: theme.seriesColor(point.category),
-        },
-      })),
+      data: points.map((point) => {
+        const item = dataItem(point, input, theme)
+        return {
+          ...item,
+          name: point.category,
+          itemStyle: {
+            ...item.itemStyle,
+            color: theme.seriesColor(point.category),
+          },
+        }
+      }),
     }],
   }
 }
@@ -122,7 +126,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const series = seriesNames.map((name) => ({
     type: isBar ? 'bar' as const : 'line' as const,
     name: name || undefined,
-    color: theme.seriesColor(name),
+    itemStyle: { color: theme.seriesColor(name) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
     showSymbol: !isBar,
     data: categories.map((category) => {

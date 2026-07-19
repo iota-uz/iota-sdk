@@ -23,6 +23,7 @@ class FakeResizeObserver {
 class FakeChart {
   readonly handlers = new Map<string, (event: { data?: unknown }) => void>()
   readonly options: EChartsOption[] = []
+  readonly mergeOptions: Array<{ notMerge?: boolean; replaceMerge?: string[] }> = []
   readonly resize = vi.fn()
   readonly dispose = vi.fn()
 
@@ -30,8 +31,9 @@ class FakeChart {
     this.handlers.set(name, handler)
   }
 
-  setOption(option: EChartsOption) {
+  setOption(option: EChartsOption, mergeOptions: { notMerge?: boolean; replaceMerge?: string[] }) {
     this.options.push(option)
+    this.mergeOptions.push(mergeOptions)
   }
 
   emit(name: string, event: { data?: unknown } = {}) {
@@ -53,6 +55,22 @@ function chartInput(): ChartInput {
     encoding: { id: 'id', label: 'label', value: 'value' },
     format: (_field, value) => String(value),
     theme: { palette: {}, series: {} },
+  }
+}
+
+function multiSeriesInput(seriesNames: string[]): ChartInput {
+  return {
+    ...chartInput(),
+    frame: {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'label', type: 'string' },
+        { name: 'series', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: seriesNames.map((name, index) => [`${name}/key`, 'Localized label', name, index + 1]),
+    },
+    encoding: { id: 'id', label: 'label', series: 'series', value: 'value' },
   }
 }
 
@@ -114,20 +132,45 @@ describe('ECharts adapter', () => {
     instance.dispose()
   })
 
-  it('updates data incrementally without disposing the chart', () => {
+  it('rebuilds dark theme fallbacks when the root dark class changes', async () => {
     const chart = new FakeChart()
+    const root = document.createElement('div')
+    root.className = 'lens-root'
     const element = document.createElement('div')
-    document.body.append(element)
+    root.append(element)
+    document.body.append(root)
     const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), {
       onSelect: vi.fn(),
       onHover: vi.fn(),
     })
-    const next = chartInput()
-    next.frame = { ...next.frame, rows: [['next/key', 'Next', 84]] }
 
-    instance.update(next)
+    expect(chart.options[0]?.textStyle).toMatchObject({ color: '#334155' })
+    root.classList.add('dark')
+
+    await waitFor(() => expect(chart.options.at(-1)?.textStyle).toMatchObject({ color: '#e2e8f0' }))
+    instance.dispose()
+  })
+
+  it('replaces shrinking series and axes without disposing the chart', () => {
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    document.body.append(element)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, multiSeriesInput(['Revenue', 'Cost', 'Profit']), {
+      onSelect: vi.fn(),
+      onHover: vi.fn(),
+    })
+
+    instance.update(multiSeriesInput(['Revenue']))
 
     expect(chart.options).toHaveLength(2)
+    expect(chart.mergeOptions).toHaveLength(2)
+    expect(chart.mergeOptions[1]).toEqual({
+      notMerge: false,
+      replaceMerge: ['series', 'xAxis', 'yAxis'],
+    })
+    expect(chart.options[0]?.series).toHaveLength(3)
+    expect(chart.options[1]?.series).toHaveLength(1)
+    expect(chart.options[1]?.series).toMatchObject([{ name: 'Revenue' }])
     expect(chart.dispose).not.toHaveBeenCalled()
     instance.dispose()
   })

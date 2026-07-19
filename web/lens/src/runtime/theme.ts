@@ -1,5 +1,7 @@
 export type LensThemeMode = 'light' | 'dark'
 
-export function normalizeLensTheme(value: string | null | undefined): LensThemeMode {
-  return value === 'dark' ? 'dark' : 'light'
+/** An explicit light/dark theme wins; otherwise the root dark class is used. */
+export function normalizeLensTheme(value: string | null | undefined, hasDarkClass = false): LensThemeMode {
+  if (value === 'dark' || value === 'light') return value
+  return hasDarkClass ? 'dark' : 'light'
 }
