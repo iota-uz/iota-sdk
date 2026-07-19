@@ -1,10 +1,12 @@
 package serve
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"path"
 	"strings"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -15,11 +17,26 @@ import (
 	"golang.org/x/sync/singleflight"
 )
 
-const defaultPageSize = 50
+const (
+	defaultPageSize    = 50
+	defaultWorkTimeout = 2 * time.Minute
+)
 
 // RequestResolver supplies host-owned runtime inputs such as data sources and
 // tenant scope. Serve fills empty transport fields from the HTTP request.
 type RequestResolver func(*http.Request) lensruntime.Request
+
+// Observer receives internal serve errors before a generic response is written.
+type Observer interface {
+	OnError(context.Context, string, error)
+}
+
+// ObserverFunc adapts a function to Observer.
+type ObserverFunc func(context.Context, string, error)
+
+func (f ObserverFunc) OnError(ctx context.Context, op string, err error) {
+	f(ctx, op, err)
+}
 
 // Config describes one host-registered dashboard HTTP surface.
 type Config struct {
@@ -29,7 +46,9 @@ type Config struct {
 	BasePath    string
 	InlineDepth int
 	PageSize    int
+	WorkTimeout time.Duration
 	Request     RequestResolver
+	Observer    Observer
 }
 
 // Handlers serves one dashboard registration.
@@ -40,9 +59,15 @@ type Handlers struct {
 	basePath    string
 	inlineDepth int
 	pageSize    int
+	workTimeout time.Duration
 	request     RequestResolver
+	observer    Observer
 	loads       singleflight.Group
 }
+
+type noopObserver struct{}
+
+func (noopObserver) OnError(context.Context, string, error) {}
 
 // New validates cfg and constructs the dashboard handlers.
 func New(cfg Config) (*Handlers, error) {
@@ -70,9 +95,18 @@ func New(cfg Config) (*Handlers, error) {
 	if pageSize == 0 {
 		pageSize = defaultPageSize
 	}
+	workTimeout := cfg.WorkTimeout
+	if workTimeout <= 0 {
+		workTimeout = defaultWorkTimeout
+	}
+	observer := cfg.Observer
+	if observer == nil {
+		observer = noopObserver{}
+	}
 	return &Handlers{
 		spec: cfg.Spec, engine: cfg.Engine, snapshots: cfg.Snapshots,
-		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, request: cfg.Request,
+		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
+		request: cfg.Request, observer: observer,
 	}, nil
 }
 

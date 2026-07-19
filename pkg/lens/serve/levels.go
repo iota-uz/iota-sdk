@@ -161,7 +161,7 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 	}
 	panelResult := result.Panel(target.panel.ID)
 	if panelResult.Error != nil {
-		return nil, serrors.E(op, panelResult.Error)
+		return panelResult, serrors.E(op, panelResult.Error)
 	}
 	return panelResult, nil
 }

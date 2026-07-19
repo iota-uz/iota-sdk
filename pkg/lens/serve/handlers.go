@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	lensexport "github.com/iota-uz/iota-sdk/pkg/lens/export"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 const maxQueryBodyBytes = 1 << 20
@@ -52,11 +53,11 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 	req := h.runtimeRequest(r)
 	result, err := h.engine.Execute(r.Context(), h.spec, req, lensruntime.DashboardScope())
 	if err != nil {
-		h.writeExecutionError(w, r.Context(), err)
+		h.writeExecutionError(r.Context(), w, err)
 		return
 	}
 	if result == nil {
-		writeError(w, http.StatusInternalServerError, "internal", "dashboard execution failed")
+		h.writeInternalError(r.Context(), w, "lens/serve.Document", "dashboard execution failed", fmt.Errorf("executor returned a nil dashboard result"))
 		return
 	}
 	if result.Panels == nil {
@@ -70,7 +71,10 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		}
 		levelResult, execErr := h.executeLevel(r.Context(), req, frozen, target, 0)
 		if execErr != nil {
-			h.writeExecutionError(w, r.Context(), execErr)
+			if levelResult != nil && levelResult.Error != nil {
+				continue
+			}
+			h.writeExecutionError(r.Context(), w, execErr)
 			return
 		}
 		result.Panels[target.panel.ID] = levelResult
@@ -80,7 +84,7 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		Endpoints: document.Endpoints{Query: h.endpoint("/lens/query"), Export: h.endpoint("/export")},
 	})
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "document build failed")
+		h.writeInternalError(r.Context(), w, "lens/serve.Document", "document build failed", err)
 		return
 	}
 	if err := h.snapshots.Put(r.Context(), &document.Snapshot{
@@ -89,7 +93,7 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		if r.Context().Err() != nil {
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "internal", "snapshot storage failed")
+		h.writeInternalError(r.Context(), w, "lens/serve.Document", "snapshot storage failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
@@ -122,7 +126,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
 	if err != nil {
-		h.writeSnapshotError(w, r.Context(), err)
+		h.writeSnapshotError(r.Context(), w, err)
 		return
 	}
 	target, err := resolveTarget(h.spec, req.Path, req.Perspective)
@@ -144,12 +148,12 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	}
 	panelResult, err := h.executeLevel(r.Context(), thawRuntimeRequest(h.runtimeRequest(r), snapshot.Params), snapshot.Params, target, page)
 	if err != nil {
-		h.writeExecutionError(w, r.Context(), err)
+		h.writeExecutionError(r.Context(), w, err)
 		return
 	}
 	wire, err := wireFrame(target.ref, panelResult)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "level result conversion failed")
+		h.writeInternalError(r.Context(), w, "lens/serve.Query", "level result conversion failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, QueryResponse{
@@ -159,16 +163,20 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req QueryRequest, snapshot *document.Snapshot, target levelTarget) {
+	ctx := r.Context()
+	base := h.runtimeRequest(r)
 	key := snapshot.ID + ":" + string(target.ref)
 	result := h.loads.DoChan(key, func() (any, error) {
-		latest, err := h.snapshots.Get(r.Context(), snapshot.ID)
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
+		defer cancel()
+		latest, err := h.snapshots.Get(workCtx, snapshot.ID)
 		if err != nil {
 			return nil, err
 		}
 		if cached, ok := latest.Frames[target.ref]; ok {
 			return cached, nil
 		}
-		panelResult, err := h.executeLevel(r.Context(), thawRuntimeRequest(h.runtimeRequest(r), latest.Params), latest.Params, target, 0)
+		panelResult, err := h.executeLevel(workCtx, thawRuntimeRequest(base, latest.Params), latest.Params, target, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -176,26 +184,26 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 		if err != nil {
 			return nil, err
 		}
-		if err := h.snapshots.Append(r.Context(), snapshot.ID, map[document.FrameRef]document.Frame{target.ref: wire}); err != nil {
+		if err := h.snapshots.Append(workCtx, snapshot.ID, map[document.FrameRef]document.Frame{target.ref: wire}); err != nil {
 			return nil, err
 		}
 		return wire, nil
 	})
 	select {
-	case <-r.Context().Done():
+	case <-ctx.Done():
 		return
 	case loaded := <-result:
 		if loaded.Err != nil {
 			if errors.Is(loaded.Err, document.ErrSnapshotGone) {
-				h.writeSnapshotError(w, r.Context(), loaded.Err)
+				h.writeSnapshotError(ctx, w, loaded.Err)
 				return
 			}
-			h.writeExecutionError(w, r.Context(), loaded.Err)
+			h.writeExecutionError(ctx, w, loaded.Err)
 			return
 		}
 		frame, ok := loaded.Val.(document.Frame)
 		if !ok {
-			writeError(w, http.StatusInternalServerError, "internal", "level execution failed")
+			h.writeInternalError(ctx, w, "lens/serve.Query", "level execution failed", fmt.Errorf("level execution returned %T", loaded.Val))
 			return
 		}
 		writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: frame}})
@@ -215,13 +223,13 @@ func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 	}
 	snapshot, err := h.snapshots.Get(r.Context(), snapshotID)
 	if err != nil {
-		h.writeSnapshotError(w, r.Context(), err)
+		h.writeSnapshotError(r.Context(), w, err)
 		return
 	}
 	request := thawRuntimeRequest(h.runtimeRequest(r), snapshot.Params)
 	result, err := runtimeResultFromSnapshot(h.spec, snapshot, request)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "internal", "snapshot conversion failed")
+		h.writeInternalError(r.Context(), w, "lens/serve.Export", "snapshot conversion failed", err)
 		return
 	}
 	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
@@ -234,7 +242,7 @@ func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 		if r.Context().Err() != nil {
 			return
 		}
-		writeError(w, http.StatusInternalServerError, "internal", "export failed")
+		h.writeInternalError(r.Context(), w, "lens/serve.Export", "export failed", err)
 		return
 	}
 	filename := lensexport.WorkbookFilename(result, panelID, snapshot.CreatedAt)
@@ -245,7 +253,7 @@ func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(workbook.Bytes())
 }
 
-func (h *Handlers) writeSnapshotError(w http.ResponseWriter, ctx context.Context, err error) {
+func (h *Handlers) writeSnapshotError(ctx context.Context, w http.ResponseWriter, err error) {
 	if ctx.Err() != nil {
 		return
 	}
@@ -253,14 +261,23 @@ func (h *Handlers) writeSnapshotError(w http.ResponseWriter, ctx context.Context
 		writeError(w, http.StatusGone, "snapshot_gone", "snapshot is unknown or expired")
 		return
 	}
-	writeError(w, http.StatusInternalServerError, "internal", "snapshot lookup failed")
+	h.writeInternalError(ctx, w, "lens/serve.writeSnapshotError", "snapshot lookup failed", err)
 }
 
-func (h *Handlers) writeExecutionError(w http.ResponseWriter, ctx context.Context, err error) {
-	if ctx.Err() != nil || errors.Is(err, context.Canceled) {
+func (h *Handlers) writeExecutionError(ctx context.Context, w http.ResponseWriter, err error) {
+	if ctx.Err() != nil {
 		return
 	}
-	writeError(w, http.StatusInternalServerError, "internal", "lens execution failed")
+	h.writeInternalError(ctx, w, "lens/serve.writeExecutionError", "lens execution failed", err)
+}
+
+func (h *Handlers) writeInternalError(ctx context.Context, w http.ResponseWriter, op, message string, err error) {
+	if ctx.Err() != nil {
+		return
+	}
+	wrapped := serrors.E(serrors.Op(op), err)
+	h.observer.OnError(ctx, op, wrapped)
+	writeError(w, http.StatusInternalServerError, "internal", message)
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {

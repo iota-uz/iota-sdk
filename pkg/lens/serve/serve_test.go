@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -34,6 +35,8 @@ type fakeExecutor struct {
 	cancelPanel string
 	delay       time.Duration
 	frames      map[string]*frame.FrameSet
+	executeErrs map[string]error
+	panelErrs   map[string]error
 	startOnce   sync.Once
 }
 
@@ -45,8 +48,13 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 	f.mu.Lock()
 	f.calls = append(f.calls, executorCall{panelID: panelID, request: cloneRuntimeRequest(req)})
 	f.mu.Unlock()
-	if f.cancelPanel != "" && panelID == f.cancelPanel {
+	if f.started != nil && panelID != "" {
 		f.startOnce.Do(func() { close(f.started) })
+	}
+	if err := f.executeErrs[panelID]; err != nil {
+		return nil, err
+	}
+	if f.cancelPanel != "" && panelID == f.cancelPanel {
 		<-ctx.Done()
 		return nil, ctx.Err()
 	}
@@ -77,7 +85,30 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 		return nil, errors.New("scoped panel is missing")
 	}
 	result.Panels[panelID] = panelResult(target, f.frames[panelID], req)
+	result.Panels[panelID].Error = f.panelErrs[panelID]
 	return result, nil
+}
+
+type observedError struct {
+	op  string
+	err error
+}
+
+type recordingObserver struct {
+	mu     sync.Mutex
+	errors []observedError
+}
+
+func (o *recordingObserver) OnError(_ context.Context, op string, err error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.errors = append(o.errors, observedError{op: op, err: err})
+}
+
+func (o *recordingObserver) recorded() []observedError {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]observedError(nil), o.errors...)
 }
 
 func (f *fakeExecutor) callCount(panelID string) int {
@@ -132,6 +163,24 @@ func TestHandlers_DocumentQueryCacheAndAppend(t *testing.T) {
 	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail"))
 }
 
+func TestHandlers_QueryUsesFrozenScopeOverConflictingQueryParams(t *testing.T) {
+	t.Parallel()
+	handlers, executor, _ := newTestHandlers(t, 0)
+	doc := requestDocument(t, handlers, "/dash/document?region=west")
+	body := marshal(t, QueryRequest{
+		SnapshotID:  doc.SnapshotID,
+		Path:        document.NodePath{"detail"},
+		Perspective: "composition",
+	})
+	recorder := httptest.NewRecorder()
+	handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query?region=EVIL", body))
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	call := executor.lastCall("detail-panel")
+	require.Equal(t, "west", call.request.Request.Get("region"))
+	require.Equal(t, "west", call.request.Overrides["region"])
+}
+
 func TestHandlers_SnapshotGone(t *testing.T) {
 	t.Parallel()
 	handlers, _, _ := newTestHandlers(t, 0)
@@ -146,6 +195,22 @@ func TestHandlers_SnapshotGone(t *testing.T) {
 	recorder = httptest.NewRecorder()
 	handlers.Export(recorder, httptest.NewRequest(http.MethodGet, "/dash/export?snapshot=gone", nil))
 	require.Equal(t, http.StatusGone, recorder.Code)
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Equal(t, "snapshot_gone", response.Error)
+}
+
+func TestHandlers_ExpiredSnapshotReturnsGone(t *testing.T) {
+	t.Parallel()
+	store := document.NewMemoryStore(time.Millisecond, 32)
+	handlers, _, _ := newTestHandlersWithStore(t, 0, store, nil)
+	doc := requestDocument(t, handlers, "/dash/document")
+	time.Sleep(2 * time.Millisecond)
+
+	body := marshal(t, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root"}, Perspective: "composition"})
+	recorder := httptest.NewRecorder()
+	handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", body))
+	require.Equal(t, http.StatusGone, recorder.Code, recorder.Body.String())
+	var response errorResponse
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
 	require.Equal(t, "snapshot_gone", response.Error)
 }
@@ -169,6 +234,58 @@ func TestHandlers_EvidenceIsLiveAndPaginated(t *testing.T) {
 	snapshot, err := store.Get(t.Context(), doc.SnapshotID)
 	require.NoError(t, err)
 	require.NotContains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/evidence:evidence"))
+}
+
+func TestHandlers_DocumentSkipsErroredExplorePanelAndQueryReportsIt(t *testing.T) {
+	t.Parallel()
+	observer := &recordingObserver{}
+	handlers, executor, _ := newTestHandlersWithStore(t, 0, document.NewMemoryStore(time.Minute, 32), observer)
+	rootErr := errors.New("root panel failed")
+	detailErr := errors.New("detail panel failed")
+	executor.panelErrs = map[string]error{"root-panel": rootErr, "detail-panel": detailErr}
+
+	recorder := httptest.NewRecorder()
+	handlers.Document(recorder, httptest.NewRequest(http.MethodGet, "/dash/document", nil))
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var doc document.DashboardDocument
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &doc))
+	require.NotContains(t, doc.Frames, document.FrameRef("explore:metric/focus/composition:root"))
+	require.Empty(t, observer.recorded())
+
+	body := marshal(t, QueryRequest{
+		SnapshotID:  doc.SnapshotID,
+		Path:        document.NodePath{"detail"},
+		Perspective: "composition",
+	})
+	recorder = httptest.NewRecorder()
+	handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", body))
+	require.Equal(t, http.StatusInternalServerError, recorder.Code, recorder.Body.String())
+	recorded := observer.recorded()
+	require.Len(t, recorded, 1)
+	require.ErrorIs(t, recorded[0].err, detailErr)
+}
+
+func TestHandlers_ObserverReceivesWrappedExecutionError(t *testing.T) {
+	t.Parallel()
+	observer := &recordingObserver{}
+	handlers, executor, _ := newTestHandlersWithStore(t, 0, document.NewMemoryStore(time.Minute, 32), observer)
+	doc := requestDocument(t, handlers, "/dash/document")
+	executionErr := errors.New("datasource unavailable")
+	executor.executeErrs = map[string]error{"detail-panel": executionErr}
+
+	body := marshal(t, QueryRequest{
+		SnapshotID:  doc.SnapshotID,
+		Path:        document.NodePath{"detail"},
+		Perspective: "composition",
+	})
+	recorder := httptest.NewRecorder()
+	handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", body))
+	require.Equal(t, http.StatusInternalServerError, recorder.Code, recorder.Body.String())
+	recorded := observer.recorded()
+	require.Len(t, recorded, 1)
+	require.Equal(t, "lens/serve.writeExecutionError", recorded[0].op)
+	require.ErrorIs(t, recorded[0].err, executionErr)
+	require.ErrorContains(t, recorded[0].err, "lens/serve.executeLevel")
 }
 
 func TestHandlers_ConcurrentAppendExecutesAggregateOnce(t *testing.T) {
@@ -205,10 +322,55 @@ func TestHandlers_ConcurrentAppendExecutesAggregateOnce(t *testing.T) {
 	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:end"))
 }
 
-func TestHandlers_QueryCancellationAbortsExecution(t *testing.T) {
+func TestHandlers_FirstCanceledCallerDoesNotAbortSharedExecution(t *testing.T) {
 	t.Parallel()
 	handlers, executor, _ := newTestHandlers(t, 0)
 	doc := requestDocument(t, handlers, "/dash/document")
+	executor.delay = 75 * time.Millisecond
+	executor.started = make(chan struct{})
+	payload, err := json.Marshal(QueryRequest{
+		SnapshotID:  doc.SnapshotID,
+		Path:        document.NodePath{"detail"},
+		Perspective: "composition",
+	})
+	require.NoError(t, err)
+
+	firstCtx, cancelFirst := context.WithCancel(t.Context())
+	firstDone := make(chan struct{})
+	go func() {
+		defer close(firstDone)
+		request := httptest.NewRequest(http.MethodPost, "/dash/lens/query", bytes.NewReader(payload)).WithContext(firstCtx)
+		handlers.Query(httptest.NewRecorder(), request)
+	}()
+	select {
+	case <-executor.started:
+	case <-time.After(time.Second):
+		t.Fatal("executor did not start")
+	}
+
+	canceled := make(chan struct{})
+	timer := time.AfterFunc(10*time.Millisecond, func() {
+		cancelFirst()
+		close(canceled)
+	})
+	defer timer.Stop()
+	second := httptest.NewRecorder()
+	handlers.Query(second, httptest.NewRequest(http.MethodPost, "/dash/lens/query", bytes.NewReader(payload)))
+	<-canceled
+	require.Equal(t, http.StatusOK, second.Code, second.Body.String())
+	select {
+	case <-firstDone:
+	case <-time.After(time.Second):
+		t.Fatal("canceled waiter did not stop")
+	}
+	require.Equal(t, 1, executor.callCount("detail-panel"))
+}
+
+func TestHandlers_QueryCancellationStopsWaiter(t *testing.T) {
+	t.Parallel()
+	handlers, executor, _ := newTestHandlers(t, 0)
+	doc := requestDocument(t, handlers, "/dash/document")
+	handlers.workTimeout = 25 * time.Millisecond
 	executor.cancelPanel = "detail-panel"
 	executor.started = make(chan struct{})
 	ctx, cancel := context.WithCancel(t.Context())
@@ -272,11 +434,21 @@ func TestNew_ValidatesConfig(t *testing.T) {
 
 func newTestHandlers(t *testing.T, inlineDepth int) (*Handlers, *fakeExecutor, document.SnapshotStore) {
 	t.Helper()
+	return newTestHandlersWithStore(t, inlineDepth, document.NewMemoryStore(time.Minute, 32), nil)
+}
+
+func newTestHandlersWithStore(
+	t *testing.T,
+	inlineDepth int,
+	store document.SnapshotStore,
+	observer Observer,
+) (*Handlers, *fakeExecutor, document.SnapshotStore) {
+	t.Helper()
 	spec, frames := testDashboard(t)
 	executor := &fakeExecutor{frames: frames}
-	store := document.NewMemoryStore(time.Minute, 32)
 	handlers, err := New(Config{
 		Spec: spec, Engine: executor, Snapshots: store, BasePath: "/dash", InlineDepth: inlineDepth, PageSize: 17,
+		Observer: observer,
 		Request: func(r *http.Request) lensruntime.Request {
 			locale := requestValue(r.URL.Query(), "locale", "en")
 			return lensruntime.Request{Locale: locale, DataScope: "tenant:test", Request: r.URL.Query()}
@@ -414,4 +586,47 @@ func TestHandlers_BadRequestsAreJSON(t *testing.T) {
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
 	assert.Equal(t, "bad_request", response.Error)
 	assert.NotEmpty(t, response.Message)
+}
+
+func TestHandlers_EnforceMethods(t *testing.T) {
+	t.Parallel()
+	handlers, _, _ := newTestHandlers(t, 0)
+	tests := []struct {
+		name    string
+		method  string
+		target  string
+		handler http.HandlerFunc
+	}{
+		{name: "document", method: http.MethodPost, target: "/dash/document", handler: handlers.Document},
+		{name: "query", method: http.MethodGet, target: "/dash/lens/query", handler: handlers.Query},
+		{name: "export", method: http.MethodPost, target: "/dash/export", handler: handlers.Export},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			recorder := httptest.NewRecorder()
+			test.handler(recorder, httptest.NewRequest(test.method, test.target, nil))
+			require.Equal(t, http.StatusMethodNotAllowed, recorder.Code, recorder.Body.String())
+		})
+	}
+}
+
+func TestHandlers_QueryRejectsOversizedBody(t *testing.T) {
+	t.Parallel()
+	handlers, _, _ := newTestHandlers(t, 0)
+	body := strings.NewReader(`{"snapshotId":"` + strings.Repeat("x", maxQueryBodyBytes) + `"}`)
+	recorder := httptest.NewRecorder()
+	handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", body))
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "request body too large")
+}
+
+func TestHandlers_QueryRejectsUnknownFields(t *testing.T) {
+	t.Parallel()
+	handlers, _, _ := newTestHandlers(t, 0)
+	body := strings.NewReader(`{"snapshotId":"snapshot","path":["root"],"unexpected":true}`)
+	recorder := httptest.NewRecorder()
+	handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", body))
+	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	require.Contains(t, recorder.Body.String(), "unknown field")
 }
