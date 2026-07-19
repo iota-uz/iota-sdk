@@ -152,7 +152,7 @@ export interface PerspectiveRef {
 export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
 
 export interface QueryErrorResponse {
-  error: string
+  error: QueryErrorCode
   message: string
 }
 

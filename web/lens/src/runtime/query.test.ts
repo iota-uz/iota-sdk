@@ -53,6 +53,18 @@ describe('QueryClient', () => {
     expect(new Set(keys)).toHaveLength(keys.length)
   })
 
+  it('evicts cached responses from prior snapshots', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(response), { status: 200 })))
+    const client = new QueryClient('/lens/query', { fetcher })
+
+    await client.query(request)
+    await client.query({ ...request, snapshotId: 'snapshot-2' })
+    await client.query(request)
+
+    expect(fetcher).toHaveBeenCalledTimes(3)
+  })
+
   it('recognizes only the exact 410 snapshot_gone protocol', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({
       error: 'snapshot_gone', message: 'expired',

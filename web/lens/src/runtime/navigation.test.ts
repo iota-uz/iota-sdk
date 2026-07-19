@@ -60,4 +60,14 @@ describe('navigationReducer', () => {
       path: ['external'], perspectiveId: 'p', history: [], panelId: undefined,
     })
   })
+
+  it('restores an external history stack without sharing its paths', () => {
+    const history = [{ panelId: 'total', path: ['root'] }]
+    const next = navigationReducer(createNavigationState(), navigationActions.restore({
+      panelId: 'total', path: ['root', 'detail'],
+    }, history))
+
+    expect(next.history).toEqual(history)
+    expect(next.history[0]?.path).not.toBe(history[0]?.path)
+  })
 })

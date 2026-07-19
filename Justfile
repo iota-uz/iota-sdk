@@ -55,14 +55,8 @@ lens cmd="help" *args="":
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     typegen) go run ./cmd/lens-typegen ;; \
     check) \
-      lens_contract_before="$(git diff -- web/lens/src/contract)" ; \
       go run ./cmd/lens-typegen ; \
-      lens_contract_after="$(git diff -- web/lens/src/contract)" ; \
-      if [ "$lens_contract_before" != "$lens_contract_after" ]; then \
-        git diff -- web/lens/src/contract ; \
-        echo "Lens generated contract is out of date" ; \
-        exit 1 ; \
-      fi ; \
+      git diff --exit-code -- web/lens/src/contract ; \
       (cd web/lens && pnpm check {{args}}) ;; \
     *) \
       echo "Usage: just lens [dev|build|fixture|check|typegen|ladle|install]" ; \

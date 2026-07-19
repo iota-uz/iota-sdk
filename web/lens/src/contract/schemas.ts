@@ -175,7 +175,7 @@ export const PerspectiveRefSchema: z.ZodType<Contract.PerspectiveRef> = z.lazy((
 export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.lazy(() => z.enum(["bad_request", "internal", "snapshot_gone"]))
 
 export const QueryErrorResponseSchema: z.ZodType<Contract.QueryErrorResponse> = z.lazy(() => z.object({
-  error: z.string(),
+  error: z.lazy(() => QueryErrorCodeSchema),
   message: z.string(),
 }).strict())
 

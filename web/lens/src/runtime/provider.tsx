@@ -8,6 +8,7 @@ import {
   useReducer,
   useRef,
   useState,
+  useSyncExternalStore,
 } from 'react'
 import type { DashboardDocument, FieldFormat, Frame, Panel, QueryRequest } from '../contract'
 import { fetchDocument } from './document'
@@ -49,6 +50,13 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, children
   const [error, setError] = useState<Error | null>(null)
   const controllers = useRef(new Set<AbortController>())
   const inFlight = useRef<Promise<DashboardDocument>>()
+  const csrfRef = useRef(csrf)
+  const fetcherRef = useRef(fetcher)
+
+  useEffect(() => {
+    csrfRef.current = csrf
+    fetcherRef.current = fetcher
+  }, [csrf, fetcher])
 
   const refresh = useCallback(() => {
     if (!src) {
@@ -62,7 +70,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, children
     controllers.current.add(controller)
     setIsLoading(true)
     setError(null)
-    const pending = fetchDocument(src, { csrf, fetcher, signal: controller.signal })
+    const pending = fetchDocument(src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
       .then((next) => {
         setDocument(next)
         return next
@@ -79,7 +87,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, children
       })
     inFlight.current = pending
     return pending
-  }, [csrf, fetcher, initialDocument, src])
+  }, [initialDocument, src])
 
   useEffect(() => {
     setDocument(src ? undefined : initialDocument)
@@ -120,21 +128,118 @@ export interface PanelFrameState {
   retry: () => void
 }
 
-interface FramesContextValue {
-  states: ReadonlyMap<string, PanelFrameState>
-  retry: (panelId: string) => void
+class PanelFrameStore {
+  private readonly states = new Map<string, PanelFrameState>()
+  private readonly subscribers = new Map<string, Set<() => void>>()
+
+  get(panelId: string): PanelFrameState | undefined {
+    return this.states.get(panelId)
+  }
+
+  set(panelId: string, state: PanelFrameState): void {
+    this.states.set(panelId, state)
+    for (const subscriber of this.subscribers.get(panelId) ?? []) subscriber()
+  }
+
+  subscribe(panelId: string, subscriber: () => void): () => void {
+    const subscribers = this.subscribers.get(panelId) ?? new Set()
+    subscribers.add(subscriber)
+    this.subscribers.set(panelId, subscribers)
+    return () => {
+      subscribers.delete(subscriber)
+      if (subscribers.size === 0) this.subscribers.delete(panelId)
+    }
+  }
 }
 
 const DashboardContext = createContext<DashboardContextValue | undefined>(undefined)
 const DrillContext = createContext<DrillContextValue | undefined>(undefined)
-const FramesContext = createContext<FramesContextValue | undefined>(undefined)
+const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
 const LocaleContext = createContext('en')
+const emptyFrameStore = new PanelFrameStore()
 
-function inferredInitialView(document: DashboardDocument): NavigationView {
-  if (typeof window === 'undefined') return { path: [] }
+const browserHistoryKey = '__iotaLensNavigation'
+
+interface BrowserNavigationState {
+  view: NavigationView
+  history: Array<NavigationView>
+}
+
+function sameView(left: NavigationView, right: NavigationView): boolean {
+  return left.panelId === right.panelId && left.perspectiveId === right.perspectiveId &&
+    left.path.length === right.path.length && left.path.every((key, index) => key === right.path[index])
+}
+
+function resolveView(document: DashboardDocument, view: NavigationView): NavigationView | undefined {
+  if (!pathResolves(document, view.path, view.perspectiveId)) return undefined
+  return {
+    path: [...view.path],
+    perspectiveId: view.perspectiveId,
+    panelId: panelForNavigation(document, view)?.id,
+  }
+}
+
+function parseBrowserView(value: unknown): NavigationView | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const candidate = value as Record<string, unknown>
+  if (!Array.isArray(candidate.path) || !candidate.path.every((key) => typeof key === 'string')) return undefined
+  if (candidate.panelId !== undefined && typeof candidate.panelId !== 'string') return undefined
+  if (candidate.perspectiveId !== undefined && typeof candidate.perspectiveId !== 'string') return undefined
+  return {
+    path: [...candidate.path] as Array<string>,
+    panelId: candidate.panelId,
+    perspectiveId: candidate.perspectiveId,
+  }
+}
+
+function derivedHistory(document: DashboardDocument, view: NavigationView): Array<NavigationView> {
+  const history: Array<NavigationView> = []
+  for (let length = 0; length < view.path.length; length += 1) {
+    const path = view.path.slice(0, length)
+    const withPerspective = { path, perspectiveId: view.perspectiveId }
+    const candidate = resolveView(document, withPerspective) ?? resolveView(document, { path })
+    if (candidate) history.push(candidate)
+  }
+  return history
+}
+
+function navigationFromBrowserState(
+  document: DashboardDocument,
+  view: NavigationView,
+  state: unknown,
+): NavigationState {
+  const resolved = resolveView(document, view) ?? rootNavigation(document, view.panelId)
+  const value = state && typeof state === 'object'
+    ? (state as Record<string, unknown>)[browserHistoryKey]
+    : undefined
+  if (value && typeof value === 'object') {
+    const stored = value as Record<string, unknown>
+    const storedView = parseBrowserView(stored.view)
+    const storedHistory = Array.isArray(stored.history) ? stored.history.map(parseBrowserView) : []
+    if (storedView && sameView(resolveView(document, storedView) ?? storedView, resolved) &&
+      storedHistory.every((entry): entry is NavigationView => entry !== undefined)) {
+      const history = storedHistory.map((entry) => resolveView(document, entry)).filter((entry): entry is NavigationView => Boolean(entry))
+      return { ...resolved, history }
+    }
+  }
+  return { ...resolved, history: derivedHistory(document, resolved) }
+}
+
+function browserStateFor(navigation: NavigationState, current: unknown): Record<string, unknown> {
+  const state = current && typeof current === 'object' ? current as Record<string, unknown> : {}
+  const clone = (view: NavigationView): NavigationView => ({
+    panelId: view.panelId,
+    path: [...view.path],
+    perspectiveId: view.perspectiveId,
+  })
+  const lens: BrowserNavigationState = { view: clone(navigation), history: navigation.history.map(clone) }
+  return { ...state, [browserHistoryKey]: lens }
+}
+
+function inferredInitialNavigation(document: DashboardDocument): NavigationState {
+  if (typeof window === 'undefined') return createNavigationState()
   const fromURL = navigationFromURL(new URL(window.location.href))
-  if (!pathResolves(document, fromURL.path, fromURL.perspectiveId)) return { path: [] }
-  return { ...fromURL, panelId: panelForNavigation(document, fromURL)?.id }
+  return navigationFromBrowserState(document, fromURL, window.history.state)
 }
 
 function requestFor(document: DashboardDocument, navigation: NavigationView): QueryRequest {
@@ -143,6 +248,22 @@ function requestFor(document: DashboardDocument, navigation: NavigationView): Qu
     path: navigation.path,
     ...(navigation.perspectiveId ? { perspective: navigation.perspectiveId } : {}),
   }
+}
+
+function runtimeNavigationReducer(
+  document: DashboardDocument,
+  state: NavigationState,
+  action: Parameters<typeof navigationReducer>[1],
+): NavigationState {
+  if (action.type === 'drillInto') {
+    const path = [...state.path, action.nodeKey]
+    if (!pathResolves(document, path, state.perspectiveId)) return state
+  }
+  if (action.type === 'switchPerspective') {
+    const level = levelForPath(document, state.path)
+    if (!level?.perspectives.some((perspective) => perspective.id === action.perspectiveId)) return state
+  }
+  return navigationReducer(state, action)
 }
 
 function frameForPanel(
@@ -174,47 +295,74 @@ interface RuntimeCoreProps {
 }
 
 function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, children }: RuntimeCoreProps) {
-  const [navigation, dispatch] = useReducer(navigationReducer, document, (value) => createNavigationState(inferredInitialView(value)))
+  const [navigation, dispatch] = useReducer(
+    (state: NavigationState, action: Parameters<typeof navigationReducer>[1]) => runtimeNavigationReducer(document, state, action),
+    document,
+    inferredInitialNavigation,
+  )
   const [notice, setNotice] = useState<string>()
-  const [states, setStates] = useState<ReadonlyMap<string, PanelFrameState>>(() => new Map())
-  const statesRef = useRef(states)
   const [retryToken, setRetryToken] = useState(0)
   const forceRetry = useRef(false)
-  const urlMode = useRef<'push' | 'replace' | 'pop'>('replace')
+  const replaceNextURL = useRef(true)
+  const frameStore = useRef<PanelFrameStore>()
+  const retryFrame = useCallback(() => {
+    forceRetry.current = true
+    setRetryToken((value) => value + 1)
+  }, [])
+  if (!frameStore.current) frameStore.current = new PanelFrameStore()
+  const frames = frameStore.current
+  for (const panel of document.panels) {
+    if (!frames.get(panel.id)) {
+      frames.set(panel.id, {
+        data: document.frames[panel.frame],
+        isStale: false,
+        isLoading: false,
+        error: null,
+        retry: retryFrame,
+      })
+    }
+  }
   const endpoint = document.endpoints.query
   const queryClient = useMemo(() => endpoint ? new QueryClient(endpoint, { csrf, fetcher }) : undefined, [csrf, endpoint, fetcher])
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])
-  useEffect(() => { statesRef.current = states }, [states])
+
+  useEffect(() => {
+    for (const panel of document.panels) {
+      frames.set(panel.id, {
+        data: document.frames[panel.frame],
+        isStale: false,
+        isLoading: false,
+        error: null,
+        retry: retryFrame,
+      })
+    }
+  }, [document, frames, retryFrame])
 
   useEffect(() => {
     if (pathResolves(document, navigation.path, navigation.perspectiveId)) return
-    urlMode.current = 'replace'
+    replaceNextURL.current = true
     dispatch(navigationActions.restore(rootNavigation(document, navigation.panelId)))
     setNotice('The previous drill path is no longer available. Lens returned to the root view.')
   }, [document, navigation.panelId, navigation.path, navigation.perspectiveId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (!pathResolves(document, navigation.path, navigation.perspectiveId)) return
     const current = new URL(window.location.href)
     const next = navigationToURL(navigation, current)
-    if (urlMode.current === 'pop') {
-      urlMode.current = 'push'
-      return
-    }
-    if (!sameNavigationURL(current, next)) {
-      if (urlMode.current === 'replace') window.history.replaceState(window.history.state, '', next)
-      else window.history.pushState(window.history.state, '', next)
-    }
-    urlMode.current = 'push'
-  }, [navigation])
+    const state = browserStateFor(navigation, window.history.state)
+    if (replaceNextURL.current || sameNavigationURL(current, next)) window.history.replaceState(state, '', next)
+    else window.history.pushState(state, '', next)
+    replaceNextURL.current = false
+  }, [document, navigation])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
-    const onPopState = () => {
-      urlMode.current = 'pop'
+    const onPopState = (event: PopStateEvent) => {
       const view = navigationFromURL(new URL(window.location.href))
-      dispatch(navigationActions.restore({ ...view, panelId: panelForNavigation(document, view)?.id }))
+      const restored = navigationFromBrowserState(document, view, event.state)
+      dispatch(navigationActions.restore(restored, restored.history))
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
@@ -226,23 +374,23 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     const resolved = frameForPanel(document, navigation, panel, new Map())
     if (!resolved.shouldQuery || !queryClient) {
       if (resolved.frame) {
-        setStates((current) => new Map(current).set(panel.id, {
+        frames.set(panel.id, {
           data: resolved.frame, isStale: false, isLoading: false, error: null,
-          retry: () => { forceRetry.current = true; setRetryToken((value) => value + 1) },
-        }))
+          retry: retryFrame,
+        })
       }
       return
     }
 
     let active = true
-    const previous = statesRef.current.get(panel.id)?.data ?? document.frames[panel.frame]
-    setStates((current) => new Map(current).set(panel.id, {
+    const previous = frames.get(panel.id)?.data ?? document.frames[panel.frame]
+    frames.set(panel.id, {
       data: previous,
       isStale: Boolean(previous),
       isLoading: true,
       error: null,
-      retry: () => { forceRetry.current = true; setRetryToken((value) => value + 1) },
-    }))
+      retry: retryFrame,
+    })
     const currentNavigation = { ...navigation, path: [...navigation.path] }
     const request = requestFor(document, currentNavigation)
     const force = forceRetry.current
@@ -255,33 +403,33 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     }).then((result) => {
       if (!active) return
       if (result.reset) {
-        urlMode.current = 'replace'
+        replaceNextURL.current = true
         dispatch(navigationActions.restore(result.navigation))
         setNotice('The previous drill path is no longer available. Lens returned to the root view.')
         return
       }
       const frames = Object.entries(result.response.frames)
       const frame = frames[0]?.[1]
-      setStates((current) => new Map(current).set(panel.id, {
+      frameStore.current?.set(panel.id, {
         data: frame ?? previous,
         isStale: false,
         isLoading: false,
         error: null,
-        retry: () => { forceRetry.current = true; setRetryToken((value) => value + 1) },
-      }))
+        retry: retryFrame,
+      })
     }).catch((cause: unknown) => {
       if (!active) return
       const error = cause instanceof Error ? cause : new Error('query request failed')
-      setStates((current) => new Map(current).set(panel.id, {
+      frames.set(panel.id, {
         data: previous,
         isStale: Boolean(previous),
         isLoading: false,
         error,
-        retry: () => { forceRetry.current = true; setRetryToken((value) => value + 1) },
-      }))
+        retry: retryFrame,
+      })
     })
     return () => { active = false }
-  }, [document, navigation, queryClient, refreshDocument, retryToken])
+  }, [document, frames, navigation, queryClient, refreshDocument, retryFrame, retryToken])
 
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
@@ -292,10 +440,6 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     canGoBack: navigation.history.length > 0,
   }), [navigation.history.length])
   const dashboard = useMemo(() => ({ document, navigation, notice, dismissNotice: () => setNotice(undefined) }), [document, navigation, notice])
-  const frames = useMemo(() => ({
-    states,
-    retry: () => { forceRetry.current = true; setRetryToken((value) => value + 1) },
-  }), [states])
 
   return (
     <LocaleContext.Provider value={locale}>
@@ -357,17 +501,18 @@ export function useDrill(): DrillContextValue {
 
 export function usePanelFrame(panelId: string): PanelFrameState {
   const frames = useContext(FramesContext)
-  const dashboard = useDashboard()
-  if (!frames) throw new Error('usePanelFrame must be used inside DashboardRuntimeProvider')
-  const panel = dashboard.document.panels.find((candidate) => candidate.id === panelId)
-  const resolved = panel ? frameForPanel(dashboard.document, dashboard.navigation, panel, new Map()) : undefined
-  return frames.states.get(panelId) ?? {
-    data: resolved?.frame ?? (resolved?.shouldQuery && panel ? dashboard.document.frames[panel.frame] : undefined),
-    isStale: Boolean(resolved?.shouldQuery && panel && dashboard.document.frames[panel.frame]),
-    isLoading: Boolean(panel && resolved?.shouldQuery),
+  const store = frames ?? emptyFrameStore
+  const empty = useMemo<PanelFrameState>(() => ({
+    isStale: false,
+    isLoading: false,
     error: null,
-    retry: () => frames.retry(panelId),
-  }
+    retry: () => undefined,
+  }), [])
+  const subscribe = useCallback((subscriber: () => void) => store.subscribe(panelId, subscriber), [panelId, store])
+  const getSnapshot = useCallback(() => store.get(panelId) ?? empty, [empty, panelId, store])
+  const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+  if (!frames) throw new Error('usePanelFrame must be used inside DashboardRuntimeProvider')
+  return state
 }
 
 export function useFormat(field?: FieldFormat): (value: unknown) => string {

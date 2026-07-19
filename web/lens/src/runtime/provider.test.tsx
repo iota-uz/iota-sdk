@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
@@ -38,8 +39,10 @@ function Controls() {
   return (
     <>
       <output data-testid="path">{dashboard.navigation.path.join('/')}</output>
+      <output data-testid="can-go-back">{String(drill.canGoBack)}</output>
       <button type="button" onClick={() => drill.drillInto('root', 'total')}>Root</button>
       <button type="button" onClick={() => drill.drillInto('detail')}>Detail</button>
+      <button type="button" onClick={() => drill.switchPerspective('missing')}>Missing perspective</button>
       <button type="button" onClick={frame.retry}>Refresh frame</button>
     </>
   )
@@ -56,6 +59,12 @@ function RuntimeFixture({ fetcher }: { fetcher: typeof fetch }) {
       </DocumentProvider>
     </div>
   )
+}
+
+function FrameProbe({ panelId, onRender }: { panelId: string; onRender: () => void }) {
+  usePanelFrame(panelId)
+  onRender()
+  return null
 }
 
 afterEach(() => {
@@ -92,14 +101,105 @@ describe('DashboardRuntimeProvider', () => {
     expect(fetcher).toHaveBeenCalledTimes(3)
   })
 
+  it('notifies only subscribers for the panel whose frame changed', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
+    const unrelatedRender = vi.fn()
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <Controls />
+            <PlaceholderPanel />
+            <FrameProbe panelId="unrelated" onRender={unrelatedRender} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    const rendersBeforeQuery = unrelatedRender.mock.calls.length
+
+    fireEvent.click(screen.getByRole('button', { name: 'Root' }))
+    expect(await screen.findByText('43')).toBeInTheDocument()
+    expect(unrelatedRender).toHaveBeenCalledTimes(rendersBeforeQuery)
+  })
+
   it('restores deep links and lets popstate replace the reducer view', async () => {
     window.history.replaceState(null, '', '/?path=root&path=detail')
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response(43))
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
     render(<RuntimeFixture fetcher={fetcher} />)
 
     expect(screen.getByTestId('path')).toHaveTextContent('root/detail')
+    expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
     window.history.replaceState(null, '', '/?path=root')
     window.dispatchEvent(new PopStateEvent('popstate'))
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root'))
+    expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
+  })
+
+  it('restores the in-app history stack stored in browser history', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
+    render(<RuntimeFixture fetcher={fetcher} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Root' }))
+    const rootState: unknown = window.history.state
+    fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
+    expect(screen.getByTestId('path')).toHaveTextContent('root/detail')
+
+    window.history.replaceState(rootState, '', '/?path=root')
+    window.dispatchEvent(new PopStateEvent('popstate', { state: rootState }))
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root'))
+    expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
+  })
+
+  it('pushes a drill that is batched with popstate', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
+    render(<RuntimeFixture fetcher={fetcher} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Root' }))
+    const rootState: unknown = window.history.state
+    fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
+
+    act(() => {
+      window.history.replaceState(rootState, '', '/?path=root')
+      window.dispatchEvent(new PopStateEvent('popstate', { state: rootState }))
+      fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
+    })
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root/detail'))
+    expect(new URL(window.location.href).searchParams.getAll('path')).toEqual(['root', 'detail'])
+  })
+
+  it('ignores invalid drill transitions without resetting or showing a notice', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => Promise.resolve(response(43)))
+    render(<RuntimeFixture fetcher={fetcher} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Root' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root/detail'))
+    fireEvent.click(screen.getByRole('button', { name: 'Detail' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Missing perspective' }))
+
+    expect(screen.getByTestId('path')).toHaveTextContent('root/detail')
+    expect(screen.queryByText('The previous drill path is no longer available. Lens returned to the root view.'))
+      .not.toBeInTheDocument()
+  })
+
+  it('does not refetch when an inline fetcher prop changes identity', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(document), { status: 200 }))
+
+    function InlineFetcherFixture() {
+      const [, setRender] = useState(0)
+      return (
+        <DocumentProvider src="/lens/document" fetcher={(input, init) => fetcher(input, init)}>
+          <button type="button" onClick={() => setRender((value) => value + 1)}>Rerender</button>
+        </DocumentProvider>
+      )
+    }
+
+    render(<InlineFetcherFixture />)
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    fireEvent.click(screen.getByRole('button', { name: 'Rerender' }))
+    await Promise.resolve()
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 })

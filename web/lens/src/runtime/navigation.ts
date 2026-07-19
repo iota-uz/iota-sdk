@@ -16,7 +16,7 @@ export type NavigationAction =
   | { type: 'jumpTo'; breadcrumbIndex: number }
   | { type: 'switchPerspective'; perspectiveId: string }
   | { type: 'reset' }
-  | { type: 'restore'; view: NavigationView }
+  | { type: 'restore'; view: NavigationView; history?: Array<NavigationView> }
 
 function cloneView(view: NavigationView): NavigationView {
   return {
@@ -78,7 +78,7 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
     case 'reset':
       return createNavigationState()
     case 'restore':
-      return { ...cloneView(action.view), history: [] }
+      return { ...cloneView(action.view), history: (action.history ?? []).map(cloneView) }
   }
 }
 
@@ -88,5 +88,5 @@ export const navigationActions = {
   jumpTo: (breadcrumbIndex: number): NavigationAction => ({ type: 'jumpTo', breadcrumbIndex }),
   switchPerspective: (perspectiveId: string): NavigationAction => ({ type: 'switchPerspective', perspectiveId }),
   reset: (): NavigationAction => ({ type: 'reset' }),
-  restore: (view: NavigationView): NavigationAction => ({ type: 'restore', view }),
+  restore: (view: NavigationView, history?: Array<NavigationView>): NavigationAction => ({ type: 'restore', view, history }),
 }

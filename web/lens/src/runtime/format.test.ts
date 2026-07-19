@@ -16,4 +16,13 @@ describe('formatFieldValue', () => {
   ])('$name', ({ value, field, expected }) => {
     expect(formatFieldValue(value, field, 'en-US')).toBe(expected)
   })
+
+  it.each(['UZS', 'JPY', 'KWD'])('always scales %s minor units by 100', (currency) => {
+    const value = 1_234_567
+    const expected = new Intl.NumberFormat('en-US', { style: 'currency', currency }).format(value / 100)
+    const digits = (formatted: string) => formatted.replace(/\D/g, '')
+
+    expect(digits(formatFieldValue(value, { kind: 'money', currency, minorUnits: true }, 'en-US')))
+      .toBe(digits(expected))
+  })
 })

@@ -245,6 +245,6 @@ const (
 )
 
 type QueryErrorResponse struct {
-	Error   string `json:"error"`
-	Message string `json:"message"`
+	Error   QueryErrorCode `json:"error"`
+	Message string         `json:"message"`
 }

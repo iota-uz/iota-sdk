@@ -1,6 +1,5 @@
 import {
   QueryErrorResponseSchema,
-  QueryErrorCodeSchema,
   QueryRequestSchema,
   QueryResponseSchema,
   type QueryErrorCode,
@@ -48,6 +47,7 @@ export class QueryClient {
   private readonly cache = new Map<string, QueryResponse>()
   private readonly inFlight = new Map<string, Promise<QueryResponse>>()
   private readonly controllers = new Set<AbortController>()
+  private snapshotId?: string
 
   constructor(
     private readonly endpoint: string,
@@ -60,6 +60,10 @@ export class QueryClient {
 
   async query(input: QueryRequest, options: QueryOptions = {}): Promise<QueryResponse> {
     const request = QueryRequestSchema.parse(input)
+    if (this.snapshotId !== request.snapshotId) {
+      this.snapshotId = request.snapshotId
+      this.cache.clear()
+    }
     const key = queryCacheKey(request)
     const cached = this.cache.get(key)
     if (cached && !options.force) return cached
@@ -70,7 +74,7 @@ export class QueryClient {
     this.controllers.add(controller)
     const promise = this.fetch(request, controller.signal)
       .then((response) => {
-        this.cache.set(key, response)
+        if (this.snapshotId === request.snapshotId) this.cache.set(key, response)
         return response
       })
       .finally(() => {
@@ -101,8 +105,7 @@ export class QueryClient {
     const payload: unknown = await response.json()
     if (!response.ok) {
       const parsed = QueryErrorResponseSchema.safeParse(payload)
-      const parsedCode = parsed.success ? QueryErrorCodeSchema.safeParse(parsed.data.error) : undefined
-      const code: QueryErrorCode = parsedCode?.success ? parsedCode.data : 'internal'
+      const code: QueryErrorCode = parsed.success ? parsed.data.error : 'internal'
       const message = parsed.success ? parsed.data.message : `query request failed with ${response.status}`
       if (response.status === 410 && code === 'snapshot_gone') throw new SnapshotGoneError(message)
       throw new QueryError(code, message, response.status)

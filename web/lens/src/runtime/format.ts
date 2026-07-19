@@ -25,9 +25,7 @@ function formatMoney(value: number, field: FieldFormat, locale: string): string 
   const currency = field.currency ?? 'USD'
   const base = new Intl.NumberFormat(locale, { style: 'currency', currency, ...precisionOptions(field.precision) })
   if (!field.minorUnits) return base.format(value)
-  const fractionDigits = new Intl.NumberFormat(locale, { style: 'currency', currency })
-    .resolvedOptions().maximumFractionDigits ?? 0
-  return base.format(value / 10 ** fractionDigits)
+  return base.format(value / 100)
 }
 
 const goDateTokens = [
