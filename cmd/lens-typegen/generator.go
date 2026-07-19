@@ -131,6 +131,10 @@ func collectNamedTypes(model *contractModel, typ types.Type) {
 	}
 }
 
+// collectEnums treats an exported string-underlying named type as an enum only
+// when at least one constant of that type exists in the contract package itself;
+// a type whose constants live elsewhere (or nowhere) degenerates to an open
+// string with no value validation, silently.
 func collectEnums(model *contractModel) {
 	names := model.pkg.Scope().Names()
 	for _, typeName := range names {
