@@ -10,9 +10,10 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import type { DashboardDocument, FieldFormat, Frame, Panel, QueryRequest } from '../contract'
+import type { DashboardDocument, FieldFormat, Frame, Panel, QueryPage, QueryRequest } from '../contract'
 import { fetchDocument } from './document'
 import { levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
+import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { formatFieldValue } from './format'
 import {
   createNavigationState,
@@ -122,10 +123,32 @@ export interface DrillContextValue {
 
 export interface PanelFrameState {
   data?: Frame
+  page?: QueryPage
   isStale: boolean
   isLoading: boolean
   error: Error | null
   retry: () => void
+}
+
+export type ExportStatus = 'idle' | 'pending' | 'retry' | 'error'
+
+export interface ExportState {
+  status: ExportStatus
+  message?: string
+}
+
+export interface PanelPaginationContextValue {
+  loadPage: (panelId: string, page: number) => Promise<void>
+}
+
+export interface ExportContextValue {
+  available: boolean
+  state: (panelId?: string) => ExportState
+  run: (panelId?: string) => Promise<void>
+}
+
+function exportScope(panelId?: string): string {
+  return panelId ? `panel:${panelId}` : 'dashboard'
 }
 
 class PanelFrameStore {
@@ -155,6 +178,8 @@ class PanelFrameStore {
 const DashboardContext = createContext<DashboardContextValue | undefined>(undefined)
 const DrillContext = createContext<DrillContextValue | undefined>(undefined)
 const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
+const PanelPaginationContext = createContext<PanelPaginationContextValue | undefined>(undefined)
+const ExportContext = createContext<ExportContextValue | undefined>(undefined)
 const LocaleContext = createContext('en')
 const emptyFrameStore = new PanelFrameStore()
 
@@ -330,8 +355,10 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     inferredInitialNavigation,
   )
   const [notice, setNotice] = useState<string>()
+  const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
   const [retryToken, setRetryToken] = useState(0)
   const forceRetry = useRef(false)
+  const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
   const replaceNextURL = useRef(true)
   const frameStore = useRef<PanelFrameStore>()
   const retryFrame = useCallback(() => {
@@ -421,7 +448,11 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       retry: retryFrame,
     })
     const currentNavigation = { ...navigation, path: [...navigation.path] }
-    const request = requestFor(document, currentNavigation)
+    const perspective = document.perspectives.find(({ id }) => id === currentNavigation.perspectiveId)
+    const request = {
+      ...requestFor(document, currentNavigation),
+      ...(panel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
+    }
     const force = forceRetry.current
     forceRetry.current = false
     void queryWithSnapshotRecovery({
@@ -441,6 +472,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       const frame = frames[0]?.[1]
       frameStore.current?.set(panel.id, {
         data: frame ?? previous,
+        page: result.response.page,
         isStale: false,
         isLoading: false,
         error: null,
@@ -460,6 +492,100 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     return () => { active = false }
   }, [document, frames, navigation, queryClient, refreshDocument, retryFrame, retryToken])
 
+  const loadPage = useCallback(async (panelId: string, page: number, force = false) => {
+    const panel = panelForNavigation(document, navigation)
+    if (!queryClient || !panel || panel.id !== panelId || navigation.path.length === 0 || page < 1) return
+    const previousState = frames.get(panelId)
+    const previous = previousState?.data ?? document.frames[panel.frame]
+    const retryPage = () => { void pageLoader.current?.(panelId, page, true) }
+    frames.set(panelId, {
+      data: previous,
+      page: previousState?.page,
+      isStale: Boolean(previous),
+      isLoading: true,
+      error: null,
+      retry: retryPage,
+    })
+    const currentNavigation = { ...navigation, path: [...navigation.path] }
+    try {
+      const result = await queryWithSnapshotRecovery({
+        request: { ...requestFor(document, currentNavigation), page },
+        navigation: currentNavigation,
+        loadDocument: refreshDocument,
+        query: (next) => queryClient.query(next, { force }),
+      })
+      if (result.reset) {
+        replaceNextURL.current = true
+        dispatch(navigationActions.restore(result.navigation))
+        setNotice('The previous drill path is no longer available. Lens returned to the root view.')
+        return
+      }
+      const frame = Object.values(result.response.frames)[0]
+      frames.set(panelId, {
+        data: frame ?? previous,
+        page: result.response.page,
+        isStale: false,
+        isLoading: false,
+        error: null,
+        retry: retryPage,
+      })
+    } catch (cause: unknown) {
+      frames.set(panelId, {
+        data: previous,
+        page: previousState?.page,
+        isStale: Boolean(previous),
+        isLoading: false,
+        error: cause instanceof Error ? cause : new Error('query request failed'),
+        retry: retryPage,
+      })
+    }
+  }, [document, frames, navigation, queryClient, refreshDocument])
+  pageLoader.current = loadPage
+
+  const pagination = useMemo<PanelPaginationContextValue>(() => ({
+    loadPage: (panelId, page) => loadPage(panelId, page),
+  }), [loadPage])
+
+  const runExport = useCallback(async (panelId?: string) => {
+    const scope = exportScope(panelId)
+    const exportEndpoint = document.endpoints.export
+    if (!exportEndpoint) return
+    setExportStates((states) => ({ ...states, [scope]: { status: 'pending' } }))
+    try {
+      const workbook = await exportWorkbook({
+        endpoint: exportEndpoint,
+        snapshotId: document.snapshotId,
+        panelId,
+        csrf,
+        fetcher,
+      })
+      downloadWorkbook(workbook)
+      setExportStates((states) => ({ ...states, [scope]: { status: 'idle' } }))
+    } catch (cause: unknown) {
+      if (cause instanceof ExportSnapshotGoneError) {
+        try {
+          await refreshDocument()
+          setExportStates((states) => ({
+            ...states,
+            [scope]: { status: 'retry', message: 'Snapshot refreshed. Retry export.' },
+          }))
+        } catch (refreshCause: unknown) {
+          const message = refreshCause instanceof Error ? refreshCause.message : 'Snapshot refresh failed'
+          setExportStates((states) => ({ ...states, [scope]: { status: 'error', message } }))
+        }
+        return
+      }
+      const message = cause instanceof Error ? cause.message : 'Export failed'
+      setExportStates((states) => ({ ...states, [scope]: { status: 'error', message } }))
+    }
+  }, [csrf, document.endpoints.export, document.snapshotId, fetcher, refreshDocument])
+
+  const exportContext = useMemo<ExportContextValue>(() => ({
+    available: Boolean(document.endpoints.export),
+    state: (panelId) => exportStates[exportScope(panelId)] ?? { status: 'idle' },
+    run: runExport,
+  }), [document.endpoints.export, exportStates, runExport])
+
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
     back: () => dispatch(navigationActions.back()),
@@ -477,15 +603,19 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     <LocaleContext.Provider value={locale}>
       <DashboardContext.Provider value={dashboard}>
         <DrillContext.Provider value={drill}>
-          <FramesContext.Provider value={frames}>
-            {notice && (
-              <div className="lens-runtime-notice" role="status">
-                <span>{notice}</span>
-                <button type="button" onClick={() => setNotice(undefined)} aria-label="Dismiss notice">×</button>
-              </div>
-            )}
-            {children}
-          </FramesContext.Provider>
+          <PanelPaginationContext.Provider value={pagination}>
+            <ExportContext.Provider value={exportContext}>
+              <FramesContext.Provider value={frames}>
+                {notice && (
+                  <div className="lens-runtime-notice" role="status">
+                    <span>{notice}</span>
+                    <button type="button" onClick={() => setNotice(undefined)} aria-label="Dismiss notice">×</button>
+                  </div>
+                )}
+                {children}
+              </FramesContext.Provider>
+            </ExportContext.Provider>
+          </PanelPaginationContext.Provider>
         </DrillContext.Provider>
       </DashboardContext.Provider>
     </LocaleContext.Provider>
@@ -545,6 +675,18 @@ export function usePanelFrame(panelId: string): PanelFrameState {
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
   if (!frames) throw new Error('usePanelFrame must be used inside DashboardRuntimeProvider')
   return state
+}
+
+export function usePanelPagination(): PanelPaginationContextValue {
+  const context = useContext(PanelPaginationContext)
+  if (!context) throw new Error('usePanelPagination must be used inside DashboardRuntimeProvider')
+  return context
+}
+
+export function useExport(panelId?: string): ExportState & { available: boolean; run: () => Promise<void> } {
+  const context = useContext(ExportContext)
+  if (!context) throw new Error('useExport must be used inside DashboardRuntimeProvider')
+  return { ...context.state(panelId), available: context.available, run: () => context.run(panelId) }
 }
 
 export function useFormat(field?: FieldFormat): (value: unknown) => string {

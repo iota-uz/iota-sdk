@@ -1,4 +1,4 @@
-import{n as k1}from"./lens-dashboard-Cm2pKLCu.js";/*! *****************************************************************************
+import{n as k1}from"./lens-dashboard-CqFxd_ZG.js";/*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any

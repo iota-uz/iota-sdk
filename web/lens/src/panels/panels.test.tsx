@@ -13,6 +13,8 @@ const runtime = vi.hoisted(() => ({
 
 vi.mock('../runtime', () => ({
   usePanelFrame: () => runtime.frame,
+  usePanelPagination: () => ({ loadPage: vi.fn() }),
+  useExport: () => ({ status: 'idle', available: false, run: vi.fn() }),
   useFormat: () => (value: unknown) => {
     if (value === null || value === undefined) return '—'
     if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
@@ -25,8 +27,10 @@ vi.mock('../runtime', () => ({
 }))
 
 import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
+import { buildCascadeStages, CascadePanel } from './CascadePanel'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
+import { TablePanel } from './TablePanel'
 
 const dataFrame: Frame = {
   columns: [
@@ -80,6 +84,8 @@ function fakeAdapter(capture?: (input: ChartInput) => void): ChartAdapter {
 function renderKind(kind: PanelKind) {
   const value = panel(kind)
   if (kind === 'stat') return render(<StatPanel panel={value} />)
+  if (kind === 'cascade') return render(<CascadePanel panel={value} />)
+  if (kind === 'table') return render(<TablePanel panel={value} />)
   if (kind === 'pie' || kind === 'donut') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'bar' || kind === 'hbar') return render(<BarPanel panel={value} adapter={fakeAdapter()} />)
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
@@ -90,7 +96,7 @@ afterEach(() => {
   runtime.drillInto.mockReset()
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area'])('%s panel states', (kind) => {
+describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'table'])('%s panel states', (kind) => {
   it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
@@ -108,6 +114,8 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area']
     }
     if (stateName === 'data') {
       if (kind === 'stat') expect(screen.getByText('42')).toBeInTheDocument()
+      else if (kind === 'cascade') expect(screen.getByRole('list', { name: 'cascade panel stages' })).toBeInTheDocument()
+      else if (kind === 'table') expect(screen.getByRole('table')).toBeInTheDocument()
       else await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
     }
     view.unmount()
@@ -135,13 +143,11 @@ describe('panel registry', () => {
     }
   })
 
-  it('maps every v1 kind and shows an explicit fallback for unsupported kinds', () => {
+  it('maps every kind and preserves an explicit fallback for custom registries', () => {
     runtime.frame = state('data')
-    const unsupported = panel('table')
-    const view = render(<RegisteredPanel panel={unsupported} />)
-    expect(screen.getByText('Unsupported panel: table')).toBeInTheDocument()
-
-    view.rerender(<RegisteredPanel panel={panel('cascade')} />)
+    const view = render(<RegisteredPanel panel={panel('table')} />)
+    expect(screen.getByRole('table')).toBeInTheDocument()
+    view.rerender(<RegisteredPanel panel={panel('cascade')} registry={{}} />)
     expect(screen.getByText('Unsupported panel: cascade')).toBeInTheDocument()
   })
 })
@@ -181,5 +187,37 @@ describe('chart encoding and drill behavior', () => {
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
     expect(screen.getAllByText('stat panel')).toHaveLength(2)
     expect(screen.getByText('42')).toBeInTheDocument()
+  })
+})
+
+describe('cascade stages', () => {
+  it('uses encoding overrides for running totals, connectors, widths, and the final stage', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'stage_name', value: 'balance', cut: 'movement', cutLabel: 'movement_name', final: 'is_total' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'stage_name', type: 'string' },
+        { name: 'balance', type: 'number' },
+        { name: 'movement', type: 'number' },
+        { name: 'movement_name', type: 'string' },
+        { name: 'is_total', type: 'bool' },
+      ],
+      rows: [
+        ['Gross', 1000, 0, '', false],
+        ['After claims', 750, 250, 'Claims', false],
+        ['Net', 4, -50, 'Recoveries', true],
+      ],
+    }
+    const money = (value: unknown) => typeof value === 'number' ? `$${value}` : ''
+    const stages = buildCascadeStages(cascade, frame, money, money)
+
+    expect(stages.map(({ label, width, final }) => ({ label, width, final }))).toEqual([
+      { label: 'Gross', width: 100, final: false },
+      { label: 'After claims', width: 75, final: false },
+      { label: 'Net', width: 2, final: true },
+    ])
+    expect(stages[1]?.formattedCut).toBe('−$250')
+    expect(stages[2]?.formattedCut).toBe('+$50')
   })
 })

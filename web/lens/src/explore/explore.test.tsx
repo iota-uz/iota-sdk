@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-li
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/explore.json'
 import { parseDocument, type Panel } from '../contract'
-import type { ChartPanelProps, PanelRegistry, StatPanelProps } from '../panels'
+import { CascadePanel, TablePanel, type ChartPanelProps, type PanelRegistry, type StatPanelProps } from '../panels'
 import { DashboardRuntimeProvider, DocumentProvider, navigationToURL } from '../runtime'
 import { resolveLeafActionURL } from './actions'
 import { ExplorePanel } from './ExplorePanel'
@@ -36,6 +36,8 @@ const registry: PanelRegistry = {
   line: ProbePanel,
   area: ProbePanel,
   stat: ProbePanel,
+  cascade: CascadePanel,
+  table: TablePanel,
 }
 
 function renderExplore(currentPanel: Panel = panel, currentDocument = exploreDocument) {
@@ -76,7 +78,7 @@ afterEach(() => {
 })
 
 describe('explore semantics', () => {
-  it('maps each semantic shape to an honest supported or interim view', () => {
+  it('maps each semantic shape to its supported view', () => {
     expect(viewForSemantics('partition', 'pie')).toBe('pie')
     expect(viewForSemantics('partition', 'line')).toBe('donut')
     expect(viewForSemantics('reconciliation', 'pie')).toBe('cascade')
@@ -230,7 +232,7 @@ describe('ExplorePanel', () => {
     expect(startViewTransition).not.toHaveBeenCalled()
   })
 
-  it('renders evidence as an interim row list with resolved full-page leaf links', async () => {
+  it('renders evidence with the registered table view and resolved full-page leaf links', async () => {
     const path = [
       'profitability',
       'profitability/operating-margin',
@@ -241,10 +243,11 @@ describe('ExplorePanel', () => {
     window.history.replaceState(null, '', url)
     renderExplore()
 
-    expect(await screen.findByText('Interim table view')).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Source transactions' })).toHaveAttribute('data-panel-kind', 'table')
     const links = screen.getAllByRole('link', { name: 'Open record' })
     expect(links).toHaveLength(2)
     expect(links[0]).toHaveAttribute('href', expect.stringContaining('/transactions/TX-1042'))
+    expect(screen.getByText('$284,000')).toBeInTheDocument()
   })
 
   it('does not attach a row action when the ID does not match a declared child', async () => {
@@ -274,7 +277,7 @@ describe('ExplorePanel', () => {
     window.history.replaceState(null, '', url)
     renderExplore(mismatchedDocument.panels[0], mismatchedDocument)
 
-    expect(await screen.findByText('Interim table view')).toBeInTheDocument()
+    expect(await screen.findByRole('region', { name: 'Source transactions' })).toHaveAttribute('data-panel-kind', 'table')
     expect(screen.queryByRole('link', { name: 'Open record' })).not.toBeInTheDocument()
   })
 })

@@ -30,6 +30,13 @@
           { "panelId": "trend", "span": 6 },
           { "panelId": "forecast", "span": 6 }
         ]
+      },
+      {
+        "heading": "Reconciliation and evidence",
+        "panels": [
+          { "panelId": "margin-bridge", "span": 5 },
+          { "panelId": "evidence", "span": 7 }
+        ]
       }
     ]
   },
@@ -55,7 +62,6 @@
       "frame": "panel:regions",
       "encoding": { "id": "id", "label": "label", "value": "value" },
       "format": { "value": { "kind": "percent", "minorUnits": false, "precision": 0 } },
-      "drillRoot": "regions",
       "actions": []
     },
     {
@@ -76,7 +82,6 @@
       "frame": "panel:regions",
       "encoding": { "id": "id", "category": "label", "value": "sales" },
       "format": { "sales": { "kind": "money", "currency": "USD", "minorUnits": true, "precision": 0 } },
-      "drillRoot": "regions",
       "actions": []
     },
     {
@@ -114,6 +119,40 @@
         "value": { "kind": "money", "currency": "USD", "minorUnits": true, "precision": 0 }
       },
       "actions": []
+    },
+    {
+      "id": "margin-bridge",
+      "kind": "cascade",
+      "title": "Margin bridge",
+      "semantics": "reconciliation",
+      "frame": "panel:bridge",
+      "encoding": { "label": "stage", "value": "balance", "cut": "movement", "cutLabel": "movementLabel", "final": "reconciled" },
+      "format": {
+        "balance": { "kind": "money", "currency": "USD", "minorUnits": false, "precision": 0 },
+        "movement": { "kind": "money", "currency": "USD", "minorUnits": false, "precision": 0 }
+      },
+      "actions": []
+    },
+    {
+      "id": "evidence",
+      "kind": "table",
+      "title": "Recent evidence",
+      "semantics": "evidence",
+      "frame": "panel:evidence",
+      "encoding": { "id": "transactionId", "label": "counterparty", "value": "amount" },
+      "format": {
+        "amount": { "kind": "money", "currency": "USD", "minorUnits": false, "precision": 0 },
+        "postedAt": { "kind": "date", "minorUnits": false, "layout": "2006-01-02" }
+      },
+      "actions": [
+        {
+          "kind": "navigate_to_leaf",
+          "urlTemplate": "/transactions/{transactionId}",
+          "params": [{ "name": "transactionId", "source": { "kind": "field", "name": "transactionId" } }],
+          "payload": {},
+          "preserveQuery": true
+        }
+      ]
     }
   ],
   "frames": {
@@ -164,6 +203,34 @@
         ["2026-01-01T00:00:00Z", "Plan", 120000000],
         ["2026-02-01T00:00:00Z", "Plan", 138000000],
         ["2026-03-01T00:00:00Z", "Plan", 155000000]
+      ]
+    },
+    "panel:bridge": {
+      "columns": [
+        { "name": "stage", "type": "string" },
+        { "name": "balance", "type": "number" },
+        { "name": "movement", "type": "number" },
+        { "name": "movementLabel", "type": "string" },
+        { "name": "reconciled", "type": "bool" }
+      ],
+      "rows": [
+        ["Gross margin", 3120000, 0, "", false],
+        ["After claims", 2310000, 810000, "Claims paid", false],
+        ["Operating margin", 1840000, 470000, "Operating expenses", true]
+      ]
+    },
+    "panel:evidence": {
+      "columns": [
+        { "name": "transactionId", "type": "string" },
+        { "name": "counterparty", "type": "string" },
+        { "name": "amount", "type": "number" },
+        { "name": "postedAt", "type": "time" },
+        { "name": "reconciled", "type": "bool" }
+      ],
+      "rows": [
+        ["TX-1042", "Orion Services", 284000, "2026-07-02T00:00:00Z", true],
+        ["TX-1098", "Northstar Supply", 197000, "2026-07-08T00:00:00Z", false],
+        ["TX-1131", "Meridian Works", 163000, "2026-07-12T00:00:00Z", true]
       ]
     }
   },

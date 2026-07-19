@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 import { useDashboard } from './runtime'
-import { RegisteredPanel, type PanelRegistry } from './panels'
+import { ExportButton, RegisteredPanel, type PanelRegistry } from './panels'
 import { ExplorePanel } from './explore'
 
 export interface DashboardPanelsProps {
@@ -28,6 +28,7 @@ export function DashboardPanels({ registry }: DashboardPanelsProps) {
     <main className="lens-dashboard" aria-label={document.meta.title}>
       <header className="lens-dashboard-header">
         <h1>{document.meta.title}</h1>
+        <ExportButton />
       </header>
       <div className="lens-dashboard-rows">
         {document.layout.rows.map((row, rowIndex) => (
