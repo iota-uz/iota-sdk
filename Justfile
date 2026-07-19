@@ -47,6 +47,17 @@ docs cmd="help" *args="":
       exit 2 ;; \
   esac
 
+[group("lens")]
+[doc("Lens React runtime commands (dev|build|fixture|check|ladle|install)")]
+lens cmd="help" *args="":
+  case "{{cmd}}" in \
+    dev|build|check|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
+    fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
+    *) \
+      echo "Usage: just lens [dev|build|fixture|check|ladle|install]" ; \
+      exit 2 ;; \
+  esac
+
 [group("codegen")]
 [doc("Generate Go + templ (or watch)")]
 generate cmd="":
