@@ -3,6 +3,8 @@ package runtime
 import (
 	"container/list"
 	"context"
+	"reflect"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -40,7 +42,9 @@ func (s *ExecutionSnapshot) Clone() *ExecutionSnapshot {
 	out.Variables = cloneMap(s.Variables)
 	out.Datasets = make(map[string]*frame.FrameSet, len(s.Datasets))
 	for name, frames := range s.Datasets {
-		out.Datasets[name] = frames.Clone()
+		if frames != nil {
+			out.Datasets[name] = frames.Clone()
+		}
 	}
 	out.Provenance = make(map[string]DatasetProvenance, len(s.Provenance))
 	for name, item := range s.Provenance {
@@ -53,6 +57,7 @@ func (s *ExecutionSnapshot) Clone() *ExecutionSnapshot {
 type SnapshotStore interface {
 	Load(context.Context, string) (*ExecutionSnapshot, bool)
 	Save(context.Context, string, *ExecutionSnapshot, time.Duration)
+	Update(context.Context, string, time.Duration, func(*ExecutionSnapshot) *ExecutionSnapshot)
 	Invalidate(context.Context, string)
 	Stats() CacheStats
 }
@@ -144,11 +149,45 @@ func (m *MemorySnapshotStore) Save(_ context.Context, key string, snapshot *Exec
 	}
 }
 
+func (m *MemorySnapshotStore) Update(_ context.Context, key string, ttl time.Duration, update func(*ExecutionSnapshot) *ExecutionSnapshot) {
+	if update == nil {
+		return
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	var current *ExecutionSnapshot
+	if element, ok := m.items[key]; ok {
+		current = element.Value.(*memoryEntry).snapshot.Clone()
+	}
+	next := update(current)
+	if next == nil {
+		return
+	}
+	if ttl <= 0 {
+		ttl = m.ttl
+	}
+	expiresAt := m.clock().Add(ttl)
+	next = next.Clone()
+	next.ExpiresAt = expiresAt
+	if existing, ok := m.items[key]; ok {
+		entry := existing.Value.(*memoryEntry)
+		entry.snapshot, entry.expiresAt = next, expiresAt
+		m.lru.MoveToFront(existing)
+	} else {
+		m.items[key] = m.lru.PushFront(&memoryEntry{key: key, snapshot: next, expiresAt: expiresAt})
+	}
+	m.stores.Add(1)
+	for len(m.items) > m.max {
+		m.remove(m.lru.Back())
+		m.evictions.Add(1)
+	}
+}
+
 func (m *MemorySnapshotStore) Invalidate(_ context.Context, namespace string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	for key, element := range m.items {
-		if namespace == "" || len(key) >= len(namespace) && key[:len(namespace)] == namespace {
+		if namespace == "" || key == namespace || strings.HasPrefix(key, namespace+":") {
 			m.remove(element)
 		}
 	}
@@ -172,14 +211,63 @@ func cloneMap(in map[string]any) map[string]any {
 	return out
 }
 func cloneValue(v any) any {
-	switch value := v.(type) {
-	case []string:
-		return append([]string(nil), value...)
-	case []any:
-		return append([]any(nil), value...)
-	case map[string]any:
-		return cloneMap(value)
-	default:
+	cloned := cloneReflect(reflect.ValueOf(v))
+	if !cloned.IsValid() {
+		return nil
+	}
+	return cloned.Interface()
+}
+
+func cloneReflect(value reflect.Value) reflect.Value {
+	if !value.IsValid() {
 		return value
 	}
+	switch value.Kind() {
+	case reflect.Interface:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		cloned := cloneReflect(value.Elem())
+		out := reflect.New(value.Type()).Elem()
+		out.Set(cloned)
+		return out
+	case reflect.Pointer:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		out := reflect.New(value.Type().Elem())
+		out.Elem().Set(cloneReflect(value.Elem()))
+		return out
+	case reflect.Slice:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		out := reflect.MakeSlice(value.Type(), value.Len(), value.Len())
+		for i := range value.Len() {
+			out.Index(i).Set(cloneReflect(value.Index(i)))
+		}
+		return out
+	case reflect.Array:
+		out := reflect.New(value.Type()).Elem()
+		for i := range value.Len() {
+			out.Index(i).Set(cloneReflect(value.Index(i)))
+		}
+		return out
+	case reflect.Map:
+		if value.IsNil() {
+			return reflect.Zero(value.Type())
+		}
+		out := reflect.MakeMapWithSize(value.Type(), value.Len())
+		iter := value.MapRange()
+		for iter.Next() {
+			out.SetMapIndex(iter.Key(), cloneReflect(iter.Value()))
+		}
+		return out
+	case reflect.Invalid, reflect.Bool, reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr,
+		reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128, reflect.Chan,
+		reflect.Func, reflect.String, reflect.Struct, reflect.UnsafePointer:
+		return value
+	}
+	return value
 }

@@ -5,18 +5,22 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 // FromRecords converts a typed slice into a clone-safe detail dataset for
 // declarative Lens evidence exports. Exported fields become columns; json tags
 // provide stable names. Nested values are encoded as JSON strings.
 func FromRecords[T any](name string, records []T) (*FrameSet, error) {
+	op := serrors.Op("lens/frame.FromRecords")
 	typeOf := reflect.TypeOf((*T)(nil)).Elem()
 	for typeOf.Kind() == reflect.Pointer {
 		typeOf = typeOf.Elem()
 	}
 	if typeOf.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("records must contain structs, got %s", typeOf)
+		return nil, serrors.E(op, fmt.Errorf("records must contain structs, got %s", typeOf))
 	}
 	fields := make([]Field, 0, typeOf.NumField())
 	indexes := make([]int, 0, typeOf.NumField())
@@ -56,13 +60,20 @@ func FromRecords[T any](name string, records []T) (*FrameSet, error) {
 	}
 	fr, err := New(name, fields...)
 	if err != nil {
-		return nil, err
+		return nil, serrors.E(op, err)
 	}
-	return NewFrameSet(fr)
+	frames, err := NewFrameSet(fr)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return frames, nil
 }
 func fieldTypeFor(t reflect.Type) FieldType {
 	for t.Kind() == reflect.Pointer {
 		t = t.Elem()
+	}
+	if t == reflect.TypeOf(time.Time{}) {
+		return FieldTypeTime
 	}
 	switch t.Kind() {
 	case reflect.String:
@@ -88,6 +99,9 @@ func recordCell(value reflect.Value) any {
 	}
 	if value.CanInterface() {
 		raw := value.Interface()
+		if _, ok := raw.(time.Time); ok {
+			return raw
+		}
 		switch raw.(type) {
 		case Formula, *Formula, Hyperlink, *Hyperlink:
 			return raw

@@ -22,7 +22,7 @@ func (f resolverFunc) ResolveLensExport(ctx context.Context, req ResolveRequest)
 	return f(ctx, req)
 }
 
-func TestHandlerSignalsWhenDownloadStarts(t *testing.T) {
+func TestHandlerServeHTTP_SignalsWhenDownloadStarts(t *testing.T) {
 	t.Parallel()
 
 	handler := Handler{
@@ -42,7 +42,7 @@ func TestHandlerSignalsWhenDownloadStarts(t *testing.T) {
 	require.Equal(t, `attachment; filename="Premium-report-20260718-1510.xlsx"; filename*=UTF-8''Premium-report-20260718-1510.xlsx`, response.Header.Get("Content-Disposition"))
 }
 
-func TestHandlerNamesPanelExportFromLocalizedTitle(t *testing.T) {
+func TestHandlerServeHTTP_NamesPanelExportFromLocalizedTitle(t *testing.T) {
 	t.Parallel()
 
 	handler := Handler{
@@ -69,7 +69,7 @@ func TestHandlerNamesPanelExportFromLocalizedTitle(t *testing.T) {
 	)
 }
 
-func TestHandlerSignalsExportFailure(t *testing.T) {
+func TestHandlerServeHTTP_SignalsResolverFailure(t *testing.T) {
 	t.Parallel()
 
 	handler := Handler{Resolver: resolverFunc(func(context.Context, ResolveRequest) (*runtime.DashboardResult, error) {
@@ -85,7 +85,23 @@ func TestHandlerSignalsExportFailure(t *testing.T) {
 	require.Equal(t, "error", responseCookieValue(response, "lens_export_download-2"))
 }
 
-func TestHandlerIgnoresInvalidDownloadToken(t *testing.T) {
+func TestHandlerServeHTTP_BuffersWorkbookBeforeStartingResponse(t *testing.T) {
+	t.Parallel()
+	handler := Handler{Resolver: resolverFunc(func(context.Context, ResolveRequest) (*runtime.DashboardResult, error) {
+		return &runtime.DashboardResult{}, nil
+	})}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	request := httptest.NewRequest(http.MethodGet, "/export?dashboard=profitability&lens_download_token=download-3", nil).WithContext(ctx)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+	response := recorder.Result()
+	require.Equal(t, http.StatusInternalServerError, response.StatusCode)
+	require.Equal(t, "error", responseCookieValue(response, "lens_export_download-3"))
+	require.Empty(t, response.Header.Get("Content-Disposition"))
+}
+
+func TestHandlerServeHTTP_IgnoresInvalidDownloadToken(t *testing.T) {
 	t.Parallel()
 
 	handler := Handler{Resolver: resolverFunc(func(context.Context, ResolveRequest) (*runtime.DashboardResult, error) {
@@ -99,31 +115,28 @@ func TestHandlerIgnoresInvalidDownloadToken(t *testing.T) {
 	require.Empty(t, recorder.Result().Cookies())
 }
 
-func TestParseExplorationExportRequest_CurrentAndFullModes(t *testing.T) {
+func TestParseExplorationExportRequest_Scenario(t *testing.T) {
 	t.Parallel()
-
-	current, ok, err := ParseExplorationExportRequest(map[string][]string{
-		ExplorationIDQuery:          {"premium"},
-		ExplorationBranchQuery:      {"unearned"},
-		ExplorationPerspectiveQuery: {"products"},
-		ExplorationPathQuery:        {"root", "property"},
-		ExplorationPointQuery:       {"", "other"},
-		ExplorationNodeQuery:        {"property"},
-	})
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, explore.ExportCurrentView, current.Mode)
-	require.Equal(t, []string{"root", "property"}, current.Path)
-	require.Equal(t, []explore.PathStep{{NodeKey: "root"}, {NodeKey: "property", PointKey: "other"}}, current.Steps)
-
-	full, ok, err := ParseExplorationExportRequest(map[string][]string{
-		ExplorationModeQuery:   {string(explore.ExportFull)},
-		ExplorationIDQuery:     {"premium"},
-		ExplorationBranchQuery: {"unearned"},
-	})
-	require.NoError(t, err)
-	require.True(t, ok)
-	require.Equal(t, explore.ExportFull, full.Mode)
+	for _, tt := range []struct {
+		name   string
+		values map[string][]string
+		mode   explore.ExportMode
+		path   []string
+		steps  []explore.PathStep
+	}{
+		{"current view", map[string][]string{ExplorationIDQuery: {"premium"}, ExplorationBranchQuery: {"unearned"}, ExplorationPerspectiveQuery: {"products"}, ExplorationPathQuery: {"root", "property"}, ExplorationPointQuery: {"", "other"}, ExplorationNodeQuery: {"property"}}, explore.ExportCurrentView, []string{"root", "property"}, []explore.PathStep{{NodeKey: "root"}, {NodeKey: "property", PointKey: "other"}}},
+		{"full export", map[string][]string{ExplorationModeQuery: {string(explore.ExportFull)}, ExplorationIDQuery: {"premium"}, ExplorationBranchQuery: {"unearned"}}, explore.ExportFull, nil, []explore.PathStep{}},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			request, ok, err := ParseExplorationExportRequest(tt.values)
+			require.NoError(t, err)
+			require.True(t, ok)
+			require.Equal(t, tt.mode, request.Mode)
+			require.Equal(t, tt.path, request.Path)
+			require.Equal(t, tt.steps, request.Steps)
+		})
+	}
 }
 
 func TestWorkbookFilename_UsesResolvedExplorationLabel(t *testing.T) {

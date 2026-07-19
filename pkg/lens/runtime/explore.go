@@ -261,7 +261,7 @@ func resolvedExplorationEdges(explorerID string, perspective explore.Perspective
 				return nil, fmt.Errorf("%s references undeclared dynamic target %q", owner, edge.ToNode)
 			}
 		}
-		if err := validateAction(owner, edge.Action, actionValidationOptions{allowFieldSources: true}); err != nil {
+		if err := validateAction(owner, edge.Action, actionValidationOptions{}); err != nil {
 			return nil, err
 		}
 	}

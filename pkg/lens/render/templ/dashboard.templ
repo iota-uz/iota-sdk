@@ -963,6 +963,20 @@ templ DashboardScripts() {
 					: Date.now().toString(36) + Math.random().toString(36).slice(2);
 				const cookieName = 'lens_export_' + token;
 				const url = new URL(button.href, window.location.href);
+				const current = new URL(window.location.href);
+				const exportIdentityKeys = new Set([
+					'dashboard', 'panel', 'lens_explore_export', 'lens_explorer',
+					'lens_explore_branch', 'lens_explore_perspective', 'lens_explore_path',
+					'lens_explore_point', 'lens_explore_node'
+				]);
+				const currentKeys = new Set();
+				current.searchParams.forEach(function(_value, key) {
+					if (!exportIdentityKeys.has(key)) { currentKeys.add(key); }
+				});
+				currentKeys.forEach(function(key) { url.searchParams.delete(key); });
+				current.searchParams.forEach(function(value, key) {
+					if (!exportIdentityKeys.has(key)) { url.searchParams.append(key, value); }
+				});
 				if (form instanceof HTMLFormElement) {
 					const formParams = new URLSearchParams(new FormData(form));
 					const formKeys = new Set();

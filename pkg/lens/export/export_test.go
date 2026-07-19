@@ -16,7 +16,7 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func TestExporterWritesPanelAndEvidenceWithoutDatasourceQueries(t *testing.T) {
+func TestExporterWrite_PanelAndEvidenceWithoutDatasourceQueries(t *testing.T) {
 	t.Parallel()
 	chart := mustFrames(t, "chart", frame.Field{Name: "label", Values: []any{"A"}}, frame.Field{Name: "value", Values: []any{42.0}})
 	evidence := mustFrames(t, "evidence",
@@ -67,12 +67,15 @@ func TestExporterWritesPanelAndEvidenceWithoutDatasourceQueries(t *testing.T) {
 	require.Equal(t, "Policies", tables[0].Name)
 }
 
-func TestLabelsForLocaleSupportsEAILocales(t *testing.T) {
+func TestLabelsForLocale_SupportedLocales(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, "Сводка", LabelsForLocale("ru").Summary)
-	require.Equal(t, "Xulosa", LabelsForLocale("uz").Summary)
-	require.Equal(t, "Хулоса", LabelsForLocale("uz-Cyrl").Summary)
-	require.Equal(t, "Summary", LabelsForLocale("en").Summary)
+	for _, tt := range []struct{ name, locale, summary string }{
+		{"Russian", "ru", "Сводка"}, {"Uzbek Latin", "uz", "Xulosa"},
+		{"Uzbek Cyrillic", "uz-Cyrl", "Хулоса"}, {"English", "en", "Summary"},
+		{"Portuguese Brazil", "pt-BR", "Resumo"},
+	} {
+		t.Run(tt.name, func(t *testing.T) { t.Parallel(); require.Equal(t, tt.summary, LabelsForLocale(tt.locale).Summary) })
+	}
 }
 
 func TestSelectedPanelsFollowsDashboardLayout(t *testing.T) {
@@ -105,6 +108,42 @@ func TestExporterRejectsMissingDeclaredEvidence(t *testing.T) {
 	}
 	err := New().Write(context.Background(), io.Discard, Request{Result: result, PanelID: "premium"})
 	require.ErrorContains(t, err, `declared export evidence dataset "missing" is unavailable`)
+}
+
+func TestExporterWrite_RejectsUnknownPanel(t *testing.T) {
+	t.Parallel()
+	err := New().Write(context.Background(), io.Discard, Request{Result: &lensruntime.DashboardResult{}, PanelID: "missing"})
+	require.ErrorContains(t, err, `panel "missing" not found`)
+}
+
+func TestExporterWrite_OffsetsTitledEvidenceTable(t *testing.T) {
+	t.Parallel()
+	evidence := mustFrames(t, "evidence", frame.Field{Name: "policy", Values: []any{"P-1"}})
+	evidence.Primary().Meta.Title = "Policy evidence"
+	chart := mustFrames(t, "chart", frame.Field{Name: "value", Values: []any{1}})
+	panelSpec := panel.Spec{ID: "premium", Dataset: "chart", Export: exportmeta.Spec{EvidenceDatasets: []string{"evidence"}}}
+	result := &lensruntime.DashboardResult{Spec: lens.DashboardSpec{Datasets: []lens.DatasetSpec{{Name: "chart"}, {Name: "evidence", Export: exportmeta.Spec{TableName: "Evidence", FreezeHeader: true}}}}, Datasets: map[string]*lensruntime.DatasetResult{"chart": {Frames: chart}, "evidence": {Frames: evidence}}, Panels: map[string]*lensruntime.PanelResult{"premium": {Panel: panelSpec, Frames: chart}}}
+	var out bytes.Buffer
+	require.NoError(t, New().Write(context.Background(), &out, Request{Result: result, PanelID: "premium"}))
+	book, err := excelize.OpenReader(bytes.NewReader(out.Bytes()))
+	require.NoError(t, err)
+	defer func() { _ = book.Close() }()
+	tables, err := book.GetTables("Breakdown evidence")
+	require.NoError(t, err)
+	require.Len(t, tables, 1)
+	require.Equal(t, "A2:A3", tables[0].Range)
+	panes, err := book.GetPanes("Breakdown evidence")
+	require.NoError(t, err)
+	require.True(t, panes.Freeze)
+	require.Equal(t, 2, panes.YSplit)
+}
+
+func TestSheetNames_AreExcelSafeAndCaseInsensitive(t *testing.T) {
+	t.Parallel()
+	require.Equal(t, "quoted", safeSheetName("'quoted'"))
+	used := map[string]int{}
+	require.Equal(t, "Summary", uniqueSheetName("Summary", used))
+	require.Equal(t, "summary 2", uniqueSheetName("summary", used))
 }
 
 func TestExporterWritesExplorationMetadataWithoutChangingLegacyLayout(t *testing.T) {

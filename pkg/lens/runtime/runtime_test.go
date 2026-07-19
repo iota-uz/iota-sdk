@@ -23,7 +23,35 @@ type stubDataSource struct {
 }
 
 func execute(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
+	if req.DataScope == "" {
+		req.DataScope = "test"
+	}
+	if req.DataSourceIdentities == nil {
+		req.DataSourceIdentities = map[string]string{}
+	}
+	for name := range req.DataSources {
+		req.DataSourceIdentities[name] = "test:" + name
+	}
 	return New(Options{}).Execute(ctx, spec, req, DashboardScope())
+}
+
+func TestExecute_RejectsIncompleteCacheIdentity(t *testing.T) {
+	t.Parallel()
+	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Bar("chart", "Chart", "data").Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+	ds := &stubDataSource{}
+	_, err := New(Options{}).Execute(context.Background(), spec, Request{DataSources: map[string]datasource.DataSource{"primary": ds}}, DashboardScope())
+	require.ErrorContains(t, err, "data scope is required")
+	_, err = New(Options{}).Execute(context.Background(), spec, Request{DataScope: "tenant:a", DataSources: map[string]datasource.DataSource{"primary": ds}}, DashboardScope())
+	require.ErrorContains(t, err, `datasource identity for "primary" is required`)
+}
+
+func TestExecute_FailsClosedForUnserializableIdentity(t *testing.T) {
+	t.Parallel()
+	frames := mustFrameSet(t, "static")
+	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Table("table", "Table", "data").Build())).Datasets(lensbuild.StaticDataset("data", frames)).Build()
+	spec.Variables = []lens.VariableSpec{{Name: "invalid", Default: "valid"}}
+	_, err := New(Options{}).Execute(context.Background(), spec, Request{DataScope: "tenant:a", Overrides: map[string]any{"invalid": func() {}}}, DashboardScope())
+	require.Error(t, err)
 }
 
 func (s *stubDataSource) Run(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
@@ -203,6 +231,12 @@ func TestPlan_ExportScopeMaterializesEvidenceWithoutSlowingDashboardScope(t *tes
 	require.NoError(t, err)
 	require.Len(t, exportPlan.DatasetStages, 1)
 	assert.ElementsMatch(t, []string{"sales", "panel_evidence", "dashboard_evidence"}, exportPlan.DatasetStages[0].Datasets)
+
+	panelExportPlan, err := Plan(spec, PanelExportScope("sales"))
+	require.NoError(t, err)
+	require.Len(t, panelExportPlan.DatasetStages, 1)
+	assert.ElementsMatch(t, []string{"sales", "panel_evidence"}, panelExportPlan.DatasetStages[0].Datasets)
+	assert.NotContains(t, panelExportPlan.DatasetStages[0].Datasets, "dashboard_evidence")
 }
 
 func TestRun_Scenarios(t *testing.T) {

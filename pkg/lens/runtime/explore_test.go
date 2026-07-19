@@ -103,7 +103,7 @@ func TestExecuteExploration_RejectsEdgeBearingLazyPanelWithoutStablePointID(t *t
 		ExplorerID: "metric",
 		BranchKey:  "focus",
 		Path:       []string{"root"},
-	}, Request{})
+	}, Request{DataScope: "test"})
 	require.Error(t, err)
 	require.ErrorContains(t, err, "requires loaded panel")
 }
@@ -116,7 +116,7 @@ func TestExecuteExploration_RejectsResolvedEdgeForUnknownPoint(t *testing.T) {
 	)}
 	_, err := New(Options{}).ExecuteExploration(context.Background(), dynamicExplorerDashboard(t), loader, ExplorationLoadRequest{
 		ExplorerID: "metric", BranchKey: "focus",
-	}, Request{})
+	}, Request{DataScope: "test"})
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "missing from loaded panel")
@@ -131,7 +131,7 @@ func TestExecuteExploration_RejectsDuplicateResolvedPoint(t *testing.T) {
 	)}
 	_, err := New(Options{}).ExecuteExploration(context.Background(), dynamicExplorerDashboard(t), loader, ExplorationLoadRequest{
 		ExplorerID: "metric", BranchKey: "focus",
-	}, Request{})
+	}, Request{DataScope: "test"})
 
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate resolved edge point")
@@ -143,7 +143,7 @@ func TestExecuteExploration_DynamicChildPathPreservesSelectedPoint(t *testing.T)
 	rootLoader := &explorationLoaderStub{definition: resolvedExplorationDefinition(t, explore.ToNode("a", "detail"))}
 	root, err := New(Options{}).ExecuteExploration(context.Background(), dynamicExplorerDashboard(t), rootLoader, ExplorationLoadRequest{
 		ExplorerID: "metric", BranchKey: "focus",
-	}, Request{})
+	}, Request{DataScope: "test"})
 	require.NoError(t, err)
 	require.Equal(t, []explore.Edge{explore.ToNode("a", "detail")}, root.Edges)
 
@@ -152,7 +152,7 @@ func TestExecuteExploration_DynamicChildPathPreservesSelectedPoint(t *testing.T)
 	steps := []explore.PathStep{{NodeKey: "root"}, {NodeKey: "detail", PointKey: "a"}}
 	detail, err := New(Options{}).ExecuteExploration(context.Background(), dynamicExplorerDashboard(t), detailLoader, ExplorationLoadRequest{
 		ExplorerID: "metric", BranchKey: "focus", Steps: steps,
-	}, Request{})
+	}, Request{DataScope: "test"})
 
 	require.NoError(t, err)
 	require.Equal(t, []string{"root", "detail"}, detail.Path)
@@ -168,7 +168,7 @@ func TestExecuteExploration_ReturnsResolvedTerminalAction(t *testing.T) {
 	loader := &explorationLoaderStub{definition: resolvedExplorationDefinition(t, edge)}
 	result, err := New(Options{}).ExecuteExploration(context.Background(), dynamicExplorerDashboard(t), loader, ExplorationLoadRequest{
 		ExplorerID: "metric", BranchKey: "focus",
-	}, Request{})
+	}, Request{DataScope: "test"})
 
 	require.NoError(t, err)
 	require.Equal(t, []explore.Edge{edge}, result.Edges)

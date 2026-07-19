@@ -1480,7 +1480,7 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	case action.KindEmitEvent:
 		actionJS = "document.dispatchEvent(new CustomEvent(cfg.event, {detail: payload}));"
 	case action.KindExplore:
-		actionJS = `if (window.__lensExploreOpen) {
+		actionJS = `if (window.__lensExploreOpen && cfg.explore) {
 			window.__lensExploreOpen(chartContext && chartContext.el, {
 				explorerId: cfg.explore.explorerId,
 				branchKey: exploreBranch,

@@ -104,6 +104,7 @@ type Options struct {
 	DefaultTTL   time.Duration
 	CacheVersion string
 	Observer     Observer
+	WorkTimeout  time.Duration
 }
 
 type Observer interface {
@@ -115,12 +116,12 @@ type Observer interface {
 // Runtime is a long-lived Lens execution service. A process should normally
 // construct one instance and share it across render, fragment and export paths.
 type Runtime struct {
-	store    SnapshotStore
-	ttl      time.Duration
-	version  string
-	observer Observer
-	flights  singleflight.Group
-	mergeMu  sync.Mutex
+	store       SnapshotStore
+	ttl         time.Duration
+	version     string
+	observer    Observer
+	flights     singleflight.Group
+	workTimeout time.Duration
 }
 
 func New(opts Options) *Runtime {
@@ -133,14 +134,18 @@ func New(opts Options) *Runtime {
 	if strings.TrimSpace(opts.CacheVersion) == "" {
 		opts.CacheVersion = "v1"
 	}
-	return &Runtime{store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer}
+	if opts.WorkTimeout <= 0 {
+		opts.WorkTimeout = 2 * time.Minute
+	}
+	return &Runtime{store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout}
 }
 
 func (r *Runtime) Store() SnapshotStore { return r.store }
 
 type Scope struct {
-	PanelIDs              []string
-	IncludeExportEvidence bool
+	PanelIDs                 []string
+	IncludeExportEvidence    bool
+	includeDashboardEvidence bool
 }
 
 func DashboardScope() Scope {
@@ -160,7 +165,7 @@ func PanelScope(panelID string) Scope {
 // DashboardScope deliberately excludes export-only evidence so loading a page
 // never pays the cost of materialising large audit tables.
 func DashboardExportScope() Scope {
-	return Scope{IncludeExportEvidence: true}
+	return Scope{IncludeExportEvidence: true, includeDashboardEvidence: true}
 }
 
 // PanelsExportScope is the export-aware counterpart of PanelsScope.
@@ -174,8 +179,11 @@ func PanelExportScope(panelID string) Scope {
 }
 
 func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Request, scope Scope) (*DashboardResult, error) {
-	op := serrors.Op("lens/runtime.Run")
+	op := serrors.Op("lens/runtime.Execute")
 	if err := Validate(spec); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if err := validateExecutionIdentity(spec, req); err != nil {
 		return nil, serrors.E(op, err)
 	}
 	startedAt := time.Now()
@@ -210,7 +218,10 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 		variables: variables,
 		drill:     result.Drill,
 	}
-	state.snapshotKey, state.specFingerprint = r.executionIdentity(spec, req, variables)
+	state.snapshotKey, state.specFingerprint, err = r.executionIdentity(spec, req, variables)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	result.SnapshotID = state.snapshotKey
 	if spec.Cache.Mode != lens.CacheDisabled {
 		if snapshot, ok := r.store.Load(ctx, state.snapshotKey); ok {
@@ -220,7 +231,8 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 			for _, stage := range internalPlan.datasetStages {
 				for _, datasetSpec := range stage {
 					if frames := snapshot.Datasets[datasetSpec.Name]; frames != nil {
-						result.Datasets[datasetSpec.Name] = &DatasetResult{Frames: frames.Clone()}
+						provenance := snapshot.Provenance[datasetSpec.Name]
+						result.Datasets[datasetSpec.Name] = &DatasetResult{Frames: frames.Clone(), Duration: provenance.Duration}
 					}
 				}
 			}
@@ -276,7 +288,7 @@ func compileExecutionPlan(spec lens.DashboardSpec, scope Scope) (executionPlan, 
 	if err != nil {
 		return executionPlan{}, err
 	}
-	required := requiredDatasetNames(spec, targetPanels, datasets, scope.IncludeExportEvidence)
+	required := requiredDatasetNames(spec, targetPanels, datasets, scope.IncludeExportEvidence, scope.includeDashboardEvidence)
 	stageMap := make(map[int][]string)
 	depthMemo := make(map[string]int, len(required))
 	visiting := make(map[string]bool, len(required))
@@ -507,16 +519,25 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		Kind:      spec.Query.Kind,
 	}
 	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryCacheKey(request)
-	value, err, _ := s.executor.flights.Do(flightKey, func() (any, error) {
+	result := s.executor.flights.DoChan(flightKey, func() (any, error) {
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.executor.workTimeout)
+		defer cancel()
 		started := time.Now()
-		frames, err := ds.Run(ctx, request)
+		frames, err := ds.Run(workCtx, request)
 		if err == nil && s.executor.observer != nil {
 			s.executor.observer.DatasetExecuted(spec.Name, time.Since(started))
 		}
 		return frames, err
 	})
-	if err != nil {
-		return nil, err
+	var value any
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case flight := <-result:
+		if flight.Err != nil {
+			return nil, flight.Err
+		}
+		value = flight.Val
 	}
 	frames, ok := value.(*frame.FrameSet)
 	if !ok {
@@ -525,10 +546,11 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 	return frames.Clone(), nil
 }
 
-func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string) {
+func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variables map[string]any) (string, string, error) {
+	op := serrors.Op("lens/runtime.executionIdentity")
 	specBytes, err := json.Marshal(spec) //nolint:musttag // Runtime specs intentionally retain their Go field names in the fingerprint.
 	if err != nil {
-		specBytes = []byte(fmt.Sprintf("%#v", spec))
+		return "", "", serrors.E(op, err)
 	}
 	specSum := sha256.Sum256(specBytes)
 	specFingerprint := fmt.Sprintf("%x", specSum[:])
@@ -541,46 +563,75 @@ func (r *Runtime) executionIdentity(spec lens.DashboardSpec, req Request, variab
 		DataScope   string            `json:"dataScope"`
 		Variables   map[string]any    `json:"variables"`
 		DataSources map[string]string `json:"dataSources"`
-	}{r.version, req.Namespace, specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities}
+	}{r.version, strings.TrimSpace(req.Namespace), specFingerprint, req.Locale, req.Timezone, req.DataScope, variables, req.DataSourceIdentities}
 	payload, err := json.Marshal(identity)
 	if err != nil {
-		payload = []byte(fmt.Sprintf("%#v", identity))
+		return "", "", serrors.E(op, err)
 	}
 	sum := sha256.Sum256(payload)
-	return strings.TrimSpace(req.Namespace) + ":" + fmt.Sprintf("%x", sum[:]), specFingerprint
+	return strings.TrimSpace(req.Namespace) + ":" + fmt.Sprintf("%x", sum[:]), specFingerprint, nil
+}
+
+func validateExecutionIdentity(spec lens.DashboardSpec, req Request) error {
+	if strings.TrimSpace(req.DataScope) == "" {
+		return fmt.Errorf("data scope is required")
+	}
+	for _, dataset := range spec.Datasets {
+		if dataset.Kind != lens.DatasetKindQuery {
+			continue
+		}
+		if strings.TrimSpace(req.DataSourceIdentities[dataset.Source]) == "" {
+			return fmt.Errorf("datasource identity for %q is required", dataset.Source)
+		}
+	}
+	return nil
 }
 
 func (r *Runtime) saveSnapshot(ctx context.Context, state plannedExecutor, result *DashboardResult) {
 	if result == nil {
 		return
 	}
-	r.mergeMu.Lock()
-	defer r.mergeMu.Unlock()
-	datasets := map[string]*frame.FrameSet{}
-	provenance := map[string]DatasetProvenance{}
-	if existing, ok := r.store.Load(ctx, state.snapshotKey); ok {
-		for name, frames := range existing.Datasets {
-			datasets[name] = frames.Clone()
-		}
-		for name, item := range existing.Provenance {
-			provenance[name] = item
-		}
-	}
 	byName := indexDatasets(state.spec.Datasets)
-	for name, item := range result.Datasets {
-		datasetSpec := byName[name]
-		if datasetSpec.Cache.Mode == lens.CacheDisabled || item == nil || item.Error != nil || item.Frames == nil {
-			continue
-		}
-		datasets[name] = item.Frames.Clone()
-		provenance[name] = DatasetProvenance{Dataset: name, Source: datasetSpec.Source, DependsOn: append([]string(nil), datasetSpec.DependsOn...), Duration: item.Duration}
-	}
 	ttl := state.spec.Cache.TTL
 	if ttl <= 0 {
 		ttl = r.ttl
 	}
+	for name, item := range result.Datasets {
+		policy := byName[name].Cache
+		if item != nil && item.Error == nil && item.Frames != nil && policy.Mode != lens.CacheDisabled && policy.TTL > 0 && policy.TTL < ttl {
+			ttl = policy.TTL
+		}
+	}
 	now := time.Now()
-	r.store.Save(ctx, state.snapshotKey, &ExecutionSnapshot{ID: state.snapshotKey, SpecFingerprint: state.specFingerprint, Variables: cloneMap(state.variables), DataScope: state.runtime.DataScope, Locale: state.runtime.Locale, Timezone: state.runtime.Timezone, Datasets: datasets, Provenance: provenance, CreatedAt: now, ExpiresAt: now.Add(ttl)}, ttl)
+	r.store.Update(ctx, state.snapshotKey, ttl, func(existing *ExecutionSnapshot) *ExecutionSnapshot {
+		datasets := map[string]*frame.FrameSet{}
+		provenance := map[string]DatasetProvenance{}
+		createdAt := now
+		if existing != nil {
+			createdAt = existing.CreatedAt
+			for name, frames := range existing.Datasets {
+				if frames != nil {
+					datasets[name] = frames.Clone()
+				}
+			}
+			for name, item := range existing.Provenance {
+				provenance[name] = item
+			}
+		}
+		for name, item := range result.Datasets {
+			datasetSpec := byName[name]
+			if datasetSpec.Cache.Mode == lens.CacheDisabled || item == nil || item.Error != nil || item.Frames == nil {
+				continue
+			}
+			datasets[name] = item.Frames.Clone()
+			duration := item.Duration
+			if duration == 0 {
+				duration = provenance[name].Duration
+			}
+			provenance[name] = DatasetProvenance{Dataset: name, Source: datasetSpec.Source, DependsOn: append([]string(nil), datasetSpec.DependsOn...), Duration: duration}
+		}
+		return &ExecutionSnapshot{ID: state.snapshotKey, SpecFingerprint: state.specFingerprint, Variables: cloneMap(state.variables), DataScope: state.runtime.DataScope, Locale: state.runtime.Locale, Timezone: state.runtime.Timezone, Datasets: datasets, Provenance: provenance, CreatedAt: createdAt, ExpiresAt: now.Add(ttl)}
+	})
 }
 
 func (s *plannedExecutor) runDerivedDataset(spec lens.DatasetSpec, results map[string]*DatasetResult) (*frame.FrameSet, error) {
@@ -609,7 +660,7 @@ func indexDatasets(specs []lens.DatasetSpec) map[string]lens.DatasetSpec {
 	return datasets
 }
 
-func requiredDatasetNames(spec lens.DashboardSpec, panels []panel.Spec, datasets map[string]lens.DatasetSpec, includeExportEvidence bool) []string {
+func requiredDatasetNames(spec lens.DashboardSpec, panels []panel.Spec, datasets map[string]lens.DatasetSpec, includeExportEvidence, includeDashboardEvidence bool) []string {
 	seen := make(map[string]struct{})
 	for _, panelSpec := range panels {
 		if isCompositePanel(panelSpec.Kind) || strings.TrimSpace(panelSpec.Dataset) == "" {
@@ -618,8 +669,10 @@ func requiredDatasetNames(spec lens.DashboardSpec, panels []panel.Spec, datasets
 		markRequiredDataset(panelSpec.Dataset, datasets, seen)
 	}
 	if includeExportEvidence {
-		for _, name := range spec.Export.EvidenceDatasets {
-			markRequiredDataset(name, datasets, seen)
+		if includeDashboardEvidence {
+			for _, name := range spec.Export.EvidenceDatasets {
+				markRequiredDataset(name, datasets, seen)
+			}
 		}
 		for _, panelSpec := range panels {
 			evidence := panelSpec.Export.EvidenceDatasets
@@ -991,7 +1044,7 @@ func validateExplorers(spec lens.DashboardSpec, datasets map[string]lens.Dataset
 						}
 					}
 					for _, edge := range node.Edges {
-						if err := validateAction("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, actionValidationOptions{allowFieldSources: true}); err != nil {
+						if err := validateAction("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, actionValidationOptions{}); err != nil {
 							return err
 						}
 					}
@@ -1003,6 +1056,24 @@ func validateExplorers(spec lens.DashboardSpec, datasets map[string]lens.Dataset
 		for _, panelSpec := range row.Panels {
 			if err := validatePanelExploreReferences(panelSpec, explorers); err != nil {
 				return err
+			}
+		}
+	}
+	for _, explorerSpec := range spec.Explorers {
+		for _, branch := range explorerSpec.Branches {
+			for _, perspective := range branch.Perspectives {
+				for _, node := range perspective.Nodes {
+					if node.Panel != nil {
+						if err := validatePanelExploreReferences(*node.Panel, explorers); err != nil {
+							return err
+						}
+					}
+					for _, edge := range node.Edges {
+						if err := validateExploreReference("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, explorers); err != nil {
+							return err
+						}
+					}
+				}
 			}
 		}
 	}

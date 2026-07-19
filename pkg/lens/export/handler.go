@@ -1,6 +1,7 @@
 package export
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net/http"
@@ -93,16 +94,41 @@ func (h Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	filename := WorkbookFilename(result, panelID, now, exploration)
-	SetDownloadSignal(w, r, DownloadSignalStarted)
-	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-	w.Header().Set("Content-Disposition", ContentDisposition(filename))
 	exporter := h.Exporter
 	if exporter == nil {
 		exporter = New()
 	}
-	if err := exporter.Write(r.Context(), w, Request{Result: result, PanelID: panelID, Exploration: exploration}); err != nil {
+	var workbook bytes.Buffer
+	if err := exporter.Write(r.Context(), &workbook, Request{Result: result, PanelID: panelID, DrillPath: exportDrillPath(result), Exploration: exploration}); err != nil {
+		SetDownloadSignal(w, r, DownloadSignalError)
+		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
+	SetDownloadSignal(w, r, DownloadSignalStarted)
+	w.Header().Set("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	w.Header().Set("Content-Disposition", ContentDisposition(filename))
+	w.Header().Set("Content-Length", fmt.Sprint(workbook.Len()))
+	_, _ = w.Write(workbook.Bytes())
+}
+
+func exportDrillPath(result *runtime.DashboardResult) []string {
+	if result == nil || result.Drill == nil {
+		return nil
+	}
+	path := make([]string, 0, len(result.Drill.Filters)+1)
+	for _, item := range result.Drill.Filters {
+		values := item.Values
+		if len(values) == 0 && item.Value != "" {
+			values = []string{item.Value}
+		}
+		if len(values) > 0 {
+			path = append(path, item.Dimension+"="+strings.Join(values, ", "))
+		}
+	}
+	if result.Drill.GroupBy != "" {
+		path = append(path, "group by "+result.Drill.GroupBy)
+	}
+	return path
 }
 
 func WorkbookFilename(result *runtime.DashboardResult, panelID string, generatedAt time.Time, exploration ...*explore.ExportRequest) string {

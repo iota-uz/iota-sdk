@@ -41,7 +41,7 @@ func TestRuntimeSnapshotIdentityIncludesDataScope(t *testing.T) {
 	spec := lensbuild.Dashboard("cached", "Cached", lensbuild.Row(panel.Bar("chart", "Chart", "data").Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
 	ds := &stubDataSource{}
 	request := func(scope string) Request {
-		return Request{DataScope: scope, Namespace: "test", DataSources: map[string]datasource.DataSource{"primary": ds}}
+		return Request{DataScope: scope, Namespace: "test", DataSources: map[string]datasource.DataSource{"primary": ds}, DataSourceIdentities: map[string]string{"primary": "primary:v1"}}
 	}
 	_, err := runtime.Execute(context.Background(), spec, request("tenant:a"), DashboardScope())
 	require.NoError(t, err)
@@ -50,4 +50,46 @@ func TestRuntimeSnapshotIdentityIncludesDataScope(t *testing.T) {
 	_, err = runtime.Execute(context.Background(), spec, request("tenant:b"), DashboardScope())
 	require.NoError(t, err)
 	require.Equal(t, int32(2), ds.calls.Load())
+}
+
+func TestRuntimeSnapshot_UsesShortestDatasetTTL(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.July, 19, 0, 0, 0, 0, time.UTC)
+	store := NewMemorySnapshotStore(MemoryStoreOptions{TTL: time.Hour, Clock: func() time.Time { return now }})
+	runtime := New(Options{Store: store, DefaultTTL: time.Hour})
+	spec := lensbuild.Dashboard("cached", "Cached", lensbuild.Row(panel.Bar("chart", "Chart", "data").Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+	spec.Datasets[0].Cache.TTL = time.Minute
+	ds := &stubDataSource{}
+	req := Request{DataScope: "tenant:a", Namespace: "test", DataSources: map[string]datasource.DataSource{"primary": ds}, DataSourceIdentities: map[string]string{"primary": "primary:v1"}}
+	_, err := runtime.Execute(context.Background(), spec, req, DashboardScope())
+	require.NoError(t, err)
+	now = now.Add(2 * time.Minute)
+	_, err = runtime.Execute(context.Background(), spec, req, DashboardScope())
+	require.NoError(t, err)
+	require.Equal(t, int32(2), ds.calls.Load())
+}
+
+func TestMemorySnapshotStore_DeepClonesTypedNestedVariables(t *testing.T) {
+	t.Parallel()
+	store := NewMemorySnapshotStore(MemoryStoreOptions{})
+	variables := map[string]any{"rows": []map[string][]int{{"values": {1, 2}}}}
+	store.Save(context.Background(), "core:key", &ExecutionSnapshot{Variables: variables}, time.Minute)
+	loaded, ok := store.Load(context.Background(), "core:key")
+	require.True(t, ok)
+	loaded.Variables["rows"].([]map[string][]int)[0]["values"][0] = 99
+	again, ok := store.Load(context.Background(), "core:key")
+	require.True(t, ok)
+	require.Equal(t, 1, again.Variables["rows"].([]map[string][]int)[0]["values"][0])
+}
+
+func TestMemorySnapshotStore_InvalidateMatchesNamespaceBoundary(t *testing.T) {
+	t.Parallel()
+	store := NewMemorySnapshotStore(MemoryStoreOptions{})
+	store.Save(context.Background(), "core:key", &ExecutionSnapshot{}, time.Minute)
+	store.Save(context.Background(), "corebank:key", &ExecutionSnapshot{}, time.Minute)
+	store.Invalidate(context.Background(), "core")
+	_, core := store.Load(context.Background(), "core:key")
+	_, corebank := store.Load(context.Background(), "corebank:key")
+	require.False(t, core)
+	require.True(t, corebank)
 }

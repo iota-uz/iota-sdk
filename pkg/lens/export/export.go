@@ -17,26 +17,46 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/xuri/excelize/v2"
 )
 
 type Labels struct {
 	Summary, ChartData, Breakdown, Parameters, Sources, Metric, Value, Parameter, Dataset, Source, DependsOn string
 	Explorer, Branch, Perspective, Node, Path, ExportMode                                                    string
+	Snapshot, Drill                                                                                          string
 }
 
 func DefaultLabels() Labels {
-	return Labels{"Summary", "Chart data", "Breakdown", "Parameters", "Sources", "Metric", "Value", "Parameter", "Dataset", "Source", "Depends on", "Explorer", "Branch", "Perspective", "Node", "Path", "Export mode"}
+	return Labels{Summary: "Summary", ChartData: "Chart data", Breakdown: "Breakdown", Parameters: "Parameters", Sources: "Sources", Metric: "Metric", Value: "Value", Parameter: "Parameter", Dataset: "Dataset", Source: "Source", DependsOn: "Depends on", Explorer: "Explorer", Branch: "Branch", Perspective: "Perspective", Node: "Node", Path: "Path", ExportMode: "Export mode", Snapshot: "Snapshot", Drill: "Drill"}
 }
 
 func LabelsForLocale(locale string) Labels {
 	switch strings.ToLower(strings.TrimSpace(locale)) {
 	case "ru", "ru-ru":
-		return Labels{"Сводка", "Данные графика", "Разбивка", "Параметры", "Источники", "Показатель", "Значение", "Параметр", "Набор данных", "Источник", "Зависит от", "Исследование", "Раздел", "Представление", "Узел", "Путь", "Режим экспорта"}
+		labels := DefaultLabels()
+		labels.Summary, labels.ChartData, labels.Breakdown, labels.Parameters, labels.Sources = "Сводка", "Данные графика", "Разбивка", "Параметры", "Источники"
+		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Показатель", "Значение", "Параметр", "Набор данных", "Источник", "Зависит от"
+		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Исследование", "Раздел", "Представление", "Узел", "Путь", "Режим экспорта", "Снимок", "Детализация"
+		return labels
 	case "uz-cyrl", "uz-cyrl-uz", "oz":
-		return Labels{"Хулоса", "График маълумотлари", "Тафсилот", "Параметрлар", "Манбалар", "Кўрсаткич", "Қиймат", "Параметр", "Маълумотлар тўплами", "Манба", "Боғлиқ", "Таҳлил", "Бўлим", "Кўриниш", "Тугун", "Йўл", "Экспорт режими"}
+		labels := DefaultLabels()
+		labels.Summary, labels.ChartData, labels.Breakdown, labels.Parameters, labels.Sources = "Хулоса", "График маълумотлари", "Тафсилот", "Параметрлар", "Манбалар"
+		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Кўрсаткич", "Қиймат", "Параметр", "Маълумотлар тўплами", "Манба", "Боғлиқ"
+		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Таҳлил", "Бўлим", "Кўриниш", "Тугун", "Йўл", "Экспорт режими", "Сурат", "Тафсилот"
+		return labels
 	case "uz", "uz-latn", "uz-latn-uz":
-		return Labels{"Xulosa", "Grafik ma’lumotlari", "Tafsilot", "Parametrlar", "Manbalar", "Ko‘rsatkich", "Qiymat", "Parametr", "Ma’lumotlar to‘plami", "Manba", "Bog‘liq", "Tahlil", "Bo‘lim", "Ko‘rinish", "Tugun", "Yo‘l", "Eksport rejimi"}
+		labels := DefaultLabels()
+		labels.Summary, labels.ChartData, labels.Breakdown, labels.Parameters, labels.Sources = "Xulosa", "Grafik ma’lumotlari", "Tafsilot", "Parametrlar", "Manbalar"
+		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Ko‘rsatkich", "Qiymat", "Parametr", "Ma’lumotlar to‘plami", "Manba", "Bog‘liq"
+		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Tahlil", "Bo‘lim", "Ko‘rinish", "Tugun", "Yo‘l", "Eksport rejimi", "Surat", "Tafsilot"
+		return labels
+	case "pt", "pt-br", "pt_br":
+		labels := DefaultLabels()
+		labels.Summary, labels.ChartData, labels.Breakdown, labels.Parameters, labels.Sources = "Resumo", "Dados do gráfico", "Detalhamento", "Parâmetros", "Fontes"
+		labels.Metric, labels.Value, labels.Parameter, labels.Dataset, labels.Source, labels.DependsOn = "Métrica", "Valor", "Parâmetro", "Conjunto de dados", "Fonte", "Depende de"
+		labels.Explorer, labels.Branch, labels.Perspective, labels.Node, labels.Path, labels.ExportMode, labels.Snapshot, labels.Drill = "Exploração", "Ramo", "Perspectiva", "Nó", "Caminho", "Modo de exportação", "Instantâneo", "Detalhamento"
+		return labels
 	default:
 		return DefaultLabels()
 	}
@@ -59,9 +79,18 @@ type Exporter struct{}
 
 func New() *Exporter { return &Exporter{} }
 
-func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
+func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) (err error) {
+	op := serrors.Op("lens/export.Exporter.Write")
+	defer func() {
+		if err != nil {
+			err = serrors.E(op, err)
+		}
+	}()
 	if req.Result == nil {
 		return fmt.Errorf("lens export result is required")
+	}
+	if req.PanelID != "" && req.Result.Panel(req.PanelID) == nil {
+		return fmt.Errorf("panel %q not found", req.PanelID)
 	}
 	if err := ctx.Err(); err != nil {
 		return err
@@ -94,8 +123,8 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 	summaryRows := [][]any{
 		{labels.Metric, labels.Value},
 		{req.Result.Spec.Title, dashboardTotal(req.Result, req.PanelID)},
-		{"Snapshot", req.Result.SnapshotID},
-		{"Drill", strings.Join(req.DrillPath, " > ")},
+		{labels.Snapshot, req.Result.SnapshotID},
+		{labels.Drill, strings.Join(req.DrillPath, " > ")},
 		{labels.Sources, sheetHyperlink(sources, labels.Sources)},
 	}
 	if req.Exploration != nil {
@@ -136,6 +165,9 @@ func (e *Exporter) Write(ctx context.Context, w io.Writer, req Request) error {
 	if req.PanelID == "" {
 		for _, dataset := range req.Result.Spec.Export.EvidenceDatasets {
 			addDataset(dataset)
+			if req.Result.Spec.Export.IncludeUpstream {
+				collectUpstream(req.Result.Spec, dataset, addDataset)
+			}
 		}
 	}
 	for _, panelResult := range panels {
@@ -386,7 +418,9 @@ func writeFrameSetAt(file *excelize.File, sheet string, frames *frame.FrameSet, 
 			row += 2
 		}
 		if fr.Meta.Title != "" {
-			_ = file.SetCellValue(sheet, cell(1, row), fr.Meta.Title)
+			if err := file.SetCellValue(sheet, cell(1, row), fr.Meta.Title); err != nil {
+				return row, maxColumns, err
+			}
 			row++
 		}
 		headers := make([]any, len(fr.Fields))
@@ -464,8 +498,12 @@ func configureEvidenceSheet(file *excelize.File, sheet string, frames *frame.Fra
 		return nil
 	}
 	primary := frames.Primary()
+	headerRow := 1
+	if primary.Meta.Title != "" {
+		headerRow++
+	}
 	if spec.FreezeHeader {
-		if err := file.SetPanes(sheet, &excelize.Panes{Freeze: true, YSplit: 1, TopLeftCell: "A2", ActivePane: "bottomLeft"}); err != nil {
+		if err := file.SetPanes(sheet, &excelize.Panes{Freeze: true, YSplit: headerRow, TopLeftCell: cell(1, headerRow+1), ActivePane: "bottomLeft"}); err != nil {
 			return err
 		}
 	}
@@ -474,12 +512,12 @@ func configureEvidenceSheet(file *excelize.File, sheet string, frames *frame.Fra
 		if err != nil {
 			return err
 		}
-		endRow := primary.RowCount + 1
-		if endRow < 2 {
-			endRow = 2
+		endRow := headerRow + primary.RowCount
+		if endRow <= headerRow {
+			endRow = headerRow + 1
 		}
 		if err := file.AddTable(sheet, &excelize.Table{
-			Range:          fmt.Sprintf("A1:%s%d", endColumn, endRow),
+			Range:          fmt.Sprintf("A%d:%s%d", headerRow, endColumn, endRow),
 			Name:           tableName,
 			StyleName:      "TableStyleMedium2",
 			ShowRowStripes: pointer(true),
@@ -539,25 +577,27 @@ func scalar(value any) any {
 var invalidSheetChars = regexp.MustCompile(`[\\/:?*\[\]]`)
 
 func safeSheetName(name string) string {
-	name = strings.TrimSpace(invalidSheetChars.ReplaceAllString(name, " "))
+	name = strings.TrimSpace(strings.Trim(strings.TrimSpace(invalidSheetChars.ReplaceAllString(name, " ")), "'"))
 	if name == "" {
 		name = "Data"
 	}
 	r := []rune(name)
 	if len(r) > 31 {
-		name = string(r[:31])
+		name = strings.TrimSpace(strings.Trim(string(r[:31]), "'"))
 	}
 	return name
 }
 func uniqueSheetName(name string, used map[string]int) string {
 	base := name
 	for {
-		if _, ok := used[name]; !ok {
-			used[name] = 1
+		key := strings.ToLower(name)
+		if _, ok := used[key]; !ok {
+			used[key] = 1
 			return name
 		}
-		used[base]++
-		suffix := fmt.Sprintf(" %d", used[base])
+		baseKey := strings.ToLower(base)
+		used[baseKey]++
+		suffix := fmt.Sprintf(" %d", used[baseKey])
 		r := []rune(base)
 		if len(r)+len([]rune(suffix)) > 31 {
 			r = r[:31-len([]rune(suffix))]

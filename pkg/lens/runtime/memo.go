@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 type MemoRequest struct {
@@ -21,26 +22,29 @@ type MemoRequest struct {
 // Lens execution. It handles typed report assembly that happens before a spec
 // can be built; values are JSON round-tripped for clone safety.
 func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, compute func(context.Context) (T, error)) (T, error) {
+	op := serrors.Op("lens/runtime.MemoizeJSON")
 	var zero T
 	if runtime == nil {
-		return zero, fmt.Errorf("lens runtime is required")
+		return zero, serrors.E(op, fmt.Errorf("lens runtime is required"))
 	}
 	key, err := memoIdentity(runtime, req)
 	if err != nil {
-		return zero, err
+		return zero, serrors.E(op, err)
 	}
 	if snapshot, ok := runtime.store.Load(ctx, key); ok {
 		if decoded, decodeErr := decodeMemo[T](snapshot); decodeErr == nil {
 			return decoded, nil
 		}
 	}
-	value, err, _ := runtime.flights.Do(key, func() (any, error) {
+	flight := runtime.flights.DoChan(key, func() (any, error) {
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), runtime.workTimeout)
+		defer cancel()
 		if snapshot, ok := runtime.store.Load(ctx, key); ok {
 			if decoded, decodeErr := decodeMemo[T](snapshot); decodeErr == nil {
 				return decoded, nil
 			}
 		}
-		computed, computeErr := compute(ctx)
+		computed, computeErr := compute(workCtx)
 		if computeErr != nil {
 			return nil, computeErr
 		}
@@ -61,15 +65,22 @@ func MemoizeJSON[T any](ctx context.Context, runtime *Runtime, req MemoRequest, 
 			ttl = runtime.ttl
 		}
 		now := time.Now()
-		runtime.store.Save(ctx, key, &ExecutionSnapshot{ID: key, DataScope: req.DataScope, Datasets: map[string]*frame.FrameSet{"memo": frames}, CreatedAt: now, ExpiresAt: now.Add(ttl)}, ttl)
+		runtime.store.Save(workCtx, key, &ExecutionSnapshot{ID: key, DataScope: req.DataScope, Datasets: map[string]*frame.FrameSet{"memo": frames}, CreatedAt: now, ExpiresAt: now.Add(ttl)}, ttl)
 		return computed, nil
 	})
-	if err != nil {
-		return zero, err
+	var value any
+	select {
+	case <-ctx.Done():
+		return zero, serrors.E(op, ctx.Err())
+	case result := <-flight:
+		if result.Err != nil {
+			return zero, serrors.E(op, result.Err)
+		}
+		value = result.Val
 	}
 	result, ok := value.(T)
 	if !ok {
-		return zero, fmt.Errorf("memo %q returned unexpected type %T", req.Namespace, value)
+		return zero, serrors.E(op, fmt.Errorf("memo %q returned unexpected type %T", req.Namespace, value))
 	}
 	return result, nil
 }
@@ -95,17 +106,24 @@ func LookupMemoJSON[T any](ctx context.Context, runtime *Runtime, req MemoReques
 }
 
 func memoIdentity(runtime *Runtime, req MemoRequest) (string, error) {
+	namespace := strings.TrimSpace(req.Namespace)
+	if namespace == "" {
+		return "", fmt.Errorf("memo namespace is required")
+	}
+	if strings.TrimSpace(req.DataScope) == "" {
+		return "", fmt.Errorf("memo data scope is required")
+	}
 	payload, err := json.Marshal(struct {
 		Version   string `json:"version"`
 		Namespace string `json:"namespace"`
 		DataScope string `json:"dataScope"`
 		Input     any    `json:"input"`
-	}{runtime.version, req.Namespace, req.DataScope, req.Input})
+	}{runtime.version, namespace, req.DataScope, req.Input})
 	if err != nil {
 		return "", err
 	}
 	sum := sha256.Sum256(payload)
-	return strings.TrimSpace(req.Namespace) + ":memo:" + fmt.Sprintf("%x", sum[:]), nil
+	return namespace + ":memo:" + fmt.Sprintf("%x", sum[:]), nil
 }
 
 func decodeMemo[T any](snapshot *ExecutionSnapshot) (T, error) {

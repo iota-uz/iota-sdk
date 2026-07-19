@@ -292,6 +292,12 @@ func cloneValue(value any) any {
 		cloned := *v
 		cloned.Result = cloneValue(v.Result)
 		return &cloned
+	case *Hyperlink:
+		if v == nil {
+			return (*Hyperlink)(nil)
+		}
+		cloned := *v
+		return &cloned
 	case map[string]any:
 		cloned := make(map[string]any, len(v))
 		for key, item := range v {
