@@ -36,7 +36,9 @@ just lens build       # rebuild the embedded runtime distribution
 ```
 
 The VR profile uses Chromium only, a 1600×1000 CSS viewport, device scale 1,
-UTC, `en-US`, reduced motion, and the bundled Lens Inter font. URLs include
+UTC, `en-US`, reduced motion, and the Inter variable font bundled for the
+story environment at `.ladle/fonts/` (the runtime dist never embeds it —
+embedded dashboards inherit the Granite host page's fonts). URLs include
 `lens-vr=1`; the Ladle hook disables CSS animations, View Transitions, and
 ECharts animation before a story renders. Tests wait for the expected canvases,
 font readiness, and two animation frames before taking full-page screenshots.

@@ -1,4 +1,4 @@
-import{i as k1,n as O1}from"./lens-dashboard-BVpQ2NT3.js";/*! *****************************************************************************
+import{i as k1,n as O1}from"./lens-dashboard-BrnToAFH.js";/*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any

@@ -18,5 +18,5 @@
     "noUncheckedIndexedAccess": true,
     "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "vr/**/*.ts", "playwright.config.ts", "vite.config.ts", "tailwind.config.ts", ".ladle/**/*.ts"]
+  "include": ["src", "vr/**/*.ts", "playwright.config.ts", "vite.config.ts", "tailwind.config.ts", ".ladle/**/*.ts", ".ladle/**/*.tsx"]
 }
