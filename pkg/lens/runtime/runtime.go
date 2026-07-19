@@ -610,13 +610,13 @@ func (r *Runtime) saveSnapshot(ctx context.Context, state plannedExecutor, resul
 		createdAt := now
 		if existing != nil {
 			createdAt = existing.CreatedAt
-			for name, frames := range existing.Datasets {
-				if frames != nil {
-					datasets[name] = frames.Clone()
-				}
+			datasets = existing.Datasets
+			provenance = existing.Provenance
+			if datasets == nil {
+				datasets = map[string]*frame.FrameSet{}
 			}
-			for name, item := range existing.Provenance {
-				provenance[name] = item
+			if provenance == nil {
+				provenance = map[string]DatasetProvenance{}
 			}
 		}
 		for name, item := range result.Datasets {
