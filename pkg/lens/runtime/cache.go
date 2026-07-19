@@ -57,6 +57,8 @@ func (s *ExecutionSnapshot) Clone() *ExecutionSnapshot {
 type SnapshotStore interface {
 	Load(context.Context, string) (*ExecutionSnapshot, bool)
 	Save(context.Context, string, *ExecutionSnapshot, time.Duration)
+	// Update atomically supplies a clone-safe snapshot to update and transfers
+	// ownership of the callback result to the store.
 	Update(context.Context, string, time.Duration, func(*ExecutionSnapshot) *ExecutionSnapshot)
 	Invalidate(context.Context, string)
 	Stats() CacheStats
@@ -167,7 +169,6 @@ func (m *MemorySnapshotStore) Update(_ context.Context, key string, ttl time.Dur
 		ttl = m.ttl
 	}
 	expiresAt := m.clock().Add(ttl)
-	next = next.Clone()
 	next.ExpiresAt = expiresAt
 	if existing, ok := m.items[key]; ok {
 		entry := existing.Value.(*memoryEntry)
