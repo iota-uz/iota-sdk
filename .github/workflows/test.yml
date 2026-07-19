@@ -58,8 +58,12 @@ jobs:
             docs:
               - 'docs/**'
             lens:
+              - 'cmd/lens-typegen/**'
+              - 'pkg/lens/document/**'
               - 'web/lens/**'
               - 'pkg/lens/render/react/**'
+              - 'go.mod'
+              - 'go.sum'
               - 'Justfile'
               - '.github/workflows/test.yml'
 
@@ -83,6 +87,11 @@ jobs:
         with:
           node-version: "20"
 
+      - name: Set up Go
+        uses: useblacksmith/setup-go@v6
+        with:
+          go-version: "1.24.13"
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v3
         with:
@@ -98,7 +107,9 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Check generated Lens types
-        run: pnpm --dir web/lens run --if-present typegen:check
+        run: |
+          just lens typegen
+          git diff --exit-code -- web/lens/src/contract
 
       - name: Check Lens workspace
         run: just lens check

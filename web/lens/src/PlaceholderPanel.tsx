@@ -1,7 +1,7 @@
-import type { LensDocument, LensPanel } from './document'
+import type { DashboardDocument, Panel } from './contract'
 
 export interface PlaceholderPanelProps {
-  document: LensDocument
+  document: DashboardDocument
   locale: string
   src?: string
 }
@@ -18,7 +18,7 @@ function displayString(value: unknown, fallback: string): string {
   return fallback
 }
 
-function readStat(document: LensDocument, panel: LensPanel) {
+function readStat(document: DashboardDocument, panel: Panel) {
   const frame = document.frames[panel.frame]
   const row = frame?.rows[0]
   const labelName = findColumn(panel.encoding.label)
