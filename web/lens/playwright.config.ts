@@ -1,0 +1,43 @@
+import path from 'node:path'
+import { defineConfig } from '@playwright/test'
+
+const platform = process.platform
+
+export default defineConfig({
+  testDir: './vr',
+  outputDir: './vr/results',
+  fullyParallel: false,
+  forbidOnly: Boolean(process.env.CI),
+  retries: process.env.CI ? 1 : 0,
+  workers: 1,
+  reporter: process.env.CI ? [['list']] : [['line']],
+  snapshotPathTemplate: path.join('vr', 'baselines', platform, '{arg}{ext}'),
+  expect: {
+    toHaveScreenshot: {
+      animations: 'disabled',
+      caret: 'hide',
+      scale: 'css',
+      threshold: 0,
+      maxDiffPixels: 0,
+    },
+  },
+  use: {
+    baseURL: 'http://127.0.0.1:61000',
+    colorScheme: 'light',
+    deviceScaleFactor: 1,
+    locale: 'en-US',
+    timezoneId: 'UTC',
+    trace: 'retain-on-failure',
+    viewport: { width: 1600, height: 1000 },
+  },
+  projects: [{
+    name: 'chromium',
+    use: { browserName: 'chromium' },
+  }],
+  webServer: {
+    command: 'pnpm ladle --host 127.0.0.1 --port 61000 --noWatch',
+    url: 'http://127.0.0.1:61000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
+})

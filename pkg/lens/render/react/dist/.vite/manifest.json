@@ -1,6 +1,10 @@
 {
+  "../../modules/core/presentation/assets/fonts/Inter.var.woff2": {
+    "file": "assets/Inter.var-CTiC9fjq.woff2",
+    "src": "../../modules/core/presentation/assets/fonts/Inter.var.woff2"
+  },
   "index.html": {
-    "file": "assets/lens-dashboard-CsccbYho.js",
+    "file": "assets/lens-dashboard-BVpQ2NT3.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -8,11 +12,14 @@
       "src/charts/index.ts"
     ],
     "css": [
-      "assets/index-BKK0A8BY.css"
+      "assets/index-CkePdpJf.css"
+    ],
+    "assets": [
+      "assets/Inter.var-CTiC9fjq.woff2"
     ]
   },
   "src/charts/echarts/adapter.ts": {
-    "file": "assets/adapter-BFiF_BH4.js",
+    "file": "assets/adapter-Djdd1_kz.js",
     "name": "adapter",
     "src": "src/charts/echarts/adapter.ts",
     "isDynamicEntry": true,
@@ -21,7 +28,7 @@
     ]
   },
   "src/charts/index.ts": {
-    "file": "assets/index-CWB5lqGn.js",
+    "file": "assets/index-DOdEZc1v.js",
     "name": "index",
     "src": "src/charts/index.ts",
     "isDynamicEntry": true,

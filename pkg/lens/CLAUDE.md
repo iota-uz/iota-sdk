@@ -1,5 +1,9 @@
 # Lens Dashboard Framework
 
+React runtime, story, fixture, and visual-regression work follows
+[`web/lens/CLAUDE.md`](../../web/lens/CLAUDE.md). A visible runtime surface is
+not complete until its stories and VR coverage are included.
+
 Lens supports two patterns:
 
 - Manual `lens.DashboardSpec`: use when the layout and datasets are bespoke and there is no multi-level drill flow.

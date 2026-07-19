@@ -1,4 +1,5 @@
 import type { EChartsOption } from 'echarts'
+import { isVisualRegression } from '../../visualRegression'
 import type { ChartInput } from '../adapter'
 import type { EChartsTheme } from './theme'
 
@@ -99,6 +100,7 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string) {
 
 function baseOption(theme: EChartsTheme): EChartsOption {
   return {
+    animation: !isVisualRegression(),
     animationDuration: 250,
     backgroundColor: 'transparent',
     color: theme.colors,

@@ -70,6 +70,7 @@ interface TestTooltip {
 
 function testOption(option: EChartsOption) {
   return option as unknown as {
+    animation: boolean
     series: TestSeries[]
     tooltip: TestTooltip
     xAxis: TestAxis
@@ -78,6 +79,14 @@ function testOption(option: EChartsOption) {
 }
 
 describe('buildChartOption', () => {
+  it('disables animation in visual regression mode', () => {
+    document.documentElement.dataset.lensVr = 'true'
+    const chart = testOption(buildChartOption(input('bar'), theme))
+    delete document.documentElement.dataset.lensVr
+
+    expect(chart.animation).toBe(false)
+  })
+
   it.each([
     ['pie', ['0%', '72%']],
     ['donut', ['48%', '72%']],
