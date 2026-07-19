@@ -24,7 +24,7 @@ vi.mock('../runtime', () => ({
 }))
 
 import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
-import { RegisteredPanel } from './registry'
+import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
 
 const dataFrame: Frame = {
@@ -114,6 +114,26 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area']
 })
 
 describe('panel registry', () => {
+  it('partitions every contract panel kind into supported or explicitly unsupported', () => {
+    const contractKinds = {
+      area: true,
+      bar: true,
+      cascade: true,
+      donut: true,
+      hbar: true,
+      line: true,
+      pie: true,
+      stat: true,
+      table: true,
+    } satisfies Record<PanelKind, true>
+
+    for (const kind of Object.keys(contractKinds) as PanelKind[]) {
+      const supported = panelRegistry[kind] !== undefined
+      const unsupported = UNSUPPORTED.some((candidate) => candidate === kind)
+      expect(Number(supported) + Number(unsupported), kind).toBe(1)
+    }
+  })
+
   it('maps every v1 kind and shows an explicit fallback for unsupported kinds', () => {
     runtime.frame = state('data')
     const unsupported = panel('table')

@@ -12,9 +12,14 @@ export interface PanelFrameProps {
 function PanelSkeleton({ variant }: { variant: 'stat' | 'chart' }) {
   return (
     <div className={`lens-panel-skeleton lens-panel-skeleton-${variant}`} role="status" aria-label="Loading panel">
-      <span className="lens-skeleton-line lens-skeleton-line-label" />
-      <span className="lens-skeleton-line lens-skeleton-line-value" />
-      {variant === 'chart' && <span className="lens-skeleton-chart" />}
+      {variant === 'chart' ? (
+        <span className="lens-skeleton-chart" />
+      ) : (
+        <>
+          <span className="lens-skeleton-line lens-skeleton-line-label" />
+          <span className="lens-skeleton-line lens-skeleton-line-value" />
+        </>
+      )}
     </div>
   )
 }

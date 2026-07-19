@@ -1,14 +1,18 @@
 import type { ComponentType } from 'react'
-import type { Panel } from '../contract'
+import type { Panel, PanelKind } from '../contract'
 import { BarPanel, LinePanel, PiePanel, type ChartPanelProps } from './ChartPanel'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 
 /* eslint-disable react-refresh/only-export-components */
 
 export type PanelComponent = ComponentType<StatPanelProps | ChartPanelProps>
-export type PanelRegistry = Partial<Record<string, PanelComponent>>
+export type PanelRegistry = Partial<Record<PanelKind, PanelComponent>>
 
-export const panelRegistry: PanelRegistry = {
+export const UNSUPPORTED = ['cascade', 'table'] as const satisfies readonly PanelKind[]
+type UnsupportedKind = (typeof UNSUPPORTED)[number]
+type SupportedKind = Exclude<PanelKind, UnsupportedKind>
+
+export const SUPPORTED = {
   stat: StatPanel,
   pie: PiePanel,
   donut: PiePanel,
@@ -16,7 +20,18 @@ export const panelRegistry: PanelRegistry = {
   hbar: BarPanel,
   line: LinePanel,
   area: LinePanel,
+} satisfies Record<SupportedKind, PanelComponent>
+
+function unsupportedPartition<const Kinds extends readonly PanelKind[]>(kinds: Kinds) {
+  return Object.fromEntries(kinds.map((kind) => [kind, null])) as Record<Kinds[number], null>
 }
+
+export const PANEL_KIND_PARTITION = {
+  ...SUPPORTED,
+  ...unsupportedPartition(UNSUPPORTED),
+} satisfies Record<PanelKind, PanelComponent | null>
+
+export const panelRegistry: PanelRegistry = SUPPORTED
 
 export interface RegisteredPanelProps {
   panel: Panel

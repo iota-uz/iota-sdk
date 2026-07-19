@@ -64,7 +64,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           adapter={adapter}
           label={`${panel.title} ${kind} chart`}
           drillable={drillable}
-          onSelect={select}
+          onSelect={drillable ? select : undefined}
           onHover={drillable ? setHoveredKey : undefined}
         />
       )}

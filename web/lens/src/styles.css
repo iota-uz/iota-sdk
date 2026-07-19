@@ -161,7 +161,15 @@
   }
 
   .lens-panel-skeleton {
-    @apply lens-flex lens-flex-1 lens-animate-pulse lens-flex-col lens-gap-3 lens-p-4;
+    @apply lens-flex lens-flex-1 lens-animate-pulse lens-flex-col lens-gap-3;
+  }
+
+  .lens-panel-skeleton-stat {
+    @apply lens-p-4;
+  }
+
+  .lens-panel-skeleton-chart {
+    @apply lens-p-3;
   }
 
   .lens-skeleton-line,
@@ -178,7 +186,7 @@
   }
 
   .lens-skeleton-chart {
-    @apply lens-mt-2 lens-min-h-32 lens-flex-1;
+    @apply lens-min-h-52 lens-flex-1;
   }
 
   .lens-stat-content {
@@ -223,14 +231,6 @@
 
   .lens-chart-canvas {
     @apply lens-min-h-52 lens-w-full lens-flex-1;
-  }
-
-  .lens-chart-placeholder {
-    @apply lens-flex lens-h-full lens-min-h-52 lens-w-full lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-dashed lens-border-border-strong lens-bg-inset lens-p-4 lens-font-sans lens-text-sm lens-text-muted;
-  }
-
-  .lens-chart-placeholder:disabled {
-    @apply lens-cursor-default;
   }
 
   .lens-chart-load-error {

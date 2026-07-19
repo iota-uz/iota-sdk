@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/adapter-BhioMeQ5.js","assets/lens-dashboard-Bfghl-F6.js","assets/index-DY-B492t.css"])))=>i.map(i=>d[i]);
+import{_ as a}from"./lens-dashboard-Bfghl-F6.js";async function o(){const{echartsAdapter:t}=await a(async()=>{const{echartsAdapter:r}=await import("./adapter-BhioMeQ5.js");return{echartsAdapter:r}},__vite__mapDeps([0,1,2]));return t}export{o as getChartAdapter};
