@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --lens-bg-page: #f6f7f9;
+    --lens-bg-card: #ffffff;
+    --lens-bg-inset: #f8fafc;
+    --lens-border: #e2e8f0;
+    --lens-border-strong: #cbd5e1;
+    --lens-divider: #f1f5f9;
+    --lens-text-strong: #0f172a;
+    --lens-text: #334155;
+    --lens-text-muted: #64748b;
+    --lens-text-faint: #94a3b8;
+    --lens-accent-700: #1d4ed8;
+    --lens-accent-600: #2255d6;
+    --lens-accent-500: #2563eb;
+    --lens-accent-300: #93c5fd;
+    --lens-accent-100: #dbeafe;
+    --lens-accent-50: #eff6ff;
+    --lens-pos: #059669;
+    --lens-neg: #dc2626;
+    --lens-warn: #d97706;
+    --lens-radius-card: 8px;
+    --lens-radius-control: 6px;
+    --lens-radius-badge: 4px;
+    --lens-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --lens-font: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  lens-dashboard {
+    display: block;
+  }
+}
+
+@layer components {
+  .lens-root {
+    @apply lens-box-border lens-min-h-32 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
+    color-scheme: light;
+  }
+
+  .lens-root[data-theme='dark'] {
+    --lens-bg-page: #0f172a;
+    --lens-bg-card: #1e293b;
+    --lens-bg-inset: #334155;
+    --lens-border: #475569;
+    --lens-border-strong: #64748b;
+    --lens-divider: #334155;
+    --lens-text-strong: #f8fafc;
+    --lens-text: #e2e8f0;
+    --lens-text-muted: #cbd5e1;
+    --lens-text-faint: #94a3b8;
+    --lens-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    color-scheme: dark;
+  }
+
+  .lens-stat-card {
+    @apply lens-box-border lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-shadow-card;
+  }
+
+  .lens-runtime-badge {
+    @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
+  }
+
+  .lens-placeholder-state {
+    @apply lens-box-border lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-sm lens-text-muted lens-shadow-card;
+  }
+}

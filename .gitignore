@@ -21,6 +21,8 @@ logs/
 # Build artifacts
 dist/
 **/dist/
+!pkg/lens/render/react/dist/
+!pkg/lens/render/react/dist/**
 
 
 # Applet embedded assets are build output; keep only a placeholder for go:embed.

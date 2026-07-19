@@ -22,6 +22,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       e2e: ${{ steps.filter.outputs.e2e }}
       docs: ${{ steps.filter.outputs.docs }}
+      lens: ${{ steps.filter.outputs.lens }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -56,6 +57,57 @@ jobs:
               - 'e2e/**'
             docs:
               - 'docs/**'
+            lens:
+              - 'web/lens/**'
+              - 'pkg/lens/render/react/**'
+              - 'Justfile'
+              - '.github/workflows/test.yml'
+
+  lens-web:
+    needs: changes
+    if: |
+      (github.event_name != 'pull_request' || !github.event.pull_request.draft) &&
+      (github.event_name == 'workflow_dispatch' || github.event_name == 'push' || needs.changes.outputs.lens == 'true')
+    concurrency:
+      group: lens-web-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: true
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 10
+    name: Lens Web
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9.15.0
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+        with:
+          just-version: "1.46.0"
+
+      - name: Install dependencies
+        working-directory: web/lens
+        run: pnpm install --frozen-lockfile
+
+      - name: Check generated Lens types
+        run: pnpm --dir web/lens run --if-present typegen:check
+
+      - name: Check Lens workspace
+        run: just lens check
+
+      - name: Rebuild embedded Lens assets
+        run: just lens build
+
+      - name: Verify committed Lens assets
+        run: git diff --exit-code -- pkg/lens/render/react/dist
 
   security-gosec:
     needs: changes

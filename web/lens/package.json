@@ -1,0 +1,47 @@
+{
+  "name": "@iota-uz/lens-web",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node ./scripts/dev.mjs",
+    "build": "tsc --noEmit && vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "check": "pnpm typecheck && pnpm lint && pnpm test",
+    "ladle": "CHOKIDAR_USEPOLLING=1 ladle serve --viteConfig .ladle/vite.config.ts",
+    "ladle:build": "ladle build --viteConfig .ladle/vite.config.ts",
+    "fixture": "node ./scripts/fetch-fixture.mjs"
+  },
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.17.0",
+    "@ladle/react": "5.1.1",
+    "@testing-library/jest-dom": "6.6.3",
+    "@testing-library/react": "16.1.0",
+    "@types/node": "22.10.2",
+    "@types/react": "18.3.18",
+    "@types/react-dom": "18.3.5",
+    "@vitejs/plugin-react": "4.3.4",
+    "autoprefixer": "10.4.20",
+    "eslint": "9.17.0",
+    "eslint-plugin-react-hooks": "5.1.0",
+    "eslint-plugin-react-refresh": "0.4.16",
+    "globals": "15.14.0",
+    "jsdom": "25.0.1",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.7.2",
+    "typescript-eslint": "8.18.2",
+    "vite": "5.4.21",
+    "vitest": "2.1.9"
+  }
+}
