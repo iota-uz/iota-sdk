@@ -2,7 +2,7 @@ import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { init, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import type { ChartAdapter, ChartEvents, ChartInput, ChartInstance } from '../adapter'
+import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
 import { buildChartOption } from './options'
 import { buildEChartsTheme } from './theme'
@@ -10,6 +10,16 @@ import { buildEChartsTheme } from './theme'
 registerEChartsModules([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer])
 
 type ChartInitializer = (element: HTMLElement) => ECharts
+
+/**
+ * The mark lives on a canvas, so the only way to anchor UI to it is the
+ * pointer position ECharts forwards from the native event.
+ */
+function anchorFromEvent(event: unknown): ChartAnchor | undefined {
+  const wrapper = (event as { event?: { event?: MouseEvent } } | undefined)?.event?.event
+  if (!wrapper || typeof wrapper.clientX !== 'number' || typeof wrapper.clientY !== 'number') return undefined
+  return { x: wrapper.clientX, y: wrapper.clientY }
+}
 
 function observeTheme(element: HTMLElement, rebuild: () => void): MutationObserver | undefined {
   if (typeof MutationObserver === 'undefined') return undefined
@@ -39,7 +49,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       }
       const select = (event: Parameters<typeof nodeKeyFromEvent>[0]) => {
         const key = nodeKeyFromEvent(event)
-        if (key !== undefined) events.onSelect(key)
+        if (key !== undefined) events.onSelect(key, anchorFromEvent(event))
       }
       const hover = (event: Parameters<typeof nodeKeyFromEvent>[0]) => {
         const key = nodeKeyFromEvent(event)

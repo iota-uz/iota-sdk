@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Frame, NodeKey, Panel } from '../contract'
-import type { ChartAdapter, ChartFormatResolver, ChartKind } from '../charts/adapter'
+import type { ChartAdapter, ChartAnchor, ChartFormatResolver, ChartKind } from '../charts/adapter'
 import { childForSelection } from '../explore/model'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { ChartHost } from './ChartHost'
+import { useMarkSelection } from './context'
 import { encodingRoles, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
@@ -43,6 +44,27 @@ function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis
   return useMemo(() => ({ format, formatAxis }), [format, formatAxis])
 }
 
+/**
+ * Identity of one legend entry. The id field is stable across re-queries;
+ * without one the label is the only thing a row can be recognised by.
+ */
+export function legendKey(frame: Frame, panel: Panel, index: number): string {
+  const idIndex = panel.encoding.id ? frame.columns.findIndex((column) => column.name === panel.encoding.id) : -1
+  const labelField = panel.encoding.label ?? panel.encoding.category
+  const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
+  const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : frame.rows[index]?.[labelIndex]
+  return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
+}
+
+function numericCell(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
 export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const frame = usePanelFrame(panel.id)
   const { document, navigation } = useDashboard()
@@ -50,29 +72,74 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const { format, formatAxis } = useChartFormat(panel)
   const [selectedKey, setSelectedKey] = useState<NodeKey>()
   const [hoveredKey, setHoveredKey] = useState<NodeKey | null>(null)
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
   const active = navigation.panelId === panel.id && navigation.path.length > 0
   const level = active
     ? levelForPath(document, navigation.path)
     : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
   const drillable = level ? level.children.some(({ target }) => target) : Boolean(panel.drillRoot)
   const kind = panel.kind as ChartKind
-  const input = useMemo(() => frame.data ? ({
+
+  // A new level or perspective is new data; carrying hidden keys across would
+  // silently blank out unrelated segments.
+  const viewKey = `${navigation.panelId === panel.id ? navigation.path.join('|') : ''}:${navigation.perspectiveId ?? ''}`
+  const previousViewKey = useRef(viewKey)
+  useEffect(() => {
+    if (previousViewKey.current === viewKey) return
+    previousViewKey.current = viewKey
+    setHidden(new Set())
+  }, [viewKey])
+
+  // Hidden series are removed from the data, not dimmed: ECharts derives slice
+  // percentages from the data it is given, so dimming would leave every label
+  // computed against the old total — the recalculation is the whole point.
+  const visibleFrame = useMemo(() => {
+    if (!frame.data || hidden.size === 0) return frame.data
+    const rows = frame.data.rows.filter((_, index) => !hidden.has(legendKey(frame.data!, panel, index)))
+    return { ...frame.data, rows }
+  }, [frame.data, hidden, panel])
+
+  const visibleTotal = useMemo(() => {
+    if (!frame.data || hidden.size === 0 || !panel.encoding.value) return undefined
+    const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
+    if (valueIndex < 0) return undefined
+    return (visibleFrame?.rows ?? []).reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+  }, [frame.data, hidden.size, panel.encoding.value, visibleFrame])
+
+  const toggleSeries = useCallback((key: string) => {
+    setHidden((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const input = useMemo(() => visibleFrame ? ({
     kind,
-    frame: frame.data,
+    frame: visibleFrame,
     encoding: panel.encoding,
     format,
     formatAxis,
     theme: document.theme,
     selectedKey,
     presentation: panel.presentation,
-  }) : undefined, [document.theme, format, formatAxis, frame.data, kind, panel.encoding, panel.presentation, selectedKey])
-  const select = useCallback((key: NodeKey) => {
+  }) : undefined, [document.theme, format, formatAxis, kind, panel.encoding, panel.presentation, selectedKey, visibleFrame])
+  const onMarkSelect = useMarkSelection()
+  const select = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
     if (!drillable) return
+    // With an explore host present the mark opens its overlay; without one the
+    // chart keeps drilling directly, so standalone panels are unaffected.
+    if (onMarkSelect) {
+      setSelectedKey(key)
+      onMarkSelect(key, anchor)
+      return
+    }
     const node = childForSelection(level, key)
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [drillInto, drillable, level, panel.id])
+  }, [drillInto, drillable, level, onMarkSelect, panel.id])
 
   return (
     <PanelFrame panel={panel} frame={frame}>
@@ -89,33 +156,43 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           />
         )}
         {panel.presentation?.totalBadge === 'plot' && panel.total !== undefined && (
-          <PlotTotalBadge panel={panel} />
+          <PlotTotalBadge panel={panel} total={visibleTotal ?? panel.total} />
         )}
       </div>
-      {panel.presentation?.legend === 'below' && frame.data && <ChartLegend panel={panel} frame={frame.data} />}
+      {panel.presentation?.legend === 'below' && frame.data && (
+        <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} />
+      )}
       {drillable && hoveredKey && <span className="lens-chart-drill-hint" role="status">Select to explore</span>}
     </PanelFrame>
   )
 }
 
-function PlotTotalBadge({ panel }: { panel: Panel }) {
+function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
   const translate = useTranslate()
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   return (
     <span className="lens-plot-total">
       <span className="lens-panel-total-label">{translate('panel.total', 'Total')}:</span>
       {' '}
-      {formatTotal(panel.total)}
+      {formatTotal(total)}
     </span>
   )
 }
 
 /**
  * A legend below the plot lists `label · value` for every slice, so the values
- * stay readable when the plot itself only carries percentages.
+ * stay readable when the plot itself only carries percentages. Entries are
+ * buttons: clicking one drops that series from the plot, which is what makes
+ * the remaining percentages re-normalize, exactly like the legacy legend.
  */
-function ChartLegend({ panel, frame }: { panel: Panel; frame: Frame }) {
+function ChartLegend({ panel, frame, hidden, onToggle }: {
+  panel: Panel
+  frame: Frame
+  hidden: ReadonlySet<string>
+  onToggle: (key: string) => void
+}) {
   const { document } = useDashboard()
+  const translate = useTranslate()
   const labelField = panel.encoding.label ?? panel.encoding.category
   const valueField = panel.encoding.value
   const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
@@ -124,17 +201,39 @@ function ChartLegend({ panel, frame }: { panel: Panel; frame: Frame }) {
   if (labelIndex < 0) return null
 
   const color = seriesColorResolver(document.theme, panel)
+  const visibleCount = frame.rows.filter((_, index) => !hidden.has(legendKey(frame, panel, index))).length
+
   return (
     <ul className="lens-chart-legend">
       {frame.rows.map((row, index) => {
         const raw = row[labelIndex]
         const label = typeof raw === 'string' ? raw : raw === null || raw === undefined ? '' : JSON.stringify(raw)
+        const key = legendKey(frame, panel, index)
+        const isHidden = hidden.has(key)
+        // Hiding the last visible series would leave an empty plot with no way
+        // back except guessing, so the final entry stays locked on.
+        const locked = !isHidden && visibleCount <= 1
         return (
-          <li className="lens-chart-legend-item" key={`${label}-${index}`}>
-            <span aria-hidden="true" className="lens-chart-legend-mark" style={{ background: color(label, index) }} />
-            <span className="lens-chart-legend-label">{label}</span>
-            <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
-            <span className="lens-chart-legend-value">{valueIndex >= 0 ? formatValue(row[valueIndex]) : ''}</span>
+          <li className="lens-chart-legend-item" key={`${key}-${index}`}>
+            <button
+              aria-pressed={!isHidden}
+              className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+              disabled={locked}
+              onClick={() => onToggle(key)}
+              title={locked
+                ? translate('chart.legendLast', 'The last visible series cannot be hidden')
+                : translate('chart.legendToggle', 'Toggle series')}
+              type="button"
+            >
+              <span
+                aria-hidden="true"
+                className="lens-chart-legend-mark"
+                style={{ background: isHidden ? undefined : color(label, index) }}
+              />
+              <span className="lens-chart-legend-label">{label}</span>
+              <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+              <span className="lens-chart-legend-value">{valueIndex >= 0 ? formatValue(row[valueIndex]) : ''}</span>
+            </button>
           </li>
         )
       })}

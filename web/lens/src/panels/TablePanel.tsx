@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
+import { ArrowUpRight, CaretRight } from '../icons'
 import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
 
@@ -191,7 +192,7 @@ function ColumnCell({
         {content}
         {/* The arrow claims the cell opens something, so it only appears when
             a target actually resolved. */}
-        <span aria-hidden="true" className="lens-table-cell-link-arrow">{pill ? '↗' : '→'}</span>
+        <span className="lens-table-cell-link-arrow">{pill ? <ArrowUpRight /> : <CaretRight />}</span>
       </a>
     )
   }

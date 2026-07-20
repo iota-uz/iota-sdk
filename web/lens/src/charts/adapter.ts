@@ -16,8 +16,14 @@ export interface ChartInput {
   presentation?: Presentation
 }
 
+/** Viewport coordinates of the activated mark, used to anchor an overlay. */
+export interface ChartAnchor {
+  x: number
+  y: number
+}
+
 export interface ChartEvents {
-  onSelect(key: NodeKey): void
+  onSelect(key: NodeKey, anchor?: ChartAnchor): void
   onHover(key: NodeKey | null): void
 }
 

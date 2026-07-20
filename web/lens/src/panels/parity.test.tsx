@@ -1,8 +1,10 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Frame, Panel } from '../contract'
 import { clusterRow, DashboardPanels } from '../DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
+import type { ChartAdapter, ChartInput } from '../charts/adapter'
+import { ChartPanel } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
 import { StatMetric, StatPanel } from './StatPanel'
 import { PanelSkeletonBody } from './Skeleton'
@@ -168,7 +170,8 @@ describe('table parity treatments', () => {
     // Compact cells with the pinned separator, wrapped in a drill pill.
     const pill = container.querySelector('.lens-table-cell-pill')
     expect(pill?.textContent).toContain('9.36B')
-    expect(pill?.textContent).toContain('↗')
+    // The drill arrow is a Phosphor glyph now, not a text character.
+    expect(pill?.querySelector('svg')).not.toBeNull()
 
     // Underline rules follow the sign and never shrink into a stray hyphen:
     // they span the value instead of encoding magnitude.
@@ -407,5 +410,64 @@ describe('expanded panel', () => {
     const dialog = screen.getByRole('dialog')
     expect(container.contains(dialog)).toBe(false)
     expect(container.querySelector('.lens-panel-placeholder')).not.toBeNull()
+  })
+})
+
+const piePanel: Panel = {
+  id: 'mix', kind: 'pie', title: 'Premium mix', semantics: 'partition', frame: 'mix:root',
+  encoding: { id: 'id', label: 'label', value: 'amount' },
+  format: { amount: { kind: 'number', minorUnits: false, precision: 0 } },
+  presentation: { legend: 'below', sliceLabels: 'percent', totalBadge: 'plot' },
+  total: 1000,
+  actions: [],
+}
+
+const pieFrame: Frame = {
+  columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: [['direct', 'Direct', 600], ['broker', 'Broker', 300], ['inward', 'Inward', 100]],
+}
+
+describe('chart legend series toggle', () => {
+  function renderPie() {
+    const inputs: Array<ChartInput> = []
+    const adapter: ChartAdapter = {
+      mount: (_element, initial) => {
+        inputs.push(initial)
+        return { update: (next) => inputs.push(next), dispose: () => {} }
+      },
+    }
+    const view = renderDocument(
+      documentWith([piePanel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={piePanel} adapter={adapter} />,
+    )
+    return { ...view, inputs }
+  }
+
+  it('removes the datum so the chart re-normalizes, and follows the total badge', async () => {
+    const { inputs, container } = renderPie()
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+    expect(container.querySelector('.lens-plot-total')?.textContent).toContain('1,000')
+
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+
+    await waitFor(() => {
+      // Hidden series leave the data entirely — dimming would keep every slice
+      // percentage computed against the old total.
+      expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'inward'])
+    })
+    expect(screen.getByRole('button', { name: /Broker/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(container.querySelector('.lens-plot-total')?.textContent).toContain('700')
+  })
+
+  it('refuses to hide the last visible series', async () => {
+    const { inputs } = renderPie()
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Inward/ }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /Direct/ })).toBeDisabled())
+    fireEvent.click(screen.getByRole('button', { name: /Direct/ }))
+    expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct'])
   })
 })

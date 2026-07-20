@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NodeKey } from '../contract'
-import type { ChartAdapter, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'
+import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'
 import { useTranslate } from '../runtime'
 
 export interface ChartHostProps {
   input: ChartInput
   panelId?: string
-  onSelect?: (key: NodeKey) => void
+  onSelect?: (key: NodeKey, anchor?: ChartAnchor) => void
   onHover?: (key: NodeKey | null) => void
   adapter?: ChartAdapter
   label?: string
@@ -32,7 +32,7 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
   useEffect(() => {
     let active = true
     const events: ChartEvents = {
-      onSelect: (key) => eventsRef.current.onSelect?.(key),
+      onSelect: (key, anchor) => eventsRef.current.onSelect?.(key, anchor),
       onHover: (key) => eventsRef.current.onHover?.(key),
     }
 

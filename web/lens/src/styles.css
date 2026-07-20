@@ -143,6 +143,20 @@
     @apply lens-border-transparent lens-bg-inset lens-text-strong;
   }
 
+  /* Icon specimen grid — story-only surface that pins every glyph's rendered
+     size so visual regression catches path or weight drift. */
+  .lens-icon-specimens {
+    @apply lens-flex lens-flex-wrap lens-gap-4;
+  }
+
+  .lens-icon-specimens > li {
+    @apply lens-flex lens-items-center lens-gap-2 lens-text-xs lens-text-muted;
+  }
+
+  .lens-icon-specimen-size {
+    @apply lens-text-faint;
+  }
+
   /* The portal host. It leaves the dashboard subtree entirely, so it must
      re-declare the Lens root context and sit above every page stacking
      context, including the host application's chrome. */
@@ -491,7 +505,34 @@
   }
 
   .lens-chart-legend-item {
-    @apply lens-flex lens-items-center lens-gap-1.5;
+    @apply lens-flex lens-items-center;
+  }
+
+  .lens-chart-legend-toggle {
+    @apply lens-inline-flex lens-cursor-pointer lens-items-center lens-gap-1.5 lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-0.5 lens-font-sans lens-text-xs lens-text-muted lens-transition-colors;
+  }
+
+  .lens-chart-legend-toggle:hover:not(:disabled) {
+    @apply lens-bg-inset;
+  }
+
+  .lens-chart-legend-toggle:disabled {
+    @apply lens-cursor-default;
+  }
+
+  /* A hidden series keeps its value on screen so the user can see what was
+     taken out of the total, and stays clickable to bring it back. */
+  .lens-chart-legend-hidden {
+    @apply lens-opacity-50;
+  }
+
+  .lens-chart-legend-hidden .lens-chart-legend-label,
+  .lens-chart-legend-hidden .lens-chart-legend-value {
+    @apply lens-line-through;
+  }
+
+  .lens-chart-legend-hidden .lens-chart-legend-mark {
+    background: var(--lens-border-strong);
   }
 
   .lens-chart-legend-mark {
@@ -976,7 +1017,173 @@
   }
 
   .lens-explore {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-3;
+    @apply lens-flex lens-h-full lens-min-w-0 lens-flex-col;
+  }
+
+  /* Drill chrome lives in the panel header: a back control, crumbs, and the
+     applied perspective as a muted suffix on the current crumb. */
+  .lens-panel-trail {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-gap-1;
+  }
+
+  .lens-panel-trail ol {
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-list-none lens-items-center lens-justify-end lens-gap-0.5 lens-overflow-hidden lens-p-0;
+  }
+
+  .lens-panel-trail li {
+    @apply lens-flex lens-min-w-0 lens-shrink-0 lens-items-center lens-gap-0.5;
+  }
+
+  /* Crumbs read root → current, and pressure is absorbed from the left: every
+     ancestor ellipsizes before the deepest crumb, which must stay readable. */
+  .lens-panel-trail li:not(:last-child) {
+    @apply lens-shrink;
+  }
+
+  .lens-trail-crumb {
+    @apply lens-max-w-full lens-truncate lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-font-sans lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  .lens-trail-crumb[aria-current='page'] {
+    @apply lens-text-strong;
+  }
+
+  .lens-trail-crumb:hover:not([aria-current='page']) {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
+  .lens-trail-perspective {
+    @apply lens-ml-1 lens-font-normal lens-normal-case lens-tracking-normal lens-text-faint;
+  }
+
+  .lens-trail-back,
+  .lens-explore-affordance {
+    @apply lens-shrink-0;
+  }
+
+  .lens-drill-scrim {
+    @apply lens-fixed lens-inset-0;
+  }
+
+  /* The popover is anchored to the mark, so it must never cover it: the
+     placement logic keeps it beside the pointer and inside the viewport. */
+  .lens-drill-overlay {
+    @apply lens-fixed lens-flex lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-lg lens-outline-none;
+    max-height: min(60vh, 420px);
+  }
+
+  .lens-drill-header {
+    @apply lens-flex lens-items-start lens-justify-between lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-3 lens-py-2.5;
+  }
+
+  .lens-drill-heading {
+    @apply lens-min-w-0;
+  }
+
+  .lens-drill-label {
+    @apply lens-m-0 lens-truncate lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  .lens-drill-value {
+    @apply lens-m-0 lens-mt-1 lens-text-lg lens-font-semibold lens-tracking-tight lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-drill-share {
+    @apply lens-ml-1 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  .lens-drill-section {
+    @apply lens-min-h-0 lens-overflow-auto lens-border-0 lens-border-b lens-border-solid lens-px-3 lens-py-2;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-drill-section-label {
+    @apply lens-m-0 lens-mb-1 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
+  }
+
+  .lens-drill-rows {
+    @apply lens-m-0 lens-list-none lens-p-0;
+  }
+
+  .lens-drill-row {
+    @apply lens-relative lens-flex lens-w-full lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-text-left lens-font-sans lens-text-sm lens-text-text lens-transition-colors;
+  }
+
+  .lens-drill-row:hover {
+    @apply lens-bg-inset;
+  }
+
+  .lens-drill-row-label {
+    @apply lens-min-w-0 lens-flex-1 lens-truncate;
+  }
+
+  .lens-drill-row-value {
+    @apply lens-shrink-0 lens-font-medium lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-drill-row-share {
+    @apply lens-w-10 lens-shrink-0 lens-text-right lens-text-xs lens-text-faint;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* The share bar sits under the row content at low alpha, so it reads as
+     weight rather than as another control. */
+  .lens-drill-row-bar {
+    @apply lens-absolute lens-bottom-0 lens-left-0 lens-h-0.5 lens-rounded-full lens-bg-accent-500 lens-opacity-30;
+  }
+
+  .lens-drill-perspectives {
+    @apply lens-flex lens-flex-wrap lens-gap-1;
+  }
+
+  .lens-drill-perspective {
+    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
+  }
+
+  .lens-drill-perspective:hover {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
+  .lens-drill-perspective[aria-selected='true'] {
+    @apply lens-border-accent-500 lens-bg-accent-50 lens-text-accent-700;
+  }
+
+  .lens-drill-footer {
+    @apply lens-flex lens-flex-col lens-gap-1 lens-px-3 lens-py-2;
+  }
+
+  .lens-drill-action {
+    @apply lens-flex lens-cursor-pointer lens-items-center lens-justify-between lens-gap-2 lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-font-sans lens-text-sm lens-font-semibold lens-text-accent-700 lens-no-underline;
+  }
+
+  .lens-drill-action:hover {
+    @apply lens-bg-accent-50;
+  }
+
+  .lens-drill-empty {
+    @apply lens-m-0 lens-px-1.5 lens-py-1 lens-text-sm lens-text-faint;
+  }
+
+  .lens-icon {
+    @apply lens-inline-block lens-shrink-0 lens-align-middle;
+  }
+
+  .lens-icon-spin {
+    animation: lens-icon-spin 900ms linear infinite;
+  }
+
+  @keyframes lens-icon-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-icon-spin {
+      animation: none;
+    }
   }
 
   .lens-explore-path {

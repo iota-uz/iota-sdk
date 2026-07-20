@@ -2,6 +2,10 @@ import type { Story } from '@ladle/react'
 import { useEffect, useRef } from 'react'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
+import {
+  ArrowClockwise, ArrowsIn, ArrowsOut, ArrowUpRight, CaretDown, CaretLeft, CaretRight,
+  CircleNotch, DownloadSimple, X,
+} from './icons'
 import { CoveragePanel, DashboardSkeleton, PanelSkeletonBody, TablePanel } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
 import './styles.css'
@@ -286,3 +290,77 @@ function ExpandedStory({ theme }: { theme: 'light' | 'dark' }) {
 
 export const ExpandedPanelLight: Story = () => <ExpandedStory theme="light" />
 export const ExpandedPanelDark: Story = () => <ExpandedStory theme="dark" />
+
+/**
+ * One place to see every glyph the runtime draws, at the size it is used, so a
+ * VR diff catches any accidental path or weight drift.
+ */
+const iconSet: Array<{ name: string; size: number; Glyph: (props: { size?: number }) => React.ReactElement }> = [
+  { name: 'ArrowsOut', size: 14, Glyph: ArrowsOut },
+  { name: 'ArrowsIn', size: 14, Glyph: ArrowsIn },
+  { name: 'DownloadSimple', size: 14, Glyph: DownloadSimple },
+  { name: 'ArrowClockwise', size: 14, Glyph: ArrowClockwise },
+  { name: 'CircleNotch', size: 14, Glyph: CircleNotch },
+  { name: 'X', size: 12, Glyph: X },
+  { name: 'CaretLeft', size: 16, Glyph: CaretLeft },
+  { name: 'CaretRight', size: 11, Glyph: CaretRight },
+  { name: 'CaretDown', size: 14, Glyph: CaretDown },
+  { name: 'ArrowUpRight', size: 12, Glyph: ArrowUpRight },
+]
+
+function IconSetStory({ theme }: { theme: 'light' | 'dark' }) {
+  return (
+    <div className="lens-root" data-theme={theme}>
+      <div className="lens-panel-grid">
+        <div className="lens-grid-item" style={{ '--lens-panel-span': 12 } as React.CSSProperties}>
+          <section className="lens-panel">
+            <header className="lens-panel-header"><h3 className="lens-panel-title">ГЛИФЫ</h3></header>
+            <div className="lens-panel-body">
+              <ul className="lens-icon-specimens">
+                {iconSet.map(({ name, size, Glyph }) => (
+                  <li key={name}>
+                    <span className="lens-icon-button"><Glyph /></span>
+                    <span>{name}</span>
+                    <span className="lens-icon-specimen-size">{size}px</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </section>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+export const IconSetLight: Story = () => <IconSetStory theme="light" />
+export const IconSetDark: Story = () => <IconSetStory theme="dark" />
+
+function HiddenSeries({ label }: { label: string }) {
+  const pressed = useRef(false)
+  useEffect(() => {
+    if (pressed.current) return
+    pressed.current = true
+    const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+    entries.find((entry) => entry.textContent?.includes(label))?.click()
+  }, [label])
+  return null
+}
+
+/**
+ * A hidden legend entry leaves the plot entirely, so the remaining slice reads
+ * 100% and the total badge drops to the visible sum — the legacy ApexCharts
+ * behaviour.
+ */
+export const LegendHiddenSeries: Story = () => {
+  const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
+    rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
+  })
+  return (
+    <Runtime doc={doc}>
+      <DashboardPanels />
+      <HiddenSeries label="Незаработанная премия" />
+    </Runtime>
+  )
+}
+LegendHiddenSeries.storyName = 'Legend hidden series'

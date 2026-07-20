@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
 import { type PanelFrameState, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
+import { ArrowsIn, ArrowsOut } from '../icons'
+import { usePanelChrome } from './context'
 import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
 
@@ -32,6 +34,7 @@ export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
 
 export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
   const translate = useTranslate()
+  const chrome = usePanelChrome()
   const [expanded, setExpanded] = useState(false)
   const [overlayTheme, setOverlayTheme] = useState<{ theme?: string; dark: boolean }>({ dark: false })
   const expandRef = useRef<HTMLButtonElement>(null)
@@ -83,7 +86,10 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       data-stale={frame.isStale || undefined}
     >
       <header className="lens-panel-header">
-        <h3 className="lens-panel-title">{panel.title}</h3>
+        {/* A drill trail replaces the static title: it says where the panel is
+            and how to get back without spending a row of the grid. */}
+        {chrome?.trail ?? <h3 className="lens-panel-title">{panel.title}</h3>}
+        {chrome?.explore}
         <div className="lens-panel-actions">
           {showTotal && (
             <span className="lens-panel-total">
@@ -103,7 +109,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
             title={expandLabel}
             type="button"
           >
-            <span aria-hidden="true">{expanded ? '⤡' : '⤢'}</span>
+            {expanded ? <ArrowsIn /> : <ArrowsOut />}
           </button>
         </div>
       </header>

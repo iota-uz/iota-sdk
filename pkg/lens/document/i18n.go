@@ -9,8 +9,15 @@ import "sort"
 // sites.
 const (
 	I18nChartError        = "chart.error"
+	I18nChartLegendLast   = "chart.legendLast"
+	I18nChartLegendToggle = "chart.legendToggle"
 	I18nDrillReset        = "drill.reset"
 	I18nExploreBack       = "explore.back"
+	I18nExploreBreakdown  = "explore.breakdown"
+	I18nExploreClose      = "explore.close"
+	I18nExploreExpand     = "explore.expandSegment"
+	I18nExploreNoDetail   = "explore.noDetail"
+	I18nExploreOpenBreak  = "explore.openBreakdown"
 	I18nExploreUnavail    = "explore.unavailable"
 	I18nExploreViewAs     = "explore.viewSegmentAs"
 	I18nExploreViews      = "explore.views"
@@ -44,8 +51,10 @@ const (
 // Producers can range over it to assert their catalogue is complete.
 func RuntimeI18nKeys() []string {
 	keys := []string{
-		I18nChartError, I18nDrillReset,
-		I18nExploreBack, I18nExploreUnavail, I18nExploreViewAs, I18nExploreViews,
+		I18nChartError, I18nChartLegendLast, I18nChartLegendToggle, I18nDrillReset,
+		I18nExploreBack, I18nExploreBreakdown, I18nExploreClose, I18nExploreExpand,
+		I18nExploreNoDetail, I18nExploreOpenBreak,
+		I18nExploreUnavail, I18nExploreViewAs, I18nExploreViews,
 		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelRetry, I18nPanelTotal, I18nPanelUpdating,
 		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,

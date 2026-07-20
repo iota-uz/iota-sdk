@@ -1,3 +1,4 @@
+import { ArrowClockwise, CircleNotch, DownloadSimple } from '../icons'
 import { useExport, useTranslate } from '../runtime'
 
 export interface ExportButtonProps {
@@ -32,7 +33,9 @@ export function ExportButton({ panelId, label, iconOnly = false }: ExportButtonP
         title={exportState.message ?? (iconOnly ? text : undefined)}
         type="button"
       >
-        <span aria-hidden="true">{pending ? '···' : retry ? '↻' : '↓'}</span>
+        {pending
+          ? <CircleNotch className="lens-icon-spin" />
+          : retry ? <ArrowClockwise /> : <DownloadSimple />}
         {!iconOnly && <span>{text}</span>}
       </button>
       {exportState.message && (

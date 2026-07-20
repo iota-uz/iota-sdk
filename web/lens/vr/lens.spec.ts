@@ -8,6 +8,9 @@ const storyIds = [
   'chart-adapter--line-and-area-light',
   'chart-adapter--pie-and-donut-dark',
   'chart-adapter--pie-and-donut-light',
+  'explore--drill-overlay--dark',
+  'explore--drill-overlay--light',
+  'explore--drill-overlay-inside-an-expanded-panel',
   'explore--full-drill-flow--three-levels',
   'explore--keyboard-walkthrough',
   'explore--perspective-switching-on-a-segment',
@@ -27,6 +30,9 @@ const storyIds = [
   'parity--drill-pill-affordances',
   'parity--expanded-panel-dark',
   'parity--expanded-panel-light',
+  'parity--icon-set-dark',
+  'parity--icon-set-light',
+  'parity--legend-hidden-series',
   'parity--metric-group',
   'parity--panel-skeletons-dark',
   'parity--panel-skeletons-light',
@@ -42,6 +48,9 @@ const staticStories = [
   ['chart-adapter--line-and-area-light', 2],
   ['chart-adapter--pie-and-donut-dark', 2],
   ['chart-adapter--pie-and-donut-light', 2],
+  ['explore--drill-overlay--dark', 1],
+  ['explore--drill-overlay--light', 1],
+  ['explore--drill-overlay-inside-an-expanded-panel', 1],
   ['explore--keyboard-walkthrough', 1],
   ['panel-matrix--all-kinds-and-states--dark', 0],
   ['panel-matrix--all-kinds-and-states--light', 0],
@@ -59,6 +68,9 @@ const staticStories = [
   ['parity--drill-pill-affordances', 0],
   ['parity--expanded-panel-dark', 1],
   ['parity--expanded-panel-light', 1],
+  ['parity--icon-set-dark', 0],
+  ['parity--icon-set-light', 0],
+  ['parity--legend-hidden-series', 1],
   ['parity--metric-group', 0],
   ['parity--panel-skeletons-dark', 0],
   ['parity--panel-skeletons-light', 0],
@@ -132,39 +144,51 @@ test('explore full drill flow keyframes', async ({ page }) => {
   await openStory(page, 'explore--full-drill-flow--three-levels', 1)
   await screenshot(page, 'explore-full-drill-01-root')
 
-  await page.getByRole('treeitem', { name: /Operating margin/ }).click()
-  await expect(page.getByRole('listbox', { name: 'Perspectives for Operating margin' })).toBeVisible()
-  await screenshot(page, 'explore-full-drill-02-perspectives')
+  // Every level is entered through the same contextual overlay: the header
+  // affordance opens it for the level, a mark opens it for that segment.
+  await page.getByRole('button', { name: 'Show breakdown' }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await screenshot(page, 'explore-full-drill-02-overlay')
+
+  await page.getByRole('dialog').getByRole('button', { name: /Operating margin/ }).click()
+  await page.getByRole('button', { name: 'Show breakdown' }).click()
+  await expect(page.getByRole('option', { name: /Composition/ })).toBeVisible()
+  await screenshot(page, 'explore-full-drill-03-perspectives')
 
   await page.getByRole('option', { name: /Composition/ }).click()
-  await expect(page.getByRole('treeitem', { name: /Services/ })).toBeVisible()
-  await screenshot(page, 'explore-full-drill-03-composition')
+  await page.getByRole('button', { name: 'Show breakdown' }).click()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /Services/ })).toBeVisible()
+  await screenshot(page, 'explore-full-drill-04-composition')
 
-  await page.getByRole('treeitem', { name: /Services/ }).click()
-  await expect(page.getByRole('treeitem', { name: /Sales/ })).toBeVisible()
-  await screenshot(page, 'explore-full-drill-04-cost-centers')
+  await page.getByRole('dialog').getByRole('button', { name: /Services/ }).click()
+  await page.getByRole('button', { name: 'Show breakdown' }).click()
+  await expect(page.getByRole('dialog').getByRole('button', { name: /Sales/ })).toBeVisible()
+  await screenshot(page, 'explore-full-drill-05-cost-centers')
 
-  await page.getByRole('treeitem', { name: /Sales/ }).click()
-  await expect(page.getByRole('treeitem', { name: /Invoice TX-1042/ })).toBeVisible()
-  await screenshot(page, 'explore-full-drill-05-transactions')
+  await page.getByRole('dialog').getByRole('button', { name: /Sales/ }).click()
+  await expect(page.getByRole('navigation', { name: /exploration path/ })).toBeVisible()
+  await screenshot(page, 'explore-full-drill-06-transactions')
 })
 
 test('explore perspective switching keyframes', async ({ page }) => {
   await openStory(page, 'explore--perspective-switching-on-a-segment', 1)
+  await page.getByRole('button', { name: 'Show breakdown' }).click()
   await screenshot(page, 'explore-perspectives-01-choice')
 
   await page.getByRole('option', { name: /Trend/ }).click()
   await expect(page.locator('[data-explore-view="line"]')).toBeVisible()
   await screenshot(page, 'explore-perspectives-02-trend')
 
-  // Switching enters the perspective's own level; return to the choice
-  // point via the breadcrumb before selecting the next perspective.
+  // Switching enters the perspective's own level; the header trail is the way
+  // back to the choice point.
   await page.getByRole('button', { name: /Operating margin/ }).click()
+  await page.getByRole('button', { name: 'Show breakdown' }).click()
   await page.getByRole('option', { name: /Bridge/ }).click()
   await expect(page.locator('[data-explore-view="cascade"]')).toBeVisible()
   await screenshot(page, 'explore-perspectives-03-bridge')
 
   await page.getByRole('button', { name: /Operating margin/ }).click()
+  await page.getByRole('button', { name: 'Show breakdown' }).click()
   await page.getByRole('option', { name: /Evidence/ }).click()
   await expect(page.locator('[data-explore-view="table"]')).toBeVisible()
   await screenshot(page, 'explore-perspectives-04-evidence')
