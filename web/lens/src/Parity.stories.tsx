@@ -227,3 +227,26 @@ function PanelSkeletonStory({ theme }: { theme: 'light' | 'dark' }) {
 
 export const PanelSkeletonsLight: Story = () => <PanelSkeletonStory theme="light" />
 export const PanelSkeletonsDark: Story = () => <PanelSkeletonStory theme="dark" />
+
+const drillPillPanel: Panel = {
+  ...groupsPanel,
+  id: 'drill-pills',
+  title: 'Аффордансы drill-ячеек',
+  columns: [
+    { field: 'name', label: 'Продукт', cell: { kind: 'plain' }, clamp: 2, widthPx: 200 },
+    {
+      field: 'earned', label: 'С действием', align: 'right', cell: { kind: 'plain' }, affordance: 'pill',
+      action: { kind: 'navigate_to_leaf', urlSource: { kind: 'field', name: 'detail_url' }, params: [], payload: {} },
+    },
+    // No wire action: the host renderer owns this drill, so the pill appears
+    // without an arrow rather than promising navigation.
+    { field: 'delta', label: 'Без действия', align: 'right', cell: { kind: 'plain' }, affordance: 'pill' },
+  ],
+}
+
+export const DrillPillAffordances: Story = () => {
+  const doc = storyDocument([drillPillPanel], { 'groups:frame': groupsFrame }, {
+    rows: [{ panels: [{ panelId: 'drill-pills', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><TablePanel panel={drillPillPanel} /></Runtime>
+}

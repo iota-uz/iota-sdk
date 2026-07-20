@@ -72,6 +72,7 @@ export interface FieldFormat {
   layout?: string
   compact?: boolean
   decimalSeparator?: string
+  symbol?: string
 }
 
 export type FormatKind = "date" | "money" | "number" | "percent" | "string"

@@ -79,6 +79,13 @@ describe('compact formatting', () => {
     expect(formatFieldValue(230_310_000_000, field, 'ru-RU')).toBe('230.31 млрд UZS')
   })
 
+  it('renders the pinned currency grapheme instead of the ISO code', () => {
+    const field: FieldFormat = {
+      kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, symbol: 'so’m', decimalSeparator: '.',
+    }
+    expect(formatFieldValue(66_856_663_843.68, field, 'ru-RU')).toBe('66 856 663 843.68 so’m')
+  })
+
   it('scales minor units before compacting', () => {
     const field: FieldFormat = {
       kind: 'money', currency: 'UZS', minorUnits: true, precision: 2, compact: true, decimalSeparator: '.',

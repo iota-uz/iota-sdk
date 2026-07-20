@@ -52,6 +52,13 @@ function formatMoney(value: number, field: FieldFormat, locale: string): string 
   const currency = field.currency ?? 'USD'
   const scaled = field.minorUnits ? value / 100 : value
   if (field.compact) return formatCompactNumber(scaled, field, locale, currency)
+  // A document that pins the currency's grapheme wants the Go renderer's
+  // "<amount> <symbol>" shape (UZS → "so’m"), not the locale's own currency
+  // display for the ISO code.
+  if (field.symbol) {
+    const decimal = new Intl.NumberFormat(locale, precisionOptions(field.precision))
+    return `${applyDecimalSeparator(decimal.formatToParts(scaled), field.decimalSeparator)} ${field.symbol}`
+  }
   const base = new Intl.NumberFormat(locale, { style: 'currency', currency, ...precisionOptions(field.precision) })
   return base.format(scaled)
 }

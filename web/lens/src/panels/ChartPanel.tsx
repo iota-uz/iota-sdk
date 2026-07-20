@@ -102,7 +102,9 @@ function PlotTotalBadge({ panel }: { panel: Panel }) {
   const translate = useTranslate()
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   return (
-    <span className="lens-plot-total" title={translate('panel.total', 'Total')}>
+    <span className="lens-plot-total">
+      <span className="lens-panel-total-label">{translate('panel.total', 'Total')}:</span>
+      {' '}
       {formatTotal(panel.total)}
     </span>
   )

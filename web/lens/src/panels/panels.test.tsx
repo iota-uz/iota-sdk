@@ -132,15 +132,16 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area',
 describe('panel total badge', () => {
   it('renders the formatted total in the header when panel.total is present', () => {
     runtime.frame = state('data')
-    render(<BarPanel panel={panel('bar', { total: 12345 })} adapter={fakeAdapter()} />)
-    const badge = screen.getByTitle('Total')
-    expect(badge).toHaveTextContent('12345')
+    const view = render(<BarPanel panel={panel('bar', { total: 12345 })} adapter={fakeAdapter()} />)
+    const badge = view.container.querySelector('.lens-panel-total')
+    // The badge names what it totals, like the legacy renderer's "Итого:".
+    expect(badge).toHaveTextContent('Total: 12345')
   })
 
   it('omits the badge when panel.total is absent', () => {
     runtime.frame = state('data')
-    render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
-    expect(screen.queryByTitle('Total')).toBeNull()
+    const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
   })
 })
 

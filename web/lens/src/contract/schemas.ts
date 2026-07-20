@@ -95,6 +95,7 @@ export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z
   layout: z.string().optional(),
   compact: z.boolean().optional(),
   decimalSeparator: z.string().optional(),
+  symbol: z.string().optional(),
 }).strict())
 
 export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.enum(["date", "money", "number", "percent", "string"])

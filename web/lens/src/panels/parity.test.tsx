@@ -170,10 +170,13 @@ describe('table parity treatments', () => {
     expect(pill?.textContent).toContain('9.36B')
     expect(pill?.textContent).toContain('↗')
 
-    // Underline rules follow the sign.
-    const rules = container.querySelectorAll('.lens-table-underline-rule')
+    // Underline rules follow the sign and never shrink into a stray hyphen:
+    // they span the value instead of encoding magnitude.
+    const rules = container.querySelectorAll<HTMLElement>('.lens-table-underline-rule')
     expect(rules).toHaveLength(2)
     expect(rules[1]).toHaveClass('lens-table-underline-rule-negative')
+    expect(rules[0]?.style.width).toBe('')
+    expect(container.querySelector('.lens-table-underline')?.textContent).not.toContain('-—')
 
     // Stacked delta puts the percent first and the amount below it.
     const stacked = container.querySelector('.lens-table-delta-stacked')
@@ -280,5 +283,53 @@ describe('loading placeholders', () => {
     cleanup()
     const table = render(<PanelSkeletonBody kind="table" />)
     expect(table.container.querySelector('.lens-skeleton-card-plot')).not.toBeNull()
+  })
+})
+
+const plainPillPanel: Panel = {
+  id: 'plain-pill', kind: 'table', title: 'Groups', semantics: 'series', frame: 'groups:root',
+  encoding: { id: 'group_id', label: 'name' },
+  format: { earned: { kind: 'number', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.' } },
+  columns: [
+    { field: 'name', label: 'Product', cell: { kind: 'plain' } },
+    // Pill without a wire action: the drill lives in the host renderer.
+    { field: 'earned', label: 'Earned', align: 'right', cell: { kind: 'plain' }, affordance: 'pill' },
+  ],
+  actions: [],
+}
+
+describe('drill affordance', () => {
+  it('renders a pill on a plain cell that carries no wire action, without claiming a link', () => {
+    const { container } = renderDocument(
+      documentWith([plainPillPanel], { 'groups:root': tableFrame }),
+      <TablePanel panel={plainPillPanel} />,
+    )
+
+    const pills = container.querySelectorAll('.lens-table-cell-pill')
+    expect(pills).toHaveLength(2)
+    expect(pills[0]?.tagName).toBe('SPAN')
+    expect(pills[0]?.textContent).toContain('9.36B')
+    // No arrow without a target: the affordance must not promise navigation
+    // the runtime cannot perform.
+    expect(container.querySelector('.lens-table-cell-link-arrow')).toBeNull()
+  })
+
+  it('renders zero and null underline cells without a stray rule', () => {
+    const zeroFrame: Frame = {
+      ...tableFrame,
+      rows: [
+        ['a', 'Group A', 1, 0, 0, 0, '/groups/a'],
+        ['b', 'Group B', 1, null, 0, 0, '/groups/b'],
+      ],
+    }
+    const { container } = renderDocument(
+      documentWith([tablePanel], { 'groups:root': zeroFrame }),
+      <TablePanel panel={tablePanel} />,
+    )
+
+    // Zero keeps a neutral rule; a missing number has none at all.
+    const rules = container.querySelectorAll('.lens-table-underline-rule')
+    expect(rules).toHaveLength(1)
+    expect(rules[0]).not.toHaveClass('lens-table-underline-rule-negative')
   })
 })

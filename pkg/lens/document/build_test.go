@@ -215,10 +215,10 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 			},
 		},
 	}, wirePanel.Columns)
-	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS"}, wirePanel.Format["amount"])
+	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS", Symbol: "so’m"}, wirePanel.Format["amount"])
 	// Delta secondaries carry percent-unit values, so the wire format defaults
 	// to percent when the column declares no formatter of its own.
-	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: 1}, wirePanel.Format["delta_pct"])
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: 1, DecimalSeparator: "."}, wirePanel.Format["delta_pct"])
 
 	wireFrame := doc.Frames[wirePanel.Frame]
 	require.Equal(t, []Column{
@@ -296,7 +296,7 @@ func TestBuild_ExplicitDeltaFormatterBeatsPercentDefault(t *testing.T) {
 
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
 	require.NoError(t, err)
-	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS", Precision: 2}, doc.Panels[0].Format["delta_pct"])
+	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS", Precision: 2, Symbol: "so’m"}, doc.Panels[0].Format["delta_pct"])
 }
 
 func TestBuild_TableWithoutColumnsKeepsEveryField(t *testing.T) {
@@ -437,4 +437,62 @@ func TestBuild_SegmentBarBecomesCoverage(t *testing.T) {
 	require.NotNil(t, wirePanel.Headline)
 	require.InDelta(t, 5.0, *wirePanel.Headline, 1e-9)
 	require.Equal(t, TotalBadgeNone, wirePanel.Presentation.TotalBadge)
+}
+
+// A partition's colors must be reachable both by panel-scoped index and by the
+// slice's own category name: chart renderers that only know a slice by its name
+// would otherwise fall back to their built-in palette and ignore the spec.
+func TestBuild_PanelColorsPublishIndexAndLabelSeriesKeys(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "segment", Type: frame.FieldTypeString, Values: []any{"Earned", "Unearned"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{7.0, 3.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	pie := panel.Pie("premium", "Premium", "rows").
+		LabelField("segment").ValueField("amount").
+		Colors("#2563eb", "#d97706").
+		Build()
+	spec := lensbuild.Dashboard("premium-dash", "Premium", lensbuild.Row(pie)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Equal(t, "#2563eb", doc.Theme.Series["premium:0"])
+	require.Equal(t, "#d97706", doc.Theme.Series["premium:1"])
+	require.Equal(t, "#2563eb", doc.Theme.Series["Earned"])
+	require.Equal(t, "#d97706", doc.Theme.Series["Unearned"])
+}
+
+func TestBuild_PercentFormatPinsSeparator(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{47.14}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	percent := format.Percent(1)
+	spec := lensbuild.Dashboard("rows", "Rows",
+		lensbuild.Row(panel.Stat("s", "S", "rows").Format(percent).Build()),
+	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "ru", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
+	require.NoError(t, err)
+	// The Go renderer prints "47.1%"; the wire format carries the same
+	// separator so the runtime does not drift to "47,1 %".
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: 1, DecimalSeparator: "."}, doc.Panels[0].Format["value"])
 }

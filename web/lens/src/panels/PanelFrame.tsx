@@ -57,7 +57,9 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         <h3 className="lens-panel-title">{panel.title}</h3>
         <div className="lens-panel-actions">
           {showTotal && (
-            <span className="lens-panel-total" title={translate('panel.total', 'Total')}>
+            <span className="lens-panel-total">
+              <span className="lens-panel-total-label">{translate('panel.total', 'Total')}:</span>
+              {' '}
               {formatTotal(panel.total)}
             </span>
           )}

@@ -83,20 +83,26 @@ function BarCell({ format, value, max }: { format?: FieldFormat; value: unknown;
   )
 }
 
-/** A thin, sign-colored rule under the value: the low-ink form of BarCell. */
-function UnderlineCell({ format, value, max }: { format?: FieldFormat; value: unknown; max: number }) {
+/**
+ * A thin rule under the value, colored by sign. The rule spans the value it
+ * underlines rather than encoding magnitude: a proportional rule degenerates
+ * into something indistinguishable from a stray hyphen as soon as one row
+ * dominates the column, which is exactly what the legacy treatment avoids.
+ */
+function UnderlineCell({ format, value }: { format?: FieldFormat; value: unknown }) {
   const display = useFormat(format)
   const number = numericValue(value)
-  const ratio = max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / max)) : 0
   const negative = number !== undefined && number < 0
+  const blank = number === undefined
   return (
     <span className="lens-table-underline">
       <span className="lens-table-underline-value">{display(value)}</span>
-      <span
-        aria-hidden="true"
-        className={`lens-table-underline-rule${negative ? ' lens-table-underline-rule-negative' : ''}`}
-        style={{ width: `${Math.max(ratio * 100, number === 0 ? 0 : 6)}%` }}
-      />
+      {!blank && (
+        <span
+          aria-hidden="true"
+          className={`lens-table-underline-rule${negative ? ' lens-table-underline-rule-negative' : ''}`}
+        />
+      )}
     </span>
   )
 }
@@ -154,7 +160,7 @@ function ColumnCell({
   } else if (column.cell.kind === 'bar') {
     content = <BarCell format={format} value={value} max={max} />
   } else if (column.cell.kind === 'underline') {
-    content = <UnderlineCell format={format} value={value} max={max} />
+    content = <UnderlineCell format={format} value={value} />
   } else if (column.cell.kind === 'delta') {
     const secondaryField = column.cell.secondaryField
     const secondaryIndex = secondaryField ? frame.columns.findIndex((candidate) => candidate.name === secondaryField) : -1
@@ -177,17 +183,23 @@ function ColumnCell({
     )
   }
 
-  if (column.action) {
-    const href = resolveColumnActionURL(column.action, frame, row, location)
-    if (href) {
-      const pill = column.affordance === 'pill'
-      return (
-        <a className={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href}>
-          {content}
-          <span aria-hidden="true" className="lens-table-cell-link-arrow">{pill ? '↗' : '→'}</span>
-        </a>
-      )
-    }
+  const href = column.action ? resolveColumnActionURL(column.action, frame, row, location) : undefined
+  const pill = column.affordance === 'pill'
+  if (href) {
+    return (
+      <a className={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href}>
+        {content}
+        {/* The arrow claims the cell opens something, so it only appears when
+            a target actually resolved. */}
+        <span aria-hidden="true" className="lens-table-cell-link-arrow">{pill ? '↗' : '→'}</span>
+      </a>
+    )
+  }
+  if (pill) {
+    // A pill without a resolvable target still marks the column as a drill
+    // surface (the action may be renderer-local), but it does not pretend to
+    // be a link.
+    return <span className="lens-table-cell-pill">{content}</span>
   }
   return content
 }
@@ -228,13 +240,13 @@ export function TablePanel({ panel }: TablePanelProps) {
   const hasNext = frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
   const location = new URL(globalThis.location.href)
   const columns = panel.columns?.length ? panel.columns : undefined
-  // Column maxima scale bar and underline cells. Computing them per cell is
-  // quadratic in row count, so they are derived once per frame.
+  // Column maxima scale bar cells. Computing them per cell is quadratic in
+  // row count, so they are derived once per frame.
   const columnMaxima = useMemo(() => {
     const maxima = new Map<string, number>()
     if (!frame.data || !columns) return maxima
     for (const column of columns) {
-      if (column.cell.kind !== 'bar' && column.cell.kind !== 'underline') continue
+      if (column.cell.kind !== 'bar') continue
       const index = frame.data.columns.findIndex((candidate) => candidate.name === column.field)
       if (index < 0) continue
       maxima.set(column.field, frame.data.rows.reduce((accumulator, row) => {

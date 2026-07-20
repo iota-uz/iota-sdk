@@ -315,6 +315,11 @@ type FieldFormat struct {
 	// renderer prints abbreviated numbers with %.*f — a dot in every locale —
 	// so a document that must match it byte for byte sets "." here.
 	DecimalSeparator string `json:"decimalSeparator,omitempty"`
+	// Symbol is the currency's display grapheme (UZS → "so’m"), taken from the
+	// same pkg/money definition the Go renderer formats with. When set, money
+	// renders as "<amount> <symbol>" instead of the locale's own currency
+	// display for the ISO code, which is how the Go renderer prints it.
+	Symbol string `json:"symbol,omitempty"`
 }
 
 type ActionKind string

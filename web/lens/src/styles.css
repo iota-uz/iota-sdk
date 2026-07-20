@@ -275,6 +275,10 @@
     @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
   }
 
+  .lens-panel-total-label {
+    @apply lens-font-medium lens-text-muted;
+  }
+
   .lens-panel-total {
     @apply lens-inline-flex lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-strong;
   }
@@ -669,8 +673,20 @@
     @apply lens-justify-end;
   }
 
+  /* A compact number that wraps doubles the row height and stops reading as
+     one value, so numeric cells never break. */
   .lens-table-cell.lens-table-col-right {
+    @apply lens-whitespace-nowrap;
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-cell-number,
+  .lens-table-bar-value,
+  .lens-table-delta,
+  .lens-table-delta-value,
+  .lens-table-delta-pct,
+  .lens-table-cell-pill {
+    @apply lens-whitespace-nowrap;
   }
 
   .lens-table-bar {
@@ -694,16 +710,17 @@
   }
 
   .lens-table-underline {
-    @apply lens-inline-flex lens-flex-col lens-items-end lens-gap-1;
+    @apply lens-inline-flex lens-flex-col lens-items-stretch lens-gap-1 lens-whitespace-nowrap;
   }
 
   .lens-table-underline-value {
-    @apply lens-font-medium lens-text-strong;
+    @apply lens-whitespace-nowrap lens-font-medium lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  /* The rule spans the value it underlines; sign is the only thing it encodes. */
   .lens-table-underline-rule {
-    @apply lens-block lens-h-0.5 lens-rounded-full;
+    @apply lens-block lens-h-0.5 lens-w-full lens-rounded-full;
     background: var(--lens-accent-500);
   }
 
@@ -762,7 +779,7 @@
   }
 
   .lens-table .lens-table-cell-pill {
-    @apply lens-rounded-badge lens-bg-inset lens-px-2 lens-py-0.5 lens-text-text;
+    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-0.5 lens-text-text;
   }
 
   .lens-table .lens-table-cell-pill:hover {

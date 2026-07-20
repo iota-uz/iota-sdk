@@ -1,4 +1,4 @@
-import{i as qg,n as O1}from"./lens-dashboard-BxGil6zw.js";/*! *****************************************************************************
+import{i as qg,n as O1}from"./lens-dashboard-DEUn4W0Z.js";/*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any

@@ -16,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	sdkmoney "github.com/iota-uz/iota-sdk/pkg/money"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
@@ -193,12 +194,62 @@ func appendPanelTree(
 		span = 6
 	}
 	row.Panels = append(row.Panels, LayoutItem{PanelID: spec.ID, Span: span, Group: group})
+	labels := seriesLabels(spec, wireFrame)
 	for index, color := range spec.Colors {
-		if strings.TrimSpace(color) != "" {
-			doc.Theme.Series[fmt.Sprintf("%s:%d", spec.ID, index)] = color
+		if strings.TrimSpace(color) == "" {
+			continue
+		}
+		doc.Theme.Series[fmt.Sprintf("%s:%d", spec.ID, index)] = color
+		// Chart renderers that resolve a slice/series color from its own name
+		// (a partition's category) cannot see the panel-scoped index key, so
+		// publish the label alias too. The first panel to claim a label wins:
+		// a later panel reusing the same category keeps the color already
+		// established for it instead of silently recoloring both.
+		if index < len(labels) {
+			if label := strings.TrimSpace(labels[index]); label != "" {
+				if _, taken := doc.Theme.Series[label]; !taken {
+					doc.Theme.Series[label] = color
+				}
+			}
 		}
 	}
 	return nil
+}
+
+// seriesLabels returns the panel's per-row label values in plot order, so a
+// color list positioned by index can also be published under the label each
+// color belongs to.
+func seriesLabels(spec panel.Spec, wireFrame Frame) []string {
+	field := spec.Fields.Label
+	if field.Empty() {
+		field = spec.Fields.Category
+	}
+	if field.Empty() {
+		return nil
+	}
+	column := -1
+	for index, item := range wireFrame.Columns {
+		if item.Name == field.Name() {
+			column = index
+			break
+		}
+	}
+	if column < 0 {
+		return nil
+	}
+	labels := make([]string, 0, len(wireFrame.Rows))
+	for _, row := range wireFrame.Rows {
+		if column >= len(row) {
+			labels = append(labels, "")
+			continue
+		}
+		if value, ok := row[column].(string); ok {
+			labels = append(labels, value)
+			continue
+		}
+		labels = append(labels, "")
+	}
+	return labels
 }
 
 func containerSpan(spec panel.Spec) int {
@@ -359,7 +410,7 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 		// Delta secondaries are percent changes by contract; default their wire
 		// format so the runtime never renders a bare unlabeled number.
 		if _, exists := formats[column.Cell.PercentField.Name()]; !exists {
-			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: 1}
+			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: 1, DecimalSeparator: "."}
 		}
 	}
 	return formats
@@ -404,6 +455,7 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 		result.Kind = FormatMoney
 		result.Currency = spec.Currency
 		result.MinorUnits = false
+		result.Symbol = currencySymbol(spec.Currency)
 	case format.KindAbbreviatedMoney:
 		if strings.TrimSpace(spec.Currency) == "" {
 			result.Kind = FormatNumber
@@ -418,6 +470,11 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 		result.DecimalSeparator = "."
 	case format.KindPercent:
 		result.Kind = FormatPercent
+		// The Go renderer prints percents as %.*f%% — a dot and no space
+		// before the sign in every locale. Pin the separator so a percent
+		// cell reads identically on both renderers instead of drifting to
+		// the locale's comma and non-breaking space.
+		result.DecimalSeparator = "."
 	case format.KindDate, format.KindMonthLabel:
 		result.Kind = FormatDate
 		if spec.Kind == format.KindMonthLabel && result.Layout == "" {
@@ -429,6 +486,21 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 		return FieldFormat{}, false
 	}
 	return result, true
+}
+
+// currencySymbol resolves a currency code to the grapheme the Go money
+// formatter prints (UZS → "so’m"), so both renderers show the same suffix.
+// Unknown codes keep the code itself.
+func currencySymbol(currency string) string {
+	code := strings.TrimSpace(currency)
+	if code == "" {
+		return ""
+	}
+	definition := sdkmoney.GetCurrency(code)
+	if definition == nil || strings.TrimSpace(definition.Grapheme) == "" {
+		return ""
+	}
+	return definition.Grapheme
 }
 
 func buildFrame(source *frame.Frame) (Frame, error) {
