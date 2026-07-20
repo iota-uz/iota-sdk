@@ -228,7 +228,7 @@ func TestDashboardDocumentValidate_PanelActionFieldsResolveAgainstLevelFrames(t 
 		}
 		doc.Panels[0].Actions = []Action{{
 			Kind: ActionNavigateToLeaf, URLTemplate: "/policies/{id}",
-			Params: []ActionParam{{Name: "id", Source: Source{Kind: ValueSourceField, Name: "policy_id"}}},
+			Params:  []ActionParam{{Name: "id", Source: Source{Kind: ValueSourceField, Name: "policy_id"}}},
 			Payload: map[string]Source{},
 		}}
 		return doc

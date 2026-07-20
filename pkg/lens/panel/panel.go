@@ -324,19 +324,19 @@ type Spec struct {
 	// dashboard can ask the React runtime for a denser treatment without a
 	// bespoke panel kind.
 	Presentation PresentationHints
-	Fields      FieldMapping
-	Formatter   *format.Spec
-	Columns     []TableColumn
-	Transforms  []transform.Spec
-	Action      *action.Spec
-	Children    []Spec
-	ClassName   string
-	Chrome      chrome.Spec
-	ValueAxis   ValueAxis
-	Distributed bool
-	ColorField  FieldRef
-	ColorScale  string
-	Export      exportmeta.Spec
+	Fields       FieldMapping
+	Formatter    *format.Spec
+	Columns      []TableColumn
+	Transforms   []transform.Spec
+	Action       *action.Spec
+	Children     []Spec
+	ClassName    string
+	Chrome       chrome.Spec
+	ValueAxis    ValueAxis
+	Distributed  bool
+	ColorField   FieldRef
+	ColorScale   string
+	Export       exportmeta.Spec
 }
 
 // DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
@@ -622,6 +622,7 @@ func (b *Builder) Layout(l GroupLayout) *Builder {
 	b.spec.GroupLayout = l
 	return b
 }
+
 // Presentation sets the panel's wire renderer density hints.
 func (b *Builder) Presentation(hints PresentationHints) *Builder {
 	b.spec.Presentation = hints
