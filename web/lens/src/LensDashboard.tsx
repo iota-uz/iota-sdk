@@ -5,6 +5,12 @@ import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from '
 
 export interface LensDashboardProps {
   src?: string
+  /**
+   * Markup the server already rendered inside the mount point (the templ
+   * skeleton). React clears the container on mount, so the runtime re-inserts
+   * it while the first document is in flight.
+   */
+  fallbackHTML?: string
   locale?: string
   theme?: LensThemeMode
   csrf?: string
@@ -14,11 +20,18 @@ export interface LensDashboardProps {
 
 const bundledFixture = parseDocument(fixture)
 
-export function LensDashboard({ src, locale = 'en', theme = 'light', csrf, fetcher, initialDocument = bundledFixture }: LensDashboardProps) {
+export function LensDashboard({
+  src, locale = 'en', theme = 'light', csrf, fetcher, fallbackHTML, initialDocument = bundledFixture,
+}: LensDashboardProps) {
+  // The fallback is this application's own server-rendered skeleton, echoed
+  // back verbatim; it never carries request data.
+  const fallback = fallbackHTML
+    ? <div aria-hidden="true" dangerouslySetInnerHTML={{ __html: fallbackHTML }} />
+    : undefined
   return (
     <div className="lens-root" data-theme={theme} lang={locale}>
       <DocumentProvider src={src} initialDocument={initialDocument} csrf={csrf} fetcher={fetcher}>
-        <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher}>
+        <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher} fallback={fallback}>
           <DashboardPanels />
         </DashboardRuntimeProvider>
       </DocumentProvider>

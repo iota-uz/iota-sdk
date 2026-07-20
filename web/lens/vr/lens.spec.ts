@@ -20,6 +20,15 @@ const storyIds = [
   'panels-v2--table-columns',
   'panels-v2--table-empty-page',
   'panels-v2--table-pagination-and-leaf-actions',
+  'parity--compact-table-cells',
+  'parity--coverage-composite',
+  'parity--dashboard-loading-skeleton-dark',
+  'parity--dashboard-loading-skeleton-light',
+  'parity--metric-group',
+  'parity--panel-skeletons-dark',
+  'parity--panel-skeletons-light',
+  'parity--pie-with-legend-below',
+  'parity--tab-group',
 ] as const
 
 const staticStories = [
@@ -40,6 +49,15 @@ const staticStories = [
   ['panels-v2--table-columns', 0],
   ['panels-v2--table-empty-page', 0],
   ['panels-v2--table-pagination-and-leaf-actions', 0],
+  ['parity--compact-table-cells', 0],
+  ['parity--coverage-composite', 0],
+  ['parity--dashboard-loading-skeleton-dark', 0],
+  ['parity--dashboard-loading-skeleton-light', 0],
+  ['parity--metric-group', 0],
+  ['parity--panel-skeletons-dark', 0],
+  ['parity--panel-skeletons-light', 0],
+  ['parity--pie-with-legend-below', 1],
+  ['parity--tab-group', 0],
 ] as const
 
 async function openStory(page: Page, storyId: string, canvasCount: number): Promise<void> {

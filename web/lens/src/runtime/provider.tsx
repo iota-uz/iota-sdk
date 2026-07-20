@@ -14,6 +14,7 @@ import type { DashboardDocument, FieldFormat, Frame, Panel, QueryPage, QueryRequ
 import { fetchDocument } from './document'
 import { levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
+import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
 import { formatAxis, formatFieldValue } from './format'
 import {
   createNavigationState,
@@ -650,14 +651,22 @@ export interface DashboardRuntimeProviderProps {
   csrf?: string
   fetcher?: typeof fetch
   children: ReactNode
+  /** Server-rendered placeholder shown until the first document arrives. */
+  fallback?: ReactNode
 }
 
-export function DashboardRuntimeProvider({ locale, csrf, fetcher, children }: DashboardRuntimeProviderProps) {
+export function DashboardRuntimeProvider({ locale, csrf, fetcher, children, fallback }: DashboardRuntimeProviderProps) {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
   if (!context.document) {
     if (context.error) return <div className="lens-placeholder-state" role="alert">Unable to load Lens document: {context.error.message}</div>
-    return <div className="lens-placeholder-state lens-skeleton" aria-busy="true">Loading dashboard…</div>
+    // A layout-shaped placeholder, not a spinner: the page keeps its rhythm
+    // and nothing jumps when the document lands.
+    return (
+      <div aria-busy="true" className="lens-loading">
+        {fallback ?? <DashboardSkeleton rows={defaultSkeletonRows} />}
+      </div>
+    )
   }
   return (
     <RuntimeCore

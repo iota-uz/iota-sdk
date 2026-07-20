@@ -117,6 +117,24 @@ function baseOption(theme: EChartsTheme): EChartsOption {
 function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const donut = input.kind === 'donut'
   const points = rowPoints(input)
+  const fill = input.presentation?.fill === true
+  const insideLabels = input.presentation?.sliceLabels === 'percent'
+  const radius: [string, string] = donut
+    ? (fill ? ['52%', '86%'] : ['48%', '72%'])
+    : (fill ? ['0%', '86%'] : ['0%', '72%'])
+  const label = insideLabels
+    // Percent labels inside the slices remove the leader-line halo that
+    // shrinks the plot, so the pie can fill the card.
+    ? {
+        position: 'inside' as const,
+        color: '#ffffff',
+        fontWeight: 'bold' as const,
+        // Slices under 4% cannot hold a legible label; the legend below
+        // still names them.
+        formatter: (params: { percent?: number }) =>
+          (params.percent ?? 0) >= 4 ? `${(params.percent ?? 0).toFixed(1)}%` : '',
+      }
+    : { color: theme.text }
   return {
     ...baseOption(theme),
     tooltip: {
@@ -128,10 +146,11 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     },
     series: [{
       type: 'pie',
-      radius: donut ? ['48%', '72%'] : ['0%', '72%'],
+      radius,
+      center: ['50%', '50%'],
       selectedMode: false,
-      label: { color: theme.text },
-      labelLine: { lineStyle: { color: theme.border } },
+      label,
+      labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       data: points.map((point) => {
         const item = dataItem(point, input, theme)
         return {
@@ -165,9 +184,14 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const horizontal = input.kind === 'hbar'
   const categoryField = input.encoding.category ?? input.encoding.label ?? ''
   const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
+  const colorByCategory = isBar && input.presentation?.colorBy === 'category'
+  const barWidth = input.presentation?.barWidthPx
+  const categoryColor = (category: string, index: number) =>
+    theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
   const series = seriesNames.map((name) => ({
     type: isBar ? 'bar' as const : 'line' as const,
     name: name || undefined,
+    barWidth: isBar && barWidth ? barWidth : undefined,
     itemStyle: { color: theme.seriesColor(name) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
     showSymbol: !isBar,
@@ -176,9 +200,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
         .sort((left, right) => left.timestamp - right.timestamp)
         .map((point) => ({ ...dataItem(point, input, theme), value: [point.timestamp, point.value] }))
-      : categories.map((category) => {
+      : categories.map((category, index) => {
         const point = points.find((candidate) => candidate.category === category && candidate.series === name)
-        return point ? dataItem(point, input, theme) : null
+        if (!point) return null
+        const item = dataItem(point, input, theme)
+        if (!colorByCategory) return item
+        return { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, index) } }
       }),
   }))
   const categoryAxis = { type: 'category' as const, data: categories, ...axisStyle(theme) }

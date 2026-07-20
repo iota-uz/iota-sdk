@@ -82,7 +82,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 	for _, rowSpec := range spec.Rows {
 		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Panels: make([]LayoutItem, 0)}
 		for _, panelSpec := range rowSpec.Panels {
-			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow); err != nil {
+			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow, nil); err != nil {
 				return nil, serrors.E(op, err)
 			}
 		}
@@ -99,14 +99,49 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 	return doc, nil
 }
 
-func appendPanelTree(doc *DashboardDocument, spec panel.Spec, result *runtime.Result, hosts map[string]explore.Spec, row *LayoutRow) error {
+func appendPanelTree(
+	doc *DashboardDocument,
+	spec panel.Spec,
+	result *runtime.Result,
+	hosts map[string]explore.Spec,
+	row *LayoutRow,
+	group *LayoutGroup,
+) error {
 	if spec.Kind.IsContainer() {
-		for _, child := range spec.Children {
-			if err := appendPanelTree(doc, child, result, hosts, row); err != nil {
-				return err
+		//nolint:exhaustive // Only stat groups and tabs become wire containers; the rest flatten.
+		switch spec.Kind {
+		case panel.KindStatGroup:
+			group = &LayoutGroup{
+				ID: spec.ID, Kind: LayoutGroupMetrics, Label: spec.Title,
+				Layout: groupLayout(spec.GroupLayout), Span: containerSpan(spec),
 			}
+			for _, child := range spec.Children {
+				if err := appendPanelTree(doc, child, result, hosts, row, group); err != nil {
+					return err
+				}
+			}
+			return nil
+		case panel.KindTabs:
+			base := LayoutGroup{ID: spec.ID, Kind: LayoutGroupTabs, Label: spec.Title, Span: containerSpan(spec)}
+			for index, child := range spec.Children {
+				tab := base
+				tab.Tab = strings.TrimSpace(child.Title)
+				if tab.Tab == "" {
+					tab.Tab = fmt.Sprintf("%s %d", spec.ID, index+1)
+				}
+				if err := appendPanelTree(doc, child, result, hosts, row, &tab); err != nil {
+					return err
+				}
+			}
+			return nil
+		default:
+			for _, child := range spec.Children {
+				if err := appendPanelTree(doc, child, result, hosts, row, group); err != nil {
+					return err
+				}
+			}
+			return nil
 		}
-		return nil
 	}
 	kind, err := panelKind(spec.Kind)
 	if err != nil {
@@ -150,18 +185,91 @@ func appendPanelTree(doc *DashboardDocument, spec panel.Spec, result *runtime.Re
 		ID: spec.ID, Kind: kind, Title: spec.Title, Semantics: semantics, Frame: frameRef,
 		Encoding: buildEncoding(spec.Fields, wireFrame), Format: buildFormats(spec), Total: spec.TotalBadgeValue, Columns: columns,
 		DrillRoot: drillRoot, Actions: actions,
+		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
+		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 	})
 	span := spec.Span
 	if span == 0 {
 		span = 6
 	}
-	row.Panels = append(row.Panels, LayoutItem{PanelID: spec.ID, Span: span})
+	row.Panels = append(row.Panels, LayoutItem{PanelID: spec.ID, Span: span, Group: group})
 	for index, color := range spec.Colors {
 		if strings.TrimSpace(color) != "" {
 			doc.Theme.Series[fmt.Sprintf("%s:%d", spec.ID, index)] = color
 		}
 	}
 	return nil
+}
+
+func containerSpan(spec panel.Spec) int {
+	if spec.Span >= 1 && spec.Span <= 12 {
+		return spec.Span
+	}
+	return 12
+}
+
+func groupLayout(layout panel.GroupLayout) LayoutGroupLayout {
+	if layout == panel.GroupRows {
+		return LayoutGroupRows
+	}
+	return LayoutGroupColumns
+}
+
+func panelAccent(spec panel.Spec) string {
+	if accent := strings.TrimSpace(spec.Chrome.AccentColor); accent != "" {
+		return accent
+	}
+	if len(spec.Colors) > 0 {
+		return strings.TrimSpace(spec.Colors[0])
+	}
+	return ""
+}
+
+func buildStatus(spec panel.Spec) *PanelStatus {
+	if spec.Status == nil || strings.TrimSpace(spec.Status.Label) == "" {
+		return nil
+	}
+	status := PanelStatus{Label: spec.Status.Label}
+	switch spec.Status.Tone {
+	case panel.StatusPositive:
+		status.Tone = StatusTonePositive
+	case panel.StatusWarning:
+		status.Tone = StatusToneWarning
+	case panel.StatusNeutral:
+		status.Tone = StatusToneNeutral
+	}
+	return &status
+}
+
+func buildTrend(spec panel.Spec) *PanelTrend {
+	if spec.Trend == nil {
+		return nil
+	}
+	return &PanelTrend{Percent: spec.Trend.Percent, Label: spec.Trend.Label, Invert: spec.Trend.Invert}
+}
+
+func buildPresentation(spec panel.Spec) *Presentation {
+	hints := spec.Presentation
+	presentation := Presentation{Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx}
+	if hints.LegendBelow {
+		presentation.Legend = LegendBelow
+	}
+	if hints.SliceLabelsPercent {
+		presentation.SliceLabels = SliceLabelsPercent
+	}
+	switch {
+	case hints.HideTotalBadge:
+		presentation.TotalBadge = TotalBadgeNone
+	case hints.TotalBadgeInPlot:
+		presentation.TotalBadge = TotalBadgePlot
+	}
+	if hints.ColorByCategory || spec.Distributed {
+		presentation.ColorBy = ColorByCategory
+	}
+	if presentation == (Presentation{}) {
+		return nil
+	}
+	return &presentation
 }
 
 func panelKind(kind panel.Kind) (PanelKind, error) {
@@ -175,8 +283,13 @@ func panelKind(kind panel.Kind) (PanelKind, error) {
 		return PanelKindDonut, nil
 	case panel.KindBar, panel.KindStackedBar:
 		return PanelKindBar, nil
-	case panel.KindHorizontalBar, panel.KindSegmentBar:
+	case panel.KindHorizontalBar:
 		return PanelKindHBar, nil
+	case panel.KindSegmentBar:
+		// A segment bar is a part-of-whole statement about one amount, which
+		// the wire contract carries as its own composite kind rather than as
+		// a bar chart.
+		return PanelKindCoverage, nil
 	case panel.KindTimeSeries:
 		return PanelKindLine, nil
 	case panel.KindCascade:
@@ -191,7 +304,7 @@ func panelKind(kind panel.Kind) (PanelKind, error) {
 func inferSemantics(kind PanelKind) Semantics {
 	//nolint:exhaustive // Remaining kinds are series-shaped by default.
 	switch kind {
-	case PanelKindPie, PanelKindDonut:
+	case PanelKindPie, PanelKindDonut, PanelKindCoverage:
 		return SemanticsPartition
 	case PanelKindCascade:
 		return SemanticsReconciliation
@@ -260,12 +373,17 @@ func buildTableColumns(spec panel.Spec) []TableColumn {
 	for _, column := range spec.Columns {
 		wireColumn := TableColumn{
 			Field: column.Field.Name(), Label: column.Label, Align: TableAlign(column.Align),
-			Cell: TableCell{Kind: TableCellPlain},
+			Cell: TableCell{Kind: TableCellPlain}, Text: column.Text,
+			WidthPx: column.WidthPx, Clamp: column.ClampLines,
+			Affordance: TableAffordance(column.Affordance),
 		}
 		if column.Cell != nil {
 			wireColumn.Cell.Kind = TableCellKind(column.Cell.Kind)
 			if column.Cell.Kind == panel.TableCellDelta {
 				wireColumn.Cell.SecondaryField = column.Cell.PercentField.Name()
+			}
+			if column.Cell.Stacked {
+				wireColumn.Cell.Layout = TableCellStacked
 			}
 		}
 		if column.Action != nil {
@@ -294,6 +412,10 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 			result.Currency = spec.Currency
 			result.MinorUnits = false
 		}
+		result.Compact = true
+		// format.abbreviate prints the mantissa with %.*f, i.e. a dot in every
+		// locale. Pin the separator so both renderers agree byte for byte.
+		result.DecimalSeparator = "."
 	case format.KindPercent:
 		result.Kind = FormatPercent
 	case format.KindDate, format.KindMonthLabel:
@@ -329,7 +451,10 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 }
 
 func buildPanelFrame(spec panel.Spec, source *frame.Frame) (Frame, error) {
-	if spec.Kind != panel.KindTable {
+	// Projection is driven by the declared columns. A table that declares
+	// none has no projection to apply, and projecting anyway would emit an
+	// empty frame and silently drop every row's data.
+	if spec.Kind != panel.KindTable || len(spec.Columns) == 0 {
 		return buildFrame(source)
 	}
 

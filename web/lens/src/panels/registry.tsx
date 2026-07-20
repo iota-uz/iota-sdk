@@ -1,13 +1,14 @@
 import type { ComponentType } from 'react'
 import type { Panel, PanelKind } from '../contract'
 import { CascadePanel, type CascadePanelProps } from './CascadePanel'
+import { CoveragePanel, type CoveragePanelProps } from './CoveragePanel'
 import { BarPanel, LinePanel, PiePanel, type ChartPanelProps } from './ChartPanel'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 import { TablePanel, type TablePanelProps } from './TablePanel'
 
 /* eslint-disable react-refresh/only-export-components */
 
-export type PanelComponent = ComponentType<StatPanelProps | ChartPanelProps | CascadePanelProps | TablePanelProps>
+export type PanelComponent = ComponentType<StatPanelProps | ChartPanelProps | CascadePanelProps | TablePanelProps | CoveragePanelProps>
 export type PanelRegistry = Partial<Record<PanelKind, PanelComponent>>
 
 export const UNSUPPORTED = [] as const satisfies readonly PanelKind[]
@@ -24,6 +25,7 @@ export const SUPPORTED = {
   area: LinePanel,
   cascade: CascadePanel,
   table: TablePanel,
+  coverage: CoveragePanel,
 } satisfies Record<SupportedKind, PanelComponent>
 
 function unsupportedPartition<const Kinds extends readonly PanelKind[]>(kinds: Kinds) {

@@ -21,11 +21,39 @@ function precisionOptions(precision: number | undefined): Intl.NumberFormatOptio
   return { minimumFractionDigits: precision, maximumFractionDigits: precision }
 }
 
+/**
+ * Compact magnitudes come from the locale's own CLDR data (ru → «млрд», uz →
+ * «mlrd», en → «B»), never from a hardcoded suffix table. Only the decimal
+ * separator can be pinned: `decimalSeparator` exists because the Go renderer
+ * prints the mantissa with `%.*f`, i.e. a dot in every locale, so a document
+ * that must match it byte for byte asks for ".".
+ */
+function applyDecimalSeparator(parts: Intl.NumberFormatPart[], separator: string | undefined): string {
+  const text = parts.map((part) => (part.type === 'decimal' && separator ? separator : part.value)).join('')
+  if (!separator) return text
+  // Pinning the separator means "match the Go renderer", which also prints an
+  // ASCII space before magnitude words and no space before the percent sign.
+  return text.replace(/[\u00A0\u202F]/g, ' ').replace(/\s+%/, '%')
+}
+
+function formatCompactNumber(value: number, field: FieldFormat, locale: string, currency?: string): string {
+  const precision = field.precision ?? 2
+  const formatter = new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    compactDisplay: 'short',
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  })
+  const compact = applyDecimalSeparator(formatter.formatToParts(value), field.decimalSeparator)
+  return currency ? `${compact} ${currency}` : compact
+}
+
 function formatMoney(value: number, field: FieldFormat, locale: string): string {
   const currency = field.currency ?? 'USD'
+  const scaled = field.minorUnits ? value / 100 : value
+  if (field.compact) return formatCompactNumber(scaled, field, locale, currency)
   const base = new Intl.NumberFormat(locale, { style: 'currency', currency, ...precisionOptions(field.precision) })
-  if (!field.minorUnits) return base.format(value)
-  return base.format(value / 100)
+  return base.format(scaled)
 }
 
 const goDateTokens = [
@@ -104,9 +132,12 @@ export function formatFieldValue(value: unknown, field: FieldFormat | undefined,
   if (number === undefined) return fallback(value)
   if (field.kind === 'money') return formatMoney(number, field, locale)
   if (field.kind === 'percent') {
-    return new Intl.NumberFormat(locale, {
+    const percent = new Intl.NumberFormat(locale, {
       style: 'unit', unit: 'percent', unitDisplay: 'narrow', ...precisionOptions(field.precision),
-    }).format(number)
+    })
+    return applyDecimalSeparator(percent.formatToParts(number), field.decimalSeparator)
   }
-  return new Intl.NumberFormat(locale, precisionOptions(field.precision)).format(number)
+  if (field.compact) return formatCompactNumber(number, field, locale)
+  const plain = new Intl.NumberFormat(locale, precisionOptions(field.precision))
+  return applyDecimalSeparator(plain.formatToParts(number), field.decimalSeparator)
 }

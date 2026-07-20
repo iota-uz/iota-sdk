@@ -1,0 +1,57 @@
+package document
+
+import "sort"
+
+// Runtime chrome translation keys. BuildOptions.I18n is an opaque map, so a
+// producer typo silently falls back to the runtime's English default. These
+// constants are the canonical, testable spelling of every key the React
+// runtime looks up; RuntimeI18nKeys keeps them in sync with the TSX call
+// sites.
+const (
+	I18nChartError        = "chart.error"
+	I18nDrillReset        = "drill.reset"
+	I18nExploreBack       = "explore.back"
+	I18nExploreUnavail    = "explore.unavailable"
+	I18nExploreViewAs     = "explore.viewSegmentAs"
+	I18nExploreViews      = "explore.views"
+	I18nExportDashboard   = "export.dashboard"
+	I18nExportPanel       = "export.panel"
+	I18nExportPending     = "export.pending"
+	I18nExportRetry       = "export.retry"
+	I18nExportRetryHint   = "export.retryHint"
+	I18nPanelCollapse     = "panel.collapse"
+	I18nPanelEmpty        = "panel.empty"
+	I18nPanelExpand       = "panel.expand"
+	I18nPanelRetry        = "panel.retry"
+	I18nPanelTotal        = "panel.total"
+	I18nPanelUpdating     = "panel.updating"
+	I18nTableActions      = "table.actions"
+	I18nTableEmptyPage    = "table.emptyPage"
+	I18nTableLoadingPage  = "table.loadingPage"
+	I18nTableNext         = "table.next"
+	I18nTableOpenRecord   = "table.openRecord"
+	I18nTablePage         = "table.page"
+	I18nTablePrevious     = "table.previous"
+	I18nTableSortScope    = "table.sortScope"
+	I18nSemanticsPrefix   = "explore.semantics."
+	I18nSemanticsEvidence = I18nSemanticsPrefix + string(SemanticsEvidence)
+	I18nSemanticsPartn    = I18nSemanticsPrefix + string(SemanticsPartition)
+	I18nSemanticsRecon    = I18nSemanticsPrefix + string(SemanticsReconciliation)
+	I18nSemanticsSeries   = I18nSemanticsPrefix + string(SemanticsSeries)
+)
+
+// RuntimeI18nKeys lists every translation key the runtime resolves, sorted.
+// Producers can range over it to assert their catalogue is complete.
+func RuntimeI18nKeys() []string {
+	keys := []string{
+		I18nChartError, I18nDrillReset,
+		I18nExploreBack, I18nExploreUnavail, I18nExploreViewAs, I18nExploreViews,
+		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
+		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelRetry, I18nPanelTotal, I18nPanelUpdating,
+		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,
+		I18nTablePage, I18nTablePrevious, I18nTableSortScope,
+		I18nSemanticsEvidence, I18nSemanticsPartn, I18nSemanticsRecon, I18nSemanticsSeries,
+	}
+	sort.Strings(keys)
+	return keys
+}

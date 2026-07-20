@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState } from 'react'
-import type { NodeKey, Panel } from '../contract'
+import type { Frame, NodeKey, Panel } from '../contract'
 import type { ChartAdapter, ChartFormatResolver, ChartKind } from '../charts/adapter'
 import { childForSelection } from '../explore/model'
-import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame } from '../runtime'
+import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { ChartHost } from './ChartHost'
-import { encodingRoles } from './data'
+import { encodingRoles, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
 export interface ChartPanelProps {
@@ -64,7 +64,8 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     formatAxis,
     theme: document.theme,
     selectedKey,
-  }) : undefined, [document.theme, format, formatAxis, frame.data, kind, panel.encoding, selectedKey])
+    presentation: panel.presentation,
+  }) : undefined, [document.theme, format, formatAxis, frame.data, kind, panel.encoding, panel.presentation, selectedKey])
   const select = useCallback((key: NodeKey) => {
     if (!drillable) return
     const node = childForSelection(level, key)
@@ -75,19 +76,67 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
 
   return (
     <PanelFrame panel={panel} frame={frame}>
-      {input && (
-        <ChartHost
-          input={input}
-          panelId={panel.id}
-          adapter={adapter}
-          label={`${panel.title} ${kind} chart`}
-          drillable={drillable}
-          onSelect={drillable ? select : undefined}
-          onHover={drillable ? setHoveredKey : undefined}
-        />
-      )}
+      <div className="lens-chart-area">
+        {input && (
+          <ChartHost
+            input={input}
+            panelId={panel.id}
+            adapter={adapter}
+            label={`${panel.title} ${kind} chart`}
+            drillable={drillable}
+            onSelect={drillable ? select : undefined}
+            onHover={drillable ? setHoveredKey : undefined}
+          />
+        )}
+        {panel.presentation?.totalBadge === 'plot' && panel.total !== undefined && (
+          <PlotTotalBadge panel={panel} />
+        )}
+      </div>
+      {panel.presentation?.legend === 'below' && frame.data && <ChartLegend panel={panel} frame={frame.data} />}
       {drillable && hoveredKey && <span className="lens-chart-drill-hint" role="status">Select to explore</span>}
     </PanelFrame>
+  )
+}
+
+function PlotTotalBadge({ panel }: { panel: Panel }) {
+  const translate = useTranslate()
+  const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
+  return (
+    <span className="lens-plot-total" title={translate('panel.total', 'Total')}>
+      {formatTotal(panel.total)}
+    </span>
+  )
+}
+
+/**
+ * A legend below the plot lists `label · value` for every slice, so the values
+ * stay readable when the plot itself only carries percentages.
+ */
+function ChartLegend({ panel, frame }: { panel: Panel; frame: Frame }) {
+  const { document } = useDashboard()
+  const labelField = panel.encoding.label ?? panel.encoding.category
+  const valueField = panel.encoding.value
+  const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
+  const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
+  const valueIndex = frame.columns.findIndex((column) => column.name === valueField)
+  if (labelIndex < 0) return null
+
+  const color = seriesColorResolver(document.theme, panel)
+  return (
+    <ul className="lens-chart-legend">
+      {frame.rows.map((row, index) => {
+        const raw = row[labelIndex]
+        const label = typeof raw === 'string' ? raw : raw === null || raw === undefined ? '' : JSON.stringify(raw)
+        return (
+          <li className="lens-chart-legend-item" key={`${label}-${index}`}>
+            <span aria-hidden="true" className="lens-chart-legend-mark" style={{ background: color(label, index) }} />
+            <span className="lens-chart-legend-label">{label}</span>
+            <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+            <span className="lens-chart-legend-value">{valueIndex >= 0 ? formatValue(row[valueIndex]) : ''}</span>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

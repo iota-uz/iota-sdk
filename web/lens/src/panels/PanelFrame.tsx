@@ -1,7 +1,8 @@
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
 import { type PanelFrameState, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
+import { PanelSkeletonBody } from './Skeleton'
 
 export interface PanelFrameProps {
   panel: Panel
@@ -11,31 +12,42 @@ export interface PanelFrameProps {
   allowEmptyContent?: boolean
 }
 
-function PanelSkeleton({ variant }: { variant: 'stat' | 'chart' }) {
+export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
+  const up = trend.percent > 0
+  const flat = trend.percent === 0
+  // Invert flips the good/bad mapping for down-is-good metrics; the arrow
+  // always follows the sign.
+  const good = trend.invert ? !up : up
+  const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
+  const sign = up ? '+' : ''
   return (
-    <div className={`lens-panel-skeleton lens-panel-skeleton-${variant}`} role="status" aria-label="Loading panel">
-      {variant === 'chart' ? (
-        <span className="lens-skeleton-chart" />
-      ) : (
-        <>
-          <span className="lens-skeleton-line lens-skeleton-line-label" />
-          <span className="lens-skeleton-line lens-skeleton-line-value" />
-        </>
-      )}
-    </div>
+    <span className={`lens-trend-chip ${tone}`}>
+      <span aria-hidden="true">{flat ? '▬' : up ? '▲' : '▼'}</span>
+      <strong>{sign}{trend.percent.toFixed(1)}%</strong>
+      {trend.label && <span className="lens-trend-chip-label">{trend.label}</span>}
+    </span>
   )
 }
 
 export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
   const translate = useTranslate()
+  const [expanded, setExpanded] = useState(false)
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const hasRows = Boolean(frame.data?.rows.length)
   const showInitialLoading = frame.isLoading && !frame.data
-  const showTotal = variant === 'chart' && panel.total !== undefined
+  const badgePlacement = panel.presentation?.totalBadge ?? 'header'
+  const showTotal = variant === 'chart' && panel.total !== undefined && badgePlacement === 'header'
+  const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
 
   return (
     <section
-      className={`lens-panel lens-panel-${variant}${frame.isStale ? ' lens-panel-stale' : ''}`}
+      className={[
+        'lens-panel',
+        variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
+        frame.isStale ? 'lens-panel-stale' : '',
+        panel.presentation?.fill ? 'lens-panel-fill' : '',
+        expanded ? 'lens-panel-expanded' : '',
+      ].filter(Boolean).join(' ')}
       aria-label={panel.title}
       aria-busy={frame.isLoading}
       data-panel-kind={panel.kind}
@@ -50,12 +62,22 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
             </span>
           )}
           {frame.isStale && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
-          <ExportButton panelId={panel.id} />
+          <ExportButton panelId={panel.id} iconOnly />
+          <button
+            aria-label={expandLabel}
+            aria-pressed={expanded}
+            className="lens-export-button lens-icon-button"
+            onClick={() => setExpanded((current) => !current)}
+            title={expandLabel}
+            type="button"
+          >
+            <span aria-hidden="true">{expanded ? '⤡' : '⤢'}</span>
+          </button>
         </div>
       </header>
       <div className="lens-panel-body">
         {showInitialLoading ? (
-          <PanelSkeleton variant={variant} />
+          <PanelSkeletonBody kind={panel.kind} />
         ) : frame.error && !frame.data ? (
           <div className="lens-panel-state lens-panel-state-error" role="alert">
             <span>{frame.error.message}</span>
@@ -68,6 +90,9 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
           </div>
         ) : children}
       </div>
+      {panel.trend && hasRows && (
+        <footer className="lens-panel-footer"><TrendChip trend={panel.trend} /></footer>
+      )}
       {frame.error && frame.data && (
         <div className="lens-panel-error" role="alert">
           <span>{frame.error.message}</span>

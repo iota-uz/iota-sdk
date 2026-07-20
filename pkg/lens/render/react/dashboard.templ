@@ -1,5 +1,7 @@
 package react
 
+import lenstempl "github.com/iota-uz/iota-sdk/pkg/lens/render/templ"
+
 templ LensDashboard(src string, options ...Option) {
 	{{ resolved := resolveDashboardOptions(options...) }}
 	if resolved.IncludeAssets {
@@ -15,5 +17,9 @@ templ LensDashboard(src string, options ...Option) {
 		if resolved.CSRF != "" {
 			csrf={ resolved.CSRF }
 		}
-	></lens-dashboard>
+	>
+		if resolved.Skeleton != nil {
+			@lenstempl.DashboardSkeleton(*resolved.Skeleton)
+		}
+	</lens-dashboard>
 }

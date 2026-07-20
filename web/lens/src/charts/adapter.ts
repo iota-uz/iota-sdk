@@ -1,4 +1,4 @@
-import type { Encoding, Frame, NodeKey, PanelKind, Theme } from '../contract'
+import type { Encoding, Frame, NodeKey, PanelKind, Presentation, Theme } from '../contract'
 
 export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'bar' | 'hbar' | 'line' | 'area'>
 export type ChartFormatResolver = (field: string, value: unknown) => string
@@ -12,6 +12,8 @@ export interface ChartInput {
   formatAxis?: ChartFormatResolver
   theme: Theme
   selectedKey?: NodeKey
+  /** Opt-in density hints; absent hints keep the default chart treatment. */
+  presentation?: Presentation
 }
 
 export interface ChartEvents {

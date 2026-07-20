@@ -98,13 +98,18 @@ afterEach(() => {
   runtime.drillInto.mockReset()
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'table'])('%s panel states', (kind) => {
+describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
   it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
     const panelElement = screen.getByLabelText(`${kind} panel`)
 
-    if (stateName === 'loading') expect(screen.getByRole('status', { name: 'Loading panel' })).toBeInTheDocument()
+    if (stateName === 'loading') {
+      // The placeholder mirrors the panel shape and is hidden from assistive
+      // technology; aria-busy on the panel carries the state instead.
+      expect(panelElement).toHaveAttribute('aria-busy', 'true')
+      expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+    }
     if (stateName === 'empty') expect(screen.getByText('No data')).toBeInTheDocument()
     if (stateName === 'error') {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -145,6 +150,7 @@ describe('panel registry', () => {
       area: true,
       bar: true,
       cascade: true,
+  coverage: true,
       donut: true,
       hbar: true,
       line: true,

@@ -153,14 +153,16 @@ func TestBuild_PanelTotalBadgeValue(t *testing.T) {
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "totals", GeneratedAt: time.Unix(1, 0), Locale: "en"})
 	require.NoError(t, err)
 	require.Len(t, doc.Panels, 2)
-	require.Equal(t, 125.5, *doc.Panels[0].Total)
+	require.InDelta(t, 125.5, *doc.Panels[0].Total, 1e-9)
 	require.Nil(t, doc.Panels[1].Total)
 
 	payload, err := json.Marshal(doc.Panels)
 	require.NoError(t, err)
 	var wirePanels []map[string]any
 	require.NoError(t, json.Unmarshal(payload, &wirePanels))
-	require.Equal(t, 125.5, wirePanels[0]["total"])
+	total, ok := wirePanels[0]["total"].(float64)
+	require.True(t, ok)
+	require.InDelta(t, 125.5, total, 1e-9)
 	require.NotContains(t, wirePanels[1], "total")
 }
 
@@ -214,6 +216,9 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 		},
 	}, wirePanel.Columns)
 	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS"}, wirePanel.Format["amount"])
+	// Delta secondaries carry percent-unit values, so the wire format defaults
+	// to percent when the column declares no formatter of its own.
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: 1}, wirePanel.Format["delta_pct"])
 
 	wireFrame := doc.Frames[wirePanel.Frame]
 	require.Equal(t, []Column{
@@ -262,4 +267,174 @@ func executeExploreDashboard(t *testing.T) (lens.DashboardSpec, *runtime.Result)
 	executed, err := runtime.New(runtime.Options{}).Execute(context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope())
 	require.NoError(t, err)
 	return spec, executed
+}
+
+func TestBuild_ExplicitDeltaFormatterBeatsPercentDefault(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"row-1"}},
+		frame.Field{Name: "delta", Type: frame.FieldTypeNumber, Values: []any{-50.0}},
+		frame.Field{Name: "delta_pct", Type: frame.FieldTypeNumber, Values: []any{-4.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	explicit := format.Money("UZS", 2)
+	spec := lensbuild.Dashboard("rows", "Rows",
+		lensbuild.Row(
+			panel.Table("t", "T", "rows").Columns(
+				panel.TableColumn{Field: "delta", Label: "Delta", Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: "delta_pct"}},
+				panel.TableColumn{Field: "delta_pct", Label: "Delta %", Formatter: &explicit},
+			).Build(),
+		),
+	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS", Precision: 2}, doc.Panels[0].Format["delta_pct"])
+}
+
+func TestBuild_TableWithoutColumnsKeepsEveryField(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	spec := lensbuild.Dashboard("rows", "Rows",
+		lensbuild.Row(panel.Table("plain", "Plain", "rows").Build()),
+	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	wireFrame := doc.Frames[doc.Panels[0].Frame]
+	require.Equal(t, []string{"label", "value"}, columnNames(wireFrame.Columns))
+	require.Equal(t, [][]any{{"Alpha", 10.0}}, wireFrame.Rows)
+}
+
+func TestBuild_CompactFormatterPinsSeparator(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{9_364_442_607.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	compact := format.MoneyCompact("UZS")
+	spec := lensbuild.Dashboard("rows", "Rows",
+		lensbuild.Row(panel.Pie("p", "P", "rows").Format(compact).Build()),
+	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "ru", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
+	require.NoError(t, err)
+	require.Equal(t, FieldFormat{
+		Kind: FormatMoney, Currency: "UZS", Precision: 2, Compact: true, DecimalSeparator: ".",
+	}, doc.Panels[0].Format["value"])
+}
+
+func TestBuild_StatGroupAndTabsBecomeLayoutGroups(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	group := panel.StatGroup("ratios", "By earned premium").Span(12).Layout(panel.GroupColumns).Children(
+		panel.Stat("ratio-a", "Ratio A", "rows").Status("ОЦЕНКА", panel.StatusWarning).Colors("#2f56d9").Build(),
+		panel.Stat("ratio-b", "Ratio B", "rows").Build(),
+	).Build()
+	tabs := panel.Tabs("result", "Result").Span(12).Children(
+		panel.Stat("cash", "Cash result", "rows").Build(),
+		panel.Table("underwriting", "Underwriting result", "rows").Build(),
+	).Build()
+	spec := lensbuild.Dashboard("groups", "Groups", lensbuild.Row(group), lensbuild.Row(tabs)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+
+	metrics := doc.Layout.Rows[0].Panels
+	require.Len(t, metrics, 2)
+	for _, item := range metrics {
+		require.NotNil(t, item.Group)
+		require.Equal(t, LayoutGroupMetrics, item.Group.Kind)
+		require.Equal(t, "ratios", item.Group.ID)
+		require.Equal(t, "By earned premium", item.Group.Label)
+		require.Equal(t, LayoutGroupColumns, item.Group.Layout)
+		require.Equal(t, 12, item.Group.Span)
+	}
+
+	byID := map[string]Panel{}
+	for _, wirePanel := range doc.Panels {
+		byID[wirePanel.ID] = wirePanel
+	}
+	require.Equal(t, &PanelStatus{Label: "ОЦЕНКА", Tone: StatusToneWarning}, byID["ratio-a"].Status)
+	require.Equal(t, "#2f56d9", byID["ratio-a"].Accent)
+	require.Nil(t, byID["ratio-b"].Status)
+
+	tabItems := doc.Layout.Rows[1].Panels
+	require.Len(t, tabItems, 2)
+	require.Equal(t, LayoutGroupTabs, tabItems[0].Group.Kind)
+	require.Equal(t, "Cash result", tabItems[0].Group.Tab)
+	require.Equal(t, "Underwriting result", tabItems[1].Group.Tab)
+	require.Equal(t, "result", tabItems[1].Group.ID)
+}
+
+func TestBuild_SegmentBarBecomesCoverage(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Within reserve", "Above reserve"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{5.0, 0.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	headline := 5.0
+	segment := panel.SegmentBar("payouts", "Claim payouts", "rows").
+		Description("ALL CLAIMS COVERED BY RESERVE").
+		Presentation(panel.PresentationHints{HideTotalBadge: true}).
+		Build()
+	segment.HeadlineValue = &headline
+	spec := lensbuild.Dashboard("coverage", "Coverage", lensbuild.Row(segment)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	wirePanel := doc.Panels[0]
+	require.Equal(t, PanelKindCoverage, wirePanel.Kind)
+	require.Equal(t, SemanticsPartition, wirePanel.Semantics)
+	require.Equal(t, "ALL CLAIMS COVERED BY RESERVE", wirePanel.Caption)
+	require.NotNil(t, wirePanel.Headline)
+	require.InDelta(t, 5.0, *wirePanel.Headline, 1e-9)
+	require.Equal(t, TotalBadgeNone, wirePanel.Presentation.TotalBadge)
 }

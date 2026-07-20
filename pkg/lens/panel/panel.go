@@ -127,6 +127,29 @@ type SparklineSpec struct {
 	Color  string    `json:"color,omitempty"`
 }
 
+// PresentationHints are optional, renderer-level density choices carried on a
+// panel spec. Every field is opt-in: the zero value keeps today's rendering.
+type PresentationHints struct {
+	// LegendBelow renders a centered wrapping legend under the plot with one
+	// "label · value" entry per slice.
+	LegendBelow bool
+	// SliceLabelsPercent writes each partition slice's share inside the slice.
+	SliceLabelsPercent bool
+	// TotalBadgeInPlot floats the total badge inside the plot area instead of
+	// placing it in the panel header.
+	TotalBadgeInPlot bool
+	// FillPlot lets the plot occupy the whole card instead of the default
+	// inset.
+	FillPlot bool
+	// BarWidthPx pins the rendered bar thickness in CSS pixels.
+	BarWidthPx int
+	// ColorByCategory gives every category its own palette color.
+	ColorByCategory bool
+	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
+	// already carries the panel's summary.
+	HideTotalBadge bool
+}
+
 // GroupLayout selects how a StatGroup panel arranges its children inside the
 // shared card: side-by-side columns with vertical hairlines, or a vertical
 // list with horizontal hairlines.
@@ -175,11 +198,29 @@ type TableColumn struct {
 	// WidthPx, when > 0, sets a min-width (px) on the column's header and
 	// body cells (inline style, so it survives consumer CSS purging).
 	WidthPx int
+	// ClampLines, when > 0, limits the cell text to that many lines so long
+	// labels cannot inflate row height.
+	ClampLines int
+	// Affordance selects how an actionable cell advertises its action;
+	// "pill" renders a compact pill with a drill arrow.
+	Affordance string
+}
+
+// Pill marks an actionable column's cells as compact drill pills.
+func (c TableColumn) Pill() TableColumn {
+	c.Affordance = "pill"
+	return c
 }
 
 // Width sets a min-width (px) on the column's cells.
 func (c TableColumn) Width(px int) TableColumn {
 	c.WidthPx = px
+	return c
+}
+
+// Clamp limits the column's cell text to lines rendered lines.
+func (c TableColumn) Clamp(lines int) TableColumn {
+	c.ClampLines = lines
 	return c
 }
 
@@ -193,14 +234,21 @@ const (
 	// TableCellDelta renders a signed delta plus a percent change, colored by
 	// sign.
 	TableCellDelta TableCellKind = "delta"
+	// TableCellUnderline renders the value over a thin proportional rule
+	// colored by sign — a low-ink alternative to TableCellBar.
+	TableCellUnderline TableCellKind = "underline"
 )
 
 // TableCellSpec configures a Table panel column's rich cell renderer.
 type TableCellSpec struct {
 	Kind TableCellKind
 	// PercentField is used by TableCellDelta cells: the field holding the
-	// percent number rendered alongside the delta.
+	// percent number rendered alongside the delta. Its values are already in
+	// percent units: -4 renders as -4.0%, and a 0..1 share would render as
+	// 0.1% instead of 10%.
 	PercentField FieldRef
+	// Stacked puts the secondary value on its own line under the primary one.
+	Stacked bool
 }
 
 type FieldRef string
@@ -271,6 +319,11 @@ type Spec struct {
 	// GroupLayout arranges a StatGroup's children ("columns" default, or
 	// "rows"). Ignored on every other kind.
 	GroupLayout GroupLayout
+	// Presentation carries opt-in rendering hints for wire (document)
+	// renderers. The templ/Apex renderer ignores them; they exist so a
+	// dashboard can ask the React runtime for a denser treatment without a
+	// bespoke panel kind.
+	Presentation PresentationHints
 	Fields      FieldMapping
 	Formatter   *format.Spec
 	Columns     []TableColumn
@@ -567,6 +620,11 @@ func (b *Builder) SparklineColored(values []float64, color string) *Builder {
 // Layout selects a StatGroup's child arrangement (columns or rows).
 func (b *Builder) Layout(l GroupLayout) *Builder {
 	b.spec.GroupLayout = l
+	return b
+}
+// Presentation sets the panel's wire renderer density hints.
+func (b *Builder) Presentation(hints PresentationHints) *Builder {
+	b.spec.Presentation = hints
 	return b
 }
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }

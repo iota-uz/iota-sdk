@@ -83,7 +83,14 @@
   }
 
   .lens-row-heading {
-    @apply lens-m-0 lens-mb-3 lens-text-sm lens-font-semibold lens-text-strong;
+    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  /* A hairline rule running to the edge turns the heading into a section
+     band instead of a floating label. */
+  .lens-row-heading::after {
+    content: '';
+    @apply lens-h-px lens-flex-1 lens-bg-border;
   }
 
   .lens-panel-grid {
@@ -128,6 +135,122 @@
     @apply lens-inline-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
+  .lens-icon-button {
+    @apply lens-size-7 lens-min-h-0 lens-justify-center lens-border-transparent lens-bg-transparent lens-px-0 lens-text-base lens-text-faint;
+  }
+
+  .lens-icon-button:hover:not(:disabled) {
+    @apply lens-border-transparent lens-bg-inset lens-text-strong;
+  }
+
+  .lens-panel-expanded {
+    @apply lens-fixed lens-inset-4 lens-z-40 lens-h-auto lens-shadow-lg;
+  }
+
+  .lens-panel-footer {
+    @apply lens-flex lens-items-center lens-justify-end lens-px-4 lens-pb-3;
+  }
+
+  .lens-trend-chip {
+    @apply lens-inline-flex lens-items-center lens-gap-1.5 lens-rounded-badge lens-px-2 lens-py-1 lens-text-xs lens-font-semibold;
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-muted);
+  }
+
+  .lens-trend-chip strong {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-trend-chip-positive {
+    background: var(--lens-pos-soft);
+    color: var(--lens-pos);
+  }
+
+  .lens-trend-chip-negative {
+    background: var(--lens-neg-soft);
+    color: var(--lens-neg);
+  }
+
+  .lens-trend-chip-label {
+    @apply lens-font-medium lens-opacity-80;
+  }
+
+  .lens-status-chip {
+    @apply lens-inline-flex lens-shrink-0 lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider;
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-muted);
+  }
+
+  .lens-status-chip-neutral,
+  .lens-trend-chip-flat,
+  .lens-metric-row-rows,
+  .lens-panel-group-tabs,
+  .lens-panel-group-metrics,
+  .lens-panel-chart {
+    /* Explicit no-op hooks: these modifiers exist so class names stay literal
+       for Tailwind's content scan and remain available to consumer CSS. */
+  }
+
+  .lens-status-chip-positive {
+    background: var(--lens-pos-soft);
+    color: var(--lens-pos);
+  }
+
+  .lens-status-chip-warning {
+    background: var(--lens-neg-soft);
+    color: var(--lens-warn);
+  }
+
+  .lens-panel-group {
+    @apply lens-min-h-0;
+  }
+
+  .lens-metric-row {
+    @apply lens-flex lens-flex-1 lens-flex-col lens-divide-y lens-divide-solid lens-divide-border;
+  }
+
+  .lens-metric-row-columns {
+    @apply lens-flex-row lens-divide-x lens-divide-y-0;
+  }
+
+  .lens-stat-metric {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col lens-justify-center lens-gap-2 lens-px-4 lens-py-3;
+  }
+
+  .lens-stat-metric-label {
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-center lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  .lens-stat-metric-label-text {
+    @apply lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+  }
+
+  .lens-stat-metric-bullet {
+    @apply lens-size-2 lens-shrink-0 lens-rounded-sm;
+    background: var(--lens-accent-500);
+  }
+
+  .lens-stat-metric-value {
+    @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-tabstrip {
+    @apply lens-m-3 lens-mb-0 lens-flex lens-gap-1 lens-rounded-control lens-bg-inset lens-p-1;
+  }
+
+  .lens-tabstrip-tab {
+    @apply lens-min-h-8 lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
+  }
+
+  .lens-tabstrip-tab[aria-selected='true'] {
+    @apply lens-border-border lens-bg-card lens-text-strong lens-shadow-card;
+  }
+
+  .lens-tab-panel {
+    @apply lens-p-3;
+  }
+
   .lens-export-button:hover:not(:disabled) {
     @apply lens-border-strong lens-bg-inset lens-text-strong;
   }
@@ -168,10 +291,6 @@
     @apply lens-opacity-60 lens-transition-opacity;
   }
 
-  .lens-skeleton {
-    @apply lens-animate-pulse lens-bg-inset lens-text-faint;
-  }
-
   .lens-panel-error {
     @apply lens-flex lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-bg-inset lens-p-3 lens-text-sm lens-text-neg;
   }
@@ -197,32 +316,85 @@
   }
 
   .lens-panel-skeleton {
-    @apply lens-flex lens-flex-1 lens-animate-pulse lens-flex-col lens-gap-3;
+    @apply lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
   }
 
-  .lens-panel-skeleton-stat {
-    @apply lens-p-4;
+  /* A sweeping gradient reads as "in flight" on a white card, where a plain
+     gray pulse is nearly invisible. Matches the templ renderer's shimmer so a
+     server-rendered placeholder and a runtime one are indistinguishable. */
+  .lens-shimmer {
+    @apply lens-block lens-rounded-full;
+    background-color: #e2e8f0;
+    background-image: linear-gradient(90deg, rgba(226, 232, 240, 0) 0%, rgba(148, 163, 184, .85) 50%, rgba(226, 232, 240, 0) 100%);
+    background-size: 200% 100%;
+    animation: lens-shimmer-sweep 1.5s ease-in-out infinite;
   }
 
-  .lens-panel-skeleton-chart {
-    @apply lens-p-3;
+  .lens-shimmer-label {
+    @apply lens-h-3;
   }
 
-  .lens-skeleton-line,
-  .lens-skeleton-chart {
-    @apply lens-block lens-rounded-control lens-bg-inset;
+  .lens-shimmer-value {
+    @apply lens-h-7 lens-rounded-md;
   }
 
-  .lens-skeleton-line-label {
-    @apply lens-h-3 lens-w-24;
+  .lens-shimmer-block {
+    @apply lens-min-h-32 lens-flex-1 lens-rounded-lg;
   }
 
-  .lens-skeleton-line-value {
-    @apply lens-h-8 lens-w-36;
+  .lens-skeleton-card {
+    @apply lens-box-border lens-flex lens-h-full lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-card;
   }
 
-  .lens-skeleton-chart {
-    @apply lens-min-h-52 lens-flex-1;
+  .lens-skeleton-card-stat {
+    @apply lens-min-h-24 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
+  }
+
+  .lens-skeleton-card-compact {
+    @apply lens-gap-3 lens-p-4;
+    min-height: 88px;
+  }
+
+  .lens-skeleton-card-plot {
+    @apply lens-min-h-64 lens-gap-4 lens-p-4;
+  }
+
+  /* Inside a real panel the card chrome already exists. */
+  .lens-panel-skeleton .lens-skeleton-card {
+    @apply lens-border-0 lens-shadow-none;
+  }
+
+  .lens-dashboard-skeleton {
+    @apply lens-flex lens-flex-col lens-gap-6;
+  }
+
+  .lens-loading {
+    @apply lens-block;
+  }
+
+  .lens-skeleton-heading {
+    @apply lens-mb-3 lens-flex lens-items-center lens-gap-3;
+  }
+
+  .lens-skeleton-heading-rule {
+    @apply lens-h-px lens-flex-1 lens-bg-border;
+  }
+
+  @keyframes lens-shimmer-sweep {
+    0% {
+      background-position: 200% 0;
+    }
+    100% {
+      background-position: -200% 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-shimmer {
+      animation: none;
+      background-color: #cbd5e1;
+      background-image: none;
+    }
   }
 
   .lens-stat-content {
@@ -253,8 +425,97 @@
     color: var(--lens-neg);
   }
 
+  .lens-chart-area {
+    @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+  }
+
   .lens-chart-host {
     @apply lens-relative lens-flex lens-min-h-56 lens-flex-1 lens-p-3;
+  }
+
+  .lens-panel-fill .lens-chart-host {
+    @apply lens-p-0;
+  }
+
+  .lens-plot-total {
+    @apply lens-pointer-events-none lens-absolute lens-right-3 lens-top-3 lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-chart-legend {
+    @apply lens-m-0 lens-flex lens-list-none lens-flex-wrap lens-items-center lens-justify-center lens-gap-x-4 lens-gap-y-1 lens-px-3 lens-pb-3 lens-pt-1 lens-text-xs lens-text-muted;
+  }
+
+  .lens-chart-legend-item {
+    @apply lens-flex lens-items-center lens-gap-1.5;
+  }
+
+  .lens-chart-legend-mark {
+    @apply lens-size-2 lens-shrink-0 lens-rounded-sm;
+    background: var(--lens-accent-500);
+  }
+
+  .lens-chart-legend-value {
+    @apply lens-font-semibold lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-chart-legend-separator {
+    @apply lens-text-faint;
+  }
+
+  .lens-coverage {
+    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-2 lens-p-4;
+  }
+
+  .lens-coverage-headline {
+    @apply lens-m-0 lens-text-3xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-coverage-caption {
+    @apply lens-m-0 lens-text-xs lens-font-medium lens-uppercase lens-tracking-wider lens-text-faint;
+  }
+
+  .lens-coverage-track {
+    @apply lens-mt-3 lens-flex lens-h-4 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+  }
+
+  .lens-coverage-track-segment {
+    @apply lens-block lens-h-full;
+    background: var(--lens-accent-500);
+  }
+
+  .lens-coverage-legend {
+    @apply lens-m-0 lens-mt-3 lens-list-none lens-p-0;
+  }
+
+  .lens-coverage-legend-row {
+    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-2 lens-text-sm;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-coverage-legend-row:last-child {
+    @apply lens-border-b-0;
+  }
+
+  .lens-coverage-legend-bullet {
+    @apply lens-size-2 lens-shrink-0 lens-rounded-full;
+    background: var(--lens-accent-500);
+  }
+
+  .lens-coverage-legend-label {
+    @apply lens-mr-auto lens-min-w-0 lens-truncate lens-text-muted;
+  }
+
+  .lens-coverage-legend-value {
+    @apply lens-font-semibold lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-coverage-legend-share {
+    @apply lens-w-12 lens-shrink-0 lens-text-right lens-text-xs lens-font-semibold lens-text-faint;
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-chart-host-drillable {
@@ -420,8 +681,44 @@
     @apply lens-h-1.5 lens-w-24 lens-min-w-16 lens-overflow-hidden lens-rounded-full lens-bg-inset;
   }
 
+  .lens-table-bar-track {
+    @apply lens-relative;
+  }
+
   .lens-table-bar-fill {
-    @apply lens-block lens-h-full lens-rounded-full lens-bg-accent-500;
+    @apply lens-absolute lens-inset-y-0 lens-block lens-h-full lens-rounded-full lens-bg-accent-500;
+  }
+
+  .lens-table-bar-fill-negative {
+    background: var(--lens-neg);
+  }
+
+  .lens-table-underline {
+    @apply lens-inline-flex lens-flex-col lens-items-end lens-gap-1;
+  }
+
+  .lens-table-underline-value {
+    @apply lens-font-medium lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-underline-rule {
+    @apply lens-block lens-h-0.5 lens-rounded-full;
+    background: var(--lens-accent-500);
+  }
+
+  .lens-table-underline-rule-negative {
+    background: var(--lens-neg);
+  }
+
+  .lens-table-clamp {
+    @apply lens-block lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+  }
+
+  .lens-table-heading-static {
+    @apply lens-block lens-px-3 lens-py-2.5 lens-text-xs lens-font-semibold lens-text-muted;
   }
 
   .lens-table-bar-value {
@@ -448,6 +745,28 @@
   .lens-table-delta-pct-negative {
     background: var(--lens-neg-soft);
     color: var(--lens-neg);
+  }
+
+  .lens-table-delta-stacked {
+    @apply lens-flex lens-flex-col lens-items-end lens-gap-0.5;
+  }
+
+  /* Stacked deltas lead with the percent, so the chip background would fight
+     the row; the color alone carries the sign. */
+  .lens-table-delta-stacked .lens-table-delta-pct {
+    @apply lens-bg-transparent lens-p-0 lens-text-sm;
+  }
+
+  .lens-table-delta-stacked .lens-table-delta-value {
+    @apply lens-text-xs lens-font-normal lens-text-muted;
+  }
+
+  .lens-table .lens-table-cell-pill {
+    @apply lens-rounded-badge lens-bg-inset lens-px-2 lens-py-0.5 lens-text-text;
+  }
+
+  .lens-table .lens-table-cell-pill:hover {
+    @apply lens-bg-accent-50 lens-text-accent-700;
   }
 
   .lens-table .lens-table-cell-link {

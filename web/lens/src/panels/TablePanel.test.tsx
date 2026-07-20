@@ -150,11 +150,13 @@ describe('TablePanel columns', () => {
     expect(screen.queryByText('top-secret')).toBeNull()
     expect(screen.queryByText('hidden-note')).toBeNull()
 
-    // Bar cell renders a proportional fill; the max earned value fills the track.
+    // Bar cells grow from the track midpoint, so the max value fills one half
+    // and the sign decides which half.
     const fills = container.querySelectorAll<HTMLElement>('.lens-table-bar-fill')
     expect(fills).toHaveLength(2)
-    expect(fills[0]?.style.width).toBe('100%')
-    expect(fills[1]?.style.width).toBe('50%')
+    expect(fills[0]?.style.width).toBe('50%')
+    expect(fills[0]?.style.left).toBe('50%')
+    expect(fills[1]?.style.width).toBe('25%')
 
     // Delta cell colors the secondary percentage by sign.
     expect(container.querySelector('.lens-table-delta-pct-negative')).not.toBeNull()

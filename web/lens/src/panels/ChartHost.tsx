@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NodeKey } from '../contract'
 import type { ChartAdapter, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'
 import { useTranslate } from '../runtime'
@@ -23,11 +23,11 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
   inputRef.current = input
   eventsRef.current = { onSelect, onHover }
 
-  const reportError = (cause: unknown, fallback: string): Error => {
+  const reportError = useCallback((cause: unknown, fallback: string): Error => {
     const error = cause instanceof Error ? cause : new Error(fallback)
     console.error(`[lens] chart panel ${panelId ?? '(unknown)'} failed to render`, error)
     return error
-  }
+  }, [panelId])
 
   useEffect(() => {
     let active = true
@@ -55,9 +55,9 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
       instanceRef.current?.dispose()
       instanceRef.current = undefined
     }
-    // reportError is a stable closure over panelId; adapter drives remount.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [adapter])
+    // Only the adapter drives remount; inputs and handlers are read through
+    // refs so a new frame updates in place instead of tearing down the chart.
+  }, [adapter, reportError])
 
   useEffect(() => {
     if (!instanceRef.current) return
@@ -66,8 +66,7 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
     } catch (cause: unknown) {
       setLoadError(reportError(cause, 'chart failed to update'))
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [input])
+  }, [input, reportError])
 
   return (
     <div

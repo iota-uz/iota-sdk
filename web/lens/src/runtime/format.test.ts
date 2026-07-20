@@ -56,3 +56,38 @@ describe('formatAxis', () => {
     expect(formatAxis('2026-07-20T00:00:00Z', field, 'en-US')).toBe(formatFieldValue('2026-07-20T00:00:00Z', field, 'en-US'))
   })
 })
+
+describe('compact formatting', () => {
+  it.each([
+    { locale: 'ru-RU', expected: '9.36 млрд' },
+    { locale: 'uz-UZ', expected: '9.36 mlrd' },
+    { locale: 'en-US', expected: '9.36B' },
+  ])('takes magnitude words from $locale CLDR data with a pinned decimal separator', ({ locale, expected }) => {
+    const field: FieldFormat = { kind: 'number', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.' }
+    expect(formatFieldValue(9_364_442_607, field, locale)).toBe(expected)
+  })
+
+  it('follows the locale separator when none is pinned', () => {
+    const field: FieldFormat = { kind: 'number', minorUnits: false, precision: 2, compact: true }
+    expect(formatFieldValue(9_364_442_607, field, 'ru-RU').replace(/\u00A0/g, ' ')).toBe('9,36 млрд')
+  })
+
+  it('appends the currency code to compact money instead of a symbol', () => {
+    const field: FieldFormat = {
+      kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.',
+    }
+    expect(formatFieldValue(230_310_000_000, field, 'ru-RU')).toBe('230.31 млрд UZS')
+  })
+
+  it('scales minor units before compacting', () => {
+    const field: FieldFormat = {
+      kind: 'money', currency: 'UZS', minorUnits: true, precision: 2, compact: true, decimalSeparator: '.',
+    }
+    expect(formatFieldValue(150_530_000_00, field, 'ru-RU')).toBe('150.53 млн UZS')
+  })
+
+  it('pins the separator for percents too', () => {
+    const field: FieldFormat = { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' }
+    expect(formatFieldValue(47.14, field, 'ru-RU')).toBe('47.1%')
+  })
+})

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
 import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
@@ -67,51 +67,94 @@ function BarCell({ format, value, max }: { format?: FieldFormat; value: unknown;
   const display = useFormat(format)
   const number = numericValue(value)
   const ratio = max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / max)) : 0
+  const negative = number !== undefined && number < 0
   return (
     <div className="lens-table-bar">
       <span className="lens-table-bar-track" aria-hidden="true">
-        <span className="lens-table-bar-fill" style={{ width: `${ratio * 100}%` }} />
+        {/* The magnitude is drawn from the track's midpoint outwards so a
+            negative value cannot look identical to its positive twin. */}
+        <span
+          className={`lens-table-bar-fill${negative ? ' lens-table-bar-fill-negative' : ''}`}
+          style={{ width: `${ratio * 50}%`, [negative ? 'right' : 'left']: '50%' }}
+        />
       </span>
       <span className="lens-table-bar-value">{display(value)}</span>
     </div>
   )
 }
 
+/** A thin, sign-colored rule under the value: the low-ink form of BarCell. */
+function UnderlineCell({ format, value, max }: { format?: FieldFormat; value: unknown; max: number }) {
+  const display = useFormat(format)
+  const number = numericValue(value)
+  const ratio = max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / max)) : 0
+  const negative = number !== undefined && number < 0
+  return (
+    <span className="lens-table-underline">
+      <span className="lens-table-underline-value">{display(value)}</span>
+      <span
+        aria-hidden="true"
+        className={`lens-table-underline-rule${negative ? ' lens-table-underline-rule-negative' : ''}`}
+        style={{ width: `${Math.max(ratio * 100, number === 0 ? 0 : 6)}%` }}
+      />
+    </span>
+  )
+}
+
 function DeltaCell({
-  valueFormat, value, secondaryFormat, secondaryValue,
-}: { valueFormat?: FieldFormat; value: unknown; secondaryFormat?: FieldFormat; secondaryValue: unknown }) {
+  valueFormat, value, secondaryFormat, secondaryValue, stacked,
+}: {
+  valueFormat?: FieldFormat
+  value: unknown
+  secondaryFormat?: FieldFormat
+  secondaryValue: unknown
+  stacked?: boolean
+}) {
   const displayValue = useFormat(valueFormat)
   const displaySecondary = useFormat(secondaryFormat)
   const secondary = numericValue(secondaryValue)
   const hasSecondary = secondaryValue !== null && secondaryValue !== undefined && secondaryValue !== ''
   const negative = secondary !== undefined && secondary < 0
+  const percent = hasSecondary && (
+    <span className={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
+      {secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}
+    </span>
+  )
+  if (stacked) {
+    // Stacked reads top-down: the relative change first, the absolute
+    // amount beneath it as supporting detail.
+    return (
+      <span className="lens-table-delta lens-table-delta-stacked">
+        {percent}
+        <span className="lens-table-delta-value">{displayValue(value)}</span>
+      </span>
+    )
+  }
   return (
     <span className="lens-table-delta">
       <span className="lens-table-delta-value">{displayValue(value)}</span>
-      {hasSecondary && (
-        <span className={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
-          {secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}
-        </span>
-      )}
+      {percent}
     </span>
   )
 }
 
 function ColumnCell({
-  column, frame, row, panel, location,
-}: { column: TableColumn; frame: Frame; row: Array<unknown>; panel: Panel; location: URL }) {
+  column, frame, row, panel, location, max,
+}: { column: TableColumn; frame: Frame; row: Array<unknown>; panel: Panel; location: URL; max: number }) {
   const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
   const type = frame.columns[index]?.type ?? 'string'
   const value = index >= 0 ? row[index] : undefined
   const format = panel.format[column.field]
 
   let content
-  if (column.cell.kind === 'bar') {
-    const max = frame.rows.reduce((acc, candidate) => {
-      const number = numericValue(candidate[index])
-      return number === undefined ? acc : Math.max(acc, Math.abs(number))
-    }, 0)
+  if (!column.field.trim() && column.text) {
+    // An action-only column carries its own literal label; there is no field
+    // to read and no value to format.
+    content = <span className="lens-table-cell-text">{column.text}</span>
+  } else if (column.cell.kind === 'bar') {
     content = <BarCell format={format} value={value} max={max} />
+  } else if (column.cell.kind === 'underline') {
+    content = <UnderlineCell format={format} value={value} max={max} />
   } else if (column.cell.kind === 'delta') {
     const secondaryField = column.cell.secondaryField
     const secondaryIndex = secondaryField ? frame.columns.findIndex((candidate) => candidate.name === secondaryField) : -1
@@ -121,19 +164,27 @@ function ColumnCell({
         value={value}
         secondaryFormat={secondaryField ? panel.format[secondaryField] : undefined}
         secondaryValue={secondaryIndex >= 0 ? row[secondaryIndex] : undefined}
+        stacked={column.cell.layout === 'stacked'}
       />
     )
   } else {
     content = <TableCell column={{ name: column.field, type }} format={format} value={value} />
   }
 
+  if (column.clamp) {
+    content = (
+      <span className="lens-table-clamp" style={{ WebkitLineClamp: column.clamp } as CSSProperties}>{content}</span>
+    )
+  }
+
   if (column.action) {
     const href = resolveColumnActionURL(column.action, frame, row, location)
     if (href) {
+      const pill = column.affordance === 'pill'
       return (
-        <a className="lens-table-cell-link" href={href}>
+        <a className={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href}>
           {content}
-          <span aria-hidden="true" className="lens-table-cell-link-arrow">→</span>
+          <span aria-hidden="true" className="lens-table-cell-link-arrow">{pill ? '↗' : '→'}</span>
         </a>
       )
     }
@@ -177,6 +228,26 @@ export function TablePanel({ panel }: TablePanelProps) {
   const hasNext = frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
   const location = new URL(globalThis.location.href)
   const columns = panel.columns?.length ? panel.columns : undefined
+  // Column maxima scale bar and underline cells. Computing them per cell is
+  // quadratic in row count, so they are derived once per frame.
+  const columnMaxima = useMemo(() => {
+    const maxima = new Map<string, number>()
+    if (!frame.data || !columns) return maxima
+    for (const column of columns) {
+      if (column.cell.kind !== 'bar' && column.cell.kind !== 'underline') continue
+      const index = frame.data.columns.findIndex((candidate) => candidate.name === column.field)
+      if (index < 0) continue
+      maxima.set(column.field, frame.data.rows.reduce((accumulator, row) => {
+        const number = numericValue(row[index])
+        return number === undefined ? accumulator : Math.max(accumulator, Math.abs(number))
+      }, 0))
+    }
+    return maxima
+  }, [columns, frame.data])
+  // A panel-level leaf action applies to whole rows. In columns mode it has
+  // no column of its own, so the table appends one; otherwise the action the
+  // document declares would never reach the DOM.
+  const rowLeafAction = Boolean(columns) && panel.actions.some((action) => action.kind === 'navigate_to_leaf')
 
   useEffect(() => {
     if (requestedSnapshotId.current !== document.snapshotId) {
@@ -201,7 +272,7 @@ export function TablePanel({ panel }: TablePanelProps) {
   const sortIndicator = (name: string) => sort?.column === name
     ? sort.direction === 'ascending' ? '↑' : '↓'
     : '↕'
-  const columnCount = columns ? columns.length : (frame.data?.columns.length ?? 0) + 1
+  const columnCount = columns ? columns.length + (rowLeafAction ? 1 : 0) : (frame.data?.columns.length ?? 0) + 1
 
   return (
     <PanelFrame panel={panel} frame={frame} allowEmptyContent={Boolean(frame.page)}>
@@ -211,19 +282,38 @@ export function TablePanel({ panel }: TablePanelProps) {
             <table className="lens-table">
               <thead>
                 <tr>
-                  {columns ? columns.map((column) => (
-                    <th
-                      aria-sort={sort?.column === column.field ? sort.direction : 'none'}
-                      className={column.align === 'right' ? 'lens-table-col-right' : undefined}
-                      key={column.field}
-                      scope="col"
-                    >
-                      <button type="button" onClick={() => changeSort(column.field)}>
-                        <span>{column.label}</span>
-                        <span aria-hidden="true">{sortIndicator(column.field)}</span>
-                      </button>
-                    </th>
-                  )) : (
+                  {columns ? (
+                    <>
+                      {columns.map((column, columnIndex) => {
+                        // An action-only column has no field to sort by;
+                        // offering a sort control there would be a lie.
+                        const sortable = Boolean(column.field.trim())
+                        return (
+                          <th
+                            aria-sort={sortable && sort?.column === column.field ? sort.direction : 'none'}
+                            className={column.align === 'right' ? 'lens-table-col-right' : undefined}
+                            key={column.field || `column-${columnIndex}`}
+                            scope="col"
+                            style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
+                          >
+                            {sortable ? (
+                              <button type="button" onClick={() => changeSort(column.field)}>
+                                <span>{column.label}</span>
+                                <span aria-hidden="true">{sortIndicator(column.field)}</span>
+                              </button>
+                            ) : (
+                              <span className="lens-table-heading-static">{column.label}</span>
+                            )}
+                          </th>
+                        )
+                      })}
+                      {rowLeafAction && (
+                        <th className="lens-table-action-heading" scope="col">
+                          <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                        </th>
+                      )}
+                    </>
+                  ) : (
                     <>
                       {frame.data.columns.map((column) => (
                         <th aria-sort={sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
@@ -249,11 +339,34 @@ export function TablePanel({ panel }: TablePanelProps) {
                   </tr>
                 ) : rows.map(({ row, index }) => columns ? (
                   <tr key={index}>
-                    {columns.map((column) => (
-                      <td className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`} key={column.field}>
-                        <ColumnCell column={column} frame={frame.data!} row={row} panel={panel} location={location} />
+                    {columns.map((column, columnIndex) => (
+                      <td
+                        className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+                        key={column.field || `column-${columnIndex}`}
+                        style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
+                      >
+                        <ColumnCell
+                          column={column}
+                          frame={frame.data!}
+                          row={row}
+                          panel={panel}
+                          location={location}
+                          max={columnMaxima.get(column.field) ?? 0}
+                        />
                       </td>
                     ))}
+                    {rowLeafAction && (
+                      <td className="lens-table-action-cell">
+                        <RowLeafAction
+                          frame={frame.data!}
+                          row={row}
+                          panel={panel}
+                          location={location}
+                          level={level}
+                          label={translate('table.openRecord', 'Open record')}
+                        />
+                      </td>
+                    )}
                   </tr>
                 ) : (
                   <FrameRow
@@ -292,6 +405,13 @@ export function TablePanel({ panel }: TablePanelProps) {
       )}
     </PanelFrame>
   )
+}
+
+function RowLeafAction({
+  frame, row, panel, location, level, label,
+}: { frame: Frame; row: Array<unknown>; panel: Panel; location: URL; level?: Level; label: string }) {
+  const href = resolveRowLeafActionURL(panel, frame, row, location, level)
+  return href ? <a className="lens-leaf-action" href={href}>{label}</a> : null
 }
 
 function FrameRow({
