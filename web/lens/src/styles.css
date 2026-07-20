@@ -154,6 +154,46 @@
     @apply lens-border-transparent lens-bg-inset lens-text-strong;
   }
 
+  /* A card-wide navigate action: a transparent anchor covers the card, and a
+     corner glyph shows the affordance on hover/focus. */
+  .lens-stat-linked {
+    @apply lens-relative lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+  }
+
+  .lens-card-link {
+    @apply lens-absolute lens-inset-0 lens-z-10 lens-block lens-rounded-card;
+  }
+
+  .lens-card-link-affordance {
+    @apply lens-absolute lens-right-2 lens-top-2 lens-text-faint lens-opacity-0 lens-transition-opacity;
+  }
+
+  .lens-card-link:hover .lens-card-link-affordance,
+  .lens-card-link:focus-visible .lens-card-link-affordance {
+    @apply lens-opacity-100;
+  }
+
+  .lens-stat-linked:hover {
+    @apply lens-bg-inset;
+  }
+
+  .lens-coverage-track-segment-link,
+  .lens-coverage-legend-link {
+    @apply lens-relative lens-z-20 lens-no-underline lens-text-inherit;
+  }
+
+  .lens-coverage-legend-link {
+    @apply lens-flex lens-flex-1 lens-items-center lens-gap-3 lens-rounded-md;
+  }
+
+  .lens-coverage-legend-link:hover {
+    @apply lens-bg-inset;
+  }
+
+  .lens-coverage-track-segment-link:hover {
+    filter: brightness(0.9);
+  }
+
   /* Icon specimen grid — story-only surface that pins every glyph's rendered
      size so visual regression catches path or weight drift. */
   .lens-icon-specimens {
@@ -501,8 +541,12 @@
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
   }
 
+  /* Plot presence: the chart is the panel's content, so the box gives it the
+     room the legacy renderer did (~300px tall pies) and keeps the padding
+     tight. The legend below and the in-plot badge sit outside this box. */
   .lens-chart-host {
-    @apply lens-relative lens-flex lens-min-h-56 lens-flex-1 lens-p-3;
+    @apply lens-relative lens-flex lens-flex-1 lens-p-2;
+    min-height: 19rem;
   }
 
   .lens-panel-fill .lens-chart-host {
@@ -626,7 +670,8 @@
   }
 
   .lens-chart-canvas {
-    @apply lens-min-h-52 lens-w-full lens-flex-1;
+    @apply lens-w-full lens-flex-1;
+    min-height: 17rem;
   }
 
   .lens-chart-load-error {

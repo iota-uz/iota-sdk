@@ -88,8 +88,8 @@ describe('buildChartOption', () => {
   })
 
   it.each([
-    ['pie', ['0%', '72%']],
-    ['donut', ['48%', '72%']],
+    ['pie', ['0%', '82%']],
+    ['donut', ['50%', '82%']],
   ] as const)('maps %s labels, values, stable keys, and radius', (kind, radius) => {
     const chart = testOption(buildChartOption(input(kind), theme))
     const series = chart.series[0]

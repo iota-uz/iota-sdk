@@ -1,5 +1,8 @@
+import type { ReactNode } from 'react'
 import type { Panel } from '../contract'
-import { useFormat, usePanelFrame } from '../runtime'
+import { useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { ArrowUpRight } from '../icons'
+import { usePanelNavigation } from './actions'
 import { cell, displayText, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
 
@@ -50,11 +53,32 @@ function useStatValues(panel: Panel) {
   }
 }
 
+/**
+ * A stat card that carries a panel-level navigate action is a link in full:
+ * the legacy renderer covered the card with an absolutely positioned anchor,
+ * and losing it is what made the KPI strips inert.
+ */
+export function StatLink({ href, label, children }: { href?: string; label: string; children: ReactNode }) {
+  const translate = useTranslate()
+  if (!href) return <>{children}</>
+  return (
+    <div className="lens-stat-linked">
+      <a aria-label={translate('panel.openMetric', 'Open {name}', { name: label })} className="lens-card-link" href={href}>
+        <span aria-hidden="true" className="lens-card-link-affordance"><ArrowUpRight /></span>
+      </a>
+      {children}
+    </div>
+  )
+}
+
 export function StatPanel({ panel }: StatPanelProps) {
   const { frame, label, showLabel, value, formatValue, formatDelta, delta, deltaNumber } = useStatValues(panel)
+  const navigation = usePanelNavigation(panel)
+  const href = navigation.cardURL(frame.data)
 
   return (
     <PanelFrame panel={panel} frame={frame} variant="stat">
+      <StatLink href={href} label={panel.title}>
       <div className="lens-stat-content">
         {(showLabel || panel.status) && (
           <p className="lens-stat-label">
@@ -71,6 +95,7 @@ export function StatPanel({ panel }: StatPanelProps) {
           )}
         </div>
       </div>
+      </StatLink>
     </PanelFrame>
   )
 }
@@ -83,8 +108,11 @@ export function StatPanel({ panel }: StatPanelProps) {
 export function StatMetric({ panel }: StatPanelProps) {
   const { frame, label, showLabel, value, formatValue } = useStatValues(panel)
   const caption = showLabel ? label : panel.title
+  const navigation = usePanelNavigation(panel)
+  const href = navigation.cardURL(frame.data)
 
   return (
+    <StatLink href={href} label={caption}>
     <div className="lens-stat-metric" data-panel-kind="stat" aria-busy={frame.isLoading || undefined}>
       <p className="lens-stat-metric-label" title={caption}>
         {panel.accent && <span aria-hidden="true" className="lens-stat-metric-bullet" style={{ background: panel.accent }} />}
@@ -95,5 +123,6 @@ export function StatMetric({ panel }: StatPanelProps) {
         {frame.error && !frame.data ? '—' : formatValue(value)}
       </p>
     </div>
+    </StatLink>
   )
 }

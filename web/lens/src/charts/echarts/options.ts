@@ -104,6 +104,31 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string) {
   }
 }
 
+/**
+ * Tooltips render at `body` level, not inside the chart container: a panel
+ * card clips its own overflow, so a tooltip anchored near the card edge was
+ * cut off. From `body` ECharts flips it against the viewport instead, and the
+ * pinned z-index keeps it above the expanded-panel dialog, which portals to
+ * `body` too.
+ */
+export const tooltipZIndex = 2147483600
+
+/** Tooltip settings shared by every chart kind. */
+export function tooltipChrome(theme: EChartsTheme) {
+  return {
+    backgroundColor: theme.card,
+    borderColor: theme.border,
+    textStyle: { color: theme.text },
+    appendTo: 'body',
+    // Confinement is what the card used to impose; against the viewport the
+    // tooltip may flip freely.
+    confine: false,
+    extraCssText: `z-index: ${tooltipZIndex};`,
+    // A moving tooltip is unscreenshotable; VR pins it in place.
+    transitionDuration: isVisualRegression() ? 0 : undefined,
+  }
+}
+
 function baseOption(theme: EChartsTheme): EChartsOption {
   return {
     animation: !isVisualRegression(),
@@ -119,9 +144,12 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const points = rowPoints(input)
   const fill = input.presentation?.fill === true
   const insideLabels = input.presentation?.sliceLabels === 'percent'
+  // The legacy pie filled roughly 300px of card; these radii plus the taller
+  // plot box below recover that presence without letting the circle touch the
+  // legend or the total badge.
   const radius: [string, string] = donut
-    ? (fill ? ['52%', '86%'] : ['48%', '72%'])
-    : (fill ? ['0%', '86%'] : ['0%', '72%'])
+    ? (fill ? ['54%', '92%'] : ['50%', '82%'])
+    : (fill ? ['0%', '92%'] : ['0%', '82%'])
   const label = insideLabels
     // Percent labels inside the slices remove the leader-line halo that
     // shrinks the plot, so the pie can fill the card.
@@ -139,9 +167,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     ...baseOption(theme),
     tooltip: {
       trigger: 'item',
-      backgroundColor: theme.card,
-      borderColor: theme.border,
-      textStyle: { color: theme.text },
+      ...tooltipChrome(theme),
       valueFormatter: valueFormatter(input),
     },
     series: [{
@@ -231,9 +257,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     tooltip: {
       trigger: 'axis',
       renderMode: timeAxis ? 'richText' : undefined,
-      backgroundColor: theme.card,
-      borderColor: theme.border,
-      textStyle: { color: theme.text },
+      ...tooltipChrome(theme),
       formatter: timeAxis ? timeTooltipFormatter(input, categoryField) : undefined,
       valueFormatter: timeAxis ? undefined : formatter,
     },

@@ -223,7 +223,7 @@ export function DrillOverlay({
         {target.perspectives.length > 1 && (
           <section className="lens-drill-section">
             <h4 className="lens-drill-section-label">{translate('explore.viewSegmentAs', 'View this segment as')}</h4>
-            <div className="lens-drill-perspectives" role="listbox" aria-label={translate('explore.views', '{n} views').replaceAll('{n}', String(target.perspectives.length))}>
+            <div className="lens-drill-perspectives" role="listbox" aria-label={translate('explore.views', '{n} views', { n: target.perspectives.length })}>
               {target.perspectives.map((perspective) => (
                 <button
                   aria-selected={perspective.id === selectedPerspectiveId}

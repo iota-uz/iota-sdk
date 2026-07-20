@@ -185,9 +185,22 @@ const LocaleContext = createContext('en')
 const I18nContext = createContext<Record<string, string>>({})
 const emptyFrameStore = new PanelFrameStore()
 
-function translation(messages: Record<string, string>, key: string, fallback: string): string {
+export type TranslationVars = Readonly<Record<string, string | number>>
+
+function translation(
+  messages: Record<string, string>,
+  key: string,
+  fallback: string,
+  vars?: TranslationVars,
+): string {
   const value = messages[key]
-  return typeof value === 'string' && value.trim() !== '' ? value : fallback
+  const text = typeof value === 'string' && value.trim() !== '' ? value : fallback
+  if (!vars) return text
+  // Placeholders keep word order translatable: a catalogue can move {name}
+  // wherever its language needs it.
+  return text.replace(/\{(\w+)\}/g, (match, name: string) => (
+    name in vars ? String(vars[name]) : match
+  ))
 }
 
 const browserHistoryKey = '__iotaLensNavigation'
@@ -629,12 +642,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
           <PanelPaginationContext.Provider value={pagination}>
             <ExportContext.Provider value={exportContext}>
               <FramesContext.Provider value={frames}>
-                {notice && (
-                  <div className="lens-runtime-notice" role="status">
-                    <span>{notice}</span>
-                    <button type="button" onClick={() => setNotice(undefined)} aria-label="Dismiss notice">×</button>
-                  </div>
-                )}
+                {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
               </FramesContext.Provider>
             </ExportContext.Provider>
@@ -659,7 +667,7 @@ export function DashboardRuntimeProvider({ locale, csrf, fetcher, children, fall
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
   if (!context.document) {
-    if (context.error) return <div className="lens-placeholder-state" role="alert">Unable to load Lens document: {context.error.message}</div>
+    if (context.error) return <DocumentLoadError message={context.error.message} />
     // A layout-shaped placeholder, not a spinner: the page keeps its rhythm
     // and nothing jumps when the document lands.
     return (
@@ -731,9 +739,42 @@ export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {
   return useCallback((value: unknown) => formatAxis(value, field, locale), [field, locale])
 }
 
-export function useTranslate(): (key: string, fallback: string) => string {
+/**
+ * The document is what carries the catalogue, so a failure to load it is the
+ * one string the runtime can only render in English unless the host page
+ * supplies its own fallback UI.
+ */
+function DocumentLoadError({ message }: { message: string }) {
+  const translate = useTranslate()
+  return (
+    <div className="lens-placeholder-state" role="alert">
+      {translate('runtime.loadError', 'Unable to load Lens document')}: {message}
+    </div>
+  )
+}
+
+function RuntimeNotice({ notice, onDismiss }: { notice: string; onDismiss: () => void }) {
+  const translate = useTranslate()
+  return (
+    <div className="lens-runtime-notice" role="status">
+      <span>{notice}</span>
+      <button
+        aria-label={translate('runtime.dismissNotice', 'Dismiss notice')}
+        onClick={onDismiss}
+        type="button"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+export function useTranslate(): (key: string, fallback: string, vars?: TranslationVars) => string {
   const messages = useContext(I18nContext)
-  return useCallback((key: string, fallback: string) => translation(messages, key, fallback), [messages])
+  return useCallback(
+    (key: string, fallback: string, vars?: TranslationVars) => translation(messages, key, fallback, vars),
+    [messages],
+  )
 }
 
 export function useDocumentState(): DocumentContextValue {

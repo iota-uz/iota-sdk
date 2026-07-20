@@ -1,6 +1,6 @@
 import { useState, type CSSProperties, type ReactNode } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
-import { useDashboard } from './runtime'
+import { useDashboard, useTranslate } from './runtime'
 import { ExportButton, RegisteredPanel, StatMetric, type PanelRegistry } from './panels'
 import { ExplorePanel } from './explore'
 
@@ -45,7 +45,12 @@ function PanelSlot({ panel, registry }: { panel: Panel; registry?: PanelRegistry
 }
 
 function MissingPanel({ panelId }: { panelId: string }) {
-  return <div className="lens-panel-state" role="alert">Panel “{panelId}” is missing.</div>
+  const translate = useTranslate()
+  return (
+    <div className="lens-panel-state" role="alert">
+      {translate('panel.missing', 'Panel “{id}” is missing.', { id: panelId })}
+    </div>
+  )
 }
 
 function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNode }) {
@@ -78,7 +83,10 @@ function MetricsGroup({ group, items, panels, registry }: {
           if (!panel) return <MissingPanel key={item.panelId} panelId={item.panelId} />
           // Only stat panels have a chrome-free metric form; anything else
           // keeps its own card so the group degrades instead of breaking.
-          return panel.kind === 'stat'
+          // A stat that hosts a drill root needs its card chrome (the trail and
+          // the breakdown affordance live there), so it opts out of the compact
+          // metric form rather than losing its exploration.
+          return panel.kind === 'stat' && !panel.drillRoot
             ? <StatMetric key={panel.id} panel={panel} />
             : <PanelSlot key={panel.id} panel={panel} registry={registry} />
         })}
@@ -130,10 +138,15 @@ function TabsGroup({ group, items, panels, registry }: {
 
 export function DashboardPanels({ registry }: DashboardPanelsProps) {
   const { document } = useDashboard()
+  const translate = useTranslate()
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
 
   if (!document.layout.rows.length || !document.panels.length) {
-    return <div className="lens-placeholder-state">The document contains no panels.</div>
+    return (
+      <div className="lens-placeholder-state">
+        {translate('dashboard.empty', 'The document contains no panels.')}
+      </div>
+    )
   }
 
   const hasHeader = Boolean(document.meta.title) || Boolean(document.endpoints.export)

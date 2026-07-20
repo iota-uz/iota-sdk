@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import type { Panel, PanelKind } from '../contract'
+import { useTranslate } from '../runtime'
 import { CascadePanel, type CascadePanelProps } from './CascadePanel'
 import { CoveragePanel, type CoveragePanelProps } from './CoveragePanel'
 import { BarPanel, LinePanel, PiePanel, type ChartPanelProps } from './ChartPanel'
@@ -45,10 +46,13 @@ export interface RegisteredPanelProps {
 }
 
 export function UnsupportedPanel({ panel }: { panel: Panel }) {
+  const translate = useTranslate()
   return (
     <section className="lens-panel lens-panel-unsupported" aria-label={panel.title}>
       <header className="lens-panel-header"><h3 className="lens-panel-title">{panel.title}</h3></header>
-      <div className="lens-panel-state" role="status">Unsupported panel: {panel.kind}</div>
+      <div className="lens-panel-state" role="status">
+        {translate('panel.unsupported', 'Unsupported panel: {kind}', { kind: panel.kind })}
+      </div>
     </section>
   )
 }

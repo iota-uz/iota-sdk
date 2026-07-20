@@ -23,6 +23,7 @@ const storyIds = [
   'panels-v2--table-columns',
   'panels-v2--table-empty-page',
   'panels-v2--table-pagination-and-leaf-actions',
+  'parity--clickable-panels',
   'parity--compact-table-cells',
   'parity--coverage-composite',
   'parity--dashboard-loading-skeleton-dark',
@@ -62,6 +63,7 @@ const staticStories = [
   ['panels-v2--table-columns', 0],
   ['panels-v2--table-empty-page', 0],
   ['panels-v2--table-pagination-and-leaf-actions', 0],
+  ['parity--clickable-panels', 0],
   ['parity--compact-table-cells', 0],
   ['parity--coverage-composite', 0],
   ['parity--dashboard-loading-skeleton-dark', 0],
@@ -140,7 +142,26 @@ for (const [storyId, canvasCount] of staticStories) {
 const keyframeCovered = [
   'explore--full-drill-flow--three-levels',
   'explore--perspective-switching-on-a-segment',
+  'parity--clickable-panels',
+  'parity--pie-with-legend-below',
 ] as const
+
+test('panel-level actions expose their affordance on hover', async ({ page }) => {
+  await openStory(page, 'parity--clickable-panels', 0)
+  await page.getByRole('link', { name: /Открыть|Open/ }).first().hover()
+  await expect(page.locator('.lens-card-link-affordance').first()).toBeVisible()
+  await screenshot(page, 'parity-clickable-panels-hover')
+})
+
+test('chart tooltips escape the card', async ({ page }) => {
+  await openStory(page, 'parity--pie-with-legend-below', 1)
+  // Left edge of the pie: anchored inside the card this tooltip was clipped.
+  await page.locator('canvas').hover({ position: { x: 300, y: 240 } })
+  // The tooltip is a direct child of body now, so no ancestor can clip it.
+  const tooltip = page.locator('body > div').filter({ hasText: 'Заработанная премия' }).last()
+  await expect(tooltip).toBeVisible()
+  await screenshot(page, 'parity-pie-tooltip')
+})
 
 test('explore full drill flow keyframes', async ({ page }) => {
   await openStory(page, 'explore--full-drill-flow--three-levels', 1)

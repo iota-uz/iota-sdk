@@ -3,6 +3,8 @@ import type { Frame, NodeKey, Panel } from '../contract'
 import type { ChartAdapter, ChartAnchor, ChartFormatResolver, ChartKind } from '../charts/adapter'
 import { childForSelection } from '../explore/model'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { navigateTo } from '../runtime/navigate'
+import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
 import { encodingRoles, seriesColorResolver } from './data'
@@ -56,6 +58,15 @@ export function legendKey(frame: Frame, panel: Panel, index: number): string {
   return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
 }
 
+/** Index of the frame row a chart mark key identifies. */
+export function rowIndexForKey(frame: Frame, panel: Panel, key: string): number {
+  const index = frame.rows.findIndex((_, position) => legendKey(frame, panel, position) === key)
+  if (index >= 0) return index
+  const labelField = panel.encoding.label ?? panel.encoding.category
+  const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
+  return labelIndex >= 0 ? frame.rows.findIndex((row) => String(row[labelIndex]) === key) : -1
+}
+
 function numericCell(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() !== '') {
@@ -67,6 +78,7 @@ function numericCell(value: unknown): number | undefined {
 
 export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const frame = usePanelFrame(panel.id)
+  const translate = useTranslate()
   const { document, navigation } = useDashboard()
   const { drillInto } = useDrill()
   const { format, formatAxis } = useChartFormat(panel)
@@ -78,6 +90,16 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     ? levelForPath(document, navigation.path)
     : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
   const drillable = level ? level.children.some(({ target }) => target) : Boolean(panel.drillRoot)
+  // A panel-level navigate action made every data point clickable in the
+  // legacy renderer, drill tree or not; without it charts like «Распределение
+  // риска» lose their only way into the detail page.
+  const panelNavigation = usePanelNavigation(panel)
+  const markURL = useCallback((key: NodeKey) => {
+    if (!panelNavigation.action || !frame.data) return undefined
+    const index = rowIndexForKey(frame.data, panel, key)
+    return panelNavigation.urlForRow(frame.data, index >= 0 ? frame.data.rows[index] : undefined)
+  }, [frame.data, panelNavigation, panel])
+  const interactive = drillable || Boolean(panelNavigation.action)
   const kind = panel.kind as ChartKind
 
   // A new level or perspective is new data; carrying hidden keys across would
@@ -127,7 +149,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   }) : undefined, [document.theme, format, formatAxis, kind, panel.encoding, panel.presentation, selectedKey, visibleFrame])
   const onMarkSelect = useMarkSelection()
   const select = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
-    if (!drillable) return
+    if (!drillable) {
+      const href = markURL(key)
+      if (href) navigateTo(href)
+      return
+    }
     // With an explore host present the mark opens its overlay; without one the
     // chart keeps drilling directly, so standalone panels are unaffected.
     if (onMarkSelect) {
@@ -139,7 +165,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [drillInto, drillable, level, onMarkSelect, panel.id])
+  }, [drillInto, drillable, level, markURL, onMarkSelect, panel.id])
 
   return (
     <PanelFrame panel={panel} frame={frame}>
@@ -149,10 +175,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             input={input}
             panelId={panel.id}
             adapter={adapter}
-            label={`${panel.title} ${kind} chart`}
-            drillable={drillable}
-            onSelect={drillable ? select : undefined}
-            onHover={drillable ? setHoveredKey : undefined}
+            label={translate('chart.label', '{name} chart', { name: panel.title })}
+            drillable={interactive}
+            onSelect={interactive ? select : undefined}
+            onHover={interactive ? setHoveredKey : undefined}
           />
         )}
         {panel.presentation?.totalBadge === 'plot' && panel.total !== undefined && (
@@ -162,7 +188,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       {panel.presentation?.legend === 'below' && frame.data && (
         <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} />
       )}
-      {drillable && hoveredKey && <span className="lens-chart-drill-hint" role="status">Select to explore</span>}
+      {interactive && hoveredKey && (
+        <span className="lens-chart-drill-hint" role="status">
+          {translate('chart.drillHint', 'Select to explore')}
+        </span>
+      )}
     </PanelFrame>
   )
 }

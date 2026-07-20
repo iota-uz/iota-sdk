@@ -23,7 +23,9 @@ vi.mock('../runtime', () => ({
     return '—'
   },
   useAxisFormat: () => (value: unknown) => String(value),
-  useTranslate: () => (_key: string, fallback: string) => fallback,
+  useTranslate: () => (_key: string, fallback: string, vars?: Record<string, string | number>) => (
+    vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match)) : fallback
+  ),
   useDrill: () => ({ drillInto: runtime.drillInto }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
 }))
@@ -182,12 +184,12 @@ describe('chart encoding and drill behavior', () => {
     const adapter = fakeAdapter()
     const view = render(<PiePanel panel={panel('pie')} adapter={adapter} />)
     await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
-    expect(screen.getByLabelText('pie panel pie chart')).not.toHaveAttribute('data-drillable')
+    expect(screen.getByLabelText('pie panel chart')).not.toHaveAttribute('data-drillable')
     fireEvent.click(screen.getByText('chart data'))
     expect(runtime.drillInto).not.toHaveBeenCalled()
 
     view.rerender(<PiePanel panel={panel('pie', { drillRoot: 'root' })} adapter={adapter} />)
-    expect(screen.getByLabelText('pie panel pie chart')).toHaveAttribute('data-drillable', 'true')
+    expect(screen.getByLabelText('pie panel chart')).toHaveAttribute('data-drillable', 'true')
     fireEvent.click(screen.getByText('chart data'))
     expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-pie')
   })

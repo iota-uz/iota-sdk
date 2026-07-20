@@ -1,5 +1,5 @@
 import type { Frame, Panel } from '../contract'
-import { useFormat, usePanelFrame } from '../runtime'
+import { useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { columnIndex, displayText, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
 
@@ -80,6 +80,7 @@ export interface CascadePanelProps {
 
 export function CascadePanel({ panel }: CascadePanelProps) {
   const frame = usePanelFrame(panel.id)
+  const translate = useTranslate()
   const valueField = panelField(panel, 'value') ?? 'value'
   const cutField = panelField(panel, 'cut') ?? 'cut'
   const formatValue = useFormat(panel.format[valueField])
@@ -88,7 +89,11 @@ export function CascadePanel({ panel }: CascadePanelProps) {
 
   return (
     <PanelFrame panel={panel} frame={frame}>
-      <div className="lens-cascade" role="list" aria-label={`${panel.title} stages`}>
+      <div
+        aria-label={translate('cascade.stages', '{name} stages', { name: panel.title })}
+        className="lens-cascade"
+        role="list"
+      >
         {stages.map((stage, index) => (
           <div className="lens-cascade-step" key={`${stage.label}-${index}`} role="listitem">
             {index > 0 && stage.cutLabel && (

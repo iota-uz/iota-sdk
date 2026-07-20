@@ -385,3 +385,46 @@ export const PanelHeaderPressure: Story = () => {
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
 PanelHeaderPressure.storyName = 'Panel header pressure'
+
+const navigateAction = (urlTemplate: string, params: Panel['actions'][number]['params'] = []) => ({
+  kind: 'navigate' as const, method: 'GET', urlTemplate, params, payload: {},
+})
+
+const linkedMetrics = metrics.map(({ panel, value }) => ({
+  panel: { ...panel, actions: [navigateAction(`/analytics/metrics/${panel.id}`)] },
+  value,
+}))
+
+const linkedCoveragePanel: Panel = {
+  ...coveragePanel,
+  id: 'payouts-linked',
+  actions: [navigateAction('/claims/{bucket}', [{ name: 'bucket', source: { kind: 'field', name: 'label' } }])],
+}
+
+/**
+ * Panel-level navigate actions: the KPI strip is a row of links again, and a
+ * coverage card whose action reads a row field links each segment separately.
+ */
+export const ClickablePanels: Story = () => {
+  const frames = Object.fromEntries(
+    linkedMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]),
+  )
+  const doc = storyDocument(
+    [...linkedMetrics.map(({ panel }) => panel), linkedCoveragePanel],
+    { ...frames, 'payouts:frame': coverageFrame },
+    {
+      rows: [
+        {
+          heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
+          panels: linkedMetrics.map(({ panel }) => ({
+            panelId: panel.id, span: 3,
+            group: { id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 },
+          })),
+        },
+        { heading: 'ВЫПЛАТЫ', panels: [{ panelId: 'payouts-linked', span: 6 }] },
+      ],
+    },
+  )
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+ClickablePanels.storyName = 'Clickable panels'

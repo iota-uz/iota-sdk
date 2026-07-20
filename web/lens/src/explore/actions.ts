@@ -55,6 +55,16 @@ function resolveTemplate(action: Action, context: LeafActionContext): string | u
 
 export function resolveLeafActionURL(action: Action, context: LeafActionContext): string | undefined {
   if (action.kind !== 'navigate_to_leaf') return undefined
+  return resolveActionURL(action, context)
+}
+
+/**
+ * Builds an action's URL regardless of whether it navigates to a leaf record
+ * or to another dashboard view: panel-level `navigate` actions resolve exactly
+ * the same way, they just belong to a card instead of a row.
+ */
+export function resolveActionURL(action: Action, context: LeafActionContext): string | undefined {
+  if (action.kind !== 'navigate' && action.kind !== 'navigate_to_leaf') return undefined
   let resolved: string | undefined
   if (action.urlSource) {
     const value = sourceValue(action.urlSource, context)

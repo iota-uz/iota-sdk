@@ -399,14 +399,17 @@ export function TablePanel({ panel }: TablePanelProps) {
           <footer className="lens-table-footer">
             <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
             {frame.page && (
-              <nav aria-label={`${panel.title} pages`} className="lens-table-pagination">
+              <nav
+                aria-label={translate('table.pages', '{name} pages', { name: panel.title })}
+                className="lens-table-pagination"
+              >
                 <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">
                   {translate('table.previous', 'Previous')}
                 </button>
                 <span aria-live="polite">
                   {frame.isLoading && loadingPage !== page
-                    ? translate('table.loadingPage', 'Loading page {n}').replace('{n}', String(loadingPage))
-                    : translate('table.page', 'Page {n}').replace('{n}', String(page))}
+                    ? translate('table.loadingPage', 'Loading page {n}', { n: loadingPage })
+                    : translate('table.page', 'Page {n}', { n: page })}
                 </span>
                 <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">
                   {translate('table.next', 'Next')}

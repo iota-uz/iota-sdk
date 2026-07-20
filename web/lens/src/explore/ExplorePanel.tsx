@@ -238,7 +238,10 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       </button>
     ) : undefined,
     trail: breadcrumbs.length > 1 ? (
-      <nav aria-label={`${panel.title} exploration path`} className="lens-panel-trail">
+      <nav
+        aria-label={translate('explore.path', '{name} exploration path', { name: panel.title })}
+        className="lens-panel-trail"
+      >
         {drill.canGoBack && (
           <button
             aria-label={translate('explore.back', 'Back')}
@@ -277,7 +280,11 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   else content = <RegisteredPanel panel={viewPanel} registry={registry} />
 
   return (
-    <article className="lens-explore" onKeyDown={onKeyDown} aria-label={`Explore ${panel.title}`}>
+    <article
+      aria-label={translate('explore.panel', 'Explore {name}', { name: panel.title })}
+      className="lens-explore"
+      onKeyDown={onKeyDown}
+    >
       <div
         className="lens-explore-level"
         data-explore-view={kind}
