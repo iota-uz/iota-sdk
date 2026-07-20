@@ -128,14 +128,22 @@ func appendPanelTree(doc *DashboardDocument, spec panel.Spec, result *runtime.Re
 		return fmt.Errorf("panel %s: %w", spec.ID, err)
 	}
 	doc.Frames[frameRef] = wireFrame
+	actions := panelActions(spec)
 	semantics := inferSemantics(kind)
+	// Evidence is a claim about the panel's rows: each one is a source record
+	// with a leaf link. An aggregate table whose interactions live outside the
+	// wire contract (e.g. renderer-local HTMX actions) is series-shaped data
+	// in a tabular encoding, and must not be forced into the evidence
+	// invariant that Validate enforces.
+	if semantics == SemanticsEvidence && !hasLeafAction(actions) {
+		semantics = SemanticsSeries
+	}
 	var drillRoot *NodeKey
 	if explorerSpec, ok := hosts[spec.ID]; ok {
 		semantics = defaultExplorerSemantics(explorerSpec, semantics)
 		key := explorerRootKey(explorerSpec.ID)
 		drillRoot = &key
 	}
-	actions := panelActions(spec)
 	doc.Panels = append(doc.Panels, Panel{
 		ID: spec.ID, Kind: kind, Title: spec.Title, Semantics: semantics, Frame: frameRef,
 		Encoding: buildEncoding(spec.Fields, wireFrame), Format: buildFormats(spec), DrillRoot: drillRoot, Actions: actions,

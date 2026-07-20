@@ -94,6 +94,42 @@ func TestBuild_InlineDepthIncludesOnlyMaterializedAggregateLevels(t *testing.T) 
 	require.NotContains(t, doc.Frames, FrameRef("explore:metric/focus/composition:detail"))
 }
 
+func TestBuild_TableSemanticsRequiresLeafActionForEvidence(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"tx-1"}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	leaf := action.Navigate("/records/{id}", action.FieldParam("id", "id"))
+	htmx := action.HtmxSwap("/drill", "#drawer")
+	spec := lensbuild.Dashboard("overview", "Overview",
+		lensbuild.Row(
+			panel.Table("evidence-table", "Evidence", "rows").IDField("id").
+				Columns(panel.TableColumn{Field: panel.FieldRef("label"), Label: "Label", Action: &leaf}).Build(),
+			// An aggregate matrix: its only interaction is a renderer-local
+			// HTMX drawer, which never becomes a wire action.
+			panel.Table("matrix-table", "Matrix", "rows").IDField("id").
+				Columns(panel.TableColumn{Field: panel.FieldRef("label"), Label: "Label", Action: &htmx}).Build(),
+		),
+	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope())
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(0, 0).UTC(), Locale: "en"})
+	require.NoError(t, err)
+	semantics := map[string]Semantics{}
+	for _, p := range doc.Panels {
+		semantics[p.ID] = p.Semantics
+	}
+	require.Equal(t, SemanticsEvidence, semantics["evidence-table"])
+	require.Equal(t, SemanticsSeries, semantics["matrix-table"])
+}
+
 func executeExploreDashboard(t *testing.T) (lens.DashboardSpec, *runtime.Result) {
 	t.Helper()
 	primary, err := frame.New("premium",
