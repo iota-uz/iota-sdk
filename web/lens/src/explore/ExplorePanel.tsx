@@ -11,7 +11,7 @@ import {
 } from 'react'
 import type { Encoding, FieldFormat, Frame, Level, Node, Panel } from '../contract'
 import { RegisteredPanel, type PanelRegistry } from '../panels'
-import { levelForPath, useDashboard, useDrill, usePanelFrame } from '../runtime'
+import { levelForPath, useDashboard, useDrill, usePanelFrame, useTranslate } from '../runtime'
 import { isVisualRegression } from '../visualRegression'
 import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './actions'
 import {
@@ -77,8 +77,13 @@ interface SegmentTreeProps {
   onDrill: (node: Node) => void
 }
 
+function viewsBadge(translate: (key: string, fallback: string) => string, count: number): string {
+  return translate('explore.views', '{n} views').replaceAll('{n}', String(count))
+}
+
 function SegmentTree({ document, level, frame, onDrill }: SegmentTreeProps) {
   const items = useRef<Array<HTMLElement | null>>([])
+  const translate = useTranslate()
   const [rovingKey, setRovingKey] = useState(level.children[0]?.key)
   if (!level.children.length) return null
 
@@ -150,7 +155,7 @@ function SegmentTree({ document, level, frame, onDrill }: SegmentTreeProps) {
             <span>{label}</span>
             {perspectiveCount > 1 && (
               <span className="lens-perspective-affordance" aria-label={`${label} has ${perspectiveCount} perspectives`}>
-                {perspectiveCount} views
+                {viewsBadge(translate, perspectiveCount)}
               </span>
             )}
             <span className="lens-segment-arrow" aria-hidden="true">→</span>
@@ -169,6 +174,7 @@ export interface ExplorePanelProps {
 export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const { document, navigation } = useDashboard()
   const drill = useDrill()
+  const translate = useTranslate()
   const frame = usePanelFrame(panel.id)
   const active = navigation.panelId === panel.id && navigation.path.length > 0
   const level = active
@@ -255,7 +261,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   }
 
   let content: ReactNode
-  if (!level) content = <div className="lens-placeholder-state">This exploration level is unavailable.</div>
+  if (!level) content = <div className="lens-placeholder-state">{translate('explore.unavailable', 'This exploration level is unavailable.')}</div>
   else content = <RegisteredPanel panel={viewPanel} registry={registry} />
 
   return (
@@ -275,7 +281,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
                 <span>{crumb.label}</span>
                 {crumb.perspectiveCount > 1 && (
                   <span className="lens-crumb-perspective">
-                    {crumb.perspective?.label ?? `${crumb.perspectiveCount} views`}
+                    {crumb.perspective?.label ?? viewsBadge(translate, crumb.perspectiveCount)}
                   </span>
                 )}
               </button>
@@ -284,14 +290,14 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
         </ol>
         {active && drill.canGoBack && (
           <button className="lens-explore-back" type="button" onClick={() => runViewTransition(drill.back)}>
-            <span aria-hidden="true">←</span> Back
+            <span aria-hidden="true">←</span> {translate('explore.back', 'Back')}
           </button>
         )}
       </nav>
 
       {hasPerspectiveChoice && (
         <div className="lens-perspective-set" role="listbox" aria-label={`Perspectives for ${level?.label || panel.title}`}>
-          <span className="lens-perspective-label">View this segment as</span>
+          <span className="lens-perspective-label">{translate('explore.viewSegmentAs', 'View this segment as')}</span>
           {perspectives.map((item, index) => (
             <button
               aria-selected={item.id === navigation.perspectiveId}
@@ -308,7 +314,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
               type="button"
             >
               <span>{item.label}</span>
-              <small>{item.semantics}</small>
+              <small>{translate(`explore.semantics.${item.semantics}`, item.semantics)}</small>
             </button>
           ))}
         </div>

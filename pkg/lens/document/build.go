@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -123,19 +124,20 @@ func appendPanelTree(doc *DashboardDocument, spec panel.Spec, result *runtime.Re
 		return fmt.Errorf("panel %s has no primary frame", spec.ID)
 	}
 	frameRef := FrameRef("panel:" + spec.ID)
-	wireFrame, err := buildFrame(primary)
+	wireFrame, err := buildPanelFrame(spec, primary)
 	if err != nil {
 		return fmt.Errorf("panel %s: %w", spec.ID, err)
 	}
 	doc.Frames[frameRef] = wireFrame
 	actions := panelActions(spec)
+	columns := buildTableColumns(spec)
 	semantics := inferSemantics(kind)
 	// Evidence is a claim about the panel's rows: each one is a source record
 	// with a leaf link. An aggregate table whose interactions live outside the
 	// wire contract (e.g. renderer-local HTMX actions) is series-shaped data
 	// in a tabular encoding, and must not be forced into the evidence
 	// invariant that Validate enforces.
-	if semantics == SemanticsEvidence && !hasLeafAction(actions) {
+	if semantics == SemanticsEvidence && !hasLeafAction(actions) && !hasLeafTableColumnAction(columns) {
 		semantics = SemanticsSeries
 	}
 	var drillRoot *NodeKey
@@ -146,7 +148,8 @@ func appendPanelTree(doc *DashboardDocument, spec panel.Spec, result *runtime.Re
 	}
 	doc.Panels = append(doc.Panels, Panel{
 		ID: spec.ID, Kind: kind, Title: spec.Title, Semantics: semantics, Frame: frameRef,
-		Encoding: buildEncoding(spec.Fields, wireFrame), Format: buildFormats(spec), DrillRoot: drillRoot, Actions: actions,
+		Encoding: buildEncoding(spec.Fields, wireFrame), Format: buildFormats(spec), Total: spec.TotalBadgeValue, Columns: columns,
+		DrillRoot: drillRoot, Actions: actions,
 	})
 	span := spec.Span
 	if span == 0 {
@@ -236,7 +239,43 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 			formats[column.Field.Name()] = converted
 		}
 	}
+	for _, column := range spec.Columns {
+		if column.Cell == nil || column.Cell.Kind != panel.TableCellDelta || column.Cell.PercentField.Empty() {
+			continue
+		}
+		// Delta secondaries are percent changes by contract; default their wire
+		// format so the runtime never renders a bare unlabeled number.
+		if _, exists := formats[column.Cell.PercentField.Name()]; !exists {
+			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: 1}
+		}
+	}
 	return formats
+}
+
+func buildTableColumns(spec panel.Spec) []TableColumn {
+	if spec.Kind != panel.KindTable {
+		return nil
+	}
+	columns := make([]TableColumn, 0, len(spec.Columns))
+	for _, column := range spec.Columns {
+		wireColumn := TableColumn{
+			Field: column.Field.Name(), Label: column.Label, Align: TableAlign(column.Align),
+			Cell: TableCell{Kind: TableCellPlain},
+		}
+		if column.Cell != nil {
+			wireColumn.Cell.Kind = TableCellKind(column.Cell.Kind)
+			if column.Cell.Kind == panel.TableCellDelta {
+				wireColumn.Cell.SecondaryField = column.Cell.PercentField.Name()
+			}
+		}
+		if column.Action != nil {
+			if converted, ok := convertAction(*column.Action, true); ok {
+				wireColumn.Action = &converted
+			}
+		}
+		columns = append(columns, wireColumn)
+	}
+	return columns
 }
 
 func convertFormat(spec format.Spec) (FieldFormat, bool) {
@@ -289,6 +328,95 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 	return result, nil
 }
 
+func buildPanelFrame(spec panel.Spec, source *frame.Frame) (Frame, error) {
+	if spec.Kind != panel.KindTable {
+		return buildFrame(source)
+	}
+
+	selected := make([]string, 0, len(spec.Columns)+1)
+	wanted := make(map[string]struct{})
+	appendVisible := func(field panel.FieldRef) {
+		name := field.Name()
+		if strings.TrimSpace(name) == "" {
+			return
+		}
+		if _, exists := wanted[name]; exists {
+			return
+		}
+		wanted[name] = struct{}{}
+		selected = append(selected, name)
+	}
+	addDependency := func(source action.ValueSource) {
+		if source.Kind == action.SourceField && strings.TrimSpace(source.Name) != "" {
+			wanted[source.Name] = struct{}{}
+		}
+	}
+	addActionDependencies := func(spec *action.Spec) {
+		if spec == nil {
+			return
+		}
+		if _, ok := convertAction(*spec, true); !ok {
+			return
+		}
+		if spec.URLSource != nil {
+			addDependency(*spec.URLSource)
+		}
+		for _, param := range spec.Params {
+			addDependency(param.Source)
+		}
+		for _, source := range spec.Payload {
+			addDependency(source)
+		}
+	}
+
+	for _, column := range spec.Columns {
+		appendVisible(column.Field)
+	}
+	appendVisible(spec.Fields.ID)
+	for _, column := range spec.Columns {
+		if column.Cell != nil {
+			addDependency(action.FieldValue(column.Cell.PercentField.Name()))
+		}
+		addActionDependencies(column.Action)
+	}
+	addActionDependencies(spec.Action)
+	for _, field := range source.Fields {
+		if _, ok := wanted[field.Name]; !ok || slices.Contains(selected, field.Name) {
+			continue
+		}
+		selected = append(selected, field.Name)
+	}
+
+	result := Frame{Columns: make([]Column, 0, len(selected)), Rows: make([][]any, source.RowCount)}
+	indexes := make([]int, 0, len(selected))
+	for _, name := range selected {
+		index := -1
+		for candidateIndex, field := range source.Fields {
+			if field.Name == name {
+				index = candidateIndex
+				break
+			}
+		}
+		if index < 0 {
+			return Frame{}, fmt.Errorf("projected table field %q is missing", name)
+		}
+		columnType, err := columnType(source.Fields[index].Type)
+		if err != nil {
+			return Frame{}, fmt.Errorf("field %s: %w", name, err)
+		}
+		indexes = append(indexes, index)
+		result.Columns = append(result.Columns, Column{Name: name, Type: columnType})
+	}
+	for rowIndex := 0; rowIndex < source.RowCount; rowIndex++ {
+		row := make([]any, len(indexes))
+		for columnIndex, sourceIndex := range indexes {
+			row[columnIndex] = cloneAny(source.Fields[sourceIndex].Values[rowIndex])
+		}
+		result.Rows[rowIndex] = row
+	}
+	return result, nil
+}
+
 func columnType(kind frame.FieldType) (ColumnType, error) {
 	//nolint:exhaustive // FieldTypeUnknown is rejected via default.
 	switch kind {
@@ -312,14 +440,6 @@ func panelActions(spec panel.Spec) []Action {
 			actions = append(actions, converted)
 		}
 	}
-	for _, column := range spec.Columns {
-		if column.Action == nil {
-			continue
-		}
-		if converted, ok := convertAction(*column.Action, true); ok {
-			actions = append(actions, converted)
-		}
-	}
 	return actions
 }
 
@@ -327,6 +447,10 @@ func convertAction(spec action.Spec, leaf bool) (Action, bool) {
 	result := Action{
 		Method: spec.Method, URLTemplate: spec.URL, Event: spec.Event, PreserveQuery: spec.PreserveQuery,
 		Params: make([]ActionParam, 0, len(spec.Params)), Payload: make(map[string]Source),
+	}
+	if spec.URLSource != nil {
+		converted := convertSource(*spec.URLSource)
+		result.URLSource = &converted
 	}
 	//nolint:exhaustive // HTMX/cube-drill/explore actions are legacy renderer concerns, not wire actions.
 	switch spec.Kind {
@@ -411,7 +535,7 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				if nodeSpec.Panel != nil && depths[nodeSpec.Key] <= doc.Drill.InlineDepth {
 					if panelResult := result.Panel(nodeSpec.Panel.ID); panelResult != nil && panelResult.Error == nil && panelResult.Frames.Primary() != nil {
 						frameRef := FrameRef("explore:" + perspectiveID + ":" + nodeSpec.Key)
-						wireFrame, err := buildFrame(panelResult.Frames.Primary())
+						wireFrame, err := buildPanelFrame(*nodeSpec.Panel, panelResult.Frames.Primary())
 						if err != nil {
 							return fmt.Errorf("explorer %s node %s: %w", spec.ID, nodeSpec.Key, err)
 						}

@@ -17,6 +17,7 @@ const storyIds = [
   'panels-v2--export-idle',
   'panels-v2--export-pending',
   'panels-v2--export-snapshot-retry',
+  'panels-v2--table-columns',
   'panels-v2--table-empty-page',
   'panels-v2--table-pagination-and-leaf-actions',
 ] as const
@@ -36,6 +37,7 @@ const staticStories = [
   ['panels-v2--export-idle', 0],
   ['panels-v2--export-pending', 0],
   ['panels-v2--export-snapshot-retry', 0],
+  ['panels-v2--table-columns', 0],
   ['panels-v2--table-empty-page', 0],
   ['panels-v2--table-pagination-and-leaf-actions', 0],
 ] as const

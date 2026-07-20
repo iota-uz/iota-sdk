@@ -12,6 +12,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
@@ -128,6 +129,112 @@ func TestBuild_TableSemanticsRequiresLeafActionForEvidence(t *testing.T) {
 	}
 	require.Equal(t, SemanticsEvidence, semantics["evidence-table"])
 	require.Equal(t, SemanticsSeries, semantics["matrix-table"])
+}
+
+func TestBuild_PanelTotalBadgeValue(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("totals",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Paid"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{75.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	withTotal := panel.Pie("with-total", "With total", "totals").TotalBadgeValue(125.5).Build()
+	withoutTotal := panel.Pie("without-total", "Without total", "totals").Build()
+	spec := lensbuild.Dashboard("totals", "Totals", lensbuild.Row(withTotal, withoutTotal)).
+		Datasets(lensbuild.StaticDataset("totals", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "totals", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, doc.Panels, 2)
+	require.Equal(t, 125.5, *doc.Panels[0].Total)
+	require.Nil(t, doc.Panels[1].Total)
+
+	payload, err := json.Marshal(doc.Panels)
+	require.NoError(t, err)
+	var wirePanels []map[string]any
+	require.NoError(t, json.Unmarshal(payload, &wirePanels))
+	require.Equal(t, 125.5, wirePanels[0]["total"])
+	require.NotContains(t, wirePanels[1], "total")
+}
+
+func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("profitability",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"row-1"}},
+		frame.Field{Name: "group", Type: frame.FieldTypeString, Values: []any{"Retail"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{1250.0}},
+		frame.Field{Name: "delta", Type: frame.FieldTypeNumber, Values: []any{-50.0}},
+		frame.Field{Name: "delta_pct", Type: frame.FieldTypeNumber, Values: []any{-4.0}},
+		frame.Field{Name: "earned_premium_url", Type: frame.FieldTypeString, Values: []any{"/analytics/premium?signed=token"}},
+		frame.Field{Name: "action_url", Type: frame.FieldTypeString, Values: []any{"/analytics/drawer?signed=token"}},
+		frame.Field{Name: "renderer_internal", Type: frame.FieldTypeString, Values: []any{"must-not-leak"}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	money := format.Money("UZS", 0)
+	navigate := action.Navigate("").WithFieldURL("earned_premium_url")
+	htmx := action.HtmxSwap("", "#drawer").WithFieldURL("action_url")
+	spec := lensbuild.Dashboard("profitability", "Profitability",
+		lensbuild.Row(
+			panel.Table("profitability-table", "Profitability", "profitability").IDField("id").Columns(
+				panel.TableColumn{Field: "group", Label: "Группа", Action: &htmx},
+				panel.TableColumn{Field: "amount", Label: "Заработанная премия", Align: "right", Formatter: &money, Cell: &panel.TableCellSpec{Kind: panel.TableCellBar}},
+				panel.TableColumn{Field: "delta", Label: "Изменение", Align: "right", Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: "delta_pct"}, Action: &navigate},
+			).Build(),
+		),
+	).Datasets(lensbuild.StaticDataset("profitability", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(context.Background(), spec, runtime.Request{Locale: "ru", DataScope: "tenant:1"}, runtime.DashboardScope())
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "projection", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
+	require.NoError(t, err)
+	require.Len(t, doc.Panels, 1)
+	wirePanel := doc.Panels[0]
+	require.Equal(t, SemanticsEvidence, wirePanel.Semantics)
+	require.Empty(t, wirePanel.Actions)
+	require.Equal(t, []TableColumn{
+		{Field: "group", Label: "Группа", Cell: TableCell{Kind: TableCellPlain}},
+		{Field: "amount", Label: "Заработанная премия", Align: TableAlignRight, Cell: TableCell{Kind: TableCellBar}},
+		{
+			Field: "delta", Label: "Изменение", Align: TableAlignRight,
+			Cell: TableCell{Kind: TableCellDelta, SecondaryField: "delta_pct"},
+			Action: &Action{
+				Kind: ActionNavigateToLeaf, Method: "GET", URLSource: &Source{Kind: ValueSourceField, Name: "earned_premium_url"},
+				Params: []ActionParam{}, Payload: map[string]Source{},
+			},
+		},
+	}, wirePanel.Columns)
+	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS"}, wirePanel.Format["amount"])
+
+	wireFrame := doc.Frames[wirePanel.Frame]
+	require.Equal(t, []Column{
+		{Name: "group", Type: ColumnString},
+		{Name: "amount", Type: ColumnNumber},
+		{Name: "delta", Type: ColumnNumber},
+		{Name: "id", Type: ColumnString},
+		{Name: "delta_pct", Type: ColumnNumber},
+		{Name: "earned_premium_url", Type: ColumnString},
+	}, wireFrame.Columns)
+	require.Equal(t, [][]any{{"Retail", 1250.0, -50.0, "row-1", -4.0, "/analytics/premium?signed=token"}}, wireFrame.Rows)
+	require.NotContains(t, columnNames(wireFrame.Columns), "action_url")
+	require.NotContains(t, columnNames(wireFrame.Columns), "renderer_internal")
+}
+
+func columnNames(columns []Column) []string {
+	names := make([]string, len(columns))
+	for index, column := range columns {
+		names[index] = column.Name
+	}
+	return names
 }
 
 func executeExploreDashboard(t *testing.T) (lens.DashboardSpec, *runtime.Result) {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FieldFormat } from '../contract'
-import { formatFieldValue } from './format'
+import { formatAxis, formatFieldValue } from './format'
 
 describe('formatFieldValue', () => {
   it.each<{ name: string; value: unknown; field?: FieldFormat; expected: string }>([
@@ -24,5 +24,35 @@ describe('formatFieldValue', () => {
 
     expect(digits(formatFieldValue(value, { kind: 'money', currency, minorUnits: true }, 'en-US')))
       .toBe(digits(expected))
+  })
+})
+
+describe('formatAxis', () => {
+  it('renders large money values with compact notation', () => {
+    const expected = new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1,
+    }).format(1_200_000_000)
+    expect(formatAxis(1_200_000_000, { kind: 'money', currency: 'USD', minorUnits: false }, 'en-US')).toBe(expected)
+  })
+
+  it('scales minor-unit money before compacting', () => {
+    const expected = new Intl.NumberFormat('en-US', {
+      style: 'currency', currency: 'UZS', notation: 'compact', maximumFractionDigits: 1,
+    }).format(12_000_000)
+    expect(formatAxis(1_200_000_000, { kind: 'money', currency: 'UZS', minorUnits: true }, 'en-US')).toBe(expected)
+  })
+
+  it('is locale-aware for compact money', () => {
+    const value = formatAxis(1_200_000_000, { kind: 'money', currency: 'UZS', minorUnits: false }, 'ru-RU')
+    expect(value).toContain('млрд')
+  })
+
+  it('compacts plain numbers', () => {
+    expect(formatAxis(1_500_000, { kind: 'number', minorUnits: false }, 'en-US')).toBe('1.5M')
+  })
+
+  it('delegates non-numeric formats to formatFieldValue', () => {
+    const field: FieldFormat = { kind: 'date', minorUnits: false, layout: '2006-01-02' }
+    expect(formatAxis('2026-07-20T00:00:00Z', field, 'en-US')).toBe(formatFieldValue('2026-07-20T00:00:00Z', field, 'en-US'))
   })
 })

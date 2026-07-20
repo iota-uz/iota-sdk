@@ -7,6 +7,7 @@ import './styles.css'
 
 const cascadePanel: Panel = {
   id: 'margin-bridge', kind: 'cascade', title: 'Margin bridge', semantics: 'reconciliation', frame: 'bridge',
+  total: 1840000,
   encoding: { label: 'stage', value: 'balance', cut: 'movement', cutLabel: 'movementLabel', final: 'reconciled' },
   format: {
     balance: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
@@ -40,6 +41,39 @@ const tablePanel: Panel = {
     kind: 'navigate_to_leaf', urlTemplate: '/policies/{policyId}',
     params: [{ name: 'policyId', source: { kind: 'field', name: 'policyId' } }], payload: {}, preserveQuery: true,
   }],
+}
+
+const columnsPanel: Panel = {
+  id: 'profitability', kind: 'table', title: 'Profitability by client', semantics: 'evidence', frame: 'profitability',
+  encoding: { id: 'clientId', label: 'client' },
+  format: {
+    earned: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 0 },
+    growth: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 0 },
+    growthPct: { kind: 'percent', minorUnits: false, precision: 1 },
+  },
+  columns: [
+    {
+      field: 'client', label: 'Client', cell: { kind: 'plain' },
+      action: { kind: 'navigate_to_leaf', urlSource: { kind: 'field', name: 'detailUrl' }, params: [], payload: {} },
+    },
+    { field: 'earned', label: 'Earned premium', align: 'right', cell: { kind: 'bar' } },
+    { field: 'growth', label: 'YoY growth', align: 'right', cell: { kind: 'delta', secondaryField: 'growthPct' } },
+  ],
+  actions: [],
+}
+
+const columnsFrame: Frame = {
+  columns: [
+    { name: 'clientId', type: 'string' }, { name: 'client', type: 'string' },
+    { name: 'earned', type: 'number' }, { name: 'growth', type: 'number' },
+    { name: 'growthPct', type: 'number' }, { name: 'detailUrl', type: 'string' },
+    { name: 'internalNote', type: 'string' },
+  ],
+  rows: [
+    ['1', 'Orion Services', 4_820_000_000, 610_000_000, 14.5, '/clients/1', 'hidden'],
+    ['2', 'Northstar Supply', 3_140_000_000, -220_000_000, -6.7, '/clients/2', 'hidden'],
+    ['3', 'Meridian Works', 1_760_000_000, 90_000_000, 5.1, '/clients/3', 'hidden'],
+  ],
 }
 
 function storyDocument(panel: Panel, frames: Record<string, Frame>, endpoints: DashboardDocument['endpoints'] = {}): DashboardDocument {
@@ -112,6 +146,11 @@ function TableStory({ emptyPage = false }: { emptyPage?: boolean }) {
 
 export const TablePaginationAndLeafActions: Story = () => <TableStory />
 export const TableEmptyPage: Story = () => <TableStory emptyPage />
+
+export const TableColumns: Story = () => {
+  const document = storyDocument(columnsPanel, { profitability: columnsFrame })
+  return <Runtime document={document}><TablePanel panel={columnsPanel} /></Runtime>
+}
 
 function AutoExport() {
   const action = useExport('export-story')

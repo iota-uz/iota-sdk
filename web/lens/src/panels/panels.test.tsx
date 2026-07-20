@@ -22,6 +22,8 @@ vi.mock('../runtime', () => ({
     }
     return '—'
   },
+  useAxisFormat: () => (value: unknown) => String(value),
+  useTranslate: () => (_key: string, fallback: string) => fallback,
   useDrill: () => ({ drillInto: runtime.drillInto }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
 }))
@@ -122,6 +124,21 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area',
   })
 })
 
+describe('panel total badge', () => {
+  it('renders the formatted total in the header when panel.total is present', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar', { total: 12345 })} adapter={fakeAdapter()} />)
+    const badge = screen.getByTitle('Total')
+    expect(badge).toHaveTextContent('12345')
+  })
+
+  it('omits the badge when panel.total is absent', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
+    expect(screen.queryByTitle('Total')).toBeNull()
+  })
+})
+
 describe('panel registry', () => {
   it('partitions every contract panel kind into supported or explicitly unsupported', () => {
     const contractKinds = {
@@ -182,10 +199,10 @@ describe('chart encoding and drill behavior', () => {
     await waitFor(() => expect(inputs.at(-1)?.encoding).toEqual({ value: 'value' }))
   })
 
-  it('falls back to the panel title when optional stat roles are absent', () => {
+  it('renders the panel title once when the stat label would duplicate it', () => {
     runtime.frame = state('data')
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
-    expect(screen.getAllByText('stat panel')).toHaveLength(2)
+    expect(screen.getAllByText('stat panel')).toHaveLength(1)
     expect(screen.getByText('42')).toBeInTheDocument()
   })
 })

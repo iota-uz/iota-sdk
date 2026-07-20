@@ -137,6 +137,24 @@ func TestDashboardDocumentValidate_MoneyMetadata(t *testing.T) {
 	require.Contains(t, string(payload), `"minorUnits":false`)
 }
 
+func TestDashboardDocumentValidate_TableColumns(t *testing.T) {
+	t.Parallel()
+	doc := testDocument()
+	doc.Panels[0].Kind = PanelKindTable
+	doc.Panels[0].Columns = []TableColumn{{
+		Field: "value", Label: "Value", Align: TableAlignRight, Cell: TableCell{Kind: TableCellDelta, SecondaryField: "label"},
+		Action: &Action{
+			Kind: ActionNavigateToLeaf, URLSource: &Source{Kind: ValueSourceField, Name: "label"},
+			Params: []ActionParam{}, Payload: map[string]Source{},
+		},
+	}}
+	doc.Panels[0].Semantics = SemanticsEvidence
+	require.NoError(t, doc.Validate())
+
+	doc.Panels[0].Columns[0].Cell.SecondaryField = "missing"
+	require.ErrorContains(t, doc.Validate(), "missing secondary field")
+}
+
 func TestQueryPageJSON_EmitsFalseHasNext(t *testing.T) {
 	t.Parallel()
 	payload, err := json.Marshal(QueryPage{Number: 1, Size: 50})

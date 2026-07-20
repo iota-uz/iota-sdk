@@ -6,6 +6,7 @@ export interface Action {
   kind: ActionKind
   method?: string
   urlTemplate?: string
+  urlSource?: Source
   event?: string
   params: Array<ActionParam>
   payload: Record<string, Source>
@@ -129,6 +130,8 @@ export interface Panel {
   frame: FrameRef
   encoding: Encoding
   format: Record<string, FieldFormat>
+  total?: number
+  columns?: Array<TableColumn>
   drillRoot?: NodeKey
   actions: Array<Action>
 }
@@ -181,6 +184,23 @@ export interface Source {
   name?: string
   value?: unknown
   fallback?: unknown
+}
+
+export type TableAlign = "left" | "right"
+
+export interface TableCell {
+  kind: TableCellKind
+  secondaryField?: string
+}
+
+export type TableCellKind = "bar" | "delta" | "plain"
+
+export interface TableColumn {
+  field: string
+  label: string
+  align?: TableAlign
+  cell: TableCell
+  action?: Action
 }
 
 export interface Theme {

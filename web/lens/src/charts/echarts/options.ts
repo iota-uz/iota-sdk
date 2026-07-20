@@ -79,6 +79,12 @@ function valueFormatter(input: ChartInput) {
   return (value: unknown) => input.format(field, value)
 }
 
+function axisValueFormatter(input: ChartInput) {
+  const field = input.encoding.value ?? ''
+  const resolver = input.formatAxis ?? input.format
+  return (value: unknown) => resolver(field, value)
+}
+
 function tooltipValue(value: unknown): unknown {
   return Array.isArray(value) ? (value as unknown[])[1] : value
 }
@@ -184,7 +190,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const valueAxis = {
     type: 'value' as const,
     ...axisStyle(theme),
-    axisLabel: { color: theme.mutedText, formatter },
+    axisLabel: { color: theme.mutedText, formatter: axisValueFormatter(input), hideOverlap: true },
   }
 
   return {

@@ -108,7 +108,7 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if panel.Semantics == SemanticsReconciliation && (panel.Kind == PanelKindPie || panel.Kind == PanelKindDonut) {
 		return fmt.Errorf("panel %s reconciliation semantics cannot use %s encoding", panel.ID, panel.Kind)
 	}
-	if panel.Semantics == SemanticsEvidence && !hasLeafAction(panel.Actions) {
+	if panel.Semantics == SemanticsEvidence && !hasLeafAction(panel.Actions) && !hasLeafTableColumnAction(panel.Columns) {
 		return fmt.Errorf("panel %s evidence semantics requires a leaf action", panel.ID)
 	}
 	if panel.DrillRoot != nil {
@@ -149,6 +149,66 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	for _, action := range panel.Actions {
 		if err := validateAction(panel.ID, action); err != nil {
 			return err
+		}
+		if err := validateActionFields(panel.ID, action, d.Frames[panel.Frame]); err != nil {
+			return err
+		}
+	}
+	if panel.Kind != PanelKindTable && len(panel.Columns) > 0 {
+		return fmt.Errorf("panel %s has table columns for kind %q", panel.ID, panel.Kind)
+	}
+	if panel.Kind == PanelKindTable {
+		if err := validateTableColumns(panel, d.Frames[panel.Frame]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateTableColumns(panel Panel, frame Frame) error {
+	fields := make(map[string]struct{}, len(panel.Columns))
+	for index, column := range panel.Columns {
+		owner := fmt.Sprintf("panel %s table column %d", panel.ID, index)
+		if strings.TrimSpace(column.Field) == "" {
+			if column.Action == nil {
+				return fmt.Errorf("%s requires a field or action", owner)
+			}
+		} else {
+			if _, duplicate := fields[column.Field]; duplicate {
+				return fmt.Errorf("panel %s has duplicate table column %q", panel.ID, column.Field)
+			}
+			fields[column.Field] = struct{}{}
+			if !frameHasColumn(frame, column.Field) {
+				return fmt.Errorf("%s references missing field %q", owner, column.Field)
+			}
+		}
+		switch column.Align {
+		case "", TableAlignLeft, TableAlignRight:
+		default:
+			return fmt.Errorf("%s has unsupported alignment %q", owner, column.Align)
+		}
+		switch column.Cell.Kind {
+		case TableCellPlain, TableCellBar:
+			if column.Cell.SecondaryField != "" {
+				return fmt.Errorf("%s %s cell cannot have a secondary field", owner, column.Cell.Kind)
+			}
+		case TableCellDelta:
+			if strings.TrimSpace(column.Cell.SecondaryField) == "" {
+				return fmt.Errorf("%s delta cell requires a secondary field", owner)
+			}
+			if !frameHasColumn(frame, column.Cell.SecondaryField) {
+				return fmt.Errorf("%s delta cell references missing secondary field %q", owner, column.Cell.SecondaryField)
+			}
+		default:
+			return fmt.Errorf("%s has unsupported cell kind %q", owner, column.Cell.Kind)
+		}
+		if column.Action != nil {
+			if err := validateAction(owner, *column.Action); err != nil {
+				return err
+			}
+			if err := validateActionFields(owner, *column.Action, frame); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -292,7 +352,7 @@ func frameHasColumn(frame Frame, name string) bool {
 func validateAction(owner string, action Action) error {
 	switch action.Kind {
 	case ActionNavigate, ActionNavigateToLeaf:
-		if strings.TrimSpace(action.URLTemplate) == "" {
+		if strings.TrimSpace(action.URLTemplate) == "" && action.URLSource == nil {
 			return fmt.Errorf("%s navigate action requires url", owner)
 		}
 	case ActionEmitEvent:
@@ -301,6 +361,11 @@ func validateAction(owner string, action Action) error {
 		}
 	default:
 		return fmt.Errorf("%s has unsupported action kind %q", owner, action.Kind)
+	}
+	if action.URLSource != nil {
+		if err := validateSource(owner, *action.URLSource); err != nil {
+			return err
+		}
 	}
 	params := make(map[string]struct{}, len(action.Params))
 	for _, param := range action.Params {
@@ -317,6 +382,31 @@ func validateAction(owner string, action Action) error {
 	}
 	for _, source := range action.Payload {
 		if err := validateSource(owner, source); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateActionFields(owner string, action Action, frame Frame) error {
+	validate := func(source Source) error {
+		if source.Kind == ValueSourceField && !frameHasColumn(frame, source.Name) {
+			return fmt.Errorf("%s action references missing field %q", owner, source.Name)
+		}
+		return nil
+	}
+	if action.URLSource != nil {
+		if err := validate(*action.URLSource); err != nil {
+			return err
+		}
+	}
+	for _, param := range action.Params {
+		if err := validate(param.Source); err != nil {
+			return err
+		}
+	}
+	for _, source := range action.Payload {
+		if err := validate(source); err != nil {
 			return err
 		}
 	}
@@ -342,6 +432,15 @@ func validateSource(owner string, source Source) error {
 func hasLeafAction(actions []Action) bool {
 	for _, action := range actions {
 		if action.Kind == ActionNavigateToLeaf {
+			return true
+		}
+	}
+	return false
+}
+
+func hasLeafTableColumnAction(columns []TableColumn) bool {
+	for _, column := range columns {
+		if column.Action != nil && column.Action.Kind == ActionNavigateToLeaf {
 			return true
 		}
 	}

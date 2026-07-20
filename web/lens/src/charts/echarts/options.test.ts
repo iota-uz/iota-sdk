@@ -145,6 +145,23 @@ describe('buildChartOption', () => {
     expect(chart.yAxis.axisLabel?.formatter?.(1200)).toBe('$1200')
   })
 
+  it('uses formatAxis for value-axis ticks while tooltips keep the full format', () => {
+    const chartInput = input('bar')
+    chartInput.format = (_field, value) => `$${String(value)}`
+    chartInput.formatAxis = (_field, value) => `${String(value)} compact`
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.yAxis.axisLabel?.formatter?.(1200)).toBe('1200 compact')
+    expect(chart.tooltip.valueFormatter?.(1200)).toBe('$1200')
+  })
+
+  it('falls back to format for axis ticks when formatAxis is absent', () => {
+    const chart = testOption(buildChartOption(input('bar'), theme))
+
+    expect(chart.yAxis.axisLabel?.formatter?.(1200)).toBe('$1200')
+  })
+
   it.each(['line', 'area'] as const)('uses sorted timestamp pairs on a time axis for %s', (kind) => {
     const chartInput = input(kind)
     chartInput.frame.columns[1] = { name: 'category', type: 'time' }

@@ -80,8 +80,38 @@ type Panel struct {
 	Frame     FrameRef               `json:"frame"`
 	Encoding  Encoding               `json:"encoding"`
 	Format    map[string]FieldFormat `json:"format"`
+	Total     *float64               `json:"total,omitempty"`
+	Columns   []TableColumn          `json:"columns,omitempty"`
 	DrillRoot *NodeKey               `json:"drillRoot,omitempty"`
 	Actions   []Action               `json:"actions"`
+}
+
+type TableColumn struct {
+	Field  string     `json:"field"`
+	Label  string     `json:"label"`
+	Align  TableAlign `json:"align,omitempty"`
+	Cell   TableCell  `json:"cell"`
+	Action *Action    `json:"action,omitempty"`
+}
+
+type TableAlign string
+
+const (
+	TableAlignLeft  TableAlign = "left"
+	TableAlignRight TableAlign = "right"
+)
+
+type TableCellKind string
+
+const (
+	TableCellPlain TableCellKind = "plain"
+	TableCellBar   TableCellKind = "bar"
+	TableCellDelta TableCellKind = "delta"
+)
+
+type TableCell struct {
+	Kind           TableCellKind `json:"kind"`
+	SecondaryField string        `json:"secondaryField,omitempty"`
 }
 
 type Encoding struct {
@@ -133,6 +163,7 @@ type Action struct {
 	Kind          ActionKind        `json:"kind"`
 	Method        string            `json:"method,omitempty"`
 	URLTemplate   string            `json:"urlTemplate,omitempty"`
+	URLSource     *Source           `json:"urlSource,omitempty"`
 	Event         string            `json:"event,omitempty"`
 	Params        []ActionParam     `json:"params"`
 	Payload       map[string]Source `json:"payload"`

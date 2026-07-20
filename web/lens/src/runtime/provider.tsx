@@ -14,7 +14,7 @@ import type { DashboardDocument, FieldFormat, Frame, Panel, QueryPage, QueryRequ
 import { fetchDocument } from './document'
 import { levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
-import { formatFieldValue } from './format'
+import { formatAxis, formatFieldValue } from './format'
 import {
   createNavigationState,
   navigationActions,
@@ -181,7 +181,13 @@ const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
 const PanelPaginationContext = createContext<PanelPaginationContextValue | undefined>(undefined)
 const ExportContext = createContext<ExportContextValue | undefined>(undefined)
 const LocaleContext = createContext('en')
+const I18nContext = createContext<Record<string, string>>({})
 const emptyFrameStore = new PanelFrameStore()
+
+function translation(messages: Record<string, string>, key: string, fallback: string): string {
+  const value = messages[key]
+  return typeof value === 'string' && value.trim() !== '' ? value : fallback
+}
 
 const browserHistoryKey = '__iotaLensNavigation'
 
@@ -368,6 +374,14 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
   }, [])
   if (!frameStore.current) frameStore.current = new PanelFrameStore()
   const frames = frameStore.current
+  const translate = useCallback(
+    (key: string, fallback: string) => translation(document.i18n, key, fallback),
+    [document.i18n],
+  )
+  const driftNotice = useCallback(() => translate(
+    'drill.reset',
+    'The previous drill path is no longer available. Lens returned to the root view.',
+  ), [translate])
   for (const panel of document.panels) {
     if (!frames.get(panel.id)) {
       frames.set(panel.id, {
@@ -406,8 +420,8 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     if (pathResolves(document, navigation.path, navigation.perspectiveId)) return
     replaceNextURL.current = true
     dispatch(navigationActions.restore(rootNavigation(document, navigation.panelId)))
-    setNotice('The previous drill path is no longer available. Lens returned to the root view.')
-  }, [document, navigation.panelId, navigation.path, navigation.perspectiveId])
+    setNotice(driftNotice())
+  }, [document, driftNotice, navigation.panelId, navigation.path, navigation.perspectiveId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -472,7 +486,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       if (result.reset) {
         replaceNextURL.current = true
         dispatch(navigationActions.restore(result.navigation))
-        setNotice('The previous drill path is no longer available. Lens returned to the root view.')
+        setNotice(driftNotice())
         return
       }
       const frames = Object.entries(result.response.frames)
@@ -497,7 +511,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       })
     })
     return () => { active = false }
-  }, [document, frames, navigation, queryClient, refreshDocument, retryFrame, retryToken])
+  }, [document, driftNotice, frames, navigation, queryClient, refreshDocument, retryFrame, retryToken])
 
   const loadPage = useCallback(async (panelId: string, page: number, force = false) => {
     const panel = panelForNavigation(document, navigation)
@@ -524,7 +538,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       if (result.reset) {
         replaceNextURL.current = true
         dispatch(navigationActions.restore(result.navigation))
-        setNotice('The previous drill path is no longer available. Lens returned to the root view.')
+        setNotice(driftNotice())
         return
       }
       const frame = Object.values(result.response.frames)[0]
@@ -546,7 +560,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
         retry: retryPage,
       })
     }
-  }, [document, frames, navigation, queryClient, refreshDocument])
+  }, [document, driftNotice, frames, navigation, queryClient, refreshDocument])
   pageLoader.current = loadPage
 
   const pagination = useMemo<PanelPaginationContextValue>(() => ({
@@ -574,7 +588,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
           await refreshDocument()
           setExportStates((states) => ({
             ...states,
-            [scope]: { status: 'retry', message: 'Snapshot refreshed. Retry export.' },
+            [scope]: { status: 'retry', message: translate('export.retryHint', 'Snapshot refreshed. Retry export.') },
           }))
         } catch (refreshCause: unknown) {
           const message = refreshCause instanceof Error ? refreshCause.message : 'Snapshot refresh failed'
@@ -585,7 +599,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       const message = cause instanceof Error ? cause.message : 'Export failed'
       setExportStates((states) => ({ ...states, [scope]: { status: 'error', message } }))
     }
-  }, [csrf, document.endpoints.export, document.snapshotId, fetcher, refreshDocument])
+  }, [csrf, document.endpoints.export, document.snapshotId, fetcher, refreshDocument, translate])
 
   const exportContext = useMemo<ExportContextValue>(() => ({
     available: Boolean(document.endpoints.export),
@@ -608,6 +622,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
 
   return (
     <LocaleContext.Provider value={locale}>
+      <I18nContext.Provider value={document.i18n}>
       <DashboardContext.Provider value={dashboard}>
         <DrillContext.Provider value={drill}>
           <PanelPaginationContext.Provider value={pagination}>
@@ -625,6 +640,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
           </PanelPaginationContext.Provider>
         </DrillContext.Provider>
       </DashboardContext.Provider>
+      </I18nContext.Provider>
     </LocaleContext.Provider>
   )
 }
@@ -699,6 +715,16 @@ export function useExport(panelId?: string): ExportState & { available: boolean;
 export function useFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useContext(LocaleContext)
   return useCallback((value: unknown) => formatFieldValue(value, field, locale), [field, locale])
+}
+
+export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {
+  const locale = useContext(LocaleContext)
+  return useCallback((value: unknown) => formatAxis(value, field, locale), [field, locale])
+}
+
+export function useTranslate(): (key: string, fallback: string) => string {
+  const messages = useContext(I18nContext)
+  return useCallback((key: string, fallback: string) => translation(messages, key, fallback), [messages])
 }
 
 export function useDocumentState(): DocumentContextValue {

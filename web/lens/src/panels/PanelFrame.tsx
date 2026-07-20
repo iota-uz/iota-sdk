@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { Panel } from '../contract'
-import type { PanelFrameState } from '../runtime'
+import { type PanelFrameState, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
 
 export interface PanelFrameProps {
@@ -27,8 +27,11 @@ function PanelSkeleton({ variant }: { variant: 'stat' | 'chart' }) {
 }
 
 export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
+  const translate = useTranslate()
+  const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const hasRows = Boolean(frame.data?.rows.length)
   const showInitialLoading = frame.isLoading && !frame.data
+  const showTotal = variant === 'chart' && panel.total !== undefined
 
   return (
     <section
@@ -41,7 +44,12 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       <header className="lens-panel-header">
         <h3 className="lens-panel-title">{panel.title}</h3>
         <div className="lens-panel-actions">
-          {frame.isStale && <span className="lens-panel-status" role="status">Updating</span>}
+          {showTotal && (
+            <span className="lens-panel-total" title={translate('panel.total', 'Total')}>
+              {formatTotal(panel.total)}
+            </span>
+          )}
+          {frame.isStale && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
           <ExportButton panelId={panel.id} />
         </div>
       </header>
@@ -51,19 +59,19 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         ) : frame.error && !frame.data ? (
           <div className="lens-panel-state lens-panel-state-error" role="alert">
             <span>{frame.error.message}</span>
-            <button type="button" onClick={frame.retry}>Retry</button>
+            <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
           </div>
         ) : !hasRows && !allowEmptyContent ? (
           <div className="lens-panel-state lens-panel-state-empty">
             <span className="lens-empty-mark" aria-hidden="true">—</span>
-            <span>No data</span>
+            <span>{translate('panel.empty', 'No data')}</span>
           </div>
         ) : children}
       </div>
       {frame.error && frame.data && (
         <div className="lens-panel-error" role="alert">
           <span>{frame.error.message}</span>
-          <button type="button" onClick={frame.retry}>Retry</button>
+          <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
         </div>
       )}
     </section>

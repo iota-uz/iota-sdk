@@ -23,6 +23,7 @@ export function StatPanel({ panel }: StatPanelProps) {
   const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
   const formatDelta = useFormat(deltaField ? panel.format[deltaField] : undefined)
   const label = displayText(cell(frame.data, panelField(panel, 'label')), panel.title)
+  const showLabel = label !== panel.title
   const value = cell(frame.data, valueField)
   const delta = deltaField ? cell(frame.data, deltaField) : undefined
   const deltaNumber = numeric(delta)
@@ -30,7 +31,7 @@ export function StatPanel({ panel }: StatPanelProps) {
   return (
     <PanelFrame panel={panel} frame={frame} variant="stat">
       <div className="lens-stat-content">
-        <p className="lens-stat-label">{label}</p>
+        {showLabel && <p className="lens-stat-label">{label}</p>}
         <div className="lens-stat-value-row">
           <p className="lens-stat-value">{formatValue(value)}</p>
           {delta !== undefined && (

@@ -8,6 +8,8 @@ export interface ChartInput {
   frame: Frame
   encoding: Encoding
   format: ChartFormatResolver
+  /** Compact, locale-aware value formatter for axis ticks. Falls back to `format`. */
+  formatAxis?: ChartFormatResolver
   theme: Theme
   selectedKey?: NodeKey
 }

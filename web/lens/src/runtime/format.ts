@@ -78,6 +78,21 @@ function formatDate(value: unknown, layout: string | undefined, locale: string):
   return output
 }
 
+export function formatAxis(value: unknown, field: FieldFormat | undefined, locale: string): string {
+  const number = numeric(value)
+  if (number !== undefined && field && (field.kind === 'money' || field.kind === 'number')) {
+    if (field.kind === 'money') {
+      const currency = field.currency ?? 'USD'
+      const scaled = field.minorUnits ? number / 100 : number
+      return new Intl.NumberFormat(locale, {
+        style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1,
+      }).format(scaled)
+    }
+    return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(number)
+  }
+  return formatFieldValue(value, field, locale)
+}
+
 export function formatFieldValue(value: unknown, field: FieldFormat | undefined, locale: string): string {
   if (!field) {
     const number = numeric(value)

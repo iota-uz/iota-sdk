@@ -29,6 +29,7 @@ export const ActionSchema: z.ZodType<Contract.Action> = z.lazy(() => z.object({
   kind: z.lazy(() => ActionKindSchema),
   method: z.string().optional(),
   urlTemplate: z.string().optional(),
+  urlSource: z.lazy(() => SourceSchema).optional(),
   event: z.string().optional(),
   params: z.array(z.lazy(() => ActionParamSchema)),
   payload: z.record(z.string(), z.lazy(() => SourceSchema)),
@@ -152,6 +153,8 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   frame: z.lazy(() => FrameRefSchema),
   encoding: z.lazy(() => EncodingSchema),
   format: z.record(z.string(), z.lazy(() => FieldFormatSchema)),
+  total: z.number().optional(),
+  columns: z.array(z.lazy(() => TableColumnSchema)).optional(),
   drillRoot: z.lazy(() => NodeKeySchema).optional(),
   actions: z.array(z.lazy(() => ActionSchema)),
 }).strict())
@@ -205,6 +208,23 @@ export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   value: z.unknown().optional(),
   fallback: z.unknown().optional(),
 }).strict())
+
+export const TableAlignSchema: z.ZodType<Contract.TableAlign> = z.enum(["left", "right"])
+
+export const TableCellSchema: z.ZodType<Contract.TableCell> = z.lazy(() => z.object({
+  kind: z.lazy(() => TableCellKindSchema),
+  secondaryField: z.string().optional(),
+}).strict())
+
+export const TableCellKindSchema: z.ZodType<Contract.TableCellKind> = z.enum(["bar", "delta", "plain"])
+
+export const TableColumnSchema: z.ZodType<Contract.TableColumn> = z.object({
+  field: z.string(),
+  label: z.string(),
+  align: z.lazy(() => TableAlignSchema).optional(),
+  cell: z.lazy(() => TableCellSchema),
+  action: z.lazy(() => ActionSchema).optional(),
+}).strict()
 
 export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
   palette: z.record(z.string(), z.string()),

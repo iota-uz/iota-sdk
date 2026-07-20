@@ -152,6 +152,10 @@
     @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
   }
 
+  .lens-panel-total {
+    @apply lens-inline-flex lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-strong;
+  }
+
   .lens-panel-body {
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
   }
@@ -266,7 +270,12 @@
   }
 
   .lens-chart-load-error {
-    @apply lens-absolute lens-inset-3 lens-flex lens-items-center lens-justify-center lens-rounded-control lens-bg-inset lens-text-sm lens-text-neg;
+    @apply lens-absolute lens-inset-3 lens-flex lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-control lens-bg-inset lens-p-3 lens-text-center lens-text-sm lens-text-neg;
+  }
+
+  .lens-chart-load-error-detail {
+    @apply lens-max-w-full lens-truncate lens-text-xs lens-text-muted;
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-chart-drill-hint {
@@ -389,6 +398,64 @@
 
   .lens-table-null {
     @apply lens-text-faint;
+  }
+
+  .lens-table-col-right {
+    @apply lens-text-right;
+  }
+
+  .lens-table-col-right button {
+    @apply lens-justify-end;
+  }
+
+  .lens-table-cell.lens-table-col-right {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-bar {
+    @apply lens-flex lens-items-center lens-justify-end lens-gap-2;
+  }
+
+  .lens-table-bar-track {
+    @apply lens-h-1.5 lens-w-24 lens-min-w-16 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+  }
+
+  .lens-table-bar-fill {
+    @apply lens-block lens-h-full lens-rounded-full lens-bg-accent-500;
+  }
+
+  .lens-table-bar-value {
+    @apply lens-shrink-0 lens-text-right lens-font-medium lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-delta {
+    @apply lens-inline-flex lens-items-baseline lens-justify-end lens-gap-2;
+  }
+
+  .lens-table-delta-value {
+    @apply lens-font-medium lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-delta-pct {
+    @apply lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold;
+    background: var(--lens-pos-soft);
+    color: var(--lens-pos);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-delta-pct-negative {
+    background: var(--lens-neg-soft);
+    color: var(--lens-neg);
+  }
+
+  .lens-table .lens-table-cell-link {
+    @apply lens-inline-flex lens-items-center lens-gap-1 lens-bg-transparent lens-text-accent-700;
+  }
+
+  .lens-table-cell-link-arrow {
+    @apply lens-text-xs lens-text-accent-700;
   }
 
   .lens-table-action-heading,

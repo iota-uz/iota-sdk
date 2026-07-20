@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { Column, FieldFormat, Frame, Level, Panel } from '../contract'
-import { resolveRowLeafActionURL } from '../explore/actions'
-import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination } from '../runtime'
+import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
+import { resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
+import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
 
 type SortDirection = 'ascending' | 'descending'
@@ -15,6 +15,15 @@ function inferredFormat(column: Column): FieldFormat | undefined {
   if (column.type === 'number') return { kind: 'number', minorUnits: false }
   if (column.type === 'time') return { kind: 'date', minorUnits: false }
   if (column.type === 'string') return { kind: 'string', minorUnits: false }
+  return undefined
+}
+
+function numericValue(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
   return undefined
 }
 
@@ -54,6 +63,84 @@ function TableCell({ column, format, value }: { column: Column; format?: FieldFo
   return <>{text}</>
 }
 
+function BarCell({ format, value, max }: { format?: FieldFormat; value: unknown; max: number }) {
+  const display = useFormat(format)
+  const number = numericValue(value)
+  const ratio = max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / max)) : 0
+  return (
+    <div className="lens-table-bar">
+      <span className="lens-table-bar-track" aria-hidden="true">
+        <span className="lens-table-bar-fill" style={{ width: `${ratio * 100}%` }} />
+      </span>
+      <span className="lens-table-bar-value">{display(value)}</span>
+    </div>
+  )
+}
+
+function DeltaCell({
+  valueFormat, value, secondaryFormat, secondaryValue,
+}: { valueFormat?: FieldFormat; value: unknown; secondaryFormat?: FieldFormat; secondaryValue: unknown }) {
+  const displayValue = useFormat(valueFormat)
+  const displaySecondary = useFormat(secondaryFormat)
+  const secondary = numericValue(secondaryValue)
+  const hasSecondary = secondaryValue !== null && secondaryValue !== undefined && secondaryValue !== ''
+  const negative = secondary !== undefined && secondary < 0
+  return (
+    <span className="lens-table-delta">
+      <span className="lens-table-delta-value">{displayValue(value)}</span>
+      {hasSecondary && (
+        <span className={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
+          {secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}
+        </span>
+      )}
+    </span>
+  )
+}
+
+function ColumnCell({
+  column, frame, row, panel, location,
+}: { column: TableColumn; frame: Frame; row: Array<unknown>; panel: Panel; location: URL }) {
+  const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
+  const type = frame.columns[index]?.type ?? 'string'
+  const value = index >= 0 ? row[index] : undefined
+  const format = panel.format[column.field]
+
+  let content
+  if (column.cell.kind === 'bar') {
+    const max = frame.rows.reduce((acc, candidate) => {
+      const number = numericValue(candidate[index])
+      return number === undefined ? acc : Math.max(acc, Math.abs(number))
+    }, 0)
+    content = <BarCell format={format} value={value} max={max} />
+  } else if (column.cell.kind === 'delta') {
+    const secondaryField = column.cell.secondaryField
+    const secondaryIndex = secondaryField ? frame.columns.findIndex((candidate) => candidate.name === secondaryField) : -1
+    content = (
+      <DeltaCell
+        valueFormat={format}
+        value={value}
+        secondaryFormat={secondaryField ? panel.format[secondaryField] : undefined}
+        secondaryValue={secondaryIndex >= 0 ? row[secondaryIndex] : undefined}
+      />
+    )
+  } else {
+    content = <TableCell column={{ name: column.field, type }} format={format} value={value} />
+  }
+
+  if (column.action) {
+    const href = resolveColumnActionURL(column.action, frame, row, location)
+    if (href) {
+      return (
+        <a className="lens-table-cell-link" href={href}>
+          {content}
+          <span aria-hidden="true" className="lens-table-cell-link-arrow">→</span>
+        </a>
+      )
+    }
+  }
+  return content
+}
+
 function sortedRows(frame: Frame, sort: SortState | undefined): Array<{ row: Array<unknown>; index: number }> {
   const rows = frame.rows.map((row, index) => ({ row, index }))
   if (!sort) return rows
@@ -75,6 +162,7 @@ export function TablePanel({ panel }: TablePanelProps) {
   const frame = usePanelFrame(panel.id)
   const { document, navigation } = useDashboard()
   const pagination = usePanelPagination()
+  const translate = useTranslate()
   const [sort, setSort] = useState<SortState>()
   const [requestedPage, setRequestedPage] = useState(frame.page?.number ?? 1)
   const requestedSnapshotId = useRef(document.snapshotId)
@@ -88,6 +176,7 @@ export function TablePanel({ panel }: TablePanelProps) {
   // The row-count check keeps pagination working with older servers that omit hasNext.
   const hasNext = frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
   const location = new URL(globalThis.location.href)
+  const columns = panel.columns?.length ? panel.columns : undefined
 
   useEffect(() => {
     if (requestedSnapshotId.current !== document.snapshotId) {
@@ -109,6 +198,11 @@ export function TablePanel({ panel }: TablePanelProps) {
       : { column, direction: 'ascending' })
   }
 
+  const sortIndicator = (name: string) => sort?.column === name
+    ? sort.direction === 'ascending' ? '↑' : '↓'
+    : '↕'
+  const columnCount = columns ? columns.length : (frame.data?.columns.length ?? 0) + 1
+
   return (
     <PanelFrame panel={panel} frame={frame} allowEmptyContent={Boolean(frame.page)}>
       {frame.data && (
@@ -117,50 +211,111 @@ export function TablePanel({ panel }: TablePanelProps) {
             <table className="lens-table">
               <thead>
                 <tr>
-                  {frame.data.columns.map((column) => (
-                    <th aria-sort={sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
-                      <button type="button" onClick={() => changeSort(column.name)}>
-                        <span>{column.name}</span>
-                        <span aria-hidden="true">{sort?.column === column.name ? sort.direction === 'ascending' ? '↑' : '↓' : '↕'}</span>
+                  {columns ? columns.map((column) => (
+                    <th
+                      aria-sort={sort?.column === column.field ? sort.direction : 'none'}
+                      className={column.align === 'right' ? 'lens-table-col-right' : undefined}
+                      key={column.field}
+                      scope="col"
+                    >
+                      <button type="button" onClick={() => changeSort(column.field)}>
+                        <span>{column.label}</span>
+                        <span aria-hidden="true">{sortIndicator(column.field)}</span>
                       </button>
                     </th>
-                  ))}
-                  <th className="lens-table-action-heading" scope="col"><span className="lens-sr-only">Actions</span></th>
+                  )) : (
+                    <>
+                      {frame.data.columns.map((column) => (
+                        <th aria-sort={sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
+                          <button type="button" onClick={() => changeSort(column.name)}>
+                            <span>{column.name}</span>
+                            <span aria-hidden="true">{sortIndicator(column.name)}</span>
+                          </button>
+                        </th>
+                      ))}
+                      <th className="lens-table-action-heading" scope="col">
+                        <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                      </th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {rows.length === 0 ? (
-                  <tr><td className="lens-table-empty" colSpan={frame.data.columns.length + 1}>No records on this page</td></tr>
-                ) : rows.map(({ row, index }) => {
-                  const href = resolveRowLeafActionURL(panel, frame.data!, row, location, level)
-                  return (
-                    <tr key={index}>
-                      {frame.data!.columns.map((column, columnIndex) => (
-                        <td className={`lens-table-cell-${column.type}`} key={column.name}>
-                          <TableCell column={column} format={panel.format[column.name]} value={row[columnIndex]} />
-                        </td>
-                      ))}
-                      <td className="lens-table-action-cell">
-                        {href && <a className="lens-leaf-action" href={href}>Open record</a>}
+                  <tr>
+                    <td className="lens-table-empty" colSpan={columnCount}>
+                      {translate('table.emptyPage', 'No records on this page')}
+                    </td>
+                  </tr>
+                ) : rows.map(({ row, index }) => columns ? (
+                  <tr key={index}>
+                    {columns.map((column) => (
+                      <td className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`} key={column.field}>
+                        <ColumnCell column={column} frame={frame.data!} row={row} panel={panel} location={location} />
                       </td>
-                    </tr>
-                  )
-                })}
+                    ))}
+                  </tr>
+                ) : (
+                  <FrameRow
+                    frame={frame.data!}
+                    row={row}
+                    index={index}
+                    panel={panel}
+                    location={location}
+                    level={level}
+                    openRecordLabel={translate('table.openRecord', 'Open record')}
+                    key={index}
+                  />
+                ))}
               </tbody>
             </table>
           </div>
           <footer className="lens-table-footer">
-            <span className="lens-table-sort-scope">Sort applies to this page only</span>
+            <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
             {frame.page && (
               <nav aria-label={`${panel.title} pages`} className="lens-table-pagination">
-                <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">Previous</button>
-                <span aria-live="polite">{frame.isLoading && loadingPage !== page ? `Loading page ${loadingPage}` : `Page ${page}`}</span>
-                <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">Next</button>
+                <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">
+                  {translate('table.previous', 'Previous')}
+                </button>
+                <span aria-live="polite">
+                  {frame.isLoading && loadingPage !== page
+                    ? translate('table.loadingPage', 'Loading page {n}').replace('{n}', String(loadingPage))
+                    : translate('table.page', 'Page {n}').replace('{n}', String(page))}
+                </span>
+                <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">
+                  {translate('table.next', 'Next')}
+                </button>
               </nav>
             )}
           </footer>
         </div>
       )}
     </PanelFrame>
+  )
+}
+
+function FrameRow({
+  frame, row, index, panel, location, level, openRecordLabel,
+}: {
+  frame: Frame
+  row: Array<unknown>
+  index: number
+  panel: Panel
+  location: URL
+  level?: Level
+  openRecordLabel: string
+}) {
+  const href = resolveRowLeafActionURL(panel, frame, row, location, level)
+  return (
+    <tr key={index}>
+      {frame.columns.map((column, columnIndex) => (
+        <td className={`lens-table-cell-${column.type}`} key={column.name}>
+          <TableCell column={column} format={panel.format[column.name]} value={row[columnIndex]} />
+        </td>
+      ))}
+      <td className="lens-table-action-cell">
+        {href && <a className="lens-leaf-action" href={href}>{openRecordLabel}</a>}
+      </td>
+    </tr>
   )
 }

@@ -2,7 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import type { NodeKey, Panel } from '../contract'
 import type { ChartAdapter, ChartFormatResolver, ChartKind } from '../charts/adapter'
 import { childForSelection } from '../explore/model'
-import { levelForPath, useDashboard, useDrill, useFormat, usePanelFrame } from '../runtime'
+import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame } from '../runtime'
 import { ChartHost } from './ChartHost'
 import { encodingRoles } from './data'
 import { PanelFrame } from './PanelFrame'
@@ -12,7 +12,7 @@ export interface ChartPanelProps {
   adapter?: ChartAdapter
 }
 
-function useChartFormat(panel: Panel): ChartFormatResolver {
+function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis: ChartFormatResolver } {
   const fallback = useFormat()
   const label = useFormat(panel.encoding.label ? panel.format[panel.encoding.label] : undefined)
   const value = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
@@ -22,8 +22,10 @@ function useChartFormat(panel: Panel): ChartFormatResolver {
   const cut = useFormat(panel.encoding.cut ? panel.format[panel.encoding.cut] : undefined)
   const cutLabel = useFormat(panel.encoding.cutLabel ? panel.format[panel.encoding.cutLabel] : undefined)
   const final = useFormat(panel.encoding.final ? panel.format[panel.encoding.final] : undefined)
+  // Compact axis labels for the value field prevent overlapping full-precision money ticks.
+  const valueAxis = useAxisFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
 
-  return useMemo(() => {
+  const format = useMemo<ChartFormatResolver>(() => {
     const formatters = { label, value, id, series, category, cut, cutLabel, final }
     const byField = new Map<string, (input: unknown) => string>()
     for (const role of encodingRoles) {
@@ -32,13 +34,20 @@ function useChartFormat(panel: Panel): ChartFormatResolver {
     }
     return (field: string, input: unknown) => (byField.get(field) ?? fallback)(input)
   }, [category, cut, cutLabel, fallback, final, id, label, panel.encoding, series, value])
+
+  const formatAxis = useMemo<ChartFormatResolver>(() => {
+    const valueField = panel.encoding.value
+    return (field: string, input: unknown) => valueField && field === valueField ? valueAxis(input) : format(field, input)
+  }, [format, panel.encoding.value, valueAxis])
+
+  return useMemo(() => ({ format, formatAxis }), [format, formatAxis])
 }
 
 export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const frame = usePanelFrame(panel.id)
   const { document, navigation } = useDashboard()
   const { drillInto } = useDrill()
-  const format = useChartFormat(panel)
+  const { format, formatAxis } = useChartFormat(panel)
   const [selectedKey, setSelectedKey] = useState<NodeKey>()
   const [hoveredKey, setHoveredKey] = useState<NodeKey | null>(null)
   const active = navigation.panelId === panel.id && navigation.path.length > 0
@@ -52,9 +61,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     frame: frame.data,
     encoding: panel.encoding,
     format,
+    formatAxis,
     theme: document.theme,
     selectedKey,
-  }) : undefined, [document.theme, format, frame.data, kind, panel.encoding, selectedKey])
+  }) : undefined, [document.theme, format, formatAxis, frame.data, kind, panel.encoding, selectedKey])
   const select = useCallback((key: NodeKey) => {
     if (!drillable) return
     const node = childForSelection(level, key)
@@ -68,6 +78,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       {input && (
         <ChartHost
           input={input}
+          panelId={panel.id}
           adapter={adapter}
           label={`${panel.title} ${kind} chart`}
           drillable={drillable}
