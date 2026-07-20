@@ -117,6 +117,9 @@
 
   .lens-panel-header {
     @apply lens-flex lens-min-h-10 lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
+    /* Named container so the drill trail can decide whether its label still
+       fits, which no amount of flex shrinking can express. */
+    container: lens-panel-header / inline-size;
   }
 
   /* The title names the panel, so it keeps its width and the header's summary
@@ -1085,39 +1088,53 @@
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-gap-1;
   }
 
-  .lens-panel-trail ol {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-list-none lens-items-center lens-justify-end lens-gap-0.5 lens-overflow-hidden lens-p-0;
+  /* Readable text or nothing: the level name keeps a legible floor, and in a
+     header too narrow to hold it (a third-width card with a total badge) the
+     label steps aside entirely, leaving the back button — never a one-letter
+     stump. The full path stays one click away in the overlay. */
+  .lens-trail-current {
+    @apply lens-min-w-0 lens-max-w-full lens-truncate lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-font-sans lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-strong;
+    min-width: 5rem;
   }
 
-  .lens-panel-trail li {
-    @apply lens-flex lens-min-w-0 lens-shrink-0 lens-items-center lens-gap-0.5;
+  .lens-trail-current:hover {
+    @apply lens-bg-inset;
   }
 
-  /* Crumbs read root → current, and pressure is absorbed from the left: every
-     ancestor ellipsizes before the deepest crumb, which must stay readable. */
-  .lens-panel-trail li:not(:last-child) {
-    @apply lens-shrink;
+  @container lens-panel-header (max-width: 220px) {
+    .lens-trail-current {
+      display: none;
+    }
   }
 
-  .lens-trail-crumb {
-    @apply lens-max-w-full lens-truncate lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-font-sans lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
-  }
-
-  .lens-trail-crumb[aria-current='page'] {
-    @apply lens-text-strong;
-  }
-
-  .lens-trail-crumb:hover:not([aria-current='page']) {
-    @apply lens-bg-inset lens-text-strong;
-  }
-
-  .lens-trail-perspective {
-    @apply lens-ml-1 lens-font-normal lens-normal-case lens-tracking-normal lens-text-faint;
+  /* Same rule for the summary badge: «Total: 1 8…» reads as damage, not as a
+     number, so below this width the badge steps out and the value stays in the
+     plot and the legend. */
+  @container lens-panel-header (max-width: 260px) {
+    .lens-panel-total {
+      display: none;
+    }
   }
 
   .lens-trail-back,
   .lens-explore-affordance {
     @apply lens-shrink-0;
+  }
+
+  .lens-drill-path {
+    @apply lens-m-0 lens-flex lens-list-none lens-flex-col lens-gap-0.5 lens-p-0;
+  }
+
+  .lens-drill-path-step {
+    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-rounded-md lens-border-0 lens-bg-transparent lens-px-1 lens-py-1 lens-text-left lens-font-sans lens-text-xs lens-text-muted;
+  }
+
+  .lens-drill-path-step:hover:not(:disabled) {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
+  .lens-drill-path-step[aria-current='page'] {
+    @apply lens-font-semibold lens-text-strong;
   }
 
   .lens-drill-scrim {

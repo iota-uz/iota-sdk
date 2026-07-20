@@ -11,7 +11,7 @@ import {
 } from 'react'
 import type { ChartAnchor } from '../charts/adapter'
 import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '../contract'
-import { CaretDown, CaretLeft, CaretRight } from '../icons'
+import { CaretDown, CaretLeft } from '../icons'
 import { MarkSelectionContext, PanelChromeContext, RegisteredPanel, type PanelRegistry } from '../panels'
 import { levelForPath, useDashboard, useDrill, usePanelFrame, useTranslate } from '../runtime'
 import { isVisualRegression } from '../visualRegression'
@@ -237,6 +237,10 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
         <CaretDown />
       </button>
     ) : undefined,
+    // The header is the tightest space on the card (a total badge and two icon
+    // buttons share it), so it carries only what stays readable: one step back
+    // and the level you are on. The full path lives in the overlay the current
+    // level opens — chopping every ancestor down to a letter served nobody.
     trail: breadcrumbs.length > 1 ? (
       <nav
         aria-label={translate('explore.path', '{name} exploration path', { name: panel.title })}
@@ -253,24 +257,16 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
             <CaretLeft />
           </button>
         )}
-        <ol>
-          {breadcrumbs.map((crumb, index) => (
-            <li key={crumb.pathIndex}>
-              {index > 0 && <CaretRight />}
-              <button
-                aria-current={crumb.current ? 'page' : undefined}
-                className="lens-trail-crumb"
-                onClick={() => { if (!crumb.current) runViewTransition(() => drill.jumpTo(crumb.pathIndex)) }}
-                type="button"
-              >
-                {crumb.label}
-                {crumb.current && crumb.perspective && (
-                  <span className="lens-trail-perspective">· {crumb.perspective.label}</span>
-                )}
-              </button>
-            </li>
-          ))}
-        </ol>
+        <button
+          aria-current="page"
+          aria-haspopup="dialog"
+          className="lens-trail-current"
+          onClick={openForLevel}
+          title={breadcrumbs.map((crumb) => crumb.label).join(' › ')}
+          type="button"
+        >
+          {breadcrumbs.at(-1)?.label}
+        </button>
       </nav>
     ) : undefined,
   }), [breadcrumbs, drill, explorable, openForLevel, panel.title, translate])
@@ -301,6 +297,12 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       {overlay && (
         <DrillOverlay
           anchor={overlay.anchor}
+          path={breadcrumbs.map((crumb) => ({
+            label: crumb.label,
+            current: crumb.current,
+            onSelect: () => { closeOverlay(); runViewTransition(() => drill.jumpTo(crumb.pathIndex)) },
+          }))}
+
           dark={overlayTheme.dark}
           onClose={closeOverlay}
           onDrillChild={(childKey) => {

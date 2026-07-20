@@ -12,7 +12,10 @@ const storyIds = [
   'explore--drill-overlay--light',
   'explore--drill-overlay-inside-an-expanded-panel',
   'explore--full-drill-flow--three-levels',
+  'explore--header-too-narrow-for-a-level-name',
   'explore--keyboard-walkthrough',
+  'explore--narrow-card-deepest-path--dark',
+  'explore--narrow-card-deepest-path--light',
   'explore--perspective-switching-on-a-segment',
   'panel-matrix--all-kinds-and-states--dark',
   'panel-matrix--all-kinds-and-states--light',
@@ -53,7 +56,10 @@ const staticStories = [
   ['explore--drill-overlay--dark', 1],
   ['explore--drill-overlay--light', 1],
   ['explore--drill-overlay-inside-an-expanded-panel', 1],
+  ['explore--header-too-narrow-for-a-level-name', 1],
   ['explore--keyboard-walkthrough', 1],
+  ['explore--narrow-card-deepest-path--dark', 1],
+  ['explore--narrow-card-deepest-path--light', 1],
   ['panel-matrix--all-kinds-and-states--dark', 0],
   ['panel-matrix--all-kinds-and-states--light', 0],
   ['panels-v2--cascade-final-stage', 0],
@@ -141,6 +147,7 @@ for (const [storyId, canvasCount] of staticStories) {
 
 const keyframeCovered = [
   'explore--full-drill-flow--three-levels',
+  'explore--header-too-narrow-for-a-level-name',
   'explore--perspective-switching-on-a-segment',
   'parity--clickable-panels',
   'parity--pie-with-legend-below',
@@ -161,6 +168,16 @@ test('chart tooltips escape the card', async ({ page }) => {
   const tooltip = page.locator('body > div').filter({ hasText: 'Заработанная премия' }).last()
   await expect(tooltip).toBeVisible()
   await screenshot(page, 'parity-pie-tooltip')
+})
+
+test('the full path stays reachable from a narrow header', async ({ page }) => {
+  await openStory(page, 'explore--narrow-card-deepest-path--light', 1)
+  // The header shows the current level only; clicking it opens the overlay,
+  // where the whole path is listed and jumpable.
+  await page.getByRole('button', { name: /Transactions/ }).click()
+  await expect(page.getByRole('dialog')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Operating margin' })).toBeVisible()
+  await screenshot(page, 'explore-narrow-path-overlay')
 })
 
 test('explore full drill flow keyframes', async ({ page }) => {
@@ -202,15 +219,15 @@ test('explore perspective switching keyframes', async ({ page }) => {
   await expect(page.locator('[data-explore-view="line"]')).toBeVisible()
   await screenshot(page, 'explore-perspectives-02-trend')
 
-  // Switching enters the perspective's own level; the header trail is the way
-  // back to the choice point.
-  await page.getByRole('button', { name: /Operating margin/ }).click()
+  // Switching enters the perspective's own level; the header's back button is
+  // the one-click way to the choice point (the full path lives in the overlay).
+  await page.getByRole('button', { name: 'Back' }).click()
   await page.getByRole('button', { name: 'Show breakdown' }).click()
   await page.getByRole('option', { name: /Bridge/ }).click()
   await expect(page.locator('[data-explore-view="cascade"]')).toBeVisible()
   await screenshot(page, 'explore-perspectives-03-bridge')
 
-  await page.getByRole('button', { name: /Operating margin/ }).click()
+  await page.getByRole('button', { name: 'Back' }).click()
   await page.getByRole('button', { name: 'Show breakdown' }).click()
   await page.getByRole('option', { name: /Evidence/ }).click()
   await expect(page.locator('[data-explore-view="table"]')).toBeVisible()

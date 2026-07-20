@@ -461,6 +461,17 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
 
   useEffect(() => {
     const panel = panelForNavigation(document, navigation)
+    // Leaving a drill level (Back, a breadcrumb jump, a reset) must not leave
+    // the level's data on screen: any explore host that is no longer the
+    // active drill target falls back to the frame the document shipped.
+    for (const candidate of document.panels) {
+      if (!candidate.drillRoot || candidate.id === panel?.id) continue
+      const documentFrame = document.frames[candidate.frame]
+      if (!documentFrame || frames.get(candidate.id)?.data === documentFrame) continue
+      frames.set(candidate.id, {
+        data: documentFrame, isStale: false, isLoading: false, error: null, retry: retryFrame,
+      })
+    }
     if (!panel) return
     const resolved = frameForPanel(document, navigation, panel, new Map())
     if (!resolved.shouldQuery || !queryClient) {

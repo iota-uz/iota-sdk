@@ -24,6 +24,7 @@ const (
 	I18nExploreOpenBreak  = "explore.openBreakdown"
 	I18nExplorePanel      = "explore.panel"
 	I18nExplorePath       = "explore.path"
+	I18nExplorePathLabel  = "explore.pathLabel"
 	I18nExploreUnavail    = "explore.unavailable"
 	I18nExploreViewAs     = "explore.viewSegmentAs"
 	I18nExploreViews      = "explore.views"
@@ -68,7 +69,7 @@ func RuntimeI18nKeys() []string {
 		I18nDashboardEmpty, I18nDrillReset,
 		I18nExploreBack, I18nExploreBreakdown, I18nExploreClose, I18nExploreExpand,
 		I18nExploreNoDetail, I18nExploreOpenBreak,
-		I18nExplorePanel, I18nExplorePath,
+		I18nExplorePanel, I18nExplorePath, I18nExplorePathLabel,
 		I18nExploreUnavail, I18nExploreViewAs, I18nExploreViews,
 		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelMissing, I18nPanelOpenMetric,

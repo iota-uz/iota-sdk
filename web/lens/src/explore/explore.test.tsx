@@ -255,10 +255,18 @@ describe('header trail', () => {
     ))
     renderExplore()
 
+    // The header carries the back button and the current level only; the full
+    // path lives in the overlay that level opens.
     const trail = screen.getByRole('navigation', { name: /exploration path/ })
+    const current = within(trail).getByRole('button', { name: /Cost centers/ })
+    expect(within(trail).queryByRole('button', { name: /Profitability/ })).toBeNull()
+    fireEvent.click(current)
+
     // The perspective segment carries no level of its own, so it contributes no
-    // crumb: the trail is Profitability › Operating margin › Cost centers.
-    fireEvent.click(within(trail).getByRole('button', { name: /Operating margin/ }))
+    // step: the path is Profitability › Operating margin › Cost centers.
+    const steps = within(overlay()).getAllByRole('button', { name: /Profitability|Operating margin|Cost centers/ })
+    expect(steps.map((step) => step.textContent)).toEqual(['Profitability', 'Operating margin', 'Cost centers'])
+    fireEvent.click(steps[1]!)
     await waitFor(() => {
       expect(new URL(window.location.href).searchParams.getAll('path')).toEqual(path.slice(0, 2))
     })

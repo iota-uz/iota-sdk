@@ -13,6 +13,11 @@ import { recordForRow, resolveActionURL, variablesFromLocation } from '../explor
  */
 
 export function panelNavigateAction(panel: Panel): Action | undefined {
+  // One panel, one click behaviour. A panel that owns a drill tree explores on
+  // click and keeps its links inside the drill overlay; only a panel without a
+  // tree turns its navigate action into a click target. Without this rule a
+  // segment click both opened the overlay and left the page.
+  if (panel.drillRoot) return undefined
   return panel.actions.find((action) => action.kind === 'navigate')
 }
 

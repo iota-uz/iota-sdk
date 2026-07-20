@@ -1,9 +1,9 @@
 import type { Story } from '@ladle/react'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import fixture from '../fixtures/explore.json'
 import { parseDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
-import { DashboardRuntimeProvider, DocumentProvider, useDrill } from './runtime'
+import { DashboardRuntimeProvider, DocumentProvider, navigationToURL, useDrill } from './runtime'
 import './styles.css'
 
 const dashboardDocument = parseDocument(fixture)
@@ -88,6 +88,70 @@ export const DrillOverlayInExpandedPanel: Story = () => (
   <OverlayStory theme="light" labels={['Expand panel', 'Show breakdown']} />
 )
 DrillOverlayInExpandedPanel.storyName = 'Drill overlay inside an expanded panel'
+
+/**
+ * The worst case for the header trail: the deepest path inside a third-width
+ * card whose header also carries a total badge. The header keeps the back
+ * button and the current level (or, when even that cannot stay readable,
+ * only the back button); the full path lives in the overlay.
+ */
+const deepPath = [
+  'profitability',
+  'profitability/operating-margin',
+  'profitability/operating-margin/composition',
+  'profitability/operating-margin/composition/transactions',
+]
+
+const narrowDocument = {
+  ...dashboardDocument,
+  panels: dashboardDocument.panels.map((panel) => ({ ...panel, total: 1_840_000 })),
+  layout: { rows: [{ panels: dashboardDocument.layout.rows[0]!.panels.map((item) => ({ ...item, span: 3 })) }] },
+}
+
+function narrowDocumentWithSpan(span: number) {
+  return {
+    ...narrowDocument,
+    layout: { rows: [{ panels: narrowDocument.layout.rows[0]!.panels.map((item) => ({ ...item, span })) }] },
+  }
+}
+
+function AtDeepestLevel({ theme, labels = [], span = 3 }: {
+  theme: 'light' | 'dark'
+  labels?: Array<string>
+  span?: number
+}) {
+  useState(() => {
+    window.history.replaceState(null, '', navigationToURL(
+      { panelId: narrowDocument.panels[0]!.id, path: deepPath, perspectiveId: 'profitability/operating-margin/composition' },
+      new URL(window.location.href),
+    ))
+    return true
+  })
+  return (
+    <div className="lens-root" data-theme={theme}>
+      <DocumentProvider initialDocument={narrowDocumentWithSpan(span)}>
+        <DashboardRuntimeProvider locale="en">
+          <DashboardPanels />
+          {labels.length > 0 && <ClickOnMount labels={labels} />}
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+export const NarrowDeepTrailLight: Story = () => <AtDeepestLevel theme="light" />
+NarrowDeepTrailLight.storyName = 'Narrow card, deepest path - light'
+
+export const NarrowDeepTrailDark: Story = () => <AtDeepestLevel theme="dark" />
+NarrowDeepTrailDark.storyName = 'Narrow card, deepest path - dark'
+
+/**
+ * Narrower still: the header can no longer hold a readable level name, so it
+ * steps aside and leaves the back button and the breakdown affordance rather
+ * than a one-letter stump.
+ */
+export const NarrowestTrail: Story = () => <AtDeepestLevel theme="light" span={2} />
+NarrowestTrail.storyName = 'Header too narrow for a level name'
 
 export const KeyboardWalkthrough: Story = () => (
   <Walkthrough>

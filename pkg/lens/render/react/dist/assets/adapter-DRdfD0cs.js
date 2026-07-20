@@ -1,4 +1,4 @@
-import{i as Th,n as B1}from"./lens-dashboard-xCdWNIaU.js";/*! *****************************************************************************
+import{i as Th,n as B1}from"./lens-dashboard-BQm0vXpD.js";/*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any

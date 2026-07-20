@@ -90,16 +90,18 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     ? levelForPath(document, navigation.path)
     : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
   const drillable = level ? level.children.some(({ target }) => target) : Boolean(panel.drillRoot)
-  // A panel-level navigate action made every data point clickable in the
-  // legacy renderer, drill tree or not; without it charts like «Распределение
-  // риска» lose their only way into the detail page.
+  // One panel, one click behaviour — the legacy rule. A panel with a drill
+  // tree explores (the overlay is where its links live); a panel without one
+  // navigates straight to its action's target. `hasTree` deliberately keys off
+  // the tree's existence, not the current level's children, so reaching a leaf
+  // level cannot silently flip a panel from one class to the other.
+  const hasTree = Boolean(panel.drillRoot) || Boolean(level)
   const panelNavigation = usePanelNavigation(panel)
   const markURL = useCallback((key: NodeKey) => {
-    if (!panelNavigation.action || !frame.data) return undefined
+    if (hasTree || !panelNavigation.action || !frame.data) return undefined
     const index = rowIndexForKey(frame.data, panel, key)
     return panelNavigation.urlForRow(frame.data, index >= 0 ? frame.data.rows[index] : undefined)
-  }, [frame.data, panelNavigation, panel])
-  const interactive = drillable || Boolean(panelNavigation.action)
+  }, [frame.data, hasTree, panelNavigation, panel])
   const kind = panel.kind as ChartKind
 
   // A new level or perspective is new data; carrying hidden keys across would
@@ -148,8 +150,13 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     presentation: panel.presentation,
   }) : undefined, [document.theme, format, formatAxis, kind, panel.encoding, panel.presentation, selectedKey, visibleFrame])
   const onMarkSelect = useMarkSelection()
+  // Explore hosts can open the overlay for any segment that has something to
+  // show; a standalone tree panel can only drill where a target exists.
+  const interactive = hasTree
+    ? (onMarkSelect ? Boolean(level?.children.length ?? panel.drillRoot) : drillable)
+    : Boolean(panelNavigation.action)
   const select = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
-    if (!drillable) {
+    if (!hasTree) {
       const href = markURL(key)
       if (href) navigateTo(href)
       return
@@ -165,7 +172,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [drillInto, drillable, level, markURL, onMarkSelect, panel.id])
+  }, [drillInto, hasTree, level, markURL, onMarkSelect, panel.id])
 
   return (
     <PanelFrame panel={panel} frame={frame}>

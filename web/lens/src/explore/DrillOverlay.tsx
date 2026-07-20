@@ -13,8 +13,16 @@ export interface DrillOverlayAnchor {
   y: number
 }
 
+export interface DrillPathStep {
+  label: string
+  current: boolean
+  onSelect: () => void
+}
+
 export interface DrillOverlayProps {
   target: DrillTarget
+  /** Ancestors of the current level; the header only shows the last one. */
+  path?: Array<DrillPathStep>
   anchor: DrillOverlayAnchor
   valueFormat?: FieldFormat
   theme?: string
@@ -79,7 +87,7 @@ export function positionOverlay(
 }
 
 export function DrillOverlay({
-  target, anchor, valueFormat, theme, dark = false, selectedPerspectiveId,
+  target, path = [], anchor, valueFormat, theme, dark = false, selectedPerspectiveId,
   onDrillInto, onDrillChild, onPerspective, onClose,
 }: DrillOverlayProps) {
   const translate = useTranslate()
@@ -191,6 +199,29 @@ export function DrillOverlay({
             <X />
           </button>
         </header>
+
+        {path.length > 1 && (
+          <section className="lens-drill-section">
+            <h4 className="lens-drill-section-label">{translate('explore.pathLabel', 'Path')}</h4>
+            <ol className="lens-drill-path">
+              {path.map((step, index) => (
+                <li key={`${step.label}-${index}`}>
+                  <button
+                    aria-current={step.current ? 'page' : undefined}
+                    className="lens-drill-path-step"
+                    disabled={step.current}
+                    onClick={step.onSelect}
+                    style={{ paddingLeft: `${index * 10}px` }}
+                    type="button"
+                  >
+                    {index > 0 && <CaretRight />}
+                    <span>{step.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </section>
+        )}
 
         {target.breakdown.length > 0 && (
           <section className="lens-drill-section">

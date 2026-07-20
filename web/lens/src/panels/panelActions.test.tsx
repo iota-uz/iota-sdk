@@ -2,7 +2,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter } from '../charts/adapter'
-import { CoveragePanel, ChartPanel, StatMetric, StatPanel } from './index'
+import { CoveragePanel, ChartPanel, MarkSelectionContext, StatMetric, StatPanel } from './index'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { navigateTo } from '../runtime/navigate'
 
@@ -181,6 +181,93 @@ describe('charts with a panel-level navigate action', () => {
     expect(container.querySelector('[data-drillable]')).toBeNull()
     activate('broker')
     expect(assign).not.toHaveBeenCalled()
+  })
+})
+
+describe('one panel, one click behaviour', () => {
+  function renderTreeChart(panel: Panel, onMark?: (key: string) => void) {
+    let select: ((key: string) => void) | undefined
+    const adapter: ChartAdapter = {
+      mount: (_element, _input, events) => {
+        select = (key) => events.onSelect(key)
+        return { update: () => {}, dispose: () => {} }
+      },
+    }
+    const document = documentWith([panel], { 'chart:root': chartFrame })
+    document.drill = {
+      inlineDepth: 1,
+      edges: {
+        root: {
+          id: 'root', label: 'Risk split', path: ['root'], frame: 'chart:root', perspectives: [],
+          children: [
+            { key: 'direct', label: 'Direct', path: ['root', 'direct'], target: 'detail' },
+            { key: 'broker', label: 'Broker', path: ['root', 'broker'], target: 'detail' },
+          ],
+        },
+        detail: {
+          id: 'detail', label: 'Detail', path: ['root', 'direct'], frame: 'chart:root',
+          perspectives: [], children: [],
+        },
+      },
+    } as typeof document.drill
+    const view = renderPanel(
+      document,
+      <MarkSelectionContext.Provider value={onMark}>
+        <ChartPanel panel={panel} adapter={adapter} />
+      </MarkSelectionContext.Provider>,
+    )
+    return { ...view, activate: (key: string) => select?.(key) }
+  }
+
+  it('never navigates from a mark when the panel owns a drill tree', async () => {
+    const onMark = vi.fn()
+    // The same panel carries a navigate action: the tree still wins, so the
+    // click can only open the overlay.
+    const panel: Panel = {
+      ...chartPanel([navigate('/risk/{segment}', [{ name: 'segment', source: { kind: 'field', name: 'id' } }])]),
+      drillRoot: 'root',
+    }
+    const { activate } = renderTreeChart(panel, onMark)
+
+    await waitFor(() => expect(screen.getByLabelText(/chart/)).toBeInTheDocument())
+    activate('broker')
+    expect(onMark).toHaveBeenCalledWith('broker', undefined)
+    expect(vi.mocked(navigateTo)).not.toHaveBeenCalled()
+  })
+
+  it('never opens an overlay from a mark when the panel has no tree', async () => {
+    const onMark = vi.fn()
+    const panel = chartPanel([navigate('/risk/{segment}', [
+      { name: 'segment', source: { kind: 'field', name: 'id' } },
+    ])])
+    let select: ((key: string) => void) | undefined
+    const adapter: ChartAdapter = {
+      mount: (_element, _input, events) => {
+        select = (key) => events.onSelect(key)
+        return { update: () => {}, dispose: () => {} }
+      },
+    }
+    renderPanel(
+      documentWith([panel], { 'chart:root': chartFrame }),
+      <MarkSelectionContext.Provider value={onMark}>
+        <ChartPanel panel={panel} adapter={adapter} />
+      </MarkSelectionContext.Provider>,
+    )
+
+    await waitFor(() => expect(screen.getByLabelText(/chart/)).toBeInTheDocument())
+    select?.('broker')
+    expect(onMark).not.toHaveBeenCalled()
+    expect(vi.mocked(navigateTo)).toHaveBeenCalledWith(expect.stringContaining('/risk/broker'))
+  })
+
+  it('keeps a card link off a panel that owns a drill tree', () => {
+    const panel: Panel = { ...statPanel([navigate('/metrics/loss')]), drillRoot: 'root' }
+    const { container } = renderPanel(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <StatPanel panel={panel} />,
+    )
+
+    expect(container.querySelector('.lens-card-link')).toBeNull()
   })
 })
 
