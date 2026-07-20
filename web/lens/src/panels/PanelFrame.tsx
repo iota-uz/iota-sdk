@@ -1,7 +1,8 @@
-import { useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
 import { type PanelFrameState, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
+import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
 
 export interface PanelFrameProps {
@@ -32,6 +33,9 @@ export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
 export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
   const translate = useTranslate()
   const [expanded, setExpanded] = useState(false)
+  const [overlayTheme, setOverlayTheme] = useState<{ theme?: string; dark: boolean }>({ dark: false })
+  const expandRef = useRef<HTMLButtonElement>(null)
+  const restoreFocus = useRef(false)
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const hasRows = Boolean(frame.data?.rows.length)
   const showInitialLoading = frame.isLoading && !frame.data
@@ -39,7 +43,31 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   const showTotal = variant === 'chart' && panel.total !== undefined && badgePlacement === 'header'
   const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
 
-  return (
+  const toggleExpanded = useCallback(() => {
+    setExpanded((current) => {
+      if (current) return false
+      // The dialog is portaled out of the dashboard subtree, so its theme has
+      // to be read from the root it is leaving.
+      const root = expandRef.current?.closest<HTMLElement>('.lens-root')
+      setOverlayTheme({ theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false })
+      return true
+    })
+  }, [])
+
+  const collapse = useCallback(() => {
+    restoreFocus.current = true
+    setExpanded(false)
+  }, [])
+
+  // The button is re-parented out of the portal on collapse, so focus can only
+  // be restored once React has committed the node back into the grid.
+  useEffect(() => {
+    if (expanded || !restoreFocus.current) return
+    restoreFocus.current = false
+    expandRef.current?.focus()
+  }, [expanded])
+
+  const section = (
     <section
       className={[
         'lens-panel',
@@ -48,6 +76,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         panel.presentation?.fill ? 'lens-panel-fill' : '',
         expanded ? 'lens-panel-expanded' : '',
       ].filter(Boolean).join(' ')}
+      data-expanded={expanded || undefined}
       aria-label={panel.title}
       aria-busy={frame.isLoading}
       data-panel-kind={panel.kind}
@@ -69,7 +98,8 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
             aria-label={expandLabel}
             aria-pressed={expanded}
             className="lens-export-button lens-icon-button"
-            onClick={() => setExpanded((current) => !current)}
+            onClick={expanded ? collapse : toggleExpanded}
+            ref={expandRef}
             title={expandLabel}
             type="button"
           >
@@ -102,5 +132,16 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         </div>
       )}
     </section>
+  )
+
+  if (!expanded) return section
+  return (
+    <>
+      {/* A placeholder keeps the grid from reflowing while the panel is away. */}
+      <div aria-hidden="true" className="lens-panel-placeholder" />
+      <PanelOverlay label={panel.title} theme={overlayTheme.theme} dark={overlayTheme.dark} onClose={collapse}>
+        {section}
+      </PanelOverlay>
+    </>
   )
 }

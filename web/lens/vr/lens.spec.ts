@@ -25,6 +25,8 @@ const storyIds = [
   'parity--dashboard-loading-skeleton-dark',
   'parity--dashboard-loading-skeleton-light',
   'parity--drill-pill-affordances',
+  'parity--expanded-panel-dark',
+  'parity--expanded-panel-light',
   'parity--metric-group',
   'parity--panel-skeletons-dark',
   'parity--panel-skeletons-light',
@@ -55,6 +57,8 @@ const staticStories = [
   ['parity--dashboard-loading-skeleton-dark', 0],
   ['parity--dashboard-loading-skeleton-light', 0],
   ['parity--drill-pill-affordances', 0],
+  ['parity--expanded-panel-dark', 1],
+  ['parity--expanded-panel-light', 1],
   ['parity--metric-group', 0],
   ['parity--panel-skeletons-dark', 0],
   ['parity--panel-skeletons-light', 0],
@@ -66,7 +70,8 @@ async function openStory(page: Page, storyId: string, canvasCount: number): Prom
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const query = new URLSearchParams({ story: storyId, mode: 'preview', 'lens-vr': '1' })
   await page.goto(`/?${query.toString()}`, { waitUntil: 'networkidle' })
-  await expect(page.locator('.lens-root')).toBeVisible()
+  // An expanded panel portals a second .lens-root (its dialog host) to body.
+  await expect(page.locator('.lens-root').first()).toBeVisible()
   await expect(page.locator('canvas')).toHaveCount(canvasCount)
   await page.evaluate(async () => {
     await document.fonts.ready

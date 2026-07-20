@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import type { CSSProperties } from 'react'
 import type { LayoutItem, Panel, PanelKind } from '../contract'
 

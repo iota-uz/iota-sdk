@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Frame, Panel } from '../contract'
 import { clusterRow, DashboardPanels } from '../DashboardPanels'
@@ -331,5 +331,81 @@ describe('drill affordance', () => {
     const rules = container.querySelectorAll('.lens-table-underline-rule')
     expect(rules).toHaveLength(1)
     expect(rules[0]).not.toHaveClass('lens-table-underline-rule-negative')
+  })
+})
+
+describe('expanded panel', () => {
+  const expandable: Panel = { ...coveragePanel, id: 'expandable' }
+
+  function openExpanded(children: React.ReactNode) {
+    const view = renderDocument(
+      documentWith([expandable], { 'coverage:root': coverageFrame }),
+      children,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Expand panel' }))
+    return view
+  }
+
+  it('renders the panel in a modal dialog at the end of body, not inside the grid', () => {
+    const { container } = openExpanded(<CoveragePanel panel={expandable} />)
+
+    const dialog = screen.getByRole('dialog')
+    expect(dialog).toHaveAttribute('aria-modal', 'true')
+    expect(dialog).toHaveAttribute('aria-label', 'Claims paid')
+    // Portaled out of the dashboard: no ancestor stacking context can trap it.
+    expect(container.contains(dialog)).toBe(false)
+    expect(dialog.closest('.lens-root')).toHaveClass('lens-overlay-root')
+    expect(document.body.lastElementChild).toContainElement(dialog)
+    expect(dialog.querySelector('.lens-panel')).not.toBeNull()
+    expect(document.body.style.overflow).toBe('hidden')
+  })
+
+  it('carries the dashboard theme onto the portal host', () => {
+    render(
+      <div className="lens-root" data-theme="dark">
+        <DocumentProvider initialDocument={documentWith([expandable], { 'coverage:root': coverageFrame })}>
+          <DashboardRuntimeProvider locale="en"><CoveragePanel panel={expandable} /></DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Expand panel' }))
+
+    expect(screen.getByRole('dialog').closest('.lens-root')).toHaveAttribute('data-theme', 'dark')
+  })
+
+  it.each([
+    ['Escape key', () => fireEvent.keyDown(document, { key: 'Escape' })],
+    ['backdrop click', () => fireEvent.mouseDown(document.querySelector('.lens-panel-overlay')!)],
+  ])('closes on %s and restores focus to the expand button', (_name, close) => {
+    openExpanded(<CoveragePanel panel={expandable} />)
+    close()
+
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.body.style.overflow).not.toBe('hidden')
+    expect(screen.getByRole('button', { name: 'Expand panel' })).toHaveFocus()
+  })
+
+  it('keeps a click inside the dialog from dismissing it', () => {
+    openExpanded(<CoveragePanel panel={expandable} />)
+    fireEvent.mouseDown(screen.getByRole('dialog'))
+
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('escapes a tab group without being trapped by its card', () => {
+    const layout: DashboardDocument['layout'] = {
+      rows: [{
+        panels: [{ panelId: 'expandable', span: 12, group: { id: 'result', kind: 'tabs', span: 12, tab: 'Cash' } }],
+      }],
+    }
+    const { container } = renderDocument(
+      documentWith([expandable], { 'coverage:root': coverageFrame }, layout),
+      <DashboardPanels />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Expand panel' }))
+
+    const dialog = screen.getByRole('dialog')
+    expect(container.contains(dialog)).toBe(false)
+    expect(container.querySelector('.lens-panel-placeholder')).not.toBeNull()
   })
 })

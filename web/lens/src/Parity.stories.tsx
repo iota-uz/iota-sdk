@@ -1,4 +1,5 @@
 import type { Story } from '@ladle/react'
+import { useEffect, useRef } from 'react'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import { CoveragePanel, DashboardSkeleton, PanelSkeletonBody, TablePanel } from './panels'
@@ -250,3 +251,38 @@ export const DrillPillAffordances: Story = () => {
   })
   return <Runtime doc={doc}><TablePanel panel={drillPillPanel} /></Runtime>
 }
+
+function ExpandOnMount({ label }: { label: string }) {
+  const opened = useRef(false)
+  useEffect(() => {
+    if (opened.current) return
+    opened.current = true
+    const button = window.document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`)
+    button?.click()
+  }, [label])
+  return null
+}
+
+function ExpandedStory({ theme }: { theme: 'light' | 'dark' }) {
+  const doc = storyDocument([premiumPanel, coveragePanel], {
+    'premium:frame': premiumFrame, 'payouts:frame': coverageFrame,
+  }, {
+    rows: [{
+      heading: 'ПРЕМИИ',
+      panels: [{ panelId: 'premium', span: 6 }, { panelId: 'payouts', span: 6 }],
+    }],
+  })
+  return (
+    <div className="lens-root" data-theme={theme}>
+      <DocumentProvider initialDocument={doc}>
+        <DashboardRuntimeProvider locale="ru">
+          <DashboardPanels />
+          <ExpandOnMount label="Expand panel" />
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+export const ExpandedPanelLight: Story = () => <ExpandedStory theme="light" />
+export const ExpandedPanelDark: Story = () => <ExpandedStory theme="dark" />

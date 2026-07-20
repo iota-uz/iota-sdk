@@ -143,8 +143,48 @@
     @apply lens-border-transparent lens-bg-inset lens-text-strong;
   }
 
-  .lens-panel-expanded {
-    @apply lens-fixed lens-inset-4 lens-z-40 lens-h-auto lens-shadow-lg;
+  /* The portal host. It leaves the dashboard subtree entirely, so it must
+     re-declare the Lens root context and sit above every page stacking
+     context, including the host application's chrome. */
+  .lens-overlay-root {
+    @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
+    z-index: var(--lens-overlay-z, 2147483000);
+  }
+
+  .lens-panel-overlay {
+    @apply lens-fixed lens-inset-0 lens-flex lens-items-center lens-justify-center lens-p-6;
+    /* Near-opaque: a sibling card behind the dialog must not read as content. */
+    background: rgba(15, 23, 42, .92);
+  }
+
+  .lens-panel-overlay-frame {
+    @apply lens-flex lens-max-h-full lens-w-full lens-outline-none;
+    width: min(1280px, 100%);
+    height: min(90vh, 100%);
+  }
+
+  .lens-panel-overlay-frame > .lens-panel {
+    @apply lens-max-h-full lens-min-h-0 lens-flex-1 lens-shadow-lg;
+  }
+
+  /* Long content scrolls inside the dialog instead of overflowing the
+     viewport; charts follow the card and resize through their observer. */
+  .lens-panel-expanded .lens-panel-body {
+    @apply lens-min-h-0 lens-overflow-auto;
+  }
+
+  .lens-panel-expanded .lens-chart-host {
+    @apply lens-min-h-0;
+  }
+
+  .lens-panel-expanded .lens-chart-canvas {
+    @apply lens-min-h-64;
+  }
+
+  /* The panel is rendered in the dialog, so its grid slot keeps its size
+     without painting anything. */
+  .lens-panel-placeholder {
+    @apply lens-h-full lens-min-h-44;
   }
 
   .lens-panel-footer {
