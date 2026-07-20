@@ -164,21 +164,25 @@ type PanelSpec struct {
 	Status          *panel.StatusSpec     `json:"status,omitempty"`
 	Sparkline       *panel.SparklineSpec  `json:"sparkline,omitempty"`
 	GroupLayout     panel.GroupLayout     `json:"groupLayout,omitempty"`
-	Fields          FieldMappingSpec      `json:"fields,omitempty"`
-	Formatter       *format.Spec          `json:"formatter,omitempty"`
-	Columns         []TableColumnSpec     `json:"columns,omitempty"`
-	Transforms      []transform.Spec      `json:"transforms,omitempty"`
-	Action          *action.Spec          `json:"action,omitempty"`
-	Children        []PanelSpec           `json:"children,omitempty"`
-	ClassName       string                `json:"className,omitempty"`
-	Chrome          chrome.Spec           `json:"-"`
-	ChromeIcon      string                `json:"icon,omitempty"`
-	AccentColor     string                `json:"accentColor,omitempty"`
-	ValueAxis       panel.ValueAxis       `json:"valueAxis,omitempty"`
-	Distributed     bool                  `json:"distributed,omitempty"`
-	ColorField      string                `json:"colorField,omitempty"`
-	ColorScale      string                `json:"colorScale,omitempty"`
-	Export          exportmeta.Spec       `json:"export,omitempty"`
+	// Presentation carries opt-in renderer density hints (legend placement,
+	// in-slice labels, total-badge placement, bar width, per-category color).
+	// The zero value keeps today's rendering.
+	Presentation panel.PresentationHints `json:"presentation,omitzero"`
+	Fields       FieldMappingSpec        `json:"fields,omitempty"`
+	Formatter    *format.Spec            `json:"formatter,omitempty"`
+	Columns      []TableColumnSpec       `json:"columns,omitempty"`
+	Transforms   []transform.Spec        `json:"transforms,omitempty"`
+	Action       *action.Spec            `json:"action,omitempty"`
+	Children     []PanelSpec             `json:"children,omitempty"`
+	ClassName    string                  `json:"className,omitempty"`
+	Chrome       chrome.Spec             `json:"-"`
+	ChromeIcon   string                  `json:"icon,omitempty"`
+	AccentColor  string                  `json:"accentColor,omitempty"`
+	ValueAxis    panel.ValueAxis         `json:"valueAxis,omitempty"`
+	Distributed  bool                    `json:"distributed,omitempty"`
+	ColorField   string                  `json:"colorField,omitempty"`
+	ColorScale   string                  `json:"colorScale,omitempty"`
+	Export       exportmeta.Spec         `json:"export,omitempty"`
 }
 
 type TableColumnSpec struct {
@@ -191,6 +195,11 @@ type TableColumnSpec struct {
 	Cell      *panel.TableCellSpec `json:"cell,omitempty"`
 	// WidthPx, when > 0, sets a min-width (px) on the column's cells.
 	WidthPx int `json:"width,omitempty"`
+	// ClampLines, when > 0, limits the cell text to that many rendered lines.
+	ClampLines int `json:"clamp,omitempty"`
+	// Affordance selects how an actionable cell advertises its action; "pill"
+	// renders a compact pill with a drill arrow.
+	Affordance string `json:"affordance,omitempty"`
 }
 
 type FieldMappingSpec struct {

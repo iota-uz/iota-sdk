@@ -482,6 +482,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		Status:          item.Status,
 		Sparkline:       item.Sparkline,
 		GroupLayout:     item.GroupLayout,
+		Presentation:    item.Presentation,
 		Fields: panel.FieldMapping{
 			Label:     panel.Ref(resolveString(item.Fields.Label, opts.Values)),
 			Value:     panel.Ref(resolveString(item.Fields.Value, opts.Values)),
@@ -518,14 +519,16 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			actionSpec = &resolvedAction
 		}
 		out.Columns = append(out.Columns, panel.TableColumn{
-			Field:     panel.Ref(resolveString(column.Field, opts.Values)),
-			Label:     resolveText(column.Label, opts),
-			Formatter: column.Formatter,
-			Action:    actionSpec,
-			Text:      resolveText(column.Text, opts),
-			Align:     column.Align,
-			Cell:      column.Cell,
-			WidthPx:   column.WidthPx,
+			Field:      panel.Ref(resolveString(column.Field, opts.Values)),
+			Label:      resolveText(column.Label, opts),
+			Formatter:  column.Formatter,
+			Action:     actionSpec,
+			Text:       resolveText(column.Text, opts),
+			Align:      column.Align,
+			Cell:       column.Cell,
+			WidthPx:    column.WidthPx,
+			ClampLines: column.ClampLines,
+			Affordance: column.Affordance,
 		})
 	}
 
