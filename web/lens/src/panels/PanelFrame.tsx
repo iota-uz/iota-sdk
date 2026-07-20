@@ -44,6 +44,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   const showInitialLoading = frame.isLoading && !frame.data
   const badgePlacement = panel.presentation?.totalBadge ?? 'header'
   const showTotal = variant === 'chart' && panel.total !== undefined && badgePlacement === 'header'
+  const totalLabel = translate('panel.total', 'Total')
   const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
 
   const toggleExpanded = useCallback(() => {
@@ -88,12 +89,12 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       <header className="lens-panel-header">
         {/* A drill trail replaces the static title: it says where the panel is
             and how to get back without spending a row of the grid. */}
-        {chrome?.trail ?? <h3 className="lens-panel-title">{panel.title}</h3>}
+        {chrome?.trail ?? <h3 className="lens-panel-title" title={panel.title}>{panel.title}</h3>}
         {chrome?.explore}
         <div className="lens-panel-actions">
           {showTotal && (
-            <span className="lens-panel-total">
-              <span className="lens-panel-total-label">{translate('panel.total', 'Total')}:</span>
+            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(panel.total)}`}>
+              <span className="lens-panel-total-label">{totalLabel}:</span>
               {' '}
               {formatTotal(panel.total)}
             </span>

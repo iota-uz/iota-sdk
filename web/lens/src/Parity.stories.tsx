@@ -364,3 +364,24 @@ export const LegendHiddenSeries: Story = () => {
   )
 }
 LegendHiddenSeries.storyName = 'Legend hidden series'
+
+const crowdedHeaderPanel: Panel = {
+  ...premiumPanel,
+  id: 'crowded',
+  title: 'Финансовые расходы и прочие операционные затраты',
+  total: 118_800_000_000_000,
+  presentation: { legend: 'below', sliceLabels: 'percent', fill: true },
+}
+
+/**
+ * A long title next to a wide total badge. The title is the panel's identity,
+ * so it holds its width and the badge ellipsizes (its tooltip keeps the full
+ * number reachable).
+ */
+export const PanelHeaderPressure: Story = () => {
+  const doc = storyDocument([crowdedHeaderPanel], { 'premium:frame': premiumFrame }, {
+    rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'crowded', span: 5 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+PanelHeaderPressure.storyName = 'Panel header pressure'

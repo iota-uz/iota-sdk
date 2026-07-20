@@ -119,12 +119,23 @@
     @apply lens-flex lens-min-h-10 lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
   }
 
+  /* The title names the panel, so it keeps its width and the header's summary
+     chrome absorbs the pressure. The 60% ceiling stops a very long title from
+     pushing the actions out of the card. */
   .lens-panel-title {
-    @apply lens-m-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-flex-none lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    max-width: 60%;
   }
 
   .lens-panel-actions {
-    @apply lens-flex lens-items-center lens-gap-2;
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-justify-end lens-gap-2;
+  }
+
+  /* Controls are fixed-size affordances: only the summary badge gives ground. */
+  .lens-panel-actions > .lens-icon-button,
+  .lens-panel-actions > .lens-export-button,
+  .lens-panel-actions > .lens-panel-status {
+    @apply lens-flex-none;
   }
 
   .lens-export-control {
@@ -333,8 +344,11 @@
     @apply lens-font-medium lens-text-muted;
   }
 
+  /* The badge is a summary, not an identifier: when the header runs out of
+     room it ellipsizes (its title attribute carries the full number) instead
+     of squeezing the panel title. */
   .lens-panel-total {
-    @apply lens-inline-flex lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-strong;
+    @apply lens-block lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-strong;
   }
 
   .lens-panel-body {

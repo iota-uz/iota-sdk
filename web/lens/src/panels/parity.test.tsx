@@ -438,6 +438,23 @@ const pieFrame: Frame = {
   rows: [['direct', 'Direct', 600], ['broker', 'Broker', 300], ['inward', 'Inward', 100]],
 }
 
+describe('panel header pressure', () => {
+  it('gives the title and the total badge their own tooltips so truncation stays recoverable', () => {
+    const panel: Panel = {
+      ...piePanel,
+      title: 'Финансовые расходы и прочие операционные затраты',
+      presentation: { legend: 'below', sliceLabels: 'percent' },
+    }
+    const { container } = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(container.querySelector('.lens-panel-title')).toHaveAttribute('title', panel.title)
+    expect(container.querySelector('.lens-panel-total')).toHaveAttribute('title', 'Total: 1,000')
+  })
+})
+
 describe('chart legend series toggle', () => {
   function renderPie() {
     const inputs: Array<ChartInput> = []
