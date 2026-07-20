@@ -215,10 +215,15 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 			},
 		},
 	}, wirePanel.Columns)
-	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS", Symbol: "so’m"}, wirePanel.Format["amount"])
+	// A spec that asks for whole units must reach the wire as precision 0, not
+	// as an absent field: an absent precision means "locale default", which is
+	// how a money headline used to pick up three decimals.
+	require.Equal(t, FieldFormat{
+		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(0), Symbol: "so’m",
+	}, wirePanel.Format["amount"])
 	// Delta secondaries carry percent-unit values, so the wire format defaults
 	// to percent when the column declares no formatter of its own.
-	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: 1, DecimalSeparator: "."}, wirePanel.Format["delta_pct"])
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}, wirePanel.Format["delta_pct"])
 
 	wireFrame := doc.Frames[wirePanel.Frame]
 	require.Equal(t, []Column{
@@ -296,7 +301,7 @@ func TestBuild_ExplicitDeltaFormatterBeatsPercentDefault(t *testing.T) {
 
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
 	require.NoError(t, err)
-	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS", Precision: 2, Symbol: "so’m"}, doc.Panels[0].Format["delta_pct"])
+	require.Equal(t, FieldFormat{Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Symbol: "so’m"}, doc.Panels[0].Format["delta_pct"])
 }
 
 func TestBuild_TableWithoutColumnsKeepsEveryField(t *testing.T) {
@@ -346,7 +351,7 @@ func TestBuild_CompactFormatterPinsSeparator(t *testing.T) {
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
 	require.NoError(t, err)
 	require.Equal(t, FieldFormat{
-		Kind: FormatMoney, Currency: "UZS", Precision: 2, Compact: true, DecimalSeparator: ".",
+		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true, DecimalSeparator: ".",
 	}, doc.Panels[0].Format["value"])
 }
 
@@ -494,5 +499,5 @@ func TestBuild_PercentFormatPinsSeparator(t *testing.T) {
 	require.NoError(t, err)
 	// The Go renderer prints "47.1%"; the wire format carries the same
 	// separator so the runtime does not drift to "47,1 %".
-	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: 1, DecimalSeparator: "."}, doc.Panels[0].Format["value"])
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}, doc.Panels[0].Format["value"])
 }

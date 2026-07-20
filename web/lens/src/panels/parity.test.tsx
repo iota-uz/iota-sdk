@@ -115,6 +115,17 @@ describe('coverage panel', () => {
     const shares = [...container.querySelectorAll('.lens-coverage-legend-share')].map((node) => node.textContent)
     expect(shares).toEqual(['100%', '0%'])
   })
+
+  it('honours a precision of 0 in the headline instead of falling back to locale defaults', () => {
+    const panel: Panel = { ...coveragePanel, headline: 51_522_007_533.993 }
+    const { container } = renderDocument(
+      documentWith([panel], { 'coverage:root': coverageFrame }),
+      <CoveragePanel panel={panel} />,
+    )
+
+    expect(container.querySelector('.lens-coverage-headline')?.textContent).toContain('51,522,007,534')
+    expect(container.querySelector('.lens-coverage-headline')?.textContent).not.toContain('.993')
+  })
 })
 
 const tablePanel: Panel = {

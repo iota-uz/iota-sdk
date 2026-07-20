@@ -410,7 +410,7 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 		// Delta secondaries are percent changes by contract; default their wire
 		// format so the runtime never renders a bare unlabeled number.
 		if _, exists := formats[column.Cell.PercentField.Name()]; !exists {
-			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: 1, DecimalSeparator: "."}
+			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}
 		}
 	}
 	return formats
@@ -448,7 +448,7 @@ func buildTableColumns(spec panel.Spec) []TableColumn {
 }
 
 func convertFormat(spec format.Spec) (FieldFormat, bool) {
-	result := FieldFormat{Precision: spec.Precision, Layout: spec.Layout}
+	result := FieldFormat{Precision: PrecisionOf(spec.Precision), Layout: spec.Layout}
 	//nolint:exhaustive // Formats without a wire representation are dropped via default.
 	switch spec.Kind {
 	case format.KindMoney:

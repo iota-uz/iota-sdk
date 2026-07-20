@@ -98,3 +98,19 @@ describe('compact formatting', () => {
     expect(formatFieldValue(47.14, field, 'ru-RU')).toBe('47.1%')
   })
 })
+
+describe('zero precision is a value, not an absence', () => {
+  it('renders whole units for a symbol-money field asking for precision 0', () => {
+    const field: FieldFormat = {
+      kind: 'money', currency: 'UZS', minorUnits: false, precision: 0, symbol: 'so’m', decimalSeparator: '.',
+    }
+    // Dropping the 0 leaves Intl at its default fraction digits, which is how
+    // "51 522 007 533,993 so’m" reached a headline that asked for whole units.
+    expect(formatFieldValue(51_522_007_533.993, field, 'ru')).toBe('51 522 007 534 so’m')
+  })
+
+  it('keeps whole units for plain numbers and percentages', () => {
+    expect(formatFieldValue(12.345, { kind: 'number', minorUnits: false, precision: 0 }, 'en-US')).toBe('12')
+    expect(formatFieldValue(47.06, { kind: 'percent', minorUnits: false, precision: 0 }, 'en-US')).toBe('47%')
+  })
+})

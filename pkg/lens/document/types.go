@@ -300,12 +300,20 @@ const (
 	FormatString  FormatKind = "string"
 )
 
+// PrecisionOf returns a pointer to n, for FieldFormat.Precision. A deliberate
+// 0 ("whole units") must reach the wire, which is why the field is a pointer.
+func PrecisionOf(n int) *int { return &n }
+
 type FieldFormat struct {
 	Kind       FormatKind `json:"kind"`
 	Currency   string     `json:"currency,omitempty"`
 	MinorUnits bool       `json:"minorUnits"`
-	Precision  int        `json:"precision,omitempty"`
-	Layout     string     `json:"layout,omitempty"`
+	// Precision is a pointer so "no decimals" and "unspecified" stay
+	// distinguishable on the wire. As a plain `int,omitempty` a deliberate 0
+	// was dropped, and the runtime fell back to the locale's default fraction
+	// digits — rendering "…533,993" where the spec asked for whole units.
+	Precision *int   `json:"precision,omitempty"`
+	Layout    string `json:"layout,omitempty"`
 	// Compact abbreviates magnitudes with the locale's own compact notation
 	// (ru: "9,36 млрд", en: "9.36B", uz: "9,36 mlrd").
 	Compact bool `json:"compact,omitempty"`
