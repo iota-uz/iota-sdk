@@ -72,10 +72,10 @@ func TestLookupModelSpec_GPT56(t *testing.T) {
 			assert.Equal(t, []ReasoningEffort{
 				ReasoningNone, ReasoningLow, ReasoningMedium, ReasoningHigh, ReasoningXHigh, ReasoningMax,
 			}, spec.ReasoningEffortOptions)
-			assert.Equal(t, tt.inputPer1M, spec.Pricing.InputPer1M)
-			assert.Equal(t, tt.outputPer1M, spec.Pricing.OutputPer1M)
-			assert.Equal(t, tt.cacheWritePer1M, spec.Pricing.CacheWritePer1M)
-			assert.Equal(t, tt.cacheReadPer1M, spec.Pricing.CacheReadPer1M)
+			assert.InDelta(t, tt.inputPer1M, spec.Pricing.InputPer1M, 1e-9)
+			assert.InDelta(t, tt.outputPer1M, spec.Pricing.OutputPer1M, 1e-9)
+			assert.InDelta(t, tt.cacheWritePer1M, spec.Pricing.CacheWritePer1M, 1e-9)
+			assert.InDelta(t, tt.cacheReadPer1M, spec.Pricing.CacheReadPer1M, 1e-9)
 		})
 	}
 }
