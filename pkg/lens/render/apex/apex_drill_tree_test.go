@@ -142,6 +142,7 @@ func TestDrillTreeAction_RejectsUnsafeOrRowDependentActions(t *testing.T) {
 	fieldDependent := action.Navigate("/portfolio", action.FieldParam("year", "year"))
 	fieldURL := action.Navigate("").WithFieldURL("action_url")
 	cube := action.CubeDrill("/analytics", "year")
+	drawer := action.OpenDrawer("/analytics/drill/lens/document")
 	tests := []struct {
 		name string
 		spec action.Spec
@@ -150,6 +151,7 @@ func TestDrillTreeAction_RejectsUnsafeOrRowDependentActions(t *testing.T) {
 		{name: "row-dependent parameter", spec: fieldDependent},
 		{name: "row-dependent URL", spec: fieldURL},
 		{name: "cube drill", spec: cube},
+		{name: "React drawer", spec: drawer},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

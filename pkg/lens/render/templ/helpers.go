@@ -1248,7 +1248,7 @@ func actionURL(spec *action.Spec, row map[string]any, result *runtime.PanelResul
 	}
 	switch spec.Kind {
 	case action.KindNavigate, action.KindHtmxSwap, action.KindCubeDrill:
-	case action.KindEmitEvent, action.KindExplore:
+	case action.KindOpenDrawer, action.KindEmitEvent, action.KindExplore:
 		return ""
 	default:
 		return ""
@@ -1304,7 +1304,7 @@ func actionOnClick(spec *action.Spec, row map[string]any, result *runtime.PanelR
 		return templpkg.ComponentScript{}
 	}
 	switch spec.Kind {
-	case action.KindNavigate, action.KindCubeDrill:
+	case action.KindNavigate, action.KindOpenDrawer, action.KindCubeDrill:
 		return templpkg.ComponentScript{}
 	case action.KindHtmxSwap:
 		href := actionURL(spec, row, result)

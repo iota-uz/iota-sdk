@@ -1418,6 +1418,8 @@ func buildActionJS(spec *action.Spec, fr *frame.Frame, fields panel.FieldMapping
 	switch spec.Kind {
 	case action.KindNavigate:
 		actionJS = "window.location.href = nextURL;"
+	case action.KindOpenDrawer:
+		return templ.JSExpression("")
 	case action.KindCubeDrill:
 		actionJS = `const source = (chartContext && chartContext.el) ? chartContext.el : null;
 		const target = (source && source.closest) ? source.closest('[data-lens-swap-target]') : document.querySelector('[data-lens-swap-target]');
