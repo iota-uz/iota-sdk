@@ -138,8 +138,11 @@ describe('buildChartOption', () => {
     expect(series?.type).toBe('pie')
     expect(series?.radius).toEqual(radius)
     expect(series?.data?.[0]).toMatchObject({ name: 'Jan', value: 1200, nodeKey: 'jan-revenue' })
-    expect(series?.data?.[2]).toMatchObject({ nodeKey: 'feb-revenue', itemStyle: { opacity: 1 } })
-    expect(series?.data?.[0]).toMatchObject({ itemStyle: { opacity: 0.35 } })
+    // Selection outlines the chosen mark; the rest keep their colour, so a
+    // pick never reads as the chart having changed.
+    expect(series?.data?.[2]).toMatchObject({ nodeKey: 'feb-revenue', itemStyle: { borderWidth: 3 } })
+    expect(series?.data?.[0]?.itemStyle?.opacity).toBeUndefined()
+    expect(series?.data?.[0]).toMatchObject({ itemStyle: { borderWidth: 0 } })
   })
 
   it('does not select id-less points when no selection exists', () => {
@@ -151,7 +154,7 @@ describe('buildChartOption', () => {
 
     expect(chart.series[0]?.data?.[0]).toMatchObject({
       nodeKey: undefined,
-      itemStyle: { borderWidth: 0, opacity: 1 },
+      itemStyle: { borderWidth: 0 },
     })
     expect(chart.series[0]?.data?.[0]?.itemStyle?.borderColor).toBeUndefined()
   })

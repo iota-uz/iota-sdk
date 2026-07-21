@@ -157,6 +157,30 @@
     @apply lens-border-transparent lens-bg-inset lens-text-strong;
   }
 
+  /* Preflight is off, so a <button> keeps the UA's arrow cursor and only
+     anchors read as clickable for free. Every control that answers a click is
+     listed here once, so the affordance cannot drift control by control; the
+     disabled rules below (higher specificity) take it back where a control is
+     unavailable. */
+  .lens-export-button,
+  .lens-icon-button,
+  .lens-tabstrip-tab,
+  .lens-panel-error button,
+  .lens-panel-state-error button,
+  .lens-table th button,
+  .lens-table-pagination button,
+  .lens-trail-current,
+  .lens-explore-awaiting-action,
+  .lens-drill-path-step,
+  .lens-crumb,
+  .lens-explore-back,
+  .lens-perspective-set button,
+  .lens-segment,
+  .lens-runtime-notice button,
+  .lens-fake-chart-footer button {
+    @apply lens-cursor-pointer;
+  }
+
   /* A card-wide navigate action: a transparent anchor covers the card, and a
      corner glyph shows the affordance on hover/focus. */
   .lens-stat-linked {
@@ -972,8 +996,10 @@
     @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-text;
   }
 
+  /* There is no page to go to: the fade says so, and the cursor must not keep
+     promising a click. */
   .lens-table-pagination button:disabled {
-    @apply lens-opacity-40;
+    @apply lens-cursor-not-allowed lens-opacity-40;
   }
 
   .lens-sr-only {
@@ -1158,6 +1184,12 @@
 
   .lens-drill-path-step[aria-current='page'] {
     @apply lens-font-semibold lens-text-strong;
+  }
+
+  /* The current step is where you already are, not a broken control: it drops
+     the pointer without the "forbidden" reading of not-allowed. */
+  .lens-drill-path-step:disabled {
+    @apply lens-cursor-default;
   }
 
   .lens-drill-scrim {
@@ -1353,8 +1385,16 @@
     @apply lens-text-xs lens-font-normal lens-capitalize lens-text-muted;
   }
 
+  /* The level fills the card `.lens-explore` was given, so a state that
+     replaces the panel — a fork asking for a view, an unavailable level —
+     keeps the row's height instead of collapsing to its own text and leaving
+     a hole beside a full-height sibling. */
   .lens-explore-level {
-    @apply lens-min-w-0 lens-rounded-card;
+    @apply lens-flex lens-h-full lens-min-w-0 lens-flex-1 lens-flex-col lens-rounded-card;
+  }
+
+  .lens-explore-level > .lens-panel {
+    @apply lens-flex-1;
   }
 
   .lens-explore-level-enter {

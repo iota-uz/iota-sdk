@@ -10,7 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import type { DashboardDocument, FieldFormat, Frame, Panel, QueryPage, QueryRequest } from '../contract'
+import type { DashboardDocument, FieldFormat, Frame, NodeKey, NodePath, Panel, QueryPage, QueryRequest } from '../contract'
 import { fetchDocument } from './document'
 import { isPerspectiveFork, levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
@@ -117,7 +117,11 @@ export interface DrillContextValue {
   drillInto: (nodeKey: string, panelId?: string) => void
   back: () => void
   jumpTo: (breadcrumbIndex: number) => void
-  switchPerspective: (id: string, options?: { replace?: boolean }) => void
+  /**
+   * `enter` first steps into that segment, so picking a view for it costs one
+   * transition instead of two with a data-less fork in between.
+   */
+  switchPerspective: (id: string, options?: { replace?: boolean; enter?: string; panelId?: string }) => void
   reset: () => void
   canGoBack: boolean
 }
@@ -295,6 +299,23 @@ function requestFor(document: DashboardDocument, navigation: NavigationView): Qu
   }
 }
 
+/** Absolute path of the level a node key leads to, resolved against the document. */
+function pathForNode(
+  document: DashboardDocument,
+  state: NavigationState,
+  nodeKey: NodeKey,
+  panel: Panel | undefined,
+  panelChanged: boolean,
+): NodePath | undefined {
+  const level = panelChanged || state.path.length === 0
+    ? (panel?.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
+    : levelForPath(document, state.path)
+  const child = level?.children.find((candidate) => candidate.key === nodeKey)
+  const target = child?.target ? document.drill.edges[child.target] : undefined
+  if (nodeKey === panel?.drillRoot) return document.drill.edges[nodeKey]?.path
+  return target?.path ?? child?.path
+}
+
 function runtimeNavigationReducer(
   document: DashboardDocument,
   state: NavigationState,
@@ -303,26 +324,30 @@ function runtimeNavigationReducer(
   if (action.type === 'drillInto') {
     const panelChanged = Boolean(action.panelId && action.panelId !== state.panelId)
     const panel = action.panelId ? document.panels.find((candidate) => candidate.id === action.panelId) : undefined
-    const level = panelChanged || state.path.length === 0
-      ? (panel?.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
-      : levelForPath(document, state.path)
-    const child = level?.children.find((candidate) => candidate.key === action.nodeKey)
-    const target = child?.target ? document.drill.edges[child.target] : undefined
-    const path = action.nodeKey === panel?.drillRoot
-      ? document.drill.edges[action.nodeKey]?.path
-      : target?.path ?? child?.path
+    const path = pathForNode(document, state, action.nodeKey, panel, panelChanged)
     const perspectiveId = panelChanged ? undefined : state.perspectiveId
     if (!path || !pathResolves(document, path, perspectiveId)) return state
     const next = navigationReducer(state, navigationActions.drillInto(action.nodeKey, action.panelId, path))
     return panelChanged ? { ...next, perspectiveId: undefined } : next
   }
   if (action.type === 'switchPerspective') {
-    const level = levelForPath(document, state.path)
+    // With an `enterKey` the perspective belongs to the level that key leads
+    // to, not the one on screen: the whole point is to reach it in one step.
+    const panel = action.panelId ? document.panels.find((candidate) => candidate.id === action.panelId) : undefined
+    const panelChanged = Boolean(action.panelId && action.panelId !== state.panelId)
+    const entered = action.enterKey
+      ? pathForNode(document, state, action.enterKey, panel, panelChanged)
+      : undefined
+    if (action.enterKey && !entered) return state
+    const level = levelForPath(document, entered ?? state.path)
     if (!level?.perspectives.some((perspective) => perspective.id === action.perspectiveId)) return state
     const perspective = document.perspectives.find((candidate) => candidate.id === action.perspectiveId)
     const root = perspective ? document.drill.edges[perspective.root] : undefined
     if (!root) return state
-    return navigationReducer(state, navigationActions.switchPerspective(action.perspectiveId, root.path, action.replace))
+    return navigationReducer(
+      state,
+      navigationActions.switchPerspective(action.perspectiveId, root.path, action.replace, undefined, action.panelId),
+    )
   }
   if (action.type === 'jumpTo') {
     const next = navigationReducer(state, action)
@@ -639,7 +664,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     jumpTo: (breadcrumbIndex) => dispatch(navigationActions.jumpTo(breadcrumbIndex)),
     switchPerspective: (id, options) => {
       if (options?.replace) replaceNextURL.current = true
-      dispatch(navigationActions.switchPerspective(id, undefined, options?.replace))
+      dispatch(navigationActions.switchPerspective(id, undefined, options?.replace, options?.enter, options?.panelId))
     },
     reset: () => dispatch(navigationActions.reset()),
     canGoBack: navigation.history.length > 0,

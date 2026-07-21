@@ -8,7 +8,7 @@ import type {
   Perspective,
   Semantics,
 } from '../contract'
-import { levelForPath, type NavigationView } from '../runtime'
+import { isPerspectiveFork, levelForPath, type NavigationView } from '../runtime'
 
 export type ExploreViewKind = Extract<PanelKind, 'bar' | 'cascade' | 'donut' | 'hbar' | 'line' | 'pie' | 'table'>
 
@@ -112,6 +112,13 @@ export interface DrillTarget {
   share?: number
   /** Level the overlay can drill into, i.e. what the segment expands to. */
   target?: Level
+  /**
+   * True when what the segment expands to is a perspective fork — a level that
+   * owns no data and whose only content is the choice between its perspectives.
+   * The overlay already offers that choice, so expanding into it would land the
+   * user on a card that asks the same question again.
+   */
+  expandsToFork?: boolean
   breakdown: Array<DrillBreakdownRow>
   perspectives: Array<Perspective>
   leafHref?: string
@@ -163,6 +170,7 @@ export function drillTargetForNode(
     value,
     share: value !== undefined && siblingTotal > 0 ? value / siblingTotal : undefined,
     target,
+    expandsToFork: target ? isPerspectiveFork(document, target) : false,
     breakdown,
     perspectives: perspectivesForLevel(document, target),
   }

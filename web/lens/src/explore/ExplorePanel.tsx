@@ -216,9 +216,14 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     setOverlay(undefined)
     runViewTransition(() => {
       // A segment's perspectives belong to the level it expands to, so entering
-      // the segment first is what makes the perspective addressable.
-      if (target.node) drill.drillInto(target.node.key, panel.id)
-      drill.switchPerspective(perspectiveId)
+      // the segment first is what makes the perspective addressable. That is
+      // one user action, so it leaves one history entry: the perspective is
+      // folded into the step that entered the segment, and Back returns to the
+      // chart the segment was picked from rather than to the level in between,
+      // which is a fork the user never asked to stand on.
+      drill.switchPerspective(perspectiveId, target.node
+        ? { enter: target.node.key, panelId: panel.id }
+        : undefined)
     })
   }, [drill, panel.id])
 

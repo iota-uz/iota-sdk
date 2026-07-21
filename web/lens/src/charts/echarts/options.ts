@@ -60,16 +60,23 @@ function rowPoints(input: ChartInput): RowPoint[] {
   }))
 }
 
+/**
+ * Selection is an outline on the chosen mark, never a wash over the others.
+ *
+ * Fading the rest to a third of their colour turned a pick into something that
+ * reads as the chart having changed — the palette shifts, percentage labels
+ * printed inside the marks stop being legible, and next to the popover the
+ * whole thing looks like it drilled. The mark that was clicked is named in the
+ * popover; an outline is all the confirmation the plot has to carry.
+ */
 function dataItem(point: RowPoint, input: ChartInput, theme: EChartsTheme) {
-  const dimmed = input.selectedKey !== undefined && point.nodeKey !== input.selectedKey
   const selected = input.selectedKey !== undefined && point.nodeKey === input.selectedKey
   return {
     value: point.value,
     nodeKey: point.nodeKey,
     itemStyle: {
-      opacity: dimmed ? 0.35 : 1,
       borderColor: selected ? theme.selectedBorder : undefined,
-      borderWidth: selected ? 2 : 0,
+      borderWidth: selected ? 3 : 0,
     },
   }
 }

@@ -106,10 +106,21 @@ async function openStory(page: Page, storyId: string, canvasCount: number): Prom
   await expect(page.locator('html')).toHaveAttribute('data-lens-vr', 'true')
 }
 
-async function screenshot(page: Page, name: string): Promise<void> {
+/**
+ * `pointer: 'keep'` leaves the mouse where the test put it — for the stories
+ * whose subject *is* a hover state (an affordance revealed on hover, a chart
+ * tooltip). Everywhere else the pointer is incidental and must be parked.
+ */
+async function screenshot(page: Page, name: string, { pointer = 'park' }: { pointer?: 'park' | 'keep' } = {}): Promise<void> {
   // Baseline files ship inside the Go module zip, which rejects paths with
   // characters like the middle dot Ladle inherits from story names.
   expect(name).toMatch(/^[A-Za-z0-9._-]+$/)
+  // Playwright leaves the pointer wherever it last clicked, so whatever sits
+  // under that spot is captured in its hover state and becomes part of the
+  // reference. Then any layout change that moves a control by a few pixels
+  // lands the pointer on a different element and fails a story that did not
+  // actually change. Park the pointer off the content before every capture.
+  if (pointer === 'park') await page.mouse.move(0, 0)
   await page.evaluate(async () => {
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
@@ -161,7 +172,7 @@ test('panel-level actions expose their affordance on hover', async ({ page }) =>
   await openStory(page, 'parity--clickable-panels', 0)
   await page.getByRole('link', { name: /Открыть|Open/ }).first().hover()
   await expect(page.locator('.lens-card-link-affordance').first()).toBeVisible()
-  await screenshot(page, 'parity-clickable-panels-hover')
+  await screenshot(page, 'parity-clickable-panels-hover', { pointer: 'keep' })
 })
 
 test('chart tooltips escape the card', async ({ page }) => {
@@ -171,7 +182,7 @@ test('chart tooltips escape the card', async ({ page }) => {
   // The tooltip is a direct child of body now, so no ancestor can clip it.
   const tooltip = page.locator('body > div').filter({ hasText: 'Заработанная премия' }).last()
   await expect(tooltip).toBeVisible()
-  await screenshot(page, 'parity-pie-tooltip')
+  await screenshot(page, 'parity-pie-tooltip', { pointer: 'keep' })
 })
 
 test('the full path stays reachable from a narrow header', async ({ page }) => {
