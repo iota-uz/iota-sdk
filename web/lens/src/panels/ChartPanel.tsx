@@ -105,13 +105,16 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const kind = panel.kind as ChartKind
 
   // A new level or perspective is new data; carrying hidden keys across would
-  // silently blank out unrelated segments.
+  // silently blank out unrelated segments, and carrying the selected key would
+  // outline whichever mark of the new level happens to share its id — or, more
+  // often, none of them, leaving a selection the user cannot see or clear.
   const viewKey = `${navigation.panelId === panel.id ? navigation.path.join('|') : ''}:${navigation.perspectiveId ?? ''}`
   const previousViewKey = useRef(viewKey)
   useEffect(() => {
     if (previousViewKey.current === viewKey) return
     previousViewKey.current = viewKey
     setHidden(new Set())
+    setSelectedKey(undefined)
   }, [viewKey])
 
   // Hidden series are removed from the data, not dimmed: ECharts derives slice
@@ -228,7 +231,7 @@ function ChartLegend({ panel, frame, hidden, onToggle }: {
   hidden: ReadonlySet<string>
   onToggle: (key: string) => void
 }) {
-  const { document } = useDashboard()
+  const { document, navigation } = useDashboard()
   const translate = useTranslate()
   const labelField = panel.encoding.label ?? panel.encoding.category
   const valueField = panel.encoding.value
@@ -237,7 +240,10 @@ function ChartLegend({ panel, frame, hidden, onToggle }: {
   const valueIndex = frame.columns.findIndex((column) => column.name === valueField)
   if (labelIndex < 0) return null
 
-  const color = seriesColorResolver(document.theme, panel)
+  // At a drill level the rows are the level's, not the panel's own, so the
+  // positional color pins no longer describe them.
+  const atLevel = navigation.panelId === panel.id && navigation.path.length > 0
+  const color = seriesColorResolver(document.theme, panel, { positional: !atLevel })
   const visibleCount = frame.rows.filter((_, index) => !hidden.has(legendKey(frame, panel, index))).length
 
   return (

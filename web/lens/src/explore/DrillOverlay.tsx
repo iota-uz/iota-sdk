@@ -211,8 +211,15 @@ export function DrillOverlay({
 
   if (!container) return null
 
-  const expandable = Boolean(target.node && target.target)
-  const empty = target.breakdown.length === 0 && !target.leafHref && !expandable
+  const choosable = target.perspectives.length > 1
+  // Expanding into a perspective fork lands on a level that owns no data and
+  // whose only content is the perspective choice — so when this overlay is
+  // already showing that choice, offering the expansion too makes one click
+  // ask the same question twice. A fork with a single perspective keeps the
+  // action: nothing else here leads to it, and entering it resolves the sole
+  // perspective on arrival.
+  const expandable = Boolean(target.node && target.target) && !(target.expandsToFork && choosable)
+  const empty = target.breakdown.length === 0 && !target.leafHref && !expandable && !choosable
 
   return createPortal(
     <>
@@ -302,7 +309,7 @@ export function DrillOverlay({
           </section>
         )}
 
-        {target.perspectives.length > 1 && (
+        {choosable && (
           <section className="lens-drill-section">
             <h4 className="lens-drill-section-label">{translate('explore.viewSegmentAs', 'View this segment as')}</h4>
             <div className="lens-drill-perspectives" role="listbox" aria-label={translate('explore.views', '{n} views', { n: target.perspectives.length })}>

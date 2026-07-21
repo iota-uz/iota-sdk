@@ -130,11 +130,15 @@ describe('explore panel at rest', () => {
 
 describe('level data integrity', () => {
   it('never shows the parent level\'s numbers under a child level\'s title', () => {
-    // Entering the fork without picking a perspective: the level owns no data,
-    // so the panel must ask for a view instead of keeping the root's rows.
+    // Standing on the fork without a perspective: the level owns no data, so
+    // the panel must ask for a view instead of keeping the root's rows. The
+    // overlay no longer offers a way in — a fork with several perspectives is
+    // entered by choosing one — but a stored URL still addresses it, and that
+    // is exactly when showing the parent's numbers would be a lie.
+    window.history.replaceState(null, '', navigationToURL(
+      { path: ['profitability', 'profitability/operating-margin'] }, new URL(window.location.href),
+    ))
     renderExplore()
-    fireEvent.click(screen.getByRole('button', { name: 'Operating margin' }))
-    fireEvent.click(within(overlay()).getByRole('button', { name: /Expand segment/ }))
 
     const trail = screen.getByRole('navigation', { name: /exploration path/ })
     expect(within(trail).getByRole('button', { name: /Operating margin/ })).toBeInTheDocument()
@@ -171,7 +175,34 @@ describe('drill overlay', () => {
     expect(dialog).toHaveTextContent('100.0%')
     const options = within(dialog).getAllByRole('option')
     expect(options.map((option) => option.textContent)).toEqual(['Composition', 'Trend', 'Bridge', 'Evidence'])
-    expect(within(dialog).getByRole('button', { name: /Expand segment/ })).toBeInTheDocument()
+  })
+
+  it('offers the perspectives or the expansion, never both for the same choice', () => {
+    // What this segment expands to is a fork whose only content is the four
+    // views listed above. Offering «Expand segment» as well would put the same
+    // question in two places and land whoever takes the second one on a card
+    // that asks it again.
+    const dialog = openMarkOverlay()
+
+    expect(within(dialog).getAllByRole('option')).toHaveLength(4)
+    expect(within(dialog).queryByRole('button', { name: /Expand segment/ })).toBeNull()
+    expect(within(dialog).queryByText(/No further detail/)).toBeNull()
+  })
+
+  it('keeps the expansion when it leads somewhere the overlay does not', async () => {
+    const path = [
+      'profitability',
+      'profitability/operating-margin',
+      'profitability/operating-margin/composition',
+      'profitability/operating-margin/composition/root',
+    ]
+    window.history.replaceState(null, '', navigationToURL(
+      { path, perspectiveId: 'profitability/operating-margin/composition' }, new URL(window.location.href),
+    ))
+    renderExplore()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Services' }))
+    expect(within(overlay()).getByRole('button', { name: /Expand segment/ })).toBeInTheDocument()
   })
 
   it('renders in a portal at the end of body so no panel stacking context can bury it', () => {
@@ -193,6 +224,22 @@ describe('drill overlay', () => {
     expect(within(trail).getByRole('button', { name: /Composition root/ })).toHaveAttribute('aria-current', 'page')
     expect(new URL(window.location.href).searchParams.get('perspective'))
       .toBe('profitability/operating-margin/composition')
+  })
+
+  it('spends one history entry on picking a view for a segment', async () => {
+    // Entering the segment and resolving its fork are one user action. Charging
+    // two history entries for it made Back land on the fork — a card that only
+    // asks which view to use — instead of the chart the segment came from.
+    const pushState = vi.spyOn(window.history, 'pushState')
+    openMarkOverlay()
+    fireEvent.click(within(overlay()).getByRole('option', { name: 'Composition' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Services' })).toBeInTheDocument())
+    expect(pushState).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Operating margin' })).toBeInTheDocument())
+    expect(screen.queryByText(/Choose a view/)).toBeNull()
   })
 
   it('drills a breakdown row one level down', async () => {
@@ -333,7 +380,7 @@ describe('explore navigation', () => {
     renderExplore()
 
     fireEvent.click(screen.getByRole('button', { name: 'Operating margin' }))
-    fireEvent.click(within(overlay()).getByRole('button', { name: /Expand segment/ }))
+    fireEvent.click(within(overlay()).getByRole('option', { name: 'Composition' }))
 
     expect(startViewTransition).not.toHaveBeenCalled()
   })

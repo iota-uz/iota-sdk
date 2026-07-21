@@ -1353,8 +1353,16 @@
     @apply lens-text-xs lens-font-normal lens-capitalize lens-text-muted;
   }
 
+  /* The level fills the card `.lens-explore` was given, so a state that
+     replaces the panel — a fork asking for a view, an unavailable level —
+     keeps the row's height instead of collapsing to its own text and leaving
+     a hole beside a full-height sibling. */
   .lens-explore-level {
-    @apply lens-min-w-0 lens-rounded-card;
+    @apply lens-flex lens-h-full lens-min-w-0 lens-flex-1 lens-flex-col lens-rounded-card;
+  }
+
+  .lens-explore-level > .lens-panel {
+    @apply lens-flex-1;
   }
 
   .lens-explore-level-enter {

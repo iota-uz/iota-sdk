@@ -14,7 +14,21 @@ export type NavigationAction =
   | { type: 'drillInto'; nodeKey: NodeKey; panelId?: string; path?: NodePath }
   | { type: 'back' }
   | { type: 'jumpTo'; breadcrumbIndex: number }
-  | { type: 'switchPerspective'; perspectiveId: string; path?: NodePath; replace?: boolean }
+  /**
+   * `enterKey` folds "enter this segment, then show it as X" into one step.
+   * Picking a view for a segment is one user action, and charging it two
+   * transitions puts a level nobody asked to stand on between the chart and
+   * the answer — the level it enters is a fork whose only content is that
+   * same choice.
+   */
+  | {
+    type: 'switchPerspective'
+    perspectiveId: string
+    path?: NodePath
+    replace?: boolean
+    enterKey?: NodeKey
+    panelId?: string
+  }
   | { type: 'reset' }
   | { type: 'restore'; view: NavigationView; history?: Array<NavigationView> }
 
@@ -81,6 +95,7 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
     case 'switchPerspective': {
       const next = {
         ...state,
+        panelId: action.panelId ?? state.panelId,
         path: action.path ?? state.path,
         perspectiveId: action.perspectiveId,
       }
@@ -97,9 +112,13 @@ export const navigationActions = {
   drillInto: (nodeKey: NodeKey, panelId?: string, path?: NodePath): NavigationAction => ({ type: 'drillInto', nodeKey, panelId, path }),
   back: (): NavigationAction => ({ type: 'back' }),
   jumpTo: (breadcrumbIndex: number): NavigationAction => ({ type: 'jumpTo', breadcrumbIndex }),
-  switchPerspective: (perspectiveId: string, path?: NodePath, replace?: boolean): NavigationAction => ({
-    type: 'switchPerspective', perspectiveId, path, replace,
-  }),
+  switchPerspective: (
+    perspectiveId: string,
+    path?: NodePath,
+    replace?: boolean,
+    enterKey?: NodeKey,
+    panelId?: string,
+  ): NavigationAction => ({ type: 'switchPerspective', perspectiveId, path, replace, enterKey, panelId }),
   reset: (): NavigationAction => ({ type: 'reset' }),
   restore: (view: NavigationView, history?: Array<NavigationView>): NavigationAction => ({ type: 'restore', view, history }),
 }
