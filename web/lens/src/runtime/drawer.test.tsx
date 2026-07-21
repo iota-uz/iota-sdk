@@ -78,4 +78,14 @@ describe('Lens drawer host', () => {
     fireEvent.keyDown(dialog, { key: 'Escape' })
     expect(historyGo).toHaveBeenCalledWith(-1)
   })
+
+  it('rejects a cross-origin drawer document', () => {
+    const action: Action = { ...drawerAction, urlTemplate: 'https://example.test/lens/document' }
+    const fetcher = vi.fn<typeof fetch>()
+    render(<LensDashboard initialDocument={statDocument('Dashboard', action)} fetcher={fetcher} />)
+
+    expect(screen.queryByRole('link', { name: 'Open Dashboard metric' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(fetcher).not.toHaveBeenCalled()
+  })
 })

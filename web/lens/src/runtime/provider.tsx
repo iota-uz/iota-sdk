@@ -330,6 +330,15 @@ function nestedDrawerState(drawer: NonNullable<NavigationView['drawer']>, histor
   }
 }
 
+function isSameOriginDrawerSource(src: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return new URL(src, window.location.href).origin === window.location.origin
+  } catch {
+    return false
+  }
+}
+
 function inferredInitialNavigation(document: DashboardDocument): NavigationState {
   if (typeof window === 'undefined') return createNavigationState()
   const fromURL = navigationFromURL(new URL(window.location.href))
@@ -762,7 +771,7 @@ function RuntimeCore({
   const drawer = useMemo<DrawerContextValue>(() => ({
     depth: drawerDepth,
     open: (src, opener) => {
-      if (drawerDepth > 0 || navigation.drawer) return
+      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
       drawerOpener.current = opener ?? (
         globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : undefined
       )

@@ -1,2 +1,0 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./adapter-BDS6g77p.js","./lens-dashboard-BmlBFMpu.js","./index-D66IU4KB.css"])))=>i.map(i=>d[i]);
-import{_ as a}from"./lens-dashboard-BmlBFMpu.js";async function o(){const{echartsAdapter:t}=await a(async()=>{const{echartsAdapter:r}=await import("./adapter-BDS6g77p.js");return{echartsAdapter:r}},__vite__mapDeps([0,1,2]),import.meta.url);return t}export{o as getChartAdapter};
