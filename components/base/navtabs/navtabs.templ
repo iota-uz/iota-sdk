@@ -2,7 +2,11 @@
 // It implements a tab switcher with an animated background that slides between tabs.
 package navtabs
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
 
 type Props struct {
 	DefaultValue string
@@ -24,9 +28,10 @@ templ Root(props Props) {
 
 // List renders the tab navigation buttons
 templ List(class string) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div
 		role="tablist"
-		aria-label="Tab navigation"
+		aria-label={ pageCtx.T("Common.TabNavigation") }
 		@resize.window="updateBackground()"
 		x-ref="tabsContainer"
 		x-init="$nextTick(() => updateBackground())"

@@ -139,6 +139,19 @@ function baseOption(theme: EChartsTheme): EChartsOption {
   }
 }
 
+/**
+ * ECharts pre-rounds `params.percent` to `percentPrecision` decimals; asking
+ * for more precision than any label prints keeps the single rounding step in
+ * our hands.
+ */
+export const rawPercentPrecision = 10
+
+/** The label a pie slice carries: one rounding, and nothing under 4%. */
+export function slicePercentLabel(percent: number | undefined): string {
+  const share = percent ?? 0
+  return share >= 4 ? `${share.toFixed(1)}%` : ''
+}
+
 function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const donut = input.kind === 'donut'
   const points = rowPoints(input)
@@ -159,8 +172,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         fontWeight: 'bold' as const,
         // Slices under 4% cannot hold a legible label; the legend below
         // still names them.
-        formatter: (params: { percent?: number }) =>
-          (params.percent ?? 0) >= 4 ? `${(params.percent ?? 0).toFixed(1)}%` : '',
+        formatter: (params: { percent?: number }) => slicePercentLabel(params.percent),
       }
     : { color: theme.text }
   return {
@@ -175,6 +187,10 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       radius,
       center: ['50%', '50%'],
       selectedMode: false,
+      // ECharts rounds `percent` to two decimals before handing it over, and
+      // rounding again to one decimal double-rounds: 87.6459 → 87.65 → 87.7,
+      // where the true value reads 87.6. Ask for the raw share and round once.
+      percentPrecision: rawPercentPrecision,
       label,
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       data: points.map((point) => {

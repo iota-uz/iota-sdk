@@ -11,9 +11,9 @@ import {
 } from 'react'
 import type { ChartAnchor } from '../charts/adapter'
 import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '../contract'
-import { CaretDown, CaretLeft } from '../icons'
+import { CaretDown, CaretLeft, CaretRight } from '../icons'
 import { MarkSelectionContext, PanelChromeContext, RegisteredPanel, type PanelRegistry } from '../panels'
-import { levelForPath, useDashboard, useDrill, usePanelFrame, useTranslate } from '../runtime'
+import { isPerspectiveFork, levelForPath, useDashboard, useDrill, usePanelFrame, useTranslate } from '../runtime'
 import { isVisualRegression } from '../visualRegression'
 import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './actions'
 import { DrillOverlay } from './DrillOverlay'
@@ -280,9 +280,43 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     ) : undefined,
   }), [breadcrumbs, drill, explorable, openForLevel, panel.title, translate])
 
+  // A level with no frame of its own is a fork: its perspectives own the data.
+  // Until one is chosen there is nothing truthful to draw, so the panel asks
+  // for the choice instead of showing the parent level's numbers.
+  const awaitingPerspective = Boolean(level && isPerspectiveFork(document, level))
+
+  // A state that replaces the panel still needs the panel's chrome: without the
+  // trail there is no way back out of the level it is reporting on.
+  const stateCard = (body: ReactNode) => (
+    <section aria-label={viewPanel.title} className="lens-panel">
+      <header className="lens-panel-header">
+        {chrome.trail ?? <h3 className="lens-panel-title">{viewPanel.title}</h3>}
+        {chrome.explore}
+      </header>
+      <div className="lens-panel-body">{body}</div>
+    </section>
+  )
+
   let content: ReactNode
-  if (!level) content = <div className="lens-placeholder-state">{translate('explore.unavailable', 'This exploration level is unavailable.')}</div>
-  else content = <RegisteredPanel panel={viewPanel} registry={registry} />
+  if (!level) {
+    content = stateCard(
+      <div className="lens-placeholder-state">
+        {translate('explore.unavailable', 'This exploration level is unavailable.')}
+      </div>,
+    )
+  } else if (awaitingPerspective) {
+    content = stateCard(
+      <div className="lens-explore-awaiting">
+        <p className="lens-explore-awaiting-text">
+          {translate('explore.chooseView', 'Choose a view for {name}', { name: viewPanel.title })}
+        </p>
+        <button className="lens-explore-awaiting-action" onClick={openForLevel} type="button">
+          {translate('explore.views', '{n} views', { n: perspectives.length })}
+          <CaretRight />
+        </button>
+      </div>,
+    )
+  } else content = <RegisteredPanel panel={viewPanel} registry={registry} />
 
   return (
     <article

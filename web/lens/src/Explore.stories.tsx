@@ -153,6 +153,37 @@ NarrowDeepTrailDark.storyName = 'Narrow card, deepest path - dark'
 export const NarrowestTrail: Story = () => <AtDeepestLevel theme="light" span={2} />
 NarrowestTrail.storyName = 'Header too narrow for a level name'
 
+/**
+ * A fork in the drill path: the level owns no data of its own, so the panel
+ * asks for a view instead of keeping the parent level's numbers on screen
+ * under the child's title.
+ */
+function AtFork({ theme }: { theme: 'light' | 'dark' }) {
+  useState(() => {
+    window.history.replaceState(null, '', navigationToURL(
+      {
+        panelId: dashboardDocument.panels[0]!.id,
+        path: ['profitability', 'profitability/operating-margin'],
+      },
+      new URL(window.location.href),
+    ))
+    return true
+  })
+  return (
+    <div className="lens-root" data-theme={theme}>
+      <DocumentProvider initialDocument={dashboardDocument}>
+        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+export const AwaitingPerspectiveLight: Story = () => <AtFork theme="light" />
+AwaitingPerspectiveLight.storyName = 'Level fork awaits a view - light'
+
+export const AwaitingPerspectiveDark: Story = () => <AtFork theme="dark" />
+AwaitingPerspectiveDark.storyName = 'Level fork awaits a view - dark'
+
 export const KeyboardWalkthrough: Story = () => (
   <Walkthrough>
     Press <strong>Tab</strong> to reach a segment, use <strong>arrow keys</strong> between siblings, and press

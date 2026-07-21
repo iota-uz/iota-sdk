@@ -125,6 +125,8 @@
     }
   },
   "Common": {
+    "CloseNotification": "Close notification",
+    "TabNavigation": "Tab navigation",
     "Loading": "Loading..."
   },
   "ConfirmDelete": "Are you sure you want to delete this item?",

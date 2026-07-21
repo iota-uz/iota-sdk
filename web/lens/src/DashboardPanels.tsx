@@ -101,6 +101,7 @@ function TabsGroup({ group, items, panels, registry }: {
   panels: Map<string, Panel>
   registry?: PanelRegistry
 }) {
+  const translate = useTranslate()
   const tabs = [...new Set(items.map((item) => item.group?.tab ?? ''))]
   const [active, setActive] = useState(tabs[0] ?? '')
   const current = tabs.includes(active) ? active : tabs[0] ?? ''
@@ -108,7 +109,9 @@ function TabsGroup({ group, items, panels, registry }: {
 
   return (
     <GroupCard group={group}>
-      <div className="lens-tabstrip" role="tablist" aria-label={group.label || group.id}>
+      {/* An unlabelled group would otherwise expose its raw id to a screen
+          reader; a translated generic name is the honest fallback. */}
+      <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
         {tabs.map((tab) => (
           <button
             aria-selected={tab === current}

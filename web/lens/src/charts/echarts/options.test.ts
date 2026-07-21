@@ -1,7 +1,7 @@
 import type { EChartsOption } from 'echarts'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
-import { buildChartOption } from './options'
+import { buildChartOption, rawPercentPrecision, slicePercentLabel } from './options'
 import type { EChartsTheme } from './theme'
 
 const theme: EChartsTheme = {
@@ -48,6 +48,8 @@ interface TestDataItem {
 }
 
 interface TestSeries {
+  percentPrecision?: number
+  label?: { formatter?: (params: { percent?: number }) => string }
   type?: string
   name?: string
   areaStyle?: unknown
@@ -77,6 +79,45 @@ function testOption(option: EChartsOption) {
     yAxis: TestAxis
   }
 }
+
+describe('slice percentages', () => {
+  it('rounds the true share once, not the share ECharts already rounded', () => {
+    // «Распределение риска»: 104 119 330 137 of 118 795 253 476 is 87.6459…%,
+    // which reads 87.6. Rounded to ECharts' default two decimals first (87.65)
+    // it reads 87.7 — the double rounding the legacy renderer never had.
+    const share = (100 * 104_119_330_137) / (104_119_330_137 + 14_675_923_339)
+    expect(slicePercentLabel(share)).toBe('87.6%')
+    expect(slicePercentLabel(100 - share)).toBe('12.4%')
+    expect(slicePercentLabel(Number(share.toFixed(2)))).toBe('87.7%')
+  })
+
+  it.each([
+    [12.351, '12.4%'],
+    [12.349, '12.3%'],
+    [87.6459, '87.6%'],
+    [87.66, '87.7%'],
+    // A literal x.x5 resolves by the binary value it actually holds — 12.35 is
+    // stored as 12.3499…, so one decimal reads 12.3. Go's %.1f agrees, which
+    // is what keeps the two renderers printing the same number.
+    [12.35, '12.3%'],
+    [0.4999, ''],
+    [3.99, ''],
+    [4, '4.0%'],
+    [undefined, ''],
+  ])('formats %s as %s', (percent, expected) => {
+    expect(slicePercentLabel(percent)).toBe(expected)
+  })
+
+  it('asks ECharts for an unrounded share', () => {
+    const chart = testOption(buildChartOption(
+      { ...input('pie'), presentation: { sliceLabels: 'percent' } },
+      theme,
+    ))
+
+    expect(chart.series[0]?.percentPrecision).toBe(rawPercentPrecision)
+    expect(chart.series[0]?.label?.formatter?.({ percent: 87.6459 })).toBe('87.6%')
+  })
+})
 
 describe('buildChartOption', () => {
   it('disables animation in visual regression mode', () => {

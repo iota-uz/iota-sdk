@@ -15,9 +15,11 @@ const (
 	I18nChartLegendLast   = "chart.legendLast"
 	I18nChartLegendToggle = "chart.legendToggle"
 	I18nDashboardEmpty    = "dashboard.empty"
+	I18nDashboardTabs     = "dashboard.tabs"
 	I18nDrillReset        = "drill.reset"
 	I18nExploreBack       = "explore.back"
 	I18nExploreBreakdown  = "explore.breakdown"
+	I18nExploreChooseView = "explore.chooseView"
 	I18nExploreClose      = "explore.close"
 	I18nExploreExpand     = "explore.expandSegment"
 	I18nExploreNoDetail   = "explore.noDetail"
@@ -66,8 +68,8 @@ func RuntimeI18nKeys() []string {
 	keys := []string{
 		I18nCascadeStages,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
-		I18nDashboardEmpty, I18nDrillReset,
-		I18nExploreBack, I18nExploreBreakdown, I18nExploreClose, I18nExploreExpand,
+		I18nDashboardEmpty, I18nDashboardTabs, I18nDrillReset,
+		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose, I18nExploreExpand,
 		I18nExploreNoDetail, I18nExploreOpenBreak,
 		I18nExplorePanel, I18nExplorePath, I18nExplorePathLabel,
 		I18nExploreUnavail, I18nExploreViewAs, I18nExploreViews,

@@ -9,6 +9,8 @@ const storyIds = [
   'chart-adapter--pie-and-donut-dark',
   'chart-adapter--pie-and-donut-light',
   'explore--drill-overlay--dark',
+  'explore--level-fork-awaits-a-view--dark',
+  'explore--level-fork-awaits-a-view--light',
   'explore--drill-overlay--light',
   'explore--drill-overlay-inside-an-expanded-panel',
   'explore--full-drill-flow--three-levels',
@@ -54,6 +56,8 @@ const staticStories = [
   ['chart-adapter--pie-and-donut-dark', 2],
   ['chart-adapter--pie-and-donut-light', 2],
   ['explore--drill-overlay--dark', 1],
+  ['explore--level-fork-awaits-a-view--dark', 0],
+  ['explore--level-fork-awaits-a-view--light', 0],
   ['explore--drill-overlay--light', 1],
   ['explore--drill-overlay-inside-an-expanded-panel', 1],
   ['explore--header-too-narrow-for-a-level-name', 1],
@@ -211,7 +215,8 @@ test('explore full drill flow keyframes', async ({ page }) => {
 })
 
 test('explore perspective switching keyframes', async ({ page }) => {
-  await openStory(page, 'explore--perspective-switching-on-a-segment', 1)
+  // The story opens on the fork, which draws no chart until a view is chosen.
+  await openStory(page, 'explore--perspective-switching-on-a-segment', 0)
   await page.getByRole('button', { name: 'Show breakdown' }).click()
   await screenshot(page, 'explore-perspectives-01-choice')
 

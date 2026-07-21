@@ -371,6 +371,12 @@
     @apply lens-border-accent-500 lens-bg-accent-50 lens-text-accent-700;
   }
 
+  /* The pending note is a quiet inline chip, not the bordered card an error
+     gets: it appears for a second and must not shove the header around. */
+  .lens-export-message-pending {
+    @apply lens-static lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-xs lens-font-medium lens-text-muted lens-shadow-none;
+  }
+
   .lens-export-message {
     @apply lens-absolute lens-right-0 lens-top-full lens-z-20 lens-mt-1 lens-w-max lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-xs lens-font-medium lens-text-accent-700 lens-shadow-card;
   }
@@ -1119,6 +1125,23 @@
   .lens-trail-back,
   .lens-explore-affordance {
     @apply lens-shrink-0;
+  }
+
+  /* A fork in the drill path: the level owns no data, its perspectives do. */
+  .lens-explore-awaiting {
+    @apply lens-flex lens-min-h-40 lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-gap-3 lens-p-4 lens-text-center;
+  }
+
+  .lens-explore-awaiting-text {
+    @apply lens-m-0 lens-font-sans lens-text-sm lens-text-muted;
+  }
+
+  .lens-explore-awaiting-action {
+    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-3 lens-py-1.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-strong;
+  }
+
+  .lens-explore-awaiting-action:hover {
+    @apply lens-border-strong;
   }
 
   .lens-drill-path {

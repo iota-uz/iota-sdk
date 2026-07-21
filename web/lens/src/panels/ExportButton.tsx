@@ -38,9 +38,16 @@ export function ExportButton({ panelId, label, iconOnly = false }: ExportButtonP
           : retry ? <ArrowClockwise /> : <DownloadSimple />}
         {!iconOnly && <span>{text}</span>}
       </button>
-      {exportState.message && (
-        <span className={`lens-export-message${exportState.status === 'error' ? ' lens-export-message-error' : ''}`} role="status">
-          {exportState.message}
+      {/* Pending is announced in text in both forms: an icon-only button
+          swapped a 14px glyph and nothing else, which read as "nothing is
+          happening" next to the dashboard button's «Exporting…». */}
+      {(pending || exportState.message) && (
+        <span
+          className={`lens-export-message${exportState.status === 'error' ? ' lens-export-message-error' : ''}${
+            pending ? ' lens-export-message-pending' : ''}`}
+          role="status"
+        >
+          {pending ? text : exportState.message}
         </span>
       )}
     </div>

@@ -125,6 +125,8 @@
     }
   },
   "Common": {
+    "CloseNotification": "Билдиришномани ёпиш",
+    "TabNavigation": "Ички бўлимлар навигацияси",
     "Loading": "Yuklanmoqda..."
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",

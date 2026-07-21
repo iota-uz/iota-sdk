@@ -125,6 +125,8 @@
     }
   },
   "Common": {
+    "CloseNotification": "关闭通知",
+    "TabNavigation": "标签导航",
     "Loading": "加载中..."
   },
   "ConfirmDelete": "您确定要删除此项吗？",

@@ -114,4 +114,34 @@ describe('ExportButton snapshot recovery', () => {
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:workbook')
     expect(click.mock.instances[0]).toHaveProperty('download', 'server-report.xlsx')
   })
+
+  it('shows the same pending affordance for a panel as for the dashboard', async () => {
+    let settle: ((value: Response) => void) | undefined
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() => new Promise<Response>((resolve) => { settle = resolve }))
+
+    render(
+      <DocumentProvider initialDocument={firstDocument}>
+        <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+          <ExportButton panelId="total" iconOnly />
+          <ExportButton />
+        </DashboardRuntimeProvider>
+      </DocumentProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Export panel' }))
+
+    const panelButton = await screen.findByRole('button', { name: 'Exporting…' })
+    expect(panelButton).toHaveAttribute('aria-busy', 'true')
+    expect(panelButton.querySelector('.lens-icon-spin')).not.toBeNull()
+    // The dashboard button is a separate scope and must not look busy.
+    expect(screen.getByRole('button', { name: /Export dashboard/ })).toHaveAttribute('aria-busy', 'false')
+    // A pending panel export announces itself in text, exactly like the
+    // dashboard one — an icon swap alone was too quiet to notice.
+    expect(screen.getAllByRole('status').map((node) => node.textContent)).toContain('Exporting…')
+
+    settle?.(new Response(new Blob(['workbook']), {
+      status: 200,
+      headers: { 'Content-Disposition': 'attachment; filename="report.xlsx"' },
+    }))
+  })
 })

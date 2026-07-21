@@ -1,9 +1,14 @@
 package toast
 
-import icons "github.com/iota-uz/icons/phosphor"
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
 
 // Container renders the toast notification container that should be placed once in the layout
 templ Container() {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div
 		x-data="{
 			notifications: [],
@@ -92,7 +97,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label="Close notification"
+						aria-label={ pageCtx.T("Common.CloseNotification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>
@@ -114,7 +119,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label="Close notification"
+						aria-label={ pageCtx.T("Common.CloseNotification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>
@@ -136,7 +141,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label="Close notification"
+						aria-label={ pageCtx.T("Common.CloseNotification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>
@@ -158,7 +163,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label="Close notification"
+						aria-label={ pageCtx.T("Common.CloseNotification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>

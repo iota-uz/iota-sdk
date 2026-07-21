@@ -12,7 +12,7 @@ import {
 } from 'react'
 import type { DashboardDocument, FieldFormat, Frame, Panel, QueryPage, QueryRequest } from '../contract'
 import { fetchDocument } from './document'
-import { levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
+import { isPerspectiveFork, levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
 import { formatAxis, formatFieldValue } from './format'
@@ -342,20 +342,21 @@ function frameForPanel(
   if (!active || active.id !== panel.id || navigation.path.length === 0) {
     return { frame: document.frames[panel.frame], shouldQuery: false }
   }
+  // From here on the panel is showing a drill level, and the invariant is
+  // absolute: it may only render a frame that belongs to the level on screen.
+  // Falling back to the panel's own frame would put the parent's numbers under
+  // the child's title — numbers that look plausible and are wrong, which is
+  // the same failure the browser-Back path used to have.
   const level = levelForPath(document, navigation.path)
-  if (!level) return { frame: document.frames[panel.frame], shouldQuery: false }
-  const levelKey = level.path.at(-1)
-  const isPerspectiveSegment = level.perspectives.some(({ id }) => {
-    const perspective = document.perspectives.find((candidate) => candidate.id === id)
-    return perspective?.branchKey === levelKey
-  })
-  if (isPerspectiveSegment && !level.frame) {
-    return { frame: document.frames[panel.frame], shouldQuery: false }
-  }
+  if (!level) return { shouldQuery: false }
   if (level.frame) {
     const frame = loadedFrames.get(level.frame) ?? document.frames[level.frame]
     if (frame) return { frame, shouldQuery: false }
+    return { shouldQuery: Boolean(document.endpoints.query) }
   }
+  // A fork has nothing to fetch until a perspective is chosen; any other
+  // frameless level is asked for from the query endpoint.
+  if (isPerspectiveFork(document, level)) return { shouldQuery: false }
   return { shouldQuery: Boolean(document.endpoints.query) }
 }
 

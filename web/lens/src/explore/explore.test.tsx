@@ -128,6 +128,34 @@ describe('explore panel at rest', () => {
   })
 })
 
+describe('level data integrity', () => {
+  it('never shows the parent level\'s numbers under a child level\'s title', () => {
+    // Entering the fork without picking a perspective: the level owns no data,
+    // so the panel must ask for a view instead of keeping the root's rows.
+    renderExplore()
+    fireEvent.click(screen.getByRole('button', { name: 'Operating margin' }))
+    fireEvent.click(within(overlay()).getByRole('button', { name: /Expand segment/ }))
+
+    const trail = screen.getByRole('navigation', { name: /exploration path/ })
+    expect(within(trail).getByRole('button', { name: /Operating margin/ })).toBeInTheDocument()
+    // The root frame's only row was «Operating margin» at $1,840,000; no mark
+    // from it may survive into this level — the only element still carrying
+    // that name is the trail crumb.
+    expect(screen.getAllByRole('button', { name: /Operating margin/ })).toHaveLength(1)
+    expect(document.querySelector('section[data-kind]')).toBeNull()
+    expect(screen.getByText(/Choose a view/)).toBeInTheDocument()
+  })
+
+  it('keeps showing a level that does own a frame', async () => {
+    renderExplore()
+    fireEvent.click(screen.getByRole('button', { name: 'Operating margin' }))
+    fireEvent.click(within(overlay()).getByRole('option', { name: 'Composition' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Services' })).toBeInTheDocument())
+    expect(screen.queryByText(/Choose a view/)).toBeNull()
+  })
+})
+
 describe('drill overlay', () => {
   function openMarkOverlay() {
     renderExplore()
