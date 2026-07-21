@@ -21,6 +21,14 @@ export interface DrillPathStep {
 
 export interface DrillOverlayProps {
   target: DrillTarget
+  /**
+   * Live source of the anchor point, when the overlay was opened from an
+   * element rather than a pointer. The element is re-measured whenever the
+   * layout can still move (web fonts landing, the expanded-panel dialog
+   * mounting, a resize), because a rect read at click time is a snapshot of a
+   * layout that has not settled yet.
+   */
+  anchorElement?: HTMLElement | null
   /** Ancestors of the current level; the header only shows the last one. */
   path?: Array<DrillPathStep>
   anchor: DrillOverlayAnchor
@@ -87,7 +95,7 @@ export function positionOverlay(
 }
 
 export function DrillOverlay({
-  target, path = [], anchor, valueFormat, theme, dark = false, selectedPerspectiveId,
+  target, path = [], anchor, anchorElement, valueFormat, theme, dark = false, selectedPerspectiveId,
   onDrillInto, onDrillChild, onPerspective, onClose,
 }: DrillOverlayProps) {
   const translate = useTranslate()
@@ -114,15 +122,58 @@ export function DrillOverlay({
     }
   }, [dark, theme])
 
-  useLayoutEffect(() => {
-    if (!container || !dialogRef.current) return
-    const rect = dialogRef.current.getBoundingClientRect()
-    setPosition(positionOverlay(
-      anchor,
+  const anchorRef = useRef(anchor)
+  anchorRef.current = anchor
+  const anchorElementRef = useRef(anchorElement)
+  anchorElementRef.current = anchorElement
+
+  const reposition = useCallback(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const element = anchorElementRef.current
+    const anchorRect = element?.getBoundingClientRect()
+    const point = anchorRect && anchorRect.width > 0
+      ? { x: anchorRect.left + anchorRect.width / 2, y: anchorRect.top + anchorRect.height / 2 }
+      : anchorRef.current
+    const rect = dialog.getBoundingClientRect()
+    const next = positionOverlay(
+      point,
       { width: rect.width || overlayWidth, height: rect.height },
       { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 },
+    )
+    setPosition((current) => (
+      current.left === next.left && current.top === next.top && current.placement === next.placement
+        ? current
+        : next
     ))
-  }, [anchor, container, target])
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!container) return
+    reposition()
+  }, [container, reposition, target])
+
+  useEffect(() => {
+    if (!container) return undefined
+    // The first measurement runs against whatever layout exists at click time.
+    // Anything that can still move it — the next two frames, web fonts, a
+    // resize, the dialog growing — re-runs it, so the resting position never
+    // depends on when the overlay happened to open.
+    let frame = globalThis.requestAnimationFrame(() => {
+      frame = globalThis.requestAnimationFrame(reposition)
+    })
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
+    if (dialogRef.current) observer?.observe(dialogRef.current)
+    if (anchorElementRef.current) observer?.observe(anchorElementRef.current)
+    globalThis.addEventListener('resize', reposition)
+    const fonts = (globalThis.document as Document & { fonts?: FontFaceSet }).fonts
+    void fonts?.ready.then(reposition)
+    return () => {
+      globalThis.cancelAnimationFrame(frame)
+      observer?.disconnect()
+      globalThis.removeEventListener('resize', reposition)
+    }
+  }, [container, reposition])
 
   useEffect(() => {
     if (container) dialogRef.current?.focus()

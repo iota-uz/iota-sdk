@@ -110,7 +110,14 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const instanceId = useId()
   const viewKey = `${active ? navigation.path.join('|') : panel.drillRoot ?? panel.id}:${navigation.perspectiveId ?? ''}`
   const previousView = useRef(viewKey)
-  const [overlay, setOverlay] = useState<{ target: DrillTarget; anchor: ChartAnchor }>()
+  const [overlay, setOverlay] = useState<{
+    target: DrillTarget
+    anchor: ChartAnchor
+    // Element-anchored overlays keep the element so the popover can re-measure
+    // it once the layout settles; pointer-anchored ones carry coordinates that
+    // no reflow can invalidate.
+    anchorElement?: HTMLElement | null
+  }>()
   const transitionName = useMemo(() => {
     const identifier = `${panel.id}-${instanceId}`.replace(/[^a-zA-Z0-9_-]/g, '-')
     return `lens-explore-${identifier}`
@@ -175,6 +182,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       // Without a pointer position (keyboard activation) the popover anchors
       // to the panel itself.
       anchor: anchor ?? anchorFromElement(focusRef.current),
+      anchorElement: anchor ? undefined : focusRef.current,
     })
   }, [document, frame.data, leafHrefFor, level, themeOf, withHrefs])
 
@@ -185,6 +193,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     setOverlay({
       target: { ...target, breakdown: withHrefs(target.breakdown, level) },
       anchor: anchorFromElement(exploreRef.current),
+      anchorElement: exploreRef.current,
     })
   }, [document, frame.data, level, panel, themeOf, withHrefs])
 
@@ -297,6 +306,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       {overlay && (
         <DrillOverlay
           anchor={overlay.anchor}
+          anchorElement={overlay.anchorElement}
           path={breadcrumbs.map((crumb) => ({
             label: crumb.label,
             current: crumb.current,
