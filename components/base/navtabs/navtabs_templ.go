@@ -134,9 +134,9 @@ func List(class string) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var7 string
-		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("Common.TabNavigation"))
+		templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(orDefault(pageCtx.TSafe("Common.TabNavigation"), "Tab navigation"))
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/navtabs/navtabs.templ`, Line: 34, Col: 48}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `components/base/navtabs/navtabs.templ`, Line: 34, Col: 81}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 		if templ_7745c5c3_Err != nil {
@@ -323,6 +323,16 @@ func Content(value string) templ.Component {
 		}
 		return nil
 	})
+}
+
+// orDefault keeps a decorative a11y label from taking a page down with it: a
+// base component may render wherever a host puts it, including contexts with
+// no localizer or a namespaced one where an absolute key does not resolve.
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }
 
 var _ = templruntime.GeneratedTemplate

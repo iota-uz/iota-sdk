@@ -31,7 +31,7 @@ templ List(class string) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div
 		role="tablist"
-		aria-label={ pageCtx.T("Common.TabNavigation") }
+		aria-label={ orDefault(pageCtx.TSafe("Common.TabNavigation"), "Tab navigation") }
 		@resize.window="updateBackground()"
 		x-ref="tabsContainer"
 		x-init="$nextTick(() => updateBackground())"
@@ -66,4 +66,14 @@ templ Content(value string) {
 	<div x-show={ fmt.Sprintf("isActive('%s')", value) }>
 		{ children... }
 	</div>
+}
+
+// orDefault keeps a decorative a11y label from taking a page down with it: a
+// base component may render wherever a host puts it, including contexts with
+// no localizer or a namespaced one where an absolute key does not resolve.
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }

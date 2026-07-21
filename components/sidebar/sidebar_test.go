@@ -7,19 +7,30 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/iota-uz/go-i18n/v2/i18n"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	"github.com/iota-uz/iota-sdk/pkg/types"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
 )
 
+// renderContext mirrors what the page-context middleware installs in
+// production: a real localizer carrying the keys the sidebar's own components
+// look up. Rendering with a nil localizer is covered by the base components
+// themselves, which fall back rather than panic.
+func renderContext() context.Context {
+	bundle := i18n.NewBundle(language.English)
+	bundle.MustAddMessages(language.English, &i18n.Message{ID: "Common.TabNavigation", Other: "Tab navigation"})
+	return composables.WithPageCtx(
+		context.Background(),
+		types.NewPageContext(language.English, &url.URL{Path: "/"}, i18n.NewLocalizer(bundle, language.English.String())),
+	)
+}
+
 func TestSidebar_CollapsedFlyoutUsesTeleportSafeStore(t *testing.T) {
 	t.Parallel()
 
-	ctx := composables.WithPageCtx(
-		context.Background(),
-		types.NewPageContext(language.English, &url.URL{Path: "/"}, nil),
-	)
+	ctx := renderContext()
 
 	props := Props{
 		TabGroups: TabGroupCollection{
@@ -53,10 +64,7 @@ func TestSidebar_CollapsedFlyoutUsesTeleportSafeStore(t *testing.T) {
 func TestSidebar_MainNavigationIDIsUniqueAcrossTabs(t *testing.T) {
 	t.Parallel()
 
-	ctx := composables.WithPageCtx(
-		context.Background(),
-		types.NewPageContext(language.English, &url.URL{Path: "/"}, nil),
-	)
+	ctx := renderContext()
 
 	props := Props{
 		TabGroups: TabGroupCollection{

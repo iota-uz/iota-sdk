@@ -97,7 +97,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label={ pageCtx.T("Common.CloseNotification") }
+						aria-label={ orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>
@@ -119,7 +119,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label={ pageCtx.T("Common.CloseNotification") }
+						aria-label={ orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>
@@ -141,7 +141,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label={ pageCtx.T("Common.CloseNotification") }
+						aria-label={ orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>
@@ -163,7 +163,7 @@ templ Container() {
 						@click="dismiss()"
 						type="button"
 						class="flex-shrink-0 text-neutral-400 hover:text-neutral-600 dark:hover:text-neutral-200 transition-colors"
-						aria-label={ pageCtx.T("Common.CloseNotification") }
+						aria-label={ orDefault(pageCtx.TSafe("Common.CloseNotification"), "Close notification") }
 					>
 						@icons.X(icons.Props{Size: "20"})
 					</button>
@@ -171,4 +171,14 @@ templ Container() {
 			</div>
 		</template>
 	</div>
+}
+
+// orDefault keeps a decorative a11y label from taking a page down with it: a
+// base component may render wherever a host puts it, including contexts with
+// no localizer or a namespaced one where an absolute key does not resolve.
+func orDefault(v, def string) string {
+	if v == "" {
+		return def
+	}
+	return v
 }
