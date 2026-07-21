@@ -84,6 +84,16 @@ describe('stat panels', () => {
 
     expect(screen.getByText('Net of reinsurance')).toBeInTheDocument()
   })
+
+  it('renders multiline captions without flattening their content', () => {
+    const panel: Panel = { ...statPanel, caption: 'First caveat\nSecond caveat' }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <StatPanel panel={panel} />,
+    )
+
+    expect(container.querySelector('.lens-panel-caption')?.textContent).toBe('First caveat\nSecond caveat')
+  })
 })
 
 const coveragePanel: Panel = {

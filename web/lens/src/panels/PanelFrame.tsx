@@ -114,6 +114,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
           </button>
         </div>
       </header>
+      {panel.caption && <p className="lens-panel-caption">{panel.caption}</p>}
       <div className="lens-panel-body">
         {showInitialLoading ? (
           <PanelSkeletonBody kind={panel.kind} />

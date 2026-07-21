@@ -141,6 +141,10 @@
     @apply lens-flex-none;
   }
 
+  .lens-panel-caption {
+    @apply lens-m-0 lens-whitespace-pre-line lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4 lens-py-3 lens-text-sm lens-leading-relaxed lens-text-muted;
+  }
+
   .lens-export-control {
     @apply lens-relative lens-flex lens-items-center;
   }
@@ -647,10 +651,6 @@
   .lens-coverage-headline {
     @apply lens-m-0 lens-text-3xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
-  }
-
-  .lens-coverage-caption {
-    @apply lens-m-0 lens-text-xs lens-font-medium lens-uppercase lens-tracking-wider lens-text-faint;
   }
 
   .lens-coverage-track {

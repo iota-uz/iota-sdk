@@ -132,7 +132,8 @@ type Panel struct {
 	// Status is a small chip rendered next to the panel's label, e.g. an
 	// estimate marker on a KPI.
 	Status *PanelStatus `json:"status,omitempty"`
-	// Caption is a short, already-localized line under a coverage headline.
+	// Caption is already-localized supporting text rendered below panel chrome.
+	// Newlines are preserved so callers can carry multiple notes or caveats.
 	Caption string `json:"caption,omitempty"`
 	// Headline overrides a coverage panel's computed headline value.
 	Headline *float64 `json:"headline,omitempty"`
