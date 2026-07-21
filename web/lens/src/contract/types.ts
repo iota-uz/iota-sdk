@@ -6,6 +6,7 @@ export interface Action {
   kind: ActionKind
   method?: string
   urlTemplate?: string
+  urlSource?: Source
   event?: string
   params: Array<ActionParam>
   payload: Record<string, Source>
@@ -18,6 +19,8 @@ export interface ActionParam {
   name: string
   source: Source
 }
+
+export type ColorBy = "category"
 
 export interface Column {
   name: string
@@ -67,6 +70,9 @@ export interface FieldFormat {
   minorUnits: boolean
   precision?: number
   layout?: string
+  compact?: boolean
+  decimalSeparator?: string
+  symbol?: string
 }
 
 export type FormatKind = "date" | "money" | "number" | "percent" | "string"
@@ -82,9 +88,23 @@ export interface Layout {
   rows: Array<LayoutRow>
 }
 
+export interface LayoutGroup {
+  id: string
+  kind: LayoutGroupKind
+  label?: string
+  layout?: LayoutGroupLayout
+  span: number
+  tab?: string
+}
+
+export type LayoutGroupKind = "metrics" | "tabs"
+
+export type LayoutGroupLayout = "columns" | "rows"
+
 export interface LayoutItem {
   panelId: string
   span: number
+  group?: LayoutGroup
 }
 
 export interface LayoutRow {
@@ -92,6 +112,8 @@ export interface LayoutRow {
   class?: string
   panels: Array<LayoutItem>
 }
+
+export type LegendPlacement = "below"
 
 export interface Level {
   path: NodePath
@@ -129,11 +151,30 @@ export interface Panel {
   frame: FrameRef
   encoding: Encoding
   format: Record<string, FieldFormat>
+  total?: number
+  columns?: Array<TableColumn>
   drillRoot?: NodeKey
   actions: Array<Action>
+  accent?: string
+  status?: PanelStatus
+  caption?: string
+  headline?: number
+  trend?: PanelTrend
+  presentation?: Presentation
 }
 
-export type PanelKind = "area" | "bar" | "cascade" | "donut" | "hbar" | "line" | "pie" | "stat" | "table"
+export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "pie" | "stat" | "table"
+
+export interface PanelStatus {
+  label: string
+  tone?: StatusTone
+}
+
+export interface PanelTrend {
+  percent: number
+  label?: string
+  invert?: boolean
+}
 
 export interface Perspective {
   id: string
@@ -147,6 +188,15 @@ export interface Perspective {
 
 export interface PerspectiveRef {
   id: string
+}
+
+export interface Presentation {
+  legend?: LegendPlacement
+  sliceLabels?: SliceLabels
+  totalBadge?: TotalBadgePlacement
+  colorBy?: ColorBy
+  fill?: boolean
+  barWidthPx?: number
 }
 
 export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
@@ -176,6 +226,8 @@ export interface QueryResponse {
 
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"
 
+export type SliceLabels = "percent"
+
 export interface Source {
   kind: ValueSourceKind
   name?: string
@@ -183,10 +235,40 @@ export interface Source {
   fallback?: unknown
 }
 
+export type StatusTone = "neutral" | "positive" | "warning"
+
+export type TableAffordance = "pill"
+
+export type TableAlign = "left" | "right"
+
+export interface TableCell {
+  kind: TableCellKind
+  secondaryField?: string
+  layout?: TableCellLayout
+}
+
+export type TableCellKind = "bar" | "delta" | "plain" | "underline"
+
+export type TableCellLayout = "stacked"
+
+export interface TableColumn {
+  field: string
+  label: string
+  align?: TableAlign
+  cell: TableCell
+  action?: Action
+  text?: string
+  widthPx?: number
+  clamp?: number
+  affordance?: TableAffordance
+}
+
 export interface Theme {
   palette: Record<string, string>
   series: Record<string, string>
 }
+
+export type TotalBadgePlacement = "header" | "none" | "plot"
 
 export type ValueSourceKind = "field" | "literal" | "variable"
 

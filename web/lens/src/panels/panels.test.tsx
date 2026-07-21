@@ -22,6 +22,10 @@ vi.mock('../runtime', () => ({
     }
     return '—'
   },
+  useAxisFormat: () => (value: unknown) => String(value),
+  useTranslate: () => (_key: string, fallback: string, vars?: Record<string, string | number>) => (
+    vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match)) : fallback
+  ),
   useDrill: () => ({ drillInto: runtime.drillInto }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
 }))
@@ -96,13 +100,18 @@ afterEach(() => {
   runtime.drillInto.mockReset()
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'table'])('%s panel states', (kind) => {
+describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
   it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
     const panelElement = screen.getByLabelText(`${kind} panel`)
 
-    if (stateName === 'loading') expect(screen.getByRole('status', { name: 'Loading panel' })).toBeInTheDocument()
+    if (stateName === 'loading') {
+      // The placeholder mirrors the panel shape and is hidden from assistive
+      // technology; aria-busy on the panel carries the state instead.
+      expect(panelElement).toHaveAttribute('aria-busy', 'true')
+      expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+    }
     if (stateName === 'empty') expect(screen.getByText('No data')).toBeInTheDocument()
     if (stateName === 'error') {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
@@ -122,12 +131,29 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area',
   })
 })
 
+describe('panel total badge', () => {
+  it('renders the formatted total in the header when panel.total is present', () => {
+    runtime.frame = state('data')
+    const view = render(<BarPanel panel={panel('bar', { total: 12345 })} adapter={fakeAdapter()} />)
+    const badge = view.container.querySelector('.lens-panel-total')
+    // The badge names what it totals, like the legacy renderer's "Итого:".
+    expect(badge).toHaveTextContent('Total: 12345')
+  })
+
+  it('omits the badge when panel.total is absent', () => {
+    runtime.frame = state('data')
+    const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+  })
+})
+
 describe('panel registry', () => {
   it('partitions every contract panel kind into supported or explicitly unsupported', () => {
     const contractKinds = {
       area: true,
       bar: true,
       cascade: true,
+  coverage: true,
       donut: true,
       hbar: true,
       line: true,
@@ -158,12 +184,12 @@ describe('chart encoding and drill behavior', () => {
     const adapter = fakeAdapter()
     const view = render(<PiePanel panel={panel('pie')} adapter={adapter} />)
     await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
-    expect(screen.getByLabelText('pie panel pie chart')).not.toHaveAttribute('data-drillable')
+    expect(screen.getByLabelText('pie panel chart')).not.toHaveAttribute('data-drillable')
     fireEvent.click(screen.getByText('chart data'))
     expect(runtime.drillInto).not.toHaveBeenCalled()
 
     view.rerender(<PiePanel panel={panel('pie', { drillRoot: 'root' })} adapter={adapter} />)
-    expect(screen.getByLabelText('pie panel pie chart')).toHaveAttribute('data-drillable', 'true')
+    expect(screen.getByLabelText('pie panel chart')).toHaveAttribute('data-drillable', 'true')
     fireEvent.click(screen.getByText('chart data'))
     expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-pie')
   })
@@ -182,10 +208,10 @@ describe('chart encoding and drill behavior', () => {
     await waitFor(() => expect(inputs.at(-1)?.encoding).toEqual({ value: 'value' }))
   })
 
-  it('falls back to the panel title when optional stat roles are absent', () => {
+  it('renders the panel title once when the stat label would duplicate it', () => {
     runtime.frame = state('data')
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
-    expect(screen.getAllByText('stat panel')).toHaveLength(2)
+    expect(screen.getAllByText('stat panel')).toHaveLength(1)
     expect(screen.getByText('42')).toBeInTheDocument()
   })
 })

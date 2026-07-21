@@ -21,11 +21,46 @@ function precisionOptions(precision: number | undefined): Intl.NumberFormatOptio
   return { minimumFractionDigits: precision, maximumFractionDigits: precision }
 }
 
+/**
+ * Compact magnitudes come from the locale's own CLDR data (ru → «млрд», uz →
+ * «mlrd», en → «B»), never from a hardcoded suffix table. Only the decimal
+ * separator can be pinned: `decimalSeparator` exists because the Go renderer
+ * prints the mantissa with `%.*f`, i.e. a dot in every locale, so a document
+ * that must match it byte for byte asks for ".".
+ */
+function applyDecimalSeparator(parts: Intl.NumberFormatPart[], separator: string | undefined): string {
+  const text = parts.map((part) => (part.type === 'decimal' && separator ? separator : part.value)).join('')
+  if (!separator) return text
+  // Pinning the separator means "match the Go renderer", which also prints an
+  // ASCII space before magnitude words and no space before the percent sign.
+  return text.replace(/[\u00A0\u202F]/g, ' ').replace(/\s+%/, '%')
+}
+
+function formatCompactNumber(value: number, field: FieldFormat, locale: string, currency?: string): string {
+  const precision = field.precision ?? 2
+  const formatter = new Intl.NumberFormat(locale, {
+    notation: 'compact',
+    compactDisplay: 'short',
+    minimumFractionDigits: precision,
+    maximumFractionDigits: precision,
+  })
+  const compact = applyDecimalSeparator(formatter.formatToParts(value), field.decimalSeparator)
+  return currency ? `${compact} ${currency}` : compact
+}
+
 function formatMoney(value: number, field: FieldFormat, locale: string): string {
   const currency = field.currency ?? 'USD'
+  const scaled = field.minorUnits ? value / 100 : value
+  if (field.compact) return formatCompactNumber(scaled, field, locale, currency)
+  // A document that pins the currency's grapheme wants the Go renderer's
+  // "<amount> <symbol>" shape (UZS → "so’m"), not the locale's own currency
+  // display for the ISO code.
+  if (field.symbol) {
+    const decimal = new Intl.NumberFormat(locale, precisionOptions(field.precision))
+    return `${applyDecimalSeparator(decimal.formatToParts(scaled), field.decimalSeparator)} ${field.symbol}`
+  }
   const base = new Intl.NumberFormat(locale, { style: 'currency', currency, ...precisionOptions(field.precision) })
-  if (!field.minorUnits) return base.format(value)
-  return base.format(value / 100)
+  return base.format(scaled)
 }
 
 const goDateTokens = [
@@ -78,6 +113,21 @@ function formatDate(value: unknown, layout: string | undefined, locale: string):
   return output
 }
 
+export function formatAxis(value: unknown, field: FieldFormat | undefined, locale: string): string {
+  const number = numeric(value)
+  if (number !== undefined && field && (field.kind === 'money' || field.kind === 'number')) {
+    if (field.kind === 'money') {
+      const currency = field.currency ?? 'USD'
+      const scaled = field.minorUnits ? number / 100 : number
+      return new Intl.NumberFormat(locale, {
+        style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1,
+      }).format(scaled)
+    }
+    return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(number)
+  }
+  return formatFieldValue(value, field, locale)
+}
+
 export function formatFieldValue(value: unknown, field: FieldFormat | undefined, locale: string): string {
   if (!field) {
     const number = numeric(value)
@@ -89,9 +139,12 @@ export function formatFieldValue(value: unknown, field: FieldFormat | undefined,
   if (number === undefined) return fallback(value)
   if (field.kind === 'money') return formatMoney(number, field, locale)
   if (field.kind === 'percent') {
-    return new Intl.NumberFormat(locale, {
+    const percent = new Intl.NumberFormat(locale, {
       style: 'unit', unit: 'percent', unitDisplay: 'narrow', ...precisionOptions(field.precision),
-    }).format(number)
+    })
+    return applyDecimalSeparator(percent.formatToParts(number), field.decimalSeparator)
   }
-  return new Intl.NumberFormat(locale, precisionOptions(field.precision)).format(number)
+  if (field.compact) return formatCompactNumber(number, field, locale)
+  const plain = new Intl.NumberFormat(locale, precisionOptions(field.precision))
+  return applyDecimalSeparator(plain.formatToParts(number), field.decimalSeparator)
 }

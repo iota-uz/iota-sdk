@@ -52,6 +52,9 @@ func (d *DashboardDocument) Validate() error {
 			if item.Span < 1 || item.Span > 12 {
 				return serrors.E(op, fmt.Errorf("layout panel %s span must be between 1 and 12", item.PanelID))
 			}
+			if err := validateLayoutGroup(item); err != nil {
+				return serrors.E(op, err)
+			}
 		}
 	}
 	if err := d.validateDrill(); err != nil {
@@ -92,6 +95,34 @@ func (d *DashboardDocument) Validate() error {
 	return nil
 }
 
+func validateLayoutGroup(item LayoutItem) error {
+	group := item.Group
+	if group == nil {
+		return nil
+	}
+	if strings.TrimSpace(group.ID) == "" {
+		return fmt.Errorf("layout panel %s group id is required", item.PanelID)
+	}
+	switch group.Kind {
+	case LayoutGroupMetrics:
+		switch group.Layout {
+		case "", LayoutGroupColumns, LayoutGroupRows:
+		default:
+			return fmt.Errorf("layout group %s has unsupported layout %q", group.ID, group.Layout)
+		}
+	case LayoutGroupTabs:
+		if strings.TrimSpace(group.Tab) == "" {
+			return fmt.Errorf("layout panel %s in tabs group %s requires a tab", item.PanelID, group.ID)
+		}
+	default:
+		return fmt.Errorf("layout group %s has unsupported kind %q", group.ID, group.Kind)
+	}
+	if group.Span < 1 || group.Span > 12 {
+		return fmt.Errorf("layout group %s span must be between 1 and 12", group.ID)
+	}
+	return nil
+}
+
 func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if strings.TrimSpace(panel.ID) == "" {
 		return fmt.Errorf("panel id is required")
@@ -108,13 +139,26 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if panel.Semantics == SemanticsReconciliation && (panel.Kind == PanelKindPie || panel.Kind == PanelKindDonut) {
 		return fmt.Errorf("panel %s reconciliation semantics cannot use %s encoding", panel.ID, panel.Kind)
 	}
-	if panel.Semantics == SemanticsEvidence && !hasLeafAction(panel.Actions) {
+	if panel.Semantics == SemanticsEvidence && !hasLeafAction(panel.Actions) && !hasLeafTableColumnAction(panel.Columns) {
 		return fmt.Errorf("panel %s evidence semantics requires a leaf action", panel.ID)
 	}
 	if panel.DrillRoot != nil {
 		if _, ok := d.Drill.Edges[*panel.DrillRoot]; !ok {
 			return fmt.Errorf("panel %s references missing drill root %q", panel.ID, *panel.DrillRoot)
 		}
+	}
+	if panel.Status != nil {
+		if strings.TrimSpace(panel.Status.Label) == "" {
+			return fmt.Errorf("panel %s status requires a label", panel.ID)
+		}
+		switch panel.Status.Tone {
+		case "", StatusToneNeutral, StatusTonePositive, StatusToneWarning:
+		default:
+			return fmt.Errorf("panel %s has unsupported status tone %q", panel.ID, panel.Status.Tone)
+		}
+	}
+	if err := validatePresentation(panel); err != nil {
+		return err
 	}
 	for field, format := range panel.Format {
 		if strings.TrimSpace(field) == "" {
@@ -146,9 +190,120 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 			return err
 		}
 	}
+	// A panel-level action is resolved against the rows currently on screen,
+	// which for a drillable panel are the current level's frame — not the
+	// root frame. Accept a field that exists on any frame the panel can show.
+	actionFrames := d.panelActionFrames(panel)
 	for _, action := range panel.Actions {
 		if err := validateAction(panel.ID, action); err != nil {
 			return err
+		}
+		if err := validateActionFields(panel.ID, action, actionFrames...); err != nil {
+			return err
+		}
+	}
+	if panel.Kind != PanelKindTable && len(panel.Columns) > 0 {
+		return fmt.Errorf("panel %s has table columns for kind %q", panel.ID, panel.Kind)
+	}
+	if panel.Kind == PanelKindTable {
+		if err := validateTableColumns(panel, d.Frames[panel.Frame]); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validatePresentation(panel Panel) error {
+	presentation := panel.Presentation
+	if presentation == nil {
+		return nil
+	}
+	switch presentation.Legend {
+	case "", LegendBelow:
+	default:
+		return fmt.Errorf("panel %s has unsupported legend placement %q", panel.ID, presentation.Legend)
+	}
+	switch presentation.SliceLabels {
+	case "", SliceLabelsPercent:
+	default:
+		return fmt.Errorf("panel %s has unsupported slice labels %q", panel.ID, presentation.SliceLabels)
+	}
+	switch presentation.TotalBadge {
+	case "", TotalBadgeHeader, TotalBadgePlot, TotalBadgeNone:
+	default:
+		return fmt.Errorf("panel %s has unsupported total badge placement %q", panel.ID, presentation.TotalBadge)
+	}
+	switch presentation.ColorBy {
+	case "", ColorByCategory:
+	default:
+		return fmt.Errorf("panel %s has unsupported color mode %q", panel.ID, presentation.ColorBy)
+	}
+	if presentation.BarWidthPx < 0 {
+		return fmt.Errorf("panel %s bar width cannot be negative", panel.ID)
+	}
+	return nil
+}
+
+func validateTableColumns(panel Panel, frame Frame) error {
+	fields := make(map[string]struct{}, len(panel.Columns))
+	for index, column := range panel.Columns {
+		owner := fmt.Sprintf("panel %s table column %d", panel.ID, index)
+		if strings.TrimSpace(column.Field) == "" {
+			if column.Action == nil {
+				return fmt.Errorf("%s requires a field or action", owner)
+			}
+		} else {
+			if _, duplicate := fields[column.Field]; duplicate {
+				return fmt.Errorf("panel %s has duplicate table column %q", panel.ID, column.Field)
+			}
+			fields[column.Field] = struct{}{}
+			if !frameHasColumn(frame, column.Field) {
+				return fmt.Errorf("%s references missing field %q", owner, column.Field)
+			}
+		}
+		switch column.Align {
+		case "", TableAlignLeft, TableAlignRight:
+		default:
+			return fmt.Errorf("%s has unsupported alignment %q", owner, column.Align)
+		}
+		if column.WidthPx < 0 {
+			return fmt.Errorf("%s width cannot be negative", owner)
+		}
+		if column.Clamp < 0 {
+			return fmt.Errorf("%s clamp cannot be negative", owner)
+		}
+		switch column.Affordance {
+		case "", TableAffordancePill:
+		default:
+			return fmt.Errorf("%s has unsupported affordance %q", owner, column.Affordance)
+		}
+		switch column.Cell.Layout {
+		case "", TableCellStacked:
+		default:
+			return fmt.Errorf("%s has unsupported cell layout %q", owner, column.Cell.Layout)
+		}
+		switch column.Cell.Kind {
+		case TableCellPlain, TableCellBar, TableCellUnderline:
+			if column.Cell.SecondaryField != "" {
+				return fmt.Errorf("%s %s cell cannot have a secondary field", owner, column.Cell.Kind)
+			}
+		case TableCellDelta:
+			if strings.TrimSpace(column.Cell.SecondaryField) == "" {
+				return fmt.Errorf("%s delta cell requires a secondary field", owner)
+			}
+			if !frameHasColumn(frame, column.Cell.SecondaryField) {
+				return fmt.Errorf("%s delta cell references missing secondary field %q", owner, column.Cell.SecondaryField)
+			}
+		default:
+			return fmt.Errorf("%s has unsupported cell kind %q", owner, column.Cell.Kind)
+		}
+		if column.Action != nil {
+			if err := validateAction(owner, *column.Action); err != nil {
+				return err
+			}
+			if err := validateActionFields(owner, *column.Action, frame); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -292,7 +447,7 @@ func frameHasColumn(frame Frame, name string) bool {
 func validateAction(owner string, action Action) error {
 	switch action.Kind {
 	case ActionNavigate, ActionNavigateToLeaf:
-		if strings.TrimSpace(action.URLTemplate) == "" {
+		if strings.TrimSpace(action.URLTemplate) == "" && action.URLSource == nil {
 			return fmt.Errorf("%s navigate action requires url", owner)
 		}
 	case ActionEmitEvent:
@@ -301,6 +456,11 @@ func validateAction(owner string, action Action) error {
 		}
 	default:
 		return fmt.Errorf("%s has unsupported action kind %q", owner, action.Kind)
+	}
+	if action.URLSource != nil {
+		if err := validateSource(owner, *action.URLSource); err != nil {
+			return err
+		}
 	}
 	params := make(map[string]struct{}, len(action.Params))
 	for _, param := range action.Params {
@@ -317,6 +477,70 @@ func validateAction(owner string, action Action) error {
 	}
 	for _, source := range action.Payload {
 		if err := validateSource(owner, source); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// panelActionFrames lists every frame a panel's rows can be drawn from: its
+// own frame plus the frames of every drill level reachable from its root.
+func (d *DashboardDocument) panelActionFrames(panel Panel) []Frame {
+	frames := []Frame{d.Frames[panel.Frame]}
+	if panel.DrillRoot == nil {
+		return frames
+	}
+	seen := make(map[NodeKey]struct{})
+	var walk func(key NodeKey)
+	walk = func(key NodeKey) {
+		if _, visited := seen[key]; visited {
+			return
+		}
+		seen[key] = struct{}{}
+		level, ok := d.Drill.Edges[key]
+		if !ok {
+			return
+		}
+		if level.Frame != "" {
+			frames = append(frames, d.Frames[level.Frame])
+		}
+		for _, ref := range level.Perspectives {
+			walk(findPerspective(d.Perspectives, ref.ID).Root)
+		}
+		for _, child := range level.Children {
+			if child.Target != "" {
+				walk(child.Target)
+			}
+		}
+	}
+	walk(*panel.DrillRoot)
+	return frames
+}
+
+func validateActionFields(owner string, action Action, frames ...Frame) error {
+	validate := func(source Source) error {
+		if source.Kind != ValueSourceField {
+			return nil
+		}
+		for _, frame := range frames {
+			if frameHasColumn(frame, source.Name) {
+				return nil
+			}
+		}
+		return fmt.Errorf("%s action references missing field %q", owner, source.Name)
+	}
+	if action.URLSource != nil {
+		if err := validate(*action.URLSource); err != nil {
+			return err
+		}
+	}
+	for _, param := range action.Params {
+		if err := validate(param.Source); err != nil {
+			return err
+		}
+	}
+	for _, source := range action.Payload {
+		if err := validate(source); err != nil {
 			return err
 		}
 	}
@@ -348,10 +572,19 @@ func hasLeafAction(actions []Action) bool {
 	return false
 }
 
+func hasLeafTableColumnAction(columns []TableColumn) bool {
+	for _, column := range columns {
+		if column.Action != nil && column.Action.Kind == ActionNavigateToLeaf {
+			return true
+		}
+	}
+	return false
+}
+
 func validPanelKind(kind PanelKind) bool {
 	switch kind {
 	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindBar, PanelKindHBar,
-		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindTable:
+		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindTable, PanelKindCoverage:
 		return true
 	default:
 		return false

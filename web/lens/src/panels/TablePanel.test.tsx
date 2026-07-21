@@ -68,6 +68,109 @@ afterEach(() => {
   window.history.replaceState(null, '', '/')
 })
 
+const columnsPanel: Panel = {
+  id: 'profitability',
+  kind: 'table',
+  title: 'Profitability',
+  semantics: 'evidence',
+  frame: 'profitability:root',
+  encoding: { id: 'client_id', label: 'name' },
+  format: {
+    earned: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 0 },
+    growth: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 0 },
+    growth_pct: { kind: 'percent', minorUnits: false, precision: 1 },
+  },
+  columns: [
+    {
+      field: 'name',
+      label: 'Client',
+      cell: { kind: 'plain' },
+      action: {
+        kind: 'navigate_to_leaf',
+        urlSource: { kind: 'field', name: 'detail_url' },
+        params: [],
+        payload: {},
+      },
+    },
+    { field: 'earned', label: 'Earned premium', align: 'right', cell: { kind: 'bar' } },
+    { field: 'growth', label: 'Growth', align: 'right', cell: { kind: 'delta', secondaryField: 'growth_pct' } },
+  ],
+  actions: [],
+}
+
+const columnsDocument: DashboardDocument = {
+  version: '1.0.0',
+  snapshotId: 'columns-snapshot',
+  meta: { dashboardId: 'columns', title: 'Columns', generatedAt: '2026-07-19T00:00:00Z', locale: 'en' },
+  layout: { rows: [{ panels: [{ panelId: columnsPanel.id, span: 12 }] }] },
+  panels: [columnsPanel],
+  frames: {
+    'profitability:root': {
+      columns: [
+        { name: 'client_id', type: 'string' },
+        { name: 'name', type: 'string' },
+        { name: 'earned', type: 'number' },
+        { name: 'growth', type: 'number' },
+        { name: 'growth_pct', type: 'number' },
+        { name: 'detail_url', type: 'string' },
+        { name: 'secret', type: 'string' },
+      ],
+      rows: [
+        ['1', 'Orion', 1_000_000, 200_000, 12.5, '/clients/1', 'top-secret'],
+        ['2', 'Northstar', 500_000, -80_000, -4.2, '/clients/2', 'hidden-note'],
+      ],
+    },
+  },
+  drill: { inlineDepth: 0, edges: {} },
+  perspectives: [],
+  endpoints: {},
+  i18n: {},
+  theme: { palette: {}, series: {} },
+}
+
+describe('TablePanel columns', () => {
+  it('renders declared columns in order with labels, bar/delta cells, and per-column leaf links', () => {
+    const { container } = render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={columnsDocument}>
+          <DashboardRuntimeProvider locale="en">
+            <TablePanel panel={columnsPanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    const headers = screen.getAllByRole('columnheader').map((header) => header.textContent ?? '')
+    expect(headers).toHaveLength(3)
+    expect(headers[0]).toContain('Client')
+    expect(headers[1]).toContain('Earned premium')
+    expect(headers[2]).toContain('Growth')
+
+    // Hidden frame fields never render.
+    expect(screen.queryByText('top-secret')).toBeNull()
+    expect(screen.queryByText('hidden-note')).toBeNull()
+
+    // Bar cells grow from the track midpoint, so the max value fills one half
+    // and the sign decides which half.
+    const fills = container.querySelectorAll<HTMLElement>('.lens-table-bar-fill')
+    expect(fills).toHaveLength(2)
+    expect(fills[0]?.style.width).toBe('50%')
+    expect(fills[0]?.style.left).toBe('50%')
+    expect(fills[1]?.style.width).toBe('25%')
+
+    // Delta cell colors the secondary percentage by sign.
+    expect(container.querySelector('.lens-table-delta-pct-negative')).not.toBeNull()
+
+    // Per-column action renders the cell as a same-origin leaf link.
+    const links = screen.getAllByRole('link')
+    expect(links[0]).toHaveAttribute('href', expect.stringContaining('/clients/1'))
+    expect(links[1]).toHaveAttribute('href', expect.stringContaining('/clients/2'))
+
+    // No panel-level "Open record" action column in columns mode.
+    expect(screen.queryByText('Open record')).toBeNull()
+  })
+})
+
 describe('TablePanel pagination', () => {
   it.each([
     { hasNext: false, disabled: true },

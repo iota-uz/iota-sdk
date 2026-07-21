@@ -165,6 +165,36 @@ func TestCompilePanelPreservesDrillTree(t *testing.T) {
 	require.Equal(t, &tree, compiled.DrillTree)
 }
 
+// Presentation hints and the rich table-column treatments are producer-side
+// contract: a document that declares them must reach panel.Spec unchanged, or
+// the wire document builder can never see them.
+func TestCompilePanelPreservesPresentationAndColumnTreatments(t *testing.T) {
+	t.Parallel()
+
+	hints := panel.PresentationHints{
+		LegendBelow: true, SliceLabelsPercent: true, TotalBadgeInPlot: true,
+		FillPlot: true, BarWidthPx: 55, ColorByCategory: true,
+	}
+	item := lensspec.Table("products", "Products", "products_dataset").
+		Presentation(hints).
+		Columns(
+			lensspec.Column("product", "Product").Clamp(2),
+			lensspec.Column("result", "Result").Underline(),
+			lensspec.Column("delta", "Delta").Delta("delta_pct").Stacked(),
+			lensspec.Column("premium", "Premium").Pill(),
+		).
+		Build()
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.Equal(t, hints, compiled.Presentation)
+	require.Equal(t, 2, compiled.Columns[0].ClampLines)
+	require.Equal(t, panel.TableCellUnderline, compiled.Columns[1].Cell.Kind)
+	require.True(t, compiled.Columns[2].Cell.Stacked)
+	require.Equal(t, panel.Ref("delta_pct"), compiled.Columns[2].Cell.PercentField)
+	require.Equal(t, "pill", compiled.Columns[3].Affordance)
+}
+
 // A stat_group document compiles through to a validated dashboard spec: the
 // group itself carries no dataset, children keep theirs, and the new stat v2
 // fields (status, sparkline, trend.invert, groupLayout) pass through 1:1.

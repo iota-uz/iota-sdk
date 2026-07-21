@@ -125,6 +125,8 @@
     }
   },
   "Common": {
+    "CloseNotification": "Fechar notificação",
+    "TabNavigation": "Navegação por abas",
     "Loading": "Carregando..."
   },
   "ConfirmDelete": "Tem certeza de que deseja excluir este item?",

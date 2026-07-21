@@ -297,6 +297,13 @@ func (b *PanelBuilder) Children(children ...PanelSpec) *PanelBuilder {
 	b.panel.Children = append(b.panel.Children, children...)
 	return b
 }
+
+// Presentation sets the panel's opt-in renderer density hints.
+func (b *PanelBuilder) Presentation(hints panel.PresentationHints) *PanelBuilder {
+	b.panel.Presentation = hints
+	return b
+}
+
 func (b *PanelBuilder) Build() PanelSpec { return b.panel }
 
 func StaticDataset(name string, static *frame.FrameSet, transforms ...transform.Spec) DatasetSpec {
@@ -363,6 +370,37 @@ func (c TableColumnSpec) Bar() TableColumnSpec {
 // percentField, colored by the delta's sign.
 func (c TableColumnSpec) Delta(percentField string) TableColumnSpec {
 	c.Cell = &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.FieldRef(percentField)}
+	return c
+}
+
+// Underline renders the column as a value over a thin proportional rule
+// colored by sign — a low-ink alternative to Bar.
+func (c TableColumnSpec) Underline() TableColumnSpec {
+	c.Cell = &panel.TableCellSpec{Kind: panel.TableCellUnderline}
+	return c
+}
+
+// Stacked puts a rich cell's secondary value on its own line under the primary
+// one. It is a no-op on columns without a rich cell.
+func (c TableColumnSpec) Stacked() TableColumnSpec {
+	if c.Cell == nil {
+		return c
+	}
+	cell := *c.Cell
+	cell.Stacked = true
+	c.Cell = &cell
+	return c
+}
+
+// Pill marks an actionable column's cells as compact drill pills.
+func (c TableColumnSpec) Pill() TableColumnSpec {
+	c.Affordance = "pill"
+	return c
+}
+
+// Clamp limits the column's cell text to lines rendered lines.
+func (c TableColumnSpec) Clamp(lines int) TableColumnSpec {
+	c.ClampLines = lines
 	return c
 }
 

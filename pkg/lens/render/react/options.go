@@ -1,6 +1,10 @@
 package react
 
-import "strings"
+import (
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+)
 
 type Theme string
 
@@ -19,6 +23,17 @@ type dashboardOptions struct {
 	IncludeAssets bool
 	EntryURL      string
 	Stylesheets   []string
+	Skeleton      *lens.DashboardSpec
+}
+
+// WithSkeleton renders the prepared dashboard's layout-shaped placeholder
+// inside the mount point. The runtime keeps it on screen until the first
+// document arrives, so the page never shows a bare spinner and the grid does
+// not jump when the data lands.
+func WithSkeleton(spec lens.DashboardSpec) Option {
+	return func(options *dashboardOptions) {
+		options.Skeleton = &spec
+	}
 }
 
 func WithLocale(locale string) Option {

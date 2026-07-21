@@ -137,6 +137,24 @@ func TestDashboardDocumentValidate_MoneyMetadata(t *testing.T) {
 	require.Contains(t, string(payload), `"minorUnits":false`)
 }
 
+func TestDashboardDocumentValidate_TableColumns(t *testing.T) {
+	t.Parallel()
+	doc := testDocument()
+	doc.Panels[0].Kind = PanelKindTable
+	doc.Panels[0].Columns = []TableColumn{{
+		Field: "value", Label: "Value", Align: TableAlignRight, Cell: TableCell{Kind: TableCellDelta, SecondaryField: "label"},
+		Action: &Action{
+			Kind: ActionNavigateToLeaf, URLSource: &Source{Kind: ValueSourceField, Name: "label"},
+			Params: []ActionParam{}, Payload: map[string]Source{},
+		},
+	}}
+	doc.Panels[0].Semantics = SemanticsEvidence
+	require.NoError(t, doc.Validate())
+
+	doc.Panels[0].Columns[0].Cell.SecondaryField = "missing"
+	require.ErrorContains(t, doc.Validate(), "missing secondary field")
+}
+
 func TestQueryPageJSON_EmitsFalseHasNext(t *testing.T) {
 	t.Parallel()
 	payload, err := json.Marshal(QueryPage{Number: 1, Size: 50})
@@ -192,4 +210,57 @@ func golden(t *testing.T, name string) string {
 	payload, err := os.ReadFile(filepath.Join("testdata", name))
 	require.NoError(t, err)
 	return strings.ReplaceAll(string(payload), "\r\n", "\n")
+}
+
+func TestDashboardDocumentValidate_PanelActionFieldsResolveAgainstLevelFrames(t *testing.T) {
+	t.Parallel()
+
+	drillable := func() *DashboardDocument {
+		doc := testDocument()
+		root := NodeKey("root")
+		doc.Panels[0].DrillRoot = &root
+		doc.Frames["level:root"] = Frame{
+			Columns: []Column{{Name: "policy_id", Type: ColumnString}},
+			Rows:    [][]any{{"PL-1"}},
+		}
+		doc.Drill.Edges["root"] = Level{
+			Path: NodePath{"root"}, Frame: "level:root", Children: []Node{}, Perspectives: []PerspectiveRef{},
+		}
+		doc.Panels[0].Actions = []Action{{
+			Kind: ActionNavigateToLeaf, URLTemplate: "/policies/{id}",
+			Params:  []ActionParam{{Name: "id", Source: Source{Kind: ValueSourceField, Name: "policy_id"}}},
+			Payload: map[string]Source{},
+		}}
+		return doc
+	}
+
+	t.Run("field supplied only by a drill level frame is accepted", func(t *testing.T) {
+		require.NoError(t, drillable().Validate())
+	})
+
+	t.Run("field on no reachable frame is still rejected", func(t *testing.T) {
+		doc := drillable()
+		doc.Panels[0].Actions[0].Params[0].Source.Name = "nowhere"
+		require.ErrorContains(t, doc.Validate(), "references missing field")
+	})
+}
+
+func TestDashboardDocumentValidate_LayoutGroups(t *testing.T) {
+	t.Parallel()
+
+	t.Run("tabs group requires a tab", func(t *testing.T) {
+		doc := testDocument()
+		doc.Layout.Rows[0].Panels[0].Group = &LayoutGroup{ID: "g", Kind: LayoutGroupTabs, Span: 12}
+		require.ErrorContains(t, doc.Validate(), "requires a tab")
+	})
+	t.Run("group span is bounded", func(t *testing.T) {
+		doc := testDocument()
+		doc.Layout.Rows[0].Panels[0].Group = &LayoutGroup{ID: "g", Kind: LayoutGroupMetrics, Span: 13}
+		require.ErrorContains(t, doc.Validate(), "span must be between 1 and 12")
+	})
+	t.Run("metrics group is accepted", func(t *testing.T) {
+		doc := testDocument()
+		doc.Layout.Rows[0].Panels[0].Group = &LayoutGroup{ID: "g", Kind: LayoutGroupMetrics, Span: 12, Layout: LayoutGroupColumns}
+		require.NoError(t, doc.Validate())
+	})
 }

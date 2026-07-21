@@ -58,7 +58,8 @@ describe('ChartHost', () => {
     expect(update.mock.calls.at(-1)?.[0].frame.rows).toEqual([['b', 2]])
     select?.('b')
     expect(firstSelect).not.toHaveBeenCalled()
-    expect(secondSelect).toHaveBeenCalledWith('b')
+    // The anchor is optional context for overlay placement; the key is the contract.
+    expect(secondSelect).toHaveBeenCalledWith('b', undefined)
 
     view.unmount()
     expect(dispose).toHaveBeenCalledTimes(1)

@@ -98,7 +98,7 @@ describe('ECharts adapter', () => {
     chart.emit('mouseout')
 
     expect(onSelect).toHaveBeenCalledOnce()
-    expect(onSelect).toHaveBeenCalledWith('stable/key')
+    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined)
     expect(onHover).toHaveBeenNthCalledWith(1, 'stable/key')
     expect(onHover).toHaveBeenNthCalledWith(2, null)
 

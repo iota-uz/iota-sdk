@@ -1,10 +1,13 @@
-import { useCallback, useMemo, useState } from 'react'
-import type { NodeKey, Panel } from '../contract'
-import type { ChartAdapter, ChartFormatResolver, ChartKind } from '../charts/adapter'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { Frame, NodeKey, Panel } from '../contract'
+import type { ChartAdapter, ChartAnchor, ChartFormatResolver, ChartKind } from '../charts/adapter'
 import { childForSelection } from '../explore/model'
-import { levelForPath, useDashboard, useDrill, useFormat, usePanelFrame } from '../runtime'
+import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { navigateTo } from '../runtime/navigate'
+import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
-import { encodingRoles } from './data'
+import { useMarkSelection } from './context'
+import { encodingRoles, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
 export interface ChartPanelProps {
@@ -12,7 +15,7 @@ export interface ChartPanelProps {
   adapter?: ChartAdapter
 }
 
-function useChartFormat(panel: Panel): ChartFormatResolver {
+function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis: ChartFormatResolver } {
   const fallback = useFormat()
   const label = useFormat(panel.encoding.label ? panel.format[panel.encoding.label] : undefined)
   const value = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
@@ -22,8 +25,10 @@ function useChartFormat(panel: Panel): ChartFormatResolver {
   const cut = useFormat(panel.encoding.cut ? panel.format[panel.encoding.cut] : undefined)
   const cutLabel = useFormat(panel.encoding.cutLabel ? panel.format[panel.encoding.cutLabel] : undefined)
   const final = useFormat(panel.encoding.final ? panel.format[panel.encoding.final] : undefined)
+  // Compact axis labels for the value field prevent overlapping full-precision money ticks.
+  const valueAxis = useAxisFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
 
-  return useMemo(() => {
+  const format = useMemo<ChartFormatResolver>(() => {
     const formatters = { label, value, id, series, category, cut, cutLabel, final }
     const byField = new Map<string, (input: unknown) => string>()
     for (const role of encodingRoles) {
@@ -32,51 +37,244 @@ function useChartFormat(panel: Panel): ChartFormatResolver {
     }
     return (field: string, input: unknown) => (byField.get(field) ?? fallback)(input)
   }, [category, cut, cutLabel, fallback, final, id, label, panel.encoding, series, value])
+
+  const formatAxis = useMemo<ChartFormatResolver>(() => {
+    const valueField = panel.encoding.value
+    return (field: string, input: unknown) => valueField && field === valueField ? valueAxis(input) : format(field, input)
+  }, [format, panel.encoding.value, valueAxis])
+
+  return useMemo(() => ({ format, formatAxis }), [format, formatAxis])
+}
+
+/**
+ * Identity of one legend entry. The id field is stable across re-queries;
+ * without one the label is the only thing a row can be recognised by.
+ */
+export function legendKey(frame: Frame, panel: Panel, index: number): string {
+  const idIndex = panel.encoding.id ? frame.columns.findIndex((column) => column.name === panel.encoding.id) : -1
+  const labelField = panel.encoding.label ?? panel.encoding.category
+  const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
+  const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : frame.rows[index]?.[labelIndex]
+  return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
+}
+
+/** Index of the frame row a chart mark key identifies. */
+export function rowIndexForKey(frame: Frame, panel: Panel, key: string): number {
+  const index = frame.rows.findIndex((_, position) => legendKey(frame, panel, position) === key)
+  if (index >= 0) return index
+  const labelField = panel.encoding.label ?? panel.encoding.category
+  const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
+  return labelIndex >= 0 ? frame.rows.findIndex((row) => String(row[labelIndex]) === key) : -1
+}
+
+function numericCell(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
 }
 
 export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const frame = usePanelFrame(panel.id)
+  const translate = useTranslate()
   const { document, navigation } = useDashboard()
   const { drillInto } = useDrill()
-  const format = useChartFormat(panel)
+  const { format, formatAxis } = useChartFormat(panel)
   const [selectedKey, setSelectedKey] = useState<NodeKey>()
   const [hoveredKey, setHoveredKey] = useState<NodeKey | null>(null)
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
   const active = navigation.panelId === panel.id && navigation.path.length > 0
   const level = active
     ? levelForPath(document, navigation.path)
     : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
   const drillable = level ? level.children.some(({ target }) => target) : Boolean(panel.drillRoot)
+  // One panel, one click behaviour — the legacy rule. A panel with a drill
+  // tree explores (the overlay is where its links live); a panel without one
+  // navigates straight to its action's target. `hasTree` deliberately keys off
+  // the tree's existence, not the current level's children, so reaching a leaf
+  // level cannot silently flip a panel from one class to the other.
+  const hasTree = Boolean(panel.drillRoot) || Boolean(level)
+  const panelNavigation = usePanelNavigation(panel)
+  const markURL = useCallback((key: NodeKey) => {
+    if (hasTree || !panelNavigation.action || !frame.data) return undefined
+    const index = rowIndexForKey(frame.data, panel, key)
+    return panelNavigation.urlForRow(frame.data, index >= 0 ? frame.data.rows[index] : undefined)
+  }, [frame.data, hasTree, panelNavigation, panel])
   const kind = panel.kind as ChartKind
-  const input = useMemo(() => frame.data ? ({
+
+  // A new level or perspective is new data; carrying hidden keys across would
+  // silently blank out unrelated segments.
+  const viewKey = `${navigation.panelId === panel.id ? navigation.path.join('|') : ''}:${navigation.perspectiveId ?? ''}`
+  const previousViewKey = useRef(viewKey)
+  useEffect(() => {
+    if (previousViewKey.current === viewKey) return
+    previousViewKey.current = viewKey
+    setHidden(new Set())
+  }, [viewKey])
+
+  // Hidden series are removed from the data, not dimmed: ECharts derives slice
+  // percentages from the data it is given, so dimming would leave every label
+  // computed against the old total — the recalculation is the whole point.
+  const visibleFrame = useMemo(() => {
+    if (!frame.data || hidden.size === 0) return frame.data
+    const rows = frame.data.rows.filter((_, index) => !hidden.has(legendKey(frame.data!, panel, index)))
+    return { ...frame.data, rows }
+  }, [frame.data, hidden, panel])
+
+  const visibleTotal = useMemo(() => {
+    if (!frame.data || hidden.size === 0 || !panel.encoding.value) return undefined
+    const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
+    if (valueIndex < 0) return undefined
+    return (visibleFrame?.rows ?? []).reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+  }, [frame.data, hidden.size, panel.encoding.value, visibleFrame])
+
+  const toggleSeries = useCallback((key: string) => {
+    setHidden((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+
+  const input = useMemo(() => visibleFrame ? ({
     kind,
-    frame: frame.data,
+    frame: visibleFrame,
     encoding: panel.encoding,
     format,
+    formatAxis,
     theme: document.theme,
     selectedKey,
-  }) : undefined, [document.theme, format, frame.data, kind, panel.encoding, selectedKey])
-  const select = useCallback((key: NodeKey) => {
-    if (!drillable) return
+    presentation: panel.presentation,
+  }) : undefined, [document.theme, format, formatAxis, kind, panel.encoding, panel.presentation, selectedKey, visibleFrame])
+  const onMarkSelect = useMarkSelection()
+  // Explore hosts can open the overlay for any segment that has something to
+  // show; a standalone tree panel can only drill where a target exists.
+  const interactive = hasTree
+    ? (onMarkSelect ? Boolean(level?.children.length ?? panel.drillRoot) : drillable)
+    : Boolean(panelNavigation.action)
+  const select = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
+    if (!hasTree) {
+      const href = markURL(key)
+      if (href) navigateTo(href)
+      return
+    }
+    // With an explore host present the mark opens its overlay; without one the
+    // chart keeps drilling directly, so standalone panels are unaffected.
+    if (onMarkSelect) {
+      setSelectedKey(key)
+      onMarkSelect(key, anchor)
+      return
+    }
     const node = childForSelection(level, key)
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [drillInto, drillable, level, panel.id])
+  }, [drillInto, hasTree, level, markURL, onMarkSelect, panel.id])
 
   return (
     <PanelFrame panel={panel} frame={frame}>
-      {input && (
-        <ChartHost
-          input={input}
-          adapter={adapter}
-          label={`${panel.title} ${kind} chart`}
-          drillable={drillable}
-          onSelect={drillable ? select : undefined}
-          onHover={drillable ? setHoveredKey : undefined}
-        />
+      <div className="lens-chart-area">
+        {input && (
+          <ChartHost
+            input={input}
+            panelId={panel.id}
+            adapter={adapter}
+            label={translate('chart.label', '{name} chart', { name: panel.title })}
+            drillable={interactive}
+            onSelect={interactive ? select : undefined}
+            onHover={interactive ? setHoveredKey : undefined}
+          />
+        )}
+        {panel.presentation?.totalBadge === 'plot' && panel.total !== undefined && (
+          <PlotTotalBadge panel={panel} total={visibleTotal ?? panel.total} />
+        )}
+      </div>
+      {panel.presentation?.legend === 'below' && frame.data && (
+        <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} />
       )}
-      {drillable && hoveredKey && <span className="lens-chart-drill-hint" role="status">Select to explore</span>}
+      {interactive && hoveredKey && (
+        <span className="lens-chart-drill-hint" role="status">
+          {translate('chart.drillHint', 'Select to explore')}
+        </span>
+      )}
     </PanelFrame>
+  )
+}
+
+function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
+  const translate = useTranslate()
+  const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
+  return (
+    <span className="lens-plot-total">
+      <span className="lens-panel-total-label">{translate('panel.total', 'Total')}:</span>
+      {' '}
+      {formatTotal(total)}
+    </span>
+  )
+}
+
+/**
+ * A legend below the plot lists `label · value` for every slice, so the values
+ * stay readable when the plot itself only carries percentages. Entries are
+ * buttons: clicking one drops that series from the plot, which is what makes
+ * the remaining percentages re-normalize, exactly like the legacy legend.
+ */
+function ChartLegend({ panel, frame, hidden, onToggle }: {
+  panel: Panel
+  frame: Frame
+  hidden: ReadonlySet<string>
+  onToggle: (key: string) => void
+}) {
+  const { document } = useDashboard()
+  const translate = useTranslate()
+  const labelField = panel.encoding.label ?? panel.encoding.category
+  const valueField = panel.encoding.value
+  const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
+  const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
+  const valueIndex = frame.columns.findIndex((column) => column.name === valueField)
+  if (labelIndex < 0) return null
+
+  const color = seriesColorResolver(document.theme, panel)
+  const visibleCount = frame.rows.filter((_, index) => !hidden.has(legendKey(frame, panel, index))).length
+
+  return (
+    <ul className="lens-chart-legend">
+      {frame.rows.map((row, index) => {
+        const raw = row[labelIndex]
+        const label = typeof raw === 'string' ? raw : raw === null || raw === undefined ? '' : JSON.stringify(raw)
+        const key = legendKey(frame, panel, index)
+        const isHidden = hidden.has(key)
+        // Hiding the last visible series would leave an empty plot with no way
+        // back except guessing, so the final entry stays locked on.
+        const locked = !isHidden && visibleCount <= 1
+        return (
+          <li className="lens-chart-legend-item" key={`${key}-${index}`}>
+            <button
+              aria-pressed={!isHidden}
+              className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+              disabled={locked}
+              onClick={() => onToggle(key)}
+              title={locked
+                ? translate('chart.legendLast', 'The last visible series cannot be hidden')
+                : translate('chart.legendToggle', 'Toggle series')}
+              type="button"
+            >
+              <span
+                aria-hidden="true"
+                className="lens-chart-legend-mark"
+                style={{ background: isHidden ? undefined : color(label, index) }}
+              />
+              <span className="lens-chart-legend-label">{label}</span>
+              <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+              <span className="lens-chart-legend-value">{valueIndex >= 0 ? formatValue(row[valueIndex]) : ''}</span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
   )
 }
 

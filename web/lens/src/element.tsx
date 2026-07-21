@@ -7,8 +7,11 @@ const tagName = 'lens-dashboard'
 export class LensDashboardElement extends HTMLElement {
   static readonly observedAttributes = ['src', 'locale', 'theme', 'csrf']
   private root?: Root
+  private fallbackHTML?: string
 
   connectedCallback() {
+    // Captured before createRoot, which clears the element's children.
+    this.fallbackHTML ??= this.innerHTML.trim() || undefined
     this.root ??= createRoot(this)
     this.renderDashboard()
   }
@@ -31,6 +34,7 @@ export class LensDashboardElement extends HTMLElement {
         locale={this.getAttribute('locale') ?? undefined}
         theme={normalizeLensTheme(this.getAttribute('theme'))}
         csrf={this.getAttribute('csrf') ?? undefined}
+        fallbackHTML={this.fallbackHTML}
       />,
     )
   }

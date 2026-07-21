@@ -79,6 +79,12 @@ function valueFormatter(input: ChartInput) {
   return (value: unknown) => input.format(field, value)
 }
 
+function axisValueFormatter(input: ChartInput) {
+  const field = input.encoding.value ?? ''
+  const resolver = input.formatAxis ?? input.format
+  return (value: unknown) => resolver(field, value)
+}
+
 function tooltipValue(value: unknown): unknown {
   return Array.isArray(value) ? (value as unknown[])[1] : value
 }
@@ -98,6 +104,31 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string) {
   }
 }
 
+/**
+ * Tooltips render at `body` level, not inside the chart container: a panel
+ * card clips its own overflow, so a tooltip anchored near the card edge was
+ * cut off. From `body` ECharts flips it against the viewport instead, and the
+ * pinned z-index keeps it above the expanded-panel dialog, which portals to
+ * `body` too.
+ */
+export const tooltipZIndex = 2147483600
+
+/** Tooltip settings shared by every chart kind. */
+export function tooltipChrome(theme: EChartsTheme) {
+  return {
+    backgroundColor: theme.card,
+    borderColor: theme.border,
+    textStyle: { color: theme.text },
+    appendTo: 'body',
+    // Confinement is what the card used to impose; against the viewport the
+    // tooltip may flip freely.
+    confine: false,
+    extraCssText: `z-index: ${tooltipZIndex};`,
+    // A moving tooltip is unscreenshotable; VR pins it in place.
+    transitionDuration: isVisualRegression() ? 0 : undefined,
+  }
+}
+
 function baseOption(theme: EChartsTheme): EChartsOption {
   return {
     animation: !isVisualRegression(),
@@ -108,24 +139,60 @@ function baseOption(theme: EChartsTheme): EChartsOption {
   }
 }
 
+/**
+ * ECharts pre-rounds `params.percent` to `percentPrecision` decimals; asking
+ * for more precision than any label prints keeps the single rounding step in
+ * our hands.
+ */
+export const rawPercentPrecision = 10
+
+/** The label a pie slice carries: one rounding, and nothing under 4%. */
+export function slicePercentLabel(percent: number | undefined): string {
+  const share = percent ?? 0
+  return share >= 4 ? `${share.toFixed(1)}%` : ''
+}
+
 function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const donut = input.kind === 'donut'
   const points = rowPoints(input)
+  const fill = input.presentation?.fill === true
+  const insideLabels = input.presentation?.sliceLabels === 'percent'
+  // The legacy pie filled roughly 300px of card; these radii plus the taller
+  // plot box below recover that presence without letting the circle touch the
+  // legend or the total badge.
+  const radius: [string, string] = donut
+    ? (fill ? ['54%', '92%'] : ['50%', '82%'])
+    : (fill ? ['0%', '92%'] : ['0%', '82%'])
+  const label = insideLabels
+    // Percent labels inside the slices remove the leader-line halo that
+    // shrinks the plot, so the pie can fill the card.
+    ? {
+        position: 'inside' as const,
+        color: '#ffffff',
+        fontWeight: 'bold' as const,
+        // Slices under 4% cannot hold a legible label; the legend below
+        // still names them.
+        formatter: (params: { percent?: number }) => slicePercentLabel(params.percent),
+      }
+    : { color: theme.text }
   return {
     ...baseOption(theme),
     tooltip: {
       trigger: 'item',
-      backgroundColor: theme.card,
-      borderColor: theme.border,
-      textStyle: { color: theme.text },
+      ...tooltipChrome(theme),
       valueFormatter: valueFormatter(input),
     },
     series: [{
       type: 'pie',
-      radius: donut ? ['48%', '72%'] : ['0%', '72%'],
+      radius,
+      center: ['50%', '50%'],
       selectedMode: false,
-      label: { color: theme.text },
-      labelLine: { lineStyle: { color: theme.border } },
+      // ECharts rounds `percent` to two decimals before handing it over, and
+      // rounding again to one decimal double-rounds: 87.6459 → 87.65 → 87.7,
+      // where the true value reads 87.6. Ask for the raw share and round once.
+      percentPrecision: rawPercentPrecision,
+      label,
+      labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       data: points.map((point) => {
         const item = dataItem(point, input, theme)
         return {
@@ -159,9 +226,14 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const horizontal = input.kind === 'hbar'
   const categoryField = input.encoding.category ?? input.encoding.label ?? ''
   const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
+  const colorByCategory = isBar && input.presentation?.colorBy === 'category'
+  const barWidth = input.presentation?.barWidthPx
+  const categoryColor = (category: string, index: number) =>
+    theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
   const series = seriesNames.map((name) => ({
     type: isBar ? 'bar' as const : 'line' as const,
     name: name || undefined,
+    barWidth: isBar && barWidth ? barWidth : undefined,
     itemStyle: { color: theme.seriesColor(name) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
     showSymbol: !isBar,
@@ -170,9 +242,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
         .sort((left, right) => left.timestamp - right.timestamp)
         .map((point) => ({ ...dataItem(point, input, theme), value: [point.timestamp, point.value] }))
-      : categories.map((category) => {
+      : categories.map((category, index) => {
         const point = points.find((candidate) => candidate.category === category && candidate.series === name)
-        return point ? dataItem(point, input, theme) : null
+        if (!point) return null
+        const item = dataItem(point, input, theme)
+        if (!colorByCategory) return item
+        return { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, index) } }
       }),
   }))
   const categoryAxis = { type: 'category' as const, data: categories, ...axisStyle(theme) }
@@ -184,7 +259,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const valueAxis = {
     type: 'value' as const,
     ...axisStyle(theme),
-    axisLabel: { color: theme.mutedText, formatter },
+    axisLabel: { color: theme.mutedText, formatter: axisValueFormatter(input), hideOverlap: true },
   }
 
   return {
@@ -198,9 +273,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     tooltip: {
       trigger: 'axis',
       renderMode: timeAxis ? 'richText' : undefined,
-      backgroundColor: theme.card,
-      borderColor: theme.border,
-      textStyle: { color: theme.text },
+      ...tooltipChrome(theme),
       formatter: timeAxis ? timeTooltipFormatter(input, categoryField) : undefined,
       valueFormatter: timeAxis ? undefined : formatter,
     },

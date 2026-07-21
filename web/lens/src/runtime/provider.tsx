@@ -12,9 +12,10 @@ import {
 } from 'react'
 import type { DashboardDocument, FieldFormat, Frame, Panel, QueryPage, QueryRequest } from '../contract'
 import { fetchDocument } from './document'
-import { levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
+import { isPerspectiveFork, levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
-import { formatFieldValue } from './format'
+import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
+import { formatAxis, formatFieldValue } from './format'
 import {
   createNavigationState,
   navigationActions,
@@ -181,7 +182,26 @@ const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
 const PanelPaginationContext = createContext<PanelPaginationContextValue | undefined>(undefined)
 const ExportContext = createContext<ExportContextValue | undefined>(undefined)
 const LocaleContext = createContext('en')
+const I18nContext = createContext<Record<string, string>>({})
 const emptyFrameStore = new PanelFrameStore()
+
+export type TranslationVars = Readonly<Record<string, string | number>>
+
+function translation(
+  messages: Record<string, string>,
+  key: string,
+  fallback: string,
+  vars?: TranslationVars,
+): string {
+  const value = messages[key]
+  const text = typeof value === 'string' && value.trim() !== '' ? value : fallback
+  if (!vars) return text
+  // Placeholders keep word order translatable: a catalogue can move {name}
+  // wherever its language needs it.
+  return text.replace(/\{(\w+)\}/g, (match, name: string) => (
+    name in vars ? String(vars[name]) : match
+  ))
+}
 
 const browserHistoryKey = '__iotaLensNavigation'
 
@@ -322,20 +342,21 @@ function frameForPanel(
   if (!active || active.id !== panel.id || navigation.path.length === 0) {
     return { frame: document.frames[panel.frame], shouldQuery: false }
   }
+  // From here on the panel is showing a drill level, and the invariant is
+  // absolute: it may only render a frame that belongs to the level on screen.
+  // Falling back to the panel's own frame would put the parent's numbers under
+  // the child's title — numbers that look plausible and are wrong, which is
+  // the same failure the browser-Back path used to have.
   const level = levelForPath(document, navigation.path)
-  if (!level) return { frame: document.frames[panel.frame], shouldQuery: false }
-  const levelKey = level.path.at(-1)
-  const isPerspectiveSegment = level.perspectives.some(({ id }) => {
-    const perspective = document.perspectives.find((candidate) => candidate.id === id)
-    return perspective?.branchKey === levelKey
-  })
-  if (isPerspectiveSegment && !level.frame) {
-    return { frame: document.frames[panel.frame], shouldQuery: false }
-  }
+  if (!level) return { shouldQuery: false }
   if (level.frame) {
     const frame = loadedFrames.get(level.frame) ?? document.frames[level.frame]
     if (frame) return { frame, shouldQuery: false }
+    return { shouldQuery: Boolean(document.endpoints.query) }
   }
+  // A fork has nothing to fetch until a perspective is chosen; any other
+  // frameless level is asked for from the query endpoint.
+  if (isPerspectiveFork(document, level)) return { shouldQuery: false }
   return { shouldQuery: Boolean(document.endpoints.query) }
 }
 
@@ -368,6 +389,14 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
   }, [])
   if (!frameStore.current) frameStore.current = new PanelFrameStore()
   const frames = frameStore.current
+  const translate = useCallback(
+    (key: string, fallback: string) => translation(document.i18n, key, fallback),
+    [document.i18n],
+  )
+  const driftNotice = useCallback(() => translate(
+    'drill.reset',
+    'The previous drill path is no longer available. Lens returned to the root view.',
+  ), [translate])
   for (const panel of document.panels) {
     if (!frames.get(panel.id)) {
       frames.set(panel.id, {
@@ -406,8 +435,8 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     if (pathResolves(document, navigation.path, navigation.perspectiveId)) return
     replaceNextURL.current = true
     dispatch(navigationActions.restore(rootNavigation(document, navigation.panelId)))
-    setNotice('The previous drill path is no longer available. Lens returned to the root view.')
-  }, [document, navigation.panelId, navigation.path, navigation.perspectiveId])
+    setNotice(driftNotice())
+  }, [document, driftNotice, navigation.panelId, navigation.path, navigation.perspectiveId])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -433,6 +462,17 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
 
   useEffect(() => {
     const panel = panelForNavigation(document, navigation)
+    // Leaving a drill level (Back, a breadcrumb jump, a reset) must not leave
+    // the level's data on screen: any explore host that is no longer the
+    // active drill target falls back to the frame the document shipped.
+    for (const candidate of document.panels) {
+      if (!candidate.drillRoot || candidate.id === panel?.id) continue
+      const documentFrame = document.frames[candidate.frame]
+      if (!documentFrame || frames.get(candidate.id)?.data === documentFrame) continue
+      frames.set(candidate.id, {
+        data: documentFrame, isStale: false, isLoading: false, error: null, retry: retryFrame,
+      })
+    }
     if (!panel) return
     const resolved = frameForPanel(document, navigation, panel, new Map())
     if (!resolved.shouldQuery || !queryClient) {
@@ -472,7 +512,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       if (result.reset) {
         replaceNextURL.current = true
         dispatch(navigationActions.restore(result.navigation))
-        setNotice('The previous drill path is no longer available. Lens returned to the root view.')
+        setNotice(driftNotice())
         return
       }
       const frames = Object.entries(result.response.frames)
@@ -497,7 +537,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       })
     })
     return () => { active = false }
-  }, [document, frames, navigation, queryClient, refreshDocument, retryFrame, retryToken])
+  }, [document, driftNotice, frames, navigation, queryClient, refreshDocument, retryFrame, retryToken])
 
   const loadPage = useCallback(async (panelId: string, page: number, force = false) => {
     const panel = panelForNavigation(document, navigation)
@@ -524,7 +564,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       if (result.reset) {
         replaceNextURL.current = true
         dispatch(navigationActions.restore(result.navigation))
-        setNotice('The previous drill path is no longer available. Lens returned to the root view.')
+        setNotice(driftNotice())
         return
       }
       const frame = Object.values(result.response.frames)[0]
@@ -546,7 +586,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
         retry: retryPage,
       })
     }
-  }, [document, frames, navigation, queryClient, refreshDocument])
+  }, [document, driftNotice, frames, navigation, queryClient, refreshDocument])
   pageLoader.current = loadPage
 
   const pagination = useMemo<PanelPaginationContextValue>(() => ({
@@ -574,7 +614,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
           await refreshDocument()
           setExportStates((states) => ({
             ...states,
-            [scope]: { status: 'retry', message: 'Snapshot refreshed. Retry export.' },
+            [scope]: { status: 'retry', message: translate('export.retryHint', 'Snapshot refreshed. Retry export.') },
           }))
         } catch (refreshCause: unknown) {
           const message = refreshCause instanceof Error ? refreshCause.message : 'Snapshot refresh failed'
@@ -585,7 +625,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       const message = cause instanceof Error ? cause.message : 'Export failed'
       setExportStates((states) => ({ ...states, [scope]: { status: 'error', message } }))
     }
-  }, [csrf, document.endpoints.export, document.snapshotId, fetcher, refreshDocument])
+  }, [csrf, document.endpoints.export, document.snapshotId, fetcher, refreshDocument, translate])
 
   const exportContext = useMemo<ExportContextValue>(() => ({
     available: Boolean(document.endpoints.export),
@@ -608,23 +648,20 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
 
   return (
     <LocaleContext.Provider value={locale}>
+      <I18nContext.Provider value={document.i18n}>
       <DashboardContext.Provider value={dashboard}>
         <DrillContext.Provider value={drill}>
           <PanelPaginationContext.Provider value={pagination}>
             <ExportContext.Provider value={exportContext}>
               <FramesContext.Provider value={frames}>
-                {notice && (
-                  <div className="lens-runtime-notice" role="status">
-                    <span>{notice}</span>
-                    <button type="button" onClick={() => setNotice(undefined)} aria-label="Dismiss notice">×</button>
-                  </div>
-                )}
+                {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
               </FramesContext.Provider>
             </ExportContext.Provider>
           </PanelPaginationContext.Provider>
         </DrillContext.Provider>
       </DashboardContext.Provider>
+      </I18nContext.Provider>
     </LocaleContext.Provider>
   )
 }
@@ -634,14 +671,22 @@ export interface DashboardRuntimeProviderProps {
   csrf?: string
   fetcher?: typeof fetch
   children: ReactNode
+  /** Server-rendered placeholder shown until the first document arrives. */
+  fallback?: ReactNode
 }
 
-export function DashboardRuntimeProvider({ locale, csrf, fetcher, children }: DashboardRuntimeProviderProps) {
+export function DashboardRuntimeProvider({ locale, csrf, fetcher, children, fallback }: DashboardRuntimeProviderProps) {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
   if (!context.document) {
-    if (context.error) return <div className="lens-placeholder-state" role="alert">Unable to load Lens document: {context.error.message}</div>
-    return <div className="lens-placeholder-state lens-skeleton" aria-busy="true">Loading dashboard…</div>
+    if (context.error) return <DocumentLoadError message={context.error.message} />
+    // A layout-shaped placeholder, not a spinner: the page keeps its rhythm
+    // and nothing jumps when the document lands.
+    return (
+      <div aria-busy="true" className="lens-loading">
+        {fallback ?? <DashboardSkeleton rows={defaultSkeletonRows} />}
+      </div>
+    )
   }
   return (
     <RuntimeCore
@@ -699,6 +744,49 @@ export function useExport(panelId?: string): ExportState & { available: boolean;
 export function useFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useContext(LocaleContext)
   return useCallback((value: unknown) => formatFieldValue(value, field, locale), [field, locale])
+}
+
+export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {
+  const locale = useContext(LocaleContext)
+  return useCallback((value: unknown) => formatAxis(value, field, locale), [field, locale])
+}
+
+/**
+ * The document is what carries the catalogue, so a failure to load it is the
+ * one string the runtime can only render in English unless the host page
+ * supplies its own fallback UI.
+ */
+function DocumentLoadError({ message }: { message: string }) {
+  const translate = useTranslate()
+  return (
+    <div className="lens-placeholder-state" role="alert">
+      {translate('runtime.loadError', 'Unable to load Lens document')}: {message}
+    </div>
+  )
+}
+
+function RuntimeNotice({ notice, onDismiss }: { notice: string; onDismiss: () => void }) {
+  const translate = useTranslate()
+  return (
+    <div className="lens-runtime-notice" role="status">
+      <span>{notice}</span>
+      <button
+        aria-label={translate('runtime.dismissNotice', 'Dismiss notice')}
+        onClick={onDismiss}
+        type="button"
+      >
+        ×
+      </button>
+    </div>
+  )
+}
+
+export function useTranslate(): (key: string, fallback: string, vars?: TranslationVars) => string {
+  const messages = useContext(I18nContext)
+  return useCallback(
+    (key: string, fallback: string, vars?: TranslationVars) => translation(messages, key, fallback, vars),
+    [messages],
+  )
 }
 
 export function useDocumentState(): DocumentContextValue {

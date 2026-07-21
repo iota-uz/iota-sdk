@@ -14,6 +14,20 @@ export function levelForPath(document: DashboardDocument, path: NodePath): Level
   return undefined
 }
 
+/**
+ * A fork in the drill path: a node that carries no data of its own because its
+ * perspectives (which branch off it) own it. Panels must not draw anything at
+ * such a node until a perspective is chosen — the parent's numbers under the
+ * child's title read as fact and are wrong.
+ */
+export function isPerspectiveFork(document: DashboardDocument, level: Level): boolean {
+  if (level.frame) return false
+  const levelKey = level.path.at(-1)
+  return level.perspectives.some(({ id }) => (
+    document.perspectives.find((candidate) => candidate.id === id)?.branchKey === levelKey
+  ))
+}
+
 export function pathResolves(document: DashboardDocument, path: NodePath, perspectiveId?: string): boolean {
   if (path.length === 0) return true
   const level = levelForPath(document, path)

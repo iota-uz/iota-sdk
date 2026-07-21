@@ -1,7 +1,11 @@
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
-import type { PanelFrameState } from '../runtime'
+import { type PanelFrameState, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
+import { ArrowsIn, ArrowsOut } from '../icons'
+import { usePanelChrome } from './context'
+import { PanelOverlay } from './PanelOverlay'
+import { PanelSkeletonBody } from './Skeleton'
 
 export interface PanelFrameProps {
   panel: Panel
@@ -11,61 +15,140 @@ export interface PanelFrameProps {
   allowEmptyContent?: boolean
 }
 
-function PanelSkeleton({ variant }: { variant: 'stat' | 'chart' }) {
+export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
+  const up = trend.percent > 0
+  const flat = trend.percent === 0
+  // Invert flips the good/bad mapping for down-is-good metrics; the arrow
+  // always follows the sign.
+  const good = trend.invert ? !up : up
+  const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
+  const sign = up ? '+' : ''
   return (
-    <div className={`lens-panel-skeleton lens-panel-skeleton-${variant}`} role="status" aria-label="Loading panel">
-      {variant === 'chart' ? (
-        <span className="lens-skeleton-chart" />
-      ) : (
-        <>
-          <span className="lens-skeleton-line lens-skeleton-line-label" />
-          <span className="lens-skeleton-line lens-skeleton-line-value" />
-        </>
-      )}
-    </div>
+    <span className={`lens-trend-chip ${tone}`}>
+      <span aria-hidden="true">{flat ? '▬' : up ? '▲' : '▼'}</span>
+      <strong>{sign}{trend.percent.toFixed(1)}%</strong>
+      {trend.label && <span className="lens-trend-chip-label">{trend.label}</span>}
+    </span>
   )
 }
 
 export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
+  const translate = useTranslate()
+  const chrome = usePanelChrome()
+  const [expanded, setExpanded] = useState(false)
+  const [overlayTheme, setOverlayTheme] = useState<{ theme?: string; dark: boolean }>({ dark: false })
+  const expandRef = useRef<HTMLButtonElement>(null)
+  const restoreFocus = useRef(false)
+  const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const hasRows = Boolean(frame.data?.rows.length)
   const showInitialLoading = frame.isLoading && !frame.data
+  const badgePlacement = panel.presentation?.totalBadge ?? 'header'
+  const showTotal = variant === 'chart' && panel.total !== undefined && badgePlacement === 'header'
+  const totalLabel = translate('panel.total', 'Total')
+  const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
 
-  return (
+  const toggleExpanded = useCallback(() => {
+    setExpanded((current) => {
+      if (current) return false
+      // The dialog is portaled out of the dashboard subtree, so its theme has
+      // to be read from the root it is leaving.
+      const root = expandRef.current?.closest<HTMLElement>('.lens-root')
+      setOverlayTheme({ theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false })
+      return true
+    })
+  }, [])
+
+  const collapse = useCallback(() => {
+    restoreFocus.current = true
+    setExpanded(false)
+  }, [])
+
+  // The button is re-parented out of the portal on collapse, so focus can only
+  // be restored once React has committed the node back into the grid.
+  useEffect(() => {
+    if (expanded || !restoreFocus.current) return
+    restoreFocus.current = false
+    expandRef.current?.focus()
+  }, [expanded])
+
+  const section = (
     <section
-      className={`lens-panel lens-panel-${variant}${frame.isStale ? ' lens-panel-stale' : ''}`}
+      className={[
+        'lens-panel',
+        variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
+        frame.isStale ? 'lens-panel-stale' : '',
+        panel.presentation?.fill ? 'lens-panel-fill' : '',
+        expanded ? 'lens-panel-expanded' : '',
+      ].filter(Boolean).join(' ')}
+      data-expanded={expanded || undefined}
       aria-label={panel.title}
       aria-busy={frame.isLoading}
       data-panel-kind={panel.kind}
       data-stale={frame.isStale || undefined}
     >
       <header className="lens-panel-header">
-        <h3 className="lens-panel-title">{panel.title}</h3>
+        {/* A drill trail replaces the static title: it says where the panel is
+            and how to get back without spending a row of the grid. */}
+        {chrome?.trail ?? <h3 className="lens-panel-title" title={panel.title}>{panel.title}</h3>}
+        {chrome?.explore}
         <div className="lens-panel-actions">
-          {frame.isStale && <span className="lens-panel-status" role="status">Updating</span>}
-          <ExportButton panelId={panel.id} />
+          {showTotal && (
+            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(panel.total)}`}>
+              <span className="lens-panel-total-label">{totalLabel}:</span>
+              {' '}
+              {formatTotal(panel.total)}
+            </span>
+          )}
+          {frame.isStale && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
+          <ExportButton panelId={panel.id} iconOnly />
+          <button
+            aria-label={expandLabel}
+            aria-pressed={expanded}
+            className="lens-export-button lens-icon-button"
+            onClick={expanded ? collapse : toggleExpanded}
+            ref={expandRef}
+            title={expandLabel}
+            type="button"
+          >
+            {expanded ? <ArrowsIn /> : <ArrowsOut />}
+          </button>
         </div>
       </header>
       <div className="lens-panel-body">
         {showInitialLoading ? (
-          <PanelSkeleton variant={variant} />
+          <PanelSkeletonBody kind={panel.kind} />
         ) : frame.error && !frame.data ? (
           <div className="lens-panel-state lens-panel-state-error" role="alert">
             <span>{frame.error.message}</span>
-            <button type="button" onClick={frame.retry}>Retry</button>
+            <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
           </div>
         ) : !hasRows && !allowEmptyContent ? (
           <div className="lens-panel-state lens-panel-state-empty">
             <span className="lens-empty-mark" aria-hidden="true">—</span>
-            <span>No data</span>
+            <span>{translate('panel.empty', 'No data')}</span>
           </div>
         ) : children}
       </div>
+      {panel.trend && hasRows && (
+        <footer className="lens-panel-footer"><TrendChip trend={panel.trend} /></footer>
+      )}
       {frame.error && frame.data && (
         <div className="lens-panel-error" role="alert">
           <span>{frame.error.message}</span>
-          <button type="button" onClick={frame.retry}>Retry</button>
+          <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
         </div>
       )}
     </section>
+  )
+
+  if (!expanded) return section
+  return (
+    <>
+      {/* A placeholder keeps the grid from reflowing while the panel is away. */}
+      <div aria-hidden="true" className="lens-panel-placeholder" />
+      <PanelOverlay label={panel.title} theme={overlayTheme.theme} dark={overlayTheme.dark} onClose={collapse}>
+        {section}
+      </PanelOverlay>
+    </>
   )
 }

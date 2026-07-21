@@ -47,6 +47,42 @@ type LayoutRow struct {
 type LayoutItem struct {
 	PanelID string `json:"panelId"`
 	Span    int    `json:"span"`
+	// Group, when set, folds this item and its consecutive siblings that
+	// carry the same group ID into one shared container card. Renderers that
+	// do not understand groups keep laying the items out individually.
+	Group *LayoutGroup `json:"group,omitempty"`
+}
+
+// LayoutGroupKind selects how a shared container arranges its members.
+type LayoutGroupKind string
+
+const (
+	// LayoutGroupMetrics renders the members as one compact metric strip
+	// inside a single card (the wire form of a stat group).
+	LayoutGroupMetrics LayoutGroupKind = "metrics"
+	// LayoutGroupTabs renders one segmented tab per distinct member Tab
+	// value, showing only the selected tab's members.
+	LayoutGroupTabs LayoutGroupKind = "tabs"
+)
+
+// LayoutGroupLayout selects a metrics group's member arrangement.
+type LayoutGroupLayout string
+
+const (
+	LayoutGroupColumns LayoutGroupLayout = "columns"
+	LayoutGroupRows    LayoutGroupLayout = "rows"
+)
+
+// LayoutGroup describes the container card that owns a run of layout items.
+// Every item of the same group repeats the identical descriptor except Tab.
+type LayoutGroup struct {
+	ID     string            `json:"id"`
+	Kind   LayoutGroupKind   `json:"kind"`
+	Label  string            `json:"label,omitempty"`
+	Layout LayoutGroupLayout `json:"layout,omitempty"`
+	Span   int               `json:"span"`
+	// Tab names the tab this item belongs to inside a tabs group.
+	Tab string `json:"tab,omitempty"`
 }
 
 type PanelKind string
@@ -61,6 +97,11 @@ const (
 	PanelKindArea    PanelKind = "area"
 	PanelKindCascade PanelKind = "cascade"
 	PanelKindTable   PanelKind = "table"
+	// PanelKindCoverage renders a headline value, an optional caption, a
+	// segmented progress bar and one legend row per segment. It is the wire
+	// form of a segment-bar panel: a part-of-whole statement about a single
+	// amount, not a chart.
+	PanelKindCoverage PanelKind = "coverage"
 )
 
 type Semantics string
@@ -80,8 +121,162 @@ type Panel struct {
 	Frame     FrameRef               `json:"frame"`
 	Encoding  Encoding               `json:"encoding"`
 	Format    map[string]FieldFormat `json:"format"`
+	Total     *float64               `json:"total,omitempty"`
+	Columns   []TableColumn          `json:"columns,omitempty"`
 	DrillRoot *NodeKey               `json:"drillRoot,omitempty"`
 	Actions   []Action               `json:"actions"`
+	// Accent is the panel's own color (CSS color or theme palette key). Stat
+	// metrics render it as a bullet; coverage panels use it for the first
+	// segment when no series color matches.
+	Accent string `json:"accent,omitempty"`
+	// Status is a small chip rendered next to the panel's label, e.g. an
+	// estimate marker on a KPI.
+	Status *PanelStatus `json:"status,omitempty"`
+	// Caption is a short, already-localized line under a coverage headline.
+	Caption string `json:"caption,omitempty"`
+	// Headline overrides a coverage panel's computed headline value.
+	Headline *float64 `json:"headline,omitempty"`
+	// Trend is a signed change chip rendered in the panel footer, e.g.
+	// "▲ +12.4% vs previous period".
+	Trend *PanelTrend `json:"trend,omitempty"`
+	// Presentation carries opt-in rendering hints. Every field is optional
+	// and absent hints keep the renderer's default treatment.
+	Presentation *Presentation `json:"presentation,omitempty"`
+}
+
+// StatusTone selects a status chip's color treatment.
+type StatusTone string
+
+const (
+	StatusToneNeutral  StatusTone = "neutral"
+	StatusTonePositive StatusTone = "positive"
+	StatusToneWarning  StatusTone = "warning"
+)
+
+type PanelStatus struct {
+	Label string     `json:"label"`
+	Tone  StatusTone `json:"tone,omitempty"`
+}
+
+// PanelTrend is a period-over-period change chip. Percent is already in
+// percent units (12.4 renders as "+12.4%"). Invert flips the good/bad color
+// mapping for down-is-good metrics; the arrow always follows the sign.
+type PanelTrend struct {
+	Percent float64 `json:"percent"`
+	Label   string  `json:"label,omitempty"`
+	Invert  bool    `json:"invert,omitempty"`
+}
+
+// LegendPlacement selects where a chart panel renders its own legend.
+type LegendPlacement string
+
+const (
+	// LegendBelow renders a centered, wrapping legend under the plot with one
+	// `label · value` entry per slice.
+	LegendBelow LegendPlacement = "below"
+)
+
+// SliceLabels selects the in-plot label treatment of a partition chart.
+type SliceLabels string
+
+const (
+	// SliceLabelsPercent writes each slice's share inside the slice.
+	SliceLabelsPercent SliceLabels = "percent"
+)
+
+// TotalBadgePlacement selects where Panel.Total is rendered.
+type TotalBadgePlacement string
+
+const (
+	// TotalBadgeHeader is the default: a badge in the panel header.
+	TotalBadgeHeader TotalBadgePlacement = "header"
+	// TotalBadgePlot floats a compact badge inside the plot area.
+	TotalBadgePlot TotalBadgePlacement = "plot"
+	// TotalBadgeNone suppresses the badge entirely, e.g. when a trend chip
+	// carries the panel's summary instead.
+	TotalBadgeNone TotalBadgePlacement = "none"
+)
+
+// ColorBy selects how a chart assigns series colors.
+type ColorBy string
+
+const (
+	// ColorByCategory gives every category its own palette color instead of
+	// one color for the whole series.
+	ColorByCategory ColorBy = "category"
+)
+
+type Presentation struct {
+	Legend      LegendPlacement     `json:"legend,omitempty"`
+	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
+	TotalBadge  TotalBadgePlacement `json:"totalBadge,omitempty"`
+	ColorBy     ColorBy             `json:"colorBy,omitempty"`
+	// Fill lets the plot occupy the whole card instead of the default inset.
+	Fill bool `json:"fill,omitempty"`
+	// BarWidthPx pins the rendered bar thickness in CSS pixels.
+	BarWidthPx int `json:"barWidthPx,omitempty"`
+}
+
+type TableColumn struct {
+	Field  string     `json:"field"`
+	Label  string     `json:"label"`
+	Align  TableAlign `json:"align,omitempty"`
+	Cell   TableCell  `json:"cell"`
+	Action *Action    `json:"action,omitempty"`
+	// Text is the literal cell content of an action-only column (a column
+	// with no field), e.g. the label of a row-level "open" link.
+	Text string `json:"text,omitempty"`
+	// WidthPx, when > 0, is the column's minimum width in CSS pixels.
+	WidthPx int `json:"widthPx,omitempty"`
+	// Clamp, when > 0, limits the cell text to that many lines.
+	Clamp int `json:"clamp,omitempty"`
+	// Affordance selects how an actionable cell advertises its action.
+	Affordance TableAffordance `json:"affordance,omitempty"`
+}
+
+// TableAffordance selects the visual treatment of an actionable table cell.
+type TableAffordance string
+
+const (
+	// TableAffordancePill renders the cell as a compact pill with a drill
+	// arrow, marking every value in the column as a drill entry point.
+	TableAffordancePill TableAffordance = "pill"
+)
+
+type TableAlign string
+
+const (
+	TableAlignLeft  TableAlign = "left"
+	TableAlignRight TableAlign = "right"
+)
+
+type TableCellKind string
+
+const (
+	TableCellPlain TableCellKind = "plain"
+	TableCellBar   TableCellKind = "bar"
+	TableCellDelta TableCellKind = "delta"
+	// TableCellUnderline renders the value over a thin proportional rule
+	// colored by sign — a low-ink alternative to a mini-bar.
+	TableCellUnderline TableCellKind = "underline"
+)
+
+// TableCellLayout selects a rich cell's internal arrangement.
+type TableCellLayout string
+
+const (
+	// TableCellStacked puts the secondary value on its own line under the
+	// primary one instead of beside it.
+	TableCellStacked TableCellLayout = "stacked"
+)
+
+type TableCell struct {
+	Kind TableCellKind `json:"kind"`
+	// SecondaryField holds a delta cell's percent-change field. Its values are
+	// already expressed in percent units: -4 renders as -4.0%, not -400%. A
+	// 0..1 share would silently render as 0.1%.
+	SecondaryField string          `json:"secondaryField,omitempty"`
+	Layout         TableCellLayout `json:"layout,omitempty"`
 }
 
 type Encoding struct {
@@ -105,12 +300,34 @@ const (
 	FormatString  FormatKind = "string"
 )
 
+// PrecisionOf returns a pointer to n, for FieldFormat.Precision. A deliberate
+// 0 ("whole units") must reach the wire, which is why the field is a pointer.
+func PrecisionOf(n int) *int { return &n }
+
 type FieldFormat struct {
 	Kind       FormatKind `json:"kind"`
 	Currency   string     `json:"currency,omitempty"`
 	MinorUnits bool       `json:"minorUnits"`
-	Precision  int        `json:"precision,omitempty"`
-	Layout     string     `json:"layout,omitempty"`
+	// Precision is a pointer so "no decimals" and "unspecified" stay
+	// distinguishable on the wire. As a plain `int,omitempty` a deliberate 0
+	// was dropped, and the runtime fell back to the locale's default fraction
+	// digits — rendering "…533,993" where the spec asked for whole units.
+	Precision *int   `json:"precision,omitempty"`
+	Layout    string `json:"layout,omitempty"`
+	// Compact abbreviates magnitudes with the locale's own compact notation
+	// (ru: "9,36 млрд", en: "9.36B", uz: "9,36 mlrd").
+	Compact bool `json:"compact,omitempty"`
+	// DecimalSeparator overrides the locale's decimal separator and puts the
+	// runtime in Go-renderer parity mode: ASCII spaces instead of the
+	// locale's non-breaking ones, and no space before a percent sign. The Go
+	// renderer prints abbreviated numbers with %.*f — a dot in every locale —
+	// so a document that must match it byte for byte sets "." here.
+	DecimalSeparator string `json:"decimalSeparator,omitempty"`
+	// Symbol is the currency's display grapheme (UZS → "so’m"), taken from the
+	// same pkg/money definition the Go renderer formats with. When set, money
+	// renders as "<amount> <symbol>" instead of the locale's own currency
+	// display for the ISO code, which is how the Go renderer prints it.
+	Symbol string `json:"symbol,omitempty"`
 }
 
 type ActionKind string
@@ -133,6 +350,7 @@ type Action struct {
 	Kind          ActionKind        `json:"kind"`
 	Method        string            `json:"method,omitempty"`
 	URLTemplate   string            `json:"urlTemplate,omitempty"`
+	URLSource     *Source           `json:"urlSource,omitempty"`
 	Event         string            `json:"event,omitempty"`
 	Params        []ActionParam     `json:"params"`
 	Payload       map[string]Source `json:"payload"`

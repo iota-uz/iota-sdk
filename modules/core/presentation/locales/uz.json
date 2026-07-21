@@ -125,6 +125,8 @@
     }
   },
   "Common": {
+    "CloseNotification": "Bildirishnomani yopish",
+    "TabNavigation": "Ichki bo‘limlar navigatsiyasi",
     "Loading": "Yuklanmoqda..."
   },
   "ConfirmDelete": "Haqiqatan ham bu elementni o'chirmoqchimisiz?",

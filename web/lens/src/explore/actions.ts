@@ -39,8 +39,8 @@ function parameterText(value: unknown): string | undefined {
   return JSON.stringify(value)
 }
 
-export function resolveLeafActionURL(action: Action, context: LeafActionContext): string | undefined {
-  if (action.kind !== 'navigate_to_leaf' || !action.urlTemplate) return undefined
+function resolveTemplate(action: Action, context: LeafActionContext): string | undefined {
+  if (!action.urlTemplate) return undefined
   let resolved = action.urlTemplate
   for (const param of action.params) {
     const value = sourceValue(param.source, context)
@@ -50,6 +50,30 @@ export function resolveLeafActionURL(action: Action, context: LeafActionContext)
     resolved = resolved.replaceAll(`{${param.name}}`, encodeURIComponent(text))
   }
   if (/\{[^}]+\}/.test(resolved)) return undefined
+  return resolved
+}
+
+export function resolveLeafActionURL(action: Action, context: LeafActionContext): string | undefined {
+  if (action.kind !== 'navigate_to_leaf') return undefined
+  return resolveActionURL(action, context)
+}
+
+/**
+ * Builds an action's URL regardless of whether it navigates to a leaf record
+ * or to another dashboard view: panel-level `navigate` actions resolve exactly
+ * the same way, they just belong to a card instead of a row.
+ */
+export function resolveActionURL(action: Action, context: LeafActionContext): string | undefined {
+  if (action.kind !== 'navigate' && action.kind !== 'navigate_to_leaf') return undefined
+  let resolved: string | undefined
+  if (action.urlSource) {
+    const value = sourceValue(action.urlSource, context)
+    if (value === undefined || value === null) return undefined
+    resolved = typeof value === 'string' ? value : parameterText(value)
+  } else {
+    resolved = resolveTemplate(action, context)
+  }
+  if (resolved === undefined) return undefined
 
   let target: URL
   try {
@@ -60,6 +84,19 @@ export function resolveLeafActionURL(action: Action, context: LeafActionContext)
   if (target.origin !== context.location.origin) return undefined
   if (action.preserveQuery) withPreservedQuery(target, context.location)
   return target.href
+}
+
+export function resolveColumnActionURL(
+  action: Action,
+  frame: Frame,
+  row: Array<unknown>,
+  location: URL,
+): string | undefined {
+  return resolveLeafActionURL(action, {
+    fields: recordForRow(frame, row),
+    variables: variablesFromLocation(location),
+    location,
+  })
 }
 
 function matchingNode(level: Level, panel: Panel, frame: Frame, row: Array<unknown>) {

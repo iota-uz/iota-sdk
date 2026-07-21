@@ -42,11 +42,21 @@ describe('LensDashboard', () => {
   it('renders initial loading and fetch error states', async () => {
     let rejectRequest: ((reason: Error) => void) | undefined
     const fetcher = vi.fn(() => new Promise<Response>((_resolve, reject) => { rejectRequest = reject }))
-    render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+    const view = render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
 
-    expect(screen.getByText('Loading dashboard…')).toHaveAttribute('aria-busy', 'true')
+    expect(view.container.querySelector('.lens-loading')).toHaveAttribute('aria-busy', 'true')
+    expect(view.container.querySelectorAll('.lens-skeleton-card').length).toBeGreaterThan(0)
     rejectRequest?.(new Error('offline'))
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load Lens document: offline')
+  })
+
+  it('keeps the server-rendered skeleton until the document arrives', () => {
+    const fetcher = vi.fn(() => new Promise<Response>(() => undefined))
+    const view = render(
+      <LensDashboard src="/lens/document" fetcher={fetcher} fallbackHTML='<div class="server-skeleton">shell</div>' />,
+    )
+
+    expect(view.container.querySelector('.server-skeleton')).not.toBeNull()
   })
 
   it('renders the no-panel fallback', () => {

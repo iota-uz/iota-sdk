@@ -29,6 +29,7 @@ export const ActionSchema: z.ZodType<Contract.Action> = z.lazy(() => z.object({
   kind: z.lazy(() => ActionKindSchema),
   method: z.string().optional(),
   urlTemplate: z.string().optional(),
+  urlSource: z.lazy(() => SourceSchema).optional(),
   event: z.string().optional(),
   params: z.array(z.lazy(() => ActionParamSchema)),
   payload: z.record(z.string(), z.lazy(() => SourceSchema)),
@@ -41,6 +42,8 @@ export const ActionParamSchema: z.ZodType<Contract.ActionParam> = z.lazy(() => z
   name: z.string(),
   source: z.lazy(() => SourceSchema),
 }).strict())
+
+export const ColorBySchema: z.ZodType<Contract.ColorBy> = z.enum(["category"])
 
 export const ColumnSchema: z.ZodType<Contract.Column> = z.lazy(() => z.object({
   name: z.string(),
@@ -90,6 +93,9 @@ export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z
   minorUnits: z.boolean(),
   precision: z.number().int().optional(),
   layout: z.string().optional(),
+  compact: z.boolean().optional(),
+  decimalSeparator: z.string().optional(),
+  symbol: z.string().optional(),
 }).strict())
 
 export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.enum(["date", "money", "number", "percent", "string"])
@@ -105,9 +111,23 @@ export const LayoutSchema: z.ZodType<Contract.Layout> = z.lazy(() => z.object({
   rows: z.array(z.lazy(() => LayoutRowSchema)),
 }).strict())
 
+export const LayoutGroupSchema: z.ZodType<Contract.LayoutGroup> = z.lazy(() => z.object({
+  id: z.string(),
+  kind: z.lazy(() => LayoutGroupKindSchema),
+  label: z.string().optional(),
+  layout: z.lazy(() => LayoutGroupLayoutSchema).optional(),
+  span: z.number().int(),
+  tab: z.string().optional(),
+}).strict())
+
+export const LayoutGroupKindSchema: z.ZodType<Contract.LayoutGroupKind> = z.enum(["metrics", "tabs"])
+
+export const LayoutGroupLayoutSchema: z.ZodType<Contract.LayoutGroupLayout> = z.enum(["columns", "rows"])
+
 export const LayoutItemSchema: z.ZodType<Contract.LayoutItem> = z.object({
   panelId: z.string(),
   span: z.number().int(),
+  group: z.lazy(() => LayoutGroupSchema).optional(),
 }).strict()
 
 export const LayoutRowSchema: z.ZodType<Contract.LayoutRow> = z.object({
@@ -115,6 +135,8 @@ export const LayoutRowSchema: z.ZodType<Contract.LayoutRow> = z.object({
   class: z.string().optional(),
   panels: z.array(z.lazy(() => LayoutItemSchema)),
 }).strict()
+
+export const LegendPlacementSchema: z.ZodType<Contract.LegendPlacement> = z.enum(["below"])
 
 export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   path: z.lazy(() => NodePathSchema),
@@ -152,11 +174,30 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   frame: z.lazy(() => FrameRefSchema),
   encoding: z.lazy(() => EncodingSchema),
   format: z.record(z.string(), z.lazy(() => FieldFormatSchema)),
+  total: z.number().optional(),
+  columns: z.array(z.lazy(() => TableColumnSchema)).optional(),
   drillRoot: z.lazy(() => NodeKeySchema).optional(),
   actions: z.array(z.lazy(() => ActionSchema)),
+  accent: z.string().optional(),
+  status: z.lazy(() => PanelStatusSchema).optional(),
+  caption: z.string().optional(),
+  headline: z.number().optional(),
+  trend: z.lazy(() => PanelTrendSchema).optional(),
+  presentation: z.lazy(() => PresentationSchema).optional(),
 }).strict())
 
-export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "cascade", "donut", "hbar", "line", "pie", "stat", "table"])
+export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "cascade", "coverage", "donut", "hbar", "line", "pie", "stat", "table"])
+
+export const PanelStatusSchema: z.ZodType<Contract.PanelStatus> = z.lazy(() => z.object({
+  label: z.string(),
+  tone: z.lazy(() => StatusToneSchema).optional(),
+}).strict())
+
+export const PanelTrendSchema: z.ZodType<Contract.PanelTrend> = z.object({
+  percent: z.number(),
+  label: z.string().optional(),
+  invert: z.boolean().optional(),
+}).strict()
 
 export const PerspectiveSchema: z.ZodType<Contract.Perspective> = z.lazy(() => z.object({
   id: z.string(),
@@ -171,6 +212,15 @@ export const PerspectiveSchema: z.ZodType<Contract.Perspective> = z.lazy(() => z
 export const PerspectiveRefSchema: z.ZodType<Contract.PerspectiveRef> = z.object({
   id: z.string(),
 }).strict()
+
+export const PresentationSchema: z.ZodType<Contract.Presentation> = z.lazy(() => z.object({
+  legend: z.lazy(() => LegendPlacementSchema).optional(),
+  sliceLabels: z.lazy(() => SliceLabelsSchema).optional(),
+  totalBadge: z.lazy(() => TotalBadgePlacementSchema).optional(),
+  colorBy: z.lazy(() => ColorBySchema).optional(),
+  fill: z.boolean().optional(),
+  barWidthPx: z.number().int().optional(),
+}).strict())
 
 export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum(["bad_request", "internal", "snapshot_gone"])
 
@@ -199,6 +249,8 @@ export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.object({
 
 export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.enum(["evidence", "partition", "reconciliation", "series"])
 
+export const SliceLabelsSchema: z.ZodType<Contract.SliceLabels> = z.enum(["percent"])
+
 export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   kind: z.lazy(() => ValueSourceKindSchema),
   name: z.string().optional(),
@@ -206,10 +258,40 @@ export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   fallback: z.unknown().optional(),
 }).strict())
 
+export const StatusToneSchema: z.ZodType<Contract.StatusTone> = z.enum(["neutral", "positive", "warning"])
+
+export const TableAffordanceSchema: z.ZodType<Contract.TableAffordance> = z.enum(["pill"])
+
+export const TableAlignSchema: z.ZodType<Contract.TableAlign> = z.enum(["left", "right"])
+
+export const TableCellSchema: z.ZodType<Contract.TableCell> = z.lazy(() => z.object({
+  kind: z.lazy(() => TableCellKindSchema),
+  secondaryField: z.string().optional(),
+  layout: z.lazy(() => TableCellLayoutSchema).optional(),
+}).strict())
+
+export const TableCellKindSchema: z.ZodType<Contract.TableCellKind> = z.enum(["bar", "delta", "plain", "underline"])
+
+export const TableCellLayoutSchema: z.ZodType<Contract.TableCellLayout> = z.enum(["stacked"])
+
+export const TableColumnSchema: z.ZodType<Contract.TableColumn> = z.object({
+  field: z.string(),
+  label: z.string(),
+  align: z.lazy(() => TableAlignSchema).optional(),
+  cell: z.lazy(() => TableCellSchema),
+  action: z.lazy(() => ActionSchema).optional(),
+  text: z.string().optional(),
+  widthPx: z.number().int().optional(),
+  clamp: z.number().int().optional(),
+  affordance: z.lazy(() => TableAffordanceSchema).optional(),
+}).strict()
+
 export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
   palette: z.record(z.string(), z.string()),
   series: z.record(z.string(), z.string()),
 }).strict()
+
+export const TotalBadgePlacementSchema: z.ZodType<Contract.TotalBadgePlacement> = z.enum(["header", "none", "plot"])
 
 export const ValueSourceKindSchema: z.ZodType<Contract.ValueSourceKind> = z.enum(["field", "literal", "variable"])
 

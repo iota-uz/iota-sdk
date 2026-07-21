@@ -94,3 +94,99 @@ export function labelForNode(node: Node, level: Level, document: DashboardDocume
   const targetLabel = node.target ? document.drill.edges[node.target]?.label.trim() : ''
   return targetLabel || id || node.key
 }
+
+export interface DrillBreakdownRow {
+  node: Node
+  label: string
+  value?: number
+  share?: number
+  /** Resolved leaf URL when the child is a record rather than a level. */
+  href?: string
+}
+
+export interface DrillTarget {
+  /** The node the overlay describes; absent when it describes the level itself. */
+  node?: Node
+  label: string
+  value?: number
+  share?: number
+  /** Level the overlay can drill into, i.e. what the segment expands to. */
+  target?: Level
+  breakdown: Array<DrillBreakdownRow>
+  perspectives: Array<Perspective>
+  leafHref?: string
+}
+
+function numeric(value: unknown): number | undefined {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function valueForNode(node: Node, level: Level, frame: Frame | undefined): number | undefined {
+  const row = rowForNode(node, level, frame)
+  return numeric(rowValue(frame, row, level.encoding?.value))
+}
+
+/**
+ * Describes what a user can do with one mark: how big it is relative to its
+ * siblings, what it expands into, which perspectives its target level offers,
+ * and whether it has a leaf route. The chart shows the level; this describes
+ * the segment, which is the unit the overlay acts on.
+ */
+export function drillTargetForNode(
+  document: DashboardDocument,
+  level: Level,
+  node: Node,
+  frame: Frame | undefined,
+  targetFrame: Frame | undefined,
+): DrillTarget {
+  const target = node.target ? document.drill.edges[node.target] : undefined
+  const value = valueForNode(node, level, frame)
+  const siblingTotal = level.children.reduce((sum, child) => sum + (valueForNode(child, level, frame) ?? 0), 0)
+  const breakdownValues = (target?.children ?? []).map((child) => ({
+    node: child,
+    label: labelForNode(child, target!, document, targetFrame),
+    value: target ? valueForNode(child, target, targetFrame) : undefined,
+  }))
+  const breakdownTotal = breakdownValues.reduce((sum, row) => sum + (row.value ?? 0), 0)
+  const breakdown = breakdownValues
+    .map((row) => ({ ...row, share: row.value !== undefined && breakdownTotal > 0 ? row.value / breakdownTotal : undefined }))
+    .sort((left, right) => (right.value ?? 0) - (left.value ?? 0))
+
+  return {
+    node,
+    label: labelForNode(node, level, document, frame),
+    value,
+    share: value !== undefined && siblingTotal > 0 ? value / siblingTotal : undefined,
+    target,
+    breakdown,
+    perspectives: perspectivesForLevel(document, target),
+  }
+}
+
+/** The overlay opened from the panel header describes the current level. */
+export function drillTargetForLevel(
+  document: DashboardDocument,
+  panel: Panel,
+  level: Level,
+  frame: Frame | undefined,
+): DrillTarget {
+  const values = level.children.map((child) => ({
+    node: child,
+    label: labelForNode(child, level, document, frame),
+    value: valueForNode(child, level, frame),
+  }))
+  const total = values.reduce((sum, row) => sum + (row.value ?? 0), 0)
+  return {
+    label: level.label.trim() || panel.title,
+    target: level,
+    breakdown: values
+      .map((row) => ({ ...row, share: row.value !== undefined && total > 0 ? row.value / total : undefined }))
+      .sort((left, right) => (right.value ?? 0) - (left.value ?? 0)),
+    perspectives: perspectivesForLevel(document, level),
+  }
+}
