@@ -110,6 +110,12 @@ async function screenshot(page: Page, name: string): Promise<void> {
   // Baseline files ship inside the Go module zip, which rejects paths with
   // characters like the middle dot Ladle inherits from story names.
   expect(name).toMatch(/^[A-Za-z0-9._-]+$/)
+  // Playwright leaves the pointer wherever it last clicked, so whatever sits
+  // under that spot is captured in its hover state and becomes part of the
+  // reference. Then any layout change that moves a control by a few pixels
+  // lands the pointer on a different element and fails a story that did not
+  // actually change. Park the pointer off the content before every capture.
+  await page.mouse.move(0, 0)
   await page.evaluate(async () => {
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
