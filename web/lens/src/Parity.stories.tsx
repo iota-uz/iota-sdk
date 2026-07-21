@@ -51,7 +51,7 @@ const coveragePanel: Panel = {
   id: 'payouts', kind: 'coverage', title: 'Выплаты по убыткам', semantics: 'partition', frame: 'payouts:frame',
   encoding: { label: 'label', value: 'amount' },
   format: { amount: money },
-  caption: 'ВСЕ ВЫПЛАТЫ ПОКРЫТЫ РЕЗЕРВОМ',
+  caption: 'ВСЕ ВЫПЛАТЫ ПОКРЫТЫ РЕЗЕРВОМ\nПРЕДВАРИТЕЛЬНЫЕ ДАННЫЕ',
   headline: 5_458_561_140,
   actions: [],
 }
