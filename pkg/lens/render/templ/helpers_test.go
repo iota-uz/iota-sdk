@@ -115,6 +115,14 @@ func TestActionURLSupportsHtmxActions(t *testing.T) {
 	require.Equal(t, "/contracts?product=osago", url)
 }
 
+func TestActionURLDoesNotExposeReactDrawerActions(t *testing.T) {
+	t.Parallel()
+
+	spec := action.OpenDrawer("/analytics/drill/lens/document")
+	require.Empty(t, actionURL(&spec, nil, &runtime.PanelResult{}))
+	require.Empty(t, actionOnClick(&spec, nil, &runtime.PanelResult{}).Call)
+}
+
 func TestActionURLResolvesFullURLFromRow(t *testing.T) {
 	t.Parallel()
 

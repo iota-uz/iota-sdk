@@ -79,7 +79,7 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
 
   return (
     <PanelFrame panel={panel} frame={frame}>
-      <StatLink href={cardHref} label={panel.title}>
+      <StatLink href={cardHref} label={panel.title} onClick={navigation.onClick(cardHref)}>
       <div className="lens-coverage">
         <p className="lens-coverage-headline">{formatValue(headline)}</p>
         <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
@@ -90,6 +90,7 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
                   aria-label={segment.label}
                   className="lens-coverage-track-segment lens-coverage-track-segment-link"
                   href={segmentHref(index)}
+                  onClick={navigation.onClick(segmentHref(index))}
                   key={segment.key}
                   style={{ width: `${segment.share * 100}%`, background: segment.color }}
                   title={segment.label}
@@ -119,7 +120,7 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
             return (
               <li className="lens-coverage-legend-row" key={segment.key}>
                 {href
-                  ? <a className="lens-coverage-legend-link" href={href}>{content}</a>
+                  ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)}>{content}</a>
                   : content}
               </li>
             )

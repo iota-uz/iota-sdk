@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
-import { resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
+import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
 import { ArrowUpRight, CaretRight } from '../icons'
 import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
+import { useActionActivation } from './actions'
 
 type SortDirection = 'ascending' | 'descending'
 
@@ -148,6 +149,7 @@ function DeltaCell({
 function ColumnCell({
   column, frame, row, panel, location, max,
 }: { column: TableColumn; frame: Frame; row: Array<unknown>; panel: Panel; location: URL; max: number }) {
+  const activation = useActionActivation(column.action)
   const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
   const type = frame.columns[index]?.type ?? 'string'
   const value = index >= 0 ? row[index] : undefined
@@ -184,11 +186,11 @@ function ColumnCell({
     )
   }
 
-  const href = column.action ? resolveColumnActionURL(column.action, frame, row, location) : undefined
+  const href = column.action && activation.available ? resolveColumnActionURL(column.action, frame, row, location) : undefined
   const pill = column.affordance === 'pill'
   if (href) {
     return (
-      <a className={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href}>
+      <a className={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href} onClick={activation.onClick(href)}>
         {content}
         {/* The arrow claims the cell opens something, so it only appears when
             a target actually resolved. */}
@@ -260,7 +262,9 @@ export function TablePanel({ panel }: TablePanelProps) {
   // A panel-level leaf action applies to whole rows. In columns mode it has
   // no column of its own, so the table appends one; otherwise the action the
   // document declares would never reach the DOM.
-  const rowLeafAction = Boolean(columns) && panel.actions.some((action) => action.kind === 'navigate_to_leaf')
+  const rowLeafAction = Boolean(columns) && panel.actions.some((action) => (
+    action.kind === 'navigate_to_leaf' || action.kind === 'open_drawer'
+  ))
 
   useEffect(() => {
     if (requestedSnapshotId.current !== document.snapshotId) {
@@ -426,8 +430,10 @@ export function TablePanel({ panel }: TablePanelProps) {
 function RowLeafAction({
   frame, row, panel, location, level, label,
 }: { frame: Frame; row: Array<unknown>; panel: Panel; location: URL; level?: Level; label: string }) {
-  const href = resolveRowLeafActionURL(panel, frame, row, location, level)
-  return href ? <a className="lens-leaf-action" href={href}>{label}</a> : null
+  const action = actionForRow(panel, frame, row, level)
+  const activation = useActionActivation(action)
+  const href = activation.available ? resolveRowLeafActionURL(panel, frame, row, location, level) : undefined
+  return href ? <a className="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{label}</a> : null
 }
 
 function FrameRow({
@@ -441,7 +447,9 @@ function FrameRow({
   level?: Level
   openRecordLabel: string
 }) {
-  const href = resolveRowLeafActionURL(panel, frame, row, location, level)
+  const action = actionForRow(panel, frame, row, level)
+  const activation = useActionActivation(action)
+  const href = activation.available ? resolveRowLeafActionURL(panel, frame, row, location, level) : undefined
   return (
     <tr key={index}>
       {frame.columns.map((column, columnIndex) => (
@@ -450,7 +458,7 @@ function FrameRow({
         </td>
       ))}
       <td className="lens-table-action-cell">
-        {href && <a className="lens-leaf-action" href={href}>{openRecordLabel}</a>}
+        {href && <a className="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{openRecordLabel}</a>}
       </td>
     </tr>
   )

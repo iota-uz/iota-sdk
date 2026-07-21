@@ -1,5 +1,6 @@
 export * from './navigate'
 export * from './document'
+export * from './drawer'
 export * from './drill'
 export * from './export'
 export * from './format'

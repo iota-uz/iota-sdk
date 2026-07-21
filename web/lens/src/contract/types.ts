@@ -13,7 +13,7 @@ export interface Action {
   preserveQuery?: boolean
 }
 
-export type ActionKind = "emit_event" | "navigate" | "navigate_to_leaf"
+export type ActionKind = "emit_event" | "navigate" | "navigate_to_leaf" | "open_drawer"
 
 export interface ActionParam {
   name: string

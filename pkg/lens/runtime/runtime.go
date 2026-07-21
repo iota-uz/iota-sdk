@@ -1192,7 +1192,7 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 		return fmt.Errorf("%s action requires url", owner)
 	}
 	switch spec.Kind {
-	case action.KindNavigate, action.KindHtmxSwap, action.KindEmitEvent:
+	case action.KindNavigate, action.KindOpenDrawer, action.KindHtmxSwap, action.KindEmitEvent:
 	case action.KindCubeDrill:
 		if !opts.allowCubeDrill {
 			return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)

@@ -3,7 +3,6 @@ import type { Frame, NodeKey, Panel } from '../contract'
 import type { ChartAdapter, ChartAnchor, ChartFormatResolver, ChartKind } from '../charts/adapter'
 import { childForSelection } from '../explore/model'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
-import { navigateTo } from '../runtime/navigate'
 import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
@@ -161,7 +160,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const select = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
     if (!hasTree) {
       const href = markURL(key)
-      if (href) navigateTo(href)
+      panelNavigation.activate(href)
       return
     }
     // With an explore host present the mark opens its overlay; without one the
@@ -175,7 +174,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [drillInto, hasTree, level, markURL, onMarkSelect, panel.id])
+  }, [drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
 
   return (
     <PanelFrame panel={panel} frame={frame}>

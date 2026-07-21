@@ -39,6 +39,16 @@ func TestBuildActionJSNormalizesTimeCategories(t *testing.T) {
 	require.Contains(t, js, "toISOString().slice(0, 10)")
 }
 
+func TestBuildActionJSDropsReactDrawerActions(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("sales", frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}})
+	require.NoError(t, err)
+	spec := action.OpenDrawer("/analytics/drill/lens/document")
+
+	require.Empty(t, buildActionJS(&spec, fr, panel.FieldMapping{Value: "value"}, &runtime.PanelResult{}))
+}
+
 func TestBuildActionJSPreservesTimeValuesInConfig(t *testing.T) {
 	t.Parallel()
 

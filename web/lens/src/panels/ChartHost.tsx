@@ -73,6 +73,8 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
       className={`lens-chart-host${drillable ? ' lens-chart-host-drillable' : ''}`}
       aria-label={label}
       data-drillable={drillable || undefined}
+      onMouseDown={drillable ? (event) => event.currentTarget.focus() : undefined}
+      tabIndex={drillable ? 0 : undefined}
     >
       <div ref={hostRef} className="lens-chart-canvas" />
       {loadError && (

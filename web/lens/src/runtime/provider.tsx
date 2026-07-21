@@ -23,6 +23,7 @@ import {
   type NavigationState,
   type NavigationView,
 } from './navigation'
+import { LensDrawer } from './drawer'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { navigationFromURL, navigationToURL, sameNavigationURL } from './url'
@@ -126,6 +127,12 @@ export interface DrillContextValue {
   canGoBack: boolean
 }
 
+export interface DrawerContextValue {
+  depth: number
+  open: (src: string, opener?: HTMLElement) => void
+  close: () => void
+}
+
 export interface PanelFrameState {
   data?: Frame
   page?: QueryPage
@@ -185,6 +192,7 @@ const DrillContext = createContext<DrillContextValue | undefined>(undefined)
 const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
 const PanelPaginationContext = createContext<PanelPaginationContextValue | undefined>(undefined)
 const ExportContext = createContext<ExportContextValue | undefined>(undefined)
+const DrawerContext = createContext<DrawerContextValue | undefined>(undefined)
 const LocaleContext = createContext('en')
 const I18nContext = createContext<Record<string, string>>({})
 const emptyFrameStore = new PanelFrameStore()
@@ -215,7 +223,13 @@ interface BrowserNavigationState {
 }
 
 function sameView(left: NavigationView, right: NavigationView): boolean {
-  return left.panelId === right.panelId && left.perspectiveId === right.perspectiveId &&
+  const sameDrawer = left.drawer === undefined && right.drawer === undefined || (
+    left.drawer !== undefined && right.drawer !== undefined && left.drawer.src === right.drawer.src &&
+    left.drawer.panelId === right.drawer.panelId && left.drawer.perspectiveId === right.drawer.perspectiveId &&
+    left.drawer.path.length === right.drawer.path.length &&
+    left.drawer.path.every((key, index) => key === right.drawer?.path[index])
+  )
+  return left.panelId === right.panelId && left.perspectiveId === right.perspectiveId && sameDrawer &&
     left.path.length === right.path.length && left.path.every((key, index) => key === right.path[index])
 }
 
@@ -225,6 +239,7 @@ function resolveView(document: DashboardDocument, view: NavigationView): Navigat
     path: [...view.path],
     perspectiveId: view.perspectiveId,
     panelId: panelForNavigation(document, view)?.id,
+    ...(view.drawer ? { drawer: { ...view.drawer, path: [...view.drawer.path] } } : {}),
   }
 }
 
@@ -234,10 +249,25 @@ function parseBrowserView(value: unknown): NavigationView | undefined {
   if (!Array.isArray(candidate.path) || !candidate.path.every((key) => typeof key === 'string')) return undefined
   if (candidate.panelId !== undefined && typeof candidate.panelId !== 'string') return undefined
   if (candidate.perspectiveId !== undefined && typeof candidate.perspectiveId !== 'string') return undefined
+  let drawer: NavigationView['drawer']
+  if (candidate.drawer !== undefined) {
+    if (!candidate.drawer || typeof candidate.drawer !== 'object') return undefined
+    const value = candidate.drawer as Record<string, unknown>
+    if (typeof value.src !== 'string' || !Array.isArray(value.path) || !value.path.every((key) => typeof key === 'string')) return undefined
+    if (value.panelId !== undefined && typeof value.panelId !== 'string') return undefined
+    if (value.perspectiveId !== undefined && typeof value.perspectiveId !== 'string') return undefined
+    drawer = {
+      src: value.src,
+      path: [...value.path] as Array<string>,
+      panelId: value.panelId,
+      perspectiveId: value.perspectiveId,
+    }
+  }
   return {
     path: [...candidate.path] as Array<string>,
     panelId: candidate.panelId,
     perspectiveId: candidate.perspectiveId,
+    ...(drawer ? { drawer } : {}),
   }
 }
 
@@ -249,6 +279,7 @@ function derivedHistory(document: DashboardDocument, view: NavigationView): Arra
     const candidate = resolveView(document, withPerspective) ?? resolveView(document, { path })
     if (candidate) history.push(candidate)
   }
+  if (view.drawer) history.push({ panelId: view.panelId, path: [...view.path], perspectiveId: view.perspectiveId })
   return history
 }
 
@@ -280,9 +311,32 @@ function browserStateFor(navigation: NavigationState, current: unknown): Record<
     panelId: view.panelId,
     path: [...view.path],
     perspectiveId: view.perspectiveId,
+    ...(view.drawer ? { drawer: { ...view.drawer, path: [...view.drawer.path] } } : {}),
   })
   const lens: BrowserNavigationState = { view: clone(navigation), history: navigation.history.map(clone) }
   return { ...state, [browserHistoryKey]: lens }
+}
+
+function nestedDrawerState(drawer: NonNullable<NavigationView['drawer']>, history: Array<NavigationView>): NavigationState {
+  return {
+    panelId: drawer.panelId,
+    path: [...drawer.path],
+    perspectiveId: drawer.perspectiveId,
+    history: history.flatMap((view) => view.drawer ? [{
+      panelId: view.drawer.panelId,
+      path: [...view.drawer.path],
+      perspectiveId: view.drawer.perspectiveId,
+    }] : []),
+  }
+}
+
+function isSameOriginDrawerSource(src: string): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return new URL(src, window.location.href).origin === window.location.origin
+  } catch {
+    return false
+  }
 }
 
 function inferredInitialNavigation(document: DashboardDocument): NavigationState {
@@ -392,14 +446,42 @@ interface RuntimeCoreProps {
   fetcher?: typeof fetch
   refreshDocument: () => Promise<DashboardDocument>
   children: ReactNode
+  controlledNavigation?: NavigationState
+  onControlledNavigationChange?: (view: NavigationView) => void
+  drawerDepth?: number
 }
 
-function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, children }: RuntimeCoreProps) {
-  const [navigation, dispatch] = useReducer(
+function RuntimeCore({
+  document, locale, csrf, fetcher, refreshDocument, children,
+  controlledNavigation, onControlledNavigationChange, drawerDepth = 0,
+}: RuntimeCoreProps) {
+  const [localNavigation, localDispatch] = useReducer(
     (state: NavigationState, action: Parameters<typeof navigationReducer>[1]) => runtimeNavigationReducer(document, state, action),
     document,
     inferredInitialNavigation,
   )
+  const navigation = controlledNavigation ?? localNavigation
+  const runtimeViewRef = useRef<NavigationView>()
+  if (!runtimeViewRef.current ||
+    runtimeViewRef.current.panelId !== navigation.panelId ||
+    runtimeViewRef.current.perspectiveId !== navigation.perspectiveId ||
+    runtimeViewRef.current.path.length !== navigation.path.length ||
+    runtimeViewRef.current.path.some((key, index) => key !== navigation.path[index])) {
+    runtimeViewRef.current = {
+      panelId: navigation.panelId,
+      path: [...navigation.path],
+      perspectiveId: navigation.perspectiveId,
+    }
+  }
+  const runtimeView = runtimeViewRef.current
+  const dispatch = useCallback((action: Parameters<typeof navigationReducer>[1]) => {
+    if (!controlledNavigation) {
+      localDispatch(action)
+      return
+    }
+    const next = runtimeNavigationReducer(document, controlledNavigation, action)
+    if (next !== controlledNavigation) onControlledNavigationChange?.(next)
+  }, [controlledNavigation, document, onControlledNavigationChange])
   const [notice, setNotice] = useState<string>()
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
   const exportSnapshotId = useRef(document.snapshotId)
@@ -407,6 +489,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
   const forceRetry = useRef(false)
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
   const replaceNextURL = useRef(true)
+  const drawerOpener = useRef<HTMLElement>()
   const frameStore = useRef<PanelFrameStore>()
   const retryFrame = useCallback(() => {
     forceRetry.current = true
@@ -457,13 +540,14 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
   }, [document, frames, retryFrame])
 
   useEffect(() => {
-    if (pathResolves(document, navigation.path, navigation.perspectiveId)) return
+    if (pathResolves(document, runtimeView.path, runtimeView.perspectiveId)) return
     replaceNextURL.current = true
-    dispatch(navigationActions.restore(rootNavigation(document, navigation.panelId)))
+    dispatch(navigationActions.restore(rootNavigation(document, runtimeView.panelId)))
     setNotice(driftNotice())
-  }, [document, driftNotice, navigation.panelId, navigation.path, navigation.perspectiveId])
+  }, [dispatch, document, driftNotice, runtimeView])
 
   useEffect(() => {
+    if (controlledNavigation) return
     if (typeof window === 'undefined') return
     if (!pathResolves(document, navigation.path, navigation.perspectiveId)) return
     const current = new URL(window.location.href)
@@ -472,9 +556,10 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     if (replaceNextURL.current || sameNavigationURL(current, next)) window.history.replaceState(state, '', next)
     else window.history.pushState(state, '', next)
     replaceNextURL.current = false
-  }, [document, navigation])
+  }, [controlledNavigation, document, navigation])
 
   useEffect(() => {
+    if (controlledNavigation) return
     if (typeof window === 'undefined') return
     const onPopState = (event: PopStateEvent) => {
       const view = navigationFromURL(new URL(window.location.href))
@@ -483,10 +568,10 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [document])
+  }, [controlledNavigation, dispatch, document])
 
   useEffect(() => {
-    const panel = panelForNavigation(document, navigation)
+    const panel = panelForNavigation(document, runtimeView)
     // Leaving a drill level (Back, a breadcrumb jump, a reset) must not leave
     // the level's data on screen: any explore host that is no longer the
     // active drill target falls back to the frame the document shipped.
@@ -499,7 +584,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       })
     }
     if (!panel) return
-    const resolved = frameForPanel(document, navigation, panel, new Map())
+    const resolved = frameForPanel(document, runtimeView, panel, new Map())
     if (!resolved.shouldQuery || !queryClient) {
       if (resolved.frame) {
         frames.set(panel.id, {
@@ -519,7 +604,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       error: null,
       retry: retryFrame,
     })
-    const currentNavigation = { ...navigation, path: [...navigation.path] }
+    const currentNavigation = { ...runtimeView, path: [...runtimeView.path] }
     const perspective = document.perspectives.find(({ id }) => id === currentNavigation.perspectiveId)
     const request = {
       ...requestFor(document, currentNavigation),
@@ -562,11 +647,11 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       })
     })
     return () => { active = false }
-  }, [document, driftNotice, frames, navigation, queryClient, refreshDocument, retryFrame, retryToken])
+  }, [dispatch, document, driftNotice, frames, queryClient, refreshDocument, retryFrame, retryToken, runtimeView])
 
   const loadPage = useCallback(async (panelId: string, page: number, force = false) => {
-    const panel = panelForNavigation(document, navigation)
-    if (!queryClient || !panel || panel.id !== panelId || navigation.path.length === 0 || page < 1) return
+    const panel = panelForNavigation(document, runtimeView)
+    if (!queryClient || !panel || panel.id !== panelId || runtimeView.path.length === 0 || page < 1) return
     const previousState = frames.get(panelId)
     const previous = previousState?.data ?? document.frames[panel.frame]
     const retryPage = () => { void pageLoader.current?.(panelId, page, true) }
@@ -578,7 +663,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
       error: null,
       retry: retryPage,
     })
-    const currentNavigation = { ...navigation, path: [...navigation.path] }
+    const currentNavigation = { ...runtimeView, path: [...runtimeView.path] }
     try {
       const result = await queryWithSnapshotRecovery({
         request: { ...requestFor(document, currentNavigation), page },
@@ -611,7 +696,7 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
         retry: retryPage,
       })
     }
-  }, [document, driftNotice, frames, navigation, queryClient, refreshDocument])
+  }, [dispatch, document, driftNotice, frames, queryClient, refreshDocument, runtimeView])
   pageLoader.current = loadPage
 
   const pagination = useMemo<PanelPaginationContextValue>(() => ({
@@ -668,23 +753,72 @@ function RuntimeCore({ document, locale, csrf, fetcher, refreshDocument, childre
     },
     reset: () => dispatch(navigationActions.reset()),
     canGoBack: navigation.history.length > 0,
-  }), [navigation.history.length])
+  }), [dispatch, navigation.history.length])
+  const closeDrawer = useCallback(() => {
+    if (!navigation.drawer || controlledNavigation) return
+    if (drawerOpener.current && typeof window !== 'undefined') {
+      let steps = 1
+      for (let index = navigation.history.length - 1; index >= 0; index -= 1) {
+        if (!navigation.history[index]?.drawer) break
+        steps += 1
+      }
+      window.history.go(-steps)
+      return
+    }
+    replaceNextURL.current = true
+    dispatch(navigationActions.closeDrawer())
+  }, [controlledNavigation, dispatch, navigation.drawer, navigation.history])
+  const drawer = useMemo<DrawerContextValue>(() => ({
+    depth: drawerDepth,
+    open: (src, opener) => {
+      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
+      drawerOpener.current = opener ?? (
+        globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : undefined
+      )
+      dispatch(navigationActions.openDrawer(src))
+    },
+    close: closeDrawer,
+  }), [closeDrawer, dispatch, drawerDepth, navigation.drawer])
   const dashboard = useMemo(() => ({ document, navigation, notice, dismissNotice: () => setNotice(undefined) }), [document, navigation, notice])
 
   return (
     <LocaleContext.Provider value={locale}>
       <I18nContext.Provider value={document.i18n}>
       <DashboardContext.Provider value={dashboard}>
+        <DrawerContext.Provider value={drawer}>
         <DrillContext.Provider value={drill}>
           <PanelPaginationContext.Provider value={pagination}>
             <ExportContext.Provider value={exportContext}>
               <FramesContext.Provider value={frames}>
                 {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
+                {navigation.drawer && drawerDepth === 0 && (
+                  <LensDrawer
+                    closeLabel={translate('drawer.close', 'Close details')}
+                    eyebrow={translate('drawer.eyebrow', 'Detail view')}
+                    label={translate('drawer.label', 'Drill details')}
+                    onClose={closeDrawer}
+                    restoreFocus={drawerOpener.current}
+                  >
+                    <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher}>
+                      <DashboardRuntimeProvider
+                        controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
+                        csrf={csrf}
+                        drawerDepth={1}
+                        fetcher={fetcher}
+                        locale={locale}
+                        onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}
+                      >
+                        {children}
+                      </DashboardRuntimeProvider>
+                    </DocumentProvider>
+                  </LensDrawer>
+                )}
               </FramesContext.Provider>
             </ExportContext.Provider>
           </PanelPaginationContext.Provider>
         </DrillContext.Provider>
+        </DrawerContext.Provider>
       </DashboardContext.Provider>
       </I18nContext.Provider>
     </LocaleContext.Provider>
@@ -698,9 +832,14 @@ export interface DashboardRuntimeProviderProps {
   children: ReactNode
   /** Server-rendered placeholder shown until the first document arrives. */
   fallback?: ReactNode
+  controlledNavigation?: NavigationState
+  onControlledNavigationChange?: (view: NavigationView) => void
+  drawerDepth?: number
 }
 
-export function DashboardRuntimeProvider({ locale, csrf, fetcher, children, fallback }: DashboardRuntimeProviderProps) {
+export function DashboardRuntimeProvider({
+  locale, csrf, fetcher, children, fallback, controlledNavigation, onControlledNavigationChange, drawerDepth,
+}: DashboardRuntimeProviderProps) {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
   if (!context.document) {
@@ -720,6 +859,9 @@ export function DashboardRuntimeProvider({ locale, csrf, fetcher, children, fall
       csrf={csrf}
       fetcher={fetcher}
       refreshDocument={context.refresh}
+      controlledNavigation={controlledNavigation}
+      onControlledNavigationChange={onControlledNavigationChange}
+      drawerDepth={drawerDepth}
     >
       {children}
     </RuntimeCore>
@@ -735,6 +877,12 @@ export function useDashboard(): DashboardContextValue {
 export function useDrill(): DrillContextValue {
   const context = useContext(DrillContext)
   if (!context) throw new Error('useDrill must be used inside DashboardRuntimeProvider')
+  return context
+}
+
+export function useDrawer(): DrawerContextValue {
+  const context = useContext(DrawerContext)
+  if (!context) throw new Error('useDrawer must be used inside DashboardRuntimeProvider')
   return context
 }
 

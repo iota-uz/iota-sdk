@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
-import { DashboardRuntimeProvider, DocumentProvider, useDashboard, useDrill, usePanelFrame } from './provider'
+import { DashboardRuntimeProvider, DocumentProvider, useDashboard, useDrawer, useDrill, usePanelFrame } from './provider'
+import { QueryClient } from './query'
 
 const document = parseDocument({
   ...fixture,
@@ -35,6 +36,7 @@ function response(value: number): Response {
 
 function Controls() {
   const dashboard = useDashboard()
+  const drawer = useDrawer()
   const drill = useDrill()
   const frame = usePanelFrame('total')
   return (
@@ -45,6 +47,7 @@ function Controls() {
       <button type="button" onClick={() => drill.drillInto('detail')}>Detail</button>
       <button type="button" onClick={() => drill.switchPerspective('missing')}>Missing perspective</button>
       <button type="button" onClick={frame.retry}>Refresh frame</button>
+      <button type="button" onClick={(event) => drawer.open('/lens/drawer', event.currentTarget)}>Open drawer</button>
     </>
   )
 }
@@ -202,5 +205,31 @@ describe('DashboardRuntimeProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Rerender' }))
     await Promise.resolve()
     expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not rerun the dashboard query when a drawer opens or closes', async () => {
+    const query = vi.spyOn(QueryClient.prototype, 'query')
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+      if (input === '/lens/drawer') {
+        return Promise.resolve(new Response(JSON.stringify(document), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+      return Promise.resolve(response(43))
+    })
+    render(<RuntimeFixture fetcher={fetcher} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Root' }))
+    expect(await screen.findByText('43')).toBeInTheDocument()
+    expect(query).toHaveBeenCalledTimes(1)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+    expect(query).toHaveBeenCalledTimes(1)
+
+    act(() => window.history.back())
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(query).toHaveBeenCalledTimes(1)
   })
 })
