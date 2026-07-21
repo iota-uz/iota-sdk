@@ -36,7 +36,7 @@ export const ActionSchema: z.ZodType<Contract.Action> = z.lazy(() => z.object({
   preserveQuery: z.boolean().optional(),
 }).strict())
 
-export const ActionKindSchema: z.ZodType<Contract.ActionKind> = z.enum(["emit_event", "navigate", "navigate_to_leaf"])
+export const ActionKindSchema: z.ZodType<Contract.ActionKind> = z.enum(["emit_event", "navigate", "navigate_to_leaf", "open_drawer"])
 
 export const ActionParamSchema: z.ZodType<Contract.ActionParam> = z.lazy(() => z.object({
   name: z.string(),

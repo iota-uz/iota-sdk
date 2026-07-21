@@ -27,6 +27,7 @@ vi.mock('../runtime', () => ({
     vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match)) : fallback
   ),
   useDrill: () => ({ drillInto: runtime.drillInto }),
+  useDrawer: () => ({ depth: 0, open: vi.fn(), close: vi.fn() }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
 }))
 

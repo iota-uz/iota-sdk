@@ -80,6 +80,35 @@ describe('navigationReducer', () => {
     expect(navigationReducer(state, navigationActions.reset())).toEqual({ path: [], history: [] })
   })
 
+  it('opens one drawer without replacing the dashboard view', () => {
+    const initial = createNavigationState({ panelId: 'margin', path: ['root'], perspectiveId: 'trend' })
+    const opened = navigationReducer(initial, navigationActions.openDrawer('/drill/margin/lens/document?token=signed'))
+
+    expect(opened).toEqual({
+      panelId: 'margin',
+      path: ['root'],
+      perspectiveId: 'trend',
+      drawer: { src: '/drill/margin/lens/document?token=signed', path: [] },
+      history: [{ panelId: 'margin', path: ['root'], perspectiveId: 'trend' }],
+    })
+    expect(navigationReducer(opened, navigationActions.openDrawer('/drill/other/lens/document'))).toBe(opened)
+  })
+
+  it('records drawer drill views in the same history and closes without adding an entry', () => {
+    const opened = navigationReducer(createNavigationState({ path: ['dashboard'] }), navigationActions.openDrawer('/drill/document'))
+    const drilled = navigationReducer(opened, navigationActions.updateDrawer({
+      panelId: 'evidence', path: ['root', 'claims'], perspectiveId: 'records',
+    }))
+    const closed = navigationReducer(drilled, navigationActions.closeDrawer())
+
+    expect(drilled.path).toEqual(['dashboard'])
+    expect(drilled.drawer).toEqual({
+      src: '/drill/document', panelId: 'evidence', path: ['root', 'claims'], perspectiveId: 'records',
+    })
+    expect(drilled.history).toHaveLength(2)
+    expect(closed).toEqual({ path: ['dashboard'], panelId: undefined, perspectiveId: undefined, history: drilled.history })
+  })
+
   it('restores an external view without retaining internal history', () => {
     const state = navigationReducer(createNavigationState({ path: ['root'] }), navigationActions.drillInto('detail'))
     expect(navigationReducer(state, navigationActions.restore({ path: ['external'], perspectiveId: 'p' }))).toEqual({

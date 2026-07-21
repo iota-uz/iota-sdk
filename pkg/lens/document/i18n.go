@@ -17,6 +17,9 @@ const (
 	I18nDashboardEmpty    = "dashboard.empty"
 	I18nDashboardTabs     = "dashboard.tabs"
 	I18nDrillReset        = "drill.reset"
+	I18nDrawerClose       = "drawer.close"
+	I18nDrawerEyebrow     = "drawer.eyebrow"
+	I18nDrawerLabel       = "drawer.label"
 	I18nExploreBack       = "explore.back"
 	I18nExploreBreakdown  = "explore.breakdown"
 	I18nExploreChooseView = "explore.chooseView"
@@ -69,6 +72,7 @@ func RuntimeI18nKeys() []string {
 		I18nCascadeStages,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDrillReset,
+		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
 		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose, I18nExploreExpand,
 		I18nExploreNoDetail, I18nExploreOpenBreak,
 		I18nExplorePanel, I18nExplorePath, I18nExplorePathLabel,

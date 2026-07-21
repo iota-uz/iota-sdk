@@ -54,7 +54,7 @@ function resolveTemplate(action: Action, context: LeafActionContext): string | u
 }
 
 export function resolveLeafActionURL(action: Action, context: LeafActionContext): string | undefined {
-  if (action.kind !== 'navigate_to_leaf') return undefined
+  if (action.kind !== 'navigate_to_leaf' && action.kind !== 'open_drawer') return undefined
   return resolveActionURL(action, context)
 }
 
@@ -64,7 +64,7 @@ export function resolveLeafActionURL(action: Action, context: LeafActionContext)
  * the same way, they just belong to a card instead of a row.
  */
 export function resolveActionURL(action: Action, context: LeafActionContext): string | undefined {
-  if (action.kind !== 'navigate' && action.kind !== 'navigate_to_leaf') return undefined
+  if (action.kind !== 'navigate' && action.kind !== 'navigate_to_leaf' && action.kind !== 'open_drawer') return undefined
   let resolved: string | undefined
   if (action.urlSource) {
     const value = sourceValue(action.urlSource, context)
@@ -114,12 +114,20 @@ export function resolveRowLeafActionURL(
   level?: Level,
 ): string | undefined {
   const node = level ? matchingNode(level, panel, frame, row) : undefined
-  const action = node?.action ?? (node || !level?.children.length
-    ? panel.actions.find(({ kind }) => kind === 'navigate_to_leaf')
-    : undefined)
+  const action = rowLeafAction(panel, level, node)
   return action ? resolveLeafActionURL(action, {
     fields: recordForRow(frame, row),
     variables: variablesFromLocation(location),
     location,
   }) : undefined
+}
+
+export function rowLeafAction(panel: Panel, level?: Level, node?: Level['children'][number]): Action | undefined {
+  return node?.action ?? (node || !level?.children.length
+    ? panel.actions.find(({ kind }) => kind === 'navigate_to_leaf' || kind === 'open_drawer')
+    : undefined)
+}
+
+export function actionForRow(panel: Panel, frame: Frame, row: Array<unknown>, level?: Level): Action | undefined {
+  return rowLeafAction(panel, level, level ? matchingNode(level, panel, frame, row) : undefined)
 }

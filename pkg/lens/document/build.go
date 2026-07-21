@@ -657,6 +657,8 @@ func convertAction(spec action.Spec, leaf bool) (Action, bool) {
 		} else {
 			result.Kind = ActionNavigate
 		}
+	case action.KindOpenDrawer:
+		result.Kind = ActionOpenDrawer
 	case action.KindEmitEvent:
 		result.Kind = ActionEmitEvent
 	default:

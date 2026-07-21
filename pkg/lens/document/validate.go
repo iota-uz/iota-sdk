@@ -446,9 +446,9 @@ func frameHasColumn(frame Frame, name string) bool {
 
 func validateAction(owner string, action Action) error {
 	switch action.Kind {
-	case ActionNavigate, ActionNavigateToLeaf:
+	case ActionNavigate, ActionNavigateToLeaf, ActionOpenDrawer:
 		if strings.TrimSpace(action.URLTemplate) == "" && action.URLSource == nil {
-			return fmt.Errorf("%s navigate action requires url", owner)
+			return fmt.Errorf("%s action requires url", owner)
 		}
 	case ActionEmitEvent:
 		if strings.TrimSpace(action.Event) == "" {
@@ -565,7 +565,7 @@ func validateSource(owner string, source Source) error {
 
 func hasLeafAction(actions []Action) bool {
 	for _, action := range actions {
-		if action.Kind == ActionNavigateToLeaf {
+		if action.Kind == ActionNavigateToLeaf || action.Kind == ActionOpenDrawer {
 			return true
 		}
 	}
@@ -574,7 +574,7 @@ func hasLeafAction(actions []Action) bool {
 
 func hasLeafTableColumnAction(columns []TableColumn) bool {
 	for _, column := range columns {
-		if column.Action != nil && column.Action.Kind == ActionNavigateToLeaf {
+		if column.Action != nil && (column.Action.Kind == ActionNavigateToLeaf || column.Action.Kind == ActionOpenDrawer) {
 			return true
 		}
 	}

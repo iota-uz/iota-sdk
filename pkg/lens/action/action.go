@@ -10,11 +10,12 @@ import (
 type Kind string
 
 const (
-	KindNavigate  Kind = "navigate"
-	KindHtmxSwap  Kind = "htmx_swap"
-	KindEmitEvent Kind = "emit_event"
-	KindCubeDrill Kind = "cube_drill"
-	KindExplore   Kind = "explore"
+	KindNavigate   Kind = "navigate"
+	KindOpenDrawer Kind = "open_drawer"
+	KindHtmxSwap   Kind = "htmx_swap"
+	KindEmitEvent  Kind = "emit_event"
+	KindCubeDrill  Kind = "cube_drill"
+	KindExplore    Kind = "explore"
 )
 
 type ValueSourceKind string
@@ -63,6 +64,16 @@ func (s Spec) WithFieldURL(field string) Spec {
 func Navigate(url string, params ...Param) Spec {
 	return Spec{
 		Kind:   KindNavigate,
+		URL:    url,
+		Method: "GET",
+		Params: params,
+	}
+}
+
+// OpenDrawer loads a Lens document URL into the runtime's modal drawer host.
+func OpenDrawer(url string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindOpenDrawer,
 		URL:    url,
 		Method: "GET",
 		Params: params,

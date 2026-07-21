@@ -336,6 +336,7 @@ type ActionKind string
 const (
 	ActionNavigate       ActionKind = "navigate"
 	ActionNavigateToLeaf ActionKind = "navigate_to_leaf"
+	ActionOpenDrawer     ActionKind = "open_drawer"
 	ActionEmitEvent      ActionKind = "emit_event"
 )
 

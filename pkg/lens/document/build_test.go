@@ -131,6 +131,18 @@ func TestBuild_TableSemanticsRequiresLeafActionForEvidence(t *testing.T) {
 	require.Equal(t, SemanticsSeries, semantics["matrix-table"])
 }
 
+func TestConvertAction_PreservesDrawerAndDropsHTMX(t *testing.T) {
+	t.Parallel()
+
+	drawer, ok := convertAction(action.OpenDrawer("/drill/loss/lens/document"), false)
+	require.True(t, ok)
+	require.Equal(t, ActionOpenDrawer, drawer.Kind)
+	require.Equal(t, "/drill/loss/lens/document", drawer.URLTemplate)
+
+	_, ok = convertAction(action.HtmxSwap("/drill/loss", "#drawer"), false)
+	require.False(t, ok)
+}
+
 func TestBuild_PanelTotalBadgeValue(t *testing.T) {
 	t.Parallel()
 	primary, err := frame.New("totals",

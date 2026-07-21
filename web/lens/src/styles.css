@@ -66,6 +66,74 @@
     @apply lens-mx-auto lens-w-full lens-max-w-screen-2xl;
   }
 
+  .lens-drawer-backdrop {
+    @apply lens-fixed lens-inset-0 lens-z-[1000] lens-flex lens-justify-end;
+    background: rgb(15 23 42 / 0.42);
+    backdrop-filter: blur(2px);
+  }
+
+  .lens-drawer {
+    @apply lens-flex lens-h-[100dvh] lens-w-full lens-flex-col lens-bg-card lens-text-text lens-shadow-2xl;
+    max-width: min(720px, calc(100vw - 24px));
+    animation: lens-drawer-enter 180ms ease-out;
+  }
+
+  .lens-drawer:focus {
+    @apply lens-outline-none;
+  }
+
+  .lens-drawer-header {
+    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-center lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5;
+    box-shadow: inset 3px 0 0 var(--lens-accent-500);
+  }
+
+  .lens-drawer-eyebrow {
+    @apply lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  }
+
+  .lens-drawer-close {
+    @apply lens-inline-flex lens-h-9 lens-w-9 lens-cursor-pointer lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-text-muted;
+  }
+
+  .lens-drawer-close:hover {
+    @apply lens-border-strong lens-bg-inset lens-text-strong;
+  }
+
+  .lens-drawer-close:focus-visible {
+    @apply lens-outline-none;
+    box-shadow: 0 0 0 2px var(--lens-bg-card), 0 0 0 4px var(--lens-accent-300);
+  }
+
+  .lens-drawer-document {
+    @apply lens-min-h-0 lens-flex-1 lens-overflow-y-auto lens-p-5;
+    overscroll-behavior: contain;
+  }
+
+  .lens-drawer-document .lens-dashboard {
+    @apply lens-max-w-none;
+  }
+
+  @keyframes lens-drawer-enter {
+    from { transform: translateX(24px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+
+  @media (max-width: 640px) {
+    .lens-drawer {
+      max-width: 100vw;
+    }
+
+    .lens-drawer-document {
+      @apply lens-p-3;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-drawer {
+      animation: none;
+    }
+  }
+
   .lens-dashboard-header {
     @apply lens-mb-5 lens-flex lens-items-end lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
   }

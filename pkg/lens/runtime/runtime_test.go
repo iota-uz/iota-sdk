@@ -428,6 +428,24 @@ func TestValidateAcceptsActionURLFieldSource(t *testing.T) {
 	require.NoError(t, Validate(spec))
 }
 
+func TestValidateAcceptsOpenDrawerAction(t *testing.T) {
+	t.Parallel()
+
+	spec := lensbuild.Dashboard("actions", "Actions",
+		lensbuild.Row(
+			panel.Bar("sales", "Sales", "dataset").
+				LabelField("label").
+				ValueField("value").
+				Action(action.OpenDrawer("/analytics/drill/lens/document", action.FieldParam("metric", "label"))).
+				Build(),
+		),
+	).Datasets(
+		lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
+	).Build()
+
+	require.NoError(t, Validate(spec))
+}
+
 func TestValidateRejectsEmptyActionURLFieldSource(t *testing.T) {
 	t.Parallel()
 

@@ -1,6 +1,8 @@
-import { useCallback, useMemo } from 'react'
+import { useCallback, useMemo, type MouseEventHandler } from 'react'
 import type { Action, Frame, Panel } from '../contract'
 import { recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
+import { navigateTo } from '../runtime/navigate'
+import { useDrawer } from '../runtime'
 
 /**
  * Panel-level navigation.
@@ -18,7 +20,7 @@ export function panelNavigateAction(panel: Panel): Action | undefined {
   // tree turns its navigate action into a click target. Without this rule a
   // segment click both opened the overlay and left the page.
   if (panel.drillRoot) return undefined
-  return panel.actions.find((action) => action.kind === 'navigate')
+  return panel.actions.find((action) => action.kind === 'navigate' || action.kind === 'open_drawer')
 }
 
 /**
@@ -39,10 +41,33 @@ export interface PanelNavigation {
   urlForRow: (frame: Frame | undefined, row: Array<unknown> | undefined) => string | undefined
   /** URL for the panel as a whole: the first row's, when the action is not row-scoped. */
   cardURL: (frame: Frame | undefined) => string | undefined
+  onClick: (url: string | undefined) => MouseEventHandler<HTMLAnchorElement> | undefined
+  activate: (url: string | undefined, opener?: HTMLElement) => void
+}
+
+export function useActionActivation(action: Action | undefined) {
+  const drawer = useDrawer()
+  const opensDrawer = action?.kind === 'open_drawer'
+  const available = Boolean(action) && (!opensDrawer || drawer.depth === 0)
+  const activate = useCallback((url: string | undefined, opener?: HTMLElement) => {
+    if (!url || !available) return
+    if (opensDrawer) drawer.open(url, opener)
+    else navigateTo(url)
+  }, [available, drawer, opensDrawer])
+  const onClick = useCallback((url: string | undefined): MouseEventHandler<HTMLAnchorElement> | undefined => {
+    if (!url || !opensDrawer || !available) return undefined
+    return (event) => {
+      event.preventDefault()
+      drawer.open(url, event.currentTarget)
+    }
+  }, [available, drawer, opensDrawer])
+  return { activate, available, onClick }
 }
 
 export function usePanelNavigation(panel: Panel): PanelNavigation {
-  const action = useMemo(() => panelNavigateAction(panel), [panel])
+  const candidate = useMemo(() => panelNavigateAction(panel), [panel])
+  const activation = useActionActivation(candidate)
+  const action = activation.available ? candidate : undefined
 
   const urlForRow = useCallback((frame: Frame | undefined, row: Array<unknown> | undefined) => {
     if (!action) return undefined
@@ -68,5 +93,7 @@ export function usePanelNavigation(panel: Panel): PanelNavigation {
     rowScoped: action ? isRowScoped(action) : false,
     urlForRow,
     cardURL,
-  }), [action, cardURL, urlForRow])
+    onClick: activation.onClick,
+    activate: activation.activate,
+  }), [action, activation.activate, activation.onClick, cardURL, urlForRow])
 }
