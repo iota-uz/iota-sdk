@@ -82,7 +82,6 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
       <StatLink href={cardHref} label={panel.title}>
       <div className="lens-coverage">
         <p className="lens-coverage-headline">{formatValue(headline)}</p>
-        {panel.caption && <p className="lens-coverage-caption">{panel.caption}</p>}
         <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
           {segments.map((segment, index) => segment.value > 0 && (
             segmentHref(index)
