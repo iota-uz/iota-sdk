@@ -4,7 +4,6 @@ import {
   addMonths,
   canonicalCalendarLocale,
   clampDate,
-  compareDates,
   dayLabel,
   dayOfWeek,
   daysInMonth,
@@ -19,7 +18,7 @@ import {
   selectDay,
   weekdayLabels,
   type CalendarDate,
-} from './calendar'
+} from './model'
 
 const date = (year: number, month: number, day: number): CalendarDate => ({ year, month, day })
 

@@ -1,5 +1,5 @@
 import type { DashboardDocument, Filter, PeriodFilter, PeriodValue } from '../contract'
-import { parseISODate } from '../controls/calendar'
+import { parseISODate } from '../controls/model'
 
 /**
  * Filter values are URL state: a map from a declared parameter name to the
