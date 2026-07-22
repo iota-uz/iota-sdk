@@ -1,8 +1,9 @@
-import { useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
-import { useDashboard, useTranslate } from './runtime'
+import { useDashboard, useDocumentState, useDrawer, useTranslate } from './runtime'
 import { ExportButton, RegisteredPanel, StatMetric, type PanelRegistry } from './panels'
 import { ExplorePanel } from './explore'
+import { isVisualRegression } from './visualRegression'
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -139,10 +140,56 @@ function TabsGroup({ group, items, panels, registry }: {
   )
 }
 
+/** Relative "updated X ago" using the document's own locale. */
+function relativeTime(timestamp: number, locale: string): string {
+  const seconds = Math.round((timestamp - Date.now()) / 1000)
+  const format = new Intl.RelativeTimeFormat(locale, { numeric: 'auto' })
+  const abs = Math.abs(seconds)
+  if (abs < 60) return format.format(seconds, 'second')
+  const minutes = Math.round(seconds / 60)
+  if (Math.abs(minutes) < 60) return format.format(minutes, 'minute')
+  const hours = Math.round(minutes / 60)
+  if (Math.abs(hours) < 24) return format.format(hours, 'hour')
+  return format.format(Math.round(hours / 24), 'day')
+}
+
+/**
+ * A subtle "updated X ago" line under the dashboard header. It is hidden inside
+ * drawers (the host dashboard already carries it) and under visual regression,
+ * where a live timestamp would make the screenshot nondeterministic.
+ */
+function DashboardFreshness() {
+  const { document } = useDashboard()
+  const { isRefreshing } = useDocumentState()
+  const drawer = useDrawer()
+  const translate = useTranslate()
+  const [, tick] = useState(0)
+
+  useEffect(() => {
+    if (isVisualRegression()) return
+    const id = setInterval(() => tick((value) => value + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  if (drawer.depth > 0 || isVisualRegression()) return null
+  const generatedAt = Date.parse(document.meta.generatedAt)
+  if (!Number.isFinite(generatedAt)) return null
+  const label = isRefreshing
+    ? translate('panel.updating', 'Updating')
+    : translate('dashboard.updated', 'Updated {time}', { time: relativeTime(generatedAt, document.meta.locale) })
+  return <p className="lens-dashboard-updated" aria-live="polite" data-refreshing={isRefreshing || undefined}>{label}</p>
+}
+
 export function DashboardPanels({ registry }: DashboardPanelsProps) {
   const { document } = useDashboard()
   const translate = useTranslate()
+  const drawer = useDrawer()
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
+  // First paint only: panels rise/fade in with a small per-panel stagger. The
+  // value is fixed for this mount, so drill, perspective, drawer and refetch
+  // re-renders keep the same class and never replay the animation. Off inside a
+  // drawer and under visual regression, where the final state renders directly.
+  const entrance = useRef(!isVisualRegression() && drawer.depth === 0)
 
   if (!document.layout.rows.length || !document.panels.length) {
     return (
@@ -163,11 +210,15 @@ export function DashboardPanels({ registry }: DashboardPanelsProps) {
           <ExportButton />
         </header>
       )}
+      {hasHeader && <DashboardFreshness />}
       <div className="lens-dashboard-rows">
         {document.layout.rows.map((row, rowIndex) => (
           <section className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`} key={`${row.heading ?? 'row'}-${rowIndex}`}>
             {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
-            <div className="lens-panel-grid">
+            <div
+              className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
+              style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
+            >
               {clusterRow(row.panels).map((cluster, clusterIndex) => {
                 if (cluster.group?.kind === 'metrics') {
                   return (

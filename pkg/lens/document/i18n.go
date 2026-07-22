@@ -16,6 +16,7 @@ const (
 	I18nChartLegendToggle = "chart.legendToggle"
 	I18nDashboardEmpty    = "dashboard.empty"
 	I18nDashboardTabs     = "dashboard.tabs"
+	I18nDashboardUpdated  = "dashboard.updated"
 	I18nDrillReset        = "drill.reset"
 	I18nDrawerClose       = "drawer.close"
 	I18nDrawerEyebrow     = "drawer.eyebrow"
@@ -71,7 +72,7 @@ func RuntimeI18nKeys() []string {
 	keys := []string{
 		I18nCascadeStages,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
-		I18nDashboardEmpty, I18nDashboardTabs, I18nDrillReset,
+		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDrillReset,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
 		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose, I18nExploreExpand,
 		I18nExploreNoDetail, I18nExploreOpenBreak,

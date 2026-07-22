@@ -1,8 +1,45 @@
-import { useCallback, useMemo, type MouseEventHandler } from 'react'
+import { useCallback, useEffect, useMemo, useRef, type FocusEventHandler, type MouseEventHandler, type PointerEventHandler } from 'react'
 import type { Action, Frame, Panel } from '../contract'
 import { recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
 import { navigateTo } from '../runtime/navigate'
 import { useDrawer } from '../runtime'
+
+/** How long a pointer/focus must dwell before a drawer document is prefetched. */
+const prefetchIntentDelayMs = 65
+
+export interface PrefetchHandlers {
+  onPointerEnter: PointerEventHandler
+  onPointerLeave: PointerEventHandler
+  onFocus: FocusEventHandler
+  onBlur: FocusEventHandler
+}
+
+/**
+ * Hover/focus prefetch for a drawer-opening target. After a short intent delay
+ * (cancelled if the pointer leaves first) the drawer document is warmed into
+ * the shared cache, so a subsequent click opens against a document in hand.
+ * Returns undefined when the action does not open a drawer or has no URL.
+ */
+export function usePrefetch(url: string | undefined, action: Action | undefined): PrefetchHandlers | undefined {
+  const drawer = useDrawer()
+  const enabled = action?.kind === 'open_drawer' && drawer.depth === 0 && Boolean(url)
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+  const cancel = useCallback(() => {
+    if (timer.current !== undefined) {
+      clearTimeout(timer.current)
+      timer.current = undefined
+    }
+  }, [])
+  useEffect(() => cancel, [cancel])
+  return useMemo(() => {
+    if (!enabled || !url) return undefined
+    const schedule = () => {
+      cancel()
+      timer.current = setTimeout(() => drawer.prefetch(url), prefetchIntentDelayMs)
+    }
+    return { onPointerEnter: schedule, onFocus: schedule, onPointerLeave: cancel, onBlur: cancel }
+  }, [cancel, drawer, enabled, url])
+}
 
 /**
  * Panel-level navigation.
