@@ -513,3 +513,34 @@ func TestBuild_PercentFormatPinsSeparator(t *testing.T) {
 	// separator so the runtime does not drift to "47,1 %".
 	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}, doc.Panels[0].Format["value"])
 }
+
+// TestBuild_LazyExploreLevelsCarryDeclaredEncoding pins the contract that made
+// document-mode expansion of lazy levels renderable: a level beyond the inline
+// depth has no frame yet, but its declared field mapping must still ship, or
+// the client falls back to the host panel's encoding and draws the fetched
+// frame as empty.
+func TestBuild_LazyExploreLevelsCarryDeclaredEncoding(t *testing.T) {
+	t.Parallel()
+	spec, result := executeExploreDashboard(t)
+	view := &spec.Explorers[0].Branches[0].Perspectives[0]
+	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Build()
+	detailPanel := panel.Pie("explore-detail", "Detail", "premium").
+		IDField("id").LabelField("label").ValueField("value").Build()
+	view.Nodes[0].Load = nil
+	view.Nodes[0].Panel = &rootPanel
+	view.Nodes[1].Load = nil
+	view.Nodes[1].Panel = &detailPanel
+	result.Panels[rootPanel.ID] = &runtime.PanelResult{Panel: rootPanel, Frames: result.Panels["host"].Frames}
+	result.Panels[detailPanel.ID] = &runtime.PanelResult{Panel: detailPanel, Frames: result.Panels["host"].Frames}
+
+	doc, err := Build(spec, result, BuildOptions{SnapshotID: "lazy", GeneratedAt: time.Unix(1, 0), InlineDepth: 0})
+	require.NoError(t, err)
+
+	detail := doc.Drill.Edges["metric/focus/composition/detail"]
+	require.Empty(t, detail.Frame, "the lazy level still has no inline frame")
+	require.NotNil(t, detail.Encoding, "a lazy level with a panel must declare its encoding")
+	require.Equal(t, "id", detail.Encoding.ID)
+	require.Equal(t, "label", detail.Encoding.Label)
+	require.Equal(t, "value", detail.Encoding.Value)
+	require.NoError(t, doc.Validate(), "encoding without a frame must stay valid")
+}

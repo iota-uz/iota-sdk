@@ -366,6 +366,27 @@ func inferSemantics(kind PanelKind) Semantics {
 	}
 }
 
+// declaredEncoding maps a panel's declared fields into a wire encoding without
+// consulting a frame. It backs lazy explore levels, whose frame does not exist
+// at build time: the declaration is the contract the later query must satisfy.
+func declaredEncoding(fields panel.FieldMapping) Encoding {
+	encoding := Encoding{}
+	assign := func(target *string, field panel.FieldRef) {
+		if !field.Empty() {
+			*target = field.Name()
+		}
+	}
+	assign(&encoding.Label, fields.Label)
+	assign(&encoding.Value, fields.Value)
+	assign(&encoding.ID, fields.ID)
+	assign(&encoding.Series, fields.Series)
+	assign(&encoding.Category, fields.Category)
+	assign(&encoding.Cut, fields.Cut)
+	assign(&encoding.CutLabel, fields.CutLabel)
+	assign(&encoding.Final, fields.Final)
+	return encoding
+}
+
 func buildEncoding(fields panel.FieldMapping, frame Frame) Encoding {
 	encoding := Encoding{}
 	available := make(map[string]struct{}, len(frame.Columns))
@@ -731,6 +752,15 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				nodeKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key)
 				nodePath := appendPath(branchPath, qualifiedKey(spec.ID, branch.Key, view.Key), nodeKey)
 				level := Level{Path: nodePath, Label: nodeSpec.Label, Children: make([]Node, 0, len(nodeSpec.Edges)), Perspectives: []PerspectiveRef{{ID: perspectiveID}}}
+				if nodeSpec.Panel != nil {
+					// Every level with a panel declares its encoding, inlined or
+					// not. A lazy level's frame arrives later via a query, and
+					// the client renders it with `level.encoding ?? panel.encoding`
+					// — without this, the host panel's field names leak in and
+					// match nothing in the fetched frame, drawing an empty level.
+					encoding := declaredEncoding(nodeSpec.Panel.Fields)
+					level.Encoding = &encoding
+				}
 				if nodeSpec.Panel != nil && depths[nodeSpec.Key] <= doc.Drill.InlineDepth {
 					if panelResult := result.Panel(nodeSpec.Panel.ID); panelResult != nil && panelResult.Error == nil && panelResult.Frames.Primary() != nil {
 						frameRef := FrameRef("explore:" + perspectiveID + ":" + nodeSpec.Key)
