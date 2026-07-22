@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument, type DashboardDocument } from '../contract'
+import { DashboardPanels } from '../DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { Calendar } from './Calendar'
 import { FilterBar } from './FilterBar'
@@ -165,7 +166,83 @@ function FiltersFixture({ fetcher }: { fetcher: typeof fetch }) {
   )
 }
 
+function DashboardFiltersFixture({ fetcher }: { fetcher: typeof fetch }) {
+  return (
+    <div className="lens-root" data-theme="light">
+      <DocumentProvider fetcher={fetcher} src="/lens/document">
+        <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+          <DashboardPanels filterToday={{ year: 2026, month: 7, day: 22 }} />
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+function refetchFailureFetcher(calls: Array<string>): typeof fetch {
+  let filteredRequests = 0
+  return (input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost/')
+    const requestURL = `${url.pathname}${url.search}`
+    calls.push(requestURL)
+    const isFiltered = url.searchParams.has('ActualRangeStart')
+    if (isFiltered && filteredRequests++ === 0) {
+      return Promise.resolve(new Response(JSON.stringify({ message: 'document refetch failed' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+    }
+    const value = isFiltered
+      ? { start: url.searchParams.get('ActualRangeStart')!, end: url.searchParams.get('ActualRangeEnd')! }
+      : { start: '2026-01-01', end: '2026-07-22' }
+    const next = documentWithPeriod(value)
+    return Promise.resolve(new Response(JSON.stringify({
+      ...next,
+      meta: { ...next.meta, title: isFiltered ? 'Refreshed Overview' : 'Overview' },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+  }
+}
+
 describe('FilterBar runtime integration', () => {
+  it('keeps the previous document visible and shows a dismissable refetch error', async () => {
+    window.history.replaceState(null, '', '/dash')
+    render(<DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '2025' }))
+
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent('Unable to refresh the dashboard. The previous data is still shown.')
+    expect(screen.getByRole('heading', { name: 'Overview' })).toBeInTheDocument()
+    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2025' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Dismiss notice' }))
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('retries the same filtered document request', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<DashboardFiltersFixture fetcher={refetchFailureFetcher(calls)} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '2025' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    const filteredURL = '/lens/document?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31'
+    await waitFor(() => expect(calls.filter((call) => call === filteredURL)).toHaveLength(2))
+  })
+
+  it('clears the refetch error after a successful retry', async () => {
+    window.history.replaceState(null, '', '/dash')
+    render(<DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: '2025' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Retry' }))
+
+    expect(await screen.findByRole('heading', { name: 'Refreshed Overview' })).toBeInTheDocument()
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
+  })
+
   it('renders declared presets with the active one pressed', async () => {
     window.history.replaceState(null, '', '/dash')
     render(<FiltersFixture fetcher={periodFetcher([])} />)

@@ -47,6 +47,7 @@ interface DocumentContextValue {
   isRefreshing: boolean
   error: Error | null
   refresh: () => Promise<DashboardDocument>
+  dismissError: () => void
   /**
    * Refetches the document with these filter parameters on the src. The
    * current document stays on screen until the new one lands; every later
@@ -108,11 +109,11 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
     const controller = new AbortController()
     controllers.current.add(controller)
     setIsLoading(true)
-    setError(null)
     const pending = fetchDocument(effectiveSrc() ?? src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
       .then((next) => {
         loadedAt.current = Date.now()
         setDocument(next)
+        setError(null)
         return next
       })
       .catch((cause: unknown) => {
@@ -141,6 +142,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
       .then((next) => {
         loadedAt.current = Date.now()
         setDocument(next)
+        setError(null)
       })
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) console.error('[lens] background document refresh failed', cause)
@@ -162,11 +164,11 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
     filterController.current = controller
     controllers.current.add(controller)
     setIsRefreshing(true)
-    setError(null)
     void fetchDocument(effectiveSrc() ?? src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
       .then((next) => {
         loadedAt.current = Date.now()
         setDocument(next)
+        setError(null)
       })
       .catch((cause: unknown) => {
         if (controller.signal.aborted) return
@@ -205,9 +207,11 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
     controllers.current.clear()
   }, [])
 
+  const dismissError = useCallback(() => setError(null), [])
+
   const value = useMemo(
-    () => ({ document, isLoading, isRefreshing, error, refresh, applyFilters }),
-    [applyFilters, document, error, isLoading, isRefreshing, refresh],
+    () => ({ document, isLoading, isRefreshing, error, refresh, dismissError, applyFilters }),
+    [applyFilters, dismissError, document, error, isLoading, isRefreshing, refresh],
   )
   return <DocumentContext.Provider value={value}>{children}</DocumentContext.Provider>
 }

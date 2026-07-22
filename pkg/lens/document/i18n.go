@@ -24,6 +24,8 @@ const (
 	I18nDashboardEmpty    = "dashboard.empty"
 	I18nDashboardTabs     = "dashboard.tabs"
 	I18nDashboardUpdated  = "dashboard.updated"
+	I18nDocumentRefetch   = "document.refetchFailed"
+	I18nDocumentRetry     = "document.retry"
 	I18nDrillReset        = "drill.reset"
 	I18nDrawerClose       = "drawer.close"
 	I18nDrawerEyebrow     = "drawer.eyebrow"
@@ -92,6 +94,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterClose, I18nFilterCustom, I18nFilterOpen,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDrillReset,
+		I18nDocumentRefetch, I18nDocumentRetry,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
 		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose,
 		I18nExploreCopied, I18nExploreCopyValue, I18nExploreExpand,
