@@ -115,7 +115,9 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !target.evidence {
-		if cached, ok := snapshot.Frames[target.ref]; ok {
+		// The cache key carries the path's point selections: a level entered
+		// through year 2024 must not be served the frame cached for 2025.
+		if cached, ok := snapshot.Frames[target.cacheRef()]; ok {
 			writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: cached}})
 			return
 		}
@@ -181,7 +183,7 @@ func (h *Handlers) evidenceHasNext(
 func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req QueryRequest, snapshot *document.Snapshot, target levelTarget) {
 	ctx := r.Context()
 	base := h.runtimeRequest(r)
-	key := snapshot.ID + ":" + string(target.ref)
+	key := snapshot.ID + ":" + string(target.cacheRef())
 	result := h.loads.DoChan(key, func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
 		defer cancel()
@@ -189,7 +191,7 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 		if err != nil {
 			return nil, err
 		}
-		if cached, ok := latest.Frames[target.ref]; ok {
+		if cached, ok := latest.Frames[target.cacheRef()]; ok {
 			return cached, nil
 		}
 		panelResult, err := h.executeLevel(workCtx, thawRuntimeRequest(base, latest.Params), latest.Params, target, 0)
@@ -200,7 +202,7 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 		if err != nil {
 			return nil, err
 		}
-		if err := h.snapshots.Append(workCtx, snapshot.ID, map[document.FrameRef]document.Frame{target.ref: wire}); err != nil {
+		if err := h.snapshots.Append(workCtx, snapshot.ID, map[document.FrameRef]document.Frame{target.cacheRef(): wire}); err != nil {
 			return nil, err
 		}
 		return wire, nil

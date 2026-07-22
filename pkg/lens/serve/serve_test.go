@@ -170,6 +170,51 @@ func TestHandlers_DocumentQueryCacheAndAppend(t *testing.T) {
 	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail"))
 }
 
+func TestHandlers_PointDrillsCacheDistinctFrames(t *testing.T) {
+	t.Parallel()
+	handlers, executor, store := newTestHandlers(t, 0)
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	// Same node, two sibling point selections: each must execute and cache its
+	// own frame instead of replaying the sibling's.
+	first := queryLevel(t, handlers, QueryRequest{
+		SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2025", "detail"}, Perspective: "composition",
+	})
+	require.Contains(t, first.Frames, document.FrameRef("explore:metric/focus/composition:detail"))
+	require.Equal(t, 1, executor.callCount("detail-panel"))
+	require.Equal(t, []string{"root", "2025", "detail"},
+		executor.lastCall("detail-panel").request.Request["lens_explore_path"])
+
+	queryLevel(t, handlers, QueryRequest{
+		SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2024", "detail"}, Perspective: "composition",
+	})
+	require.Equal(t, 2, executor.callCount("detail-panel"))
+	require.Equal(t, []string{"root", "2024", "detail"},
+		executor.lastCall("detail-panel").request.Request["lens_explore_path"])
+
+	// A repeated selection is a cache hit.
+	queryLevel(t, handlers, QueryRequest{
+		SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2025", "detail"}, Perspective: "composition",
+	})
+	require.Equal(t, 2, executor.callCount("detail-panel"))
+
+	// Point-free requests keep the plain node reference and stay shared, so
+	// they can still be served from the frames the document inlined.
+	queryLevel(t, handlers, QueryRequest{
+		SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "detail"}, Perspective: "composition",
+	})
+	queryLevel(t, handlers, QueryRequest{
+		SnapshotID: doc.SnapshotID, Path: document.NodePath{"detail"}, Perspective: "composition",
+	})
+	require.Equal(t, 3, executor.callCount("detail-panel"))
+
+	snapshot, err := store.Get(t.Context(), doc.SnapshotID)
+	require.NoError(t, err)
+	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail@2025"))
+	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail@2024"))
+	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail"))
+}
+
 func TestHandlers_QueryUsesFrozenScopeOverConflictingQueryParams(t *testing.T) {
 	t.Parallel()
 	handlers, executor, _ := newTestHandlers(t, 0)

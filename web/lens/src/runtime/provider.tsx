@@ -12,7 +12,7 @@ import {
 } from 'react'
 import type { DashboardDocument, FieldFormat, Frame, NodeKey, NodePath, Panel, QueryPage, QueryRequest } from '../contract'
 import { fetchDocument } from './document'
-import { isPerspectiveFork, levelForPath, panelForNavigation, pathResolves, rootNavigation } from './drill'
+import { isPerspectiveFork, levelForPath, panelForNavigation, pathResolves, queryPathForNavigation, rootNavigation } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
 import { formatAxis, formatFieldValue } from './format'
@@ -403,7 +403,10 @@ function inferredInitialNavigation(document: DashboardDocument): NavigationState
 function requestFor(document: DashboardDocument, navigation: NavigationView): QueryRequest {
   return {
     snapshotId: document.snapshotId,
-    path: navigation.path,
+    // The wire shape interleaves point selections with the nodes they select
+    // into, so a point-parameterised level is queried for the selected slice
+    // rather than for the node's unparameterised aggregate.
+    path: queryPathForNavigation(document, navigation.path),
     ...(navigation.perspectiveId ? { perspective: navigation.perspectiveId } : {}),
   }
 }
@@ -416,12 +419,19 @@ function pathForNode(
   panel: Panel | undefined,
   panelChanged: boolean,
 ): NodePath | undefined {
-  const level = panelChanged || state.path.length === 0
+  const fromRoot = panelChanged || state.path.length === 0
+  const level = fromRoot
     ? (panel?.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
     : levelForPath(document, state.path)
+  const base = fromRoot ? level?.path : state.path
   const child = level?.children.find((candidate) => candidate.key === nodeKey)
   const target = child?.target ? document.drill.edges[child.target] : undefined
   if (nodeKey === panel?.drillRoot) return document.drill.edges[nodeKey]?.path
+  // A child with an edge is entered through its own key so the path keeps the
+  // concrete selection: the level it leads to is parameterised by that point,
+  // and collapsing onto the target node's canonical ancestry would make every
+  // sibling drill address the same unparameterised level.
+  if (child?.target && target && base) return [...base, child.key]
   return target?.path ?? child?.path
 }
 

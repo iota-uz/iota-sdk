@@ -285,12 +285,108 @@ describe('drill overlay', () => {
     expect(within(dialog).getByRole('button', { name: /Sales/ })).toHaveTextContent('$730,000')
 
     // Landing on a breakdown row enters the mark and then the row, so the view
-    // is the level that row itself expands to.
+    // is the level that row itself expands to — and the path records both
+    // selections rather than collapsing onto the target node's ancestry.
     fireEvent.click(within(dialog).getByRole('button', { name: /Sales/ }))
     await waitFor(() => {
-      expect(new URL(window.location.href).searchParams.getAll('path').at(-1))
-        .toBe('profitability/operating-margin/composition/transactions')
+      expect(new URL(window.location.href).searchParams.getAll('path')).toEqual([
+        ...path,
+        'profitability/operating-margin/composition/root/services',
+        'profitability/operating-margin/composition/cost-centers/sales',
+      ])
     })
+  })
+
+  it('expands a concrete point and keeps the selection in the path', async () => {
+    const path = [
+      'profitability',
+      'profitability/operating-margin',
+      'profitability/operating-margin/composition',
+      'profitability/operating-margin/composition/root',
+    ]
+    window.history.replaceState(null, '', navigationToURL(
+      { path, perspectiveId: 'profitability/operating-margin/composition' }, new URL(window.location.href),
+    ))
+    renderExplore()
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Services' }))
+    fireEvent.click(within(overlay()).getByRole('button', { name: /Expand segment/ }))
+
+    // The path ends at the point that was entered, not at the target node's
+    // canonical ancestry: the level it opens is parameterised by that point.
+    await waitFor(() => {
+      expect(new URL(window.location.href).searchParams.getAll('path')).toEqual([
+        ...path,
+        'profitability/operating-margin/composition/root/services',
+      ])
+    })
+    expect(screen.getByRole('button', { name: 'Sales' })).toBeInTheDocument()
+  })
+
+  it('fetches sibling point drills as distinct levels', async () => {
+    // Same target node, two different points: each drill must issue its own
+    // query with the point interleaved into the wire path, and must not replay
+    // the sibling's cached frame.
+    const lazyFixture = JSON.parse(JSON.stringify(fixture)) as {
+      endpoints: Record<string, string>
+      drill: { edges: Record<string, { frame?: string }> }
+    }
+    delete lazyFixture.drill.edges['profitability/operating-margin/composition/cost-centers']!.frame
+    lazyFixture.endpoints = { query: '/lens/query' }
+    const lazyDocument = parseDocument(lazyFixture)
+
+    const paths: Array<Array<string>> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { path: Array<string> }
+      paths.push(request.path)
+      const services = request.path.includes('profitability/operating-margin/composition/root/services')
+      return Promise.resolve(new Response(JSON.stringify({
+        frames: {
+          level: {
+            columns: [
+              { name: 'id', type: 'string' },
+              { name: 'label', type: 'string' },
+              { name: 'value', type: 'number' },
+            ],
+            rows: [services ? ['sales', 'Sales', 730000] : ['ops', 'Ops', 410000]],
+          },
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+
+    const rootPath = [
+      'profitability',
+      'profitability/operating-margin',
+      'profitability/operating-margin/composition',
+      'profitability/operating-margin/composition/root',
+    ]
+    window.history.replaceState(null, '', navigationToURL(
+      { path: rootPath, perspectiveId: 'profitability/operating-margin/composition' }, new URL(window.location.href),
+    ))
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={lazyDocument} fetcher={fetcher}>
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+            <ExplorePanel panel={lazyDocument.panels[0]!} registry={registry} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Services' }))
+    fireEvent.click(within(overlay()).getByRole('button', { name: /Expand segment/ }))
+    expect(await screen.findByRole('button', { name: 'Sales' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Products' }))
+    fireEvent.click(within(overlay()).getByRole('button', { name: /Expand segment/ }))
+    expect(await screen.findByRole('button', { name: 'Ops' })).toBeInTheDocument()
+
+    // The wire paths interleave each point with the node it selects into.
+    expect(paths).toEqual([
+      [...rootPath, 'profitability/operating-margin/composition/root/services', 'profitability/operating-margin/composition/cost-centers'],
+      [...rootPath, 'profitability/operating-margin/composition/root/products', 'profitability/operating-margin/composition/cost-centers'],
+    ])
   })
 
   it('closes on Escape, on an outside press, and restores focus to the affordance', () => {

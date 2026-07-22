@@ -5,13 +5,69 @@ export function sameNodePath(left: NodePath, right: NodePath): boolean {
   return left.length === right.length && left.every((key, index) => key === right[index])
 }
 
-export function levelForPath(document: DashboardDocument, path: NodePath): Level | undefined {
+function levelByOwnPath(document: DashboardDocument, path: NodePath): Level | undefined {
   for (const level of Object.values(document.drill.edges)) {
     if (sameNodePath(level.path, path)) return level
-    const child = level.children.find((candidate) => sameNodePath(candidate.path, path))
-    if (child?.target) return document.drill.edges[child.target]
   }
   return undefined
+}
+
+interface ResolvedDrillPath {
+  level: Level
+  queryPath: NodePath
+}
+
+/**
+ * Resolves a navigation path to the level it addresses. A path is an owning
+ * level's canonical path followed by zero or more child keys, each a concrete
+ * selection (a point, or the "other" bucket) whose edge leads to the next
+ * level. Levels reached through a point are parameterised by it — the same
+ * node aggregates 2025 or 2024 depending on which slice was entered — so the
+ * selection has to survive in the path instead of collapsing onto the target
+ * node's canonical ancestry.
+ *
+ * `queryPath` is the same walk in the wire shape the snapshot query endpoint
+ * parses: each selection interleaved with the node it selects into
+ * (`[…, root, "2026", detail, "direct", detail-2]`).
+ */
+export function resolveDrillPath(document: DashboardDocument, path: NodePath): ResolvedDrillPath | undefined {
+  for (let prefix = path.length; prefix > 0; prefix -= 1) {
+    const base = levelByOwnPath(document, path.slice(0, prefix))
+    if (!base) continue
+    const queryPath: NodePath = [...path.slice(0, prefix)]
+    let level: Level | undefined = base
+    for (let index = prefix; index < path.length && level; index += 1) {
+      const key = path[index]!
+      const child: Level['children'][number] | undefined =
+        level.children.find((candidate) => candidate.key === key)
+      const target: Level | undefined = child?.target ? document.drill.edges[child.target] : undefined
+      if (!child?.target || !target) {
+        level = undefined
+        break
+      }
+      queryPath.push(key)
+      // A branch child is keyed by the node it opens; repeating it would say
+      // the same step twice. A point child is keyed by the selection, so the
+      // node it selects into follows it.
+      if (child.key !== child.target) queryPath.push(child.target)
+      level = target
+    }
+    if (level) return { level, queryPath }
+  }
+  return undefined
+}
+
+export function levelForPath(document: DashboardDocument, path: NodePath): Level | undefined {
+  return resolveDrillPath(document, path)?.level
+}
+
+/**
+ * The wire path for a navigation path: selections interleaved with the nodes
+ * they select into. An unresolvable path passes through unchanged so the
+ * server, not the client, owns the rejection.
+ */
+export function queryPathForNavigation(document: DashboardDocument, path: NodePath): NodePath {
+  return resolveDrillPath(document, path)?.queryPath ?? [...path]
 }
 
 /**

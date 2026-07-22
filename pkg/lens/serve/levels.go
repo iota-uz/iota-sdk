@@ -24,6 +24,61 @@ type levelTarget struct {
 	panel          panel.Spec
 	ref            document.FrameRef
 	evidence       bool
+	perspective    explore.Perspective
+	// points are the concrete selections the request path carries between its
+	// node steps (e.g. the "2026" in [root, "2026", detail]). A level reached
+	// through a point aggregates only that selection, so its frame must never
+	// be cached, or served, under the node's unparameterised reference.
+	points []string
+}
+
+// cacheRef keys the snapshot frame cache. A point-free request keeps the plain
+// node reference — it is the same frame the document inlines — while a
+// point-parameterised request gets its own key so sibling selections do not
+// replay each other's frames.
+func (t levelTarget) cacheRef() document.FrameRef {
+	if len(t.points) == 0 {
+		return t.ref
+	}
+	return document.FrameRef(string(t.ref) + "@" + strings.Join(t.points, "/"))
+}
+
+// selectionPoints extracts the point selections from a query path. Two wire
+// shapes arrive here: bare alternating entries ([root, "2026", detail]) and
+// the React runtime's qualified entries, where every structural step is a
+// "/"-prefix of a later entry. Whatever is neither structural nor a node of
+// the resolved perspective is a selection, in path order.
+func selectionPoints(path []string, perspective explore.Perspective) []string {
+	points := make([]string, 0)
+	for index, entry := range path {
+		part := lastPathSegment(entry)
+		if part == "" {
+			continue
+		}
+		structural := false
+		for next := index + 1; next < len(path); next++ {
+			if strings.HasPrefix(path[next], entry+"/") {
+				structural = true
+				break
+			}
+		}
+		if structural {
+			continue
+		}
+		if _, ok := perspective.Node(part); ok {
+			continue
+		}
+		points = append(points, part)
+	}
+	return points
+}
+
+func lastPathSegment(value string) string {
+	value = strings.Trim(strings.TrimSpace(value), "/")
+	if index := strings.LastIndexByte(value, '/'); index >= 0 {
+		return value[index+1:]
+	}
+	return value
 }
 
 func inlineTargets(spec lens.DashboardSpec, inlineDepth int) []levelTarget {
@@ -94,6 +149,7 @@ func resolveTarget(spec lens.DashboardSpec, path document.NodePath, requestedPer
 	if len(unique) != 1 {
 		return levelTarget{}, fmt.Errorf("requested path is ambiguous; perspective is required")
 	}
+	unique[0].points = selectionPoints(unique[0].path, unique[0].perspective)
 	return unique[0], nil
 }
 
@@ -103,6 +159,7 @@ func makeTarget(explorerID, branchKey string, perspective explore.Perspective, n
 		explorerID: explorerID, branchKey: branchKey, perspectiveKey: perspective.Key, nodeKey: node.Key,
 		path: []string{node.Key}, panel: *node.Panel,
 		ref: document.FrameRef("explore:" + perspectiveID + ":" + node.Key), evidence: isEvidence(perspective, node),
+		perspective: perspective,
 	}
 }
 
