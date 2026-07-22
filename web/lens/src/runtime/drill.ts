@@ -134,6 +134,11 @@ export function withFrameChildren(document: DashboardDocument, path: NodePath, f
   const entry = Object.entries(document.drill.edges).find(([, level]) => level === resolved.level)
   if (!entry) return document
   const [key, level] = entry
+  // Identity no-op: the runtime re-applies the merge every time the resolved
+  // document changes, and the query cache hands back the same frame object.
+  // Returning the same document here is what lets the render settle instead
+  // of looping merge → new document → effect → merge forever.
+  if (level.children === frame.children) return document
   return {
     ...document,
     drill: {

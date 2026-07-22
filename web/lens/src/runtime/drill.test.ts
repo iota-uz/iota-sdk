@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import fixture from '../../fixtures/explore.json'
 import { parseDocument } from '../contract'
-import { levelForPath, pathResolves, queryPathForNavigation, resolveDrillPath } from './drill'
+import { levelForPath, pathResolves, queryPathForNavigation, resolveDrillPath, withFrameChildren } from './drill'
 
 const document = parseDocument(fixture)
 
@@ -78,5 +78,48 @@ describe('resolveDrillPath', () => {
     // resolve, and the query path passes through for the server to reject.
     expect(levelForPath(document, leafPath)).toBeUndefined()
     expect(queryPathForNavigation(document, leafPath)).toEqual(leafPath)
+  })
+})
+
+describe('withFrameChildren', () => {
+  const dynamicDocument = parseDocument({
+    ...fixture,
+    drill: {
+      inlineDepth: 0,
+      edges: {
+        root: {
+          path: ['root'], label: 'Root', children: [], perspectives: [],
+          dynamicChildren: {
+            key: { kind: 'field', name: 'id' }, label: { kind: 'field', name: 'label' },
+            target: { kind: 'field', name: 'target' },
+          },
+        },
+        detail: { path: ['root', 'detail'], label: 'Detail', children: [], perspectives: [] },
+      },
+    },
+  })
+  const frame = {
+    columns: [
+      { name: 'id', type: 'string' as const },
+      { name: 'label', type: 'string' as const },
+      { name: 'target', type: 'string' as const },
+    ],
+    rows: [['year-2025', '2025', 'detail']],
+    children: [{ key: 'year-2025', path: ['root', 'year-2025'], label: '2025', target: 'detail' }],
+  }
+
+  it('merges resolved children onto the dynamic level', () => {
+    const merged = withFrameChildren(dynamicDocument, ['root'], frame)
+    expect(merged).not.toBe(dynamicDocument)
+    expect(merged.drill.edges['root']?.children).toBe(frame.children)
+  })
+
+  it('is an identity no-op once the same frame children are merged', () => {
+    // The runtime re-applies the merge whenever the resolved document changes,
+    // and the query cache returns the same frame object. Without reference
+    // identity here the merge → new document → effect → merge cycle never
+    // settles and the render loops forever.
+    const merged = withFrameChildren(dynamicDocument, ['root'], frame)
+    expect(withFrameChildren(merged, ['root'], frame)).toBe(merged)
   })
 })

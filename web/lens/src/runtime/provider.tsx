@@ -611,7 +611,12 @@ function RuntimeCore({
       const resolved = current.source === sourceDocument
         ? current.resolved
         : withInlineFrameChildren(sourceDocument)
-      return { source: sourceDocument, resolved: update(resolved) }
+      const next = update(resolved)
+      // Returning the current state object verbatim lets React bail out of the
+      // re-render when the update was an identity no-op (e.g. frame children
+      // that are already merged).
+      if (current.source === sourceDocument && next === resolved) return current
+      return { source: sourceDocument, resolved: next }
     })
   }, [sourceDocument])
   const [localNavigation, localDispatch] = useReducer(
