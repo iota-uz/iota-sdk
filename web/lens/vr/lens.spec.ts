@@ -62,6 +62,7 @@ const storyIds = [
   'parity--panel-skeletons-dark',
   'parity--panel-skeletons-light',
   'parity--pie-with-legend-below',
+  'parity--pie-with-legend-below-dark',
   'parity--tab-group',
 ] as const
 
@@ -123,6 +124,7 @@ const staticStories = [
   ['parity--panel-skeletons-dark', 0],
   ['parity--panel-skeletons-light', 0],
   ['parity--pie-with-legend-below', 1],
+  ['parity--pie-with-legend-below-dark', 1],
   ['parity--tab-group', 0],
 ] as const
 

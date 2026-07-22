@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument, type DashboardDocument } from '../contract'
@@ -372,6 +372,37 @@ describe('FilterBar runtime integration', () => {
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
     })
+  })
+
+  it('surfaces the relative catalog in the popover even with server year-chips', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+
+    // Server year-chips drive the top row.
+    await screen.findByRole('button', { name: '2025' })
+    expect(screen.getByRole('button', { name: '2026' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Change period/ }))
+    const dialog = await screen.findByRole('dialog')
+
+    // The relative catalog appears inside the popover regardless of server presets.
+    expect(within(dialog).getByRole('button', { name: 'This month' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Last 30 days' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Year to date' })).toBeInTheDocument()
+
+    // Dedup: catalog thisYear (2026) / lastYear (2025) collide with the server
+    // year-chips, so they are not re-listed in the popover.
+    expect(within(dialog).queryByRole('button', { name: 'This year' })).not.toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Last year' })).not.toBeInTheDocument()
+
+    // Selecting a popover preset applies its resolved bounds and closes the popover.
+    fireEvent.click(within(dialog).getByRole('button', { name: 'This month' }))
+    expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
+    await waitFor(() => {
+      expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
   it('commits typed From/To dates through Apply', async () => {

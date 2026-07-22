@@ -10,10 +10,12 @@ const runtime = vi.hoisted(() => ({
   document: { theme: { palette: {}, series: {} }, drill: { edges: {}, inlineDepth: 0 } } as DashboardDocument,
   navigation: { path: [], history: [] } as { panelId?: string; path: Array<string>; perspectiveId?: string; history: Array<unknown> },
   level: undefined as unknown,
+  refreshing: false,
 }))
 
 vi.mock('../runtime', () => ({
   usePanelFrame: () => runtime.frame,
+  useDocumentRefreshing: () => runtime.refreshing,
   usePanelPagination: () => ({ loadPage: vi.fn() }),
   useExport: () => ({ status: 'idle', available: false, run: vi.fn() }),
   useFormat: () => (value: unknown) => {
@@ -103,6 +105,7 @@ afterEach(() => {
   runtime.drillInto.mockReset()
   runtime.navigation = { path: [], history: [] }
   runtime.level = undefined
+  runtime.refreshing = false
 })
 
 describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
@@ -123,8 +126,12 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area',
       expect(runtime.frame.retry).toHaveBeenCalledTimes(1)
     }
     if (stateName === 'stale') {
+      // A refetch over existing data reuses the initial-load skeleton rather
+      // than dimming the stale content behind an "Updating" chip.
       expect(panelElement).toHaveAttribute('data-stale', 'true')
-      expect(screen.getByText('Updating')).toBeInTheDocument()
+      expect(panelElement).toHaveAttribute('aria-busy', 'true')
+      expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+      expect(screen.queryByText('Updating')).toBeNull()
     }
     if (stateName === 'data') {
       if (kind === 'stat') expect(screen.getByText('42')).toBeInTheDocument()
@@ -173,6 +180,19 @@ describe('panel total badge', () => {
     const badge = view.container.querySelector('.lens-panel-total')
     expect(badge).toHaveTextContent('Total: 100')
     expect(badge).not.toHaveTextContent('723')
+  })
+})
+
+describe('document refetch loading', () => {
+  it('shows the skeleton while a date/period refetch is in flight', () => {
+    runtime.frame = state('data')
+    runtime.refreshing = true
+    const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
+    const panelElement = screen.getByLabelText('bar panel')
+    expect(panelElement).toHaveAttribute('aria-busy', 'true')
+    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+    // The stale chart is gone; the panel is unmistakably recomputing.
+    expect(screen.queryByText('chart data')).toBeNull()
   })
 })
 

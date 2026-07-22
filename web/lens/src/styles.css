@@ -705,6 +705,9 @@
 
   .lens-panel-body {
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+    /* Named container so a chart can decide whether the panel is wide enough to
+       carry its legend in a right-hand column instead of below the plot. */
+    container: lens-panel-body / inline-size;
   }
 
   .lens-placeholder-state {
@@ -847,6 +850,49 @@
   .lens-stat-delta-negative {
     background: var(--lens-neg-soft);
     color: var(--lens-neg);
+  }
+
+  /* Plot and legend share the body. It stacks them by default (narrow panel);
+     a wide panel moves the legend into a right-hand column, and the plot claims
+     the freed width and sits on the left. */
+  .lens-chart-layout {
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  @container lens-panel-body (min-width: 30rem) {
+    .lens-chart-layout-legend {
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .lens-chart-layout-legend > .lens-chart-area {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    /* A vertical list pinned to the right, centred against the plot; it scrolls
+       inside its own column when there are more entries than height. */
+    .lens-chart-layout-legend > .lens-chart-legend {
+      flex: 0 0 auto;
+      width: clamp(9rem, 32%, 15rem);
+      max-height: 100%;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      justify-content: center;
+      align-self: center;
+      overflow-y: auto;
+      padding: 0.75rem 0.5rem;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-toggle {
+      width: 100%;
+      justify-content: flex-start;
+    }
   }
 
   .lens-chart-area {

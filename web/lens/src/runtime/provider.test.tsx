@@ -94,7 +94,7 @@ afterEach(() => {
 })
 
 describe('DashboardRuntimeProvider', () => {
-  it('keeps cached data dimmed through refresh, then exposes error and retry', async () => {
+  it('replaces cached data with the skeleton through refresh, then exposes error and retry', async () => {
     let request = 0
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => {
       request += 1
@@ -106,11 +106,14 @@ describe('DashboardRuntimeProvider', () => {
       }
       return Promise.resolve(response(request === 1 ? 43 : 44))
     })
-    render(<RuntimeFixture fetcher={fetcher} />)
+    const view = render(<RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Root' }))
+    // A refetch swaps the stale value for the initial-load skeleton rather than
+    // dimming it in place, so the panel unmistakably reads as recomputing.
     expect(screen.getByLabelText('Total')).toHaveAttribute('data-stale', 'true')
-    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.queryByText('42')).toBeNull()
+    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
     expect(await screen.findByText('43')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh frame' }))

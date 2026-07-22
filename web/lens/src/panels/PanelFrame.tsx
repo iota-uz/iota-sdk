@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
-import { type PanelFrameState, useFormat, useTranslate } from '../runtime'
+import { type PanelFrameState, useDocumentRefreshing, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
 import { ArrowsIn, ArrowsOut } from '../icons'
 import { usePanelChrome } from './context'
@@ -48,7 +48,13 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const total = totalOverride ?? panel.total
   const hasRows = Boolean(frame.data?.rows.length)
-  const showInitialLoading = frame.isLoading && !frame.data
+  // A date/period change refetches the whole document; the panel's own drill
+  // query sets isLoading. Either way the panel is recomputing, so it shows the
+  // same skeleton as the first load instead of a subtle dim — an unmistakable
+  // "this is being recalculated" affordance, and the exact shape the data will
+  // land in.
+  const isRefreshing = useDocumentRefreshing()
+  const showLoading = frame.isLoading || isRefreshing
   const badgePlacement = panel.presentation?.totalBadge ?? 'header'
   const showTotal = variant === 'chart' && total !== undefined && badgePlacement === 'header'
   const totalLabel = translate('panel.total', 'Total')
@@ -83,13 +89,16 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       className={[
         'lens-panel',
         variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
-        frame.isStale ? 'lens-panel-stale' : '',
+        // The skeleton replaces the content outright, so it must not also carry
+        // the stale dim — that treatment is only for the moment before a refetch
+        // takes over the body.
+        frame.isStale && !showLoading ? 'lens-panel-stale' : '',
         panel.presentation?.fill ? 'lens-panel-fill' : '',
         expanded ? 'lens-panel-expanded' : '',
       ].filter(Boolean).join(' ')}
       data-expanded={expanded || undefined}
       aria-label={panel.title}
-      aria-busy={frame.isLoading}
+      aria-busy={showLoading}
       data-panel-kind={panel.kind}
       data-stale={frame.isStale || undefined}
     >
@@ -106,7 +115,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
               {formatTotal(total)}
             </span>
           )}
-          {frame.isStale && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
+          {frame.isStale && !showLoading && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
           <ExportButton panelId={panel.id} iconOnly />
           <button
             aria-label={expandLabel}
@@ -123,7 +132,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       </header>
       {panel.caption && <p className="lens-panel-caption">{panel.caption}</p>}
       <div className="lens-panel-body">
-        {showInitialLoading ? (
+        {showLoading ? (
           <PanelSkeletonBody kind={panel.kind} />
         ) : frame.error && !frame.data ? (
           <div className="lens-panel-state lens-panel-state-error" role="alert">

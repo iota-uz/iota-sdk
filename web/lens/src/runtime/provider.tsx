@@ -1191,3 +1191,13 @@ export function useDocumentState(): DocumentContextValue {
   if (!context) throw new Error('useDocumentState must be used inside DocumentProvider')
   return context
 }
+
+/**
+ * A background document refetch (a date/period change, a focus refresh) is in
+ * flight. Read without throwing so a panel can surface the loading state even
+ * when it is mounted outside a DocumentProvider (isolated stories, previews);
+ * there it simply reports "not refreshing".
+ */
+export function useDocumentRefreshing(): boolean {
+  return useContext(DocumentContext)?.isRefreshing ?? false
+}

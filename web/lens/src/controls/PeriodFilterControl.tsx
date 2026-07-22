@@ -63,20 +63,19 @@ interface RenderablePreset {
   value: PeriodValue
 }
 
+const rangeKey = (value: PeriodValue): string => `${value.start}|${value.end}`
+
 /**
- * The presets to render: the document's server-declared presets when it has
- * them (server authority), otherwise the built-in catalog resolved against
- * `today`. Built-ins whose bounds fall outside the filter's min/max are
- * dropped so a click can never produce a value the declaration rejects.
+ * The built-in relative catalog resolved against `today`. Entries whose bounds
+ * fall outside the filter's min/max are dropped so a click can never produce a
+ * value the declaration rejects. `allTime` is intentionally absent — the
+ * control surfaces it through its own footer chip.
  */
-function renderablePresets(
+function catalogPresets(
   period: NonNullable<Filter['period']>,
   today: CalendarDate,
   translate: (key: string, fallback: string) => string,
 ): Array<RenderablePreset> {
-  if (period.presets && period.presets.length > 0) {
-    return period.presets.map((preset) => ({ id: preset.id, label: preset.label, value: preset.value }))
-  }
   const presets: Array<RenderablePreset> = []
   for (const def of defaultPeriodPresets) {
     const bounds = resolvePreset(def.id, today)
@@ -87,6 +86,39 @@ function renderablePresets(
     presets.push({ id: def.id, label: translate(def.labelKey, def.fallback), value })
   }
   return presets
+}
+
+/**
+ * The top-row chips: the document's server-declared presets when it has them
+ * (server authority — e.g. the profitability year chips), otherwise the
+ * built-in relative catalog.
+ */
+function topRowPresets(
+  period: NonNullable<Filter['period']>,
+  today: CalendarDate,
+  translate: (key: string, fallback: string) => string,
+): Array<RenderablePreset> {
+  if (period.presets && period.presets.length > 0) {
+    return period.presets.map((preset) => ({ id: preset.id, label: preset.label, value: preset.value }))
+  }
+  return catalogPresets(period, today, translate)
+}
+
+/**
+ * The relative presets surfaced inside the popover: always the built-in
+ * catalog, minus any whose resolved range already appears in the top row.
+ * This keeps parity with the legacy picker (the relative catalog is always
+ * reachable) while never listing the same range twice — server year-chips such
+ * as 2025/2026 collide with the catalog's `thisYear`/`lastYear`, which are then
+ * dropped from the popover.
+ */
+function popoverPresets(
+  period: NonNullable<Filter['period']>,
+  today: CalendarDate,
+  translate: (key: string, fallback: string) => string,
+): Array<RenderablePreset> {
+  const shown = new Set(topRowPresets(period, today, translate).map((preset) => rangeKey(preset.value)))
+  return catalogPresets(period, today, translate).filter((preset) => !shown.has(rangeKey(preset.value)))
 }
 
 function draftFromValue(value: PeriodValue): RangeDraft {
@@ -229,7 +261,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   }
 
   const resolvedToday = today ?? localToday()
-  const presets = renderablePresets(period, resolvedToday, translate)
+  const presets = topRowPresets(period, resolvedToday, translate)
+  const relativePresets = popoverPresets(period, resolvedToday, translate)
   const draftComplete = Boolean(draft.start && draft.end && compareDates(draft.start, draft.end) <= 0)
 
   const allTime = translate('filter.period.allTime', 'All time')
@@ -285,6 +318,21 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
             style={{ left: position.left, top: position.top }}
             tabIndex={-1}
           >
+            {relativePresets.length > 0 && (
+              <span className="lens-filter-presets" style={{ flexWrap: 'wrap' }}>
+                {relativePresets.map((preset) => (
+                  <button
+                    aria-pressed={sameValue(preset.value, value)}
+                    className="lens-filter-chip"
+                    key={preset.id}
+                    onClick={() => applyValue(preset.value)}
+                    type="button"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </span>
+            )}
             <Calendar
               draft={draft}
               locale={locale}
