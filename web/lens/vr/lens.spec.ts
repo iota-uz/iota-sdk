@@ -28,6 +28,14 @@ const storyIds = [
   'explore--perspective-switching-on-a-segment',
   'explore--segment-overlay-statistics--dark',
   'explore--segment-overlay-statistics--light',
+  'filter-controls--calendar-dark',
+  'filter-controls--calendar-light',
+  'filter-controls--calendar-locales',
+  'filter-controls--calendar-range-pending',
+  'filter-controls--dashboard-filter-dark',
+  'filter-controls--dashboard-filter-light',
+  'filter-controls--popover-open-dark',
+  'filter-controls--popover-open-light',
   'panel-matrix--all-kinds-and-states--dark',
   'panel-matrix--all-kinds-and-states--light',
   'panels-v2--cascade-final-stage',
@@ -82,6 +90,13 @@ const staticStories = [
   ['explore--narrow-card-deepest-path--light', 1],
   ['explore--segment-overlay-statistics--dark', 0],
   ['explore--segment-overlay-statistics--light', 0],
+  ['filter-controls--calendar-dark', 0],
+  ['filter-controls--calendar-light', 0],
+  ['filter-controls--calendar-locales', 0],
+  ['filter-controls--dashboard-filter-dark', 0],
+  ['filter-controls--dashboard-filter-light', 0],
+  ['filter-controls--popover-open-dark', 0],
+  ['filter-controls--popover-open-light', 0],
   ['panel-matrix--all-kinds-and-states--dark', 0],
   ['panel-matrix--all-kinds-and-states--light', 0],
   ['panels-v2--cascade-final-stage', 0],
@@ -180,11 +195,29 @@ for (const [storyId, canvasCount] of staticStories) {
 
 const keyframeCovered = [
   'explore--full-drill-flow--three-levels',
+  'filter-controls--calendar-range-pending',
   'explore--header-too-narrow-for-a-level-name',
   'explore--perspective-switching-on-a-segment',
   'parity--clickable-panels',
   'parity--pie-with-legend-below',
 ] as const
+
+test('calendar range preview follows the hovered day', async ({ page }) => {
+  await openStory(page, 'filter-controls--calendar-range-pending', 0)
+  // The anchor is Jul 3; hovering Jul 15 washes the days between them.
+  await page.getByRole('gridcell', { name: 'Jul 15, 2026' }).hover()
+  await expect(page.locator('[data-state="previewEdge"]')).toBeVisible()
+  await screenshot(page, 'filter-calendar-hover-preview', { pointer: 'keep' })
+})
+
+test('calendar keyboard focus ring walks the grid', async ({ page }) => {
+  await openStory(page, 'filter-controls--calendar-range-pending', 0)
+  await page.getByRole('gridcell', { name: 'Jul 3, 2026' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await page.keyboard.press('ArrowDown')
+  await expect(page.getByRole('gridcell', { name: 'Jul 11, 2026' })).toBeFocused()
+  await screenshot(page, 'filter-calendar-keyboard-focus')
+})
 
 test('panel-level actions expose their affordance on hover', async ({ page }) => {
   await openStory(page, 'parity--clickable-panels', 0)

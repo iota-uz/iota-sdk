@@ -3,12 +3,15 @@ import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, useTranslate } from './runtime'
 import { ExportButton, RegisteredPanel, StatMetric, type PanelRegistry } from './panels'
 import { ExplorePanel } from './explore'
+import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
 
 /* eslint-disable react-refresh/only-export-components */
 
 export interface DashboardPanelsProps {
   registry?: PanelRegistry
+  /** Fixed calendar "today" for deterministic stories and visual regression. */
+  filterToday?: CalendarDate
 }
 
 function boundedSpan(span: number): number {
@@ -180,7 +183,7 @@ function DashboardFreshness() {
   return <p className="lens-dashboard-updated" aria-live="polite" data-refreshing={isRefreshing || undefined}>{label}</p>
 }
 
-export function DashboardPanels({ registry }: DashboardPanelsProps) {
+export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
   const { document } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
@@ -199,7 +202,8 @@ export function DashboardPanels({ registry }: DashboardPanelsProps) {
     )
   }
 
-  const hasHeader = Boolean(document.meta.title) || Boolean(document.endpoints.export)
+  const hasHeader = Boolean(document.meta.title) || Boolean(document.endpoints.export) ||
+    (document.filters?.length ?? 0) > 0
   return (
     <main className="lens-dashboard" aria-label={document.meta.title}>
       {hasHeader && (
@@ -207,7 +211,10 @@ export function DashboardPanels({ registry }: DashboardPanelsProps) {
           {/* An empty title lets a host page own the heading and keeps the
               dashboard's own chrome to the action bar. */}
           {document.meta.title ? <h1>{document.meta.title}</h1> : <span />}
-          <ExportButton />
+          <div className="lens-dashboard-controls">
+            <FilterBar today={filterToday} />
+            <ExportButton />
+          </div>
         </header>
       )}
       {hasHeader && <DashboardFreshness />}

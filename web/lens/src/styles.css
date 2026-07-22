@@ -153,6 +153,169 @@
     @apply lens-m-0 lens-mb-4 lens-text-xs lens-font-medium lens-text-muted;
   }
 
+  .lens-dashboard-controls {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
+  }
+
+  .lens-filter-bar {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
+  }
+
+  .lens-filter {
+    @apply lens-flex lens-items-center lens-gap-2;
+  }
+
+  .lens-filter-name {
+    @apply lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+  }
+
+  /* Preset chips share the tabstrip's segmented look: an inset tray whose
+     active member reads as a raised card. */
+  .lens-filter-presets {
+    @apply lens-flex lens-items-center lens-gap-1 lens-rounded-control lens-bg-inset lens-p-1;
+  }
+
+  .lens-filter-chip {
+    @apply lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+  }
+
+  .lens-filter-chip:hover {
+    @apply lens-text-strong;
+  }
+
+  .lens-filter-chip[aria-pressed='true'] {
+    @apply lens-bg-card lens-text-strong;
+    box-shadow: var(--lens-shadow-card);
+  }
+
+  .lens-filter-trigger {
+    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+  }
+
+  .lens-filter-trigger:hover,
+  .lens-filter-trigger[aria-expanded='true'] {
+    @apply lens-border-strong lens-bg-inset lens-text-strong;
+  }
+
+  .lens-filter-trigger-icon {
+    @apply lens-text-faint;
+  }
+
+  .lens-filter-scrim {
+    @apply lens-fixed lens-inset-0;
+  }
+
+  .lens-filter-popover {
+    @apply lens-fixed lens-flex lens-flex-col lens-gap-2 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-shadow-lg lens-outline-none;
+    width: 292px;
+  }
+
+  /* Same open treatment as the drill overlay: the class only exists when
+     neither visual regression nor reduced motion is in effect. */
+  .lens-filter-popover-enter {
+    animation: lens-overlay-pop 120ms ease-out;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-filter-popover-enter {
+      animation: none;
+    }
+  }
+
+  .lens-filter-popover-footer {
+    @apply lens-flex lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-calendar {
+    @apply lens-flex lens-flex-col lens-gap-2;
+  }
+
+  .lens-calendar-header {
+    @apply lens-flex lens-items-center lens-justify-between lens-gap-2;
+  }
+
+  .lens-calendar-month {
+    @apply lens-text-sm lens-font-semibold lens-text-strong;
+  }
+
+  .lens-calendar-nav {
+    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-font-sans lens-text-sm lens-text-muted;
+  }
+
+  .lens-calendar-nav:hover {
+    @apply lens-border-strong lens-bg-inset lens-text-strong;
+  }
+
+  .lens-calendar-weekdays,
+  .lens-calendar-week {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 2px;
+  }
+
+  .lens-calendar-weekday {
+    @apply lens-py-1 lens-text-center lens-font-semibold lens-uppercase lens-text-faint;
+    font-size: 10px;
+    letter-spacing: 0.04em;
+  }
+
+  .lens-calendar-day {
+    @apply lens-rounded-badge lens-border-0 lens-bg-transparent lens-py-1.5 lens-text-center lens-font-sans lens-text-xs lens-font-medium lens-text-text;
+  }
+
+  .lens-calendar-day[data-outside] {
+    @apply lens-text-faint;
+  }
+
+  .lens-calendar-day:hover:not(:disabled) {
+    @apply lens-bg-inset;
+  }
+
+  .lens-calendar-day[data-today] {
+    box-shadow: inset 0 0 0 1px var(--lens-accent-300);
+  }
+
+  /* The live hover preview uses the faint accent wash; a committed range the
+     stronger one. Boundaries are always solid accent. */
+  .lens-calendar-day[data-state='preview'] {
+    background: var(--lens-accent-50);
+    color: var(--lens-text-strong);
+  }
+
+  .lens-calendar-day[data-state='inRange'] {
+    background: var(--lens-accent-100);
+    color: var(--lens-text-strong);
+  }
+
+  .lens-calendar-day[data-state='start'],
+  .lens-calendar-day[data-state='end'],
+  .lens-calendar-day[data-state='previewEdge'] {
+    background: var(--lens-accent-600);
+    color: #ffffff;
+  }
+
+  .lens-calendar-day:disabled {
+    @apply lens-text-faint;
+    opacity: 0.45;
+  }
+
+  .lens-calendar-hint {
+    @apply lens-m-0 lens-text-xs lens-text-muted;
+  }
+
+  .lens-visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
   /* First-paint entrance: each panel rises and fades in, staggered per column
      within a row plus a per-row offset (capped near 300ms total). Applied only
      on the initial mount and never inside a drawer or under visual regression. */
@@ -288,7 +451,11 @@
   .lens-perspective-set button,
   .lens-segment,
   .lens-runtime-notice button,
-  .lens-fake-chart-footer button {
+  .lens-fake-chart-footer button,
+  .lens-filter-chip,
+  .lens-filter-trigger,
+  .lens-calendar-nav,
+  .lens-calendar-day {
     @apply lens-cursor-pointer;
   }
 
@@ -552,7 +719,7 @@
   }
 
   .lens-panel-error button {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-semibold lens-text-text;
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-semibold lens-text-text;
   }
 
   .lens-panel-state {
@@ -1628,7 +1795,11 @@
   .lens-export-button:focus-visible,
   .lens-table th button:focus-visible,
   .lens-table-pagination button:focus-visible,
-  .lens-leaf-action:focus-visible {
+  .lens-leaf-action:focus-visible,
+  .lens-filter-chip:focus-visible,
+  .lens-filter-trigger:focus-visible,
+  .lens-calendar-nav:focus-visible,
+  .lens-calendar-day:focus-visible {
     outline: 2px solid var(--lens-accent-500);
     outline-offset: 2px;
   }

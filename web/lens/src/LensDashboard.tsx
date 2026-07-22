@@ -1,6 +1,7 @@
 import fixture from '../fixtures/panels-v1.json'
 import { parseDocument, type DashboardDocument } from './contract'
 import { DashboardPanels } from './DashboardPanels'
+import type { CalendarDate } from './controls'
 import { DashboardRuntimeProvider, DocumentProvider, type LensThemeMode } from './runtime'
 
 export interface LensDashboardProps {
@@ -16,12 +17,14 @@ export interface LensDashboardProps {
   csrf?: string
   fetcher?: typeof fetch
   initialDocument?: DashboardDocument
+  /** Fixed calendar "today" for deterministic stories and visual regression. */
+  filterToday?: CalendarDate
 }
 
 const bundledFixture = parseDocument(fixture)
 
 export function LensDashboard({
-  src, locale = 'en', theme = 'light', csrf, fetcher, fallbackHTML, initialDocument = bundledFixture,
+  src, locale = 'en', theme = 'light', csrf, fetcher, fallbackHTML, initialDocument = bundledFixture, filterToday,
 }: LensDashboardProps) {
   // The fallback is this application's own server-rendered skeleton, echoed
   // back verbatim; it never carries request data.
@@ -32,7 +35,7 @@ export function LensDashboard({
     <div className="lens-root" data-theme={theme} lang={locale}>
       <DocumentProvider src={src} initialDocument={initialDocument} csrf={csrf} fetcher={fetcher}>
         <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher} fallback={fallback}>
-          <DashboardPanels />
+          <DashboardPanels filterToday={filterToday} />
         </DashboardRuntimeProvider>
       </DocumentProvider>
     </div>

@@ -1,4 +1,4 @@
-import{i as cu,n as PS}from"./lens-dashboard-CXFqeY_H.js";/*! *****************************************************************************
+import{i as cu,n as PS}from"./lens-dashboard-BJSR-39V.js";/*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any

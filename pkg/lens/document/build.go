@@ -28,6 +28,9 @@ type BuildOptions struct {
 	Endpoints   Endpoints
 	I18n        map[string]string
 	Theme       Theme
+	// Filters declares the dashboard's controls; the producer supplies the
+	// normalized current value and localized labels. See Filter.
+	Filters []Filter
 }
 
 func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (*DashboardDocument, error) {
@@ -71,6 +74,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		Frames:       make(map[FrameRef]Frame),
 		Drill:        Drill{Edges: make(map[NodeKey]Level), InlineDepth: opts.InlineDepth},
 		Perspectives: make([]Perspective, 0),
+		Filters:      cloneFilters(opts.Filters),
 		Endpoints:    opts.Endpoints,
 		I18n:         cloneStrings(opts.I18n),
 		Theme:        cloneTheme(opts.Theme),

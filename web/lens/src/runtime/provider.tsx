@@ -10,8 +10,17 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import type { DashboardDocument, FieldFormat, Frame, NodeKey, NodePath, Panel, QueryPage, QueryRequest } from '../contract'
+import type { DashboardDocument, FieldFormat, Filter, Frame, NodeKey, NodePath, Panel, PeriodValue, QueryPage, QueryRequest } from '../contract'
 import { fetchDocument } from './document'
+import {
+  declaredFilters,
+  periodValues,
+  readFilterValues,
+  sameFilterValues,
+  srcWithFilterParams,
+  writeFilterValues,
+  type FilterValues,
+} from './filters'
 import { isPerspectiveFork, levelForPath, panelForNavigation, pathResolves, queryPathForNavigation, rootNavigation } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
@@ -38,6 +47,12 @@ interface DocumentContextValue {
   isRefreshing: boolean
   error: Error | null
   refresh: () => Promise<DashboardDocument>
+  /**
+   * Refetches the document with these filter parameters on the src. The
+   * current document stays on screen until the new one lands; every later
+   * refresh — including snapshot recovery — keeps the applied parameters.
+   */
+  applyFilters: (values: FilterValues) => void
 }
 
 const DocumentContext = createContext<DocumentContextValue | undefined>(undefined)
@@ -67,11 +82,20 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
   const loadedAt = useRef<number>(src && cache?.get(src) ? Date.now() : 0)
   const csrfRef = useRef(csrf)
   const fetcherRef = useRef(fetcher)
+  /** Every filter parameter the runtime has driven so far. */
+  const drivenFilterParams = useRef(new Set<string>())
+  const appliedFilters = useRef<FilterValues>()
+  const filterController = useRef<AbortController>()
 
   useEffect(() => {
     csrfRef.current = csrf
     fetcherRef.current = fetcher
   }, [csrf, fetcher])
+
+  const effectiveSrc = useCallback(() => {
+    if (!src || !appliedFilters.current) return src
+    return srcWithFilterParams(src, drivenFilterParams.current, appliedFilters.current)
+  }, [src])
 
   const refresh = useCallback(() => {
     if (!src) {
@@ -85,7 +109,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
     controllers.current.add(controller)
     setIsLoading(true)
     setError(null)
-    const pending = fetchDocument(src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+    const pending = fetchDocument(effectiveSrc() ?? src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
       .then((next) => {
         loadedAt.current = Date.now()
         setDocument(next)
@@ -103,7 +127,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
       })
     inFlight.current = pending
     return pending
-  }, [initialDocument, src])
+  }, [effectiveSrc, initialDocument, src])
 
   // A focus-triggered refetch keeps the current document on screen and swaps
   // only on success; a failure is logged and otherwise silent, so a transient
@@ -113,7 +137,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
     const controller = new AbortController()
     controllers.current.add(controller)
     setIsRefreshing(true)
-    void fetchDocument(src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+    void fetchDocument(effectiveSrc() ?? src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
       .then((next) => {
         loadedAt.current = Date.now()
         setDocument(next)
@@ -125,7 +149,35 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
         controllers.current.delete(controller)
         if (!controller.signal.aborted) setIsRefreshing(false)
       })
-  }, [src])
+  }, [effectiveSrc, src])
+
+  const applyFilters = useCallback((values: FilterValues) => {
+    if (!src) return
+    for (const name of Object.keys(values)) drivenFilterParams.current.add(name)
+    if (appliedFilters.current && sameFilterValues(appliedFilters.current, values)) return
+    appliedFilters.current = values
+    // The latest selection wins: a still-flying older filter fetch is stale.
+    filterController.current?.abort()
+    const controller = new AbortController()
+    filterController.current = controller
+    controllers.current.add(controller)
+    setIsRefreshing(true)
+    setError(null)
+    void fetchDocument(effectiveSrc() ?? src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+      .then((next) => {
+        loadedAt.current = Date.now()
+        setDocument(next)
+      })
+      .catch((cause: unknown) => {
+        if (controller.signal.aborted) return
+        setError(cause instanceof Error ? cause : new Error('document request failed'))
+      })
+      .finally(() => {
+        controllers.current.delete(controller)
+        if (filterController.current === controller) filterController.current = undefined
+        if (!controller.signal.aborted) setIsRefreshing(false)
+      })
+  }, [effectiveSrc, src])
 
   useEffect(() => {
     const cached = src ? cache?.get(src) : undefined
@@ -154,8 +206,8 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
   }, [])
 
   const value = useMemo(
-    () => ({ document, isLoading, isRefreshing, error, refresh }),
-    [document, error, isLoading, isRefreshing, refresh],
+    () => ({ document, isLoading, isRefreshing, error, refresh, applyFilters }),
+    [applyFilters, document, error, isLoading, isRefreshing, refresh],
   )
   return <DocumentContext.Provider value={value}>{children}</DocumentContext.Provider>
 }
@@ -178,6 +230,14 @@ export interface DrillContextValue {
   switchPerspective: (id: string, options?: { replace?: boolean; enter?: string; panelId?: string }) => void
   reset: () => void
   canGoBack: boolean
+}
+
+export interface FiltersContextValue {
+  /** Declared controls, empty inside drawers and controlled hosts. */
+  filters: Array<Filter>
+  /** URL-derived values; a control falls back to its declared value. */
+  values: FilterValues
+  setPeriod: (filter: Filter, value: PeriodValue) => void
 }
 
 export interface DrawerContextValue {
@@ -248,6 +308,7 @@ const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
 const PanelPaginationContext = createContext<PanelPaginationContextValue | undefined>(undefined)
 const ExportContext = createContext<ExportContextValue | undefined>(undefined)
 const DrawerContext = createContext<DrawerContextValue | undefined>(undefined)
+const FiltersContext = createContext<FiltersContextValue | undefined>(undefined)
 const LocaleContext = createContext('en')
 const I18nContext = createContext<Record<string, string>>({})
 const emptyFrameStore = new PanelFrameStore()
@@ -510,6 +571,7 @@ interface RuntimeCoreProps {
   csrf?: string
   fetcher?: typeof fetch
   refreshDocument: () => Promise<DashboardDocument>
+  applyFilters?: (values: FilterValues) => void
   children: ReactNode
   controlledNavigation?: NavigationState
   onControlledNavigationChange?: (view: NavigationView) => void
@@ -517,7 +579,7 @@ interface RuntimeCoreProps {
 }
 
 function RuntimeCore({
-  document, locale, csrf, fetcher, refreshDocument, children,
+  document, locale, csrf, fetcher, refreshDocument, applyFilters, children,
   controlledNavigation, onControlledNavigationChange, drawerDepth = 0,
 }: RuntimeCoreProps) {
   const [localNavigation, localDispatch] = useReducer(
@@ -548,6 +610,24 @@ function RuntimeCore({
     if (next !== controlledNavigation) onControlledNavigationChange?.(next)
   }, [controlledNavigation, document, onControlledNavigationChange])
   const [notice, setNotice] = useState<string>()
+  const documentRef = useRef(document)
+  documentRef.current = document
+  const filtersEnabled = !controlledNavigation && drawerDepth === 0
+  // Filter state derives from the URL alone: user actions write the URL, the
+  // URL drives the refetch, and browser Back needs no resync timers because
+  // popstate re-reads the same source of truth.
+  const [filterValues, setFilterValuesState] = useState<FilterValues>(() => (
+    typeof window === 'undefined' ? {} : readFilterValues(document, new URL(window.location.href))
+  ))
+  const filterValuesRef = useRef(filterValues)
+  const syncFiltersFromURL = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const values = readFilterValues(documentRef.current, new URL(window.location.href))
+    if (sameFilterValues(values, filterValuesRef.current)) return
+    filterValuesRef.current = values
+    setFilterValuesState(values)
+    applyFilters?.(values)
+  }, [applyFilters])
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
   const exportSnapshotId = useRef(document.snapshotId)
   const [retryToken, setRetryToken] = useState(0)
@@ -635,10 +715,11 @@ function RuntimeCore({
       const view = navigationFromURL(new URL(window.location.href))
       const restored = navigationFromBrowserState(document, view, event.state)
       dispatch(navigationActions.restore(restored, restored.history))
+      syncFiltersFromURL()
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [controlledNavigation, dispatch, document])
+  }, [controlledNavigation, dispatch, document, syncFiltersFromURL])
 
   useEffect(() => {
     const panel = panelForNavigation(document, runtimeView)
@@ -813,6 +894,23 @@ function RuntimeCore({
     run: runExport,
   }), [document.endpoints.export, exportStates, runExport])
 
+  const setPeriod = useCallback((filter: Filter, value: PeriodValue) => {
+    if (!filtersEnabled || typeof window === 'undefined' || !filter.period) return
+    const merged = { ...filterValuesRef.current, ...periodValues(filter.period, value) }
+    const current = new URL(window.location.href)
+    const next = writeFilterValues(current, documentRef.current, merged)
+    if (!sameNavigationURL(current, next)) {
+      window.history.pushState(browserStateFor(navigation, window.history.state), '', next)
+    }
+    syncFiltersFromURL()
+  }, [filtersEnabled, navigation, syncFiltersFromURL])
+
+  const filters = useMemo<FiltersContextValue>(() => ({
+    filters: filtersEnabled ? declaredFilters(document) : [],
+    values: filterValues,
+    setPeriod,
+  }), [document, filterValues, filtersEnabled, setPeriod])
+
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
     back: () => dispatch(navigationActions.back()),
@@ -859,6 +957,7 @@ function RuntimeCore({
     <LocaleContext.Provider value={locale}>
       <I18nContext.Provider value={document.i18n}>
       <DashboardContext.Provider value={dashboard}>
+        <FiltersContext.Provider value={filters}>
         <DrawerContext.Provider value={drawer}>
         <DrillContext.Provider value={drill}>
           <PanelPaginationContext.Provider value={pagination}>
@@ -893,6 +992,7 @@ function RuntimeCore({
           </PanelPaginationContext.Provider>
         </DrillContext.Provider>
         </DrawerContext.Provider>
+        </FiltersContext.Provider>
       </DashboardContext.Provider>
       </I18nContext.Provider>
     </LocaleContext.Provider>
@@ -933,6 +1033,7 @@ export function DashboardRuntimeProvider({
       csrf={csrf}
       fetcher={fetcher}
       refreshDocument={context.refresh}
+      applyFilters={context.applyFilters}
       controlledNavigation={controlledNavigation}
       onControlledNavigationChange={onControlledNavigationChange}
       drawerDepth={drawerDepth}
@@ -951,6 +1052,12 @@ export function useDashboard(): DashboardContextValue {
 export function useDrill(): DrillContextValue {
   const context = useContext(DrillContext)
   if (!context) throw new Error('useDrill must be used inside DashboardRuntimeProvider')
+  return context
+}
+
+export function useFilters(): FiltersContextValue {
+  const context = useContext(FiltersContext)
+  if (!context) throw new Error('useFilters must be used inside DashboardRuntimeProvider')
   return context
 }
 
