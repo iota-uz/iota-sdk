@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -218,6 +219,23 @@ func cloneStrings(values map[string]string) map[string]string {
 	result := make(map[string]string, len(values))
 	for key, value := range values {
 		result[key] = value
+	}
+	return result
+}
+
+func cloneFilters(filters []Filter) []Filter {
+	if len(filters) == 0 {
+		return nil
+	}
+	result := make([]Filter, len(filters))
+	for index, filter := range filters {
+		cloned := filter
+		if filter.Period != nil {
+			period := *filter.Period
+			period.Presets = slices.Clone(filter.Period.Presets)
+			cloned.Period = &period
+		}
+		result[index] = cloned
 	}
 	return result
 }

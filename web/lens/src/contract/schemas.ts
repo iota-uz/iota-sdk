@@ -61,6 +61,7 @@ export const DashboardDocumentSchema: z.ZodType<Contract.DashboardDocument> = z.
   frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)),
   drill: z.lazy(() => DrillSchema),
   perspectives: z.array(z.lazy(() => PerspectiveSchema)),
+  filters: z.array(z.lazy(() => FilterSchema)).optional(),
   endpoints: z.lazy(() => EndpointsSchema),
   i18n: z.record(z.string(), z.string()),
   theme: z.lazy(() => ThemeSchema),
@@ -97,6 +98,15 @@ export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z
   decimalSeparator: z.string().optional(),
   symbol: z.string().optional(),
 }).strict())
+
+export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
+  id: z.string(),
+  kind: z.lazy(() => FilterKindSchema),
+  label: z.string().optional(),
+  period: z.lazy(() => PeriodFilterSchema).optional(),
+}).strict())
+
+export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["period"])
 
 export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.enum(["date", "money", "number", "percent", "string"])
 
@@ -197,6 +207,27 @@ export const PanelTrendSchema: z.ZodType<Contract.PanelTrend> = z.object({
   percent: z.number(),
   label: z.string().optional(),
   invert: z.boolean().optional(),
+}).strict()
+
+export const PeriodFilterSchema: z.ZodType<Contract.PeriodFilter> = z.lazy(() => z.object({
+  startParam: z.string(),
+  endParam: z.string(),
+  value: z.lazy(() => PeriodValueSchema),
+  min: z.string().optional(),
+  max: z.string().optional(),
+  allowEmpty: z.boolean().optional(),
+  presets: z.array(z.lazy(() => PeriodPresetSchema)).optional(),
+}).strict())
+
+export const PeriodPresetSchema: z.ZodType<Contract.PeriodPreset> = z.lazy(() => z.object({
+  id: z.string(),
+  label: z.string(),
+  value: z.lazy(() => PeriodValueSchema),
+}).strict())
+
+export const PeriodValueSchema: z.ZodType<Contract.PeriodValue> = z.object({
+  start: z.string(),
+  end: z.string(),
 }).strict()
 
 export const PerspectiveSchema: z.ZodType<Contract.Perspective> = z.lazy(() => z.object({

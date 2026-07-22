@@ -16,7 +16,10 @@ type DashboardDocument struct {
 	Frames       map[FrameRef]Frame `json:"frames"`
 	Drill        Drill              `json:"drill"`
 	Perspectives []Perspective      `json:"perspectives"`
-	Endpoints    Endpoints          `json:"endpoints"`
+	// Filters declares the dashboard's controls. Optional so documents from
+	// older producers keep parsing under the same contract major.
+	Filters   []Filter  `json:"filters,omitempty"`
+	Endpoints Endpoints `json:"endpoints"`
 	I18n         map[string]string  `json:"i18n"`
 	Theme        Theme              `json:"theme"`
 }
@@ -83,6 +86,73 @@ type LayoutGroup struct {
 	Span   int               `json:"span"`
 	// Tab names the tab this item belongs to inside a tabs group.
 	Tab string `json:"tab,omitempty"`
+}
+
+// FilterKind selects a declared dashboard control's type. The shape is
+// deliberately a discriminated union: each kind owns a dedicated payload
+// field on Filter (Period today; an enumeration payload slots in beside it
+// later) so new kinds never overload another kind's fields.
+type FilterKind string
+
+const (
+	// FilterKindPeriod is a date-range control: a calendar with presets.
+	FilterKindPeriod FilterKind = "period"
+)
+
+// Filter declares one dashboard-level control. The document owns the
+// declaration and the normalized current value; the runtime renders the
+// control, writes the chosen value onto the document URL under the declared
+// parameter names, and refetches the document. Filter values never reach the
+// query endpoint: a query is addressed by SnapshotID alone, so the runtime
+// cannot ask the snapshot store for a filter combination the server has not
+// normalized and keyed itself.
+type Filter struct {
+	ID   string     `json:"id"`
+	Kind FilterKind `json:"kind"`
+	// Label is the already-localized control label.
+	Label string `json:"label,omitempty"`
+	// Period carries the payload of a period filter. Exactly the kinds' own
+	// payload field must be set.
+	Period *PeriodFilter `json:"period,omitempty"`
+}
+
+// PeriodFilter is the payload of a period (date-range) filter.
+//
+// Wire format: every date is the server's own "2006-01-02" string. The
+// runtime treats boundaries as opaque calendar dates — it never converts them
+// through a client timezone — and the server re-anchors whatever it receives
+// (Tashkent-anchored for EAI), then echoes the normalized selection back in
+// Value. That echo is the display truth after a refetch.
+type PeriodFilter struct {
+	// StartParam and EndParam name the document-URL query parameters the
+	// runtime writes the selection to.
+	StartParam string `json:"startParam"`
+	EndParam   string `json:"endParam"`
+	// Value is the server-normalized selection this document was built from.
+	Value PeriodValue `json:"value"`
+	// Min and Max, when set, bound the calendar ("2006-01-02").
+	Min string `json:"min,omitempty"`
+	Max string `json:"max,omitempty"`
+	// AllowEmpty permits an unbounded selection: the runtime submits the
+	// declared parameters present but empty, the server's "all time" form.
+	AllowEmpty bool `json:"allowEmpty,omitempty"`
+	// Presets are one-click ranges (years, quarters, "all time"). Labels are
+	// already localized by the producer.
+	Presets []PeriodPreset `json:"presets,omitempty"`
+}
+
+// PeriodValue is a closed or half-open date range. Empty strings mean the
+// boundary is unbounded (only meaningful when the filter allows it).
+type PeriodValue struct {
+	Start string `json:"start"`
+	End   string `json:"end"`
+}
+
+// PeriodPreset is a declared one-click range.
+type PeriodPreset struct {
+	ID    string      `json:"id"`
+	Label string      `json:"label"`
+	Value PeriodValue `json:"value"`
 }
 
 type PanelKind string

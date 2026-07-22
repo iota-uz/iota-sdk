@@ -38,6 +38,7 @@ export interface DashboardDocument {
   frames: Record<FrameRef, Frame>
   drill: Drill
   perspectives: Array<Perspective>
+  filters?: Array<Filter>
   endpoints: Endpoints
   i18n: Record<string, string>
   theme: Theme
@@ -74,6 +75,15 @@ export interface FieldFormat {
   decimalSeparator?: string
   symbol?: string
 }
+
+export interface Filter {
+  id: string
+  kind: FilterKind
+  label?: string
+  period?: PeriodFilter
+}
+
+export type FilterKind = "period"
 
 export type FormatKind = "date" | "money" | "number" | "percent" | "string"
 
@@ -174,6 +184,27 @@ export interface PanelTrend {
   percent: number
   label?: string
   invert?: boolean
+}
+
+export interface PeriodFilter {
+  startParam: string
+  endParam: string
+  value: PeriodValue
+  min?: string
+  max?: string
+  allowEmpty?: boolean
+  presets?: Array<PeriodPreset>
+}
+
+export interface PeriodPreset {
+  id: string
+  label: string
+  value: PeriodValue
+}
+
+export interface PeriodValue {
+  start: string
+  end: string
 }
 
 export interface Perspective {
