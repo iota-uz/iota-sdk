@@ -183,6 +183,31 @@ function DashboardFreshness() {
   return <p className="lens-dashboard-updated" aria-live="polite" data-refreshing={isRefreshing || undefined}>{label}</p>
 }
 
+function DocumentRefetchError() {
+  const { error, refresh, dismissError } = useDocumentState()
+  const translate = useTranslate()
+
+  if (!error) return null
+  return (
+    <div className="lens-document-refetch-error" role="alert">
+      <span>{translate('document.refetchFailed', 'Unable to refresh the dashboard. The previous data is still shown.')}</span>
+      <div className="lens-document-refetch-error-actions">
+        <button onClick={() => void refresh().catch(() => undefined)} type="button">
+          {translate('document.retry', 'Retry')}
+        </button>
+        <button
+          aria-label={translate('runtime.dismissNotice', 'Dismiss notice')}
+          className="lens-document-refetch-error-dismiss"
+          onClick={dismissError}
+          type="button"
+        >
+          ×
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
   const { document } = useDashboard()
   const translate = useTranslate()
@@ -217,6 +242,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           </div>
         </header>
       )}
+      {hasHeader && <DocumentRefetchError />}
       {hasHeader && <DashboardFreshness />}
       <div className="lens-dashboard-rows">
         {document.layout.rows.map((row, rowIndex) => (

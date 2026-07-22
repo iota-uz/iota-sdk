@@ -451,6 +451,7 @@
   .lens-perspective-set button,
   .lens-segment,
   .lens-runtime-notice button,
+  .lens-document-refetch-error button,
   .lens-fake-chart-footer button,
   .lens-filter-chip,
   .lens-filter-trigger,
@@ -1382,6 +1383,29 @@
 
   .lens-runtime-notice button {
     @apply lens-border-0 lens-bg-transparent lens-text-lg lens-text-accent-700;
+  }
+
+  .lens-document-refetch-error {
+    @apply lens-mb-4 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-border lens-border-solid lens-border-border-strong lens-px-3 lens-py-2 lens-font-mono lens-text-xs lens-font-medium lens-text-strong;
+    background: var(--lens-neg-soft);
+    box-shadow: inset 3px 0 0 var(--lens-neg);
+  }
+
+  .lens-document-refetch-error-actions {
+    @apply lens-flex lens-shrink-0 lens-items-center lens-gap-1;
+  }
+
+  .lens-document-refetch-error-actions button {
+    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border-strong lens-bg-card lens-px-2 lens-py-1 lens-font-mono lens-text-xs lens-font-semibold lens-text-text;
+  }
+
+  .lens-document-refetch-error-actions button:hover {
+    @apply lens-text-strong;
+    border-color: var(--lens-text-muted);
+  }
+
+  .lens-document-refetch-error-actions .lens-document-refetch-error-dismiss {
+    @apply lens-border-transparent lens-bg-transparent lens-text-base lens-leading-none lens-text-muted;
   }
 
   .lens-explore {

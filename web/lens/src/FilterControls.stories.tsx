@@ -1,5 +1,5 @@
 import type { Story } from '@ladle/react'
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type { DashboardDocument, Filter, Panel } from './contract'
 import { Calendar } from './controls'
 import { LensDashboard } from './LensDashboard'
@@ -73,6 +73,34 @@ DashboardFilterLight.storyName = 'Dashboard filter light'
 
 export const DashboardFilterDark: Story = () => <DashboardScene theme="dark" />
 DashboardFilterDark.storyName = 'Dashboard filter dark'
+
+function RefetchErrorScene() {
+  const requests = useRef(0)
+  const fetcher = useCallback<typeof fetch>(() => {
+    requests.current += 1
+    if (requests.current > 1) {
+      return Promise.resolve(new Response(JSON.stringify({ message: 'document refetch failed' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+    }
+    return Promise.resolve(new Response(JSON.stringify(filteredDocument()), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+  }, [])
+  return (
+    <LensDashboard
+      fetcher={fetcher}
+      filterToday={storyToday}
+      src="/lens/document"
+      theme="light"
+    />
+  )
+}
+
+export const RefetchError: Story = () => <RefetchErrorScene />
+RefetchError.storyName = 'Refetch error'
 
 /** Clicks the period trigger once mounted so the popover is the subject. */
 function AutoOpen({ children }: { children: React.ReactNode }) {
