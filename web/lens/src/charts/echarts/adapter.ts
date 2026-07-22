@@ -1,15 +1,38 @@
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { GridComponent, TooltipComponent } from 'echarts/components'
 import { init, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
+import { UniversalTransition } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
 import { buildChartOption } from './options'
 import { buildEChartsTheme } from './theme'
 
-registerEChartsModules([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer])
+registerEChartsModules([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer, UniversalTransition])
 
 type ChartInitializer = (element: HTMLElement) => ECharts
+
+/**
+ * True when the only thing that changed between two inputs is the selected
+ * mark. Everything else — the frame, the encoding, the theme, the formatters —
+ * is referentially stable across a selection click (ChartPanel keeps those the
+ * same and only bumps `selectedKey`), so reference equality is exact here.
+ *
+ * A selection-only change must restyle the chosen mark in place: it must not
+ * replace the series, which would tear the marks down and re-run the entrance
+ * animation — the visible "reload" a mere outline should never cost.
+ */
+function isSelectionOnlyChange(previous: ChartInput, next: ChartInput): boolean {
+  return previous !== next
+    && previous.selectedKey !== next.selectedKey
+    && previous.frame === next.frame
+    && previous.encoding === next.encoding
+    && previous.theme === next.theme
+    && previous.kind === next.kind
+    && previous.presentation === next.presentation
+    && previous.format === next.format
+    && previous.formatAxis === next.formatAxis
+}
 
 /**
  * The mark lives on a canvas, so the only way to anchor UI to it is the
@@ -47,6 +70,15 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const option: EChartsCoreOption = buildChartOption(input, theme)
         chart.setOption(option, { notMerge: false, replaceMerge: ['series', 'xAxis', 'yAxis'] })
       }
+      // Selection restyle: merge the rebuilt option in place with animation
+      // forced off, so the outline appears instantly without replacing the
+      // series or re-running the entrance transition.
+      const restyleSelection = () => {
+        const theme = buildEChartsTheme(element, input.theme)
+        const option = buildChartOption(input, theme) as EChartsCoreOption & { animation?: boolean }
+        option.animation = false
+        chart.setOption(option, { notMerge: false })
+      }
       const select = (event: Parameters<typeof nodeKeyFromEvent>[0]) => {
         const key = nodeKeyFromEvent(event)
         if (key !== undefined) events.onSelect(key, anchorFromEvent(event))
@@ -66,8 +98,10 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
 
       return {
         update(nextInput: ChartInput) {
+          const selectionOnly = isSelectionOnlyChange(input, nextInput)
           input = nextInput
-          render()
+          if (selectionOnly) restyleSelection()
+          else render()
         },
         dispose() {
           resizeObserver?.disconnect()

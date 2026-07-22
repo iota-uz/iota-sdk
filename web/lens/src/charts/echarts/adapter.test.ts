@@ -151,6 +151,32 @@ describe('ECharts adapter', () => {
     instance.dispose()
   })
 
+  it('restyles a selection in place without replacing the series or re-running entrance animation', () => {
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    document.body.append(element)
+    const base = chartInput()
+    const instance = createEChartsAdapter(() => chart as never).mount(element, base, {
+      onSelect: vi.fn(),
+      onHover: vi.fn(),
+    })
+
+    // Only the selected mark changes; every other input reference is identical.
+    instance.update({ ...base, selectedKey: 'stable/key' })
+
+    expect(chart.options).toHaveLength(2)
+    // A selection-only change merges in place — no series-replacing merge.
+    expect(chart.mergeOptions[1]).toEqual({ notMerge: false })
+    expect(chart.mergeOptions[1]?.replaceMerge).toBeUndefined()
+    // The restyle suppresses animation, so the outline appears without the
+    // series tearing down and re-entering.
+    expect((chart.options[1] as { animation?: boolean }).animation).toBe(false)
+    // The first paint still animated normally.
+    expect((chart.options[0] as { animation?: boolean }).animation).toBe(true)
+    expect(chart.dispose).not.toHaveBeenCalled()
+    instance.dispose()
+  })
+
   it('replaces shrinking series and axes without disposing the chart', () => {
     const chart = new FakeChart()
     const element = document.createElement('div')
