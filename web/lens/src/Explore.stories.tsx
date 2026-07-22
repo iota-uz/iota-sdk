@@ -1,8 +1,10 @@
 import type { Story } from '@ladle/react'
 import { useEffect, useState } from 'react'
 import fixture from '../fixtures/explore.json'
-import { parseDocument } from './contract'
+import { parseDocument, type FieldFormat, type Level, type Node, type Perspective } from './contract'
 import { DashboardPanels } from './DashboardPanels'
+import { DrillOverlay } from './explore/DrillOverlay'
+import type { DrillTarget } from './explore/model'
 import { DashboardRuntimeProvider, DocumentProvider, navigationToURL, useDrill } from './runtime'
 import './styles.css'
 
@@ -183,6 +185,69 @@ AwaitingPerspectiveLight.storyName = 'Level fork awaits a view - light'
 
 export const AwaitingPerspectiveDark: Story = () => <AtFork theme="dark" />
 AwaitingPerspectiveDark.storyName = 'Level fork awaits a view - dark'
+
+/**
+ * The contextual card as it stands when a chart segment is clicked: the
+ * statistics header (color swatch, value, share of the total), the promoted
+ * expansion, the quiet copy control, the perspective pills, and the caret that
+ * ties it back to the mark. Rendered directly with a fixed anchor so the whole
+ * segment surface is a stable screenshot without steering a canvas click.
+ */
+const segmentPerspective = (id: string, label: string): Perspective => ({
+  id,
+  explorerId: 'profitability',
+  branchKey: 'profitability/operating-margin',
+  key: id,
+  label,
+  semantics: 'partition',
+  root: 'profitability/operating-margin',
+})
+
+const segmentTarget: DrillTarget = {
+  node: { key: 'profitability/services', path: ['profitability', 'profitability/services'], label: 'Services' } as Node,
+  label: 'Services',
+  value: 1_284_000,
+  share: 0.698,
+  total: 1_840_000,
+  target: {} as Level,
+  expandsToFork: false,
+  breakdown: [],
+  perspectives: [
+    segmentPerspective('composition', 'Composition'),
+    segmentPerspective('trend', 'Trend'),
+  ],
+}
+
+const segmentValueFormat: FieldFormat = { kind: 'money', currency: 'USD', minorUnits: false, precision: 0, symbol: '$' }
+
+function SegmentOverlay({ theme }: { theme: 'light' | 'dark' }) {
+  return (
+    <div className="lens-root" data-theme={theme} style={{ minHeight: '100vh' }}>
+      <DocumentProvider initialDocument={dashboardDocument}>
+        <DashboardRuntimeProvider locale="en">
+          <DrillOverlay
+            accentColor="#7c3aed"
+            anchor={{ x: 420, y: 360 }}
+            dark={theme === 'dark'}
+            onClose={() => {}}
+            onDrillChild={() => {}}
+            onDrillInto={() => {}}
+            onPerspective={() => {}}
+            target={segmentTarget}
+            theme={theme}
+            valueFormat={segmentValueFormat}
+          />
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+export const SegmentOverlayLight: Story = () => <SegmentOverlay theme="light" />
+SegmentOverlayLight.storyName = 'Segment overlay statistics - light'
+
+export const SegmentOverlayDark: Story = () => <SegmentOverlay theme="dark" />
+SegmentOverlayDark.storyName = 'Segment overlay statistics - dark'
 
 export const KeyboardWalkthrough: Story = () => (
   <Walkthrough>
