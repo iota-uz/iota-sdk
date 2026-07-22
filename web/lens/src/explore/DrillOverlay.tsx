@@ -1,11 +1,12 @@
 import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
-  type KeyboardEvent, type ReactNode,
+  type CSSProperties, type KeyboardEvent, type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
 import type { FieldFormat } from '../contract'
-import { ArrowUpRight, CaretRight, X } from '../icons'
+import { ArrowUpRight, CaretRight, Check, Copy, X } from '../icons'
 import { useFormat, useTranslate } from '../runtime'
+import { isVisualRegression } from '../visualRegression'
 import type { DrillTarget } from './model'
 
 export interface DrillOverlayAnchor {
@@ -33,6 +34,12 @@ export interface DrillOverlayProps {
   path?: Array<DrillPathStep>
   anchor: DrillOverlayAnchor
   valueFormat?: FieldFormat
+  /**
+   * The clicked segment's series color, resolved through the same path the
+   * chart and legend use (`seriesColorResolver`). Absent for a level card,
+   * which describes no single mark.
+   */
+  accentColor?: string
   theme?: string
   dark?: boolean
   selectedPerspectiveId?: string
@@ -42,20 +49,18 @@ export interface DrillOverlayProps {
   onClose: () => void
 }
 
-function RowContent({ href, onActivate, onKeyDown, register, children }: {
+function RowContent({ href, onActivate, children }: {
   href?: string
   onActivate: () => void
-  onKeyDown: (event: KeyboardEvent<HTMLElement>) => void
-  register: (element: HTMLElement | null) => void
   children: ReactNode
 }) {
   if (href) {
     return (
-      <a className="lens-drill-row" href={href} onKeyDown={onKeyDown} ref={register}>{children}</a>
+      <a className="lens-drill-row" href={href}>{children}</a>
     )
   }
   return (
-    <button className="lens-drill-row" onClick={onActivate} onKeyDown={onKeyDown} ref={register} type="button">
+    <button className="lens-drill-row" onClick={onActivate} type="button">
       {children}
     </button>
   )
@@ -64,11 +69,22 @@ function RowContent({ href, onActivate, onKeyDown, register, children }: {
 const overlayWidth = 320
 const overlayGap = 12
 const viewportPadding = 12
+const caretInset = 14
 
 interface Position {
   left: number
   top: number
   placement: 'right' | 'left' | 'below'
+  /**
+   * Offset of the caret tip along the card edge it sits on, measured from the
+   * card's top-left. Clamped inside the edge so the caret keeps pointing at the
+   * mark even after the card is nudged back inside the viewport.
+   */
+  caret: number
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), Math.max(min, max))
 }
 
 /**
@@ -91,20 +107,32 @@ export function positionOverlay(
       : Math.min(Math.max(viewportPadding, anchor.x - size.width / 2), viewport.width - size.width - viewportPadding)
   const rawTop = placement === 'below' ? anchor.y + overlayGap : anchor.y - size.height / 2
   const top = Math.min(Math.max(viewportPadding, rawTop), Math.max(viewportPadding, viewport.height - size.height - viewportPadding))
-  return { left: Math.max(viewportPadding, left), top, placement }
+  const clampedLeft = Math.max(viewportPadding, left)
+  const caret = placement === 'below'
+    ? clamp(anchor.x - clampedLeft, caretInset, size.width - caretInset)
+    : clamp(anchor.y - top, caretInset, size.height - caretInset)
+  return { left: clampedLeft, top, placement, caret }
 }
 
 export function DrillOverlay({
-  target, path = [], anchor, anchorElement, valueFormat, theme, dark = false, selectedPerspectiveId,
+  target, path = [], anchor, anchorElement, valueFormat, accentColor, theme, dark = false, selectedPerspectiveId,
   onDrillInto, onDrillChild, onPerspective, onClose,
 }: DrillOverlayProps) {
   const translate = useTranslate()
   const formatValue = useFormat(valueFormat)
   const formatShare = useFormat({ kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' })
   const [container, setContainer] = useState<HTMLElement>()
-  const [position, setPosition] = useState<Position>({ left: anchor.x, top: anchor.y, placement: 'right' })
+  const [position, setPosition] = useState<Position>({ left: anchor.x, top: anchor.y, placement: 'right', caret: caretInset })
+  const [copied, setCopied] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
-  const rowRefs = useRef<Array<HTMLElement | null>>([])
+  const copiedTimer = useRef<ReturnType<typeof setTimeout>>()
+  // Pop-in is decided once, at mount, and never under visual regression or
+  // reduced motion: a screenshot taken mid-scale is non-deterministic, so the
+  // VR flag routes the card straight to its resting state.
+  const [animate] = useState(() => {
+    if (isVisualRegression()) return false
+    return !globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+  })
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
@@ -142,7 +170,8 @@ export function DrillOverlay({
       { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 },
     )
     setPosition((current) => (
-      current.left === next.left && current.top === next.top && current.placement === next.placement
+      current.left === next.left && current.top === next.top &&
+      current.placement === next.placement && current.caret === next.caret
         ? current
         : next
     ))
@@ -179,6 +208,10 @@ export function DrillOverlay({
     if (container) dialogRef.current?.focus()
   }, [container])
 
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+  }, [])
+
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
@@ -197,17 +230,64 @@ export function DrillOverlay({
     }
   }, [onClose])
 
-  const moveRowFocus = useCallback((event: KeyboardEvent<HTMLElement>, index: number) => {
+  // ArrowUp/ArrowDown walk every interactive element in the card — rows,
+  // perspective options, the footer actions and the close button — as one
+  // roving list, so the whole popover is reachable without a mouse. Esc and
+  // Tab keep their existing behaviour.
+  const moveFocus = useCallback((event: KeyboardEvent<HTMLElement>) => {
     if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
+    const dialog = dialogRef.current
+    if (!dialog) return
+    const focusables = Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+    ))
+    if (focusables.length === 0) return
     event.preventDefault()
-    const count = target.breakdown.length
+    const active = document.activeElement as HTMLElement | null
+    const index = active ? focusables.indexOf(active) : -1
     let next = index
-    if (event.key === 'ArrowDown') next = (index + 1) % count
-    if (event.key === 'ArrowUp') next = (index - 1 + count) % count
+    if (event.key === 'ArrowDown') next = index < 0 ? 0 : (index + 1) % focusables.length
+    if (event.key === 'ArrowUp') next = index < 0 ? focusables.length - 1 : (index - 1 + focusables.length) % focusables.length
     if (event.key === 'Home') next = 0
-    if (event.key === 'End') next = count - 1
-    rowRefs.current[next]?.focus()
-  }, [target.breakdown.length])
+    if (event.key === 'End') next = focusables.length - 1
+    focusables[next]?.focus()
+  }, [])
+
+  const copyValue = useCallback(async () => {
+    if (target.value === undefined) return
+    const text = formatValue(target.value)
+    const clipboard = globalThis.navigator?.clipboard
+    let done = false
+    try {
+      if (clipboard?.writeText) {
+        await clipboard.writeText(text)
+        done = true
+      }
+    } catch {
+      done = false
+    }
+    if (!done) {
+      // No async clipboard (insecure context) or a rejected write: fall back to
+      // the legacy selection copy, and if even that is unavailable stay silent
+      // rather than throw out of an event handler.
+      try {
+        const field = document.createElement('textarea')
+        field.value = text
+        field.setAttribute('readonly', '')
+        field.style.position = 'fixed'
+        field.style.opacity = '0'
+        document.body.appendChild(field)
+        field.select()
+        document.execCommand('copy')
+        field.remove()
+      } catch {
+        // Silent no-op: the value is still on screen to read.
+      }
+    }
+    setCopied(true)
+    if (copiedTimer.current) clearTimeout(copiedTimer.current)
+    copiedTimer.current = setTimeout(() => setCopied(false), 1500)
+  }, [formatValue, target.value])
 
   if (!container) return null
 
@@ -220,17 +300,25 @@ export function DrillOverlay({
   // perspective on arrival.
   const expandable = Boolean(target.node && target.target) && !(target.expandsToFork && choosable)
   const empty = target.breakdown.length === 0 && !target.leafHref && !expandable && !choosable
+  const hasValue = target.value !== undefined
+  const caretStyle: CSSProperties = position.placement === 'below'
+    ? { left: `${position.left + position.caret}px`, top: `${position.top}px` }
+    : position.placement === 'left'
+      ? { left: `${position.left + overlayWidth}px`, top: `${position.top + position.caret}px` }
+      : { left: `${position.left}px`, top: `${position.top + position.caret}px` }
 
   return createPortal(
     <>
       {/* A transparent catcher closes on any outside press without dimming the
           chart the popover is describing. */}
       <div className="lens-drill-scrim" onMouseDown={onClose} />
+      <span aria-hidden="true" className="lens-drill-caret" data-placement={position.placement} style={caretStyle} />
       <div
         aria-label={target.label}
         aria-modal="false"
-        className="lens-drill-overlay"
+        className={`lens-drill-overlay${animate ? ' lens-drill-overlay-enter' : ''}`}
         data-placement={position.placement}
+        onKeyDown={moveFocus}
         ref={dialogRef}
         role="dialog"
         style={{ left: `${position.left}px`, top: `${position.top}px`, width: `${overlayWidth}px` }}
@@ -238,13 +326,26 @@ export function DrillOverlay({
       >
         <header className="lens-drill-header">
           <div className="lens-drill-heading">
-            <p className="lens-drill-label">{target.label}</p>
-            {target.value !== undefined && (
+            {target.node && (
+              <p className="lens-drill-eyebrow">{translate('explore.segmentEyebrow', 'Segment')}</p>
+            )}
+            <p className="lens-drill-title">{target.label}</p>
+            {hasValue && (
               <p className="lens-drill-value">
-                {formatValue(target.value)}
-                {target.share !== undefined && (
-                  <span className="lens-drill-share">· {formatShare(target.share * 100)}</span>
+                {accentColor && (
+                  <span aria-hidden="true" className="lens-drill-swatch" style={{ background: accentColor }} />
                 )}
+                <span className="lens-drill-value-figure">{formatValue(target.value!)}</span>
+              </p>
+            )}
+            {hasValue && target.share !== undefined && (
+              <p className="lens-drill-share">
+                {target.total !== undefined
+                  ? translate('explore.shareOfTotal', '{share} of {total}', {
+                    share: formatShare(target.share * 100),
+                    total: formatValue(target.total),
+                  })
+                  : formatShare(target.share * 100)}
               </p>
             )}
           </div>
@@ -285,20 +386,20 @@ export function DrillOverlay({
           <section className="lens-drill-section">
             <h4 className="lens-drill-section-label">{translate('explore.breakdown', 'Breakdown')}</h4>
             <ul className="lens-drill-rows">
-              {target.breakdown.map((row, index) => (
+              {target.breakdown.map((row) => (
                 <li key={row.node.key}>
                   {/* A child that is a record opens it; a child that is a level
                       drills into it. */}
                   <RowContent
                     href={row.href}
                     onActivate={() => onDrillChild(row.node.key)}
-                    onKeyDown={(event) => moveRowFocus(event, index)}
-                    register={(element) => { rowRefs.current[index] = element }}
                   >
                     <span className="lens-drill-row-label">{row.label}</span>
                     {row.value !== undefined && <span className="lens-drill-row-value">{formatValue(row.value)}</span>}
                     {row.share !== undefined && <span className="lens-drill-row-share">{formatShare(row.share * 100)}</span>}
-                    {row.href ? <ArrowUpRight /> : <CaretRight />}
+                    <span aria-hidden="true" className="lens-drill-row-chevron">
+                      {row.href ? <ArrowUpRight /> : <CaretRight />}
+                    </span>
                     {row.share !== undefined && (
                       <span aria-hidden="true" className="lens-drill-row-bar" style={{ width: `${row.share * 100}%` }} />
                     )}
@@ -331,16 +432,30 @@ export function DrillOverlay({
 
         <footer className="lens-drill-footer">
           {expandable && (
-            <button className="lens-drill-action" onClick={() => onDrillInto(target)} type="button">
+            <button className="lens-drill-action lens-drill-action-primary" onClick={() => onDrillInto(target)} type="button">
               <span>{translate('explore.expandSegment', 'Expand segment')}</span>
               <CaretRight />
             </button>
           )}
           {target.leafHref && (
-            <a className="lens-drill-action lens-drill-action-leaf" href={target.leafHref}>
+            <a
+              className={`lens-drill-action lens-drill-action-leaf${expandable ? '' : ' lens-drill-action-primary'}`}
+              href={target.leafHref}
+            >
               <span>{translate('table.openRecord', 'Open record')}</span>
               <ArrowUpRight />
             </a>
+          )}
+          {hasValue && (
+            <button
+              className="lens-drill-action lens-drill-copy"
+              data-copied={copied ? 'true' : undefined}
+              onClick={() => { void copyValue() }}
+              type="button"
+            >
+              <span>{copied ? translate('explore.copied', 'Copied') : translate('explore.copyValue', 'Copy value')}</span>
+              {copied ? <Check /> : <Copy />}
+            </button>
           )}
           {empty && <p className="lens-drill-empty">{translate('explore.noDetail', 'No further detail')}</p>}
         </footer>

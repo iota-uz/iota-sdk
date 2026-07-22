@@ -127,6 +127,23 @@ export const CaretDown = glyph(
   14,
 )
 
+/** Copy the segment value to the clipboard. */
+export const Copy = glyph(
+  <>
+    <rect x="88" y="88" width="128" height="128" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M40,168H32a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8H160a8,8,0,0,1,8,8v8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  13,
+)
+
+/** Confirmation that the value was copied. */
+export const Check = glyph(
+  <>
+    <polyline points="216 72 104 184 48 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  13,
+)
+
 /** Leaf link: open the underlying records. */
 export const ArrowUpRight = glyph(
   <>

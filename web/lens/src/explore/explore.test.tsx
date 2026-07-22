@@ -18,6 +18,14 @@ import { viewForSemantics } from './model'
 
 const exploreDocument = parseDocument(fixture)
 const panel = exploreDocument.panels[0]!
+// A drill level that shares its panel's frame shape declares no encoding of its
+// own; the chart reads the panel's. This mirrors the real profitability pie,
+// where the overlay used to open with no value, share or total because the
+// model read the (absent) level encoding instead of the panel's.
+const levelWithoutEncodingFixture = JSON.parse(JSON.stringify(fixture)) as { drill: { edges: Record<string, { encoding?: unknown }> } }
+delete levelWithoutEncodingFixture.drill.edges['profitability']!.encoding
+const levelWithoutEncodingDocument = parseDocument(levelWithoutEncodingFixture)
+
 const singlePerspectiveDocument = parseDocument({
   ...fixture,
   drill: {
@@ -175,6 +183,22 @@ describe('drill overlay', () => {
     expect(dialog).toHaveTextContent('100.0%')
     const options = within(dialog).getAllByRole('option')
     expect(options.map((option) => option.textContent)).toEqual(['Composition', 'Trend', 'Bridge', 'Evidence'])
+  })
+
+  it('populates the mark stats through the builder even when the level declares no encoding', () => {
+    // The real regression: a fork/choosable mark on a level with no encoding of
+    // its own. The chart draws it from the panel encoding, so the overlay must
+    // read value, share and the copy affordance from the same fallback rather
+    // than degrading to a bare header.
+    renderExplore(levelWithoutEncodingDocument.panels[0], levelWithoutEncodingDocument)
+    fireEvent.click(screen.getByRole('button', { name: 'Operating margin' }))
+
+    const dialog = overlay()
+    expect(dialog).toHaveTextContent('$1,840,000')
+    expect(dialog).toHaveTextContent('100.0%')
+    expect(within(dialog).getByRole('button', { name: 'Copy value' })).toBeInTheDocument()
+    // It is still the fork case, so the expansion stays suppressed for it.
+    expect(within(dialog).getAllByRole('option')).toHaveLength(4)
   })
 
   it('offers the perspectives or the expansion, never both for the same choice', () => {

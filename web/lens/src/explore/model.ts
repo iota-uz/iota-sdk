@@ -1,5 +1,6 @@
 import type {
   DashboardDocument,
+  Encoding,
   Frame,
   Level,
   Node,
@@ -75,21 +76,31 @@ function rowValue(frame: Frame | undefined, row: Array<unknown> | undefined, fie
   return index < 0 ? undefined : row[index]
 }
 
-export function rowForNode(node: Node, level: Level, frame: Frame | undefined): Array<unknown> | undefined {
-  if (!frame || !level.encoding?.id) return undefined
+// A drill level's own encoding is optional: a level that shares its panel's
+// frame shape declares none, and the chart reads the panel's encoding for it.
+// The overlay model has to resolve rows and values against that same effective
+// encoding, or it silently reads nothing for exactly the levels the chart draws
+// fine — the clicked mark ends up with no value, share or total.
+export function rowForNode(
+  node: Node, level: Level, frame: Frame | undefined, encoding: Encoding | undefined = level.encoding,
+): Array<unknown> | undefined {
+  if (!frame || !encoding?.id) return undefined
   return frame.rows.find((row) => {
-    const id = rowValue(frame, row, level.encoding?.id)
+    const id = rowValue(frame, row, encoding.id)
     if (typeof id !== 'string' && typeof id !== 'number' && typeof id !== 'bigint' && typeof id !== 'boolean') return false
     const value = String(id)
     return node.key === value || node.key.endsWith(`/${value}`)
   })
 }
 
-export function labelForNode(node: Node, level: Level, document: DashboardDocument, frame: Frame | undefined): string {
+export function labelForNode(
+  node: Node, level: Level, document: DashboardDocument, frame: Frame | undefined,
+  encoding: Encoding | undefined = level.encoding,
+): string {
   if (node.label.trim()) return node.label
   const id = node.key.split('/').at(-1)
-  const row = rowForNode(node, level, frame)
-  const label = rowValue(frame, row, level.encoding?.label)
+  const row = rowForNode(node, level, frame, encoding)
+  const label = rowValue(frame, row, encoding?.label)
   if (typeof label === 'string' && label.trim()) return label
   const targetLabel = node.target ? document.drill.edges[node.target]?.label.trim() : ''
   return targetLabel || id || node.key
@@ -110,6 +121,12 @@ export interface DrillTarget {
   label: string
   value?: number
   share?: number
+  /**
+   * The sum this segment's share is taken against — the total of the visible
+   * siblings for a mark, the level total for a level card. Carried alongside
+   * `share` so the header can print "78.2% of {total}" without re-deriving it.
+   */
+  total?: number
   /** Level the overlay can drill into, i.e. what the segment expands to. */
   target?: Level
   /**
@@ -133,9 +150,11 @@ function numeric(value: unknown): number | undefined {
   return undefined
 }
 
-function valueForNode(node: Node, level: Level, frame: Frame | undefined): number | undefined {
-  const row = rowForNode(node, level, frame)
-  return numeric(rowValue(frame, row, level.encoding?.value))
+function valueForNode(
+  node: Node, level: Level, frame: Frame | undefined, encoding: Encoding | undefined = level.encoding,
+): number | undefined {
+  const row = rowForNode(node, level, frame, encoding)
+  return numeric(rowValue(frame, row, encoding?.value))
 }
 
 /**
@@ -150,14 +169,19 @@ export function drillTargetForNode(
   node: Node,
   frame: Frame | undefined,
   targetFrame: Frame | undefined,
+  panel: Panel,
 ): DrillTarget {
   const target = node.target ? document.drill.edges[node.target] : undefined
-  const value = valueForNode(node, level, frame)
-  const siblingTotal = level.children.reduce((sum, child) => sum + (valueForNode(child, level, frame) ?? 0), 0)
+  // The panel's encoding is the fallback the chart already uses for a level
+  // that declares none, so the model reads the same rows the plot drew.
+  const sourceEncoding = level.encoding ?? panel.encoding
+  const targetEncoding = target?.encoding ?? panel.encoding
+  const value = valueForNode(node, level, frame, sourceEncoding)
+  const siblingTotal = level.children.reduce((sum, child) => sum + (valueForNode(child, level, frame, sourceEncoding) ?? 0), 0)
   const breakdownValues = (target?.children ?? []).map((child) => ({
     node: child,
-    label: labelForNode(child, target!, document, targetFrame),
-    value: target ? valueForNode(child, target, targetFrame) : undefined,
+    label: labelForNode(child, target!, document, targetFrame, targetEncoding),
+    value: target ? valueForNode(child, target, targetFrame, targetEncoding) : undefined,
   }))
   const breakdownTotal = breakdownValues.reduce((sum, row) => sum + (row.value ?? 0), 0)
   const breakdown = breakdownValues
@@ -166,9 +190,10 @@ export function drillTargetForNode(
 
   return {
     node,
-    label: labelForNode(node, level, document, frame),
+    label: labelForNode(node, level, document, frame, sourceEncoding),
     value,
     share: value !== undefined && siblingTotal > 0 ? value / siblingTotal : undefined,
+    total: siblingTotal > 0 ? siblingTotal : undefined,
     target,
     expandsToFork: target ? isPerspectiveFork(document, target) : false,
     breakdown,
@@ -183,14 +208,16 @@ export function drillTargetForLevel(
   level: Level,
   frame: Frame | undefined,
 ): DrillTarget {
+  const encoding = level.encoding ?? panel.encoding
   const values = level.children.map((child) => ({
     node: child,
-    label: labelForNode(child, level, document, frame),
-    value: valueForNode(child, level, frame),
+    label: labelForNode(child, level, document, frame, encoding),
+    value: valueForNode(child, level, frame, encoding),
   }))
   const total = values.reduce((sum, row) => sum + (row.value ?? 0), 0)
   return {
     label: level.label.trim() || panel.title,
+    total: total > 0 ? total : undefined,
     target: level,
     breakdown: values
       .map((row) => ({ ...row, share: row.value !== undefined && total > 0 ? row.value / total : undefined }))
