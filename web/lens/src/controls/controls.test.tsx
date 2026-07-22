@@ -138,7 +138,8 @@ function documentWithPeriod(value: { start: string; end: string }): DashboardDoc
  * server's normalization echo. */
 function periodFetcher(calls: Array<string>): typeof fetch {
   return (input: RequestInfo | URL) => {
-    const url = new URL(String(input), 'http://localhost/')
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost/')
     calls.push(`${url.pathname}${url.search}`)
     const start = url.searchParams.get('ActualRangeStart')
     const end = url.searchParams.get('ActualRangeEnd')

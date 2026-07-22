@@ -223,7 +223,8 @@
   }
 
   .lens-filter-popover-footer {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-border-divider lens-pt-2;
+    @apply lens-flex lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
+    border-color: var(--lens-divider);
   }
 
   .lens-calendar {
