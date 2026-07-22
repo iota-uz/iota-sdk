@@ -18,10 +18,10 @@ type DashboardDocument struct {
 	Perspectives []Perspective      `json:"perspectives"`
 	// Filters declares the dashboard's controls. Optional so documents from
 	// older producers keep parsing under the same contract major.
-	Filters   []Filter  `json:"filters,omitempty"`
-	Endpoints Endpoints `json:"endpoints"`
-	I18n         map[string]string  `json:"i18n"`
-	Theme        Theme              `json:"theme"`
+	Filters   []Filter          `json:"filters,omitempty"`
+	Endpoints Endpoints         `json:"endpoints"`
+	I18n      map[string]string `json:"i18n"`
+	Theme     Theme             `json:"theme"`
 }
 
 func (d DashboardDocument) MarshalJSON() ([]byte, error) {
