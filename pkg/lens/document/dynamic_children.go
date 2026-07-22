@@ -35,6 +35,8 @@ func ResolveDynamicChildren(frame *Frame, level Level) error {
 			return value, nil
 		case ValueSourceLiteral:
 			return source.Value, nil
+		case ValueSourceVariable:
+			return nil, fmt.Errorf("dynamic children do not support %q sources", source.Kind)
 		default:
 			return nil, fmt.Errorf("dynamic children do not support %q sources", source.Kind)
 		}
