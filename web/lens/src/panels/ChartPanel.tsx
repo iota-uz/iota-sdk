@@ -132,6 +132,17 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     return (visibleFrame?.rows ?? []).reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
   }, [frame.data, hidden.size, panel.encoding.value, visibleFrame])
 
+  // `panel.total` is the root frame's total, shipped once with the document. At
+  // a drill level the panel is showing the level's frame, so the badge has to
+  // total that frame instead — the same rows the slice percentages normalize
+  // against — or it prints the root's figure over the level's chart.
+  const levelTotal = useMemo(() => {
+    if (!active || !frame.data || !panel.encoding.value) return undefined
+    const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
+    if (valueIndex < 0) return undefined
+    return frame.data.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+  }, [active, frame.data, panel.encoding.value])
+
   const toggleSeries = useCallback((key: string) => {
     setHidden((current) => {
       const next = new Set(current)
@@ -177,7 +188,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   }, [drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
 
   return (
-    <PanelFrame panel={panel} frame={frame}>
+    <PanelFrame panel={panel} frame={frame} total={levelTotal ?? panel.total}>
       <div className="lens-chart-area">
         {input && (
           <ChartHost
@@ -190,8 +201,8 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             onHover={interactive ? setHoveredKey : undefined}
           />
         )}
-        {panel.presentation?.totalBadge === 'plot' && panel.total !== undefined && (
-          <PlotTotalBadge panel={panel} total={visibleTotal ?? panel.total} />
+        {panel.presentation?.totalBadge === 'plot' && (visibleTotal ?? levelTotal ?? panel.total) !== undefined && (
+          <PlotTotalBadge panel={panel} total={(visibleTotal ?? levelTotal ?? panel.total)!} />
         )}
       </div>
       {panel.presentation?.legend === 'below' && frame.data && (

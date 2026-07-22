@@ -8,7 +8,8 @@ const runtime = vi.hoisted(() => ({
   frame: undefined as PanelFrameState | undefined,
   drillInto: vi.fn(),
   document: { theme: { palette: {}, series: {} }, drill: { edges: {}, inlineDepth: 0 } } as DashboardDocument,
-  navigation: { path: [], history: [] },
+  navigation: { path: [], history: [] } as { panelId?: string; path: Array<string>; perspectiveId?: string; history: Array<unknown> },
+  level: undefined as unknown,
 }))
 
 vi.mock('../runtime', () => ({
@@ -29,6 +30,7 @@ vi.mock('../runtime', () => ({
   useDrill: () => ({ drillInto: runtime.drillInto }),
   useDrawer: () => ({ depth: 0, open: vi.fn(), close: vi.fn() }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
+  levelForPath: () => runtime.level,
 }))
 
 import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
@@ -99,6 +101,8 @@ function renderKind(kind: PanelKind) {
 afterEach(() => {
   cleanup()
   runtime.drillInto.mockReset()
+  runtime.navigation = { path: [], history: [] }
+  runtime.level = undefined
 })
 
 describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
@@ -145,6 +149,30 @@ describe('panel total badge', () => {
     runtime.frame = state('data')
     const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
     expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+  })
+
+  it('totals the drilled level frame, not the root, in the header badge', () => {
+    // The panel is showing a drill level: navigation targets this panel with a
+    // non-empty path, and the frame on screen is the level's rows. `panel.total`
+    // is still the root frame's figure (723) — the badge must print the level
+    // total (30 + 70 = 100), the same base the slice percentages normalize to.
+    const levelFrame: Frame = {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['root/a', 'Alpha', 30],
+        ['root/b', 'Beta', 70],
+      ],
+    }
+    runtime.frame = { data: levelFrame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    runtime.navigation = { panelId: 'panel-bar', path: ['root'], history: [] }
+    const view = render(<BarPanel panel={panel('bar', { total: 723 })} adapter={fakeAdapter()} />)
+    const badge = view.container.querySelector('.lens-panel-total')
+    expect(badge).toHaveTextContent('Total: 100')
+    expect(badge).not.toHaveTextContent('723')
   })
 })
 

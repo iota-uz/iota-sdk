@@ -5,9 +5,12 @@ import { currentPeriodValue, useDashboard, useFilters, useTranslate } from '../r
 import { isVisualRegression } from '../visualRegression'
 import { Calendar } from './Calendar'
 import {
+  compareDates,
   dayLabel,
+  defaultPeriodPresets,
   formatISODate,
   parseISODate,
+  resolvePreset,
   type CalendarDate,
   type RangeDraft,
   type RangeSelection,
@@ -46,6 +49,44 @@ export function positionPopover(
 
 function sameValue(left: PeriodValue, right: PeriodValue): boolean {
   return left.start === right.start && left.end === right.end
+}
+
+/** The viewer's wall-clock date, used only to resolve today-relative presets. */
+function localToday(): CalendarDate {
+  const now = new Date()
+  return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }
+}
+
+interface RenderablePreset {
+  id: string
+  label: string
+  value: PeriodValue
+}
+
+/**
+ * The presets to render: the document's server-declared presets when it has
+ * them (server authority), otherwise the built-in catalog resolved against
+ * `today`. Built-ins whose bounds fall outside the filter's min/max are
+ * dropped so a click can never produce a value the declaration rejects.
+ */
+function renderablePresets(
+  period: NonNullable<Filter['period']>,
+  today: CalendarDate,
+  translate: (key: string, fallback: string) => string,
+): Array<RenderablePreset> {
+  if (period.presets && period.presets.length > 0) {
+    return period.presets.map((preset) => ({ id: preset.id, label: preset.label, value: preset.value }))
+  }
+  const presets: Array<RenderablePreset> = []
+  for (const def of defaultPeriodPresets) {
+    const bounds = resolvePreset(def.id, today)
+    if (!bounds) continue
+    const value = { start: formatISODate(bounds.start), end: formatISODate(bounds.end) }
+    if (period.min && value.start < period.min) continue
+    if (period.max && value.end > period.max) continue
+    presets.push({ id: def.id, label: translate(def.labelKey, def.fallback), value })
+  }
+  return presets
 }
 
 function draftFromValue(value: PeriodValue): RangeDraft {
@@ -168,10 +209,28 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
     close()
   }
 
-  const applyPreset = (value: PeriodValue) => {
+  const applyValue = (value: PeriodValue) => {
     setPeriod(filter, value)
     if (open) close(false)
   }
+
+  // Typed entry updates the in-progress draft only; the calendar commits on
+  // its second click, typed edits commit through the explicit Apply button —
+  // mirroring the legacy picker's From/To inputs plus Apply.
+  const onTypedChange = (edge: 'start' | 'end', raw: string) => {
+    const parsed = raw ? parseISODate(raw) : undefined
+    setDraft((current) => (edge === 'start' ? { start: parsed, end: current.end } : { start: current.start, end: parsed }))
+  }
+
+  const applyDraft = () => {
+    if (draft.start && draft.end && compareDates(draft.start, draft.end) <= 0) {
+      applyValue({ start: formatISODate(draft.start), end: formatISODate(draft.end) })
+    }
+  }
+
+  const resolvedToday = today ?? localToday()
+  const presets = renderablePresets(period, resolvedToday, translate)
+  const draftComplete = Boolean(draft.start && draft.end && compareDates(draft.start, draft.end) <= 0)
 
   const allTime = translate('filter.period.allTime', 'All time')
   const start = parseISODate(value.start)
@@ -187,14 +246,14 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   return (
     <div className="lens-filter" data-filter-id={filter.id}>
       {filter.label && <span className="lens-filter-name">{filter.label}</span>}
-      {(period.presets ?? []).length > 0 && (
+      {presets.length > 0 && (
         <span className="lens-filter-presets">
-          {(period.presets ?? []).map((preset) => (
+          {presets.map((preset) => (
             <button
               aria-pressed={sameValue(preset.value, value)}
               className="lens-filter-chip"
               key={preset.id}
-              onClick={() => applyPreset(preset.value)}
+              onClick={() => applyValue(preset.value)}
               type="button"
             >
               {preset.label}
@@ -235,16 +294,48 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
               today={today}
               translate={translate}
             />
+            <div className="lens-filter-inputs">
+              <label className="lens-filter-input-label">
+                <span>{translate('filter.period.from', 'From')}</span>
+                <input
+                  className="lens-filter-input"
+                  max={period.max}
+                  min={period.min}
+                  onChange={(event) => onTypedChange('start', event.target.value)}
+                  type="date"
+                  value={draft.start ? formatISODate(draft.start) : ''}
+                />
+              </label>
+              <label className="lens-filter-input-label">
+                <span>{translate('filter.period.to', 'To')}</span>
+                <input
+                  className="lens-filter-input"
+                  max={period.max}
+                  min={period.min}
+                  onChange={(event) => onTypedChange('end', event.target.value)}
+                  type="date"
+                  value={draft.end ? formatISODate(draft.end) : ''}
+                />
+              </label>
+            </div>
             <div className="lens-filter-popover-footer">
               {period.allowEmpty && (
                 <button
                   className="lens-filter-chip"
-                  onClick={() => applyPreset({ start: '', end: '' })}
+                  onClick={() => applyValue({ start: '', end: '' })}
                   type="button"
                 >
                   {allTime}
                 </button>
               )}
+              <button
+                className="lens-filter-chip"
+                disabled={!draftComplete}
+                onClick={applyDraft}
+                type="button"
+              >
+                {translate('filter.period.apply', 'Apply')}
+              </button>
               <button
                 className="lens-filter-chip lens-filter-close"
                 onClick={() => close()}

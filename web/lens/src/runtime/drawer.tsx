@@ -73,7 +73,12 @@ export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, rest
   }
 
   return (
-    <div className="lens-drawer-backdrop">
+    <div
+      className="lens-drawer-backdrop"
+      // mousedown, not click: a drag that starts inside the dialog and ends on
+      // the backdrop must not be read as "dismiss".
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
+    >
       <div
         aria-label={label}
         aria-modal="true"

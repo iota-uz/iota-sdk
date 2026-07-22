@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument } from '../contract'
 import { LensDashboard } from '../LensDashboard'
+import { LensDrawer } from './drawer'
 
 function statDocument(title: string, action?: Action): DashboardDocument {
   return {
@@ -77,6 +78,26 @@ describe('Lens drawer host', () => {
     expect(dialog).toContainElement(globalThis.document.activeElement as HTMLElement)
     fireEvent.keyDown(dialog, { key: 'Escape' })
     expect(historyGo).toHaveBeenCalledWith(-1)
+  })
+
+  it('closes on a mousedown directly on the backdrop but not inside the dialog', () => {
+    const onClose = vi.fn()
+    render(
+      <LensDrawer closeLabel="Close details" eyebrow="Drill" label="Drill details" onClose={onClose}>
+        <p>Body content</p>
+      </LensDrawer>,
+    )
+    const dialog = screen.getByRole('dialog', { name: 'Drill details' })
+    const backdrop = dialog.parentElement as HTMLElement
+
+    // A mousedown that lands on a child of the dialog must not dismiss.
+    fireEvent.mouseDown(screen.getByText('Body content'))
+    fireEvent.mouseDown(dialog)
+    expect(onClose).not.toHaveBeenCalled()
+
+    // Only a mousedown directly on the backdrop dismisses.
+    fireEvent.mouseDown(backdrop)
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('rejects a cross-origin drawer document', () => {

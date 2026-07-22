@@ -135,6 +135,40 @@ function documentWithPeriod(value: { start: string; end: string }): DashboardDoc
   })
 }
 
+/** Like documentWithPeriod, but declares no server presets so the control
+ * falls back to its built-in, today-relative preset catalog. */
+function documentWithoutPresets(value: { start: string; end: string }): DashboardDocument {
+  return parseDocument({
+    ...fixture,
+    filters: [{
+      id: 'period',
+      kind: 'period',
+      label: 'Period',
+      period: {
+        startParam: 'ActualRangeStart',
+        endParam: 'ActualRangeEnd',
+        value,
+        allowEmpty: true,
+      },
+    }],
+  })
+}
+
+function presetlessFetcher(calls: Array<string>): typeof fetch {
+  return (input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost/')
+    calls.push(`${url.pathname}${url.search}`)
+    const start = url.searchParams.get('ActualRangeStart')
+    const end = url.searchParams.get('ActualRangeEnd')
+    const value = start !== null && end !== null ? { start, end } : { start: '2026-01-01', end: '2026-07-22' }
+    return Promise.resolve(new Response(
+      JSON.stringify(documentWithoutPresets(value)),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+  }
+}
+
 /** A fake document endpoint that echoes the requested period back, like the
  * server's normalization echo. */
 function periodFetcher(calls: Array<string>): typeof fetch {
@@ -318,6 +352,43 @@ describe('FilterBar runtime integration', () => {
     expect(window.location.search).toBe('?ActualRangeStart=2026-01-03&ActualRangeEnd=2026-01-09')
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-01-03&ActualRangeEnd=2026-01-09')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('falls back to built-in presets and resolves them against today', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
+
+    // The legacy catalog is present even though the document declared none.
+    await screen.findByRole('button', { name: 'Today' })
+    expect(screen.getByRole('button', { name: 'This week' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Last 30 days' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'This month' }))
+    // today = 2026-07-22 → this month resolves to 2026-07-01..2026-07-22.
+    expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
+    await waitFor(() => {
+      expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
+    })
+  })
+
+  it('commits typed From/To dates through Apply', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
+    await screen.findByRole('dialog')
+
+    fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-03-05' } })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-03-10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    expect(window.location.search).toBe('?ActualRangeStart=2026-03-05&ActualRangeEnd=2026-03-10')
+    await waitFor(() => {
+      expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-03-05&ActualRangeEnd=2026-03-10')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })

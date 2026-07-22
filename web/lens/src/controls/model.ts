@@ -181,6 +181,114 @@ export function rangeDayState(date: CalendarDate, draft: RangeDraft, hover: Cale
 }
 
 /**
+ * Predefined period presets, resolved client-side relative to a `today`.
+ *
+ * These mirror the *resolved bounds* of the legacy HTMX/templ pickers so the
+ * React control keeps functional parity when a dashboard document declares no
+ * server presets of its own. Every bound is an inclusive day range in the wire
+ * calendar; `allTime` resolves to no bounds (the present-but-empty form).
+ *
+ * Semantics are taken from the legacy pickers:
+ *  - the EAI analytics date-range popover (`this month`, `last 30 days`,
+ *    `last 12 months`, `year to date`/fiscal year, `last month`, `last year`),
+ *  - the generic SDK `filters.Default` picker (`today`, `yesterday`,
+ *    `this week`, `last week`).
+ * Week presets are Monday-first, matching the legacy generic picker's
+ * hard-coded Monday anchor rather than the calendar grid's locale first day.
+ */
+export type PeriodPresetId =
+  | 'today'
+  | 'yesterday'
+  | 'thisWeek'
+  | 'lastWeek'
+  | 'thisMonth'
+  | 'lastMonth'
+  | 'last30days'
+  | 'last12months'
+  | 'thisQuarter'
+  | 'yearToDate'
+  | 'thisYear'
+  | 'lastYear'
+  | 'allTime'
+
+export interface PeriodBounds {
+  start: CalendarDate
+  end: CalendarDate
+}
+
+/**
+ * Inclusive day bounds for a preset relative to `today`, or `undefined` for
+ * `allTime` (unbounded). `last 12 months` uses clamped month arithmetic
+ * (`addMonths`), so a month-overflow origin such as the 31st resolves to the
+ * last valid day of the target month rather than rolling forward.
+ */
+export function resolvePreset(id: PeriodPresetId, today: CalendarDate): PeriodBounds | undefined {
+  const firstOfMonth: CalendarDate = { year: today.year, month: today.month, day: 1 }
+  switch (id) {
+    case 'today':
+      return { start: today, end: today }
+    case 'yesterday': {
+      const day = addDays(today, -1)
+      return { start: day, end: day }
+    }
+    case 'thisWeek': {
+      const start = addDays(today, -(dayOfWeek(today) - 1))
+      return { start, end: addDays(start, 6) }
+    }
+    case 'lastWeek': {
+      const start = addDays(today, -(dayOfWeek(today) - 1) - 7)
+      return { start, end: addDays(start, 6) }
+    }
+    case 'thisMonth':
+      return { start: firstOfMonth, end: today }
+    case 'lastMonth':
+      return { start: addMonths(firstOfMonth, -1), end: addDays(firstOfMonth, -1) }
+    case 'last30days':
+      return { start: addDays(today, -29), end: today }
+    case 'last12months':
+      return { start: addMonths(today, -12), end: today }
+    case 'thisQuarter': {
+      const quarterStartMonth = Math.floor((today.month - 1) / 3) * 3 + 1
+      return { start: { year: today.year, month: quarterStartMonth, day: 1 }, end: today }
+    }
+    case 'yearToDate':
+      return { start: { year: today.year, month: 1, day: 1 }, end: today }
+    case 'thisYear':
+      return { start: { year: today.year, month: 1, day: 1 }, end: { year: today.year, month: 12, day: 31 } }
+    case 'lastYear':
+      return { start: { year: today.year - 1, month: 1, day: 1 }, end: { year: today.year - 1, month: 12, day: 31 } }
+    case 'allTime':
+      return undefined
+  }
+}
+
+export interface PeriodPresetDef {
+  id: PeriodPresetId
+  labelKey: string
+  fallback: string
+}
+
+/**
+ * The built-in preset catalog rendered when a document declares no server
+ * presets. `allTime` is intentionally absent: the control surfaces it through
+ * its own footer chip, gated on the filter's `allowEmpty`.
+ */
+export const defaultPeriodPresets: ReadonlyArray<PeriodPresetDef> = [
+  { id: 'today', labelKey: 'filter.period.preset.today', fallback: 'Today' },
+  { id: 'yesterday', labelKey: 'filter.period.preset.yesterday', fallback: 'Yesterday' },
+  { id: 'thisWeek', labelKey: 'filter.period.preset.thisWeek', fallback: 'This week' },
+  { id: 'lastWeek', labelKey: 'filter.period.preset.lastWeek', fallback: 'Last week' },
+  { id: 'thisMonth', labelKey: 'filter.period.preset.thisMonth', fallback: 'This month' },
+  { id: 'lastMonth', labelKey: 'filter.period.preset.lastMonth', fallback: 'Last month' },
+  { id: 'last30days', labelKey: 'filter.period.preset.last30days', fallback: 'Last 30 days' },
+  { id: 'last12months', labelKey: 'filter.period.preset.last12months', fallback: 'Last 12 months' },
+  { id: 'thisQuarter', labelKey: 'filter.period.preset.thisQuarter', fallback: 'This quarter' },
+  { id: 'yearToDate', labelKey: 'filter.period.preset.yearToDate', fallback: 'Year to date' },
+  { id: 'thisYear', labelKey: 'filter.period.preset.thisYear', fallback: 'This year' },
+  { id: 'lastYear', labelKey: 'filter.period.preset.lastYear', fallback: 'Last year' },
+]
+
+/**
  * Locale canonicalization for calendar text. Granite's Cyrillic-Uzbek locale
  * code is `oz`, which no Intl implementation knows; it is an alias of
  * `uz-Cyrl` for every locale-data purpose.

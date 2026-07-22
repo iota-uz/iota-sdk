@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./adapter-CZH0SKxy.js","./lens-dashboard-BbgHYYxt.js","./index-CWZqF4xW.css"])))=>i.map(i=>d[i]);
+import{_ as a}from"./lens-dashboard-BbgHYYxt.js";async function o(){const{echartsAdapter:t}=await a(async()=>{const{echartsAdapter:r}=await import("./adapter-CZH0SKxy.js");return{echartsAdapter:r}},__vite__mapDeps([0,1,2]),import.meta.url);return t}export{o as getChartAdapter};

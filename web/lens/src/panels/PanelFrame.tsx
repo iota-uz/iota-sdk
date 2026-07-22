@@ -13,6 +13,12 @@ export interface PanelFrameProps {
   children: ReactNode
   variant?: 'stat' | 'chart'
   allowEmptyContent?: boolean
+  /**
+   * The total the header badge prints. Overrides `panel.total`, which is the
+   * root frame's total and is wrong once the panel is showing a drill level:
+   * the badge must name the level on screen, not the panel's origin.
+   */
+  total?: number
 }
 
 export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
@@ -32,7 +38,7 @@ export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
   )
 }
 
-export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
+export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false, total: totalOverride }: PanelFrameProps) {
   const translate = useTranslate()
   const chrome = usePanelChrome()
   const [expanded, setExpanded] = useState(false)
@@ -40,10 +46,11 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   const expandRef = useRef<HTMLButtonElement>(null)
   const restoreFocus = useRef(false)
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
+  const total = totalOverride ?? panel.total
   const hasRows = Boolean(frame.data?.rows.length)
   const showInitialLoading = frame.isLoading && !frame.data
   const badgePlacement = panel.presentation?.totalBadge ?? 'header'
-  const showTotal = variant === 'chart' && panel.total !== undefined && badgePlacement === 'header'
+  const showTotal = variant === 'chart' && total !== undefined && badgePlacement === 'header'
   const totalLabel = translate('panel.total', 'Total')
   const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
 
@@ -93,10 +100,10 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         {chrome?.explore}
         <div className="lens-panel-actions">
           {showTotal && (
-            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(panel.total)}`}>
+            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(total)}`}>
               <span className="lens-panel-total-label">{totalLabel}:</span>
               {' '}
-              {formatTotal(panel.total)}
+              {formatTotal(total)}
             </span>
           )}
           {frame.isStale && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
