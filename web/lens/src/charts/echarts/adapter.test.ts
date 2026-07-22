@@ -15,8 +15,9 @@ class FakeResizeObserver {
     FakeResizeObserver.instances.push(this)
   }
 
-  resize() {
-    this.callback([], this as unknown as ResizeObserver)
+  resize(box: { width: number; height: number } = { width: 640, height: 320 }) {
+    const entry = { contentRect: { width: box.width, height: box.height } } as ResizeObserverEntry
+    this.callback([entry], this as unknown as ResizeObserver)
   }
 }
 
@@ -107,6 +108,39 @@ describe('ECharts adapter', () => {
     instance.dispose()
     expect(chart.dispose).toHaveBeenCalledOnce()
     expect(FakeResizeObserver.instances[0]?.disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('ignores self-fed height growth so the chart converges instead of inflating', () => {
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    document.body.append(element)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), {
+      onSelect: vi.fn(),
+      onHover: vi.fn(),
+    })
+    const observer = FakeResizeObserver.instances[0]!
+
+    // Width is settled; the canvas then reports an ever-growing height — the
+    // ECharts resize-feedback loop the sidebar animation triggers.
+    observer.resize({ width: 640, height: 300 })
+    observer.resize({ width: 640, height: 320 })
+    observer.resize({ width: 640, height: 340 })
+    observer.resize({ width: 640, height: 360 })
+
+    // Only the first, non-inflated height is applied; the growth is suppressed,
+    // so the chart converges rather than climbing without bound.
+    expect(chart.resize.mock.calls.map((call) => call[0] as { width: number; height: number })).toEqual([{ width: 640, height: 300 }])
+
+    // A width change (sidebar toggling the layout) is always honored so the
+    // chart still fits its new column.
+    observer.resize({ width: 520, height: 300 })
+    expect(chart.resize).toHaveBeenLastCalledWith({ width: 520, height: 300 })
+
+    // A genuine shrink is honored too — only self-inflating growth is ignored.
+    observer.resize({ width: 520, height: 260 })
+    expect(chart.resize).toHaveBeenLastCalledWith({ width: 520, height: 260 })
+
+    instance.dispose()
   })
 
   it('rebuilds centralized theme options when CSS variables change', async () => {

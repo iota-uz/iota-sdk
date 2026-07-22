@@ -52,9 +52,29 @@ function observeTheme(element: HTMLElement, rebuild: () => void): MutationObserv
   return observer
 }
 
-function observeSize(element: HTMLElement, resize: () => void): ResizeObserver | undefined {
+interface Box {
+  width: number
+  height: number
+}
+
+/**
+ * The box the chart should occupy, read from the ResizeObserver entry when the
+ * browser supplies one (the authoritative content box) and falling back to the
+ * element's own client box otherwise.
+ */
+function readBox(element: HTMLElement, entries: ReadonlyArray<ResizeObserverEntry>): Box {
+  const rect = entries[0]?.contentRect
+  return rect
+    ? { width: rect.width, height: rect.height }
+    : { width: element.clientWidth, height: element.clientHeight }
+}
+
+function observeSize(
+  element: HTMLElement,
+  onResize: (entries: ReadonlyArray<ResizeObserverEntry>) => void,
+): ResizeObserver | undefined {
   if (typeof ResizeObserver === 'undefined') return undefined
-  const observer = new ResizeObserver(resize)
+  const observer = new ResizeObserver((entries) => onResize(entries))
   observer.observe(element)
   return observer
 }
@@ -92,7 +112,26 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       chart.on('mouseover', hover)
       chart.on('mouseout', () => events.onHover(null))
       chart.on('globalout', () => events.onHover(null))
-      const resizeObserver = observeSize(element, () => chart.resize())
+
+      // Resize is driven off an explicit box, not `chart.resize()`'s implicit
+      // re-measurement, and guarded against the canvas feeding its own height
+      // back into the observed element. The container sits in an auto-sized grid
+      // row, so the chart's own rendered height is part of what the ResizeObserver
+      // measures: sizing the canvas taller grows the row, which the observer
+      // reports as a taller box, which would grow the canvas again — an unbounded
+      // loop that shows up as pies inflating while the sidebar animates its width.
+      // A height increase with an unchanged width is that loop's signature, so it
+      // is ignored; width changes (sidebar toggle, expand) and genuine shrinks are
+      // always honored, keeping the chart correctly fitted without runaway growth.
+      let appliedBox: Box | undefined
+      const resizeChart = (entries: ReadonlyArray<ResizeObserverEntry>) => {
+        const { width, height } = readBox(element, entries)
+        if (width <= 0 || height <= 0) return
+        if (appliedBox && width === appliedBox.width && height >= appliedBox.height) return
+        appliedBox = { width, height }
+        chart.resize({ width, height })
+      }
+      const resizeObserver = observeSize(element, resizeChart)
       const themeObserver = observeTheme(element, render)
       render()
 
