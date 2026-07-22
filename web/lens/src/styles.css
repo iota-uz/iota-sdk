@@ -1310,6 +1310,33 @@
     max-height: min(60vh, 420px);
   }
 
+  /* A short scale-and-fade on open, decided in JS: the class is only present
+     when neither visual regression nor reduced motion is in effect, so a
+     screenshot never lands mid-scale. */
+  .lens-drill-overlay-enter {
+    animation: lens-overlay-pop 120ms ease-out;
+  }
+
+  @keyframes lens-overlay-pop {
+    from { opacity: 0; transform: scale(0.96); }
+    to { opacity: 1; transform: scale(1); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-drill-overlay-enter {
+      animation: none;
+    }
+  }
+
+  /* The tip that points back at the clicked mark. It sits behind the card
+     (later siblings paint over it), so the card's own border cuts its base
+     into a clean triangle and only the two outer faces show. */
+  .lens-drill-caret {
+    @apply lens-fixed lens-h-2.5 lens-w-2.5 lens-border lens-border-solid lens-border-border lens-bg-card;
+    transform: translate(-50%, -50%) rotate(45deg);
+    pointer-events: none;
+  }
+
   .lens-drill-header {
     @apply lens-flex lens-items-start lens-justify-between lens-gap-2 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-3 lens-py-2.5;
   }
@@ -1318,17 +1345,37 @@
     @apply lens-min-w-0;
   }
 
-  .lens-drill-label {
-    @apply lens-m-0 lens-truncate lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+  /* Small-caps eyebrow naming what the card describes, above the segment
+     title and its figure. */
+  .lens-drill-eyebrow {
+    @apply lens-m-0 lens-text-[10px] lens-font-semibold lens-uppercase lens-text-faint;
+    letter-spacing: 0.14em;
   }
 
+  .lens-drill-title {
+    @apply lens-m-0 lens-mt-0.5 lens-truncate lens-text-sm lens-font-semibold lens-text-strong;
+  }
+
+  /* The figure the click asked for: a swatch tying it to the slice's color,
+     then the value, prominent and tabular so digits do not jitter. */
   .lens-drill-value {
-    @apply lens-m-0 lens-mt-1 lens-text-lg lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-mt-1.5 lens-flex lens-items-center lens-gap-2;
+  }
+
+  .lens-drill-swatch {
+    @apply lens-h-3 lens-w-3 lens-shrink-0;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--lens-border);
+  }
+
+  .lens-drill-value-figure {
+    @apply lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-drill-share {
-    @apply lens-ml-1 lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-mt-1 lens-text-xs lens-font-medium lens-text-muted;
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-drill-section {
@@ -1366,6 +1413,17 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  /* The chevron is a quiet affordance at rest and steps toward its edge on
+     hover, so an interactive row reads as a way in without shouting. */
+  .lens-drill-row-chevron {
+    @apply lens-flex lens-shrink-0 lens-items-center lens-text-faint lens-transition-transform;
+  }
+
+  .lens-drill-row:hover .lens-drill-row-chevron {
+    @apply lens-text-muted;
+    transform: translateX(2px);
+  }
+
   /* The share bar sits under the row content at low alpha, so it reads as
      weight rather than as another control. */
   .lens-drill-row-bar {
@@ -1393,11 +1451,37 @@
   }
 
   .lens-drill-action {
-    @apply lens-flex lens-cursor-pointer lens-items-center lens-justify-between lens-gap-2 lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-font-sans lens-text-sm lens-font-semibold lens-text-accent-700 lens-no-underline;
+    @apply lens-flex lens-cursor-pointer lens-items-center lens-justify-between lens-gap-2 lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-font-sans lens-text-sm lens-font-semibold lens-text-accent-700 lens-no-underline lens-transition-colors;
   }
 
   .lens-drill-action:hover {
     @apply lens-bg-accent-50;
+  }
+
+  /* The one action the segment resolves to leads: a filled brand button that
+     outranks the perspective pills and the quiet copy control beneath it. */
+  .lens-drill-action-primary {
+    @apply lens-bg-accent-500 lens-px-2.5 lens-py-2 lens-text-white;
+  }
+
+  .lens-drill-action-primary:hover {
+    @apply lens-bg-accent-600 lens-text-white;
+  }
+
+  /* Copy is a utility, not a destination: muted, left-aligned, and it flips to
+     the positive color while the "copied" confirmation is showing. */
+  .lens-drill-copy {
+    @apply lens-justify-start lens-gap-1.5 lens-text-xs lens-font-medium lens-text-muted;
+  }
+
+  .lens-drill-copy:hover {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
+  .lens-drill-copy[data-copied='true'],
+  .lens-drill-copy[data-copied='true']:hover {
+    color: var(--lens-pos);
+    background: var(--lens-pos-soft);
   }
 
   .lens-drill-empty {

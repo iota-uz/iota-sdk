@@ -110,6 +110,12 @@ export interface DrillTarget {
   label: string
   value?: number
   share?: number
+  /**
+   * The sum this segment's share is taken against — the total of the visible
+   * siblings for a mark, the level total for a level card. Carried alongside
+   * `share` so the header can print "78.2% of {total}" without re-deriving it.
+   */
+  total?: number
   /** Level the overlay can drill into, i.e. what the segment expands to. */
   target?: Level
   /**
@@ -169,6 +175,7 @@ export function drillTargetForNode(
     label: labelForNode(node, level, document, frame),
     value,
     share: value !== undefined && siblingTotal > 0 ? value / siblingTotal : undefined,
+    total: siblingTotal > 0 ? siblingTotal : undefined,
     target,
     expandsToFork: target ? isPerspectiveFork(document, target) : false,
     breakdown,
@@ -191,6 +198,7 @@ export function drillTargetForLevel(
   const total = values.reduce((sum, row) => sum + (row.value ?? 0), 0)
   return {
     label: level.label.trim() || panel.title,
+    total: total > 0 ? total : undefined,
     target: level,
     breakdown: values
       .map((row) => ({ ...row, share: row.value !== undefined && total > 0 ? row.value / total : undefined }))

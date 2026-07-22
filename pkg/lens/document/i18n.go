@@ -25,12 +25,16 @@ const (
 	I18nExploreBreakdown  = "explore.breakdown"
 	I18nExploreChooseView = "explore.chooseView"
 	I18nExploreClose      = "explore.close"
+	I18nExploreCopied     = "explore.copied"
+	I18nExploreCopyValue  = "explore.copyValue"
 	I18nExploreExpand     = "explore.expandSegment"
 	I18nExploreNoDetail   = "explore.noDetail"
 	I18nExploreOpenBreak  = "explore.openBreakdown"
 	I18nExplorePanel      = "explore.panel"
 	I18nExplorePath       = "explore.path"
 	I18nExplorePathLabel  = "explore.pathLabel"
+	I18nExploreSegment    = "explore.segmentEyebrow"
+	I18nExploreShareTotal = "explore.shareOfTotal"
 	I18nExploreUnavail    = "explore.unavailable"
 	I18nExploreViewAs     = "explore.viewSegmentAs"
 	I18nExploreViews      = "explore.views"
@@ -74,9 +78,11 @@ func RuntimeI18nKeys() []string {
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDrillReset,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
-		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose, I18nExploreExpand,
+		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose,
+		I18nExploreCopied, I18nExploreCopyValue, I18nExploreExpand,
 		I18nExploreNoDetail, I18nExploreOpenBreak,
 		I18nExplorePanel, I18nExplorePath, I18nExplorePathLabel,
+		I18nExploreSegment, I18nExploreShareTotal,
 		I18nExploreUnavail, I18nExploreViewAs, I18nExploreViews,
 		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelMissing, I18nPanelOpenMetric,

@@ -13,6 +13,7 @@ import type { ChartAnchor } from '../charts/adapter'
 import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '../contract'
 import { CaretDown, CaretLeft, CaretRight } from '../icons'
 import { MarkSelectionContext, PanelChromeContext, RegisteredPanel, type PanelRegistry } from '../panels'
+import { seriesColorResolver } from '../panels/data'
 import { isPerspectiveFork, levelForPath, useDashboard, useDrill, usePanelFrame, useTranslate } from '../runtime'
 import { isVisualRegression } from '../visualRegression'
 import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './actions'
@@ -21,6 +22,7 @@ import {
   breadcrumbsForNavigation,
   drillTargetForLevel,
   drillTargetForNode,
+  labelForNode,
   perspectivesForLevel,
   rowForNode,
   viewForSemantics,
@@ -117,6 +119,9 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     // it once the layout settles; pointer-anchored ones carry coordinates that
     // no reflow can invalidate.
     anchorElement?: HTMLElement | null
+    // The clicked mark's series color, resolved through the same path the plot
+    // and legend use; a level card describes no single mark and carries none.
+    accentColor?: string
   }>()
   const transitionName = useMemo(() => {
     const identifier = `${panel.id}-${instanceId}`.replace(/[^a-zA-Z0-9_-]/g, '-')
@@ -170,6 +175,22 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     rows.map((row) => ({ ...row, href: leafHrefFor(row.node, owner) }))
   ), [leafHrefFor])
 
+  // Resolves the clicked mark's color exactly as ChartLegend does: the row's
+  // position and label field through `seriesColorResolver`, positional pins
+  // dropped once the panel is at a drill level whose rows are not its own.
+  const colorForNode = useCallback((node: Node): string | undefined => {
+    if (!level || !frame.data) return undefined
+    const row = rowForNode(node, level, frame.data)
+    if (!row) return undefined
+    const index = frame.data.rows.indexOf(row)
+    if (index < 0) return undefined
+    const labelField = viewPanel.encoding.label ?? viewPanel.encoding.category
+    const labelIndex = labelField ? frame.data.columns.findIndex((column) => column.name === labelField) : -1
+    const raw = labelIndex >= 0 ? row[labelIndex] : undefined
+    const label = typeof raw === 'string' ? raw : labelForNode(node, level, document, frame.data)
+    return seriesColorResolver(document.theme, viewPanel, { positional: !active })(label, index)
+  }, [active, document, frame.data, level, viewPanel])
+
   const openForMark = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
     if (!level) return
     const node = level.children.find((child) => child.key === key || child.key.endsWith(`/${key}`))
@@ -179,12 +200,16 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     setOverlayTheme(themeOf(focusRef.current))
     setOverlay({
       target: { ...target, leafHref: leafHrefFor(node), breakdown: withHrefs(target.breakdown, targetLevel) },
+      // The swatch must match the slice on screen, so it resolves through the
+      // same path the plot and legend take — positional pins by row when the
+      // panel shows its own frame, by label once it is at a drill level.
+      accentColor: colorForNode(node),
       // Without a pointer position (keyboard activation) the popover anchors
       // to the panel itself.
       anchor: anchor ?? anchorFromElement(focusRef.current),
       anchorElement: anchor ? undefined : focusRef.current,
     })
-  }, [document, frame.data, leafHrefFor, level, themeOf, withHrefs])
+  }, [colorForNode, document, frame.data, leafHrefFor, level, themeOf, withHrefs])
 
   const openForLevel = useCallback(() => {
     if (!level) return
@@ -344,6 +369,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       </div>
       {overlay && (
         <DrillOverlay
+          accentColor={overlay.accentColor}
           anchor={overlay.anchor}
           anchorElement={overlay.anchorElement}
           path={breadcrumbs.map((crumb) => ({
