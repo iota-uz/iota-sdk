@@ -1,4 +1,4 @@
-import{i as cu,n as PS}from"./lens-dashboard-Lxm_8Xgk.js";/*! *****************************************************************************
+import{i as cu,n as PS}from"./lens-dashboard-BD__yfeo.js";/*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any

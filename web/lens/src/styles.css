@@ -1659,14 +1659,12 @@
     @apply lens-bg-accent-600 lens-text-white;
   }
 
-  /* Copy is a utility, not a destination: muted, left-aligned, and it flips to
-     the positive color while the "copied" confirmation is showing. */
+  /* Copy is a utility, not a destination: an icon-only button riding beside
+     the figure it copies, slightly smaller than standard icon buttons so the
+     value stays the headline. It flips to the positive color while the
+     "copied" confirmation is showing. */
   .lens-drill-copy {
-    @apply lens-justify-start lens-gap-1.5 lens-text-xs lens-font-medium lens-text-muted;
-  }
-
-  .lens-drill-copy:hover {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens-size-6 lens-shrink-0 lens-text-sm;
   }
 
   .lens-drill-copy[data-copied='true'],
