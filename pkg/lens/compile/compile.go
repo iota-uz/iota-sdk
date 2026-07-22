@@ -139,6 +139,32 @@ func compileExplorers(items []lensspec.ExplorerSpec, opts Options) ([]explore.Sp
 					for _, target := range nodeItem.DynamicTargets {
 						node.DynamicTargets = append(node.DynamicTargets, resolveString(target, opts.Values))
 					}
+					if nodeItem.DynamicChildren != nil {
+						key, err := resolveValueSource(nodeItem.DynamicChildren.Key, opts.Values)
+						if err != nil {
+							return nil, fmt.Errorf("compile explorer %q node %q dynamic child key: %w", item.ID, nodeItem.Key, err)
+						}
+						label, err := resolveValueSource(nodeItem.DynamicChildren.Label, opts.Values)
+						if err != nil {
+							return nil, fmt.Errorf("compile explorer %q node %q dynamic child label: %w", item.ID, nodeItem.Key, err)
+						}
+						children := &explore.DynamicChildren{Key: key, Label: label}
+						if nodeItem.DynamicChildren.Target != nil {
+							target, resolveErr := resolveValueSource(*nodeItem.DynamicChildren.Target, opts.Values)
+							if resolveErr != nil {
+								return nil, fmt.Errorf("compile explorer %q node %q dynamic child target: %w", item.ID, nodeItem.Key, resolveErr)
+							}
+							children.Target = &target
+						}
+						if nodeItem.DynamicChildren.Action != nil {
+							actionSpec, resolveErr := resolveActionSpec(*nodeItem.DynamicChildren.Action, opts.Values)
+							if resolveErr != nil {
+								return nil, fmt.Errorf("compile explorer %q node %q dynamic child action: %w", item.ID, nodeItem.Key, resolveErr)
+							}
+							children.Action = &actionSpec
+						}
+						node.DynamicChildren = children
+					}
 					if nodeItem.Panel != nil {
 						compiledPanel, err := compilePanel(*nodeItem.Panel, opts)
 						if err != nil {

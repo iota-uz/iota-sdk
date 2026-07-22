@@ -40,6 +40,33 @@ const singlePerspectiveDocument = parseDocument({
   },
 })
 
+const dynamicDocumentFixture = structuredClone(exploreDocument)
+const dynamicRoot = dynamicDocumentFixture.drill.edges['profitability/operating-margin/composition/root']!
+dynamicRoot.dynamicChildren = {
+  key: { kind: 'field', name: 'id' }, label: { kind: 'field', name: 'label' },
+  target: { kind: 'literal', value: 'profitability/operating-margin/composition/cost-centers' },
+}
+dynamicRoot.children = []
+dynamicDocumentFixture.frames['composition:root']!.children = exploreDocument.drill.edges['profitability/operating-margin/composition/root']!.children
+const dynamicLeaf = dynamicDocumentFixture.drill.edges['profitability/operating-margin/composition/transactions']!
+dynamicLeaf.dynamicChildren = {
+  key: { kind: 'field', name: 'id' }, label: { kind: 'field', name: 'label' },
+  action: {
+    kind: 'navigate_to_leaf', urlSource: { kind: 'field', name: 'url' }, params: [], payload: {},
+  },
+}
+dynamicLeaf.children = []
+dynamicDocumentFixture.frames['composition:leaf']!.columns.push({ name: 'url', type: 'string' })
+dynamicDocumentFixture.frames['composition:leaf']!.rows[0]!.push('/transactions/TX-1042')
+dynamicDocumentFixture.frames['composition:leaf']!.rows[1]!.push('/transactions/TX-1098')
+dynamicDocumentFixture.frames['composition:leaf']!.children = exploreDocument.drill.edges['profitability/operating-margin/composition/transactions']!.children.map(
+  (node) => {
+    const key = node.key.split('/').at(-1)!
+    return { key, path: [...dynamicLeaf.path, key], label: node.label, action: dynamicLeaf.dynamicChildren!.action }
+  },
+)
+const dynamicDocument = parseDocument(dynamicDocumentFixture)
+
 /**
  * Stands in for a chart: one activatable mark per frame row, reporting the
  * row's id exactly like the ECharts adapter does.
@@ -434,6 +461,35 @@ describe('drill overlay', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Invoice TX-1098' }))
     expect(within(overlay()).queryByRole('button', { name: /Expand segment/ })).toBeNull()
+  })
+})
+
+describe('dynamic children', () => {
+  it('descends when a frame-resolved child mark is clicked', async () => {
+    const rootPath = dynamicRoot.path
+    window.history.replaceState(null, '', navigationToURL(
+      { panelId: panel.id, path: rootPath, perspectiveId: 'profitability/operating-margin/composition' },
+      new URL(window.location.href),
+    ))
+    renderExplore(dynamicDocument.panels[0], dynamicDocument)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Services' }))
+    fireEvent.click(within(overlay()).getByRole('button', { name: /Expand segment/ }))
+    await waitFor(() => expect(screen.getByRole('region', { name: 'Cost centers' })).toBeInTheDocument())
+  })
+
+  it('resolves a frame child leaf action URL from its row', async () => {
+    const path = dynamicLeaf.path
+    window.history.replaceState(null, '', navigationToURL(
+      { panelId: panel.id, path, perspectiveId: 'profitability/operating-margin/composition' },
+      new URL(window.location.href),
+    ))
+    renderExplore(dynamicDocument.panels[0], dynamicDocument)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Invoice TX-1042' }))
+    expect(within(overlay()).getByRole('link', { name: /Open record/ })).toHaveAttribute(
+      'href', expect.stringContaining('/transactions/TX-1042'),
+    )
   })
 })
 

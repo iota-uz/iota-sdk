@@ -1,4 +1,4 @@
-import type { DashboardDocument, Level, NodePath, Panel } from '../contract'
+import type { DashboardDocument, Frame, Level, NodePath, Panel } from '../contract'
 import type { NavigationView } from './navigation'
 
 export function sameNodePath(left: NodePath, right: NodePath): boolean {
@@ -115,4 +115,39 @@ export function replayNavigation(document: DashboardDocument, view: NavigationVi
     : undefined
   const panel = panelForNavigation(document, view)
   return { panelId: panel?.id, path: [...view.path], perspectiveId }
+}
+
+export function dynamicParentPath(document: DashboardDocument, path: NodePath): NodePath | undefined {
+  if (pathResolves(document, path)) return undefined
+  for (let length = path.length - 1; length > 0; length -= 1) {
+    const prefix = path.slice(0, length)
+    const level = levelForPath(document, prefix)
+    if (level?.dynamicChildren) return prefix
+  }
+  return undefined
+}
+
+export function withFrameChildren(document: DashboardDocument, path: NodePath, frame: Frame): DashboardDocument {
+  if (!frame.children) return document
+  const resolved = resolveDrillPath(document, path)
+  if (!resolved?.level.dynamicChildren) return document
+  const entry = Object.entries(document.drill.edges).find(([, level]) => level === resolved.level)
+  if (!entry) return document
+  const [key, level] = entry
+  return {
+    ...document,
+    drill: {
+      ...document.drill,
+      edges: { ...document.drill.edges, [key]: { ...level, children: frame.children } },
+    },
+  }
+}
+
+export function withInlineFrameChildren(document: DashboardDocument): DashboardDocument {
+  let resolved = document
+  for (const level of Object.values(document.drill.edges)) {
+    const frame = level.frame ? document.frames[level.frame] : undefined
+    if (frame?.children) resolved = withFrameChildren(resolved, level.path, frame)
+  }
+  return resolved
 }

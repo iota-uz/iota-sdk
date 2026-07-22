@@ -72,6 +72,13 @@ export const DrillSchema: z.ZodType<Contract.Drill> = z.lazy(() => z.object({
   inlineDepth: z.number().int(),
 }).strict())
 
+export const DynamicChildrenSchema: z.ZodType<Contract.DynamicChildren> = z.lazy(() => z.object({
+  key: z.lazy(() => SourceSchema),
+  label: z.lazy(() => SourceSchema),
+  target: z.lazy(() => SourceSchema).optional(),
+  action: z.lazy(() => ActionSchema).optional(),
+}).strict())
+
 export const EncodingSchema: z.ZodType<Contract.Encoding> = z.object({
   label: z.string().optional(),
   value: z.string().optional(),
@@ -110,10 +117,11 @@ export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["period"
 
 export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.enum(["date", "money", "number", "percent", "string"])
 
-export const FrameSchema: z.ZodType<Contract.Frame> = z.object({
+export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({
   columns: z.array(z.lazy(() => ColumnSchema)),
   rows: z.array(z.array(z.unknown())),
-}).strict()
+  children: z.array(z.lazy(() => NodeSchema)).optional(),
+}).strict())
 
 export const FrameRefSchema: z.ZodType<Contract.FrameRef> = z.string()
 
@@ -152,6 +160,7 @@ export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   path: z.lazy(() => NodePathSchema),
   label: z.string(),
   children: z.array(z.lazy(() => NodeSchema)),
+  dynamicChildren: z.lazy(() => DynamicChildrenSchema).optional(),
   frame: z.lazy(() => FrameRefSchema).optional(),
   encoding: z.lazy(() => EncodingSchema).optional(),
   perspectives: z.array(z.lazy(() => PerspectiveRefSchema)),

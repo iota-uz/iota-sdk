@@ -239,14 +239,22 @@ type ExplorerPerspective struct {
 }
 
 type ExplorerNode struct {
-	Key            string                `json:"key"`
-	Label          Text                  `json:"label"`
-	Panel          *PanelSpec            `json:"panel,omitempty"`
-	Load           *ExplorerLoadSpec     `json:"load,omitempty"`
-	Edges          []ExplorerEdge        `json:"edges,omitempty"`
-	DynamicEdges   bool                  `json:"dynamicEdges,omitempty"`
-	DynamicTargets []string              `json:"dynamicTargets,omitempty"`
-	Check          *ExplorerBalanceCheck `json:"check,omitempty"`
+	Key             string                   `json:"key"`
+	Label           Text                     `json:"label"`
+	Panel           *PanelSpec               `json:"panel,omitempty"`
+	Load            *ExplorerLoadSpec        `json:"load,omitempty"`
+	Edges           []ExplorerEdge           `json:"edges,omitempty"`
+	DynamicEdges    bool                     `json:"dynamicEdges,omitempty"`
+	DynamicTargets  []string                 `json:"dynamicTargets,omitempty"`
+	DynamicChildren *ExplorerDynamicChildren `json:"dynamicChildren,omitempty"`
+	Check           *ExplorerBalanceCheck    `json:"check,omitempty"`
+}
+
+type ExplorerDynamicChildren struct {
+	Key    action.ValueSource  `json:"key"`
+	Label  action.ValueSource  `json:"label"`
+	Target *action.ValueSource `json:"target,omitempty"`
+	Action *action.Spec        `json:"action,omitempty"`
 }
 
 type ExplorerLoadSpec struct {

@@ -25,6 +25,7 @@ type levelTarget struct {
 	ref            document.FrameRef
 	evidence       bool
 	perspective    explore.Perspective
+	levelKey       document.NodeKey
 	// points are the concrete selections the request path carries between its
 	// node steps (e.g. the "2026" in [root, "2026", detail]). A level reached
 	// through a point aggregates only that selection, so its frame must never
@@ -160,6 +161,7 @@ func makeTarget(explorerID, branchKey string, perspective explore.Perspective, n
 		path: []string{node.Key}, panel: *node.Panel,
 		ref: document.FrameRef("explore:" + perspectiveID + ":" + node.Key), evidence: isEvidence(perspective, node),
 		perspective: perspective,
+		levelKey:    document.NodeKey(qualified(perspectiveID, node.Key)),
 	}
 }
 

@@ -20,6 +20,7 @@ type Snapshot struct {
 	ID        string
 	Params    map[string]any
 	Frames    map[FrameRef]Frame
+	Levels    map[NodeKey]Level
 	CreatedAt time.Time
 }
 
@@ -161,6 +162,7 @@ func cloneSnapshot(snapshot *Snapshot) *Snapshot {
 	result := &Snapshot{
 		ID: snapshot.ID, CreatedAt: snapshot.CreatedAt,
 		Params: make(map[string]any, len(snapshot.Params)), Frames: make(map[FrameRef]Frame, len(snapshot.Frames)),
+		Levels: make(map[NodeKey]Level, len(snapshot.Levels)),
 	}
 	for key, value := range snapshot.Params {
 		result.Params[key] = cloneAny(value)
@@ -168,11 +170,14 @@ func cloneSnapshot(snapshot *Snapshot) *Snapshot {
 	for ref, frame := range snapshot.Frames {
 		result.Frames[ref] = cloneFrame(frame)
 	}
+	for key, level := range snapshot.Levels {
+		result.Levels[key] = cloneLevel(level)
+	}
 	return result
 }
 
 func cloneFrame(frame Frame) Frame {
-	result := Frame{Columns: append([]Column(nil), frame.Columns...), Rows: make([][]any, len(frame.Rows))}
+	result := Frame{Columns: append([]Column(nil), frame.Columns...), Rows: make([][]any, len(frame.Rows)), Children: cloneNodes(frame.Children)}
 	for rowIndex, row := range frame.Rows {
 		result.Rows[rowIndex] = make([]any, len(row))
 		for columnIndex, value := range row {
@@ -180,6 +185,49 @@ func cloneFrame(frame Frame) Frame {
 		}
 	}
 	return result
+}
+
+func cloneLevel(level Level) Level {
+	level.Path = append(NodePath(nil), level.Path...)
+	level.Children = cloneNodes(level.Children)
+	level.Perspectives = append([]PerspectiveRef(nil), level.Perspectives...)
+	if level.DynamicChildren != nil {
+		declaration := *level.DynamicChildren
+		if declaration.Target != nil {
+			target := *declaration.Target
+			declaration.Target = &target
+		}
+		declaration.Action = cloneAction(declaration.Action)
+		level.DynamicChildren = &declaration
+	}
+	return level
+}
+
+func cloneNodes(nodes []Node) []Node {
+	result := make([]Node, len(nodes))
+	for index, node := range nodes {
+		node.Path = append(NodePath(nil), node.Path...)
+		node.Action = cloneAction(node.Action)
+		result[index] = node
+	}
+	return result
+}
+
+func cloneAction(source *Action) *Action {
+	if source == nil {
+		return nil
+	}
+	result := *source
+	result.Params = append([]ActionParam(nil), source.Params...)
+	result.Payload = make(map[string]Source, len(source.Payload))
+	for key, value := range source.Payload {
+		result.Payload[key] = value
+	}
+	if source.URLSource != nil {
+		urlSource := *source.URLSource
+		result.URLSource = &urlSource
+	}
+	return &result
 }
 
 func cloneAny(value any) any {
