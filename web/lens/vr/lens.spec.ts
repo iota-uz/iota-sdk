@@ -36,6 +36,7 @@ const storyIds = [
   'filter-controls--dashboard-filter-light',
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
+  'filter-controls--refetch-error',
   'panel-matrix--all-kinds-and-states--dark',
   'panel-matrix--all-kinds-and-states--light',
   'panels-v2--cascade-final-stage',
@@ -196,11 +197,20 @@ for (const [storyId, canvasCount] of staticStories) {
 const keyframeCovered = [
   'explore--full-drill-flow--three-levels',
   'filter-controls--calendar-range-pending',
+  'filter-controls--refetch-error',
   'explore--header-too-narrow-for-a-level-name',
   'explore--perspective-switching-on-a-segment',
   'parity--clickable-panels',
   'parity--pie-with-legend-below',
 ] as const
+
+test('filter refetch failure keeps stale panels and surfaces the error', async ({ page }) => {
+  await openStory(page, 'filter-controls--refetch-error', 0)
+  await page.getByRole('button', { name: '2025' }).click()
+  await expect(page.getByRole('alert')).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Profitability' })).toBeVisible()
+  await screenshot(page, 'filter-refetch-error')
+})
 
 test('calendar range preview follows the hovered day', async ({ page }) => {
   await openStory(page, 'filter-controls--calendar-range-pending', 0)
