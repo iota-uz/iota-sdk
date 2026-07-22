@@ -22,6 +22,23 @@ const document = parseDocument({
   },
 })
 const statPanel = document.panels[0]!
+const dynamicDocument = parseDocument({
+  ...fixture,
+  panels: [{ ...fixture.panels[0], drillRoot: 'root' }],
+  drill: {
+    inlineDepth: 0,
+    edges: {
+      root: {
+        path: ['root'], label: 'Root', children: [], perspectives: [],
+        dynamicChildren: {
+          key: { kind: 'field', name: 'id' }, label: { kind: 'field', name: 'label' },
+          target: { kind: 'field', name: 'target' },
+        },
+      },
+      detail: { path: ['root', 'detail'], label: 'Detail', children: [], perspectives: [] },
+    },
+  },
+})
 
 function response(value: number): Response {
   return new Response(JSON.stringify({
@@ -137,6 +154,45 @@ describe('DashboardRuntimeProvider', () => {
     window.dispatchEvent(new PopStateEvent('popstate'))
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root'))
     expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
+  })
+
+  it('restores a deep link after fetching its dynamic parent step', async () => {
+    window.history.replaceState(null, '', '/?panel=total&path=root&path=year-2025')
+    const requests: Array<{ path: Array<string> }> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const body = typeof init?.body === 'string' ? init.body : '{}'
+      requests.push(JSON.parse(body) as { path: Array<string> })
+      const root = requests.length === 1
+      return Promise.resolve(new Response(JSON.stringify({
+        frames: {
+          [root ? 'root' : 'detail']: root ? {
+            columns: [
+              { name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'target', type: 'string' },
+            ],
+            rows: [['year-2025', '2025', 'detail']],
+            children: [{ key: 'year-2025', path: ['root', 'year-2025'], label: '2025', target: 'detail' }],
+          } : {
+            columns: document.frames['panel:total']!.columns,
+            rows: [['Total', 2025]],
+          },
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={dynamicDocument} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <Controls />
+            <StatPanel panel={dynamicDocument.panels[0]!} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root/year-2025'))
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+    expect(requests.map(({ path }) => path)).toEqual([['root'], ['root', 'year-2025', 'detail']])
+    expect(await screen.findByText('2,025')).toBeInTheDocument()
   })
 
   it('restores the in-app history stack stored in browser history', async () => {

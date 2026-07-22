@@ -411,6 +411,29 @@ func (d *DashboardDocument) validateDrill() error {
 			}
 		}
 		seen := make(map[NodeKey]struct{}, len(level.Children))
+		if level.DynamicChildren != nil {
+			if err := validateDynamicChildren(string(key), *level.DynamicChildren); err != nil {
+				return err
+			}
+			if level.Frame != "" {
+				if err := validateDynamicChildFields(string(key), *level.DynamicChildren, d.Frames[level.Frame]); err != nil {
+					return err
+				}
+				if err := ValidateResolvedChildren(level, d.Frames[level.Frame], d.Drill.Edges); err != nil {
+					return err
+				}
+			}
+			if level.DynamicChildren.Target != nil && level.DynamicChildren.Target.Kind == ValueSourceLiteral {
+				target, ok := level.DynamicChildren.Target.Value.(string)
+				if !ok || strings.TrimSpace(target) == "" {
+					return fmt.Errorf("drill level %q dynamic child literal target must be a nonblank string", key)
+				}
+				resolved := dynamicTarget(level, target)
+				if _, ok := d.Drill.Edges[resolved]; !ok {
+					return fmt.Errorf("drill level %q dynamic children reference missing target %q", key, resolved)
+				}
+			}
+		}
 		for _, child := range level.Children {
 			if err := validNodeKey("drill child", child.Key); err != nil {
 				return err
@@ -438,6 +461,47 @@ func (d *DashboardDocument) validateDrill() error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+func validateDynamicChildren(owner string, declaration DynamicChildren) error {
+	if declaration.Key.Kind != ValueSourceField || strings.TrimSpace(declaration.Key.Name) == "" {
+		return fmt.Errorf("drill level %q dynamic child key requires a field source", owner)
+	}
+	if declaration.Label.Kind != ValueSourceField || strings.TrimSpace(declaration.Label.Name) == "" {
+		return fmt.Errorf("drill level %q dynamic child label requires a field source", owner)
+	}
+	if (declaration.Target == nil) == (declaration.Action == nil) {
+		return fmt.Errorf("drill level %q dynamic children require exactly one of target or action", owner)
+	}
+	if declaration.Target != nil {
+		if declaration.Target.Kind != ValueSourceField && declaration.Target.Kind != ValueSourceLiteral {
+			return fmt.Errorf("drill level %q dynamic child target requires a field or literal source", owner)
+		}
+		if err := validateSource(owner, *declaration.Target); err != nil {
+			return err
+		}
+	}
+	if declaration.Action != nil {
+		if err := validateAction(owner, *declaration.Action); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateDynamicChildFields(owner string, declaration DynamicChildren, frame Frame) error {
+	for _, source := range []Source{declaration.Key, declaration.Label} {
+		if !frameHasColumn(frame, source.Name) {
+			return fmt.Errorf("drill level %q dynamic children reference missing field %q", owner, source.Name)
+		}
+	}
+	if declaration.Target != nil && declaration.Target.Kind == ValueSourceField && !frameHasColumn(frame, declaration.Target.Name) {
+		return fmt.Errorf("drill level %q dynamic children reference missing field %q", owner, declaration.Target.Name)
+	}
+	if declaration.Action != nil {
+		return validateActionFields(owner, *declaration.Action, frame)
 	}
 	return nil
 }

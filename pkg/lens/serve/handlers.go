@@ -68,7 +68,7 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.snapshots.Put(r.Context(), &document.Snapshot{
-		ID: doc.SnapshotID, Params: frozen, Frames: doc.Frames, CreatedAt: doc.Meta.GeneratedAt,
+		ID: doc.SnapshotID, Params: frozen, Frames: doc.Frames, Levels: doc.Drill.Edges, CreatedAt: doc.Meta.GeneratedAt,
 	}); err != nil {
 		if r.Context().Err() != nil {
 			return
@@ -139,6 +139,14 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "level result conversion failed", err)
 		return
 	}
+	if err := document.ResolveDynamicChildren(&wire, snapshot.Levels[target.levelKey]); err != nil {
+		h.writeInternalError(r.Context(), w, "lens/serve.Query", "dynamic children resolution failed", err)
+		return
+	}
+	if err := document.ValidateResolvedChildren(snapshot.Levels[target.levelKey], wire, snapshot.Levels); err != nil {
+		h.writeInternalError(r.Context(), w, "lens/serve.Query", "dynamic children validation failed", err)
+		return
+	}
 	hasNext, err := h.evidenceHasNext(r.Context(), base, snapshot.Params, target, page, panelResult, &wire)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
@@ -200,6 +208,12 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 		}
 		wire, err := wireFrame(target.ref, panelResult)
 		if err != nil {
+			return nil, err
+		}
+		if err := document.ResolveDynamicChildren(&wire, latest.Levels[target.levelKey]); err != nil {
+			return nil, err
+		}
+		if err := document.ValidateResolvedChildren(latest.Levels[target.levelKey], wire, latest.Levels); err != nil {
 			return nil, err
 		}
 		if err := h.snapshots.Append(workCtx, snapshot.ID, map[document.FrameRef]document.Frame{target.cacheRef(): wire}); err != nil {

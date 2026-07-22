@@ -547,7 +547,12 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 	return result, nil
 }
 
-func buildPanelFrame(spec panel.Spec, source *frame.Frame) (Frame, error) {
+type frameDependencies struct {
+	sources []action.ValueSource
+	actions []*action.Spec
+}
+
+func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDependencies) (Frame, error) {
 	// Projection is driven by the declared columns. A table that declares
 	// none has no projection to apply, and projecting anyway would emit an
 	// empty frame and silently drop every row's data.
@@ -602,6 +607,14 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame) (Frame, error) {
 		addActionDependencies(column.Action)
 	}
 	addActionDependencies(spec.Action)
+	for _, dependencies := range extra {
+		for _, source := range dependencies.sources {
+			addDependency(source)
+		}
+		for _, actionSpec := range dependencies.actions {
+			addActionDependencies(actionSpec)
+		}
+	}
 	for _, field := range source.Fields {
 		if _, ok := wanted[field.Name]; !ok || slices.Contains(selected, field.Name) {
 			continue
@@ -756,6 +769,21 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				nodeKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key)
 				nodePath := appendPath(branchPath, qualifiedKey(spec.ID, branch.Key, view.Key), nodeKey)
 				level := Level{Path: nodePath, Label: nodeSpec.Label, Children: make([]Node, 0, len(nodeSpec.Edges)), Perspectives: []PerspectiveRef{{ID: perspectiveID}}}
+				if nodeSpec.DynamicChildren != nil {
+					level.DynamicChildren = &DynamicChildren{
+						Key:   convertSource(nodeSpec.DynamicChildren.Key),
+						Label: convertSource(nodeSpec.DynamicChildren.Label),
+					}
+					if nodeSpec.DynamicChildren.Target != nil {
+						target := convertSource(*nodeSpec.DynamicChildren.Target)
+						level.DynamicChildren.Target = &target
+					}
+					if nodeSpec.DynamicChildren.Action != nil {
+						if converted, ok := convertAction(*nodeSpec.DynamicChildren.Action, true); ok {
+							level.DynamicChildren.Action = &converted
+						}
+					}
+				}
 				if nodeSpec.Panel != nil {
 					// Every level with a panel declares its encoding, inlined or
 					// not. A lazy level's frame arrives later via a query, and
@@ -768,7 +796,20 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				if nodeSpec.Panel != nil && depths[nodeSpec.Key] <= doc.Drill.InlineDepth {
 					if panelResult := result.Panel(nodeSpec.Panel.ID); panelResult != nil && panelResult.Error == nil && panelResult.Frames.Primary() != nil {
 						frameRef := FrameRef("explore:" + perspectiveID + ":" + nodeSpec.Key)
-						wireFrame, err := buildPanelFrame(*nodeSpec.Panel, panelResult.Frames.Primary())
+						var wireFrame Frame
+						var err error
+						if nodeSpec.DynamicChildren != nil {
+							dependencies := frameDependencies{sources: []action.ValueSource{nodeSpec.DynamicChildren.Key, nodeSpec.DynamicChildren.Label}}
+							if nodeSpec.DynamicChildren.Target != nil {
+								dependencies.sources = append(dependencies.sources, *nodeSpec.DynamicChildren.Target)
+							}
+							if nodeSpec.DynamicChildren.Action != nil {
+								dependencies.actions = append(dependencies.actions, nodeSpec.DynamicChildren.Action)
+							}
+							wireFrame, err = buildPanelFrame(*nodeSpec.Panel, panelResult.Frames.Primary(), dependencies)
+						} else {
+							wireFrame, err = buildPanelFrame(*nodeSpec.Panel, panelResult.Frames.Primary())
+						}
 						if err != nil {
 							return fmt.Errorf("explorer %s node %s: %w", spec.ID, nodeSpec.Key, err)
 						}
@@ -776,6 +817,11 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 						level.Frame = frameRef
 						encoding := buildEncoding(nodeSpec.Panel.Fields, wireFrame)
 						level.Encoding = &encoding
+						if level.DynamicChildren != nil {
+							if err := ResolveDynamicChildren(&wireFrame, level); err != nil {
+								return fmt.Errorf("explorer %s node %s: %w", spec.ID, nodeSpec.Key, err)
+							}
+						}
 					}
 				}
 				for _, edge := range nodeSpec.Edges {

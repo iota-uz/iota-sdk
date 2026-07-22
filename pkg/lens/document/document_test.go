@@ -28,6 +28,37 @@ func TestDashboardDocumentValidate_FrameReferences(t *testing.T) {
 	})
 }
 
+func TestDashboardDocumentValidateAndSerialize_DynamicChildren(t *testing.T) {
+	t.Parallel()
+	doc := testDocument()
+	doc.Frames["dynamic"] = Frame{
+		Columns: []Column{{Name: "child_key", Type: ColumnString}, {Name: "child_label", Type: ColumnString}, {Name: "url", Type: ColumnString}},
+		Rows:    [][]any{{"2025", "2025 year", "/years/2025"}},
+	}
+	doc.Drill.Edges["root"] = Level{
+		Path: NodePath{"root"}, Frame: "dynamic", Children: []Node{}, Perspectives: []PerspectiveRef{},
+		DynamicChildren: &DynamicChildren{
+			Key: Source{Kind: ValueSourceField, Name: "child_key"}, Label: Source{Kind: ValueSourceField, Name: "child_label"},
+			Action: &Action{Kind: ActionNavigateToLeaf, URLSource: &Source{Kind: ValueSourceField, Name: "url"}, Params: []ActionParam{}, Payload: map[string]Source{}},
+		},
+	}
+	require.NoError(t, doc.Validate())
+	dynamicFrame := doc.Frames["dynamic"]
+	require.NoError(t, ResolveDynamicChildren(&dynamicFrame, doc.Drill.Edges["root"]))
+	doc.Frames["dynamic"] = dynamicFrame
+	payload, err := json.Marshal(doc)
+	require.NoError(t, err)
+	require.Contains(t, string(payload), `"dynamicChildren":{"key":{"kind":"field","name":"child_key"}`)
+	require.Contains(t, string(payload), `"children":[{"key":"2025","path":["root","2025"],"label":"2025 year"`)
+
+	malformed := testDocument()
+	malformed.Drill.Edges["root"] = Level{
+		Path: NodePath{"root"}, Children: []Node{}, Perspectives: []PerspectiveRef{},
+		DynamicChildren: &DynamicChildren{Key: Source{Kind: ValueSourceLiteral, Value: "fixed"}, Label: Source{Kind: ValueSourceField, Name: "label"}},
+	}
+	require.ErrorContains(t, malformed.Validate(), "key requires a field source")
+}
+
 func TestDashboardDocumentValidate_DrillIdentity(t *testing.T) {
 	t.Parallel()
 

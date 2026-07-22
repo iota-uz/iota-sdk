@@ -21,7 +21,17 @@ import {
   writeFilterValues,
   type FilterValues,
 } from './filters'
-import { isPerspectiveFork, levelForPath, panelForNavigation, pathResolves, queryPathForNavigation, rootNavigation } from './drill'
+import {
+  dynamicParentPath,
+  isPerspectiveFork,
+  levelForPath,
+  panelForNavigation,
+  pathResolves,
+  queryPathForNavigation,
+  rootNavigation,
+  withFrameChildren,
+  withInlineFrameChildren,
+} from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
 import { formatAxis, formatFieldValue } from './format'
@@ -404,7 +414,10 @@ function navigationFromBrowserState(
   view: NavigationView,
   state: unknown,
 ): NavigationState {
-  const resolved = resolveView(document, view) ?? rootNavigation(document, view.panelId)
+  const pendingPath = dynamicParentPath(document, view.path)
+  const pendingPanel = pendingPath ? panelForNavigation(document, { ...view, path: pendingPath }) : undefined
+  const pending = pendingPath ? { ...view, panelId: pendingPanel?.id } : undefined
+  const resolved = resolveView(document, view) ?? pending ?? rootNavigation(document, view.panelId)
   const value = state && typeof state === 'object'
     ? (state as Record<string, unknown>)[browserHistoryKey]
     : undefined
@@ -579,9 +592,24 @@ interface RuntimeCoreProps {
 }
 
 function RuntimeCore({
-  document, locale, csrf, fetcher, refreshDocument, applyFilters, children,
+  document: sourceDocument, locale, csrf, fetcher, refreshDocument, applyFilters, children,
   controlledNavigation, onControlledNavigationChange, drawerDepth = 0,
 }: RuntimeCoreProps) {
+  const [runtimeDocument, setRuntimeDocumentState] = useState(() => ({
+    source: sourceDocument,
+    resolved: withInlineFrameChildren(sourceDocument),
+  }))
+  const document = runtimeDocument.source === sourceDocument
+    ? runtimeDocument.resolved
+    : withInlineFrameChildren(sourceDocument)
+  const setRuntimeDocument = useCallback((update: (current: DashboardDocument) => DashboardDocument) => {
+    setRuntimeDocumentState((current) => {
+      const resolved = current.source === sourceDocument
+        ? current.resolved
+        : withInlineFrameChildren(sourceDocument)
+      return { source: sourceDocument, resolved: update(resolved) }
+    })
+  }, [sourceDocument])
   const [localNavigation, localDispatch] = useReducer(
     (state: NavigationState, action: Parameters<typeof navigationReducer>[1]) => runtimeNavigationReducer(document, state, action),
     document,
@@ -690,7 +718,8 @@ function RuntimeCore({
   }, [document, frames, retryFrame])
 
   useEffect(() => {
-    if (pathResolves(document, runtimeView.path, runtimeView.perspectiveId)) return
+    if (pathResolves(document, runtimeView.path, runtimeView.perspectiveId) ||
+      dynamicParentPath(document, runtimeView.path)) return
     replaceNextURL.current = true
     dispatch(navigationActions.restore(rootNavigation(document, runtimeView.panelId)))
     setNotice(driftNotice())
@@ -722,7 +751,9 @@ function RuntimeCore({
   }, [controlledNavigation, dispatch, document, syncFiltersFromURL])
 
   useEffect(() => {
-    const panel = panelForNavigation(document, runtimeView)
+    const pendingPath = dynamicParentPath(document, runtimeView.path)
+    const queryView = pendingPath ? { ...runtimeView, path: pendingPath } : runtimeView
+    const panel = panelForNavigation(document, queryView)
     // Leaving a drill level (Back, a breadcrumb jump, a reset) must not leave
     // the level's data on screen: any explore host that is no longer the
     // active drill target falls back to the frame the document shipped.
@@ -735,7 +766,7 @@ function RuntimeCore({
       })
     }
     if (!panel) return
-    const resolved = frameForPanel(document, runtimeView, panel, new Map())
+    const resolved = frameForPanel(document, queryView, panel, new Map())
     if (!resolved.shouldQuery || !queryClient) {
       if (resolved.frame) {
         frames.set(panel.id, {
@@ -755,7 +786,7 @@ function RuntimeCore({
       error: null,
       retry: retryFrame,
     })
-    const currentNavigation = { ...runtimeView, path: [...runtimeView.path] }
+    const currentNavigation = { ...queryView, path: [...queryView.path] }
     const perspective = document.perspectives.find(({ id }) => id === currentNavigation.perspectiveId)
     const request = {
       ...requestFor(document, currentNavigation),
@@ -778,6 +809,9 @@ function RuntimeCore({
       }
       const frames = Object.entries(result.response.frames)
       const frame = frames[0]?.[1]
+      if (frame?.children) {
+        setRuntimeDocument((current) => withFrameChildren(current, currentNavigation.path, frame))
+      }
       frameStore.current?.set(panel.id, {
         data: frame ?? previous,
         page: result.response.page,
@@ -798,7 +832,7 @@ function RuntimeCore({
       })
     })
     return () => { active = false }
-  }, [dispatch, document, driftNotice, frames, queryClient, refreshDocument, retryFrame, retryToken, runtimeView])
+  }, [dispatch, document, driftNotice, frames, queryClient, refreshDocument, retryFrame, retryToken, runtimeView, setRuntimeDocument])
 
   const loadPage = useCallback(async (panelId: string, page: number, force = false) => {
     const panel = panelForNavigation(document, runtimeView)

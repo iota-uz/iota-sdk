@@ -61,6 +61,13 @@ func (n Node) WithDynamicEdges(targets ...string) Node {
 	return n
 }
 
+func (n Node) WithDynamicChildren(children DynamicChildren, targets ...string) Node {
+	n.DynamicEdges = true
+	n.DynamicTargets = append([]string(nil), targets...)
+	n.DynamicChildren = &children
+	return n
+}
+
 func ToNode(pointKey, nodeKey string) Edge {
 	return Edge{PointKey: pointKey, ToNode: nodeKey}
 }

@@ -49,6 +49,13 @@ export interface Drill {
   inlineDepth: number
 }
 
+export interface DynamicChildren {
+  key: Source
+  label: Source
+  target?: Source
+  action?: Action
+}
+
 export interface Encoding {
   label?: string
   value?: string
@@ -90,6 +97,7 @@ export type FormatKind = "date" | "money" | "number" | "percent" | "string"
 export interface Frame {
   columns: Array<Column>
   rows: Array<Array<unknown>>
+  children?: Array<Node>
 }
 
 export type FrameRef = string
@@ -129,6 +137,7 @@ export interface Level {
   path: NodePath
   label: string
   children: Array<Node>
+  dynamicChildren?: DynamicChildren
   frame?: FrameRef
   encoding?: Encoding
   perspectives: Array<PerspectiveRef>

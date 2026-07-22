@@ -44,14 +44,22 @@ type Perspective struct {
 }
 
 type Node struct {
-	Key            string        `json:"key"`
-	Label          string        `json:"label"`
-	Panel          *panel.Spec   `json:"panel,omitempty"`
-	Load           *LoadSpec     `json:"load,omitempty"`
-	Edges          []Edge        `json:"edges,omitempty"`
-	DynamicEdges   bool          `json:"dynamicEdges,omitempty"`
-	DynamicTargets []string      `json:"dynamicTargets,omitempty"`
-	Check          *BalanceCheck `json:"check,omitempty"`
+	Key             string           `json:"key"`
+	Label           string           `json:"label"`
+	Panel           *panel.Spec      `json:"panel,omitempty"`
+	Load            *LoadSpec        `json:"load,omitempty"`
+	Edges           []Edge           `json:"edges,omitempty"`
+	DynamicEdges    bool             `json:"dynamicEdges,omitempty"`
+	DynamicTargets  []string         `json:"dynamicTargets,omitempty"`
+	DynamicChildren *DynamicChildren `json:"dynamicChildren,omitempty"`
+	Check           *BalanceCheck    `json:"check,omitempty"`
+}
+
+type DynamicChildren struct {
+	Key    action.ValueSource  `json:"key"`
+	Label  action.ValueSource  `json:"label"`
+	Target *action.ValueSource `json:"target,omitempty"`
+	Action *action.Spec        `json:"action,omitempty"`
 }
 
 type PathStep struct {
@@ -228,6 +236,20 @@ func (n Node) validate(explorerID, branchKey, perspectiveKey string, nodes map[s
 	}
 	if len(n.DynamicTargets) > 0 && !n.DynamicEdges {
 		return fmt.Errorf("explorer %s branch %s perspective %s node %s has dynamic targets without dynamic edges", explorerID, branchKey, perspectiveKey, n.Key)
+	}
+	if n.DynamicChildren != nil {
+		if !n.DynamicEdges {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s has dynamic children without dynamic edges", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if n.DynamicChildren.Key.Kind != action.SourceField || strings.TrimSpace(n.DynamicChildren.Key.Name) == "" {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic child key requires a field source", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if n.DynamicChildren.Label.Kind != action.SourceField || strings.TrimSpace(n.DynamicChildren.Label.Name) == "" {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic child label requires a field source", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if (n.DynamicChildren.Target == nil) == (n.DynamicChildren.Action == nil) {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic children require exactly one of target or action", explorerID, branchKey, perspectiveKey, n.Key)
+		}
 	}
 	return nil
 }

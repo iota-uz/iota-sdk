@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
@@ -37,6 +38,7 @@ type fakeExecutor struct {
 	delay       time.Duration
 	frames      map[string]*frame.FrameSet
 	pageFrames  map[string]map[int]*frame.FrameSet
+	pathFrames  map[string]*frame.FrameSet
 	executeErrs map[string]error
 	panelErrs   map[string]error
 	startOnce   sync.Once
@@ -87,6 +89,9 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 		return nil, errors.New("scoped panel is missing")
 	}
 	frames := f.frames[panelID]
+	if selected := f.pathFrames[panelID+":"+strings.Join(req.Request["lens_explore_path"], "/")]; selected != nil {
+		frames = selected
+	}
 	if pages := f.pageFrames[panelID]; pages != nil {
 		page, _ := strconv.Atoi(req.Request.Get(lensruntime.TablePaginationPageQuery))
 		frames = pages[page]
@@ -213,6 +218,40 @@ func TestHandlers_PointDrillsCacheDistinctFrames(t *testing.T) {
 	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail@2025"))
 	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail@2024"))
 	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail"))
+}
+
+func TestHandlers_DynamicChildrenResolveAndCachePerPath(t *testing.T) {
+	t.Parallel()
+	handlers, executor, store := newTestHandlers(t, 0)
+	spec := handlers.spec
+	detail := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[1]
+	detail.Edges = nil
+	detail.DynamicEdges = true
+	detail.DynamicTargets = []string{"end"}
+	detail.DynamicChildren = &explore.DynamicChildren{
+		Key: action.FieldValue("id"), Label: action.FieldValue("label"),
+		Target: sourcePtr(action.LiteralValue("end")),
+	}
+	handlers.spec = spec
+	executor.pathFrames = map[string]*frame.FrameSet{
+		"detail-panel:root/2025/detail": dynamicFrames(t, "month-12", "December"),
+		"detail-panel:root/2024/detail": dynamicFrames(t, "month-11", "November"),
+	}
+	doc := requestDocument(t, handlers, "/dash/document")
+
+	first := queryLevel(t, handlers, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2025", "detail"}, Perspective: "composition"})
+	second := queryLevel(t, handlers, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2024", "detail"}, Perspective: "composition"})
+	require.Equal(t, document.NodeKey("month-12"), first.Frames["explore:metric/focus/composition:detail"].Children[0].Key)
+	require.Equal(t, "December", first.Frames["explore:metric/focus/composition:detail"].Children[0].Label)
+	require.Equal(t, document.NodeKey("metric/focus/composition/end"), first.Frames["explore:metric/focus/composition:detail"].Children[0].Target)
+	require.Equal(t, document.NodeKey("month-11"), second.Frames["explore:metric/focus/composition:detail"].Children[0].Key)
+
+	queryLevel(t, handlers, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2025", "detail"}, Perspective: "composition"})
+	require.Equal(t, 2, executor.callCount("detail-panel"))
+	snapshot, err := store.Get(t.Context(), doc.SnapshotID)
+	require.NoError(t, err)
+	require.Equal(t, document.NodeKey("month-12"), snapshot.Frames["explore:metric/focus/composition:detail@2025"].Children[0].Key)
+	require.Equal(t, document.NodeKey("month-11"), snapshot.Frames["explore:metric/focus/composition:detail@2024"].Children[0].Key)
 }
 
 func TestHandlers_QueryUsesFrozenScopeOverConflictingQueryParams(t *testing.T) {
@@ -602,6 +641,23 @@ func testFrames(t *testing.T, name string, value float64) *frame.FrameSet {
 	result, err := frame.NewFrameSet(primary)
 	require.NoError(t, err)
 	return result
+}
+
+func dynamicFrames(t *testing.T, key, label string) *frame.FrameSet {
+	t.Helper()
+	primary, err := frame.New("dynamic",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{key}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{label}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1.0}},
+	)
+	require.NoError(t, err)
+	result, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+	return result
+}
+
+func sourcePtr(source action.ValueSource) *action.ValueSource {
+	return &source
 }
 
 func evidenceFrames(t *testing.T) *frame.FrameSet {

@@ -450,12 +450,20 @@ type Drill struct {
 }
 
 type Level struct {
-	Path         NodePath         `json:"path"`
-	Label        string           `json:"label"`
-	Children     []Node           `json:"children"`
-	Frame        FrameRef         `json:"frame,omitempty"`
-	Encoding     *Encoding        `json:"encoding,omitempty"`
-	Perspectives []PerspectiveRef `json:"perspectives"`
+	Path            NodePath         `json:"path"`
+	Label           string           `json:"label"`
+	Children        []Node           `json:"children"`
+	DynamicChildren *DynamicChildren `json:"dynamicChildren,omitempty"`
+	Frame           FrameRef         `json:"frame,omitempty"`
+	Encoding        *Encoding        `json:"encoding,omitempty"`
+	Perspectives    []PerspectiveRef `json:"perspectives"`
+}
+
+type DynamicChildren struct {
+	Key    Source  `json:"key"`
+	Label  Source  `json:"label"`
+	Target *Source `json:"target,omitempty"`
+	Action *Action `json:"action,omitempty"`
 }
 
 type Node struct {
@@ -495,8 +503,9 @@ type Column struct {
 }
 
 type Frame struct {
-	Columns []Column `json:"columns"`
-	Rows    [][]any  `json:"rows"`
+	Columns  []Column `json:"columns"`
+	Rows     [][]any  `json:"rows"`
+	Children []Node   `json:"children,omitempty"`
 }
 
 type Endpoints struct {
