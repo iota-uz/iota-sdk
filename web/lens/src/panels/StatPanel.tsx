@@ -2,7 +2,8 @@ import type { MouseEventHandler, ReactNode } from 'react'
 import type { Panel } from '../contract'
 import { useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { ArrowUpRight } from '../icons'
-import { usePanelNavigation } from './actions'
+import { usePanelNavigation, usePrefetch, type PrefetchHandlers } from './actions'
+import { StatValueTicker } from './StatValueTicker'
 import { cell, displayText, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
 
@@ -58,17 +59,24 @@ function useStatValues(panel: Panel) {
  * the legacy renderer covered the card with an absolutely positioned anchor,
  * and losing it is what made the KPI strips inert.
  */
-export function StatLink({ href, label, children, onClick }: {
+export function StatLink({ href, label, children, onClick, prefetch }: {
   href?: string
   label: string
   children: ReactNode
   onClick?: MouseEventHandler<HTMLAnchorElement>
+  prefetch?: PrefetchHandlers
 }) {
   const translate = useTranslate()
   if (!href) return <>{children}</>
   return (
     <div className="lens-stat-linked">
-      <a aria-label={translate('panel.openMetric', 'Open {name}', { name: label })} className="lens-card-link" href={href} onClick={onClick}>
+      <a
+        aria-label={translate('panel.openMetric', 'Open {name}', { name: label })}
+        className="lens-card-link"
+        href={href}
+        onClick={onClick}
+        {...prefetch}
+      >
         <span aria-hidden="true" className="lens-card-link-affordance"><ArrowUpRight /></span>
       </a>
       {children}
@@ -80,10 +88,11 @@ export function StatPanel({ panel }: StatPanelProps) {
   const { frame, label, showLabel, value, formatValue, formatDelta, delta, deltaNumber } = useStatValues(panel)
   const navigation = usePanelNavigation(panel)
   const href = navigation.cardURL(frame.data)
+  const prefetch = usePrefetch(href, navigation.action)
 
   return (
     <PanelFrame panel={panel} frame={frame} variant="stat">
-      <StatLink href={href} label={panel.title} onClick={navigation.onClick(href)}>
+      <StatLink href={href} label={panel.title} onClick={navigation.onClick(href)} prefetch={prefetch}>
       <div className="lens-stat-content">
         {(showLabel || panel.status) && (
           <p className="lens-stat-label">
@@ -92,7 +101,7 @@ export function StatPanel({ panel }: StatPanelProps) {
           </p>
         )}
         <div className="lens-stat-value-row">
-          <p className="lens-stat-value">{formatValue(value)}</p>
+          <p className="lens-stat-value"><StatValueTicker text={formatValue(value)} /></p>
           {delta !== undefined && (
             <span className={`lens-stat-delta${deltaNumber !== undefined && deltaNumber < 0 ? ' lens-stat-delta-negative' : ''}`}>
               {deltaNumber !== undefined && deltaNumber > 0 ? '+' : ''}{formatDelta(delta)}
@@ -115,9 +124,10 @@ export function StatMetric({ panel }: StatPanelProps) {
   const caption = showLabel ? label : panel.title
   const navigation = usePanelNavigation(panel)
   const href = navigation.cardURL(frame.data)
+  const prefetch = usePrefetch(href, navigation.action)
 
   return (
-    <StatLink href={href} label={caption} onClick={navigation.onClick(href)}>
+    <StatLink href={href} label={caption} onClick={navigation.onClick(href)} prefetch={prefetch}>
     <div className="lens-stat-metric" data-panel-kind="stat" aria-busy={frame.isLoading || undefined}>
       <p className="lens-stat-metric-label" title={caption}>
         {panel.accent && <span aria-hidden="true" className="lens-stat-metric-bullet" style={{ background: panel.accent }} />}
@@ -125,7 +135,7 @@ export function StatMetric({ panel }: StatPanelProps) {
         {panel.status && <StatusChip status={panel.status} />}
       </p>
       <p className="lens-stat-metric-value">
-        {frame.error && !frame.data ? '—' : formatValue(value)}
+        {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
       </p>
     </div>
     </StatLink>

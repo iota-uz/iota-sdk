@@ -24,6 +24,7 @@ import {
   type NavigationView,
 } from './navigation'
 import { LensDrawer } from './drawer'
+import { DocumentCache } from './prefetch'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { navigationFromURL, navigationToURL, sameNavigationURL } from './url'
@@ -33,26 +34,37 @@ import { navigationFromURL, navigationToURL, sameNavigationURL } from './url'
 interface DocumentContextValue {
   document?: DashboardDocument
   isLoading: boolean
+  /** A background refetch (focus-triggered) is in flight; current data stays. */
+  isRefreshing: boolean
   error: Error | null
   refresh: () => Promise<DashboardDocument>
 }
 
 const DocumentContext = createContext<DocumentContextValue | undefined>(undefined)
 
+/** A document older than this is refetched when the window regains focus. */
+const staleDocumentAgeMs = 5 * 60 * 1000
+
 export interface DocumentProviderProps {
   src?: string
   initialDocument?: DashboardDocument
   csrf?: string
   fetcher?: typeof fetch
+  /** Warmed drill documents; a hit seeds the initial document and skips fetch. */
+  cache?: DocumentCache
   children: ReactNode
 }
 
-export function DocumentProvider({ src, initialDocument, csrf, fetcher, children }: DocumentProviderProps) {
-  const [document, setDocument] = useState<DashboardDocument | undefined>(() => src ? undefined : initialDocument)
-  const [isLoading, setIsLoading] = useState(Boolean(src))
+export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, children }: DocumentProviderProps) {
+  const [document, setDocument] = useState<DashboardDocument | undefined>(
+    () => src ? cache?.get(src) : initialDocument,
+  )
+  const [isLoading, setIsLoading] = useState(Boolean(src) && !(src && cache?.get(src)))
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const controllers = useRef(new Set<AbortController>())
   const inFlight = useRef<Promise<DashboardDocument>>()
+  const loadedAt = useRef<number>(src && cache?.get(src) ? Date.now() : 0)
   const csrfRef = useRef(csrf)
   const fetcherRef = useRef(fetcher)
 
@@ -75,6 +87,7 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, children
     setError(null)
     const pending = fetchDocument(src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
       .then((next) => {
+        loadedAt.current = Date.now()
         setDocument(next)
         return next
       })
@@ -92,18 +105,58 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, children
     return pending
   }, [initialDocument, src])
 
+  // A focus-triggered refetch keeps the current document on screen and swaps
+  // only on success; a failure is logged and otherwise silent, so a transient
+  // network blip never replaces good data with an error state.
+  const refreshInBackground = useCallback(() => {
+    if (!src || inFlight.current) return
+    const controller = new AbortController()
+    controllers.current.add(controller)
+    setIsRefreshing(true)
+    void fetchDocument(src, { csrf: csrfRef.current, fetcher: fetcherRef.current, signal: controller.signal })
+      .then((next) => {
+        loadedAt.current = Date.now()
+        setDocument(next)
+      })
+      .catch((cause: unknown) => {
+        if (!controller.signal.aborted) console.error('[lens] background document refresh failed', cause)
+      })
+      .finally(() => {
+        controllers.current.delete(controller)
+        if (!controller.signal.aborted) setIsRefreshing(false)
+      })
+  }, [src])
+
   useEffect(() => {
-    setDocument(src ? undefined : initialDocument)
+    const cached = src ? cache?.get(src) : undefined
+    setDocument(src ? cached : initialDocument)
     setError(null)
-    if (src) void refresh().catch(() => undefined)
-  }, [initialDocument, refresh, src])
+    if (cached) {
+      loadedAt.current = Date.now()
+      setIsLoading(false)
+    } else if (src) {
+      void refresh().catch(() => undefined)
+    }
+  }, [cache, initialDocument, refresh, src])
+
+  useEffect(() => {
+    if (!src || typeof window === 'undefined') return
+    const onFocus = () => {
+      if (loadedAt.current > 0 && Date.now() - loadedAt.current >= staleDocumentAgeMs) refreshInBackground()
+    }
+    window.addEventListener('focus', onFocus)
+    return () => window.removeEventListener('focus', onFocus)
+  }, [refreshInBackground, src])
 
   useEffect(() => () => {
     for (const controller of controllers.current) controller.abort()
     controllers.current.clear()
   }, [])
 
-  const value = useMemo(() => ({ document, isLoading, error, refresh }), [document, error, isLoading, refresh])
+  const value = useMemo(
+    () => ({ document, isLoading, isRefreshing, error, refresh }),
+    [document, error, isLoading, isRefreshing, refresh],
+  )
   return <DocumentContext.Provider value={value}>{children}</DocumentContext.Provider>
 }
 
@@ -131,6 +184,8 @@ export interface DrawerContextValue {
   depth: number
   open: (src: string, opener?: HTMLElement) => void
   close: () => void
+  /** Warm a drill-drawer document on hover/focus intent before it is opened. */
+  prefetch: (src: string) => void
 }
 
 export interface PanelFrameState {
@@ -490,6 +545,11 @@ function RuntimeCore({
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
   const replaceNextURL = useRef(true)
   const drawerOpener = useRef<HTMLElement>()
+  const drawerCache = useRef<DocumentCache>()
+  if (drawerDepth === 0 && !drawerCache.current) drawerCache.current = new DocumentCache({ capacity: 8, csrf, fetcher })
+  useEffect(() => {
+    drawerCache.current?.configure({ csrf, fetcher })
+  }, [csrf, fetcher])
   const frameStore = useRef<PanelFrameStore>()
   const retryFrame = useCallback(() => {
     forceRetry.current = true
@@ -778,6 +838,10 @@ function RuntimeCore({
       dispatch(navigationActions.openDrawer(src))
     },
     close: closeDrawer,
+    prefetch: (src) => {
+      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
+      void drawerCache.current?.prefetch(src)
+    },
   }), [closeDrawer, dispatch, drawerDepth, navigation.drawer])
   const dashboard = useMemo(() => ({ document, navigation, notice, dismissNotice: () => setNotice(undefined) }), [document, navigation, notice])
 
@@ -800,7 +864,7 @@ function RuntimeCore({
                     onClose={closeDrawer}
                     restoreFocus={drawerOpener.current}
                   >
-                    <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher}>
+                    <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
                       <DashboardRuntimeProvider
                         controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
                         csrf={csrf}

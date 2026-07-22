@@ -70,6 +70,12 @@
     @apply lens-fixed lens-inset-0 lens-z-[1000] lens-flex lens-justify-end;
     background: rgb(15 23 42 / 0.42);
     backdrop-filter: blur(2px);
+    animation: lens-backdrop-fade 180ms ease-out;
+  }
+
+  @keyframes lens-backdrop-fade {
+    from { opacity: 0; }
+    to { opacity: 1; }
   }
 
   .lens-drawer {
@@ -129,7 +135,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .lens-drawer {
+    .lens-drawer,
+    .lens-drawer-backdrop {
       animation: none;
     }
   }
@@ -140,6 +147,38 @@
 
   .lens-dashboard-header h1 {
     @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+  }
+
+  .lens-dashboard-updated {
+    @apply lens-m-0 lens-mb-4 lens-text-xs lens-font-medium lens-text-muted;
+  }
+
+  /* First-paint entrance: each panel rises and fades in, staggered per column
+     within a row plus a per-row offset (capped near 300ms total). Applied only
+     on the initial mount and never inside a drawer or under visual regression. */
+  .lens-entrance > * {
+    animation: lens-panel-rise 260ms ease-out both;
+    animation-delay: var(--lens-row-delay, 0ms);
+  }
+
+  .lens-entrance > *:nth-child(2) { animation-delay: calc(var(--lens-row-delay, 0ms) + 30ms); }
+  .lens-entrance > *:nth-child(3) { animation-delay: calc(var(--lens-row-delay, 0ms) + 60ms); }
+  .lens-entrance > *:nth-child(4) { animation-delay: calc(var(--lens-row-delay, 0ms) + 90ms); }
+  .lens-entrance > *:nth-child(n + 5) { animation-delay: calc(var(--lens-row-delay, 0ms) + 120ms); }
+
+  @keyframes lens-panel-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-entrance > * {
+      animation: none;
+    }
+  }
+
+  .lens-dashboard-updated[data-refreshing] {
+    @apply lens-text-faint;
   }
 
   .lens-dashboard-rows {

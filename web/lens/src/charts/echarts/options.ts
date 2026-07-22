@@ -74,11 +74,27 @@ function dataItem(point: RowPoint, input: ChartInput, theme: EChartsTheme) {
   return {
     value: point.value,
     nodeKey: point.nodeKey,
+    // A stable per-mark group id lets ECharts morph the same segment across a
+    // perspective switch or a drill level instead of redrawing it.
+    ...(point.nodeKey ? { groupId: point.nodeKey } : {}),
     itemStyle: {
       borderColor: selected ? theme.selectedBorder : undefined,
       borderWidth: selected ? 3 : 0,
     },
   }
+}
+
+/**
+ * Morphing marks between two renders is motion; it is off under visual
+ * regression (where all animation is pinned) and reduced motion. Selection
+ * restyles never reach this — the adapter merges them in place without
+ * replacing the series — so an outline never triggers a morph.
+ */
+function morphEnabled(): boolean {
+  if (isVisualRegression()) return false
+  return !(typeof window !== 'undefined'
+    && typeof window.matchMedia === 'function'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
 }
 
 function valueFormatter(input: ChartInput) {
@@ -194,6 +210,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       radius,
       center: ['50%', '50%'],
       selectedMode: false,
+      universalTransition: { enabled: morphEnabled() },
       // ECharts rounds `percent` to two decimals before handing it over, and
       // rounding again to one decimal double-rounds: 87.6459 → 87.65 → 87.7,
       // where the true value reads 87.6. Ask for the raw share and round once.
@@ -240,6 +257,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const series = seriesNames.map((name) => ({
     type: isBar ? 'bar' as const : 'line' as const,
     name: name || undefined,
+    universalTransition: { enabled: morphEnabled() },
     barWidth: isBar && barWidth ? barWidth : undefined,
     itemStyle: { color: theme.seriesColor(name) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
