@@ -60,9 +60,11 @@ function runViewTransition(update: () => void): void {
   })
 }
 
-function fieldsForNode(level: Level, frame: Frame | undefined, node: Node): Record<string, unknown> {
+function fieldsForNode(
+  level: Level, frame: Frame | undefined, node: Node, encoding: Encoding | undefined,
+): Record<string, unknown> {
   if (!frame) return {}
-  const row = rowForNode(node, level, frame)
+  const row = rowForNode(node, level, frame, encoding)
   return row ? recordForRow(frame, row) : {}
 }
 
@@ -167,9 +169,11 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     const location = new URL(globalThis.location.href)
     const rows = source.frame ? document.frames[source.frame] : frame.data
     return resolveLeafActionURL(node.action, {
-      fields: fieldsForNode(source, rows, node), variables: variablesFromLocation(location), location,
+      fields: fieldsForNode(source, rows, node, source.encoding ?? panel.encoding),
+      variables: variablesFromLocation(location),
+      location,
     })
-  }, [document.frames, frame.data, level])
+  }, [document.frames, frame.data, level, panel.encoding])
 
   const withHrefs = useCallback((rows: DrillTarget['breakdown'], owner?: Level) => (
     rows.map((row) => ({ ...row, href: leafHrefFor(row.node, owner) }))
@@ -180,14 +184,14 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   // dropped once the panel is at a drill level whose rows are not its own.
   const colorForNode = useCallback((node: Node): string | undefined => {
     if (!level || !frame.data) return undefined
-    const row = rowForNode(node, level, frame.data)
+    const row = rowForNode(node, level, frame.data, viewPanel.encoding)
     if (!row) return undefined
     const index = frame.data.rows.indexOf(row)
     if (index < 0) return undefined
     const labelField = viewPanel.encoding.label ?? viewPanel.encoding.category
     const labelIndex = labelField ? frame.data.columns.findIndex((column) => column.name === labelField) : -1
     const raw = labelIndex >= 0 ? row[labelIndex] : undefined
-    const label = typeof raw === 'string' ? raw : labelForNode(node, level, document, frame.data)
+    const label = typeof raw === 'string' ? raw : labelForNode(node, level, document, frame.data, viewPanel.encoding)
     return seriesColorResolver(document.theme, viewPanel, { positional: !active })(label, index)
   }, [active, document, frame.data, level, viewPanel])
 
@@ -196,7 +200,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     const node = level.children.find((child) => child.key === key || child.key.endsWith(`/${key}`))
     if (!node) return
     const targetLevel = node.target ? document.drill.edges[node.target] : undefined
-    const target = drillTargetForNode(document, level, node, frame.data, targetLevel?.frame ? document.frames[targetLevel.frame] : undefined)
+    const target = drillTargetForNode(document, level, node, frame.data, targetLevel?.frame ? document.frames[targetLevel.frame] : undefined, panel)
     setOverlayTheme(themeOf(focusRef.current))
     setOverlay({
       target: { ...target, leafHref: leafHrefFor(node), breakdown: withHrefs(target.breakdown, targetLevel) },
@@ -209,7 +213,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       anchor: anchor ?? anchorFromElement(focusRef.current),
       anchorElement: anchor ? undefined : focusRef.current,
     })
-  }, [colorForNode, document, frame.data, leafHrefFor, level, themeOf, withHrefs])
+  }, [colorForNode, document, frame.data, leafHrefFor, level, panel, themeOf, withHrefs])
 
   const openForLevel = useCallback(() => {
     if (!level) return
@@ -390,7 +394,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
           selectedPerspectiveId={navigation.perspectiveId}
           target={overlay.target}
           theme={overlayTheme.theme}
-          valueFormat={level?.encoding?.value ? viewPanel.format[level.encoding.value] : undefined}
+          valueFormat={viewPanel.encoding.value ? viewPanel.format[viewPanel.encoding.value] : undefined}
         />
       )}
     </article>
