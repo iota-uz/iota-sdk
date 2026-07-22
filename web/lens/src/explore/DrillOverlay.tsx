@@ -336,6 +336,16 @@ export function DrillOverlay({
                   <span aria-hidden="true" className="lens-drill-swatch" style={{ background: accentColor }} />
                 )}
                 <span className="lens-drill-value-figure">{formatValue(target.value!)}</span>
+                <button
+                  aria-label={copied ? translate('explore.copied', 'Copied') : translate('explore.copyValue', 'Copy value')}
+                  className="lens-icon-button lens-drill-copy"
+                  data-copied={copied ? 'true' : undefined}
+                  onClick={() => { void copyValue() }}
+                  title={copied ? translate('explore.copied', 'Copied') : translate('explore.copyValue', 'Copy value')}
+                  type="button"
+                >
+                  {copied ? <Check /> : <Copy />}
+                </button>
               </p>
             )}
             {hasValue && target.share !== undefined && (
@@ -445,17 +455,6 @@ export function DrillOverlay({
               <span>{translate('table.openRecord', 'Open record')}</span>
               <ArrowUpRight />
             </a>
-          )}
-          {hasValue && (
-            <button
-              className="lens-drill-action lens-drill-copy"
-              data-copied={copied ? 'true' : undefined}
-              onClick={() => { void copyValue() }}
-              type="button"
-            >
-              <span>{copied ? translate('explore.copied', 'Copied') : translate('explore.copyValue', 'Copy value')}</span>
-              {copied ? <Check /> : <Copy />}
-            </button>
           )}
           {empty && <p className="lens-drill-empty">{translate('explore.noDetail', 'No further detail')}</p>}
         </footer>
