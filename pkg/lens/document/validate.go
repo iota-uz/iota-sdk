@@ -60,6 +60,9 @@ func (d *DashboardDocument) Validate() error {
 	if err := d.validateDrill(); err != nil {
 		return serrors.E(op, err)
 	}
+	if err := validateFilters(d.Filters); err != nil {
+		return serrors.E(op, err)
+	}
 	perspectiveIDs := make(map[string]struct{}, len(d.Perspectives))
 	for _, perspective := range d.Perspectives {
 		if strings.TrimSpace(perspective.ID) == "" {
@@ -91,6 +94,90 @@ func (d *DashboardDocument) Validate() error {
 				}
 			}
 		}
+	}
+	return nil
+}
+
+// PeriodDateLayout is the wire layout of every period-filter date string.
+const PeriodDateLayout = "2006-01-02"
+
+func validPeriodDate(raw string) bool {
+	if raw == "" {
+		return true
+	}
+	parsed, err := time.Parse(PeriodDateLayout, raw)
+	return err == nil && parsed.Format(PeriodDateLayout) == raw
+}
+
+func validateFilters(filters []Filter) error {
+	ids := make(map[string]struct{}, len(filters))
+	for _, filter := range filters {
+		if strings.TrimSpace(filter.ID) == "" {
+			return fmt.Errorf("filter id is required")
+		}
+		if _, duplicate := ids[filter.ID]; duplicate {
+			return fmt.Errorf("duplicate filter %q", filter.ID)
+		}
+		ids[filter.ID] = struct{}{}
+		switch filter.Kind {
+		case FilterKindPeriod:
+			if filter.Period == nil {
+				return fmt.Errorf("filter %s requires a period payload", filter.ID)
+			}
+			if err := validatePeriodFilter(filter.ID, *filter.Period); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("filter %s has unsupported kind %q", filter.ID, filter.Kind)
+		}
+	}
+	return nil
+}
+
+func validatePeriodFilter(id string, period PeriodFilter) error {
+	if strings.TrimSpace(period.StartParam) == "" || strings.TrimSpace(period.EndParam) == "" {
+		return fmt.Errorf("filter %s requires start and end parameter names", id)
+	}
+	if period.StartParam == period.EndParam {
+		return fmt.Errorf("filter %s start and end parameters must differ", id)
+	}
+	if err := validatePeriodValue(id+" value", period.Value, period.AllowEmpty); err != nil {
+		return err
+	}
+	if !validPeriodDate(period.Min) || !validPeriodDate(period.Max) {
+		return fmt.Errorf("filter %s min/max must be %s dates", id, PeriodDateLayout)
+	}
+	if period.Min != "" && period.Max != "" && period.Max < period.Min {
+		return fmt.Errorf("filter %s max precedes min", id)
+	}
+	presetIDs := make(map[string]struct{}, len(period.Presets))
+	for _, preset := range period.Presets {
+		if strings.TrimSpace(preset.ID) == "" {
+			return fmt.Errorf("filter %s preset id is required", id)
+		}
+		if _, duplicate := presetIDs[preset.ID]; duplicate {
+			return fmt.Errorf("filter %s has duplicate preset %q", id, preset.ID)
+		}
+		presetIDs[preset.ID] = struct{}{}
+		if strings.TrimSpace(preset.Label) == "" {
+			return fmt.Errorf("filter %s preset %s requires a label", id, preset.ID)
+		}
+		if err := validatePeriodValue(fmt.Sprintf("%s preset %s", id, preset.ID), preset.Value, period.AllowEmpty); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validatePeriodValue(owner string, value PeriodValue, allowEmpty bool) error {
+	if !validPeriodDate(value.Start) || !validPeriodDate(value.End) {
+		return fmt.Errorf("filter %s must use %s dates", owner, PeriodDateLayout)
+	}
+	if !allowEmpty && (value.Start == "" || value.End == "") {
+		return fmt.Errorf("filter %s has an open boundary but the filter does not allow empty", owner)
+	}
+	if value.Start != "" && value.End != "" && value.End < value.Start {
+		return fmt.Errorf("filter %s end precedes start", owner)
 	}
 	return nil
 }

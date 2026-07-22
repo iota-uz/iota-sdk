@@ -14,6 +14,13 @@ const (
 	I18nChartLabel        = "chart.label"
 	I18nChartLegendLast   = "chart.legendLast"
 	I18nChartLegendToggle = "chart.legendToggle"
+	I18nCalendarAnnRange  = "calendar.announceRange"
+	I18nCalendarAnnStart  = "calendar.announceStart"
+	I18nCalendarHintEnd   = "calendar.hintEnd"
+	I18nCalendarHintStart = "calendar.hintStart"
+	I18nCalendarLabel     = "calendar.label"
+	I18nCalendarNextMonth = "calendar.nextMonth"
+	I18nCalendarPrevMonth = "calendar.prevMonth"
 	I18nDashboardEmpty    = "dashboard.empty"
 	I18nDashboardTabs     = "dashboard.tabs"
 	I18nDashboardUpdated  = "dashboard.updated"
@@ -43,6 +50,11 @@ const (
 	I18nExportPending     = "export.pending"
 	I18nExportRetry       = "export.retry"
 	I18nExportRetryHint   = "export.retryHint"
+	I18nFilterBarLabel    = "filter.bar.label"
+	I18nFilterAllTime     = "filter.period.allTime"
+	I18nFilterClose       = "filter.period.close"
+	I18nFilterCustom      = "filter.period.custom"
+	I18nFilterOpen        = "filter.period.open"
 	I18nPanelCollapse     = "panel.collapse"
 	I18nPanelEmpty        = "panel.empty"
 	I18nPanelExpand       = "panel.expand"
@@ -74,7 +86,10 @@ const (
 // Producers can range over it to assert their catalogue is complete.
 func RuntimeI18nKeys() []string {
 	keys := []string{
+		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
+		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,
 		I18nCascadeStages,
+		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterClose, I18nFilterCustom, I18nFilterOpen,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDrillReset,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
