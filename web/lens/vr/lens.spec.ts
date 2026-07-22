@@ -145,7 +145,7 @@ async function openStory(page: Page, storyId: string, canvasCount: number): Prom
  * whose subject *is* a hover state (an affordance revealed on hover, a chart
  * tooltip). Everywhere else the pointer is incidental and must be parked.
  */
-async function screenshot(page: Page, name: string, { pointer = 'park' }: { pointer?: 'park' | 'keep' } = {}): Promise<void> {
+async function screenshot(page: Page, name: string, { pointer = 'park', maxDiffPixels }: { pointer?: 'park' | 'keep', maxDiffPixels?: number } = {}): Promise<void> {
   // Baseline files ship inside the Go module zip, which rejects paths with
   // characters like the middle dot Ladle inherits from story names.
   expect(name).toMatch(/^[A-Za-z0-9._-]+$/)
@@ -159,7 +159,7 @@ async function screenshot(page: Page, name: string, { pointer = 'park' }: { poin
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
-  await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true })
+  await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true, maxDiffPixels })
 }
 
 test('VR manifest covers every Ladle story', async ({ request }) => {
@@ -279,7 +279,9 @@ test('explore full drill flow keyframes', async ({ page }) => {
   await page.getByRole('dialog').getByRole('button', { name: /Services/ }).click()
   await page.getByRole('button', { name: 'Show breakdown' }).click()
   await expect(page.getByRole('dialog').getByRole('button', { name: /Sales/ })).toBeVisible()
-  await screenshot(page, 'explore-full-drill-05-cost-centers')
+  // This keyframe alternates between two stable rasters differing by a few
+  // antialiased pixels at the drill panel's corners (iota-uz/iota-sdk#932).
+  await screenshot(page, 'explore-full-drill-05-cost-centers', { maxDiffPixels: 50 })
 
   await page.getByRole('dialog').getByRole('button', { name: /Sales/ }).click()
   await expect(page.getByRole('navigation', { name: /exploration path/ })).toBeVisible()
