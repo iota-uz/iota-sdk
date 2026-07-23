@@ -958,6 +958,16 @@
     z-index: var(--lens-overlay-z, 2147483000);
   }
 
+  /* The drill drawer is a second body-level portal host. It must stack ABOVE
+     the expand overlay — a drawer opened from inside a fullscreen panel has to
+     paint over it, not behind — so its host sits one rung higher than
+     `--lens-overlay-z`. The backdrop inside keeps its own fixed/inset, but the
+     effective top of the stack comes from this container's z-index. */
+  .lens-drawer-root {
+    @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
+    z-index: var(--lens-drawer-z, 2147483100);
+  }
+
   .lens-panel-overlay {
     @apply lens-fixed lens-inset-0 lens-flex lens-items-center lens-justify-center lens-p-6;
     /* Near-opaque: a sibling card behind the dialog must not read as content. */

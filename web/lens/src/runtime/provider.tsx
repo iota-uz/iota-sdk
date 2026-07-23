@@ -673,6 +673,10 @@ function RuntimeCore({
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
   const replaceNextURL = useRef(true)
   const drawerOpener = useRef<HTMLElement>()
+  // The drawer portals to body and stacks above an expanded panel, so it carries
+  // the theme of the root it opened from — captured from the opener when the
+  // drawer opens, mirroring PanelFrame's overlay theme capture.
+  const drawerTheme = useRef<{ theme?: string; dark: boolean }>({ dark: false })
   const drawerCache = useRef<DocumentCache>()
   if (drawerDepth === 0 && !drawerCache.current) drawerCache.current = new DocumentCache({ capacity: 8, csrf, fetcher })
   useEffect(() => {
@@ -987,6 +991,14 @@ function RuntimeCore({
       drawerOpener.current = opener ?? (
         globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : undefined
       )
+      // The opener stays connected (the fullscreen panel is not collapsed), so
+      // its `.lens-root` still resolves; fall back to any root when the drawer
+      // opened without a captured element.
+      const root = drawerOpener.current?.closest<HTMLElement>('.lens-root')
+        ?? (typeof globalThis.document !== 'undefined'
+          ? globalThis.document.querySelector<HTMLElement>('.lens-root')
+          : null)
+      drawerTheme.current = { theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false }
       dispatch(navigationActions.openDrawer(src))
     },
     close: closeDrawer,
@@ -1019,10 +1031,12 @@ function RuntimeCore({
                   <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
                     <LensDrawer
                       closeLabel={translate('drawer.close', 'Close details')}
+                      dark={drawerTheme.current.dark}
                       eyebrow={translate('drawer.eyebrow', 'Detail view')}
                       label={translate('drawer.label', 'Drill details')}
                       onClose={closeDrawer}
                       restoreFocus={drawerOpener.current}
+                      theme={drawerTheme.current.theme}
                     >
                       <DashboardRuntimeProvider
                         controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
