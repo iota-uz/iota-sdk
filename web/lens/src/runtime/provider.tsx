@@ -47,6 +47,7 @@ import { DocumentCache } from './prefetch'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { navigationFromURL, navigationToURL, sameNavigationURL } from './url'
+import { X } from '../icons'
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -1193,7 +1194,7 @@ function RuntimeNotice({ notice, onDismiss }: { notice: string; onDismiss: () =>
         onClick={onDismiss}
         type="button"
       >
-        ×
+        <X />
       </button>
     </div>
   )

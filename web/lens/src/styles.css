@@ -25,9 +25,27 @@
     --lens-warn: #d97706;
     --lens-pos-soft: #ecfdf5;
     --lens-neg-soft: #fef2f2;
+    /* 4px-base spacing scale. The dense-terminal grid rhythm (gaps, paddings,
+       margins) references these instead of ad-hoc px literals so a single edit
+       retunes the whole sheet. The half-step covers the tightest 2px gaps
+       between repeated elements. Bespoke/optical values off this scale
+       (3/6/7/9/10/14/18px in the date picker, endpoint pill insets, focus
+       rings) stay literal on purpose — they are not grid rhythm. */
+    --lens-space-0-5: 2px;
+    --lens-space-1: 4px;
+    --lens-space-2: 8px;
+    --lens-space-3: 12px;
+    --lens-space-4: 16px;
+    --lens-space-5: 20px;
+    --lens-space-6: 24px;
     --lens-radius-card: 8px;
     --lens-radius-control: 6px;
     --lens-radius-badge: 4px;
+    /* The calendar cell rounding (day hover, band caps, endpoint pill) is a
+       genuine small-surface radius that sits between control and card; it
+       recurs across the day grid, so it earns a token instead of repeated 7px
+       literals. */
+    --lens-radius-sm: 7px;
     --lens-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
     --lens-shadow-popover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
     --lens-font: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
@@ -400,7 +418,7 @@
   .lens-filter-range-input {
     @apply lens-flex lens-items-center lens-gap-1.5;
     padding: 1px 2px;
-    border-radius: 4px;
+    border-radius: var(--lens-radius-badge);
   }
 
   .lens-filter-range-input[data-invalid] {
@@ -535,7 +553,7 @@
 
   .lens-calendar-nav-group {
     @apply lens-flex lens-items-center;
-    gap: 2px;
+    gap: var(--lens-space-0-5);
   }
 
   .lens-calendar-nav-group:last-child {
@@ -565,7 +583,7 @@
   }
 
   .lens-calendar-week + .lens-calendar-week {
-    margin-top: 2px;
+    margin-top: var(--lens-space-0-5);
   }
 
   .lens-calendar-weekday {
@@ -600,7 +618,7 @@
 
   .lens-calendar-day:hover:not(:disabled):not([data-state]) {
     @apply lens-bg-inset;
-    border-radius: 7px;
+    border-radius: var(--lens-radius-sm);
   }
 
   /* The continuous range band. In-range cells carry a full-width soft accent
@@ -638,14 +656,14 @@
      running square into the grid border. */
   .lens-calendar-day[data-cap='left'],
   .lens-calendar-day[data-cap='both'] {
-    border-top-left-radius: 7px;
-    border-bottom-left-radius: 7px;
+    border-top-left-radius: var(--lens-radius-sm);
+    border-bottom-left-radius: var(--lens-radius-sm);
   }
 
   .lens-calendar-day[data-cap='right'],
   .lens-calendar-day[data-cap='both'] {
-    border-top-right-radius: 7px;
-    border-bottom-right-radius: 7px;
+    border-top-right-radius: var(--lens-radius-sm);
+    border-bottom-right-radius: var(--lens-radius-sm);
   }
 
   /* The endpoint pill: a solid accent rounded rect drawn over the band. */
@@ -661,7 +679,7 @@
     content: '';
     position: absolute;
     inset: 0 2px;
-    border-radius: 7px;
+    border-radius: var(--lens-radius-sm);
     background: var(--lens-accent-600);
   }
 
@@ -773,8 +791,15 @@
     background: var(--lens-border-strong);
   }
 
+  /* Items align to the START of their track, not stretch: a short panel (a
+     cascade, a coverage card, a stat) shrink-wraps to its content instead of
+     being pulled to the height of a tall sibling (a 25-row product table),
+     which used to leave dead whitespace under the short panel and float its
+     footer/delta chip at the bottom of that gap. Panels that must hold a floor
+     height carry their own min-height (`.lens-panel` min-h-44; `.lens-chart-host`
+     19rem, `.lens-chart-canvas` 17rem), so charts never collapse. */
   .lens-panel-grid {
-    @apply lens-grid lens-grid-cols-1 lens-gap-4 md:lens-grid-cols-12;
+    @apply lens-grid lens-grid-cols-1 lens-items-start lens-gap-4 md:lens-grid-cols-12;
   }
 
   .lens-grid-item {
