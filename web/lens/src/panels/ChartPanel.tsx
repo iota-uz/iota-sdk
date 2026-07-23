@@ -132,6 +132,17 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     return (visibleFrame?.rows ?? []).reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
   }, [frame.data, hidden.size, panel.encoding.value, visibleFrame])
 
+  // `panel.total` is the root frame's total, shipped once with the document. At
+  // a drill level the panel is showing the level's frame, so the badge has to
+  // total that frame instead — the same rows the slice percentages normalize
+  // against — or it prints the root's figure over the level's chart.
+  const levelTotal = useMemo(() => {
+    if (!active || !frame.data || !panel.encoding.value) return undefined
+    const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
+    if (valueIndex < 0) return undefined
+    return frame.data.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+  }, [active, frame.data, panel.encoding.value])
+
   const toggleSeries = useCallback((key: string) => {
     setHidden((current) => {
       const next = new Set(current)
@@ -176,27 +187,34 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     drillInto(node?.key ?? key, panel.id)
   }, [drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
 
+  // A legend sits to the RIGHT of the plot on a wide panel and drops below it
+  // when the panel is too narrow (handled in CSS by a container query). Moving
+  // it out of the plot's footer hands the freed width to the chart, which fills
+  // the left of the body.
+  const hasLegend = panel.presentation?.legend === 'below' && Boolean(frame.data)
   return (
-    <PanelFrame panel={panel} frame={frame}>
-      <div className="lens-chart-area">
-        {input && (
-          <ChartHost
-            input={input}
-            panelId={panel.id}
-            adapter={adapter}
-            label={translate('chart.label', '{name} chart', { name: panel.title })}
-            drillable={interactive}
-            onSelect={interactive ? select : undefined}
-            onHover={interactive ? setHoveredKey : undefined}
-          />
+    <PanelFrame panel={panel} frame={frame} total={levelTotal ?? panel.total}>
+      <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
+        <div className="lens-chart-area">
+          {input && (
+            <ChartHost
+              input={input}
+              panelId={panel.id}
+              adapter={adapter}
+              label={translate('chart.label', '{name} chart', { name: panel.title })}
+              drillable={interactive}
+              onSelect={interactive ? select : undefined}
+              onHover={interactive ? setHoveredKey : undefined}
+            />
+          )}
+        </div>
+        {panel.presentation?.totalBadge === 'plot' && (visibleTotal ?? levelTotal ?? panel.total) !== undefined && (
+          <PlotTotalBadge panel={panel} total={(visibleTotal ?? levelTotal ?? panel.total)!} />
         )}
-        {panel.presentation?.totalBadge === 'plot' && panel.total !== undefined && (
-          <PlotTotalBadge panel={panel} total={visibleTotal ?? panel.total} />
+        {hasLegend && frame.data && (
+          <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} />
         )}
       </div>
-      {panel.presentation?.legend === 'below' && frame.data && (
-        <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} />
-      )}
       {interactive && hoveredKey && (
         <span className="lens-chart-drill-hint" role="status">
           {translate('chart.drillHint', 'Select to explore')}

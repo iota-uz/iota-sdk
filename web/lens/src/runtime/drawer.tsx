@@ -1,13 +1,24 @@
-import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { X } from '../icons'
+import { useDrawerHeader } from './provider'
 
 interface LensDrawerProps {
   children: ReactNode
   closeLabel: string
+  /**
+   * The drawer can stack on top of an expanded panel, which is itself a
+   * body-level portal. So the drawer carries the theme of the dashboard root it
+   * came from, mirroring PanelOverlay, or every `--lens-*` custom property on
+   * the portaled subtree resolves to its fallback.
+   */
+  dark?: boolean
+  /** Fallback eyebrow used until the document supplies its own drawer header. */
   eyebrow: string
   label: string
   onClose: () => void
   restoreFocus?: HTMLElement
+  theme?: string
 }
 
 function focusableElements(host: HTMLElement): HTMLElement[] {
@@ -16,16 +27,48 @@ function focusableElements(host: HTMLElement): HTMLElement[] {
   )).filter((element) => !element.hasAttribute('hidden'))
 }
 
-export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, restoreFocus }: LensDrawerProps) {
+export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label, onClose, restoreFocus, theme }: LensDrawerProps) {
+  const [container, setContainer] = useState<HTMLElement>()
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  // The loaded document owns the heading: it names the metric (eyebrow), the
+  // scope (title) and the period (caption) once, so the drawer never repeats a
+  // page heading and per-panel titles. Until it lands, the generic eyebrow prop
+  // holds the top bar.
+  const header = useDrawerHeader()
+  const headerEyebrow = header?.eyebrow?.trim() || eyebrow
+  const headerTitle = header?.title?.trim()
+  const headerCaption = header?.caption?.trim()
+
+  // The drawer portals to a body-level host, mirroring PanelOverlay: nested
+  // inline in the app root it could never paint above the expand overlay (a
+  // body-level portal at a huge z-index) no matter its own z-index. The host
+  // re-declares the Lens root class + theme it left behind so custom properties
+  // still resolve, and `.lens-drawer-root` sits one rung above the overlay.
+  useEffect(() => {
+    if (typeof document === 'undefined') return undefined
+    const element = globalThis.document.createElement('div')
+    element.className = `lens-root lens-drawer-root${dark ? ' dark' : ''}`
+    if (theme) element.dataset.theme = theme
+    globalThis.document.body.appendChild(element)
+    setContainer(element)
+    return () => {
+      element.remove()
+      setContainer(undefined)
+    }
+  }, [dark, theme])
 
   useEffect(() => {
+    if (!container) return undefined
     const overflow = globalThis.document.body.style.overflow
     globalThis.document.body.style.overflow = 'hidden'
-    const backdrop = dialogRef.current?.parentElement
-    const background = Array.from(backdrop?.parentElement?.children ?? [])
-      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== backdrop)
+    // The drawer is now a body-level portal, so the background to seal off is
+    // the set of sibling body children — the dashboard app root and, when the
+    // drawer was opened from an expanded panel, that overlay's own host. Inert
+    // every direct child of body except the drawer's own container; walking the
+    // old backdrop → parent → children chain would now inert the drawer itself.
+    const background = Array.from(globalThis.document.body.children)
+      .filter((element): element is HTMLElement => element instanceof HTMLElement && element !== container)
       .map((element) => ({
         element,
         inert: element.inert,
@@ -45,7 +88,7 @@ export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, rest
       }
       if (restoreFocus?.isConnected) restoreFocus.focus()
     }
-  }, [restoreFocus])
+  }, [container, restoreFocus])
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') {
@@ -72,8 +115,15 @@ export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, rest
     }
   }
 
-  return (
-    <div className="lens-drawer-backdrop">
+  if (!container) return null
+
+  return createPortal(
+    <div
+      className="lens-drawer-backdrop"
+      // mousedown, not click: a drag that starts inside the dialog and ends on
+      // the backdrop must not be read as "dismiss".
+      onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
+    >
       <div
         aria-label={label}
         aria-modal="true"
@@ -84,7 +134,11 @@ export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, rest
         tabIndex={-1}
       >
         <header className="lens-drawer-header">
-          <span className="lens-drawer-eyebrow">{eyebrow}</span>
+          <div className="lens-drawer-identity">
+            <span className="lens-drawer-eyebrow">{headerEyebrow}</span>
+            {headerTitle && <span className="lens-drawer-title">{headerTitle}</span>}
+            {headerCaption && <span className="lens-drawer-caption">{headerCaption}</span>}
+          </div>
           <button
             aria-label={closeLabel}
             autoFocus
@@ -100,6 +154,7 @@ export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, rest
           {children}
         </div>
       </div>
-    </div>
+    </div>,
+    container,
   )
 }

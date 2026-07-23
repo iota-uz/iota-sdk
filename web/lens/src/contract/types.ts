@@ -42,6 +42,19 @@ export interface DashboardDocument {
   endpoints: Endpoints
   i18n: Record<string, string>
   theme: Theme
+  header?: DocumentHeader
+  drawer?: DrawerHeader
+}
+
+export interface DocumentHeader {
+  title?: string
+  subtitle?: string
+}
+
+export interface DrawerHeader {
+  eyebrow?: string
+  title?: string
+  caption?: string
 }
 
 export interface Drill {
@@ -113,6 +126,7 @@ export interface LayoutGroup {
   layout?: LayoutGroupLayout
   span: number
   tab?: string
+  status?: PanelStatus
 }
 
 export type LayoutGroupKind = "metrics" | "tabs"
@@ -237,6 +251,10 @@ export interface Presentation {
   colorBy?: ColorBy
   fill?: boolean
   barWidthPx?: number
+  sortable?: boolean
+  expandable?: boolean
+  exportable?: boolean
+  rowGroupField?: string
 }
 
 export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
@@ -277,7 +295,7 @@ export interface Source {
 
 export type StatusTone = "neutral" | "positive" | "warning"
 
-export type TableAffordance = "pill"
+export type TableAffordance = "pill" | "quiet"
 
 export type TableAlign = "left" | "right"
 
@@ -285,6 +303,7 @@ export interface TableCell {
   kind: TableCellKind
   secondaryField?: string
   layout?: TableCellLayout
+  toneField?: string
 }
 
 export type TableCellKind = "bar" | "delta" | "plain" | "underline"
@@ -301,6 +320,7 @@ export interface TableColumn {
   widthPx?: number
   clamp?: number
   affordance?: TableAffordance
+  badgeField?: string
 }
 
 export interface Theme {

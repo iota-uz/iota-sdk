@@ -304,6 +304,27 @@ func (b *PanelBuilder) Presentation(hints panel.PresentationHints) *PanelBuilder
 	return b
 }
 
+// NonSortable removes a table panel's sort affordances — for a fixed
+// decomposition whose rows have an inherent order, not a record list.
+func (b *PanelBuilder) NonSortable() *PanelBuilder {
+	b.panel.Presentation.NonSortable = true
+	return b
+}
+
+// NonExpandable removes the panel's expand-to-overlay control. Every panel
+// rendered inside a drawer sets it — an overlay over a modal is meaningless.
+func (b *PanelBuilder) NonExpandable() *PanelBuilder {
+	b.panel.Presentation.NonExpandable = true
+	return b
+}
+
+// NonExportable removes the panel's export control, e.g. a small derived table
+// that is already the drawer's whole point.
+func (b *PanelBuilder) NonExportable() *PanelBuilder {
+	b.panel.Presentation.NonExportable = true
+	return b
+}
+
 func (b *PanelBuilder) Build() PanelSpec { return b.panel }
 
 func StaticDataset(name string, static *frame.FrameSet, transforms ...transform.Spec) DatasetSpec {
@@ -395,6 +416,27 @@ func (c TableColumnSpec) Stacked() TableColumnSpec {
 // Pill marks an actionable column's cells as compact drill pills.
 func (c TableColumnSpec) Pill() TableColumnSpec {
 	c.Affordance = "pill"
+	return c
+}
+
+// Quiet makes an actionable column's whole cell the drill target with no
+// standing chrome; the drill arrow and value underline appear only on hover.
+func (c TableColumnSpec) Quiet() TableColumnSpec {
+	c.Affordance = "quiet"
+	return c
+}
+
+// Tone colors the cell value by a per-row status read from toneField ("pos",
+// "warn", "neg"; empty keeps the default text color).
+func (c TableColumnSpec) Tone(toneField string) TableColumnSpec {
+	c.ToneField = toneField
+	return c
+}
+
+// Badge renders a muted "?" badge after the cell value for rows whose
+// badgeField value is non-empty, using that value as the badge's title.
+func (c TableColumnSpec) Badge(badgeField string) TableColumnSpec {
+	c.BadgeField = badgeField
 	return c
 }
 

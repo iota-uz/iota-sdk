@@ -124,8 +124,10 @@ PopoverOpenDark.storyName = 'Popover open dark'
 function CalendarCard({ children, theme = 'light' }: { children: React.ReactNode; theme?: LensThemeMode }) {
   return (
     <div className="lens-root" data-theme={theme}>
-      <div className="lens-filter-popover" style={{ position: 'static' }}>
-        {children}
+      <div className="lens-filter-popover" style={{ position: 'static', width: 496 }}>
+        <div className="lens-filter-popover-main">
+          {children}
+        </div>
       </div>
     </div>
   )
@@ -183,14 +185,16 @@ CalendarRangePending.storyName = 'Calendar range pending'
 export const CalendarLocales: Story = () => (
   <div className="lens-root" style={{ display: 'flex', flexWrap: 'wrap', gap: 16 }}>
     {(['en-US', 'ru', 'uz', 'uz-Cyrl'] as const).map((locale) => (
-      <div className="lens-filter-popover" key={locale} style={{ position: 'static' }}>
-        <Calendar
-          draft={committedRange}
-          locale={locale}
-          onPick={() => undefined}
-          today={storyToday}
-          translate={identityTranslate}
-        />
+      <div className="lens-filter-popover" key={locale} style={{ position: 'static', width: 496 }}>
+        <div className="lens-filter-popover-main">
+          <Calendar
+            draft={committedRange}
+            locale={locale}
+            onPick={() => undefined}
+            today={storyToday}
+            translate={identityTranslate}
+          />
+        </div>
       </div>
     ))}
   </div>

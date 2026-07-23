@@ -90,16 +90,19 @@ describe('copy the segment value', () => {
     return { node, label: 'Services', value: 8_765_432, breakdown: [], perspectives: [] }
   }
 
-  it('copies the formatted figure and confirms on the button itself', async () => {
+  it('copies the raw machine value (not the formatted figure) and confirms on the button', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     Object.defineProperty(globalThis.navigator, 'clipboard', { configurable: true, value: { writeText } })
     renderOverlay(valueTarget())
 
+    // The on-screen figure is formatted (separators/unit); the clipboard must
+    // receive the paste-ready raw number instead.
     const figure = dialog().querySelector('.lens-drill-value-figure')!.textContent
     const button = screen.getByRole('button', { name: 'Copy value' })
     fireEvent.click(button)
 
-    expect(writeText).toHaveBeenCalledWith(figure)
+    expect(writeText).toHaveBeenCalledWith('8765432')
+    expect(writeText).not.toHaveBeenCalledWith(figure)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument())
   })
 

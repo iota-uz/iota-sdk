@@ -127,6 +127,35 @@ export const CaretDown = glyph(
   14,
 )
 
+/** Year-step navigation: back one year. */
+export const CaretDoubleLeft = glyph(
+  <>
+    <polyline points="200 208 120 128 200 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="120 208 40 128 120 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Year-step navigation: forward one year. */
+export const CaretDoubleRight = glyph(
+  <>
+    <polyline points="56 48 136 128 56 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="136 48 216 128 136 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Period trigger and date-field adornment. */
+export const CalendarBlank = glyph(
+  <>
+    <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="176" y1="24" x2="176" y2="56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="80" y1="24" x2="80" y2="56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="40" y1="88" x2="216" y2="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
 /** Copy the segment value to the clipboard. */
 export const Copy = glyph(
   <>
@@ -151,4 +180,40 @@ export const ArrowUpRight = glyph(
     <polyline points="88 64 192 64 192 168" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
   </>,
   12,
+)
+
+/** Trend chip: metric rising. */
+export const TrendUp = glyph(
+  <>
+    <polyline points="32 192 96 128 144 160 224 64" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="160 64 224 64 224 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Trend chip: metric falling. */
+export const TrendDown = glyph(
+  <>
+    <polyline points="32 64 96 128 144 96 224 192" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="160 192 224 192 224 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Trend chip: metric unchanged. */
+export const TrendFlat = glyph(
+  <>
+    <line x1="40" y1="128" x2="216" y2="128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Empty panel state: no data to plot. */
+export const ChartLine = glyph(
+  <>
+    <polyline points="32 208 32 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="32 208 224 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="56 160 112 104 152 144 208 72" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  20,
 )

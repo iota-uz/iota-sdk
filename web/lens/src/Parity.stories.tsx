@@ -190,6 +190,22 @@ export const PieWithLegendBelow: Story = () => {
   })
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
+PieWithLegendBelow.storyName = 'Pie with legend right - light'
+
+/** The same right-hand legend layout in the dark theme. */
+export const PieWithLegendBelowDark: Story = () => {
+  const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
+    rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
+  })
+  return (
+    <div className="lens-root" data-theme="dark">
+      <DocumentProvider initialDocument={doc}>
+        <DashboardRuntimeProvider locale="ru"><DashboardPanels /></DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+PieWithLegendBelowDark.storyName = 'Pie with legend right - dark'
 
 const skeletonRows = [
   { items: [{ span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }] },

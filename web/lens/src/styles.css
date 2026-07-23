@@ -25,10 +25,29 @@
     --lens-warn: #d97706;
     --lens-pos-soft: #ecfdf5;
     --lens-neg-soft: #fef2f2;
+    /* 4px-base spacing scale. The dense-terminal grid rhythm (gaps, paddings,
+       margins) references these instead of ad-hoc px literals so a single edit
+       retunes the whole sheet. The half-step covers the tightest 2px gaps
+       between repeated elements. Bespoke/optical values off this scale
+       (3/6/7/9/10/14/18px in the date picker, endpoint pill insets, focus
+       rings) stay literal on purpose — they are not grid rhythm. */
+    --lens-space-0-5: 2px;
+    --lens-space-1: 4px;
+    --lens-space-2: 8px;
+    --lens-space-3: 12px;
+    --lens-space-4: 16px;
+    --lens-space-5: 20px;
+    --lens-space-6: 24px;
     --lens-radius-card: 8px;
     --lens-radius-control: 6px;
     --lens-radius-badge: 4px;
+    /* The calendar cell rounding (day hover, band caps, endpoint pill) is a
+       genuine small-surface radius that sits between control and card; it
+       recurs across the day grid, so it earns a token instead of repeated 7px
+       literals. */
+    --lens-radius-sm: 7px;
     --lens-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --lens-shadow-popover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
     --lens-font: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
   }
 
@@ -57,6 +76,7 @@
     --lens-accent-100: rgba(37, 99, 235, 0.2);
     --lens-accent-50: rgba(37, 99, 235, 0.12);
     --lens-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --lens-shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
     --lens-pos-soft: rgba(5, 150, 105, 0.16);
     --lens-neg-soft: rgba(220, 38, 38, 0.16);
     color-scheme: dark;
@@ -89,12 +109,29 @@
   }
 
   .lens-drawer-header {
-    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-center lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5;
+    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-start lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5 lens-py-3;
     box-shadow: inset 3px 0 0 var(--lens-accent-500);
   }
 
+  .lens-drawer-identity {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+  }
+
   .lens-drawer-eyebrow {
-    @apply lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .lens-drawer-title {
+    @apply lens-truncate lens-text-base lens-font-semibold lens-text-strong;
+    line-height: 1.3;
+  }
+
+  .lens-drawer-caption {
+    @apply lens-text-xs lens-text-muted;
+    white-space: pre-line;
+    line-height: 1.35;
   }
 
   .lens-drawer-close {
@@ -117,6 +154,22 @@
 
   .lens-drawer-document .lens-dashboard {
     @apply lens-max-w-none;
+  }
+
+  /* A long record table inside a drawer keeps its header on screen while the
+     rows scroll: the header sticks to whichever ancestor scrolls (the table's
+     own scroll box, or the drawer body). A solid card background keeps the
+     scrolled rows from bleeding through the sticky row. */
+  .lens-drawer .lens-table thead th {
+    @apply lens-sticky lens-top-0 lens-z-10;
+    background: var(--lens-bg-card);
+  }
+
+  /* Sections take their natural height inside a drawer — no stretch — so a
+     short drawer ends cleanly after its content instead of trailing dead space
+     under a fill-stretched panel. */
+  .lens-drawer-document .lens-panel-fill {
+    @apply lens-flex-none;
   }
 
   @keyframes lens-drawer-enter {
@@ -147,6 +200,28 @@
 
   .lens-dashboard-header h1 {
     @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+  }
+
+  /* The document's own identity block: a strong title over a muted period +
+     freshness line, left-aligned opposite the action bar. */
+  .lens-dashboard-identity {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+  }
+
+  .lens-dashboard-header .lens-dashboard-title {
+    @apply lens-m-0 lens-font-semibold lens-tracking-tight lens-text-strong;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .lens-dashboard-subtitle {
+    @apply lens-m-0 lens-text-muted;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .lens-dashboard-subtitle-sep {
+    @apply lens-text-faint;
   }
 
   .lens-dashboard-updated {
@@ -180,40 +255,237 @@
   }
 
   .lens-filter-chip:hover {
-    @apply lens-text-strong;
+    @apply lens-bg-inset lens-text-strong;
   }
 
-  .lens-filter-chip[aria-pressed='true'] {
-    @apply lens-bg-card lens-text-strong;
-    box-shadow: var(--lens-shadow-card);
+  /* The pressed chip is the active period source: the same accent language as
+     the popover rail's selected preset, with a hairline accent ring (an inset
+     shadow, so the borderless chip does not shift). Hover restates it because
+     the idle hover above would otherwise repaint the text dark. */
+  .lens-filter-chip[aria-pressed='true'],
+  .lens-filter-chip[aria-pressed='true']:hover {
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+    box-shadow: inset 0 0 0 1px var(--lens-accent-300);
   }
 
+  .lens-root[data-theme='dark'] .lens-filter-chip[aria-pressed='true'],
+  .lens-root[data-theme='dark'] .lens-filter-chip[aria-pressed='true']:hover {
+    color: var(--lens-accent-300);
+  }
+
+  /* The period trigger is a real control: calendar glyph, formatted range,
+     caret. Hover raises the border; the open state ties it to the popover
+     with the accent border and tint. */
   .lens-filter-trigger {
-    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
-  .lens-filter-trigger:hover,
+  .lens-filter-trigger:hover {
+    @apply lens-border-strong lens-text-strong;
+  }
+
+  /* When the applied range matches no chip, the trigger itself is the active
+     period source and carries the pressed-chip accent treatment persistently;
+     the open state (below, later in the cascade) upgrades the border. */
+  .lens-filter-trigger[data-active] {
+    border-color: var(--lens-accent-300);
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+  }
+
+  .lens-root[data-theme='dark'] .lens-filter-trigger[data-active] {
+    color: var(--lens-accent-300);
+  }
+
   .lens-filter-trigger[aria-expanded='true'] {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens-text-strong;
+    border-color: var(--lens-accent-500);
+    background: var(--lens-accent-50);
   }
 
   .lens-filter-trigger-icon {
-    @apply lens-text-faint;
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  .lens-filter-trigger-caret {
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  .lens-filter-trigger:hover .lens-filter-trigger-icon,
+  .lens-filter-trigger:hover .lens-filter-trigger-caret,
+  .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-icon,
+  .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-caret {
+    @apply lens-text-muted;
+  }
+
+  /* The active trigger's glyphs follow its accent text. */
+  .lens-filter-trigger[data-active] .lens-filter-trigger-icon,
+  .lens-filter-trigger[data-active] .lens-filter-trigger-caret {
+    color: inherit;
   }
 
   .lens-filter-scrim {
     @apply lens-fixed lens-inset-0;
   }
 
+  /* The picker popover: a two-pane card. The left rail lists the relative
+     presets under a "quick select" heading, the main pane owns the dual-month
+     calendar, typed range entry, and the footer actions. Below ~540px the
+     panes stack, the calendar drops to one month, and the preset list becomes
+     a horizontally scrollable row. */
   .lens-filter-popover {
-    @apply lens-fixed lens-flex lens-flex-col lens-gap-2 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-shadow-lg lens-outline-none;
-    width: 292px;
+    @apply lens-fixed lens-flex lens-flex-row lens-items-stretch lens-overflow-hidden lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0 lens-outline-none;
+    width: 660px;
+    border-radius: 12px;
+    box-shadow: var(--lens-shadow-card), var(--lens-shadow-popover);
   }
 
-  /* Same open treatment as the drill overlay: the class only exists when
-     neither visual regression nor reduced motion is in effect. */
+  .lens-filter-popover-side {
+    @apply lens-flex lens-flex-col lens-gap-px lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid;
+    flex: 0 0 164px;
+    padding: 10px 8px;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-filter-preset-heading {
+    @apply lens-flex-none lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+    font-size: 10px;
+    padding: 2px 10px 6px;
+  }
+
+  .lens-filter-preset {
+    @apply lens-block lens-w-full lens-flex-none lens-rounded-control lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-xs lens-font-medium lens-text-text lens-transition-colors;
+    padding: 8px 10px;
+    line-height: 1.35;
+  }
+
+  .lens-filter-preset:hover {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
+  .lens-filter-preset[aria-pressed='true'] {
+    @apply lens-font-medium;
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+  }
+
+  /* accent-600 has no dark override (it backs solid fills elsewhere), so the
+     selected preset restates its text colour for the dark theme. */
+  .lens-root[data-theme='dark'] .lens-filter-preset[aria-pressed='true'] {
+    color: var(--lens-accent-300);
+  }
+
+  .lens-filter-preset-divider {
+    @apply lens-h-px lens-flex-none;
+    margin: 6px 4px;
+    background: var(--lens-divider);
+  }
+
+  .lens-filter-popover-main {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col lens-gap-2.5;
+    padding: 12px 14px;
+  }
+
+  /* Typed range entry: From and To read as one joined control — a single
+     bordered field with an em-dash between the two halves. Each half is a
+     masked dd.mm.yyyy text input behind a small calendar glyph; an invalid
+     half carries its own red ring. */
+  .lens-filter-range {
+    @apply lens-flex lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card;
+    padding: 3px 6px;
+  }
+
+  .lens-filter-range:hover {
+    @apply lens-border-strong;
+  }
+
+  .lens-filter-range:focus-within {
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 2px var(--lens-accent-100);
+  }
+
+  .lens-filter-range-field {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+    padding: 2px 6px;
+  }
+
+  .lens-filter-range-caption {
+    @apply lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+    font-size: 9px;
+  }
+
+  .lens-filter-range-input {
+    @apply lens-flex lens-items-center lens-gap-1.5;
+    padding: 1px 2px;
+    border-radius: var(--lens-radius-badge);
+  }
+
+  .lens-filter-range-input[data-invalid] {
+    box-shadow: 0 0 0 1px var(--lens-neg), 0 0 0 3px var(--lens-neg-soft);
+  }
+
+  .lens-filter-range-input[data-invalid] .lens-filter-input {
+    color: var(--lens-neg);
+  }
+
+  .lens-filter-range-icon {
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  /* The joiner sits on the input line, not the optical middle of the
+     caption+input stack. */
+  .lens-filter-range-sep {
+    @apply lens-flex-none lens-text-faint;
+    font-size: 12px;
+    line-height: 1;
+    margin-top: 12px;
+  }
+
+  .lens-filter-input {
+    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-xs lens-font-medium lens-text-strong lens-outline-none;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-filter-input::placeholder {
+    color: var(--lens-text-faint);
+  }
+
+  @media (max-width: 540px) {
+    .lens-filter-popover {
+      @apply lens-flex-col;
+      width: min(340px, calc(100vw - 24px));
+    }
+
+    .lens-filter-popover-side {
+      @apply lens-flex-row lens-items-center lens-overflow-x-auto lens-overflow-y-hidden lens-border-r-0 lens-border-b;
+      flex: none;
+      border-color: var(--lens-divider);
+    }
+
+    .lens-filter-preset-heading {
+      @apply lens-hidden;
+    }
+
+    .lens-filter-preset {
+      @apply lens-w-auto lens-flex-none;
+    }
+
+    .lens-filter-preset-divider {
+      @apply lens-h-auto lens-w-px lens-self-stretch;
+      margin: 4px 6px;
+    }
+  }
+
+  /* Open entrance: a short fade-and-drop. The class only exists when neither
+     visual regression nor reduced motion is in effect. */
   .lens-filter-popover-enter {
-    animation: lens-overlay-pop 120ms ease-out;
+    animation: lens-filter-pop 140ms ease-out;
+  }
+
+  @keyframes lens-filter-pop {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -223,85 +495,232 @@
   }
 
   .lens-filter-popover-footer {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
+    @apply lens-flex lens-items-center lens-justify-end lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
     border-color: var(--lens-divider);
   }
 
-  .lens-calendar {
-    @apply lens-flex lens-flex-col lens-gap-2;
+  .lens-filter-close {
+    @apply lens-px-3;
+    min-height: 32px;
   }
 
+  .lens-filter-close:hover {
+    @apply lens-bg-inset;
+  }
+
+  /* Apply is the popover's one primary action. Hover/disabled must restate the
+     colours because the base chip's hover otherwise repaints the text dark. */
+  .lens-filter-apply {
+    background: var(--lens-accent-600);
+    color: #ffffff;
+    padding-inline: 0.875rem;
+    min-height: 32px;
+  }
+
+  .lens-filter-apply:hover:not(:disabled) {
+    background: var(--lens-accent-500);
+    color: #ffffff;
+  }
+
+  .lens-filter-apply:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .lens-calendar {
+    @apply lens-flex lens-flex-col lens-gap-1.5;
+  }
+
+  /* Two consecutive month panes side by side; the stacked breakpoint drops
+     the calendar to a single pane (decided in JS with the same media query). */
+  .lens-calendar-panes {
+    @apply lens-flex lens-items-start;
+    gap: 18px;
+  }
+
+  .lens-calendar-pane {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1;
+    flex: 1 1 0;
+  }
+
+  /* Fixed side tracks keep the month label optically centered whether the
+     pane carries its nav buttons on the left, the right, or both. */
   .lens-calendar-header {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-2;
+    @apply lens-items-center;
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+  }
+
+  .lens-calendar-nav-group {
+    @apply lens-flex lens-items-center;
+    gap: var(--lens-space-0-5);
+  }
+
+  .lens-calendar-nav-group:last-child {
+    @apply lens-justify-end;
   }
 
   .lens-calendar-month {
-    @apply lens-text-sm lens-font-semibold lens-text-strong;
+    @apply lens-whitespace-nowrap lens-text-center lens-text-sm lens-font-semibold lens-text-strong;
   }
 
   .lens-calendar-nav {
-    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-font-sans lens-text-sm lens-text-muted;
+    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-bg-transparent lens-font-sans lens-leading-none lens-text-muted;
   }
 
   .lens-calendar-nav:hover {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens-bg-inset lens-text-strong;
   }
 
+  /* The day grid has NO column gap: in-range washes touch edge to edge so a
+     selected range reads as one continuous band. Vertical rhythm comes from
+     the per-row margin instead of a grid gap. */
   .lens-calendar-weekdays,
   .lens-calendar-week {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
+    gap: 0;
+  }
+
+  .lens-calendar-week + .lens-calendar-week {
+    margin-top: var(--lens-space-0-5);
   }
 
   .lens-calendar-weekday {
     @apply lens-py-1 lens-text-center lens-font-semibold lens-uppercase lens-text-faint;
     font-size: 10px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
   }
 
+  /* A day cell is a fixed-height flat button; every visual state is painted
+     either on the button (the band wash) or on its ::before (the endpoint
+     pill), with the day number lifted above both. Out-of-month padding days
+     are decorative spans on the same footprint: faint, inert, never washed. */
   .lens-calendar-day {
-    @apply lens-rounded-badge lens-border-0 lens-bg-transparent lens-py-1.5 lens-text-center lens-font-sans lens-text-xs lens-font-medium lens-text-text;
+    @apply lens-relative lens-inline-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
+    height: 32px;
+    font-size: 12.5px;
+    border-radius: 0;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-calendar-day-label {
+    @apply lens-relative;
+    z-index: 1;
   }
 
   .lens-calendar-day[data-outside] {
     @apply lens-text-faint;
+    background: none;
+    opacity: 0.55;
+    pointer-events: none;
   }
 
-  .lens-calendar-day:hover:not(:disabled) {
+  .lens-calendar-day:hover:not(:disabled):not([data-state]) {
     @apply lens-bg-inset;
+    border-radius: var(--lens-radius-sm);
   }
 
-  .lens-calendar-day[data-today] {
-    box-shadow: inset 0 0 0 1px var(--lens-accent-300);
-  }
-
-  /* The live hover preview uses the faint accent wash; a committed range the
-     stronger one. Boundaries are always solid accent. */
-  .lens-calendar-day[data-state='preview'] {
-    background: var(--lens-accent-50);
-    color: var(--lens-text-strong);
-  }
-
+  /* The continuous range band. In-range cells carry a full-width soft accent
+     wash with no rounding and no gaps; the hover preview the fainter wash.
+     Endpoint cells carry a half-width wash on their inner side (data-band) so
+     the band ends exactly under the middle of the endpoint pill. */
   .lens-calendar-day[data-state='inRange'] {
     background: var(--lens-accent-100);
     color: var(--lens-text-strong);
   }
 
+  .lens-calendar-day[data-state='preview'] {
+    background: var(--lens-accent-50);
+    color: var(--lens-text-strong);
+  }
+
+  .lens-calendar-day[data-band='right'] {
+    background: linear-gradient(to right, transparent 50%, var(--lens-accent-100) 50%);
+  }
+
+  .lens-calendar-day[data-band='left'] {
+    background: linear-gradient(to left, transparent 50%, var(--lens-accent-100) 50%);
+  }
+
+  .lens-calendar-day[data-band='right-preview'] {
+    background: linear-gradient(to right, transparent 50%, var(--lens-accent-50) 50%);
+  }
+
+  .lens-calendar-day[data-band='left-preview'] {
+    background: linear-gradient(to left, transparent 50%, var(--lens-accent-50) 50%);
+  }
+
+  /* Rounded caps where the wash is cut before its endpoint: at week-row
+     edges and against out-of-month gaps the band rounds off instead of
+     running square into the grid border. */
+  .lens-calendar-day[data-cap='left'],
+  .lens-calendar-day[data-cap='both'] {
+    border-top-left-radius: var(--lens-radius-sm);
+    border-bottom-left-radius: var(--lens-radius-sm);
+  }
+
+  .lens-calendar-day[data-cap='right'],
+  .lens-calendar-day[data-cap='both'] {
+    border-top-right-radius: var(--lens-radius-sm);
+    border-bottom-right-radius: var(--lens-radius-sm);
+  }
+
+  /* The endpoint pill: a solid accent rounded rect drawn over the band. */
   .lens-calendar-day[data-state='start'],
   .lens-calendar-day[data-state='end'],
   .lens-calendar-day[data-state='previewEdge'] {
-    background: var(--lens-accent-600);
     color: #ffffff;
+  }
+
+  .lens-calendar-day[data-state='start']::before,
+  .lens-calendar-day[data-state='end']::before,
+  .lens-calendar-day[data-state='previewEdge']::before {
+    content: '';
+    position: absolute;
+    inset: 0 2px;
+    border-radius: var(--lens-radius-sm);
+    background: var(--lens-accent-600);
+  }
+
+  .lens-calendar-day[data-state='previewEdge']::before {
+    background: var(--lens-accent-500);
+  }
+
+  /* Today: a small dot under the number, inverted inside an endpoint pill so
+     it stays visible on the solid accent. */
+  .lens-calendar-day[data-today]::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    width: 3px;
+    height: 3px;
+    margin-left: -1.5px;
+    border-radius: 50%;
+    background: var(--lens-accent-500);
+    z-index: 1;
+  }
+
+  .lens-calendar-day[data-today][data-state='start']::after,
+  .lens-calendar-day[data-today][data-state='end']::after,
+  .lens-calendar-day[data-today][data-state='previewEdge']::after {
+    background: #ffffff;
   }
 
   .lens-calendar-day:disabled {
     @apply lens-text-faint;
-    opacity: 0.45;
+    opacity: 0.4;
   }
 
+  /* Helper line: the selection prompt while the range is incomplete, the
+     day-count summary once it is. */
   .lens-calendar-hint {
     @apply lens-m-0 lens-text-xs lens-text-muted;
+  }
+
+  .lens-calendar-hint[data-complete] {
+    @apply lens-font-medium lens-text-text;
   }
 
   .lens-visually-hidden {
@@ -352,19 +771,35 @@
     @apply lens-min-w-0;
   }
 
+  /* Section headings sit a tier above panel titles: same uppercase family, but
+     bolder, higher-contrast, wider-tracked and over a heavier rule so the page
+     reads as sections-of-panels rather than a flat wall of small caps. */
   .lens-row-heading {
-    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-font-bold lens-uppercase lens-text-strong;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
   }
 
-  /* A hairline rule running to the edge turns the heading into a section
-     band instead of a floating label. */
+  /* A rule running to the edge turns the heading into a section band instead of
+     a floating label; the stronger border color gives it more weight than a
+     panel's own hairline divider. */
   .lens-row-heading::after {
     content: '';
-    @apply lens-h-px lens-flex-1 lens-bg-border;
+    @apply lens-flex-1;
+    height: 1px;
+    background: var(--lens-border-strong);
   }
 
+  /* Items align to the START of their track, not stretch: a short panel (a
+     cascade, a coverage card, a stat) shrink-wraps to its content instead of
+     being pulled to the height of a tall sibling (a 25-row product table),
+     which used to leave dead whitespace under the short panel and float its
+     footer/delta chip at the bottom of that gap. Panels that must hold a floor
+     height carry their own min-height (`.lens-panel` min-h-44; `.lens-chart-host`
+     19rem, `.lens-chart-canvas` 17rem), so charts never collapse. */
   .lens-panel-grid {
-    @apply lens-grid lens-grid-cols-1 lens-gap-4 md:lens-grid-cols-12;
+    @apply lens-grid lens-grid-cols-1 lens-items-start lens-gap-4 md:lens-grid-cols-12;
   }
 
   .lens-grid-item {
@@ -455,6 +890,7 @@
   .lens-fake-chart-footer button,
   .lens-filter-chip,
   .lens-filter-trigger,
+  .lens-filter-preset,
   .lens-calendar-nav,
   .lens-calendar-day {
     @apply lens-cursor-pointer;
@@ -497,7 +933,7 @@
   }
 
   .lens-coverage-track-segment-link:hover {
-    filter: brightness(0.9);
+    filter: brightness(1.12);
   }
 
   /* Icon specimen grid — story-only surface that pins every glyph's rendered
@@ -520,6 +956,16 @@
   .lens-overlay-root {
     @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
     z-index: var(--lens-overlay-z, 2147483000);
+  }
+
+  /* The drill drawer is a second body-level portal host. It must stack ABOVE
+     the expand overlay — a drawer opened from inside a fullscreen panel has to
+     paint over it, not behind — so its host sits one rung higher than
+     `--lens-overlay-z`. The backdrop inside keeps its own fixed/inset, but the
+     effective top of the stack comes from this container's z-index. */
+  .lens-drawer-root {
+    @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
+    z-index: var(--lens-drawer-z, 2147483100);
   }
 
   .lens-panel-overlay {
@@ -616,6 +1062,12 @@
     @apply lens-min-h-0;
   }
 
+  /* A group's heading keeps its title left and sets its hoisted status chip
+     right beside it, rather than pushing it to the far edge. */
+  .lens-panel-group-header {
+    @apply lens-justify-start;
+  }
+
   .lens-metric-row {
     @apply lens-flex lens-flex-1 lens-flex-col lens-divide-y lens-divide-solid lens-divide-border;
   }
@@ -629,11 +1081,19 @@
   }
 
   .lens-stat-metric-label {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-center lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
+  /* Wrap to two tight lines instead of ellipsizing: the full label is worth
+     more than a truncated «ОПЛАЧЕННАЯ УБЫТОЧНОСТЬ ПО ЗАРАБОТА…». The full text
+     stays reachable through the element's title attribute. */
   .lens-stat-metric-label-text {
-    @apply lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+    @apply lens-min-w-0 lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.2;
   }
 
   .lens-stat-metric-bullet {
@@ -705,6 +1165,9 @@
 
   .lens-panel-body {
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+    /* Named container so a chart can decide whether the panel is wide enough to
+       carry its legend in a right-hand column instead of below the plot. */
+    container: lens-panel-body / inline-size;
   }
 
   .lens-placeholder-state {
@@ -735,8 +1198,15 @@
     @apply lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1.5 lens-font-semibold lens-text-text;
   }
 
+  /* The empty state reads top-down: a quiet mark, then the localized text,
+     both centered — not the inline row the shared .lens-panel-state gives
+     every other state. */
+  .lens-panel-state-empty {
+    @apply lens-flex-col lens-gap-2;
+  }
+
   .lens-empty-mark {
-    @apply lens-flex lens-size-7 lens-items-center lens-justify-center lens-rounded-control lens-bg-inset lens-text-faint;
+    color: var(--lens-text-faint);
   }
 
   .lens-panel-skeleton {
@@ -826,7 +1296,18 @@
   }
 
   .lens-stat-label {
-    @apply lens-m-0 lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-flex lens-items-center lens-gap-1.5 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  /* Wrap the label to two tight lines rather than letting a long KPI name run
+     under the value. The full string stays reachable via the title attribute. */
+  .lens-stat-label-text {
+    @apply lens-min-w-0 lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.25;
   }
 
   .lens-stat-value-row {
@@ -847,6 +1328,80 @@
   .lens-stat-delta-negative {
     background: var(--lens-neg-soft);
     color: var(--lens-neg);
+  }
+
+  /* Plot and legend share the body. It stacks them by default (narrow panel);
+     a wide panel moves the legend into a right-hand column, and the plot claims
+     the freed width and sits on the left. */
+  .lens-chart-layout {
+    position: relative;
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  @container lens-panel-body (min-width: 30rem) {
+    .lens-chart-layout-legend {
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .lens-chart-layout-legend > .lens-chart-area {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    /* A vertical list pinned to the right, centred against the plot; it scrolls
+       inside its own column when there are more entries than height. */
+    .lens-chart-layout-legend > .lens-chart-legend {
+      flex: 0 0 auto;
+      width: clamp(9rem, 32%, 15rem);
+      max-height: 100%;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      justify-content: center;
+      align-self: center;
+      overflow-y: auto;
+      padding: 0.75rem 0.5rem;
+    }
+
+    /* Side-column rows stack label over value: mark + label on the first
+       line(s), the figure on its own line beneath. The narrow column can't fit
+       long Russian labels next to a money value without mid-word breaks, so
+       the value gets a full line instead of a squeezed right-hand cell. */
+    .lens-chart-layout-legend .lens-chart-legend-toggle {
+      display: grid;
+      width: 100%;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      column-gap: 0.375rem;
+      row-gap: 0.125rem;
+      text-align: left;
+      padding-block: 0.375rem;
+    }
+
+    /* Pin the swatch to the first text line rather than the row's centre so a
+       wrapped label doesn't leave it floating between lines. */
+    .lens-chart-layout-legend .lens-chart-legend-mark {
+      margin-top: 0.25rem;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-label {
+      min-width: 0;
+      line-height: 1.35;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-separator {
+      display: none;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-value {
+      grid-column: 2;
+      white-space: nowrap;
+    }
   }
 
   .lens-chart-area {
@@ -920,29 +1475,47 @@
   }
 
   .lens-coverage {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-2 lens-p-4;
+    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-1 lens-p-4;
   }
 
+  /* A compact stat headline: the total leads, a muted «Итого»-style label
+     trails it on the same baseline. ~20px keeps a two-segment card at
+     ~120-140px total height. */
   .lens-coverage-headline {
-    @apply lens-m-0 lens-text-3xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-flex lens-items-baseline lens-gap-2;
+  }
+
+  .lens-coverage-headline-value {
+    @apply lens-text-xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  .lens-coverage-headline-label {
+    @apply lens-text-xs lens-font-medium lens-uppercase lens-tracking-wide lens-text-faint;
+  }
+
   .lens-coverage-track {
-    @apply lens-mt-3 lens-flex lens-h-4 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+    @apply lens-mt-2 lens-flex lens-h-2.5 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
   }
 
   .lens-coverage-track-segment {
-    @apply lens-block lens-h-full;
+    @apply lens-block lens-h-full lens-transition-[filter];
     background: var(--lens-accent-500);
+    /* Guarantee a thin slice (e.g. a 0.3% remainder) stays visible and
+       hoverable; flexbox lets the larger segments absorb the difference. */
+    min-width: 3px;
+  }
+
+  .lens-coverage-track-segment:hover {
+    filter: brightness(1.12);
   }
 
   .lens-coverage-legend {
-    @apply lens-m-0 lens-mt-3 lens-list-none lens-p-0;
+    @apply lens-m-0 lens-mt-2 lens-list-none lens-p-0;
   }
 
   .lens-coverage-legend-row {
-    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-2 lens-text-sm;
+    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-sm;
     border-color: var(--lens-divider);
   }
 
@@ -1240,6 +1813,87 @@
 
   .lens-table-cell-link-arrow {
     @apply lens-text-xs lens-text-accent-700;
+  }
+
+  /* Quiet drill cell: the whole cell is the target, but it reads as a plain
+     numeral until hover/focus reveals the underline and the trailing arrow. */
+  .lens-table-cell-quiet {
+    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-bg-transparent lens-text-text lens-no-underline;
+  }
+
+  .lens-table-cell-quiet-value {
+    @apply lens-min-w-0 lens-flex-1 lens-whitespace-nowrap;
+    text-align: inherit;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    transition: text-decoration-color 120ms ease;
+  }
+
+  .lens-table-cell-quiet-arrow {
+    @apply lens-flex-none lens-text-xs lens-text-accent-700;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .lens-table-cell-quiet:hover .lens-table-cell-quiet-value,
+  .lens-table-cell-quiet:focus-visible .lens-table-cell-quiet-value {
+    text-decoration-color: var(--lens-accent-500);
+  }
+
+  .lens-table-cell-quiet:hover .lens-table-cell-quiet-arrow,
+  .lens-table-cell-quiet:focus-visible .lens-table-cell-quiet-arrow {
+    opacity: 1;
+  }
+
+  /* Per-row status tone: colored value text only, never a fill. */
+  .lens-table-tone-pos {
+    color: var(--lens-pos);
+  }
+
+  .lens-table-tone-warn {
+    color: var(--lens-warn);
+  }
+
+  .lens-table-tone-neg {
+    color: var(--lens-neg);
+  }
+
+  .lens-table-cell-badged {
+    @apply lens-inline-flex lens-items-center lens-gap-1.5;
+  }
+
+  .lens-table-cell-badge {
+    @apply lens-inline-flex lens-h-4 lens-w-4 lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-xs lens-font-semibold lens-text-muted;
+    cursor: help;
+  }
+
+  /* Group toggle row: a chevron + label control standing in for a collapsed
+     tail of rows. Its aggregate cells render through the normal cell path. */
+  .lens-table-group-toggle > td {
+    @apply lens-bg-inset;
+  }
+
+  .lens-table-group-toggle-btn {
+    @apply lens-flex lens-w-full lens-items-center lens-gap-2 lens-bg-transparent lens-text-left lens-font-sans lens-text-sm lens-font-medium lens-text-strong;
+  }
+
+  .lens-table-group-chevron {
+    @apply lens-flex lens-text-muted;
+    transition: transform 120ms ease;
+  }
+
+  .lens-table-group-chevron-open {
+    transform: rotate(90deg);
+  }
+
+  .lens-table-rowcount {
+    @apply lens-text-xs lens-text-muted;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-footer-notes {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
   }
 
   .lens-table-action-heading,
@@ -1810,18 +2464,16 @@
     @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-sm lens-font-semibold lens-text-white lens-no-underline;
   }
 
-  .lens-crumb:focus-visible,
-  .lens-explore-back:focus-visible,
-  .lens-perspective-set button:focus-visible,
-  .lens-segment:focus-visible,
-  .lens-export-button:focus-visible,
-  .lens-table th button:focus-visible,
-  .lens-table-pagination button:focus-visible,
-  .lens-leaf-action:focus-visible,
-  .lens-filter-chip:focus-visible,
-  .lens-filter-trigger:focus-visible,
-  .lens-calendar-nav:focus-visible,
-  .lens-calendar-day:focus-visible {
+  /* Shared keyboard-focus ring for every interactive element in the runtime.
+     Scoped to .lens-root so a host page's own focus styling elsewhere on the
+     page is untouched. A few elements keep their own rule instead of this one
+     (.lens-drawer and .lens-drawer-close suppress the ring outright,
+     .lens-explore-level uses :focus for a 3px programmatic-focus ring): the
+     `:is()` argument list determines this selector's specificity by its most
+     specific member (`[tabindex]`, a class-level match), which would outrank
+     those single-class exception rules regardless of source order, so they
+     are excluded here rather than relying on cascade position. */
+  .lens-root :is(button, a, [role='option'], [tabindex]):not(.lens-drawer, .lens-drawer-close, .lens-explore-level):focus-visible {
     outline: 2px solid var(--lens-accent-500);
     outline-offset: 2px;
   }

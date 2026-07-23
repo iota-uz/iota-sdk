@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, useTranslate } from './runtime'
-import { ExportButton, RegisteredPanel, StatMetric, type PanelRegistry } from './panels'
+import { ExportButton, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
+import { X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
@@ -64,7 +65,14 @@ function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNod
         aria-label={group.label || undefined}
         className={`lens-panel lens-panel-group ${group.kind === 'tabs' ? 'lens-panel-group-tabs' : 'lens-panel-group-metrics'}`}
       >
-        {group.label && <header className="lens-panel-header"><h3 className="lens-panel-title">{group.label}</h3></header>}
+        {(group.label || group.status) && (
+          <header className="lens-panel-header lens-panel-group-header">
+            {group.label && <h3 className="lens-panel-title">{group.label}</h3>}
+            {/* A uniform-status group shows one hoisted chip here; the members
+                below then render without their own repeated chip. */}
+            {group.status && <StatusChip status={group.status} />}
+          </header>
+        )}
         {children}
       </section>
     </div>
@@ -157,11 +165,12 @@ function relativeTime(timestamp: number, locale: string): string {
 }
 
 /**
- * A subtle "updated X ago" line under the dashboard header. It is hidden inside
- * drawers (the host dashboard already carries it) and under visual regression,
- * where a live timestamp would make the screenshot nondeterministic.
+ * The document's live "updated X ago" read, or null when it cannot be shown
+ * (inside a drawer, under visual regression, or without a parseable timestamp).
+ * Ticks once a minute so the relative label stays current. Shared by the lone
+ * freshness line and the header subtitle that folds it in.
  */
-function DashboardFreshness() {
+function useFreshness(): { label: string; isRefreshing: boolean } | null {
   const { document } = useDashboard()
   const { isRefreshing } = useDocumentState()
   const drawer = useDrawer()
@@ -180,7 +189,41 @@ function DashboardFreshness() {
   const label = isRefreshing
     ? translate('panel.updating', 'Updating')
     : translate('dashboard.updated', 'Updated {time}', { time: relativeTime(generatedAt, document.meta.locale) })
-  return <p className="lens-dashboard-updated" aria-live="polite" data-refreshing={isRefreshing || undefined}>{label}</p>
+  return { label, isRefreshing }
+}
+
+/**
+ * A subtle "updated X ago" line under the dashboard header. It is hidden inside
+ * drawers (the host dashboard already carries it) and under visual regression,
+ * where a live timestamp would make the screenshot nondeterministic.
+ */
+function DashboardFreshness() {
+  const freshness = useFreshness()
+  if (!freshness) return null
+  return (
+    <p className="lens-dashboard-updated" aria-live="polite" data-refreshing={freshness.isRefreshing || undefined}>
+      {freshness.label}
+    </p>
+  )
+}
+
+/**
+ * The document's identity subtitle: a producer-localized period line with the
+ * live freshness read folded in (« … · updated 5 min ago »). The freshness
+ * fragment keeps its own aria-live so a refresh is still announced.
+ */
+function DashboardSubtitle({ subtitle }: { subtitle?: string }) {
+  const freshness = useFreshness()
+  if (!subtitle && !freshness) return null
+  return (
+    <p className="lens-dashboard-subtitle">
+      {subtitle && <span>{subtitle}</span>}
+      {subtitle && freshness && <span aria-hidden="true" className="lens-dashboard-subtitle-sep"> · </span>}
+      {freshness && (
+        <span aria-live="polite" data-refreshing={freshness.isRefreshing || undefined}>{freshness.label}</span>
+      )}
+    </p>
+  )
 }
 
 function DocumentRefetchError() {
@@ -201,7 +244,7 @@ function DocumentRefetchError() {
           onClick={dismissError}
           type="button"
         >
-          ×
+          <X />
         </button>
       </div>
     </div>
@@ -227,15 +270,26 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
     )
   }
 
-  const hasHeader = Boolean(document.meta.title) || Boolean(document.endpoints.export) ||
+  const header = document.header
+  const identityTitle = header?.title || document.meta.title
+  const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) ||
     (document.filters?.length ?? 0) > 0
   return (
-    <main className="lens-dashboard" aria-label={document.meta.title}>
+    <main className="lens-dashboard" aria-label={identityTitle}>
       {hasHeader && (
         <header className="lens-dashboard-header">
-          {/* An empty title lets a host page own the heading and keeps the
-              dashboard's own chrome to the action bar. */}
-          {document.meta.title ? <h1>{document.meta.title}</h1> : <span />}
+          {/* The document header owns the page identity: a strong title over a
+              muted period + freshness subtitle. Without one, an empty title
+              lets a host page own the heading and keeps the dashboard's own
+              chrome to the action bar. */}
+          {header ? (
+            <div className="lens-dashboard-identity">
+              {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
+              <DashboardSubtitle subtitle={header.subtitle} />
+            </div>
+          ) : (
+            document.meta.title ? <h1>{document.meta.title}</h1> : <span />
+          )}
           <div className="lens-dashboard-controls">
             <FilterBar today={filterToday} />
             <ExportButton />
@@ -243,7 +297,9 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
         </header>
       )}
       {hasHeader && <DocumentRefetchError />}
-      {hasHeader && <DashboardFreshness />}
+      {/* The header folds freshness into its subtitle; only the headerless
+          layout still shows the lone updated line. */}
+      {hasHeader && !header && <DashboardFreshness />}
       <div className="lens-dashboard-rows">
         {document.layout.rows.map((row, rowIndex) => (
           <section className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`} key={`${row.heading ?? 'row'}-${rowIndex}`}>

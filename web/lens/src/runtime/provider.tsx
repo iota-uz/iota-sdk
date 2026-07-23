@@ -33,8 +33,8 @@ import {
   withInlineFrameChildren,
 } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
-import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
-import { formatAxis, formatFieldValue } from './format'
+import { DashboardSkeleton, defaultSkeletonRows, drawerSkeletonRows } from '../panels/Skeleton'
+import { formatAxis, formatFieldValue, formatFieldValueExact } from './format'
 import {
   createNavigationState,
   navigationActions,
@@ -47,6 +47,7 @@ import { DocumentCache } from './prefetch'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { navigationFromURL, navigationToURL, sameNavigationURL } from './url'
+import { X } from '../icons'
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -672,6 +673,10 @@ function RuntimeCore({
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
   const replaceNextURL = useRef(true)
   const drawerOpener = useRef<HTMLElement>()
+  // The drawer portals to body and stacks above an expanded panel, so it carries
+  // the theme of the root it opened from — captured from the opener when the
+  // drawer opens, mirroring PanelFrame's overlay theme capture.
+  const drawerTheme = useRef<{ theme?: string; dark: boolean }>({ dark: false })
   const drawerCache = useRef<DocumentCache>()
   if (drawerDepth === 0 && !drawerCache.current) drawerCache.current = new DocumentCache({ capacity: 8, csrf, fetcher })
   useEffect(() => {
@@ -986,6 +991,14 @@ function RuntimeCore({
       drawerOpener.current = opener ?? (
         globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : undefined
       )
+      // The opener stays connected (the fullscreen panel is not collapsed), so
+      // its `.lens-root` still resolves; fall back to any root when the drawer
+      // opened without a captured element.
+      const root = drawerOpener.current?.closest<HTMLElement>('.lens-root')
+        ?? (typeof globalThis.document !== 'undefined'
+          ? globalThis.document.querySelector<HTMLElement>('.lens-root')
+          : null)
+      drawerTheme.current = { theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false }
       dispatch(navigationActions.openDrawer(src))
     },
     close: closeDrawer,
@@ -1009,26 +1022,39 @@ function RuntimeCore({
                 {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
                 {navigation.drawer && drawerDepth === 0 && (
-                  <LensDrawer
-                    closeLabel={translate('drawer.close', 'Close details')}
-                    eyebrow={translate('drawer.eyebrow', 'Detail view')}
-                    label={translate('drawer.label', 'Drill details')}
-                    onClose={closeDrawer}
-                    restoreFocus={drawerOpener.current}
-                  >
-                    <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                  // DocumentProvider wraps the drawer so its sticky top-bar
+                  // header can read the loaded document's own identity block
+                  // (eyebrow/title/caption) and render it once — while still
+                  // mounting the close button immediately, before the document
+                  // lands, because DocumentProvider renders its children
+                  // regardless of load state.
+                  <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                    <LensDrawer
+                      closeLabel={translate('drawer.close', 'Close details')}
+                      dark={drawerTheme.current.dark}
+                      eyebrow={translate('drawer.eyebrow', 'Detail view')}
+                      label={translate('drawer.label', 'Drill details')}
+                      onClose={closeDrawer}
+                      restoreFocus={drawerOpener.current}
+                      theme={drawerTheme.current.theme}
+                    >
                       <DashboardRuntimeProvider
                         controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
                         csrf={csrf}
                         drawerDepth={1}
+                        // A drawer-shaped loading placeholder (headline stat +
+                        // table), not the dashboard's stat-strip + chart pair,
+                        // so the drawer body does not jump when the drill
+                        // document lands.
+                        fallback={<DashboardSkeleton rows={drawerSkeletonRows} />}
                         fetcher={fetcher}
                         locale={locale}
                         onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}
                       >
                         {children}
                       </DashboardRuntimeProvider>
-                    </DocumentProvider>
-                  </LensDrawer>
+                    </LensDrawer>
+                  </DocumentProvider>
                 )}
               </FramesContext.Provider>
             </ExportContext.Provider>
@@ -1143,6 +1169,16 @@ export function useFormat(field?: FieldFormat): (value: unknown) => string {
   return useCallback((value: unknown) => formatFieldValue(value, field, locale), [field, locale])
 }
 
+/**
+ * The tooltip companion to useFormat for compact fields: returns the exact
+ * grouped value («66 064 767 694 UZS») or undefined when nothing was
+ * abbreviated away.
+ */
+export function useFormatExact(field?: FieldFormat): (value: unknown) => string | undefined {
+  const locale = useContext(LocaleContext)
+  return useCallback((value: unknown) => formatFieldValueExact(value, field, locale), [field, locale])
+}
+
 export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useContext(LocaleContext)
   return useCallback((value: unknown) => formatAxis(value, field, locale), [field, locale])
@@ -1172,7 +1208,7 @@ function RuntimeNotice({ notice, onDismiss }: { notice: string; onDismiss: () =>
         onClick={onDismiss}
         type="button"
       >
-        ×
+        <X />
       </button>
     </div>
   )
@@ -1190,4 +1226,25 @@ export function useDocumentState(): DocumentContextValue {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('useDocumentState must be used inside DocumentProvider')
   return context
+}
+
+/**
+ * The drawer identity block carried by the currently loaded document, read
+ * without throwing so the drawer chrome can render its own top-bar header while
+ * the document is still loading (context present, document undefined) or in
+ * isolated stories (no DocumentProvider at all). Returns undefined when the
+ * document carries no drawer header.
+ */
+export function useDrawerHeader(): DashboardDocument['drawer'] {
+  return useContext(DocumentContext)?.document?.drawer
+}
+
+/**
+ * A background document refetch (a date/period change, a focus refresh) is in
+ * flight. Read without throwing so a panel can surface the loading state even
+ * when it is mounted outside a DocumentProvider (isolated stories, previews);
+ * there it simply reports "not refreshing".
+ */
+export function useDocumentRefreshing(): boolean {
+  return useContext(DocumentContext)?.isRefreshing ?? false
 }

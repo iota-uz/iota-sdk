@@ -20,7 +20,9 @@ const (
 	I18nCalendarHintStart = "calendar.hintStart"
 	I18nCalendarLabel     = "calendar.label"
 	I18nCalendarNextMonth = "calendar.nextMonth"
+	I18nCalendarNextYear  = "calendar.nextYear"
 	I18nCalendarPrevMonth = "calendar.prevMonth"
+	I18nCalendarPrevYear  = "calendar.prevYear"
 	I18nDashboardEmpty    = "dashboard.empty"
 	I18nDashboardTabs     = "dashboard.tabs"
 	I18nDashboardUpdated  = "dashboard.updated"
@@ -54,9 +56,27 @@ const (
 	I18nExportRetryHint   = "export.retryHint"
 	I18nFilterBarLabel    = "filter.bar.label"
 	I18nFilterAllTime     = "filter.period.allTime"
+	I18nFilterApply       = "filter.period.apply"
 	I18nFilterClose       = "filter.period.close"
 	I18nFilterCustom      = "filter.period.custom"
+	I18nFilterDateFormat  = "filter.period.dateFormat"
+	I18nFilterDayCount    = "filter.period.dayCount"
+	I18nFilterFrom        = "filter.period.from"
 	I18nFilterOpen        = "filter.period.open"
+	I18nFilterQuickSelect = "filter.period.quickSelect"
+	I18nFilterTo          = "filter.period.to"
+
+	// Relative period presets rendered by the runtime's built-in catalog
+	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
+	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
+	// 12 months, current fiscal year (yearToDate), then last month and last
+	// fiscal year (lastYear).
+	I18nFilterPresetThisMonth    = "filter.period.preset.thisMonth"
+	I18nFilterPresetLast30Days   = "filter.period.preset.last30days"
+	I18nFilterPresetLast12Months = "filter.period.preset.last12months"
+	I18nFilterPresetYearToDate   = "filter.period.preset.yearToDate"
+	I18nFilterPresetLastMonth    = "filter.period.preset.lastMonth"
+	I18nFilterPresetLastYear     = "filter.period.preset.lastYear"
 	I18nPanelCollapse     = "panel.collapse"
 	I18nPanelEmpty        = "panel.empty"
 	I18nPanelExpand       = "panel.expand"
@@ -76,6 +96,7 @@ const (
 	I18nTablePage         = "table.page"
 	I18nTablePages        = "table.pages"
 	I18nTablePrevious     = "table.previous"
+	I18nTableRowCount     = "table.rowCount"
 	I18nTableSortScope    = "table.sortScope"
 	I18nSemanticsPrefix   = "explore.semantics."
 	I18nSemanticsEvidence = I18nSemanticsPrefix + string(SemanticsEvidence)
@@ -89,9 +110,14 @@ const (
 func RuntimeI18nKeys() []string {
 	keys := []string{
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
-		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,
+		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarNextYear,
+		I18nCalendarPrevMonth, I18nCalendarPrevYear,
 		I18nCascadeStages,
-		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterClose, I18nFilterCustom, I18nFilterOpen,
+		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterApply, I18nFilterClose, I18nFilterCustom,
+		I18nFilterDateFormat, I18nFilterDayCount,
+		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
+		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
+		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDrillReset,
 		I18nDocumentRefetch, I18nDocumentRetry,
@@ -107,7 +133,7 @@ func RuntimeI18nKeys() []string {
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nRuntimeDismiss, I18nRuntimeLoadError,
 		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,
-		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableSortScope,
+		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSortScope,
 		I18nSemanticsEvidence, I18nSemanticsPartn, I18nSemanticsRecon, I18nSemanticsSeries,
 	}
 	sort.Strings(keys)

@@ -72,6 +72,11 @@ export function addMonths(date: CalendarDate, months: number): CalendarDate {
   return { year, month, day: Math.min(date.day, daysInMonth(year, month)) }
 }
 
+/** Inclusive day count of a range: a single-day range counts one. */
+export function rangeDayCount(start: CalendarDate, end: CalendarDate): number {
+  return Math.abs(toEpochDays(end) - toEpochDays(start)) + 1
+}
+
 /** ISO day of week: 1 = Monday … 7 = Sunday. */
 export function dayOfWeek(date: CalendarDate): number {
   const utcDay = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()
@@ -181,6 +186,116 @@ export function rangeDayState(date: CalendarDate, draft: RangeDraft, hover: Cale
 }
 
 /**
+ * Predefined period presets, resolved client-side relative to a `today`.
+ *
+ * These mirror the *resolved bounds* of the legacy HTMX/templ pickers so the
+ * React control keeps functional parity when a dashboard document declares no
+ * server presets of its own. Every bound is an inclusive day range in the wire
+ * calendar; `allTime` resolves to no bounds (the present-but-empty form).
+ *
+ * Semantics are taken from the legacy pickers:
+ *  - the EAI analytics date-range popover (`this month`, `last 30 days`,
+ *    `last 12 months`, `year to date`/fiscal year, `last month`, `last year`),
+ *  - the generic SDK `filters.Default` picker (`today`, `yesterday`,
+ *    `this week`, `last week`).
+ * Week presets are Monday-first, matching the legacy generic picker's
+ * hard-coded Monday anchor rather than the calendar grid's locale first day.
+ */
+export type PeriodPresetId =
+  | 'today'
+  | 'yesterday'
+  | 'thisWeek'
+  | 'lastWeek'
+  | 'thisMonth'
+  | 'lastMonth'
+  | 'last30days'
+  | 'last12months'
+  | 'thisQuarter'
+  | 'yearToDate'
+  | 'thisYear'
+  | 'lastYear'
+  | 'allTime'
+
+export interface PeriodBounds {
+  start: CalendarDate
+  end: CalendarDate
+}
+
+/**
+ * Inclusive day bounds for a preset relative to `today`, or `undefined` for
+ * `allTime` (unbounded). `last 12 months` uses clamped month arithmetic
+ * (`addMonths`), so a month-overflow origin such as the 31st resolves to the
+ * last valid day of the target month rather than rolling forward.
+ */
+export function resolvePreset(id: PeriodPresetId, today: CalendarDate): PeriodBounds | undefined {
+  const firstOfMonth: CalendarDate = { year: today.year, month: today.month, day: 1 }
+  switch (id) {
+    case 'today':
+      return { start: today, end: today }
+    case 'yesterday': {
+      const day = addDays(today, -1)
+      return { start: day, end: day }
+    }
+    case 'thisWeek': {
+      const start = addDays(today, -(dayOfWeek(today) - 1))
+      return { start, end: addDays(start, 6) }
+    }
+    case 'lastWeek': {
+      const start = addDays(today, -(dayOfWeek(today) - 1) - 7)
+      return { start, end: addDays(start, 6) }
+    }
+    case 'thisMonth':
+      return { start: firstOfMonth, end: today }
+    case 'lastMonth':
+      return { start: addMonths(firstOfMonth, -1), end: addDays(firstOfMonth, -1) }
+    case 'last30days':
+      return { start: addDays(today, -29), end: today }
+    case 'last12months':
+      return { start: addMonths(today, -12), end: today }
+    case 'thisQuarter': {
+      const quarterStartMonth = Math.floor((today.month - 1) / 3) * 3 + 1
+      return { start: { year: today.year, month: quarterStartMonth, day: 1 }, end: today }
+    }
+    case 'yearToDate':
+      return { start: { year: today.year, month: 1, day: 1 }, end: today }
+    case 'thisYear':
+      return { start: { year: today.year, month: 1, day: 1 }, end: { year: today.year, month: 12, day: 31 } }
+    case 'lastYear':
+      return { start: { year: today.year - 1, month: 1, day: 1 }, end: { year: today.year - 1, month: 12, day: 31 } }
+    case 'allTime':
+      return undefined
+  }
+}
+
+export interface PeriodPresetDef {
+  id: PeriodPresetId
+  labelKey: string
+  fallback: string
+  /**
+   * Completed past periods (closed intervals that exclude today) render after
+   * a divider, mirroring the legacy picker's to-date / past grouping.
+   */
+  past?: boolean
+}
+
+/**
+ * The built-in preset catalog rendered when a document declares no server
+ * presets. It is the legacy HTMX picker's `DefaultQuickRanges` verbatim:
+ * to-date periods first (current month, 30 days, 12 months, current fiscal
+ * year), then the completed past periods (last month, last fiscal year).
+ * `allTime` is intentionally absent: the control surfaces it through its own
+ * rail entry, gated on the filter's `allowEmpty`.
+ */
+export const defaultPeriodPresets: ReadonlyArray<PeriodPresetDef> = [
+  { id: 'thisMonth', labelKey: 'filter.period.preset.thisMonth', fallback: 'Current month' },
+  { id: 'last30days', labelKey: 'filter.period.preset.last30days', fallback: '30 days' },
+  { id: 'last12months', labelKey: 'filter.period.preset.last12months', fallback: '12 months' },
+  { id: 'yearToDate', labelKey: 'filter.period.preset.yearToDate', fallback: 'Current fiscal year' },
+  { id: 'lastMonth', labelKey: 'filter.period.preset.lastMonth', fallback: 'Last month', past: true },
+  { id: 'lastYear', labelKey: 'filter.period.preset.lastYear', fallback: 'Last fiscal year', past: true },
+]
+
+/**
  * Locale canonicalization for calendar text. Granite's Cyrillic-Uzbek locale
  * code is `oz`, which no Intl implementation knows; it is an alias of
  * `uz-Cyrl` for every locale-data purpose.
@@ -224,9 +339,16 @@ function utcDate(date: CalendarDate): Date {
   return new Date(Date.UTC(date.year, date.month - 1, date.day))
 }
 
-/** Localized "July 2026" heading for a visible month. */
+/**
+ * Localized "July 2026" heading for a visible month, composed from the month
+ * name and the plain year. Composed rather than a single month+year format:
+ * the ru locale's combined pattern appends a genitive « г.» suffix that wraps
+ * the dual-pane header's centered label. The month name is capitalized —
+ * standalone Cyrillic month names come back lowercase.
+ */
 export function monthLabel(locale: string, year: number, month: number): string {
-  return dateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(utcDate({ year, month, day: 1 }))
+  const name = dateTimeFormat(locale, { month: 'long' }).format(utcDate({ year, month, day: 1 }))
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`
 }
 
 /** Localized weekday header labels, rotated so the week starts at firstDay. */

@@ -8,11 +8,14 @@ const runtime = vi.hoisted(() => ({
   frame: undefined as PanelFrameState | undefined,
   drillInto: vi.fn(),
   document: { theme: { palette: {}, series: {} }, drill: { edges: {}, inlineDepth: 0 } } as DashboardDocument,
-  navigation: { path: [], history: [] },
+  navigation: { path: [], history: [] } as { panelId?: string; path: Array<string>; perspectiveId?: string; history: Array<unknown> },
+  level: undefined as unknown,
+  refreshing: false,
 }))
 
 vi.mock('../runtime', () => ({
   usePanelFrame: () => runtime.frame,
+  useDocumentRefreshing: () => runtime.refreshing,
   usePanelPagination: () => ({ loadPage: vi.fn() }),
   useExport: () => ({ status: 'idle', available: false, run: vi.fn() }),
   useFormat: () => (value: unknown) => {
@@ -22,16 +25,20 @@ vi.mock('../runtime', () => ({
     }
     return '—'
   },
+  useFormatExact: () => () => undefined,
   useAxisFormat: () => (value: unknown) => String(value),
+  clampedDeltaPercent: () => undefined,
   useTranslate: () => (_key: string, fallback: string, vars?: Record<string, string | number>) => (
     vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match)) : fallback
   ),
   useDrill: () => ({ drillInto: runtime.drillInto }),
   useDrawer: () => ({ depth: 0, open: vi.fn(), close: vi.fn() }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
+  levelForPath: () => runtime.level,
 }))
 
 import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
+import { CoveragePanel } from './CoveragePanel'
 import { buildCascadeStages, CascadePanel } from './CascadePanel'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
@@ -91,6 +98,7 @@ function renderKind(kind: PanelKind) {
   if (kind === 'stat') return render(<StatPanel panel={value} />)
   if (kind === 'cascade') return render(<CascadePanel panel={value} />)
   if (kind === 'table') return render(<TablePanel panel={value} />)
+  if (kind === 'coverage') return render(<CoveragePanel panel={value} />)
   if (kind === 'pie' || kind === 'donut') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'bar' || kind === 'hbar') return render(<BarPanel panel={value} adapter={fakeAdapter()} />)
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
@@ -99,6 +107,9 @@ function renderKind(kind: PanelKind) {
 afterEach(() => {
   cleanup()
   runtime.drillInto.mockReset()
+  runtime.navigation = { path: [], history: [] }
+  runtime.level = undefined
+  runtime.refreshing = false
 })
 
 describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
@@ -119,13 +130,18 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area',
       expect(runtime.frame.retry).toHaveBeenCalledTimes(1)
     }
     if (stateName === 'stale') {
+      // A refetch over existing data reuses the initial-load skeleton rather
+      // than dimming the stale content behind an "Updating" chip.
       expect(panelElement).toHaveAttribute('data-stale', 'true')
-      expect(screen.getByText('Updating')).toBeInTheDocument()
+      expect(panelElement).toHaveAttribute('aria-busy', 'true')
+      expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+      expect(screen.queryByText('Updating')).toBeNull()
     }
     if (stateName === 'data') {
       if (kind === 'stat') expect(screen.getByText('42')).toBeInTheDocument()
       else if (kind === 'cascade') expect(screen.getByRole('list', { name: 'cascade panel stages' })).toBeInTheDocument()
       else if (kind === 'table') expect(screen.getByRole('table')).toBeInTheDocument()
+      else if (kind === 'coverage') expect(panelElement.querySelector('.lens-coverage-headline')).not.toBeNull()
       else await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
     }
     view.unmount()
@@ -145,6 +161,43 @@ describe('panel total badge', () => {
     runtime.frame = state('data')
     const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
     expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+  })
+
+  it('totals the drilled level frame, not the root, in the header badge', () => {
+    // The panel is showing a drill level: navigation targets this panel with a
+    // non-empty path, and the frame on screen is the level's rows. `panel.total`
+    // is still the root frame's figure (723) — the badge must print the level
+    // total (30 + 70 = 100), the same base the slice percentages normalize to.
+    const levelFrame: Frame = {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['root/a', 'Alpha', 30],
+        ['root/b', 'Beta', 70],
+      ],
+    }
+    runtime.frame = { data: levelFrame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    runtime.navigation = { panelId: 'panel-bar', path: ['root'], history: [] }
+    const view = render(<BarPanel panel={panel('bar', { total: 723 })} adapter={fakeAdapter()} />)
+    const badge = view.container.querySelector('.lens-panel-total')
+    expect(badge).toHaveTextContent('Total: 100')
+    expect(badge).not.toHaveTextContent('723')
+  })
+})
+
+describe('document refetch loading', () => {
+  it('shows the skeleton while a date/period refetch is in flight', () => {
+    runtime.frame = state('data')
+    runtime.refreshing = true
+    const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
+    const panelElement = screen.getByLabelText('bar panel')
+    expect(panelElement).toHaveAttribute('aria-busy', 'true')
+    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+    // The stale chart is gone; the panel is unmistakably recomputing.
+    expect(screen.queryByText('chart data')).toBeNull()
   })
 })
 
@@ -214,6 +267,70 @@ describe('chart encoding and drill behavior', () => {
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
     expect(screen.getAllByText('stat panel')).toHaveLength(1)
     expect(screen.getByText('42')).toBeInTheDocument()
+  })
+})
+
+describe('coverage panel', () => {
+  const coverageFrame = (rows: Array<Array<unknown>>): Frame => ({
+    columns: [
+      { name: 'id', type: 'string' },
+      { name: 'label', type: 'string' },
+      { name: 'action_url', type: 'string' },
+      { name: 'value', type: 'number' },
+    ],
+    rows,
+  })
+
+  const coveragePanel = (overrides: Partial<Panel> = {}): Panel => panel('coverage', {
+    encoding: { id: 'id', label: 'label', value: 'value' },
+    ...overrides,
+  })
+
+  it('leads with a headline value plus a muted total label', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 60], ['b', 'Beta', '', 40]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel({ headline: 100 })} />)
+    const headline = view.container.querySelector('.lens-coverage-headline')
+    expect(headline?.querySelector('.lens-coverage-headline-value')).toHaveTextContent('100')
+    expect(headline?.querySelector('.lens-coverage-headline-label')).toHaveTextContent('Total')
+  })
+
+  it('renders one track segment per positive value with a share width, and a legend row per segment', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 997], ['b', 'Beta', '', 3]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel()} />)
+    const segments = view.container.querySelectorAll('.lens-coverage-track-segment')
+    expect(segments).toHaveLength(2)
+    // The thin (0.3%) slice keeps its true share width; a CSS min-width (not an
+    // inline style) guarantees it stays visible, so the encoded share is honest.
+    expect((segments[1] as HTMLElement).style.width).toBe('0.3%')
+    // Its tooltip names the segment and its exact value.
+    expect(segments[1]).toHaveAttribute('title', 'Beta: 3')
+    expect(view.container.querySelectorAll('.lens-coverage-legend-row')).toHaveLength(2)
+  })
+
+  it('drops the track when a single segment is 100%, keeping the headline and legend rows', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 100], ['b', 'Beta', '', 0]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel()} />)
+    expect(view.container.querySelector('.lens-coverage-track')).toBeNull()
+    expect(view.container.querySelectorAll('.lens-coverage-legend-row')).toHaveLength(2)
+  })
+
+  it('makes each segment and legend row its own link for a row-scoped action', () => {
+    runtime.frame = {
+      data: coverageFrame([['a', 'Alpha', '/drill/a', 60], ['b', 'Beta', '/drill/b', 40]]),
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const action = {
+      kind: 'navigate' as const,
+      params: [],
+      payload: {},
+      urlSource: { kind: 'field' as const, name: 'action_url' },
+    }
+    const view = render(<CoveragePanel panel={coveragePanel({ actions: [action] })} />)
+    const segmentLinks = view.container.querySelectorAll('a.lens-coverage-track-segment-link')
+    expect(segmentLinks).toHaveLength(2)
+    expect(segmentLinks[0]?.getAttribute('href')).toContain('/drill/a')
+    const legendLinks = view.container.querySelectorAll('a.lens-coverage-legend-link')
+    expect(legendLinks[1]?.getAttribute('href')).toContain('/drill/b')
   })
 })
 

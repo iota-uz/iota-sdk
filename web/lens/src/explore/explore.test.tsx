@@ -430,6 +430,22 @@ describe('drill overlay', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('keeps the overlay open while its own body scrolls but dismisses on a page scroll', () => {
+    renderExplore()
+    fireEvent.click(screen.getByRole('button', { name: 'Show breakdown' }))
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+
+    // Scrolling inside the overlay (a long breakdown/structure list) must not
+    // close it, or the list is unreachable and the segment can never expand.
+    fireEvent.scroll(overlay())
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+
+    // Scrolling the page underneath moves the anchor the popover is pinned to,
+    // so it dismisses.
+    fireEvent.scroll(document)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('offers the leaf link a segment carries', async () => {
     const path = [
       'profitability',
@@ -626,5 +642,23 @@ describe('leaf actions', () => {
     })
 
     expect(href).toBe('https://example.test/transactions/TX%201042?mode=detail&region=north')
+  })
+
+  it('treats an empty field URL as inert instead of resolving it to the current page', () => {
+    // An inert segment (e.g. the aggregate «Ceded» slice) carries an empty
+    // action_url. Without the guard `new URL('', location)` would resolve to the
+    // dashboard page, so an OpenDrawer would open the page itself as a document.
+    const href = resolveLeafActionURL({
+      kind: 'open_drawer',
+      urlSource: { kind: 'field', name: 'action_url' },
+      params: [],
+      payload: {},
+    }, {
+      fields: { action_url: '' },
+      variables: {},
+      location: new URL('https://example.test/analytics/profitability?ActualRangeStart=2026-01-01'),
+    })
+
+    expect(href).toBeUndefined()
   })
 })

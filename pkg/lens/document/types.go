@@ -22,6 +22,40 @@ type DashboardDocument struct {
 	Endpoints Endpoints         `json:"endpoints"`
 	I18n      map[string]string `json:"i18n"`
 	Theme     Theme             `json:"theme"`
+	// Header, when set, renders a document-level identity block (title + a
+	// muted subtitle) on the left of the dashboard's action bar. Optional so
+	// documents from older producers keep parsing under the same contract major.
+	Header *DocumentHeader `json:"header,omitempty"`
+	// Drawer, when set, is the single identity block a host drawer renders in
+	// its own sticky top bar (eyebrow = what kind of thing, title = which one,
+	// caption = period / note). A document that carries it expects its own
+	// dashboard heading to be suppressed so the drawer chrome owns the header —
+	// producers empty Meta.Title accordingly. Optional; absent keeps the
+	// generic drawer eyebrow.
+	Drawer *DrawerHeader `json:"drawer,omitempty"`
+}
+
+// DrawerHeader is the identity block a drawer renders once, in its sticky top
+// bar, instead of repeating a page heading and per-panel titles. The producer
+// localizes every string.
+type DrawerHeader struct {
+	// Eyebrow names the kind of value the drawer explains (a metric name),
+	// rendered small and uppercase above the title.
+	Eyebrow string `json:"eyebrow,omitempty"`
+	// Title names the specific scope the drawer is about (a product, group, or
+	// account), rendered as the strong heading.
+	Title string `json:"title,omitempty"`
+	// Caption is the muted supporting line (period, optional note). Newlines are
+	// preserved for a secondary note line.
+	Caption string `json:"caption,omitempty"`
+}
+
+// DocumentHeader is the dashboard's own identity block: a strong title and a
+// muted subtitle line. The producer localizes both strings; the runtime may
+// append its own live freshness read to the subtitle.
+type DocumentHeader struct {
+	Title    string `json:"title,omitempty"`
+	Subtitle string `json:"subtitle,omitempty"`
 }
 
 func (d DashboardDocument) MarshalJSON() ([]byte, error) {
@@ -86,6 +120,11 @@ type LayoutGroup struct {
 	Span   int               `json:"span"`
 	// Tab names the tab this item belongs to inside a tabs group.
 	Tab string `json:"tab,omitempty"`
+	// Status, when set, is a single group-level chip rendered once in the
+	// group's heading row. The producer hoists it here when every member of the
+	// group shares one status, so the chip shows once instead of repeating on
+	// each metric. Per-metric chips remain when the members' statuses differ.
+	Status *PanelStatus `json:"status,omitempty"`
 }
 
 // FilterKind selects a declared dashboard control's type. The shape is
@@ -286,6 +325,24 @@ type Presentation struct {
 	Fill bool `json:"fill,omitempty"`
 	// BarWidthPx pins the rendered bar thickness in CSS pixels.
 	BarWidthPx int `json:"barWidthPx,omitempty"`
+	// Sortable, when explicitly false, removes a table panel's sort affordances
+	// (column sort buttons + the "sort applies to this page" footer). A static
+	// identity table (e.g. a fixed decomposition) sets it false; nil keeps the
+	// default sortable table.
+	Sortable *bool `json:"sortable,omitempty"`
+	// Expandable, when explicitly false, removes the panel's expand-to-overlay
+	// control. Panels rendered inside a drawer set it false — an overlay over a
+	// modal is meaningless. nil keeps the default expand control.
+	Expandable *bool `json:"expandable,omitempty"`
+	// Exportable, when explicitly false, removes the panel's export control. A
+	// small derived table sets it false; long record tables keep export. nil
+	// keeps the default export control.
+	Exportable *bool `json:"exportable,omitempty"`
+	// RowGroupField names a frame column carrying a per-row group tag on a table
+	// panel. An empty tag is a normal row; a tag ending in ":toggle" marks a
+	// synthetic expander row for the group named by its prefix; any other tag
+	// marks a collapsed member, hidden until its toggle is expanded.
+	RowGroupField string `json:"rowGroupField,omitempty"`
 }
 
 type TableColumn struct {
@@ -303,6 +360,10 @@ type TableColumn struct {
 	Clamp int `json:"clamp,omitempty"`
 	// Affordance selects how an actionable cell advertises its action.
 	Affordance TableAffordance `json:"affordance,omitempty"`
+	// BadgeField names a frame column carrying a per-row badge tooltip. A row
+	// with a non-empty value renders a muted "?" badge (with that text as its
+	// title) after the cell's value — e.g. flagging an unmatched source row.
+	BadgeField string `json:"badgeField,omitempty"`
 }
 
 // TableAffordance selects the visual treatment of an actionable table cell.
@@ -312,6 +373,10 @@ const (
 	// TableAffordancePill renders the cell as a compact pill with a drill
 	// arrow, marking every value in the column as a drill entry point.
 	TableAffordancePill TableAffordance = "pill"
+	// TableAffordanceQuiet makes the whole cell the drill target with no
+	// standing chrome: plain value, and on hover/focus a subtle accent
+	// underline plus an arrow that fades in at the cell's trailing edge.
+	TableAffordanceQuiet TableAffordance = "quiet"
 )
 
 type TableAlign string
@@ -348,6 +413,10 @@ type TableCell struct {
 	// 0..1 share would silently render as 0.1%.
 	SecondaryField string          `json:"secondaryField,omitempty"`
 	Layout         TableCellLayout `json:"layout,omitempty"`
+	// ToneField names a frame column carrying a per-row status tone applied to
+	// the cell's value color: "pos", "warn", or "neg" (empty keeps the default
+	// text color). The producer sets the tone from its own business thresholds.
+	ToneField string `json:"toneField,omitempty"`
 }
 
 type Encoding struct {

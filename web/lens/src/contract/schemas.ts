@@ -65,7 +65,20 @@ export const DashboardDocumentSchema: z.ZodType<Contract.DashboardDocument> = z.
   endpoints: z.lazy(() => EndpointsSchema),
   i18n: z.record(z.string(), z.string()),
   theme: z.lazy(() => ThemeSchema),
+  header: z.lazy(() => DocumentHeaderSchema).optional(),
+  drawer: z.lazy(() => DrawerHeaderSchema).optional(),
 }).strict())
+
+export const DocumentHeaderSchema: z.ZodType<Contract.DocumentHeader> = z.object({
+  title: z.string().optional(),
+  subtitle: z.string().optional(),
+}).strict()
+
+export const DrawerHeaderSchema: z.ZodType<Contract.DrawerHeader> = z.object({
+  eyebrow: z.string().optional(),
+  title: z.string().optional(),
+  caption: z.string().optional(),
+}).strict()
 
 export const DrillSchema: z.ZodType<Contract.Drill> = z.lazy(() => z.object({
   edges: z.record(z.lazy(() => NodeKeySchema), z.lazy(() => LevelSchema)),
@@ -136,6 +149,7 @@ export const LayoutGroupSchema: z.ZodType<Contract.LayoutGroup> = z.lazy(() => z
   layout: z.lazy(() => LayoutGroupLayoutSchema).optional(),
   span: z.number().int(),
   tab: z.string().optional(),
+  status: z.lazy(() => PanelStatusSchema).optional(),
 }).strict())
 
 export const LayoutGroupKindSchema: z.ZodType<Contract.LayoutGroupKind> = z.enum(["metrics", "tabs"])
@@ -260,6 +274,10 @@ export const PresentationSchema: z.ZodType<Contract.Presentation> = z.lazy(() =>
   colorBy: z.lazy(() => ColorBySchema).optional(),
   fill: z.boolean().optional(),
   barWidthPx: z.number().int().optional(),
+  sortable: z.boolean().optional(),
+  expandable: z.boolean().optional(),
+  exportable: z.boolean().optional(),
+  rowGroupField: z.string().optional(),
 }).strict())
 
 export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum(["bad_request", "internal", "snapshot_gone"])
@@ -300,7 +318,7 @@ export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
 
 export const StatusToneSchema: z.ZodType<Contract.StatusTone> = z.enum(["neutral", "positive", "warning"])
 
-export const TableAffordanceSchema: z.ZodType<Contract.TableAffordance> = z.enum(["pill"])
+export const TableAffordanceSchema: z.ZodType<Contract.TableAffordance> = z.enum(["pill", "quiet"])
 
 export const TableAlignSchema: z.ZodType<Contract.TableAlign> = z.enum(["left", "right"])
 
@@ -308,6 +326,7 @@ export const TableCellSchema: z.ZodType<Contract.TableCell> = z.lazy(() => z.obj
   kind: z.lazy(() => TableCellKindSchema),
   secondaryField: z.string().optional(),
   layout: z.lazy(() => TableCellLayoutSchema).optional(),
+  toneField: z.string().optional(),
 }).strict())
 
 export const TableCellKindSchema: z.ZodType<Contract.TableCellKind> = z.enum(["bar", "delta", "plain", "underline"])
@@ -324,6 +343,7 @@ export const TableColumnSchema: z.ZodType<Contract.TableColumn> = z.object({
   widthPx: z.number().int().optional(),
   clamp: z.number().int().optional(),
   affordance: z.lazy(() => TableAffordanceSchema).optional(),
+  badgeField: z.string().optional(),
 }).strict()
 
 export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({

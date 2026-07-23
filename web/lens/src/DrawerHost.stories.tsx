@@ -90,6 +90,42 @@ function DrawerScene({ open, theme, state = 'ready' }: { open: boolean; theme: L
   )
 }
 
+/**
+ * The drill drawer stacks on top of an expanded panel. The panel expands into a
+ * body-level portal at a huge z-index; the drawer opened from inside it portals
+ * to a second body-level host one rung higher, so it paints over the fullscreen
+ * view instead of hiding behind its backdrop. This is the regression the portal
+ * move fixes: expand first, then open the drill from the link inside the overlay.
+ */
+function StackedScene({ theme }: { theme: LensThemeMode }) {
+  const host = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    let cancelled = false
+    let attempts = 0
+    const openDrill = () => {
+      if (cancelled) return
+      // The overlay is a body-level portal, so the drill link is reached from
+      // the document, not the story host.
+      const link = globalThis.document.querySelector<HTMLAnchorElement>('.lens-panel-overlay .lens-card-link')
+      if (link) { link.click(); return }
+      if (attempts++ < 30) globalThis.requestAnimationFrame(openDrill)
+    }
+    const expand = () => {
+      if (cancelled) return
+      const button = host.current?.querySelector<HTMLButtonElement>('button[aria-label="Expand panel"]')
+      if (button) { button.click(); globalThis.requestAnimationFrame(openDrill); return }
+      if (attempts++ < 30) globalThis.requestAnimationFrame(expand)
+    }
+    globalThis.requestAnimationFrame(expand)
+    return () => { cancelled = true }
+  }, [])
+  return (
+    <div ref={host}>
+      <LensDashboard initialDocument={dashboard} fetcher={drawerFetcher('ready')} theme={theme} />
+    </div>
+  )
+}
+
 export const ClosedLight: Story = () => <DrawerScene open={false} theme="light" />
 ClosedLight.storyName = 'Closed light'
 
@@ -101,6 +137,9 @@ OpenLight.storyName = 'Open light'
 
 export const OpenDark: Story = () => <DrawerScene open theme="dark" />
 OpenDark.storyName = 'Open dark'
+
+export const OpenOverExpandedPanel: Story = () => <StackedScene theme="light" />
+OpenOverExpandedPanel.storyName = 'Open over expanded panel'
 
 export const Loading: Story = () => <DrawerScene open state="loading" theme="light" />
 Loading.storyName = 'Loading'

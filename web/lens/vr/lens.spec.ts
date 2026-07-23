@@ -15,6 +15,7 @@ const storyIds = [
   'drawer-host--long-document-scrolls',
   'drawer-host--open-dark',
   'drawer-host--open-light',
+  'drawer-host--open-over-expanded-panel',
   'explore--drill-overlay--dark',
   'explore--level-fork-awaits-a-view--dark',
   'explore--level-fork-awaits-a-view--light',
@@ -62,6 +63,7 @@ const storyIds = [
   'parity--panel-skeletons-dark',
   'parity--panel-skeletons-light',
   'parity--pie-with-legend-below',
+  'parity--pie-with-legend-below-dark',
   'parity--tab-group',
 ] as const
 
@@ -80,6 +82,7 @@ const staticStories = [
   ['drawer-host--long-document-scrolls', 0],
   ['drawer-host--open-dark', 0],
   ['drawer-host--open-light', 0],
+  ['drawer-host--open-over-expanded-panel', 0],
   ['explore--drill-overlay--dark', 1],
   ['explore--level-fork-awaits-a-view--dark', 0],
   ['explore--level-fork-awaits-a-view--light', 0],
@@ -123,6 +126,7 @@ const staticStories = [
   ['parity--panel-skeletons-dark', 0],
   ['parity--panel-skeletons-light', 0],
   ['parity--pie-with-legend-below', 1],
+  ['parity--pie-with-legend-below-dark', 1],
   ['parity--tab-group', 0],
 ] as const
 
