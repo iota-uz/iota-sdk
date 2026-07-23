@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FieldFormat } from '../contract'
-import { formatAxis, formatFieldValue } from './format'
+import { clampedDeltaPercent, formatAxis, formatFieldValue, formatFieldValueExact } from './format'
 
 describe('formatFieldValue', () => {
   it.each<{ name: string; value: unknown; field?: FieldFormat; expected: string }>([
@@ -96,6 +96,55 @@ describe('compact formatting', () => {
   it('pins the separator for percents too', () => {
     const field: FieldFormat = { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' }
     expect(formatFieldValue(47.14, field, 'ru-RU')).toBe('47.1%')
+  })
+})
+
+describe('compact floor', () => {
+  const field: FieldFormat = {
+    kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.',
+  }
+
+  it('renders values below 100 000 as the exact grouped integer', () => {
+    expect(formatFieldValue(12_500, field, 'ru-RU')).toBe('12 500 UZS')
+    expect(formatFieldValue(12_500, field, 'en-US')).toBe('12,500 UZS')
+    expect(formatFieldValue(-72_400.6, field, 'ru-RU')).toBe('-72 401 UZS')
+  })
+
+  it('keeps compact notation from 100 000 upwards', () => {
+    expect(formatFieldValue(125_000, field, 'ru-RU')).toBe('125.00 тыс. UZS')
+  })
+})
+
+describe('formatFieldValueExact', () => {
+  it('returns the full grouped value for a compact money field', () => {
+    const field: FieldFormat = {
+      kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.',
+    }
+    expect(formatFieldValueExact(66_064_767_693.59, field, 'ru-RU')).toBe('66 064 767 694 UZS')
+    expect(formatFieldValueExact(66_064_767_693.59, field, 'en-US')).toBe('66,064,767,694 UZS')
+  })
+
+  it('returns undefined when nothing was abbreviated away', () => {
+    const compact: FieldFormat = {
+      kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.',
+    }
+    expect(formatFieldValueExact(12_500, compact, 'ru-RU')).toBeUndefined()
+    const plain: FieldFormat = { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 }
+    expect(formatFieldValueExact(66_064_767_693.59, plain, 'ru-RU')).toBeUndefined()
+    expect(formatFieldValueExact('n/a', compact, 'ru-RU')).toBeUndefined()
+  })
+})
+
+describe('clampedDeltaPercent', () => {
+  it('clamps beyond ±999.9%', () => {
+    expect(clampedDeltaPercent(13_417.3)).toBe('>999%')
+    expect(clampedDeltaPercent(-4_641.5)).toBe('<−999%')
+  })
+
+  it('passes displayable values through', () => {
+    expect(clampedDeltaPercent(999.9)).toBeUndefined()
+    expect(clampedDeltaPercent(-999.9)).toBeUndefined()
+    expect(clampedDeltaPercent(42.1)).toBeUndefined()
   })
 })
 

@@ -1147,7 +1147,18 @@ func trendArrow(percent float64) string {
 	}
 }
 
+// trendDeltaClampLimit caps the displayed percent change: beyond ±999.9% a
+// precise figure («+13 417.3%») reads as noise, so the chip clamps to
+// «>999» / «<−999» (the template appends the % sign).
+const trendDeltaClampLimit = 999.9
+
 func trendPercentText(percent float64) string {
+	if percent > trendDeltaClampLimit {
+		return ">999"
+	}
+	if percent < -trendDeltaClampLimit {
+		return "<−999"
+	}
 	sign := ""
 	if percent > 0 {
 		sign = "+"

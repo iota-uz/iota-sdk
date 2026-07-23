@@ -408,9 +408,9 @@ func TestCascadePanel_RendersNativeBridgeRows(t *testing.T) {
 	// sign-aware cut connectors: a positive cut renders with a real minus sign
 	// (U+2212) and red text, not the old "-> - Label:" arrow row.
 	assert.Contains(t, rendered, "Commission</span>")
-	assert.Contains(t, rendered, "−620.00 UZS")
+	assert.Contains(t, rendered, "−620 UZS")
 	assert.Contains(t, rendered, "Claims paid</span>")
-	assert.Contains(t, rendered, "−1.34K UZS")
+	assert.Contains(t, rendered, "−1,340 UZS")
 	assert.NotContains(t, rendered, "-&gt;")
 	// final stage uses the consumer-palette green, not emerald (absent there)
 	assert.Contains(t, rendered, "bg-green-500")
@@ -500,9 +500,9 @@ func TestTablePanel_RendersBarAndDeltaCells(t *testing.T) {
 	assert.NotContains(t, rendered, "bg-green-500")
 	// delta cell: signed percent as the primary line, signed amount beneath
 	assert.Contains(t, rendered, "+20.0%")
-	assert.Contains(t, rendered, "+200.00 UZS")
+	assert.Contains(t, rendered, "+200 UZS")
 	assert.Contains(t, rendered, "−9.1%")
-	assert.Contains(t, rendered, "−50.00 UZS")
+	assert.Contains(t, rendered, "−50 UZS")
 	// lens table classes: header/body cells, numeric right-align, strong first column
 	assert.Contains(t, rendered, "lens-th whitespace-nowrap lens-th--num")
 	assert.Contains(t, rendered, "lens-td--num lens-num")

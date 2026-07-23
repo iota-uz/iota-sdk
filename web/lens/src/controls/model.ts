@@ -72,6 +72,11 @@ export function addMonths(date: CalendarDate, months: number): CalendarDate {
   return { year, month, day: Math.min(date.day, daysInMonth(year, month)) }
 }
 
+/** Inclusive day count of a range: a single-day range counts one. */
+export function rangeDayCount(start: CalendarDate, end: CalendarDate): number {
+  return Math.abs(toEpochDays(end) - toEpochDays(start)) + 1
+}
+
 /** ISO day of week: 1 = Monday … 7 = Sunday. */
 export function dayOfWeek(date: CalendarDate): number {
   const utcDay = new Date(Date.UTC(date.year, date.month - 1, date.day)).getUTCDay()
@@ -334,9 +339,16 @@ function utcDate(date: CalendarDate): Date {
   return new Date(Date.UTC(date.year, date.month - 1, date.day))
 }
 
-/** Localized "July 2026" heading for a visible month. */
+/**
+ * Localized "July 2026" heading for a visible month, composed from the month
+ * name and the plain year. Composed rather than a single month+year format:
+ * the ru locale's combined pattern appends a genitive « г.» suffix that wraps
+ * the dual-pane header's centered label. The month name is capitalized —
+ * standalone Cyrillic month names come back lowercase.
+ */
 export function monthLabel(locale: string, year: number, month: number): string {
-  return dateTimeFormat(locale, { month: 'long', year: 'numeric' }).format(utcDate({ year, month, day: 1 }))
+  const name = dateTimeFormat(locale, { month: 'long' }).format(utcDate({ year, month, day: 1 }))
+  return `${name.charAt(0).toUpperCase()}${name.slice(1)} ${year}`
 }
 
 /** Localized weekday header labels, rotated so the week starts at firstDay. */

@@ -25,7 +25,9 @@ vi.mock('../runtime', () => ({
     }
     return '—'
   },
+  useFormatExact: () => () => undefined,
   useAxisFormat: () => (value: unknown) => String(value),
+  clampedDeltaPercent: () => undefined,
   useTranslate: () => (_key: string, fallback: string, vars?: Record<string, string | number>) => (
     vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match)) : fallback
   ),

@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import type { Filter, PeriodValue } from '../contract'
+import { CalendarBlank, CaretDown } from '../icons'
 import { currentPeriodValue, useDashboard, useFilters, useTranslate } from '../runtime'
 import { isVisualRegression } from '../visualRegression'
 import { Calendar } from './Calendar'
 import {
   compareDates,
   dayLabel,
+  daysInMonth,
   defaultPeriodPresets,
   formatISODate,
   parseISODate,
@@ -126,6 +128,47 @@ function draftFromValue(value: PeriodValue): RangeDraft {
   return {}
 }
 
+const displayDatePattern = /^(\d{2})\.(\d{2})\.(\d{4})$/
+
+/** Parses the typed `dd.mm.yyyy` display format, rejecting invalid dates. */
+export function parseDisplayDate(raw: string): CalendarDate | undefined {
+  const match = displayDatePattern.exec(raw.trim())
+  if (!match) return undefined
+  const day = Number(match[1])
+  const month = Number(match[2])
+  const year = Number(match[3])
+  if (month < 1 || month > 12) return undefined
+  if (day < 1 || day > daysInMonth(year, month)) return undefined
+  return { year, month, day }
+}
+
+export function formatDisplayDate(date: CalendarDate): string {
+  const day = String(date.day).padStart(2, '0')
+  const month = String(date.month).padStart(2, '0')
+  return `${day}.${month}.${String(date.year).padStart(4, '0')}`
+}
+
+/**
+ * Input mask for the date fields: keeps digits only and re-inserts the two
+ * dots of `dd.mm.yyyy` as the user types, so separators never have to be
+ * typed and stray characters cannot enter the field.
+ */
+export function maskDisplayInput(raw: string): string {
+  const digits = raw.replace(/\D/g, '').slice(0, 8)
+  if (digits.length <= 2) return digits
+  if (digits.length <= 4) return `${digits.slice(0, 2)}.${digits.slice(2)}`
+  return `${digits.slice(0, 2)}.${digits.slice(2, 4)}.${digits.slice(4)}`
+}
+
+interface DateFieldState {
+  text: string
+  invalid: boolean
+}
+
+function fieldFromDate(date: CalendarDate | undefined): DateFieldState {
+  return { text: date ? formatDisplayDate(date) : '', invalid: false }
+}
+
 /**
  * The declared period control: preset chips plus a calendar popover. All
  * state it commits goes through the filters context, i.e. into the URL — the
@@ -139,6 +182,10 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   const period = filter.period
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState<RangeDraft>({})
+  const [fields, setFields] = useState<{ start: DateFieldState; end: DateFieldState }>({
+    start: fieldFromDate(undefined),
+    end: fieldFromDate(undefined),
+  })
   const [container, setContainer] = useState<HTMLElement>()
   const [position, setPosition] = useState<PopoverPosition>({ left: 0, top: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -156,9 +203,26 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   }, [])
 
   const openPopover = useCallback(() => {
-    setDraft(draftFromValue(period ? currentPeriodValue(period, values) : { start: '', end: '' }))
+    const next = draftFromValue(period ? currentPeriodValue(period, values) : { start: '', end: '' })
+    setDraft(next)
+    // Reset explicitly: the draft may be unchanged since the last open, which
+    // would leave a previously typed (possibly invalid) text in place.
+    setFields({ start: fieldFromDate(next.start), end: fieldFromDate(next.end) })
     setOpen(true)
   }, [period, values])
+
+  // The typed fields mirror the draft: any draft change (calendar pick, a
+  // fresh open, a preset) rewrites both texts and clears the invalid marks.
+  // While the user is typing the draft does not move, so nothing clobbers the
+  // in-progress text — only a successful blur/Enter commit does.
+  const draftStartISO = draft.start ? formatISODate(draft.start) : ''
+  const draftEndISO = draft.end ? formatISODate(draft.end) : ''
+  useEffect(() => {
+    setFields({
+      start: fieldFromDate(parseISODate(draftStartISO)),
+      end: fieldFromDate(parseISODate(draftEndISO)),
+    })
+  }, [draftStartISO, draftEndISO])
 
   // The popover portals to the end of body inside a fresh Lens root so no
   // ancestor stacking context can bury it; the theme attribute is copied from
@@ -246,13 +310,43 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
 
   // Typed entry updates the in-progress draft only; the calendar commits on
   // its second click, typed edits commit through the explicit Apply button —
-  // mirroring the legacy picker's From/To inputs plus Apply.
-  const onTypedChange = (edge: 'start' | 'end', raw: string) => {
-    const parsed = raw ? parseISODate(raw) : undefined
+  // mirroring the legacy picker's From/To inputs plus Apply. A field's text
+  // parses into the draft on blur or Enter; text that does not parse marks
+  // the field invalid and leaves the draft (the last valid range) untouched.
+  const onFieldChange = (edge: 'start' | 'end', raw: string) => {
+    const text = maskDisplayInput(raw)
+    setFields((current) => ({ ...current, [edge]: { text, invalid: false } }))
+  }
+
+  const commitField = (edge: 'start' | 'end') => {
+    const text = fields[edge].text.trim()
+    if (text === '') {
+      setDraft((current) => (edge === 'start' ? { end: current.end } : { start: current.start }))
+      setFields((current) => ({ ...current, [edge]: { text: '', invalid: false } }))
+      return
+    }
+    const parsed = parseDisplayDate(text)
+    if (!parsed) {
+      setFields((current) => ({ ...current, [edge]: { text, invalid: true } }))
+      return
+    }
     setDraft((current) => (edge === 'start' ? { start: parsed, end: current.end } : { start: current.start, end: parsed }))
+    setFields((current) => ({ ...current, [edge]: fieldFromDate(parsed) }))
+  }
+
+  const onFieldKeyDown = (edge: 'start' | 'end') => (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Enter') return
+    event.preventDefault()
+    commitField(edge)
   }
 
   const applyDraft = () => {
+    // An invalid typed field reverts to the last valid draft value instead of
+    // silently applying something other than what the field shows.
+    if (fields.start.invalid || fields.end.invalid) {
+      setFields({ start: fieldFromDate(draft.start), end: fieldFromDate(draft.end) })
+      return
+    }
     if (draft.start && draft.end && compareDates(draft.start, draft.end) <= 0) {
       applyValue({ start: formatISODate(draft.start), end: formatISODate(draft.end) })
     }
@@ -266,6 +360,10 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   const draftComplete = Boolean(draft.start && draft.end && compareDates(draft.start, draft.end) <= 0)
 
   const allTime = translate('filter.period.allTime', 'All time')
+  // The active period source: a chip when the applied range matches one, the
+  // trigger (a custom range) when none does. The trigger carries a persistent
+  // active cue in that case, in the same visual language as a pressed chip.
+  const customActive = !presets.some((preset) => sameValue(preset.value, value))
   const start = parseISODate(value.start)
   const end = parseISODate(value.end)
   const triggerLabel = value.start === '' && value.end === ''
@@ -299,12 +397,14 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
         aria-haspopup="dialog"
         aria-label={`${translate('filter.period.open', 'Change period')}: ${triggerLabel}`}
         className="lens-filter-trigger"
+        data-active={customActive || undefined}
         onClick={() => (open ? close(false) : openPopover())}
         ref={triggerRef}
         type="button"
       >
-        <span aria-hidden="true" className="lens-filter-trigger-icon">▦</span>
-        {triggerLabel}
+        <CalendarBlank className="lens-filter-trigger-icon" size={14} />
+        <span className="lens-filter-trigger-label">{triggerLabel}</span>
+        <CaretDown className="lens-filter-trigger-caret" size={11} />
       </button>
       {open && container && createPortal(
         <>
@@ -320,6 +420,9 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
           >
             {(relativePresets.length > 0 || period.allowEmpty) && (
               <div className="lens-filter-popover-side">
+                <span className="lens-filter-preset-heading">
+                  {translate('filter.period.quickSelect', 'Quick select')}
+                </span>
                 {toDatePresets.map((preset) => (
                   <button
                     aria-pressed={sameValue(preset.value, value)}
@@ -370,26 +473,36 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
               <div className="lens-filter-range">
                 <label className="lens-filter-range-field">
                   <span className="lens-filter-range-caption">{translate('filter.period.from', 'From')}</span>
-                  <input
-                    className="lens-filter-input"
-                    max={period.max}
-                    min={period.min}
-                    onChange={(event) => onTypedChange('start', event.target.value)}
-                    type="date"
-                    value={draft.start ? formatISODate(draft.start) : ''}
-                  />
+                  <span className="lens-filter-range-input" data-invalid={fields.start.invalid || undefined}>
+                    <CalendarBlank className="lens-filter-range-icon" size={12} />
+                    <input
+                      className="lens-filter-input"
+                      inputMode="numeric"
+                      onBlur={() => commitField('start')}
+                      onChange={(event) => onFieldChange('start', event.target.value)}
+                      onKeyDown={onFieldKeyDown('start')}
+                      placeholder={translate('filter.period.dateFormat', 'dd.mm.yyyy')}
+                      type="text"
+                      value={fields.start.text}
+                    />
+                  </span>
                 </label>
                 <span aria-hidden="true" className="lens-filter-range-sep">—</span>
                 <label className="lens-filter-range-field">
                   <span className="lens-filter-range-caption">{translate('filter.period.to', 'To')}</span>
-                  <input
-                    className="lens-filter-input"
-                    max={period.max}
-                    min={period.min}
-                    onChange={(event) => onTypedChange('end', event.target.value)}
-                    type="date"
-                    value={draft.end ? formatISODate(draft.end) : ''}
-                  />
+                  <span className="lens-filter-range-input" data-invalid={fields.end.invalid || undefined}>
+                    <CalendarBlank className="lens-filter-range-icon" size={12} />
+                    <input
+                      className="lens-filter-input"
+                      inputMode="numeric"
+                      onBlur={() => commitField('end')}
+                      onChange={(event) => onFieldChange('end', event.target.value)}
+                      onKeyDown={onFieldKeyDown('end')}
+                      placeholder={translate('filter.period.dateFormat', 'dd.mm.yyyy')}
+                      type="text"
+                      value={fields.end.text}
+                    />
+                  </span>
                 </label>
               </div>
               <div className="lens-filter-popover-footer">

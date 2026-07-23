@@ -34,7 +34,7 @@ import {
 } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
-import { formatAxis, formatFieldValue } from './format'
+import { formatAxis, formatFieldValue, formatFieldValueExact } from './format'
 import {
   createNavigationState,
   navigationActions,
@@ -1141,6 +1141,16 @@ export function useExport(panelId?: string): ExportState & { available: boolean;
 export function useFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useContext(LocaleContext)
   return useCallback((value: unknown) => formatFieldValue(value, field, locale), [field, locale])
+}
+
+/**
+ * The tooltip companion to useFormat for compact fields: returns the exact
+ * grouped value («66 064 767 694 UZS») or undefined when nothing was
+ * abbreviated away.
+ */
+export function useFormatExact(field?: FieldFormat): (value: unknown) => string | undefined {
+  const locale = useContext(LocaleContext)
+  return useCallback((value: unknown) => formatFieldValueExact(value, field, locale), [field, locale])
 }
 
 export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {

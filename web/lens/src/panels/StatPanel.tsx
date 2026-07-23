@@ -1,6 +1,6 @@
 import type { MouseEventHandler, ReactNode } from 'react'
 import type { Panel } from '../contract'
-import { useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
 import { ArrowUpRight } from '../icons'
 import { usePanelNavigation, usePrefetch, type PrefetchHandlers } from './actions'
 import { StatValueTicker } from './StatValueTicker'
@@ -37,6 +37,7 @@ function useStatValues(panel: Panel) {
   const valueField = panelField(panel, 'value')
   const deltaField = panelField(panel, 'final')
   const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
+  const formatValueExact = useFormatExact(valueField ? panel.format[valueField] : undefined)
   const formatDelta = useFormat(deltaField ? panel.format[deltaField] : undefined)
   // The dataset may repeat the panel title in its label column; only a label
   // that says something the header does not is worth a second line.
@@ -48,6 +49,7 @@ function useStatValues(panel: Panel) {
     showLabel: label !== panel.title,
     value: cell(frame.data, valueField),
     formatValue,
+    formatValueExact,
     formatDelta,
     delta,
     deltaNumber: numeric(delta),
@@ -85,7 +87,7 @@ export function StatLink({ href, label, children, onClick, prefetch }: {
 }
 
 export function StatPanel({ panel }: StatPanelProps) {
-  const { frame, label, showLabel, value, formatValue, formatDelta, delta, deltaNumber } = useStatValues(panel)
+  const { frame, label, showLabel, value, formatValue, formatValueExact, formatDelta, delta, deltaNumber } = useStatValues(panel)
   const navigation = usePanelNavigation(panel)
   const href = navigation.cardURL(frame.data)
   const prefetch = usePrefetch(href, navigation.action)
@@ -101,7 +103,9 @@ export function StatPanel({ panel }: StatPanelProps) {
           </p>
         )}
         <div className="lens-stat-value-row">
-          <p className="lens-stat-value"><StatValueTicker text={formatValue(value)} /></p>
+          {/* The abbreviated value keeps its exact grouped figure reachable
+              on hover: «106.03 млрд UZS» titles «106 034 767 694 UZS». */}
+          <p className="lens-stat-value" title={formatValueExact(value)}><StatValueTicker text={formatValue(value)} /></p>
           {delta !== undefined && (
             <span className={`lens-stat-delta${deltaNumber !== undefined && deltaNumber < 0 ? ' lens-stat-delta-negative' : ''}`}>
               {deltaNumber !== undefined && deltaNumber > 0 ? '+' : ''}{formatDelta(delta)}
@@ -120,7 +124,7 @@ export function StatPanel({ panel }: StatPanelProps) {
  * status chip, and a compact value.
  */
 export function StatMetric({ panel }: StatPanelProps) {
-  const { frame, label, showLabel, value, formatValue } = useStatValues(panel)
+  const { frame, label, showLabel, value, formatValue, formatValueExact } = useStatValues(panel)
   const caption = showLabel ? label : panel.title
   const navigation = usePanelNavigation(panel)
   const href = navigation.cardURL(frame.data)
@@ -134,7 +138,7 @@ export function StatMetric({ panel }: StatPanelProps) {
         <span className="lens-stat-metric-label-text">{caption}</span>
         {panel.status && <StatusChip status={panel.status} />}
       </p>
-      <p className="lens-stat-metric-value">
+      <p className="lens-stat-metric-value" title={formatValueExact(value)}>
         {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
       </p>
     </div>

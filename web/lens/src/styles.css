@@ -29,6 +29,7 @@
     --lens-radius-control: 6px;
     --lens-radius-badge: 4px;
     --lens-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --lens-shadow-popover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
     --lens-font: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
   }
 
@@ -57,6 +58,7 @@
     --lens-accent-100: rgba(37, 99, 235, 0.2);
     --lens-accent-50: rgba(37, 99, 235, 0.12);
     --lens-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --lens-shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
     --lens-pos-soft: rgba(5, 150, 105, 0.16);
     --lens-neg-soft: rgba(220, 38, 38, 0.16);
     color-scheme: dark;
@@ -180,50 +182,108 @@
   }
 
   .lens-filter-chip:hover {
-    @apply lens-text-strong;
+    @apply lens-bg-inset lens-text-strong;
   }
 
-  .lens-filter-chip[aria-pressed='true'] {
-    @apply lens-bg-card lens-text-strong;
-    box-shadow: var(--lens-shadow-card);
+  /* The pressed chip is the active period source: the same accent language as
+     the popover rail's selected preset, with a hairline accent ring (an inset
+     shadow, so the borderless chip does not shift). Hover restates it because
+     the idle hover above would otherwise repaint the text dark. */
+  .lens-filter-chip[aria-pressed='true'],
+  .lens-filter-chip[aria-pressed='true']:hover {
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+    box-shadow: inset 0 0 0 1px var(--lens-accent-300);
   }
 
+  .lens-root[data-theme='dark'] .lens-filter-chip[aria-pressed='true'],
+  .lens-root[data-theme='dark'] .lens-filter-chip[aria-pressed='true']:hover {
+    color: var(--lens-accent-300);
+  }
+
+  /* The period trigger is a real control: calendar glyph, formatted range,
+     caret. Hover raises the border; the open state ties it to the popover
+     with the accent border and tint. */
   .lens-filter-trigger {
-    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
-  .lens-filter-trigger:hover,
+  .lens-filter-trigger:hover {
+    @apply lens-border-strong lens-text-strong;
+  }
+
+  /* When the applied range matches no chip, the trigger itself is the active
+     period source and carries the pressed-chip accent treatment persistently;
+     the open state (below, later in the cascade) upgrades the border. */
+  .lens-filter-trigger[data-active] {
+    border-color: var(--lens-accent-300);
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+  }
+
+  .lens-root[data-theme='dark'] .lens-filter-trigger[data-active] {
+    color: var(--lens-accent-300);
+  }
+
   .lens-filter-trigger[aria-expanded='true'] {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens-text-strong;
+    border-color: var(--lens-accent-500);
+    background: var(--lens-accent-50);
   }
 
   .lens-filter-trigger-icon {
-    @apply lens-text-faint;
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  .lens-filter-trigger-caret {
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  .lens-filter-trigger:hover .lens-filter-trigger-icon,
+  .lens-filter-trigger:hover .lens-filter-trigger-caret,
+  .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-icon,
+  .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-caret {
+    @apply lens-text-muted;
+  }
+
+  /* The active trigger's glyphs follow its accent text. */
+  .lens-filter-trigger[data-active] .lens-filter-trigger-icon,
+  .lens-filter-trigger[data-active] .lens-filter-trigger-caret {
+    color: inherit;
   }
 
   .lens-filter-scrim {
     @apply lens-fixed lens-inset-0;
   }
 
-  /* The picker popover: a two-pane card. The left pane lists the relative
-     presets, the right pane owns the calendar, typed range entry, and the
-     footer actions. Below ~540px the panes stack and the preset list becomes
+  /* The picker popover: a two-pane card. The left rail lists the relative
+     presets under a "quick select" heading, the main pane owns the dual-month
+     calendar, typed range entry, and the footer actions. Below ~540px the
+     panes stack, the calendar drops to one month, and the preset list becomes
      a horizontally scrollable row. */
   .lens-filter-popover {
-    @apply lens-fixed lens-flex lens-flex-row lens-items-stretch lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0 lens-shadow-lg lens-outline-none;
-    width: 472px;
+    @apply lens-fixed lens-flex lens-flex-row lens-items-stretch lens-overflow-hidden lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0 lens-outline-none;
+    width: 660px;
+    border-radius: 12px;
+    box-shadow: var(--lens-shadow-card), var(--lens-shadow-popover);
   }
 
   .lens-filter-popover-side {
     @apply lens-flex lens-flex-col lens-gap-px lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid;
-    flex: 0 0 156px;
-    padding: 8px;
+    flex: 0 0 164px;
+    padding: 10px 8px;
     border-color: var(--lens-divider);
   }
 
+  .lens-filter-preset-heading {
+    @apply lens-flex-none lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+    font-size: 10px;
+    padding: 2px 10px 6px;
+  }
+
   .lens-filter-preset {
-    @apply lens-block lens-w-full lens-rounded-control lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-xs lens-font-medium lens-text-text lens-transition-colors;
-    padding: 6px 10px;
+    @apply lens-block lens-w-full lens-flex-none lens-rounded-control lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-xs lens-font-medium lens-text-text lens-transition-colors;
+    padding: 8px 10px;
     line-height: 1.35;
   }
 
@@ -232,12 +292,12 @@
   }
 
   .lens-filter-preset[aria-pressed='true'] {
-    @apply lens-font-semibold;
+    @apply lens-font-medium;
     background: var(--lens-accent-50);
-    color: var(--lens-accent-700);
+    color: var(--lens-accent-600);
   }
 
-  /* accent-700 has no dark override (it backs solid fills elsewhere), so the
+  /* accent-600 has no dark override (it backs solid fills elsewhere), so the
      selected preset restates its text colour for the dark theme. */
   .lens-root[data-theme='dark'] .lens-filter-preset[aria-pressed='true'] {
     color: var(--lens-accent-300);
@@ -255,7 +315,9 @@
   }
 
   /* Typed range entry: From and To read as one joined control — a single
-     bordered field with an em-dash between the two halves. */
+     bordered field with an em-dash between the two halves. Each half is a
+     masked dd.mm.yyyy text input behind a small calendar glyph; an invalid
+     half carries its own red ring. */
   .lens-filter-range {
     @apply lens-flex lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card;
     padding: 3px 6px;
@@ -280,14 +342,40 @@
     font-size: 9px;
   }
 
+  .lens-filter-range-input {
+    @apply lens-flex lens-items-center lens-gap-1.5;
+    padding: 1px 2px;
+    border-radius: 4px;
+  }
+
+  .lens-filter-range-input[data-invalid] {
+    box-shadow: 0 0 0 1px var(--lens-neg), 0 0 0 3px var(--lens-neg-soft);
+  }
+
+  .lens-filter-range-input[data-invalid] .lens-filter-input {
+    color: var(--lens-neg);
+  }
+
+  .lens-filter-range-icon {
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  /* The joiner sits on the input line, not the optical middle of the
+     caption+input stack. */
   .lens-filter-range-sep {
     @apply lens-flex-none lens-text-faint;
     font-size: 12px;
+    line-height: 1;
+    margin-top: 12px;
   }
 
   .lens-filter-input {
     @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-xs lens-font-medium lens-text-strong lens-outline-none;
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-filter-input::placeholder {
+    color: var(--lens-text-faint);
   }
 
   @media (max-width: 540px) {
@@ -302,6 +390,10 @@
       border-color: var(--lens-divider);
     }
 
+    .lens-filter-preset-heading {
+      @apply lens-hidden;
+    }
+
     .lens-filter-preset {
       @apply lens-w-auto lens-flex-none;
     }
@@ -312,10 +404,15 @@
     }
   }
 
-  /* Same open treatment as the drill overlay: the class only exists when
-     neither visual regression nor reduced motion is in effect. */
+  /* Open entrance: a short fade-and-drop. The class only exists when neither
+     visual regression nor reduced motion is in effect. */
   .lens-filter-popover-enter {
-    animation: lens-overlay-pop 120ms ease-out;
+    animation: lens-filter-pop 140ms ease-out;
+  }
+
+  @keyframes lens-filter-pop {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -330,7 +427,8 @@
   }
 
   .lens-filter-close {
-    @apply lens-px-2.5 lens-py-1.5;
+    @apply lens-px-3;
+    min-height: 32px;
   }
 
   .lens-filter-close:hover {
@@ -340,10 +438,10 @@
   /* Apply is the popover's one primary action. Hover/disabled must restate the
      colours because the base chip's hover otherwise repaints the text dark. */
   .lens-filter-apply {
-    @apply lens-py-1.5;
     background: var(--lens-accent-600);
     color: #ffffff;
     padding-inline: 0.875rem;
+    min-height: 32px;
   }
 
   .lens-filter-apply:hover:not(:disabled) {
@@ -360,16 +458,41 @@
     @apply lens-flex lens-flex-col lens-gap-1.5;
   }
 
+  /* Two consecutive month panes side by side; the stacked breakpoint drops
+     the calendar to a single pane (decided in JS with the same media query). */
+  .lens-calendar-panes {
+    @apply lens-flex lens-items-start;
+    gap: 18px;
+  }
+
+  .lens-calendar-pane {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1;
+    flex: 1 1 0;
+  }
+
+  /* Fixed side tracks keep the month label optically centered whether the
+     pane carries its nav buttons on the left, the right, or both. */
   .lens-calendar-header {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-2;
+    @apply lens-items-center;
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+  }
+
+  .lens-calendar-nav-group {
+    @apply lens-flex lens-items-center;
+    gap: 2px;
+  }
+
+  .lens-calendar-nav-group:last-child {
+    @apply lens-justify-end;
   }
 
   .lens-calendar-month {
-    @apply lens-text-sm lens-font-semibold lens-text-strong;
+    @apply lens-whitespace-nowrap lens-text-center lens-text-sm lens-font-semibold lens-text-strong;
   }
 
   .lens-calendar-nav {
-    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-bg-transparent lens-font-sans lens-text-base lens-leading-none lens-text-muted;
+    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-bg-transparent lens-font-sans lens-leading-none lens-text-muted;
   }
 
   .lens-calendar-nav:hover {
@@ -398,9 +521,10 @@
 
   /* A day cell is a fixed-height flat button; every visual state is painted
      either on the button (the band wash) or on its ::before (the endpoint
-     pill), with the day number lifted above both. */
+     pill), with the day number lifted above both. Out-of-month padding days
+     are decorative spans on the same footprint: faint, inert, never washed. */
   .lens-calendar-day {
-    @apply lens-relative lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
+    @apply lens-relative lens-inline-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
     height: 32px;
     font-size: 12.5px;
     border-radius: 0;
@@ -414,6 +538,9 @@
 
   .lens-calendar-day[data-outside] {
     @apply lens-text-faint;
+    background: none;
+    opacity: 0.55;
+    pointer-events: none;
   }
 
   .lens-calendar-day:hover:not(:disabled):not([data-state]) {
@@ -449,6 +576,21 @@
 
   .lens-calendar-day[data-band='left-preview'] {
     background: linear-gradient(to left, transparent 50%, var(--lens-accent-50) 50%);
+  }
+
+  /* Rounded caps where the wash is cut before its endpoint: at week-row
+     edges and against out-of-month gaps the band rounds off instead of
+     running square into the grid border. */
+  .lens-calendar-day[data-cap='left'],
+  .lens-calendar-day[data-cap='both'] {
+    border-top-left-radius: 7px;
+    border-bottom-left-radius: 7px;
+  }
+
+  .lens-calendar-day[data-cap='right'],
+  .lens-calendar-day[data-cap='both'] {
+    border-top-right-radius: 7px;
+    border-bottom-right-radius: 7px;
   }
 
   /* The endpoint pill: a solid accent rounded rect drawn over the band. */
@@ -498,8 +640,14 @@
     opacity: 0.4;
   }
 
+  /* Helper line: the selection prompt while the range is incomplete, the
+     day-count summary once it is. */
   .lens-calendar-hint {
     @apply lens-m-0 lens-text-xs lens-text-muted;
+  }
+
+  .lens-calendar-hint[data-complete] {
+    @apply lens-font-medium lens-text-text;
   }
 
   .lens-visually-hidden {

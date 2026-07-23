@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
-import { type PanelFrameState, useDocumentRefreshing, useFormat, useTranslate } from '../runtime'
+import { clampedDeltaPercent, type PanelFrameState, useDocumentRefreshing, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
 import { ArrowsIn, ArrowsOut } from '../icons'
 import { usePanelChrome } from './context'
@@ -32,7 +32,7 @@ export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
   return (
     <span className={`lens-trend-chip ${tone}`}>
       <span aria-hidden="true">{flat ? '▬' : up ? '▲' : '▼'}</span>
-      <strong>{sign}{trend.percent.toFixed(1)}%</strong>
+      <strong>{clampedDeltaPercent(trend.percent) ?? `${sign}${trend.percent.toFixed(1)}%`}</strong>
       {trend.label && <span className="lens-trend-chip-label">{trend.label}</span>}
     </span>
   )

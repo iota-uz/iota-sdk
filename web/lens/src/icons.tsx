@@ -127,6 +127,35 @@ export const CaretDown = glyph(
   14,
 )
 
+/** Year-step navigation: back one year. */
+export const CaretDoubleLeft = glyph(
+  <>
+    <polyline points="200 208 120 128 200 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="120 208 40 128 120 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Year-step navigation: forward one year. */
+export const CaretDoubleRight = glyph(
+  <>
+    <polyline points="56 48 136 128 56 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="136 48 216 128 136 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Period trigger and date-field adornment. */
+export const CalendarBlank = glyph(
+  <>
+    <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="176" y1="24" x2="176" y2="56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="80" y1="24" x2="80" y2="56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="40" y1="88" x2="216" y2="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
 /** Copy the segment value to the clipboard. */
 export const Copy = glyph(
   <>

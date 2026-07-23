@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
 import { ArrowUpRight, CaretRight } from '../icons'
-import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
+import { clampedDeltaPercent, levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
 import { useActionActivation } from './actions'
 
@@ -123,9 +123,12 @@ function DeltaCell({
   const secondary = numericValue(secondaryValue)
   const hasSecondary = secondaryValue !== null && secondaryValue !== undefined && secondaryValue !== ''
   const negative = secondary !== undefined && secondary < 0
+  // Percent changes beyond ±999.9% clamp to «>999%» / «<−999%»: a precise
+  // «+13 417.3%» is noise, and the absolute value beside it carries the story.
+  const clamped = secondary !== undefined ? clampedDeltaPercent(secondary) : undefined
   const percent = hasSecondary && (
     <span className={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
-      {secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}
+      {clamped ?? <>{secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}</>}
     </span>
   )
   if (stacked) {

@@ -20,7 +20,9 @@ const (
 	I18nCalendarHintStart = "calendar.hintStart"
 	I18nCalendarLabel     = "calendar.label"
 	I18nCalendarNextMonth = "calendar.nextMonth"
+	I18nCalendarNextYear  = "calendar.nextYear"
 	I18nCalendarPrevMonth = "calendar.prevMonth"
+	I18nCalendarPrevYear  = "calendar.prevYear"
 	I18nDashboardEmpty    = "dashboard.empty"
 	I18nDashboardTabs     = "dashboard.tabs"
 	I18nDashboardUpdated  = "dashboard.updated"
@@ -57,8 +59,11 @@ const (
 	I18nFilterApply       = "filter.period.apply"
 	I18nFilterClose       = "filter.period.close"
 	I18nFilterCustom      = "filter.period.custom"
+	I18nFilterDateFormat  = "filter.period.dateFormat"
+	I18nFilterDayCount    = "filter.period.dayCount"
 	I18nFilterFrom        = "filter.period.from"
 	I18nFilterOpen        = "filter.period.open"
+	I18nFilterQuickSelect = "filter.period.quickSelect"
 	I18nFilterTo          = "filter.period.to"
 
 	// Relative period presets rendered by the runtime's built-in catalog
@@ -104,10 +109,12 @@ const (
 func RuntimeI18nKeys() []string {
 	keys := []string{
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
-		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,
+		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarNextYear,
+		I18nCalendarPrevMonth, I18nCalendarPrevYear,
 		I18nCascadeStages,
 		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterApply, I18nFilterClose, I18nFilterCustom,
-		I18nFilterFrom, I18nFilterOpen, I18nFilterTo,
+		I18nFilterDateFormat, I18nFilterDayCount,
+		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
