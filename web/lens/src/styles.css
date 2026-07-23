@@ -908,7 +908,7 @@
   }
 
   .lens-coverage-track-segment-link:hover {
-    filter: brightness(0.9);
+    filter: brightness(1.12);
   }
 
   /* Icon specimen grid — story-only surface that pins every glyph's rendered
@@ -1163,8 +1163,15 @@
     @apply lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1.5 lens-font-semibold lens-text-text;
   }
 
+  /* The empty state reads top-down: a quiet mark, then the localized text,
+     both centered — not the inline row the shared .lens-panel-state gives
+     every other state. */
+  .lens-panel-state-empty {
+    @apply lens-flex-col lens-gap-2;
+  }
+
   .lens-empty-mark {
-    @apply lens-flex lens-size-7 lens-items-center lens-justify-center lens-rounded-control lens-bg-inset lens-text-faint;
+    color: var(--lens-text-faint);
   }
 
   .lens-panel-skeleton {
@@ -1433,29 +1440,47 @@
   }
 
   .lens-coverage {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-2 lens-p-4;
+    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-1 lens-p-4;
   }
 
+  /* A compact stat headline: the total leads, a muted «Итого»-style label
+     trails it on the same baseline. ~20px keeps a two-segment card at
+     ~120-140px total height. */
   .lens-coverage-headline {
-    @apply lens-m-0 lens-text-3xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-flex lens-items-baseline lens-gap-2;
+  }
+
+  .lens-coverage-headline-value {
+    @apply lens-text-xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  .lens-coverage-headline-label {
+    @apply lens-text-xs lens-font-medium lens-uppercase lens-tracking-wide lens-text-faint;
+  }
+
   .lens-coverage-track {
-    @apply lens-mt-3 lens-flex lens-h-4 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+    @apply lens-mt-2 lens-flex lens-h-2.5 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
   }
 
   .lens-coverage-track-segment {
-    @apply lens-block lens-h-full;
+    @apply lens-block lens-h-full lens-transition-[filter];
     background: var(--lens-accent-500);
+    /* Guarantee a thin slice (e.g. a 0.3% remainder) stays visible and
+       hoverable; flexbox lets the larger segments absorb the difference. */
+    min-width: 3px;
+  }
+
+  .lens-coverage-track-segment:hover {
+    filter: brightness(1.12);
   }
 
   .lens-coverage-legend {
-    @apply lens-m-0 lens-mt-3 lens-list-none lens-p-0;
+    @apply lens-m-0 lens-mt-2 lens-list-none lens-p-0;
   }
 
   .lens-coverage-legend-row {
-    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-2 lens-text-sm;
+    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-sm;
     border-color: var(--lens-divider);
   }
 
@@ -2323,19 +2348,16 @@
     @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-sm lens-font-semibold lens-text-white lens-no-underline;
   }
 
-  .lens-crumb:focus-visible,
-  .lens-explore-back:focus-visible,
-  .lens-perspective-set button:focus-visible,
-  .lens-segment:focus-visible,
-  .lens-export-button:focus-visible,
-  .lens-table th button:focus-visible,
-  .lens-table-pagination button:focus-visible,
-  .lens-leaf-action:focus-visible,
-  .lens-filter-chip:focus-visible,
-  .lens-filter-trigger:focus-visible,
-  .lens-filter-preset:focus-visible,
-  .lens-calendar-nav:focus-visible,
-  .lens-calendar-day:focus-visible {
+  /* Shared keyboard-focus ring for every interactive element in the runtime.
+     Scoped to .lens-root so a host page's own focus styling elsewhere on the
+     page is untouched. A few elements keep their own rule instead of this one
+     (.lens-drawer and .lens-drawer-close suppress the ring outright,
+     .lens-explore-level uses :focus for a 3px programmatic-focus ring): the
+     `:is()` argument list determines this selector's specificity by its most
+     specific member (`[tabindex]`, a class-level match), which would outrank
+     those single-class exception rules regardless of source order, so they
+     are excluded here rather than relying on cascade position. */
+  .lens-root :is(button, a, [role='option'], [tabindex]):not(.lens-drawer, .lens-drawer-close, .lens-explore-level):focus-visible {
     outline: 2px solid var(--lens-accent-500);
     outline-offset: 2px;
   }

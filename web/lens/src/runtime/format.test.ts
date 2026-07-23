@@ -28,23 +28,25 @@ describe('formatFieldValue', () => {
 })
 
 describe('formatAxis', () => {
-  it('renders large money values with compact notation', () => {
-    const expected = new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1,
-    }).format(1_200_000_000)
-    expect(formatAxis(1_200_000_000, { kind: 'money', currency: 'USD', minorUnits: false }, 'en-US')).toBe(expected)
+  it('renders large money values with compact notation and no currency suffix', () => {
+    const expected = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(1_200_000_000)
+    const value = formatAxis(1_200_000_000, { kind: 'money', currency: 'USD', minorUnits: false }, 'en-US')
+    expect(value).toBe(expected)
+    expect(value).not.toContain('USD')
+    expect(value).not.toContain('$')
   })
 
   it('scales minor-unit money before compacting', () => {
-    const expected = new Intl.NumberFormat('en-US', {
-      style: 'currency', currency: 'UZS', notation: 'compact', maximumFractionDigits: 1,
-    }).format(12_000_000)
-    expect(formatAxis(1_200_000_000, { kind: 'money', currency: 'UZS', minorUnits: true }, 'en-US')).toBe(expected)
+    const expected = new Intl.NumberFormat('en-US', { notation: 'compact', maximumFractionDigits: 1 }).format(12_000_000)
+    const value = formatAxis(1_200_000_000, { kind: 'money', currency: 'UZS', minorUnits: true }, 'en-US')
+    expect(value).toBe(expected)
+    expect(value).not.toContain('UZS')
   })
 
   it('is locale-aware for compact money', () => {
     const value = formatAxis(1_200_000_000, { kind: 'money', currency: 'UZS', minorUnits: false }, 'ru-RU')
     expect(value).toContain('млрд')
+    expect(value).not.toContain('UZS')
   })
 
   it('compacts plain numbers', () => {

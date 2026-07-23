@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
 import { clampedDeltaPercent, type PanelFrameState, useDocumentRefreshing, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
-import { ArrowsIn, ArrowsOut } from '../icons'
+import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
 import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
@@ -29,9 +29,10 @@ export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
   const good = trend.invert ? !up : up
   const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
   const sign = up ? '+' : ''
+  const TrendIcon = flat ? TrendFlat : up ? TrendUp : TrendDown
   return (
     <span className={`lens-trend-chip ${tone}`}>
-      <span aria-hidden="true">{flat ? '▬' : up ? '▲' : '▼'}</span>
+      <TrendIcon />
       <strong>{clampedDeltaPercent(trend.percent) ?? `${sign}${trend.percent.toFixed(1)}%`}</strong>
       {trend.label && <span className="lens-trend-chip-label">{trend.label}</span>}
     </span>
@@ -152,7 +153,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
           </div>
         ) : !hasRows && !allowEmptyContent ? (
           <div className="lens-panel-state lens-panel-state-empty">
-            <span className="lens-empty-mark" aria-hidden="true">—</span>
+            <ChartLine className="lens-empty-mark" />
             <span>{translate('panel.empty', 'No data')}</span>
           </div>
         ) : children}

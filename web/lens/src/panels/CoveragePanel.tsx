@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import type { Frame, Panel } from '../contract'
-import { useDashboard, useFormat, usePanelFrame } from '../runtime'
+import { useDashboard, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
 import { columnIndex, displayText, panelField, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
@@ -58,6 +58,7 @@ export function buildCoverageSegments(
 
 export function CoveragePanel({ panel }: CoveragePanelProps) {
   const frame = usePanelFrame(panel.id)
+  const translate = useTranslate()
   const valueField = panelField(panel, 'value') ?? 'value'
   const formatValue = useFormat(panel.format[valueField])
   const formatPercent = useFormat({ kind: 'percent', minorUnits: false, precision: 0 })
@@ -69,6 +70,11 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
     [document.theme, frame.data, panel],
   )
   const headline = panel.headline ?? panel.total ?? total
+  // A meaningful track needs at least two positive segments; a lone 100%
+  // segment is a full bar that says nothing, so the card degrades to its
+  // headline plus legend rows (e.g. claims entirely «within reserve»).
+  const positiveCount = segments.reduce((count, segment) => count + (segment.value > 0 ? 1 : 0), 0)
+  const showTrack = positiveCount > 1
   // Legacy parity: a card-scoped action makes the whole card a link, a
   // row-scoped one makes each track segment and legend row its own link.
   const navigation = usePanelNavigation(panel)
@@ -76,36 +82,42 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
   const segmentHref = (index: number) => (
     navigation.rowScoped ? navigation.urlForRow(frame.data, frame.data?.rows[index]) : undefined
   )
+  const tooltip = (segment: CoverageSegment) => `${segment.label}: ${formatValue(segment.value)}`
 
   return (
     <PanelFrame panel={panel} frame={frame}>
       <StatLink href={cardHref} label={panel.title} onClick={navigation.onClick(cardHref)}>
       <div className="lens-coverage">
-        <p className="lens-coverage-headline">{formatValue(headline)}</p>
-        <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
-          {segments.map((segment, index) => segment.value > 0 && (
-            segmentHref(index)
-              ? (
-                <a
-                  aria-label={segment.label}
-                  className="lens-coverage-track-segment lens-coverage-track-segment-link"
-                  href={segmentHref(index)}
-                  onClick={navigation.onClick(segmentHref(index))}
-                  key={segment.key}
-                  style={{ width: `${segment.share * 100}%`, background: segment.color }}
-                  title={segment.label}
-                />
-              )
-              : (
-                <span
-                  className="lens-coverage-track-segment"
-                  key={segment.key}
-                  style={{ width: `${segment.share * 100}%`, background: segment.color }}
-                  title={segment.label}
-                />
-              )
-          ))}
-        </div>
+        <p className="lens-coverage-headline">
+          <span className="lens-coverage-headline-value">{formatValue(headline)}</span>
+          <span className="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
+        </p>
+        {showTrack && (
+          <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
+            {segments.map((segment, index) => segment.value > 0 && (
+              segmentHref(index)
+                ? (
+                  <a
+                    aria-label={tooltip(segment)}
+                    className="lens-coverage-track-segment lens-coverage-track-segment-link"
+                    href={segmentHref(index)}
+                    onClick={navigation.onClick(segmentHref(index))}
+                    key={segment.key}
+                    style={{ width: `${segment.share * 100}%`, background: segment.color }}
+                    title={tooltip(segment)}
+                  />
+                )
+                : (
+                  <span
+                    className="lens-coverage-track-segment"
+                    key={segment.key}
+                    style={{ width: `${segment.share * 100}%`, background: segment.color }}
+                    title={tooltip(segment)}
+                  />
+                )
+            ))}
+          </div>
+        )}
         <ul className="lens-coverage-legend">
           {segments.map((segment, index) => {
             const href = segmentHref(index)
@@ -120,7 +132,7 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
             return (
               <li className="lens-coverage-legend-row" key={segment.key}>
                 {href
-                  ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)}>{content}</a>
+                  ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)} title={tooltip(segment)}>{content}</a>
                   : content}
               </li>
             )

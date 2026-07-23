@@ -119,9 +119,9 @@ describe('coverage panel', () => {
 
     expect(container.querySelector('.lens-coverage-headline')?.textContent).toContain('5,458,561,140')
     expect(screen.getByText('All claims covered by reserve')).toBeInTheDocument()
-    // Zero-width segments never enter the track, but keep their legend row.
-    expect(container.querySelectorAll('.lens-coverage-track-segment')).toHaveLength(1)
-    expect(container.querySelector('.lens-coverage-track-segment')).toHaveStyle({ width: '100%' })
+    // A lone 100% segment is a meaningless full bar, so the track is dropped
+    // entirely; the headline and both legend rows still state the split.
+    expect(container.querySelector('.lens-coverage-track')).toBeNull()
     const shares = [...container.querySelectorAll('.lens-coverage-legend-share')].map((node) => node.textContent)
     expect(shares).toEqual(['100%', '0%'])
   })

@@ -38,6 +38,7 @@ vi.mock('../runtime', () => ({
 }))
 
 import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
+import { CoveragePanel } from './CoveragePanel'
 import { buildCascadeStages, CascadePanel } from './CascadePanel'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
@@ -97,6 +98,7 @@ function renderKind(kind: PanelKind) {
   if (kind === 'stat') return render(<StatPanel panel={value} />)
   if (kind === 'cascade') return render(<CascadePanel panel={value} />)
   if (kind === 'table') return render(<TablePanel panel={value} />)
+  if (kind === 'coverage') return render(<CoveragePanel panel={value} />)
   if (kind === 'pie' || kind === 'donut') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'bar' || kind === 'hbar') return render(<BarPanel panel={value} adapter={fakeAdapter()} />)
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
@@ -139,6 +141,7 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area',
       if (kind === 'stat') expect(screen.getByText('42')).toBeInTheDocument()
       else if (kind === 'cascade') expect(screen.getByRole('list', { name: 'cascade panel stages' })).toBeInTheDocument()
       else if (kind === 'table') expect(screen.getByRole('table')).toBeInTheDocument()
+      else if (kind === 'coverage') expect(panelElement.querySelector('.lens-coverage-headline')).not.toBeNull()
       else await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
     }
     view.unmount()
@@ -264,6 +267,70 @@ describe('chart encoding and drill behavior', () => {
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
     expect(screen.getAllByText('stat panel')).toHaveLength(1)
     expect(screen.getByText('42')).toBeInTheDocument()
+  })
+})
+
+describe('coverage panel', () => {
+  const coverageFrame = (rows: Array<Array<unknown>>): Frame => ({
+    columns: [
+      { name: 'id', type: 'string' },
+      { name: 'label', type: 'string' },
+      { name: 'action_url', type: 'string' },
+      { name: 'value', type: 'number' },
+    ],
+    rows,
+  })
+
+  const coveragePanel = (overrides: Partial<Panel> = {}): Panel => panel('coverage', {
+    encoding: { id: 'id', label: 'label', value: 'value' },
+    ...overrides,
+  })
+
+  it('leads with a headline value plus a muted total label', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 60], ['b', 'Beta', '', 40]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel({ headline: 100 })} />)
+    const headline = view.container.querySelector('.lens-coverage-headline')
+    expect(headline?.querySelector('.lens-coverage-headline-value')).toHaveTextContent('100')
+    expect(headline?.querySelector('.lens-coverage-headline-label')).toHaveTextContent('Total')
+  })
+
+  it('renders one track segment per positive value with a share width, and a legend row per segment', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 997], ['b', 'Beta', '', 3]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel()} />)
+    const segments = view.container.querySelectorAll('.lens-coverage-track-segment')
+    expect(segments).toHaveLength(2)
+    // The thin (0.3%) slice keeps its true share width; a CSS min-width (not an
+    // inline style) guarantees it stays visible, so the encoded share is honest.
+    expect((segments[1] as HTMLElement).style.width).toBe('0.3%')
+    // Its tooltip names the segment and its exact value.
+    expect(segments[1]).toHaveAttribute('title', 'Beta: 3')
+    expect(view.container.querySelectorAll('.lens-coverage-legend-row')).toHaveLength(2)
+  })
+
+  it('drops the track when a single segment is 100%, keeping the headline and legend rows', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 100], ['b', 'Beta', '', 0]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel()} />)
+    expect(view.container.querySelector('.lens-coverage-track')).toBeNull()
+    expect(view.container.querySelectorAll('.lens-coverage-legend-row')).toHaveLength(2)
+  })
+
+  it('makes each segment and legend row its own link for a row-scoped action', () => {
+    runtime.frame = {
+      data: coverageFrame([['a', 'Alpha', '/drill/a', 60], ['b', 'Beta', '/drill/b', 40]]),
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const action = {
+      kind: 'navigate' as const,
+      params: [],
+      payload: {},
+      urlSource: { kind: 'field' as const, name: 'action_url' },
+    }
+    const view = render(<CoveragePanel panel={coveragePanel({ actions: [action] })} />)
+    const segmentLinks = view.container.querySelectorAll('a.lens-coverage-track-segment-link')
+    expect(segmentLinks).toHaveLength(2)
+    expect(segmentLinks[0]?.getAttribute('href')).toContain('/drill/a')
+    const legendLinks = view.container.querySelectorAll('a.lens-coverage-legend-link')
+    expect(legendLinks[1]?.getAttribute('href')).toContain('/drill/b')
   })
 })
 

@@ -181,3 +181,39 @@ export const ArrowUpRight = glyph(
   </>,
   12,
 )
+
+/** Trend chip: metric rising. */
+export const TrendUp = glyph(
+  <>
+    <polyline points="32 192 96 128 144 160 224 64" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="160 64 224 64 224 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Trend chip: metric falling. */
+export const TrendDown = glyph(
+  <>
+    <polyline points="32 64 96 128 144 96 224 192" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="160 192 224 192 224 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Trend chip: metric unchanged. */
+export const TrendFlat = glyph(
+  <>
+    <line x1="40" y1="128" x2="216" y2="128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Empty panel state: no data to plot. */
+export const ChartLine = glyph(
+  <>
+    <polyline points="32 208 32 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="32 208 224 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="56 160 112 104 152 144 208 72" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  20,
+)

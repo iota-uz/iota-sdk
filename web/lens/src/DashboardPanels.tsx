@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, useTranslate } from './runtime'
 import { ExportButton, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
+import { X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
@@ -243,7 +244,7 @@ function DocumentRefetchError() {
           onClick={dismissError}
           type="button"
         >
-          ×
+          <X />
         </button>
       </div>
     </div>

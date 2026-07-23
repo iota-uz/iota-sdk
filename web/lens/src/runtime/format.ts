@@ -128,14 +128,12 @@ function formatDate(value: unknown, layout: string | undefined, locale: string):
 export function formatAxis(value: unknown, field: FieldFormat | undefined, locale: string): string {
   const number = numeric(value)
   if (number !== undefined && field && (field.kind === 'money' || field.kind === 'number')) {
-    if (field.kind === 'money') {
-      const currency = field.currency ?? 'USD'
-      const scaled = field.minorUnits ? number / 100 : number
-      return new Intl.NumberFormat(locale, {
-        style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1,
-      }).format(scaled)
-    }
-    return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(number)
+    // Axis ticks drop the currency suffix that the tooltip (formatFieldValue)
+    // still carries: a column of «-90 млрд UZS» repeats the same three
+    // letters on every gridline and crowds the plot; the magnitude alone is
+    // what an axis needs, the unit stays legible from the tooltip and title.
+    const scaled = field.kind === 'money' && field.minorUnits ? number / 100 : number
+    return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(scaled)
   }
   return formatFieldValue(value, field, locale)
 }
