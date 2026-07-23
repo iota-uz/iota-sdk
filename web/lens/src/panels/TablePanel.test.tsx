@@ -171,6 +171,43 @@ describe('TablePanel columns', () => {
   })
 })
 
+describe('TablePanel static (non-sortable)', () => {
+  it('renders plain column headings, no sort scope note, when presentation.sortable is false', () => {
+    const staticPanel: Panel = {
+      ...columnsPanel,
+      id: 'decomposition',
+      presentation: { sortable: false, expandable: false, exportable: false },
+    }
+    const staticDocument: DashboardDocument = {
+      ...columnsDocument,
+      meta: { ...columnsDocument.meta, dashboardId: 'static', title: 'Static' },
+      snapshotId: 'static-snapshot',
+      layout: { rows: [{ panels: [{ panelId: staticPanel.id, span: 12 }] }] },
+      panels: [staticPanel],
+      frames: { 'decomposition:root': columnsDocument.frames['profitability:root']! },
+    }
+    staticPanel.frame = 'decomposition:root'
+
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={staticDocument}>
+          <DashboardRuntimeProvider locale="en">
+            <TablePanel panel={staticPanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    // Headings are plain labels, not sort buttons.
+    expect(screen.getAllByRole('columnheader').length).toBeGreaterThan(0)
+    expect(screen.queryByRole('button', { name: /Earned premium/ })).toBeNull()
+    expect(screen.queryByText('Sort applies to this page only')).toBeNull()
+    // A drawer-hosted derived table drops the expand and export chrome.
+    expect(screen.queryByRole('button', { name: 'Expand panel' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Export/ })).toBeNull()
+  })
+})
+
 describe('TablePanel pagination', () => {
   it.each([
     { hasNext: false, disabled: true },

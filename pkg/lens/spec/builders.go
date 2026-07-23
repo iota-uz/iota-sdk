@@ -304,6 +304,27 @@ func (b *PanelBuilder) Presentation(hints panel.PresentationHints) *PanelBuilder
 	return b
 }
 
+// NonSortable removes a table panel's sort affordances — for a fixed
+// decomposition whose rows have an inherent order, not a record list.
+func (b *PanelBuilder) NonSortable() *PanelBuilder {
+	b.panel.Presentation.NonSortable = true
+	return b
+}
+
+// NonExpandable removes the panel's expand-to-overlay control. Every panel
+// rendered inside a drawer sets it — an overlay over a modal is meaningless.
+func (b *PanelBuilder) NonExpandable() *PanelBuilder {
+	b.panel.Presentation.NonExpandable = true
+	return b
+}
+
+// NonExportable removes the panel's export control, e.g. a small derived table
+// that is already the drawer's whole point.
+func (b *PanelBuilder) NonExportable() *PanelBuilder {
+	b.panel.Presentation.NonExportable = true
+	return b
+}
+
 func (b *PanelBuilder) Build() PanelSpec { return b.panel }
 
 func StaticDataset(name string, static *frame.FrameSet, transforms ...transform.Spec) DatasetSpec {

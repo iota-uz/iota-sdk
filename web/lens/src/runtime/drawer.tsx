@@ -1,9 +1,11 @@
 import { useEffect, useRef, type KeyboardEvent, type ReactNode } from 'react'
 import { X } from '../icons'
+import { useDrawerHeader } from './provider'
 
 interface LensDrawerProps {
   children: ReactNode
   closeLabel: string
+  /** Fallback eyebrow used until the document supplies its own drawer header. */
   eyebrow: string
   label: string
   onClose: () => void
@@ -19,6 +21,14 @@ function focusableElements(host: HTMLElement): HTMLElement[] {
 export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, restoreFocus }: LensDrawerProps) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
+  // The loaded document owns the heading: it names the metric (eyebrow), the
+  // scope (title) and the period (caption) once, so the drawer never repeats a
+  // page heading and per-panel titles. Until it lands, the generic eyebrow prop
+  // holds the top bar.
+  const header = useDrawerHeader()
+  const headerEyebrow = header?.eyebrow?.trim() || eyebrow
+  const headerTitle = header?.title?.trim()
+  const headerCaption = header?.caption?.trim()
 
   useEffect(() => {
     const overflow = globalThis.document.body.style.overflow
@@ -89,7 +99,11 @@ export function LensDrawer({ children, closeLabel, eyebrow, label, onClose, rest
         tabIndex={-1}
       >
         <header className="lens-drawer-header">
-          <span className="lens-drawer-eyebrow">{eyebrow}</span>
+          <div className="lens-drawer-identity">
+            <span className="lens-drawer-eyebrow">{headerEyebrow}</span>
+            {headerTitle && <span className="lens-drawer-title">{headerTitle}</span>}
+            {headerCaption && <span className="lens-drawer-caption">{headerCaption}</span>}
+          </div>
           <button
             aria-label={closeLabel}
             autoFocus

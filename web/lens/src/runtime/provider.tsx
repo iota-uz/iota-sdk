@@ -1009,14 +1009,20 @@ function RuntimeCore({
                 {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
                 {navigation.drawer && drawerDepth === 0 && (
-                  <LensDrawer
-                    closeLabel={translate('drawer.close', 'Close details')}
-                    eyebrow={translate('drawer.eyebrow', 'Detail view')}
-                    label={translate('drawer.label', 'Drill details')}
-                    onClose={closeDrawer}
-                    restoreFocus={drawerOpener.current}
-                  >
-                    <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                  // DocumentProvider wraps the drawer so its sticky top-bar
+                  // header can read the loaded document's own identity block
+                  // (eyebrow/title/caption) and render it once — while still
+                  // mounting the close button immediately, before the document
+                  // lands, because DocumentProvider renders its children
+                  // regardless of load state.
+                  <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                    <LensDrawer
+                      closeLabel={translate('drawer.close', 'Close details')}
+                      eyebrow={translate('drawer.eyebrow', 'Detail view')}
+                      label={translate('drawer.label', 'Drill details')}
+                      onClose={closeDrawer}
+                      restoreFocus={drawerOpener.current}
+                    >
                       <DashboardRuntimeProvider
                         controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
                         csrf={csrf}
@@ -1027,8 +1033,8 @@ function RuntimeCore({
                       >
                         {children}
                       </DashboardRuntimeProvider>
-                    </DocumentProvider>
-                  </LensDrawer>
+                    </LensDrawer>
+                  </DocumentProvider>
                 )}
               </FramesContext.Provider>
             </ExportContext.Provider>
@@ -1200,6 +1206,17 @@ export function useDocumentState(): DocumentContextValue {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('useDocumentState must be used inside DocumentProvider')
   return context
+}
+
+/**
+ * The drawer identity block carried by the currently loaded document, read
+ * without throwing so the drawer chrome can render its own top-bar header while
+ * the document is still loading (context present, document undefined) or in
+ * isolated stories (no DocumentProvider at all). Returns undefined when the
+ * document carries no drawer header.
+ */
+export function useDrawerHeader(): DashboardDocument['drawer'] {
+  return useContext(DocumentContext)?.document?.drawer
 }
 
 /**

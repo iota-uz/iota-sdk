@@ -148,6 +148,17 @@ type PresentationHints struct {
 	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
 	// already carries the panel's summary.
 	HideTotalBadge bool
+	// NonSortable removes a table panel's sort affordances. A static identity
+	// table (a fixed decomposition, not a record list) sets it so the header
+	// does not offer to reorder rows that have an inherent order.
+	NonSortable bool
+	// NonExpandable removes a panel's expand-to-overlay control, e.g. every
+	// panel rendered inside a drawer where an overlay over the modal is
+	// meaningless.
+	NonExpandable bool
+	// NonExportable removes a panel's export control, e.g. a small derived table
+	// whose figures are already the drawer's whole point.
+	NonExportable bool
 }
 
 // GroupLayout selects how a StatGroup panel arranges its children inside the

@@ -91,12 +91,29 @@
   }
 
   .lens-drawer-header {
-    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-center lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5;
+    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-start lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5 lens-py-3;
     box-shadow: inset 3px 0 0 var(--lens-accent-500);
   }
 
+  .lens-drawer-identity {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+  }
+
   .lens-drawer-eyebrow {
-    @apply lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .lens-drawer-title {
+    @apply lens-truncate lens-text-base lens-font-semibold lens-text-strong;
+    line-height: 1.3;
+  }
+
+  .lens-drawer-caption {
+    @apply lens-text-xs lens-text-muted;
+    white-space: pre-line;
+    line-height: 1.35;
   }
 
   .lens-drawer-close {
@@ -119,6 +136,22 @@
 
   .lens-drawer-document .lens-dashboard {
     @apply lens-max-w-none;
+  }
+
+  /* A long record table inside a drawer keeps its header on screen while the
+     rows scroll: the header sticks to whichever ancestor scrolls (the table's
+     own scroll box, or the drawer body). A solid card background keeps the
+     scrolled rows from bleeding through the sticky row. */
+  .lens-drawer .lens-table thead th {
+    @apply lens-sticky lens-top-0 lens-z-10;
+    background: var(--lens-bg-card);
+  }
+
+  /* Sections take their natural height inside a drawer — no stretch — so a
+     short drawer ends cleanly after its content instead of trailing dead space
+     under a fill-stretched panel. */
+  .lens-drawer-document .lens-panel-fill {
+    @apply lens-flex-none;
   }
 
   @keyframes lens-drawer-enter {
@@ -149,6 +182,28 @@
 
   .lens-dashboard-header h1 {
     @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+  }
+
+  /* The document's own identity block: a strong title over a muted period +
+     freshness line, left-aligned opposite the action bar. */
+  .lens-dashboard-identity {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+  }
+
+  .lens-dashboard-header .lens-dashboard-title {
+    @apply lens-m-0 lens-font-semibold lens-tracking-tight lens-text-strong;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .lens-dashboard-subtitle {
+    @apply lens-m-0 lens-text-muted;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .lens-dashboard-subtitle-sep {
+    @apply lens-text-faint;
   }
 
   .lens-dashboard-updated {
@@ -698,15 +753,24 @@
     @apply lens-min-w-0;
   }
 
+  /* Section headings sit a tier above panel titles: same uppercase family, but
+     bolder, higher-contrast, wider-tracked and over a heavier rule so the page
+     reads as sections-of-panels rather than a flat wall of small caps. */
   .lens-row-heading {
-    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-font-bold lens-uppercase lens-text-strong;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
   }
 
-  /* A hairline rule running to the edge turns the heading into a section
-     band instead of a floating label. */
+  /* A rule running to the edge turns the heading into a section band instead of
+     a floating label; the stronger border color gives it more weight than a
+     panel's own hairline divider. */
   .lens-row-heading::after {
     content: '';
-    @apply lens-h-px lens-flex-1 lens-bg-border;
+    @apply lens-flex-1;
+    height: 1px;
+    background: var(--lens-border-strong);
   }
 
   .lens-panel-grid {
@@ -963,6 +1027,12 @@
     @apply lens-min-h-0;
   }
 
+  /* A group's heading keeps its title left and sets its hoisted status chip
+     right beside it, rather than pushing it to the far edge. */
+  .lens-panel-group-header {
+    @apply lens-justify-start;
+  }
+
   .lens-metric-row {
     @apply lens-flex lens-flex-1 lens-flex-col lens-divide-y lens-divide-solid lens-divide-border;
   }
@@ -976,11 +1046,19 @@
   }
 
   .lens-stat-metric-label {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-center lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
+  /* Wrap to two tight lines instead of ellipsizing: the full label is worth
+     more than a truncated «ОПЛАЧЕННАЯ УБЫТОЧНОСТЬ ПО ЗАРАБОТА…». The full text
+     stays reachable through the element's title attribute. */
   .lens-stat-metric-label-text {
-    @apply lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+    @apply lens-min-w-0 lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.2;
   }
 
   .lens-stat-metric-bullet {
@@ -1176,7 +1254,18 @@
   }
 
   .lens-stat-label {
-    @apply lens-m-0 lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-flex lens-items-center lens-gap-1.5 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  /* Wrap the label to two tight lines rather than letting a long KPI name run
+     under the value. The full string stays reachable via the title attribute. */
+  .lens-stat-label-text {
+    @apply lens-min-w-0 lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.25;
   }
 
   .lens-stat-value-row {

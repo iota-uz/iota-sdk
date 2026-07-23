@@ -98,7 +98,7 @@ export function StatPanel({ panel }: StatPanelProps) {
       <div className="lens-stat-content">
         {(showLabel || panel.status) && (
           <p className="lens-stat-label">
-            {showLabel && <span>{label}</span>}
+            {showLabel && <span className="lens-stat-label-text" title={label}>{label}</span>}
             {panel.status && <StatusChip status={panel.status} />}
           </p>
         )}

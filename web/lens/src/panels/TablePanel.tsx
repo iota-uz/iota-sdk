@@ -238,7 +238,11 @@ export function TablePanel({ panel }: TablePanelProps) {
   const level: Level | undefined = navigation.panelId === panel.id && navigation.path.length
     ? levelForPath(document, navigation.path)
     : undefined
-  const rows = useMemo(() => frame.data ? sortedRows(frame.data, sort) : [], [frame.data, sort])
+  // A static identity table (a fixed decomposition, not a record list) declares
+  // sortable:false: its rows carry an inherent order, so offering to reorder
+  // them — and printing "sort applies to this page" — would be a lie.
+  const sortEnabled = panel.presentation?.sortable !== false
+  const rows = useMemo(() => frame.data ? sortedRows(frame.data, sortEnabled ? sort : undefined) : [], [frame.data, sort, sortEnabled])
   const page = frame.page?.number ?? 1
   const pageSize = frame.page?.size
   const loadingPage = requestedSnapshotId.current === document.snapshotId ? requestedPage : 1
@@ -305,9 +309,10 @@ export function TablePanel({ panel }: TablePanelProps) {
                   {columns ? (
                     <>
                       {columns.map((column, columnIndex) => {
-                        // An action-only column has no field to sort by;
-                        // offering a sort control there would be a lie.
-                        const sortable = Boolean(column.field.trim())
+                        // An action-only column has no field to sort by, and a
+                        // static table offers no sort at all; either way the
+                        // heading is a plain label, not a control.
+                        const sortable = sortEnabled && Boolean(column.field.trim())
                         return (
                           <th
                             aria-sort={sortable && sort?.column === column.field ? sort.direction : 'none'}
@@ -336,11 +341,15 @@ export function TablePanel({ panel }: TablePanelProps) {
                   ) : (
                     <>
                       {frame.data.columns.map((column) => (
-                        <th aria-sort={sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
-                          <button type="button" onClick={() => changeSort(column.name)}>
-                            <span>{column.name}</span>
-                            <span aria-hidden="true">{sortIndicator(column.name)}</span>
-                          </button>
+                        <th aria-sort={sortEnabled && sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
+                          {sortEnabled ? (
+                            <button type="button" onClick={() => changeSort(column.name)}>
+                              <span>{column.name}</span>
+                              <span aria-hidden="true">{sortIndicator(column.name)}</span>
+                            </button>
+                          ) : (
+                            <span className="lens-table-heading-static">{column.name}</span>
+                          )}
                         </th>
                       ))}
                       <th className="lens-table-action-heading" scope="col">
@@ -404,7 +413,7 @@ export function TablePanel({ panel }: TablePanelProps) {
             </table>
           </div>
           <footer className="lens-table-footer">
-            <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
+            {sortEnabled && <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>}
             {frame.page && (
               <nav
                 aria-label={translate('table.pages', '{name} pages', { name: panel.title })}

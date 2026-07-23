@@ -59,6 +59,15 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   const showTotal = variant === 'chart' && total !== undefined && badgePlacement === 'header'
   const totalLabel = translate('panel.total', 'Total')
   const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
+  // Opt-out chrome: a drawer-hosted panel disables expand (an overlay over a
+  // modal is meaningless), and a derived/headline panel disables export.
+  const expandable = panel.presentation?.expandable !== false
+  const exportable = panel.presentation?.exportable !== false
+  // A stat headline reads number-first: the value leads, and its supporting
+  // caption (exact figure, then the muted explainer + period) sits beneath it
+  // rather than pushing the number below the fold.
+  const captionBelow = variant === 'stat'
+  const captionNode = panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
 
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => {
@@ -116,21 +125,23 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
             </span>
           )}
           {frame.isStale && !showLoading && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
-          <ExportButton panelId={panel.id} iconOnly />
-          <button
-            aria-label={expandLabel}
-            aria-pressed={expanded}
-            className="lens-export-button lens-icon-button"
-            onClick={expanded ? collapse : toggleExpanded}
-            ref={expandRef}
-            title={expandLabel}
-            type="button"
-          >
-            {expanded ? <ArrowsIn /> : <ArrowsOut />}
-          </button>
+          {exportable && <ExportButton panelId={panel.id} iconOnly />}
+          {expandable && (
+            <button
+              aria-label={expandLabel}
+              aria-pressed={expanded}
+              className="lens-export-button lens-icon-button"
+              onClick={expanded ? collapse : toggleExpanded}
+              ref={expandRef}
+              title={expandLabel}
+              type="button"
+            >
+              {expanded ? <ArrowsIn /> : <ArrowsOut />}
+            </button>
+          )}
         </div>
       </header>
-      {panel.caption && <p className="lens-panel-caption">{panel.caption}</p>}
+      {!captionBelow && captionNode}
       <div className="lens-panel-body">
         {showLoading ? (
           <PanelSkeletonBody kind={panel.kind} />
@@ -146,6 +157,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
           </div>
         ) : children}
       </div>
+      {captionBelow && captionNode}
       {panel.trend && hasRows && (
         <footer className="lens-panel-footer"><TrendChip trend={panel.trend} /></footer>
       )}

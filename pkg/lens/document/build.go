@@ -31,6 +31,11 @@ type BuildOptions struct {
 	// Filters declares the dashboard's controls; the producer supplies the
 	// normalized current value and localized labels. See Filter.
 	Filters []Filter
+	// Drawer, when set, marks this document as drawer-hosted: the drawer chrome
+	// renders this identity block once in its top bar, and the document's own
+	// dashboard heading is suppressed (Meta.Title cleared) so the heading is not
+	// stated twice.
+	Drawer *DrawerHeader
 }
 
 func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (*DashboardDocument, error) {
@@ -82,6 +87,13 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 	if doc.I18n == nil {
 		doc.I18n = make(map[string]string)
 	}
+	if opts.Drawer != nil {
+		doc.Drawer = opts.Drawer
+		// The drawer chrome owns the heading; clearing the document title stops
+		// the dashboard body from repeating it. "An empty title lets a host page
+		// own the heading" is the renderer's documented contract for this.
+		doc.Meta.Title = ""
+	}
 
 	hosts := explorerHosts(spec.Explorers)
 	for _, rowSpec := range spec.Rows {
@@ -119,6 +131,9 @@ func appendPanelTree(
 			group = &LayoutGroup{
 				ID: spec.ID, Kind: LayoutGroupMetrics, Label: spec.Title,
 				Layout: groupLayout(spec.GroupLayout), Span: containerSpan(spec),
+				// A uniform-status group hoists its single chip to the heading
+				// row; per-metric chips then drop for the members below.
+				Status: buildStatus(spec),
 			}
 			for _, child := range spec.Children {
 				if err := appendPanelTree(doc, child, result, hosts, row, group); err != nil {
@@ -321,11 +336,22 @@ func buildPresentation(spec panel.Spec) *Presentation {
 	if hints.ColorByCategory || spec.Distributed {
 		presentation.ColorBy = ColorByCategory
 	}
+	if hints.NonSortable {
+		presentation.Sortable = boolPtr(false)
+	}
+	if hints.NonExpandable {
+		presentation.Expandable = boolPtr(false)
+	}
+	if hints.NonExportable {
+		presentation.Exportable = boolPtr(false)
+	}
 	if presentation == (Presentation{}) {
 		return nil
 	}
 	return &presentation
 }
+
+func boolPtr(v bool) *bool { return &v }
 
 func panelKind(kind panel.Kind) (PanelKind, error) {
 	//nolint:exhaustive // Container/gauge kinds are not part of the wire contract; default rejects them.
