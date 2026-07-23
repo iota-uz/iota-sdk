@@ -62,18 +62,15 @@ const (
 	I18nFilterTo          = "filter.period.to"
 
 	// Relative period presets rendered by the runtime's built-in catalog
-	// (web/lens/src/controls/model.ts defaultPeriodPresets).
-	I18nFilterPresetToday        = "filter.period.preset.today"
-	I18nFilterPresetYesterday    = "filter.period.preset.yesterday"
-	I18nFilterPresetThisWeek     = "filter.period.preset.thisWeek"
-	I18nFilterPresetLastWeek     = "filter.period.preset.lastWeek"
+	// (web/lens/src/controls/model.ts defaultPeriodPresets), which mirrors the
+	// legacy HTMX picker's DefaultQuickRanges: current month, 30 days,
+	// 12 months, current fiscal year (yearToDate), then last month and last
+	// fiscal year (lastYear).
 	I18nFilterPresetThisMonth    = "filter.period.preset.thisMonth"
-	I18nFilterPresetLastMonth    = "filter.period.preset.lastMonth"
 	I18nFilterPresetLast30Days   = "filter.period.preset.last30days"
 	I18nFilterPresetLast12Months = "filter.period.preset.last12months"
-	I18nFilterPresetThisQuarter  = "filter.period.preset.thisQuarter"
 	I18nFilterPresetYearToDate   = "filter.period.preset.yearToDate"
-	I18nFilterPresetThisYear     = "filter.period.preset.thisYear"
+	I18nFilterPresetLastMonth    = "filter.period.preset.lastMonth"
 	I18nFilterPresetLastYear     = "filter.period.preset.lastYear"
 	I18nPanelCollapse     = "panel.collapse"
 	I18nPanelEmpty        = "panel.empty"
@@ -111,10 +108,8 @@ func RuntimeI18nKeys() []string {
 		I18nCascadeStages,
 		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterApply, I18nFilterClose, I18nFilterCustom,
 		I18nFilterFrom, I18nFilterOpen, I18nFilterTo,
-		I18nFilterPresetToday, I18nFilterPresetYesterday, I18nFilterPresetThisWeek, I18nFilterPresetLastWeek,
-		I18nFilterPresetThisMonth, I18nFilterPresetLastMonth, I18nFilterPresetLast30Days,
-		I18nFilterPresetLast12Months, I18nFilterPresetThisQuarter, I18nFilterPresetYearToDate,
-		I18nFilterPresetThisYear, I18nFilterPresetLastYear,
+		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
+		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDrillReset,
 		I18nDocumentRefetch, I18nDocumentRetry,

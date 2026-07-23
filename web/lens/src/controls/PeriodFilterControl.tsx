@@ -61,9 +61,9 @@ interface RenderablePreset {
   id: string
   label: string
   value: PeriodValue
+  /** Completed past period — rendered after the rail's divider. */
+  past?: boolean
 }
-
-const rangeKey = (value: PeriodValue): string => `${value.start}|${value.end}`
 
 /**
  * The built-in relative catalog resolved against `today`. Entries whose bounds
@@ -83,7 +83,7 @@ function catalogPresets(
     const value = { start: formatISODate(bounds.start), end: formatISODate(bounds.end) }
     if (period.min && value.start < period.min) continue
     if (period.max && value.end > period.max) continue
-    presets.push({ id: def.id, label: translate(def.labelKey, def.fallback), value })
+    presets.push({ id: def.id, label: translate(def.labelKey, def.fallback), value, past: def.past })
   }
   return presets
 }
@@ -105,20 +105,18 @@ function topRowPresets(
 }
 
 /**
- * The relative presets surfaced inside the popover: always the built-in
- * catalog, minus any whose resolved range already appears in the top row.
- * This keeps parity with the legacy picker (the relative catalog is always
- * reachable) while never listing the same range twice — server year-chips such
- * as 2025/2026 collide with the catalog's `thisYear`/`lastYear`, which are then
- * dropped from the popover.
+ * The relative presets surfaced inside the popover: always the full built-in
+ * catalog, i.e. the legacy HTMX picker's quick ranges verbatim. A catalog
+ * entry may resolve to the same range as a server year-chip (last fiscal year
+ * vs. the previous year's chip); both then simply report the pressed state,
+ * which is the legacy behaviour too.
  */
 function popoverPresets(
   period: NonNullable<Filter['period']>,
   today: CalendarDate,
   translate: (key: string, fallback: string) => string,
 ): Array<RenderablePreset> {
-  const shown = new Set(topRowPresets(period, today, translate).map((preset) => rangeKey(preset.value)))
-  return catalogPresets(period, today, translate).filter((preset) => !shown.has(rangeKey(preset.value)))
+  return catalogPresets(period, today, translate)
 }
 
 function draftFromValue(value: PeriodValue): RangeDraft {
@@ -263,6 +261,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   const resolvedToday = today ?? localToday()
   const presets = topRowPresets(period, resolvedToday, translate)
   const relativePresets = popoverPresets(period, resolvedToday, translate)
+  const toDatePresets = relativePresets.filter((preset) => !preset.past)
+  const pastPresets = relativePresets.filter((preset) => preset.past)
   const draftComplete = Boolean(draft.start && draft.end && compareDates(draft.start, draft.end) <= 0)
 
   const allTime = translate('filter.period.allTime', 'All time')
@@ -320,7 +320,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
           >
             {(relativePresets.length > 0 || period.allowEmpty) && (
               <div className="lens-filter-popover-side">
-                {relativePresets.map((preset) => (
+                {toDatePresets.map((preset) => (
                   <button
                     aria-pressed={sameValue(preset.value, value)}
                     className="lens-filter-preset"
@@ -332,18 +332,29 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                   </button>
                 ))}
                 {period.allowEmpty && (
-                  <>
-                    {relativePresets.length > 0 && <div aria-hidden="true" className="lens-filter-preset-divider" />}
-                    <button
-                      aria-pressed={value.start === '' && value.end === ''}
-                      className="lens-filter-preset"
-                      onClick={() => applyValue({ start: '', end: '' })}
-                      type="button"
-                    >
-                      {allTime}
-                    </button>
-                  </>
+                  <button
+                    aria-pressed={value.start === '' && value.end === ''}
+                    className="lens-filter-preset"
+                    onClick={() => applyValue({ start: '', end: '' })}
+                    type="button"
+                  >
+                    {allTime}
+                  </button>
                 )}
+                {pastPresets.length > 0 && (toDatePresets.length > 0 || period.allowEmpty) && (
+                  <div aria-hidden="true" className="lens-filter-preset-divider" />
+                )}
+                {pastPresets.map((preset) => (
+                  <button
+                    aria-pressed={sameValue(preset.value, value)}
+                    className="lens-filter-preset"
+                    key={preset.id}
+                    onClick={() => applyValue(preset.value)}
+                    type="button"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
               </div>
             )}
             <div className="lens-filter-popover-main">

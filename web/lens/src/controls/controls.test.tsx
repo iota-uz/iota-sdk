@@ -396,12 +396,16 @@ describe('FilterBar runtime integration', () => {
     const calls: Array<string> = []
     render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
 
-    // The legacy catalog is present even though the document declared none.
-    await screen.findByRole('button', { name: 'Today' })
-    expect(screen.getByRole('button', { name: 'This week' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Last 30 days' })).toBeInTheDocument()
+    // The legacy quick-range catalog is present even though the document
+    // declared none: DefaultQuickRanges parity.
+    await screen.findByRole('button', { name: 'Current month' })
+    expect(screen.getByRole('button', { name: '30 days' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '12 months' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Current fiscal year' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Last month' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Last fiscal year' })).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'This month' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Current month' }))
     // today = 2026-07-22 → this month resolves to 2026-07-01..2026-07-22.
     expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
     await waitFor(() => {
@@ -421,18 +425,16 @@ describe('FilterBar runtime integration', () => {
     fireEvent.click(screen.getByRole('button', { name: /Change period/ }))
     const dialog = await screen.findByRole('dialog')
 
-    // The relative catalog appears inside the popover regardless of server presets.
-    expect(within(dialog).getByRole('button', { name: 'This month' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Last 30 days' })).toBeInTheDocument()
-    expect(within(dialog).getByRole('button', { name: 'Year to date' })).toBeInTheDocument()
-
-    // Dedup: catalog thisYear (2026) / lastYear (2025) collide with the server
-    // year-chips, so they are not re-listed in the popover.
-    expect(within(dialog).queryByRole('button', { name: 'This year' })).not.toBeInTheDocument()
-    expect(within(dialog).queryByRole('button', { name: 'Last year' })).not.toBeInTheDocument()
+    // The full legacy quick-range catalog appears inside the popover
+    // regardless of server presets — including last fiscal year, even though
+    // it resolves to the same range as the server's previous-year chip.
+    expect(within(dialog).getByRole('button', { name: 'Current month' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '30 days' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Current fiscal year' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Last fiscal year' })).toBeInTheDocument()
 
     // Selecting a popover preset applies its resolved bounds and closes the popover.
-    fireEvent.click(within(dialog).getByRole('button', { name: 'This month' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Current month' }))
     expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
