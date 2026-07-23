@@ -16,6 +16,10 @@ import (
 var (
 	literalKeyPattern = regexp.MustCompile(`translate\(\s*'([^']+)'`)
 	dynamicKeyPattern = regexp.MustCompile("translate\\(\\s*`([^`$]*)\\$\\{")
+	// Keys resolved indirectly through catalog definitions, e.g. the period
+	// preset catalog's `labelKey: 'filter.period.preset.today'` entries that
+	// reach translate() as `translate(def.labelKey, def.fallback)`.
+	catalogKeyPattern = regexp.MustCompile(`labelKey:\s*'([^']+)'`)
 )
 
 // TestRuntimeI18nKeysMatchRuntimeCallSites keeps the Go-side catalogue and the
@@ -45,6 +49,9 @@ func TestRuntimeI18nKeysMatchRuntimeCallSites(t *testing.T) {
 			return readErr
 		}
 		for _, match := range literalKeyPattern.FindAllStringSubmatch(string(source), -1) {
+			found[match[1]] = struct{}{}
+		}
+		for _, match := range catalogKeyPattern.FindAllStringSubmatch(string(source), -1) {
 			found[match[1]] = struct{}{}
 		}
 		for _, match := range dynamicKeyPattern.FindAllStringSubmatch(string(source), -1) {

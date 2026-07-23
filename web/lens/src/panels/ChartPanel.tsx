@@ -207,10 +207,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
               onHover={interactive ? setHoveredKey : undefined}
             />
           )}
-          {panel.presentation?.totalBadge === 'plot' && (visibleTotal ?? levelTotal ?? panel.total) !== undefined && (
-            <PlotTotalBadge panel={panel} total={(visibleTotal ?? levelTotal ?? panel.total)!} />
-          )}
         </div>
+        {panel.presentation?.totalBadge === 'plot' && (visibleTotal ?? levelTotal ?? panel.total) !== undefined && (
+          <PlotTotalBadge panel={panel} total={(visibleTotal ?? levelTotal ?? panel.total)!} />
+        )}
         {hasLegend && frame.data && (
           <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} />
         )}

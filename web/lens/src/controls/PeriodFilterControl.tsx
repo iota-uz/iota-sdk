@@ -319,7 +319,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
             tabIndex={-1}
           >
             {relativePresets.length > 0 && (
-              <span className="lens-filter-presets" style={{ flexWrap: 'wrap' }}>
+              <span className="lens-filter-presets lens-filter-popover-presets">
                 {relativePresets.map((preset) => (
                   <button
                     aria-pressed={sameValue(preset.value, value)}
@@ -377,7 +377,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                 </button>
               )}
               <button
-                className="lens-filter-chip"
+                className="lens-filter-chip lens-filter-apply"
                 disabled={!draftComplete}
                 onClick={applyDraft}
                 type="button"

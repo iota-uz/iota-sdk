@@ -206,8 +206,50 @@
   }
 
   .lens-filter-popover {
-    @apply lens-fixed lens-flex lens-flex-col lens-gap-2 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-shadow-lg lens-outline-none;
-    width: 292px;
+    @apply lens-fixed lens-flex lens-flex-col lens-gap-2.5 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-shadow-lg lens-outline-none;
+    width: 316px;
+  }
+
+  /* The relative-preset catalog inside the popover: a tidy two-column grid of
+     equal chips instead of a ragged wrap of the top-row tray. */
+  .lens-filter-popover-presets {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 2px;
+  }
+
+  .lens-filter-popover-presets .lens-filter-chip {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: center;
+  }
+
+  /* Typed range entry: From/To fields side by side, labels above the inputs. */
+  .lens-filter-inputs {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+  }
+
+  .lens-filter-input-label {
+    @apply lens-flex lens-flex-col lens-gap-1 lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+    font-size: 10px;
+  }
+
+  .lens-filter-input {
+    @apply lens-min-h-8 lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-font-sans lens-text-xs lens-font-medium lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-filter-input:hover {
+    @apply lens-border-strong;
+  }
+
+  .lens-filter-input:focus {
+    @apply lens-outline-none;
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 2px var(--lens-accent-100);
   }
 
   /* Same open treatment as the drill overlay: the class only exists when
@@ -225,6 +267,24 @@
   .lens-filter-popover-footer {
     @apply lens-flex lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
     border-color: var(--lens-divider);
+  }
+
+  /* Apply is the popover's one primary action. Hover/disabled must restate the
+     colours because the base chip's hover otherwise repaints the text dark. */
+  .lens-filter-apply {
+    background: var(--lens-accent-600);
+    color: #ffffff;
+    padding-inline: 0.75rem;
+  }
+
+  .lens-filter-apply:hover:not(:disabled) {
+    background: var(--lens-accent-500);
+    color: #ffffff;
+  }
+
+  .lens-filter-apply:disabled {
+    cursor: default;
+    opacity: 0.45;
   }
 
   .lens-calendar {
@@ -856,6 +916,7 @@
      a wide panel moves the legend into a right-hand column, and the plot claims
      the freed width and sits on the left. */
   .lens-chart-layout {
+    position: relative;
     display: flex;
     flex: 1 1 0%;
     min-height: 0;
@@ -889,9 +950,39 @@
       padding: 0.75rem 0.5rem;
     }
 
+    /* Side-column rows stack label over value: mark + label on the first
+       line(s), the figure on its own line beneath. The narrow column can't fit
+       long Russian labels next to a money value without mid-word breaks, so
+       the value gets a full line instead of a squeezed right-hand cell. */
     .lens-chart-layout-legend .lens-chart-legend-toggle {
+      display: grid;
       width: 100%;
-      justify-content: flex-start;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      column-gap: 0.375rem;
+      row-gap: 0.125rem;
+      text-align: left;
+      padding-block: 0.375rem;
+    }
+
+    /* Pin the swatch to the first text line rather than the row's centre so a
+       wrapped label doesn't leave it floating between lines. */
+    .lens-chart-layout-legend .lens-chart-legend-mark {
+      margin-top: 0.25rem;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-label {
+      min-width: 0;
+      line-height: 1.35;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-separator {
+      display: none;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-value {
+      grid-column: 2;
+      white-space: nowrap;
     }
   }
 
