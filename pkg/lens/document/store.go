@@ -218,7 +218,13 @@ func cloneAction(source *Action) *Action {
 		return nil
 	}
 	result := *source
-	result.Params = append([]ActionParam(nil), source.Params...)
+	// make (not append to a nil slice) so an EMPTY-but-non-nil Params survives the
+	// clone as []ActionParam{} rather than collapsing to nil: append([]T(nil))
+	// with zero elements returns nil, which would marshal as `params: null` and
+	// fail the wire contract's `params: array` (e.g. the dynamic explorer child
+	// actions, which carry no params).
+	result.Params = make([]ActionParam, len(source.Params))
+	copy(result.Params, source.Params)
 	result.Payload = make(map[string]Source, len(source.Payload))
 	for key, value := range source.Payload {
 		result.Payload[key] = value

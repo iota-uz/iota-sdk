@@ -555,6 +555,8 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			WidthPx:    column.WidthPx,
 			ClampLines: column.ClampLines,
 			Affordance: column.Affordance,
+			ToneField:  panel.Ref(column.ToneField),
+			BadgeField: panel.Ref(column.BadgeField),
 		})
 	}
 

@@ -159,6 +159,9 @@ type PresentationHints struct {
 	// NonExportable removes a panel's export control, e.g. a small derived table
 	// whose figures are already the drawer's whole point.
 	NonExportable bool
+	// RowGroupField names a frame column carrying a per-row group tag on a table
+	// panel, enabling collapsible member rows behind a synthetic toggle row.
+	RowGroupField string
 }
 
 // GroupLayout selects how a StatGroup panel arranges its children inside the
@@ -213,13 +216,27 @@ type TableColumn struct {
 	// labels cannot inflate row height.
 	ClampLines int
 	// Affordance selects how an actionable cell advertises its action;
-	// "pill" renders a compact pill with a drill arrow.
+	// "pill" renders a compact pill with a drill arrow, "quiet" makes the whole
+	// cell the drill target with hover-only chrome.
 	Affordance string
+	// ToneField names a frame column carrying a per-row status tone ("pos",
+	// "warn", "neg") applied to the cell value's color.
+	ToneField FieldRef
+	// BadgeField names a frame column carrying a per-row badge tooltip; a
+	// non-empty value renders a muted "?" badge after the cell value.
+	BadgeField FieldRef
 }
 
 // Pill marks an actionable column's cells as compact drill pills.
 func (c TableColumn) Pill() TableColumn {
 	c.Affordance = "pill"
+	return c
+}
+
+// Quiet makes an actionable column's whole cell the drill target with no
+// standing chrome; the drill arrow and value underline appear only on hover.
+func (c TableColumn) Quiet() TableColumn {
+	c.Affordance = "quiet"
 	return c
 }
 

@@ -332,6 +332,10 @@ func validatePresentation(panel Panel) error {
 }
 
 func validateTableColumns(panel Panel, frame Frame) error {
+	if panel.Presentation != nil && panel.Presentation.RowGroupField != "" &&
+		!frameHasColumn(frame, panel.Presentation.RowGroupField) {
+		return fmt.Errorf("panel %s references missing row group field %q", panel.ID, panel.Presentation.RowGroupField)
+	}
 	fields := make(map[string]struct{}, len(panel.Columns))
 	for index, column := range panel.Columns {
 		owner := fmt.Sprintf("panel %s table column %d", panel.ID, index)
@@ -360,9 +364,15 @@ func validateTableColumns(panel Panel, frame Frame) error {
 			return fmt.Errorf("%s clamp cannot be negative", owner)
 		}
 		switch column.Affordance {
-		case "", TableAffordancePill:
+		case "", TableAffordancePill, TableAffordanceQuiet:
 		default:
 			return fmt.Errorf("%s has unsupported affordance %q", owner, column.Affordance)
+		}
+		if column.BadgeField != "" && !frameHasColumn(frame, column.BadgeField) {
+			return fmt.Errorf("%s references missing badge field %q", owner, column.BadgeField)
+		}
+		if column.Cell.ToneField != "" && !frameHasColumn(frame, column.Cell.ToneField) {
+			return fmt.Errorf("%s references missing tone field %q", owner, column.Cell.ToneField)
 		}
 		switch column.Cell.Layout {
 		case "", TableCellStacked:

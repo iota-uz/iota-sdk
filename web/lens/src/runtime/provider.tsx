@@ -33,7 +33,7 @@ import {
   withInlineFrameChildren,
 } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
-import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
+import { DashboardSkeleton, defaultSkeletonRows, drawerSkeletonRows } from '../panels/Skeleton'
 import { formatAxis, formatFieldValue, formatFieldValueExact } from './format'
 import {
   createNavigationState,
@@ -1027,6 +1027,11 @@ function RuntimeCore({
                         controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
                         csrf={csrf}
                         drawerDepth={1}
+                        // A drawer-shaped loading placeholder (headline stat +
+                        // table), not the dashboard's stat-strip + chart pair,
+                        // so the drawer body does not jump when the drill
+                        // document lands.
+                        fallback={<DashboardSkeleton rows={drawerSkeletonRows} />}
                         fetcher={fetcher}
                         locale={locale}
                         onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}

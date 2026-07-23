@@ -96,6 +96,7 @@ const (
 	I18nTablePage         = "table.page"
 	I18nTablePages        = "table.pages"
 	I18nTablePrevious     = "table.previous"
+	I18nTableRowCount     = "table.rowCount"
 	I18nTableSortScope    = "table.sortScope"
 	I18nSemanticsPrefix   = "explore.semantics."
 	I18nSemanticsEvidence = I18nSemanticsPrefix + string(SemanticsEvidence)
@@ -132,7 +133,7 @@ func RuntimeI18nKeys() []string {
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nRuntimeDismiss, I18nRuntimeLoadError,
 		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,
-		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableSortScope,
+		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSortScope,
 		I18nSemanticsEvidence, I18nSemanticsPartn, I18nSemanticsRecon, I18nSemanticsSeries,
 	}
 	sort.Strings(keys)

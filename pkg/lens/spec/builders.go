@@ -419,6 +419,27 @@ func (c TableColumnSpec) Pill() TableColumnSpec {
 	return c
 }
 
+// Quiet makes an actionable column's whole cell the drill target with no
+// standing chrome; the drill arrow and value underline appear only on hover.
+func (c TableColumnSpec) Quiet() TableColumnSpec {
+	c.Affordance = "quiet"
+	return c
+}
+
+// Tone colors the cell value by a per-row status read from toneField ("pos",
+// "warn", "neg"; empty keeps the default text color).
+func (c TableColumnSpec) Tone(toneField string) TableColumnSpec {
+	c.ToneField = toneField
+	return c
+}
+
+// Badge renders a muted "?" badge after the cell value for rows whose
+// badgeField value is non-empty, using that value as the badge's title.
+func (c TableColumnSpec) Badge(badgeField string) TableColumnSpec {
+	c.BadgeField = badgeField
+	return c
+}
+
 // Clamp limits the column's cell text to lines rendered lines.
 func (c TableColumnSpec) Clamp(lines int) TableColumnSpec {
 	c.ClampLines = lines

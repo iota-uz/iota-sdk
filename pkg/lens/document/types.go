@@ -338,6 +338,11 @@ type Presentation struct {
 	// small derived table sets it false; long record tables keep export. nil
 	// keeps the default export control.
 	Exportable *bool `json:"exportable,omitempty"`
+	// RowGroupField names a frame column carrying a per-row group tag on a table
+	// panel. An empty tag is a normal row; a tag ending in ":toggle" marks a
+	// synthetic expander row for the group named by its prefix; any other tag
+	// marks a collapsed member, hidden until its toggle is expanded.
+	RowGroupField string `json:"rowGroupField,omitempty"`
 }
 
 type TableColumn struct {
@@ -355,6 +360,10 @@ type TableColumn struct {
 	Clamp int `json:"clamp,omitempty"`
 	// Affordance selects how an actionable cell advertises its action.
 	Affordance TableAffordance `json:"affordance,omitempty"`
+	// BadgeField names a frame column carrying a per-row badge tooltip. A row
+	// with a non-empty value renders a muted "?" badge (with that text as its
+	// title) after the cell's value — e.g. flagging an unmatched source row.
+	BadgeField string `json:"badgeField,omitempty"`
 }
 
 // TableAffordance selects the visual treatment of an actionable table cell.
@@ -364,6 +373,10 @@ const (
 	// TableAffordancePill renders the cell as a compact pill with a drill
 	// arrow, marking every value in the column as a drill entry point.
 	TableAffordancePill TableAffordance = "pill"
+	// TableAffordanceQuiet makes the whole cell the drill target with no
+	// standing chrome: plain value, and on hover/focus a subtle accent
+	// underline plus an arrow that fades in at the cell's trailing edge.
+	TableAffordanceQuiet TableAffordance = "quiet"
 )
 
 type TableAlign string
@@ -400,6 +413,10 @@ type TableCell struct {
 	// 0..1 share would silently render as 0.1%.
 	SecondaryField string          `json:"secondaryField,omitempty"`
 	Layout         TableCellLayout `json:"layout,omitempty"`
+	// ToneField names a frame column carrying a per-row status tone applied to
+	// the cell's value color: "pos", "warn", or "neg" (empty keeps the default
+	// text color). The producer sets the tone from its own business thresholds.
+	ToneField string `json:"toneField,omitempty"`
 }
 
 type Encoding struct {

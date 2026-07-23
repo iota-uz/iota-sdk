@@ -255,7 +255,11 @@ export function DrillOverlay({
 
   const copyValue = useCallback(async () => {
     if (target.value === undefined) return
-    const text = formatValue(target.value)
+    // Copy the raw machine value (plain digits, no thousands separators, no unit
+    // or compact abbreviation) so it pastes straight into a spreadsheet — not the
+    // formatted display string («13.02 млрд UZS»). The on-screen figure keeps its
+    // formatting.
+    const text = String(target.value)
     const clipboard = globalThis.navigator?.clipboard
     let done = false
     try {
@@ -287,7 +291,7 @@ export function DrillOverlay({
     setCopied(true)
     if (copiedTimer.current) clearTimeout(copiedTimer.current)
     copiedTimer.current = setTimeout(() => setCopied(false), 1500)
-  }, [formatValue, target.value])
+  }, [target.value])
 
   if (!container) return null
 

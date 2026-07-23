@@ -208,6 +208,148 @@ describe('TablePanel static (non-sortable)', () => {
   })
 })
 
+const quietPanel: Panel = {
+  id: 'matrix',
+  kind: 'table',
+  title: 'Matrix',
+  semantics: 'evidence',
+  frame: 'matrix:root',
+  encoding: { id: 'group', label: 'group' },
+  format: { ratio: { kind: 'percent', minorUnits: false, precision: 1 } },
+  columns: [
+    { field: 'group', label: 'Group', badgeField: '__badge', cell: { kind: 'plain' } },
+    {
+      field: 'ratio',
+      label: 'Loss ratio',
+      align: 'right',
+      affordance: 'quiet',
+      cell: { kind: 'plain', toneField: '__tone' },
+      action: { kind: 'open_drawer', urlSource: { kind: 'field', name: '__url' }, params: [], payload: {} },
+    },
+  ],
+  actions: [],
+}
+
+const quietDocument: DashboardDocument = {
+  ...columnsDocument,
+  snapshotId: 'quiet-snapshot',
+  meta: { ...columnsDocument.meta, dashboardId: 'quiet', title: 'Quiet' },
+  layout: { rows: [{ panels: [{ panelId: quietPanel.id, span: 12 }] }] },
+  panels: [quietPanel],
+  frames: {
+    'matrix:root': {
+      columns: [
+        { name: 'group', type: 'string' },
+        { name: 'ratio', type: 'number' },
+        { name: '__tone', type: 'string' },
+        { name: '__badge', type: 'string' },
+        { name: '__url', type: 'string' },
+      ],
+      rows: [
+        ['Group A', 30, '', '', '/groups/A'],
+        ['Unknown', 250, 'neg', 'Source rows with no matched product', '/groups/unknown'],
+      ],
+    },
+  },
+}
+
+describe('TablePanel quiet drill cells', () => {
+  it('renders a whole-cell quiet drill target with tone and a badge', () => {
+    const { container } = render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={quietDocument}>
+          <DashboardRuntimeProvider locale="en">
+            <TablePanel panel={quietPanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    // The quiet cell is a link (whole-cell target) carrying the fade-in arrow.
+    const quiet = container.querySelectorAll<HTMLElement>('.lens-table-cell-quiet')
+    expect(quiet).toHaveLength(2)
+    expect(quiet[0]).toHaveAttribute('href', expect.stringContaining('/groups/A'))
+    expect(container.querySelector('.lens-table-cell-quiet-arrow')).not.toBeNull()
+
+    // The over-100% loss ratio tints negative; the default row carries no tone.
+    expect(container.querySelectorAll('.lens-table-tone-neg')).toHaveLength(1)
+    expect(container.querySelector('.lens-table-tone-warn')).toBeNull()
+
+    // The unmatched row's name cell carries a "?" badge with the hint tooltip.
+    const badge = container.querySelector<HTMLElement>('.lens-table-cell-badge')
+    expect(badge).not.toBeNull()
+    expect(badge).toHaveAttribute('title', 'Source rows with no matched product')
+  })
+})
+
+const groupPanel: Panel = {
+  id: 'grouped',
+  kind: 'table',
+  title: 'Grouped',
+  semantics: 'series',
+  frame: 'grouped:root',
+  encoding: { id: 'product', label: 'product' },
+  format: {},
+  presentation: { rowGroupField: '__group' },
+  columns: [
+    { field: 'product', label: 'Product', cell: { kind: 'plain' } },
+    { field: 'delta', label: 'vs previous', align: 'right', cell: { kind: 'plain' } },
+  ],
+  actions: [],
+}
+
+function groupedDocument(): DashboardDocument {
+  const normal = Array.from({ length: 11 }, (_, index) => [`Live ${index + 1}`, index + 1, ''])
+  return {
+    ...columnsDocument,
+    snapshotId: 'grouped-snapshot',
+    meta: { ...columnsDocument.meta, dashboardId: 'grouped', title: 'Grouped' },
+    layout: { rows: [{ panels: [{ panelId: groupPanel.id, span: 12 }] }] },
+    panels: [groupPanel],
+    frames: {
+      'grouped:root': {
+        columns: [
+          { name: 'product', type: 'string' },
+          { name: 'delta', type: 'number' },
+          { name: '__group', type: 'string' },
+        ],
+        rows: [
+          ...normal,
+          ['Discontinued products (1)', -100, 'discontinued:toggle'],
+          ['Legacy KASKO', 0, 'discontinued'],
+        ],
+      },
+    },
+  }
+}
+
+describe('TablePanel discontinued grouping', () => {
+  it('hides collapsed members until the toggle is expanded and counts real rows', () => {
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={groupedDocument()}>
+          <DashboardRuntimeProvider locale="en">
+            <TablePanel panel={groupPanel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    // The collapsed member is hidden; the toggle stands in for it, collapsed.
+    expect(screen.queryByText('Legacy KASKO')).toBeNull()
+    const toggle = screen.getByRole('button', { name: /Discontinued products \(1\)/ })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+    // The footer counts the 12 real rows (11 live + 1 member), not the toggle.
+    expect(screen.getByText('12 rows')).toBeInTheDocument()
+
+    // Expanding reveals the member and flips aria-expanded.
+    fireEvent.click(toggle)
+    expect(screen.getByText('Legacy KASKO')).toBeInTheDocument()
+    expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  })
+})
+
 describe('TablePanel pagination', () => {
   it.each([
     { hasNext: false, disabled: true },

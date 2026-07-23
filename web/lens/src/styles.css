@@ -1780,6 +1780,87 @@
     @apply lens-text-xs lens-text-accent-700;
   }
 
+  /* Quiet drill cell: the whole cell is the target, but it reads as a plain
+     numeral until hover/focus reveals the underline and the trailing arrow. */
+  .lens-table-cell-quiet {
+    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-bg-transparent lens-text-text lens-no-underline;
+  }
+
+  .lens-table-cell-quiet-value {
+    @apply lens-min-w-0 lens-flex-1 lens-whitespace-nowrap;
+    text-align: inherit;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    transition: text-decoration-color 120ms ease;
+  }
+
+  .lens-table-cell-quiet-arrow {
+    @apply lens-flex-none lens-text-xs lens-text-accent-700;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .lens-table-cell-quiet:hover .lens-table-cell-quiet-value,
+  .lens-table-cell-quiet:focus-visible .lens-table-cell-quiet-value {
+    text-decoration-color: var(--lens-accent-500);
+  }
+
+  .lens-table-cell-quiet:hover .lens-table-cell-quiet-arrow,
+  .lens-table-cell-quiet:focus-visible .lens-table-cell-quiet-arrow {
+    opacity: 1;
+  }
+
+  /* Per-row status tone: colored value text only, never a fill. */
+  .lens-table-tone-pos {
+    color: var(--lens-pos);
+  }
+
+  .lens-table-tone-warn {
+    color: var(--lens-warn);
+  }
+
+  .lens-table-tone-neg {
+    color: var(--lens-neg);
+  }
+
+  .lens-table-cell-badged {
+    @apply lens-inline-flex lens-items-center lens-gap-1.5;
+  }
+
+  .lens-table-cell-badge {
+    @apply lens-inline-flex lens-h-4 lens-w-4 lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-xs lens-font-semibold lens-text-muted;
+    cursor: help;
+  }
+
+  /* Group toggle row: a chevron + label control standing in for a collapsed
+     tail of rows. Its aggregate cells render through the normal cell path. */
+  .lens-table-group-toggle > td {
+    @apply lens-bg-inset;
+  }
+
+  .lens-table-group-toggle-btn {
+    @apply lens-flex lens-w-full lens-items-center lens-gap-2 lens-bg-transparent lens-text-left lens-font-sans lens-text-sm lens-font-medium lens-text-strong;
+  }
+
+  .lens-table-group-chevron {
+    @apply lens-flex lens-text-muted;
+    transition: transform 120ms ease;
+  }
+
+  .lens-table-group-chevron-open {
+    transform: rotate(90deg);
+  }
+
+  .lens-table-rowcount {
+    @apply lens-text-xs lens-text-muted;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-footer-notes {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
+  }
+
   .lens-table-action-heading,
   .lens-table-action-cell {
     @apply lens-w-px lens-whitespace-nowrap lens-text-right;

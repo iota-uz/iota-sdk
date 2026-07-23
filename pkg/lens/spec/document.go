@@ -198,8 +198,15 @@ type TableColumnSpec struct {
 	// ClampLines, when > 0, limits the cell text to that many rendered lines.
 	ClampLines int `json:"clamp,omitempty"`
 	// Affordance selects how an actionable cell advertises its action; "pill"
-	// renders a compact pill with a drill arrow.
+	// renders a compact pill with a drill arrow, "quiet" makes the whole cell
+	// the drill target with hover-only chrome.
 	Affordance string `json:"affordance,omitempty"`
+	// ToneField names a frame column carrying a per-row status tone ("pos",
+	// "warn", "neg") applied to the cell value's color.
+	ToneField string `json:"toneField,omitempty"`
+	// BadgeField names a frame column carrying a per-row badge tooltip; a
+	// non-empty value renders a muted "?" badge after the cell value.
+	BadgeField string `json:"badgeField,omitempty"`
 }
 
 type FieldMappingSpec struct {

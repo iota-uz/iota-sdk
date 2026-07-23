@@ -345,6 +345,7 @@ func buildPresentation(spec panel.Spec) *Presentation {
 	if hints.NonExportable {
 		presentation.Exportable = boolPtr(false)
 	}
+	presentation.RowGroupField = hints.RowGroupField
 	if presentation == (Presentation{}) {
 		return nil
 	}
@@ -478,6 +479,7 @@ func buildTableColumns(spec panel.Spec) []TableColumn {
 			Cell: TableCell{Kind: TableCellPlain}, Text: column.Text,
 			WidthPx: column.WidthPx, Clamp: column.ClampLines,
 			Affordance: TableAffordance(column.Affordance),
+			BadgeField: column.BadgeField.Name(),
 		}
 		if column.Cell != nil {
 			wireColumn.Cell.Kind = TableCellKind(column.Cell.Kind)
@@ -488,6 +490,9 @@ func buildTableColumns(spec panel.Spec) []TableColumn {
 				wireColumn.Cell.Layout = TableCellStacked
 			}
 		}
+		// Tone lives on the column (a plain cell has no TableCellSpec), so map it
+		// onto the wire cell regardless of the rich-cell kind.
+		wireColumn.Cell.ToneField = column.ToneField.Name()
 		if column.Action != nil {
 			if converted, ok := convertAction(*column.Action, true); ok {
 				wireColumn.Action = &converted
@@ -630,7 +635,19 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		if column.Cell != nil {
 			addDependency(action.FieldValue(column.Cell.PercentField.Name()))
 		}
+		// Companion columns (tone, badge) are read per row by the renderer but
+		// never rendered as their own column, so retain them explicitly or the
+		// projection drops them.
+		if !column.ToneField.Empty() {
+			addDependency(action.FieldValue(column.ToneField.Name()))
+		}
+		if !column.BadgeField.Empty() {
+			addDependency(action.FieldValue(column.BadgeField.Name()))
+		}
 		addActionDependencies(column.Action)
+	}
+	if spec.Presentation.RowGroupField != "" {
+		addDependency(action.FieldValue(spec.Presentation.RowGroupField))
 	}
 	addActionDependencies(spec.Action)
 	for _, dependencies := range extra {

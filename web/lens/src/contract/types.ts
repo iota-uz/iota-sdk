@@ -254,6 +254,7 @@ export interface Presentation {
   sortable?: boolean
   expandable?: boolean
   exportable?: boolean
+  rowGroupField?: string
 }
 
 export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
@@ -294,7 +295,7 @@ export interface Source {
 
 export type StatusTone = "neutral" | "positive" | "warning"
 
-export type TableAffordance = "pill"
+export type TableAffordance = "pill" | "quiet"
 
 export type TableAlign = "left" | "right"
 
@@ -302,6 +303,7 @@ export interface TableCell {
   kind: TableCellKind
   secondaryField?: string
   layout?: TableCellLayout
+  toneField?: string
 }
 
 export type TableCellKind = "bar" | "delta" | "plain" | "underline"
@@ -318,6 +320,7 @@ export interface TableColumn {
   widthPx?: number
   clamp?: number
   affordance?: TableAffordance
+  badgeField?: string
 }
 
 export interface Theme {
