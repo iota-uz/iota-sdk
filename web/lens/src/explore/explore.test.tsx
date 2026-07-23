@@ -430,6 +430,22 @@ describe('drill overlay', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
+  it('keeps the overlay open while its own body scrolls but dismisses on a page scroll', () => {
+    renderExplore()
+    fireEvent.click(screen.getByRole('button', { name: 'Show breakdown' }))
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+
+    // Scrolling inside the overlay (a long breakdown/structure list) must not
+    // close it, or the list is unreachable and the segment can never expand.
+    fireEvent.scroll(overlay())
+    expect(screen.queryByRole('dialog')).not.toBeNull()
+
+    // Scrolling the page underneath moves the anchor the popover is pinned to,
+    // so it dismisses.
+    fireEvent.scroll(document)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
   it('offers the leaf link a segment carries', async () => {
     const path = [
       'profitability',

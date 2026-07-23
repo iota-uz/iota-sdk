@@ -220,8 +220,15 @@ export function DrillOverlay({
       onClose()
     }
     // Repositioning against a canvas mark during scroll is guesswork; the
-    // popover is transient, so scrolling dismisses it instead.
-    const onScroll = () => onClose()
+    // popover is transient, so a scroll of the page underneath — which moves the
+    // anchor it is pinned to — dismisses it. A scroll of the overlay's own body
+    // (a long breakdown/structure list) must NOT close it, or the list is
+    // unreachable: the segment can never be expanded.
+    const onScroll = (event: Event) => {
+      const node = event.target as Node | null
+      if (node && dialogRef.current?.contains(node)) return
+      onClose()
+    }
     document.addEventListener('keydown', onKeyDown, true)
     globalThis.addEventListener('scroll', onScroll, true)
     return () => {
