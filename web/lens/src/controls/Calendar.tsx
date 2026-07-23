@@ -11,6 +11,7 @@ import {
   keyboardTarget,
   monthGrid,
   monthLabel,
+  previewRange,
   rangeDayState,
   selectDay,
   sameDate,
@@ -124,6 +125,22 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
     moveFocus(keyboardTarget(focused, event.key as CalendarKey, firstDay))
   }, [firstDay, focused, moveFocus, pick])
 
+  // The continuous range band. A committed draft owns the band; while a range
+  // is in progress the hover preview does. Endpoint cells carry the side the
+  // soft wash must extend toward so the band reads as one unbroken strip that
+  // rounds off exactly at the outer edges of the endpoint pills.
+  const committed = draft.start && draft.end && compareDates(draft.start, draft.end) < 0
+    ? { start: draft.start, end: draft.end }
+    : undefined
+  const band = committed ?? previewRange(draft, hover)
+  const bandTone = committed ? '' : '-preview'
+  const bandSide = (date: CalendarDate): string | undefined => {
+    if (!band || sameDate(band.start, band.end)) return undefined
+    if (sameDate(date, band.start)) return `right${bandTone}`
+    if (sameDate(date, band.end)) return `left${bandTone}`
+    return undefined
+  }
+
   const weeks = monthGrid(visibleMonth.year, visibleMonth.month, firstDay)
   const weekdays = weekdayLabels(locale, firstDay)
   const heading = monthLabel(locale, visibleMonth.year, visibleMonth.month)
@@ -192,6 +209,7 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
                   aria-label={dayLabel(locale, cell.date)}
                   aria-selected={state === 'start' || state === 'end' || state === 'inRange'}
                   className="lens-calendar-day"
+                  data-band={bandSide(cell.date)}
                   data-focused={isFocusCell || undefined}
                   data-outside={!cell.inMonth || undefined}
                   data-state={state === 'none' ? undefined : state}
@@ -205,7 +223,7 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
                   tabIndex={isFocusCell ? 0 : -1}
                   type="button"
                 >
-                  {cell.date.day}
+                  <span className="lens-calendar-day-label">{cell.date.day}</span>
                 </button>
               )
             })}

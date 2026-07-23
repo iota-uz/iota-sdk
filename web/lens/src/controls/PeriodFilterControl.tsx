@@ -318,12 +318,12 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
             style={{ left: position.left, top: position.top }}
             tabIndex={-1}
           >
-            {relativePresets.length > 0 && (
-              <span className="lens-filter-presets lens-filter-popover-presets">
+            {(relativePresets.length > 0 || period.allowEmpty) && (
+              <div className="lens-filter-popover-side">
                 {relativePresets.map((preset) => (
                   <button
                     aria-pressed={sameValue(preset.value, value)}
-                    className="lens-filter-chip"
+                    className="lens-filter-preset"
                     key={preset.id}
                     onClick={() => applyValue(preset.value)}
                     type="button"
@@ -331,66 +331,73 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                     {preset.label}
                   </button>
                 ))}
-              </span>
+                {period.allowEmpty && (
+                  <>
+                    {relativePresets.length > 0 && <div aria-hidden="true" className="lens-filter-preset-divider" />}
+                    <button
+                      aria-pressed={value.start === '' && value.end === ''}
+                      className="lens-filter-preset"
+                      onClick={() => applyValue({ start: '', end: '' })}
+                      type="button"
+                    >
+                      {allTime}
+                    </button>
+                  </>
+                )}
+              </div>
             )}
-            <Calendar
-              draft={draft}
-              locale={locale}
-              max={max}
-              min={min}
-              onPick={onPick}
-              today={today}
-              translate={translate}
-            />
-            <div className="lens-filter-inputs">
-              <label className="lens-filter-input-label">
-                <span>{translate('filter.period.from', 'From')}</span>
-                <input
-                  className="lens-filter-input"
-                  max={period.max}
-                  min={period.min}
-                  onChange={(event) => onTypedChange('start', event.target.value)}
-                  type="date"
-                  value={draft.start ? formatISODate(draft.start) : ''}
-                />
-              </label>
-              <label className="lens-filter-input-label">
-                <span>{translate('filter.period.to', 'To')}</span>
-                <input
-                  className="lens-filter-input"
-                  max={period.max}
-                  min={period.min}
-                  onChange={(event) => onTypedChange('end', event.target.value)}
-                  type="date"
-                  value={draft.end ? formatISODate(draft.end) : ''}
-                />
-              </label>
-            </div>
-            <div className="lens-filter-popover-footer">
-              {period.allowEmpty && (
+            <div className="lens-filter-popover-main">
+              <Calendar
+                draft={draft}
+                locale={locale}
+                max={max}
+                min={min}
+                onPick={onPick}
+                today={today}
+                translate={translate}
+              />
+              <div className="lens-filter-range">
+                <label className="lens-filter-range-field">
+                  <span className="lens-filter-range-caption">{translate('filter.period.from', 'From')}</span>
+                  <input
+                    className="lens-filter-input"
+                    max={period.max}
+                    min={period.min}
+                    onChange={(event) => onTypedChange('start', event.target.value)}
+                    type="date"
+                    value={draft.start ? formatISODate(draft.start) : ''}
+                  />
+                </label>
+                <span aria-hidden="true" className="lens-filter-range-sep">—</span>
+                <label className="lens-filter-range-field">
+                  <span className="lens-filter-range-caption">{translate('filter.period.to', 'To')}</span>
+                  <input
+                    className="lens-filter-input"
+                    max={period.max}
+                    min={period.min}
+                    onChange={(event) => onTypedChange('end', event.target.value)}
+                    type="date"
+                    value={draft.end ? formatISODate(draft.end) : ''}
+                  />
+                </label>
+              </div>
+              <div className="lens-filter-popover-footer">
                 <button
-                  className="lens-filter-chip"
-                  onClick={() => applyValue({ start: '', end: '' })}
+                  className="lens-filter-chip lens-filter-close"
+                  onClick={() => close()}
                   type="button"
                 >
-                  {allTime}
+                  {translate('filter.period.close', 'Close')}
                 </button>
-              )}
-              <button
-                className="lens-filter-chip lens-filter-apply"
-                disabled={!draftComplete}
-                onClick={applyDraft}
-                type="button"
-              >
-                {translate('filter.period.apply', 'Apply')}
-              </button>
-              <button
-                className="lens-filter-chip lens-filter-close"
-                onClick={() => close()}
-                type="button"
-              >
-                {translate('filter.period.close', 'Close')}
-              </button>
+                <button
+                  className="lens-filter-chip lens-filter-apply"
+                  disabled={!draftComplete}
+                  onClick={applyDraft}
+                  type="button"
+                >
+                  {translate('filter.period.apply', 'Apply')}
+                </button>
+              </div>
             </div>
           </div>
         </>,

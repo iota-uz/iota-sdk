@@ -71,6 +71,41 @@ describe('Calendar', () => {
     expect(day('Jul 5, 2026').dataset.state).toBe('preview')
     expect(day('Jul 6, 2026').dataset.state).toBe('previewEdge')
     expect(day('Jul 7, 2026').dataset.state).toBeUndefined()
+    // The preview band rounds off at its outer edges: the anchor washes toward
+    // the pointer, the hovered edge back toward the anchor.
+    expect(day('Jul 3, 2026').dataset.band).toBe('right-preview')
+    expect(day('Jul 6, 2026').dataset.band).toBe('left-preview')
+    expect(day('Jul 4, 2026').dataset.band).toBeUndefined()
+  })
+
+  it('marks committed range endpoints with the band side toward the interior', () => {
+    render(
+      <Calendar
+        {...baseProps}
+        draft={{ start: { year: 2026, month: 7, day: 3 }, end: { year: 2026, month: 7, day: 18 } }}
+        onPick={() => undefined}
+      />,
+    )
+    const day = (label: string) => screen.getByRole('gridcell', { name: label })
+    expect(day('Jul 3, 2026').dataset.state).toBe('start')
+    expect(day('Jul 3, 2026').dataset.band).toBe('right')
+    expect(day('Jul 18, 2026').dataset.state).toBe('end')
+    expect(day('Jul 18, 2026').dataset.band).toBe('left')
+    expect(day('Jul 10, 2026').dataset.state).toBe('inRange')
+    expect(day('Jul 10, 2026').dataset.band).toBeUndefined()
+  })
+
+  it('draws no band for a single-day range', () => {
+    render(
+      <Calendar
+        {...baseProps}
+        draft={{ start: { year: 2026, month: 7, day: 3 }, end: { year: 2026, month: 7, day: 3 } }}
+        onPick={() => undefined}
+      />,
+    )
+    const day = screen.getByRole('gridcell', { name: 'Jul 3, 2026' })
+    expect(day.dataset.state).toBe('start')
+    expect(day.dataset.band).toBeUndefined()
   })
 
   it('disables days outside min/max and refuses to pick them', () => {
@@ -401,6 +436,25 @@ describe('FilterBar runtime integration', () => {
     expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
+    })
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('surfaces All time in the popover preset pane and applies it', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
+
+    fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
+    const dialog = await screen.findByRole('dialog')
+
+    const allTime = within(dialog).getByRole('button', { name: 'All time' })
+    expect(allTime).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(allTime)
+
+    expect(window.location.search).toBe('?ActualRangeStart=&ActualRangeEnd=')
+    await waitFor(() => {
+      expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=&ActualRangeEnd=')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })

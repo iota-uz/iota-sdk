@@ -205,51 +205,113 @@
     @apply lens-fixed lens-inset-0;
   }
 
+  /* The picker popover: a two-pane card. The left pane lists the relative
+     presets, the right pane owns the calendar, typed range entry, and the
+     footer actions. Below ~540px the panes stack and the preset list becomes
+     a horizontally scrollable row. */
   .lens-filter-popover {
-    @apply lens-fixed lens-flex lens-flex-col lens-gap-2.5 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-shadow-lg lens-outline-none;
-    width: 316px;
+    @apply lens-fixed lens-flex lens-flex-row lens-items-stretch lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0 lens-shadow-lg lens-outline-none;
+    width: 472px;
   }
 
-  /* The relative-preset catalog inside the popover: a tidy two-column grid of
-     equal chips instead of a ragged wrap of the top-row tray. */
-  .lens-filter-popover-presets {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 2px;
+  .lens-filter-popover-side {
+    @apply lens-flex lens-flex-col lens-gap-px lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid;
+    flex: 0 0 156px;
+    padding: 8px;
+    border-color: var(--lens-divider);
   }
 
-  .lens-filter-popover-presets .lens-filter-chip {
+  .lens-filter-preset {
+    @apply lens-block lens-w-full lens-rounded-control lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-xs lens-font-medium lens-text-text lens-transition-colors;
+    padding: 6px 10px;
+    white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
-    white-space: nowrap;
-    text-align: center;
   }
 
-  /* Typed range entry: From/To fields side by side, labels above the inputs. */
-  .lens-filter-inputs {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 0.5rem;
+  .lens-filter-preset:hover {
+    @apply lens-bg-inset lens-text-strong;
   }
 
-  .lens-filter-input-label {
-    @apply lens-flex lens-flex-col lens-gap-1 lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
-    font-size: 10px;
+  .lens-filter-preset[aria-pressed='true'] {
+    @apply lens-font-semibold;
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-700);
   }
 
-  .lens-filter-input {
-    @apply lens-min-h-8 lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-font-sans lens-text-xs lens-font-medium lens-text-strong;
-    font-variant-numeric: tabular-nums lining-nums;
+  /* accent-700 has no dark override (it backs solid fills elsewhere), so the
+     selected preset restates its text colour for the dark theme. */
+  .lens-root[data-theme='dark'] .lens-filter-preset[aria-pressed='true'] {
+    color: var(--lens-accent-300);
   }
 
-  .lens-filter-input:hover {
+  .lens-filter-preset-divider {
+    @apply lens-h-px lens-flex-none;
+    margin: 6px 4px;
+    background: var(--lens-divider);
+  }
+
+  .lens-filter-popover-main {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col lens-gap-2.5;
+    padding: 12px 14px;
+  }
+
+  /* Typed range entry: From and To read as one joined control — a single
+     bordered field with an em-dash between the two halves. */
+  .lens-filter-range {
+    @apply lens-flex lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card;
+    padding: 3px 6px;
+  }
+
+  .lens-filter-range:hover {
     @apply lens-border-strong;
   }
 
-  .lens-filter-input:focus {
-    @apply lens-outline-none;
+  .lens-filter-range:focus-within {
     border-color: var(--lens-accent-500);
     box-shadow: 0 0 0 2px var(--lens-accent-100);
+  }
+
+  .lens-filter-range-field {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+    padding: 2px 6px;
+  }
+
+  .lens-filter-range-caption {
+    @apply lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+    font-size: 9px;
+  }
+
+  .lens-filter-range-sep {
+    @apply lens-flex-none lens-text-faint;
+    font-size: 12px;
+  }
+
+  .lens-filter-input {
+    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-xs lens-font-medium lens-text-strong lens-outline-none;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  @media (max-width: 540px) {
+    .lens-filter-popover {
+      @apply lens-flex-col;
+      width: min(340px, calc(100vw - 24px));
+    }
+
+    .lens-filter-popover-side {
+      @apply lens-flex-row lens-items-center lens-overflow-x-auto lens-overflow-y-hidden lens-border-r-0 lens-border-b;
+      flex: none;
+      border-color: var(--lens-divider);
+    }
+
+    .lens-filter-preset {
+      @apply lens-w-auto lens-flex-none;
+    }
+
+    .lens-filter-preset-divider {
+      @apply lens-h-auto lens-w-px lens-self-stretch;
+      margin: 4px 6px;
+    }
   }
 
   /* Same open treatment as the drill overlay: the class only exists when
@@ -265,16 +327,25 @@
   }
 
   .lens-filter-popover-footer {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
+    @apply lens-flex lens-items-center lens-justify-end lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
     border-color: var(--lens-divider);
+  }
+
+  .lens-filter-close {
+    @apply lens-px-2.5 lens-py-1.5;
+  }
+
+  .lens-filter-close:hover {
+    @apply lens-bg-inset;
   }
 
   /* Apply is the popover's one primary action. Hover/disabled must restate the
      colours because the base chip's hover otherwise repaints the text dark. */
   .lens-filter-apply {
+    @apply lens-py-1.5;
     background: var(--lens-accent-600);
     color: #ffffff;
-    padding-inline: 0.75rem;
+    padding-inline: 0.875rem;
   }
 
   .lens-filter-apply:hover:not(:disabled) {
@@ -288,7 +359,7 @@
   }
 
   .lens-calendar {
-    @apply lens-flex lens-flex-col lens-gap-2;
+    @apply lens-flex lens-flex-col lens-gap-1.5;
   }
 
   .lens-calendar-header {
@@ -300,64 +371,133 @@
   }
 
   .lens-calendar-nav {
-    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-font-sans lens-text-sm lens-text-muted;
+    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-bg-transparent lens-font-sans lens-text-base lens-leading-none lens-text-muted;
   }
 
   .lens-calendar-nav:hover {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens-bg-inset lens-text-strong;
   }
 
+  /* The day grid has NO column gap: in-range washes touch edge to edge so a
+     selected range reads as one continuous band. Vertical rhythm comes from
+     the per-row margin instead of a grid gap. */
   .lens-calendar-weekdays,
   .lens-calendar-week {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
+    gap: 0;
+  }
+
+  .lens-calendar-week + .lens-calendar-week {
+    margin-top: 2px;
   }
 
   .lens-calendar-weekday {
     @apply lens-py-1 lens-text-center lens-font-semibold lens-uppercase lens-text-faint;
     font-size: 10px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
   }
 
+  /* A day cell is a fixed-height flat button; every visual state is painted
+     either on the button (the band wash) or on its ::before (the endpoint
+     pill), with the day number lifted above both. */
   .lens-calendar-day {
-    @apply lens-rounded-badge lens-border-0 lens-bg-transparent lens-py-1.5 lens-text-center lens-font-sans lens-text-xs lens-font-medium lens-text-text;
+    @apply lens-relative lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
+    height: 32px;
+    font-size: 12.5px;
+    border-radius: 0;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-calendar-day-label {
+    @apply lens-relative;
+    z-index: 1;
   }
 
   .lens-calendar-day[data-outside] {
     @apply lens-text-faint;
   }
 
-  .lens-calendar-day:hover:not(:disabled) {
+  .lens-calendar-day:hover:not(:disabled):not([data-state]) {
     @apply lens-bg-inset;
+    border-radius: 7px;
   }
 
-  .lens-calendar-day[data-today] {
-    box-shadow: inset 0 0 0 1px var(--lens-accent-300);
-  }
-
-  /* The live hover preview uses the faint accent wash; a committed range the
-     stronger one. Boundaries are always solid accent. */
-  .lens-calendar-day[data-state='preview'] {
-    background: var(--lens-accent-50);
-    color: var(--lens-text-strong);
-  }
-
+  /* The continuous range band. In-range cells carry a full-width soft accent
+     wash with no rounding and no gaps; the hover preview the fainter wash.
+     Endpoint cells carry a half-width wash on their inner side (data-band) so
+     the band ends exactly under the middle of the endpoint pill. */
   .lens-calendar-day[data-state='inRange'] {
     background: var(--lens-accent-100);
     color: var(--lens-text-strong);
   }
 
+  .lens-calendar-day[data-state='preview'] {
+    background: var(--lens-accent-50);
+    color: var(--lens-text-strong);
+  }
+
+  .lens-calendar-day[data-band='right'] {
+    background: linear-gradient(to right, transparent 50%, var(--lens-accent-100) 50%);
+  }
+
+  .lens-calendar-day[data-band='left'] {
+    background: linear-gradient(to left, transparent 50%, var(--lens-accent-100) 50%);
+  }
+
+  .lens-calendar-day[data-band='right-preview'] {
+    background: linear-gradient(to right, transparent 50%, var(--lens-accent-50) 50%);
+  }
+
+  .lens-calendar-day[data-band='left-preview'] {
+    background: linear-gradient(to left, transparent 50%, var(--lens-accent-50) 50%);
+  }
+
+  /* The endpoint pill: a solid accent rounded rect drawn over the band. */
   .lens-calendar-day[data-state='start'],
   .lens-calendar-day[data-state='end'],
   .lens-calendar-day[data-state='previewEdge'] {
-    background: var(--lens-accent-600);
     color: #ffffff;
+  }
+
+  .lens-calendar-day[data-state='start']::before,
+  .lens-calendar-day[data-state='end']::before,
+  .lens-calendar-day[data-state='previewEdge']::before {
+    content: '';
+    position: absolute;
+    inset: 0 2px;
+    border-radius: 7px;
+    background: var(--lens-accent-600);
+  }
+
+  .lens-calendar-day[data-state='previewEdge']::before {
+    background: var(--lens-accent-500);
+  }
+
+  /* Today: a small dot under the number, inverted inside an endpoint pill so
+     it stays visible on the solid accent. */
+  .lens-calendar-day[data-today]::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    width: 3px;
+    height: 3px;
+    margin-left: -1.5px;
+    border-radius: 50%;
+    background: var(--lens-accent-500);
+    z-index: 1;
+  }
+
+  .lens-calendar-day[data-today][data-state='start']::after,
+  .lens-calendar-day[data-today][data-state='end']::after,
+  .lens-calendar-day[data-today][data-state='previewEdge']::after {
+    background: #ffffff;
   }
 
   .lens-calendar-day:disabled {
     @apply lens-text-faint;
-    opacity: 0.45;
+    opacity: 0.4;
   }
 
   .lens-calendar-hint {
@@ -515,6 +655,7 @@
   .lens-fake-chart-footer button,
   .lens-filter-chip,
   .lens-filter-trigger,
+  .lens-filter-preset,
   .lens-calendar-nav,
   .lens-calendar-day {
     @apply lens-cursor-pointer;
@@ -1957,6 +2098,7 @@
   .lens-leaf-action:focus-visible,
   .lens-filter-chip:focus-visible,
   .lens-filter-trigger:focus-visible,
+  .lens-filter-preset:focus-visible,
   .lens-calendar-nav:focus-visible,
   .lens-calendar-day:focus-visible {
     outline: 2px solid var(--lens-accent-500);
