@@ -102,6 +102,11 @@ templ Index(props IndexProps) {
 					block.parentElement.replaceWith(container);
 					try {
 						await mermaid.run({ nodes: [container] });
+						const diagram = container.querySelector("svg");
+						const viewBox = diagram?.viewBox?.baseVal;
+						if (viewBox && viewBox.width / viewBox.height > 2.5) {
+							container.classList.add("help-mermaid-wide");
+						}
 					} catch (error) {
 						console.error("Unable to render Help Center diagram", error);
 						const fallback = document.createElement("pre");

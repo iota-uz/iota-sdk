@@ -247,7 +247,7 @@ func Index(props IndexProps) templ.Component {
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\"></script> <script>\n\t\t\tmermaid.initialize({\n\t\t\t\tstartOnLoad: false,\n\t\t\t\tsecurityLevel: \"strict\",\n\t\t\t\ttheme: \"neutral\",\n\t\t\t\tfontFamily: \"inherit\",\n\t\t\t});\n\n\t\t\tasync function renderHelpMermaidDiagrams(root = document) {\n\t\t\t\tconst blocks = root.querySelectorAll(\"pre > code.language-mermaid\");\n\t\t\t\tfor (const block of blocks) {\n\t\t\t\t\tconst container = document.createElement(\"div\");\n\t\t\t\t\tcontainer.className = \"help-mermaid\";\n\t\t\t\t\tcontainer.textContent = block.textContent;\n\t\t\t\t\tblock.parentElement.replaceWith(container);\n\t\t\t\t\ttry {\n\t\t\t\t\t\tawait mermaid.run({ nodes: [container] });\n\t\t\t\t\t} catch (error) {\n\t\t\t\t\t\tconsole.error(\"Unable to render Help Center diagram\", error);\n\t\t\t\t\t\tconst fallback = document.createElement(\"pre\");\n\t\t\t\t\t\tconst code = document.createElement(\"code\");\n\t\t\t\t\t\tcode.className = \"language-mermaid\";\n\t\t\t\t\t\tcode.textContent = container.textContent;\n\t\t\t\t\t\tfallback.appendChild(code);\n\t\t\t\t\t\tcontainer.replaceWith(fallback);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\trenderHelpMermaidDiagrams();\n\t\t\tdocument.body.addEventListener(\"htmx:afterSwap\", (event) => {\n\t\t\t\trenderHelpMermaidDiagrams(event.detail.target);\n\t\t\t});\n\t\t</script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 20, "\"></script> <script>\n\t\t\tmermaid.initialize({\n\t\t\t\tstartOnLoad: false,\n\t\t\t\tsecurityLevel: \"strict\",\n\t\t\t\ttheme: \"neutral\",\n\t\t\t\tfontFamily: \"inherit\",\n\t\t\t});\n\n\t\t\tasync function renderHelpMermaidDiagrams(root = document) {\n\t\t\t\tconst blocks = root.querySelectorAll(\"pre > code.language-mermaid\");\n\t\t\t\tfor (const block of blocks) {\n\t\t\t\t\tconst container = document.createElement(\"div\");\n\t\t\t\t\tcontainer.className = \"help-mermaid\";\n\t\t\t\t\tcontainer.textContent = block.textContent;\n\t\t\t\t\tblock.parentElement.replaceWith(container);\n\t\t\t\t\ttry {\n\t\t\t\t\t\tawait mermaid.run({ nodes: [container] });\n\t\t\t\t\t\tconst diagram = container.querySelector(\"svg\");\n\t\t\t\t\t\tconst viewBox = diagram?.viewBox?.baseVal;\n\t\t\t\t\t\tif (viewBox && viewBox.width / viewBox.height > 2.5) {\n\t\t\t\t\t\t\tcontainer.classList.add(\"help-mermaid-wide\");\n\t\t\t\t\t\t}\n\t\t\t\t\t} catch (error) {\n\t\t\t\t\t\tconsole.error(\"Unable to render Help Center diagram\", error);\n\t\t\t\t\t\tconst fallback = document.createElement(\"pre\");\n\t\t\t\t\t\tconst code = document.createElement(\"code\");\n\t\t\t\t\t\tcode.className = \"language-mermaid\";\n\t\t\t\t\t\tcode.textContent = container.textContent;\n\t\t\t\t\t\tfallback.appendChild(code);\n\t\t\t\t\t\tcontainer.replaceWith(fallback);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\n\t\t\trenderHelpMermaidDiagrams();\n\t\t\tdocument.body.addEventListener(\"htmx:afterSwap\", (event) => {\n\t\t\t\trenderHelpMermaidDiagrams(event.detail.target);\n\t\t\t});\n\t\t</script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -308,7 +308,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(basePath + "/doc/" + node.Path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 129, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 134, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -334,7 +334,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(node.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 136, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 141, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -352,7 +352,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(node.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 140, Col: 84}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 145, Col: 84}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
