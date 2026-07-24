@@ -1,12 +1,18 @@
 package help
 
 import (
+	"strings"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
+
+var mermaidJS = "/assets/" + assets.HashFS.HashName("js/lib/mermaid-11.12.2.min.js")
+var helpShellStyles = templ.NewOnceHandle()
 
 type IndexProps struct {
 	BasePath        string
@@ -16,61 +22,468 @@ type IndexProps struct {
 	Locale          string
 }
 
+func activePageValue(active *viewmodels.DocView, path string) string {
+	if active != nil && active.Path == path {
+		return "page"
+	}
+	return ""
+}
+
+func categoryContainsActive(node viewmodels.CategoryNode, active *viewmodels.DocView) bool {
+	if active == nil {
+		return false
+	}
+	if node.Path == active.Path {
+		return true
+	}
+	for _, child := range node.Children {
+		if categoryContainsActive(child, active) {
+			return true
+		}
+	}
+	return false
+}
+
+func categoryDisplayTitle(title string) string {
+	title = strings.TrimSpace(title)
+	prefix, remainder, found := strings.Cut(title, " ")
+	if found && len(prefix) == 2 && prefix[0] >= '0' && prefix[0] <= '9' && prefix[1] >= '0' && prefix[1] <= '9' {
+		return strings.TrimSpace(remainder)
+	}
+	return title
+}
+
 templ Index(props IndexProps) {
 	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	@layouts.Authenticated(layouts.AuthenticatedProps{
 		BaseProps: layouts.BaseProps{Title: pageCtx.T("HelpCenter.Meta.Title")},
 	}) {
-		<div class="h-full flex flex-col bg-white">
-			<div class="border-b border-subtle px-4 md:px-6 py-4">
-				<div class="max-w-7xl flex flex-col md:flex-row md:items-center gap-3 md:gap-6">
-					<div class="min-w-0">
-						<div class="flex items-center gap-2">
-							<h1 class="text-xl font-semibold text-gray-900">{ pageCtx.T("HelpCenter.Meta.Title") }</h1>
+		@helpShellStyles.Once() {
+			<style>
+				.help-shell {
+					--help-sidebar-width: 17.5rem;
+					--help-canvas: #f7f8fa;
+					--help-paper: #ffffff;
+					--help-ink: #171a21;
+					--help-muted: #667085;
+					--help-border: #e7e9ee;
+					height: 100%;
+					display: flex;
+					flex-direction: column;
+					overflow: hidden;
+					background: var(--help-canvas);
+					color: var(--help-ink);
+				}
+				.help-topbar {
+					position: relative;
+					z-index: 30;
+					display: grid;
+					grid-template-columns: var(--help-sidebar-width) minmax(18rem, 34rem) minmax(2.5rem, 1fr);
+					align-items: center;
+					gap: 1.5rem;
+					min-height: 4.75rem;
+					padding: 0.75rem 1.25rem;
+					border-bottom: 1px solid var(--help-border);
+					background: color-mix(in srgb, var(--help-paper) 94%, transparent);
+					backdrop-filter: blur(12px);
+				}
+				.help-brand {
+					display: flex;
+					align-items: center;
+					gap: 0.75rem;
+					min-width: 0;
+				}
+				.help-brand-mark {
+					display: grid;
+					width: 2.25rem;
+					height: 2.25rem;
+					flex: 0 0 auto;
+					place-items: center;
+					border: 1px solid color-mix(in srgb, oklch(var(--primary-500)) 22%, var(--help-border));
+					border-radius: 0.7rem;
+					background: color-mix(in srgb, oklch(var(--primary-500)) 8%, white);
+					color: oklch(var(--primary-500));
+					box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
+				}
+				.help-brand-copy {
+					min-width: 0;
+				}
+				.help-brand-title {
+					display: flex;
+					align-items: center;
+					gap: 0.4rem;
+					font-size: 0.95rem;
+					font-weight: 650;
+					letter-spacing: -0.01em;
+					white-space: nowrap;
+				}
+				.help-brand-subtitle {
+					margin-top: 0.1rem;
+					overflow: hidden;
+					color: var(--help-muted);
+					font-size: 0.72rem;
+					text-overflow: ellipsis;
+					white-space: nowrap;
+				}
+				.help-sidebar-toggle,
+				.help-sidebar-close {
+					display: grid;
+					width: 2.25rem;
+					height: 2.25rem;
+					flex: 0 0 auto;
+					place-items: center;
+					border: 1px solid var(--help-border);
+					border-radius: 0.65rem;
+					background: var(--help-paper);
+					color: #475467;
+					box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
+					transition: border-color 160ms ease, color 160ms ease, transform 160ms ease;
+				}
+				.help-sidebar-toggle:hover,
+				.help-sidebar-close:hover {
+					border-color: color-mix(in srgb, oklch(var(--primary-500)) 36%, var(--help-border));
+					color: oklch(var(--primary-500));
+				}
+				.help-sidebar-toggle:active,
+				.help-sidebar-close:active {
+					transform: scale(0.96);
+				}
+				.help-sidebar-toggle:focus-visible,
+				.help-sidebar-close:focus-visible {
+					outline: 2px solid color-mix(in srgb, oklch(var(--primary-500)) 36%, transparent);
+					outline-offset: 2px;
+				}
+				.help-sidebar-toggle .help-icon-expand,
+				.help-shell[data-sidebar-collapsed="true"] .help-sidebar-toggle .help-icon-collapse {
+					display: none;
+				}
+				.help-shell[data-sidebar-collapsed="true"] .help-sidebar-toggle .help-icon-expand {
+					display: block;
+				}
+				.help-search {
+					position: relative;
+					width: 100%;
+				}
+				.help-search-input {
+					width: 100%;
+					height: 2.65rem;
+					border: 1px solid #dfe3e9;
+					border-radius: 0.75rem;
+					background: #fbfcfd;
+					padding: 0 3rem 0 2.6rem;
+					color: var(--help-ink);
+					font-size: 0.84rem;
+					box-shadow: 0 1px 2px rgb(16 24 40 / 0.03), inset 0 0 0 1px rgb(255 255 255 / 0.8);
+					transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+				}
+				.help-search-input:focus {
+					border-color: color-mix(in srgb, oklch(var(--primary-500)) 54%, #dfe3e9);
+					outline: none;
+					background: var(--help-paper);
+					box-shadow: 0 0 0 3px color-mix(in srgb, oklch(var(--primary-500)) 11%, transparent);
+				}
+				.help-search-input:disabled {
+					cursor: not-allowed;
+					background: #f2f4f7;
+					color: #98a2b3;
+				}
+				.help-search-kbd {
+					position: absolute;
+					right: 0.7rem;
+					top: 50%;
+					transform: translateY(-50%);
+					border: 1px solid var(--help-border);
+					border-radius: 0.35rem;
+					background: white;
+					padding: 0.1rem 0.35rem;
+					color: #98a2b3;
+					font-size: 0.65rem;
+					line-height: 1.15rem;
+					box-shadow: 0 1px 1px rgb(16 24 40 / 0.04);
+				}
+				.help-workspace {
+					position: relative;
+					display: grid;
+					grid-template-columns: var(--help-sidebar-width) minmax(0, 1fr);
+					flex: 1;
+					min-height: 0;
+					transition: grid-template-columns 220ms cubic-bezier(0.4, 0, 0.2, 1);
+				}
+				.help-shell[data-sidebar-collapsed="true"] .help-workspace {
+					grid-template-columns: 0 minmax(0, 1fr);
+				}
+				.help-library {
+					min-width: 0;
+					overflow: hidden;
+					border-right: 1px solid var(--help-border);
+					background: color-mix(in srgb, var(--help-paper) 74%, var(--help-canvas));
+					transition: opacity 140ms ease, transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+				}
+				.help-shell[data-sidebar-collapsed="true"] .help-library {
+					pointer-events: none;
+					opacity: 0;
+					transform: translateX(-1rem);
+				}
+				.help-library-scroll {
+					width: var(--help-sidebar-width);
+					height: 100%;
+					overflow-y: auto;
+					padding: 1.25rem 0.9rem 3rem;
+					scrollbar-gutter: stable;
+				}
+				.help-library-heading {
+					display: flex;
+					align-items: center;
+					justify-content: space-between;
+					margin-bottom: 0.8rem;
+					padding: 0 0.65rem;
+					color: #98a2b3;
+					font-size: 0.65rem;
+					font-weight: 700;
+					letter-spacing: 0.09em;
+					text-transform: uppercase;
+				}
+				.help-category {
+					margin-top: 0.35rem;
+				}
+				.help-category > summary {
+					display: flex;
+					align-items: center;
+					justify-content: space-between;
+					gap: 0.5rem;
+					cursor: pointer;
+					list-style: none;
+					border-radius: 0.5rem;
+					padding: 0.55rem 0.65rem 0.38rem;
+					color: #667085;
+					font-size: 0.65rem;
+					font-weight: 700;
+					letter-spacing: 0.055em;
+					text-transform: uppercase;
+					transition: color 160ms ease, background 160ms ease;
+				}
+				.help-category > summary::-webkit-details-marker { display: none; }
+				.help-category > summary:hover {
+					background: rgb(255 255 255 / 0.7);
+					color: #344054;
+				}
+				.help-category-caret {
+					transition: transform 160ms ease;
+				}
+				.help-category:not([open]) .help-category-caret {
+					transform: rotate(-90deg);
+				}
+				.help-category-children {
+					position: relative;
+					margin: 0.25rem 0 0.7rem;
+					padding-left: 0.4rem;
+				}
+				.help-nav-link {
+					position: relative;
+					display: block;
+					margin: 0.1rem 0;
+					border-radius: 0.58rem;
+					padding: 0.55rem 0.7rem 0.55rem 0.9rem;
+					color: #475467;
+					font-size: 0.8rem;
+					line-height: 1.35;
+					transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+				}
+				.help-nav-link:hover {
+					background: rgb(255 255 255 / 0.86);
+					color: #101828;
+					transform: translateX(1px);
+				}
+				.help-nav-link[aria-current="page"] {
+					background: var(--help-paper);
+					color: #101828;
+					font-weight: 600;
+					box-shadow: 0 1px 3px rgb(16 24 40 / 0.06), 0 0 0 1px rgb(16 24 40 / 0.035);
+				}
+				.help-nav-link[aria-current="page"]::before {
+					position: absolute;
+					top: 0.55rem;
+					bottom: 0.55rem;
+					left: 0;
+					width: 2px;
+					border-radius: 999px;
+					background: oklch(var(--primary-500));
+					content: "";
+				}
+				.help-main {
+					min-width: 0;
+					overflow-y: auto;
+					background:
+						linear-gradient(180deg, rgb(255 255 255 / 0.72), transparent 12rem),
+						var(--help-canvas);
+				}
+				.help-mobile-overlay,
+				.help-sidebar-close {
+					display: none;
+				}
+				@media (max-width: 1023px) {
+					.help-topbar {
+						grid-template-columns: minmax(0, 1fr) minmax(15rem, 26rem);
+					}
+					.help-topbar-spacer { display: none; }
+					.help-workspace,
+					.help-shell[data-sidebar-collapsed="true"] .help-workspace {
+						display: block;
+					}
+					.help-main {
+						position: absolute;
+						inset: 0;
+					}
+					.help-library {
+						position: absolute;
+						inset: 0 auto 0 0;
+						z-index: 50;
+						width: min(20rem, calc(100vw - 3rem));
+						border-right: 1px solid var(--help-border);
+						box-shadow: 1.5rem 0 3rem rgb(16 24 40 / 0.14);
+						opacity: 0;
+						pointer-events: none;
+						transform: translateX(-102%);
+					}
+					.help-shell[data-mobile-sidebar-open="true"] .help-library {
+						opacity: 1;
+						pointer-events: auto;
+						transform: translateX(0);
+					}
+					.help-library-scroll {
+						width: 100%;
+						background: var(--help-paper);
+					}
+					.help-sidebar-close {
+						display: grid;
+					}
+					.help-library-heading {
+						color: #667085;
+					}
+					.help-mobile-overlay {
+						position: absolute;
+						inset: 0;
+						z-index: 40;
+						border: 0;
+						background: rgb(16 24 40 / 0.28);
+						backdrop-filter: blur(2px);
+					}
+					.help-shell[data-mobile-sidebar-open="true"] .help-mobile-overlay {
+						display: block;
+					}
+				}
+				@media (min-width: 1024px) and (max-width: 1279px) {
+					.help-brand-subtitle { display: none; }
+				}
+				@media (max-width: 700px) {
+					.help-topbar {
+						grid-template-columns: minmax(0, 1fr);
+						gap: 0.65rem;
+						padding: 0.75rem;
+					}
+					.help-brand-subtitle { display: none; }
+					.help-search-kbd { display: none; }
+					.help-search-input { padding-right: 1rem; }
+				}
+				@media (prefers-reduced-motion: reduce) {
+					.help-workspace,
+					.help-library,
+					.help-nav-link,
+					.help-sidebar-toggle,
+					.help-sidebar-close {
+						transition: none;
+					}
+				}
+			</style>
+		}
+		<div
+			id="help-center-shell"
+			class="help-shell"
+			data-sidebar-collapsed="false"
+			data-mobile-sidebar-open="false"
+			data-copy-label={ pageCtx.T("HelpCenter.CopyCode") }
+			data-copied-label={ pageCtx.T("HelpCenter.Copied") }
+			data-expand-navigation-label={ pageCtx.T("HelpCenter.ExpandNavigation") }
+			data-collapse-navigation-label={ pageCtx.T("HelpCenter.CollapseNavigation") }
+			data-note-label={ pageCtx.T("HelpCenter.Callouts.Note") }
+			data-tip-label={ pageCtx.T("HelpCenter.Callouts.Tip") }
+			data-important-label={ pageCtx.T("HelpCenter.Callouts.Important") }
+			data-warning-label={ pageCtx.T("HelpCenter.Callouts.Warning") }
+			data-caution-label={ pageCtx.T("HelpCenter.Callouts.Caution") }
+		>
+			<header class="help-topbar">
+				<div class="help-brand">
+					<button
+						id="help-sidebar-toggle"
+						type="button"
+						class="help-sidebar-toggle"
+						aria-controls="help-library"
+						aria-expanded="true"
+						aria-label={ pageCtx.T("HelpCenter.CollapseNavigation") }
+						title={ pageCtx.T("HelpCenter.CollapseNavigation") }
+					>
+						<span class="help-icon-collapse">
+							@icons.CaretDoubleLeft(icons.Props{Size: "17"})
+						</span>
+						<span class="help-icon-expand">
+							@icons.CaretDoubleRight(icons.Props{Size: "17"})
+						</span>
+					</button>
+					<div class="help-brand-mark">
+						@icons.FileText(icons.Props{Size: "18", Variant: icons.DuoTone})
+					</div>
+					<div class="help-brand-copy">
+						<div class="help-brand-title">
+							<span>{ pageCtx.T("HelpCenter.Meta.Title") }</span>
 							@sdkhelp.Link(sdkhelp.LinkProps{Path: "modules/help-center.md"})
 						</div>
-						<p class="text-sm text-gray-500 mt-1">{ pageCtx.T("HelpCenter.Meta.Subtitle") }</p>
+						<div class="help-brand-subtitle">{ pageCtx.T("HelpCenter.Meta.Subtitle") }</div>
 					</div>
-					<form class="relative md:ml-auto w-full md:w-[28rem]" hx-get={ props.BasePath + "/search" } hx-target="#help-search-results" hx-trigger="submit">
-						<div class="relative">
-							<div class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
-								@icons.MagnifyingGlass(icons.Props{Size: "18"})
-							</div>
-							<input
-								type="search"
-								name="q"
-								placeholder={ pageCtx.T("HelpCenter.Search.Placeholder") }
-								disabled?={ !props.SearchAvailable }
-								hx-get={ props.BasePath + "/search" }
-								hx-target="#help-search-results"
-								hx-trigger="input changed delay:250ms, search"
-								hx-indicator="#help-search-spinner"
-								autocomplete="off"
-								class="form-control-input w-full border border-default rounded-md pl-10 pr-10 py-2 text-sm shadow-sm focus:border-blue-400 focus:ring-2 focus:ring-blue-100 disabled:bg-gray-100 disabled:text-gray-500"
-							/>
-							<div id="help-search-spinner" class="htmx-indicator absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
-								@icons.CircleNotch(icons.Props{Size: "16", Class: "animate-spin"})
-							</div>
-						</div>
-						<div id="help-search-results" class="absolute left-0 right-0 top-full z-40 mt-2"></div>
-						if !props.SearchAvailable {
-							<p class="mt-2 text-xs text-gray-500">{ pageCtx.T("HelpCenter.Search.Unavailable") }</p>
-						}
-					</form>
 				</div>
-			</div>
-			<div class="flex-1 grid grid-cols-1 lg:grid-cols-[18rem_minmax(0,1fr)] min-h-0">
-				<aside class="border-b lg:border-b-0 lg:border-r border-subtle overflow-auto">
-					<div class="p-4">
-						<div class="text-xs font-semibold uppercase text-gray-500 mb-3">{ pageCtx.T("HelpCenter.Categories") }</div>
-						<nav class="space-y-1">
+				<form class="help-search" hx-get={ props.BasePath + "/search" } hx-target="#help-search-results" hx-trigger="submit">
+					<div class="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+						@icons.MagnifyingGlass(icons.Props{Size: "17"})
+					</div>
+					<input
+						type="search"
+						name="q"
+						placeholder={ pageCtx.T("HelpCenter.Search.Placeholder") }
+						disabled?={ !props.SearchAvailable }
+						hx-get={ props.BasePath + "/search" }
+						hx-target="#help-search-results"
+						hx-trigger="input changed delay:250ms, search"
+						hx-indicator="#help-search-spinner"
+						autocomplete="off"
+						class="help-search-input"
+					/>
+					<div id="help-search-spinner" class="htmx-indicator absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+						@icons.CircleNotch(icons.Props{Size: "16", Class: "animate-spin"})
+					</div>
+					if props.SearchAvailable {
+						<kbd class="help-search-kbd">⌘ K</kbd>
+					}
+					<div id="help-search-results" class="absolute left-0 right-0 top-full z-50 mt-2"></div>
+				</form>
+				<div class="help-topbar-spacer"></div>
+			</header>
+			<div class="help-workspace">
+				<aside id="help-library" class="help-library" aria-label={ pageCtx.T("HelpCenter.Categories") }>
+					<div class="help-library-scroll">
+						<div class="help-library-heading">
+							<span>{ pageCtx.T("HelpCenter.Categories") }</span>
+							<button id="help-sidebar-close" type="button" class="help-sidebar-close" aria-label={ pageCtx.T("HelpCenter.CloseNavigation") }>
+								@icons.X(icons.Props{Size: "16"})
+							</button>
+						</div>
+						<nav>
 							for _, node := range props.Tree {
 								@categoryNode(props.BasePath, node, props.Doc)
 							}
 						</nav>
 					</div>
 				</aside>
-				<main class="overflow-auto">
+				<button id="help-mobile-overlay" type="button" class="help-mobile-overlay" aria-label={ pageCtx.T("HelpCenter.CloseNavigation") }></button>
+				<main class="help-main">
 					<div id="help-doc-pane">
 						if props.Doc != nil {
 							@Doc(DocProps{Doc: props.Doc})
@@ -81,6 +494,206 @@ templ Index(props IndexProps) {
 				</main>
 			</div>
 		</div>
+		<script src={ mermaidJS }></script>
+		<script>
+			(() => {
+				const shell = document.getElementById("help-center-shell");
+				if (!shell) return;
+
+				const storageKey = "iota-help-sidebar-collapsed";
+				const sidebarToggle = document.getElementById("help-sidebar-toggle");
+				const sidebarClose = document.getElementById("help-sidebar-close");
+				const mobileOverlay = document.getElementById("help-mobile-overlay");
+				const mobileQuery = window.matchMedia("(max-width: 1023px)");
+
+				const setSidebarCollapsed = (collapsed) => {
+					shell.dataset.sidebarCollapsed = String(collapsed);
+					sidebarToggle?.setAttribute("aria-expanded", String(!collapsed));
+					const label = collapsed
+						? shell.dataset.expandNavigationLabel
+						: shell.dataset.collapseNavigationLabel;
+					sidebarToggle?.setAttribute("aria-label", label);
+					sidebarToggle?.setAttribute("title", label);
+					try {
+						localStorage.setItem(storageKey, String(collapsed));
+					} catch (_) {}
+				};
+
+				const closeMobileSidebar = () => {
+					shell.dataset.mobileSidebarOpen = "false";
+					sidebarToggle?.setAttribute("aria-expanded", "false");
+				};
+
+				try {
+					setSidebarCollapsed(localStorage.getItem(storageKey) === "true");
+				} catch (_) {}
+
+				sidebarToggle?.addEventListener("click", () => {
+					if (mobileQuery.matches) {
+						const open = shell.dataset.mobileSidebarOpen !== "true";
+						shell.dataset.mobileSidebarOpen = String(open);
+						sidebarToggle.setAttribute("aria-expanded", String(open));
+						return;
+					}
+					setSidebarCollapsed(shell.dataset.sidebarCollapsed !== "true");
+				});
+				sidebarClose?.addEventListener("click", closeMobileSidebar);
+				mobileOverlay?.addEventListener("click", closeMobileSidebar);
+
+				document.addEventListener("keydown", (event) => {
+					if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+						event.preventDefault();
+						document.querySelector(".help-search-input")?.focus();
+					}
+					if (event.key === "Escape") closeMobileSidebar();
+				});
+
+				mermaid.initialize({
+					startOnLoad: false,
+					securityLevel: "strict",
+					theme: "base",
+					fontFamily: "inherit",
+					themeVariables: {
+						primaryColor: "#eef4ff",
+						primaryTextColor: "#1d2939",
+						primaryBorderColor: "#84adff",
+						lineColor: "#98a2b3",
+						secondaryColor: "#f2f4f7",
+						tertiaryColor: "#ffffff",
+						clusterBkg: "#f8fafc",
+						clusterBorder: "#d0d5dd",
+						fontSize: "14px",
+					},
+				});
+
+				async function renderHelpMermaidDiagrams(root = document) {
+					const blocks = root.querySelectorAll("pre > code.language-mermaid");
+					for (const block of blocks) {
+						const container = document.createElement("div");
+						container.className = "help-mermaid";
+						container.setAttribute("role", "img");
+						container.setAttribute("aria-label", "Process diagram");
+						container.textContent = block.textContent;
+						block.parentElement.replaceWith(container);
+						try {
+							await mermaid.run({ nodes: [container] });
+							const diagram = container.querySelector("svg");
+							const viewBox = diagram?.viewBox?.baseVal;
+							if (viewBox && viewBox.width / viewBox.height > 2.5) {
+								container.classList.add("help-mermaid-wide");
+							}
+						} catch (error) {
+							console.error("Unable to render Help Center diagram", error);
+							const fallback = document.createElement("pre");
+							const code = document.createElement("code");
+							code.className = "language-mermaid";
+							code.textContent = container.textContent;
+							fallback.appendChild(code);
+							container.replaceWith(fallback);
+						}
+					}
+				}
+
+				function buildTableOfContents(root = document) {
+					const article = root.querySelector(".help-article");
+					const toc = root.querySelector("[data-help-toc]");
+					if (!article || !toc) return;
+					toc.replaceChildren();
+					const headings = article.querySelectorAll("h2, h3");
+					for (const heading of headings) {
+						if (!heading.id) continue;
+						const link = document.createElement("a");
+						link.href = `#${heading.id}`;
+						link.textContent = heading.textContent;
+						link.className = heading.tagName === "H3" ? "help-toc-link help-toc-link-nested" : "help-toc-link";
+						toc.appendChild(link);
+					}
+					toc.closest(".help-toc")?.toggleAttribute("hidden", headings.length === 0);
+				}
+
+				function enhanceCodeBlocks(root = document) {
+					const copyLabel = shell.dataset.copyLabel;
+					const copiedLabel = shell.dataset.copiedLabel;
+					for (const pre of root.querySelectorAll(".help-article pre")) {
+						if (pre.dataset.enhanced === "true" || pre.querySelector(".language-mermaid")) continue;
+						pre.dataset.enhanced = "true";
+						const button = document.createElement("button");
+						button.type = "button";
+						button.className = "help-code-copy";
+						button.textContent = copyLabel;
+						button.addEventListener("click", async () => {
+							await navigator.clipboard.writeText(pre.querySelector("code")?.textContent || pre.textContent);
+							button.textContent = copiedLabel;
+							setTimeout(() => { button.textContent = copyLabel; }, 1600);
+						});
+						pre.appendChild(button);
+					}
+				}
+
+				function enhanceImages(root = document) {
+					for (const image of root.querySelectorAll(".help-article img")) {
+						if (image.closest("figure")) continue;
+						image.loading = "lazy";
+						image.decoding = "async";
+						const figure = document.createElement("figure");
+						figure.className = "help-figure";
+						image.replaceWith(figure);
+						figure.appendChild(image);
+						if (image.title) {
+							const caption = document.createElement("figcaption");
+							caption.textContent = image.title;
+							figure.appendChild(caption);
+						}
+					}
+				}
+
+				function enhanceCallouts(root = document) {
+					const labels = {
+						NOTE: shell.dataset.noteLabel,
+						TIP: shell.dataset.tipLabel,
+						IMPORTANT: shell.dataset.importantLabel,
+						WARNING: shell.dataset.warningLabel,
+						CAUTION: shell.dataset.cautionLabel,
+					};
+					for (const quote of root.querySelectorAll(".help-article blockquote")) {
+						const first = quote.querySelector("p");
+						const marker = first?.textContent?.match(/^\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]\s*/);
+						if (!marker) continue;
+						quote.classList.add("help-callout", `help-callout-${marker[1].toLowerCase()}`);
+						quote.dataset.calloutLabel = labels[marker[1]];
+						if (first.firstChild?.nodeType === 3) {
+							first.firstChild.textContent = first.firstChild.textContent.replace(marker[0], "");
+						}
+					}
+				}
+
+				function updateActiveNavigation() {
+					for (const link of document.querySelectorAll(".help-nav-link")) {
+						const active = new URL(link.href, window.location.href).pathname === window.location.pathname;
+						link.setAttribute("aria-current", active ? "page" : "");
+					}
+					for (const category of document.querySelectorAll(".help-category")) {
+						category.open = category.querySelector('.help-nav-link[aria-current="page"]') !== null;
+					}
+					document.querySelector('.help-nav-link[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
+				}
+
+				async function enhanceHelpDocument(root = document) {
+					await renderHelpMermaidDiagrams(root);
+					buildTableOfContents(root);
+					enhanceCodeBlocks(root);
+					enhanceImages(root);
+					enhanceCallouts(root);
+					updateActiveNavigation();
+				}
+
+				enhanceHelpDocument();
+				document.body.addEventListener("htmx:afterSwap", (event) => {
+					enhanceHelpDocument(event.detail.target);
+					closeMobileSidebar();
+				});
+			})();
+		</script>
 	}
 }
 
@@ -91,20 +704,24 @@ templ categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmo
 			hx-get={ basePath + "/doc/" + node.Path }
 			hx-target="#help-doc-pane"
 			hx-push-url="true"
-			class={ "block rounded-md px-3 py-2 text-sm hover:bg-gray-100",
-				templ.KV("bg-gray-100 font-medium text-gray-900", active != nil && active.Path == node.Path),
-				templ.KV("text-gray-700", active == nil || active.Path != node.Path) }
+			class="help-nav-link"
+			aria-current={ activePageValue(active, node.Path) }
 		>
 			{ node.Title }
 		</a>
 	} else {
-		<div class="pt-2">
-			<div class="px-3 py-1 text-xs font-semibold uppercase text-gray-500">{ node.Title }</div>
-			<div class="ml-2 border-l border-subtle pl-2">
+		<details class="help-category" open?={ categoryContainsActive(node, active) }>
+			<summary>
+				<span>{ categoryDisplayTitle(node.Title) }</span>
+				<span class="help-category-caret">
+					@icons.CaretDown(icons.Props{Size: "12"})
+				</span>
+			</summary>
+			<div class="help-category-children">
 				for _, child := range node.Children {
 					@categoryNode(basePath, child, active)
 				}
 			</div>
-		</div>
+		</details>
 	}
 }

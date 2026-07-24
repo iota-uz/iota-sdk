@@ -4,6 +4,7 @@ package markdown
 import (
 	"bytes"
 	"html/template"
+	"regexp"
 
 	"github.com/microcosm-cc/bluemonday"
 	"github.com/yuin/goldmark"
@@ -22,13 +23,18 @@ type renderer struct {
 }
 
 func NewRenderer() Renderer {
+	sanitizer := bluemonday.UGCPolicy()
+	sanitizer.AllowAttrs("class").
+		Matching(regexp.MustCompile(`^language-mermaid$`)).
+		OnElements("code")
+
 	return &renderer{
 		md: goldmark.New(
 			goldmark.WithExtensions(extension.GFM),
 			goldmark.WithParserOptions(parser.WithAutoHeadingID()),
 			goldmark.WithRendererOptions(html.WithUnsafe()),
 		),
-		sanitizer: bluemonday.UGCPolicy(),
+		sanitizer: sanitizer,
 	}
 }
 

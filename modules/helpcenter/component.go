@@ -4,6 +4,7 @@ package helpcenter
 import (
 	"embed"
 
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/controllers"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
@@ -52,6 +53,7 @@ func (c *component) LocaleFS() []*embed.FS {
 }
 
 func (c *component) Build(builder *composition.Builder) error {
+	composition.AddHashFS(builder, assets.HashFS)
 	if !c.config.HideNav {
 		composition.AddNavNodes(builder, HelpCenterNavNode)
 	}

@@ -12,7 +12,21 @@
       "Unavailable": "搜索不可用。",
       "NoResults": "未找到结果。"
     },
-    "Categories": "分类",
+    "Categories": "文档",
+    "Article": "产品指南",
+    "OnThisPage": "本页内容",
+    "ExpandNavigation": "展开导航",
+    "CollapseNavigation": "收起导航",
+    "CloseNavigation": "关闭导航",
+    "CopyCode": "复制",
+    "Copied": "已复制",
+    "Callouts": {
+      "Note": "注意",
+      "Tip": "提示",
+      "Important": "重要",
+      "Warning": "警告",
+      "Caution": "谨慎"
+    },
     "Empty": "暂无帮助文章。"
   }
 }

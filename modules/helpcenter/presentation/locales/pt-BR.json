@@ -12,7 +12,21 @@
       "Unavailable": "A pesquisa não está disponível.",
       "NoResults": "Nenhum resultado encontrado."
     },
-    "Categories": "Categorias",
+    "Categories": "Documentação",
+    "Article": "Guia do produto",
+    "OnThisPage": "Nesta página",
+    "ExpandNavigation": "Expandir navegação",
+    "CollapseNavigation": "Recolher navegação",
+    "CloseNavigation": "Fechar navegação",
+    "CopyCode": "Copiar",
+    "Copied": "Copiado",
+    "Callouts": {
+      "Note": "Observação",
+      "Tip": "Dica",
+      "Important": "Importante",
+      "Warning": "Aviso",
+      "Caution": "Cuidado"
+    },
     "Empty": "Ainda não há artigos de ajuda disponíveis."
   }
 }

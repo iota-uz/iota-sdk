@@ -1,15 +1,463 @@
 package help
 
-import "github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
 
 type DocProps struct {
 	Doc *viewmodels.DocView
 }
 
+var docStyles = templ.NewOnceHandle()
+
 templ Doc(props DocProps) {
-	<article class="max-w-4xl p-6 md:p-8">
-		<div class="help-article">
-			@templ.Raw(string(props.Doc.HTML))
-		</div>
-	</article>
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
+	@docStyles.Once() {
+		<style>
+			.help-reading-layout {
+				display: grid;
+				grid-template-columns: minmax(0, 48rem);
+				justify-content: center;
+				gap: 3.25rem;
+				width: min(100%, 76rem);
+				margin: 0 auto;
+				padding: 2.75rem clamp(1.25rem, 4vw, 4rem) 5rem;
+			}
+			.help-article-card {
+				min-width: 0;
+			}
+			.help-article-kicker {
+				display: flex;
+				align-items: center;
+				gap: 0.45rem;
+				margin-bottom: 0.8rem;
+				color: oklch(var(--primary-500));
+				font-size: 0.7rem;
+				font-weight: 700;
+				letter-spacing: 0.08em;
+				text-transform: uppercase;
+			}
+			.help-article {
+				color: #344054;
+				font-size: 0.965rem;
+				line-height: 1.78;
+				overflow-wrap: anywhere;
+			}
+			.help-article > :first-child {
+				margin-top: 0;
+			}
+			.help-article h1 {
+				max-width: 46rem;
+				margin: 0 0 1.1rem;
+				color: #101828;
+				font-size: clamp(2rem, 3vw, 2.4rem);
+				font-weight: 680;
+				line-height: 1.12;
+				letter-spacing: -0.04em;
+				text-wrap: balance;
+			}
+			.help-article h1 + p {
+				margin: 0 0 2.5rem;
+				color: #667085;
+				font-size: 1.1rem;
+				line-height: 1.7;
+			}
+			.help-article h2 {
+				margin: 3rem 0 0.9rem;
+				padding-top: 0.5rem;
+				color: #101828;
+				font-size: 1.45rem;
+				font-weight: 660;
+				line-height: 1.35;
+				letter-spacing: -0.025em;
+				scroll-margin-top: 1.5rem;
+			}
+			.help-article h3 {
+				margin: 2rem 0 0.65rem;
+				color: #1d2939;
+				font-size: 1.08rem;
+				font-weight: 650;
+				line-height: 1.45;
+				scroll-margin-top: 1.5rem;
+			}
+			.help-article h4,
+			.help-article h5,
+			.help-article h6 {
+				margin: 1.5rem 0 0.5rem;
+				color: #344054;
+				font-weight: 650;
+			}
+			.help-article p,
+			.help-article ul,
+			.help-article ol,
+			.help-article blockquote,
+			.help-article pre,
+			.help-article table,
+			.help-article figure {
+				margin: 1rem 0;
+			}
+			.help-article ul {
+				padding-left: 1.4rem;
+				list-style: none;
+			}
+			.help-article ul > li {
+				position: relative;
+			}
+			.help-article ul > li::before {
+				position: absolute;
+				top: 0.78em;
+				left: -1.15rem;
+				width: 0.32rem;
+				height: 0.32rem;
+				border-radius: 999px;
+				background: color-mix(in srgb, oklch(var(--primary-500)) 74%, #98a2b3);
+				content: "";
+			}
+			.help-article ol {
+				display: grid;
+				gap: 0.75rem;
+				padding: 0;
+				list-style: none;
+			}
+			.help-article ol > li {
+				position: relative;
+				min-height: 2.5rem;
+				padding: 0.55rem 0 0.55rem 3rem;
+			}
+			.help-article ol > li::before {
+				position: absolute;
+				top: 0.45rem;
+				left: 0;
+				z-index: 1;
+				display: grid;
+				width: 2rem;
+				height: 2rem;
+				place-items: center;
+				border: 1px solid color-mix(in srgb, oklch(var(--primary-500)) 24%, #d0d5dd);
+				border-radius: 0.62rem;
+				background: color-mix(in srgb, oklch(var(--primary-500)) 7%, white);
+				color: oklch(var(--primary-500));
+				content: counter(list-item);
+				font-size: 0.72rem;
+				font-weight: 750;
+				box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
+			}
+			.help-article ol > li:not(:last-child)::after {
+				position: absolute;
+				top: 2.45rem;
+				bottom: -0.95rem;
+				left: 0.98rem;
+				width: 1px;
+				background: #e4e7ec;
+				content: "";
+			}
+			.help-article li + li {
+				margin-top: 0.38rem;
+			}
+			.help-article li > ul,
+			.help-article li > ol {
+				margin-top: 0.65rem;
+			}
+			.help-article li > ol > li {
+				padding-left: 2.65rem;
+			}
+			.help-article a {
+				color: #175cd3;
+				font-weight: 520;
+				text-decoration: underline;
+				text-decoration-color: color-mix(in srgb, #175cd3 32%, transparent);
+				text-decoration-thickness: 1px;
+				text-underline-offset: 0.18em;
+				transition: color 140ms ease, text-decoration-color 140ms ease;
+			}
+			.help-article a:hover {
+				color: #004eeb;
+				text-decoration-color: currentColor;
+			}
+			.help-article a:focus-visible {
+				border-radius: 0.15rem;
+				outline: 2px solid #84adff;
+				outline-offset: 2px;
+			}
+			.help-article code {
+				border: 1px solid #e4e7ec;
+				border-radius: 0.35rem;
+				background: #f8fafc;
+				padding: 0.12rem 0.35rem;
+				color: #344054;
+				font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+				font-size: 0.84em;
+				font-variant-ligatures: none;
+			}
+			.help-article pre {
+				position: relative;
+				overflow-x: auto;
+				border: 1px solid #e4e7ec;
+				border-radius: 0.85rem;
+				background: #101828;
+				padding: 1.2rem;
+				color: #f2f4f7;
+				box-shadow: 0 8px 24px rgb(16 24 40 / 0.08);
+			}
+			.help-article pre code {
+				border: 0;
+				background: transparent;
+				padding: 0;
+				color: inherit;
+				font-size: 0.82rem;
+			}
+			.help-code-copy {
+				position: absolute;
+				top: 0.65rem;
+				right: 0.65rem;
+				border: 1px solid rgb(255 255 255 / 0.14);
+				border-radius: 0.4rem;
+				background: rgb(255 255 255 / 0.08);
+				padding: 0.3rem 0.5rem;
+				color: #d0d5dd;
+				font-size: 0.65rem;
+				opacity: 0;
+				transition: opacity 140ms ease, background 140ms ease;
+			}
+			.help-article pre:hover .help-code-copy,
+			.help-code-copy:focus-visible {
+				opacity: 1;
+			}
+			.help-code-copy:hover {
+				background: rgb(255 255 255 / 0.14);
+			}
+			.help-article .help-mermaid {
+				position: relative;
+				margin: 1.75rem 0;
+				overflow-x: auto;
+				border: 1px solid #e4e7ec;
+				border-radius: 1rem;
+				background:
+					linear-gradient(#f8fafc 1px, transparent 1px),
+					linear-gradient(90deg, #f8fafc 1px, transparent 1px),
+					white;
+				background-size: 1.25rem 1.25rem;
+				padding: clamp(1rem, 3vw, 2rem);
+				box-shadow: 0 8px 30px rgb(16 24 40 / 0.055);
+			}
+			.help-article .help-mermaid::before {
+				position: absolute;
+				top: 0;
+				left: 1.2rem;
+				width: 3.5rem;
+				height: 2px;
+				border-radius: 0 0 999px 999px;
+				background: oklch(var(--primary-500));
+				content: "";
+			}
+			.help-article .help-mermaid svg {
+				display: block;
+				height: auto;
+				max-width: 100%;
+				margin: 0 auto;
+			}
+			.help-article .help-mermaid-wide svg {
+				width: auto;
+				min-width: 68rem;
+				max-width: none !important;
+			}
+			.help-article blockquote {
+				position: relative;
+				border: 1px solid #dbe7ff;
+				border-radius: 0.8rem;
+				background: #f5f8ff;
+				padding: 1rem 1.15rem 1rem 1.25rem;
+				color: #344054;
+			}
+			.help-article blockquote::before {
+				position: absolute;
+				top: 0.85rem;
+				bottom: 0.85rem;
+				left: 0;
+				width: 3px;
+				border-radius: 0 999px 999px 0;
+				background: #528bff;
+				content: "";
+			}
+			.help-article blockquote > :first-child { margin-top: 0; }
+			.help-article blockquote > :last-child { margin-bottom: 0; }
+			.help-article .help-callout::after {
+				display: block;
+				margin-bottom: 0.25rem;
+				color: #175cd3;
+				content: attr(data-callout-label);
+				font-size: 0.72rem;
+				font-weight: 750;
+				letter-spacing: 0.04em;
+				text-transform: uppercase;
+				order: -1;
+			}
+			.help-article .help-callout {
+				display: flex;
+				flex-direction: column;
+			}
+			.help-article .help-callout-tip {
+				border-color: #abefc6;
+				background: #f6fef9;
+			}
+			.help-article .help-callout-tip::before { background: #17b26a; }
+			.help-article .help-callout-tip::after { color: #067647; }
+			.help-article .help-callout-warning,
+			.help-article .help-callout-caution {
+				border-color: #fedf89;
+				background: #fffaeb;
+			}
+			.help-article .help-callout-warning::before,
+			.help-article .help-callout-caution::before { background: #f79009; }
+			.help-article .help-callout-warning::after,
+			.help-article .help-callout-caution::after { color: #b54708; }
+			.help-figure {
+				overflow: hidden;
+				border: 1px solid #e4e7ec;
+				border-radius: 1rem;
+				background: white;
+				box-shadow: 0 10px 32px rgb(16 24 40 / 0.07);
+			}
+			.help-figure img {
+				display: block;
+				width: 100%;
+				height: auto;
+				background: #f8fafc;
+			}
+			.help-figure figcaption {
+				border-top: 1px solid #eaecf0;
+				padding: 0.7rem 1rem;
+				color: #667085;
+				font-size: 0.72rem;
+				text-align: center;
+			}
+			.help-article table {
+				display: block;
+				width: 100%;
+				overflow-x: auto;
+				border: 1px solid #e4e7ec;
+				border-radius: 0.8rem;
+				border-collapse: separate;
+				border-spacing: 0;
+				background: white;
+				box-shadow: 0 2px 8px rgb(16 24 40 / 0.035);
+			}
+			.help-article th,
+			.help-article td {
+				min-width: 9rem;
+				border-bottom: 1px solid #eaecf0;
+				padding: 0.75rem 0.9rem;
+				text-align: left;
+				vertical-align: top;
+			}
+			.help-article th {
+				background: #f8fafc;
+				color: #344054;
+				font-size: 0.72rem;
+				font-weight: 700;
+				letter-spacing: 0.025em;
+			}
+			.help-article tr:last-child td {
+				border-bottom: 0;
+			}
+			.help-article hr {
+				margin: 3rem 0;
+				border: 0;
+				border-top: 1px solid #e4e7ec;
+			}
+			.help-toc {
+				display: none;
+			}
+			.help-toc[hidden] {
+				display: none !important;
+			}
+			.help-toc-inner {
+				position: sticky;
+				top: 2rem;
+			}
+			.help-toc-heading {
+				display: flex;
+				align-items: center;
+				gap: 0.45rem;
+				margin-bottom: 0.8rem;
+				color: #344054;
+				font-size: 0.72rem;
+				font-weight: 700;
+			}
+			.help-toc-nav {
+				display: grid;
+				gap: 0.15rem;
+				border-left: 1px solid #e4e7ec;
+			}
+			.help-toc-link {
+				display: block;
+				margin-left: -1px;
+				border-left: 1px solid transparent;
+				padding: 0.35rem 0 0.35rem 0.85rem;
+				color: #667085;
+				font-size: 0.72rem;
+				line-height: 1.4;
+				transition: border-color 140ms ease, color 140ms ease;
+			}
+			.help-toc-link:hover {
+				border-left-color: #84adff;
+				color: #175cd3;
+			}
+			.help-toc-link-nested {
+				padding-left: 1.35rem;
+				color: #98a2b3;
+			}
+			@media (min-width: 1380px) {
+				.help-reading-layout {
+					grid-template-columns: minmax(0, 48rem) 12rem;
+					justify-content: center;
+				}
+				.help-toc {
+					display: block;
+				}
+			}
+			@media (max-width: 700px) {
+				.help-reading-layout {
+					padding: 2rem 1.1rem 4rem;
+				}
+				.help-article h1 {
+					font-size: 2rem;
+				}
+				.help-article {
+					font-size: 0.925rem;
+				}
+				.help-article ol > li {
+					padding-left: 2.7rem;
+				}
+			}
+			@media (prefers-reduced-motion: reduce) {
+				.help-article a,
+				.help-code-copy {
+					transition: none;
+				}
+			}
+		</style>
+	}
+	<div class="help-reading-layout">
+		<article class="help-article-card">
+			<div class="help-article-kicker">
+				@icons.FileText(icons.Props{Size: "14", Variant: icons.DuoTone})
+				<span>{ pageCtx.T("HelpCenter.Article") }</span>
+			</div>
+			<div class="help-article">
+				@templ.Raw(string(props.Doc.HTML))
+			</div>
+		</article>
+		<aside class="help-toc" aria-label={ pageCtx.T("HelpCenter.OnThisPage") }>
+			<div class="help-toc-inner">
+				<div class="help-toc-heading">
+					@icons.ListBullets(icons.Props{Size: "14"})
+					<span>{ pageCtx.T("HelpCenter.OnThisPage") }</span>
+				</div>
+				<nav class="help-toc-nav" data-help-toc></nav>
+			</div>
+		</aside>
+	</div>
 }

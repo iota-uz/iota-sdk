@@ -12,7 +12,21 @@
       "Unavailable": "Поиск недоступен.",
       "NoResults": "Ничего не найдено."
     },
-    "Categories": "Категории",
+    "Categories": "Документация",
+    "Article": "Руководство по продукту",
+    "OnThisPage": "На этой странице",
+    "ExpandNavigation": "Развернуть навигацию",
+    "CollapseNavigation": "Свернуть навигацию",
+    "CloseNavigation": "Закрыть навигацию",
+    "CopyCode": "Копировать",
+    "Copied": "Скопировано",
+    "Callouts": {
+      "Note": "Примечание",
+      "Tip": "Совет",
+      "Important": "Важно",
+      "Warning": "Предупреждение",
+      "Caution": "Осторожно"
+    },
     "Empty": "Справочные статьи пока недоступны."
   }
 }
