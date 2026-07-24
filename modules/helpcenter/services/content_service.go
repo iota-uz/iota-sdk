@@ -2,6 +2,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io/fs"
@@ -15,6 +16,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -40,6 +42,9 @@ type ContentConfig struct {
 	FS            fs.FS
 	Locales       []string
 	DefaultLocale string
+	// CategoryTitles maps locale and relative category path to a localized
+	// sidebar label while keeping document paths stable across locales.
+	CategoryTitles map[string]map[string]string
 	// HideNav omits the Help Center sidebar nav node when the component is
 	// registered only to serve inline help-article links (see component.go).
 	HideNav bool
@@ -155,8 +160,9 @@ func (s *ContentService) readDoc(localeDir, cleanPath string) (*Document, error)
 	if err != nil {
 		return nil, err
 	}
+	title, content := parseMarkdownDocument(content, cleanPath)
 	return &Document{
-		Title:   titleFromMarkdown(content, cleanPath),
+		Title:   title,
 		Path:    cleanPath,
 		Content: content,
 	}, nil
@@ -188,7 +194,7 @@ func (s *ContentService) localeDirExists(locale string) bool {
 }
 
 func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.CategoryNode, error) {
-	var docs []viewmodels.CategoryNode
+	var tree []*categoryTreeNode
 
 	err := fs.WalkDir(s.fsys, localeDir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -203,8 +209,9 @@ func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.Categ
 			return err
 		}
 		parts := strings.Split(rel, "/")
-		doc := viewmodels.CategoryNode{Title: titleFromMarkdown(content, rel), Path: rel}
-		insertNode(&docs, parts[:len(parts)-1], doc)
+		title, _ := parseMarkdownDocument(content, rel)
+		doc := viewmodels.CategoryNode{Title: title, Path: rel}
+		s.insertNode(&tree, locale, "", parts[:len(parts)-1], doc)
 		return nil
 	})
 	if err != nil {
@@ -217,6 +224,7 @@ func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.Categ
 		return nil, err
 	}
 
+	docs := categoryViewModels(tree)
 	sortNodes(docs)
 	return docs, nil
 }
@@ -252,13 +260,17 @@ func isMarkdown(p string) bool {
 	return ext == ".md" || ext == ".markdown"
 }
 
-func titleFromMarkdown(content []byte, docPath string) string {
-	for _, line := range strings.Split(string(content), "\n") {
+func parseMarkdownDocument(content []byte, docPath string) (string, []byte) {
+	frontMatterTitle, body := splitFrontMatter(content)
+	if frontMatterTitle != "" {
+		return frontMatterTitle, body
+	}
+	for _, line := range strings.Split(string(body), "\n") {
 		line = strings.TrimSpace(line)
 		if strings.HasPrefix(line, "#") {
 			title := strings.TrimSpace(strings.TrimLeft(line, "#"))
 			if title != "" {
-				return title
+				return title, body
 			}
 		}
 		if line != "" {
@@ -266,7 +278,7 @@ func titleFromMarkdown(content []byte, docPath string) string {
 		}
 	}
 	name := strings.TrimSuffix(path.Base(docPath), path.Ext(docPath))
-	return titleFromSegment(name)
+	return titleFromSegment(name), body
 }
 
 func titleFromSegment(segment string) string {
@@ -276,20 +288,75 @@ func titleFromSegment(segment string) string {
 	return cases.Title(language.English).String(segment)
 }
 
-func insertNode(nodes *[]viewmodels.CategoryNode, categories []string, doc viewmodels.CategoryNode) {
+func splitFrontMatter(content []byte) (string, []byte) {
+	lines := bytes.Split(content, []byte("\n"))
+	if len(lines) < 3 || string(bytes.TrimSpace(lines[0])) != "---" {
+		return "", content
+	}
+	for i := 1; i < len(lines); i++ {
+		if string(bytes.TrimSpace(lines[i])) != "---" {
+			continue
+		}
+		var metadata struct {
+			Title string `yaml:"title"`
+		}
+		_ = yaml.Unmarshal(bytes.Join(lines[1:i], []byte("\n")), &metadata)
+		body := bytes.TrimLeft(bytes.Join(lines[i+1:], []byte("\n")), "\r\n")
+		return strings.TrimSpace(metadata.Title), body
+	}
+	return "", content
+}
+
+type categoryTreeNode struct {
+	key      string
+	title    string
+	path     string
+	children []*categoryTreeNode
+}
+
+func (s *ContentService) insertNode(
+	nodes *[]*categoryTreeNode,
+	locale string,
+	parentPath string,
+	categories []string,
+	doc viewmodels.CategoryNode,
+) {
 	if len(categories) == 0 {
-		*nodes = append(*nodes, doc)
+		*nodes = append(*nodes, &categoryTreeNode{key: doc.Path, title: doc.Title, path: doc.Path})
 		return
 	}
-	title := titleFromSegment(categories[0])
-	for i := range *nodes {
-		if (*nodes)[i].Path == "" && (*nodes)[i].Title == title {
-			insertNode(&(*nodes)[i].Children, categories[1:], doc)
+	categoryPath := path.Join(parentPath, categories[0])
+	title := s.categoryTitle(locale, categoryPath, categories[0])
+	for _, node := range *nodes {
+		if node.key == categoryPath {
+			s.insertNode(&node.children, locale, categoryPath, categories[1:], doc)
 			return
 		}
 	}
-	*nodes = append(*nodes, viewmodels.CategoryNode{Title: title})
-	insertNode(&(*nodes)[len(*nodes)-1].Children, categories[1:], doc)
+	node := &categoryTreeNode{key: categoryPath, title: title}
+	*nodes = append(*nodes, node)
+	s.insertNode(&node.children, locale, categoryPath, categories[1:], doc)
+}
+
+func categoryViewModels(nodes []*categoryTreeNode) []viewmodels.CategoryNode {
+	result := make([]viewmodels.CategoryNode, 0, len(nodes))
+	for _, node := range nodes {
+		result = append(result, viewmodels.CategoryNode{
+			Title:    node.title,
+			Path:     node.path,
+			Children: categoryViewModels(node.children),
+		})
+	}
+	return result
+}
+
+func (s *ContentService) categoryTitle(locale, categoryPath, segment string) string {
+	if localized, ok := s.config.CategoryTitles[locale]; ok {
+		if title := strings.TrimSpace(localized[categoryPath]); title != "" {
+			return title
+		}
+	}
+	return titleFromSegment(segment)
 }
 
 func contains(values []string, value string) bool {

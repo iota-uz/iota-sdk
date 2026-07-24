@@ -14,6 +14,8 @@ type DocProps struct {
 	Doc *viewmodels.DocView
 }
 
+var docStyles = templ.NewOnceHandle()
+
 func Doc(props DocProps) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
@@ -35,7 +37,29 @@ func Doc(props DocProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<article class=\"max-w-4xl p-6 md:p-8\"><div class=\"help-article\">")
+		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
+			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
+			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
+			if !templ_7745c5c3_IsBuffer {
+				defer func() {
+					templ_7745c5c3_BufErr := templruntime.ReleaseBuffer(templ_7745c5c3_Buffer)
+					if templ_7745c5c3_Err == nil {
+						templ_7745c5c3_Err = templ_7745c5c3_BufErr
+					}
+				}()
+			}
+			ctx = templ.InitializeContext(ctx)
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t\t.help-article {\n\t\t\t\tcolor: oklch(var(--clr-text-100));\n\t\t\t\tline-height: 1.7;\n\t\t\t\toverflow-wrap: anywhere;\n\t\t\t}\n\t\t\t.help-article h1 {\n\t\t\t\tmargin: 0 0 1.5rem;\n\t\t\t\tfont-size: 1.75rem;\n\t\t\t\tfont-weight: 600;\n\t\t\t\tline-height: 1.25;\n\t\t\t\tletter-spacing: -0.02em;\n\t\t\t}\n\t\t\t.help-article h2 {\n\t\t\t\tmargin: 2rem 0 0.75rem;\n\t\t\t\tfont-size: 1.25rem;\n\t\t\t\tfont-weight: 600;\n\t\t\t\tline-height: 1.4;\n\t\t\t}\n\t\t\t.help-article h3 {\n\t\t\t\tmargin: 1.5rem 0 0.5rem;\n\t\t\t\tfont-size: 1.05rem;\n\t\t\t\tfont-weight: 600;\n\t\t\t}\n\t\t\t.help-article p,\n\t\t\t.help-article ul,\n\t\t\t.help-article ol,\n\t\t\t.help-article blockquote,\n\t\t\t.help-article pre,\n\t\t\t.help-article table {\n\t\t\t\tmargin: 0.75rem 0;\n\t\t\t}\n\t\t\t.help-article ul,\n\t\t\t.help-article ol {\n\t\t\t\tpadding-left: 1.5rem;\n\t\t\t}\n\t\t\t.help-article ul { list-style: disc; }\n\t\t\t.help-article ol { list-style: decimal; }\n\t\t\t.help-article li + li { margin-top: 0.375rem; }\n\t\t\t.help-article a {\n\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\ttext-decoration: underline;\n\t\t\t\ttext-underline-offset: 0.15em;\n\t\t\t}\n\t\t\t.help-article code {\n\t\t\t\tborder-radius: 0.25rem;\n\t\t\t\tbackground: oklch(var(--clr-surface-100));\n\t\t\t\tpadding: 0.125rem 0.375rem;\n\t\t\t\tfont-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;\n\t\t\t\tfont-size: 0.875em;\n\t\t\t}\n\t\t\t.help-article pre {\n\t\t\t\toverflow-x: auto;\n\t\t\t\tborder: 1px solid oklch(var(--clr-border-subtle));\n\t\t\t\tborder-radius: 0.5rem;\n\t\t\t\tbackground: oklch(var(--clr-surface-100));\n\t\t\t\tpadding: 1rem;\n\t\t\t}\n\t\t\t.help-article pre code {\n\t\t\t\tbackground: transparent;\n\t\t\t\tpadding: 0;\n\t\t\t}\n\t\t\t.help-article blockquote {\n\t\t\t\tborder-left: 3px solid oklch(var(--primary-500));\n\t\t\t\tcolor: oklch(var(--clr-text-200));\n\t\t\t\tpadding-left: 1rem;\n\t\t\t}\n\t\t\t.help-article table {\n\t\t\t\twidth: 100%;\n\t\t\t\tborder-collapse: collapse;\n\t\t\t}\n\t\t\t.help-article th,\n\t\t\t.help-article td {\n\t\t\t\tborder: 1px solid oklch(var(--clr-border-subtle));\n\t\t\t\tpadding: 0.625rem 0.75rem;\n\t\t\t\ttext-align: left;\n\t\t\t\tvertical-align: top;\n\t\t\t}\n\t\t\t.help-article th {\n\t\t\t\tbackground: oklch(var(--clr-surface-100));\n\t\t\t\tfont-weight: 600;\n\t\t\t}\n\t\t\t.help-article hr {\n\t\t\t\tmargin: 2rem 0;\n\t\t\t\tborder-color: oklch(var(--clr-border-subtle));\n\t\t\t}\n\t\t</style>")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			return nil
+		})
+		templ_7745c5c3_Err = docStyles.Once().Render(templ.WithChildren(ctx, templ_7745c5c3_Var2), templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<article class=\"max-w-4xl p-6 md:p-8\"><div class=\"help-article\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -43,7 +67,7 @@ func Doc(props DocProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "</div></article>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></article>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

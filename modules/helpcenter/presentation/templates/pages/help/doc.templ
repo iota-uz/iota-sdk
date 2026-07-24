@@ -6,7 +6,98 @@ type DocProps struct {
 	Doc *viewmodels.DocView
 }
 
+var docStyles = templ.NewOnceHandle()
+
 templ Doc(props DocProps) {
+	@docStyles.Once() {
+		<style>
+			.help-article {
+				color: oklch(var(--clr-text-100));
+				line-height: 1.7;
+				overflow-wrap: anywhere;
+			}
+			.help-article h1 {
+				margin: 0 0 1.5rem;
+				font-size: 1.75rem;
+				font-weight: 600;
+				line-height: 1.25;
+				letter-spacing: -0.02em;
+			}
+			.help-article h2 {
+				margin: 2rem 0 0.75rem;
+				font-size: 1.25rem;
+				font-weight: 600;
+				line-height: 1.4;
+			}
+			.help-article h3 {
+				margin: 1.5rem 0 0.5rem;
+				font-size: 1.05rem;
+				font-weight: 600;
+			}
+			.help-article p,
+			.help-article ul,
+			.help-article ol,
+			.help-article blockquote,
+			.help-article pre,
+			.help-article table {
+				margin: 0.75rem 0;
+			}
+			.help-article ul,
+			.help-article ol {
+				padding-left: 1.5rem;
+			}
+			.help-article ul { list-style: disc; }
+			.help-article ol { list-style: decimal; }
+			.help-article li + li { margin-top: 0.375rem; }
+			.help-article a {
+				color: oklch(var(--primary-500));
+				text-decoration: underline;
+				text-underline-offset: 0.15em;
+			}
+			.help-article code {
+				border-radius: 0.25rem;
+				background: oklch(var(--clr-surface-100));
+				padding: 0.125rem 0.375rem;
+				font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+				font-size: 0.875em;
+			}
+			.help-article pre {
+				overflow-x: auto;
+				border: 1px solid oklch(var(--clr-border-subtle));
+				border-radius: 0.5rem;
+				background: oklch(var(--clr-surface-100));
+				padding: 1rem;
+			}
+			.help-article pre code {
+				background: transparent;
+				padding: 0;
+			}
+			.help-article blockquote {
+				border-left: 3px solid oklch(var(--primary-500));
+				color: oklch(var(--clr-text-200));
+				padding-left: 1rem;
+			}
+			.help-article table {
+				width: 100%;
+				border-collapse: collapse;
+			}
+			.help-article th,
+			.help-article td {
+				border: 1px solid oklch(var(--clr-border-subtle));
+				padding: 0.625rem 0.75rem;
+				text-align: left;
+				vertical-align: top;
+			}
+			.help-article th {
+				background: oklch(var(--clr-surface-100));
+				font-weight: 600;
+			}
+			.help-article hr {
+				margin: 2rem 0;
+				border-color: oklch(var(--clr-border-subtle));
+			}
+		</style>
+	}
 	<article class="max-w-4xl p-6 md:p-8">
 		<div class="help-article">
 			@templ.Raw(string(props.Doc.HTML))
