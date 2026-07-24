@@ -12,7 +12,21 @@
       "Unavailable": "Search is unavailable.",
       "NoResults": "No results found."
     },
-    "Categories": "Categories",
+    "Categories": "Documentation",
+    "Article": "Product guide",
+    "OnThisPage": "On this page",
+    "ExpandNavigation": "Expand navigation",
+    "CollapseNavigation": "Collapse navigation",
+    "CloseNavigation": "Close navigation",
+    "CopyCode": "Copy",
+    "Copied": "Copied",
+    "Callouts": {
+      "Note": "Note",
+      "Tip": "Tip",
+      "Important": "Important",
+      "Warning": "Warning",
+      "Caution": "Caution"
+    },
     "Empty": "No help articles are available yet."
   }
 }

@@ -22,11 +22,28 @@ import (
 var (
 	ErrContentRootRequired = errors.New("help center content root is required")
 	ErrDocumentNotFound    = errors.New("help center document not found")
+	ErrMediaNotFound       = errors.New("help center media not found")
 	ErrInvalidPath         = errors.New("invalid help center document path")
 )
 
+var allowedMediaExtensions = map[string]struct{}{
+	".avif": {},
+	".gif":  {},
+	".ico":  {},
+	".jpeg": {},
+	".jpg":  {},
+	".png":  {},
+	".svg":  {},
+	".webp": {},
+}
+
 type Document struct {
 	Title   string
+	Path    string
+	Content []byte
+}
+
+type Media struct {
 	Path    string
 	Content []byte
 }
@@ -120,6 +137,31 @@ func (s *ContentService) Get(ctx context.Context, docPath string) (*Document, er
 	return doc, nil
 }
 
+// Media returns a file from the active locale's content tree. A missing file
+// falls back to the default locale in the same way as help documents.
+func (s *ContentService) Media(ctx context.Context, mediaPath string) (*Media, error) {
+	localeDir, locale, err := s.localeRoot(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cleanPath, err := cleanMediaPath(mediaPath)
+	if err != nil {
+		return nil, err
+	}
+
+	content, err := s.readContentFile(localeDir, cleanPath)
+	if errors.Is(err, fs.ErrNotExist) && locale != s.config.DefaultLocale {
+		content, err = s.readContentFile(s.config.DefaultLocale, cleanPath)
+	}
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil, ErrMediaNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &Media{Path: cleanPath, Content: content}, nil
+}
+
 func (s *ContentService) DefaultDocument(ctx context.Context) (*Document, error) {
 	nodes, err := s.Tree(ctx)
 	if err != nil {
@@ -155,11 +197,7 @@ func (s *ContentService) getFromLocale(locale, docPath string) (*Document, error
 // cleanPath is already validated by cleanDocPath; the joined path is checked
 // against fs.ValidPath as defense in depth.
 func (s *ContentService) readDoc(localeDir, cleanPath string) (*Document, error) {
-	full := path.Join(localeDir, cleanPath)
-	if !fs.ValidPath(full) {
-		return nil, ErrInvalidPath
-	}
-	content, err := fs.ReadFile(s.fsys, full)
+	content, err := s.readContentFile(localeDir, cleanPath)
 	if err != nil {
 		return nil, err
 	}
@@ -170,6 +208,21 @@ func (s *ContentService) readDoc(localeDir, cleanPath string) (*Document, error)
 		Path:    cleanPath,
 		Content: content,
 	}, nil
+}
+
+func (s *ContentService) readContentFile(localeDir, cleanPath string) ([]byte, error) {
+	full := path.Join(localeDir, cleanPath)
+	if !fs.ValidPath(full) {
+		return nil, ErrInvalidPath
+	}
+	info, err := fs.Stat(s.fsys, full)
+	if err != nil {
+		return nil, err
+	}
+	if info.IsDir() {
+		return nil, fs.ErrNotExist
+	}
+	return fs.ReadFile(s.fsys, full)
 }
 
 // localeRoot resolves the request locale to a content sub-directory (relative
@@ -254,6 +307,28 @@ func cleanDocPath(p string) (string, error) {
 	}
 	clean := path.Clean(filepath.ToSlash(p))
 	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || path.IsAbs(clean) || !isMarkdown(clean) {
+		return "", ErrInvalidPath
+	}
+	return clean, nil
+}
+
+// cleanMediaPath accepts only a relative, slash-separated image path within the
+// configured content root.
+func cleanMediaPath(p string) (string, error) {
+	p = strings.TrimSpace(p)
+	if p == "" || strings.Contains(p, "\x00") || strings.Contains(p, "\\") {
+		return "", ErrInvalidPath
+	}
+	for _, segment := range strings.Split(p, "/") {
+		if segment == "." || segment == ".." {
+			return "", ErrInvalidPath
+		}
+	}
+	clean := path.Clean(p)
+	if clean == "." || clean == ".." || strings.HasPrefix(clean, "../") || path.IsAbs(clean) || !fs.ValidPath(clean) {
+		return "", ErrInvalidPath
+	}
+	if _, ok := allowedMediaExtensions[strings.ToLower(path.Ext(clean))]; !ok {
 		return "", ErrInvalidPath
 	}
 	return clean, nil

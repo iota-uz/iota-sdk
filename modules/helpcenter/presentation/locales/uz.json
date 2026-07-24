@@ -12,7 +12,21 @@
       "Unavailable": "Qidiruv mavjud emas.",
       "NoResults": "Natijalar topilmadi."
     },
-    "Categories": "Kategoriyalar",
+    "Categories": "Hujjatlar",
+    "Article": "Mahsulot qo‘llanmasi",
+    "OnThisPage": "Ushbu sahifada",
+    "ExpandNavigation": "Navigatsiyani ochish",
+    "CollapseNavigation": "Navigatsiyani yig‘ish",
+    "CloseNavigation": "Navigatsiyani yopish",
+    "CopyCode": "Nusxalash",
+    "Copied": "Nusxalandi",
+    "Callouts": {
+      "Note": "Izoh",
+      "Tip": "Maslahat",
+      "Important": "Muhim",
+      "Warning": "Ogohlantirish",
+      "Caution": "Ehtiyot bo‘ling"
+    },
     "Empty": "Yordam maqolalari hali mavjud emas."
   }
 }

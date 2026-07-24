@@ -12,7 +12,21 @@
       "Unavailable": "Қидирув мавжуд эмас.",
       "NoResults": "Натижалар топилмади."
     },
-    "Categories": "Категориялар",
+    "Categories": "Ҳужжатлар",
+    "Article": "Маҳсулот қўлланмаси",
+    "OnThisPage": "Ушбу саҳифада",
+    "ExpandNavigation": "Навигацияни очиш",
+    "CollapseNavigation": "Навигацияни йиғиш",
+    "CloseNavigation": "Навигацияни ёпиш",
+    "CopyCode": "Нусхалаш",
+    "Copied": "Нусхаланди",
+    "Callouts": {
+      "Note": "Изоҳ",
+      "Tip": "Маслаҳат",
+      "Important": "Муҳим",
+      "Warning": "Огоҳлантириш",
+      "Caution": "Эҳтиёт бўлинг"
+    },
     "Empty": "Ёрдам мақолалари ҳали мавжуд эмас."
   }
 }

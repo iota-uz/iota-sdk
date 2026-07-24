@@ -135,7 +135,59 @@ func TestContentService_GetRejectsTraversal(t *testing.T) {
 	require.ErrorIs(t, err, ErrInvalidPath)
 }
 
+func TestContentService_MediaUsesLocaleAndDefaultFallback(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "en/images/lifecycle.svg", "<svg>english</svg>")
+	writeFile(t, root, "ru/images/overview.svg", "<svg>russian</svg>")
+	service := NewContentService(ContentConfig{Root: root, Locales: []string{"en", "ru"}, DefaultLocale: "en"})
+	ctx := intl.WithLocale(context.Background(), language.Russian)
+
+	localized, err := service.Media(ctx, "images/overview.svg")
+	require.NoError(t, err)
+	require.Equal(t, "<svg>russian</svg>", string(localized.Content))
+
+	fallback, err := service.Media(ctx, "images/lifecycle.svg")
+	require.NoError(t, err)
+	require.Equal(t, "<svg>english</svg>", string(fallback.Content))
+}
+
+func TestContentService_MediaRejectsTraversal(t *testing.T) {
+	service := NewContentService(ContentConfig{Root: t.TempDir(), Locales: []string{"en"}, DefaultLocale: "en"})
+
+	for _, mediaPath := range []string{"../secret.png", "images/../secret.png", "/etc/passwd", `images\\secret.png`} {
+		t.Run(mediaPath, func(t *testing.T) {
+			_, err := service.Media(context.Background(), mediaPath)
+			require.ErrorIs(t, err, ErrInvalidPath)
+		})
+	}
+}
+
+func TestContentService_MediaRejectsNonImageFiles(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "en/internal/source.md", "# Hidden implementation notes")
+	service := NewContentService(ContentConfig{Root: root, Locales: []string{"en"}, DefaultLocale: "en"})
+
+	_, err := service.Media(context.Background(), "internal/source.md")
+
+	require.ErrorIs(t, err, ErrInvalidPath)
+}
+
+func TestContentService_MediaDoesNotServeDirectories(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "en/images.svg/diagram.png", "image")
+	service := NewContentService(ContentConfig{Root: root, Locales: []string{"en"}, DefaultLocale: "en"})
+
+	_, err := service.Media(context.Background(), "images.svg")
+
+	require.ErrorIs(t, err, ErrMediaNotFound)
+}
+
 func writeDoc(t *testing.T, root, path, content string) {
+	t.Helper()
+	writeFile(t, root, path, content)
+}
+
+func writeFile(t *testing.T, root, path, content string) {
 	t.Helper()
 	fullPath := filepath.Join(root, filepath.FromSlash(path))
 	require.NoError(t, os.MkdirAll(filepath.Dir(fullPath), 0o755))

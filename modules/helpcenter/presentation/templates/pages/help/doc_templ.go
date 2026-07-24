@@ -8,7 +8,11 @@ package help
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-import "github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
+import (
+	icons "github.com/iota-uz/icons/phosphor"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
+	"github.com/iota-uz/iota-sdk/pkg/composables"
+)
 
 type DocProps struct {
 	Doc *viewmodels.DocView
@@ -37,6 +41,7 @@ func Doc(props DocProps) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
+		pageCtx := composables.UsePageCtx(ctx)
 		templ_7745c5c3_Var2 := templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 			templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 			templ_7745c5c3_Buffer, templ_7745c5c3_IsBuffer := templruntime.GetBuffer(templ_7745c5c3_W)
@@ -49,7 +54,7 @@ func Doc(props DocProps) templ.Component {
 				}()
 			}
 			ctx = templ.InitializeContext(ctx)
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t\t.help-article {\n\t\t\t\tcolor: oklch(var(--clr-text-100));\n\t\t\t\tline-height: 1.7;\n\t\t\t\toverflow-wrap: anywhere;\n\t\t\t}\n\t\t\t.help-article h1 {\n\t\t\t\tmargin: 0 0 1.5rem;\n\t\t\t\tfont-size: 1.75rem;\n\t\t\t\tfont-weight: 600;\n\t\t\t\tline-height: 1.25;\n\t\t\t\tletter-spacing: -0.02em;\n\t\t\t}\n\t\t\t.help-article h2 {\n\t\t\t\tmargin: 2rem 0 0.75rem;\n\t\t\t\tfont-size: 1.25rem;\n\t\t\t\tfont-weight: 600;\n\t\t\t\tline-height: 1.4;\n\t\t\t}\n\t\t\t.help-article h3 {\n\t\t\t\tmargin: 1.5rem 0 0.5rem;\n\t\t\t\tfont-size: 1.05rem;\n\t\t\t\tfont-weight: 600;\n\t\t\t}\n\t\t\t.help-article p,\n\t\t\t.help-article ul,\n\t\t\t.help-article ol,\n\t\t\t.help-article blockquote,\n\t\t\t.help-article pre,\n\t\t\t.help-article table {\n\t\t\t\tmargin: 0.75rem 0;\n\t\t\t}\n\t\t\t.help-article ul,\n\t\t\t.help-article ol {\n\t\t\t\tpadding-left: 1.5rem;\n\t\t\t}\n\t\t\t.help-article ul { list-style: disc; }\n\t\t\t.help-article ol { list-style: decimal; }\n\t\t\t.help-article li + li { margin-top: 0.375rem; }\n\t\t\t.help-article a {\n\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\ttext-decoration: underline;\n\t\t\t\ttext-underline-offset: 0.15em;\n\t\t\t}\n\t\t\t.help-article code {\n\t\t\t\tborder-radius: 0.25rem;\n\t\t\t\tbackground: oklch(var(--clr-surface-100));\n\t\t\t\tpadding: 0.125rem 0.375rem;\n\t\t\t\tfont-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;\n\t\t\t\tfont-size: 0.875em;\n\t\t\t}\n\t\t\t.help-article pre {\n\t\t\t\toverflow-x: auto;\n\t\t\t\tborder: 1px solid oklch(var(--clr-border-subtle));\n\t\t\t\tborder-radius: 0.5rem;\n\t\t\t\tbackground: oklch(var(--clr-surface-100));\n\t\t\t\tpadding: 1rem;\n\t\t\t}\n\t\t\t.help-article pre code {\n\t\t\t\tbackground: transparent;\n\t\t\t\tpadding: 0;\n\t\t\t}\n\t\t\t.help-article .help-mermaid {\n\t\t\t\tmargin: 1.25rem 0;\n\t\t\t\toverflow-x: auto;\n\t\t\t\tborder: 1px solid oklch(var(--clr-border-subtle));\n\t\t\t\tborder-radius: 0.75rem;\n\t\t\t\tbackground: white;\n\t\t\t\tpadding: 1.25rem;\n\t\t\t}\n\t\t\t.help-article .help-mermaid svg {\n\t\t\t\tdisplay: block;\n\t\t\t\theight: auto;\n\t\t\t\tmax-width: 100%;\n\t\t\t\tmargin: 0 auto;\n\t\t\t}\n\t\t\t.help-article .help-mermaid-wide svg {\n\t\t\t\twidth: auto;\n\t\t\t\tmin-width: 72rem;\n\t\t\t\tmax-width: none !important;\n\t\t\t}\n\t\t\t.help-article blockquote {\n\t\t\t\tborder-left: 3px solid oklch(var(--primary-500));\n\t\t\t\tcolor: oklch(var(--clr-text-200));\n\t\t\t\tpadding-left: 1rem;\n\t\t\t}\n\t\t\t.help-article table {\n\t\t\t\twidth: 100%;\n\t\t\t\tborder-collapse: collapse;\n\t\t\t}\n\t\t\t.help-article th,\n\t\t\t.help-article td {\n\t\t\t\tborder: 1px solid oklch(var(--clr-border-subtle));\n\t\t\t\tpadding: 0.625rem 0.75rem;\n\t\t\t\ttext-align: left;\n\t\t\t\tvertical-align: top;\n\t\t\t}\n\t\t\t.help-article th {\n\t\t\t\tbackground: oklch(var(--clr-surface-100));\n\t\t\t\tfont-weight: 600;\n\t\t\t}\n\t\t\t.help-article hr {\n\t\t\t\tmargin: 2rem 0;\n\t\t\t\tborder-color: oklch(var(--clr-border-subtle));\n\t\t\t}\n\t\t</style>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t\t.help-reading-layout {\n\t\t\t\tdisplay: grid;\n\t\t\t\tgrid-template-columns: minmax(0, 48rem);\n\t\t\t\tjustify-content: center;\n\t\t\t\tgap: 3.25rem;\n\t\t\t\twidth: min(100%, 76rem);\n\t\t\t\tmargin: 0 auto;\n\t\t\t\tpadding: 2.75rem clamp(1.25rem, 4vw, 4rem) 5rem;\n\t\t\t}\n\t\t\t.help-article-card {\n\t\t\t\tmin-width: 0;\n\t\t\t}\n\t\t\t.help-article-kicker {\n\t\t\t\tdisplay: flex;\n\t\t\t\talign-items: center;\n\t\t\t\tgap: 0.45rem;\n\t\t\t\tmargin-bottom: 0.8rem;\n\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\tfont-size: 0.7rem;\n\t\t\t\tfont-weight: 700;\n\t\t\t\tletter-spacing: 0.08em;\n\t\t\t\ttext-transform: uppercase;\n\t\t\t}\n\t\t\t.help-article {\n\t\t\t\tcolor: #344054;\n\t\t\t\tfont-size: 0.965rem;\n\t\t\t\tline-height: 1.78;\n\t\t\t\toverflow-wrap: anywhere;\n\t\t\t}\n\t\t\t.help-article > :first-child {\n\t\t\t\tmargin-top: 0;\n\t\t\t}\n\t\t\t.help-article h1 {\n\t\t\t\tmax-width: 46rem;\n\t\t\t\tmargin: 0 0 1.1rem;\n\t\t\t\tcolor: #101828;\n\t\t\t\tfont-size: clamp(2rem, 3vw, 2.4rem);\n\t\t\t\tfont-weight: 680;\n\t\t\t\tline-height: 1.12;\n\t\t\t\tletter-spacing: -0.04em;\n\t\t\t\ttext-wrap: balance;\n\t\t\t}\n\t\t\t.help-article h1 + p {\n\t\t\t\tmargin: 0 0 2.5rem;\n\t\t\t\tcolor: #667085;\n\t\t\t\tfont-size: 1.1rem;\n\t\t\t\tline-height: 1.7;\n\t\t\t}\n\t\t\t.help-article h2 {\n\t\t\t\tmargin: 3rem 0 0.9rem;\n\t\t\t\tpadding-top: 0.5rem;\n\t\t\t\tcolor: #101828;\n\t\t\t\tfont-size: 1.45rem;\n\t\t\t\tfont-weight: 660;\n\t\t\t\tline-height: 1.35;\n\t\t\t\tletter-spacing: -0.025em;\n\t\t\t\tscroll-margin-top: 1.5rem;\n\t\t\t}\n\t\t\t.help-article h3 {\n\t\t\t\tmargin: 2rem 0 0.65rem;\n\t\t\t\tcolor: #1d2939;\n\t\t\t\tfont-size: 1.08rem;\n\t\t\t\tfont-weight: 650;\n\t\t\t\tline-height: 1.45;\n\t\t\t\tscroll-margin-top: 1.5rem;\n\t\t\t}\n\t\t\t.help-article h4,\n\t\t\t.help-article h5,\n\t\t\t.help-article h6 {\n\t\t\t\tmargin: 1.5rem 0 0.5rem;\n\t\t\t\tcolor: #344054;\n\t\t\t\tfont-weight: 650;\n\t\t\t}\n\t\t\t.help-article p,\n\t\t\t.help-article ul,\n\t\t\t.help-article ol,\n\t\t\t.help-article blockquote,\n\t\t\t.help-article pre,\n\t\t\t.help-article table,\n\t\t\t.help-article figure {\n\t\t\t\tmargin: 1rem 0;\n\t\t\t}\n\t\t\t.help-article ul {\n\t\t\t\tpadding-left: 1.4rem;\n\t\t\t\tlist-style: none;\n\t\t\t}\n\t\t\t.help-article ul > li {\n\t\t\t\tposition: relative;\n\t\t\t}\n\t\t\t.help-article ul > li::before {\n\t\t\t\tposition: absolute;\n\t\t\t\ttop: 0.78em;\n\t\t\t\tleft: -1.15rem;\n\t\t\t\twidth: 0.32rem;\n\t\t\t\theight: 0.32rem;\n\t\t\t\tborder-radius: 999px;\n\t\t\t\tbackground: color-mix(in srgb, oklch(var(--primary-500)) 74%, #98a2b3);\n\t\t\t\tcontent: \"\";\n\t\t\t}\n\t\t\t.help-article ol {\n\t\t\t\tdisplay: grid;\n\t\t\t\tgap: 0.75rem;\n\t\t\t\tpadding: 0;\n\t\t\t\tlist-style: none;\n\t\t\t\tcounter-reset: help-step;\n\t\t\t}\n\t\t\t.help-article ol > li {\n\t\t\t\tposition: relative;\n\t\t\t\tmin-height: 2.5rem;\n\t\t\t\tpadding: 0.55rem 0 0.55rem 3rem;\n\t\t\t\tcounter-increment: help-step;\n\t\t\t}\n\t\t\t.help-article ol > li::before {\n\t\t\t\tposition: absolute;\n\t\t\t\ttop: 0.45rem;\n\t\t\t\tleft: 0;\n\t\t\t\tz-index: 1;\n\t\t\t\tdisplay: grid;\n\t\t\t\twidth: 2rem;\n\t\t\t\theight: 2rem;\n\t\t\t\tplace-items: center;\n\t\t\t\tborder: 1px solid color-mix(in srgb, oklch(var(--primary-500)) 24%, #d0d5dd);\n\t\t\t\tborder-radius: 0.62rem;\n\t\t\t\tbackground: color-mix(in srgb, oklch(var(--primary-500)) 7%, white);\n\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\tcontent: counter(help-step);\n\t\t\t\tfont-size: 0.72rem;\n\t\t\t\tfont-weight: 750;\n\t\t\t\tbox-shadow: 0 1px 2px rgb(16 24 40 / 0.04);\n\t\t\t}\n\t\t\t.help-article ol > li:not(:last-child)::after {\n\t\t\t\tposition: absolute;\n\t\t\t\ttop: 2.45rem;\n\t\t\t\tbottom: -0.95rem;\n\t\t\t\tleft: 0.98rem;\n\t\t\t\twidth: 1px;\n\t\t\t\tbackground: #e4e7ec;\n\t\t\t\tcontent: \"\";\n\t\t\t}\n\t\t\t.help-article li + li {\n\t\t\t\tmargin-top: 0.38rem;\n\t\t\t}\n\t\t\t.help-article li > ul,\n\t\t\t.help-article li > ol {\n\t\t\t\tmargin-top: 0.65rem;\n\t\t\t}\n\t\t\t.help-article li > ol > li {\n\t\t\t\tpadding-left: 2.65rem;\n\t\t\t}\n\t\t\t.help-article a {\n\t\t\t\tcolor: #175cd3;\n\t\t\t\tfont-weight: 520;\n\t\t\t\ttext-decoration: underline;\n\t\t\t\ttext-decoration-color: color-mix(in srgb, #175cd3 32%, transparent);\n\t\t\t\ttext-decoration-thickness: 1px;\n\t\t\t\ttext-underline-offset: 0.18em;\n\t\t\t\ttransition: color 140ms ease, text-decoration-color 140ms ease;\n\t\t\t}\n\t\t\t.help-article a:hover {\n\t\t\t\tcolor: #004eeb;\n\t\t\t\ttext-decoration-color: currentColor;\n\t\t\t}\n\t\t\t.help-article a:focus-visible {\n\t\t\t\tborder-radius: 0.15rem;\n\t\t\t\toutline: 2px solid #84adff;\n\t\t\t\toutline-offset: 2px;\n\t\t\t}\n\t\t\t.help-article code {\n\t\t\t\tborder: 1px solid #e4e7ec;\n\t\t\t\tborder-radius: 0.35rem;\n\t\t\t\tbackground: #f8fafc;\n\t\t\t\tpadding: 0.12rem 0.35rem;\n\t\t\t\tcolor: #344054;\n\t\t\t\tfont-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;\n\t\t\t\tfont-size: 0.84em;\n\t\t\t\tfont-variant-ligatures: none;\n\t\t\t}\n\t\t\t.help-article pre {\n\t\t\t\tposition: relative;\n\t\t\t\toverflow-x: auto;\n\t\t\t\tborder: 1px solid #e4e7ec;\n\t\t\t\tborder-radius: 0.85rem;\n\t\t\t\tbackground: #101828;\n\t\t\t\tpadding: 1.2rem;\n\t\t\t\tcolor: #f2f4f7;\n\t\t\t\tbox-shadow: 0 8px 24px rgb(16 24 40 / 0.08);\n\t\t\t}\n\t\t\t.help-article pre code {\n\t\t\t\tborder: 0;\n\t\t\t\tbackground: transparent;\n\t\t\t\tpadding: 0;\n\t\t\t\tcolor: inherit;\n\t\t\t\tfont-size: 0.82rem;\n\t\t\t}\n\t\t\t.help-code-copy {\n\t\t\t\tposition: absolute;\n\t\t\t\ttop: 0.65rem;\n\t\t\t\tright: 0.65rem;\n\t\t\t\tborder: 1px solid rgb(255 255 255 / 0.14);\n\t\t\t\tborder-radius: 0.4rem;\n\t\t\t\tbackground: rgb(255 255 255 / 0.08);\n\t\t\t\tpadding: 0.3rem 0.5rem;\n\t\t\t\tcolor: #d0d5dd;\n\t\t\t\tfont-size: 0.65rem;\n\t\t\t\topacity: 0;\n\t\t\t\ttransition: opacity 140ms ease, background 140ms ease;\n\t\t\t}\n\t\t\t.help-article pre:hover .help-code-copy,\n\t\t\t.help-code-copy:focus-visible {\n\t\t\t\topacity: 1;\n\t\t\t}\n\t\t\t.help-code-copy:hover {\n\t\t\t\tbackground: rgb(255 255 255 / 0.14);\n\t\t\t}\n\t\t\t.help-article .help-mermaid {\n\t\t\t\tposition: relative;\n\t\t\t\tmargin: 1.75rem 0;\n\t\t\t\toverflow-x: auto;\n\t\t\t\tborder: 1px solid #e4e7ec;\n\t\t\t\tborder-radius: 1rem;\n\t\t\t\tbackground:\n\t\t\t\t\tlinear-gradient(#f8fafc 1px, transparent 1px),\n\t\t\t\t\tlinear-gradient(90deg, #f8fafc 1px, transparent 1px),\n\t\t\t\t\twhite;\n\t\t\t\tbackground-size: 1.25rem 1.25rem;\n\t\t\t\tpadding: clamp(1rem, 3vw, 2rem);\n\t\t\t\tbox-shadow: 0 8px 30px rgb(16 24 40 / 0.055);\n\t\t\t}\n\t\t\t.help-article .help-mermaid::before {\n\t\t\t\tposition: absolute;\n\t\t\t\ttop: 0;\n\t\t\t\tleft: 1.2rem;\n\t\t\t\twidth: 3.5rem;\n\t\t\t\theight: 2px;\n\t\t\t\tborder-radius: 0 0 999px 999px;\n\t\t\t\tbackground: oklch(var(--primary-500));\n\t\t\t\tcontent: \"\";\n\t\t\t}\n\t\t\t.help-article .help-mermaid svg {\n\t\t\t\tdisplay: block;\n\t\t\t\theight: auto;\n\t\t\t\tmax-width: 100%;\n\t\t\t\tmargin: 0 auto;\n\t\t\t}\n\t\t\t.help-article .help-mermaid-wide svg {\n\t\t\t\twidth: auto;\n\t\t\t\tmin-width: 68rem;\n\t\t\t\tmax-width: none !important;\n\t\t\t}\n\t\t\t.help-article blockquote {\n\t\t\t\tposition: relative;\n\t\t\t\tborder: 1px solid #dbe7ff;\n\t\t\t\tborder-radius: 0.8rem;\n\t\t\t\tbackground: #f5f8ff;\n\t\t\t\tpadding: 1rem 1.15rem 1rem 1.25rem;\n\t\t\t\tcolor: #344054;\n\t\t\t}\n\t\t\t.help-article blockquote::before {\n\t\t\t\tposition: absolute;\n\t\t\t\ttop: 0.85rem;\n\t\t\t\tbottom: 0.85rem;\n\t\t\t\tleft: 0;\n\t\t\t\twidth: 3px;\n\t\t\t\tborder-radius: 0 999px 999px 0;\n\t\t\t\tbackground: #528bff;\n\t\t\t\tcontent: \"\";\n\t\t\t}\n\t\t\t.help-article blockquote > :first-child { margin-top: 0; }\n\t\t\t.help-article blockquote > :last-child { margin-bottom: 0; }\n\t\t\t.help-article .help-callout::after {\n\t\t\t\tdisplay: block;\n\t\t\t\tmargin-bottom: 0.25rem;\n\t\t\t\tcolor: #175cd3;\n\t\t\t\tcontent: attr(data-callout-label);\n\t\t\t\tfont-size: 0.72rem;\n\t\t\t\tfont-weight: 750;\n\t\t\t\tletter-spacing: 0.04em;\n\t\t\t\ttext-transform: uppercase;\n\t\t\t\torder: -1;\n\t\t\t}\n\t\t\t.help-article .help-callout {\n\t\t\t\tdisplay: flex;\n\t\t\t\tflex-direction: column;\n\t\t\t}\n\t\t\t.help-article .help-callout-tip {\n\t\t\t\tborder-color: #abefc6;\n\t\t\t\tbackground: #f6fef9;\n\t\t\t}\n\t\t\t.help-article .help-callout-tip::before { background: #17b26a; }\n\t\t\t.help-article .help-callout-tip::after { color: #067647; }\n\t\t\t.help-article .help-callout-warning,\n\t\t\t.help-article .help-callout-caution {\n\t\t\t\tborder-color: #fedf89;\n\t\t\t\tbackground: #fffaeb;\n\t\t\t}\n\t\t\t.help-article .help-callout-warning::before,\n\t\t\t.help-article .help-callout-caution::before { background: #f79009; }\n\t\t\t.help-article .help-callout-warning::after,\n\t\t\t.help-article .help-callout-caution::after { color: #b54708; }\n\t\t\t.help-figure {\n\t\t\t\toverflow: hidden;\n\t\t\t\tborder: 1px solid #e4e7ec;\n\t\t\t\tborder-radius: 1rem;\n\t\t\t\tbackground: white;\n\t\t\t\tbox-shadow: 0 10px 32px rgb(16 24 40 / 0.07);\n\t\t\t}\n\t\t\t.help-figure img {\n\t\t\t\tdisplay: block;\n\t\t\t\twidth: 100%;\n\t\t\t\theight: auto;\n\t\t\t\tbackground: #f8fafc;\n\t\t\t}\n\t\t\t.help-figure figcaption {\n\t\t\t\tborder-top: 1px solid #eaecf0;\n\t\t\t\tpadding: 0.7rem 1rem;\n\t\t\t\tcolor: #667085;\n\t\t\t\tfont-size: 0.72rem;\n\t\t\t\ttext-align: center;\n\t\t\t}\n\t\t\t.help-article table {\n\t\t\t\tdisplay: block;\n\t\t\t\twidth: 100%;\n\t\t\t\toverflow-x: auto;\n\t\t\t\tborder: 1px solid #e4e7ec;\n\t\t\t\tborder-radius: 0.8rem;\n\t\t\t\tborder-collapse: separate;\n\t\t\t\tborder-spacing: 0;\n\t\t\t\tbackground: white;\n\t\t\t\tbox-shadow: 0 2px 8px rgb(16 24 40 / 0.035);\n\t\t\t}\n\t\t\t.help-article th,\n\t\t\t.help-article td {\n\t\t\t\tmin-width: 9rem;\n\t\t\t\tborder-bottom: 1px solid #eaecf0;\n\t\t\t\tpadding: 0.75rem 0.9rem;\n\t\t\t\ttext-align: left;\n\t\t\t\tvertical-align: top;\n\t\t\t}\n\t\t\t.help-article th {\n\t\t\t\tbackground: #f8fafc;\n\t\t\t\tcolor: #344054;\n\t\t\t\tfont-size: 0.72rem;\n\t\t\t\tfont-weight: 700;\n\t\t\t\tletter-spacing: 0.025em;\n\t\t\t}\n\t\t\t.help-article tr:last-child td {\n\t\t\t\tborder-bottom: 0;\n\t\t\t}\n\t\t\t.help-article hr {\n\t\t\t\tmargin: 3rem 0;\n\t\t\t\tborder: 0;\n\t\t\t\tborder-top: 1px solid #e4e7ec;\n\t\t\t}\n\t\t\t.help-toc {\n\t\t\t\tdisplay: none;\n\t\t\t}\n\t\t\t.help-toc[hidden] {\n\t\t\t\tdisplay: none !important;\n\t\t\t}\n\t\t\t.help-toc-inner {\n\t\t\t\tposition: sticky;\n\t\t\t\ttop: 2rem;\n\t\t\t}\n\t\t\t.help-toc-heading {\n\t\t\t\tdisplay: flex;\n\t\t\t\talign-items: center;\n\t\t\t\tgap: 0.45rem;\n\t\t\t\tmargin-bottom: 0.8rem;\n\t\t\t\tcolor: #344054;\n\t\t\t\tfont-size: 0.72rem;\n\t\t\t\tfont-weight: 700;\n\t\t\t}\n\t\t\t.help-toc-nav {\n\t\t\t\tdisplay: grid;\n\t\t\t\tgap: 0.15rem;\n\t\t\t\tborder-left: 1px solid #e4e7ec;\n\t\t\t}\n\t\t\t.help-toc-link {\n\t\t\t\tdisplay: block;\n\t\t\t\tmargin-left: -1px;\n\t\t\t\tborder-left: 1px solid transparent;\n\t\t\t\tpadding: 0.35rem 0 0.35rem 0.85rem;\n\t\t\t\tcolor: #667085;\n\t\t\t\tfont-size: 0.72rem;\n\t\t\t\tline-height: 1.4;\n\t\t\t\ttransition: border-color 140ms ease, color 140ms ease;\n\t\t\t}\n\t\t\t.help-toc-link:hover {\n\t\t\t\tborder-left-color: #84adff;\n\t\t\t\tcolor: #175cd3;\n\t\t\t}\n\t\t\t.help-toc-link-nested {\n\t\t\t\tpadding-left: 1.35rem;\n\t\t\t\tcolor: #98a2b3;\n\t\t\t}\n\t\t\t@media (min-width: 1380px) {\n\t\t\t\t.help-reading-layout {\n\t\t\t\t\tgrid-template-columns: minmax(0, 48rem) 12rem;\n\t\t\t\t\tjustify-content: center;\n\t\t\t\t}\n\t\t\t\t.help-toc {\n\t\t\t\t\tdisplay: block;\n\t\t\t\t}\n\t\t\t}\n\t\t\t@media (max-width: 700px) {\n\t\t\t\t.help-reading-layout {\n\t\t\t\t\tpadding: 2rem 1.1rem 4rem;\n\t\t\t\t}\n\t\t\t\t.help-article h1 {\n\t\t\t\t\tfont-size: 2rem;\n\t\t\t\t}\n\t\t\t\t.help-article {\n\t\t\t\t\tfont-size: 0.925rem;\n\t\t\t\t}\n\t\t\t\t.help-article ol > li {\n\t\t\t\t\tpadding-left: 2.7rem;\n\t\t\t\t}\n\t\t\t}\n\t\t\t@media (prefers-reduced-motion: reduce) {\n\t\t\t\t.help-article a,\n\t\t\t\t.help-code-copy {\n\t\t\t\t\ttransition: none;\n\t\t\t\t}\n\t\t\t}\n\t\t</style>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -59,7 +64,28 @@ func Doc(props DocProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<article class=\"max-w-4xl p-6 md:p-8\"><div class=\"help-article\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<div class=\"help-reading-layout\"><article class=\"help-article-card\"><div class=\"help-article-kicker\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.FileText(icons.Props{Size: "14", Variant: icons.DuoTone}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "<span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var3 string
+		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Article"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/doc.templ`, Line: 449, Col: 43}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "</span></div><div class=\"help-article\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -67,7 +93,41 @@ func Doc(props DocProps) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 3, "</div></article>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 5, "</div></article><aside class=\"help-toc\" aria-label=\"")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var4 string
+		templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.OnThisPage"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/doc.templ`, Line: 455, Col: 73}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 6, "\"><div class=\"help-toc-inner\"><div class=\"help-toc-heading\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = icons.ListBullets(icons.Props{Size: "14"}).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 7, "<span>")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		var templ_7745c5c3_Var5 string
+		templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.OnThisPage"))
+		if templ_7745c5c3_Err != nil {
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/doc.templ`, Line: 459, Col: 47}
+		}
+		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 8, "</span></div><nav class=\"help-toc-nav\" data-help-toc></nav></div></aside></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
