@@ -4,9 +4,12 @@ import (
 	icons "github.com/iota-uz/icons/phosphor"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/assets"
 	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 )
+
+var mermaidJS = "/assets/" + assets.HashFS.HashName("js/lib/mermaid-11.12.2.min.js")
 
 type IndexProps struct {
 	BasePath        string
@@ -81,6 +84,41 @@ templ Index(props IndexProps) {
 				</main>
 			</div>
 		</div>
+		<script src={ mermaidJS }></script>
+		<script>
+			mermaid.initialize({
+				startOnLoad: false,
+				securityLevel: "strict",
+				theme: "neutral",
+				fontFamily: "inherit",
+			});
+
+			async function renderHelpMermaidDiagrams(root = document) {
+				const blocks = root.querySelectorAll("pre > code.language-mermaid");
+				for (const block of blocks) {
+					const container = document.createElement("div");
+					container.className = "help-mermaid";
+					container.textContent = block.textContent;
+					block.parentElement.replaceWith(container);
+					try {
+						await mermaid.run({ nodes: [container] });
+					} catch (error) {
+						console.error("Unable to render Help Center diagram", error);
+						const fallback = document.createElement("pre");
+						const code = document.createElement("code");
+						code.className = "language-mermaid";
+						code.textContent = container.textContent;
+						fallback.appendChild(code);
+						container.replaceWith(fallback);
+					}
+				}
+			}
+
+			renderHelpMermaidDiagrams();
+			document.body.addEventListener("htmx:afterSwap", (event) => {
+				renderHelpMermaidDiagrams(event.detail.target);
+			});
+		</script>
 	}
 }
 

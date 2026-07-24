@@ -72,6 +72,20 @@ templ Doc(props DocProps) {
 				background: transparent;
 				padding: 0;
 			}
+			.help-article .help-mermaid {
+				margin: 1.25rem 0;
+				overflow-x: auto;
+				border: 1px solid oklch(var(--clr-border-subtle));
+				border-radius: 0.75rem;
+				background: white;
+				padding: 1.25rem;
+			}
+			.help-article .help-mermaid svg {
+				display: block;
+				height: auto;
+				max-width: 100%;
+				margin: 0 auto;
+			}
 			.help-article blockquote {
 				border-left: 3px solid oklch(var(--primary-500));
 				color: oklch(var(--clr-text-200));
