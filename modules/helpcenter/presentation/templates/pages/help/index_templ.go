@@ -107,7 +107,7 @@ func Index(props IndexProps) templ.Component {
 					}()
 				}
 				ctx = templ.InitializeContext(ctx)
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t\t\t.help-shell {\n\t\t\t\t\t--help-sidebar-width: 17.5rem;\n\t\t\t\t\t--help-canvas: #f7f8fa;\n\t\t\t\t\t--help-paper: #ffffff;\n\t\t\t\t\t--help-ink: #171a21;\n\t\t\t\t\t--help-muted: #667085;\n\t\t\t\t\t--help-border: #e7e9ee;\n\t\t\t\t\theight: 100%;\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\tflex-direction: column;\n\t\t\t\t\toverflow: hidden;\n\t\t\t\t\tbackground: var(--help-canvas);\n\t\t\t\t\tcolor: var(--help-ink);\n\t\t\t\t}\n\t\t\t\t.help-topbar {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tz-index: 30;\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\tgrid-template-columns: var(--help-sidebar-width) minmax(18rem, 34rem) minmax(2.5rem, 1fr);\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tgap: 1.5rem;\n\t\t\t\t\tmin-height: 4.75rem;\n\t\t\t\t\tpadding: 0.75rem 1.25rem;\n\t\t\t\t\tborder-bottom: 1px solid var(--help-border);\n\t\t\t\t\tbackground: color-mix(in srgb, var(--help-paper) 94%, transparent);\n\t\t\t\t\tbackdrop-filter: blur(12px);\n\t\t\t\t}\n\t\t\t\t.help-brand {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tgap: 0.75rem;\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t}\n\t\t\t\t.help-brand-mark {\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\twidth: 2.25rem;\n\t\t\t\t\theight: 2.25rem;\n\t\t\t\t\tflex: 0 0 auto;\n\t\t\t\t\tplace-items: center;\n\t\t\t\t\tborder: 1px solid color-mix(in srgb, oklch(var(--primary-500)) 22%, var(--help-border));\n\t\t\t\t\tborder-radius: 0.7rem;\n\t\t\t\t\tbackground: color-mix(in srgb, oklch(var(--primary-500)) 8%, white);\n\t\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\t\tbox-shadow: 0 1px 2px rgb(16 24 40 / 0.04);\n\t\t\t\t}\n\t\t\t\t.help-brand-copy {\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t}\n\t\t\t\t.help-brand-title {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tgap: 0.4rem;\n\t\t\t\t\tfont-size: 0.95rem;\n\t\t\t\t\tfont-weight: 650;\n\t\t\t\t\tletter-spacing: -0.01em;\n\t\t\t\t\twhite-space: nowrap;\n\t\t\t\t}\n\t\t\t\t.help-brand-subtitle {\n\t\t\t\t\tmargin-top: 0.1rem;\n\t\t\t\t\toverflow: hidden;\n\t\t\t\t\tcolor: var(--help-muted);\n\t\t\t\t\tfont-size: 0.72rem;\n\t\t\t\t\ttext-overflow: ellipsis;\n\t\t\t\t\twhite-space: nowrap;\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle,\n\t\t\t\t.help-sidebar-close {\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\twidth: 2.25rem;\n\t\t\t\t\theight: 2.25rem;\n\t\t\t\t\tflex: 0 0 auto;\n\t\t\t\t\tplace-items: center;\n\t\t\t\t\tborder: 1px solid var(--help-border);\n\t\t\t\t\tborder-radius: 0.65rem;\n\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\tcolor: #475467;\n\t\t\t\t\tbox-shadow: 0 1px 2px rgb(16 24 40 / 0.04);\n\t\t\t\t\ttransition: border-color 160ms ease, color 160ms ease, transform 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle:hover,\n\t\t\t\t.help-sidebar-close:hover {\n\t\t\t\t\tborder-color: color-mix(in srgb, oklch(var(--primary-500)) 36%, var(--help-border));\n\t\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle:active,\n\t\t\t\t.help-sidebar-close:active {\n\t\t\t\t\ttransform: scale(0.96);\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle:focus-visible,\n\t\t\t\t.help-sidebar-close:focus-visible {\n\t\t\t\t\toutline: 2px solid color-mix(in srgb, oklch(var(--primary-500)) 36%, transparent);\n\t\t\t\t\toutline-offset: 2px;\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle .help-icon-expand,\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-sidebar-toggle .help-icon-collapse {\n\t\t\t\t\tdisplay: none;\n\t\t\t\t}\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-sidebar-toggle .help-icon-expand {\n\t\t\t\t\tdisplay: block;\n\t\t\t\t}\n\t\t\t\t.help-search {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\twidth: 100%;\n\t\t\t\t}\n\t\t\t\t.help-search-input {\n\t\t\t\t\twidth: 100%;\n\t\t\t\t\theight: 2.65rem;\n\t\t\t\t\tborder: 1px solid #dfe3e9;\n\t\t\t\t\tborder-radius: 0.75rem;\n\t\t\t\t\tbackground: #fbfcfd;\n\t\t\t\t\tpadding: 0 3rem 0 2.6rem;\n\t\t\t\t\tcolor: var(--help-ink);\n\t\t\t\t\tfont-size: 0.84rem;\n\t\t\t\t\tbox-shadow: 0 1px 2px rgb(16 24 40 / 0.03), inset 0 0 0 1px rgb(255 255 255 / 0.8);\n\t\t\t\t\ttransition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-search-input:focus {\n\t\t\t\t\tborder-color: color-mix(in srgb, oklch(var(--primary-500)) 54%, #dfe3e9);\n\t\t\t\t\toutline: none;\n\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\tbox-shadow: 0 0 0 3px color-mix(in srgb, oklch(var(--primary-500)) 11%, transparent);\n\t\t\t\t}\n\t\t\t\t.help-search-input:disabled {\n\t\t\t\t\tcursor: not-allowed;\n\t\t\t\t\tbackground: #f2f4f7;\n\t\t\t\t\tcolor: #98a2b3;\n\t\t\t\t}\n\t\t\t\t.help-search-kbd {\n\t\t\t\t\tposition: absolute;\n\t\t\t\t\tright: 0.7rem;\n\t\t\t\t\ttop: 50%;\n\t\t\t\t\ttransform: translateY(-50%);\n\t\t\t\t\tborder: 1px solid var(--help-border);\n\t\t\t\t\tborder-radius: 0.35rem;\n\t\t\t\t\tbackground: white;\n\t\t\t\t\tpadding: 0.1rem 0.35rem;\n\t\t\t\t\tcolor: #98a2b3;\n\t\t\t\t\tfont-size: 0.65rem;\n\t\t\t\t\tline-height: 1.15rem;\n\t\t\t\t\tbox-shadow: 0 1px 1px rgb(16 24 40 / 0.04);\n\t\t\t\t}\n\t\t\t\t.help-workspace {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\tgrid-template-columns: var(--help-sidebar-width) minmax(0, 1fr);\n\t\t\t\t\tflex: 1;\n\t\t\t\t\tmin-height: 0;\n\t\t\t\t\ttransition: grid-template-columns 220ms cubic-bezier(0.4, 0, 0.2, 1);\n\t\t\t\t}\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-workspace {\n\t\t\t\t\tgrid-template-columns: 0 minmax(0, 1fr);\n\t\t\t\t}\n\t\t\t\t.help-library {\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t\toverflow: hidden;\n\t\t\t\t\tborder-right: 1px solid var(--help-border);\n\t\t\t\t\tbackground: color-mix(in srgb, var(--help-paper) 74%, var(--help-canvas));\n\t\t\t\t\ttransition: opacity 140ms ease, transform 220ms cubic-bezier(0.4, 0, 0.2, 1);\n\t\t\t\t}\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-library {\n\t\t\t\t\tpointer-events: none;\n\t\t\t\t\topacity: 0;\n\t\t\t\t\ttransform: translateX(-1rem);\n\t\t\t\t}\n\t\t\t\t.help-library-scroll {\n\t\t\t\t\twidth: var(--help-sidebar-width);\n\t\t\t\t\theight: 100%;\n\t\t\t\t\toverflow-y: auto;\n\t\t\t\t\tpadding: 1.25rem 0.9rem 3rem;\n\t\t\t\t\tscrollbar-gutter: stable;\n\t\t\t\t}\n\t\t\t\t.help-library-heading {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tjustify-content: space-between;\n\t\t\t\t\tmargin-bottom: 0.8rem;\n\t\t\t\t\tpadding: 0 0.65rem;\n\t\t\t\t\tcolor: #98a2b3;\n\t\t\t\t\tfont-size: 0.65rem;\n\t\t\t\t\tfont-weight: 700;\n\t\t\t\t\tletter-spacing: 0.09em;\n\t\t\t\t\ttext-transform: uppercase;\n\t\t\t\t}\n\t\t\t\t.help-category {\n\t\t\t\t\tmargin-top: 0.35rem;\n\t\t\t\t}\n\t\t\t\t.help-category > summary {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tjustify-content: space-between;\n\t\t\t\t\tgap: 0.5rem;\n\t\t\t\t\tcursor: pointer;\n\t\t\t\t\tlist-style: none;\n\t\t\t\t\tborder-radius: 0.5rem;\n\t\t\t\t\tpadding: 0.55rem 0.65rem 0.38rem;\n\t\t\t\t\tcolor: #667085;\n\t\t\t\t\tfont-size: 0.65rem;\n\t\t\t\t\tfont-weight: 700;\n\t\t\t\t\tletter-spacing: 0.055em;\n\t\t\t\t\ttext-transform: uppercase;\n\t\t\t\t\ttransition: color 160ms ease, background 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-category > summary::-webkit-details-marker { display: none; }\n\t\t\t\t.help-category > summary:hover {\n\t\t\t\t\tbackground: rgb(255 255 255 / 0.7);\n\t\t\t\t\tcolor: #344054;\n\t\t\t\t}\n\t\t\t\t.help-category-caret {\n\t\t\t\t\ttransition: transform 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-category:not([open]) .help-category-caret {\n\t\t\t\t\ttransform: rotate(-90deg);\n\t\t\t\t}\n\t\t\t\t.help-category-children {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tmargin: 0.25rem 0 0.7rem;\n\t\t\t\t\tpadding-left: 0.4rem;\n\t\t\t\t}\n\t\t\t\t.help-nav-link {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tdisplay: block;\n\t\t\t\t\tmargin: 0.1rem 0;\n\t\t\t\t\tborder-radius: 0.58rem;\n\t\t\t\t\tpadding: 0.55rem 0.7rem 0.55rem 0.9rem;\n\t\t\t\t\tcolor: #475467;\n\t\t\t\t\tfont-size: 0.8rem;\n\t\t\t\t\tline-height: 1.35;\n\t\t\t\t\ttransition: background 150ms ease, color 150ms ease, transform 150ms ease;\n\t\t\t\t}\n\t\t\t\t.help-nav-link:hover {\n\t\t\t\t\tbackground: rgb(255 255 255 / 0.86);\n\t\t\t\t\tcolor: #101828;\n\t\t\t\t\ttransform: translateX(1px);\n\t\t\t\t}\n\t\t\t\t.help-nav-link[aria-current=\"page\"] {\n\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\tcolor: #101828;\n\t\t\t\t\tfont-weight: 600;\n\t\t\t\t\tbox-shadow: 0 1px 3px rgb(16 24 40 / 0.06), 0 0 0 1px rgb(16 24 40 / 0.035);\n\t\t\t\t}\n\t\t\t\t.help-nav-link[aria-current=\"page\"]::before {\n\t\t\t\t\tposition: absolute;\n\t\t\t\t\ttop: 0.55rem;\n\t\t\t\t\tbottom: 0.55rem;\n\t\t\t\t\tleft: 0;\n\t\t\t\t\twidth: 2px;\n\t\t\t\t\tborder-radius: 999px;\n\t\t\t\t\tbackground: oklch(var(--primary-500));\n\t\t\t\t\tcontent: \"\";\n\t\t\t\t}\n\t\t\t\t.help-main {\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t\toverflow-y: auto;\n\t\t\t\t\tbackground:\n\t\t\t\t\t\tlinear-gradient(180deg, rgb(255 255 255 / 0.72), transparent 12rem),\n\t\t\t\t\t\tvar(--help-canvas);\n\t\t\t\t}\n\t\t\t\t.help-mobile-overlay,\n\t\t\t\t.help-sidebar-close {\n\t\t\t\t\tdisplay: none;\n\t\t\t\t}\n\t\t\t\t@media (max-width: 1023px) {\n\t\t\t\t\t.help-topbar {\n\t\t\t\t\t\tgrid-template-columns: minmax(0, 1fr) minmax(15rem, 26rem);\n\t\t\t\t\t}\n\t\t\t\t\t.help-topbar-spacer { display: none; }\n\t\t\t\t\t.help-workspace,\n\t\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-workspace {\n\t\t\t\t\t\tdisplay: block;\n\t\t\t\t\t}\n\t\t\t\t\t.help-library {\n\t\t\t\t\t\tposition: absolute;\n\t\t\t\t\t\tinset: 0 auto 0 0;\n\t\t\t\t\t\tz-index: 50;\n\t\t\t\t\t\twidth: min(20rem, calc(100vw - 3rem));\n\t\t\t\t\t\tborder-right: 1px solid var(--help-border);\n\t\t\t\t\t\tbox-shadow: 1.5rem 0 3rem rgb(16 24 40 / 0.14);\n\t\t\t\t\t\topacity: 0;\n\t\t\t\t\t\tpointer-events: none;\n\t\t\t\t\t\ttransform: translateX(-102%);\n\t\t\t\t\t}\n\t\t\t\t\t.help-shell[data-mobile-sidebar-open=\"true\"] .help-library {\n\t\t\t\t\t\topacity: 1;\n\t\t\t\t\t\tpointer-events: auto;\n\t\t\t\t\t\ttransform: translateX(0);\n\t\t\t\t\t}\n\t\t\t\t\t.help-library-scroll {\n\t\t\t\t\t\twidth: 100%;\n\t\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\t}\n\t\t\t\t\t.help-sidebar-close {\n\t\t\t\t\t\tdisplay: grid;\n\t\t\t\t\t}\n\t\t\t\t\t.help-library-heading {\n\t\t\t\t\t\tcolor: #667085;\n\t\t\t\t\t}\n\t\t\t\t\t.help-mobile-overlay {\n\t\t\t\t\t\tposition: absolute;\n\t\t\t\t\t\tinset: 0;\n\t\t\t\t\t\tz-index: 40;\n\t\t\t\t\t\tborder: 0;\n\t\t\t\t\t\tbackground: rgb(16 24 40 / 0.28);\n\t\t\t\t\t\tbackdrop-filter: blur(2px);\n\t\t\t\t\t}\n\t\t\t\t\t.help-shell[data-mobile-sidebar-open=\"true\"] .help-mobile-overlay {\n\t\t\t\t\t\tdisplay: block;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t@media (min-width: 1024px) and (max-width: 1279px) {\n\t\t\t\t\t.help-brand-subtitle { display: none; }\n\t\t\t\t}\n\t\t\t\t@media (max-width: 700px) {\n\t\t\t\t\t.help-topbar {\n\t\t\t\t\t\tgrid-template-columns: minmax(0, 1fr);\n\t\t\t\t\t\tgap: 0.65rem;\n\t\t\t\t\t\tpadding: 0.75rem;\n\t\t\t\t\t}\n\t\t\t\t\t.help-brand-subtitle { display: none; }\n\t\t\t\t\t.help-search-kbd { display: none; }\n\t\t\t\t\t.help-search-input { padding-right: 1rem; }\n\t\t\t\t}\n\t\t\t\t@media (prefers-reduced-motion: reduce) {\n\t\t\t\t\t.help-workspace,\n\t\t\t\t\t.help-library,\n\t\t\t\t\t.help-nav-link,\n\t\t\t\t\t.help-sidebar-toggle,\n\t\t\t\t\t.help-sidebar-close {\n\t\t\t\t\t\ttransition: none;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</style>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<style>\n\t\t\t\t.help-shell {\n\t\t\t\t\t--help-sidebar-width: 17.5rem;\n\t\t\t\t\t--help-canvas: #f7f8fa;\n\t\t\t\t\t--help-paper: #ffffff;\n\t\t\t\t\t--help-ink: #171a21;\n\t\t\t\t\t--help-muted: #667085;\n\t\t\t\t\t--help-border: #e7e9ee;\n\t\t\t\t\theight: 100%;\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\tflex-direction: column;\n\t\t\t\t\toverflow: hidden;\n\t\t\t\t\tbackground: var(--help-canvas);\n\t\t\t\t\tcolor: var(--help-ink);\n\t\t\t\t}\n\t\t\t\t.help-topbar {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tz-index: 30;\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\tgrid-template-columns: var(--help-sidebar-width) minmax(18rem, 34rem) minmax(2.5rem, 1fr);\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tgap: 1.5rem;\n\t\t\t\t\tmin-height: 4.75rem;\n\t\t\t\t\tpadding: 0.75rem 1.25rem;\n\t\t\t\t\tborder-bottom: 1px solid var(--help-border);\n\t\t\t\t\tbackground: color-mix(in srgb, var(--help-paper) 94%, transparent);\n\t\t\t\t\tbackdrop-filter: blur(12px);\n\t\t\t\t}\n\t\t\t\t.help-brand {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tgap: 0.75rem;\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t}\n\t\t\t\t.help-brand-mark {\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\twidth: 2.25rem;\n\t\t\t\t\theight: 2.25rem;\n\t\t\t\t\tflex: 0 0 auto;\n\t\t\t\t\tplace-items: center;\n\t\t\t\t\tborder: 1px solid color-mix(in srgb, oklch(var(--primary-500)) 22%, var(--help-border));\n\t\t\t\t\tborder-radius: 0.7rem;\n\t\t\t\t\tbackground: color-mix(in srgb, oklch(var(--primary-500)) 8%, white);\n\t\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\t\tbox-shadow: 0 1px 2px rgb(16 24 40 / 0.04);\n\t\t\t\t}\n\t\t\t\t.help-brand-copy {\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t}\n\t\t\t\t.help-brand-title {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tgap: 0.4rem;\n\t\t\t\t\tfont-size: 0.95rem;\n\t\t\t\t\tfont-weight: 650;\n\t\t\t\t\tletter-spacing: -0.01em;\n\t\t\t\t\twhite-space: nowrap;\n\t\t\t\t}\n\t\t\t\t.help-brand-subtitle {\n\t\t\t\t\tmargin-top: 0.1rem;\n\t\t\t\t\toverflow: hidden;\n\t\t\t\t\tcolor: var(--help-muted);\n\t\t\t\t\tfont-size: 0.72rem;\n\t\t\t\t\ttext-overflow: ellipsis;\n\t\t\t\t\twhite-space: nowrap;\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle,\n\t\t\t\t.help-sidebar-close {\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\twidth: 2.25rem;\n\t\t\t\t\theight: 2.25rem;\n\t\t\t\t\tflex: 0 0 auto;\n\t\t\t\t\tplace-items: center;\n\t\t\t\t\tborder: 1px solid var(--help-border);\n\t\t\t\t\tborder-radius: 0.65rem;\n\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\tcolor: #475467;\n\t\t\t\t\tbox-shadow: 0 1px 2px rgb(16 24 40 / 0.04);\n\t\t\t\t\ttransition: border-color 160ms ease, color 160ms ease, transform 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle:hover,\n\t\t\t\t.help-sidebar-close:hover {\n\t\t\t\t\tborder-color: color-mix(in srgb, oklch(var(--primary-500)) 36%, var(--help-border));\n\t\t\t\t\tcolor: oklch(var(--primary-500));\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle:active,\n\t\t\t\t.help-sidebar-close:active {\n\t\t\t\t\ttransform: scale(0.96);\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle:focus-visible,\n\t\t\t\t.help-sidebar-close:focus-visible {\n\t\t\t\t\toutline: 2px solid color-mix(in srgb, oklch(var(--primary-500)) 36%, transparent);\n\t\t\t\t\toutline-offset: 2px;\n\t\t\t\t}\n\t\t\t\t.help-sidebar-toggle .help-icon-expand,\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-sidebar-toggle .help-icon-collapse {\n\t\t\t\t\tdisplay: none;\n\t\t\t\t}\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-sidebar-toggle .help-icon-expand {\n\t\t\t\t\tdisplay: block;\n\t\t\t\t}\n\t\t\t\t.help-search {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\twidth: 100%;\n\t\t\t\t}\n\t\t\t\t.help-search-input {\n\t\t\t\t\twidth: 100%;\n\t\t\t\t\theight: 2.65rem;\n\t\t\t\t\tborder: 1px solid #dfe3e9;\n\t\t\t\t\tborder-radius: 0.75rem;\n\t\t\t\t\tbackground: #fbfcfd;\n\t\t\t\t\tpadding: 0 3rem 0 2.6rem;\n\t\t\t\t\tcolor: var(--help-ink);\n\t\t\t\t\tfont-size: 0.84rem;\n\t\t\t\t\tbox-shadow: 0 1px 2px rgb(16 24 40 / 0.03), inset 0 0 0 1px rgb(255 255 255 / 0.8);\n\t\t\t\t\ttransition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-search-input:focus {\n\t\t\t\t\tborder-color: color-mix(in srgb, oklch(var(--primary-500)) 54%, #dfe3e9);\n\t\t\t\t\toutline: none;\n\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\tbox-shadow: 0 0 0 3px color-mix(in srgb, oklch(var(--primary-500)) 11%, transparent);\n\t\t\t\t}\n\t\t\t\t.help-search-input:disabled {\n\t\t\t\t\tcursor: not-allowed;\n\t\t\t\t\tbackground: #f2f4f7;\n\t\t\t\t\tcolor: #98a2b3;\n\t\t\t\t}\n\t\t\t\t.help-search-kbd {\n\t\t\t\t\tposition: absolute;\n\t\t\t\t\tright: 0.7rem;\n\t\t\t\t\ttop: 50%;\n\t\t\t\t\ttransform: translateY(-50%);\n\t\t\t\t\tborder: 1px solid var(--help-border);\n\t\t\t\t\tborder-radius: 0.35rem;\n\t\t\t\t\tbackground: white;\n\t\t\t\t\tpadding: 0.1rem 0.35rem;\n\t\t\t\t\tcolor: #98a2b3;\n\t\t\t\t\tfont-size: 0.65rem;\n\t\t\t\t\tline-height: 1.15rem;\n\t\t\t\t\tbox-shadow: 0 1px 1px rgb(16 24 40 / 0.04);\n\t\t\t\t}\n\t\t\t\t.help-workspace {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tdisplay: grid;\n\t\t\t\t\tgrid-template-columns: var(--help-sidebar-width) minmax(0, 1fr);\n\t\t\t\t\tflex: 1;\n\t\t\t\t\tmin-height: 0;\n\t\t\t\t\ttransition: grid-template-columns 220ms cubic-bezier(0.4, 0, 0.2, 1);\n\t\t\t\t}\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-workspace {\n\t\t\t\t\tgrid-template-columns: 0 minmax(0, 1fr);\n\t\t\t\t}\n\t\t\t\t.help-library {\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t\toverflow: hidden;\n\t\t\t\t\tborder-right: 1px solid var(--help-border);\n\t\t\t\t\tbackground: color-mix(in srgb, var(--help-paper) 74%, var(--help-canvas));\n\t\t\t\t\ttransition: opacity 140ms ease, transform 220ms cubic-bezier(0.4, 0, 0.2, 1);\n\t\t\t\t}\n\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-library {\n\t\t\t\t\tpointer-events: none;\n\t\t\t\t\topacity: 0;\n\t\t\t\t\ttransform: translateX(-1rem);\n\t\t\t\t}\n\t\t\t\t.help-library-scroll {\n\t\t\t\t\twidth: var(--help-sidebar-width);\n\t\t\t\t\theight: 100%;\n\t\t\t\t\toverflow-y: auto;\n\t\t\t\t\tpadding: 1.25rem 0.9rem 3rem;\n\t\t\t\t\tscrollbar-gutter: stable;\n\t\t\t\t}\n\t\t\t\t.help-library-heading {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tjustify-content: space-between;\n\t\t\t\t\tmargin-bottom: 0.8rem;\n\t\t\t\t\tpadding: 0 0.65rem;\n\t\t\t\t\tcolor: #98a2b3;\n\t\t\t\t\tfont-size: 0.65rem;\n\t\t\t\t\tfont-weight: 700;\n\t\t\t\t\tletter-spacing: 0.09em;\n\t\t\t\t\ttext-transform: uppercase;\n\t\t\t\t}\n\t\t\t\t.help-category {\n\t\t\t\t\tmargin-top: 0.35rem;\n\t\t\t\t}\n\t\t\t\t.help-category > summary {\n\t\t\t\t\tdisplay: flex;\n\t\t\t\t\talign-items: center;\n\t\t\t\t\tjustify-content: space-between;\n\t\t\t\t\tgap: 0.5rem;\n\t\t\t\t\tcursor: pointer;\n\t\t\t\t\tlist-style: none;\n\t\t\t\t\tborder-radius: 0.5rem;\n\t\t\t\t\tpadding: 0.55rem 0.65rem 0.38rem;\n\t\t\t\t\tcolor: #667085;\n\t\t\t\t\tfont-size: 0.65rem;\n\t\t\t\t\tfont-weight: 700;\n\t\t\t\t\tletter-spacing: 0.055em;\n\t\t\t\t\ttext-transform: uppercase;\n\t\t\t\t\ttransition: color 160ms ease, background 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-category > summary::-webkit-details-marker { display: none; }\n\t\t\t\t.help-category > summary:hover {\n\t\t\t\t\tbackground: rgb(255 255 255 / 0.7);\n\t\t\t\t\tcolor: #344054;\n\t\t\t\t}\n\t\t\t\t.help-category-caret {\n\t\t\t\t\ttransition: transform 160ms ease;\n\t\t\t\t}\n\t\t\t\t.help-category:not([open]) .help-category-caret {\n\t\t\t\t\ttransform: rotate(-90deg);\n\t\t\t\t}\n\t\t\t\t.help-category-children {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tmargin: 0.25rem 0 0.7rem;\n\t\t\t\t\tpadding-left: 0.4rem;\n\t\t\t\t}\n\t\t\t\t.help-nav-link {\n\t\t\t\t\tposition: relative;\n\t\t\t\t\tdisplay: block;\n\t\t\t\t\tmargin: 0.1rem 0;\n\t\t\t\t\tborder-radius: 0.58rem;\n\t\t\t\t\tpadding: 0.55rem 0.7rem 0.55rem 0.9rem;\n\t\t\t\t\tcolor: #475467;\n\t\t\t\t\tfont-size: 0.8rem;\n\t\t\t\t\tline-height: 1.35;\n\t\t\t\t\ttransition: background 150ms ease, color 150ms ease, transform 150ms ease;\n\t\t\t\t}\n\t\t\t\t.help-nav-link:hover {\n\t\t\t\t\tbackground: rgb(255 255 255 / 0.86);\n\t\t\t\t\tcolor: #101828;\n\t\t\t\t\ttransform: translateX(1px);\n\t\t\t\t}\n\t\t\t\t.help-nav-link[aria-current=\"page\"] {\n\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\tcolor: #101828;\n\t\t\t\t\tfont-weight: 600;\n\t\t\t\t\tbox-shadow: 0 1px 3px rgb(16 24 40 / 0.06), 0 0 0 1px rgb(16 24 40 / 0.035);\n\t\t\t\t}\n\t\t\t\t.help-nav-link[aria-current=\"page\"]::before {\n\t\t\t\t\tposition: absolute;\n\t\t\t\t\ttop: 0.55rem;\n\t\t\t\t\tbottom: 0.55rem;\n\t\t\t\t\tleft: 0;\n\t\t\t\t\twidth: 2px;\n\t\t\t\t\tborder-radius: 999px;\n\t\t\t\t\tbackground: oklch(var(--primary-500));\n\t\t\t\t\tcontent: \"\";\n\t\t\t\t}\n\t\t\t\t.help-main {\n\t\t\t\t\tmin-width: 0;\n\t\t\t\t\toverflow-y: auto;\n\t\t\t\t\tbackground:\n\t\t\t\t\t\tlinear-gradient(180deg, rgb(255 255 255 / 0.72), transparent 12rem),\n\t\t\t\t\t\tvar(--help-canvas);\n\t\t\t\t}\n\t\t\t\t.help-mobile-overlay,\n\t\t\t\t.help-sidebar-close {\n\t\t\t\t\tdisplay: none;\n\t\t\t\t}\n\t\t\t\t@media (max-width: 1023px) {\n\t\t\t\t\t.help-topbar {\n\t\t\t\t\t\tgrid-template-columns: minmax(0, 1fr) minmax(15rem, 26rem);\n\t\t\t\t\t}\n\t\t\t\t\t.help-topbar-spacer { display: none; }\n\t\t\t\t\t.help-workspace,\n\t\t\t\t\t.help-shell[data-sidebar-collapsed=\"true\"] .help-workspace {\n\t\t\t\t\t\tdisplay: block;\n\t\t\t\t\t}\n\t\t\t\t\t.help-main {\n\t\t\t\t\t\tposition: absolute;\n\t\t\t\t\t\tinset: 0;\n\t\t\t\t\t}\n\t\t\t\t\t.help-library {\n\t\t\t\t\t\tposition: absolute;\n\t\t\t\t\t\tinset: 0 auto 0 0;\n\t\t\t\t\t\tz-index: 50;\n\t\t\t\t\t\twidth: min(20rem, calc(100vw - 3rem));\n\t\t\t\t\t\tborder-right: 1px solid var(--help-border);\n\t\t\t\t\t\tbox-shadow: 1.5rem 0 3rem rgb(16 24 40 / 0.14);\n\t\t\t\t\t\topacity: 0;\n\t\t\t\t\t\tpointer-events: none;\n\t\t\t\t\t\ttransform: translateX(-102%);\n\t\t\t\t\t}\n\t\t\t\t\t.help-shell[data-mobile-sidebar-open=\"true\"] .help-library {\n\t\t\t\t\t\topacity: 1;\n\t\t\t\t\t\tpointer-events: auto;\n\t\t\t\t\t\ttransform: translateX(0);\n\t\t\t\t\t}\n\t\t\t\t\t.help-library-scroll {\n\t\t\t\t\t\twidth: 100%;\n\t\t\t\t\t\tbackground: var(--help-paper);\n\t\t\t\t\t}\n\t\t\t\t\t.help-sidebar-close {\n\t\t\t\t\t\tdisplay: grid;\n\t\t\t\t\t}\n\t\t\t\t\t.help-library-heading {\n\t\t\t\t\t\tcolor: #667085;\n\t\t\t\t\t}\n\t\t\t\t\t.help-mobile-overlay {\n\t\t\t\t\t\tposition: absolute;\n\t\t\t\t\t\tinset: 0;\n\t\t\t\t\t\tz-index: 40;\n\t\t\t\t\t\tborder: 0;\n\t\t\t\t\t\tbackground: rgb(16 24 40 / 0.28);\n\t\t\t\t\t\tbackdrop-filter: blur(2px);\n\t\t\t\t\t}\n\t\t\t\t\t.help-shell[data-mobile-sidebar-open=\"true\"] .help-mobile-overlay {\n\t\t\t\t\t\tdisplay: block;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t@media (min-width: 1024px) and (max-width: 1279px) {\n\t\t\t\t\t.help-brand-subtitle { display: none; }\n\t\t\t\t}\n\t\t\t\t@media (max-width: 700px) {\n\t\t\t\t\t.help-topbar {\n\t\t\t\t\t\tgrid-template-columns: minmax(0, 1fr);\n\t\t\t\t\t\tgap: 0.65rem;\n\t\t\t\t\t\tpadding: 0.75rem;\n\t\t\t\t\t}\n\t\t\t\t\t.help-brand-subtitle { display: none; }\n\t\t\t\t\t.help-search-kbd { display: none; }\n\t\t\t\t\t.help-search-input { padding-right: 1rem; }\n\t\t\t\t}\n\t\t\t\t@media (prefers-reduced-motion: reduce) {\n\t\t\t\t\t.help-workspace,\n\t\t\t\t\t.help-library,\n\t\t\t\t\t.help-nav-link,\n\t\t\t\t\t.help-sidebar-toggle,\n\t\t\t\t\t.help-sidebar-close {\n\t\t\t\t\t\ttransition: none;\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t</style>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -124,7 +124,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CopyCode"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 400, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 404, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -137,7 +137,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Copied"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 401, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 405, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -150,7 +150,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.ExpandNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 402, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 406, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -163,7 +163,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CollapseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 403, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 407, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -176,7 +176,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Note"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 404, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 408, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -189,7 +189,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Tip"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 405, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 409, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -202,7 +202,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Important"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 406, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 410, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -215,7 +215,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Warning"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 407, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 411, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -228,7 +228,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Caution"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 408, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 412, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -241,7 +241,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CollapseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 418, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 422, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -254,7 +254,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CollapseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 419, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 423, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -291,7 +291,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Meta.Title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 433, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 437, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -312,7 +312,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Meta.Subtitle"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 436, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 440, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -325,7 +325,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.BasePath + "/search")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 439, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 443, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -346,7 +346,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Search.Placeholder"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 446, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 450, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -369,7 +369,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(props.BasePath + "/search")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 448, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 452, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -400,7 +400,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Categories"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 466, Col: 97}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 470, Col: 97}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -413,7 +413,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Categories"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 469, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 473, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -426,7 +426,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CloseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 470, Col: 132}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 474, Col: 132}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -457,7 +457,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CloseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 481, Col: 131}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 485, Col: 131}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -480,7 +480,7 @@ func Index(props IndexProps) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Empty"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 487, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 491, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -498,7 +498,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(mermaidJS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 493, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 497, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
@@ -558,7 +558,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(basePath + "/doc/" + node.Path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 700, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 704, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -571,7 +571,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(activePageValue(active, node.Path))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 704, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 708, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -584,7 +584,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(node.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 706, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 710, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -612,7 +612,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var31 string
 			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(categoryDisplayTitle(node.Title))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 711, Col: 44}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 715, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
