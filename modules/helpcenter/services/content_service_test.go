@@ -80,6 +80,53 @@ func TestContentService_GetStripsFrontMatter(t *testing.T) {
 	require.Equal(t, "# Intro\n\nStart here.", string(doc.Content))
 }
 
+func TestContentService_GetHidesConfiguredSections(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/intro.md", `# Intro
+
+Start here.
+
+## Keywords
+
+internal, search, terms
+
+## Related docs
+
+- A useful guide
+
+## UI routes
+
+/internal/route`)
+	service := NewContentService(ContentConfig{
+		Root:           root,
+		Locales:        []string{"en"},
+		DefaultLocale:  "en",
+		HiddenSections: []string{"Keywords", "UI routes"},
+	})
+
+	doc, err := service.Get(context.Background(), "intro.md")
+
+	require.NoError(t, err)
+	require.Equal(t, "# Intro\n\nStart here.\n\n## Related docs\n\n- A useful guide", string(doc.Content))
+}
+
+func TestContentService_GetDoesNotHideHeadingsInsideCodeFences(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/intro.md", "# Intro\n\n```markdown\n## Keywords\nvisible example\n```\n")
+	service := NewContentService(ContentConfig{
+		Root:           root,
+		Locales:        []string{"en"},
+		DefaultLocale:  "en",
+		HiddenSections: []string{"Keywords"},
+	})
+
+	doc, err := service.Get(context.Background(), "intro.md")
+
+	require.NoError(t, err)
+	require.Contains(t, string(doc.Content), "## Keywords")
+	require.Contains(t, string(doc.Content), "visible example")
+}
+
 func TestContentService_GetRejectsTraversal(t *testing.T) {
 	service := NewContentService(ContentConfig{Root: t.TempDir(), Locales: []string{"en"}, DefaultLocale: "en"})
 

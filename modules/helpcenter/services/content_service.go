@@ -48,6 +48,9 @@ type ContentConfig struct {
 	// HideNav omits the Help Center sidebar nav node when the component is
 	// registered only to serve inline help-article links (see component.go).
 	HideNav bool
+	// HiddenSections contains exact Markdown heading titles that remain in the
+	// source content but are omitted from documents returned for display.
+	HiddenSections []string
 }
 
 func (c ContentConfig) Normalized() ContentConfig {
@@ -161,6 +164,7 @@ func (s *ContentService) readDoc(localeDir, cleanPath string) (*Document, error)
 		return nil, err
 	}
 	title, content := parseMarkdownDocument(content, cleanPath)
+	content = stripMarkdownSections(content, s.config.HiddenSections)
 	return &Document{
 		Title:   title,
 		Path:    cleanPath,
@@ -305,6 +309,64 @@ func splitFrontMatter(content []byte) (string, []byte) {
 		return strings.TrimSpace(metadata.Title), body
 	}
 	return "", content
+}
+
+func stripMarkdownSections(content []byte, hiddenSections []string) []byte {
+	if len(hiddenSections) == 0 {
+		return content
+	}
+	hidden := make(map[string]struct{}, len(hiddenSections))
+	for _, section := range hiddenSections {
+		if section = strings.TrimSpace(section); section != "" {
+			hidden[section] = struct{}{}
+		}
+	}
+	if len(hidden) == 0 {
+		return content
+	}
+
+	lines := bytes.SplitAfter(content, []byte("\n"))
+	filtered := make([][]byte, 0, len(lines))
+	hiddenLevel := 0
+	inFence := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(string(line))
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+		}
+		if !inFence {
+			if level, title, ok := markdownHeading(trimmed); ok {
+				if hiddenLevel != 0 && level <= hiddenLevel {
+					hiddenLevel = 0
+				}
+				if hiddenLevel == 0 {
+					if _, ok := hidden[title]; ok {
+						hiddenLevel = level
+						continue
+					}
+				}
+			}
+		}
+		if hiddenLevel == 0 {
+			filtered = append(filtered, line)
+		}
+	}
+	return bytes.TrimRight(bytes.Join(filtered, nil), "\r\n")
+}
+
+func markdownHeading(line string) (int, string, bool) {
+	level := 0
+	for level < len(line) && level < 6 && line[level] == '#' {
+		level++
+	}
+	if level == 0 || level == len(line) || line[level] != ' ' {
+		return 0, "", false
+	}
+	title := strings.TrimSpace(strings.TrimRight(line[level+1:], "# "))
+	if title == "" {
+		return 0, "", false
+	}
+	return level, title, true
 }
 
 type categoryTreeNode struct {
