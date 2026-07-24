@@ -120,13 +120,11 @@ templ Doc(props DocProps) {
 				gap: 0.75rem;
 				padding: 0;
 				list-style: none;
-				counter-reset: help-step;
 			}
 			.help-article ol > li {
 				position: relative;
 				min-height: 2.5rem;
 				padding: 0.55rem 0 0.55rem 3rem;
-				counter-increment: help-step;
 			}
 			.help-article ol > li::before {
 				position: absolute;
@@ -141,7 +139,7 @@ templ Doc(props DocProps) {
 				border-radius: 0.62rem;
 				background: color-mix(in srgb, oklch(var(--primary-500)) 7%, white);
 				color: oklch(var(--primary-500));
-				content: counter(help-step);
+				content: counter(list-item);
 				font-size: 0.72rem;
 				font-weight: 750;
 				box-shadow: 0 1px 2px rgb(16 24 40 / 0.04);
