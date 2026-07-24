@@ -17,6 +17,7 @@ var helpShellStyles = templ.NewOnceHandle()
 type IndexProps struct {
 	BasePath        string
 	Tree            []viewmodels.CategoryNode
+	Tasks           []viewmodels.TaskGroup
 	Doc             *viewmodels.DocView
 	SearchAvailable bool
 	Locale          string
@@ -429,9 +430,14 @@ templ Index(props IndexProps) {
 							@icons.CaretDoubleRight(icons.Props{Size: "17"})
 						</span>
 					</button>
-					<div class="help-brand-mark">
+					<a
+						class="help-brand-mark"
+						href={ templ.URL(props.BasePath) }
+						aria-label={ pageCtx.T("HelpCenter.Tasks.Title") }
+						title={ pageCtx.T("HelpCenter.Tasks.Title") }
+					>
 						@icons.FileText(icons.Props{Size: "18", Variant: icons.DuoTone})
-					</div>
+					</a>
 					<div class="help-brand-copy">
 						<div class="help-brand-title">
 							<span>{ pageCtx.T("HelpCenter.Meta.Title") }</span>
@@ -487,6 +493,8 @@ templ Index(props IndexProps) {
 					<div id="help-doc-pane">
 						if props.Doc != nil {
 							@Doc(DocProps{Doc: props.Doc})
+						} else if len(props.Tasks) > 0 {
+							@Home(HomeProps{BasePath: props.BasePath, Groups: props.Tasks})
 						} else {
 							<div class="p-6 text-sm text-gray-500">{ pageCtx.T("HelpCenter.Empty") }</div>
 						}
@@ -550,7 +558,7 @@ templ Index(props IndexProps) {
 
 				mermaid.initialize({
 					startOnLoad: false,
-					securityLevel: "strict",
+					securityLevel: "antiscript",
 					theme: "base",
 					fontFamily: "inherit",
 					themeVariables: {
@@ -581,6 +589,27 @@ templ Index(props IndexProps) {
 							const viewBox = diagram?.viewBox?.baseVal;
 							if (viewBox && viewBox.width / viewBox.height > 2.5) {
 								container.classList.add("help-mermaid-wide");
+							}
+							for (const link of container.querySelectorAll("a")) {
+								const rawHref = link.getAttribute("href") || link.getAttribute("xlink:href") || "";
+								let url;
+								try {
+									url = new URL(rawHref, window.location.href);
+								} catch (_) {
+									link.removeAttribute("href");
+									link.removeAttribute("xlink:href");
+									continue;
+								}
+								if (url.origin !== window.location.origin || !["http:", "https:"].includes(url.protocol)) {
+									link.removeAttribute("href");
+									link.removeAttribute("xlink:href");
+									continue;
+								}
+								const safeHref = url.pathname + url.search + url.hash;
+								link.setAttribute("href", safeHref);
+								link.setAttribute("xlink:href", safeHref);
+								link.classList.add("help-mermaid-link");
+								link.setAttribute("aria-label", link.textContent?.trim() || safeHref);
 							}
 						} catch (error) {
 							console.error("Unable to render Help Center diagram", error);

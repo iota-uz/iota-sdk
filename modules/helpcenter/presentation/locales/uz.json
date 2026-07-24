@@ -15,6 +15,19 @@
     "Categories": "Hujjatlar",
     "Article": "Mahsulot qo‘llanmasi",
     "OnThisPage": "Ushbu sahifada",
+    "Tasks": {
+      "Kicker": "Vazifalar navigatori",
+      "Title": "Nima qilmoqchisiz?",
+      "Subtitle": "Kerakli ekranni ochish yoki aniq yo‘riqnomani o‘qish uchun biznes vazifani tanlang.",
+      "PathLabel": "Vazifani bajarish yo‘li",
+      "Path": {
+        "Task": "Vazifani tanlang",
+        "Screen": "Kerakli ekranni oching",
+        "Result": "Natijani tekshiring"
+      },
+      "OpenScreen": "Ekranni ochish",
+      "ReadGuide": "Yo‘riqnomani o‘qish"
+    },
     "ExpandNavigation": "Navigatsiyani ochish",
     "CollapseNavigation": "Navigatsiyani yig‘ish",
     "CloseNavigation": "Navigatsiyani yopish",

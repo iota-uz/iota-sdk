@@ -15,6 +15,19 @@
     "Categories": "Documentação",
     "Article": "Guia do produto",
     "OnThisPage": "Nesta página",
+    "Tasks": {
+      "Kicker": "Navegador de tarefas",
+      "Title": "O que você quer fazer?",
+      "Subtitle": "Escolha uma tarefa para abrir a tela certa ou ler as instruções de trabalho.",
+      "PathLabel": "Caminho da tarefa",
+      "Path": {
+        "Task": "Escolha uma tarefa",
+        "Screen": "Abra a tela certa",
+        "Result": "Confira o resultado"
+      },
+      "OpenScreen": "Abrir tela",
+      "ReadGuide": "Ler guia"
+    },
     "ExpandNavigation": "Expandir navegação",
     "CollapseNavigation": "Recolher navegação",
     "CloseNavigation": "Fechar navegação",

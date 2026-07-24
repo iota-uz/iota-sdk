@@ -76,19 +76,25 @@ func (c *HelpCenterController) index(w http.ResponseWriter, r *http.Request) {
 		c.renderError(w, r, err)
 		return
 	}
-	doc, err := c.contentService.DefaultDocument(r.Context())
-	if err != nil && !errors.Is(err, services.ErrDocumentNotFound) {
-		c.renderError(w, r, err)
-		return
-	}
+	tasks := c.contentService.Tasks(r.Context())
 
 	props := help.IndexProps{
 		BasePath:        c.basePath,
 		Tree:            tree,
+		Tasks:           tasks,
 		SearchAvailable: c.searchAvailable(),
 		Locale:          c.contentService.Locale(r.Context()),
 	}
-	if doc != nil {
+	if len(tasks) == 0 {
+		doc, err := c.contentService.DefaultDocument(r.Context())
+		if err != nil && !errors.Is(err, services.ErrDocumentNotFound) {
+			c.renderError(w, r, err)
+			return
+		}
+		if doc == nil {
+			templ.Handler(help.Index(props)).ServeHTTP(w, r)
+			return
+		}
 		docView, err := c.toDocView(doc)
 		if err != nil {
 			c.renderError(w, r, err)

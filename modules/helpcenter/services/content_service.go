@@ -74,6 +74,10 @@ type ContentConfig struct {
 	// HiddenPaths contains document paths or directory prefixes that are not
 	// part of the reader-facing Help Center.
 	HiddenPaths []string
+	// HomeTasks contains localized, reader-oriented task launchers for the Help
+	// Center landing page. When the resolved locale has tasks, /help opens the
+	// task launcher instead of selecting the first article.
+	HomeTasks map[string][]viewmodels.TaskGroup
 }
 
 func (c ContentConfig) Normalized() ContentConfig {
@@ -189,6 +193,14 @@ func (s *ContentService) Locale(ctx context.Context) string {
 		return s.config.DefaultLocale
 	}
 	return locale
+}
+
+func (s *ContentService) Tasks(ctx context.Context) []viewmodels.TaskGroup {
+	locale := s.Locale(ctx)
+	if tasks := s.config.HomeTasks[locale]; len(tasks) > 0 {
+		return tasks
+	}
+	return s.config.HomeTasks[s.config.DefaultLocale]
 }
 
 func (s *ContentService) getFromLocale(locale, docPath string) (*Document, error) {

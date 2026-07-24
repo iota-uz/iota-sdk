@@ -258,6 +258,24 @@ templ Doc(props DocProps) {
 				max-width: 100%;
 				margin: 0 auto;
 			}
+			.help-article .help-mermaid .help-mermaid-link {
+				cursor: pointer;
+				outline: none;
+			}
+			.help-article .help-mermaid .help-mermaid-link .node rect,
+			.help-article .help-mermaid .help-mermaid-link .node polygon,
+			.help-article .help-mermaid .help-mermaid-link .node path {
+				transition: filter 140ms ease, stroke-width 140ms ease;
+			}
+			.help-article .help-mermaid .help-mermaid-link:hover .node rect,
+			.help-article .help-mermaid .help-mermaid-link:hover .node polygon,
+			.help-article .help-mermaid .help-mermaid-link:hover .node path,
+			.help-article .help-mermaid .help-mermaid-link:focus-visible .node rect,
+			.help-article .help-mermaid .help-mermaid-link:focus-visible .node polygon,
+			.help-article .help-mermaid .help-mermaid-link:focus-visible .node path {
+				filter: drop-shadow(0 4px 7px rgb(16 24 40 / 0.14));
+				stroke-width: 2px;
+			}
 			.help-article .help-mermaid-wide svg {
 				width: auto;
 				min-width: 68rem;

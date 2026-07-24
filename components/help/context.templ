@@ -1,0 +1,121 @@
+package help
+
+import icons "github.com/iota-uz/icons/phosphor"
+
+templ Context(props ContextProps) {
+	<div
+		x-data="{ open: false }"
+		class={ contextClass(props) }
+		{ contextAttrs(props)... }
+		@keydown.escape.window="open = false"
+	>
+		<button
+			type="button"
+			class="inline-flex size-8 shrink-0 items-center justify-center rounded-lg border border-default bg-surface-300 text-gray-700 shadow-sm transition-colors hover:border-brand hover:bg-surface-400 hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+			aria-haspopup="dialog"
+			x-bind:aria-expanded="String(open)"
+			aria-label={ contextLabel(props) }
+			x-tooltip.raw={ contextTooltip(props) }
+			@click="open = !open"
+		>
+			@icons.Question(icons.Props{Size: "17", Variant: icons.DuoTone, Class: "pointer-events-none"})
+			<span class="sr-only">{ contextLabel(props) }</span>
+		</button>
+		<div
+			x-cloak
+			x-show="open"
+			x-transition.opacity.duration.150ms
+			@click.outside="open = false"
+			role="dialog"
+			aria-modal="false"
+			class="absolute left-0 top-full z-[90] mt-2 w-[min(23rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-subtle bg-surface-300 text-left shadow-xl"
+		>
+			<div class="border-b border-subtle px-4 py-3.5">
+				<div class="flex items-start gap-3">
+					<div class="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg border border-brand bg-surface-400 text-brand-500">
+						@icons.Question(icons.Props{Size: "17", Variant: icons.DuoTone})
+					</div>
+					<div class="min-w-0">
+						<h2 class="text-sm font-semibold leading-5 text-gray-900">{ props.Title }</h2>
+						if props.Summary != "" {
+							<p class="mt-1 text-xs leading-5 text-gray-700">{ props.Summary }</p>
+						}
+					</div>
+				</div>
+			</div>
+			if len(props.Sections) > 0 {
+				<div class="grid gap-3 px-4 py-3.5">
+					for _, section := range props.Sections {
+						if len(section.Items) > 0 {
+							<section>
+								<h3 class="text-[11px] font-semibold uppercase tracking-[0.06em] text-gray-700">{ section.Title }</h3>
+								<ul class="mt-1.5 grid gap-1.5">
+									for _, item := range section.Items {
+										<li class="flex gap-2 text-xs leading-5 text-gray-700">
+											<span class="mt-[0.45rem] size-1.5 shrink-0 rounded-full bg-brand-500"></span>
+											<span>{ item }</span>
+										</li>
+									}
+								</ul>
+							</section>
+						}
+					}
+				</div>
+			}
+			<div class="flex flex-wrap items-center gap-2 border-t border-subtle bg-surface-400 px-4 py-3">
+				if props.ArticlePath != "" {
+					<a
+						href={ templ.URL(DocURL("", props.ArticlePath)) }
+						class="inline-flex min-h-8 items-center gap-1.5 rounded-lg bg-brand-500 px-3 text-xs font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+					>
+						<span>{ props.ArticleLabel }</span>
+						@icons.ArrowRight(icons.Props{Size: "14"})
+					</a>
+				}
+				if props.ScreenPath != "" {
+					<a
+						href={ templ.URL(props.ScreenPath) }
+						class="inline-flex min-h-8 items-center gap-1.5 rounded-lg border border-default bg-surface-300 px-3 text-xs font-semibold text-gray-700 transition-colors hover:border-brand hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2"
+					>
+						{ props.ScreenLabel }
+					</a>
+				}
+			</div>
+		</div>
+	</div>
+}
+
+templ Hint(props HintProps) {
+	<span x-data="{ open: false }" class={ "relative inline-flex align-middle", props.Class } @keydown.escape.window="open = false">
+		<button
+			type="button"
+			class="inline-flex size-5 items-center justify-center rounded-full text-gray-500 transition-colors hover:bg-surface-400 hover:text-brand-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+			aria-haspopup="dialog"
+			x-bind:aria-expanded="String(open)"
+			aria-label={ hintLabel(props) }
+			@click="open = !open"
+		>
+			@icons.Info(icons.Props{Size: "14", Variant: icons.DuoTone})
+		</button>
+		<span
+			x-cloak
+			x-show="open"
+			x-transition.opacity.duration.120ms
+			@click.outside="open = false"
+			role="dialog"
+			class="absolute left-0 top-full z-[90] mt-1.5 w-[min(19rem,calc(100vw-2rem))] rounded-lg border border-subtle bg-surface-300 p-3 text-left shadow-lg"
+		>
+			<strong class="block text-xs font-semibold text-gray-900">{ props.Title }</strong>
+			<span class="mt-1 block text-xs leading-5 text-gray-700">{ props.Description }</span>
+			if props.Next != "" {
+				<span class="mt-2 block border-l-2 border-brand pl-2 text-xs leading-5 text-gray-700">{ props.Next }</span>
+			}
+			if props.ArticlePath != "" {
+				<a href={ templ.URL(DocURL("", props.ArticlePath)) } class="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-brand-500 hover:text-brand-600">
+					{ props.ArticleLabel }
+					@icons.ArrowRight(icons.Props{Size: "13"})
+				</a>
+			}
+		</span>
+	</span>
+}

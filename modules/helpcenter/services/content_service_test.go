@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/iota-uz/iota-sdk/modules/helpcenter/presentation/viewmodels"
 	"github.com/iota-uz/iota-sdk/pkg/intl"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/text/language"
@@ -191,6 +192,32 @@ func TestContentService_GetRejectsTraversal(t *testing.T) {
 	_, err := service.Get(context.Background(), "../secret.md")
 
 	require.ErrorIs(t, err, ErrInvalidPath)
+}
+
+func TestContentService_TasksUsesLocaleAndDefaultFallback(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/intro.md", "# Intro")
+	writeDoc(t, root, "ru/intro.md", "# Введение")
+	service := NewContentService(ContentConfig{
+		Root:          root,
+		Locales:       []string{"en", "ru", "uz"},
+		DefaultLocale: "en",
+		HomeTasks: map[string][]viewmodels.TaskGroup{
+			"en": {
+				{Title: "Daily work", Tasks: []viewmodels.HelpTask{{Title: "Find a client"}}},
+			},
+			"ru": {
+				{Title: "Ежедневная работа", Tasks: []viewmodels.HelpTask{{Title: "Найти клиента"}}},
+			},
+		},
+	})
+
+	ruTasks := service.Tasks(intl.WithLocale(context.Background(), language.Russian))
+	require.Equal(t, "Ежедневная работа", ruTasks[0].Title)
+	require.Equal(t, "Найти клиента", ruTasks[0].Tasks[0].Title)
+
+	uzTasks := service.Tasks(intl.WithLocale(context.Background(), language.Uzbek))
+	require.Equal(t, "Daily work", uzTasks[0].Title)
 }
 
 func TestContentService_MediaUsesLocaleAndDefaultFallback(t *testing.T) {

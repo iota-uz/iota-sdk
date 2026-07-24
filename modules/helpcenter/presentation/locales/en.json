@@ -15,6 +15,19 @@
     "Categories": "Documentation",
     "Article": "Product guide",
     "OnThisPage": "On this page",
+    "Tasks": {
+      "Kicker": "Task navigator",
+      "Title": "What do you want to do?",
+      "Subtitle": "Choose a business task to open the right screen or read the exact working instructions.",
+      "PathLabel": "Task navigation path",
+      "Path": {
+        "Task": "Choose a task",
+        "Screen": "Open the right screen",
+        "Result": "Check the result"
+      },
+      "OpenScreen": "Open screen",
+      "ReadGuide": "Read guide"
+    },
     "ExpandNavigation": "Expand navigation",
     "CollapseNavigation": "Collapse navigation",
     "CloseNavigation": "Close navigation",
