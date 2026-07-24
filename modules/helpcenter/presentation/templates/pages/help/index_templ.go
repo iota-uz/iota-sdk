@@ -9,6 +9,8 @@ import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
 import (
+	"strings"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -33,6 +35,30 @@ func activePageValue(active *viewmodels.DocView, path string) string {
 		return "page"
 	}
 	return ""
+}
+
+func categoryContainsActive(node viewmodels.CategoryNode, active *viewmodels.DocView) bool {
+	if active == nil {
+		return false
+	}
+	if node.Path == active.Path {
+		return true
+	}
+	for _, child := range node.Children {
+		if categoryContainsActive(child, active) {
+			return true
+		}
+	}
+	return false
+}
+
+func categoryDisplayTitle(title string) string {
+	title = strings.TrimSpace(title)
+	prefix, remainder, found := strings.Cut(title, " ")
+	if found && len(prefix) == 2 && prefix[0] >= '0' && prefix[0] <= '9' && prefix[1] >= '0' && prefix[1] <= '9' {
+		return strings.TrimSpace(remainder)
+	}
+	return title
 }
 
 func Index(props IndexProps) templ.Component {
@@ -98,7 +124,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var4 string
 			templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CopyCode"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 374, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 400, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 			if templ_7745c5c3_Err != nil {
@@ -111,7 +137,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var5 string
 			templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Copied"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 375, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 401, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 			if templ_7745c5c3_Err != nil {
@@ -124,7 +150,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var6 string
 			templ_7745c5c3_Var6, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.ExpandNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 376, Col: 74}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 402, Col: 74}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var6))
 			if templ_7745c5c3_Err != nil {
@@ -137,7 +163,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CollapseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 377, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 403, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -150,7 +176,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var8 string
 			templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Note"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 378, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 404, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 			if templ_7745c5c3_Err != nil {
@@ -163,7 +189,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var9 string
 			templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Tip"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 379, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 405, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 			if templ_7745c5c3_Err != nil {
@@ -176,7 +202,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var10 string
 			templ_7745c5c3_Var10, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Important"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 380, Col: 68}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 406, Col: 68}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var10))
 			if templ_7745c5c3_Err != nil {
@@ -189,7 +215,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var11 string
 			templ_7745c5c3_Var11, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Warning"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 381, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 407, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var11))
 			if templ_7745c5c3_Err != nil {
@@ -202,7 +228,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var12 string
 			templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Callouts.Caution"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 382, Col: 64}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 408, Col: 64}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 			if templ_7745c5c3_Err != nil {
@@ -215,7 +241,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CollapseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 392, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 418, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -228,7 +254,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CollapseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 393, Col: 56}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 419, Col: 56}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -265,7 +291,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Meta.Title"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 407, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 433, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -286,7 +312,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Meta.Subtitle"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 410, Col: 78}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 436, Col: 78}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -299,7 +325,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(props.BasePath + "/search")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 413, Col: 65}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 439, Col: 65}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -320,7 +346,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Search.Placeholder"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 420, Col: 62}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 446, Col: 62}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -343,7 +369,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(props.BasePath + "/search")
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 422, Col: 41}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 448, Col: 41}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -374,7 +400,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var20 string
 			templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Categories"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 440, Col: 97}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 466, Col: 97}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 			if templ_7745c5c3_Err != nil {
@@ -387,7 +413,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Categories"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 443, Col: 49}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 469, Col: 49}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -400,7 +426,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CloseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 444, Col: 132}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 470, Col: 132}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -431,7 +457,7 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var23 string
 			templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.CloseNavigation"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 455, Col: 131}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 481, Col: 131}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 			if templ_7745c5c3_Err != nil {
@@ -454,7 +480,7 @@ func Index(props IndexProps) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(pageCtx.T("HelpCenter.Empty"))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 461, Col: 77}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 487, Col: 77}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -472,13 +498,13 @@ func Index(props IndexProps) templ.Component {
 			var templ_7745c5c3_Var25 string
 			templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(mermaidJS)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 467, Col: 25}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 493, Col: 25}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "\"></script> <script>\n\t\t\t(() => {\n\t\t\t\tconst shell = document.getElementById(\"help-center-shell\");\n\t\t\t\tif (!shell) return;\n\n\t\t\t\tconst storageKey = \"iota-help-sidebar-collapsed\";\n\t\t\t\tconst sidebarToggle = document.getElementById(\"help-sidebar-toggle\");\n\t\t\t\tconst sidebarClose = document.getElementById(\"help-sidebar-close\");\n\t\t\t\tconst mobileOverlay = document.getElementById(\"help-mobile-overlay\");\n\t\t\t\tconst mobileQuery = window.matchMedia(\"(max-width: 1023px)\");\n\n\t\t\t\tconst setSidebarCollapsed = (collapsed) => {\n\t\t\t\t\tshell.dataset.sidebarCollapsed = String(collapsed);\n\t\t\t\t\tsidebarToggle?.setAttribute(\"aria-expanded\", String(!collapsed));\n\t\t\t\t\tconst label = collapsed\n\t\t\t\t\t\t? shell.dataset.expandNavigationLabel\n\t\t\t\t\t\t: shell.dataset.collapseNavigationLabel;\n\t\t\t\t\tsidebarToggle?.setAttribute(\"aria-label\", label);\n\t\t\t\t\tsidebarToggle?.setAttribute(\"title\", label);\n\t\t\t\t\ttry {\n\t\t\t\t\t\tlocalStorage.setItem(storageKey, String(collapsed));\n\t\t\t\t\t} catch (_) {}\n\t\t\t\t};\n\n\t\t\t\tconst closeMobileSidebar = () => {\n\t\t\t\t\tshell.dataset.mobileSidebarOpen = \"false\";\n\t\t\t\t\tsidebarToggle?.setAttribute(\"aria-expanded\", \"false\");\n\t\t\t\t};\n\n\t\t\t\ttry {\n\t\t\t\t\tsetSidebarCollapsed(localStorage.getItem(storageKey) === \"true\");\n\t\t\t\t} catch (_) {}\n\n\t\t\t\tsidebarToggle?.addEventListener(\"click\", () => {\n\t\t\t\t\tif (mobileQuery.matches) {\n\t\t\t\t\t\tconst open = shell.dataset.mobileSidebarOpen !== \"true\";\n\t\t\t\t\t\tshell.dataset.mobileSidebarOpen = String(open);\n\t\t\t\t\t\tsidebarToggle.setAttribute(\"aria-expanded\", String(open));\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tsetSidebarCollapsed(shell.dataset.sidebarCollapsed !== \"true\");\n\t\t\t\t});\n\t\t\t\tsidebarClose?.addEventListener(\"click\", closeMobileSidebar);\n\t\t\t\tmobileOverlay?.addEventListener(\"click\", closeMobileSidebar);\n\n\t\t\t\tdocument.addEventListener(\"keydown\", (event) => {\n\t\t\t\t\tif ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === \"k\") {\n\t\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\t\tdocument.querySelector(\".help-search-input\")?.focus();\n\t\t\t\t\t}\n\t\t\t\t\tif (event.key === \"Escape\") closeMobileSidebar();\n\t\t\t\t});\n\n\t\t\t\tmermaid.initialize({\n\t\t\t\t\tstartOnLoad: false,\n\t\t\t\t\tsecurityLevel: \"strict\",\n\t\t\t\t\ttheme: \"base\",\n\t\t\t\t\tfontFamily: \"inherit\",\n\t\t\t\t\tthemeVariables: {\n\t\t\t\t\t\tprimaryColor: \"#eef4ff\",\n\t\t\t\t\t\tprimaryTextColor: \"#1d2939\",\n\t\t\t\t\t\tprimaryBorderColor: \"#84adff\",\n\t\t\t\t\t\tlineColor: \"#98a2b3\",\n\t\t\t\t\t\tsecondaryColor: \"#f2f4f7\",\n\t\t\t\t\t\ttertiaryColor: \"#ffffff\",\n\t\t\t\t\t\tclusterBkg: \"#f8fafc\",\n\t\t\t\t\t\tclusterBorder: \"#d0d5dd\",\n\t\t\t\t\t\tfontSize: \"14px\",\n\t\t\t\t\t},\n\t\t\t\t});\n\n\t\t\t\tasync function renderHelpMermaidDiagrams(root = document) {\n\t\t\t\t\tconst blocks = root.querySelectorAll(\"pre > code.language-mermaid\");\n\t\t\t\t\tfor (const block of blocks) {\n\t\t\t\t\t\tconst container = document.createElement(\"div\");\n\t\t\t\t\t\tcontainer.className = \"help-mermaid\";\n\t\t\t\t\t\tcontainer.setAttribute(\"role\", \"img\");\n\t\t\t\t\t\tcontainer.setAttribute(\"aria-label\", \"Process diagram\");\n\t\t\t\t\t\tcontainer.textContent = block.textContent;\n\t\t\t\t\t\tblock.parentElement.replaceWith(container);\n\t\t\t\t\t\ttry {\n\t\t\t\t\t\t\tawait mermaid.run({ nodes: [container] });\n\t\t\t\t\t\t\tconst diagram = container.querySelector(\"svg\");\n\t\t\t\t\t\t\tconst viewBox = diagram?.viewBox?.baseVal;\n\t\t\t\t\t\t\tif (viewBox && viewBox.width / viewBox.height > 2.5) {\n\t\t\t\t\t\t\t\tcontainer.classList.add(\"help-mermaid-wide\");\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t} catch (error) {\n\t\t\t\t\t\t\tconsole.error(\"Unable to render Help Center diagram\", error);\n\t\t\t\t\t\t\tconst fallback = document.createElement(\"pre\");\n\t\t\t\t\t\t\tconst code = document.createElement(\"code\");\n\t\t\t\t\t\t\tcode.className = \"language-mermaid\";\n\t\t\t\t\t\t\tcode.textContent = container.textContent;\n\t\t\t\t\t\t\tfallback.appendChild(code);\n\t\t\t\t\t\t\tcontainer.replaceWith(fallback);\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction buildTableOfContents(root = document) {\n\t\t\t\t\tconst article = root.querySelector(\".help-article\");\n\t\t\t\t\tconst toc = root.querySelector(\"[data-help-toc]\");\n\t\t\t\t\tif (!article || !toc) return;\n\t\t\t\t\ttoc.replaceChildren();\n\t\t\t\t\tconst headings = article.querySelectorAll(\"h2, h3\");\n\t\t\t\t\tfor (const heading of headings) {\n\t\t\t\t\t\tif (!heading.id) continue;\n\t\t\t\t\t\tconst link = document.createElement(\"a\");\n\t\t\t\t\t\tlink.href = `#${heading.id}`;\n\t\t\t\t\t\tlink.textContent = heading.textContent;\n\t\t\t\t\t\tlink.className = heading.tagName === \"H3\" ? \"help-toc-link help-toc-link-nested\" : \"help-toc-link\";\n\t\t\t\t\t\ttoc.appendChild(link);\n\t\t\t\t\t}\n\t\t\t\t\ttoc.closest(\".help-toc\")?.toggleAttribute(\"hidden\", headings.length === 0);\n\t\t\t\t}\n\n\t\t\t\tfunction enhanceCodeBlocks(root = document) {\n\t\t\t\t\tconst copyLabel = shell.dataset.copyLabel;\n\t\t\t\t\tconst copiedLabel = shell.dataset.copiedLabel;\n\t\t\t\t\tfor (const pre of root.querySelectorAll(\".help-article pre\")) {\n\t\t\t\t\t\tif (pre.dataset.enhanced === \"true\" || pre.querySelector(\".language-mermaid\")) continue;\n\t\t\t\t\t\tpre.dataset.enhanced = \"true\";\n\t\t\t\t\t\tconst button = document.createElement(\"button\");\n\t\t\t\t\t\tbutton.type = \"button\";\n\t\t\t\t\t\tbutton.className = \"help-code-copy\";\n\t\t\t\t\t\tbutton.textContent = copyLabel;\n\t\t\t\t\t\tbutton.addEventListener(\"click\", async () => {\n\t\t\t\t\t\t\tawait navigator.clipboard.writeText(pre.querySelector(\"code\")?.textContent || pre.textContent);\n\t\t\t\t\t\t\tbutton.textContent = copiedLabel;\n\t\t\t\t\t\t\tsetTimeout(() => { button.textContent = copyLabel; }, 1600);\n\t\t\t\t\t\t});\n\t\t\t\t\t\tpre.appendChild(button);\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction enhanceImages(root = document) {\n\t\t\t\t\tfor (const image of root.querySelectorAll(\".help-article img\")) {\n\t\t\t\t\t\tif (image.closest(\"figure\")) continue;\n\t\t\t\t\t\timage.loading = \"lazy\";\n\t\t\t\t\t\timage.decoding = \"async\";\n\t\t\t\t\t\tconst figure = document.createElement(\"figure\");\n\t\t\t\t\t\tfigure.className = \"help-figure\";\n\t\t\t\t\t\timage.replaceWith(figure);\n\t\t\t\t\t\tfigure.appendChild(image);\n\t\t\t\t\t\tif (image.title) {\n\t\t\t\t\t\t\tconst caption = document.createElement(\"figcaption\");\n\t\t\t\t\t\t\tcaption.textContent = image.title;\n\t\t\t\t\t\t\tfigure.appendChild(caption);\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction enhanceCallouts(root = document) {\n\t\t\t\t\tconst labels = {\n\t\t\t\t\t\tNOTE: shell.dataset.noteLabel,\n\t\t\t\t\t\tTIP: shell.dataset.tipLabel,\n\t\t\t\t\t\tIMPORTANT: shell.dataset.importantLabel,\n\t\t\t\t\t\tWARNING: shell.dataset.warningLabel,\n\t\t\t\t\t\tCAUTION: shell.dataset.cautionLabel,\n\t\t\t\t\t};\n\t\t\t\t\tfor (const quote of root.querySelectorAll(\".help-article blockquote\")) {\n\t\t\t\t\t\tconst first = quote.querySelector(\"p\");\n\t\t\t\t\t\tconst marker = first?.textContent?.match(/^\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]\\s*/);\n\t\t\t\t\t\tif (!marker) continue;\n\t\t\t\t\t\tquote.classList.add(\"help-callout\", `help-callout-${marker[1].toLowerCase()}`);\n\t\t\t\t\t\tquote.dataset.calloutLabel = labels[marker[1]];\n\t\t\t\t\t\tif (first.firstChild?.nodeType === 3) {\n\t\t\t\t\t\t\tfirst.firstChild.textContent = first.firstChild.textContent.replace(marker[0], \"\");\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction updateActiveNavigation() {\n\t\t\t\t\tfor (const link of document.querySelectorAll(\".help-nav-link\")) {\n\t\t\t\t\t\tconst active = new URL(link.href, window.location.href).pathname === window.location.pathname;\n\t\t\t\t\t\tlink.setAttribute(\"aria-current\", active ? \"page\" : \"\");\n\t\t\t\t\t}\n\t\t\t\t\tdocument.querySelector('.help-nav-link[aria-current=\"page\"]')?.scrollIntoView({ block: \"nearest\" });\n\t\t\t\t}\n\n\t\t\t\tasync function enhanceHelpDocument(root = document) {\n\t\t\t\t\tawait renderHelpMermaidDiagrams(root);\n\t\t\t\t\tbuildTableOfContents(root);\n\t\t\t\t\tenhanceCodeBlocks(root);\n\t\t\t\t\tenhanceImages(root);\n\t\t\t\t\tenhanceCallouts(root);\n\t\t\t\t\tupdateActiveNavigation();\n\t\t\t\t}\n\n\t\t\t\tenhanceHelpDocument();\n\t\t\t\tdocument.body.addEventListener(\"htmx:afterSwap\", (event) => {\n\t\t\t\t\tenhanceHelpDocument(event.detail.target);\n\t\t\t\t\tcloseMobileSidebar();\n\t\t\t\t});\n\t\t\t})();\n\t\t</script>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 38, "\"></script> <script>\n\t\t\t(() => {\n\t\t\t\tconst shell = document.getElementById(\"help-center-shell\");\n\t\t\t\tif (!shell) return;\n\n\t\t\t\tconst storageKey = \"iota-help-sidebar-collapsed\";\n\t\t\t\tconst sidebarToggle = document.getElementById(\"help-sidebar-toggle\");\n\t\t\t\tconst sidebarClose = document.getElementById(\"help-sidebar-close\");\n\t\t\t\tconst mobileOverlay = document.getElementById(\"help-mobile-overlay\");\n\t\t\t\tconst mobileQuery = window.matchMedia(\"(max-width: 1023px)\");\n\n\t\t\t\tconst setSidebarCollapsed = (collapsed) => {\n\t\t\t\t\tshell.dataset.sidebarCollapsed = String(collapsed);\n\t\t\t\t\tsidebarToggle?.setAttribute(\"aria-expanded\", String(!collapsed));\n\t\t\t\t\tconst label = collapsed\n\t\t\t\t\t\t? shell.dataset.expandNavigationLabel\n\t\t\t\t\t\t: shell.dataset.collapseNavigationLabel;\n\t\t\t\t\tsidebarToggle?.setAttribute(\"aria-label\", label);\n\t\t\t\t\tsidebarToggle?.setAttribute(\"title\", label);\n\t\t\t\t\ttry {\n\t\t\t\t\t\tlocalStorage.setItem(storageKey, String(collapsed));\n\t\t\t\t\t} catch (_) {}\n\t\t\t\t};\n\n\t\t\t\tconst closeMobileSidebar = () => {\n\t\t\t\t\tshell.dataset.mobileSidebarOpen = \"false\";\n\t\t\t\t\tsidebarToggle?.setAttribute(\"aria-expanded\", \"false\");\n\t\t\t\t};\n\n\t\t\t\ttry {\n\t\t\t\t\tsetSidebarCollapsed(localStorage.getItem(storageKey) === \"true\");\n\t\t\t\t} catch (_) {}\n\n\t\t\t\tsidebarToggle?.addEventListener(\"click\", () => {\n\t\t\t\t\tif (mobileQuery.matches) {\n\t\t\t\t\t\tconst open = shell.dataset.mobileSidebarOpen !== \"true\";\n\t\t\t\t\t\tshell.dataset.mobileSidebarOpen = String(open);\n\t\t\t\t\t\tsidebarToggle.setAttribute(\"aria-expanded\", String(open));\n\t\t\t\t\t\treturn;\n\t\t\t\t\t}\n\t\t\t\t\tsetSidebarCollapsed(shell.dataset.sidebarCollapsed !== \"true\");\n\t\t\t\t});\n\t\t\t\tsidebarClose?.addEventListener(\"click\", closeMobileSidebar);\n\t\t\t\tmobileOverlay?.addEventListener(\"click\", closeMobileSidebar);\n\n\t\t\t\tdocument.addEventListener(\"keydown\", (event) => {\n\t\t\t\t\tif ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === \"k\") {\n\t\t\t\t\t\tevent.preventDefault();\n\t\t\t\t\t\tdocument.querySelector(\".help-search-input\")?.focus();\n\t\t\t\t\t}\n\t\t\t\t\tif (event.key === \"Escape\") closeMobileSidebar();\n\t\t\t\t});\n\n\t\t\t\tmermaid.initialize({\n\t\t\t\t\tstartOnLoad: false,\n\t\t\t\t\tsecurityLevel: \"strict\",\n\t\t\t\t\ttheme: \"base\",\n\t\t\t\t\tfontFamily: \"inherit\",\n\t\t\t\t\tthemeVariables: {\n\t\t\t\t\t\tprimaryColor: \"#eef4ff\",\n\t\t\t\t\t\tprimaryTextColor: \"#1d2939\",\n\t\t\t\t\t\tprimaryBorderColor: \"#84adff\",\n\t\t\t\t\t\tlineColor: \"#98a2b3\",\n\t\t\t\t\t\tsecondaryColor: \"#f2f4f7\",\n\t\t\t\t\t\ttertiaryColor: \"#ffffff\",\n\t\t\t\t\t\tclusterBkg: \"#f8fafc\",\n\t\t\t\t\t\tclusterBorder: \"#d0d5dd\",\n\t\t\t\t\t\tfontSize: \"14px\",\n\t\t\t\t\t},\n\t\t\t\t});\n\n\t\t\t\tasync function renderHelpMermaidDiagrams(root = document) {\n\t\t\t\t\tconst blocks = root.querySelectorAll(\"pre > code.language-mermaid\");\n\t\t\t\t\tfor (const block of blocks) {\n\t\t\t\t\t\tconst container = document.createElement(\"div\");\n\t\t\t\t\t\tcontainer.className = \"help-mermaid\";\n\t\t\t\t\t\tcontainer.setAttribute(\"role\", \"img\");\n\t\t\t\t\t\tcontainer.setAttribute(\"aria-label\", \"Process diagram\");\n\t\t\t\t\t\tcontainer.textContent = block.textContent;\n\t\t\t\t\t\tblock.parentElement.replaceWith(container);\n\t\t\t\t\t\ttry {\n\t\t\t\t\t\t\tawait mermaid.run({ nodes: [container] });\n\t\t\t\t\t\t\tconst diagram = container.querySelector(\"svg\");\n\t\t\t\t\t\t\tconst viewBox = diagram?.viewBox?.baseVal;\n\t\t\t\t\t\t\tif (viewBox && viewBox.width / viewBox.height > 2.5) {\n\t\t\t\t\t\t\t\tcontainer.classList.add(\"help-mermaid-wide\");\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t} catch (error) {\n\t\t\t\t\t\t\tconsole.error(\"Unable to render Help Center diagram\", error);\n\t\t\t\t\t\t\tconst fallback = document.createElement(\"pre\");\n\t\t\t\t\t\t\tconst code = document.createElement(\"code\");\n\t\t\t\t\t\t\tcode.className = \"language-mermaid\";\n\t\t\t\t\t\t\tcode.textContent = container.textContent;\n\t\t\t\t\t\t\tfallback.appendChild(code);\n\t\t\t\t\t\t\tcontainer.replaceWith(fallback);\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction buildTableOfContents(root = document) {\n\t\t\t\t\tconst article = root.querySelector(\".help-article\");\n\t\t\t\t\tconst toc = root.querySelector(\"[data-help-toc]\");\n\t\t\t\t\tif (!article || !toc) return;\n\t\t\t\t\ttoc.replaceChildren();\n\t\t\t\t\tconst headings = article.querySelectorAll(\"h2, h3\");\n\t\t\t\t\tfor (const heading of headings) {\n\t\t\t\t\t\tif (!heading.id) continue;\n\t\t\t\t\t\tconst link = document.createElement(\"a\");\n\t\t\t\t\t\tlink.href = `#${heading.id}`;\n\t\t\t\t\t\tlink.textContent = heading.textContent;\n\t\t\t\t\t\tlink.className = heading.tagName === \"H3\" ? \"help-toc-link help-toc-link-nested\" : \"help-toc-link\";\n\t\t\t\t\t\ttoc.appendChild(link);\n\t\t\t\t\t}\n\t\t\t\t\ttoc.closest(\".help-toc\")?.toggleAttribute(\"hidden\", headings.length === 0);\n\t\t\t\t}\n\n\t\t\t\tfunction enhanceCodeBlocks(root = document) {\n\t\t\t\t\tconst copyLabel = shell.dataset.copyLabel;\n\t\t\t\t\tconst copiedLabel = shell.dataset.copiedLabel;\n\t\t\t\t\tfor (const pre of root.querySelectorAll(\".help-article pre\")) {\n\t\t\t\t\t\tif (pre.dataset.enhanced === \"true\" || pre.querySelector(\".language-mermaid\")) continue;\n\t\t\t\t\t\tpre.dataset.enhanced = \"true\";\n\t\t\t\t\t\tconst button = document.createElement(\"button\");\n\t\t\t\t\t\tbutton.type = \"button\";\n\t\t\t\t\t\tbutton.className = \"help-code-copy\";\n\t\t\t\t\t\tbutton.textContent = copyLabel;\n\t\t\t\t\t\tbutton.addEventListener(\"click\", async () => {\n\t\t\t\t\t\t\tawait navigator.clipboard.writeText(pre.querySelector(\"code\")?.textContent || pre.textContent);\n\t\t\t\t\t\t\tbutton.textContent = copiedLabel;\n\t\t\t\t\t\t\tsetTimeout(() => { button.textContent = copyLabel; }, 1600);\n\t\t\t\t\t\t});\n\t\t\t\t\t\tpre.appendChild(button);\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction enhanceImages(root = document) {\n\t\t\t\t\tfor (const image of root.querySelectorAll(\".help-article img\")) {\n\t\t\t\t\t\tif (image.closest(\"figure\")) continue;\n\t\t\t\t\t\timage.loading = \"lazy\";\n\t\t\t\t\t\timage.decoding = \"async\";\n\t\t\t\t\t\tconst figure = document.createElement(\"figure\");\n\t\t\t\t\t\tfigure.className = \"help-figure\";\n\t\t\t\t\t\timage.replaceWith(figure);\n\t\t\t\t\t\tfigure.appendChild(image);\n\t\t\t\t\t\tif (image.title) {\n\t\t\t\t\t\t\tconst caption = document.createElement(\"figcaption\");\n\t\t\t\t\t\t\tcaption.textContent = image.title;\n\t\t\t\t\t\t\tfigure.appendChild(caption);\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction enhanceCallouts(root = document) {\n\t\t\t\t\tconst labels = {\n\t\t\t\t\t\tNOTE: shell.dataset.noteLabel,\n\t\t\t\t\t\tTIP: shell.dataset.tipLabel,\n\t\t\t\t\t\tIMPORTANT: shell.dataset.importantLabel,\n\t\t\t\t\t\tWARNING: shell.dataset.warningLabel,\n\t\t\t\t\t\tCAUTION: shell.dataset.cautionLabel,\n\t\t\t\t\t};\n\t\t\t\t\tfor (const quote of root.querySelectorAll(\".help-article blockquote\")) {\n\t\t\t\t\t\tconst first = quote.querySelector(\"p\");\n\t\t\t\t\t\tconst marker = first?.textContent?.match(/^\\[!(NOTE|TIP|IMPORTANT|WARNING|CAUTION)\\]\\s*/);\n\t\t\t\t\t\tif (!marker) continue;\n\t\t\t\t\t\tquote.classList.add(\"help-callout\", `help-callout-${marker[1].toLowerCase()}`);\n\t\t\t\t\t\tquote.dataset.calloutLabel = labels[marker[1]];\n\t\t\t\t\t\tif (first.firstChild?.nodeType === 3) {\n\t\t\t\t\t\t\tfirst.firstChild.textContent = first.firstChild.textContent.replace(marker[0], \"\");\n\t\t\t\t\t\t}\n\t\t\t\t\t}\n\t\t\t\t}\n\n\t\t\t\tfunction updateActiveNavigation() {\n\t\t\t\t\tfor (const link of document.querySelectorAll(\".help-nav-link\")) {\n\t\t\t\t\t\tconst active = new URL(link.href, window.location.href).pathname === window.location.pathname;\n\t\t\t\t\t\tlink.setAttribute(\"aria-current\", active ? \"page\" : \"\");\n\t\t\t\t\t}\n\t\t\t\t\tfor (const category of document.querySelectorAll(\".help-category\")) {\n\t\t\t\t\t\tcategory.open = category.querySelector('.help-nav-link[aria-current=\"page\"]') !== null;\n\t\t\t\t\t}\n\t\t\t\t\tdocument.querySelector('.help-nav-link[aria-current=\"page\"]')?.scrollIntoView({ block: \"nearest\" });\n\t\t\t\t}\n\n\t\t\t\tasync function enhanceHelpDocument(root = document) {\n\t\t\t\t\tawait renderHelpMermaidDiagrams(root);\n\t\t\t\t\tbuildTableOfContents(root);\n\t\t\t\t\tenhanceCodeBlocks(root);\n\t\t\t\t\tenhanceImages(root);\n\t\t\t\t\tenhanceCallouts(root);\n\t\t\t\t\tupdateActiveNavigation();\n\t\t\t\t}\n\n\t\t\t\tenhanceHelpDocument();\n\t\t\t\tdocument.body.addEventListener(\"htmx:afterSwap\", (event) => {\n\t\t\t\t\tenhanceHelpDocument(event.detail.target);\n\t\t\t\t\tcloseMobileSidebar();\n\t\t\t\t});\n\t\t\t})();\n\t\t</script>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -532,7 +558,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var28 string
 			templ_7745c5c3_Var28, templ_7745c5c3_Err = templ.JoinStringErrs(basePath + "/doc/" + node.Path)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 671, Col: 42}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 700, Col: 42}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var28))
 			if templ_7745c5c3_Err != nil {
@@ -545,7 +571,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var29 string
 			templ_7745c5c3_Var29, templ_7745c5c3_Err = templ.JoinStringErrs(activePageValue(active, node.Path))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 675, Col: 52}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 704, Col: 52}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var29))
 			if templ_7745c5c3_Err != nil {
@@ -558,7 +584,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			var templ_7745c5c3_Var30 string
 			templ_7745c5c3_Var30, templ_7745c5c3_Err = templ.JoinStringErrs(node.Title)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 677, Col: 15}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 706, Col: 15}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var30))
 			if templ_7745c5c3_Err != nil {
@@ -569,20 +595,30 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<details class=\"help-category\" open><summary><span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 44, "<details class=\"help-category\"")
+			if templ_7745c5c3_Err != nil {
+				return templ_7745c5c3_Err
+			}
+			if categoryContainsActive(node, active) {
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, " open")
+				if templ_7745c5c3_Err != nil {
+					return templ_7745c5c3_Err
+				}
+			}
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "><summary><span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 			var templ_7745c5c3_Var31 string
-			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(node.Title)
+			templ_7745c5c3_Var31, templ_7745c5c3_Err = templ.JoinStringErrs(categoryDisplayTitle(node.Title))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 682, Col: 22}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `modules/helpcenter/presentation/templates/pages/help/index.templ`, Line: 711, Col: 44}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var31))
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 45, "</span> <span class=\"help-category-caret\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</span> <span class=\"help-category-caret\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -590,7 +626,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 46, "</span></summary><div class=\"help-category-children\">")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 48, "</span></summary><div class=\"help-category-children\">")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -600,7 +636,7 @@ func categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmod
 					return templ_7745c5c3_Err
 				}
 			}
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 47, "</div></details>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 49, "</div></details>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}

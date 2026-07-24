@@ -1,6 +1,8 @@
 package help
 
 import (
+	"strings"
+
 	icons "github.com/iota-uz/icons/phosphor"
 	sdkhelp "github.com/iota-uz/iota-sdk/components/help"
 	"github.com/iota-uz/iota-sdk/modules/core/presentation/templates/layouts"
@@ -25,6 +27,30 @@ func activePageValue(active *viewmodels.DocView, path string) string {
 		return "page"
 	}
 	return ""
+}
+
+func categoryContainsActive(node viewmodels.CategoryNode, active *viewmodels.DocView) bool {
+	if active == nil {
+		return false
+	}
+	if node.Path == active.Path {
+		return true
+	}
+	for _, child := range node.Children {
+		if categoryContainsActive(child, active) {
+			return true
+		}
+	}
+	return false
+}
+
+func categoryDisplayTitle(title string) string {
+	title = strings.TrimSpace(title)
+	prefix, remainder, found := strings.Cut(title, " ")
+	if found && len(prefix) == 2 && prefix[0] >= '0' && prefix[0] <= '9' && prefix[1] >= '0' && prefix[1] <= '9' {
+		return strings.TrimSpace(remainder)
+	}
+	return title
 }
 
 templ Index(props IndexProps) {
@@ -642,6 +668,9 @@ templ Index(props IndexProps) {
 						const active = new URL(link.href, window.location.href).pathname === window.location.pathname;
 						link.setAttribute("aria-current", active ? "page" : "");
 					}
+					for (const category of document.querySelectorAll(".help-category")) {
+						category.open = category.querySelector('.help-nav-link[aria-current="page"]') !== null;
+					}
 					document.querySelector('.help-nav-link[aria-current="page"]')?.scrollIntoView({ block: "nearest" });
 				}
 
@@ -677,9 +706,9 @@ templ categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmo
 			{ node.Title }
 		</a>
 	} else {
-		<details class="help-category" open>
+		<details class="help-category" open?={ categoryContainsActive(node, active) }>
 			<summary>
-				<span>{ node.Title }</span>
+				<span>{ categoryDisplayTitle(node.Title) }</span>
 				<span class="help-category-caret">
 					@icons.CaretDown(icons.Props{Size: "12"})
 				</span>
