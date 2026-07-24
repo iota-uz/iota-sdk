@@ -1,3 +1,4 @@
+// Package assets embeds Help Center browser assets.
 package assets
 
 import (
