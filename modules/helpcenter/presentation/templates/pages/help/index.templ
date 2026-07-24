@@ -392,13 +392,16 @@ templ Index(props IndexProps) {
 						aria-label={ pageCtx.T("HelpCenter.CollapseNavigation") }
 						title={ pageCtx.T("HelpCenter.CollapseNavigation") }
 					>
-						<span class="help-icon-collapse">@icons.CaretDoubleLeft(icons.Props{Size: "17"})
-</span>
-						<span class="help-icon-expand">@icons.CaretDoubleRight(icons.Props{Size: "17"})
-</span>
+						<span class="help-icon-collapse">
+							@icons.CaretDoubleLeft(icons.Props{Size: "17"})
+						</span>
+						<span class="help-icon-expand">
+							@icons.CaretDoubleRight(icons.Props{Size: "17"})
+						</span>
 					</button>
-					<div class="help-brand-mark">@icons.FileText(icons.Props{Size: "18", Variant: icons.DuoTone})
-</div>
+					<div class="help-brand-mark">
+						@icons.FileText(icons.Props{Size: "18", Variant: icons.DuoTone})
+					</div>
 					<div class="help-brand-copy">
 						<div class="help-brand-title">
 							<span>{ pageCtx.T("HelpCenter.Meta.Title") }</span>
@@ -677,8 +680,9 @@ templ categoryNode(basePath string, node viewmodels.CategoryNode, active *viewmo
 		<details class="help-category" open>
 			<summary>
 				<span>{ node.Title }</span>
-				<span class="help-category-caret">@icons.CaretDown(icons.Props{Size: "12"})
-</span>
+				<span class="help-category-caret">
+					@icons.CaretDown(icons.Props{Size: "12"})
+				</span>
 			</summary>
 			<div class="help-category-children">
 				for _, child := range node.Children {
