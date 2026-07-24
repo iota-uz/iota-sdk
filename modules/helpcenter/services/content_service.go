@@ -62,12 +62,18 @@ type ContentConfig struct {
 	// CategoryTitles maps locale and relative category path to a localized
 	// sidebar label while keeping document paths stable across locales.
 	CategoryTitles map[string]map[string]string
+	// CategoryPaths maps content directory paths to virtual sidebar directory
+	// paths. Document URLs remain unchanged.
+	CategoryPaths map[string]string
 	// HideNav omits the Help Center sidebar nav node when the component is
 	// registered only to serve inline help-article links (see component.go).
 	HideNav bool
 	// HiddenSections contains exact Markdown heading titles that remain in the
 	// source content but are omitted from documents returned for display.
 	HiddenSections []string
+	// HiddenPaths contains document paths or directory prefixes that are not
+	// part of the reader-facing Help Center.
+	HiddenPaths []string
 }
 
 func (c ContentConfig) Normalized() ContentConfig {
@@ -122,6 +128,9 @@ func (s *ContentService) Get(ctx context.Context, docPath string) (*Document, er
 	cleanPath, err := cleanDocPath(docPath)
 	if err != nil {
 		return nil, err
+	}
+	if s.isHiddenPath(cleanPath) {
+		return nil, ErrDocumentNotFound
 	}
 
 	doc, err := s.readDoc(localeDir, cleanPath)
@@ -261,14 +270,18 @@ func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.Categ
 			return nil
 		}
 		rel := strings.TrimPrefix(p, localeDir+"/")
+		if s.isHiddenPath(rel) {
+			return nil
+		}
 		content, err := fs.ReadFile(s.fsys, p)
 		if err != nil {
 			return err
 		}
 		parts := strings.Split(rel, "/")
+		categories := s.treeCategories(parts[:len(parts)-1])
 		title, _ := parseMarkdownDocument(content, rel)
 		doc := viewmodels.CategoryNode{Title: title, Path: rel}
-		s.insertNode(&tree, locale, "", parts[:len(parts)-1], doc)
+		s.insertNode(&tree, locale, "", categories, doc)
 		return nil
 	})
 	if err != nil {
@@ -284,6 +297,50 @@ func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.Categ
 	docs := categoryViewModels(tree)
 	sortNodes(docs)
 	return docs, nil
+}
+
+func (s *ContentService) isHiddenPath(candidate string) bool {
+	candidate = strings.Trim(path.Clean(candidate), "/")
+	for _, hidden := range s.config.HiddenPaths {
+		hidden = strings.Trim(path.Clean(hidden), "/")
+		if hidden == "." {
+			continue
+		}
+		if candidate == hidden || strings.HasPrefix(candidate, hidden+"/") {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *ContentService) treeCategories(categories []string) []string {
+	categoryPath := path.Join(categories...)
+	bestSource := ""
+	bestTarget := ""
+	for source, target := range s.config.CategoryPaths {
+		source = strings.Trim(path.Clean(source), "/")
+		target = strings.Trim(path.Clean(target), "/")
+		if source == "." || target == "." {
+			continue
+		}
+		if categoryPath != source && !strings.HasPrefix(categoryPath, source+"/") {
+			continue
+		}
+		if len(source) <= len(bestSource) {
+			continue
+		}
+		bestSource = source
+		bestTarget = target
+	}
+	if bestSource == "" {
+		return categories
+	}
+	remainder := strings.TrimPrefix(strings.TrimPrefix(categoryPath, bestSource), "/")
+	virtualPath := path.Join(bestTarget, remainder)
+	if virtualPath == "." {
+		return nil
+	}
+	return strings.Split(virtualPath, "/")
 }
 
 func localeString(ctx context.Context, fallback string) string {

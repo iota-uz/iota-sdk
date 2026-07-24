@@ -56,6 +56,64 @@ func TestContentService_TreeUsesLocalizedCategoryTitles(t *testing.T) {
 	require.Equal(t, "Обзор", tree[1].Children[0].Title)
 }
 
+func TestContentService_TreeUsesVirtualCategoryPaths(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "ru/insurance/policies/issue.md", "# Выпуск полиса\n\nОформите полис.")
+	writeDoc(t, root, "ru/crm/clients/create.md", "# Создание клиента\n\nСоздайте клиента.")
+	service := NewContentService(ContentConfig{
+		Root:          root,
+		Locales:       []string{"ru"},
+		DefaultLocale: "ru",
+		CategoryPaths: map[string]string{
+			"insurance": "01-erp/01-portfolio",
+			"crm":       "02-crm",
+		},
+		CategoryTitles: map[string]map[string]string{
+			"ru": {
+				"01-erp":              "01 ERP",
+				"01-erp/01-portfolio": "01 Портфель",
+				"02-crm":              "02 CRM",
+			},
+		},
+	})
+
+	tree, err := service.Tree(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, tree, 2)
+	require.Equal(t, "01 ERP", tree[0].Title)
+	require.Equal(t, "01 Портфель", tree[0].Children[0].Title)
+	require.Equal(t, "Policies", tree[0].Children[0].Children[0].Title)
+	require.Equal(t, "insurance/policies/issue.md", tree[0].Children[0].Children[0].Children[0].Path)
+	require.Equal(t, "02 CRM", tree[1].Title)
+	require.Equal(t, "Clients", tree[1].Children[0].Title)
+	require.Equal(t, "crm/clients/create.md", tree[1].Children[0].Children[0].Path)
+}
+
+func TestContentService_HiddenPathsAreNotReaderFacing(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/guides/start.md", "# Start\n\nBegin here.")
+	writeDoc(t, root, "en/internal/runbook.md", "# Runbook\n\nOperators only.")
+	writeDoc(t, root, "en/technical.md", "# Technical\n\nImplementation details.")
+	service := NewContentService(ContentConfig{
+		Root:          root,
+		Locales:       []string{"en"},
+		DefaultLocale: "en",
+		HiddenPaths:   []string{"internal", "technical.md"},
+	})
+
+	tree, err := service.Tree(context.Background())
+
+	require.NoError(t, err)
+	require.Len(t, tree, 1)
+	require.Equal(t, "Guides", tree[0].Title)
+
+	_, err = service.Get(context.Background(), "internal/runbook.md")
+	require.ErrorIs(t, err, ErrDocumentNotFound)
+	_, err = service.Get(context.Background(), "technical.md")
+	require.ErrorIs(t, err, ErrDocumentNotFound)
+}
+
 func TestContentService_GetUsesLocaleAndDefaultFallback(t *testing.T) {
 	root := t.TempDir()
 	writeDoc(t, root, "en/intro.md", "# English\n\nHello.")
