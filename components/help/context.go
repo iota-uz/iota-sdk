@@ -19,7 +19,6 @@ type ContextProps struct {
 	ScreenPath   string
 	ScreenLabel  string
 	Label        string
-	Tooltip      string
 	Sections     []ContextSection
 	Class        any
 	Attrs        templ.Attributes
@@ -40,13 +39,6 @@ func contextLabel(props ContextProps) string {
 		return props.Label
 	}
 	return defaultLabel
-}
-
-func contextTooltip(props ContextProps) string {
-	if strings.TrimSpace(props.Tooltip) != "" {
-		return props.Tooltip
-	}
-	return contextLabel(props)
 }
 
 func contextClass(props ContextProps) any {

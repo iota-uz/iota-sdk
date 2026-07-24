@@ -15,7 +15,6 @@ templ Context(props ContextProps) {
 			aria-haspopup="dialog"
 			x-bind:aria-expanded="String(open)"
 			aria-label={ contextLabel(props) }
-			x-tooltip.raw={ contextTooltip(props) }
 			@click="open = !open"
 		>
 			@icons.Question(icons.Props{Size: "17", Variant: icons.DuoTone, Class: "pointer-events-none"})
