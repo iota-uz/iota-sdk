@@ -1947,6 +1947,8 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 		return icons.Table(iconProps)
 	case panel.KindStat, panel.KindStatGroup:
 		return icons.HashStraight(iconProps)
+	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
+		return icons.HashStraight(iconProps)
 	case panel.KindTabs:
 		return icons.Tabs(iconProps)
 	case panel.KindGrid:
@@ -2031,7 +2033,10 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 		panel.KindGrid,
 		panel.KindSplit,
 		panel.KindRepeat,
-		panel.KindStatGroup:
+		panel.KindStatGroup,
+		panel.KindMetricFlow,
+		panel.KindMetricHierarchy,
+		panel.KindMetricRelationship:
 		return false
 	}
 	return false
@@ -2140,7 +2145,10 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 		panel.KindGrid,
 		panel.KindSplit,
 		panel.KindRepeat,
-		panel.KindStatGroup:
+		panel.KindStatGroup,
+		panel.KindMetricFlow,
+		panel.KindMetricHierarchy,
+		panel.KindMetricRelationship:
 		return ""
 	}
 	return ""
@@ -2279,6 +2287,7 @@ func buildMetricQualityView(
 			Icon:  "∅",
 			Label: metricQualityLabel(ctx, "Analytics.Lens.AvailabilityUnavailable", "Unavailable"),
 		}
+	case "", panel.AvailabilityAvailable:
 	}
 	switch confidence {
 	case panel.ConfidenceVerified:
@@ -2447,6 +2456,7 @@ func buildMetricFlowView(ctx context.Context, spec panel.Spec, result *runtime.P
 		operator := ""
 		displayRaw := element.Raw
 		switch stage.Role {
+		case panel.FlowRoleInput:
 		case panel.FlowRoleAdd:
 			if !element.ShowDash && element.Raw < 0 {
 				operator = "−"
@@ -2648,13 +2658,17 @@ func buildMetricRelationshipView(ctx context.Context, spec panel.Spec, result *r
 	switch relationship.Type {
 	case panel.RelationshipDerivation:
 		view.TypeLabel = translate(ctx, "Analytics.Lens.RelationshipDerivation")
-		if relationship.Direction == panel.RelationshipTargetToSource {
+		switch relationship.Direction {
+		case panel.RelationshipTargetToSource:
 			view.Horizontal, view.Vertical = "←", "↑"
-		} else if relationship.Direction == panel.RelationshipSourceToTarget {
+		case panel.RelationshipSourceToTarget:
 			view.Horizontal, view.Vertical = "→", "↓"
+		case "", panel.RelationshipBidirectional:
 		}
 	case panel.RelationshipReconciliation:
 		view.TypeLabel = translate(ctx, "Analytics.Lens.RelationshipReconciliation")
+	case panel.RelationshipAssociation:
+		view.TypeLabel = translate(ctx, "Analytics.Lens.RelationshipAssociation")
 	default:
 		view.TypeLabel = translate(ctx, "Analytics.Lens.RelationshipAssociation")
 	}
@@ -2897,6 +2911,8 @@ func panelPlaceholderRows(spec panel.Spec) int {
 	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return 4
 	case panel.KindSegmentBar, panel.KindCascade, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+		return 4
+	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return 4
 	}
 	return 4

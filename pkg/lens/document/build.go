@@ -731,9 +731,10 @@ func metricRelationshipSemantics(config *MetricRelationshipConfig) Semantics {
 	switch config.Type {
 	case MetricRelationshipReconciliation, MetricRelationshipDerivation:
 		return SemanticsReconciliation
-	default:
+	case MetricRelationshipAssociation:
 		return SemanticsSeries
 	}
+	return SemanticsSeries
 }
 
 // declaredEncoding maps a panel's declared fields into a wire encoding without

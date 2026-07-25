@@ -1158,7 +1158,8 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("panel %s is missing value field", spec.ID)
 	}
 	switch spec.Kind {
-	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
+	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup,
+		panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		// These panel kinds do not require label/category validation here.
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindCascade, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
@@ -1481,6 +1482,11 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 			return err
 		}
 		if err := requireField(spec, primary, spec.Fields.Series); err != nil {
+			return err
+		}
+		return requireField(spec, primary, spec.Fields.Value)
+	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
+		if err := requireField(spec, primary, spec.Fields.ID); err != nil {
 			return err
 		}
 		return requireField(spec, primary, spec.Fields.Value)

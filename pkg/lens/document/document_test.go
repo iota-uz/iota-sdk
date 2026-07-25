@@ -606,18 +606,18 @@ func TestWireJSON_FocusCanvasFieldsOmittedWhenUnset(t *testing.T) {
 
 	level, err := json.Marshal(Level{Path: NodePath{"root"}, Label: "L", Children: []Node{}, Perspectives: []PerspectiveRef{}})
 	require.NoError(t, err)
-	require.Equal(t, `{"path":["root"],"label":"L","children":[],"perspectives":[]}`, string(level))
+	require.JSONEq(t, `{"path":["root"],"label":"L","children":[],"perspectives":[]}`, string(level))
 
 	wirePanel, err := json.Marshal(Panel{
 		ID: "p", Kind: PanelKindStat, Title: "T", Semantics: SemanticsSeries, Frame: "panel:p",
 		Format: map[string]FieldFormat{}, Actions: []Action{},
 	})
 	require.NoError(t, err)
-	require.Equal(t, `{"id":"p","kind":"stat","title":"T","semantics":"series","frame":"panel:p","encoding":{},"format":{},"actions":[]}`, string(wirePanel))
+	require.JSONEq(t, `{"id":"p","kind":"stat","title":"T","semantics":"series","frame":"panel:p","encoding":{},"format":{},"actions":[]}`, string(wirePanel))
 
 	drawer, err := json.Marshal(DrawerHeader{Title: "T"})
 	require.NoError(t, err)
-	require.Equal(t, `{"title":"T"}`, string(drawer))
+	require.JSONEq(t, `{"title":"T"}`, string(drawer))
 
 	presentation, err := json.Marshal(Presentation{Fill: true})
 	require.NoError(t, err)

@@ -444,6 +444,11 @@ func (d *DashboardDocument) validateMetricConfigs(panel Panel) error {
 			return fmt.Errorf("panel %s carries a metric config for another kind", panel.ID)
 		}
 		return d.validateMetricRelationship(panel)
+	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindBar, PanelKindHBar,
+		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindTable, PanelKindCoverage:
+		if hasFlow || hasHierarchy || hasRelationship {
+			return fmt.Errorf("panel %s has a metric config for kind %q", panel.ID, panel.Kind)
+		}
 	default:
 		if hasFlow || hasHierarchy || hasRelationship {
 			return fmt.Errorf("panel %s has a metric config for kind %q", panel.ID, panel.Kind)
@@ -1166,9 +1171,11 @@ func validLevelView(kind PanelKind) bool {
 	case PanelKindPie, PanelKindDonut, PanelKindBar, PanelKindHBar,
 		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindCoverage:
 		return true
-	default:
+	case PanelKindStat, PanelKindTable, PanelKindMetricFlow, PanelKindMetricHierarchy,
+		PanelKindMetricRelationship:
 		return false
 	}
+	return false
 }
 
 func validConfidence(confidence Confidence) bool {
