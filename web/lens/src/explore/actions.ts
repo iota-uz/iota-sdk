@@ -74,6 +74,12 @@ export function resolveActionURL(action: Action, context: LeafActionContext): st
     resolved = resolveTemplate(action, context)
   }
   if (resolved === undefined) return undefined
+  // An empty (or whitespace-only) field/template value is not a destination: it
+  // means this row/segment is inert. Without this guard `new URL('', location)`
+  // resolves to the current page, so an OpenDrawer bound to an empty action_url
+  // would try to open the dashboard page itself as a Lens document (the drawer
+  // then shows "not valid JSON" because it fetched HTML).
+  if (resolved.trim() === '') return undefined
 
   let target: URL
   try {

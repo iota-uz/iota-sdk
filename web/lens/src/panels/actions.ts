@@ -82,10 +82,54 @@ export interface PanelNavigation {
   activate: (url: string | undefined, opener?: HTMLElement) => void
 }
 
+/**
+ * An element-level action resolved to an interactive descriptor.
+ *
+ * Unlike {@link usePanelNavigation}, which owns the single panel-wide navigate
+ * action, metric panels attach an action to each stage / row / end. The resolver
+ * is a stable function (one drawer subscription) so it can be applied across a
+ * list of elements without a hook per element.
+ */
+export interface ElementActionTarget {
+  href: string
+  onClick?: MouseEventHandler<HTMLAnchorElement>
+  opensDrawer: boolean
+}
+
+/**
+ * Returns a resolver that turns an element's `Action` into an anchor descriptor,
+ * or `undefined` when the action carries no navigable URL (e.g. an emit-only
+ * action) or a drawer action is unavailable at the current depth. Element
+ * actions resolve literal/variable params only in v1; `fields` is accepted for
+ * forward compatibility with per-element field resolution.
+ */
+export function useElementActionResolver(): (action: Action | undefined, fields?: Readonly<Record<string, unknown>>) => ElementActionTarget | undefined {
+  const drawer = useDrawer()
+  return useCallback((action, fields = {}) => {
+    if (!action) return undefined
+    const opensDrawer = action.kind === 'open_drawer'
+    if (opensDrawer && !(drawer.depth === 0 || drawer.canOpen)) return undefined
+    const location = new URL(globalThis.location.href)
+    const href = resolveActionURL(action, {
+      fields,
+      variables: variablesFromLocation(location),
+      location,
+    })
+    if (!href) return undefined
+    const onClick: MouseEventHandler<HTMLAnchorElement> | undefined = opensDrawer
+      ? (event) => {
+        event.preventDefault()
+        drawer.open(href, event.currentTarget)
+      }
+      : undefined
+    return { href, onClick, opensDrawer }
+  }, [drawer])
+}
+
 export function useActionActivation(action: Action | undefined) {
   const drawer = useDrawer()
   const opensDrawer = action?.kind === 'open_drawer'
-  const available = Boolean(action) && (!opensDrawer || drawer.depth === 0)
+  const available = Boolean(action) && (!opensDrawer || drawer.depth === 0 || drawer.canOpen === true)
   const activate = useCallback((url: string | undefined, opener?: HTMLElement) => {
     if (!url || !available) return
     if (opensDrawer) drawer.open(url, opener)

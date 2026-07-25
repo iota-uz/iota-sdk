@@ -1,4 +1,4 @@
-import type { DashboardDocument, Frame, Level, NodePath, Panel } from '../contract'
+import type { DashboardDocument, Frame, Level, NodePath, Panel, Perspective } from '../contract'
 import type { NavigationView } from './navigation'
 
 export function sameNodePath(left: NodePath, right: NodePath): boolean {
@@ -82,6 +82,30 @@ export function isPerspectiveFork(document: DashboardDocument, level: Level): bo
   return level.perspectives.some(({ id }) => (
     document.perspectives.find((candidate) => candidate.id === id)?.branchKey === levelKey
   ))
+}
+
+/**
+ * The perspectives a user can stand on at a drill position. A level that IS a
+ * perspective's root offers its branch's whole sibling set — the same choice
+ * the overlay offered on the segment that led here — even when the document
+ * recorded only the level's own perspective on it (the builder attaches one
+ * ref per perspective node). Any other level offers exactly what it declares,
+ * so deeper nodes inside a perspective never advertise a switch that would
+ * silently jump them back to a sibling's root.
+ */
+export function perspectivesForPosition(document: DashboardDocument, level: Level | undefined): Array<Perspective> {
+  if (!level) return []
+  const ids = new Set(level.perspectives.map(({ id }) => id))
+  const declared = document.perspectives.filter(({ id }) => ids.has(id))
+  const owner = declared.find((perspective) => {
+    const root = document.drill.edges[perspective.root]
+    return root ? sameNodePath(root.path, level.path) : false
+  })
+  if (!owner) return declared
+  const siblings = document.perspectives.filter((perspective) => (
+    perspective.explorerId === owner.explorerId && perspective.branchKey === owner.branchKey
+  ))
+  return siblings.length > declared.length ? siblings : declared
 }
 
 export function pathResolves(document: DashboardDocument, path: NodePath, perspectiveId?: string): boolean {

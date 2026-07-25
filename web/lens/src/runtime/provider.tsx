@@ -27,14 +27,15 @@ import {
   levelForPath,
   panelForNavigation,
   pathResolves,
+  perspectivesForPosition,
   queryPathForNavigation,
   rootNavigation,
   withFrameChildren,
   withInlineFrameChildren,
 } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
-import { DashboardSkeleton, defaultSkeletonRows } from '../panels/Skeleton'
-import { formatAxis, formatFieldValue } from './format'
+import { DashboardSkeleton, defaultSkeletonRows, drawerSkeletonRows } from '../panels/Skeleton'
+import { formatAxis, formatFieldValue, formatFieldValueExact } from './format'
 import {
   createNavigationState,
   navigationActions,
@@ -46,7 +47,8 @@ import { LensDrawer } from './drawer'
 import { DocumentCache } from './prefetch'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
-import { navigationFromURL, navigationToURL, sameNavigationURL } from './url'
+import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL } from './url'
+import { X } from '../icons'
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -256,6 +258,8 @@ export interface FiltersContextValue {
 
 export interface DrawerContextValue {
   depth: number
+  /** True when open() can open the root drawer or replace its document. */
+  canOpen?: boolean
   open: (src: string, opener?: HTMLElement) => void
   close: () => void
   /** Warm a drill-drawer document on hover/focus intent before it is opened. */
@@ -536,8 +540,16 @@ function runtimeNavigationReducer(
       ? pathForNode(document, state, action.enterKey, panel, panelChanged)
       : undefined
     if (action.enterKey && !entered) return state
+    // At a resting focus-canvas host the navigation path is still empty, so the
+    // switch position is the host panel's drill root: a root lens can be picked
+    // before any drill has entered a level. The panel id (carried by the root
+    // lens selector) is what lets the reducer find that root.
     const level = levelForPath(document, entered ?? state.path)
-    if (!level?.perspectives.some((perspective) => perspective.id === action.perspectiveId)) return state
+      ?? (panel?.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
+    // A perspective root's switchable set is its branch's sibling perspectives,
+    // not only the refs recorded on the level — the same set the lens selector
+    // offers, or a pill click would be silently rejected here.
+    if (!level || !perspectivesForPosition(document, level).some((perspective) => perspective.id === action.perspectiveId)) return state
     const perspective = document.perspectives.find((candidate) => candidate.id === action.perspectiveId)
     const root = perspective ? document.drill.edges[perspective.root] : undefined
     if (!root) return state
@@ -592,12 +604,13 @@ interface RuntimeCoreProps {
   children: ReactNode
   controlledNavigation?: NavigationState
   onControlledNavigationChange?: (view: NavigationView) => void
+  onDrawerNavigate?: (src: string) => void
   drawerDepth?: number
 }
 
 function RuntimeCore({
   document: sourceDocument, locale, csrf, fetcher, refreshDocument, applyFilters, children,
-  controlledNavigation, onControlledNavigationChange, drawerDepth = 0,
+  controlledNavigation, onControlledNavigationChange, onDrawerNavigate, drawerDepth = 0,
 }: RuntimeCoreProps) {
   const [runtimeDocument, setRuntimeDocumentState] = useState(() => ({
     source: sourceDocument,
@@ -624,7 +637,21 @@ function RuntimeCore({
     document,
     inferredInitialNavigation,
   )
-  const navigation = controlledNavigation ?? localNavigation
+  // A drawer source can deep-link with path/perspective before its document is
+  // loaded, so the outer runtime cannot know the nested host panel yet. Once
+  // the document arrives, resolve the panel from that path locally; otherwise
+  // ExplorePanel would keep rendering its resting root while the query runs
+  // against the correct deeper level.
+  const resolvedControlledNavigation = useMemo(() => {
+    if (!controlledNavigation) return undefined
+    const resolved = resolveView(document, controlledNavigation)
+    return resolved
+      ? { ...resolved, history: controlledNavigation.history }
+      : controlledNavigation
+  }, [controlledNavigation, document])
+  const navigation = resolvedControlledNavigation ?? localNavigation
+  const navigationRef = useRef(navigation)
+  navigationRef.current = navigation
   const runtimeViewRef = useRef<NavigationView>()
   if (!runtimeViewRef.current ||
     runtimeViewRef.current.panelId !== navigation.panelId ||
@@ -643,8 +670,9 @@ function RuntimeCore({
       localDispatch(action)
       return
     }
-    const next = runtimeNavigationReducer(document, controlledNavigation, action)
-    if (next !== controlledNavigation) onControlledNavigationChange?.(next)
+    const current = navigationRef.current
+    const next = runtimeNavigationReducer(document, current, action)
+    if (next !== current) onControlledNavigationChange?.(next)
   }, [controlledNavigation, document, onControlledNavigationChange])
   const [notice, setNotice] = useState<string>()
   const documentRef = useRef(document)
@@ -672,6 +700,10 @@ function RuntimeCore({
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
   const replaceNextURL = useRef(true)
   const drawerOpener = useRef<HTMLElement>()
+  // The drawer portals to body and stacks above an expanded panel, so it carries
+  // the theme of the root it opened from — captured from the opener when the
+  // drawer opens, mirroring PanelFrame's overlay theme capture.
+  const drawerTheme = useRef<{ theme?: string; dark: boolean }>({ dark: false })
   const drawerCache = useRef<DocumentCache>()
   if (drawerDepth === 0 && !drawerCache.current) drawerCache.current = new DocumentCache({ capacity: 8, csrf, fetcher })
   useEffect(() => {
@@ -981,19 +1013,40 @@ function RuntimeCore({
   }, [controlledNavigation, dispatch, navigation.drawer, navigation.history])
   const drawer = useMemo<DrawerContextValue>(() => ({
     depth: drawerDepth,
+    canOpen: drawerDepth === 0 || Boolean(onDrawerNavigate),
     open: (src, opener) => {
-      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
+      if (!isSameOriginDrawerSource(src)) return
+      if (drawerDepth > 0) {
+        onDrawerNavigate?.(src)
+        return
+      }
+      if (navigation.drawer) return
       drawerOpener.current = opener ?? (
         globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : undefined
       )
-      dispatch(navigationActions.openDrawer(src))
+      // The opener stays connected (the fullscreen panel is not collapsed), so
+      // its `.lens-root` still resolves; fall back to any root when the drawer
+      // opened without a captured element.
+      const root = drawerOpener.current?.closest<HTMLElement>('.lens-root')
+        ?? (typeof globalThis.document !== 'undefined'
+          ? globalThis.document.querySelector<HTMLElement>('.lens-root')
+          : null)
+      const theme = root?.dataset.theme
+      drawerTheme.current = {
+        theme,
+        dark: theme === 'dark' || root?.classList.contains('dark') === true,
+      }
+      dispatch(navigationActions.openDrawer(
+        src,
+        drawerNavigationFromSource(src, new URL(window.location.href)),
+      ))
     },
     close: closeDrawer,
     prefetch: (src) => {
       if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
       void drawerCache.current?.prefetch(src)
     },
-  }), [closeDrawer, dispatch, drawerDepth, navigation.drawer])
+  }), [closeDrawer, dispatch, drawerDepth, navigation.drawer, onDrawerNavigate])
   const dashboard = useMemo(() => ({ document, navigation, notice, dismissNotice: () => setNotice(undefined) }), [document, navigation, notice])
 
   return (
@@ -1009,26 +1062,43 @@ function RuntimeCore({
                 {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
                 {navigation.drawer && drawerDepth === 0 && (
-                  <LensDrawer
-                    closeLabel={translate('drawer.close', 'Close details')}
-                    eyebrow={translate('drawer.eyebrow', 'Detail view')}
-                    label={translate('drawer.label', 'Drill details')}
-                    onClose={closeDrawer}
-                    restoreFocus={drawerOpener.current}
-                  >
-                    <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                  // DocumentProvider wraps the drawer so its sticky top-bar
+                  // header can read the loaded document's own identity block
+                  // (eyebrow/title/caption) and render it once — while still
+                  // mounting the close button immediately, before the document
+                  // lands, because DocumentProvider renders its children
+                  // regardless of load state.
+                  <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                    <LensDrawer
+                      closeLabel={translate('drawer.close', 'Close details')}
+                      dark={drawerTheme.current.dark}
+                      eyebrow={translate('drawer.eyebrow', 'Detail view')}
+                      label={translate('drawer.label', 'Drill details')}
+                      onClose={closeDrawer}
+                      restoreFocus={drawerOpener.current}
+                      theme={drawerTheme.current.theme}
+                    >
                       <DashboardRuntimeProvider
                         controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
                         csrf={csrf}
                         drawerDepth={1}
+                        // A drawer-shaped loading placeholder (headline stat +
+                        // table), not the dashboard's stat-strip + chart pair,
+                        // so the drawer body does not jump when the drill
+                        // document lands.
+                        fallback={<DashboardSkeleton rows={drawerSkeletonRows} />}
                         fetcher={fetcher}
                         locale={locale}
                         onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}
+                        onDrawerNavigate={(src) => dispatch(navigationActions.replaceDrawer(
+                          src,
+                          drawerNavigationFromSource(src, new URL(window.location.href)),
+                        ))}
                       >
                         {children}
                       </DashboardRuntimeProvider>
-                    </DocumentProvider>
-                  </LensDrawer>
+                    </LensDrawer>
+                  </DocumentProvider>
                 )}
               </FramesContext.Provider>
             </ExportContext.Provider>
@@ -1051,11 +1121,12 @@ export interface DashboardRuntimeProviderProps {
   fallback?: ReactNode
   controlledNavigation?: NavigationState
   onControlledNavigationChange?: (view: NavigationView) => void
+  onDrawerNavigate?: (src: string) => void
   drawerDepth?: number
 }
 
 export function DashboardRuntimeProvider({
-  locale, csrf, fetcher, children, fallback, controlledNavigation, onControlledNavigationChange, drawerDepth,
+  locale, csrf, fetcher, children, fallback, controlledNavigation, onControlledNavigationChange, onDrawerNavigate, drawerDepth,
 }: DashboardRuntimeProviderProps) {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
@@ -1079,6 +1150,7 @@ export function DashboardRuntimeProvider({
       applyFilters={context.applyFilters}
       controlledNavigation={controlledNavigation}
       onControlledNavigationChange={onControlledNavigationChange}
+      onDrawerNavigate={onDrawerNavigate}
       drawerDepth={drawerDepth}
     >
       {children}
@@ -1143,6 +1215,16 @@ export function useFormat(field?: FieldFormat): (value: unknown) => string {
   return useCallback((value: unknown) => formatFieldValue(value, field, locale), [field, locale])
 }
 
+/**
+ * The tooltip companion to useFormat for compact fields: returns the exact
+ * grouped value («66 064 767 694 UZS») or undefined when nothing was
+ * abbreviated away.
+ */
+export function useFormatExact(field?: FieldFormat): (value: unknown) => string | undefined {
+  const locale = useContext(LocaleContext)
+  return useCallback((value: unknown) => formatFieldValueExact(value, field, locale), [field, locale])
+}
+
 export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useContext(LocaleContext)
   return useCallback((value: unknown) => formatAxis(value, field, locale), [field, locale])
@@ -1172,7 +1254,7 @@ function RuntimeNotice({ notice, onDismiss }: { notice: string; onDismiss: () =>
         onClick={onDismiss}
         type="button"
       >
-        ×
+        <X />
       </button>
     </div>
   )
@@ -1190,4 +1272,25 @@ export function useDocumentState(): DocumentContextValue {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('useDocumentState must be used inside DocumentProvider')
   return context
+}
+
+/**
+ * The drawer identity block carried by the currently loaded document, read
+ * without throwing so the drawer chrome can render its own top-bar header while
+ * the document is still loading (context present, document undefined) or in
+ * isolated stories (no DocumentProvider at all). Returns undefined when the
+ * document carries no drawer header.
+ */
+export function useDrawerHeader(): DashboardDocument['drawer'] {
+  return useContext(DocumentContext)?.document?.drawer
+}
+
+/**
+ * A background document refetch (a date/period change, a focus refresh) is in
+ * flight. Read without throwing so a panel can surface the loading state even
+ * when it is mounted outside a DocumentProvider (isolated stories, previews);
+ * there it simply reports "not refreshing".
+ */
+export function useDocumentRefreshing(): boolean {
+  return useContext(DocumentContext)?.isRefreshing ?? false
 }

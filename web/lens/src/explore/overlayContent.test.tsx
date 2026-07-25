@@ -53,6 +53,37 @@ afterEach(() => {
 })
 
 describe('overlay segment header', () => {
+  it('closes safely when the window itself is the scroll target', async () => {
+    const onClose = vi.fn()
+    renderOverlay({ label: 'Operating margin', breakdown: [], perspectives: [] }, { onClose })
+
+    await screen.findByRole('dialog')
+    fireEvent.scroll(window)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('stacks a segment overlay above the drawer that opened it', () => {
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={exploreDocument}>
+          <DashboardRuntimeProvider drawerDepth={1} locale="en">
+            <DrillOverlay
+              anchor={{ x: 200, y: 200 }}
+              onClose={() => {}}
+              onDrillChild={() => {}}
+              onDrillInto={() => {}}
+              onPerspective={() => {}}
+              target={{ node, label: 'Services', value: 8_765_432, breakdown: [], perspectives: [] }}
+            />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    expect(dialog().closest('.lens-root')).toHaveClass('lens-overlay-root-over-drawer')
+  })
+
   it('prints the value, the swatch color, and the share of the total once, rounded like a slice label', () => {
     renderOverlay({
       node,
@@ -90,16 +121,19 @@ describe('copy the segment value', () => {
     return { node, label: 'Services', value: 8_765_432, breakdown: [], perspectives: [] }
   }
 
-  it('copies the formatted figure and confirms on the button itself', async () => {
+  it('copies the raw machine value (not the formatted figure) and confirms on the button', async () => {
     const writeText = vi.fn(() => Promise.resolve())
     Object.defineProperty(globalThis.navigator, 'clipboard', { configurable: true, value: { writeText } })
     renderOverlay(valueTarget())
 
+    // The on-screen figure is formatted (separators/unit); the clipboard must
+    // receive the paste-ready raw number instead.
     const figure = dialog().querySelector('.lens-drill-value-figure')!.textContent
     const button = screen.getByRole('button', { name: 'Copy value' })
     fireEvent.click(button)
 
-    expect(writeText).toHaveBeenCalledWith(figure)
+    expect(writeText).toHaveBeenCalledWith('8765432')
+    expect(writeText).not.toHaveBeenCalledWith(figure)
     await waitFor(() => expect(screen.getByRole('button', { name: 'Copied' })).toBeInTheDocument())
   })
 

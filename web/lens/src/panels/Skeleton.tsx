@@ -106,3 +106,17 @@ export const defaultSkeletonRows: SkeletonRow[] = [
   { heading: true, items: [{ span: 6, kind: 'pie' }, { span: 6, kind: 'bar' }] },
   { heading: true, items: [{ span: 12, kind: 'table' }] },
 ]
+
+/**
+ * The drawer's own pre-document placeholder. A drill drawer's median content is
+ * a single full-width headline stat over one records/breakdown table — never
+ * the dashboard's stat strip + chart pair. Shaping the drawer skeleton to that
+ * (one full-width headline card, one full-width table block) keeps the drawer
+ * from jumping when the document lands. The runtime knows nothing about the
+ * incoming shape before the fetch, so this is a fixed drawer-median default
+ * rather than a per-document hint.
+ */
+export const drawerSkeletonRows: SkeletonRow[] = [
+  { items: [{ span: 12, kind: 'stat' }] },
+  { items: [{ span: 12, kind: 'table' }] },
+]

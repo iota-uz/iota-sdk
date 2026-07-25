@@ -163,6 +163,7 @@ type PanelSpec struct {
 	Trend           *panel.TrendSpec      `json:"trend,omitempty"`
 	Status          *panel.StatusSpec     `json:"status,omitempty"`
 	Sparkline       *panel.SparklineSpec  `json:"sparkline,omitempty"`
+	Target          *panel.TargetSpec     `json:"target,omitempty"`
 	GroupLayout     panel.GroupLayout     `json:"groupLayout,omitempty"`
 	// Presentation carries opt-in renderer density hints (legend placement,
 	// in-slice labels, total-badge placement, bar width, per-category color).
@@ -183,6 +184,26 @@ type PanelSpec struct {
 	ColorField   string                  `json:"colorField,omitempty"`
 	ColorScale   string                  `json:"colorScale,omitempty"`
 	Export       exportmeta.Spec         `json:"export,omitempty"`
+	// FlowStages declares a metric_flow panel's ordered operand stages.
+	FlowStages []panel.FlowStage `json:"flowStages,omitempty"`
+	// FlowReconcile opts a metric_flow panel into a tolerance-based mismatch
+	// note between the displayed operands and the supplied result.
+	FlowReconcile *panel.FlowReconciliation `json:"flowReconcile,omitempty"`
+	// HierarchyRows declares a metric_hierarchy panel's flat row list, linked
+	// by HierarchyRow.Parent.
+	HierarchyRows []panel.HierarchyRow `json:"hierarchyRows,omitempty"`
+	// HierarchyReconcile opts a metric_hierarchy panel into per-parent
+	// integrity checks against its children.
+	HierarchyReconcile *panel.HierarchyReconciliation `json:"hierarchyReconcile,omitempty"`
+	// Relationship declares a metric_relationship panel's two ends, link type,
+	// and direction.
+	Relationship *panel.RelationshipSpec `json:"relationship,omitempty"`
+	// Confidence is the panel-level default confidence for its elements; a
+	// frame column value or an element's own confidence overrides it.
+	Confidence panel.Confidence `json:"confidence,omitempty"`
+	// Availability is the panel-level default availability for its elements;
+	// a frame column value or an element's own availability overrides it.
+	Availability panel.Availability `json:"availability,omitempty"`
 }
 
 type TableColumnSpec struct {
@@ -198,21 +219,33 @@ type TableColumnSpec struct {
 	// ClampLines, when > 0, limits the cell text to that many rendered lines.
 	ClampLines int `json:"clamp,omitempty"`
 	// Affordance selects how an actionable cell advertises its action; "pill"
-	// renders a compact pill with a drill arrow.
+	// renders a compact pill with a drill arrow, "quiet" makes the whole cell
+	// the drill target with hover-only chrome.
 	Affordance string `json:"affordance,omitempty"`
+	// ToneField names a frame column carrying a per-row status tone ("pos",
+	// "warn", "neg") applied to the cell value's color.
+	ToneField string `json:"toneField,omitempty"`
+	// BadgeField names a frame column carrying a per-row badge tooltip; a
+	// non-empty value renders a muted "?" badge after the cell value.
+	BadgeField string `json:"badgeField,omitempty"`
 }
 
 type FieldMappingSpec struct {
-	Label     string `json:"label,omitempty"`
-	Value     string `json:"value,omitempty"`
-	Series    string `json:"series,omitempty"`
-	Category  string `json:"category,omitempty"`
-	ID        string `json:"id,omitempty"`
-	StartTime string `json:"startTime,omitempty"`
-	EndTime   string `json:"endTime,omitempty"`
-	Cut       string `json:"cut,omitempty"`
-	CutLabel  string `json:"cutLabel,omitempty"`
-	Final     string `json:"final,omitempty"`
+	Label        string `json:"label,omitempty"`
+	Value        string `json:"value,omitempty"`
+	Series       string `json:"series,omitempty"`
+	Category     string `json:"category,omitempty"`
+	ID           string `json:"id,omitempty"`
+	StartTime    string `json:"startTime,omitempty"`
+	EndTime      string `json:"endTime,omitempty"`
+	Cut          string `json:"cut,omitempty"`
+	CutLabel     string `json:"cutLabel,omitempty"`
+	Final        string `json:"final,omitempty"`
+	Annotation   string `json:"annotation,omitempty"`
+	Tone         string `json:"tone,omitempty"`
+	Share        string `json:"share,omitempty"`
+	Confidence   string `json:"confidence,omitempty"`
+	Availability string `json:"availability,omitempty"`
 }
 
 type ExplorerSpec struct {
@@ -248,6 +281,20 @@ type ExplorerNode struct {
 	DynamicTargets  []string                 `json:"dynamicTargets,omitempty"`
 	DynamicChildren *ExplorerDynamicChildren `json:"dynamicChildren,omitempty"`
 	Check           *ExplorerBalanceCheck    `json:"check,omitempty"`
+	// SourceData, when set, declares this level's audit table: the source rows
+	// behind the level's aggregate, rendered behind a collapsed disclosure.
+	// It compiles into explore.Node.SourceData; unset keeps existing specs
+	// byte-identical.
+	SourceData *ExplorerSourceData `json:"sourceData,omitempty"`
+}
+
+// ExplorerSourceData mirrors explore.SourceData at the spec layer. Panel must
+// be a table panel; its executed frame, declared columns and formats are
+// carried onto the wire level behind the disclosure.
+type ExplorerSourceData struct {
+	// Label is the disclosure heading (e.g. "Исходные данные").
+	Label Text      `json:"label,omitempty"`
+	Panel PanelSpec `json:"panel"`
 }
 
 type ExplorerDynamicChildren struct {

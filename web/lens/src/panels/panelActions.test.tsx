@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter } from '../charts/adapter'
 import { CoveragePanel, ChartPanel, MarkSelectionContext, StatMetric, StatPanel } from './index'
+import { CascadePanel } from './CascadePanel'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { navigateTo } from '../runtime/navigate'
 
@@ -184,6 +185,86 @@ describe('charts with a panel-level navigate action', () => {
   })
 })
 
+const cascadeFrame: Frame = {
+  columns: [
+    { name: 'label', type: 'string' },
+    { name: 'value', type: 'number' },
+    { name: 'cut', type: 'number' },
+    { name: 'cutLabel', type: 'string' },
+    { name: 'final', type: 'bool' },
+    { name: 'action_url', type: 'string' },
+  ],
+  rows: [
+    ['Earned premium', 100, 0, '', false, '/analytics/families/earned'],
+    ['After claims', 60, 40, 'Claims paid', false, '/analytics/families/claims'],
+    ['Result', 45, 15, 'Operating expenses', true, '/analytics/families/opex'],
+  ],
+}
+
+function cascadePanel(actions: Action[], waterfall = false): Panel {
+  return {
+    id: 'bridge', kind: 'cascade', title: 'Result bridge', semantics: 'reconciliation', frame: 'cascade:root',
+    encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+    format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
+    actions,
+    ...(waterfall ? { presentation: { bridgeLayout: 'waterfall' as const } } : {}),
+  }
+}
+
+describe('cascade stages with a row-scoped action', () => {
+  const rowAction = (): Action => ({
+    kind: 'navigate', method: 'GET', urlTemplate: '',
+    urlSource: { kind: 'field', name: 'action_url' },
+    params: [], payload: {},
+  })
+
+  it('activates the clicked waterfall column through its own row', () => {
+    const assign = vi.mocked(navigateTo)
+    const panel = cascadePanel([rowAction()], true)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': cascadeFrame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const bars = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-bar')]
+    // start + 2 deltas + synthetic closing total.
+    expect(bars).toHaveLength(4)
+    const stages = bars.filter((bar) => bar.getAttribute('role') === 'button')
+    expect(stages).toHaveLength(3)
+    stages[1]!.click()
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/claims'))
+    // The synthetic closing total repeats the final stage and stays inert.
+    expect(bars.at(-1)!.getAttribute('role')).toBeNull()
+  })
+
+  it('activates a stacked cascade stage and leaves url-less rows inert', () => {
+    const assign = vi.mocked(navigateTo)
+    const frame: Frame = { ...cascadeFrame, rows: cascadeFrame.rows.map((row, index) => index === 0 ? [...row.slice(0, 5), ''] : row) }
+    const panel = cascadePanel([rowAction()])
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': frame }),
+      <CascadePanel panel={panel} />,
+    )
+
+    const stages = [...container.querySelectorAll<HTMLElement>('.lens-cascade-stage')]
+    expect(stages).toHaveLength(3)
+    expect(stages[0]!.getAttribute('role')).toBeNull()
+    expect(stages[2]!.getAttribute('role')).toBe('button')
+    stages[2]!.click()
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/opex'))
+  })
+
+  it('keeps an action-less cascade inert', () => {
+    const panel = cascadePanel([], true)
+    const { container } = renderPanel(
+      documentWith([panel], { 'cascade:root': cascadeFrame }),
+      <CascadePanel panel={panel} />,
+    )
+    expect(container.querySelector('.lens-waterfall')?.getAttribute('role')).toBe('img')
+    expect(container.querySelector('.lens-waterfall-bar[role="button"]')).toBeNull()
+  })
+})
+
 describe('one panel, one click behaviour', () => {
   function renderTreeChart(panel: Panel, onMark?: (key: string) => void) {
     let select: ((key: string) => void) | undefined
@@ -272,7 +353,7 @@ describe('one panel, one click behaviour', () => {
 })
 
 describe('chart tooltips', () => {
-  it('renders at body level, unconfined, above the expanded-panel dialog', async () => {
+  it('renders at body level, confined to the viewport, above the expanded-panel dialog', async () => {
     const { tooltipChrome, tooltipZIndex } = await import('../charts/echarts/options')
     const chrome = tooltipChrome({
       card: '#fff', text: '#111', mutedText: '#666', border: '#eee', divider: '#eee',
@@ -280,7 +361,7 @@ describe('chart tooltips', () => {
     })
 
     expect(chrome.appendTo).toBe('body')
-    expect(chrome.confine).toBe(false)
+    expect(chrome.confine).toBe(true)
     // The expanded-panel overlay sits at 2147483000.
     expect(tooltipZIndex).toBeGreaterThan(2147483000)
     expect(chrome.extraCssText).toContain(`z-index: ${tooltipZIndex}`)

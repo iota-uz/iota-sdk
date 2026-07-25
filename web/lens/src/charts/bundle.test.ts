@@ -47,6 +47,9 @@ describe('chart bundle boundary', () => {
     const echartsRuntimeMarker = 'zrender'
 
     expect(staticChunks.join('\n')).not.toContain(echartsRuntimeMarker)
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(350_000)
+    // Budget raised from 350k for the metric panel kinds (flow/hierarchy/
+    // relationship + quality chips): the core entry measured 370,298 bytes
+    // after that intentional addition. The cap still catches accidental bloat.
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(400_000)
   })
 })

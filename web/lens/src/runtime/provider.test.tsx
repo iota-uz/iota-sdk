@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
@@ -59,12 +59,19 @@ function Controls() {
   return (
     <>
       <output data-testid="path">{dashboard.navigation.path.join('/')}</output>
+      <output data-testid="panel">{dashboard.navigation.panelId ?? ''}</output>
       <output data-testid="can-go-back">{String(drill.canGoBack)}</output>
       <button type="button" onClick={() => drill.drillInto('root', 'total')}>Root</button>
       <button type="button" onClick={() => drill.drillInto('detail')}>Detail</button>
       <button type="button" onClick={() => drill.switchPerspective('missing')}>Missing perspective</button>
       <button type="button" onClick={frame.retry}>Refresh frame</button>
       <button type="button" onClick={(event) => drawer.open('/lens/drawer', event.currentTarget)}>Open drawer</button>
+      <button
+        type="button"
+        onClick={(event) => drawer.open('/lens/drawer?path=root&path=detail', event.currentTarget)}
+      >
+        Open drawer at detail
+      </button>
     </>
   )
 }
@@ -94,7 +101,7 @@ afterEach(() => {
 })
 
 describe('DashboardRuntimeProvider', () => {
-  it('keeps cached data dimmed through refresh, then exposes error and retry', async () => {
+  it('replaces cached data with the skeleton through refresh, then exposes error and retry', async () => {
     let request = 0
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => {
       request += 1
@@ -106,11 +113,14 @@ describe('DashboardRuntimeProvider', () => {
       }
       return Promise.resolve(response(request === 1 ? 43 : 44))
     })
-    render(<RuntimeFixture fetcher={fetcher} />)
+    const view = render(<RuntimeFixture fetcher={fetcher} />)
 
     fireEvent.click(screen.getByRole('button', { name: 'Root' }))
+    // A refetch swaps the stale value for the initial-load skeleton rather than
+    // dimming it in place, so the panel unmistakably reads as recomputing.
     expect(screen.getByLabelText('Total')).toHaveAttribute('data-stale', 'true')
-    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(screen.queryByText('42')).toBeNull()
+    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
     expect(await screen.findByText('43')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh frame' }))
@@ -287,5 +297,53 @@ describe('DashboardRuntimeProvider', () => {
     act(() => window.history.back())
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(query).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a drawer source on its declared initial Lens view', async () => {
+    const query = vi.spyOn(QueryClient.prototype, 'query')
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const href = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url
+      if (href.startsWith('/lens/drawer?')) {
+        return Promise.resolve(new Response(JSON.stringify(document), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+      return Promise.resolve(response(43))
+    })
+    render(<RuntimeFixture fetcher={fetcher} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer at detail' }))
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(within(dialog).getByTestId('path')).toHaveTextContent('root/detail'))
+    expect(within(dialog).getByTestId('panel')).toHaveTextContent('total')
+    await waitFor(() => expect(query).toHaveBeenCalledTimes(1))
+    expect(within(dialog).getByText('43')).toBeInTheDocument()
+  })
+
+  it('preserves a data-theme dark dashboard in its drawer portal', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(document), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    render(
+      <div className="lens-root" data-theme="dark">
+        <DocumentProvider initialDocument={document} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <Controls />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.closest('.lens-root')).toHaveAttribute('data-theme', 'dark')
+    expect(dialog.closest('.lens-root')).toHaveClass('dark')
   })
 })

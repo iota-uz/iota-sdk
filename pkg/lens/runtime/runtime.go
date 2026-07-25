@@ -1044,6 +1044,11 @@ func validateExplorers(spec lens.DashboardSpec, datasets map[string]lens.Dataset
 							return fmt.Errorf("explorer %s branch %s perspective %s node %s: %w", explorerSpec.ID, branch.Key, perspective.Key, node.Key, err)
 						}
 					}
+					if node.SourceData != nil {
+						if err := validatePanel(node.SourceData.Panel, datasets, make(map[string]struct{})); err != nil {
+							return fmt.Errorf("explorer %s branch %s perspective %s node %s source data: %w", explorerSpec.ID, branch.Key, perspective.Key, node.Key, err)
+						}
+					}
 					for _, edge := range node.Edges {
 						if err := validateAction("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, actionValidationOptions{}); err != nil {
 							return err
@@ -1153,7 +1158,8 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		return fmt.Errorf("panel %s is missing value field", spec.ID)
 	}
 	switch spec.Kind {
-	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
+	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup,
+		panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		// These panel kinds do not require label/category validation here.
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindCascade, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
@@ -1464,7 +1470,9 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
 			return err
 		}
-		for _, field := range []panel.FieldRef{spec.Fields.Cut, spec.Fields.CutLabel, spec.Fields.Final} {
+		for _, field := range []panel.FieldRef{
+			spec.Fields.Cut, spec.Fields.CutLabel, spec.Fields.Final, spec.Fields.Annotation,
+		} {
 			if err := requireField(spec, primary, field); err != nil {
 				return err
 			}
@@ -1474,6 +1482,14 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 			return err
 		}
 		if err := requireField(spec, primary, spec.Fields.Series); err != nil {
+			return err
+		}
+		return requireField(spec, primary, spec.Fields.Value)
+	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
+		if spec.Fields.ID.Empty() {
+			return fmt.Errorf("panel %s requires an id field", spec.ID)
+		}
+		if err := requireField(spec, primary, spec.Fields.ID); err != nil {
 			return err
 		}
 		return requireField(spec, primary, spec.Fields.Value)

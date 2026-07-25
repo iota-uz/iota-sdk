@@ -19,7 +19,8 @@ func TestApplyParsesNumericStrings_Scenarios(t *testing.T) {
 	}{
 		{name: "count", spec: Count(), input: "42", expected: "42"},
 		{name: "money", spec: Money("UZS", 0), input: "160000", expected: "160 000 so\u2019m"},
-		{name: "money_compact", spec: MoneyCompact("UZS"), input: "12500", expected: "12.50K UZS"},
+		{name: "money_compact_below_floor", spec: MoneyCompact("UZS"), input: "12500", expected: "12 500 UZS"},
+		{name: "money_compact_thousands", spec: MoneyCompact("UZS"), input: "125000", expected: "125.00K UZS"},
 		{name: "money_compact_trillions", spec: MoneyCompact("UZS"), input: "1417670000000", expected: "1.42T UZS"},
 		{name: "percent", spec: Percent(1), input: "7.5", expected: "7.5%"},
 		{name: "invalid_count_string", spec: Count(), input: "abc", expected: "abc"},
@@ -53,13 +54,16 @@ func TestApplyFormatsAbbreviatedMoneyByLocale(t *testing.T) {
 		input    any
 		expected string
 	}{
-		{name: "en_default", locale: "", input: 12500.0, expected: "12.50K UZS"},
-		{name: "en_explicit", locale: "en-US", input: 12500.0, expected: "12.50K UZS"},
-		{name: "ru_thousand", locale: "ru", input: 12500.0, expected: "12.50 тыс UZS"},
+		{name: "en_default_below_floor", locale: "", input: 12500.0, expected: "12 500 UZS"},
+		{name: "en_explicit_below_floor", locale: "en-US", input: 12500.0, expected: "12,500 UZS"},
+		{name: "en_thousand", locale: "en-US", input: 125_000.0, expected: "125.00K UZS"},
+		{name: "ru_below_floor", locale: "ru", input: 12500.0, expected: "12 500 UZS"},
+		{name: "ru_below_floor_negative", locale: "ru", input: -12500.4, expected: "-12 500 UZS"},
+		{name: "ru_thousand", locale: "ru", input: 125_000.0, expected: "125.00 тыс UZS"},
 		{name: "ru_million", locale: "ru", input: 3_400_000.0, expected: "3.40 млн UZS"},
-		{name: "uz_thousand", locale: "uz", input: 12500.0, expected: "12.50 ming UZS"},
+		{name: "uz_thousand", locale: "uz", input: 125_000.0, expected: "125.00 ming UZS"},
 		{name: "uz_billion", locale: "uz", input: 2_100_000_000.0, expected: "2.10 mlrd UZS"},
-		{name: "uz_cyrl_thousand", locale: "uz-Cyrl", input: 12500.0, expected: "12.50 минг UZS"},
+		{name: "uz_cyrl_thousand", locale: "uz-Cyrl", input: 125_000.0, expected: "125.00 минг UZS"},
 		{name: "uz_cyrl_trillion", locale: "uz-Cyrl", input: 1_417_670_000_000.0, expected: "1.42 трлн UZS"},
 	}
 
@@ -70,6 +74,15 @@ func TestApplyFormatsAbbreviatedMoneyByLocale(t *testing.T) {
 			assert.Equal(t, tc.expected, Apply(&spec, tc.input, tc.locale, ""))
 		})
 	}
+}
+
+func TestMoneyExact(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, "66 064 767 694 UZS", MoneyExact(66_064_767_693.59, "UZS", "ru"))
+	require.Equal(t, "66,064,767,694 UZS", MoneyExact(66_064_767_693.59, "UZS", "en-US"))
+	require.Equal(t, "-9 533 816 944 UZS", MoneyExact(-9_533_816_944.2, "UZS", "uz"))
+	require.Equal(t, "1 250", MoneyExact(1250, "", "ru"))
 }
 
 func TestApplyFormatsMoneyWithLocaleSeparators(t *testing.T) {

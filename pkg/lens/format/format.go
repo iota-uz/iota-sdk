@@ -237,6 +237,11 @@ func abbreviateSuffixesFor(locale string) abbreviateSuffixes {
 	}
 }
 
+// abbreviationFloor is the magnitude below which compact formatting falls
+// back to the exact grouped integer: «12 500 UZS» reads better (and is more
+// honest) than «12.50 тыс UZS», while «106.03 млрд» stays compact.
+const abbreviationFloor = 100_000
+
 func abbreviate(value float64, precision int, locale string) string {
 	suffixes := abbreviateSuffixesFor(locale)
 	abs := math.Abs(value)
@@ -247,11 +252,46 @@ func abbreviate(value float64, precision int, locale string) string {
 		return formatAbbreviated(value/1_000_000_000, precision, suffixes.Billion, suffixes.Spaced)
 	case abs >= 1_000_000:
 		return formatAbbreviated(value/1_000_000, precision, suffixes.Million, suffixes.Spaced)
-	case abs >= 1_000:
+	case abs >= abbreviationFloor:
 		return formatAbbreviated(value/1_000, precision, suffixes.Thousand, suffixes.Spaced)
 	default:
-		return fmt.Sprintf("%.*f", precision, value)
+		return groupedInteger(value, locale)
 	}
+}
+
+// groupedInteger renders the value rounded to a whole unit with the locale's
+// thousand separator and no fraction: 66064767693.59 → "66 064 767 694".
+func groupedInteger(value float64, locale string) string {
+	rounded := int64(math.Round(value))
+	negative := rounded < 0
+	if negative {
+		rounded = -rounded
+	}
+	digits := strconv.FormatInt(rounded, 10)
+	separator := moneyThousandSeparator(locale)
+	var b strings.Builder
+	if negative {
+		b.WriteByte('-')
+	}
+	for i, r := range digits {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			b.WriteString(separator)
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// MoneyExact renders the full-precision grouped value with the ISO currency
+// code suffix («66 064 767 694 UZS») — the exact companion to MoneyCompact,
+// for tooltips/captions that must preserve the un-abbreviated amount.
+func MoneyExact(value float64, currency, locale string) string {
+	text := groupedInteger(value, locale)
+	code := strings.TrimSpace(currency)
+	if code == "" {
+		return text
+	}
+	return text + " " + code
 }
 
 func formatAbbreviated(scaled float64, precision int, suffix string, spaced bool) string {

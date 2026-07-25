@@ -5,7 +5,7 @@ import {
 import { createPortal } from 'react-dom'
 import type { FieldFormat } from '../contract'
 import { ArrowUpRight, CaretRight, Check, Copy, X } from '../icons'
-import { useFormat, useTranslate } from '../runtime'
+import { useDrawer, useFormat, useTranslate } from '../runtime'
 import { isVisualRegression } from '../visualRegression'
 import type { DrillTarget } from './model'
 
@@ -118,6 +118,7 @@ export function DrillOverlay({
   target, path = [], anchor, anchorElement, valueFormat, accentColor, theme, dark = false, selectedPerspectiveId,
   onDrillInto, onDrillChild, onPerspective, onClose,
 }: DrillOverlayProps) {
+  const drawer = useDrawer()
   const translate = useTranslate()
   const formatValue = useFormat(valueFormat)
   const formatShare = useFormat({ kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' })
@@ -140,7 +141,12 @@ export function DrillOverlay({
     // Same rule as the expanded panel: leaving the dashboard subtree means the
     // host has to re-declare the Lens root context, and living at the end of
     // body means no ancestor stacking context can bury it.
-    element.className = `lens-root lens-overlay-root${dark ? ' dark' : ''}`
+    // A focus canvas can live inside the runtime drawer. Its segment overlay
+    // is another body-level portal, so the normal overlay z-index would place
+    // it underneath the drawer portal even though it belongs to the drawer's
+    // active interaction. Lift only this nested overlay one rung above the
+    // drawer; page-level overlays keep their existing stacking contract.
+    element.className = `lens-root lens-overlay-root${drawer.depth > 0 ? ' lens-overlay-root-over-drawer' : ''}${dark ? ' dark' : ''}`
     if (theme) element.dataset.theme = theme
     document.body.appendChild(element)
     setContainer(element)
@@ -148,7 +154,7 @@ export function DrillOverlay({
       element.remove()
       setContainer(undefined)
     }
-  }, [dark, theme])
+  }, [dark, drawer.depth, theme])
 
   const anchorRef = useRef(anchor)
   anchorRef.current = anchor
@@ -220,8 +226,15 @@ export function DrillOverlay({
       onClose()
     }
     // Repositioning against a canvas mark during scroll is guesswork; the
-    // popover is transient, so scrolling dismisses it instead.
-    const onScroll = () => onClose()
+    // popover is transient, so a scroll of the page underneath — which moves the
+    // anchor it is pinned to — dismisses it. A scroll of the overlay's own body
+    // (a long breakdown/structure list) must NOT close it, or the list is
+    // unreachable: the segment can never be expanded.
+    const onScroll = (event: Event) => {
+      const node = event.target
+      if (node instanceof globalThis.Node && dialogRef.current?.contains(node)) return
+      onClose()
+    }
     document.addEventListener('keydown', onKeyDown, true)
     globalThis.addEventListener('scroll', onScroll, true)
     return () => {
@@ -255,7 +268,11 @@ export function DrillOverlay({
 
   const copyValue = useCallback(async () => {
     if (target.value === undefined) return
-    const text = formatValue(target.value)
+    // Copy the raw machine value (plain digits, no thousands separators, no unit
+    // or compact abbreviation) so it pastes straight into a spreadsheet — not the
+    // formatted display string («13.02 млрд UZS»). The on-screen figure keeps its
+    // formatting.
+    const text = String(target.value)
     const clipboard = globalThis.navigator?.clipboard
     let done = false
     try {
@@ -287,7 +304,7 @@ export function DrillOverlay({
     setCopied(true)
     if (copiedTimer.current) clearTimeout(copiedTimer.current)
     copiedTimer.current = setTimeout(() => setCopied(false), 1500)
-  }, [formatValue, target.value])
+  }, [target.value])
 
   if (!container) return null
 

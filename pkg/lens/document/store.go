@@ -200,7 +200,45 @@ func cloneLevel(level Level) Level {
 		declaration.Action = cloneAction(declaration.Action)
 		level.DynamicChildren = &declaration
 	}
+	if level.Presentation != nil {
+		presentation := *level.Presentation
+		presentation.Sortable = cloneBool(level.Presentation.Sortable)
+		presentation.Expandable = cloneBool(level.Presentation.Expandable)
+		presentation.Exportable = cloneBool(level.Presentation.Exportable)
+		level.Presentation = &presentation
+	}
+	if level.Status != nil {
+		status := *level.Status
+		level.Status = &status
+	}
+	if level.Source != nil {
+		source := *level.Source
+		source.Columns = make([]TableColumn, len(level.Source.Columns))
+		for index, column := range level.Source.Columns {
+			column.Action = cloneAction(column.Action)
+			source.Columns[index] = column
+		}
+		if level.Source.Format != nil {
+			source.Format = make(map[string]FieldFormat, len(level.Source.Format))
+			for field, format := range level.Source.Format {
+				if format.Precision != nil {
+					precision := *format.Precision
+					format.Precision = &precision
+				}
+				source.Format[field] = format
+			}
+		}
+		level.Source = &source
+	}
 	return level
+}
+
+func cloneBool(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func cloneNodes(nodes []Node) []Node {
@@ -218,7 +256,13 @@ func cloneAction(source *Action) *Action {
 		return nil
 	}
 	result := *source
-	result.Params = append([]ActionParam(nil), source.Params...)
+	// make (not append to a nil slice) so an EMPTY-but-non-nil Params survives the
+	// clone as []ActionParam{} rather than collapsing to nil: append([]T(nil))
+	// with zero elements returns nil, which would marshal as `params: null` and
+	// fail the wire contract's `params: array` (e.g. the dynamic explorer child
+	// actions, which carry no params).
+	result.Params = make([]ActionParam, len(source.Params))
+	copy(result.Params, source.Params)
 	result.Payload = make(map[string]Source, len(source.Payload))
 	for key, value := range source.Payload {
 		result.Payload[key] = value

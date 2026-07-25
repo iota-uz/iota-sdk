@@ -36,7 +36,19 @@ function applyDecimalSeparator(parts: Intl.NumberFormatPart[], separator: string
   return text.replace(/[\u00A0\u202F]/g, ' ').replace(/\s+%/, '%')
 }
 
+/**
+ * Below this magnitude compact notation falls back to the exact grouped
+ * integer: «12 500 UZS» instead of «12.50 тыс UZS». Mirrors the Go renderer's
+ * abbreviationFloor so both runtimes agree.
+ */
+const COMPACT_FLOOR = 100_000
+
 function formatCompactNumber(value: number, field: FieldFormat, locale: string, currency?: string): string {
+  if (Math.abs(value) < COMPACT_FLOOR) {
+    const grouped = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+    const text = applyDecimalSeparator(grouped.formatToParts(value), field.decimalSeparator)
+    return currency ? `${text} ${currency}` : text
+  }
   const precision = field.precision ?? 2
   const formatter = new Intl.NumberFormat(locale, {
     notation: 'compact',
@@ -116,16 +128,41 @@ function formatDate(value: unknown, layout: string | undefined, locale: string):
 export function formatAxis(value: unknown, field: FieldFormat | undefined, locale: string): string {
   const number = numeric(value)
   if (number !== undefined && field && (field.kind === 'money' || field.kind === 'number')) {
-    if (field.kind === 'money') {
-      const currency = field.currency ?? 'USD'
-      const scaled = field.minorUnits ? number / 100 : number
-      return new Intl.NumberFormat(locale, {
-        style: 'currency', currency, notation: 'compact', maximumFractionDigits: 1,
-      }).format(scaled)
-    }
-    return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(number)
+    // Axis ticks drop the currency suffix that the tooltip (formatFieldValue)
+    // still carries: a column of «-90 млрд UZS» repeats the same three
+    // letters on every gridline and crowds the plot; the magnitude alone is
+    // what an axis needs, the unit stays legible from the tooltip and title.
+    const scaled = field.kind === 'money' && field.minorUnits ? number / 100 : number
+    return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(scaled)
   }
   return formatFieldValue(value, field, locale)
+}
+
+/**
+ * The full-precision companion to a compact field: «106.03 млрд UZS» carries
+ * «106 034 767 694 UZS» in its tooltip. Returns undefined when the field is
+ * not compact (nothing was abbreviated away) or the value is not numeric.
+ */
+export function formatFieldValueExact(value: unknown, field: FieldFormat | undefined, locale: string): string | undefined {
+  if (!field?.compact || (field.kind !== 'money' && field.kind !== 'number')) return undefined
+  const number = numeric(value)
+  if (number === undefined) return undefined
+  const scaled = field.kind === 'money' && field.minorUnits ? number / 100 : number
+  if (Math.abs(scaled) < COMPACT_FLOOR) return undefined
+  const grouped = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
+  const text = applyDecimalSeparator(grouped.formatToParts(scaled), field.decimalSeparator)
+  return field.kind === 'money' ? `${text} ${field.currency ?? ''}`.trim() : text
+}
+
+/**
+ * Delta chips clamp beyond ±999.9%: «+13 417.3%» is noise, «>999%» is honest.
+ * Returns undefined inside the displayable range. Mirrors the Go renderer's
+ * trendPercentText clamp.
+ */
+export function clampedDeltaPercent(value: number): string | undefined {
+  if (value > 999.9) return '>999%'
+  if (value < -999.9) return '<−999%'
+  return undefined
 }
 
 export function formatFieldValue(value: unknown, field: FieldFormat | undefined, locale: string): string {

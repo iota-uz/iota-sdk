@@ -143,9 +143,11 @@ export function tooltipChrome(theme: EChartsTheme) {
     borderColor: theme.border,
     textStyle: { color: theme.text },
     appendTo: 'body',
-    // Confinement is what the card used to impose; against the viewport the
-    // tooltip may flip freely.
-    confine: false,
+    // Rendered at body level the tooltip escapes the card's clip, but it must
+    // still stay on screen: confine clamps it to the window viewport so a wide
+    // tooltip on a left-edge slice no longer overflows behind the sidebar
+    // instead of merely flipping.
+    confine: true,
     extraCssText: `z-index: ${tooltipZIndex};`,
     // A moving tooltip is unscreenshotable; VR pins it in place.
     transitionDuration: isVisualRegression() ? 0 : undefined,

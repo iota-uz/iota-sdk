@@ -94,6 +94,55 @@ describe('navigationReducer', () => {
     expect(navigationReducer(opened, navigationActions.openDrawer('/drill/other/lens/document'))).toBe(opened)
   })
 
+  it('opens a drawer at the view declared by its source URL', () => {
+    const initial = createNavigationState({ path: ['dashboard'] })
+    const opened = navigationReducer(initial, navigationActions.openDrawer(
+      '/drill/expenses/lens/document?path=expenses&path=acquisition',
+      {
+        path: ['expenses', 'acquisition'],
+        perspectiveId: 'expenses/acquisition/composition',
+      },
+    ))
+
+    expect(opened.drawer).toEqual({
+      src: '/drill/expenses/lens/document?path=expenses&path=acquisition',
+      path: ['expenses', 'acquisition'],
+      perspectiveId: 'expenses/acquisition/composition',
+      panelId: undefined,
+    })
+  })
+
+  it('replaces an open drawer document while preserving the previous drawer for Back', () => {
+    const opened = navigationReducer(
+      createNavigationState({ path: ['dashboard'] }),
+      navigationActions.openDrawer('/drill/result/lens/document'),
+    )
+    const replaced = navigationReducer(opened, navigationActions.replaceDrawer('/drill/expenses/lens/document'))
+
+    expect(replaced.drawer?.src).toBe('/drill/expenses/lens/document')
+    expect(replaced.drawer?.path).toEqual([])
+    expect(replaced.history.at(-1)?.drawer?.src).toBe('/drill/result/lens/document')
+    expect(navigationReducer(replaced, navigationActions.back()).drawer?.src).toBe('/drill/result/lens/document')
+  })
+
+  it('replaces a drawer at the initial view declared by the next source', () => {
+    const opened = navigationReducer(
+      createNavigationState({ path: ['dashboard'] }),
+      navigationActions.openDrawer('/drill/result/lens/document'),
+    )
+    const replaced = navigationReducer(opened, navigationActions.replaceDrawer(
+      '/drill/expenses/lens/document?path=expenses&path=opex',
+      { path: ['expenses', 'opex'], perspectiveId: 'expenses/opex/accounts' },
+    ))
+
+    expect(replaced.drawer).toEqual({
+      src: '/drill/expenses/lens/document?path=expenses&path=opex',
+      path: ['expenses', 'opex'],
+      perspectiveId: 'expenses/opex/accounts',
+      panelId: undefined,
+    })
+  })
+
   it('records drawer drill views in the same history and closes without adding an entry', () => {
     const opened = navigationReducer(createNavigationState({ path: ['dashboard'] }), navigationActions.openDrawer('/drill/document'))
     const drilled = navigationReducer(opened, navigationActions.updateDrawer({

@@ -38,7 +38,8 @@ export type NavigationAction =
     panelId?: string
   }
   | { type: 'reset' }
-  | { type: 'openDrawer'; src: string }
+  | { type: 'openDrawer'; src: string; view?: Omit<DrawerNavigationView, 'src'> }
+  | { type: 'replaceDrawer'; src: string; view?: Omit<DrawerNavigationView, 'src'> }
   | { type: 'updateDrawer'; view: Omit<DrawerNavigationView, 'src'> }
   | { type: 'closeDrawer' }
   | { type: 'restore'; view: NavigationView; history?: Array<NavigationView> }
@@ -131,7 +132,23 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
       if (state.drawer) return state
       return transition(state, {
         ...state,
-        drawer: { src: action.src, path: [] },
+        drawer: {
+          src: action.src,
+          panelId: action.view?.panelId,
+          path: [...(action.view?.path ?? [])],
+          perspectiveId: action.view?.perspectiveId,
+        },
+      })
+    case 'replaceDrawer':
+      if (!state.drawer || state.drawer.src === action.src) return state
+      return transition(state, {
+        ...state,
+        drawer: {
+          src: action.src,
+          panelId: action.view?.panelId,
+          path: [...(action.view?.path ?? [])],
+          perspectiveId: action.view?.perspectiveId,
+        },
       })
     case 'updateDrawer':
       if (!state.drawer) return state
@@ -159,7 +176,8 @@ export const navigationActions = {
     panelId?: string,
   ): NavigationAction => ({ type: 'switchPerspective', perspectiveId, path, replace, enterKey, panelId }),
   reset: (): NavigationAction => ({ type: 'reset' }),
-  openDrawer: (src: string): NavigationAction => ({ type: 'openDrawer', src }),
+  openDrawer: (src: string, view?: Omit<DrawerNavigationView, 'src'>): NavigationAction => ({ type: 'openDrawer', src, view }),
+  replaceDrawer: (src: string, view?: Omit<DrawerNavigationView, 'src'>): NavigationAction => ({ type: 'replaceDrawer', src, view }),
   updateDrawer: (view: Omit<DrawerNavigationView, 'src'>): NavigationAction => ({ type: 'updateDrawer', view }),
   closeDrawer: (): NavigationAction => ({ type: 'closeDrawer' }),
   restore: (view: NavigationView, history?: Array<NavigationView>): NavigationAction => ({ type: 'restore', view, history }),

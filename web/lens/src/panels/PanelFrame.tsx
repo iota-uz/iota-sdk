@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
-import { type PanelFrameState, useFormat, useTranslate } from '../runtime'
+import { clampedDeltaPercent, type PanelFrameState, useDocumentRefreshing, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
-import { ArrowsIn, ArrowsOut } from '../icons'
+import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
 import { PanelOverlay } from './PanelOverlay'
 import { PanelSkeletonBody } from './Skeleton'
@@ -13,6 +13,12 @@ export interface PanelFrameProps {
   children: ReactNode
   variant?: 'stat' | 'chart'
   allowEmptyContent?: boolean
+  /**
+   * The total the header badge prints. Overrides `panel.total`, which is the
+   * root frame's total and is wrong once the panel is showing a drill level:
+   * the badge must name the level on screen, not the panel's origin.
+   */
+  total?: number
 }
 
 export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
@@ -23,16 +29,17 @@ export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
   const good = trend.invert ? !up : up
   const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
   const sign = up ? '+' : ''
+  const TrendIcon = flat ? TrendFlat : up ? TrendUp : TrendDown
   return (
     <span className={`lens-trend-chip ${tone}`}>
-      <span aria-hidden="true">{flat ? '▬' : up ? '▲' : '▼'}</span>
-      <strong>{sign}{trend.percent.toFixed(1)}%</strong>
+      <TrendIcon />
+      <strong>{clampedDeltaPercent(trend.percent) ?? `${sign}${trend.percent.toFixed(1)}%`}</strong>
       {trend.label && <span className="lens-trend-chip-label">{trend.label}</span>}
     </span>
   )
 }
 
-export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false }: PanelFrameProps) {
+export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false, total: totalOverride }: PanelFrameProps) {
   const translate = useTranslate()
   const chrome = usePanelChrome()
   const [expanded, setExpanded] = useState(false)
@@ -40,12 +47,28 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   const expandRef = useRef<HTMLButtonElement>(null)
   const restoreFocus = useRef(false)
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
+  const total = totalOverride ?? panel.total
   const hasRows = Boolean(frame.data?.rows.length)
-  const showInitialLoading = frame.isLoading && !frame.data
+  // A date/period change refetches the whole document; the panel's own drill
+  // query sets isLoading. Either way the panel is recomputing, so it shows the
+  // same skeleton as the first load instead of a subtle dim — an unmistakable
+  // "this is being recalculated" affordance, and the exact shape the data will
+  // land in.
+  const isRefreshing = useDocumentRefreshing()
+  const showLoading = frame.isLoading || isRefreshing
   const badgePlacement = panel.presentation?.totalBadge ?? 'header'
-  const showTotal = variant === 'chart' && panel.total !== undefined && badgePlacement === 'header'
+  const showTotal = variant === 'chart' && total !== undefined && badgePlacement === 'header'
   const totalLabel = translate('panel.total', 'Total')
   const expandLabel = expanded ? translate('panel.collapse', 'Collapse panel') : translate('panel.expand', 'Expand panel')
+  // Opt-out chrome: a drawer-hosted panel disables expand (an overlay over a
+  // modal is meaningless), and a derived/headline panel disables export.
+  const expandable = panel.presentation?.expandable !== false
+  const exportable = panel.presentation?.exportable !== false
+  // A stat headline reads number-first: the value leads, and its supporting
+  // caption (exact figure, then the muted explainer + period) sits beneath it
+  // rather than pushing the number below the fold.
+  const captionBelow = variant === 'stat'
+  const captionNode = panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
 
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => {
@@ -76,13 +99,16 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       className={[
         'lens-panel',
         variant === 'stat' ? 'lens-panel-stat' : 'lens-panel-chart',
-        frame.isStale ? 'lens-panel-stale' : '',
+        // The skeleton replaces the content outright, so it must not also carry
+        // the stale dim — that treatment is only for the moment before a refetch
+        // takes over the body.
+        frame.isStale && !showLoading ? 'lens-panel-stale' : '',
         panel.presentation?.fill ? 'lens-panel-fill' : '',
         expanded ? 'lens-panel-expanded' : '',
       ].filter(Boolean).join(' ')}
       data-expanded={expanded || undefined}
       aria-label={panel.title}
-      aria-busy={frame.isLoading}
+      aria-busy={showLoading}
       data-panel-kind={panel.kind}
       data-stale={frame.isStale || undefined}
     >
@@ -93,30 +119,32 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         {chrome?.explore}
         <div className="lens-panel-actions">
           {showTotal && (
-            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(panel.total)}`}>
+            <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(total)}`}>
               <span className="lens-panel-total-label">{totalLabel}:</span>
               {' '}
-              {formatTotal(panel.total)}
+              {formatTotal(total)}
             </span>
           )}
-          {frame.isStale && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
-          <ExportButton panelId={panel.id} iconOnly />
-          <button
-            aria-label={expandLabel}
-            aria-pressed={expanded}
-            className="lens-export-button lens-icon-button"
-            onClick={expanded ? collapse : toggleExpanded}
-            ref={expandRef}
-            title={expandLabel}
-            type="button"
-          >
-            {expanded ? <ArrowsIn /> : <ArrowsOut />}
-          </button>
+          {frame.isStale && !showLoading && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
+          {exportable && <ExportButton panelId={panel.id} iconOnly />}
+          {expandable && (
+            <button
+              aria-label={expandLabel}
+              aria-pressed={expanded}
+              className="lens-export-button lens-icon-button"
+              onClick={expanded ? collapse : toggleExpanded}
+              ref={expandRef}
+              title={expandLabel}
+              type="button"
+            >
+              {expanded ? <ArrowsIn /> : <ArrowsOut />}
+            </button>
+          )}
         </div>
       </header>
-      {panel.caption && <p className="lens-panel-caption">{panel.caption}</p>}
+      {!captionBelow && captionNode}
       <div className="lens-panel-body">
-        {showInitialLoading ? (
+        {showLoading ? (
           <PanelSkeletonBody kind={panel.kind} />
         ) : frame.error && !frame.data ? (
           <div className="lens-panel-state lens-panel-state-error" role="alert">
@@ -125,11 +153,12 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
           </div>
         ) : !hasRows && !allowEmptyContent ? (
           <div className="lens-panel-state lens-panel-state-empty">
-            <span className="lens-empty-mark" aria-hidden="true">—</span>
+            <ChartLine className="lens-empty-mark" />
             <span>{translate('panel.empty', 'No data')}</span>
           </div>
         ) : children}
       </div>
+      {captionBelow && captionNode}
       {panel.trend && hasRows && (
         <footer className="lens-panel-footer"><TrendChip trend={panel.trend} /></footer>
       )}

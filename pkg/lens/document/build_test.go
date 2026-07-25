@@ -44,6 +44,26 @@ func TestBuild_ExistingExploreSpec(t *testing.T) {
 	require.Equal(t, golden(t, "generated_explore.json"), string(payload)+"\n")
 }
 
+func TestBuild_DocumentHeaderAndDrawerSuppression(t *testing.T) {
+	t.Parallel()
+
+	spec, result := executeExploreDashboard(t)
+	header := &DocumentHeader{Title: "Board view", Subtitle: "FY 2026"}
+	doc, err := Build(spec, result, BuildOptions{
+		SnapshotID: "header", GeneratedAt: time.Unix(1, 0), Header: header,
+	})
+	require.NoError(t, err)
+	require.Equal(t, header, doc.Header)
+
+	drawerDoc, err := Build(spec, result, BuildOptions{
+		SnapshotID: "drawer-header", GeneratedAt: time.Unix(1, 0), Header: header,
+		Drawer: &DrawerHeader{Title: "Details", Size: DrawerSizeWide},
+	})
+	require.NoError(t, err)
+	require.Nil(t, drawerDoc.Header)
+	require.Empty(t, drawerDoc.Meta.Title)
+}
+
 func TestBuild_NodeKeysIgnoreLabelsAndDefinitionOrder(t *testing.T) {
 	t.Parallel()
 	spec, result := executeExploreDashboard(t)
@@ -93,6 +113,191 @@ func TestBuild_InlineDepthIncludesOnlyMaterializedAggregateLevels(t *testing.T) 
 	require.Equal(t, FrameRef("explore:metric/focus/composition:root"), doc.Drill.Edges["metric/focus/composition/root"].Frame)
 	require.Empty(t, doc.Drill.Edges["metric/focus/composition/detail"].Frame)
 	require.NotContains(t, doc.Frames, FrameRef("explore:metric/focus/composition:detail"))
+}
+
+func TestBuild_StaticDrillTreeBecomesReactDrillGraph(t *testing.T) {
+	t.Parallel()
+
+	primary, err := frame.New("broker_receivables",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"broker-a", "broker-b"}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Broker A", "Broker B"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{100.0, 50.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	tree := panel.DrillTree{ExpandedSpan: 8, Branches: []panel.DrillBranch{
+		{
+			TriggerKey: "broker-a",
+			Label:      "Broker A",
+			Children: []panel.DrillNode{{
+				Key: "proxy", Label: "Management estimate", Value: 100,
+				Children: []panel.DrillNode{{Key: "USD", Label: "USD", Value: 100}},
+			}},
+		},
+		{
+			TriggerKey: "broker-b",
+			Label:      "Broker B",
+			Children:   []panel.DrillNode{{Key: "scheduled", Label: "Schedule", Value: 50}},
+		},
+	}}
+	chart := panel.Pie("brokers", "Broker receivables", "broker_receivables").
+		IDField("id").
+		LabelField("label").
+		ValueField("amount").
+		DrillTree(tree).
+		FocusCanvas().
+		Build()
+	spec := lensbuild.Dashboard("underwriting", "Underwriting", lensbuild.Row(chart)).
+		Datasets(lensbuild.StaticDataset("broker_receivables", frames)).
+		Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "static-tree", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, doc.Panels, 1)
+	require.NotNil(t, doc.Panels[0].DrillRoot)
+	root := doc.Drill.Edges[*doc.Panels[0].DrillRoot]
+	require.Equal(t, FocusModeCanvas, root.Presentation.Focus)
+	require.Len(t, root.Children, 2)
+	require.Equal(t, NodeKey("broker-a"), root.Children[0].Key)
+	require.NotEmpty(t, root.Children[0].Target)
+
+	brokerLevel := doc.Drill.Edges[root.Children[0].Target]
+	require.Equal(t, "Broker A", brokerLevel.Label)
+	require.Equal(t, &Encoding{ID: "id", Label: "label", Value: "amount"}, brokerLevel.Encoding)
+	require.Len(t, doc.Frames[brokerLevel.Frame].Rows, 1)
+	require.NotEmpty(t, brokerLevel.Children[0].Target)
+	currencyLevel := doc.Drill.Edges[brokerLevel.Children[0].Target]
+	require.Equal(t, "Management estimate", currencyLevel.Label)
+	require.Equal(t, "USD", doc.Frames[currencyLevel.Frame].Rows[0][1])
+}
+
+// TestBuild_SparklineTargetAndFocusCanvas covers the focus-canvas panel
+// additions end to end: a stat's Go-side sparkline reaches the wire, a
+// coverage panel carries its bullet target marker, and FocusCanvas surfaces as
+// Presentation.Focus="canvas".
+func TestBuild_SparklineTargetAndFocusCanvas(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"a", "b"}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Known", "Buffer"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{58.21, 118.4}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	stat := panel.Stat("kpi", "KPI", "rows").SparklineColored([]float64{1, 2, 3}, "#2563eb").Build()
+	coverage := panel.SegmentBar("coverage", "Coverage", "rows").Target(58.21, "Known liabilities").Build()
+	host := panel.Donut("host", "Host", "rows").IDField("id").FocusCanvas().Build()
+	spec := lensbuild.Dashboard("focus", "Focus", lensbuild.Row(stat, coverage, host)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "focus", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	byID := map[string]Panel{}
+	for _, wirePanel := range doc.Panels {
+		byID[wirePanel.ID] = wirePanel
+	}
+	require.Equal(t, &Sparkline{Values: []float64{1, 2, 3}, Color: "#2563eb"}, byID["kpi"].Sparkline)
+	require.Equal(t, &PanelTarget{Value: 58.21, Label: "Known liabilities"}, byID["coverage"].Target)
+	require.NotNil(t, byID["host"].Presentation)
+	require.Equal(t, FocusModeCanvas, byID["host"].Presentation.Focus)
+	require.Nil(t, byID["kpi"].Target)
+	require.Nil(t, byID["coverage"].Sparkline)
+}
+
+// TestBuild_FocusCanvasReachesExplorerRootLevel pins the chrome-activation
+// contract: a host panel's `.FocusCanvas()` must surface on the explorer's
+// drill ROOT level, because the React runtime (isFocusCanvas) reads the mode
+// from the root level, not from the panel.
+func TestBuild_FocusCanvasReachesExplorerRootLevel(t *testing.T) {
+	t.Parallel()
+	spec, result := executeExploreDashboard(t)
+	spec.Rows[0].Panels[0].Presentation.FocusCanvas = true
+
+	doc, err := Build(spec, result, BuildOptions{SnapshotID: "focus-root", GeneratedAt: time.Unix(1, 0), InlineDepth: 1})
+	require.NoError(t, err)
+	require.NotNil(t, doc.Panels[0].Presentation)
+	require.Equal(t, FocusModeCanvas, doc.Panels[0].Presentation.Focus)
+	root := doc.Drill.Edges["metric"]
+	require.NotNil(t, root.Presentation)
+	require.Equal(t, FocusModeCanvas, root.Presentation.Focus)
+	branch := doc.Drill.Edges["metric/focus"]
+	require.Equal(t, "metric/focus/composition", branch.DefaultPerspective)
+}
+
+// TestBuild_ExplorerLevelViewPresentationStatusAndSourceData pins the key
+// unlock of the focus canvas: a drill level's declared visualization,
+// presentation hints, quality status, and audit table all survive
+// buildExplorer instead of being dropped with the node's panel kind.
+func TestBuild_ExplorerLevelViewPresentationStatusAndSourceData(t *testing.T) {
+	t.Parallel()
+	spec, result := executeExploreDashboard(t)
+	view := &spec.Explorers[0].Branches[0].Perspectives[0]
+	money := format.Money("UZS", 0)
+	rootPanel := panel.Pie("explore-root", "Root", "premium").IDField("id").Build()
+	sourceTable := panel.Table("root-source", "Source rows", "premium").IDField("id").Columns(
+		panel.TableColumn{Field: "label", Label: "Label"},
+		panel.TableColumn{Field: "value", Label: "Value", Formatter: &money},
+	).Build()
+	view.Nodes[0] = explore.PanelNode("root", "Root", rootPanel, explore.ToNode("a", "detail")).
+		WithView(panel.KindHorizontalBar).
+		WithPresentation(panel.PresentationHints{Waterfall: true}).
+		WithStatus("ПРОКСИ", panel.StatusWarning).
+		WithSourceData("Исходные данные", sourceTable)
+	result.Panels[rootPanel.ID] = &runtime.PanelResult{Panel: rootPanel, Frames: result.Panels["host"].Frames}
+	result.Panels[sourceTable.ID] = &runtime.PanelResult{Panel: sourceTable, Frames: result.Panels["host"].Frames}
+
+	doc, err := Build(spec, result, BuildOptions{SnapshotID: "focus-level", GeneratedAt: time.Unix(1, 0), InlineDepth: 1})
+	require.NoError(t, err)
+	level := doc.Drill.Edges["metric/focus/composition/root"]
+	require.Equal(t, PanelKindHBar, level.View)
+	require.NotNil(t, level.Presentation)
+	require.Equal(t, BridgeLayoutWaterfall, level.Presentation.BridgeLayout)
+	require.Equal(t, &PanelStatus{Label: "ПРОКСИ", Tone: StatusToneWarning}, level.Status)
+	require.NotNil(t, level.Source)
+	require.Equal(t, "Исходные данные", level.Source.Label)
+	require.Equal(t, FrameRef("source:metric/focus/composition:root"), level.Source.Frame)
+	require.Contains(t, doc.Frames, level.Source.Frame)
+	require.Equal(t, []string{"label", "value", "id"}, columnNames(doc.Frames[level.Source.Frame].Columns))
+	require.Len(t, level.Source.Columns, 2)
+	require.Equal(t, FormatMoney, level.Source.Format["value"].Kind)
+	// The detail level declares none of the additions and stays bare.
+	detail := doc.Drill.Edges["metric/focus/composition/detail"]
+	require.Empty(t, detail.View)
+	require.Nil(t, detail.Presentation)
+	require.Nil(t, detail.Status)
+	require.Nil(t, detail.Source)
+
+	// A source table whose execution is absent from the runtime result drops
+	// the declaration, mirroring the inline level frame guard.
+	delete(result.Panels, sourceTable.ID)
+	doc, err = Build(spec, result, BuildOptions{SnapshotID: "no-source", GeneratedAt: time.Unix(1, 0), InlineDepth: 1})
+	require.NoError(t, err)
+	require.Nil(t, doc.Drill.Edges["metric/focus/composition/root"].Source)
+}
+
+// TestBuild_ExplorerLevelViewRejectsNonWireKinds pins the build-time guard: a
+// level view that has no wire representation fails the build with the node's
+// address instead of emitting an invalid document.
+func TestBuild_ExplorerLevelViewRejectsNonWireKinds(t *testing.T) {
+	t.Parallel()
+	spec, result := executeExploreDashboard(t)
+	view := &spec.Explorers[0].Branches[0].Perspectives[0]
+	view.Nodes[0] = view.Nodes[0].WithView(panel.KindGauge)
+	_, err := Build(spec, result, BuildOptions{SnapshotID: "bad-view", GeneratedAt: time.Unix(1, 0), InlineDepth: 1})
+	require.ErrorContains(t, err, "node root view")
+	require.ErrorContains(t, err, "unsupported document panel kind")
 }
 
 func TestBuild_TableSemanticsRequiresLeafActionForEvidence(t *testing.T) {
@@ -249,6 +454,227 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 	require.Equal(t, [][]any{{"Retail", 1250.0, -50.0, "row-1", -4.0, "/analytics/premium?signed=token"}}, wireFrame.Rows)
 	require.NotContains(t, columnNames(wireFrame.Columns), "action_url")
 	require.NotContains(t, columnNames(wireFrame.Columns), "renderer_internal")
+}
+
+// TestBuild_StatGroupAndTabsBecomeLayoutGroups_LegacyShapeUnchanged pins the
+// Groups-emission rule: a single-level group chain (length 1) keeps emitting
+// only the legacy singular Group, exactly as before nested Groups existed.
+// Groups becomes non-nil only once a chain nests to length >= 2.
+func TestBuild_StatGroupAndTabsBecomeLayoutGroups_LegacyShapeUnchanged(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	group := panel.StatGroup("ratios", "By earned premium").Span(12).Children(
+		panel.Stat("ratio-a", "Ratio A", "rows").Build(),
+	).Build()
+	tabs := panel.Tabs("result", "Result").Span(12).Children(
+		panel.Stat("cash", "Cash result", "rows").Build(),
+	).Build()
+	spec := lensbuild.Dashboard("groups", "Groups", lensbuild.Row(group), lensbuild.Row(tabs)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+
+	require.Nil(t, doc.Layout.Rows[0].Panels[0].Groups)
+	require.NotNil(t, doc.Layout.Rows[0].Panels[0].Group)
+	require.Nil(t, doc.Layout.Rows[1].Panels[0].Groups)
+	require.NotNil(t, doc.Layout.Rows[1].Panels[0].Group)
+}
+
+// TestBuild_MetricKinds covers all three metric panel kinds end to end: kind
+// mapping, semantics inference (flow=reconciliation, hierarchy=series,
+// relationship=series for association), encoding of the new Share/Confidence/
+// Availability roles, per-element action conversion (including an htmx stage
+// action being dropped), hierarchy depth derivation from Parent, and a nested
+// Tabs-in-Tabs / StatGroup-inside-Tabs group chain with the legacy Group
+// mirror set to the innermost descriptor.
+func TestBuild_MetricKinds(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{
+			"in", "add", "sub", "result", "root", "mid", "leaf", "unalloc", "src", "tgt",
+		}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{
+			100.0, 20.0, -5.0, 115.0, 100.0, 60.0, 0.0, 40.0, 50.0, 50.0,
+		}},
+		frame.Field{Name: "share", Type: frame.FieldTypeNumber, Values: []any{
+			1.0, 0.2, 0.05, 1.0, 1.0, 0.6, 0.0, 0.4, 0.5, 0.5,
+		}},
+		frame.Field{Name: "confidence", Type: frame.FieldTypeString, Values: []any{
+			"verified", "calculated", "calculated", "verified", "verified", "calculated", "verified", "proxy", "verified", "verified",
+		}},
+		frame.Field{Name: "availability", Type: frame.FieldTypeString, Values: []any{
+			"available", "available", "available", "available", "available", "available", "available", "available", "available", "available",
+		}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{
+			"Input", "Add", "Subtract", "Result", "Root", "Mid", "Leaf", "Unallocated", "Source", "Target",
+		}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	navigate := action.Navigate("/flow/result")
+	htmx := action.HtmxSwap("/flow/add", "#drawer")
+	flow := panel.MetricFlow("flow", "Flow", "rows",
+		panel.FlowStage{Key: "in", Label: "Input", Role: panel.FlowRoleInput},
+		panel.FlowStage{
+			Key: "add", Label: "Add", Role: panel.FlowRoleAdd,
+			Confidence: panel.ConfidenceCalculated, Availability: panel.AvailabilityAvailable, Action: &htmx,
+		},
+		panel.FlowStage{Key: "sub", Label: "Subtract", Role: panel.FlowRoleSubtract, Caption: "movement"},
+		panel.FlowStage{Key: "result", Label: "Result", Role: panel.FlowRoleResult, Action: &navigate},
+	).FlowReconcile(0.5).Confidence(panel.ConfidenceVerified).Availability(panel.AvailabilityAvailable).Build()
+
+	hierarchy := panel.MetricHierarchy("hierarchy", "Hierarchy", "rows",
+		panel.HierarchyRow{Key: "root", Label: "Root"},
+		panel.HierarchyRow{Key: "mid", Label: "Mid", Parent: "root"},
+		panel.HierarchyRow{Key: "leaf", Label: "Leaf", Parent: "mid"},
+		panel.HierarchyRow{Key: "unalloc", Label: "Unallocated", Parent: "mid", Unallocated: true},
+		panel.HierarchyRow{Key: "ghost", Label: "Ghost (missing frame key)", Parent: "root"},
+	).HierarchyReconcile(0.1).Build()
+
+	relationship := panel.MetricRelationship("relationship", "Relationship", "rows", panel.RelationshipSpec{
+		Source: panel.RelationshipEnd{Key: "src", Label: "Source"},
+		Target: panel.RelationshipEnd{Key: "tgt", Label: "Target"},
+		Type:   panel.RelationshipAssociation,
+	}).Build()
+
+	statA := panel.Stat("stat-a", "Stat A", "rows").Build()
+	statB := panel.Stat("stat-b", "Stat B", "rows").Build()
+	stockGroup := panel.StatGroup("stock-group", "Stock ratios").Span(12).Children(statA, statB).Build()
+
+	innerA := panel.Stat("inner-a", "Inner A", "rows").Build()
+	innerB := panel.Stat("inner-b", "Inner B", "rows").Build()
+	movementDetail := panel.Tabs("movement-detail", "Detail").Span(12).Children(innerA, innerB).Build()
+
+	composition := panel.Tabs("composition", "Composition").Span(12).Children(stockGroup, movementDetail).Build()
+
+	spec := lensbuild.Dashboard("metric-kinds", "Metric kinds",
+		lensbuild.Row(flow, hierarchy, relationship),
+		lensbuild.Row(composition),
+	).Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{
+		SnapshotID: "metric-kinds", GeneratedAt: time.Unix(1, 0).UTC(), Locale: "en",
+	})
+	require.NoError(t, err)
+	require.NoError(t, doc.Validate())
+
+	byID := map[string]Panel{}
+	for _, wirePanel := range doc.Panels {
+		byID[wirePanel.ID] = wirePanel
+	}
+
+	// Kind mapping + panel-level quality defaults.
+	require.Equal(t, PanelKindMetricFlow, byID["flow"].Kind)
+	require.Equal(t, PanelKindMetricHierarchy, byID["hierarchy"].Kind)
+	require.Equal(t, PanelKindMetricRelationship, byID["relationship"].Kind)
+	require.Equal(t, ConfidenceVerified, byID["flow"].Confidence)
+	require.Equal(t, AvailabilityAvailable, byID["flow"].Availability)
+
+	// Semantics inference: flow always reconciliation; hierarchy stays series
+	// (see build.go's documented deviation on validatePartitionFrame's
+	// non-negative invariant); relationship is series for association.
+	require.Equal(t, SemanticsReconciliation, byID["flow"].Semantics)
+	require.Equal(t, SemanticsSeries, byID["hierarchy"].Semantics)
+	require.Equal(t, SemanticsSeries, byID["relationship"].Semantics)
+
+	// Encodings carry the new Share/Confidence/Availability roles.
+	require.Equal(t, "share", byID["flow"].Encoding.Share)
+	require.Equal(t, "confidence", byID["flow"].Encoding.Confidence)
+	require.Equal(t, "availability", byID["flow"].Encoding.Availability)
+
+	// MetricFlow stage action conversion: htmx is dropped, navigate survives.
+	require.NotNil(t, byID["flow"].MetricFlow)
+	stagesByKey := map[string]MetricFlowStage{}
+	for _, stage := range byID["flow"].MetricFlow.Stages {
+		stagesByKey[stage.Key] = stage
+	}
+	require.Nil(t, stagesByKey["add"].Action, "htmx stage action must be dropped, not carried to the wire")
+	require.NotNil(t, stagesByKey["result"].Action)
+	require.Equal(t, ActionNavigateToLeaf, stagesByKey["result"].Action.Kind)
+	require.Equal(t, "movement", stagesByKey["sub"].Caption)
+	require.NotNil(t, byID["flow"].MetricFlow.Reconcile)
+	require.InDelta(t, 0.5, byID["flow"].MetricFlow.Reconcile.Tolerance, 1e-9)
+
+	// MetricHierarchy depth derivation from Parent (root=0), including a row
+	// whose key has no matching frame row (a structural declaration is valid;
+	// resolving it against the frame is a render-time, not a build-time,
+	// concern).
+	require.NotNil(t, byID["hierarchy"].MetricHierarchy)
+	rowsByKey := map[string]MetricHierarchyRow{}
+	for _, row := range byID["hierarchy"].MetricHierarchy.Rows {
+		rowsByKey[row.Key] = row
+	}
+	require.Equal(t, 0, rowsByKey["root"].Depth)
+	require.Equal(t, 1, rowsByKey["mid"].Depth)
+	require.Equal(t, 2, rowsByKey["leaf"].Depth)
+	require.Equal(t, 2, rowsByKey["unalloc"].Depth)
+	require.Equal(t, 1, rowsByKey["ghost"].Depth)
+	require.True(t, rowsByKey["unalloc"].Unallocated)
+	require.NotNil(t, byID["hierarchy"].MetricHierarchy.Reconcile)
+	require.InDelta(t, 0.1, byID["hierarchy"].MetricHierarchy.Reconcile.Tolerance, 1e-9)
+
+	// MetricRelationship: empty Direction defaults to bidirectional.
+	require.NotNil(t, byID["relationship"].MetricRelationship)
+	require.Equal(t, MetricRelationshipAssociation, byID["relationship"].MetricRelationship.Type)
+	require.Equal(t, MetricRelationshipBidirectional, byID["relationship"].MetricRelationship.Direction)
+
+	// Nested group chains: StatGroup-inside-Tabs and Tabs-in-Tabs each produce
+	// a two-level Groups chain, and the legacy Group always mirrors the
+	// innermost descriptor.
+	items := map[string]LayoutItem{}
+	for _, layoutRow := range doc.Layout.Rows {
+		for _, item := range layoutRow.Panels {
+			items[item.PanelID] = item
+		}
+	}
+	// Top-level metric panels are not inside any container: no group at all.
+	require.Nil(t, items["flow"].Group)
+	require.Nil(t, items["flow"].Groups)
+
+	statAItem := items["stat-a"]
+	require.Len(t, statAItem.Groups, 2)
+	require.Equal(t, "composition", statAItem.Groups[0].ID)
+	require.Equal(t, LayoutGroupTabs, statAItem.Groups[0].Kind)
+	require.Equal(t, "Stock ratios", statAItem.Groups[0].Tab)
+	require.Equal(t, "stock-group", statAItem.Groups[1].ID)
+	require.Equal(t, LayoutGroupMetrics, statAItem.Groups[1].Kind)
+	require.NotNil(t, statAItem.Group)
+	require.Equal(t, statAItem.Groups[1], *statAItem.Group, "legacy Group must mirror the innermost chain entry")
+
+	innerAItem := items["inner-a"]
+	require.Len(t, innerAItem.Groups, 2)
+	require.Equal(t, "composition", innerAItem.Groups[0].ID)
+	require.Equal(t, "Detail", innerAItem.Groups[0].Tab)
+	require.Equal(t, "movement-detail", innerAItem.Groups[1].ID)
+	require.Equal(t, LayoutGroupTabs, innerAItem.Groups[1].Kind)
+	require.Equal(t, "Inner A", innerAItem.Groups[1].Tab)
+	require.NotNil(t, innerAItem.Group)
+	require.Equal(t, innerAItem.Groups[1], *innerAItem.Group)
+
+	innerBItem := items["inner-b"]
+	require.Equal(t, "Inner B", innerBItem.Groups[1].Tab)
+
+	payload, err := json.MarshalIndent(doc, "", "  ")
+	require.NoError(t, err)
+	require.Equal(t, golden(t, "metric_kinds.json"), string(payload)+"\n")
 }
 
 func columnNames(columns []Column) []string {
@@ -454,6 +880,38 @@ func TestBuild_SegmentBarBecomesCoverage(t *testing.T) {
 	require.NotNil(t, wirePanel.Headline)
 	require.InDelta(t, 5.0, *wirePanel.Headline, 1e-9)
 	require.Equal(t, TotalBadgeNone, wirePanel.Presentation.TotalBadge)
+}
+
+func TestBuild_CascadeCarriesWaterfallLayout(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("bridge",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Opening", "Closing"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{235.0, 56.98}},
+		frame.Field{Name: "cut", Type: frame.FieldTypeNumber, Values: []any{0.0, 178.02}},
+		frame.Field{Name: "cutLabel", Type: frame.FieldTypeString, Values: []any{"", "Net movement"}},
+		frame.Field{Name: "final", Type: frame.FieldTypeBoolean, Values: []any{false, true}},
+		frame.Field{Name: "annotation", Type: frame.FieldTypeString, Values: []any{"", "12 above threshold"}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	waterfall := panel.Cascade("reserve-movement", "Reserve movement", "bridge").
+		Waterfall().
+		AnnotationField("annotation").
+		Build()
+	spec := lensbuild.Dashboard("waterfall", "Waterfall", lensbuild.Row(waterfall)).
+		Datasets(lensbuild.StaticDataset("bridge", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.NotNil(t, doc.Panels[0].Presentation)
+	require.Equal(t, BridgeLayoutWaterfall, doc.Panels[0].Presentation.BridgeLayout)
+	require.Equal(t, "annotation", doc.Panels[0].Encoding.Annotation)
 }
 
 // A partition's colors must be reachable both by panel-scoped index and by the

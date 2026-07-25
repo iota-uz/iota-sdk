@@ -2,11 +2,73 @@ package document
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
 )
+
+func TestCloneActionPreservesEmptyParamsAsNonNil(t *testing.T) {
+	t.Parallel()
+	// A dynamic explorer child action (e.g. the product-detail leaf list) carries
+	// no params. cloneAction must keep Params as an empty-but-non-nil slice so it
+	// marshals as `[]`, never `null` — the wire contract's `params: array` rejects
+	// null and bricks the whole level in the client.
+	src := &Action{
+		Kind:    ActionNavigateToLeaf,
+		Params:  []ActionParam{},
+		Payload: map[string]Source{},
+	}
+	clone := cloneAction(src)
+	require.NotNil(t, clone.Params, "cloned Params must not collapse to nil")
+	require.Empty(t, clone.Params)
+	encoded, err := json.Marshal(clone)
+	require.NoError(t, err)
+	require.Contains(t, string(encoded), `"params":[]`)
+	require.NotContains(t, string(encoded), `"params":null`)
+}
+
+func TestResolvedDynamicChildActionsMarshalEmptyParamsAsArray(t *testing.T) {
+	t.Parallel()
+	// Mirrors «Накопленная премия» → «По продуктам» → product-detail: a dynamic
+	// leaf list whose child action carries no params. After resolution AND the
+	// snapshot node clone, each child action must marshal `params: []`, never
+	// `null` — the client's `action.params: array` schema rejects null.
+	leaf := &Action{
+		Kind:      ActionNavigateToLeaf,
+		URLSource: &Source{Kind: ValueSourceField, Name: "action_url"},
+		Params:    []ActionParam{},
+		Payload:   map[string]Source{},
+	}
+	level := Level{
+		Path: NodePath{"root/product-detail"},
+		DynamicChildren: &DynamicChildren{
+			Key:    Source{Kind: ValueSourceField, Name: "id"},
+			Label:  Source{Kind: ValueSourceField, Name: "label"},
+			Action: leaf,
+		},
+	}
+	frame := Frame{
+		Columns: []Column{
+			{Name: "id", Type: ColumnString},
+			{Name: "label", Type: ColumnString},
+			{Name: "action_url", Type: ColumnString},
+		},
+		Rows: [][]any{{"osago", "OSAGO", "/portfolio/policies?product=osago"}},
+	}
+	require.NoError(t, ResolveDynamicChildren(&frame, level))
+	// The snapshot round-trip clones nodes — the path that previously nilled Params.
+	cloned := cloneNodes(frame.Children)
+	require.NotEmpty(t, cloned)
+	for _, child := range cloned {
+		require.NotNil(t, child.Action)
+		encoded, err := json.Marshal(child.Action)
+		require.NoError(t, err)
+		require.Contains(t, string(encoded), `"params":[]`)
+		require.NotContains(t, string(encoded), `"params":null`)
+	}
+}
 
 func TestMemoryStore_PutGetAppendAreCloneSafe(t *testing.T) {
 	t.Parallel()

@@ -163,7 +163,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 				},
 			}
 		}
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		if hasSeries(rows, fields.Series.Name()) {
 			categories, series := groupedSeries(rows, fields)
 			options.Series = series
@@ -190,7 +190,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 		options.XAxis.AxisBorder = nil
 		options.XAxis.AxisTicks = nil
 		options.YAxis = nil
-	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
+	case panel.KindStat, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 	}
 
 	if panelSpec.Kind == panel.KindHorizontalBar {
@@ -391,7 +391,8 @@ func applyBarHoverStates(options *charts.ChartOptions, panelSpec panel.Spec) {
 	switch panelSpec.Kind {
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade:
 	case panel.KindStat, panel.KindTimeSeries, panel.KindPie, panel.KindDonut, panel.KindGauge,
-		panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
+		panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup,
+		panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return
 	default:
 		return
@@ -602,7 +603,7 @@ func appendResponsiveDefaults(options *charts.ChartOptions, panelSpec panel.Spec
 			}
 		}
 		return
-	case panel.KindGauge:
+	case panel.KindGauge, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return
 	case panel.KindStat,
 		panel.KindTimeSeries,
@@ -1691,7 +1692,10 @@ func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.
 		panel.KindGrid,
 		panel.KindSplit,
 		panel.KindRepeat,
-		panel.KindStatGroup:
+		panel.KindStatGroup,
+		panel.KindMetricFlow,
+		panel.KindMetricHierarchy,
+		panel.KindMetricRelationship:
 		return
 	}
 }
@@ -1880,7 +1884,7 @@ func chartType(kind panel.Kind) charts.ChartType {
 		return charts.DonutChartType
 	case panel.KindGauge:
 		return charts.RadialBarChartType
-	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
+	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return charts.BarChartType
 	}
 	return charts.BarChartType
@@ -1946,7 +1950,10 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 		panel.KindGrid,
 		panel.KindSplit,
 		panel.KindRepeat,
-		panel.KindStatGroup:
+		panel.KindStatGroup,
+		panel.KindMetricFlow,
+		panel.KindMetricHierarchy,
+		panel.KindMetricRelationship:
 	default:
 		return ""
 	}
@@ -2094,7 +2101,10 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		panel.KindGrid,
 		panel.KindSplit,
 		panel.KindRepeat,
-		panel.KindStatGroup:
+		panel.KindStatGroup,
+		panel.KindMetricFlow,
+		panel.KindMetricHierarchy,
+		panel.KindMetricRelationship:
 		return 1
 	}
 	return 1
@@ -2122,7 +2132,10 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 		panel.KindGrid,
 		panel.KindSplit,
 		panel.KindRepeat,
-		panel.KindStatGroup:
+		panel.KindStatGroup,
+		panel.KindMetricFlow,
+		panel.KindMetricHierarchy,
+		panel.KindMetricRelationship:
 		return false
 	}
 	if hasSeries(rows, fields.Series.Name()) {

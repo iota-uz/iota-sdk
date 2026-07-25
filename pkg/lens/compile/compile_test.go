@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -195,6 +196,64 @@ func TestCompilePanelPreservesPresentationAndColumnTreatments(t *testing.T) {
 	require.Equal(t, "pill", compiled.Columns[3].Affordance)
 }
 
+// TestCompilePanelRoundTripsMetricKinds pins the compilePanel contract for the
+// three metric panel kinds: every new field (stages/rows/relationship, the
+// reconcile tolerances, panel-level quality defaults, and the share/confidence/
+// availability field roles) must reach panel.Spec unchanged.
+func TestCompilePanelRoundTripsMetricKinds(t *testing.T) {
+	t.Parallel()
+
+	flowAction := action.Navigate("/flow/{key}", action.FieldParam("key", "id"))
+	flowItem := lensspec.MetricFlow("flow", "Flow", "flow_dataset",
+		panel.FlowStage{Key: "start", Label: "Start", Role: panel.FlowRoleInput},
+		panel.FlowStage{
+			Key: "add", Label: "Add", Role: panel.FlowRoleAdd, Caption: "note",
+			Confidence: panel.ConfidenceCalculated, Availability: panel.AvailabilityAvailable,
+			Action: &flowAction,
+		},
+		panel.FlowStage{Key: "end", Label: "End", Role: panel.FlowRoleResult},
+	).
+		FlowReconcile(0.5).
+		Confidence(panel.ConfidenceVerified).
+		Availability(panel.AvailabilityAvailable).
+		ShareField("share_col").
+		ConfidenceField("confidence_col").
+		AvailabilityField("availability_col").
+		Build()
+
+	compiledFlow, err := compilePanel(flowItem, Options{})
+	require.NoError(t, err)
+	require.Equal(t, flowItem.FlowStages, compiledFlow.FlowStages)
+	require.Equal(t, flowItem.FlowReconcile, compiledFlow.FlowReconcile)
+	require.Equal(t, panel.ConfidenceVerified, compiledFlow.Confidence)
+	require.Equal(t, panel.AvailabilityAvailable, compiledFlow.Availability)
+	require.Equal(t, panel.Ref("share_col"), compiledFlow.Fields.Share)
+	require.Equal(t, panel.Ref("confidence_col"), compiledFlow.Fields.Confidence)
+	require.Equal(t, panel.Ref("availability_col"), compiledFlow.Fields.Availability)
+
+	hierarchyItem := lensspec.MetricHierarchy("hierarchy", "Hierarchy", "hierarchy_dataset",
+		panel.HierarchyRow{Key: "root", Label: "Root"},
+		panel.HierarchyRow{Key: "child", Label: "Child", Parent: "root", Unallocated: true},
+	).
+		HierarchyReconcile(1.5).
+		Build()
+
+	compiledHierarchy, err := compilePanel(hierarchyItem, Options{})
+	require.NoError(t, err)
+	require.Equal(t, hierarchyItem.HierarchyRows, compiledHierarchy.HierarchyRows)
+	require.Equal(t, hierarchyItem.HierarchyReconcile, compiledHierarchy.HierarchyReconcile)
+
+	relationshipItem := lensspec.MetricRelationship("relationship", "Relationship", "relationship_dataset", panel.RelationshipSpec{
+		Source: panel.RelationshipEnd{Key: "a", Label: "A"},
+		Target: panel.RelationshipEnd{Key: "b", Label: "B"},
+		Type:   panel.RelationshipAssociation,
+	}).Build()
+
+	compiledRelationship, err := compilePanel(relationshipItem, Options{})
+	require.NoError(t, err)
+	require.Equal(t, relationshipItem.Relationship, compiledRelationship.Relationship)
+}
+
 // A stat_group document compiles through to a validated dashboard spec: the
 // group itself carries no dataset, children keep theirs, and the new stat v2
 // fields (status, sparkline, trend.invert, groupLayout) pass through 1:1.
@@ -211,6 +270,7 @@ func TestDocumentCompilesStatGroupWithStatV2Fields(t *testing.T) {
 		Status("ON TRACK", panel.StatusPositive).
 		SparklineColored([]float64{1, 2, 3}, "#2563eb").
 		TrendWithInvert(-4.2, "vs LY", true).
+		Target(100, "Plan").
 		Build()
 	group := lensspec.StatGroup("kpi-group", "KPIs", child).
 		Layout(panel.GroupRows).
@@ -248,6 +308,7 @@ func TestDocumentCompilesStatGroupWithStatV2Fields(t *testing.T) {
 	require.NotNil(t, compiledChild.Sparkline)
 	require.Equal(t, []float64{1, 2, 3}, compiledChild.Sparkline.Values)
 	require.Equal(t, "#2563eb", compiledChild.Sparkline.Color)
+	require.Equal(t, &panel.TargetSpec{Value: 100, Label: "Plan"}, compiledChild.Target)
 	require.NotNil(t, compiledChild.Trend)
 	require.True(t, compiledChild.Trend.Invert)
 	require.InDelta(t, -4.2, compiledChild.Trend.Percent, 0.0001)

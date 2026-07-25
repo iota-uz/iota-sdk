@@ -25,11 +25,42 @@
     --lens-warn: #d97706;
     --lens-pos-soft: #ecfdf5;
     --lens-neg-soft: #fef2f2;
+    --lens-warn-soft: #fffbeb;
+    /* 4px-base spacing scale. The dense-terminal grid rhythm (gaps, paddings,
+       margins) references these instead of ad-hoc px literals so a single edit
+       retunes the whole sheet. The half-step covers the tightest 2px gaps
+       between repeated elements. Bespoke/optical values off this scale
+       (3/6/7/9/10/14/18px in the date picker, endpoint pill insets, focus
+       rings) stay literal on purpose — they are not grid rhythm. */
+    --lens-space-0-5: 2px;
+    --lens-space-1: 4px;
+    --lens-space-2: 8px;
+    --lens-space-3: 12px;
+    --lens-space-4: 16px;
+    --lens-space-5: 20px;
+    --lens-space-6: 24px;
     --lens-radius-card: 8px;
     --lens-radius-control: 6px;
     --lens-radius-badge: 4px;
+    /* The calendar cell rounding (day hover, band caps, endpoint pill) is a
+       genuine small-surface radius that sits between control and card; it
+       recurs across the day grid, so it earns a token instead of repeated 7px
+       literals. */
+    --lens-radius-sm: 7px;
     --lens-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
+    --lens-shadow-popover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
     --lens-font: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
+    /* Motion vocabulary. Every new animation and transition references these
+       four easings and three durations instead of ad-hoc curves, so the whole
+       runtime accelerates and settles with one voice. The focus-canvas
+       reduced-motion block at the end of the sheet is the single kill switch
+       for everything built on them. */
+    --lens-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --lens-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --lens-ease-spring: cubic-bezier(0.5, 1.4, 0.5, 1);
+    --lens-dur-fast: 120ms;
+    --lens-dur-base: 200ms;
+    --lens-dur-slow: 320ms;
   }
 
   lens-dashboard {
@@ -57,8 +88,10 @@
     --lens-accent-100: rgba(37, 99, 235, 0.2);
     --lens-accent-50: rgba(37, 99, 235, 0.12);
     --lens-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --lens-shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
     --lens-pos-soft: rgba(5, 150, 105, 0.16);
     --lens-neg-soft: rgba(220, 38, 38, 0.16);
+    --lens-warn-soft: rgba(217, 119, 6, 0.16);
     color-scheme: dark;
   }
 
@@ -89,12 +122,29 @@
   }
 
   .lens-drawer-header {
-    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-center lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5;
+    @apply lens-sticky lens-top-0 lens-z-10 lens-flex lens-min-h-14 lens-items-start lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-px-5 lens-py-3;
     box-shadow: inset 3px 0 0 var(--lens-accent-500);
   }
 
+  .lens-drawer-identity {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+  }
+
   .lens-drawer-eyebrow {
-    @apply lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+
+  .lens-drawer-title {
+    @apply lens-truncate lens-text-base lens-font-semibold lens-text-strong;
+    line-height: 1.3;
+  }
+
+  .lens-drawer-caption {
+    @apply lens-text-xs lens-text-muted;
+    white-space: pre-line;
+    line-height: 1.35;
   }
 
   .lens-drawer-close {
@@ -117,6 +167,28 @@
 
   .lens-drawer-document .lens-dashboard {
     @apply lens-max-w-none;
+  }
+
+  /* A long record table inside a drawer keeps its header on screen while the
+     rows scroll: the header sticks to whichever ancestor scrolls (the table's
+     own scroll box, or the drawer body). A solid card background keeps the
+     scrolled rows from bleeding through the sticky row. */
+  .lens-drawer .lens-table thead th {
+    @apply lens-sticky lens-top-0 lens-z-10;
+    background: var(--lens-bg-card);
+  }
+
+  /* Sections take their natural height inside a drawer — no stretch — so a
+     short drawer ends cleanly after its content instead of trailing dead space
+     under a fill-stretched panel. */
+  .lens-drawer-document .lens-panel-fill {
+    @apply lens-flex-none;
+  }
+
+  /* The wide variant hosts cross-metric detail views (a full focus canvas
+     inside the drawer); same chrome, same slide, roomier slab. */
+  .lens-drawer-wide {
+    max-width: min(1080px, calc(100vw - 24px));
   }
 
   @keyframes lens-drawer-enter {
@@ -149,12 +221,48 @@
     @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
   }
 
+  /* The document's own identity block: a strong title over a muted period +
+     freshness line, left-aligned opposite the action bar. */
+  .lens-dashboard-identity {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
+  }
+
+  .lens-dashboard-header .lens-dashboard-title {
+    @apply lens-m-0 lens-font-semibold lens-tracking-tight lens-text-strong;
+    font-size: 15px;
+    line-height: 1.2;
+  }
+
+  .lens-dashboard-subtitle {
+    @apply lens-m-0 lens-text-muted;
+    font-size: 12px;
+    line-height: 1.3;
+  }
+
+  .lens-dashboard-subtitle-sep {
+    @apply lens-text-faint;
+  }
+
   .lens-dashboard-updated {
     @apply lens-m-0 lens-mb-4 lens-text-xs lens-font-medium lens-text-muted;
   }
 
   .lens-dashboard-controls {
     @apply lens-flex lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
+  }
+
+  /* Once the action/filter cluster can no longer coexist with the document
+     identity, move it below as one unit. Letting flexbox squeeze the identity
+     instead makes every word (and even every date token) wrap independently,
+     which is unreadable in a board dashboard. */
+  @media (max-width: 1100px) {
+    .lens-dashboard-header {
+      @apply lens-flex-col lens-items-stretch lens-gap-3;
+    }
+
+    .lens-dashboard-controls {
+      @apply lens-justify-start;
+    }
   }
 
   .lens-filter-bar {
@@ -176,44 +284,241 @@
   }
 
   .lens-filter-chip {
-    @apply lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-whitespace-nowrap lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
   }
 
   .lens-filter-chip:hover {
-    @apply lens-text-strong;
+    @apply lens-bg-inset lens-text-strong;
   }
 
-  .lens-filter-chip[aria-pressed='true'] {
-    @apply lens-bg-card lens-text-strong;
-    box-shadow: var(--lens-shadow-card);
+  /* The pressed chip is the active period source: the same accent language as
+     the popover rail's selected preset, with a hairline accent ring (an inset
+     shadow, so the borderless chip does not shift). Hover restates it because
+     the idle hover above would otherwise repaint the text dark. */
+  .lens-filter-chip[aria-pressed='true'],
+  .lens-filter-chip[aria-pressed='true']:hover {
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+    box-shadow: inset 0 0 0 1px var(--lens-accent-300);
   }
 
+  .lens-root[data-theme='dark'] .lens-filter-chip[aria-pressed='true'],
+  .lens-root[data-theme='dark'] .lens-filter-chip[aria-pressed='true']:hover {
+    color: var(--lens-accent-300);
+  }
+
+  /* The period trigger is a real control: calendar glyph, formatted range,
+     caret. Hover raises the border; the open state ties it to the popover
+     with the accent border and tint. */
   .lens-filter-trigger {
-    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
-  .lens-filter-trigger:hover,
+  .lens-filter-trigger:hover {
+    @apply lens-border-strong lens-text-strong;
+  }
+
+  /* When the applied range matches no chip, the trigger itself is the active
+     period source and carries the pressed-chip accent treatment persistently;
+     the open state (below, later in the cascade) upgrades the border. */
+  .lens-filter-trigger[data-active] {
+    border-color: var(--lens-accent-300);
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+  }
+
+  .lens-root[data-theme='dark'] .lens-filter-trigger[data-active] {
+    color: var(--lens-accent-300);
+  }
+
   .lens-filter-trigger[aria-expanded='true'] {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens-text-strong;
+    border-color: var(--lens-accent-500);
+    background: var(--lens-accent-50);
   }
 
   .lens-filter-trigger-icon {
-    @apply lens-text-faint;
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  .lens-filter-trigger-caret {
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  .lens-filter-trigger:hover .lens-filter-trigger-icon,
+  .lens-filter-trigger:hover .lens-filter-trigger-caret,
+  .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-icon,
+  .lens-filter-trigger[aria-expanded='true'] .lens-filter-trigger-caret {
+    @apply lens-text-muted;
+  }
+
+  /* The active trigger's glyphs follow its accent text. */
+  .lens-filter-trigger[data-active] .lens-filter-trigger-icon,
+  .lens-filter-trigger[data-active] .lens-filter-trigger-caret {
+    color: inherit;
   }
 
   .lens-filter-scrim {
     @apply lens-fixed lens-inset-0;
   }
 
+  /* The picker popover: a two-pane card. The left rail lists the relative
+     presets under a "quick select" heading, the main pane owns the dual-month
+     calendar, typed range entry, and the footer actions. Below ~540px the
+     panes stack, the calendar drops to one month, and the preset list becomes
+     a horizontally scrollable row. */
   .lens-filter-popover {
-    @apply lens-fixed lens-flex lens-flex-col lens-gap-2 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-shadow-lg lens-outline-none;
-    width: 292px;
+    @apply lens-fixed lens-flex lens-flex-row lens-items-stretch lens-overflow-hidden lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0 lens-outline-none;
+    width: 660px;
+    border-radius: 12px;
+    box-shadow: var(--lens-shadow-card), var(--lens-shadow-popover);
   }
 
-  /* Same open treatment as the drill overlay: the class only exists when
-     neither visual regression nor reduced motion is in effect. */
+  .lens-filter-popover-side {
+    @apply lens-flex lens-flex-col lens-gap-px lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid;
+    flex: 0 0 164px;
+    padding: 10px 8px;
+    border-color: var(--lens-divider);
+  }
+
+  .lens-filter-preset-heading {
+    @apply lens-flex-none lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+    font-size: 10px;
+    padding: 2px 10px 6px;
+  }
+
+  .lens-filter-preset {
+    @apply lens-block lens-w-full lens-flex-none lens-rounded-control lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-xs lens-font-medium lens-text-text lens-transition-colors;
+    padding: 8px 10px;
+    line-height: 1.35;
+  }
+
+  .lens-filter-preset:hover {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
+  .lens-filter-preset[aria-pressed='true'] {
+    @apply lens-font-medium;
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-600);
+  }
+
+  /* accent-600 has no dark override (it backs solid fills elsewhere), so the
+     selected preset restates its text colour for the dark theme. */
+  .lens-root[data-theme='dark'] .lens-filter-preset[aria-pressed='true'] {
+    color: var(--lens-accent-300);
+  }
+
+  .lens-filter-preset-divider {
+    @apply lens-h-px lens-flex-none;
+    margin: 6px 4px;
+    background: var(--lens-divider);
+  }
+
+  .lens-filter-popover-main {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col lens-gap-2.5;
+    padding: 12px 14px;
+  }
+
+  /* Typed range entry: From and To read as one joined control — a single
+     bordered field with an em-dash between the two halves. Each half is a
+     masked dd.mm.yyyy text input behind a small calendar glyph; an invalid
+     half carries its own red ring. */
+  .lens-filter-range {
+    @apply lens-flex lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card;
+    padding: 3px 6px;
+  }
+
+  .lens-filter-range:hover {
+    @apply lens-border-strong;
+  }
+
+  .lens-filter-range:focus-within {
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 2px var(--lens-accent-100);
+  }
+
+  .lens-filter-range-field {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
+    padding: 2px 6px;
+  }
+
+  .lens-filter-range-caption {
+    @apply lens-font-semibold lens-uppercase lens-tracking-wide lens-text-faint;
+    font-size: 9px;
+  }
+
+  .lens-filter-range-input {
+    @apply lens-flex lens-items-center lens-gap-1.5;
+    padding: 1px 2px;
+    border-radius: var(--lens-radius-badge);
+  }
+
+  .lens-filter-range-input[data-invalid] {
+    box-shadow: 0 0 0 1px var(--lens-neg), 0 0 0 3px var(--lens-neg-soft);
+  }
+
+  .lens-filter-range-input[data-invalid] .lens-filter-input {
+    color: var(--lens-neg);
+  }
+
+  .lens-filter-range-icon {
+    @apply lens-flex-none lens-text-faint;
+  }
+
+  /* The joiner sits on the input line, not the optical middle of the
+     caption+input stack. */
+  .lens-filter-range-sep {
+    @apply lens-flex-none lens-text-faint;
+    font-size: 12px;
+    line-height: 1;
+    margin-top: 12px;
+  }
+
+  .lens-filter-input {
+    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-xs lens-font-medium lens-text-strong lens-outline-none;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-filter-input::placeholder {
+    color: var(--lens-text-faint);
+  }
+
+  @media (max-width: 540px) {
+    .lens-filter-popover {
+      @apply lens-flex-col;
+      width: min(340px, calc(100vw - 24px));
+    }
+
+    .lens-filter-popover-side {
+      @apply lens-flex-row lens-items-center lens-overflow-x-auto lens-overflow-y-hidden lens-border-r-0 lens-border-b;
+      flex: none;
+      border-color: var(--lens-divider);
+    }
+
+    .lens-filter-preset-heading {
+      @apply lens-hidden;
+    }
+
+    .lens-filter-preset {
+      @apply lens-w-auto lens-flex-none;
+    }
+
+    .lens-filter-preset-divider {
+      @apply lens-h-auto lens-w-px lens-self-stretch;
+      margin: 4px 6px;
+    }
+  }
+
+  /* Open entrance: a short fade-and-drop. The class only exists when neither
+     visual regression nor reduced motion is in effect. */
   .lens-filter-popover-enter {
-    animation: lens-overlay-pop 120ms ease-out;
+    animation: lens-filter-pop 140ms ease-out;
+  }
+
+  @keyframes lens-filter-pop {
+    from { opacity: 0; transform: translateY(-4px); }
+    to { opacity: 1; transform: translateY(0); }
   }
 
   @media (prefers-reduced-motion: reduce) {
@@ -223,85 +528,232 @@
   }
 
   .lens-filter-popover-footer {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
+    @apply lens-flex lens-items-center lens-justify-end lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-pt-2;
     border-color: var(--lens-divider);
   }
 
-  .lens-calendar {
-    @apply lens-flex lens-flex-col lens-gap-2;
+  .lens-filter-close {
+    @apply lens-px-3;
+    min-height: 32px;
   }
 
+  .lens-filter-close:hover {
+    @apply lens-bg-inset;
+  }
+
+  /* Apply is the popover's one primary action. Hover/disabled must restate the
+     colours because the base chip's hover otherwise repaints the text dark. */
+  .lens-filter-apply {
+    background: var(--lens-accent-600);
+    color: #ffffff;
+    padding-inline: 0.875rem;
+    min-height: 32px;
+  }
+
+  .lens-filter-apply:hover:not(:disabled) {
+    background: var(--lens-accent-500);
+    color: #ffffff;
+  }
+
+  .lens-filter-apply:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+
+  .lens-calendar {
+    @apply lens-flex lens-flex-col lens-gap-1.5;
+  }
+
+  /* Two consecutive month panes side by side; the stacked breakpoint drops
+     the calendar to a single pane (decided in JS with the same media query). */
+  .lens-calendar-panes {
+    @apply lens-flex lens-items-start;
+    gap: 18px;
+  }
+
+  .lens-calendar-pane {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1;
+    flex: 1 1 0;
+  }
+
+  /* Fixed side tracks keep the month label optically centered whether the
+     pane carries its nav buttons on the left, the right, or both. */
   .lens-calendar-header {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-2;
+    @apply lens-items-center;
+    display: grid;
+    grid-template-columns: 56px 1fr 56px;
+  }
+
+  .lens-calendar-nav-group {
+    @apply lens-flex lens-items-center;
+    gap: var(--lens-space-0-5);
+  }
+
+  .lens-calendar-nav-group:last-child {
+    @apply lens-justify-end;
   }
 
   .lens-calendar-month {
-    @apply lens-text-sm lens-font-semibold lens-text-strong;
+    @apply lens-whitespace-nowrap lens-text-center lens-text-sm lens-font-semibold lens-text-strong;
   }
 
   .lens-calendar-nav {
-    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-font-sans lens-text-sm lens-text-muted;
+    @apply lens-flex lens-h-7 lens-w-7 lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-bg-transparent lens-font-sans lens-leading-none lens-text-muted;
   }
 
   .lens-calendar-nav:hover {
-    @apply lens-border-strong lens-bg-inset lens-text-strong;
+    @apply lens-bg-inset lens-text-strong;
   }
 
+  /* The day grid has NO column gap: in-range washes touch edge to edge so a
+     selected range reads as one continuous band. Vertical rhythm comes from
+     the per-row margin instead of a grid gap. */
   .lens-calendar-weekdays,
   .lens-calendar-week {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
-    gap: 2px;
+    gap: 0;
+  }
+
+  .lens-calendar-week + .lens-calendar-week {
+    margin-top: var(--lens-space-0-5);
   }
 
   .lens-calendar-weekday {
     @apply lens-py-1 lens-text-center lens-font-semibold lens-uppercase lens-text-faint;
     font-size: 10px;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
   }
 
+  /* A day cell is a fixed-height flat button; every visual state is painted
+     either on the button (the band wash) or on its ::before (the endpoint
+     pill), with the day number lifted above both. Out-of-month padding days
+     are decorative spans on the same footprint: faint, inert, never washed. */
   .lens-calendar-day {
-    @apply lens-rounded-badge lens-border-0 lens-bg-transparent lens-py-1.5 lens-text-center lens-font-sans lens-text-xs lens-font-medium lens-text-text;
+    @apply lens-relative lens-inline-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
+    height: 32px;
+    font-size: 12.5px;
+    border-radius: 0;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-calendar-day-label {
+    @apply lens-relative;
+    z-index: 1;
   }
 
   .lens-calendar-day[data-outside] {
     @apply lens-text-faint;
+    background: none;
+    opacity: 0.55;
+    pointer-events: none;
   }
 
-  .lens-calendar-day:hover:not(:disabled) {
+  .lens-calendar-day:hover:not(:disabled):not([data-state]) {
     @apply lens-bg-inset;
+    border-radius: var(--lens-radius-sm);
   }
 
-  .lens-calendar-day[data-today] {
-    box-shadow: inset 0 0 0 1px var(--lens-accent-300);
-  }
-
-  /* The live hover preview uses the faint accent wash; a committed range the
-     stronger one. Boundaries are always solid accent. */
-  .lens-calendar-day[data-state='preview'] {
-    background: var(--lens-accent-50);
-    color: var(--lens-text-strong);
-  }
-
+  /* The continuous range band. In-range cells carry a full-width soft accent
+     wash with no rounding and no gaps; the hover preview the fainter wash.
+     Endpoint cells carry a half-width wash on their inner side (data-band) so
+     the band ends exactly under the middle of the endpoint pill. */
   .lens-calendar-day[data-state='inRange'] {
     background: var(--lens-accent-100);
     color: var(--lens-text-strong);
   }
 
+  .lens-calendar-day[data-state='preview'] {
+    background: var(--lens-accent-50);
+    color: var(--lens-text-strong);
+  }
+
+  .lens-calendar-day[data-band='right'] {
+    background: linear-gradient(to right, transparent 50%, var(--lens-accent-100) 50%);
+  }
+
+  .lens-calendar-day[data-band='left'] {
+    background: linear-gradient(to left, transparent 50%, var(--lens-accent-100) 50%);
+  }
+
+  .lens-calendar-day[data-band='right-preview'] {
+    background: linear-gradient(to right, transparent 50%, var(--lens-accent-50) 50%);
+  }
+
+  .lens-calendar-day[data-band='left-preview'] {
+    background: linear-gradient(to left, transparent 50%, var(--lens-accent-50) 50%);
+  }
+
+  /* Rounded caps where the wash is cut before its endpoint: at week-row
+     edges and against out-of-month gaps the band rounds off instead of
+     running square into the grid border. */
+  .lens-calendar-day[data-cap='left'],
+  .lens-calendar-day[data-cap='both'] {
+    border-top-left-radius: var(--lens-radius-sm);
+    border-bottom-left-radius: var(--lens-radius-sm);
+  }
+
+  .lens-calendar-day[data-cap='right'],
+  .lens-calendar-day[data-cap='both'] {
+    border-top-right-radius: var(--lens-radius-sm);
+    border-bottom-right-radius: var(--lens-radius-sm);
+  }
+
+  /* The endpoint pill: a solid accent rounded rect drawn over the band. */
   .lens-calendar-day[data-state='start'],
   .lens-calendar-day[data-state='end'],
   .lens-calendar-day[data-state='previewEdge'] {
-    background: var(--lens-accent-600);
     color: #ffffff;
+  }
+
+  .lens-calendar-day[data-state='start']::before,
+  .lens-calendar-day[data-state='end']::before,
+  .lens-calendar-day[data-state='previewEdge']::before {
+    content: '';
+    position: absolute;
+    inset: 0 2px;
+    border-radius: var(--lens-radius-sm);
+    background: var(--lens-accent-600);
+  }
+
+  .lens-calendar-day[data-state='previewEdge']::before {
+    background: var(--lens-accent-500);
+  }
+
+  /* Today: a small dot under the number, inverted inside an endpoint pill so
+     it stays visible on the solid accent. */
+  .lens-calendar-day[data-today]::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: 3px;
+    width: 3px;
+    height: 3px;
+    margin-left: -1.5px;
+    border-radius: 50%;
+    background: var(--lens-accent-500);
+    z-index: 1;
+  }
+
+  .lens-calendar-day[data-today][data-state='start']::after,
+  .lens-calendar-day[data-today][data-state='end']::after,
+  .lens-calendar-day[data-today][data-state='previewEdge']::after {
+    background: #ffffff;
   }
 
   .lens-calendar-day:disabled {
     @apply lens-text-faint;
-    opacity: 0.45;
+    opacity: 0.4;
   }
 
+  /* Helper line: the selection prompt while the range is incomplete, the
+     day-count summary once it is. */
   .lens-calendar-hint {
     @apply lens-m-0 lens-text-xs lens-text-muted;
+  }
+
+  .lens-calendar-hint[data-complete] {
+    @apply lens-font-medium lens-text-text;
   }
 
   .lens-visually-hidden {
@@ -352,19 +804,35 @@
     @apply lens-min-w-0;
   }
 
+  /* Section headings sit a tier above panel titles: same uppercase family, but
+     bolder, higher-contrast, wider-tracked and over a heavier rule so the page
+     reads as sections-of-panels rather than a flat wall of small caps. */
   .lens-row-heading {
-    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-font-bold lens-uppercase lens-text-strong;
+    font-size: 12px;
+    letter-spacing: 0.08em;
+    line-height: 1.1;
   }
 
-  /* A hairline rule running to the edge turns the heading into a section
-     band instead of a floating label. */
+  /* A rule running to the edge turns the heading into a section band instead of
+     a floating label; the stronger border color gives it more weight than a
+     panel's own hairline divider. */
   .lens-row-heading::after {
     content: '';
-    @apply lens-h-px lens-flex-1 lens-bg-border;
+    @apply lens-flex-1;
+    height: 1px;
+    background: var(--lens-border-strong);
   }
 
+  /* Items align to the START of their track, not stretch: a short panel (a
+     cascade, a coverage card, a stat) shrink-wraps to its content instead of
+     being pulled to the height of a tall sibling (a 25-row product table),
+     which used to leave dead whitespace under the short panel and float its
+     footer/delta chip at the bottom of that gap. Panels that must hold a floor
+     height carry their own min-height (`.lens-panel` min-h-44; `.lens-chart-host`
+     19rem, `.lens-chart-canvas` 17rem), so charts never collapse. */
   .lens-panel-grid {
-    @apply lens-grid lens-grid-cols-1 lens-gap-4 md:lens-grid-cols-12;
+    @apply lens-grid lens-grid-cols-1 lens-items-start lens-gap-4 md:lens-grid-cols-12;
   }
 
   .lens-grid-item {
@@ -400,8 +868,30 @@
     max-width: 60%;
   }
 
+  @media (max-width: 1100px) {
+    .lens-panel-header {
+      @apply lens-min-h-12;
+    }
+
+    .lens-panel-title {
+      @apply lens-min-w-0 lens-flex-1 lens-whitespace-normal lens-py-2;
+      max-width: none;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      line-height: 1.2;
+    }
+  }
+
   .lens-panel-actions {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-justify-end lens-gap-2;
+  }
+
+  @media (max-width: 1100px) {
+    .lens-panel-actions {
+      @apply lens-flex-none;
+    }
   }
 
   /* Controls are fixed-size affordances: only the summary badge gives ground. */
@@ -455,6 +945,7 @@
   .lens-fake-chart-footer button,
   .lens-filter-chip,
   .lens-filter-trigger,
+  .lens-filter-preset,
   .lens-calendar-nav,
   .lens-calendar-day {
     @apply lens-cursor-pointer;
@@ -497,7 +988,7 @@
   }
 
   .lens-coverage-track-segment-link:hover {
-    filter: brightness(0.9);
+    filter: brightness(1.12);
   }
 
   /* Icon specimen grid — story-only surface that pins every glyph's rendered
@@ -520,6 +1011,23 @@
   .lens-overlay-root {
     @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
     z-index: var(--lens-overlay-z, 2147483000);
+  }
+
+  /* The drill drawer is a second body-level portal host. It must stack ABOVE
+     the expand overlay — a drawer opened from inside a fullscreen panel has to
+     paint over it, not behind — so its host sits one rung higher than
+     `--lens-overlay-z`. The backdrop inside keeps its own fixed/inset, but the
+     effective top of the stack comes from this container's z-index. */
+  .lens-drawer-root {
+    @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
+    z-index: var(--lens-drawer-z, 2147483640);
+  }
+
+  /* Segment/fork overlays opened by a focus canvas inside the drawer are part
+     of the drawer interaction, not the obscured page beneath it. They portal
+     to body too, so they need one explicit rung above the drawer root. */
+  .lens-overlay-root-over-drawer {
+    z-index: var(--lens-drawer-overlay-z, 2147483641);
   }
 
   .lens-panel-overlay {
@@ -616,6 +1124,12 @@
     @apply lens-min-h-0;
   }
 
+  /* A group's heading keeps its title left and sets its hoisted status chip
+     right beside it, rather than pushing it to the far edge. */
+  .lens-panel-group-header {
+    @apply lens-justify-start;
+  }
+
   .lens-metric-row {
     @apply lens-flex lens-flex-1 lens-flex-col lens-divide-y lens-divide-solid lens-divide-border;
   }
@@ -624,16 +1138,60 @@
     @apply lens-flex-row lens-divide-x lens-divide-y-0;
   }
 
+  /* Four board KPIs need room for their full business labels. At tablet-sized
+     dashboard widths a 2×2 scorecard is easier to scan than four compressed
+     columns with clipped names; phones fall back to one metric per row. */
+  @media (max-width: 1100px) {
+    .lens-metric-row-columns {
+      @apply lens-flex-wrap;
+    }
+
+    .lens-metric-row-columns > * {
+      flex: 1 1 50%;
+      max-width: 50%;
+      border-left-width: 0 !important;
+      border-top-width: 0 !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(even) {
+      border-left-width: 1px !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(n+3) {
+      border-top-width: 1px !important;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .lens-metric-row-columns > * {
+      flex-basis: 100%;
+      max-width: 100%;
+      border-left-width: 0 !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(n+2) {
+      border-top-width: 1px !important;
+    }
+  }
+
   .lens-stat-metric {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col lens-justify-center lens-gap-2 lens-px-4 lens-py-3;
   }
 
   .lens-stat-metric-label {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-center lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
+  /* Wrap to two tight lines instead of ellipsizing: the full label is worth
+     more than a truncated «ОПЛАЧЕННАЯ УБЫТОЧНОСТЬ ПО ЗАРАБОТА…». The full text
+     stays reachable through the element's title attribute. */
   .lens-stat-metric-label-text {
-    @apply lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+    @apply lens-min-w-0 lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.2;
   }
 
   .lens-stat-metric-bullet {
@@ -644,6 +1202,17 @@
   .lens-stat-metric-value {
     @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-stat-metric-caption {
+    @apply lens-m-0 lens-text-[11px] lens-leading-tight lens-text-muted;
+  }
+
+  /* The value and its trend line share one baseline-anchored row; the sparkline
+     rides the right edge (its own margin-left:auto) without displacing the
+     value. Only present when the metric carries a wire sparkline. */
+  .lens-stat-metric-main {
+    @apply lens-flex lens-min-w-0 lens-items-end lens-gap-3;
   }
 
   .lens-tabstrip {
@@ -705,6 +1274,9 @@
 
   .lens-panel-body {
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+    /* Named container so a chart can decide whether the panel is wide enough to
+       carry its legend in a right-hand column instead of below the plot. */
+    container: lens-panel-body / inline-size;
   }
 
   .lens-placeholder-state {
@@ -735,8 +1307,15 @@
     @apply lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1.5 lens-font-semibold lens-text-text;
   }
 
+  /* The empty state reads top-down: a quiet mark, then the localized text,
+     both centered — not the inline row the shared .lens-panel-state gives
+     every other state. */
+  .lens-panel-state-empty {
+    @apply lens-flex-col lens-gap-2;
+  }
+
   .lens-empty-mark {
-    @apply lens-flex lens-size-7 lens-items-center lens-justify-center lens-rounded-control lens-bg-inset lens-text-faint;
+    color: var(--lens-text-faint);
   }
 
   .lens-panel-skeleton {
@@ -826,7 +1405,18 @@
   }
 
   .lens-stat-label {
-    @apply lens-m-0 lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-flex lens-items-center lens-gap-1.5 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  /* Wrap the label to two tight lines rather than letting a long KPI name run
+     under the value. The full string stays reachable via the title attribute. */
+  .lens-stat-label-text {
+    @apply lens-min-w-0 lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.25;
   }
 
   .lens-stat-value-row {
@@ -847,6 +1437,80 @@
   .lens-stat-delta-negative {
     background: var(--lens-neg-soft);
     color: var(--lens-neg);
+  }
+
+  /* Plot and legend share the body. It stacks them by default (narrow panel);
+     a wide panel moves the legend into a right-hand column, and the plot claims
+     the freed width and sits on the left. */
+  .lens-chart-layout {
+    position: relative;
+    display: flex;
+    flex: 1 1 0%;
+    min-height: 0;
+    flex-direction: column;
+  }
+
+  @container lens-panel-body (min-width: 30rem) {
+    .lens-chart-layout-legend {
+      flex-direction: row;
+      align-items: stretch;
+      gap: 0.5rem;
+    }
+
+    .lens-chart-layout-legend > .lens-chart-area {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    /* A vertical list pinned to the right, centred against the plot; it scrolls
+       inside its own column when there are more entries than height. */
+    .lens-chart-layout-legend > .lens-chart-legend {
+      flex: 0 0 auto;
+      width: clamp(9rem, 32%, 15rem);
+      max-height: 100%;
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      justify-content: center;
+      align-self: center;
+      overflow-y: auto;
+      padding: 0.75rem 0.5rem;
+    }
+
+    /* Side-column rows stack label over value: mark + label on the first
+       line(s), the figure on its own line beneath. The narrow column can't fit
+       long Russian labels next to a money value without mid-word breaks, so
+       the value gets a full line instead of a squeezed right-hand cell. */
+    .lens-chart-layout-legend .lens-chart-legend-toggle {
+      display: grid;
+      width: 100%;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: start;
+      column-gap: 0.375rem;
+      row-gap: 0.125rem;
+      text-align: left;
+      padding-block: 0.375rem;
+    }
+
+    /* Pin the swatch to the first text line rather than the row's centre so a
+       wrapped label doesn't leave it floating between lines. */
+    .lens-chart-layout-legend .lens-chart-legend-mark {
+      margin-top: 0.25rem;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-label {
+      min-width: 0;
+      line-height: 1.35;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-separator {
+      display: none;
+    }
+
+    .lens-chart-layout-legend .lens-chart-legend-value {
+      grid-column: 2;
+      white-space: nowrap;
+    }
   }
 
   .lens-chart-area {
@@ -920,29 +1584,47 @@
   }
 
   .lens-coverage {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-2 lens-p-4;
+    @apply lens-flex lens-flex-1 lens-flex-col lens-gap-1 lens-p-4;
   }
 
+  /* A compact stat headline: the total leads, a muted «Итого»-style label
+     trails it on the same baseline. ~20px keeps a two-segment card at
+     ~120-140px total height. */
   .lens-coverage-headline {
-    @apply lens-m-0 lens-text-3xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-flex lens-items-baseline lens-gap-2;
+  }
+
+  .lens-coverage-headline-value {
+    @apply lens-text-xl lens-font-bold lens-leading-none lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  .lens-coverage-headline-label {
+    @apply lens-text-xs lens-font-medium lens-uppercase lens-tracking-wide lens-text-faint;
+  }
+
   .lens-coverage-track {
-    @apply lens-mt-3 lens-flex lens-h-4 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
+    @apply lens-mt-2 lens-flex lens-h-2.5 lens-w-full lens-gap-0.5 lens-overflow-hidden lens-rounded-full lens-bg-inset;
   }
 
   .lens-coverage-track-segment {
-    @apply lens-block lens-h-full;
+    @apply lens-block lens-h-full lens-transition-[filter];
     background: var(--lens-accent-500);
+    /* Guarantee a thin slice (e.g. a 0.3% remainder) stays visible and
+       hoverable; flexbox lets the larger segments absorb the difference. */
+    min-width: 3px;
+  }
+
+  .lens-coverage-track-segment:hover {
+    filter: brightness(1.12);
   }
 
   .lens-coverage-legend {
-    @apply lens-m-0 lens-mt-3 lens-list-none lens-p-0;
+    @apply lens-m-0 lens-mt-2 lens-list-none lens-p-0;
   }
 
   .lens-coverage-legend-row {
-    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-2 lens-text-sm;
+    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-sm;
     border-color: var(--lens-divider);
   }
 
@@ -1041,6 +1723,19 @@
     @apply lens-text-neg;
   }
 
+  .lens-cascade-stage-title {
+    @apply lens-flex lens-min-w-0 lens-flex-wrap lens-items-center lens-gap-1.5;
+  }
+
+  .lens-cascade-stage-annotation,
+  .lens-waterfall-annotation {
+    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-[10px] lens-font-semibold lens-leading-3;
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
   .lens-cascade-track {
     @apply lens-h-2.5 lens-w-full lens-overflow-hidden lens-rounded-full lens-bg-inset;
   }
@@ -1055,6 +1750,174 @@
 
   .lens-cascade-stage-final .lens-cascade-track span {
     background: var(--lens-pos);
+  }
+
+  /* Explicit per-stage semantic tone overrides the direction/final default so a
+     deduction reads as a cost (red) instead of merely a decrease. Absent when no
+     tone is set, keeping direction coloring byte-identical. */
+  .lens-cascade-stage[data-tone='negative'] .lens-cascade-track span {
+    background: var(--lens-neg);
+  }
+
+  .lens-cascade-stage[data-tone='positive'] .lens-cascade-track span {
+    background: var(--lens-pos);
+  }
+
+  .lens-cascade-stage[data-tone='neutral'] .lens-cascade-track span {
+    background: var(--lens-accent-500);
+  }
+
+  .lens-cascade-stage[data-tone='inflow'] .lens-cascade-track span {
+    background: var(--lens-warn);
+  }
+
+  .lens-cascade-stage[data-tone='negative'] .lens-cascade-stage-label strong {
+    color: var(--lens-neg);
+  }
+
+  .lens-cascade-stage[data-tone='positive'] .lens-cascade-stage-label strong {
+    color: var(--lens-pos);
+  }
+
+  .lens-cascade-stage[data-tone='inflow'] .lens-cascade-stage-label strong {
+    color: var(--lens-warn);
+  }
+
+  .lens-waterfall {
+    @apply lens-flex lens-flex-1 lens-flex-col lens-p-4;
+  }
+
+  .lens-waterfall-plot,
+  .lens-waterfall-labels {
+    display: grid;
+    grid-template-columns: repeat(var(--lens-waterfall-count), minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .lens-waterfall-chart {
+    @apply lens-grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .lens-waterfall-axis {
+    @apply lens-relative;
+    height: 208px;
+  }
+
+  .lens-waterfall-axis span {
+    @apply lens-absolute lens-right-3 lens-whitespace-nowrap lens-text-[11px] lens-text-muted;
+    transform: translateY(-50%);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-waterfall-plot {
+    @apply lens-relative;
+    height: 208px;
+  }
+
+  .lens-waterfall-gridline {
+    @apply lens-absolute lens-left-0 lens-right-0 lens-z-0 lens-border-0 lens-border-t lens-border-solid lens-border-border;
+  }
+
+  .lens-waterfall-zero {
+    @apply lens-absolute lens-left-0 lens-right-0 lens-z-0 lens-border-0 lens-border-t lens-border-solid lens-border-border;
+    top: var(--lens-waterfall-zero);
+  }
+
+  .lens-waterfall-column {
+    @apply lens-relative lens-min-w-0;
+  }
+
+  .lens-waterfall-connector {
+    @apply lens-absolute lens-z-[1] lens-border-0 lens-border-t lens-border-dashed lens-border-border;
+    left: 75%;
+    width: calc(50% + 12px);
+  }
+
+  .lens-waterfall-bar {
+    @apply lens-absolute lens-left-1/4 lens-right-1/4 lens-z-[2] lens-rounded-t-sm;
+    min-height: 3px;
+    background: var(--lens-accent-500);
+  }
+
+  .lens-waterfall-bar[data-kind='increase'] {
+    background: #f97316;
+  }
+
+  .lens-waterfall-bar[data-kind='decrease'] {
+    background: #55c76a;
+  }
+
+  .lens-waterfall-bar[data-kind='end'] {
+    background: var(--lens-accent-500);
+  }
+
+  .lens-waterfall-bar strong {
+    @apply lens-absolute lens-left-1/2 lens-whitespace-nowrap lens-text-[11px] lens-font-semibold lens-text-strong;
+    top: -4px;
+    transform: translate(-50%, -100%);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-waterfall-bar[data-kind='increase'] strong {
+    color: #c2410c;
+  }
+
+  .lens-waterfall-bar[data-kind='decrease'] strong {
+    color: #15803d;
+  }
+
+  /* Explicit per-stage semantic tone overrides the direction default bar and
+     value-text color (rules follow the data-kind ones so equal specificity
+     resolves to tone). Absent when no tone is set, keeping direction coloring
+     byte-identical. */
+  .lens-waterfall-bar[data-tone='negative'] {
+    background: var(--lens-neg);
+  }
+
+  .lens-waterfall-bar[data-tone='positive'] {
+    background: var(--lens-pos);
+  }
+
+  .lens-waterfall-bar[data-tone='neutral'] {
+    background: var(--lens-accent-500);
+  }
+
+  .lens-waterfall-bar[data-tone='inflow'] {
+    background: var(--lens-warn);
+  }
+
+  .lens-waterfall-bar[data-tone='negative'] strong {
+    color: var(--lens-neg);
+  }
+
+  .lens-waterfall-bar[data-tone='positive'] strong {
+    color: var(--lens-pos);
+  }
+
+  .lens-waterfall-bar[data-tone='inflow'] strong {
+    color: var(--lens-warn);
+  }
+
+  .lens-waterfall-labels {
+    @apply lens-mt-2;
+    margin-left: 96px;
+  }
+
+  .lens-waterfall-label {
+    @apply lens-min-w-0 lens-text-center lens-text-xs lens-font-medium lens-leading-4 lens-text-muted;
+  }
+
+  .lens-waterfall-label {
+    @apply lens-flex lens-flex-col lens-items-center lens-gap-1;
+  }
+
+  .lens-waterfall-label > span {
+    @apply lens-min-w-0;
+  }
+
+  .lens-waterfall-annotation {
+    white-space: normal;
   }
 
   .lens-table-view {
@@ -1240,6 +2103,87 @@
 
   .lens-table-cell-link-arrow {
     @apply lens-text-xs lens-text-accent-700;
+  }
+
+  /* Quiet drill cell: the whole cell is the target, but it reads as a plain
+     numeral until hover/focus reveals the underline and the trailing arrow. */
+  .lens-table-cell-quiet {
+    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-bg-transparent lens-text-text lens-no-underline;
+  }
+
+  .lens-table-cell-quiet-value {
+    @apply lens-min-w-0 lens-flex-1 lens-whitespace-nowrap;
+    text-align: inherit;
+    text-decoration: underline;
+    text-decoration-color: transparent;
+    text-underline-offset: 3px;
+    transition: text-decoration-color 120ms ease;
+  }
+
+  .lens-table-cell-quiet-arrow {
+    @apply lens-flex-none lens-text-xs lens-text-accent-700;
+    opacity: 0;
+    transition: opacity 120ms ease;
+  }
+
+  .lens-table-cell-quiet:hover .lens-table-cell-quiet-value,
+  .lens-table-cell-quiet:focus-visible .lens-table-cell-quiet-value {
+    text-decoration-color: var(--lens-accent-500);
+  }
+
+  .lens-table-cell-quiet:hover .lens-table-cell-quiet-arrow,
+  .lens-table-cell-quiet:focus-visible .lens-table-cell-quiet-arrow {
+    opacity: 1;
+  }
+
+  /* Per-row status tone: colored value text only, never a fill. */
+  .lens-table-tone-pos {
+    color: var(--lens-pos);
+  }
+
+  .lens-table-tone-warn {
+    color: var(--lens-warn);
+  }
+
+  .lens-table-tone-neg {
+    color: var(--lens-neg);
+  }
+
+  .lens-table-cell-badged {
+    @apply lens-inline-flex lens-items-center lens-gap-1.5;
+  }
+
+  .lens-table-cell-badge {
+    @apply lens-inline-flex lens-h-4 lens-w-4 lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-xs lens-font-semibold lens-text-muted;
+    cursor: help;
+  }
+
+  /* Group toggle row: a chevron + label control standing in for a collapsed
+     tail of rows. Its aggregate cells render through the normal cell path. */
+  .lens-table-group-toggle > td {
+    @apply lens-bg-inset;
+  }
+
+  .lens-table-group-toggle-btn {
+    @apply lens-flex lens-w-full lens-items-center lens-gap-2 lens-bg-transparent lens-text-left lens-font-sans lens-text-sm lens-font-medium lens-text-strong;
+  }
+
+  .lens-table-group-chevron {
+    @apply lens-flex lens-text-muted;
+    transition: transform 120ms ease;
+  }
+
+  .lens-table-group-chevron-open {
+    transform: rotate(90deg);
+  }
+
+  .lens-table-rowcount {
+    @apply lens-text-xs lens-text-muted;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-table-footer-notes {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
   }
 
   .lens-table-action-heading,
@@ -1810,18 +2754,16 @@
     @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-sm lens-font-semibold lens-text-white lens-no-underline;
   }
 
-  .lens-crumb:focus-visible,
-  .lens-explore-back:focus-visible,
-  .lens-perspective-set button:focus-visible,
-  .lens-segment:focus-visible,
-  .lens-export-button:focus-visible,
-  .lens-table th button:focus-visible,
-  .lens-table-pagination button:focus-visible,
-  .lens-leaf-action:focus-visible,
-  .lens-filter-chip:focus-visible,
-  .lens-filter-trigger:focus-visible,
-  .lens-calendar-nav:focus-visible,
-  .lens-calendar-day:focus-visible {
+  /* Shared keyboard-focus ring for every interactive element in the runtime.
+     Scoped to .lens-root so a host page's own focus styling elsewhere on the
+     page is untouched. A few elements keep their own rule instead of this one
+     (.lens-drawer and .lens-drawer-close suppress the ring outright,
+     .lens-explore-level uses :focus for a 3px programmatic-focus ring): the
+     `:is()` argument list determines this selector's specificity by its most
+     specific member (`[tabindex]`, a class-level match), which would outrank
+     those single-class exception rules regardless of source order, so they
+     are excluded here rather than relying on cascade position. */
+  .lens-root :is(button, a, [role='option'], [tabindex]):not(.lens-drawer, .lens-drawer-close, .lens-explore-level):focus-visible {
     outline: 2px solid var(--lens-accent-500);
     outline-offset: 2px;
   }
@@ -1859,6 +2801,25 @@
     animation-timing-function: ease-out;
   }
 
+  /* The focus-canvas host card: its group FLIPs the card bounds between the
+     authored grid span and the full row on canvas enter/exit, on the same
+     clock as the level swap inside it. */
+  ::view-transition-group(.lens-explore-host-transition) {
+    animation-duration: 180ms;
+    animation-timing-function: ease-out;
+  }
+
+  ::view-transition-old(.lens-explore-host-transition),
+  ::view-transition-new(.lens-explore-host-transition) {
+    animation-duration: 180ms;
+    animation-timing-function: ease-out;
+    /* The snapshots are the card shell only (the named chart, chrome and
+       source children are captured separately); stretching both to the group
+       box keeps the border/background continuous through the morph. */
+    height: 100%;
+    width: 100%;
+  }
+
   ::view-transition-old(.lens-explore-level-transition) {
     animation: lens-level-exit 180ms ease-out both;
   }
@@ -1877,6 +2838,1165 @@
     .lens-perspective-set button,
     .lens-segment {
       transition: none;
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Metric panels: data-quality chip, flow, hierarchy, relationship.       */
+  /* Class names stay literal so Tailwind's content scan keeps every rule.  */
+  /* ---------------------------------------------------------------------- */
+
+  /* An inactive tabpanel is emptied and hidden; the class sets display:grid,
+     which would otherwise override the [hidden] UA rule. */
+  .lens-tab-panel[hidden] {
+    display: none;
+  }
+
+  /* Quality chip: shares the status-chip footprint but reads in sentence case
+     so a longer status ("Requires reconciliation") stays legible. Icon + label
+     are always present, so tone is never the sole carrier of meaning. Tones are
+     quality-neutral — a verified figure is not a business "positive". */
+  .lens-quality-chip {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    border-radius: var(--lens-radius-badge);
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    line-height: 1.2;
+    font-variant-numeric: normal;
+  }
+
+  .lens-quality-chip-icon {
+    flex-shrink: 0;
+  }
+
+  .lens-quality-chip-label {
+    white-space: nowrap;
+  }
+
+  .lens-quality-verified {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-strong);
+  }
+
+  .lens-quality-calculated {
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-700);
+  }
+
+  /* Dark accent-700 text disappears against the translucent dark accent-50;
+     the light end of the accent ramp keeps the chip legible. */
+  .lens-root[data-theme='dark'] .lens-quality-calculated {
+    color: var(--lens-accent-300);
+  }
+
+  .lens-quality-proxy {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-muted);
+  }
+
+  .lens-quality-requires-reconciliation,
+  .lens-quality-config-required {
+    background: var(--lens-warn-soft);
+    color: var(--lens-warn);
+  }
+
+  .lens-quality-empty-source,
+  .lens-quality-unavailable {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-faint);
+  }
+
+  /* Metric flow: a running formula. Narrow default is a vertical list with the
+     operator as a prefix column; wider containers reflow to a two-column grid
+     and then a connected horizontal chain. */
+  .lens-flow {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 16px;
+    list-style: none;
+  }
+
+  .lens-flow-stage {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+  }
+
+  .lens-flow-op {
+    flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--lens-text-faint);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-flow-stage-main {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 8px;
+    row-gap: 2px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .lens-flow-stage-label {
+    margin-inline-end: auto;
+    min-width: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--lens-text);
+  }
+
+  .lens-flow-stage-value {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-flow-stage-chip {
+    align-self: baseline;
+  }
+
+  .lens-flow-stage-caption {
+    flex-basis: 100%;
+    font-size: 0.75rem;
+    color: var(--lens-text-muted);
+  }
+
+  .lens-flow-stage-link:hover .lens-flow-stage-label {
+    color: var(--lens-text-strong);
+    text-decoration: underline;
+  }
+
+  /* The result stage is emphasized with an accent rule and a larger value — a
+     single accent, never a rainbow across the other stages. */
+  .lens-flow-stage-result {
+    margin-top: 4px;
+    border-radius: var(--lens-radius-control);
+    border-inline-start: 2px solid var(--lens-accent-500);
+    background: var(--lens-accent-50);
+    padding-inline-start: 12px;
+  }
+
+  .lens-flow-stage-result .lens-flow-stage-value {
+    font-size: 1rem;
+  }
+
+  .lens-flow-reconcile {
+    margin: 0;
+    padding: 0 16px 12px;
+    font-size: 0.75rem;
+    color: var(--lens-text-muted);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  @container lens-panel-body (min-width: 26rem) {
+    .lens-flow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 20px;
+      row-gap: 8px;
+    }
+
+    .lens-flow-stage-result {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @container lens-panel-body (min-width: 46rem) {
+    .lens-flow {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .lens-flow-stage {
+      flex: 1 1 0;
+      min-width: 0;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      border-radius: var(--lens-radius-control);
+      background: var(--lens-bg-inset);
+      padding: 10px 12px;
+    }
+
+    .lens-flow-stage-result {
+      margin-top: 0;
+      background: var(--lens-accent-50);
+    }
+
+    .lens-flow-op {
+      align-self: flex-start;
+      width: auto;
+    }
+
+    .lens-flow-stage-main {
+      flex: 0 0 auto;
+      width: 100%;
+      flex-direction: column;
+      align-items: flex-start;
+      /* Column + inherited wrap would push the 100%-basis caption into a
+         second column beside the label; the stacked layout never wraps. */
+      flex-wrap: nowrap;
+    }
+
+    .lens-flow-stage-caption {
+      flex-basis: auto;
+    }
+
+    .lens-flow-stage-label {
+      margin-inline-end: 0;
+    }
+  }
+
+  /* Metric hierarchy: dense hairline rows (StatMetric density), depth by
+     indent + a structural guide rule, right-aligned tabular values, muted
+     share, and an optional per-parent reconciliation summary. */
+  .lens-hierarchy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+  }
+
+  .lens-hierarchy-row {
+    border: 0;
+    border-bottom: 1px solid var(--lens-divider);
+  }
+
+  .lens-hierarchy-row:last-child {
+    border-bottom: 0;
+  }
+
+  .lens-hierarchy-row-selected {
+    background: var(--lens-accent-50);
+    box-shadow: inset 3px 0 0 var(--lens-accent-500);
+  }
+
+  .lens-hierarchy-row-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 6px 8px;
+    padding-inline-start: calc(var(--lens-depth, 0) * 14px + 8px);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .lens-hierarchy-row-link:hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-hierarchy-label {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .lens-hierarchy-guide {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1px;
+    height: 0.9em;
+    margin-inline-end: 4px;
+    background: var(--lens-border-strong);
+  }
+
+  .lens-hierarchy-label-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--lens-text);
+  }
+
+  .lens-hierarchy-row-parent .lens-hierarchy-label-text {
+    font-weight: 600;
+    color: var(--lens-text-strong);
+  }
+
+  .lens-hierarchy-row-unallocated .lens-hierarchy-label-text {
+    color: var(--lens-text-muted);
+  }
+
+  .lens-hierarchy-unallocated-tag {
+    flex-shrink: 0;
+    border-radius: var(--lens-radius-badge);
+    padding: 1px 6px;
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-faint);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .lens-hierarchy-description {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    color: var(--lens-text-faint);
+  }
+
+  .lens-hierarchy-value {
+    display: flex;
+    flex-shrink: 0;
+    align-items: baseline;
+    gap: 8px;
+    justify-self: end;
+    text-align: end;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-hierarchy-chip {
+    align-self: center;
+  }
+
+  .lens-hierarchy-share {
+    flex-shrink: 0;
+    justify-self: end;
+    text-align: end;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--lens-text-muted);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-hierarchy-reconcile {
+    margin: 0;
+    padding: 0 8px 6px;
+    padding-inline-start: calc(var(--lens-depth, 0) * 14px + 8px);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-hierarchy-reconcile-balanced {
+    color: var(--lens-text-muted);
+  }
+
+  .lens-hierarchy-reconcile-off {
+    color: var(--lens-warn);
+  }
+
+  /* At 320px-class widths the description drops, labels truncate, and the share
+     wraps under the value so the row stays usable. */
+  @container lens-panel-body (max-width: 22rem) {
+    .lens-hierarchy-description {
+      display: none;
+    }
+
+    /* The unallocated tag refuses to shrink; at 320px-class widths it must
+       wrap onto its own line instead of overflowing into the value column. */
+    .lens-hierarchy-label {
+      flex-wrap: wrap;
+    }
+
+    /* A long quality chip next to the value would squeeze the label column to
+       nothing, so the label takes the full row and the value drops below it. */
+    .lens-hierarchy-row-inner {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .lens-hierarchy-label {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .lens-hierarchy-value {
+      grid-column: 1;
+      grid-row: 2;
+      justify-self: end;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .lens-hierarchy-share {
+      grid-column: 1;
+      grid-row: 3;
+    }
+  }
+
+  /* Metric relationship: two end blocks and a typed connector. The connector
+     glyph is symmetric for association/reconciliation and directed only for
+     derivation; the vertical glyph is a separate character, never a rotation. */
+  .lens-relationship {
+    display: flex;
+    flex: 1;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .lens-relationship-end {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .lens-relationship-end-inner {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    gap: 4px;
+    border-radius: var(--lens-radius-control);
+    border: 1px solid var(--lens-border);
+    background: var(--lens-bg-inset);
+    padding: 12px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .lens-relationship-end-link:hover {
+    border-color: var(--lens-border-strong);
+  }
+
+  .lens-relationship-end-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lens-text-muted);
+  }
+
+  .lens-relationship-end-value {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-relationship-chip {
+    align-self: flex-start;
+  }
+
+  .lens-relationship-connector {
+    display: flex;
+    flex: 0 1 16rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 6rem;
+    max-width: 40%;
+    padding: 0 4px;
+    text-align: center;
+  }
+
+  .lens-relationship-glyph {
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--lens-text-faint);
+  }
+
+  .lens-relationship-glyph-v {
+    display: none;
+  }
+
+  .lens-relationship-type {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lens-text-muted);
+  }
+
+  .lens-relationship-note {
+    max-width: 16rem;
+    overflow-wrap: anywhere;
+    font-size: 0.75rem;
+    color: var(--lens-text-faint);
+  }
+
+  /* Two metric cards plus a material reconciliation note need substantially
+     more room than a chart-only panel. Stack through tablet/dashboard-column
+     widths; the horizontal composition is reserved for genuinely wide cards. */
+  @container lens-panel-body (max-width: 48rem) {
+    .lens-relationship {
+      flex-direction: column;
+    }
+
+    .lens-relationship-connector {
+      flex-direction: row;
+      flex-basis: auto;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .lens-relationship-glyph-h {
+      display: none;
+    }
+
+    .lens-relationship-glyph-v {
+      display: inline;
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Focus canvas: the chrome an actively exploring panel wears when its    */
+  /* document opts in (`presentation.focus = "canvas"`). Breadcrumb, parent */
+  /* context with mini-chart, lens selector, and the collapsed source-data  */
+  /* disclosure — all outside the view-transitioning chart element.         */
+  /* Class names stay literal for Tailwind's content scan.                  */
+  /* ---------------------------------------------------------------------- */
+
+  /* An actively exploring canvas claims the whole row: the chrome, the chart,
+     the lens pills and the source table need the width, and the `lens-focus`
+     container queries below size the mini-chart and breadcrumb against it. The
+     card FLIP-morphs there through the host's view-transition-name; without
+     View Transitions (or with reduced motion) the reflow is instant and the
+     chrome's own enter animation carries the change. Gated on the focus class,
+     which only an actively exploring focus-canvas host wears, so a resting
+     host keeps its authored span and non-focus panels can never match. */
+  @media (min-width: 768px) {
+    .lens-grid-item:has(> .lens-explore-focus) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .lens-explore-focus {
+    container: lens-focus / inline-size;
+    box-sizing: border-box;
+    gap: var(--lens-space-3);
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-card);
+    background: var(--lens-bg-card);
+    box-shadow: var(--lens-shadow-card);
+    padding: var(--lens-space-4);
+  }
+
+  /* The chart is a region of the focus card, not a card of its own: the
+     inner panel sheds its border, shadow and header (the chrome above it
+     carries the identity), keeping one visual object. Non-focus panels are
+     untouched — none of these selectors can match without the focus class. */
+  .lens-explore-focus .lens-explore-level > .lens-panel {
+    min-height: 11rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .lens-explore-focus .lens-explore-level > .lens-panel > .lens-panel-header {
+    display: none;
+  }
+
+  /* A focus-canvas host inside a drawer is the drawer's whole subject, so it
+     wears the canvas treatment at rest, not only while exploring: it spans the
+     drawer's full width, carries the card frame once, and gives its body room
+     to breathe so the drawer never reads as a small card stranded in a corner.
+     Scoped to the drawer — a resting focus host on the main dashboard keeps its
+     authored span and card, so nothing there changes. */
+  .lens-drawer-document .lens-grid-item:has(> .lens-explore-drawer-focus) {
+    grid-column: 1 / -1;
+  }
+
+  .lens-explore-drawer-focus {
+    container: lens-focus / inline-size;
+    box-sizing: border-box;
+    gap: var(--lens-space-3);
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-card);
+    background: var(--lens-bg-card);
+    box-shadow: var(--lens-shadow-card);
+    padding: var(--lens-space-4);
+  }
+
+  /* The chart is a region of the canvas, not a card of its own — it sheds its
+     own frame and takes a taller floor so it fills the roomy drawer slab. */
+  .lens-explore-drawer-focus .lens-explore-level > .lens-panel {
+    min-height: 22rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .lens-focus-chrome {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lens-space-2);
+    min-width: 0;
+  }
+
+  /* Chrome reveal: a quiet top-down stagger when the canvas opens. The
+     elements mount once — level changes swap only the chart below them, so
+     the stagger never replays mid-exploration. */
+  .lens-focus-chrome > * {
+    animation: lens-focus-chrome-in var(--lens-dur-base) var(--lens-ease-out) both;
+  }
+
+  .lens-focus-chrome > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  @keyframes lens-focus-chrome-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .lens-focus-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lens-space-2);
+    min-width: 0;
+  }
+
+  /* -- breadcrumb --------------------------------------------------------- */
+
+  .lens-focus-breadcrumb ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lens-space-0-5);
+    min-width: 0;
+  }
+
+  .lens-focus-breadcrumb li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lens-space-0-5);
+    min-width: 0;
+  }
+
+  .lens-focus-crumb {
+    border: 0;
+    background: transparent;
+    padding: 2px var(--lens-space-1);
+    border-radius: var(--lens-radius-badge);
+    font-family: var(--lens-font);
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--lens-accent-700);
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: background var(--lens-dur-fast) var(--lens-ease-standard),
+      color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  button.lens-focus-crumb {
+    cursor: pointer;
+    position: relative;
+  }
+
+  button.lens-focus-crumb:hover {
+    background: var(--lens-accent-50);
+  }
+
+  /* The underline slides out from the left on hover — an affordance that the
+     crumb is a way back, without the visual weight of a permanent link. */
+  button.lens-focus-crumb::after {
+    content: '';
+    position: absolute;
+    left: var(--lens-space-1);
+    right: var(--lens-space-1);
+    bottom: 1px;
+    height: 1px;
+    background: var(--lens-accent-700);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--lens-dur-fast) var(--lens-ease-out);
+  }
+
+  button.lens-focus-crumb:hover::after {
+    transform: scaleX(1);
+  }
+
+  .lens-focus-crumb-current {
+    color: var(--lens-text-strong);
+    font-weight: 600;
+    animation: lens-focus-crumb-grow var(--lens-dur-base) var(--lens-ease-out) both;
+  }
+
+  @keyframes lens-focus-crumb-grow {
+    from {
+      opacity: 0;
+      transform: translateX(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .lens-focus-crumb-sep {
+    color: var(--lens-text-faint);
+    flex: none;
+  }
+
+  /* The middle of a long path collapses to a static ellipsis only in a
+     narrow container; at full width every step stays clickable. The selectors
+     carry the breadcrumb ancestor so they outweigh the `li` display rule. */
+  .lens-focus-breadcrumb .lens-focus-crumb-gap {
+    display: none;
+    color: var(--lens-text-faint);
+    font-size: 12px;
+  }
+
+  /* -- context line ------------------------------------------------------- */
+
+  .lens-focus-context {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--lens-space-4);
+    min-width: 0;
+  }
+
+  .lens-focus-context-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--lens-space-2) var(--lens-space-3);
+    min-width: 0;
+  }
+
+  .lens-focus-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+  }
+
+  .lens-focus-value {
+    font-size: 26px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-focus-share,
+  .lens-focus-period {
+    font-size: 12px;
+    color: var(--lens-text-muted);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* -- parent mini-chart -------------------------------------------------- */
+
+  .lens-focus-mini {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    border: 0;
+    background: transparent;
+    padding: var(--lens-space-1);
+    border-radius: var(--lens-radius-control);
+    transition: background var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  button.lens-focus-mini:not(:disabled) {
+    cursor: pointer;
+  }
+
+  .lens-focus-mini:not(:disabled):hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-focus-mini-caption {
+    font-size: 10px;
+    color: var(--lens-text-faint);
+  }
+
+  .lens-focus-mini-center {
+    fill: var(--lens-text);
+  }
+
+  .lens-focus-mini-baseline {
+    stroke: var(--lens-border);
+    stroke-width: 1;
+  }
+
+  /* -- lens selector ------------------------------------------------------ */
+
+  .lens-focus-lens {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--lens-space-2);
+    min-width: 0;
+  }
+
+  .lens-focus-lens-label {
+    font-size: 11.5px;
+    color: var(--lens-text-muted);
+    flex: none;
+  }
+
+  .lens-focus-lens-pills {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lens-space-1);
+    background: var(--lens-bg-inset);
+    border: 1px solid var(--lens-border);
+    border-radius: 999px;
+    padding: 2px;
+  }
+
+  .lens-focus-lens-pill {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lens-space-1);
+    border: 0;
+    background: transparent;
+    font-family: var(--lens-font);
+    font-size: 12px;
+    font-weight: 550;
+    color: var(--lens-text-muted);
+    padding: 4px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--lens-dur-fast) var(--lens-ease-standard),
+      transform var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-focus-lens-pill:hover {
+    color: var(--lens-text-strong);
+    transform: scale(1.03);
+  }
+
+  .lens-focus-lens-pill-active {
+    color: var(--lens-accent-700);
+    font-weight: 600;
+  }
+
+  /* The active marker is one element sliding under the pills; position is an
+     inline transform, so the resting state is deterministic and the spring
+     only choreographs the trip between two rests. */
+  .lens-focus-lens-indicator {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    border-radius: 999px;
+    background: var(--lens-bg-card);
+    border: 1px solid var(--lens-accent-100);
+    box-shadow: var(--lens-shadow-card);
+    pointer-events: none;
+    z-index: 0;
+    transition: transform var(--lens-dur-base) var(--lens-ease-spring),
+      width var(--lens-dur-base) var(--lens-ease-spring);
+  }
+
+  .lens-focus-lens-more {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .lens-focus-lens-more-caret {
+    color: var(--lens-text-faint);
+  }
+
+  .lens-focus-lens-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    min-width: 12rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--lens-bg-card);
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-card);
+    box-shadow: var(--lens-shadow-popover);
+    padding: var(--lens-space-1);
+    animation: lens-focus-menu-pop var(--lens-dur-fast) var(--lens-ease-out);
+  }
+
+  @keyframes lens-focus-menu-pop {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .lens-focus-lens-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lens-space-2);
+    border: 0;
+    background: transparent;
+    border-radius: var(--lens-radius-control);
+    padding: 6px 10px;
+    font-family: var(--lens-font);
+    font-size: 12.5px;
+    text-align: left;
+    color: var(--lens-text);
+    cursor: pointer;
+    transition: background var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-focus-lens-option:hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-focus-lens-option[aria-selected='true'] {
+    color: var(--lens-accent-700);
+    font-weight: 600;
+  }
+
+  .lens-focus-lens-option-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* -- source data disclosure --------------------------------------------- */
+
+  .lens-focus-source {
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-control);
+    background: var(--lens-bg-card);
+    min-width: 0;
+  }
+
+  .lens-focus-source-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--lens-space-2);
+    border: 0;
+    background: transparent;
+    padding: 7px var(--lens-space-3);
+    font-family: var(--lens-font);
+    font-size: 12px;
+    color: var(--lens-text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition: color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-focus-source-toggle:hover {
+    color: var(--lens-text);
+  }
+
+  .lens-focus-source-caret {
+    color: var(--lens-text-faint);
+    transition: transform var(--lens-dur-base) var(--lens-ease-standard);
+  }
+
+  .lens-focus-source-open .lens-focus-source-caret {
+    transform: rotate(90deg);
+  }
+
+  .lens-focus-source-label {
+    font-weight: 550;
+  }
+
+  .lens-focus-source-count {
+    color: var(--lens-text-faint);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-focus-source-body {
+    border-top: 1px solid var(--lens-border);
+    padding: var(--lens-space-3);
+    animation: lens-focus-chrome-in var(--lens-dur-base) var(--lens-ease-out) both;
+  }
+
+  .lens-focus-source-scroll {
+    overflow: auto;
+    max-height: 20rem;
+  }
+
+  .lens-focus-source-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--lens-bg-card);
+  }
+
+  .lens-focus-source-state {
+    margin: 0;
+    font-size: 12px;
+    color: var(--lens-text-faint);
+  }
+
+  /* -- responsive: narrow canvas / narrow drawer -------------------------- */
+
+  @container lens-focus (max-width: 47.5rem) {
+    .lens-focus-mini {
+      display: none;
+    }
+
+    .lens-focus-breadcrumb .lens-focus-crumb-middle {
+      display: none;
+    }
+
+    .lens-focus-breadcrumb .lens-focus-crumb-gap {
+      display: inline-flex;
+    }
+
+    .lens-focus-crumb {
+      max-width: 11rem;
+    }
+  }
+
+  @container lens-focus (max-width: 32.5rem) {
+    .lens-focus-value {
+      font-size: 21px;
+    }
+
+    .lens-focus-lens-label {
+      display: none;
+    }
+  }
+
+  /* -- coverage bullet (Panel.target) ------------------------------------- */
+
+  .lens-coverage-bullet {
+    position: relative;
+    /* Own the track's usual top rhythm so the child margin cannot collapse
+       through, and reserve a line under the track for the target label. */
+    padding-top: var(--lens-space-2);
+    padding-bottom: 18px;
+  }
+
+  .lens-coverage-bullet .lens-coverage-track {
+    margin-top: 0;
+  }
+
+  .lens-coverage-bullet-marker {
+    position: absolute;
+    top: 2px;
+    height: 22px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--lens-text-strong);
+    animation: lens-focus-marker-drop 420ms var(--lens-ease-spring) both;
+    animation-delay: 260ms;
+  }
+
+  @keyframes lens-focus-marker-drop {
+    0% {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    70% {
+      opacity: 1;
+      transform: translateY(2px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .lens-coverage-bullet-label {
+    position: absolute;
+    top: 27px;
+    transform: translateX(-50%);
+    font-size: 10.5px;
+    line-height: 1.3;
+    color: var(--lens-text-muted);
+    white-space: nowrap;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* A marker in the right half hangs its label leftwards so it cannot clip
+     against the card edge. */
+  .lens-coverage-bullet-label-end {
+    transform: translateX(-100%);
+  }
+
+  /* -- stat sparkline (Panel.sparkline) ----------------------------------- */
+
+  .lens-stat-sparkline {
+    flex: none;
+    margin-left: auto;
+    align-self: center;
+  }
+
+  /* -- single reduced-motion kill switch for the focus surface ------------ */
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-focus-chrome > *,
+    .lens-focus-crumb-current,
+    .lens-focus-source-body,
+    .lens-focus-lens-menu,
+    .lens-coverage-bullet-marker {
+      animation: none;
+    }
+
+    .lens-focus-crumb,
+    button.lens-focus-crumb::after,
+    .lens-focus-mini,
+    .lens-focus-lens-pill,
+    .lens-focus-lens-indicator,
+    .lens-focus-lens-option,
+    .lens-focus-source-toggle,
+    .lens-focus-source-caret {
+      transition: none;
+    }
+
+    .lens-focus-lens-pill:hover {
+      transform: none;
     }
   }
 }

@@ -28,9 +28,18 @@ type BuildOptions struct {
 	Endpoints   Endpoints
 	I18n        map[string]string
 	Theme       Theme
+	// Header supplies the optional document identity block rendered above the
+	// dashboard body. Drawer-hosted documents suppress it because drawer chrome
+	// owns that identity.
+	Header *DocumentHeader
 	// Filters declares the dashboard's controls; the producer supplies the
 	// normalized current value and localized labels. See Filter.
 	Filters []Filter
+	// Drawer, when set, marks this document as drawer-hosted: the drawer chrome
+	// renders this identity block once in its top bar, and the document's own
+	// dashboard heading is suppressed (Meta.Title cleared) so the heading is not
+	// stated twice.
+	Drawer *DrawerHeader
 }
 
 func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (*DashboardDocument, error) {
@@ -69,6 +78,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		Version:      ContractVersion,
 		SnapshotID:   snapshotID,
 		Meta:         Meta{DashboardID: spec.ID, Title: spec.Title, GeneratedAt: generatedAt, Locale: locale},
+		Header:       opts.Header,
 		Layout:       Layout{Rows: make([]LayoutRow, 0, len(spec.Rows))},
 		Panels:       make([]Panel, 0),
 		Frames:       make(map[FrameRef]Frame),
@@ -81,6 +91,14 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 	}
 	if doc.I18n == nil {
 		doc.I18n = make(map[string]string)
+	}
+	if opts.Drawer != nil {
+		doc.Drawer = opts.Drawer
+		doc.Header = nil
+		// The drawer chrome owns the heading; clearing the document title stops
+		// the dashboard body from repeating it. "An empty title lets a host page
+		// own the heading" is the renderer's documented contract for this.
+		doc.Meta.Title = ""
 	}
 
 	hosts := explorerHosts(spec.Explorers)
@@ -104,24 +122,35 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 	return doc, nil
 }
 
+// appendPanelTree walks a panel spec tree, flattening it into wire panels and
+// layout items. groups is the nested-container chain accumulated so far,
+// ordered outermost -> innermost: StatGroup and Tabs each append their own
+// descriptor (Tabs additionally sets the per-child Tab on its own copy); every
+// other container passes the chain through unchanged. Each recursive step
+// clones the chain before appending so sibling subtrees never alias one
+// another's slice.
 func appendPanelTree(
 	doc *DashboardDocument,
 	spec panel.Spec,
 	result *runtime.Result,
 	hosts map[string]explore.Spec,
 	row *LayoutRow,
-	group *LayoutGroup,
+	groups []LayoutGroup,
 ) error {
 	if spec.Kind.IsContainer() {
 		//nolint:exhaustive // Only stat groups and tabs become wire containers; the rest flatten.
 		switch spec.Kind {
 		case panel.KindStatGroup:
-			group = &LayoutGroup{
+			descriptor := LayoutGroup{
 				ID: spec.ID, Kind: LayoutGroupMetrics, Label: spec.Title,
 				Layout: groupLayout(spec.GroupLayout), Span: containerSpan(spec),
+				// A uniform-status group hoists its single chip to the heading
+				// row; per-metric chips then drop for the members below.
+				Status: buildStatus(spec),
 			}
+			chain := appendGroup(groups, descriptor)
 			for _, child := range spec.Children {
-				if err := appendPanelTree(doc, child, result, hosts, row, group); err != nil {
+				if err := appendPanelTree(doc, child, result, hosts, row, chain); err != nil {
 					return err
 				}
 			}
@@ -134,14 +163,15 @@ func appendPanelTree(
 				if tab.Tab == "" {
 					tab.Tab = fmt.Sprintf("%s %d", spec.ID, index+1)
 				}
-				if err := appendPanelTree(doc, child, result, hosts, row, &tab); err != nil {
+				chain := appendGroup(groups, tab)
+				if err := appendPanelTree(doc, child, result, hosts, row, chain); err != nil {
 					return err
 				}
 			}
 			return nil
 		default:
 			for _, child := range spec.Children {
-				if err := appendPanelTree(doc, child, result, hosts, row, group); err != nil {
+				if err := appendPanelTree(doc, child, result, hosts, row, groups); err != nil {
 					return err
 				}
 			}
@@ -180,10 +210,29 @@ func appendPanelTree(
 	if semantics == SemanticsEvidence && !hasLeafAction(actions) && !hasLeafTableColumnAction(columns) {
 		semantics = SemanticsSeries
 	}
+	var metricFlow *MetricFlowConfig
+	var metricHierarchy *MetricHierarchyConfig
+	var metricRelationship *MetricRelationshipConfig
+	//nolint:exhaustive // Only the three metric kinds carry a metric config.
+	switch kind {
+	case PanelKindMetricFlow:
+		metricFlow = buildMetricFlow(spec)
+	case PanelKindMetricHierarchy:
+		metricHierarchy = buildMetricHierarchy(spec)
+	case PanelKindMetricRelationship:
+		metricRelationship = buildMetricRelationship(spec)
+		semantics = metricRelationshipSemantics(metricRelationship)
+	}
 	var drillRoot *NodeKey
 	if explorerSpec, ok := hosts[spec.ID]; ok {
 		semantics = defaultExplorerSemantics(explorerSpec, semantics)
 		key := explorerRootKey(explorerSpec.ID)
+		drillRoot = &key
+	} else if spec.DrillTree != nil {
+		key, err := buildStaticDrillTree(doc, spec, frameRef)
+		if err != nil {
+			return fmt.Errorf("panel %s drill tree: %w", spec.ID, err)
+		}
 		drillRoot = &key
 	}
 	doc.Panels = append(doc.Panels, Panel{
@@ -192,12 +241,28 @@ func appendPanelTree(
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
+		Sparkline: buildSparkline(spec), Target: buildTarget(spec),
+		MetricFlow: metricFlow, MetricHierarchy: metricHierarchy, MetricRelationship: metricRelationship,
+		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability),
 	})
 	span := spec.Span
 	if span == 0 {
 		span = 6
 	}
-	row.Panels = append(row.Panels, LayoutItem{PanelID: spec.ID, Span: span, Group: group})
+	// A single-level group keeps the legacy singular Group only, so an
+	// existing document's output stays byte-identical: Groups is emitted only
+	// once a chain actually nests (length >= 2). The innermost entry always
+	// mirrors into Group for old readers, at any chain depth.
+	var legacyGroup *LayoutGroup
+	var nestedGroups []LayoutGroup
+	if len(groups) > 0 {
+		innermost := groups[len(groups)-1]
+		legacyGroup = &innermost
+		if len(groups) >= 2 {
+			nestedGroups = append([]LayoutGroup(nil), groups...)
+		}
+	}
+	row.Panels = append(row.Panels, LayoutItem{PanelID: spec.ID, Span: span, Group: legacyGroup, Groups: nestedGroups})
 	labels := seriesLabels(spec, wireFrame)
 	for index, color := range spec.Colors {
 		if strings.TrimSpace(color) == "" {
@@ -216,6 +281,112 @@ func appendPanelTree(
 				}
 			}
 		}
+	}
+	return nil
+}
+
+// buildStaticDrillTree translates the renderer-neutral, precomputed
+// panel.DrillTree into the wire drill graph used by the React Lens runtime.
+// The legacy renderer consumes DrillTree directly; without this bridge the
+// same valid panel silently lost its in-place navigation in React documents.
+func buildStaticDrillTree(doc *DashboardDocument, spec panel.Spec, rootFrame FrameRef) (NodeKey, error) {
+	rootKey := qualifiedKey("panel-drill", spec.ID)
+	rootPath := NodePath{rootKey}
+	root := Level{
+		Path:         rootPath,
+		Label:        "",
+		Children:     make([]Node, 0, len(spec.DrillTree.Branches)),
+		Frame:        rootFrame,
+		Perspectives: make([]PerspectiveRef, 0),
+		Presentation: buildPresentation(spec),
+	}
+	for _, branch := range spec.DrillTree.Branches {
+		target := qualifiedKey("panel-drill", spec.ID, branch.TriggerKey)
+		childPath := appendPath(rootPath, NodeKey(branch.TriggerKey))
+		root.Children = append(root.Children, Node{
+			Key:    NodeKey(branch.TriggerKey),
+			Path:   childPath,
+			Label:  branch.Label,
+			Target: target,
+		})
+		if err := buildStaticDrillLevel(
+			doc,
+			spec,
+			target,
+			appendPath(rootPath, target),
+			branch.Label,
+			branch.Children,
+			[]string{branch.TriggerKey},
+		); err != nil {
+			return "", err
+		}
+	}
+	doc.Drill.Edges[rootKey] = root
+	return rootKey, nil
+}
+
+func buildStaticDrillLevel(
+	doc *DashboardDocument,
+	spec panel.Spec,
+	levelKey NodeKey,
+	levelPath NodePath,
+	label string,
+	nodes []panel.DrillNode,
+	identityPath []string,
+) error {
+	idField := spec.Fields.ID.Name()
+	labelField := spec.Fields.Label.Name()
+	valueField := spec.Fields.Value.Name()
+	if idField == "" || labelField == "" || valueField == "" {
+		return fmt.Errorf("requires id, label, and value fields")
+	}
+
+	frameRef := FrameRef(qualifiedKey(append([]string{"panel-drill-frame", spec.ID}, identityPath...)...))
+	rows := make([][]any, 0, len(nodes))
+	children := make([]Node, 0, len(nodes))
+	for _, item := range nodes {
+		rows = append(rows, []any{item.Key, item.Label, item.Value})
+		childPath := appendPath(levelPath, NodeKey(item.Key))
+		child := Node{Key: NodeKey(item.Key), Path: childPath, Label: item.Label}
+		if len(item.Children) > 0 {
+			targetParts := append(append([]string{"panel-drill", spec.ID}, identityPath...), item.Key)
+			target := qualifiedKey(targetParts...)
+			child.Target = target
+			if err := buildStaticDrillLevel(
+				doc,
+				spec,
+				target,
+				appendPath(levelPath, target),
+				item.Label,
+				item.Children,
+				append(append([]string(nil), identityPath...), item.Key),
+			); err != nil {
+				return err
+			}
+		} else if item.Action != nil {
+			if converted, ok := convertAction(*item.Action, true); ok {
+				child.Action = &converted
+			}
+		}
+		children = append(children, child)
+	}
+
+	doc.Frames[frameRef] = Frame{
+		Columns: []Column{
+			{Name: idField, Type: ColumnString},
+			{Name: labelField, Type: ColumnString},
+			{Name: valueField, Type: ColumnNumber},
+		},
+		Rows: rows,
+	}
+	encoding := Encoding{ID: idField, Label: labelField, Value: valueField}
+	doc.Drill.Edges[levelKey] = Level{
+		Path:         levelPath,
+		Label:        label,
+		Children:     children,
+		Frame:        frameRef,
+		Encoding:     &encoding,
+		Perspectives: make([]PerspectiveRef, 0),
 	}
 	return nil
 }
@@ -256,6 +427,15 @@ func seriesLabels(spec panel.Spec, wireFrame Frame) []string {
 	return labels
 }
 
+// appendGroup returns a fresh chain with descriptor appended after chain,
+// always allocating a new backing array so sibling subtrees that received the
+// same parent chain never alias each other's slice.
+func appendGroup(chain []LayoutGroup, descriptor LayoutGroup) []LayoutGroup {
+	next := make([]LayoutGroup, 0, len(chain)+1)
+	next = append(next, chain...)
+	return append(next, descriptor)
+}
+
 func containerSpan(spec panel.Spec) int {
 	if spec.Span >= 1 && spec.Span <= 12 {
 		return spec.Span
@@ -280,12 +460,16 @@ func panelAccent(spec panel.Spec) string {
 	return ""
 }
 
-func buildStatus(spec panel.Spec) *PanelStatus {
-	if spec.Status == nil || strings.TrimSpace(spec.Status.Label) == "" {
+func buildStatus(spec panel.Spec) *PanelStatus { return convertStatus(spec.Status) }
+
+// convertStatus maps a Go-side status chip onto the wire, dropping a labelless
+// declaration. Levels and panels share it.
+func convertStatus(source *panel.StatusSpec) *PanelStatus {
+	if source == nil || strings.TrimSpace(source.Label) == "" {
 		return nil
 	}
-	status := PanelStatus{Label: spec.Status.Label}
-	switch spec.Status.Tone {
+	status := PanelStatus{Label: source.Label}
+	switch source.Tone {
 	case panel.StatusPositive:
 		status.Tone = StatusTonePositive
 	case panel.StatusWarning:
@@ -303,8 +487,31 @@ func buildTrend(spec panel.Spec) *PanelTrend {
 	return &PanelTrend{Percent: spec.Trend.Percent, Label: spec.Trend.Label, Invert: spec.Trend.Invert}
 }
 
+func buildSparkline(spec panel.Spec) *Sparkline {
+	if spec.Sparkline == nil || len(spec.Sparkline.Values) == 0 {
+		return nil
+	}
+	return &Sparkline{Values: append([]float64(nil), spec.Sparkline.Values...), Color: spec.Sparkline.Color}
+}
+
+func buildTarget(spec panel.Spec) *PanelTarget {
+	if spec.Target == nil {
+		return nil
+	}
+	return &PanelTarget{Value: spec.Target.Value, Label: spec.Target.Label}
+}
+
 func buildPresentation(spec panel.Spec) *Presentation {
 	hints := spec.Presentation
+	if spec.Distributed {
+		hints.ColorByCategory = true
+	}
+	return convertPresentation(hints)
+}
+
+// convertPresentation maps Go-side presentation hints onto the wire, returning
+// nil when every hint is unset. Levels and panels share it.
+func convertPresentation(hints panel.PresentationHints) *Presentation {
 	presentation := Presentation{Fill: hints.FillPlot, BarWidthPx: hints.BarWidthPx}
 	if hints.LegendBelow {
 		presentation.Legend = LegendBelow
@@ -318,13 +525,142 @@ func buildPresentation(spec panel.Spec) *Presentation {
 	case hints.TotalBadgeInPlot:
 		presentation.TotalBadge = TotalBadgePlot
 	}
-	if hints.ColorByCategory || spec.Distributed {
+	if hints.ColorByCategory {
 		presentation.ColorBy = ColorByCategory
+	}
+	if hints.Waterfall {
+		presentation.BridgeLayout = BridgeLayoutWaterfall
+	}
+	if hints.NonSortable {
+		presentation.Sortable = boolPtr(false)
+	}
+	if hints.NonExpandable {
+		presentation.Expandable = boolPtr(false)
+	}
+	if hints.NonExportable {
+		presentation.Exportable = boolPtr(false)
+	}
+	presentation.RowGroupField = hints.RowGroupField
+	if hints.FocusCanvas {
+		presentation.Focus = FocusModeCanvas
 	}
 	if presentation == (Presentation{}) {
 		return nil
 	}
 	return &presentation
+}
+
+func boolPtr(v bool) *bool { return &v }
+
+// buildMetricFlow maps a metric_flow panel's builder stages onto the wire
+// config. Per-element actions go through the same convertAction(a, true) path
+// as table columns: v1 only supports literal/variable params, and a htmx/other
+// unsupported action kind is silently dropped, matching the leaf column
+// contract.
+func buildMetricFlow(spec panel.Spec) *MetricFlowConfig {
+	stages := make([]MetricFlowStage, 0, len(spec.FlowStages))
+	for _, stage := range spec.FlowStages {
+		wireStage := MetricFlowStage{
+			Key: stage.Key, Label: stage.Label, Role: MetricFlowStageRole(stage.Role),
+			Caption: stage.Caption, Confidence: Confidence(stage.Confidence), Availability: Availability(stage.Availability),
+		}
+		if stage.Action != nil {
+			if converted, ok := convertAction(*stage.Action, true); ok {
+				wireStage.Action = &converted
+			}
+		}
+		stages = append(stages, wireStage)
+	}
+	config := &MetricFlowConfig{Stages: stages}
+	if spec.FlowReconcile != nil {
+		config.Reconcile = &FlowReconciliation{Tolerance: spec.FlowReconcile.Tolerance}
+	}
+	return config
+}
+
+// buildMetricHierarchy maps a metric_hierarchy panel's builder rows onto the
+// wire config, deriving each row's Depth from its Parent chain (root = 0).
+// Parent stays the single authoritative source of the hierarchy shape; Depth
+// is only a renderer convenience computed here.
+func buildMetricHierarchy(spec panel.Spec) *MetricHierarchyConfig {
+	byKey := make(map[string]panel.HierarchyRow, len(spec.HierarchyRows))
+	for _, row := range spec.HierarchyRows {
+		byKey[row.Key] = row
+	}
+	rows := make([]MetricHierarchyRow, 0, len(spec.HierarchyRows))
+	for _, row := range spec.HierarchyRows {
+		wireRow := MetricHierarchyRow{
+			Key: row.Key, Label: row.Label, Description: row.Description, Parent: row.Parent,
+			Depth:        hierarchyRowDepth(byKey, row.Key),
+			Unallocated:  row.Unallocated,
+			Selected:     row.Selected,
+			Confidence:   Confidence(row.Confidence),
+			Availability: Availability(row.Availability),
+		}
+		if row.Action != nil {
+			if converted, ok := convertAction(*row.Action, true); ok {
+				wireRow.Action = &converted
+			}
+		}
+		rows = append(rows, wireRow)
+	}
+	config := &MetricHierarchyConfig{Rows: rows}
+	if spec.HierarchyReconcile != nil {
+		config.Reconcile = &HierarchyReconciliation{Tolerance: spec.HierarchyReconcile.Tolerance}
+	}
+	return config
+}
+
+// hierarchyRowDepth walks a row's Parent chain to derive its depth (0 for a
+// root). A cycle stops the walk instead of looping forever; Validate rejects a
+// cyclic hierarchy independently, so the derived depth here only needs to
+// terminate, not to be meaningful for an already-invalid document.
+func hierarchyRowDepth(byKey map[string]panel.HierarchyRow, key string) int {
+	depth := 0
+	seen := make(map[string]struct{}, len(byKey))
+	current := key
+	for {
+		row, ok := byKey[current]
+		if !ok || row.Parent == "" {
+			return depth
+		}
+		if _, cycled := seen[current]; cycled {
+			return depth
+		}
+		seen[current] = struct{}{}
+		current = row.Parent
+		depth++
+	}
+}
+
+// buildMetricRelationship maps a metric_relationship panel's builder spec onto
+// the wire config. An empty Direction defaults to bidirectional on the wire,
+// matching the documented "never inferred from end order" contract.
+func buildMetricRelationship(spec panel.Spec) *MetricRelationshipConfig {
+	rel := spec.Relationship
+	if rel == nil {
+		return nil
+	}
+	config := &MetricRelationshipConfig{
+		Source: convertRelationshipEnd(rel.Source), Target: convertRelationshipEnd(rel.Target),
+		Type: MetricRelationshipType(rel.Type), Direction: MetricRelationshipDirection(rel.Direction), Note: rel.Note,
+	}
+	if config.Direction == "" {
+		config.Direction = MetricRelationshipBidirectional
+	}
+	return config
+}
+
+func convertRelationshipEnd(end panel.RelationshipEnd) MetricRelationshipEnd {
+	result := MetricRelationshipEnd{
+		Key: end.Key, Label: end.Label, Confidence: Confidence(end.Confidence), Availability: Availability(end.Availability),
+	}
+	if end.Action != nil {
+		if converted, ok := convertAction(*end.Action, true); ok {
+			result.Action = &converted
+		}
+	}
+	return result
 }
 
 func panelKind(kind panel.Kind) (PanelKind, error) {
@@ -351,23 +687,60 @@ func panelKind(kind panel.Kind) (PanelKind, error) {
 		return PanelKindCascade, nil
 	case panel.KindTable:
 		return PanelKindTable, nil
+	case panel.KindMetricFlow:
+		return PanelKindMetricFlow, nil
+	case panel.KindMetricHierarchy:
+		return PanelKindMetricHierarchy, nil
+	case panel.KindMetricRelationship:
+		return PanelKindMetricRelationship, nil
 	default:
 		return "", fmt.Errorf("unsupported document panel kind %q", kind)
 	}
 }
 
+// inferSemantics returns a panel kind's default semantics. metric_relationship
+// and metric_hierarchy need the panel's own config to settle their final
+// semantics (relationship type; hierarchy reconciliation), so the leaf branch
+// in appendPanelTree overrides this default once the panel spec is in scope.
+//
+// Deviation from the design doc: metric_hierarchy never resolves to
+// SemanticsPartition, even when HierarchyReconcile is set. validatePartitionFrame
+// (the shared partition-frame invariant used by pie/donut/coverage) rejects any
+// negative row value, but a general keyed hierarchy frame commonly carries
+// signed contributions (e.g. a contra-account child). Forcing partition
+// semantics would incorrectly reject those valid hierarchies at the frame
+// level, so metric_hierarchy stays series-shaped and the reconciliation
+// summary line is a MetricHierarchy-config concern rendered independently of
+// Semantics.
 func inferSemantics(kind PanelKind) Semantics {
 	//nolint:exhaustive // Remaining kinds are series-shaped by default.
 	switch kind {
 	case PanelKindPie, PanelKindDonut, PanelKindCoverage:
 		return SemanticsPartition
-	case PanelKindCascade:
+	case PanelKindCascade, PanelKindMetricFlow:
 		return SemanticsReconciliation
 	case PanelKindTable:
 		return SemanticsEvidence
 	default:
 		return SemanticsSeries
 	}
+}
+
+// metricRelationshipSemantics resolves a metric_relationship panel's final
+// semantics from its declared link type: reconciliation and derivation are
+// reconciliation-shaped (one side explains the other), association is neutral
+// series-shaped (no part-of/derivation claim).
+func metricRelationshipSemantics(config *MetricRelationshipConfig) Semantics {
+	if config == nil {
+		return SemanticsSeries
+	}
+	switch config.Type {
+	case MetricRelationshipReconciliation, MetricRelationshipDerivation:
+		return SemanticsReconciliation
+	case MetricRelationshipAssociation:
+		return SemanticsSeries
+	}
+	return SemanticsSeries
 }
 
 // declaredEncoding maps a panel's declared fields into a wire encoding without
@@ -388,6 +761,11 @@ func declaredEncoding(fields panel.FieldMapping) Encoding {
 	assign(&encoding.Cut, fields.Cut)
 	assign(&encoding.CutLabel, fields.CutLabel)
 	assign(&encoding.Final, fields.Final)
+	assign(&encoding.Annotation, fields.Annotation)
+	assign(&encoding.Tone, fields.Tone)
+	assign(&encoding.Share, fields.Share)
+	assign(&encoding.Confidence, fields.Confidence)
+	assign(&encoding.Availability, fields.Availability)
 	return encoding
 }
 
@@ -410,6 +788,11 @@ func buildEncoding(fields panel.FieldMapping, frame Frame) Encoding {
 	assign(&encoding.Cut, fields.Cut)
 	assign(&encoding.CutLabel, fields.CutLabel)
 	assign(&encoding.Final, fields.Final)
+	assign(&encoding.Annotation, fields.Annotation)
+	assign(&encoding.Tone, fields.Tone)
+	assign(&encoding.Share, fields.Share)
+	assign(&encoding.Confidence, fields.Confidence)
+	assign(&encoding.Availability, fields.Availability)
 	return encoding
 }
 
@@ -452,6 +835,7 @@ func buildTableColumns(spec panel.Spec) []TableColumn {
 			Cell: TableCell{Kind: TableCellPlain}, Text: column.Text,
 			WidthPx: column.WidthPx, Clamp: column.ClampLines,
 			Affordance: TableAffordance(column.Affordance),
+			BadgeField: column.BadgeField.Name(),
 		}
 		if column.Cell != nil {
 			wireColumn.Cell.Kind = TableCellKind(column.Cell.Kind)
@@ -462,6 +846,9 @@ func buildTableColumns(spec panel.Spec) []TableColumn {
 				wireColumn.Cell.Layout = TableCellStacked
 			}
 		}
+		// Tone lives on the column (a plain cell has no TableCellSpec), so map it
+		// onto the wire cell regardless of the rich-cell kind.
+		wireColumn.Cell.ToneField = column.ToneField.Name()
 		if column.Action != nil {
 			if converted, ok := convertAction(*column.Action, true); ok {
 				wireColumn.Action = &converted
@@ -604,7 +991,19 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		if column.Cell != nil {
 			addDependency(action.FieldValue(column.Cell.PercentField.Name()))
 		}
+		// Companion columns (tone, badge) are read per row by the renderer but
+		// never rendered as their own column, so retain them explicitly or the
+		// projection drops them.
+		if !column.ToneField.Empty() {
+			addDependency(action.FieldValue(column.ToneField.Name()))
+		}
+		if !column.BadgeField.Empty() {
+			addDependency(action.FieldValue(column.BadgeField.Name()))
+		}
 		addActionDependencies(column.Action)
+	}
+	if spec.Presentation.RowGroupField != "" {
+		addDependency(action.FieldValue(spec.Presentation.RowGroupField))
 	}
 	addActionDependencies(spec.Action)
 	for _, dependencies := range extra {
@@ -750,11 +1149,22 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 	root := Level{Path: rootPath, Label: "", Children: make([]Node, 0, len(spec.Branches)), Perspectives: make([]PerspectiveRef, 0)}
 	if host := findDocumentPanel(doc.Panels, spec.HostPanelID); host != nil {
 		root.Frame = host.Frame
+		// The host panel's focus mode is a property of the whole exploration:
+		// the React runtime reads it from the drill ROOT level (isFocusCanvas),
+		// so a panel-level `.FocusCanvas()` must reach the root or the chrome
+		// never activates.
+		if host.Presentation != nil && host.Presentation.Focus != "" {
+			root.Presentation = &Presentation{Focus: host.Presentation.Focus}
+		}
 	}
 	for _, branch := range spec.Branches {
 		branchKey := qualifiedKey(spec.ID, branch.Key)
 		branchPath := appendPath(rootPath, branchKey)
-		branchLevel := Level{Path: branchPath, Label: branch.Label, Children: make([]Node, 0), Perspectives: make([]PerspectiveRef, 0, len(branch.Perspectives))}
+		branchLevel := Level{
+			Path: branchPath, Label: branch.Label, Children: make([]Node, 0),
+			Perspectives:       make([]PerspectiveRef, 0, len(branch.Perspectives)),
+			DefaultPerspective: string(qualifiedKey(spec.ID, branch.Key, branch.DefaultPerspective)),
+		}
 		root.Children = append(root.Children, Node{Key: branchKey, Path: branchPath, Label: branch.Label, Target: branchKey})
 		for _, view := range branch.Perspectives {
 			perspectiveID := string(qualifiedKey(spec.ID, branch.Key, view.Key))
@@ -769,6 +1179,17 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				nodeKey := qualifiedKey(spec.ID, branch.Key, view.Key, nodeSpec.Key)
 				nodePath := appendPath(branchPath, qualifiedKey(spec.ID, branch.Key, view.Key), nodeKey)
 				level := Level{Path: nodePath, Label: nodeSpec.Label, Children: make([]Node, 0, len(nodeSpec.Edges)), Perspectives: []PerspectiveRef{{ID: perspectiveID}}}
+				if nodeSpec.View != "" {
+					viewKind, err := panelKind(nodeSpec.View)
+					if err != nil {
+						return fmt.Errorf("explorer %s node %s view: %w", spec.ID, nodeSpec.Key, err)
+					}
+					level.View = viewKind
+				}
+				if nodeSpec.Presentation != nil {
+					level.Presentation = convertPresentation(*nodeSpec.Presentation)
+				}
+				level.Status = convertStatus(nodeSpec.Status)
 				if nodeSpec.DynamicChildren != nil {
 					level.DynamicChildren = &DynamicChildren{
 						Key:   convertSource(nodeSpec.DynamicChildren.Key),
@@ -821,6 +1242,25 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 							if err := ResolveDynamicChildren(&wireFrame, level); err != nil {
 								return fmt.Errorf("explorer %s node %s: %w", spec.ID, nodeSpec.Key, err)
 							}
+						}
+					}
+				}
+				// A declared audit table ships whenever the runtime result carries
+				// its panel's execution, mirroring the inline-frame guard above: a
+				// missing result drops the declaration instead of failing the build.
+				if nodeSpec.SourceData != nil {
+					if panelResult := result.Panel(nodeSpec.SourceData.Panel.ID); panelResult != nil && panelResult.Error == nil && panelResult.Frames.Primary() != nil {
+						sourceFrame, err := buildPanelFrame(nodeSpec.SourceData.Panel, panelResult.Frames.Primary())
+						if err != nil {
+							return fmt.Errorf("explorer %s node %s source data: %w", spec.ID, nodeSpec.Key, err)
+						}
+						sourceRef := FrameRef("source:" + perspectiveID + ":" + nodeSpec.Key)
+						doc.Frames[sourceRef] = sourceFrame
+						level.Source = &LevelSource{
+							Label:   nodeSpec.SourceData.Label,
+							Frame:   sourceRef,
+							Columns: buildTableColumns(nodeSpec.SourceData.Panel),
+							Format:  buildFormats(nodeSpec.SourceData.Panel),
 						}
 					}
 				}

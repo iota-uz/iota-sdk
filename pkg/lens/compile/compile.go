@@ -172,6 +172,16 @@ func compileExplorers(items []lensspec.ExplorerSpec, opts Options) ([]explore.Sp
 						}
 						node.Panel = &compiledPanel
 					}
+					if nodeItem.SourceData != nil {
+						sourcePanel, err := compilePanel(nodeItem.SourceData.Panel, opts)
+						if err != nil {
+							return nil, fmt.Errorf("compile explorer %q node %q source data panel: %w", item.ID, nodeItem.Key, err)
+						}
+						node.SourceData = &explore.SourceData{
+							Label: resolveText(nodeItem.SourceData.Label, opts),
+							Panel: sourcePanel,
+						}
+					}
 					if nodeItem.Load != nil {
 						node.Load = &explore.LoadSpec{
 							URL:           resolveString(nodeItem.Load.URL, opts.Values),
@@ -507,27 +517,40 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		Trend:           item.Trend,
 		Status:          item.Status,
 		Sparkline:       item.Sparkline,
+		Target:          item.Target,
 		GroupLayout:     item.GroupLayout,
 		Presentation:    item.Presentation,
 		Fields: panel.FieldMapping{
-			Label:     panel.Ref(resolveString(item.Fields.Label, opts.Values)),
-			Value:     panel.Ref(resolveString(item.Fields.Value, opts.Values)),
-			Series:    panel.Ref(resolveString(item.Fields.Series, opts.Values)),
-			Category:  panel.Ref(resolveString(item.Fields.Category, opts.Values)),
-			ID:        panel.Ref(resolveString(item.Fields.ID, opts.Values)),
-			StartTime: panel.Ref(resolveString(item.Fields.StartTime, opts.Values)),
-			EndTime:   panel.Ref(resolveString(item.Fields.EndTime, opts.Values)),
-			Cut:       panel.Ref(resolveString(item.Fields.Cut, opts.Values)),
-			CutLabel:  panel.Ref(resolveString(item.Fields.CutLabel, opts.Values)),
-			Final:     panel.Ref(resolveString(item.Fields.Final, opts.Values)),
+			Label:        panel.Ref(resolveString(item.Fields.Label, opts.Values)),
+			Value:        panel.Ref(resolveString(item.Fields.Value, opts.Values)),
+			Series:       panel.Ref(resolveString(item.Fields.Series, opts.Values)),
+			Category:     panel.Ref(resolveString(item.Fields.Category, opts.Values)),
+			ID:           panel.Ref(resolveString(item.Fields.ID, opts.Values)),
+			StartTime:    panel.Ref(resolveString(item.Fields.StartTime, opts.Values)),
+			EndTime:      panel.Ref(resolveString(item.Fields.EndTime, opts.Values)),
+			Cut:          panel.Ref(resolveString(item.Fields.Cut, opts.Values)),
+			CutLabel:     panel.Ref(resolveString(item.Fields.CutLabel, opts.Values)),
+			Final:        panel.Ref(resolveString(item.Fields.Final, opts.Values)),
+			Annotation:   panel.Ref(resolveString(item.Fields.Annotation, opts.Values)),
+			Tone:         panel.Ref(resolveString(item.Fields.Tone, opts.Values)),
+			Share:        panel.Ref(resolveString(item.Fields.Share, opts.Values)),
+			Confidence:   panel.Ref(resolveString(item.Fields.Confidence, opts.Values)),
+			Availability: panel.Ref(resolveString(item.Fields.Availability, opts.Values)),
 		},
-		Formatter:   item.Formatter,
-		ClassName:   resolveString(item.ClassName, opts.Values),
-		ValueAxis:   item.ValueAxis,
-		Distributed: item.Distributed,
-		ColorField:  panel.Ref(resolveString(item.ColorField, opts.Values)),
-		ColorScale:  resolveString(item.ColorScale, opts.Values),
-		Export:      item.Export,
+		Formatter:          item.Formatter,
+		ClassName:          resolveString(item.ClassName, opts.Values),
+		ValueAxis:          item.ValueAxis,
+		Distributed:        item.Distributed,
+		ColorField:         panel.Ref(resolveString(item.ColorField, opts.Values)),
+		ColorScale:         resolveString(item.ColorScale, opts.Values),
+		Export:             item.Export,
+		FlowStages:         item.FlowStages,
+		FlowReconcile:      item.FlowReconcile,
+		HierarchyRows:      item.HierarchyRows,
+		HierarchyReconcile: item.HierarchyReconcile,
+		Relationship:       item.Relationship,
+		Confidence:         item.Confidence,
+		Availability:       item.Availability,
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
 	if err != nil {
@@ -555,6 +578,8 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			WidthPx:    column.WidthPx,
 			ClampLines: column.ClampLines,
 			Affordance: column.Affordance,
+			ToneField:  panel.Ref(column.ToneField),
+			BadgeField: panel.Ref(column.BadgeField),
 		})
 	}
 

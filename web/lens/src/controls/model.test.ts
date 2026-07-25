@@ -15,9 +15,11 @@ import {
   parseISODate,
   previewRange,
   rangeDayState,
+  resolvePreset,
   selectDay,
   weekdayLabels,
   type CalendarDate,
+  type PeriodPresetId,
 } from './model'
 
 const date = (year: number, month: number, day: number): CalendarDate => ({ year, month, day })
@@ -176,6 +178,49 @@ describe('hover preview', () => {
     expect(rangeDayState(date(2026, 7, 4), pending, date(2026, 7, 6))).toBe('preview')
     expect(rangeDayState(date(2026, 7, 6), pending, date(2026, 7, 6))).toBe('previewEdge')
     expect(rangeDayState(date(2026, 7, 7), pending, date(2026, 7, 6))).toBe('none')
+  })
+})
+
+describe('period presets', () => {
+  // A Wednesday in Q3, mid-month, mid-year — exercises every branch.
+  const today = date(2026, 7, 22)
+
+  const bounds = (id: PeriodPresetId, from: CalendarDate) => resolvePreset(id, from)
+
+  it('resolves today-relative presets to the legacy pickers\' inclusive bounds', () => {
+    expect(bounds('today', today)).toEqual({ start: date(2026, 7, 22), end: date(2026, 7, 22) })
+    expect(bounds('yesterday', today)).toEqual({ start: date(2026, 7, 21), end: date(2026, 7, 21) })
+    // Monday-first week (legacy generic picker anchor).
+    expect(bounds('thisWeek', today)).toEqual({ start: date(2026, 7, 20), end: date(2026, 7, 26) })
+    expect(bounds('lastWeek', today)).toEqual({ start: date(2026, 7, 13), end: date(2026, 7, 19) })
+    expect(bounds('thisMonth', today)).toEqual({ start: date(2026, 7, 1), end: date(2026, 7, 22) })
+    expect(bounds('lastMonth', today)).toEqual({ start: date(2026, 6, 1), end: date(2026, 6, 30) })
+    expect(bounds('last30days', today)).toEqual({ start: date(2026, 6, 23), end: date(2026, 7, 22) })
+    expect(bounds('last12months', today)).toEqual({ start: date(2025, 7, 22), end: date(2026, 7, 22) })
+    expect(bounds('thisQuarter', today)).toEqual({ start: date(2026, 7, 1), end: date(2026, 7, 22) })
+    expect(bounds('yearToDate', today)).toEqual({ start: date(2026, 1, 1), end: date(2026, 7, 22) })
+    expect(bounds('thisYear', today)).toEqual({ start: date(2026, 1, 1), end: date(2026, 12, 31) })
+    expect(bounds('lastYear', today)).toEqual({ start: date(2025, 1, 1), end: date(2025, 12, 31) })
+  })
+
+  it('treats all-time as unbounded', () => {
+    expect(bounds('allTime', today)).toBeUndefined()
+  })
+
+  it('crosses the year boundary for last month in January', () => {
+    expect(bounds('lastMonth', date(2026, 1, 10))).toEqual({ start: date(2025, 12, 1), end: date(2025, 12, 31) })
+  })
+
+  it('anchors the quarter to its first month', () => {
+    expect(bounds('thisQuarter', date(2026, 5, 15))).toEqual({ start: date(2026, 4, 1), end: date(2026, 5, 15) })
+    expect(bounds('thisQuarter', date(2026, 1, 1))).toEqual({ start: date(2026, 1, 1), end: date(2026, 1, 1) })
+    expect(bounds('thisQuarter', date(2026, 12, 31))).toEqual({ start: date(2026, 10, 1), end: date(2026, 12, 31) })
+  })
+
+  it('clamps last-12-months across a month-overflow origin', () => {
+    // 2024 is a leap year: July→prior-July stays on the day, but a 31st origin
+    // clamps rather than rolling forward.
+    expect(bounds('last12months', date(2026, 3, 31))).toEqual({ start: date(2025, 3, 31), end: date(2026, 3, 31) })
   })
 })
 

@@ -55,6 +55,33 @@ func (n Node) WithBalance(expected, actual, tolerance float64) Node {
 	return n
 }
 
+// WithView declares the chart kind the wire runtime should render this level
+// with, instead of the drill host panel's own kind.
+func (n Node) WithView(kind panel.Kind) Node {
+	n.View = kind
+	return n
+}
+
+// WithPresentation carries opt-in rendering hints onto this level.
+func (n Node) WithPresentation(hints panel.PresentationHints) Node {
+	n.Presentation = &hints
+	return n
+}
+
+// WithStatus renders a data-quality chip next to this level's heading.
+func (n Node) WithStatus(label string, tone panel.StatusTone) Node {
+	n.Status = &panel.StatusSpec{Label: label, Tone: tone}
+	return n
+}
+
+// WithSourceData declares this level's audit table: label is the collapsed
+// disclosure heading and table must be a table panel spec whose executed
+// frame backs the disclosure.
+func (n Node) WithSourceData(label string, table panel.Spec) Node {
+	n.SourceData = &SourceData{Label: label, Panel: table}
+	return n
+}
+
 func (n Node) WithDynamicEdges(targets ...string) Node {
 	n.DynamicEdges = true
 	n.DynamicTargets = append([]string(nil), targets...)

@@ -16,6 +16,10 @@ import (
 var (
 	literalKeyPattern = regexp.MustCompile(`translate\(\s*'([^']+)'`)
 	dynamicKeyPattern = regexp.MustCompile("translate\\(\\s*`([^`$]*)\\$\\{")
+	// Keys resolved indirectly through catalog definitions, e.g. the period
+	// preset catalog's `labelKey: 'filter.period.preset.today'` entries that
+	// reach translate() as `translate(def.labelKey, def.fallback)`.
+	catalogKeyPattern = regexp.MustCompile(`labelKey:\s*'([^']+)'`)
 )
 
 // TestRuntimeI18nKeysMatchRuntimeCallSites keeps the Go-side catalogue and the
@@ -47,6 +51,9 @@ func TestRuntimeI18nKeysMatchRuntimeCallSites(t *testing.T) {
 		for _, match := range literalKeyPattern.FindAllStringSubmatch(string(source), -1) {
 			found[match[1]] = struct{}{}
 		}
+		for _, match := range catalogKeyPattern.FindAllStringSubmatch(string(source), -1) {
+			found[match[1]] = struct{}{}
+		}
 		for _, match := range dynamicKeyPattern.FindAllStringSubmatch(string(source), -1) {
 			prefixes[match[1]] = struct{}{}
 		}
@@ -69,8 +76,12 @@ func TestRuntimeI18nKeysMatchRuntimeCallSites(t *testing.T) {
 	require.Empty(t, missing, "runtime uses translation keys the Go catalogue does not declare")
 
 	// Dynamic keys are declared per concrete suffix; assert the family exists.
+	knownPrefixes := map[string]struct{}{
+		document.I18nSemanticsPrefix: {},
+		document.I18nRelTypePrefix:   {},
+	}
 	for prefix := range prefixes {
-		require.Contains(t, prefixes, document.I18nSemanticsPrefix,
+		require.Contains(t, knownPrefixes, prefix,
 			"unexpected dynamic translation prefix %q", prefix)
 	}
 	for _, semantics := range []document.Semantics{
@@ -79,13 +90,20 @@ func TestRuntimeI18nKeysMatchRuntimeCallSites(t *testing.T) {
 	} {
 		require.Contains(t, declared, document.I18nSemanticsPrefix+string(semantics))
 	}
+	for _, relType := range []document.MetricRelationshipType{
+		document.MetricRelationshipAssociation, document.MetricRelationshipDerivation,
+		document.MetricRelationshipReconciliation,
+	} {
+		require.Contains(t, declared, document.I18nRelTypePrefix+string(relType))
+	}
 
 	unused := make([]string, 0)
 	for key := range declared {
 		if _, ok := found[key]; ok {
 			continue
 		}
-		if strings.HasPrefix(key, document.I18nSemanticsPrefix) {
+		if strings.HasPrefix(key, document.I18nSemanticsPrefix) ||
+			strings.HasPrefix(key, document.I18nRelTypePrefix) {
 			continue
 		}
 		unused = append(unused, key)

@@ -29,6 +29,73 @@ const cascadeFrame: Frame = {
   ],
 }
 
+// A profit bridge with explicit per-stage tones: totals read neutral (navy) and
+// deductions read negative (red) instead of the flow-direction green a decrease
+// would otherwise take. Exercises the opt-in Encoding.tone channel.
+const tonedBridgePanel: Panel = {
+  id: 'result-bridge', kind: 'cascade', title: 'Underwriting result', semantics: 'reconciliation', frame: 'bridge',
+  total: 1740000,
+  encoding: { label: 'stage', value: 'balance', cut: 'movement', cutLabel: 'movementLabel', final: 'reconciled', tone: 'tone' },
+  format: {
+    balance: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
+    movement: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
+  },
+  presentation: { bridgeLayout: 'waterfall' },
+  actions: [],
+}
+
+const tonedBridgeFrame: Frame = {
+  columns: [
+    { name: 'stage', type: 'string' }, { name: 'balance', type: 'number' },
+    { name: 'movement', type: 'number' }, { name: 'movementLabel', type: 'string' },
+    { name: 'reconciled', type: 'bool' }, { name: 'tone', type: 'string' },
+  ],
+  rows: [
+    ['Gross premium', 3120000, 0, '', false, 'neutral'],
+    ['Net of claims', 2310000, 810000, 'Claims paid', false, 'negative'],
+    ['Net of acquisition', 1980000, 330000, 'Acquisition cost', false, 'negative'],
+    ['Underwriting result', 1740000, 240000, 'Operating expenses', true, 'neutral'],
+  ],
+}
+
+// The official underwriting-result bridge as the backend emits it: five running
+// totals that each deduct from the earned premium, then an explicit final=true
+// closing row that RESTATES the last running total (zero movement, cut=0). The
+// waterfall must draw that closing row exactly once as the navy total — the
+// zero-delta final row must not also render as a spurious "+0" duplicate bar
+// immediately before it.
+const officialResultPanel: Panel = {
+  id: 'official-result-bridge', kind: 'cascade', title: 'Андеррайтинговый результат', semantics: 'reconciliation', frame: 'bridge',
+  total: 66.34,
+  encoding: { label: 'stage', value: 'balance', cut: 'movement', cutLabel: 'movementLabel', final: 'reconciled', tone: 'tone' },
+  format: {
+    balance: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 },
+    movement: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 },
+  },
+  presentation: { bridgeLayout: 'waterfall' },
+  actions: [],
+}
+
+const officialResultFrame: Frame = {
+  columns: [
+    { name: 'stage', type: 'string' }, { name: 'balance', type: 'number' },
+    { name: 'movement', type: 'number' }, { name: 'movementLabel', type: 'string' },
+    { name: 'reconciled', type: 'bool' }, { name: 'tone', type: 'string' },
+  ],
+  rows: [
+    ['Заработанная премия', 178.30, 0, '', false, 'neutral'],
+    ['Аквизиционные расходы', 150.00, 28.30, 'Аквизиционные расходы', false, 'negative'],
+    ['Расходы на ведение дела', 120.00, 30.00, 'Расходы на ведение дела', false, 'negative'],
+    ['Выплаты', 95.00, 25.00, 'Выплаты', false, 'negative'],
+    ['Перестрахование', 80.00, 15.00, 'Перестрахование', false, 'negative'],
+    ['Движение резервов', 66.34, 13.66, 'Движение резервов', false, 'negative'],
+    // Closing row restates the running total, but as a floating-point sum it
+    // lands an epsilon off (like the real backend frame) — the tolerance, not
+    // strict equality, must suppress the "+0" duplicate bar.
+    ['Андеррайтинговый результат', 66.34 + 1e-5, 0, '', true, 'neutral'],
+  ],
+}
+
 const tablePanel: Panel = {
   id: 'evidence', kind: 'table', title: 'Policy evidence', semantics: 'evidence', frame: 'evidence',
   encoding: { id: 'policyId', label: 'policyholder', value: 'premium' },
@@ -104,6 +171,28 @@ function Runtime({ document, fetcher, children }: { document: DashboardDocument;
 export const CascadeFinalStage: Story = () => {
   const document = storyDocument(cascadePanel, { bridge: cascadeFrame })
   return <Runtime document={document}><CascadePanel panel={cascadePanel} /></Runtime>
+}
+
+// Waterfall projection: deduction bars read red, opening/closing totals navy.
+export const WaterfallSemanticTone: Story = () => {
+  const document = storyDocument(tonedBridgePanel, { bridge: tonedBridgeFrame })
+  return <Runtime document={document}><CascadePanel panel={tonedBridgePanel} /></Runtime>
+}
+
+// Regression guard for the duplicate closing column: an explicit final=true
+// running-total row that restates the last stage must render once as the navy
+// total, preceded by the navy opening and five red deduction bars — no "+0".
+export const WaterfallClosingTotal: Story = () => {
+  const document = storyDocument(officialResultPanel, { bridge: officialResultFrame })
+  return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
+}
+
+// Cascade-list projection of the same toned bridge: track fill and value text
+// follow the per-stage tone.
+export const CascadeSemanticTone: Story = () => {
+  const panel: Panel = { ...tonedBridgePanel, id: 'result-cascade', presentation: undefined }
+  const document = storyDocument(panel, { bridge: tonedBridgeFrame })
+  return <Runtime document={document}><CascadePanel panel={panel} /></Runtime>
 }
 
 function OpenEvidence({ emptyPage }: { emptyPage?: boolean }) {

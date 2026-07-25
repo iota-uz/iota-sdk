@@ -127,6 +127,35 @@ export const CaretDown = glyph(
   14,
 )
 
+/** Year-step navigation: back one year. */
+export const CaretDoubleLeft = glyph(
+  <>
+    <polyline points="200 208 120 128 200 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="120 208 40 128 120 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Year-step navigation: forward one year. */
+export const CaretDoubleRight = glyph(
+  <>
+    <polyline points="56 48 136 128 56 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="136 48 216 128 136 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Period trigger and date-field adornment. */
+export const CalendarBlank = glyph(
+  <>
+    <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="176" y1="24" x2="176" y2="56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="80" y1="24" x2="80" y2="56" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="40" y1="88" x2="216" y2="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
 /** Copy the segment value to the clipboard. */
 export const Copy = glyph(
   <>
@@ -149,6 +178,109 @@ export const ArrowUpRight = glyph(
   <>
     <line x1="64" y1="192" x2="192" y2="64" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
     <polyline points="88 64 192 64 192 168" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Trend chip: metric rising. */
+export const TrendUp = glyph(
+  <>
+    <polyline points="32 192 96 128 144 160 224 64" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="160 64 224 64 224 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Trend chip: metric falling. */
+export const TrendDown = glyph(
+  <>
+    <polyline points="32 64 96 128 144 96 224 192" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="160 192 224 192 224 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Trend chip: metric unchanged. */
+export const TrendFlat = glyph(
+  <>
+    <line x1="40" y1="128" x2="216" y2="128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Empty panel state: no data to plot. */
+export const ChartLine = glyph(
+  <>
+    <polyline points="32 208 32 48" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="32 208 224 208" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="56 160 112 104 152 144 208 72" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  20,
+)
+
+/** Quality: verified — a sealed check (direct measurement). */
+export const SealCheck = glyph(
+  <>
+    <circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="88 128 116 156 168 100" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: calculated — a documented formula (bracketed expression). */
+export const Brackets = glyph(
+  <>
+    <path d="M96,48H72a16,16,0,0,0-16,16V192a16,16,0,0,0,16,16H96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M160,48h24a16,16,0,0,1,16,16V192a16,16,0,0,1-16,16H160" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="104" x2="128" y2="152" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: proxy — an approximate reconstruction (≈). */
+export const Approximate = glyph(
+  <>
+    <path d="M40,104c20-28,50-28,70,0s50,28,70,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M40,168c20-28,50-28,70,0s50,28,70,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: requires reconciliation — a warning triangle. */
+export const WarningTriangle = glyph(
+  <>
+    <path d="M114.2,40,26.3,192a16,16,0,0,0,13.8,24H215.9a16,16,0,0,0,13.8-24L141.8,40A16,16,0,0,0,114.2,40Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="104" x2="128" y2="144" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="180" x2="128" y2="180" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="18" />
+  </>,
+  12,
+)
+
+/** Quality: configuration required — sliders to be set. */
+export const Sliders = glyph(
+  <>
+    <line x1="40" y1="80" x2="216" y2="80" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <circle cx="96" cy="80" r="18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="40" y1="176" x2="216" y2="176" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <circle cx="160" cy="176" r="18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: empty source — an empty tray. */
+export const Tray = glyph(
+  <>
+    <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="40 144 76 144 92 168 164 168 180 144 216 144" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: unavailable — a prohibiting slash. */
+export const SlashCircle = glyph(
+  <>
+    <circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="65" y1="65" x2="191" y2="191" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
   </>,
   12,
 )

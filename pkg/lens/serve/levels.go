@@ -100,6 +100,37 @@ func inlineTargets(spec lens.DashboardSpec, inlineDepth int) []levelTarget {
 	return targets
 }
 
+// sourceDataTargets lists the declared audit tables of every node within the
+// inline depth. They execute at document time like inline level panels — a
+// declaration whose panel never executes is dropped by document.Build — but
+// through a plain panel-scoped run: the request carries no explorer level
+// coordinates, so host executors that intercept level executions (to route
+// them through exploration loaders) pass audit tables straight to the engine.
+func sourceDataTargets(spec lens.DashboardSpec, inlineDepth int) []levelTarget {
+	targets := make([]levelTarget, 0)
+	for _, explorerSpec := range spec.Explorers {
+		for _, branch := range explorerSpec.Branches {
+			for _, perspective := range branch.Perspectives {
+				depths := perspectiveDepths(perspective)
+				for _, node := range perspective.Nodes {
+					if node.SourceData == nil || depths[node.Key] > inlineDepth {
+						continue
+					}
+					perspectiveID := qualified(explorerSpec.ID, branch.Key, perspective.Key)
+					targets = append(targets, levelTarget{
+						explorerID: explorerSpec.ID, branchKey: branch.Key, perspectiveKey: perspective.Key, nodeKey: node.Key,
+						path: []string{node.Key}, panel: node.SourceData.Panel,
+						ref:         document.FrameRef("source:" + perspectiveID + ":" + node.Key),
+						perspective: perspective,
+						levelKey:    document.NodeKey(qualified(perspectiveID, node.Key)),
+					})
+				}
+			}
+		}
+	}
+	return targets
+}
+
 func resolveTarget(spec lens.DashboardSpec, path document.NodePath, requestedPerspective string) (levelTarget, error) {
 	last := strings.TrimSpace(string(path[len(path)-1]))
 	requestedPerspective = strings.TrimSpace(requestedPerspective)
@@ -212,6 +243,28 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 	const op serrors.Op = "lens/serve.executeLevel"
 	req := scopedRuntimeRequest(base, params, target, page, h.pageSize)
 	result, err := h.engine.Execute(ctx, levelSpec(h.spec, target.panel), req, lensruntime.PanelScope(target.panel.ID))
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	if result == nil || result.Panel(target.panel.ID) == nil {
+		return nil, serrors.E(op, fmt.Errorf("panel %q was not executed", target.panel.ID))
+	}
+	panelResult := result.Panel(target.panel.ID)
+	if panelResult.Error != nil {
+		return panelResult, serrors.E(op, panelResult.Error)
+	}
+	return panelResult, nil
+}
+
+// executeSourcePanel executes one declared audit table. Unlike executeLevel it
+// never sets the lens_explore_* request coordinates: an audit table reads its
+// own (usually static) dataset, and the plain request keeps host executors from
+// mistaking it for an exploration level.
+func (h *Handlers) executeSourcePanel(ctx context.Context, base lensruntime.Request, params map[string]any, target levelTarget) (*lensruntime.PanelResult, error) {
+	const op serrors.Op = "lens/serve.executeSourcePanel"
+	base.Overrides = variableParams(params)
+	base.Request = cloneValues(base.Request)
+	result, err := h.engine.Execute(ctx, levelSpec(h.spec, target.panel), base, lensruntime.PanelScope(target.panel.ID))
 	if err != nil {
 		return nil, serrors.E(op, err)
 	}

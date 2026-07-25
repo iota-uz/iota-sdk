@@ -98,7 +98,8 @@
           {
             "id": "metric/focus/composition"
           }
-        ]
+        ],
+        "defaultPerspective": "metric/focus/composition"
       },
       "metric/focus/composition/detail": {
         "path": [

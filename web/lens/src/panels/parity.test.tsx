@@ -119,9 +119,9 @@ describe('coverage panel', () => {
 
     expect(container.querySelector('.lens-coverage-headline')?.textContent).toContain('5,458,561,140')
     expect(screen.getByText('All claims covered by reserve')).toBeInTheDocument()
-    // Zero-width segments never enter the track, but keep their legend row.
-    expect(container.querySelectorAll('.lens-coverage-track-segment')).toHaveLength(1)
-    expect(container.querySelector('.lens-coverage-track-segment')).toHaveStyle({ width: '100%' })
+    // A lone 100% segment is a meaningless full bar, so the track is dropped
+    // entirely; the headline and both legend rows still state the split.
+    expect(container.querySelector('.lens-coverage-track')).toBeNull()
     const shares = [...container.querySelectorAll('.lens-coverage-legend-share')].map((node) => node.textContent)
     expect(shares).toEqual(['100%', '0%'])
   })
@@ -495,6 +495,21 @@ describe('chart legend series toggle', () => {
     })
     expect(screen.getByRole('button', { name: /Broker/ })).toHaveAttribute('aria-pressed', 'false')
     expect(container.querySelector('.lens-plot-total')?.textContent).toContain('700')
+  })
+
+  it('keeps the header total aligned with the visible legend series', async () => {
+    const panel: Panel = {
+      ...piePanel,
+      presentation: { ...piePanel.presentation, totalBadge: 'header' },
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+    await waitFor(() => expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('700'))
   })
 
   it('refuses to hide the last visible series', async () => {

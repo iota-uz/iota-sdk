@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
 import { ArrowUpRight, CaretRight } from '../icons'
-import { levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
+import { clampedDeltaPercent, levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
 import { useActionActivation } from './actions'
 
@@ -123,9 +123,12 @@ function DeltaCell({
   const secondary = numericValue(secondaryValue)
   const hasSecondary = secondaryValue !== null && secondaryValue !== undefined && secondaryValue !== ''
   const negative = secondary !== undefined && secondary < 0
+  // Percent changes beyond ±999.9% clamp to «>999%» / «<−999%»: a precise
+  // «+13 417.3%» is noise, and the absolute value beside it carries the story.
+  const clamped = secondary !== undefined ? clampedDeltaPercent(secondary) : undefined
   const percent = hasSecondary && (
     <span className={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
-      {secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}
+      {clamped ?? <>{secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}</>}
     </span>
   )
   if (stacked) {
@@ -144,6 +147,17 @@ function DeltaCell({
       {percent}
     </span>
   )
+}
+
+// rowFieldString reads a companion frame column (tone, badge) as a string. An
+// absent field or non-string value reads as "" so callers can treat it as "no
+// annotation" without branching on undefined.
+function rowFieldString(frame: Frame, row: Array<unknown>, field?: string): string {
+  if (!field) return ''
+  const index = frame.columns.findIndex((candidate) => candidate.name === field)
+  if (index < 0) return ''
+  const value = row[index]
+  return typeof value === 'string' ? value : ''
 }
 
 function ColumnCell({
@@ -180,6 +194,13 @@ function ColumnCell({
     content = <TableCell column={{ name: column.field, type }} format={format} value={value} />
   }
 
+  // A per-row status tone tints only the value's color; the producer sets it
+  // from its own business thresholds (e.g. a loss ratio over 100%).
+  const tone = rowFieldString(frame, row, column.cell.toneField)
+  if (tone === 'pos' || tone === 'warn' || tone === 'neg') {
+    content = <span className={`lens-table-tone lens-table-tone-${tone}`}>{content}</span>
+  }
+
   if (column.clamp) {
     content = (
       <span className="lens-table-clamp" style={{ WebkitLineClamp: column.clamp } as CSSProperties}>{content}</span>
@@ -188,8 +209,19 @@ function ColumnCell({
 
   const href = column.action && activation.available ? resolveColumnActionURL(column.action, frame, row, location) : undefined
   const pill = column.affordance === 'pill'
-  if (href) {
-    return (
+  const quiet = column.affordance === 'quiet'
+  let rendered
+  if (href && quiet) {
+    // The whole cell is the drill target; the underline and arrow stay hidden
+    // until hover/focus so a dense table of quiet numerals reads as data first.
+    rendered = (
+      <a className="lens-table-cell-quiet" href={href} onClick={activation.onClick(href)}>
+        <span className="lens-table-cell-quiet-value">{content}</span>
+        <span aria-hidden="true" className="lens-table-cell-quiet-arrow"><ArrowUpRight /></span>
+      </a>
+    )
+  } else if (href) {
+    rendered = (
       <a className={`lens-table-cell-link${pill ? ' lens-table-cell-pill' : ''}`} href={href} onClick={activation.onClick(href)}>
         {content}
         {/* The arrow claims the cell opens something, so it only appears when
@@ -197,14 +229,25 @@ function ColumnCell({
         <span className="lens-table-cell-link-arrow">{pill ? <ArrowUpRight /> : <CaretRight />}</span>
       </a>
     )
-  }
-  if (pill) {
+  } else if (pill) {
     // A pill without a resolvable target still marks the column as a drill
     // surface (the action may be renderer-local), but it does not pretend to
     // be a link.
-    return <span className="lens-table-cell-pill">{content}</span>
+    rendered = <span className="lens-table-cell-pill">{content}</span>
+  } else {
+    rendered = content
   }
-  return content
+
+  // A badge (e.g. an unmatched-source marker) rides beside the value; its
+  // tooltip carries the producer's explanation.
+  const badge = rowFieldString(frame, row, column.badgeField)
+  if (!badge) return rendered
+  return (
+    <span className="lens-table-cell-badged">
+      {rendered}
+      <span className="lens-table-cell-badge" title={badge}>?</span>
+    </span>
+  )
 }
 
 function sortedRows(frame: Frame, sort: SortState | undefined): Array<{ row: Array<unknown>; index: number }> {
@@ -224,6 +267,10 @@ export interface TablePanelProps {
   panel: Panel
 }
 
+type RenderRow =
+  | { row: Array<unknown>; index: number; kind: 'normal' | 'member' }
+  | { row: Array<unknown>; index: number; kind: 'toggle'; group: string; expanded: boolean }
+
 export function TablePanel({ panel }: TablePanelProps) {
   const frame = usePanelFrame(panel.id)
   const { document, navigation } = useDashboard()
@@ -235,7 +282,11 @@ export function TablePanel({ panel }: TablePanelProps) {
   const level: Level | undefined = navigation.panelId === panel.id && navigation.path.length
     ? levelForPath(document, navigation.path)
     : undefined
-  const rows = useMemo(() => frame.data ? sortedRows(frame.data, sort) : [], [frame.data, sort])
+  // A static identity table (a fixed decomposition, not a record list) declares
+  // sortable:false: its rows carry an inherent order, so offering to reorder
+  // them — and printing "sort applies to this page" — would be a lie.
+  const sortEnabled = panel.presentation?.sortable !== false
+  const rows = useMemo(() => frame.data ? sortedRows(frame.data, sortEnabled ? sort : undefined) : [], [frame.data, sort, sortEnabled])
   const page = frame.page?.number ?? 1
   const pageSize = frame.page?.size
   const loadingPage = requestedSnapshotId.current === document.snapshotId ? requestedPage : 1
@@ -265,6 +316,46 @@ export function TablePanel({ panel }: TablePanelProps) {
   const rowLeafAction = Boolean(columns) && panel.actions.some((action) => (
     action.kind === 'navigate_to_leaf' || action.kind === 'open_drawer'
   ))
+
+  // Row grouping collapses tagged member rows behind a synthetic toggle row.
+  // The tag lives in a companion frame column named by presentation.rowGroupField.
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({})
+  const rowGroupField = panel.presentation?.rowGroupField
+  const groupIndex = columns && frame.data && rowGroupField
+    ? frame.data.columns.findIndex((candidate) => candidate.name === rowGroupField)
+    : -1
+  const toggleGroup = (group: string) => setExpandedGroups((current) => ({ ...current, [group]: !current[group] }))
+  const renderRows = useMemo<Array<RenderRow>>(() => {
+    if (groupIndex < 0) return rows.map((entry) => ({ ...entry, kind: 'normal' as const }))
+    const normal: Array<RenderRow> = []
+    const toggles: Array<{ entry: { row: Array<unknown>; index: number }; group: string }> = []
+    const members = new Map<string, Array<{ row: Array<unknown>; index: number }>>()
+    for (const entry of rows) {
+      const raw = entry.row[groupIndex]
+      const tag = typeof raw === 'string' ? raw : ''
+      if (!tag) { normal.push({ ...entry, kind: 'normal' }); continue }
+      if (tag.endsWith(':toggle')) { toggles.push({ entry, group: tag.slice(0, -':toggle'.length) }); continue }
+      const bucket = members.get(tag)
+      if (bucket) bucket.push(entry)
+      else members.set(tag, [entry])
+    }
+    // Normal rows keep their sorted order; group rows pin to the end so a column
+    // sort never scatters the collapsed tail through the live rows.
+    const out: Array<RenderRow> = [...normal]
+    for (const { entry, group } of toggles) {
+      const expanded = Boolean(expandedGroups[group])
+      out.push({ ...entry, kind: 'toggle', group, expanded })
+      if (expanded) for (const member of members.get(group) ?? []) out.push({ ...member, kind: 'member' })
+    }
+    return out
+  }, [rows, groupIndex, expandedGroups])
+  // The footer's "N rows" counts real data rows, never the synthetic toggle.
+  const dataRowCount = groupIndex < 0
+    ? (frame.data?.rows.length ?? 0)
+    : (frame.data?.rows.reduce((count, row) => {
+      const raw = row[groupIndex]
+      return typeof raw === 'string' && raw.endsWith(':toggle') ? count : count + 1
+    }, 0) ?? 0)
 
   useEffect(() => {
     if (requestedSnapshotId.current !== document.snapshotId) {
@@ -302,9 +393,10 @@ export function TablePanel({ panel }: TablePanelProps) {
                   {columns ? (
                     <>
                       {columns.map((column, columnIndex) => {
-                        // An action-only column has no field to sort by;
-                        // offering a sort control there would be a lie.
-                        const sortable = Boolean(column.field.trim())
+                        // An action-only column has no field to sort by, and a
+                        // static table offers no sort at all; either way the
+                        // heading is a plain label, not a control.
+                        const sortable = sortEnabled && Boolean(column.field.trim())
                         return (
                           <th
                             aria-sort={sortable && sort?.column === column.field ? sort.direction : 'none'}
@@ -333,11 +425,15 @@ export function TablePanel({ panel }: TablePanelProps) {
                   ) : (
                     <>
                       {frame.data.columns.map((column) => (
-                        <th aria-sort={sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
-                          <button type="button" onClick={() => changeSort(column.name)}>
-                            <span>{column.name}</span>
-                            <span aria-hidden="true">{sortIndicator(column.name)}</span>
-                          </button>
+                        <th aria-sort={sortEnabled && sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
+                          {sortEnabled ? (
+                            <button type="button" onClick={() => changeSort(column.name)}>
+                              <span>{column.name}</span>
+                              <span aria-hidden="true">{sortIndicator(column.name)}</span>
+                            </button>
+                          ) : (
+                            <span className="lens-table-heading-static">{column.name}</span>
+                          )}
                         </th>
                       ))}
                       <th className="lens-table-action-heading" scope="col">
@@ -354,8 +450,31 @@ export function TablePanel({ panel }: TablePanelProps) {
                       {translate('table.emptyPage', 'No records on this page')}
                     </td>
                   </tr>
-                ) : rows.map(({ row, index }) => columns ? (
-                  <tr key={index}>
+                ) : renderRows.map((entry) => !columns ? (
+                  <FrameRow
+                    frame={frame.data!}
+                    row={entry.row}
+                    index={entry.index}
+                    panel={panel}
+                    location={location}
+                    level={level}
+                    openRecordLabel={translate('table.openRecord', 'Open record')}
+                    key={entry.index}
+                  />
+                ) : entry.kind === 'toggle' ? (
+                  <GroupToggleRow
+                    columns={columns}
+                    frame={frame.data!}
+                    row={entry.row}
+                    panel={panel}
+                    location={location}
+                    columnMaxima={columnMaxima}
+                    expanded={entry.expanded}
+                    onToggle={() => toggleGroup(entry.group)}
+                    key={`toggle-${entry.group}`}
+                  />
+                ) : (
+                  <tr className={entry.kind === 'member' ? 'lens-table-group-member' : undefined} key={entry.index}>
                     {columns.map((column, columnIndex) => (
                       <td
                         className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
@@ -365,7 +484,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                         <ColumnCell
                           column={column}
                           frame={frame.data!}
-                          row={row}
+                          row={entry.row}
                           panel={panel}
                           location={location}
                           max={columnMaxima.get(column.field) ?? 0}
@@ -376,7 +495,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                       <td className="lens-table-action-cell">
                         <RowLeafAction
                           frame={frame.data!}
-                          row={row}
+                          row={entry.row}
                           panel={panel}
                           location={location}
                           level={level}
@@ -385,23 +504,17 @@ export function TablePanel({ panel }: TablePanelProps) {
                       </td>
                     )}
                   </tr>
-                ) : (
-                  <FrameRow
-                    frame={frame.data!}
-                    row={row}
-                    index={index}
-                    panel={panel}
-                    location={location}
-                    level={level}
-                    openRecordLabel={translate('table.openRecord', 'Open record')}
-                    key={index}
-                  />
                 ))}
               </tbody>
             </table>
           </div>
           <footer className="lens-table-footer">
-            <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
+            <span className="lens-table-footer-notes">
+              {sortEnabled && <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>}
+              {dataRowCount > 10 && (
+                <span className="lens-table-rowcount">{translate('table.rowCount', '{count} rows', { count: dataRowCount })}</span>
+              )}
+            </span>
             {frame.page && (
               <nav
                 aria-label={translate('table.pages', '{name} pages', { name: panel.title })}
@@ -424,6 +537,58 @@ export function TablePanel({ panel }: TablePanelProps) {
         </div>
       )}
     </PanelFrame>
+  )
+}
+
+// GroupToggleRow renders the synthetic expander that stands in for a collapsed
+// group. Its first cell is the toggle control (a chevron plus the producer's
+// label, e.g. "Discontinued products (12)"); the remaining cells render the
+// row's aggregate values (e.g. the group's total delta) without drill chrome.
+function GroupToggleRow({
+  columns, frame, row, panel, location, columnMaxima, expanded, onToggle,
+}: {
+  columns: Array<TableColumn>
+  frame: Frame
+  row: Array<unknown>
+  panel: Panel
+  location: URL
+  columnMaxima: Map<string, number>
+  expanded: boolean
+  onToggle: () => void
+}) {
+  return (
+    <tr className="lens-table-group-toggle">
+      {columns.map((column, columnIndex) => {
+        const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
+        const rawLabel = index >= 0 ? row[index] : undefined
+        const label = typeof rawLabel === 'string' ? rawLabel : ''
+        return (
+          <td
+            className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+            key={column.field || `column-${columnIndex}`}
+            style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
+          >
+            {columnIndex === 0 ? (
+              <button aria-expanded={expanded} className="lens-table-group-toggle-btn" onClick={onToggle} type="button">
+                <span aria-hidden="true" className={`lens-table-group-chevron${expanded ? ' lens-table-group-chevron-open' : ''}`}>
+                  <CaretRight />
+                </span>
+                <span>{label}</span>
+              </button>
+            ) : (
+              <ColumnCell
+                column={column}
+                frame={frame}
+                row={row}
+                panel={panel}
+                location={location}
+                max={columnMaxima.get(column.field) ?? 0}
+              />
+            )}
+          </td>
+        )
+      })}
+    </tr>
   )
 }
 
