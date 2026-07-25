@@ -21,3 +21,16 @@ type SearchHit struct {
 	Excerpt template.HTML
 	Score   float64
 }
+
+type TaskGroup struct {
+	Title string
+	Tasks []HelpTask
+}
+
+type HelpTask struct {
+	Title       string
+	Description string
+	Outcome     string
+	ScreenPath  string
+	ArticlePath string
+}
