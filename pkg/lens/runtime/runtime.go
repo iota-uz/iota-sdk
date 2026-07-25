@@ -1486,6 +1486,9 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 		}
 		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
+		if spec.Fields.ID.Empty() {
+			return fmt.Errorf("panel %s requires an id field", spec.ID)
+		}
 		if err := requireField(spec, primary, spec.Fields.ID); err != nil {
 			return err
 		}

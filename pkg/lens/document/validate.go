@@ -606,11 +606,11 @@ func (d *DashboardDocument) validateMetricHierarchy(panel Panel) error {
 			if _, ok := byKey[row.Parent]; !ok {
 				return fmt.Errorf("panel %s metric hierarchy row %s references missing parent %q", panel.ID, row.Key, row.Parent)
 			}
-			if row.Unallocated {
-				unallocatedByParent[row.Parent]++
-				if unallocatedByParent[row.Parent] > 1 {
-					return fmt.Errorf("panel %s metric hierarchy parent %s has multiple unallocated children", panel.ID, row.Parent)
-				}
+		}
+		if row.Unallocated {
+			unallocatedByParent[row.Parent]++
+			if unallocatedByParent[row.Parent] > 1 {
+				return fmt.Errorf("panel %s metric hierarchy parent %s has multiple unallocated children", panel.ID, row.Parent)
 			}
 		}
 		if row.Selected {
@@ -716,9 +716,10 @@ func (d *DashboardDocument) validateMetricRelationship(panel Panel) error {
 }
 
 func validateTableColumns(panel Panel, frame Frame) error {
-	if panel.Presentation != nil && panel.Presentation.RowGroupField != "" &&
-		!frameHasColumn(frame, panel.Presentation.RowGroupField) {
-		return fmt.Errorf("panel %s references missing row group field %q", panel.ID, panel.Presentation.RowGroupField)
+	if panel.Presentation != nil && panel.Presentation.RowGroupField != "" {
+		if err := requireStringFrameColumn("panel "+panel.ID, "row group", frame, panel.Presentation.RowGroupField); err != nil {
+			return err
+		}
 	}
 	fields := make(map[string]struct{}, len(panel.Columns))
 	for index, column := range panel.Columns {
@@ -752,11 +753,15 @@ func validateTableColumns(panel Panel, frame Frame) error {
 		default:
 			return fmt.Errorf("%s has unsupported affordance %q", owner, column.Affordance)
 		}
-		if column.BadgeField != "" && !frameHasColumn(frame, column.BadgeField) {
-			return fmt.Errorf("%s references missing badge field %q", owner, column.BadgeField)
+		if column.BadgeField != "" {
+			if err := requireStringFrameColumn(owner, "badge", frame, column.BadgeField); err != nil {
+				return err
+			}
 		}
-		if column.Cell.ToneField != "" && !frameHasColumn(frame, column.Cell.ToneField) {
-			return fmt.Errorf("%s references missing tone field %q", owner, column.Cell.ToneField)
+		if column.Cell.ToneField != "" {
+			if err := requireStringFrameColumn(owner, "tone", frame, column.Cell.ToneField); err != nil {
+				return err
+			}
 		}
 		switch column.Cell.Layout {
 		case "", TableCellStacked:
@@ -1013,6 +1018,19 @@ func frameHasColumn(frame Frame, name string) bool {
 		}
 	}
 	return false
+}
+
+func requireStringFrameColumn(owner, role string, frame Frame, name string) error {
+	for _, column := range frame.Columns {
+		if column.Name != name {
+			continue
+		}
+		if column.Type != ColumnString {
+			return fmt.Errorf("%s %s field %q must be string, got %q", owner, role, name, column.Type)
+		}
+		return nil
+	}
+	return fmt.Errorf("%s references missing %s field %q", owner, role, name)
 }
 
 func validateAction(owner string, action Action) error {

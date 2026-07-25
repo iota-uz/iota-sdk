@@ -44,6 +44,26 @@ func TestBuild_ExistingExploreSpec(t *testing.T) {
 	require.Equal(t, golden(t, "generated_explore.json"), string(payload)+"\n")
 }
 
+func TestBuild_DocumentHeaderAndDrawerSuppression(t *testing.T) {
+	t.Parallel()
+
+	spec, result := executeExploreDashboard(t)
+	header := &DocumentHeader{Title: "Board view", Subtitle: "FY 2026"}
+	doc, err := Build(spec, result, BuildOptions{
+		SnapshotID: "header", GeneratedAt: time.Unix(1, 0), Header: header,
+	})
+	require.NoError(t, err)
+	require.Equal(t, header, doc.Header)
+
+	drawerDoc, err := Build(spec, result, BuildOptions{
+		SnapshotID: "drawer-header", GeneratedAt: time.Unix(1, 0), Header: header,
+		Drawer: &DrawerHeader{Title: "Details", Size: DrawerSizeWide},
+	})
+	require.NoError(t, err)
+	require.Nil(t, drawerDoc.Header)
+	require.Empty(t, drawerDoc.Meta.Title)
+}
+
 func TestBuild_NodeKeysIgnoreLabelsAndDefinitionOrder(t *testing.T) {
 	t.Parallel()
 	spec, result := executeExploreDashboard(t)

@@ -184,6 +184,20 @@ func TestDashboardDocumentValidate_TableColumns(t *testing.T) {
 
 	doc.Panels[0].Columns[0].Cell.SecondaryField = "missing"
 	require.ErrorContains(t, doc.Validate(), "missing secondary field")
+
+	doc = testDocument()
+	doc.Panels[0].Kind = PanelKindTable
+	doc.Panels[0].Presentation = &Presentation{RowGroupField: "value"}
+	doc.Panels[0].Columns = []TableColumn{{
+		Field: "label", Label: "Label", BadgeField: "value", Cell: TableCell{Kind: TableCellPlain, ToneField: "value"},
+	}}
+	require.ErrorContains(t, doc.Validate(), "row group field \"value\" must be string")
+
+	doc.Panels[0].Presentation = nil
+	require.ErrorContains(t, doc.Validate(), "badge field \"value\" must be string")
+
+	doc.Panels[0].Columns[0].BadgeField = ""
+	require.ErrorContains(t, doc.Validate(), "tone field \"value\" must be string")
 }
 
 func TestQueryPageJSON_EmitsFalseHasNext(t *testing.T) {
@@ -371,6 +385,12 @@ func TestDashboardDocumentValidate_MetricHierarchy(t *testing.T) {
 		}, "multiple selected"},
 		{"multiple unallocated per parent", func(d *DashboardDocument) {
 			d.Panels[0].MetricHierarchy.Rows[1].Unallocated = true
+		}, "multiple unallocated"},
+		{"multiple unallocated roots", func(d *DashboardDocument) {
+			d.Panels[0].MetricHierarchy.Rows = []MetricHierarchyRow{
+				{Key: "root-a", Label: "Root A", Unallocated: true},
+				{Key: "root-b", Label: "Root B", Unallocated: true},
+			}
 		}, "multiple unallocated"},
 		{"depth mismatch", func(d *DashboardDocument) {
 			d.Panels[0].MetricHierarchy.Rows[1].Depth = 5

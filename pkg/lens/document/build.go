@@ -28,6 +28,10 @@ type BuildOptions struct {
 	Endpoints   Endpoints
 	I18n        map[string]string
 	Theme       Theme
+	// Header supplies the optional document identity block rendered above the
+	// dashboard body. Drawer-hosted documents suppress it because drawer chrome
+	// owns that identity.
+	Header *DocumentHeader
 	// Filters declares the dashboard's controls; the producer supplies the
 	// normalized current value and localized labels. See Filter.
 	Filters []Filter
@@ -74,6 +78,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		Version:      ContractVersion,
 		SnapshotID:   snapshotID,
 		Meta:         Meta{DashboardID: spec.ID, Title: spec.Title, GeneratedAt: generatedAt, Locale: locale},
+		Header:       opts.Header,
 		Layout:       Layout{Rows: make([]LayoutRow, 0, len(spec.Rows))},
 		Panels:       make([]Panel, 0),
 		Frames:       make(map[FrameRef]Frame),
@@ -89,6 +94,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 	}
 	if opts.Drawer != nil {
 		doc.Drawer = opts.Drawer
+		doc.Header = nil
 		// The drawer chrome owns the heading; clearing the document title stops
 		// the dashboard body from repeating it. "An empty title lets a host page
 		// own the heading" is the renderer's documented contract for this.
