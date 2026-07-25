@@ -165,8 +165,13 @@ func (c *HelpCenterController) media(w http.ResponseWriter, r *http.Request) {
 	if contentType == "" {
 		contentType = http.DetectContentType(media.Content)
 	}
+	if mediaType, _, err := mime.ParseMediaType(contentType); err == nil {
+		contentType = mediaType
+	}
 	w.Header().Set("Content-Type", contentType)
-	w.Header().Set("Cache-Control", "private, max-age=3600")
+	w.Header().Set("Cache-Control", "private, no-cache")
+	w.Header().Add("Vary", "Cookie")
+	w.Header().Add("Vary", "Accept-Language")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
 	w.Header().Set("Cross-Origin-Resource-Policy", "same-origin")
 	w.Header().Set("X-Content-Type-Options", "nosniff")

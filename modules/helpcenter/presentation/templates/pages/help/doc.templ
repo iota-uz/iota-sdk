@@ -10,12 +10,8 @@ type DocProps struct {
 	Doc *viewmodels.DocView
 }
 
-var docStyles = templ.NewOnceHandle()
-
-templ Doc(props DocProps) {
-	{{ pageCtx := composables.UsePageCtx(ctx) }}
-	@docStyles.Once() {
-		<style>
+templ DocStyles() {
+	<style>
 			.help-reading-layout {
 				display: grid;
 				grid-template-columns: minmax(0, 48rem);
@@ -545,7 +541,10 @@ templ Doc(props DocProps) {
 				}
 			}
 		</style>
-	}
+}
+
+templ Doc(props DocProps) {
+	{{ pageCtx := composables.UsePageCtx(ctx) }}
 	<div class="help-reading-layout">
 		<article class="help-article-card">
 			<div class="help-article-kicker">

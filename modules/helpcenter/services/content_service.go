@@ -60,7 +60,9 @@ type ContentConfig struct {
 	Locales       []string
 	DefaultLocale string
 	// CategoryTitles maps locale and relative category path to a localized
-	// sidebar label while keeping document paths stable across locales.
+	// sidebar label while keeping document paths stable across locales. Keys
+	// are forward-slash-separated relative paths without a leading slash
+	// (for example, "guides/setup").
 	CategoryTitles map[string]map[string]string
 	// CategoryPaths maps content directory paths to virtual sidebar directory
 	// paths. Document URLs remain unchanged.
@@ -160,6 +162,9 @@ func (s *ContentService) Media(ctx context.Context, mediaPath string) (*Media, e
 	cleanPath, err := cleanMediaPath(mediaPath)
 	if err != nil {
 		return nil, err
+	}
+	if s.isHiddenPath(cleanPath) {
+		return nil, ErrMediaNotFound
 	}
 
 	content, err := s.readContentFile(localeDir, cleanPath)
@@ -278,10 +283,16 @@ func (s *ContentService) buildTree(localeDir, locale string) ([]viewmodels.Categ
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !isMarkdown(p) {
+		rel := strings.TrimPrefix(p, localeDir+"/")
+		if d.IsDir() {
+			if p != localeDir && s.isHiddenPath(rel) {
+				return fs.SkipDir
+			}
 			return nil
 		}
-		rel := strings.TrimPrefix(p, localeDir+"/")
+		if !isMarkdown(p) {
+			return nil
+		}
 		if s.isHiddenPath(rel) {
 			return nil
 		}
@@ -338,7 +349,7 @@ func (s *ContentService) treeCategories(categories []string) []string {
 		if categoryPath != source && !strings.HasPrefix(categoryPath, source+"/") {
 			continue
 		}
-		if len(source) <= len(bestSource) {
+		if len(source) < len(bestSource) || (len(source) == len(bestSource) && bestSource != "" && source >= bestSource) {
 			continue
 		}
 		bestSource = source
@@ -448,7 +459,9 @@ func splitFrontMatter(content []byte) (string, []byte) {
 		var metadata struct {
 			Title string `yaml:"title"`
 		}
-		_ = yaml.Unmarshal(bytes.Join(lines[1:i], []byte("\n")), &metadata)
+		if err := yaml.Unmarshal(bytes.Join(lines[1:i], []byte("\n")), &metadata); err != nil {
+			return "", content
+		}
 		body := bytes.TrimLeft(bytes.Join(lines[i+1:], []byte("\n")), "\r\n")
 		return strings.TrimSpace(metadata.Title), body
 	}
@@ -472,13 +485,20 @@ func stripMarkdownSections(content []byte, hiddenSections []string) []byte {
 	lines := bytes.SplitAfter(content, []byte("\n"))
 	filtered := make([][]byte, 0, len(lines))
 	hiddenLevel := 0
-	inFence := false
+	var fenceMarker byte
+	fenceLength := 0
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(string(line))
-		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
-			inFence = !inFence
+		if marker, length, ok := markdownFence(trimmed); ok {
+			if fenceLength == 0 {
+				fenceMarker = marker
+				fenceLength = length
+			} else if marker == fenceMarker && length >= fenceLength && strings.TrimSpace(trimmed[length:]) == "" {
+				fenceMarker = 0
+				fenceLength = 0
+			}
 		}
-		if !inFence {
+		if fenceLength == 0 {
 			if level, title, ok := markdownHeading(trimmed); ok {
 				if hiddenLevel != 0 && level <= hiddenLevel {
 					hiddenLevel = 0
@@ -496,6 +516,18 @@ func stripMarkdownSections(content []byte, hiddenSections []string) []byte {
 		}
 	}
 	return bytes.TrimRight(bytes.Join(filtered, nil), "\r\n")
+}
+
+func markdownFence(line string) (byte, int, bool) {
+	if len(line) < 3 || (line[0] != '`' && line[0] != '~') {
+		return 0, 0, false
+	}
+	marker := line[0]
+	length := 1
+	for length < len(line) && line[length] == marker {
+		length++
+	}
+	return marker, length, length >= 3
 }
 
 func markdownHeading(line string) (int, string, bool) {
@@ -545,6 +577,12 @@ func (s *ContentService) insertNode(
 }
 
 func categoryViewModels(nodes []*categoryTreeNode) []viewmodels.CategoryNode {
+	sort.SliceStable(nodes, func(i, j int) bool {
+		if nodes[i].title == nodes[j].title {
+			return nodes[i].key < nodes[j].key
+		}
+		return nodes[i].title < nodes[j].title
+	})
 	result := make([]viewmodels.CategoryNode, 0, len(nodes))
 	for _, node := range nodes {
 		result = append(result, viewmodels.CategoryNode{

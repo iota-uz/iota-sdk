@@ -27,7 +27,7 @@ func activePageValue(active *viewmodels.DocView, path string) string {
 	if active != nil && active.Path == path {
 		return "page"
 	}
-	return ""
+	return "false"
 }
 
 func categoryContainsActive(node viewmodels.CategoryNode, active *viewmodels.DocView) bool {
@@ -397,6 +397,7 @@ templ Index(props IndexProps) {
 				}
 			</style>
 		}
+		@DocStyles()
 		<div
 			id="help-center-shell"
 			class="help-shell"
@@ -413,6 +414,7 @@ templ Index(props IndexProps) {
 			data-diagram-exit-fullscreen-label={ pageCtx.T("HelpCenter.Diagram.ExitFullscreen") }
 			data-expand-navigation-label={ pageCtx.T("HelpCenter.ExpandNavigation") }
 			data-collapse-navigation-label={ pageCtx.T("HelpCenter.CollapseNavigation") }
+			data-close-navigation-label={ pageCtx.T("HelpCenter.CloseNavigation") }
 			data-note-label={ pageCtx.T("HelpCenter.Callouts.Note") }
 			data-tip-label={ pageCtx.T("HelpCenter.Callouts.Tip") }
 			data-important-label={ pageCtx.T("HelpCenter.Callouts.Important") }
@@ -534,20 +536,29 @@ templ Index(props IndexProps) {
 					} catch (_) {}
 				};
 
+				const setMobileSidebarOpen = (open) => {
+					shell.dataset.mobileSidebarOpen = String(open);
+					sidebarToggle?.setAttribute("aria-expanded", String(open));
+					const label = open
+						? shell.dataset.closeNavigationLabel
+						: shell.dataset.expandNavigationLabel;
+					sidebarToggle?.setAttribute("aria-label", label);
+					sidebarToggle?.setAttribute("title", label);
+				};
+
 				const closeMobileSidebar = () => {
-					shell.dataset.mobileSidebarOpen = "false";
-					sidebarToggle?.setAttribute("aria-expanded", "false");
+					if (!mobileQuery.matches) return;
+					setMobileSidebarOpen(false);
 				};
 
 				try {
 					setSidebarCollapsed(localStorage.getItem(storageKey) === "true");
 				} catch (_) {}
+				if (mobileQuery.matches) setMobileSidebarOpen(false);
 
 				sidebarToggle?.addEventListener("click", () => {
 					if (mobileQuery.matches) {
-						const open = shell.dataset.mobileSidebarOpen !== "true";
-						shell.dataset.mobileSidebarOpen = String(open);
-						sidebarToggle.setAttribute("aria-expanded", String(open));
+						setMobileSidebarOpen(shell.dataset.mobileSidebarOpen !== "true");
 						return;
 					}
 					setSidebarCollapsed(shell.dataset.sidebarCollapsed !== "true");
@@ -563,26 +574,30 @@ templ Index(props IndexProps) {
 					if (event.key === "Escape") closeMobileSidebar();
 				});
 
-				mermaid.initialize({
-					startOnLoad: false,
-					securityLevel: "antiscript",
-					theme: "base",
-					fontFamily: "inherit",
-					themeVariables: {
-						primaryColor: "#eef4ff",
-						primaryTextColor: "#1d2939",
-						primaryBorderColor: "#84adff",
-						lineColor: "#98a2b3",
-						secondaryColor: "#f2f4f7",
-						tertiaryColor: "#ffffff",
-						clusterBkg: "#f8fafc",
-						clusterBorder: "#d0d5dd",
-						sequenceNumberColor: "#ffffff",
-						fontSize: "14px",
-					},
-				});
+				const helpMermaid = window.mermaid;
+				if (helpMermaid?.initialize) {
+					helpMermaid.initialize({
+						startOnLoad: false,
+						securityLevel: "antiscript",
+						theme: "base",
+						fontFamily: "inherit",
+						themeVariables: {
+							primaryColor: "#eef4ff",
+							primaryTextColor: "#1d2939",
+							primaryBorderColor: "#84adff",
+							lineColor: "#98a2b3",
+							secondaryColor: "#f2f4f7",
+							tertiaryColor: "#ffffff",
+							clusterBkg: "#f8fafc",
+							clusterBorder: "#d0d5dd",
+							sequenceNumberColor: "#ffffff",
+							fontSize: "14px",
+						},
+					});
+				}
 
 				async function renderHelpMermaidDiagrams(root = document) {
+					if (!helpMermaid?.run) return;
 					const icons = {
 						zoomOut: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
 						zoomIn: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
@@ -609,7 +624,7 @@ templ Index(props IndexProps) {
 						container.textContent = block.textContent;
 						block.parentElement.replaceWith(container);
 						try {
-							await mermaid.run({ nodes: [container] });
+							await helpMermaid.run({ nodes: [container] });
 							const diagram = container.querySelector("svg");
 							const viewBox = diagram?.viewBox?.baseVal;
 							if (!diagram || !viewBox?.width || !viewBox?.height) continue;
@@ -763,9 +778,15 @@ templ Index(props IndexProps) {
 						button.className = "help-code-copy";
 						button.textContent = copyLabel;
 						button.addEventListener("click", async () => {
-							await navigator.clipboard.writeText(pre.querySelector("code")?.textContent || pre.textContent);
-							button.textContent = copiedLabel;
-							setTimeout(() => { button.textContent = copyLabel; }, 1600);
+							try {
+								if (!navigator.clipboard?.writeText) throw new Error("Clipboard API is unavailable");
+								await navigator.clipboard.writeText(pre.querySelector("code")?.textContent || pre.textContent);
+								button.textContent = copiedLabel;
+								setTimeout(() => { button.textContent = copyLabel; }, 1600);
+							} catch (error) {
+								console.error("Unable to copy Help Center code block", error);
+								button.textContent = copyLabel;
+							}
 						});
 						pre.appendChild(button);
 					}
@@ -811,7 +832,11 @@ templ Index(props IndexProps) {
 				function updateActiveNavigation() {
 					for (const link of document.querySelectorAll(".help-nav-link")) {
 						const active = new URL(link.href, window.location.href).pathname === window.location.pathname;
-						link.setAttribute("aria-current", active ? "page" : "");
+						if (active) {
+							link.setAttribute("aria-current", "page");
+						} else {
+							link.removeAttribute("aria-current");
+						}
 					}
 					for (const category of document.querySelectorAll(".help-category")) {
 						category.open = category.querySelector('.help-nav-link[aria-current="page"]') !== null;
@@ -831,7 +856,7 @@ templ Index(props IndexProps) {
 				enhanceHelpDocument();
 				document.body.addEventListener("htmx:afterSwap", (event) => {
 					enhanceHelpDocument(event.detail.target);
-					closeMobileSidebar();
+					if (event.detail.target?.id === "help-doc-pane") closeMobileSidebar();
 				});
 			})();
 		</script>

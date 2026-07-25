@@ -22,10 +22,12 @@ type renderer struct {
 	sanitizer *bluemonday.Policy
 }
 
+var mermaidLanguagePattern = regexp.MustCompile(`^language-mermaid$`)
+
 func NewRenderer() Renderer {
 	sanitizer := bluemonday.UGCPolicy()
 	sanitizer.AllowAttrs("class").
-		Matching(regexp.MustCompile(`^language-mermaid$`)).
+		Matching(mermaidLanguagePattern).
 		OnElements("code")
 
 	return &renderer{

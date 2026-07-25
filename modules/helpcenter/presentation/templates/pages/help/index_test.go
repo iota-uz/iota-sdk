@@ -10,15 +10,22 @@ import (
 func TestCategoryDisplayTitle(t *testing.T) {
 	t.Parallel()
 
-	tests := map[string]string{
-		"01 CRM":          "CRM",
-		"02 Страхование":  "Страхование",
-		"Без номера":      "Без номера",
-		"1 Один разряд":   "1 Один разряд",
-		"2024 Обновления": "2024 Обновления",
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{"strips two-digit prefix", "01 CRM", "CRM"},
+		{"strips two-digit prefix cyrillic", "02 Страхование", "Страхование"},
+		{"keeps text without a numeric prefix", "Без номера", "Без номера"},
+		{"keeps a single digit prefix", "1 Один разряд", "1 Один разряд"},
+		{"keeps a four digit prefix", "2024 Обновления", "2024 Обновления"},
 	}
-	for input, expected := range tests {
-		require.Equal(t, expected, categoryDisplayTitle(input))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.expected, categoryDisplayTitle(tt.input))
+		})
 	}
 }
 

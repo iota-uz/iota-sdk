@@ -50,11 +50,20 @@ func TestContentService_TreeUsesLocalizedCategoryTitles(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, tree, 2)
-	require.Equal(t, "Руководства", tree[0].Title)
-	require.Equal(t, "Настройка", tree[0].Children[0].Title)
-	require.Equal(t, "Установка", tree[0].Children[0].Children[0].Title)
-	require.Equal(t, "Руководства", tree[1].Title)
-	require.Equal(t, "Обзор", tree[1].Children[0].Title)
+	var setup, manuals *viewmodels.CategoryNode
+	for i := range tree {
+		switch tree[i].Children[0].Title {
+		case "Настройка":
+			setup = &tree[i]
+		case "Обзор":
+			manuals = &tree[i]
+		}
+	}
+	require.NotNil(t, setup)
+	require.Equal(t, "Руководства", setup.Title)
+	require.Equal(t, "Установка", setup.Children[0].Children[0].Title)
+	require.NotNil(t, manuals)
+	require.Equal(t, "Руководства", manuals.Title)
 }
 
 func TestContentService_TreeUsesVirtualCategoryPaths(t *testing.T) {
@@ -139,6 +148,19 @@ func TestContentService_GetStripsFrontMatter(t *testing.T) {
 	require.Equal(t, "# Intro\n\nStart here.", string(doc.Content))
 }
 
+func TestContentService_GetPreservesMalformedFrontMatter(t *testing.T) {
+	root := t.TempDir()
+	source := "---\ntitle: [not valid\n---\n\n# Intro\n\nStart here."
+	writeDoc(t, root, "en/intro.md", source)
+	service := NewContentService(ContentConfig{Root: root, Locales: []string{"en"}, DefaultLocale: "en"})
+
+	doc, err := service.Get(context.Background(), "intro.md")
+
+	require.NoError(t, err)
+	require.Equal(t, source, string(doc.Content))
+	require.Equal(t, "Intro", doc.Title)
+}
+
 func TestContentService_GetHidesConfiguredSections(t *testing.T) {
 	root := t.TempDir()
 	writeDoc(t, root, "en/intro.md", `# Intro
@@ -172,6 +194,23 @@ internal, search, terms
 func TestContentService_GetDoesNotHideHeadingsInsideCodeFences(t *testing.T) {
 	root := t.TempDir()
 	writeDoc(t, root, "en/intro.md", "# Intro\n\n```markdown\n## Keywords\nvisible example\n```\n")
+	service := NewContentService(ContentConfig{
+		Root:           root,
+		Locales:        []string{"en"},
+		DefaultLocale:  "en",
+		HiddenSections: []string{"Keywords"},
+	})
+
+	doc, err := service.Get(context.Background(), "intro.md")
+
+	require.NoError(t, err)
+	require.Contains(t, string(doc.Content), "## Keywords")
+	require.Contains(t, string(doc.Content), "visible example")
+}
+
+func TestContentService_GetRespectsLongCodeFenceDelimiter(t *testing.T) {
+	root := t.TempDir()
+	writeDoc(t, root, "en/intro.md", "# Intro\n\n````markdown\n```\n## Keywords\nvisible example\n````\n")
 	service := NewContentService(ContentConfig{
 		Root:           root,
 		Locales:        []string{"en"},
@@ -255,6 +294,21 @@ func TestContentService_MediaRejectsNonImageFiles(t *testing.T) {
 	_, err := service.Media(context.Background(), "internal/source.md")
 
 	require.ErrorIs(t, err, ErrInvalidPath)
+}
+
+func TestContentService_MediaRejectsHiddenPaths(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, root, "en/internal/diagram.png", "hidden image")
+	service := NewContentService(ContentConfig{
+		Root:          root,
+		Locales:       []string{"en"},
+		DefaultLocale: "en",
+		HiddenPaths:   []string{"internal"},
+	})
+
+	_, err := service.Media(context.Background(), "internal/diagram.png")
+
+	require.ErrorIs(t, err, ErrMediaNotFound)
 }
 
 func TestContentService_MediaDoesNotServeDirectories(t *testing.T) {
