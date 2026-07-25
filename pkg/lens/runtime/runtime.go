@@ -1044,6 +1044,11 @@ func validateExplorers(spec lens.DashboardSpec, datasets map[string]lens.Dataset
 							return fmt.Errorf("explorer %s branch %s perspective %s node %s: %w", explorerSpec.ID, branch.Key, perspective.Key, node.Key, err)
 						}
 					}
+					if node.SourceData != nil {
+						if err := validatePanel(node.SourceData.Panel, datasets, make(map[string]struct{})); err != nil {
+							return fmt.Errorf("explorer %s branch %s perspective %s node %s source data: %w", explorerSpec.ID, branch.Key, perspective.Key, node.Key, err)
+						}
+					}
 					for _, edge := range node.Edges {
 						if err := validateAction("explorer "+explorerSpec.ID+" edge "+edge.PointKey, edge.Action, actionValidationOptions{}); err != nil {
 							return err

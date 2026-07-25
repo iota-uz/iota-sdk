@@ -56,6 +56,73 @@ export function buildCoverageSegments(
   return { segments, total }
 }
 
+/**
+ * Bullet-style variant of the coverage track, rendered when the panel carries
+ * a `target`: the segments keep their proportional widths against a scale that
+ * also fits the target, and a labelled tick marks the target value — the
+ * measure-vs-goal reading (e.g. reserves against liquid assets) the plain
+ * 100%-wide track cannot express.
+ */
+function CoverageBullet({ panel, segments, total, target, tooltip, segmentHref, navigation, formatValue }: {
+  panel: Panel
+  segments: CoverageSegment[]
+  total: number
+  target: NonNullable<Panel['target']>
+  tooltip: (segment: CoverageSegment) => string
+  segmentHref: (index: number) => string | undefined
+  navigation: ReturnType<typeof usePanelNavigation>
+  formatValue: (value: unknown) => string
+}) {
+  // A hair of headroom keeps a marker at the scale edge from clipping.
+  const scaleMax = Math.max(total, target.value) * 1.04
+  if (scaleMax <= 0) return null
+  const percent = (value: number) => `${((value / scaleMax) * 100).toFixed(3)}%`
+  const markerShare = target.value / scaleMax
+  const markerLabel = [target.label?.trim(), formatValue(target.value)].filter(Boolean).join(' ')
+  return (
+    <div className="lens-coverage-bullet">
+      <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
+        {segments.map((segment, index) => segment.value > 0 && (
+          segmentHref(index)
+            ? (
+              <a
+                aria-label={tooltip(segment)}
+                className="lens-coverage-track-segment lens-coverage-track-segment-link"
+                href={segmentHref(index)}
+                onClick={navigation.onClick(segmentHref(index))}
+                key={segment.key}
+                style={{ width: percent(segment.value), background: segment.color }}
+                title={tooltip(segment)}
+              />
+            )
+            : (
+              <span
+                className="lens-coverage-track-segment"
+                key={segment.key}
+                style={{ width: percent(segment.value), background: segment.color }}
+                title={tooltip(segment)}
+              />
+            )
+        ))}
+      </div>
+      <span
+        aria-hidden="true"
+        className="lens-coverage-bullet-marker"
+        style={{ left: percent(target.value) }}
+      />
+      {markerLabel && (
+        <span
+          className={`lens-coverage-bullet-label${markerShare > 0.55 ? ' lens-coverage-bullet-label-end' : ''}`}
+          style={{ left: percent(target.value) }}
+          title={markerLabel}
+        >
+          {markerLabel}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function CoveragePanel({ panel }: CoveragePanelProps) {
   const frame = usePanelFrame(panel.id)
   const translate = useTranslate()
@@ -92,7 +159,7 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
           <span className="lens-coverage-headline-value">{formatValue(headline)}</span>
           <span className="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
         </p>
-        {showTrack && (
+        {showTrack && !panel.target && (
           <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
             {segments.map((segment, index) => segment.value > 0 && (
               segmentHref(index)
@@ -117,6 +184,18 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
                 )
             ))}
           </div>
+        )}
+        {showTrack && panel.target && (
+          <CoverageBullet
+            formatValue={formatValue}
+            navigation={navigation}
+            panel={panel}
+            segmentHref={segmentHref}
+            segments={segments}
+            target={panel.target}
+            tooltip={tooltip}
+            total={total}
+          />
         )}
         <ul className="lens-coverage-legend">
           {segments.map((segment, index) => {

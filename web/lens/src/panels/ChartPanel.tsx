@@ -32,7 +32,11 @@ function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis
     const byField = new Map<string, (input: unknown) => string>()
     for (const role of encodingRoles) {
       const field = panel.encoding[role]
-      if (field) byField.set(field, formatters[role])
+      // The metric-panel roles (share/confidence/availability) have no chart
+      // formatter; a chart never carries them, but the guard keeps the shared
+      // encodingRoles list usable here.
+      const formatter = formatters[role as keyof typeof formatters]
+      if (field && formatter) byField.set(field, formatter)
     }
     return (field: string, input: unknown) => (byField.get(field) ?? fallback)(input)
   }, [category, cut, cutLabel, fallback, final, id, label, panel.encoding, series, value])

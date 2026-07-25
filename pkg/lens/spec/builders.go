@@ -49,6 +49,34 @@ func Gauge(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindGauge, id, title, dataset)
 }
 
+// MetricFlow builds a result-formula panel: an ordered sequence of signed
+// operand stages reading left-to-right to a single supplied result.
+func MetricFlow(id, title, dataset string, stages ...panel.FlowStage) *PanelBuilder {
+	b := newPanelBuilder(panel.KindMetricFlow, id, title, dataset)
+	b.panel.Span = 12
+	b.panel.FlowStages = stages
+	return b
+}
+
+// MetricHierarchy builds a compact decomposition of one parent metric into
+// child rows linked by HierarchyRow.Parent. Depth is derived at document
+// build time.
+func MetricHierarchy(id, title, dataset string, rows ...panel.HierarchyRow) *PanelBuilder {
+	b := newPanelBuilder(panel.KindMetricHierarchy, id, title, dataset)
+	b.panel.Span = 6
+	b.panel.HierarchyRows = rows
+	return b
+}
+
+// MetricRelationship builds an explicit, non-arithmetic link between two
+// metrics: a neutral association, a derivation, or a reconciliation.
+func MetricRelationship(id, title, dataset string, rel panel.RelationshipSpec) *PanelBuilder {
+	b := newPanelBuilder(panel.KindMetricRelationship, id, title, dataset)
+	b.panel.Span = 6
+	b.panel.Relationship = &rel
+	return b
+}
+
 func Tabs(id, title string, children ...PanelSpec) PanelSpec {
 	return PanelSpec{
 		ID:       id,
@@ -93,14 +121,17 @@ func newPanelBuilder(kind panel.Kind, id, title, dataset string) *PanelBuilder {
 			Dataset: dataset,
 			Span:    6,
 			Fields: FieldMappingSpec{
-				Label:    string(panel.DefaultLabelField),
-				Value:    string(panel.DefaultValueField),
-				Series:   string(panel.DefaultSeriesField),
-				Category: string(panel.DefaultCategoryField),
-				ID:       string(panel.DefaultIDField),
-				Cut:      string(panel.DefaultCutField),
-				CutLabel: string(panel.DefaultCutLabelField),
-				Final:    string(panel.DefaultFinalField),
+				Label:        string(panel.DefaultLabelField),
+				Value:        string(panel.DefaultValueField),
+				Series:       string(panel.DefaultSeriesField),
+				Category:     string(panel.DefaultCategoryField),
+				ID:           string(panel.DefaultIDField),
+				Cut:          string(panel.DefaultCutField),
+				CutLabel:     string(panel.DefaultCutLabelField),
+				Final:        string(panel.DefaultFinalField),
+				Share:        string(panel.DefaultShareField),
+				Confidence:   string(panel.DefaultConfidenceField),
+				Availability: string(panel.DefaultAvailabilityField),
 			},
 		},
 	}
@@ -198,6 +229,13 @@ func (b *PanelBuilder) SparklineColored(values []float64, color string) *PanelBu
 	return b
 }
 
+// Target renders a target/threshold marker on a SegmentBar or HorizontalBar
+// panel (bullet-style): a tick at value with label beside it.
+func (b *PanelBuilder) Target(value float64, label string) *PanelBuilder {
+	b.panel.Target = &panel.TargetSpec{Value: value, Label: label}
+	return b
+}
+
 // Layout selects a StatGroup's child arrangement (columns or rows).
 func (b *PanelBuilder) Layout(l panel.GroupLayout) *PanelBuilder {
 	b.panel.GroupLayout = l
@@ -285,6 +323,53 @@ func (b *PanelBuilder) FinalField(name string) *PanelBuilder {
 	b.panel.Fields.Final = name
 	return b
 }
+
+// ToneField declares the frame column carrying a per-row semantic tone for a
+// cascade panel's stages ("neutral", "positive", "negative", "inflow"). It
+// overrides the flow-direction default color; absent keeps direction coloring.
+func (b *PanelBuilder) ToneField(name string) *PanelBuilder {
+	b.panel.Fields.Tone = name
+	return b
+}
+func (b *PanelBuilder) ShareField(name string) *PanelBuilder {
+	b.panel.Fields.Share = name
+	return b
+}
+func (b *PanelBuilder) ConfidenceField(name string) *PanelBuilder {
+	b.panel.Fields.Confidence = name
+	return b
+}
+func (b *PanelBuilder) AvailabilityField(name string) *PanelBuilder {
+	b.panel.Fields.Availability = name
+	return b
+}
+
+// Confidence sets the panel-level default confidence for its elements.
+func (b *PanelBuilder) Confidence(confidence panel.Confidence) *PanelBuilder {
+	b.panel.Confidence = confidence
+	return b
+}
+
+// Availability sets the panel-level default availability for its elements.
+func (b *PanelBuilder) Availability(availability panel.Availability) *PanelBuilder {
+	b.panel.Availability = availability
+	return b
+}
+
+// FlowReconcile opts a metric_flow panel into a tolerance-based mismatch note
+// between the displayed operands and the supplied result.
+func (b *PanelBuilder) FlowReconcile(tolerance float64) *PanelBuilder {
+	b.panel.FlowReconcile = &panel.FlowReconciliation{Tolerance: tolerance}
+	return b
+}
+
+// HierarchyReconcile opts a metric_hierarchy panel into per-parent integrity
+// checks: SUM(direct children incl. unallocated) compared against the parent
+// within tolerance.
+func (b *PanelBuilder) HierarchyReconcile(tolerance float64) *PanelBuilder {
+	b.panel.HierarchyReconcile = &panel.HierarchyReconciliation{Tolerance: tolerance}
+	return b
+}
 func (b *PanelBuilder) Columns(columns ...TableColumnSpec) *PanelBuilder {
 	b.panel.Columns = columns
 	return b
@@ -301,6 +386,20 @@ func (b *PanelBuilder) Children(children ...PanelSpec) *PanelBuilder {
 // Presentation sets the panel's opt-in renderer density hints.
 func (b *PanelBuilder) Presentation(hints panel.PresentationHints) *PanelBuilder {
 	b.panel.Presentation = hints
+	return b
+}
+
+// Waterfall renders this Cascade as vertical total/delta columns instead of
+// narrowing horizontal running-total rows.
+func (b *PanelBuilder) Waterfall() *PanelBuilder {
+	b.panel.Presentation.Waterfall = true
+	return b
+}
+
+// FocusCanvas opts this drill-hosting panel into focus chrome in the wire
+// runtime (breadcrumb, parent-context header, standalone lens selector).
+func (b *PanelBuilder) FocusCanvas() *PanelBuilder {
+	b.panel.Presentation.FocusCanvas = true
 	return b
 }
 

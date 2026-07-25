@@ -39,7 +39,7 @@ vi.mock('../runtime', () => ({
 
 import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
-import { buildCascadeStages, CascadePanel } from './CascadePanel'
+import { buildCascadeStages, buildWaterfallItems, CascadePanel } from './CascadePanel'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
@@ -211,6 +211,9 @@ describe('panel registry', () => {
       donut: true,
       hbar: true,
       line: true,
+      metric_flow: true,
+      metric_hierarchy: true,
+      metric_relationship: true,
       pie: true,
       stat: true,
       table: true,
@@ -363,5 +366,78 @@ describe('cascade stages', () => {
     ])
     expect(stages[1]?.formattedCut).toBe('−$250')
     expect(stages[2]?.formattedCut).toBe('+$50')
+  })
+
+  it('renders a conventional vertical waterfall projection when requested', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [
+        ['Opening', 235, 0, '', false],
+        ['Closing', 56.98, 178.02, 'Net movement', true],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    expect(items.map(({ label, kind }) => ({ label, kind }))).toEqual([
+      { label: 'Opening', kind: 'start' },
+      { label: 'Net movement', kind: 'decrease' },
+      { label: 'Closing', kind: 'end' },
+    ])
+    expect(items[1]?.formattedValue).toBe('−178.02')
+
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CascadePanel panel={cascade} />)
+    expect(view.container.querySelector('[data-lens-waterfall]')).not.toBeNull()
+    expect(view.container.querySelectorAll('.lens-waterfall-bar')).toHaveLength(3)
+    expect(view.container.querySelector('.lens-waterfall-bar[data-kind="decrease"]')).not.toBeNull()
+  })
+
+  it('draws an explicit pure-total final row once, without a zero-delta duplicate', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [
+        ['Earned premium', 178.30, 0, '', false],
+        ['Reserve movement', 66.34, 111.96, 'Reserve movement', false],
+        // Canonical closing row: restates the running total (cut=0) and is
+        // marked final. The running totals are floating-point sums, so the
+        // restated value differs from the previous stage by a residual epsilon
+        // rather than exactly — the tolerance, not strict equality, is what
+        // suppresses the "+0" delta bar here.
+        ['Underwriting result', 66.34 + 1e-5, 0, '', true],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    // Exactly: opening total, one deduction, one closing total. No "+0" bar.
+    expect(items.map(({ label, kind }) => ({ label, kind }))).toEqual([
+      { label: 'Earned premium', kind: 'start' },
+      { label: 'Reserve movement', kind: 'decrease' },
+      { label: 'Underwriting result', kind: 'end' },
+    ])
+    expect(items.filter((item) => item.kind === 'end')).toHaveLength(1)
+    // No residual near-zero delta slipped through as its own bar.
+    expect(items.some((item) =>
+      (item.kind === 'increase' || item.kind === 'decrease') && Math.abs(item.value) < 1,
+    )).toBe(false)
   })
 })

@@ -16,6 +16,15 @@ const storyIds = [
   'drawer-host--open-dark',
   'drawer-host--open-light',
   'drawer-host--open-over-expanded-panel',
+  'drawer-host--open-wide',
+  'drawer-host--open-wide-focus-canvas',
+  'explore-focus--canvas-at-root',
+  'explore-focus--drilled--dark',
+  'explore-focus--drilled--light',
+  'explore-focus--half-width-host-at-rest',
+  'explore-focus--half-width-host-expands-while-exploring',
+  'explore-focus--lens-switched-to-trend',
+  'explore-focus--narrow-container-collapses-context',
   'explore--drill-overlay--dark',
   'explore--level-fork-awaits-a-view--dark',
   'explore--level-fork-awaits-a-view--light',
@@ -38,15 +47,25 @@ const storyIds = [
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
   'filter-controls--refetch-error',
+  'metric-composition--full',
+  'metric-composition--full-dark',
+  'metric-composition--narrow',
+  'metric-composition--quality-chips',
+  'metric-composition--relationship-variants',
   'panel-matrix--all-kinds-and-states--dark',
   'panel-matrix--all-kinds-and-states--light',
+  'panel-matrix--sparkline-and-coverage-target--dark',
+  'panel-matrix--sparkline-and-coverage-target--light',
   'panels-v2--cascade-final-stage',
+  'panels-v2--cascade-semantic-tone',
   'panels-v2--export-idle',
   'panels-v2--export-pending',
   'panels-v2--export-snapshot-retry',
   'panels-v2--table-columns',
   'panels-v2--table-empty-page',
   'panels-v2--table-pagination-and-leaf-actions',
+  'panels-v2--waterfall-closing-total',
+  'panels-v2--waterfall-semantic-tone',
   'parity--clickable-panels',
   'parity--compact-table-cells',
   'parity--coverage-composite',
@@ -59,11 +78,12 @@ const storyIds = [
   'parity--icon-set-light',
   'parity--legend-hidden-series',
   'parity--metric-group',
+  'parity--metric-group-sparkline',
   'parity--panel-header-pressure',
   'parity--panel-skeletons-dark',
   'parity--panel-skeletons-light',
-  'parity--pie-with-legend-below',
-  'parity--pie-with-legend-below-dark',
+  'parity--pie-with-legend-right--light',
+  'parity--pie-with-legend-right--dark',
   'parity--tab-group',
 ] as const
 
@@ -83,6 +103,19 @@ const staticStories = [
   ['drawer-host--open-dark', 0],
   ['drawer-host--open-light', 0],
   ['drawer-host--open-over-expanded-panel', 0],
+  ['drawer-host--open-wide', 0],
+  // A donut host renders one ECharts canvas; the card-corner raster is bistable
+  // across a few antialiased pixels like the other focus stories (#932).
+  ['drawer-host--open-wide-focus-canvas', 1, 50],
+  // The focus card's rounded corner alternates between two stable rasters
+  // differing by a few antialiased pixels (iota-uz/iota-sdk#932).
+  ['explore-focus--canvas-at-root', 1, 50],
+  ['explore-focus--drilled--dark', 1, 50],
+  ['explore-focus--drilled--light', 1, 50],
+  ['explore-focus--half-width-host-at-rest', 2, 50],
+  ['explore-focus--half-width-host-expands-while-exploring', 2, 50],
+  ['explore-focus--lens-switched-to-trend', 1, 50],
+  ['explore-focus--narrow-container-collapses-context', 1, 50],
   ['explore--drill-overlay--dark', 1],
   ['explore--level-fork-awaits-a-view--dark', 0],
   ['explore--level-fork-awaits-a-view--light', 0],
@@ -99,17 +132,29 @@ const staticStories = [
   ['filter-controls--calendar-locales', 0],
   ['filter-controls--dashboard-filter-dark', 0],
   ['filter-controls--dashboard-filter-light', 0],
-  ['filter-controls--popover-open-dark', 0],
-  ['filter-controls--popover-open-light', 0],
+  // The period trigger's focus ring alternates between two stable rasters
+  // differing by ~25 antialiased pixels at its corners (iota-uz/iota-sdk#932).
+  ['filter-controls--popover-open-dark', 0, 50],
+  ['filter-controls--popover-open-light', 0, 50],
+  ['metric-composition--full-dark', 0],
+  ['metric-composition--narrow', 0],
+  ['metric-composition--quality-chips', 0],
+  ['metric-composition--relationship-variants', 0],
   ['panel-matrix--all-kinds-and-states--dark', 0],
   ['panel-matrix--all-kinds-and-states--light', 0],
+  // Card-edge antialiasing alternates between two stable rasters (#932).
+  ['panel-matrix--sparkline-and-coverage-target--dark', 0, 50],
+  ['panel-matrix--sparkline-and-coverage-target--light', 0, 50],
   ['panels-v2--cascade-final-stage', 0],
+  ['panels-v2--cascade-semantic-tone', 0],
   ['panels-v2--export-idle', 0],
   ['panels-v2--export-pending', 0],
   ['panels-v2--export-snapshot-retry', 0],
   ['panels-v2--table-columns', 0],
   ['panels-v2--table-empty-page', 0],
   ['panels-v2--table-pagination-and-leaf-actions', 0],
+  ['panels-v2--waterfall-closing-total', 0],
+  ['panels-v2--waterfall-semantic-tone', 0],
   ['parity--clickable-panels', 0],
   ['parity--compact-table-cells', 0],
   ['parity--coverage-composite', 0],
@@ -122,11 +167,12 @@ const staticStories = [
   ['parity--icon-set-light', 0],
   ['parity--legend-hidden-series', 1],
   ['parity--metric-group', 0],
+  ['parity--metric-group-sparkline', 0],
   ['parity--panel-header-pressure', 1],
   ['parity--panel-skeletons-dark', 0],
   ['parity--panel-skeletons-light', 0],
-  ['parity--pie-with-legend-below', 1],
-  ['parity--pie-with-legend-below-dark', 1],
+  ['parity--pie-with-legend-right--light', 1],
+  ['parity--pie-with-legend-right--dark', 1],
   ['parity--tab-group', 0],
 ] as const
 
@@ -191,10 +237,10 @@ test('VR manifest covers every Ladle story', async ({ request }) => {
   expect(storyIds.filter((storyId) => !covered.has(storyId))).toEqual([])
 })
 
-for (const [storyId, canvasCount] of staticStories) {
+for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
   test(storyId, async ({ page }) => {
     await openStory(page, storyId, canvasCount)
-    await screenshot(page, storyId)
+    await screenshot(page, storyId, { maxDiffPixels })
   })
 }
 
@@ -204,8 +250,9 @@ const keyframeCovered = [
   'filter-controls--refetch-error',
   'explore--header-too-narrow-for-a-level-name',
   'explore--perspective-switching-on-a-segment',
+  'metric-composition--full',
   'parity--clickable-panels',
-  'parity--pie-with-legend-below',
+  'parity--pie-with-legend-right--light',
 ] as const
 
 test('filter refetch failure keeps stale panels and surfaces the error', async ({ page }) => {
@@ -241,7 +288,7 @@ test('panel-level actions expose their affordance on hover', async ({ page }) =>
 })
 
 test('chart tooltips escape the card', async ({ page }) => {
-  await openStory(page, 'parity--pie-with-legend-below', 1)
+  await openStory(page, 'parity--pie-with-legend-right--light', 1)
   // Left edge of the pie: anchored inside the card this tooltip was clipped.
   await page.locator('canvas').hover({ position: { x: 300, y: 240 } })
   // The tooltip is a direct child of body now, so no ancestor can clip it.
@@ -258,6 +305,14 @@ test('the full path stays reachable from a narrow header', async ({ page }) => {
   await expect(page.getByRole('dialog')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Operating margin' })).toBeVisible()
   await screenshot(page, 'explore-narrow-path-overlay')
+})
+
+test('focus canvas source data expands to the audit table', async ({ page }) => {
+  await openStory(page, 'explore-focus--drilled--light', 1)
+  await page.getByRole('button', { name: /Source policies/ }).click()
+  await expect(page.getByRole('cell', { name: 'MTR-20441' })).toBeVisible()
+  // Same bistable card-corner raster as the static focus stories (#932).
+  await screenshot(page, 'explore-focus-source-expanded', { maxDiffPixels: 50 })
 })
 
 test('explore full drill flow keyframes', async ({ page }) => {
@@ -315,4 +370,32 @@ test('explore perspective switching keyframes', async ({ page }) => {
   await page.getByRole('option', { name: /Evidence/ }).click()
   await expect(page.locator('[data-explore-view="table"]')).toBeVisible()
   await screenshot(page, 'explore-perspectives-04-evidence')
+})
+
+test('nested tabs: keyboard navigation and inner-tab persistence', async ({ page }) => {
+  await openStory(page, 'metric-composition--full', 0)
+
+  // The outer tablist starts on "Association"; ArrowRight moves to
+  // "Composition" and mounts its nested Stock/Movement tablist.
+  await page.getByRole('tab', { name: 'Association' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(page.getByRole('tab', { name: 'Composition', selected: true })).toBeFocused()
+  await screenshot(page, 'metric-composition-outer-tab-focus-visible')
+
+  // Move into the inner tablist and switch it to "Movement". Its own
+  // ArrowRight must not move the outer tablist's selection.
+  const innerTabs = page.getByRole('tablist').nth(1)
+  await innerTabs.getByRole('tab', { name: 'Stock' }).focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(innerTabs.getByRole('tab', { name: 'Movement', selected: true })).toBeFocused()
+  await expect(page.getByRole('tab', { name: 'Composition', selected: true })).toBeVisible()
+  await screenshot(page, 'metric-composition-inner-tab-focus-visible')
+
+  // Switching the outer tab away and back preserves the inner selection, and
+  // the parent flow's values (rendered above the tabs) never change.
+  await page.getByRole('tab', { name: 'Breakdown' }).click()
+  await page.getByRole('tab', { name: 'Composition' }).click()
+  await expect(page.getByRole('tablist').nth(1).getByRole('tab', { name: 'Movement', selected: true })).toBeVisible()
+  await expect(page.getByText(/800,000/).first()).toBeVisible()
+  await screenshot(page, 'metric-composition-inner-tab-persisted')
 })

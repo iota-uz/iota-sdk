@@ -27,6 +27,7 @@ import {
   levelForPath,
   panelForNavigation,
   pathResolves,
+  perspectivesForPosition,
   queryPathForNavigation,
   rootNavigation,
   withFrameChildren,
@@ -257,6 +258,8 @@ export interface FiltersContextValue {
 
 export interface DrawerContextValue {
   depth: number
+  /** True when open() can open the root drawer or replace its document. */
+  canOpen?: boolean
   open: (src: string, opener?: HTMLElement) => void
   close: () => void
   /** Warm a drill-drawer document on hover/focus intent before it is opened. */
@@ -537,8 +540,16 @@ function runtimeNavigationReducer(
       ? pathForNode(document, state, action.enterKey, panel, panelChanged)
       : undefined
     if (action.enterKey && !entered) return state
+    // At a resting focus-canvas host the navigation path is still empty, so the
+    // switch position is the host panel's drill root: a root lens can be picked
+    // before any drill has entered a level. The panel id (carried by the root
+    // lens selector) is what lets the reducer find that root.
     const level = levelForPath(document, entered ?? state.path)
-    if (!level?.perspectives.some((perspective) => perspective.id === action.perspectiveId)) return state
+      ?? (panel?.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
+    // A perspective root's switchable set is its branch's sibling perspectives,
+    // not only the refs recorded on the level — the same set the lens selector
+    // offers, or a pill click would be silently rejected here.
+    if (!level || !perspectivesForPosition(document, level).some((perspective) => perspective.id === action.perspectiveId)) return state
     const perspective = document.perspectives.find((candidate) => candidate.id === action.perspectiveId)
     const root = perspective ? document.drill.edges[perspective.root] : undefined
     if (!root) return state
@@ -593,12 +604,13 @@ interface RuntimeCoreProps {
   children: ReactNode
   controlledNavigation?: NavigationState
   onControlledNavigationChange?: (view: NavigationView) => void
+  onDrawerNavigate?: (src: string) => void
   drawerDepth?: number
 }
 
 function RuntimeCore({
   document: sourceDocument, locale, csrf, fetcher, refreshDocument, applyFilters, children,
-  controlledNavigation, onControlledNavigationChange, drawerDepth = 0,
+  controlledNavigation, onControlledNavigationChange, onDrawerNavigate, drawerDepth = 0,
 }: RuntimeCoreProps) {
   const [runtimeDocument, setRuntimeDocumentState] = useState(() => ({
     source: sourceDocument,
@@ -986,8 +998,14 @@ function RuntimeCore({
   }, [controlledNavigation, dispatch, navigation.drawer, navigation.history])
   const drawer = useMemo<DrawerContextValue>(() => ({
     depth: drawerDepth,
+    canOpen: drawerDepth === 0 || Boolean(onDrawerNavigate),
     open: (src, opener) => {
-      if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
+      if (!isSameOriginDrawerSource(src)) return
+      if (drawerDepth > 0) {
+        onDrawerNavigate?.(src)
+        return
+      }
+      if (navigation.drawer) return
       drawerOpener.current = opener ?? (
         globalThis.document.activeElement instanceof HTMLElement ? globalThis.document.activeElement : undefined
       )
@@ -1006,7 +1024,7 @@ function RuntimeCore({
       if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
       void drawerCache.current?.prefetch(src)
     },
-  }), [closeDrawer, dispatch, drawerDepth, navigation.drawer])
+  }), [closeDrawer, dispatch, drawerDepth, navigation.drawer, onDrawerNavigate])
   const dashboard = useMemo(() => ({ document, navigation, notice, dismissNotice: () => setNotice(undefined) }), [document, navigation, notice])
 
   return (
@@ -1050,6 +1068,7 @@ function RuntimeCore({
                         fetcher={fetcher}
                         locale={locale}
                         onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}
+                        onDrawerNavigate={(src) => dispatch(navigationActions.replaceDrawer(src))}
                       >
                         {children}
                       </DashboardRuntimeProvider>
@@ -1077,11 +1096,12 @@ export interface DashboardRuntimeProviderProps {
   fallback?: ReactNode
   controlledNavigation?: NavigationState
   onControlledNavigationChange?: (view: NavigationView) => void
+  onDrawerNavigate?: (src: string) => void
   drawerDepth?: number
 }
 
 export function DashboardRuntimeProvider({
-  locale, csrf, fetcher, children, fallback, controlledNavigation, onControlledNavigationChange, drawerDepth,
+  locale, csrf, fetcher, children, fallback, controlledNavigation, onControlledNavigationChange, onDrawerNavigate, drawerDepth,
 }: DashboardRuntimeProviderProps) {
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
@@ -1105,6 +1125,7 @@ export function DashboardRuntimeProvider({
       applyFilters={context.applyFilters}
       controlledNavigation={controlledNavigation}
       onControlledNavigationChange={onControlledNavigationChange}
+      onDrawerNavigate={onDrawerNavigate}
       drawerDepth={drawerDepth}
     >
       {children}

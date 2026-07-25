@@ -20,6 +20,12 @@ export interface ActionParam {
   source: Source
 }
 
+export type Availability = "available" | "config_required" | "empty_source" | "unavailable"
+
+export type BridgeLayout = "waterfall"
+
+export type CascadeTone = "inflow" | "negative" | "neutral" | "positive"
+
 export type ColorBy = "category"
 
 export interface Column {
@@ -28,6 +34,8 @@ export interface Column {
 }
 
 export type ColumnType = "bool" | "number" | "string" | "time"
+
+export type Confidence = "calculated" | "proxy" | "requires_reconciliation" | "verified"
 
 export interface DashboardDocument {
   version: string
@@ -55,7 +63,10 @@ export interface DrawerHeader {
   eyebrow?: string
   title?: string
   caption?: string
+  size?: DrawerSize
 }
+
+export type DrawerSize = "wide"
 
 export interface Drill {
   edges: Record<NodeKey, Level>
@@ -78,6 +89,10 @@ export interface Encoding {
   cut?: string
   cutLabel?: string
   final?: string
+  tone?: string
+  share?: string
+  confidence?: string
+  availability?: string
 }
 
 export interface Endpoints {
@@ -105,6 +120,12 @@ export interface Filter {
 
 export type FilterKind = "period"
 
+export interface FlowReconciliation {
+  tolerance?: number
+}
+
+export type FocusMode = "canvas"
+
 export type FormatKind = "date" | "money" | "number" | "percent" | "string"
 
 export interface Frame {
@@ -114,6 +135,10 @@ export interface Frame {
 }
 
 export type FrameRef = string
+
+export interface HierarchyReconciliation {
+  tolerance?: number
+}
 
 export interface Layout {
   rows: Array<LayoutRow>
@@ -137,6 +162,7 @@ export interface LayoutItem {
   panelId: string
   span: number
   group?: LayoutGroup
+  groups?: Array<LayoutGroup>
 }
 
 export interface LayoutRow {
@@ -155,6 +181,17 @@ export interface Level {
   frame?: FrameRef
   encoding?: Encoding
   perspectives: Array<PerspectiveRef>
+  view?: PanelKind
+  presentation?: Presentation
+  status?: PanelStatus
+  source?: LevelSource
+}
+
+export interface LevelSource {
+  label?: string
+  frame: FrameRef
+  columns?: Array<TableColumn>
+  format?: Record<string, FieldFormat>
 }
 
 export interface Meta {
@@ -163,6 +200,61 @@ export interface Meta {
   generatedAt: string
   locale: string
 }
+
+export interface MetricFlowConfig {
+  stages: Array<MetricFlowStage>
+  reconcile?: FlowReconciliation
+}
+
+export interface MetricFlowStage {
+  key: string
+  label: string
+  role: MetricFlowStageRole
+  caption?: string
+  confidence?: Confidence
+  availability?: Availability
+  action?: Action
+}
+
+export type MetricFlowStageRole = "add" | "input" | "intermediate" | "result" | "subtract"
+
+export interface MetricHierarchyConfig {
+  rows: Array<MetricHierarchyRow>
+  reconcile?: HierarchyReconciliation
+}
+
+export interface MetricHierarchyRow {
+  key: string
+  label: string
+  description?: string
+  parent?: string
+  depth?: number
+  unallocated?: boolean
+  selected?: boolean
+  confidence?: Confidence
+  availability?: Availability
+  action?: Action
+}
+
+export interface MetricRelationshipConfig {
+  source: MetricRelationshipEnd
+  target: MetricRelationshipEnd
+  type: MetricRelationshipType
+  direction?: MetricRelationshipDirection
+  note?: string
+}
+
+export type MetricRelationshipDirection = "bidirectional" | "source_to_target" | "target_to_source"
+
+export interface MetricRelationshipEnd {
+  key: string
+  label: string
+  confidence?: Confidence
+  availability?: Availability
+  action?: Action
+}
+
+export type MetricRelationshipType = "association" | "derivation" | "reconciliation"
 
 export interface Node {
   key: NodeKey
@@ -193,14 +285,26 @@ export interface Panel {
   caption?: string
   headline?: number
   trend?: PanelTrend
+  sparkline?: Sparkline
+  target?: PanelTarget
   presentation?: Presentation
+  metricFlow?: MetricFlowConfig
+  metricHierarchy?: MetricHierarchyConfig
+  metricRelationship?: MetricRelationshipConfig
+  confidence?: Confidence
+  availability?: Availability
 }
 
-export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "pie" | "stat" | "table"
+export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "stat" | "table"
 
 export interface PanelStatus {
   label: string
   tone?: StatusTone
+}
+
+export interface PanelTarget {
+  value: number
+  label?: string
 }
 
 export interface PanelTrend {
@@ -251,10 +355,12 @@ export interface Presentation {
   colorBy?: ColorBy
   fill?: boolean
   barWidthPx?: number
+  bridgeLayout?: BridgeLayout
   sortable?: boolean
   expandable?: boolean
   exportable?: boolean
   rowGroupField?: string
+  focus?: FocusMode
 }
 
 export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"
@@ -291,6 +397,11 @@ export interface Source {
   name?: string
   value?: unknown
   fallback?: unknown
+}
+
+export interface Sparkline {
+  values: Array<number>
+  color?: string
 }
 
 export type StatusTone = "neutral" | "positive" | "warning"

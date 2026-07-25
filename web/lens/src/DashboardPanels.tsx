@@ -1,4 +1,14 @@
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
+} from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, useTranslate } from './runtime'
 import { ExportButton, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
@@ -29,19 +39,50 @@ interface LayoutCluster {
   items: LayoutItem[]
 }
 
-/** Consecutive items sharing a group id render inside one container card. */
-export function clusterRow(items: LayoutItem[]): LayoutCluster[] {
+/**
+ * The group chain for an item, outermost→innermost. `groups` is authoritative
+ * when present; the legacy singular `group` is the single-level fallback so
+ * existing documents render byte-for-byte the same.
+ */
+function chainOf(item: LayoutItem): LayoutGroup[] {
+  return item.groups && item.groups.length ? item.groups : item.group ? [item.group] : []
+}
+
+function groupAt(item: LayoutItem, depth: number): LayoutGroup | undefined {
+  return chainOf(item)[depth]
+}
+
+/**
+ * Consecutive items sharing a group id at the given chain depth form one
+ * cluster; an item with no group at that depth stays a singleton (loose)
+ * cluster that renders as a bare grid panel.
+ */
+function clusterAtDepth(items: LayoutItem[], depth: number): LayoutCluster[] {
   const clusters: LayoutCluster[] = []
   for (const item of items) {
+    const group = groupAt(item, depth)
     const previous = clusters[clusters.length - 1]
-    if (item.group && previous?.group?.id === item.group.id) {
+    if (group && previous?.group?.id === group.id) {
       previous.items.push(item)
       continue
     }
-    clusters.push({ group: item.group, items: [item] })
+    clusters.push({ group, items: [item] })
   }
   return clusters
 }
+
+/** Level-0 clustering; retained for backward compatibility and single-level callers. */
+export function clusterRow(items: LayoutItem[]): LayoutCluster[] {
+  return clusterAtDepth(items, 0)
+}
+
+/**
+ * Per-group active-tab memory keyed by group id, held for the dashboard's
+ * lifetime. A nested tab group unmounts when its outer tab switches away;
+ * restoring its active tab from this store preserves the inner selection when
+ * the outer tab returns.
+ */
+const TabStateContext = createContext<Map<string, string> | null>(null)
 
 function PanelSlot({ panel, registry }: { panel: Panel; registry?: PanelRegistry }) {
   return panel.drillRoot
@@ -79,6 +120,61 @@ function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNod
   )
 }
 
+/** A single ungrouped panel occupying its own grid slot. */
+function LeafItem({ item, panels, registry }: {
+  item: LayoutItem
+  panels: Map<string, Panel>
+  registry?: PanelRegistry
+}) {
+  const panel = panels.get(item.panelId)
+  if (!panel) {
+    return (
+      <div className="lens-panel lens-panel-unsupported lens-grid-item" style={spanStyle(item.span)}>
+        <MissingPanel panelId={item.panelId} />
+      </div>
+    )
+  }
+  return (
+    <div className="lens-grid-item" style={spanStyle(item.span)}>
+      <PanelSlot panel={panel} registry={registry} />
+    </div>
+  )
+}
+
+/**
+ * Renders one level of the group chain as grid children: loose items become
+ * bare grid panels, a metrics chain becomes a StatGroup card, and a tabs chain
+ * becomes a TabsGroup whose active tabpanel recurses into the next chain level.
+ * The same function drives the top-level grid and every nested tabpanel, so
+ * arbitrary compositions (tabs-in-tabs, metrics-in-tabs, tabs after passthrough
+ * containers, grouped mixed with ungrouped) fall out of one recursion.
+ */
+function GroupChain({ items, depth, panels, registry }: {
+  items: LayoutItem[]
+  depth: number
+  panels: Map<string, Panel>
+  registry?: PanelRegistry
+}) {
+  return (
+    <>
+      {clusterAtDepth(items, depth).map((cluster, index) => {
+        if (!cluster.group) {
+          return cluster.items.map((item) => (
+            <LeafItem item={item} key={item.panelId} panels={panels} registry={registry} />
+          ))
+        }
+        const key = `${cluster.group.id}-${depth}-${index}`
+        if (cluster.group.kind === 'metrics') {
+          return <MetricsGroup group={cluster.group} items={cluster.items} key={key} panels={panels} registry={registry} />
+        }
+        return (
+          <TabsGroup depth={depth} group={cluster.group} items={cluster.items} key={key} panels={panels} registry={registry} />
+        )
+      })}
+    </>
+  )
+}
+
 function MetricsGroup({ group, items, panels, registry }: {
   group: LayoutGroup
   items: LayoutItem[]
@@ -107,46 +203,95 @@ function MetricsGroup({ group, items, panels, registry }: {
   )
 }
 
-function TabsGroup({ group, items, panels, registry }: {
+function TabsGroup({ group, items, depth, panels, registry }: {
   group: LayoutGroup
   items: LayoutItem[]
+  depth: number
   panels: Map<string, Panel>
   registry?: PanelRegistry
 }) {
   const translate = useTranslate()
-  const tabs = [...new Set(items.map((item) => item.group?.tab ?? ''))]
-  const [active, setActive] = useState(tabs[0] ?? '')
+  const store = useContext(TabStateContext)
+  const baseId = useId()
+  const tabs = [...new Set(items.map((item) => groupAt(item, depth)?.tab ?? ''))]
+  // The initial tab is restored from the per-group store so an inner group's
+  // selection survives an outer tab switching away and back (which remounts it).
+  const [active, setActive] = useState(() => store?.get(group.id) ?? tabs[0] ?? '')
   const current = tabs.includes(active) ? active : tabs[0] ?? ''
-  const visible = items.filter((item) => (item.group?.tab ?? '') === current)
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+
+  const select = (tab: string) => {
+    store?.set(group.id, tab)
+    setActive(tab)
+  }
+
+  // Roving-tabindex keyboard model (WAI-ARIA tabs). The handler is on each tab
+  // button, and it stops propagation, so an inner tablist's arrow keys never
+  // reach and move an ancestor tablist.
+  const onTabKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    let next = index
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
+    else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = tabs.length - 1
+    else return
+    const nextTab = tabs[next]
+    if (nextTab === undefined) return
+    event.preventDefault()
+    event.stopPropagation()
+    select(nextTab)
+    tabRefs.current[next]?.focus()
+  }
+
+  const tabId = (index: number) => `${baseId}-tab-${index}`
+  const panelId = (index: number) => `${baseId}-panel-${index}`
 
   return (
     <GroupCard group={group}>
       {/* An unlabelled group would otherwise expose its raw id to a screen
           reader; a translated generic name is the honest fallback. */}
       <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
-        {tabs.map((tab) => (
+        {tabs.map((tab, index) => (
           <button
+            aria-controls={panelId(index)}
             aria-selected={tab === current}
             className="lens-tabstrip-tab"
+            id={tabId(index)}
             key={tab}
-            onClick={() => setActive(tab)}
+            onClick={() => select(tab)}
+            onKeyDown={(event) => onTabKeyDown(event, index)}
+            ref={(node) => { tabRefs.current[index] = node }}
             role="tab"
+            tabIndex={tab === current ? 0 : -1}
             type="button"
           >
             {tab}
           </button>
         ))}
       </div>
-      <div className="lens-panel-grid lens-tab-panel" role="tabpanel">
-        {visible.map((item) => {
-          const panel = panels.get(item.panelId)
-          return (
-            <div className="lens-grid-item" key={item.panelId} style={spanStyle(item.span)}>
-              {panel ? <PanelSlot panel={panel} registry={registry} /> : <MissingPanel panelId={item.panelId} />}
-            </div>
-          )
-        })}
-      </div>
+      {/* Every tabpanel element exists so each tab's aria-controls resolves, but
+          only the active one mounts its content — the inactive ones are hidden
+          and empty, so hidden panels never fetch. */}
+      {tabs.map((tab, index) => (
+        <div
+          aria-labelledby={tabId(index)}
+          className="lens-panel-grid lens-tab-panel"
+          hidden={tab !== current}
+          id={panelId(index)}
+          key={tab}
+          role="tabpanel"
+          tabIndex={0}
+        >
+          {tab === current && (
+            <GroupChain
+              depth={depth + 1}
+              items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
+              panels={panels}
+              registry={registry}
+            />
+          )}
+        </div>
+      ))}
     </GroupCard>
   )
 }
@@ -261,6 +406,8 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   // re-renders keep the same class and never replay the animation. Off inside a
   // drawer and under visual regression, where the final state renders directly.
   const entrance = useRef(!isVisualRegression() && drawer.depth === 0)
+  // Active-tab memory shared by every (possibly nested) tab group in this mount.
+  const tabState = useRef<Map<string, string>>(new Map()).current
 
   if (!document.layout.rows.length || !document.panels.length) {
     return (
@@ -275,6 +422,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) ||
     (document.filters?.length ?? 0) > 0
   return (
+    <TabStateContext.Provider value={tabState}>
     <main className="lens-dashboard" aria-label={identityTitle}>
       {hasHeader && (
         <header className="lens-dashboard-header">
@@ -308,49 +456,12 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
               className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
               style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
             >
-              {clusterRow(row.panels).map((cluster, clusterIndex) => {
-                if (cluster.group?.kind === 'metrics') {
-                  return (
-                    <MetricsGroup
-                      group={cluster.group}
-                      items={cluster.items}
-                      key={`${cluster.group.id}-${clusterIndex}`}
-                      panels={panels}
-                      registry={registry}
-                    />
-                  )
-                }
-                if (cluster.group?.kind === 'tabs') {
-                  return (
-                    <TabsGroup
-                      group={cluster.group}
-                      items={cluster.items}
-                      key={`${cluster.group.id}-${clusterIndex}`}
-                      panels={panels}
-                      registry={registry}
-                    />
-                  )
-                }
-                return cluster.items.map((item) => {
-                  const panel = panels.get(item.panelId)
-                  if (!panel) {
-                    return (
-                      <div className="lens-panel lens-panel-unsupported lens-grid-item" key={item.panelId} style={spanStyle(item.span)}>
-                        <MissingPanel panelId={item.panelId} />
-                      </div>
-                    )
-                  }
-                  return (
-                    <div className="lens-grid-item" key={panel.id} style={spanStyle(item.span)}>
-                      <PanelSlot panel={panel} registry={registry} />
-                    </div>
-                  )
-                })
-              })}
+              <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
             </div>
           </section>
         ))}
       </div>
     </main>
+    </TabStateContext.Provider>
   )
 }

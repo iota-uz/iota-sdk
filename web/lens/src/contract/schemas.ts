@@ -43,6 +43,12 @@ export const ActionParamSchema: z.ZodType<Contract.ActionParam> = z.lazy(() => z
   source: z.lazy(() => SourceSchema),
 }).strict())
 
+export const AvailabilitySchema: z.ZodType<Contract.Availability> = z.enum(["available", "config_required", "empty_source", "unavailable"])
+
+export const BridgeLayoutSchema: z.ZodType<Contract.BridgeLayout> = z.enum(["waterfall"])
+
+export const CascadeToneSchema: z.ZodType<Contract.CascadeTone> = z.enum(["inflow", "negative", "neutral", "positive"])
+
 export const ColorBySchema: z.ZodType<Contract.ColorBy> = z.enum(["category"])
 
 export const ColumnSchema: z.ZodType<Contract.Column> = z.lazy(() => z.object({
@@ -51,6 +57,8 @@ export const ColumnSchema: z.ZodType<Contract.Column> = z.lazy(() => z.object({
 }).strict())
 
 export const ColumnTypeSchema: z.ZodType<Contract.ColumnType> = z.enum(["bool", "number", "string", "time"])
+
+export const ConfidenceSchema: z.ZodType<Contract.Confidence> = z.enum(["calculated", "proxy", "requires_reconciliation", "verified"])
 
 export const DashboardDocumentSchema: z.ZodType<Contract.DashboardDocument> = z.lazy(() => z.object({
   version: ContractVersionSchema,
@@ -74,11 +82,14 @@ export const DocumentHeaderSchema: z.ZodType<Contract.DocumentHeader> = z.object
   subtitle: z.string().optional(),
 }).strict()
 
-export const DrawerHeaderSchema: z.ZodType<Contract.DrawerHeader> = z.object({
+export const DrawerHeaderSchema: z.ZodType<Contract.DrawerHeader> = z.lazy(() => z.object({
   eyebrow: z.string().optional(),
   title: z.string().optional(),
   caption: z.string().optional(),
-}).strict()
+  size: z.lazy(() => DrawerSizeSchema).optional(),
+}).strict())
+
+export const DrawerSizeSchema: z.ZodType<Contract.DrawerSize> = z.enum(["wide"])
 
 export const DrillSchema: z.ZodType<Contract.Drill> = z.lazy(() => z.object({
   edges: z.record(z.lazy(() => NodeKeySchema), z.lazy(() => LevelSchema)),
@@ -101,6 +112,10 @@ export const EncodingSchema: z.ZodType<Contract.Encoding> = z.object({
   cut: z.string().optional(),
   cutLabel: z.string().optional(),
   final: z.string().optional(),
+  tone: z.string().optional(),
+  share: z.string().optional(),
+  confidence: z.string().optional(),
+  availability: z.string().optional(),
 }).strict()
 
 export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.object({
@@ -128,6 +143,12 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
 
 export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["period"])
 
+export const FlowReconciliationSchema: z.ZodType<Contract.FlowReconciliation> = z.object({
+  tolerance: z.number().optional(),
+}).strict()
+
+export const FocusModeSchema: z.ZodType<Contract.FocusMode> = z.enum(["canvas"])
+
 export const FormatKindSchema: z.ZodType<Contract.FormatKind> = z.enum(["date", "money", "number", "percent", "string"])
 
 export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({
@@ -137,6 +158,10 @@ export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({
 }).strict())
 
 export const FrameRefSchema: z.ZodType<Contract.FrameRef> = z.string()
+
+export const HierarchyReconciliationSchema: z.ZodType<Contract.HierarchyReconciliation> = z.object({
+  tolerance: z.number().optional(),
+}).strict()
 
 export const LayoutSchema: z.ZodType<Contract.Layout> = z.lazy(() => z.object({
   rows: z.array(z.lazy(() => LayoutRowSchema)),
@@ -160,6 +185,7 @@ export const LayoutItemSchema: z.ZodType<Contract.LayoutItem> = z.object({
   panelId: z.string(),
   span: z.number().int(),
   group: z.lazy(() => LayoutGroupSchema).optional(),
+  groups: z.array(z.lazy(() => LayoutGroupSchema)).optional(),
 }).strict()
 
 export const LayoutRowSchema: z.ZodType<Contract.LayoutRow> = z.object({
@@ -178,6 +204,17 @@ export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   frame: z.lazy(() => FrameRefSchema).optional(),
   encoding: z.lazy(() => EncodingSchema).optional(),
   perspectives: z.array(z.lazy(() => PerspectiveRefSchema)),
+  view: z.lazy(() => PanelKindSchema).optional(),
+  presentation: z.lazy(() => PresentationSchema).optional(),
+  status: z.lazy(() => PanelStatusSchema).optional(),
+  source: z.lazy(() => LevelSourceSchema).optional(),
+}).strict())
+
+export const LevelSourceSchema: z.ZodType<Contract.LevelSource> = z.lazy(() => z.object({
+  label: z.string().optional(),
+  frame: z.lazy(() => FrameRefSchema),
+  columns: z.array(z.lazy(() => TableColumnSchema)).optional(),
+  format: z.record(z.string(), z.lazy(() => FieldFormatSchema)).optional(),
 }).strict())
 
 export const MetaSchema: z.ZodType<Contract.Meta> = z.object({
@@ -186,6 +223,61 @@ export const MetaSchema: z.ZodType<Contract.Meta> = z.object({
   generatedAt: z.string().datetime({ offset: true }),
   locale: z.string(),
 }).strict()
+
+export const MetricFlowConfigSchema: z.ZodType<Contract.MetricFlowConfig> = z.lazy(() => z.object({
+  stages: z.array(z.lazy(() => MetricFlowStageSchema)),
+  reconcile: z.lazy(() => FlowReconciliationSchema).optional(),
+}).strict())
+
+export const MetricFlowStageSchema: z.ZodType<Contract.MetricFlowStage> = z.lazy(() => z.object({
+  key: z.string(),
+  label: z.string(),
+  role: z.lazy(() => MetricFlowStageRoleSchema),
+  caption: z.string().optional(),
+  confidence: z.lazy(() => ConfidenceSchema).optional(),
+  availability: z.lazy(() => AvailabilitySchema).optional(),
+  action: z.lazy(() => ActionSchema).optional(),
+}).strict())
+
+export const MetricFlowStageRoleSchema: z.ZodType<Contract.MetricFlowStageRole> = z.enum(["add", "input", "intermediate", "result", "subtract"])
+
+export const MetricHierarchyConfigSchema: z.ZodType<Contract.MetricHierarchyConfig> = z.lazy(() => z.object({
+  rows: z.array(z.lazy(() => MetricHierarchyRowSchema)),
+  reconcile: z.lazy(() => HierarchyReconciliationSchema).optional(),
+}).strict())
+
+export const MetricHierarchyRowSchema: z.ZodType<Contract.MetricHierarchyRow> = z.object({
+  key: z.string(),
+  label: z.string(),
+  description: z.string().optional(),
+  parent: z.string().optional(),
+  depth: z.number().int().optional(),
+  unallocated: z.boolean().optional(),
+  selected: z.boolean().optional(),
+  confidence: z.lazy(() => ConfidenceSchema).optional(),
+  availability: z.lazy(() => AvailabilitySchema).optional(),
+  action: z.lazy(() => ActionSchema).optional(),
+}).strict()
+
+export const MetricRelationshipConfigSchema: z.ZodType<Contract.MetricRelationshipConfig> = z.lazy(() => z.object({
+  source: z.lazy(() => MetricRelationshipEndSchema),
+  target: z.lazy(() => MetricRelationshipEndSchema),
+  type: z.lazy(() => MetricRelationshipTypeSchema),
+  direction: z.lazy(() => MetricRelationshipDirectionSchema).optional(),
+  note: z.string().optional(),
+}).strict())
+
+export const MetricRelationshipDirectionSchema: z.ZodType<Contract.MetricRelationshipDirection> = z.enum(["bidirectional", "source_to_target", "target_to_source"])
+
+export const MetricRelationshipEndSchema: z.ZodType<Contract.MetricRelationshipEnd> = z.object({
+  key: z.string(),
+  label: z.string(),
+  confidence: z.lazy(() => ConfidenceSchema).optional(),
+  availability: z.lazy(() => AvailabilitySchema).optional(),
+  action: z.lazy(() => ActionSchema).optional(),
+}).strict()
+
+export const MetricRelationshipTypeSchema: z.ZodType<Contract.MetricRelationshipType> = z.enum(["association", "derivation", "reconciliation"])
 
 export const NodeSchema: z.ZodType<Contract.Node> = z.lazy(() => z.object({
   key: z.lazy(() => NodeKeySchema),
@@ -216,15 +308,27 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   caption: z.string().optional(),
   headline: z.number().optional(),
   trend: z.lazy(() => PanelTrendSchema).optional(),
+  sparkline: z.lazy(() => SparklineSchema).optional(),
+  target: z.lazy(() => PanelTargetSchema).optional(),
   presentation: z.lazy(() => PresentationSchema).optional(),
+  metricFlow: z.lazy(() => MetricFlowConfigSchema).optional(),
+  metricHierarchy: z.lazy(() => MetricHierarchyConfigSchema).optional(),
+  metricRelationship: z.lazy(() => MetricRelationshipConfigSchema).optional(),
+  confidence: z.lazy(() => ConfidenceSchema).optional(),
+  availability: z.lazy(() => AvailabilitySchema).optional(),
 }).strict())
 
-export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "cascade", "coverage", "donut", "hbar", "line", "pie", "stat", "table"])
+export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "cascade", "coverage", "donut", "hbar", "line", "metric_flow", "metric_hierarchy", "metric_relationship", "pie", "stat", "table"])
 
 export const PanelStatusSchema: z.ZodType<Contract.PanelStatus> = z.lazy(() => z.object({
   label: z.string(),
   tone: z.lazy(() => StatusToneSchema).optional(),
 }).strict())
+
+export const PanelTargetSchema: z.ZodType<Contract.PanelTarget> = z.object({
+  value: z.number(),
+  label: z.string().optional(),
+}).strict()
 
 export const PanelTrendSchema: z.ZodType<Contract.PanelTrend> = z.object({
   percent: z.number(),
@@ -274,10 +378,12 @@ export const PresentationSchema: z.ZodType<Contract.Presentation> = z.lazy(() =>
   colorBy: z.lazy(() => ColorBySchema).optional(),
   fill: z.boolean().optional(),
   barWidthPx: z.number().int().optional(),
+  bridgeLayout: z.lazy(() => BridgeLayoutSchema).optional(),
   sortable: z.boolean().optional(),
   expandable: z.boolean().optional(),
   exportable: z.boolean().optional(),
   rowGroupField: z.string().optional(),
+  focus: z.lazy(() => FocusModeSchema).optional(),
 }).strict())
 
 export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum(["bad_request", "internal", "snapshot_gone"])
@@ -315,6 +421,11 @@ export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   value: z.unknown().optional(),
   fallback: z.unknown().optional(),
 }).strict())
+
+export const SparklineSchema: z.ZodType<Contract.Sparkline> = z.object({
+  values: z.array(z.number()),
+  color: z.string().optional(),
+}).strict()
 
 export const StatusToneSchema: z.ZodType<Contract.StatusTone> = z.enum(["neutral", "positive", "warning"])
 

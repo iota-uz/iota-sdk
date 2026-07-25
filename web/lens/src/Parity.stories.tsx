@@ -118,14 +118,26 @@ function Runtime({ children, doc }: { children: React.ReactNode; doc: DashboardD
 }
 
 export const MetricGroup: Story = () => {
-  const frames = Object.fromEntries(metrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
+  const contextualMetrics = metrics.map(({ panel, value }, index) => ({
+    panel: {
+      ...panel,
+      caption: [
+        'Claims paid ÷ earned premium',
+        'Expenses ÷ earned premium',
+        '(claims + expenses) ÷ earned premium',
+        'Earned premium − claims − expenses ± reserves',
+      ][index],
+    },
+    value,
+  }))
+  const frames = Object.fromEntries(contextualMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
   const doc = storyDocument(
-    metrics.map(({ panel }) => panel),
+    contextualMetrics.map(({ panel }) => panel),
     frames,
     {
       rows: [{
         heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
-        panels: metrics.map(({ panel }) => ({
+        panels: contextualMetrics.map(({ panel }) => ({
           panelId: panel.id, span: 3,
           group: { id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 },
         })),
@@ -134,6 +146,38 @@ export const MetricGroup: Story = () => {
   )
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
+
+/**
+ * The compact metric form now carries the same quiet trend line the hero stat
+ * card does when the wire supplies `Panel.sparkline`. The first two metrics
+ * carry one; the last two do not, so the story also proves a metric without a
+ * sparkline stays exactly as it was — the gate keeps non-trend cards identical.
+ */
+const sparkMetrics: Array<{ panel: Panel; value: number }> = [
+  { panel: { ...metrics[0]!.panel, sparkline: { values: [3.6, 3.4, 3.5, 3.2, 3.3, 3.0, 3.1] } }, value: 3.1 },
+  { panel: { ...metrics[1]!.panel, sparkline: { values: [38.1, 39.4, 40.2, 40.9, 41.1, 41.4, 41.7] } }, value: 41.7 },
+  { panel: metrics[2]!.panel, value: 44.8 },
+  { panel: metrics[3]!.panel, value: 92.4 },
+]
+
+export const MetricGroupSparkline: Story = () => {
+  const frames = Object.fromEntries(sparkMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
+  const doc = storyDocument(
+    sparkMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
+        panels: sparkMetrics.map(({ panel }) => ({
+          panelId: panel.id, span: 3,
+          group: { id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 },
+        })),
+      }],
+    },
+  )
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+MetricGroupSparkline.storyName = 'Metric group sparkline'
 
 export const TabGroup: Story = () => {
   const doc = storyDocument(

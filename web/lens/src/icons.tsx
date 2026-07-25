@@ -217,3 +217,70 @@ export const ChartLine = glyph(
   </>,
   20,
 )
+
+/** Quality: verified — a sealed check (direct measurement). */
+export const SealCheck = glyph(
+  <>
+    <circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="88 128 116 156 168 100" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: calculated — a documented formula (bracketed expression). */
+export const Brackets = glyph(
+  <>
+    <path d="M96,48H72a16,16,0,0,0-16,16V192a16,16,0,0,0,16,16H96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M160,48h24a16,16,0,0,1,16,16V192a16,16,0,0,1-16,16H160" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="104" x2="128" y2="152" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: proxy — an approximate reconstruction (≈). */
+export const Approximate = glyph(
+  <>
+    <path d="M40,104c20-28,50-28,70,0s50,28,70,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M40,168c20-28,50-28,70,0s50,28,70,0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: requires reconciliation — a warning triangle. */
+export const WarningTriangle = glyph(
+  <>
+    <path d="M114.2,40,26.3,192a16,16,0,0,0,13.8,24H215.9a16,16,0,0,0,13.8-24L141.8,40A16,16,0,0,0,114.2,40Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="104" x2="128" y2="144" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="180" x2="128" y2="180" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="18" />
+  </>,
+  12,
+)
+
+/** Quality: configuration required — sliders to be set. */
+export const Sliders = glyph(
+  <>
+    <line x1="40" y1="80" x2="216" y2="80" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <circle cx="96" cy="80" r="18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="40" y1="176" x2="216" y2="176" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <circle cx="160" cy="176" r="18" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: empty source — an empty tray. */
+export const Tray = glyph(
+  <>
+    <rect x="40" y="40" width="176" height="176" rx="8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="40 144 76 144 92 168 164 168 180 144 216 144" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
+/** Quality: unavailable — a prohibiting slash. */
+export const SlashCircle = glyph(
+  <>
+    <circle cx="128" cy="128" r="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="65" y1="65" x2="191" y2="191" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)

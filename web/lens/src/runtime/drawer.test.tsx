@@ -73,9 +73,19 @@ describe('Lens drawer host', () => {
     expect(globalThis.document.body.style.overflow).toBe('')
   })
 
-  it('traps focus, closes through history on Escape, and rejects a nested drawer', async () => {
-    const nested = statDocument('Drawer document', drawerAction)
-    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(nested), { status: 200 }))
+  it('traps focus and replaces the current drawer document instead of nesting another modal', async () => {
+    const nextAction: Action = {
+      ...drawerAction,
+      urlTemplate: '/drill/expenses/lens/document?token=signed',
+    }
+    const nested = statDocument('Result waterfall', nextAction)
+    const next = statDocument('Expenses focus')
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      return Promise.resolve(
+        new Response(JSON.stringify(url.includes('/expenses/') ? next : nested), { status: 200 }),
+      )
+    })
     const historyGo = vi.spyOn(window.history, 'go').mockImplementation(() => undefined)
     render(<LensDashboard initialDocument={statDocument('Dashboard', drawerAction)} fetcher={fetcher} />)
     fireEvent.click(screen.getByRole('link', { name: 'Open Dashboard metric' }))
@@ -83,12 +93,15 @@ describe('Lens drawer host', () => {
     const dialog = await screen.findByRole('dialog')
     const close = screen.getByRole('button', { name: 'Close details' })
     expect(dialog).toContainElement(globalThis.document.activeElement as HTMLElement)
-    expect(screen.queryByRole('link', { name: 'Open Drawer document metric' })).not.toBeInTheDocument()
+    fireEvent.click(await screen.findByRole('link', { name: 'Open Result waterfall metric' }))
+    expect(await screen.findByRole('heading', { name: 'Expenses focus' })).toBeInTheDocument()
+    expect(new URL(window.location.href).searchParams.get('drawer')).toContain('/drill/expenses/lens/document')
+    expect(screen.getAllByRole('dialog')).toHaveLength(1)
     close.focus()
     fireEvent.keyDown(dialog, { key: 'Tab', shiftKey: true })
     expect(dialog).toContainElement(globalThis.document.activeElement as HTMLElement)
     fireEvent.keyDown(dialog, { key: 'Escape' })
-    expect(historyGo).toHaveBeenCalledWith(-1)
+    expect(historyGo).toHaveBeenCalledWith(-2)
   })
 
   it('renders the document drawer header once and drops the repeated body heading', async () => {

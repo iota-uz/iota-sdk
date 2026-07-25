@@ -39,6 +39,7 @@ export type NavigationAction =
   }
   | { type: 'reset' }
   | { type: 'openDrawer'; src: string }
+  | { type: 'replaceDrawer'; src: string }
   | { type: 'updateDrawer'; view: Omit<DrawerNavigationView, 'src'> }
   | { type: 'closeDrawer' }
   | { type: 'restore'; view: NavigationView; history?: Array<NavigationView> }
@@ -133,6 +134,12 @@ export function navigationReducer(state: NavigationState, action: NavigationActi
         ...state,
         drawer: { src: action.src, path: [] },
       })
+    case 'replaceDrawer':
+      if (!state.drawer || state.drawer.src === action.src) return state
+      return transition(state, {
+        ...state,
+        drawer: { src: action.src, path: [] },
+      })
     case 'updateDrawer':
       if (!state.drawer) return state
       return transition(state, {
@@ -160,6 +167,7 @@ export const navigationActions = {
   ): NavigationAction => ({ type: 'switchPerspective', perspectiveId, path, replace, enterKey, panelId }),
   reset: (): NavigationAction => ({ type: 'reset' }),
   openDrawer: (src: string): NavigationAction => ({ type: 'openDrawer', src }),
+  replaceDrawer: (src: string): NavigationAction => ({ type: 'replaceDrawer', src }),
   updateDrawer: (view: Omit<DrawerNavigationView, 'src'>): NavigationAction => ({ type: 'updateDrawer', view }),
   closeDrawer: (): NavigationAction => ({ type: 'closeDrawer' }),
   restore: (view: NavigationView, history?: Array<NavigationView>): NavigationAction => ({ type: 'restore', view, history }),

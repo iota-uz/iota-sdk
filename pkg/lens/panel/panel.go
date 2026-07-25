@@ -44,6 +44,35 @@ const (
 	// card per KPI. The group is a layout container: it has no dataset of its
 	// own; every child is a regular Stat leaf with its own dataset lookup.
 	KindStatGroup Kind = "stat_group"
+	// KindMetricFlow renders a left-to-right result formula: a sequence of
+	// signed operand stages that read to a single supplied result. It covers
+	// the "формула" link type and is native HTML/CSS, not a chart. See
+	// FlowStage / RelationshipSpec doc comments for the locked contracts:
+	//
+	//   - Role is formula grammar only. Frame values stay signed business
+	//     amounts; add/subtract stages render exactly one normalized operator
+	//     (+/−) plus the absolute formatted magnitude, so a negative movement
+	//     under subtract never renders as "− −v".
+	//   - The result stage's value is server-supplied; the renderer is never
+	//     the authoritative calculator.
+	KindMetricFlow Kind = "metric_flow"
+	// KindMetricHierarchy renders a compact, indented decomposition of one
+	// parent metric into child rows with integrity checks (roots, cycles,
+	// optional parent<->children reconciliation).
+	//
+	//   - Parent is authoritative; Depth is always derived during document
+	//     build from the Parent chain, never accepted from a builder caller.
+	//   - The SDK never manufactures an Unallocated row: it must be an
+	//     explicit producer-provided row.
+	KindMetricHierarchy Kind = "metric_hierarchy"
+	// KindMetricRelationship renders an explicit, non-arithmetic link between
+	// two metrics (the "связь" link type) — a neutral association, a
+	// derivation, or a reconciliation, with an explicit direction that is
+	// never inferred from end order.
+	//
+	//   - Per-element actions (v1) support literal/variable params only; field
+	//     params resolve against the whole panel frame, not a per-element row.
+	KindMetricRelationship Kind = "metric_relationship"
 )
 
 // IsContainer reports whether the kind is a layout container that renders its
@@ -59,7 +88,8 @@ func (k Kind) IsContainer() bool {
 	case KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
 		return true
 	case KindStat, KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindSegmentBar, KindCascade, KindPie, KindDonut, KindTable, KindGauge:
+		KindSegmentBar, KindCascade, KindPie, KindDonut, KindTable, KindGauge,
+		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
 		return false
 	}
 	return false
@@ -78,7 +108,8 @@ func (k Kind) IsChart() bool {
 		KindPie, KindDonut, KindGauge:
 		return true
 	case KindStat, KindSegmentBar, KindCascade, KindTable,
-		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
+		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup,
+		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
 		return false
 	}
 	return false
@@ -93,7 +124,8 @@ func (k Kind) IsChart() bool {
 // `k.IsChart() || k.RendersNatively()`.
 func (k Kind) RendersNatively() bool {
 	switch k {
-	case KindStat, KindSegmentBar, KindCascade, KindTable:
+	case KindStat, KindSegmentBar, KindCascade, KindTable,
+		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
 		return true
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
 		KindPie, KindDonut, KindGauge,
@@ -127,6 +159,155 @@ type SparklineSpec struct {
 	Color  string    `json:"color,omitempty"`
 }
 
+// TargetSpec renders a target/threshold marker on a coverage (segment-bar) or
+// horizontal-bar panel: a bullet-style tick at Value with an optional
+// already-localized Label beside it. Value is in the same units as the panel's
+// plotted amounts; the renderer never rescales it.
+type TargetSpec struct {
+	Value float64 `json:"value"`
+	Label string  `json:"label,omitempty"`
+}
+
+// Confidence states how a displayed number was produced (mirrors
+// document.Confidence). It is orthogonal to Availability: Confidence
+// qualifies a number that exists, Availability says whether a number can
+// exist at all. An empty Confidence is unset (no confidence chip).
+type Confidence string
+
+const (
+	ConfidenceVerified               Confidence = "verified"
+	ConfidenceCalculated             Confidence = "calculated"
+	ConfidenceProxy                  Confidence = "proxy"
+	ConfidenceRequiresReconciliation Confidence = "requires_reconciliation"
+)
+
+// Availability states whether a number can exist for an element, independent
+// of how trustworthy it would be (mirrors document.Availability). An empty
+// Availability is unset and treated as available.
+type Availability string
+
+const (
+	AvailabilityAvailable      Availability = "available"
+	AvailabilityConfigRequired Availability = "config_required"
+	AvailabilityEmptySource    Availability = "empty_source"
+	AvailabilityUnavailable    Availability = "unavailable"
+)
+
+// FlowStageRole is the formula grammar of a MetricFlow stage (mirrors
+// document.MetricFlowStageRole). It governs the single normalized operator
+// glyph the renderer prints for the stage and nothing else: frame values stay
+// signed business amounts, and the renderer is never the authoritative
+// calculator. An add/subtract stage renders exactly one operator plus the
+// absolute formatted magnitude, so a negative movement under subtract reads
+// as "+ |v|", never "− −v". The formula reads left-to-right to exactly one
+// result stage, which carries an independently supplied server value.
+type FlowStageRole string
+
+const (
+	FlowRoleInput        FlowStageRole = "input"
+	FlowRoleAdd          FlowStageRole = "add"
+	FlowRoleSubtract     FlowStageRole = "subtract"
+	FlowRoleIntermediate FlowStageRole = "intermediate"
+	FlowRoleResult       FlowStageRole = "result"
+)
+
+// FlowStage is one operand of a MetricFlow result formula (mirrors
+// document.MetricFlowStage). Role is formula grammar only; the stage's
+// numeric value is joined from the panel frame by Key and stays a signed
+// business amount.
+type FlowStage struct {
+	Key   string
+	Label string
+	Role  FlowStageRole
+	// Caption is one muted secondary line rendered under the stage value.
+	Caption      string
+	Confidence   Confidence
+	Availability Availability
+	// Action, when set, makes the stage an actionable link/button. v1 supports
+	// literal/variable params only; field params resolve against the whole
+	// panel frame, not the stage's own row.
+	Action *action.Spec
+}
+
+// FlowReconciliation opts a MetricFlow into a compact mismatch note (mirrors
+// document.FlowReconciliation): the renderer compares the displayed operands
+// against the supplied result and, when the difference exceeds Tolerance,
+// shows a note. It never replaces the result.
+type FlowReconciliation struct {
+	Tolerance float64
+}
+
+// HierarchyRow is one node of a MetricHierarchy decomposition (mirrors
+// document.MetricHierarchyRow). Parent is authoritative: depth is always
+// derived from the Parent chain during document build, never accepted here.
+type HierarchyRow struct {
+	Key         string
+	Label       string
+	Description string
+	// Parent names the Key of this row's parent; empty marks a root row.
+	Parent string
+	// Unallocated marks an explicit producer-provided «Не распределено» child.
+	// The SDK never manufactures one; at most one per parent.
+	Unallocated bool
+	// Selected marks the single row rendered as aria-current; at most one row.
+	Selected     bool
+	Confidence   Confidence
+	Availability Availability
+	Action       *action.Spec
+}
+
+// HierarchyReconciliation opts a MetricHierarchy into per-parent integrity
+// checks (mirrors document.HierarchyReconciliation): for each parent the
+// renderer compares SUM(direct children incl. unallocated) against the
+// parent within Tolerance and shows a compact summary.
+type HierarchyReconciliation struct {
+	Tolerance float64
+}
+
+// RelationshipType selects the kind of non-arithmetic link a
+// MetricRelationship panel states between its two ends (mirrors
+// document.MetricRelationshipType).
+type RelationshipType string
+
+const (
+	RelationshipAssociation    RelationshipType = "association"
+	RelationshipDerivation     RelationshipType = "derivation"
+	RelationshipReconciliation RelationshipType = "reconciliation"
+)
+
+// RelationshipDirection is the explicit direction of a MetricRelationship
+// (mirrors document.MetricRelationshipDirection). It is never inferred from
+// the order of the ends. An empty direction defaults to bidirectional.
+type RelationshipDirection string
+
+const (
+	RelationshipBidirectional  RelationshipDirection = "bidirectional"
+	RelationshipSourceToTarget RelationshipDirection = "source_to_target"
+	RelationshipTargetToSource RelationshipDirection = "target_to_source"
+)
+
+// RelationshipEnd is one side of a MetricRelationship (mirrors
+// document.MetricRelationshipEnd). Its numeric value is joined from the panel
+// frame by Key via the encoding.
+type RelationshipEnd struct {
+	Key          string
+	Label        string
+	Confidence   Confidence
+	Availability Availability
+	Action       *action.Spec
+}
+
+// RelationshipSpec is the structure of a metric_relationship panel (mirrors
+// document.MetricRelationshipConfig): two ends, a link type, an explicit
+// direction, and an optional note.
+type RelationshipSpec struct {
+	Source    RelationshipEnd
+	Target    RelationshipEnd
+	Type      RelationshipType
+	Direction RelationshipDirection
+	Note      string
+}
+
 // PresentationHints are optional, renderer-level density choices carried on a
 // panel spec. Every field is opt-in: the zero value keeps today's rendering.
 type PresentationHints struct {
@@ -148,6 +329,11 @@ type PresentationHints struct {
 	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
 	// already carries the panel's summary.
 	HideTotalBadge bool
+	// Waterfall renders a Cascade as a conventional vertical waterfall:
+	// opening total, floating signed movements, and closing total connected
+	// at their running-balance levels. The Cascade data contract remains
+	// unchanged; this is only a visual projection.
+	Waterfall bool
 	// NonSortable removes a table panel's sort affordances. A static identity
 	// table (a fixed decomposition, not a record list) sets it so the header
 	// does not offer to reorder rows that have an inherent order.
@@ -162,6 +348,11 @@ type PresentationHints struct {
 	// RowGroupField names a frame column carrying a per-row group tag on a table
 	// panel, enabling collapsible member rows behind a synthetic toggle row.
 	RowGroupField string
+	// FocusCanvas opts a drill-hosting panel into focus chrome in the wire
+	// runtime: a persistent breadcrumb, a parent-context header, and a
+	// standalone lens selector around the drilled visualization. Non-focus
+	// panels render exactly as before.
+	FocusCanvas bool
 }
 
 // GroupLayout selects how a StatGroup panel arranges its children inside the
@@ -282,14 +473,17 @@ type TableCellSpec struct {
 type FieldRef string
 
 const (
-	DefaultLabelField    FieldRef = "label"
-	DefaultValueField    FieldRef = "value"
-	DefaultSeriesField   FieldRef = "series"
-	DefaultCategoryField FieldRef = "category"
-	DefaultIDField       FieldRef = "id"
-	DefaultCutField      FieldRef = "cut"
-	DefaultCutLabelField FieldRef = "cutLabel"
-	DefaultFinalField    FieldRef = "final"
+	DefaultLabelField        FieldRef = "label"
+	DefaultValueField        FieldRef = "value"
+	DefaultSeriesField       FieldRef = "series"
+	DefaultCategoryField     FieldRef = "category"
+	DefaultIDField           FieldRef = "id"
+	DefaultCutField          FieldRef = "cut"
+	DefaultCutLabelField     FieldRef = "cutLabel"
+	DefaultFinalField        FieldRef = "final"
+	DefaultShareField        FieldRef = "share"
+	DefaultConfidenceField   FieldRef = "confidence"
+	DefaultAvailabilityField FieldRef = "availability"
 )
 
 func (f FieldRef) Name() string {
@@ -344,6 +538,9 @@ type Spec struct {
 	// Sparkline renders a small inline trend polyline in a stat card's footer
 	// row. Only Stat panels (including StatGroup children) render it.
 	Sparkline *SparklineSpec
+	// Target renders a target/threshold marker on a SegmentBar or
+	// HorizontalBar panel (bullet-style). Ignored on every other kind.
+	Target *TargetSpec
 	// GroupLayout arranges a StatGroup's children ("columns" default, or
 	// "rows"). Ignored on every other kind.
 	GroupLayout GroupLayout
@@ -365,6 +562,27 @@ type Spec struct {
 	ColorField   FieldRef
 	ColorScale   string
 	Export       exportmeta.Spec
+	// FlowStages, when set (KindMetricFlow), declares the panel's ordered
+	// operand stages.
+	FlowStages []FlowStage
+	// FlowReconcile opts a MetricFlow panel into a tolerance-based mismatch
+	// note between the displayed operands and the supplied result.
+	FlowReconcile *FlowReconciliation
+	// HierarchyRows, when set (KindMetricHierarchy), declares the panel's
+	// flat row list, linked by HierarchyRow.Parent.
+	HierarchyRows []HierarchyRow
+	// HierarchyReconcile opts a MetricHierarchy panel into per-parent
+	// integrity checks against its children.
+	HierarchyReconcile *HierarchyReconciliation
+	// Relationship, when set (KindMetricRelationship), declares the panel's
+	// two ends, link type, and direction.
+	Relationship *RelationshipSpec
+	// Confidence is the panel-level default confidence for its elements; a
+	// frame column value or an element's own confidence overrides it.
+	Confidence Confidence
+	// Availability is the panel-level default availability for its elements;
+	// a frame column value or an element's own availability overrides it.
+	Availability Availability
 }
 
 // DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
@@ -473,6 +691,20 @@ type FieldMapping struct {
 	Cut       FieldRef
 	CutLabel  FieldRef
 	Final     FieldRef
+	// Tone names a frame column carrying a per-row semantic tone for a cascade
+	// panel's stages ("neutral", "positive", "negative", "inflow"). It overrides
+	// the flow-direction default color. Empty (the default) keeps direction-based
+	// coloring; it is opt-in, so it is never defaulted to a column name.
+	Tone FieldRef
+	// Share names a frame column carrying a per-element share; the renderer
+	// never recomputes it.
+	Share FieldRef
+	// Confidence names a frame column carrying a per-element Confidence value
+	// that overrides the structural default.
+	Confidence FieldRef
+	// Availability names a frame column carrying a per-element Availability
+	// value that overrides the structural default.
+	Availability FieldRef
 }
 
 type Builder struct {
@@ -498,6 +730,35 @@ func Pie(id, title, dataset string) *Builder     { return newBuilder(KindPie, id
 func Donut(id, title, dataset string) *Builder   { return newBuilder(KindDonut, id, title, dataset) }
 func Table(id, title, dataset string) *Builder   { return newBuilder(KindTable, id, title, dataset) }
 func Gauge(id, title, dataset string) *Builder   { return newBuilder(KindGauge, id, title, dataset) }
+
+// MetricFlow builds a result-formula panel: an ordered sequence of signed
+// operand stages reading left-to-right to a single supplied result. See
+// KindMetricFlow for the locked sign contract.
+func MetricFlow(id, title, dataset string, stages ...FlowStage) *Builder {
+	b := newBuilder(KindMetricFlow, id, title, dataset)
+	b.spec.Span = 12
+	b.spec.FlowStages = stages
+	return b
+}
+
+// MetricHierarchy builds a compact decomposition of one parent metric into
+// child rows linked by HierarchyRow.Parent. Depth is always derived at
+// document build time, never accepted from the caller.
+func MetricHierarchy(id, title, dataset string, rows ...HierarchyRow) *Builder {
+	b := newBuilder(KindMetricHierarchy, id, title, dataset)
+	b.spec.Span = 6
+	b.spec.HierarchyRows = rows
+	return b
+}
+
+// MetricRelationship builds an explicit, non-arithmetic link between two
+// metrics: a neutral association, a derivation, or a reconciliation.
+func MetricRelationship(id, title, dataset string, rel RelationshipSpec) *Builder {
+	b := newBuilder(KindMetricRelationship, id, title, dataset)
+	b.spec.Span = 6
+	b.spec.Relationship = &rel
+	return b
+}
 
 func Tabs(id, title string, children ...Spec) *Builder {
 	return &Builder{
@@ -547,14 +808,17 @@ func newBuilder(kind Kind, id, title, dataset string) *Builder {
 			Dataset: dataset,
 			Span:    6,
 			Fields: FieldMapping{
-				Label:    DefaultLabelField,
-				Value:    DefaultValueField,
-				Series:   DefaultSeriesField,
-				Category: DefaultCategoryField,
-				ID:       DefaultIDField,
-				Cut:      DefaultCutField,
-				CutLabel: DefaultCutLabelField,
-				Final:    DefaultFinalField,
+				Label:        DefaultLabelField,
+				Value:        DefaultValueField,
+				Series:       DefaultSeriesField,
+				Category:     DefaultCategoryField,
+				ID:           DefaultIDField,
+				Cut:          DefaultCutField,
+				CutLabel:     DefaultCutLabelField,
+				Final:        DefaultFinalField,
+				Share:        DefaultShareField,
+				Confidence:   DefaultConfidenceField,
+				Availability: DefaultAvailabilityField,
 			},
 		},
 	}
@@ -645,6 +909,13 @@ func (b *Builder) SparklineColored(values []float64, color string) *Builder {
 	return b
 }
 
+// Target renders a target/threshold marker on a SegmentBar or HorizontalBar
+// panel (bullet-style): a tick at value with label beside it.
+func (b *Builder) Target(value float64, label string) *Builder {
+	b.spec.Target = &TargetSpec{Value: value, Label: label}
+	return b
+}
+
 // Layout selects a StatGroup's child arrangement (columns or rows).
 func (b *Builder) Layout(l GroupLayout) *Builder {
 	b.spec.GroupLayout = l
@@ -654,6 +925,20 @@ func (b *Builder) Layout(l GroupLayout) *Builder {
 // Presentation sets the panel's wire renderer density hints.
 func (b *Builder) Presentation(hints PresentationHints) *Builder {
 	b.spec.Presentation = hints
+	return b
+}
+
+// Waterfall renders this Cascade as vertical total/delta columns instead of
+// narrowing horizontal running-total rows.
+func (b *Builder) Waterfall() *Builder {
+	b.spec.Presentation.Waterfall = true
+	return b
+}
+
+// FocusCanvas opts this drill-hosting panel into focus chrome in the wire
+// runtime (breadcrumb, parent-context header, standalone lens selector).
+func (b *Builder) FocusCanvas() *Builder {
+	b.spec.Presentation.FocusCanvas = true
 	return b
 }
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
@@ -706,6 +991,48 @@ func (b *Builder) EndField(name FieldRef) *Builder      { b.spec.Fields.EndTime 
 func (b *Builder) CutField(name FieldRef) *Builder      { b.spec.Fields.Cut = name; return b }
 func (b *Builder) CutLabelField(name FieldRef) *Builder { b.spec.Fields.CutLabel = name; return b }
 func (b *Builder) FinalField(name FieldRef) *Builder    { b.spec.Fields.Final = name; return b }
+
+// ToneField declares the frame column carrying a per-row semantic tone for a
+// cascade panel's stages ("neutral", "positive", "negative", "inflow"). It
+// overrides the flow-direction default color; absent keeps direction coloring.
+func (b *Builder) ToneField(name FieldRef) *Builder { b.spec.Fields.Tone = name; return b }
+func (b *Builder) ShareField(name FieldRef) *Builder { b.spec.Fields.Share = name; return b }
+func (b *Builder) ConfidenceField(name FieldRef) *Builder {
+	b.spec.Fields.Confidence = name
+	return b
+}
+func (b *Builder) AvailabilityField(name FieldRef) *Builder {
+	b.spec.Fields.Availability = name
+	return b
+}
+
+// Confidence sets the panel-level default confidence for its elements.
+func (b *Builder) Confidence(confidence Confidence) *Builder {
+	b.spec.Confidence = confidence
+	return b
+}
+
+// Availability sets the panel-level default availability for its elements.
+func (b *Builder) Availability(availability Availability) *Builder {
+	b.spec.Availability = availability
+	return b
+}
+
+// FlowReconcile opts a MetricFlow panel into a tolerance-based mismatch note
+// between the displayed operands and the supplied result.
+func (b *Builder) FlowReconcile(tolerance float64) *Builder {
+	b.spec.FlowReconcile = &FlowReconciliation{Tolerance: tolerance}
+	return b
+}
+
+// HierarchyReconcile opts a MetricHierarchy panel into per-parent integrity
+// checks: SUM(direct children incl. unallocated) compared against the parent
+// within tolerance.
+func (b *Builder) HierarchyReconcile(tolerance float64) *Builder {
+	b.spec.HierarchyReconcile = &HierarchyReconciliation{Tolerance: tolerance}
+	return b
+}
+
 func (b *Builder) Columns(columns ...TableColumn) *Builder {
 	b.spec.Columns = columns
 	return b

@@ -175,6 +175,42 @@ func TestHandlers_DocumentQueryCacheAndAppend(t *testing.T) {
 	require.Contains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/composition:detail"))
 }
 
+// TestHandlers_DocumentExecutesSourceDataPanels pins the audit-table document
+// contract: a node's declared source table executes at document time through a
+// plain panel-scoped run (no lens_explore_* level coordinates), its frame
+// ships as source:<perspective>:<node>, and the level carries the disclosure.
+func TestHandlers_DocumentExecutesSourceDataPanels(t *testing.T) {
+	t.Parallel()
+	spec, frames := testDashboard(t)
+	sourceTable := panel.Table("source-panel", "Source rows", "root-data").IDField("id").Columns(
+		panel.TableColumn{Field: "label", Label: "Label"},
+	).Build()
+	root := spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
+	root.SourceData = &explore.SourceData{Label: "Исходные данные", Panel: sourceTable}
+	spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0] = root
+	frames["source-panel"] = testFrames(t, "source", 42)
+	executor := &fakeExecutor{frames: frames}
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: document.NewMemoryStore(time.Minute, 32), BasePath: "/dash", InlineDepth: 0,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: "tenant:test", Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+
+	doc := requestDocument(t, handlers, "/dash/document")
+	sourceRef := document.FrameRef("source:metric/focus/composition:root")
+	require.Contains(t, doc.Frames, sourceRef)
+	level := doc.Drill.Edges["metric/focus/composition/root"]
+	require.NotNil(t, level.Source)
+	require.Equal(t, "Исходные данные", level.Source.Label)
+	require.Equal(t, sourceRef, level.Source.Frame)
+	require.Equal(t, 1, executor.callCount("source-panel"))
+	call := executor.lastCall("source-panel")
+	require.Empty(t, call.request.Request.Get("lens_explorer"))
+	require.Empty(t, call.request.Request.Get("lens_explore_node"))
+}
+
 func TestHandlers_PointDrillsCacheDistinctFrames(t *testing.T) {
 	t.Parallel()
 	handlers, executor, store := newTestHandlers(t, 0)

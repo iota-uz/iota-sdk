@@ -275,6 +275,157 @@ func TestStatPanel_TrendInvertAndSparkline(t *testing.T) {
 	assert.Contains(t, rendered, "ON TRACK")
 }
 
+func TestStatPanel_QualityContract(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name               string
+		confidence         panel.Confidence
+		availability       panel.Availability
+		wantValue          string
+		wantQualityClass   string
+		wantTrendSparkline bool
+	}{
+		{
+			name:       "unavailable hides underlying zero",
+			confidence: panel.ConfidenceRequiresReconciliation, availability: panel.AvailabilityUnavailable,
+			wantValue: "—", wantQualityClass: "lens-quality-unavailable",
+		},
+		{
+			name:       "configuration required hides underlying value",
+			confidence: panel.ConfidenceRequiresReconciliation, availability: panel.AvailabilityConfigRequired,
+			wantValue: "—", wantQualityClass: "lens-quality-config-required",
+		},
+		{
+			name:       "empty source hides underlying value",
+			confidence: panel.ConfidenceRequiresReconciliation, availability: panel.AvailabilityEmptySource,
+			wantValue: "—", wantQualityClass: "lens-quality-empty-source",
+		},
+		{
+			name:       "available verified retains value",
+			confidence: panel.ConfidenceVerified, availability: panel.AvailabilityAvailable,
+			wantValue: "42.00", wantQualityClass: "lens-quality-verified", wantTrendSparkline: true,
+		},
+		{
+			name:       "available calculated retains value",
+			confidence: panel.ConfidenceCalculated, availability: panel.AvailabilityAvailable,
+			wantValue: "42.00", wantQualityClass: "lens-quality-calculated", wantTrendSparkline: true,
+		},
+		{
+			name:       "available reconciliation candidate retains value",
+			confidence: panel.ConfidenceRequiresReconciliation, availability: panel.AvailabilityAvailable,
+			wantValue: "42.00", wantQualityClass: "lens-quality-requires-reconciliation", wantTrendSparkline: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			fr, err := frame.New("kpis",
+				frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{42.0}},
+			)
+			require.NoError(t, err)
+			set, err := frame.NewFrameSet(fr)
+			require.NoError(t, err)
+			spec := panel.Stat("quality", "Quality metric", "kpis").
+				Confidence(tt.confidence).
+				Availability(tt.availability).
+				Trend(5, "vs LY").
+				Sparkline([]float64{1, 2, 3}).
+				Build()
+			result := &runtime.PanelResult{Panel: spec, Frames: set, Locale: "en"}
+
+			var html bytes.Buffer
+			err = StatPanel(spec, result, nil).Render(metricInfoContext(t, language.English), &html)
+			require.NoError(t, err)
+
+			rendered := html.String()
+			assert.Contains(t, rendered, tt.wantValue)
+			assert.Contains(t, rendered, "lens-stat-quality-chip")
+			assert.Contains(t, rendered, tt.wantQualityClass)
+			if tt.wantTrendSparkline {
+				assert.Contains(t, rendered, "lens-trend")
+				assert.Contains(t, rendered, "lens-spark")
+				assert.NotContains(t, rendered, "lens-stat--zero")
+			} else {
+				assert.NotContains(t, rendered, "42.00")
+				assert.NotContains(t, rendered, "lens-trend")
+				assert.NotContains(t, rendered, "lens-spark")
+				assert.Contains(t, rendered, "lens-stat--zero")
+			}
+		})
+	}
+}
+
+func TestStatPanel_RowQualityOverridesPanelDefaults(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("kpis",
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{99.0}},
+		frame.Field{Name: "confidence", Type: frame.FieldTypeString, Values: []any{string(panel.ConfidenceProxy)}},
+		frame.Field{Name: "availability", Type: frame.FieldTypeString, Values: []any{string(panel.AvailabilityConfigRequired)}},
+	)
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+	spec := panel.Stat("quality-override", "Quality override", "kpis").
+		Confidence(panel.ConfidenceVerified).
+		Availability(panel.AvailabilityAvailable).
+		Build()
+	result := &runtime.PanelResult{Panel: spec, Frames: set, Locale: "en"}
+
+	var html bytes.Buffer
+	err = StatPanel(spec, result, nil).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, "lens-quality-config-required")
+	assert.NotContains(t, rendered, "lens-quality-verified")
+	assert.Contains(t, rendered, "—")
+	assert.NotContains(t, rendered, "99.00")
+}
+
+func TestMetricFlowPanel_UnavailableSubtractKeepsSubtractOperator(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("flow",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"opening", "deduction", "closing"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{100.0, -25.0, 75.0}},
+		frame.Field{Name: "availability", Type: frame.FieldTypeString, Values: []any{
+			string(panel.AvailabilityAvailable),
+			string(panel.AvailabilityUnavailable),
+			string(panel.AvailabilityAvailable),
+		}},
+	)
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+	spec := panel.MetricFlow("flow", "Reserve movement", "flow",
+		panel.FlowStage{Key: "opening", Label: "Opening", Role: panel.FlowRoleInput},
+		panel.FlowStage{
+			Key: "deduction", Label: "Deduction", Role: panel.FlowRoleSubtract,
+			Availability: panel.AvailabilityUnavailable,
+		},
+		panel.FlowStage{Key: "closing", Label: "Closing", Role: panel.FlowRoleResult},
+	).Build()
+	result := &runtime.PanelResult{Panel: spec, Frames: set, Locale: "en"}
+
+	view := buildMetricFlowView(metricInfoContext(t, language.English), spec, result)
+	require.Len(t, view.Stages, 3)
+	assert.Equal(t, "−", view.Stages[1].Operator)
+	assert.True(t, view.Stages[1].Element.ShowDash)
+
+	var html bytes.Buffer
+	err = MetricFlowPanel(spec, result, nil).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, `class="lens-flow-op">−</span>`)
+	assert.NotContains(t, rendered, `class="lens-flow-op">+</span>`)
+}
+
 // StatGroup renders its children inside ONE card body, separated by hairline
 // dividers, with each child resolving its own dataset result.
 func TestStatGroupPanel_RendersChildrenInOneCard(t *testing.T) {
@@ -420,6 +571,45 @@ func TestCascadePanel_RendersNativeBridgeRows(t *testing.T) {
 	assert.Contains(t, rendered, "flex flex-col gap-1\"")
 	assert.NotContains(t, rendered, "apexcharts")
 	assert.NotContains(t, rendered, "<canvas")
+}
+
+func TestCascadePanel_RendersTrueWaterfallVariant(t *testing.T) {
+	t.Parallel()
+
+	fr, err := frame.New("bridge",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Opening reserve", "After new business", "Closing reserve"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{160.0, 279.06, 235.28}},
+		frame.Field{Name: "cut", Type: frame.FieldTypeNumber, Values: []any{0.0, -119.06, 43.78}},
+		frame.Field{Name: "cutLabel", Type: frame.FieldTypeString, Values: []any{"", "New business", "Coverage release"}},
+		frame.Field{Name: "final", Type: frame.FieldTypeBoolean, Values: []any{false, false, true}},
+	)
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+
+	spec := panel.Cascade("reserve-waterfall", "Reserve movement", "bridge").
+		Format(format.MoneyCompact("UZS")).
+		Waterfall().
+		Build()
+	result := &runtime.PanelResult{Panel: spec, Frames: set, Locale: "en"}
+
+	var html bytes.Buffer
+	err = CascadePanel(spec, result, nil).Render(metricInfoContext(t, language.English), &html)
+	require.NoError(t, err)
+
+	rendered := html.String()
+	assert.Contains(t, rendered, "data-lens-waterfall")
+	assert.Contains(t, rendered, "grid-template-columns:repeat(4,minmax(0,1fr))")
+	assert.Contains(t, rendered, "Opening reserve")
+	assert.Contains(t, rendered, "New business")
+	assert.Contains(t, rendered, "Coverage release")
+	assert.Contains(t, rendered, "Closing reserve")
+	assert.Contains(t, rendered, "+119 UZS")
+	assert.Contains(t, rendered, "−44 UZS")
+	assert.Contains(t, rendered, "bg-green-500")
+	assert.Contains(t, rendered, "bg-orange-500")
+	assert.Contains(t, rendered, "border-dashed")
+	assert.NotContains(t, rendered, "h-2.5 w-full overflow-hidden rounded-full")
 }
 
 func TestCascadePanel_RendersTrendChipInHeader(t *testing.T) {

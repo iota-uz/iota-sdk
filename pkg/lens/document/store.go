@@ -200,7 +200,45 @@ func cloneLevel(level Level) Level {
 		declaration.Action = cloneAction(declaration.Action)
 		level.DynamicChildren = &declaration
 	}
+	if level.Presentation != nil {
+		presentation := *level.Presentation
+		presentation.Sortable = cloneBool(level.Presentation.Sortable)
+		presentation.Expandable = cloneBool(level.Presentation.Expandable)
+		presentation.Exportable = cloneBool(level.Presentation.Exportable)
+		level.Presentation = &presentation
+	}
+	if level.Status != nil {
+		status := *level.Status
+		level.Status = &status
+	}
+	if level.Source != nil {
+		source := *level.Source
+		source.Columns = make([]TableColumn, len(level.Source.Columns))
+		for index, column := range level.Source.Columns {
+			column.Action = cloneAction(column.Action)
+			source.Columns[index] = column
+		}
+		if level.Source.Format != nil {
+			source.Format = make(map[string]FieldFormat, len(level.Source.Format))
+			for field, format := range level.Source.Format {
+				if format.Precision != nil {
+					precision := *format.Precision
+					format.Precision = &precision
+				}
+				source.Format[field] = format
+			}
+		}
+		level.Source = &source
+	}
 	return level
+}
+
+func cloneBool(value *bool) *bool {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 func cloneNodes(nodes []Node) []Node {

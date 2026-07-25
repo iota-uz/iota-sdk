@@ -59,6 +59,24 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		}
 		result.Panels[target.panel.ID] = levelResult
 	}
+	for _, target := range sourceDataTargets(h.spec, h.inlineDepth) {
+		existing := result.Panel(target.panel.ID)
+		if existing != nil && existing.Error == nil && existing.Frames != nil && existing.Frames.Primary() != nil {
+			continue
+		}
+		sourceResult, execErr := h.executeSourcePanel(r.Context(), req, frozen, target)
+		if execErr != nil {
+			// A panel-level failure drops the disclosure (document.Build skips
+			// declarations without an executed frame) instead of failing the
+			// whole document; transport failures still surface.
+			if sourceResult != nil && sourceResult.Error != nil {
+				continue
+			}
+			h.writeExecutionError(r.Context(), w, execErr)
+			return
+		}
+		result.Panels[target.panel.ID] = sourceResult
+	}
 	doc, err := document.Build(h.spec, result, document.BuildOptions{
 		Locale: result.Locale, InlineDepth: h.inlineDepth,
 		Endpoints: document.Endpoints{Query: h.endpoint("/lens/query"), Export: h.endpoint("/export")},

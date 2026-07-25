@@ -1,5 +1,5 @@
 import type { MouseEventHandler, ReactNode } from 'react'
-import type { Panel } from '../contract'
+import type { Panel, Sparkline } from '../contract'
 import { useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
 import { ArrowUpRight } from '../icons'
 import { usePanelNavigation, usePrefetch, type PrefetchHandlers } from './actions'
@@ -18,6 +18,46 @@ function numeric(value: unknown): number | undefined {
     if (Number.isFinite(parsed)) return parsed
   }
   return undefined
+}
+
+/**
+ * A quiet trend line riding beside the stat value — the same footprint as the
+ * legacy KPI-strip sparkline: a 1px polyline with a dot on the latest point.
+ * Decorative by contract (`aria-hidden`); the trend chip carries the words.
+ */
+export function StatSparkline({ sparkline }: { sparkline: Sparkline }) {
+  const width = 44
+  const height = 18
+  const values = sparkline.values.filter((value) => Number.isFinite(value))
+  if (values.length < 2) return null
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const span = max - min || 1
+  const points = values.map((value, index) => {
+    const x = (index / (values.length - 1)) * (width - 4) + 2
+    const y = height - 2.5 - ((value - min) / span) * (height - 5)
+    return `${x.toFixed(1)},${y.toFixed(1)}`
+  })
+  const [lastX, lastY] = points[points.length - 1]!.split(',')
+  const color = sparkline.color?.trim() || 'var(--lens-accent-500)'
+  return (
+    <svg
+      aria-hidden="true"
+      className="lens-stat-sparkline"
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      width={width}
+    >
+      <polyline
+        fill="none"
+        opacity={0.8}
+        points={points.join(' ')}
+        strokeWidth={1.25}
+        style={{ stroke: color }}
+      />
+      <circle cx={lastX} cy={lastY} r={1.8} style={{ fill: color }} />
+    </svg>
+  )
 }
 
 export function StatusChip({ status }: { status: NonNullable<Panel['status']> }) {
@@ -111,6 +151,7 @@ export function StatPanel({ panel }: StatPanelProps) {
               {deltaNumber !== undefined && deltaNumber > 0 ? '+' : ''}{formatDelta(delta)}
             </span>
           )}
+          {panel.sparkline && <StatSparkline sparkline={panel.sparkline} />}
         </div>
       </div>
       </StatLink>
@@ -138,9 +179,22 @@ export function StatMetric({ panel }: StatPanelProps) {
         <span className="lens-stat-metric-label-text">{caption}</span>
         {panel.status && <StatusChip status={panel.status} />}
       </p>
-      <p className="lens-stat-metric-value" title={formatValueExact(value)}>
-        {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
-      </p>
+      {/* A metric that carries a wire sparkline shows it inline to the right of
+          the value, echoing the hero card's trend line; a metric without one
+          keeps the bare value element so its layout stays pixel-identical. */}
+      {panel.sparkline ? (
+        <div className="lens-stat-metric-main">
+          <p className="lens-stat-metric-value" title={formatValueExact(value)}>
+            {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
+          </p>
+          <StatSparkline sparkline={panel.sparkline} />
+        </div>
+      ) : (
+        <p className="lens-stat-metric-value" title={formatValueExact(value)}>
+          {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
+        </p>
+      )}
+      {panel.caption && <p className="lens-stat-metric-caption">{panel.caption}</p>}
     </div>
     </StatLink>
   )

@@ -78,6 +78,249 @@ templ lensGridStyles() {
 		.lens-panel-fullscreen .lens-composite-fill > .lens-grid-item {
 			min-height: 0;
 		}
+
+		/* Native metric composition panels. These rules intentionally mirror
+		   the React renderer so an SSR dashboard and an embedded wire document
+		   communicate the same hierarchy and data-quality semantics. */
+		.lens-quality-chip {
+			display: inline-flex;
+			flex-shrink: 0;
+			align-items: center;
+			gap: 4px;
+			border-radius: var(--lens-radius-badge, 4px);
+			padding: 1px 6px;
+			font-size: 10px;
+			font-weight: 600;
+			letter-spacing: .01em;
+			line-height: 1.2;
+			text-transform: none;
+		}
+		.lens-quality-chip-icon { flex-shrink: 0; }
+		.lens-quality-chip-label { white-space: nowrap; }
+		.lens-quality-verified { background: var(--lens-bg-inset, #f8fafc); color: var(--lens-text-strong, #0f172a); }
+		.lens-quality-calculated { background: var(--lens-accent-50, #eff6ff); color: var(--lens-accent-700, #1d4ed8); }
+		.lens-quality-proxy { background: var(--lens-bg-inset, #f8fafc); color: var(--lens-text-muted, #64748b); }
+		.lens-quality-requires-reconciliation,
+		.lens-quality-config-required { background: var(--lens-warn-soft, #fffbeb); color: var(--lens-warn, #d97706); }
+		.lens-quality-empty-source,
+		.lens-quality-unavailable { background: var(--lens-bg-inset, #f8fafc); color: var(--lens-text-faint, #94a3b8); }
+
+		.lens-flow {
+			display: flex;
+			flex: 1;
+			flex-direction: column;
+			gap: 4px;
+			margin: 0;
+			padding: 16px;
+			list-style: none;
+		}
+		.lens-flow-stage {
+			display: flex;
+			align-items: baseline;
+			gap: 8px;
+			padding: 6px 0;
+		}
+		.lens-flow-op {
+			flex-shrink: 0;
+			width: 16px;
+			text-align: center;
+			font-size: .875rem;
+			font-weight: 600;
+			color: var(--lens-text-faint, #94a3b8);
+		}
+		.lens-flow-stage-main {
+			display: flex;
+			flex: 1;
+			min-width: 0;
+			flex-wrap: wrap;
+			align-items: baseline;
+			column-gap: 8px;
+			row-gap: 2px;
+			border: 0;
+			background: transparent;
+			padding: 0;
+			color: inherit;
+			text-align: start;
+			text-decoration: none;
+		}
+		.lens-flow-stage-label {
+			margin-inline-end: auto;
+			min-width: 0;
+			font-size: .875rem;
+			font-weight: 500;
+			color: var(--lens-text, #334155);
+		}
+		.lens-flow-stage-value {
+			flex-shrink: 0;
+			font-size: .875rem;
+			font-weight: 600;
+			color: var(--lens-text-strong, #0f172a);
+			font-variant-numeric: tabular-nums lining-nums;
+		}
+		.lens-flow-stage-caption {
+			flex-basis: 100%;
+			font-size: .75rem;
+			color: var(--lens-text-muted, #64748b);
+		}
+		.lens-flow-stage-link { cursor: pointer; }
+		.lens-flow-stage-link:hover .lens-flow-stage-label { color: var(--lens-text-strong, #0f172a); text-decoration: underline; }
+		.lens-flow-stage-result {
+			margin-top: 4px;
+			border-radius: var(--lens-radius-control, 6px);
+			border-inline-start: 2px solid var(--lens-accent-500, #2563eb);
+			background: var(--lens-accent-50, #eff6ff);
+			padding-inline-start: 12px;
+		}
+		.lens-flow-stage-result .lens-flow-stage-value { font-size: 1rem; }
+		.lens-flow-reconcile {
+			margin: 0;
+			padding: 0 16px 12px;
+			font-size: .75rem;
+			color: var(--lens-text-muted, #64748b);
+		}
+		@container (min-width: 46rem) {
+			.lens-flow { flex-direction: row; flex-wrap: wrap; align-items: stretch; gap: 8px; }
+			.lens-flow-stage {
+				flex: 1 1 0;
+				min-width: 0;
+				flex-direction: column;
+				align-items: flex-start;
+				gap: 4px;
+				border-radius: var(--lens-radius-control, 6px);
+				background: var(--lens-bg-inset, #f8fafc);
+				padding: 10px 12px;
+			}
+			.lens-flow-stage-result { margin-top: 0; background: var(--lens-accent-50, #eff6ff); }
+			.lens-flow-op { width: auto; }
+			.lens-flow-stage-main { width: 100%; flex: 0 0 auto; flex-direction: column; align-items: flex-start; flex-wrap: nowrap; }
+			.lens-flow-stage-caption { flex-basis: auto; }
+			.lens-flow-stage-label { margin-inline-end: 0; }
+		}
+
+		.lens-hierarchy {
+			display: flex;
+			flex: 1;
+			flex-direction: column;
+			margin: 0;
+			padding: 8px;
+			list-style: none;
+		}
+		.lens-hierarchy-row { border: 0; border-bottom: 1px solid var(--lens-divider, #f1f5f9); }
+		.lens-hierarchy-row:last-child { border-bottom: 0; }
+		.lens-hierarchy-row-selected { background: var(--lens-accent-50, #eff6ff); box-shadow: inset 3px 0 0 var(--lens-accent-500, #2563eb); }
+		.lens-hierarchy-row-inner {
+			display: grid;
+			width: 100%;
+			grid-template-columns: minmax(0, 1fr) auto auto;
+			align-items: baseline;
+			column-gap: 12px;
+			row-gap: 2px;
+			border: 0;
+			background: transparent;
+			padding: 6px 8px;
+			padding-inline-start: calc(var(--lens-depth, 0) * 14px + 8px);
+			color: inherit;
+			text-align: start;
+			text-decoration: none;
+		}
+		.lens-hierarchy-row-link { cursor: pointer; }
+		.lens-hierarchy-row-link:hover { background: var(--lens-bg-inset, #f8fafc); }
+		.lens-hierarchy-label { display: flex; min-width: 0; align-items: baseline; gap: 8px; }
+		.lens-hierarchy-guide { display: inline-block; flex-shrink: 0; width: 1px; height: .9em; margin-inline-end: 4px; background: var(--lens-border-strong, #cbd5e1); }
+		.lens-hierarchy-label-text {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-size: .875rem;
+			color: var(--lens-text, #334155);
+		}
+		.lens-hierarchy-row-parent .lens-hierarchy-label-text { font-weight: 600; color: var(--lens-text-strong, #0f172a); }
+		.lens-hierarchy-row-unallocated .lens-hierarchy-label-text { color: var(--lens-text-muted, #64748b); }
+		.lens-hierarchy-unallocated-tag {
+			flex-shrink: 0;
+			border-radius: var(--lens-radius-badge, 4px);
+			padding: 1px 6px;
+			background: var(--lens-bg-inset, #f8fafc);
+			color: var(--lens-text-faint, #94a3b8);
+			font-size: 10px;
+			font-weight: 500;
+			text-transform: uppercase;
+			letter-spacing: .04em;
+		}
+		.lens-hierarchy-description {
+			min-width: 0;
+			overflow: hidden;
+			text-overflow: ellipsis;
+			white-space: nowrap;
+			font-size: .75rem;
+			color: var(--lens-text-faint, #94a3b8);
+		}
+		.lens-hierarchy-value {
+			display: flex;
+			flex-shrink: 0;
+			align-items: baseline;
+			gap: 8px;
+			justify-self: end;
+			text-align: end;
+			font-size: .875rem;
+			font-weight: 600;
+			color: var(--lens-text-strong, #0f172a);
+			font-variant-numeric: tabular-nums lining-nums;
+		}
+		.lens-hierarchy-share { flex-shrink: 0; justify-self: end; text-align: end; font-size: .75rem; font-weight: 500; color: var(--lens-text-muted, #64748b); }
+		.lens-hierarchy-reconcile { margin: 0; padding: 0 8px 6px; padding-inline-start: calc(var(--lens-depth, 0) * 14px + 8px); font-size: .75rem; }
+		.lens-hierarchy-reconcile-balanced { color: var(--lens-text-muted, #64748b); }
+		.lens-hierarchy-reconcile-off { color: var(--lens-warn, #d97706); }
+
+		.lens-relationship {
+			display: flex;
+			flex: 1;
+			align-items: stretch;
+			gap: 12px;
+			padding: 16px;
+		}
+		.lens-relationship-end { display: flex; min-width: 0; flex: 1; flex-direction: column; }
+		.lens-relationship-end-inner {
+			display: flex;
+			height: 100%;
+			flex-direction: column;
+			gap: 4px;
+			border-radius: var(--lens-radius-control, 6px);
+			border: 1px solid var(--lens-border, #e2e8f0);
+			background: var(--lens-bg-inset, #f8fafc);
+			padding: 12px;
+			color: inherit;
+			text-align: start;
+			text-decoration: none;
+		}
+		.lens-relationship-end-link { cursor: pointer; }
+		.lens-relationship-end-link:hover { border-color: var(--lens-border-strong, #cbd5e1); }
+		.lens-relationship-end-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .75rem; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; color: var(--lens-text-muted, #64748b); }
+		.lens-relationship-end-value { display: flex; align-items: baseline; gap: 8px; font-size: 1.125rem; font-weight: 600; color: var(--lens-text-strong, #0f172a); font-variant-numeric: tabular-nums lining-nums; }
+		.lens-relationship-chip { align-self: flex-start; }
+		.lens-relationship-connector { display: flex; min-width: 4rem; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 0 4px; text-align: center; }
+		.lens-relationship-glyph { font-size: 1.25rem; line-height: 1; color: var(--lens-text-faint, #94a3b8); }
+		.lens-relationship-glyph-v { display: none; }
+		.lens-relationship-type { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--lens-text-muted, #64748b); }
+		.lens-relationship-note { font-size: .75rem; color: var(--lens-text-faint, #94a3b8); }
+		@container (max-width: 48rem) {
+			.lens-relationship { flex-direction: column; }
+			.lens-relationship-connector { min-width: 0; flex-direction: row; }
+			.lens-relationship-glyph-h { display: none; }
+			.lens-relationship-glyph-v { display: inline; }
+		}
+		.lens-visually-hidden {
+			position: absolute;
+			width: 1px;
+			height: 1px;
+			padding: 0;
+			margin: -1px;
+			overflow: hidden;
+			clip: rect(0, 0, 0, 0);
+			white-space: nowrap;
+			border: 0;
+		}
 	</style>
 }
 
@@ -3184,9 +3427,223 @@ templ PanelContent(spec panel.Spec, result *runtime.Result, resolvePanelErrorAct
 			@SegmentBarPanel(spec, currentPanel, resolvePanelErrorAction)
 		case panel.KindCascade:
 			@CascadePanel(spec, currentPanel, resolvePanelErrorAction)
+		case panel.KindMetricFlow:
+			@MetricFlowPanel(spec, currentPanel, resolvePanelErrorAction)
+		case panel.KindMetricHierarchy:
+			@MetricHierarchyPanel(spec, currentPanel, resolvePanelErrorAction)
+		case panel.KindMetricRelationship:
+			@MetricRelationshipPanel(spec, currentPanel, resolvePanelErrorAction)
 		default:
 			@ChartPanel(spec, currentPanel, resolvePanelErrorAction)
 	}
+}
+
+templ MetricQualityChip(confidence panel.Confidence, availability panel.Availability, className string) {
+	{{ quality := buildMetricQualityView(ctx, confidence, availability) }}
+	if quality.Label != "" {
+		<span
+			class={ "lens-status-chip lens-quality-chip " + quality.Class + " " + className }
+			title={ quality.Label }
+		>
+			<span class="lens-quality-chip-icon" aria-hidden="true">{ quality.Icon }</span>
+			<span class="lens-quality-chip-label">{ quality.Label }</span>
+		</span>
+	}
+}
+
+templ MetricFlowStageBody(view metricFlowStageView) {
+	<span class="lens-flow-stage-label">{ view.Stage.Label }</span>
+	<span class="lens-flow-stage-value">
+		if view.Element.ShowDash {
+			—
+		} else {
+			{ view.Element.Value }
+		}
+	</span>
+	@MetricQualityChip(view.Element.Confidence, view.Element.Availability, "lens-flow-stage-chip")
+	if view.Stage.Caption != "" {
+		<span class="lens-flow-stage-caption">{ view.Stage.Caption }</span>
+	}
+}
+
+templ MetricFlowPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	if result == nil || result.Error != nil {
+		@ErrorState(spec, result, resolvePanelErrorAction)
+		{{ return }}
+	}
+	{{ view := buildMetricFlowView(ctx, spec, result) }}
+	<ol class="lens-flow" role="list" aria-label={ spec.Title }>
+		for _, stage := range view.Stages {
+			<li
+				class={ "lens-flow-stage lens-flow-stage-" + string(stage.Stage.Role) }
+				data-result?={ stage.Stage.Role == panel.FlowRoleResult }
+				role="listitem"
+			>
+				if stage.Operator != "" {
+					<span aria-hidden="true" class="lens-flow-op">{ stage.Operator }</span>
+				}
+				if stage.Href != "" {
+					<a
+						class="lens-flow-stage-main lens-flow-stage-link"
+						href={ templ.URL(stage.Href) }
+						onclick={ stage.OnClick }
+						aria-label={ stage.Stage.Label }
+					>
+						@MetricFlowStageBody(stage)
+					</a>
+				} else if stage.OnClick.Call != "" {
+					<button
+						type="button"
+						class="lens-flow-stage-main lens-flow-stage-link"
+						onclick={ stage.OnClick }
+						aria-label={ stage.Stage.Label }
+					>
+						@MetricFlowStageBody(stage)
+					</button>
+				} else {
+					<div class="lens-flow-stage-main">
+						@MetricFlowStageBody(stage)
+					</div>
+				}
+			</li>
+		}
+	</ol>
+	if view.HasReconcile {
+		<p class="lens-flow-reconcile">{ view.Reconcile }</p>
+	}
+}
+
+templ MetricHierarchyRowBody(view metricHierarchyRowView) {
+	<span class="lens-hierarchy-label">
+		if view.Depth > 0 {
+			<span aria-hidden="true" class="lens-hierarchy-guide"></span>
+		}
+		<span class="lens-hierarchy-label-text" title={ view.Row.Label }>{ view.Row.Label }</span>
+		if view.Row.Unallocated {
+			<span class="lens-hierarchy-unallocated-tag">
+				{ translate(ctx, "Analytics.Lens.HierarchyUnallocated") }
+			</span>
+		}
+		if view.Row.Description != "" {
+			<span class="lens-hierarchy-description" title={ view.Row.Description }>{ view.Row.Description }</span>
+		}
+	</span>
+	<span class="lens-hierarchy-value">
+		if view.Element.ShowDash {
+			—
+		} else {
+			{ view.Element.Value }
+		}
+		@MetricQualityChip(view.Element.Confidence, view.Element.Availability, "lens-hierarchy-chip")
+	</span>
+	if view.Element.Share != "" {
+		<span class="lens-hierarchy-share">{ view.Element.Share }</span>
+	}
+}
+
+templ MetricHierarchyPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	if result == nil || result.Error != nil {
+		@ErrorState(spec, result, resolvePanelErrorAction)
+		{{ return }}
+	}
+	{{ views := buildMetricHierarchyView(ctx, spec, result) }}
+	<ul class="lens-hierarchy" role="list">
+		for _, view := range views {
+			<li
+				class={ metricHierarchyRowClass(view) }
+				style={ metricDepthStyle(view.Depth) }
+				aria-current?={ view.Row.Selected }
+			>
+				if view.Href != "" {
+					<a
+						class="lens-hierarchy-row-inner lens-hierarchy-row-link"
+						href={ templ.URL(view.Href) }
+						onclick={ view.OnClick }
+						aria-label={ view.Row.Label }
+					>
+						@MetricHierarchyRowBody(view)
+					</a>
+				} else if view.OnClick.Call != "" {
+					<button
+						type="button"
+						class="lens-hierarchy-row-inner lens-hierarchy-row-link"
+						onclick={ view.OnClick }
+						aria-label={ view.Row.Label }
+					>
+						@MetricHierarchyRowBody(view)
+					</button>
+				} else {
+					<div class="lens-hierarchy-row-inner" role="group" aria-label={ view.Row.Label }>
+						@MetricHierarchyRowBody(view)
+					</div>
+				}
+				if view.Reconcile != "" {
+					<p class={ metricHierarchyReconcileClass(view) }>{ view.Reconcile }</p>
+				}
+			</li>
+		}
+	</ul>
+}
+
+templ MetricRelationshipEnd(view metricRelationshipEndView, role string) {
+	<div class={ "lens-relationship-end lens-relationship-end-" + role }>
+		if view.Href != "" {
+			<a
+				class="lens-relationship-end-inner lens-relationship-end-link"
+				href={ templ.URL(view.Href) }
+				onclick={ view.OnClick }
+				aria-label={ view.End.Label }
+			>
+				@MetricRelationshipEndBody(view)
+			</a>
+		} else if view.OnClick.Call != "" {
+			<button
+				type="button"
+				class="lens-relationship-end-inner lens-relationship-end-link"
+				onclick={ view.OnClick }
+				aria-label={ view.End.Label }
+			>
+				@MetricRelationshipEndBody(view)
+			</button>
+		} else {
+			<div class="lens-relationship-end-inner">
+				@MetricRelationshipEndBody(view)
+			</div>
+		}
+	</div>
+}
+
+templ MetricRelationshipEndBody(view metricRelationshipEndView) {
+	<span class="lens-relationship-end-label" title={ view.End.Label }>{ view.End.Label }</span>
+	<span class="lens-relationship-end-value">
+		if view.Element.ShowDash {
+			—
+		} else {
+			{ view.Element.Value }
+		}
+	</span>
+	@MetricQualityChip(view.Element.Confidence, view.Element.Availability, "lens-relationship-chip")
+}
+
+templ MetricRelationshipPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	if result == nil || result.Error != nil {
+		@ErrorState(spec, result, resolvePanelErrorAction)
+		{{ return }}
+	}
+	{{ view := buildMetricRelationshipView(ctx, spec, result) }}
+	<div class="lens-relationship" data-type={ string(spec.Relationship.Type) }>
+		<p class="lens-visually-hidden">{ view.AccessibleText }</p>
+		@MetricRelationshipEnd(view.Source, "source")
+		<div aria-hidden="true" class="lens-relationship-connector" data-type={ string(spec.Relationship.Type) }>
+			<span class="lens-relationship-glyph lens-relationship-glyph-h">{ view.Horizontal }</span>
+			<span class="lens-relationship-glyph lens-relationship-glyph-v">{ view.Vertical }</span>
+			<span class="lens-relationship-type">{ view.TypeLabel }</span>
+			if spec.Relationship.Note != "" {
+				<span class="lens-relationship-note">{ spec.Relationship.Note }</span>
+			}
+		</div>
+		@MetricRelationshipEnd(view.Target, "target")
+	</div>
 }
 
 templ PanelFragment(props FragmentProps) {
@@ -3306,6 +3763,8 @@ templ TabsPanelFrames(spec panel.Spec, result *runtime.Result, fullscreen bool, 
 				@SegmentBarPanel(child, childPanel, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindCascade {
 				@CascadePanel(child, childPanel, resolvePanelErrorAction)
+			} else if child.Kind == panel.KindMetricFlow || child.Kind == panel.KindMetricHierarchy || child.Kind == panel.KindMetricRelationship {
+				@PanelContent(child, result, resolvePanelErrorAction)
 			} else if child.Kind == panel.KindTabs || child.Kind == panel.KindGrid || child.Kind == panel.KindSplit || child.Kind == panel.KindRepeat || child.Kind == panel.KindStatGroup {
 				@PanelContent(child, result, resolvePanelErrorAction)
 			} else if fullscreen {
@@ -3433,6 +3892,10 @@ templ segmentBarLegendContent(seg segmentBarSegment) {
 }
 
 templ CascadePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	if spec.Presentation.Waterfall {
+		@WaterfallPanel(spec, result, resolvePanelErrorAction)
+		{{ return }}
+	}
 	if result == nil || result.Error != nil {
 		@ErrorState(spec, result, resolvePanelErrorAction)
 		{{ return }}
@@ -3476,6 +3939,65 @@ templ CascadePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErr
 	</div>
 }
 
+templ WaterfallPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErrorAction PanelErrorActionResolver) {
+	if result == nil || result.Error != nil {
+		@ErrorState(spec, result, resolvePanelErrorAction)
+		{{ return }}
+	}
+	{{ view := buildWaterfallView(spec, result) }}
+	if !view.HasData {
+		@EmptyState(spec)
+		{{ return }}
+	}
+	{{ row := statRow(result) }}
+	{{ href := actionURL(spec.Action, row, result) }}
+	{{ onClick := actionOnClick(spec.Action, row, result) }}
+	<div class="group relative" data-lens-waterfall role="img" aria-label={ view.AriaLabel }>
+		if href != "" {
+			<a href={ templ.URL(href) } onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-10 block rounded-xl"></a>
+		} else if onClick.Call != "" {
+			<button type="button" onclick={ onClick } aria-label={ statAriaLabel(spec) } class="absolute inset-0 z-10 block h-full w-full rounded-xl"></button>
+		}
+		<div class="flex">
+			<div class="relative h-52 w-24 flex-none">
+				for _, tick := range view.Ticks {
+					<span class="absolute right-3 -translate-y-1/2 whitespace-nowrap text-[11px] tabular-nums text-slate-400" style={ tick.TopStyle }>{ tick.Label }</span>
+				}
+			</div>
+			<div class="relative h-52 min-w-0 flex-1">
+				for _, tick := range view.Ticks {
+					<div class="absolute left-0 right-0 z-0 border-t border-slate-200" style={ tick.TopStyle }></div>
+				}
+				<div class="absolute left-0 right-0 z-0 border-t border-slate-200" style={ view.ZeroStyle }></div>
+				<div class="absolute inset-0 grid gap-3" style={ view.GridStyle }>
+					for _, item := range view.Items {
+						<div class="relative min-w-0">
+							if item.ShowConnector {
+								<div class="absolute z-[1] border-t border-dashed border-slate-300" style={ item.ConnectorStyle }></div>
+							}
+							<div class={ "absolute left-1/4 right-1/4 z-[2] min-h-[3px] rounded-t-sm " + item.FillClass } style={ item.BarStyle }>
+								<span
+									class={ "absolute left-1/2 -translate-x-1/2 -translate-y-full -top-1 whitespace-nowrap text-[11px] font-semibold tabular-nums " + item.AmountClass }
+								>{ item.Amount }</span>
+							</div>
+						</div>
+					}
+				</div>
+			</div>
+		</div>
+		<div class="mt-2 ml-24 grid gap-3" style={ view.GridStyle }>
+			for _, item := range view.Items {
+				<div class="min-w-0 text-center text-xs font-medium leading-4 text-slate-600">{ item.Label }</div>
+			}
+		</div>
+		if spec.Trend != nil {
+			<div class="mt-3 flex justify-end">
+				@TrendChip(*spec.Trend)
+			</div>
+		}
+	</div>
+}
+
 templ TrendChip(trend panel.TrendSpec) {
 	<span class={ "flex-shrink-0 inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold " + trendChipClass(trend.Percent) }>
 		if arrow := trendArrow(trend.Percent); arrow != "" {
@@ -3509,9 +4031,10 @@ templ MetricInfoButtonWithText(infoText, class string) {
 }
 
 // statContent is the single stat card v2 layout inside .lens-stat:
-// label row (swatch + microlabel + status chip + info tooltip), headline
-// value, and an optional footer row (trend chip + sparkline). A zero/absent
-// primary value demotes the card (lens-stat--zero) and suppresses the footer.
+// label row (swatch + microlabel + quality/status chips + info tooltip),
+// headline value, and an optional footer row (trend chip + sparkline). A
+// zero/absent/unavailable primary value demotes the card (lens-stat--zero) and
+// suppresses the footer.
 templ statContent(spec panel.Spec, result *runtime.PanelResult, clickable bool) {
 	{{ view := buildStatView(spec, result) }}
 	<div class={ statClass(view.Zero, clickable) }>
@@ -3521,6 +4044,7 @@ templ statContent(spec panel.Spec, result *runtime.PanelResult, clickable bool) 
 			}
 			<span class="lens-microlabel truncate">{ spec.Title }</span>
 			<span class="min-w-0 flex-1"></span>
+			@MetricQualityChip(view.Confidence, view.Availability, "lens-stat-quality-chip")
 			if spec.Status != nil {
 				<span class={ statusChipClass(spec.Status.Tone) }>{ spec.Status.Label }</span>
 			}
@@ -4104,6 +4628,12 @@ templ LoadingState(spec panel.Spec, overlay bool) {
 				<div class="flex h-full w-full flex-col gap-3 p-5">
 					for i := 0; i < panelPlaceholderRows(spec); i++ {
 						<div class="h-12 animate-pulse rounded-xl bg-slate-100"></div>
+					}
+				</div>
+			case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
+				<div class="flex h-full w-full flex-col gap-3 p-4">
+					for i := 0; i < panelPlaceholderRows(spec); i++ {
+						<div class="h-12 animate-pulse rounded-lg bg-slate-100"></div>
 					}
 				</div>
 			case panel.KindTabs:

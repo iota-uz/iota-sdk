@@ -39,6 +39,9 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
   const headerEyebrow = header?.eyebrow?.trim() || eyebrow
   const headerTitle = header?.title?.trim()
   const headerCaption = header?.caption?.trim()
+  // The document opts into the wide variant (~1080px) for cross-metric detail
+  // views that host a full focus canvas; the slide-in motion is unchanged.
+  const wide = header?.size === 'wide'
 
   // The drawer portals to a body-level host, mirroring PanelOverlay: nested
   // inline in the app root it could never paint above the expand overlay (a
@@ -127,7 +130,7 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
       <div
         aria-label={label}
         aria-modal="true"
-        className="lens-drawer"
+        className={`lens-drawer${wide ? ' lens-drawer-wide' : ''}`}
         onKeyDown={onKeyDown}
         ref={dialogRef}
         role="dialog"

@@ -85,6 +85,24 @@ func TestPanelSpecMarshal_UsesDrillTreeJSONContract(t *testing.T) {
 	require.NotContains(t, string(payload), `"Branches"`)
 }
 
+// TestPanelBuilder_FocusCanvasAndTarget covers the focus-canvas builder
+// additions: FocusCanvas sets the presentation hint and Target lands on the
+// panel spec (and its JSON contract key).
+func TestPanelBuilder_FocusCanvasAndTarget(t *testing.T) {
+	t.Parallel()
+
+	spec := SegmentBar("coverage", "Coverage", "rows").
+		FocusCanvas().
+		Target(58.21, "Known liabilities").
+		Build()
+	require.True(t, spec.Presentation.FocusCanvas)
+	require.Equal(t, &panel.TargetSpec{Value: 58.21, Label: "Known liabilities"}, spec.Target)
+
+	payload, err := json.Marshal(spec) //nolint:musttag // PanelSpec is the canonical Lens JSON payload under test.
+	require.NoError(t, err)
+	require.Contains(t, string(payload), `"target":{"value":58.21,"label":"Known liabilities"}`)
+}
+
 func TestDocumentValidate(t *testing.T) {
 	t.Parallel()
 

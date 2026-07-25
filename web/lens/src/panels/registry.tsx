@@ -4,12 +4,24 @@ import { useTranslate } from '../runtime'
 import { CascadePanel, type CascadePanelProps } from './CascadePanel'
 import { CoveragePanel, type CoveragePanelProps } from './CoveragePanel'
 import { BarPanel, LinePanel, PiePanel, type ChartPanelProps } from './ChartPanel'
+import { MetricFlowPanel, type MetricFlowPanelProps } from './MetricFlowPanel'
+import { MetricHierarchyPanel, type MetricHierarchyPanelProps } from './MetricHierarchyPanel'
+import { MetricRelationshipPanel, type MetricRelationshipPanelProps } from './MetricRelationshipPanel'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 import { TablePanel, type TablePanelProps } from './TablePanel'
 
 /* eslint-disable react-refresh/only-export-components */
 
-export type PanelComponent = ComponentType<StatPanelProps | ChartPanelProps | CascadePanelProps | TablePanelProps | CoveragePanelProps>
+export type PanelComponent = ComponentType<
+  | StatPanelProps
+  | ChartPanelProps
+  | CascadePanelProps
+  | TablePanelProps
+  | CoveragePanelProps
+  | MetricFlowPanelProps
+  | MetricHierarchyPanelProps
+  | MetricRelationshipPanelProps
+>
 export type PanelRegistry = Partial<Record<PanelKind, PanelComponent>>
 
 export const UNSUPPORTED = [] as const satisfies readonly PanelKind[]
@@ -27,6 +39,9 @@ export const SUPPORTED = {
   cascade: CascadePanel,
   table: TablePanel,
   coverage: CoveragePanel,
+  metric_flow: MetricFlowPanel,
+  metric_hierarchy: MetricHierarchyPanel,
+  metric_relationship: MetricRelationshipPanel,
 } satisfies Record<SupportedKind, PanelComponent>
 
 function unsupportedPartition<const Kinds extends readonly PanelKind[]>(kinds: Kinds) {

@@ -25,6 +25,7 @@
     --lens-warn: #d97706;
     --lens-pos-soft: #ecfdf5;
     --lens-neg-soft: #fef2f2;
+    --lens-warn-soft: #fffbeb;
     /* 4px-base spacing scale. The dense-terminal grid rhythm (gaps, paddings,
        margins) references these instead of ad-hoc px literals so a single edit
        retunes the whole sheet. The half-step covers the tightest 2px gaps
@@ -49,6 +50,17 @@
     --lens-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
     --lens-shadow-popover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
     --lens-font: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
+    /* Motion vocabulary. Every new animation and transition references these
+       four easings and three durations instead of ad-hoc curves, so the whole
+       runtime accelerates and settles with one voice. The focus-canvas
+       reduced-motion block at the end of the sheet is the single kill switch
+       for everything built on them. */
+    --lens-ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+    --lens-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+    --lens-ease-spring: cubic-bezier(0.5, 1.4, 0.5, 1);
+    --lens-dur-fast: 120ms;
+    --lens-dur-base: 200ms;
+    --lens-dur-slow: 320ms;
   }
 
   lens-dashboard {
@@ -79,6 +91,7 @@
     --lens-shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
     --lens-pos-soft: rgba(5, 150, 105, 0.16);
     --lens-neg-soft: rgba(220, 38, 38, 0.16);
+    --lens-warn-soft: rgba(217, 119, 6, 0.16);
     color-scheme: dark;
   }
 
@@ -170,6 +183,12 @@
      under a fill-stretched panel. */
   .lens-drawer-document .lens-panel-fill {
     @apply lens-flex-none;
+  }
+
+  /* The wide variant hosts cross-metric detail views (a full focus canvas
+     inside the drawer); same chrome, same slide, roomier slab. */
+  .lens-drawer-wide {
+    max-width: min(1080px, calc(100vw - 24px));
   }
 
   @keyframes lens-drawer-enter {
@@ -968,6 +987,13 @@
     z-index: var(--lens-drawer-z, 2147483100);
   }
 
+  /* Segment/fork overlays opened by a focus canvas inside the drawer are part
+     of the drawer interaction, not the obscured page beneath it. They portal
+     to body too, so they need one explicit rung above the drawer root. */
+  .lens-overlay-root-over-drawer {
+    z-index: var(--lens-drawer-overlay-z, 2147483200);
+  }
+
   .lens-panel-overlay {
     @apply lens-fixed lens-inset-0 lens-flex lens-items-center lens-justify-center lens-p-6;
     /* Near-opaque: a sibling card behind the dialog must not read as content. */
@@ -1104,6 +1130,17 @@
   .lens-stat-metric-value {
     @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-stat-metric-caption {
+    @apply lens-m-0 lens-text-[11px] lens-leading-tight lens-text-muted;
+  }
+
+  /* The value and its trend line share one baseline-anchored row; the sparkline
+     rides the right edge (its own margin-left:auto) without displacing the
+     value. Only present when the metric carries a wire sparkline. */
+  .lens-stat-metric-main {
+    @apply lens-flex lens-min-w-0 lens-items-end lens-gap-3;
   }
 
   .lens-tabstrip {
@@ -1628,6 +1665,162 @@
 
   .lens-cascade-stage-final .lens-cascade-track span {
     background: var(--lens-pos);
+  }
+
+  /* Explicit per-stage semantic tone overrides the direction/final default so a
+     deduction reads as a cost (red) instead of merely a decrease. Absent when no
+     tone is set, keeping direction coloring byte-identical. */
+  .lens-cascade-stage[data-tone='negative'] .lens-cascade-track span {
+    background: var(--lens-neg);
+  }
+
+  .lens-cascade-stage[data-tone='positive'] .lens-cascade-track span {
+    background: var(--lens-pos);
+  }
+
+  .lens-cascade-stage[data-tone='neutral'] .lens-cascade-track span {
+    background: var(--lens-accent-500);
+  }
+
+  .lens-cascade-stage[data-tone='inflow'] .lens-cascade-track span {
+    background: var(--lens-warn);
+  }
+
+  .lens-cascade-stage[data-tone='negative'] .lens-cascade-stage-label strong {
+    color: var(--lens-neg);
+  }
+
+  .lens-cascade-stage[data-tone='positive'] .lens-cascade-stage-label strong {
+    color: var(--lens-pos);
+  }
+
+  .lens-cascade-stage[data-tone='inflow'] .lens-cascade-stage-label strong {
+    color: var(--lens-warn);
+  }
+
+  .lens-waterfall {
+    @apply lens-flex lens-flex-1 lens-flex-col lens-p-4;
+  }
+
+  .lens-waterfall-plot,
+  .lens-waterfall-labels {
+    display: grid;
+    grid-template-columns: repeat(var(--lens-waterfall-count), minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .lens-waterfall-chart {
+    @apply lens-grid;
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+
+  .lens-waterfall-axis {
+    @apply lens-relative;
+    height: 208px;
+  }
+
+  .lens-waterfall-axis span {
+    @apply lens-absolute lens-right-3 lens-whitespace-nowrap lens-text-[11px] lens-text-muted;
+    transform: translateY(-50%);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-waterfall-plot {
+    @apply lens-relative;
+    height: 208px;
+  }
+
+  .lens-waterfall-gridline {
+    @apply lens-absolute lens-left-0 lens-right-0 lens-z-0 lens-border-0 lens-border-t lens-border-solid lens-border-border;
+  }
+
+  .lens-waterfall-zero {
+    @apply lens-absolute lens-left-0 lens-right-0 lens-z-0 lens-border-0 lens-border-t lens-border-solid lens-border-border;
+    top: var(--lens-waterfall-zero);
+  }
+
+  .lens-waterfall-column {
+    @apply lens-relative lens-min-w-0;
+  }
+
+  .lens-waterfall-connector {
+    @apply lens-absolute lens-z-[1] lens-border-0 lens-border-t lens-border-dashed lens-border-border;
+    left: 75%;
+    width: calc(50% + 12px);
+  }
+
+  .lens-waterfall-bar {
+    @apply lens-absolute lens-left-1/4 lens-right-1/4 lens-z-[2] lens-rounded-t-sm;
+    min-height: 3px;
+    background: var(--lens-accent-500);
+  }
+
+  .lens-waterfall-bar[data-kind='increase'] {
+    background: #f97316;
+  }
+
+  .lens-waterfall-bar[data-kind='decrease'] {
+    background: #55c76a;
+  }
+
+  .lens-waterfall-bar[data-kind='end'] {
+    background: var(--lens-accent-500);
+  }
+
+  .lens-waterfall-bar strong {
+    @apply lens-absolute lens-left-1/2 lens-whitespace-nowrap lens-text-[11px] lens-font-semibold lens-text-strong;
+    top: -4px;
+    transform: translate(-50%, -100%);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-waterfall-bar[data-kind='increase'] strong {
+    color: #c2410c;
+  }
+
+  .lens-waterfall-bar[data-kind='decrease'] strong {
+    color: #15803d;
+  }
+
+  /* Explicit per-stage semantic tone overrides the direction default bar and
+     value-text color (rules follow the data-kind ones so equal specificity
+     resolves to tone). Absent when no tone is set, keeping direction coloring
+     byte-identical. */
+  .lens-waterfall-bar[data-tone='negative'] {
+    background: var(--lens-neg);
+  }
+
+  .lens-waterfall-bar[data-tone='positive'] {
+    background: var(--lens-pos);
+  }
+
+  .lens-waterfall-bar[data-tone='neutral'] {
+    background: var(--lens-accent-500);
+  }
+
+  .lens-waterfall-bar[data-tone='inflow'] {
+    background: var(--lens-warn);
+  }
+
+  .lens-waterfall-bar[data-tone='negative'] strong {
+    color: var(--lens-neg);
+  }
+
+  .lens-waterfall-bar[data-tone='positive'] strong {
+    color: var(--lens-pos);
+  }
+
+  .lens-waterfall-bar[data-tone='inflow'] strong {
+    color: var(--lens-warn);
+  }
+
+  .lens-waterfall-labels {
+    @apply lens-mt-2;
+    margin-left: 96px;
+  }
+
+  .lens-waterfall-labels span {
+    @apply lens-min-w-0 lens-text-center lens-text-xs lens-font-medium lens-leading-4 lens-text-muted;
   }
 
   .lens-table-view {
@@ -2511,6 +2704,25 @@
     animation-timing-function: ease-out;
   }
 
+  /* The focus-canvas host card: its group FLIPs the card bounds between the
+     authored grid span and the full row on canvas enter/exit, on the same
+     clock as the level swap inside it. */
+  ::view-transition-group(.lens-explore-host-transition) {
+    animation-duration: 180ms;
+    animation-timing-function: ease-out;
+  }
+
+  ::view-transition-old(.lens-explore-host-transition),
+  ::view-transition-new(.lens-explore-host-transition) {
+    animation-duration: 180ms;
+    animation-timing-function: ease-out;
+    /* The snapshots are the card shell only (the named chart, chrome and
+       source children are captured separately); stretching both to the group
+       box keeps the border/background continuous through the morph. */
+    height: 100%;
+    width: 100%;
+  }
+
   ::view-transition-old(.lens-explore-level-transition) {
     animation: lens-level-exit 180ms ease-out both;
   }
@@ -2529,6 +2741,1165 @@
     .lens-perspective-set button,
     .lens-segment {
       transition: none;
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Metric panels: data-quality chip, flow, hierarchy, relationship.       */
+  /* Class names stay literal so Tailwind's content scan keeps every rule.  */
+  /* ---------------------------------------------------------------------- */
+
+  /* An inactive tabpanel is emptied and hidden; the class sets display:grid,
+     which would otherwise override the [hidden] UA rule. */
+  .lens-tab-panel[hidden] {
+    display: none;
+  }
+
+  /* Quality chip: shares the status-chip footprint but reads in sentence case
+     so a longer status ("Requires reconciliation") stays legible. Icon + label
+     are always present, so tone is never the sole carrier of meaning. Tones are
+     quality-neutral — a verified figure is not a business "positive". */
+  .lens-quality-chip {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 4px;
+    border-radius: var(--lens-radius-badge);
+    padding: 1px 6px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    text-transform: none;
+    line-height: 1.2;
+    font-variant-numeric: normal;
+  }
+
+  .lens-quality-chip-icon {
+    flex-shrink: 0;
+  }
+
+  .lens-quality-chip-label {
+    white-space: nowrap;
+  }
+
+  .lens-quality-verified {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-strong);
+  }
+
+  .lens-quality-calculated {
+    background: var(--lens-accent-50);
+    color: var(--lens-accent-700);
+  }
+
+  /* Dark accent-700 text disappears against the translucent dark accent-50;
+     the light end of the accent ramp keeps the chip legible. */
+  .lens-root[data-theme='dark'] .lens-quality-calculated {
+    color: var(--lens-accent-300);
+  }
+
+  .lens-quality-proxy {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-muted);
+  }
+
+  .lens-quality-requires-reconciliation,
+  .lens-quality-config-required {
+    background: var(--lens-warn-soft);
+    color: var(--lens-warn);
+  }
+
+  .lens-quality-empty-source,
+  .lens-quality-unavailable {
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-faint);
+  }
+
+  /* Metric flow: a running formula. Narrow default is a vertical list with the
+     operator as a prefix column; wider containers reflow to a two-column grid
+     and then a connected horizontal chain. */
+  .lens-flow {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: 4px;
+    margin: 0;
+    padding: 16px;
+    list-style: none;
+  }
+
+  .lens-flow-stage {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 0;
+  }
+
+  .lens-flow-op {
+    flex-shrink: 0;
+    width: 16px;
+    text-align: center;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--lens-text-faint);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-flow-stage-main {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: baseline;
+    column-gap: 8px;
+    row-gap: 2px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .lens-flow-stage-label {
+    margin-right: auto;
+    min-width: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--lens-text);
+  }
+
+  .lens-flow-stage-value {
+    flex-shrink: 0;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-flow-stage-chip {
+    align-self: baseline;
+  }
+
+  .lens-flow-stage-caption {
+    flex-basis: 100%;
+    font-size: 0.75rem;
+    color: var(--lens-text-muted);
+  }
+
+  .lens-flow-stage-link:hover .lens-flow-stage-label {
+    color: var(--lens-text-strong);
+    text-decoration: underline;
+  }
+
+  /* The result stage is emphasized with an accent rule and a larger value — a
+     single accent, never a rainbow across the other stages. */
+  .lens-flow-stage-result {
+    margin-top: 4px;
+    border-radius: var(--lens-radius-control);
+    border-inline-start: 2px solid var(--lens-accent-500);
+    background: var(--lens-accent-50);
+    padding-inline-start: 12px;
+  }
+
+  .lens-flow-stage-result .lens-flow-stage-value {
+    font-size: 1rem;
+  }
+
+  .lens-flow-reconcile {
+    margin: 0;
+    padding: 0 16px 12px;
+    font-size: 0.75rem;
+    color: var(--lens-text-muted);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  @container lens-panel-body (min-width: 26rem) {
+    .lens-flow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      column-gap: 20px;
+      row-gap: 8px;
+    }
+
+    .lens-flow-stage-result {
+      grid-column: 1 / -1;
+    }
+  }
+
+  @container lens-panel-body (min-width: 46rem) {
+    .lens-flow {
+      display: flex;
+      flex-direction: row;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .lens-flow-stage {
+      flex: 1 1 0;
+      min-width: 0;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 4px;
+      border-radius: var(--lens-radius-control);
+      background: var(--lens-bg-inset);
+      padding: 10px 12px;
+    }
+
+    .lens-flow-stage-result {
+      margin-top: 0;
+      background: var(--lens-accent-50);
+    }
+
+    .lens-flow-op {
+      align-self: flex-start;
+      width: auto;
+    }
+
+    .lens-flow-stage-main {
+      flex: 0 0 auto;
+      width: 100%;
+      flex-direction: column;
+      align-items: flex-start;
+      /* Column + inherited wrap would push the 100%-basis caption into a
+         second column beside the label; the stacked layout never wraps. */
+      flex-wrap: nowrap;
+    }
+
+    .lens-flow-stage-caption {
+      flex-basis: auto;
+    }
+
+    .lens-flow-stage-label {
+      margin-right: 0;
+    }
+  }
+
+  /* Metric hierarchy: dense hairline rows (StatMetric density), depth by
+     indent + a structural guide rule, right-aligned tabular values, muted
+     share, and an optional per-parent reconciliation summary. */
+  .lens-hierarchy {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    margin: 0;
+    padding: 8px;
+    list-style: none;
+  }
+
+  .lens-hierarchy-row {
+    border: 0;
+    border-bottom: 1px solid var(--lens-divider);
+  }
+
+  .lens-hierarchy-row:last-child {
+    border-bottom: 0;
+  }
+
+  .lens-hierarchy-row-selected {
+    background: var(--lens-accent-50);
+    box-shadow: inset 3px 0 0 var(--lens-accent-500);
+  }
+
+  .lens-hierarchy-row-inner {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    column-gap: 12px;
+    row-gap: 2px;
+    padding: 6px 8px;
+    padding-inline-start: calc(var(--lens-depth, 0) * 14px + 8px);
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .lens-hierarchy-row-link:hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-hierarchy-label {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    gap: 8px;
+  }
+
+  .lens-hierarchy-guide {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1px;
+    height: 0.9em;
+    margin-inline-end: 4px;
+    background: var(--lens-border-strong);
+  }
+
+  .lens-hierarchy-label-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.875rem;
+    color: var(--lens-text);
+  }
+
+  .lens-hierarchy-row-parent .lens-hierarchy-label-text {
+    font-weight: 600;
+    color: var(--lens-text-strong);
+  }
+
+  .lens-hierarchy-row-unallocated .lens-hierarchy-label-text {
+    color: var(--lens-text-muted);
+  }
+
+  .lens-hierarchy-unallocated-tag {
+    flex-shrink: 0;
+    border-radius: var(--lens-radius-badge);
+    padding: 1px 6px;
+    background: var(--lens-bg-inset);
+    color: var(--lens-text-faint);
+    font-size: 10px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .lens-hierarchy-description {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    color: var(--lens-text-faint);
+  }
+
+  .lens-hierarchy-value {
+    display: flex;
+    flex-shrink: 0;
+    align-items: baseline;
+    gap: 8px;
+    justify-self: end;
+    text-align: right;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-hierarchy-chip {
+    align-self: center;
+  }
+
+  .lens-hierarchy-share {
+    flex-shrink: 0;
+    justify-self: end;
+    text-align: right;
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--lens-text-muted);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-hierarchy-reconcile {
+    margin: 0;
+    padding: 0 8px 6px;
+    padding-inline-start: calc(var(--lens-depth, 0) * 14px + 8px);
+    font-size: 0.75rem;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-hierarchy-reconcile-balanced {
+    color: var(--lens-text-muted);
+  }
+
+  .lens-hierarchy-reconcile-off {
+    color: var(--lens-warn);
+  }
+
+  /* At 320px-class widths the description drops, labels truncate, and the share
+     wraps under the value so the row stays usable. */
+  @container lens-panel-body (max-width: 22rem) {
+    .lens-hierarchy-description {
+      display: none;
+    }
+
+    /* The unallocated tag refuses to shrink; at 320px-class widths it must
+       wrap onto its own line instead of overflowing into the value column. */
+    .lens-hierarchy-label {
+      flex-wrap: wrap;
+    }
+
+    /* A long quality chip next to the value would squeeze the label column to
+       nothing, so the label takes the full row and the value drops below it. */
+    .lens-hierarchy-row-inner {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .lens-hierarchy-label {
+      grid-column: 1;
+      grid-row: 1;
+    }
+
+    .lens-hierarchy-value {
+      grid-column: 1;
+      grid-row: 2;
+      justify-self: end;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .lens-hierarchy-share {
+      grid-column: 1;
+      grid-row: 3;
+    }
+  }
+
+  /* Metric relationship: two end blocks and a typed connector. The connector
+     glyph is symmetric for association/reconciliation and directed only for
+     derivation; the vertical glyph is a separate character, never a rotation. */
+  .lens-relationship {
+    display: flex;
+    flex: 1;
+    align-items: stretch;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .lens-relationship-end {
+    display: flex;
+    min-width: 0;
+    flex: 1;
+    flex-direction: column;
+  }
+
+  .lens-relationship-end-inner {
+    display: flex;
+    height: 100%;
+    flex-direction: column;
+    gap: 4px;
+    border-radius: var(--lens-radius-control);
+    border: 1px solid var(--lens-border);
+    background: var(--lens-bg-inset);
+    padding: 12px;
+    color: inherit;
+    text-decoration: none;
+  }
+
+  .lens-relationship-end-link:hover {
+    border-color: var(--lens-border-strong);
+  }
+
+  .lens-relationship-end-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 0.75rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lens-text-muted);
+  }
+
+  .lens-relationship-end-value {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-relationship-chip {
+    align-self: flex-start;
+  }
+
+  .lens-relationship-connector {
+    display: flex;
+    flex: 0 1 16rem;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    min-width: 6rem;
+    max-width: 40%;
+    padding: 0 4px;
+    text-align: center;
+  }
+
+  .lens-relationship-glyph {
+    font-size: 1.25rem;
+    line-height: 1;
+    color: var(--lens-text-faint);
+  }
+
+  .lens-relationship-glyph-v {
+    display: none;
+  }
+
+  .lens-relationship-type {
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--lens-text-muted);
+  }
+
+  .lens-relationship-note {
+    max-width: 16rem;
+    overflow-wrap: anywhere;
+    font-size: 0.75rem;
+    color: var(--lens-text-faint);
+  }
+
+  /* Two metric cards plus a material reconciliation note need substantially
+     more room than a chart-only panel. Stack through tablet/dashboard-column
+     widths; the horizontal composition is reserved for genuinely wide cards. */
+  @container lens-panel-body (max-width: 48rem) {
+    .lens-relationship {
+      flex-direction: column;
+    }
+
+    .lens-relationship-connector {
+      flex-direction: row;
+      flex-basis: auto;
+      min-width: 0;
+      max-width: none;
+    }
+
+    .lens-relationship-glyph-h {
+      display: none;
+    }
+
+    .lens-relationship-glyph-v {
+      display: inline;
+    }
+  }
+
+  /* ---------------------------------------------------------------------- */
+  /* Focus canvas: the chrome an actively exploring panel wears when its    */
+  /* document opts in (`presentation.focus = "canvas"`). Breadcrumb, parent */
+  /* context with mini-chart, lens selector, and the collapsed source-data  */
+  /* disclosure — all outside the view-transitioning chart element.         */
+  /* Class names stay literal for Tailwind's content scan.                  */
+  /* ---------------------------------------------------------------------- */
+
+  /* An actively exploring canvas claims the whole row: the chrome, the chart,
+     the lens pills and the source table need the width, and the `lens-focus`
+     container queries below size the mini-chart and breadcrumb against it. The
+     card FLIP-morphs there through the host's view-transition-name; without
+     View Transitions (or with reduced motion) the reflow is instant and the
+     chrome's own enter animation carries the change. Gated on the focus class,
+     which only an actively exploring focus-canvas host wears, so a resting
+     host keeps its authored span and non-focus panels can never match. */
+  @media (min-width: 768px) {
+    .lens-grid-item:has(> .lens-explore-focus) {
+      grid-column: 1 / -1;
+    }
+  }
+
+  .lens-explore-focus {
+    container: lens-focus / inline-size;
+    box-sizing: border-box;
+    gap: var(--lens-space-3);
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-card);
+    background: var(--lens-bg-card);
+    box-shadow: var(--lens-shadow-card);
+    padding: var(--lens-space-4);
+  }
+
+  /* The chart is a region of the focus card, not a card of its own: the
+     inner panel sheds its border, shadow and header (the chrome above it
+     carries the identity), keeping one visual object. Non-focus panels are
+     untouched — none of these selectors can match without the focus class. */
+  .lens-explore-focus .lens-explore-level > .lens-panel {
+    min-height: 11rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .lens-explore-focus .lens-explore-level > .lens-panel > .lens-panel-header {
+    display: none;
+  }
+
+  /* A focus-canvas host inside a drawer is the drawer's whole subject, so it
+     wears the canvas treatment at rest, not only while exploring: it spans the
+     drawer's full width, carries the card frame once, and gives its body room
+     to breathe so the drawer never reads as a small card stranded in a corner.
+     Scoped to the drawer — a resting focus host on the main dashboard keeps its
+     authored span and card, so nothing there changes. */
+  .lens-drawer-document .lens-grid-item:has(> .lens-explore-drawer-focus) {
+    grid-column: 1 / -1;
+  }
+
+  .lens-explore-drawer-focus {
+    container: lens-focus / inline-size;
+    box-sizing: border-box;
+    gap: var(--lens-space-3);
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-card);
+    background: var(--lens-bg-card);
+    box-shadow: var(--lens-shadow-card);
+    padding: var(--lens-space-4);
+  }
+
+  /* The chart is a region of the canvas, not a card of its own — it sheds its
+     own frame and takes a taller floor so it fills the roomy drawer slab. */
+  .lens-explore-drawer-focus .lens-explore-level > .lens-panel {
+    min-height: 22rem;
+    border: 0;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .lens-focus-chrome {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lens-space-2);
+    min-width: 0;
+  }
+
+  /* Chrome reveal: a quiet top-down stagger when the canvas opens. The
+     elements mount once — level changes swap only the chart below them, so
+     the stagger never replays mid-exploration. */
+  .lens-focus-chrome > * {
+    animation: lens-focus-chrome-in var(--lens-dur-base) var(--lens-ease-out) both;
+  }
+
+  .lens-focus-chrome > :nth-child(2) {
+    animation-delay: 60ms;
+  }
+
+  @keyframes lens-focus-chrome-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .lens-focus-header {
+    display: flex;
+    flex-direction: column;
+    gap: var(--lens-space-2);
+    min-width: 0;
+  }
+
+  /* -- breadcrumb --------------------------------------------------------- */
+
+  .lens-focus-breadcrumb ol {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--lens-space-0-5);
+    min-width: 0;
+  }
+
+  .lens-focus-breadcrumb li {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lens-space-0-5);
+    min-width: 0;
+  }
+
+  .lens-focus-crumb {
+    border: 0;
+    background: transparent;
+    padding: 2px var(--lens-space-1);
+    border-radius: var(--lens-radius-badge);
+    font-family: var(--lens-font);
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--lens-accent-700);
+    max-width: 18rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    transition: background var(--lens-dur-fast) var(--lens-ease-standard),
+      color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  button.lens-focus-crumb {
+    cursor: pointer;
+    position: relative;
+  }
+
+  button.lens-focus-crumb:hover {
+    background: var(--lens-accent-50);
+  }
+
+  /* The underline slides out from the left on hover — an affordance that the
+     crumb is a way back, without the visual weight of a permanent link. */
+  button.lens-focus-crumb::after {
+    content: '';
+    position: absolute;
+    left: var(--lens-space-1);
+    right: var(--lens-space-1);
+    bottom: 1px;
+    height: 1px;
+    background: var(--lens-accent-700);
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform var(--lens-dur-fast) var(--lens-ease-out);
+  }
+
+  button.lens-focus-crumb:hover::after {
+    transform: scaleX(1);
+  }
+
+  .lens-focus-crumb-current {
+    color: var(--lens-text-strong);
+    font-weight: 600;
+    animation: lens-focus-crumb-grow var(--lens-dur-base) var(--lens-ease-out) both;
+  }
+
+  @keyframes lens-focus-crumb-grow {
+    from {
+      opacity: 0;
+      transform: translateX(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+
+  .lens-focus-crumb-sep {
+    color: var(--lens-text-faint);
+    flex: none;
+  }
+
+  /* The middle of a long path collapses to a static ellipsis only in a
+     narrow container; at full width every step stays clickable. The selectors
+     carry the breadcrumb ancestor so they outweigh the `li` display rule. */
+  .lens-focus-breadcrumb .lens-focus-crumb-gap {
+    display: none;
+    color: var(--lens-text-faint);
+    font-size: 12px;
+  }
+
+  /* -- context line ------------------------------------------------------- */
+
+  .lens-focus-context {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: var(--lens-space-4);
+    min-width: 0;
+  }
+
+  .lens-focus-context-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--lens-space-2) var(--lens-space-3);
+    min-width: 0;
+  }
+
+  .lens-focus-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--lens-text-strong);
+  }
+
+  .lens-focus-value {
+    font-size: 26px;
+    font-weight: 650;
+    letter-spacing: -0.015em;
+    line-height: 1.1;
+    color: var(--lens-text-strong);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-focus-share,
+  .lens-focus-period {
+    font-size: 12px;
+    color: var(--lens-text-muted);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* -- parent mini-chart -------------------------------------------------- */
+
+  .lens-focus-mini {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    border: 0;
+    background: transparent;
+    padding: var(--lens-space-1);
+    border-radius: var(--lens-radius-control);
+    transition: background var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  button.lens-focus-mini:not(:disabled) {
+    cursor: pointer;
+  }
+
+  .lens-focus-mini:not(:disabled):hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-focus-mini-caption {
+    font-size: 10px;
+    color: var(--lens-text-faint);
+  }
+
+  .lens-focus-mini-center {
+    fill: var(--lens-text);
+  }
+
+  .lens-focus-mini-baseline {
+    stroke: var(--lens-border);
+    stroke-width: 1;
+  }
+
+  /* -- lens selector ------------------------------------------------------ */
+
+  .lens-focus-lens {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--lens-space-2);
+    min-width: 0;
+  }
+
+  .lens-focus-lens-label {
+    font-size: 11.5px;
+    color: var(--lens-text-muted);
+    flex: none;
+  }
+
+  .lens-focus-lens-pills {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lens-space-1);
+    background: var(--lens-bg-inset);
+    border: 1px solid var(--lens-border);
+    border-radius: 999px;
+    padding: 2px;
+  }
+
+  .lens-focus-lens-pill {
+    position: relative;
+    z-index: 1;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--lens-space-1);
+    border: 0;
+    background: transparent;
+    font-family: var(--lens-font);
+    font-size: 12px;
+    font-weight: 550;
+    color: var(--lens-text-muted);
+    padding: 4px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--lens-dur-fast) var(--lens-ease-standard),
+      transform var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-focus-lens-pill:hover {
+    color: var(--lens-text-strong);
+    transform: scale(1.03);
+  }
+
+  .lens-focus-lens-pill-active {
+    color: var(--lens-accent-700);
+    font-weight: 600;
+  }
+
+  /* The active marker is one element sliding under the pills; position is an
+     inline transform, so the resting state is deterministic and the spring
+     only choreographs the trip between two rests. */
+  .lens-focus-lens-indicator {
+    position: absolute;
+    left: 0;
+    top: 2px;
+    bottom: 2px;
+    border-radius: 999px;
+    background: var(--lens-bg-card);
+    border: 1px solid var(--lens-accent-100);
+    box-shadow: var(--lens-shadow-card);
+    pointer-events: none;
+    z-index: 0;
+    transition: transform var(--lens-dur-base) var(--lens-ease-spring),
+      width var(--lens-dur-base) var(--lens-ease-spring);
+  }
+
+  .lens-focus-lens-more {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .lens-focus-lens-more-caret {
+    color: var(--lens-text-faint);
+  }
+
+  .lens-focus-lens-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    min-width: 12rem;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--lens-bg-card);
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-card);
+    box-shadow: var(--lens-shadow-popover);
+    padding: var(--lens-space-1);
+    animation: lens-focus-menu-pop var(--lens-dur-fast) var(--lens-ease-out);
+  }
+
+  @keyframes lens-focus-menu-pop {
+    from {
+      opacity: 0;
+      transform: translateY(-4px) scale(0.98);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+
+  .lens-focus-lens-option {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--lens-space-2);
+    border: 0;
+    background: transparent;
+    border-radius: var(--lens-radius-control);
+    padding: 6px 10px;
+    font-family: var(--lens-font);
+    font-size: 12.5px;
+    text-align: left;
+    color: var(--lens-text);
+    cursor: pointer;
+    transition: background var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-focus-lens-option:hover {
+    background: var(--lens-bg-inset);
+  }
+
+  .lens-focus-lens-option[aria-selected='true'] {
+    color: var(--lens-accent-700);
+    font-weight: 600;
+  }
+
+  .lens-focus-lens-option-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* -- source data disclosure --------------------------------------------- */
+
+  .lens-focus-source {
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-control);
+    background: var(--lens-bg-card);
+    min-width: 0;
+  }
+
+  .lens-focus-source-toggle {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: var(--lens-space-2);
+    border: 0;
+    background: transparent;
+    padding: 7px var(--lens-space-3);
+    font-family: var(--lens-font);
+    font-size: 12px;
+    color: var(--lens-text-muted);
+    text-align: left;
+    cursor: pointer;
+    transition: color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-focus-source-toggle:hover {
+    color: var(--lens-text);
+  }
+
+  .lens-focus-source-caret {
+    color: var(--lens-text-faint);
+    transition: transform var(--lens-dur-base) var(--lens-ease-standard);
+  }
+
+  .lens-focus-source-open .lens-focus-source-caret {
+    transform: rotate(90deg);
+  }
+
+  .lens-focus-source-label {
+    font-weight: 550;
+  }
+
+  .lens-focus-source-count {
+    color: var(--lens-text-faint);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-focus-source-body {
+    border-top: 1px solid var(--lens-border);
+    padding: var(--lens-space-3);
+    animation: lens-focus-chrome-in var(--lens-dur-base) var(--lens-ease-out) both;
+  }
+
+  .lens-focus-source-scroll {
+    overflow: auto;
+    max-height: 20rem;
+  }
+
+  .lens-focus-source-table thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--lens-bg-card);
+  }
+
+  .lens-focus-source-state {
+    margin: 0;
+    font-size: 12px;
+    color: var(--lens-text-faint);
+  }
+
+  /* -- responsive: narrow canvas / narrow drawer -------------------------- */
+
+  @container lens-focus (max-width: 47.5rem) {
+    .lens-focus-mini {
+      display: none;
+    }
+
+    .lens-focus-breadcrumb .lens-focus-crumb-middle {
+      display: none;
+    }
+
+    .lens-focus-breadcrumb .lens-focus-crumb-gap {
+      display: inline-flex;
+    }
+
+    .lens-focus-crumb {
+      max-width: 11rem;
+    }
+  }
+
+  @container lens-focus (max-width: 32.5rem) {
+    .lens-focus-value {
+      font-size: 21px;
+    }
+
+    .lens-focus-lens-label {
+      display: none;
+    }
+  }
+
+  /* -- coverage bullet (Panel.target) ------------------------------------- */
+
+  .lens-coverage-bullet {
+    position: relative;
+    /* Own the track's usual top rhythm so the child margin cannot collapse
+       through, and reserve a line under the track for the target label. */
+    padding-top: var(--lens-space-2);
+    padding-bottom: 18px;
+  }
+
+  .lens-coverage-bullet .lens-coverage-track {
+    margin-top: 0;
+  }
+
+  .lens-coverage-bullet-marker {
+    position: absolute;
+    top: 2px;
+    height: 22px;
+    width: 2px;
+    margin-left: -1px;
+    border-radius: 1px;
+    background: var(--lens-text-strong);
+    animation: lens-focus-marker-drop 420ms var(--lens-ease-spring) both;
+    animation-delay: 260ms;
+  }
+
+  @keyframes lens-focus-marker-drop {
+    0% {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    70% {
+      opacity: 1;
+      transform: translateY(2px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .lens-coverage-bullet-label {
+    position: absolute;
+    top: 27px;
+    transform: translateX(-50%);
+    font-size: 10.5px;
+    line-height: 1.3;
+    color: var(--lens-text-muted);
+    white-space: nowrap;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* A marker in the right half hangs its label leftwards so it cannot clip
+     against the card edge. */
+  .lens-coverage-bullet-label-end {
+    transform: translateX(-100%);
+  }
+
+  /* -- stat sparkline (Panel.sparkline) ----------------------------------- */
+
+  .lens-stat-sparkline {
+    flex: none;
+    margin-left: auto;
+    align-self: center;
+  }
+
+  /* -- single reduced-motion kill switch for the focus surface ------------ */
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-focus-chrome > *,
+    .lens-focus-crumb-current,
+    .lens-focus-source-body,
+    .lens-focus-lens-menu,
+    .lens-coverage-bullet-marker {
+      animation: none;
+    }
+
+    .lens-focus-crumb,
+    button.lens-focus-crumb::after,
+    .lens-focus-mini,
+    .lens-focus-lens-pill,
+    .lens-focus-lens-indicator,
+    .lens-focus-lens-option,
+    .lens-focus-source-toggle,
+    .lens-focus-source-caret {
+      transition: none;
+    }
+
+    .lens-focus-lens-pill:hover {
+      transform: none;
     }
   }
 }

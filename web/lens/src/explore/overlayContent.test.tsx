@@ -53,6 +53,27 @@ afterEach(() => {
 })
 
 describe('overlay segment header', () => {
+  it('stacks a segment overlay above the drawer that opened it', () => {
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={exploreDocument}>
+          <DashboardRuntimeProvider drawerDepth={1} locale="en">
+            <DrillOverlay
+              anchor={{ x: 200, y: 200 }}
+              onClose={() => {}}
+              onDrillChild={() => {}}
+              onDrillInto={() => {}}
+              onPerspective={() => {}}
+              target={{ node, label: 'Services', value: 8_765_432, breakdown: [], perspectives: [] }}
+            />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    expect(dialog().closest('.lens-root')).toHaveClass('lens-overlay-root-over-drawer')
+  })
+
   it('prints the value, the swatch color, and the share of the total once, rounded like a slice label', () => {
     renderOverlay({
       node,

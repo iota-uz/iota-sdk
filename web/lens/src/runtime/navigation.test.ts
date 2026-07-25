@@ -94,6 +94,19 @@ describe('navigationReducer', () => {
     expect(navigationReducer(opened, navigationActions.openDrawer('/drill/other/lens/document'))).toBe(opened)
   })
 
+  it('replaces an open drawer document while preserving the previous drawer for Back', () => {
+    const opened = navigationReducer(
+      createNavigationState({ path: ['dashboard'] }),
+      navigationActions.openDrawer('/drill/result/lens/document'),
+    )
+    const replaced = navigationReducer(opened, navigationActions.replaceDrawer('/drill/expenses/lens/document'))
+
+    expect(replaced.drawer?.src).toBe('/drill/expenses/lens/document')
+    expect(replaced.drawer?.path).toEqual([])
+    expect(replaced.history.at(-1)?.drawer?.src).toBe('/drill/result/lens/document')
+    expect(navigationReducer(replaced, navigationActions.back()).drawer?.src).toBe('/drill/result/lens/document')
+  })
+
   it('records drawer drill views in the same history and closes without adding an entry', () => {
     const opened = navigationReducer(createNavigationState({ path: ['dashboard'] }), navigationActions.openDrawer('/drill/document'))
     const drilled = navigationReducer(opened, navigationActions.updateDrawer({

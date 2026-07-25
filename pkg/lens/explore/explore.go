@@ -53,6 +53,30 @@ type Node struct {
 	DynamicTargets  []string         `json:"dynamicTargets,omitempty"`
 	DynamicChildren *DynamicChildren `json:"dynamicChildren,omitempty"`
 	Check           *BalanceCheck    `json:"check,omitempty"`
+	// View, when set, names the chart kind the wire runtime should render this
+	// level with, instead of the drill host panel's own kind. Empty keeps
+	// today's host-kind rendering; the document contract restricts it to chart
+	// kinds (no tables or metric panels).
+	View panel.Kind `json:"view,omitempty"`
+	// Presentation, when set, carries opt-in rendering hints for this level.
+	Presentation *panel.PresentationHints `json:"presentation,omitempty"`
+	// Status, when set, is a data-quality chip rendered next to this level's
+	// heading (already localized by the producer).
+	Status *panel.StatusSpec `json:"status,omitempty"`
+	// SourceData, when set, declares this level's audit table: the source rows
+	// behind the level's aggregate, rendered behind a collapsed disclosure.
+	SourceData *SourceData `json:"sourceData,omitempty"`
+}
+
+// SourceData declares a level's audit table. Panel must be a table spec; its
+// executed frame, declared columns, and formats are carried onto the wire
+// level. Like inline level frames, the frame ships only when the runtime
+// result carries the panel's execution — a missing result drops the
+// declaration from the document instead of failing the build.
+type SourceData struct {
+	// Label is the already-localized disclosure heading (e.g. "Source data").
+	Label string     `json:"label,omitempty"`
+	Panel panel.Spec `json:"panel"`
 }
 
 type DynamicChildren struct {
@@ -201,6 +225,14 @@ func (n Node) validate(explorerID, branchKey, perspectiveKey string, nodes map[s
 		}
 		if math.Abs(n.Check.Expected-n.Check.Actual) > n.Check.Tolerance {
 			return fmt.Errorf("explorer %s branch %s perspective %s node %s is out of balance", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+	}
+	if n.SourceData != nil {
+		if n.SourceData.Panel.Kind != panel.KindTable {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s source data requires a table panel", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		if strings.TrimSpace(n.SourceData.Panel.ID) == "" {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s source data requires a panel id", explorerID, branchKey, perspectiveKey, n.Key)
 		}
 	}
 	seen := make(map[string]struct{}, len(n.Edges))

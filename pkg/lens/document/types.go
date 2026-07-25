@@ -35,6 +35,16 @@ type DashboardDocument struct {
 	Drawer *DrawerHeader `json:"drawer,omitempty"`
 }
 
+// DrawerSize selects a host drawer's width treatment. An empty size keeps the
+// drawer's default width.
+type DrawerSize string
+
+const (
+	// DrawerSizeWide widens the drawer for cross-metric documents (a focus
+	// canvas hosted inside a drawer).
+	DrawerSizeWide DrawerSize = "wide"
+)
+
 // DrawerHeader is the identity block a drawer renders once, in its sticky top
 // bar, instead of repeating a page heading and per-panel titles. The producer
 // localizes every string.
@@ -48,6 +58,9 @@ type DrawerHeader struct {
 	// Caption is the muted supporting line (period, optional note). Newlines are
 	// preserved for a secondary note line.
 	Caption string `json:"caption,omitempty"`
+	// Size, when set, selects the host drawer's width treatment. Absent keeps
+	// the default drawer width.
+	Size DrawerSize `json:"size,omitempty"`
 }
 
 // DocumentHeader is the dashboard's own identity block: a strong title and a
@@ -87,7 +100,18 @@ type LayoutItem struct {
 	// Group, when set, folds this item and its consecutive siblings that
 	// carry the same group ID into one shared container card. Renderers that
 	// do not understand groups keep laying the items out individually.
+	//
+	// Deprecated for producers in favor of Groups: kept for backward
+	// compatibility only. When Groups is non-empty it is authoritative and Group
+	// is ignored; the Go builder mirrors the innermost group here for old
+	// readers.
 	Group *LayoutGroup `json:"group,omitempty"`
+	// Groups is the nested-container chain this item belongs to, ordered
+	// outermost → innermost (the last element is the item's immediate container).
+	// Consumers use Groups when it is non-empty and fall back to the singular
+	// Group otherwise. Existing payloads that carry only Group keep byte- and
+	// behavior-compatible.
+	Groups []LayoutGroup `json:"groups,omitempty"`
 }
 
 // LayoutGroupKind selects how a shared container arranges its members.
@@ -211,7 +235,211 @@ const (
 	// form of a segment-bar panel: a part-of-whole statement about a single
 	// amount, not a chart.
 	PanelKindCoverage PanelKind = "coverage"
+	// PanelKindMetricFlow renders a left-to-right result formula: a sequence of
+	// signed operand stages that read to a single supplied result. It covers the
+	// "формула" link type — how a headline metric is composed arithmetically —
+	// and is not a chart. See MetricFlowConfig.
+	PanelKindMetricFlow PanelKind = "metric_flow"
+	// PanelKindMetricHierarchy renders a compact, indented decomposition of one
+	// parent metric into child rows with integrity checks (roots, cycles,
+	// optional parent↔children reconciliation). See MetricHierarchyConfig.
+	PanelKindMetricHierarchy PanelKind = "metric_hierarchy"
+	// PanelKindMetricRelationship renders an explicit, non-arithmetic link
+	// between two metrics (the "связь" link type) — a neutral association, a
+	// derivation, or a reconciliation, with an explicit direction. See
+	// MetricRelationshipConfig.
+	PanelKindMetricRelationship PanelKind = "metric_relationship"
 )
+
+// Confidence states how a displayed number was produced. It is orthogonal to
+// Availability: Confidence qualifies a number that exists, Availability says
+// whether a number can exist at all. Both are settable at the panel level and
+// per element; a frame column value overrides the structural default. When the
+// chip precedence resolves to a visible quality chip, Confidence is shown only
+// when Availability is available (see Availability's chip-precedence note). An
+// empty Confidence is unset (no confidence chip).
+type Confidence string
+
+const (
+	// ConfidenceVerified is a directly measured / booked number (ФАКТ).
+	ConfidenceVerified Confidence = "verified"
+	// ConfidenceCalculated is produced by a documented formula from verified
+	// inputs (РАСЧЁТ).
+	ConfidenceCalculated Confidence = "calculated"
+	// ConfidenceProxy is a heuristic reconstruction / stand-in (ПРОКСИ).
+	ConfidenceProxy Confidence = "proxy"
+	// ConfidenceRequiresReconciliation marks a number not yet reconciled against
+	// its authoritative source.
+	ConfidenceRequiresReconciliation Confidence = "requires_reconciliation"
+)
+
+// Availability states whether a number can exist for an element, independent of
+// how trustworthy it would be (that is Confidence). Chip precedence is
+// availability-first: when Availability is anything other than available, the
+// renderer shows the Availability chip and never the Confidence chip, so an
+// element never carries two competing chips. A genuine numeric 0 is a distinct
+// state and is never a substitute for a non-available status. An empty
+// Availability is unset and treated as available.
+type Availability string
+
+const (
+	// AvailabilityAvailable means the number exists and can be shown.
+	AvailabilityAvailable Availability = "available"
+	// AvailabilityConfigRequired means a plan/threshold/assumption is missing, so
+	// the number cannot be produced until configured (НАСТРОЙКА).
+	AvailabilityConfigRequired Availability = "config_required"
+	// AvailabilityEmptySource means the structure exists but there are no
+	// operational rows behind it yet (КОНТУР ПУСТ).
+	AvailabilityEmptySource Availability = "empty_source"
+	// AvailabilityUnavailable means the business event is simply not stored, so
+	// no number exists (НЕТ ДАННЫХ).
+	AvailabilityUnavailable Availability = "unavailable"
+)
+
+// MetricFlowStageRole is the formula grammar of a flow stage. It governs the
+// single normalized operator glyph the renderer prints for the stage and
+// nothing else: frame values stay signed business amounts, and the renderer is
+// never the authoritative calculator. An add/subtract stage renders exactly one
+// operator plus the absolute formatted magnitude, so a negative movement under
+// subtract reads as "+ |v|", never "− −v". The formula reads left-to-right to
+// exactly one result stage, which carries an independently supplied server
+// value.
+type MetricFlowStageRole string
+
+const (
+	// MetricFlowRoleInput is the leading operand the formula starts from.
+	MetricFlowRoleInput MetricFlowStageRole = "input"
+	// MetricFlowRoleAdd contributes its magnitude with a "+" operator.
+	MetricFlowRoleAdd MetricFlowStageRole = "add"
+	// MetricFlowRoleSubtract contributes its magnitude with a "−" operator.
+	MetricFlowRoleSubtract MetricFlowStageRole = "subtract"
+	// MetricFlowRoleIntermediate is a non-terminal running subtotal shown inline.
+	MetricFlowRoleIntermediate MetricFlowStageRole = "intermediate"
+	// MetricFlowRoleResult is the single terminal stage; its value is supplied by
+	// the server, not computed by the renderer.
+	MetricFlowRoleResult MetricFlowStageRole = "result"
+)
+
+// MetricRelationshipType selects the kind of non-arithmetic link a relationship
+// panel states between its two ends.
+type MetricRelationshipType string
+
+const (
+	// MetricRelationshipAssociation is a neutral economic link between two
+	// metrics that must not imply part-of, subtraction, or derivation. It is the
+	// primary case and renders with a symmetric connector.
+	MetricRelationshipAssociation MetricRelationshipType = "association"
+	// MetricRelationshipDerivation states that the target is derived from the
+	// source. Direction carries the emphasis.
+	MetricRelationshipDerivation MetricRelationshipType = "derivation"
+	// MetricRelationshipReconciliation states that the two ends reconcile against
+	// each other; symmetric by nature.
+	MetricRelationshipReconciliation MetricRelationshipType = "reconciliation"
+)
+
+// MetricRelationshipDirection is the explicit direction of a relationship. It is
+// never inferred from the order of the ends. An empty direction defaults to
+// bidirectional.
+type MetricRelationshipDirection string
+
+const (
+	// MetricRelationshipBidirectional is a neutral, symmetric connector (⇄).
+	MetricRelationshipBidirectional MetricRelationshipDirection = "bidirectional"
+	// MetricRelationshipSourceToTarget points from source to target (→).
+	MetricRelationshipSourceToTarget MetricRelationshipDirection = "source_to_target"
+	// MetricRelationshipTargetToSource points from target to source (←).
+	MetricRelationshipTargetToSource MetricRelationshipDirection = "target_to_source"
+)
+
+// MetricFlowConfig is the structure of a metric_flow panel: an ordered list of
+// operand stages plus an optional reconciliation tolerance. Numeric values are
+// joined from the panel frame by stage Key via the panel encoding; the config
+// carries only structure (keys, labels, roles, captions, quality, actions).
+type MetricFlowConfig struct {
+	Stages    []MetricFlowStage   `json:"stages"`
+	Reconcile *FlowReconciliation `json:"reconcile,omitempty"`
+}
+
+// MetricFlowStage is one operand of a result formula. Role is formula grammar
+// only (see MetricFlowStageRole); the stage's numeric value is joined from the
+// frame by Key and stays a signed business amount.
+type MetricFlowStage struct {
+	Key   string              `json:"key"`
+	Label string              `json:"label"`
+	Role  MetricFlowStageRole `json:"role"`
+	// Caption is one muted secondary line rendered under the stage value.
+	Caption      string       `json:"caption,omitempty"`
+	Confidence   Confidence   `json:"confidence,omitempty"`
+	Availability Availability `json:"availability,omitempty"`
+	// Action, when set, makes the stage an actionable link/button.
+	Action *Action `json:"action,omitempty"`
+}
+
+// FlowReconciliation opts a flow into a compact mismatch note: the renderer
+// compares the displayed operands against the supplied result and, when the
+// difference exceeds Tolerance, shows a note. It never replaces the result.
+type FlowReconciliation struct {
+	Tolerance float64 `json:"tolerance,omitempty"`
+}
+
+// MetricHierarchyConfig is the structure of a metric_hierarchy panel: a flat
+// list of rows linked by Parent, plus an optional reconciliation tolerance.
+// Numeric values are joined from the panel frame by row Key via the encoding.
+type MetricHierarchyConfig struct {
+	Rows      []MetricHierarchyRow     `json:"rows"`
+	Reconcile *HierarchyReconciliation `json:"reconcile,omitempty"`
+}
+
+// MetricHierarchyRow is one node of a metric decomposition. Parent is the
+// authoritative single source of the hierarchy shape; Depth is derived from the
+// Parent chains at build time and carried only as a renderer convenience — it is
+// never producer-supplied truth. When Depth is non-zero it must equal the
+// derived depth.
+type MetricHierarchyRow struct {
+	Key         string `json:"key"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	// Parent names the Key of this row's parent; empty marks a root row.
+	Parent string `json:"parent,omitempty"`
+	// Depth is build-derived from the Parent chain (0 for a root). Producers
+	// leave it zero; the builder fills it for renderer convenience.
+	Depth int `json:"depth,omitempty"`
+	// Unallocated marks an explicit producer-provided «Не распределено» child.
+	// The SDK never manufactures one; at most one per parent.
+	Unallocated bool `json:"unallocated,omitempty"`
+	// Selected marks the single row rendered as aria-current; at most one row.
+	Selected     bool         `json:"selected,omitempty"`
+	Confidence   Confidence   `json:"confidence,omitempty"`
+	Availability Availability `json:"availability,omitempty"`
+	Action       *Action      `json:"action,omitempty"`
+}
+
+// HierarchyReconciliation opts a hierarchy into per-parent integrity checks: for
+// each parent the renderer compares SUM(direct children incl. unallocated)
+// against the parent within Tolerance and shows a compact summary.
+type HierarchyReconciliation struct {
+	Tolerance float64 `json:"tolerance,omitempty"`
+}
+
+// MetricRelationshipConfig is the structure of a metric_relationship panel: two
+// ends, a link type, an explicit direction, and an optional note.
+type MetricRelationshipConfig struct {
+	Source    MetricRelationshipEnd       `json:"source"`
+	Target    MetricRelationshipEnd       `json:"target"`
+	Type      MetricRelationshipType      `json:"type"`
+	Direction MetricRelationshipDirection `json:"direction,omitempty"`
+	Note      string                      `json:"note,omitempty"`
+}
+
+// MetricRelationshipEnd is one side of a relationship. Its numeric value is
+// joined from the panel frame by Key via the encoding.
+type MetricRelationshipEnd struct {
+	Key          string       `json:"key"`
+	Label        string       `json:"label"`
+	Confidence   Confidence   `json:"confidence,omitempty"`
+	Availability Availability `json:"availability,omitempty"`
+	Action       *Action      `json:"action,omitempty"`
+}
 
 type Semantics string
 
@@ -249,9 +477,28 @@ type Panel struct {
 	// Trend is a signed change chip rendered in the panel footer, e.g.
 	// "▲ +12.4% vs previous period".
 	Trend *PanelTrend `json:"trend,omitempty"`
+	// Sparkline is a small inline trend polyline rendered in a stat panel's
+	// footer row.
+	Sparkline *Sparkline `json:"sparkline,omitempty"`
+	// Target is a target/threshold marker rendered on a coverage or hbar panel
+	// (bullet-style).
+	Target *PanelTarget `json:"target,omitempty"`
 	// Presentation carries opt-in rendering hints. Every field is optional
 	// and absent hints keep the renderer's default treatment.
 	Presentation *Presentation `json:"presentation,omitempty"`
+	// MetricFlow carries the structure of a metric_flow panel. Exactly the
+	// panel kind's own config field must be set.
+	MetricFlow *MetricFlowConfig `json:"metricFlow,omitempty"`
+	// MetricHierarchy carries the structure of a metric_hierarchy panel.
+	MetricHierarchy *MetricHierarchyConfig `json:"metricHierarchy,omitempty"`
+	// MetricRelationship carries the structure of a metric_relationship panel.
+	MetricRelationship *MetricRelationshipConfig `json:"metricRelationship,omitempty"`
+	// Confidence is the panel-level default confidence for its elements; a
+	// frame column value or an element's own confidence overrides it.
+	Confidence Confidence `json:"confidence,omitempty"`
+	// Availability is the panel-level default availability for its elements; a
+	// frame column value or an element's own availability overrides it.
+	Availability Availability `json:"availability,omitempty"`
 }
 
 // StatusTone selects a status chip's color treatment.
@@ -275,6 +522,23 @@ type PanelTrend struct {
 	Percent float64 `json:"percent"`
 	Label   string  `json:"label,omitempty"`
 	Invert  bool    `json:"invert,omitempty"`
+}
+
+// Sparkline is a small inline trend polyline rendered in a stat panel's footer
+// row. Values are plotted left-to-right, normalized to the sparkline viewbox;
+// Color overrides the default accent stroke when set (any CSS color).
+type Sparkline struct {
+	Values []float64 `json:"values"`
+	Color  string    `json:"color,omitempty"`
+}
+
+// PanelTarget is a target/threshold marker rendered on a coverage or hbar
+// panel: a bullet-style tick at Value with an optional already-localized
+// Label beside it. Value is in the same units as the panel's plotted amounts;
+// the renderer never rescales it.
+type PanelTarget struct {
+	Value float64 `json:"value"`
+	Label string  `json:"label,omitempty"`
 }
 
 // LegendPlacement selects where a chart panel renders its own legend.
@@ -316,6 +580,46 @@ const (
 	ColorByCategory ColorBy = "category"
 )
 
+// BridgeLayout selects the visual projection of a cascade/bridge panel.
+type BridgeLayout string
+
+const (
+	// BridgeLayoutWaterfall renders opening/closing totals as columns from zero
+	// and the intervening running-balance changes as floating columns.
+	BridgeLayoutWaterfall BridgeLayout = "waterfall"
+)
+
+// CascadeTone is the explicit per-stage semantic color of a cascade/waterfall
+// panel, carried per row by the Encoding.Tone column. It overrides the
+// flow-direction default so a stage reads by meaning (a cost is negative/red)
+// rather than by direction (a decrease is green). Values are validated
+// leniently: an unrecognized tone falls back to the direction default.
+type CascadeTone string
+
+const (
+	// CascadeToneNeutral is a total / running balance (navy accent).
+	CascadeToneNeutral CascadeTone = "neutral"
+	// CascadeTonePositive is a genuine favorable movement, e.g. a reserve
+	// release that increases profit (green).
+	CascadeTonePositive CascadeTone = "positive"
+	// CascadeToneNegative is a cost / deduction that reduces the result (red).
+	CascadeToneNegative CascadeTone = "negative"
+	// CascadeToneInflow is an incoming amount added to the running balance
+	// (orange).
+	CascadeToneInflow CascadeTone = "inflow"
+)
+
+// FocusMode selects the drill chrome of a drill-hosting panel. An empty mode
+// keeps today's in-card drill rendering.
+type FocusMode string
+
+const (
+	// FocusModeCanvas renders the panel's drill flow as a focus canvas: a
+	// persistent breadcrumb, a parent-context header, and a standalone lens
+	// selector around the drilled visualization.
+	FocusModeCanvas FocusMode = "canvas"
+)
+
 type Presentation struct {
 	Legend      LegendPlacement     `json:"legend,omitempty"`
 	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
@@ -325,6 +629,8 @@ type Presentation struct {
 	Fill bool `json:"fill,omitempty"`
 	// BarWidthPx pins the rendered bar thickness in CSS pixels.
 	BarWidthPx int `json:"barWidthPx,omitempty"`
+	// BridgeLayout selects an alternate visual projection for a cascade.
+	BridgeLayout BridgeLayout `json:"bridgeLayout,omitempty"`
 	// Sortable, when explicitly false, removes a table panel's sort affordances
 	// (column sort buttons + the "sort applies to this page" footer). A static
 	// identity table (e.g. a fixed decomposition) sets it false; nil keeps the
@@ -343,6 +649,9 @@ type Presentation struct {
 	// synthetic expander row for the group named by its prefix; any other tag
 	// marks a collapsed member, hidden until its toggle is expanded.
 	RowGroupField string `json:"rowGroupField,omitempty"`
+	// Focus, when set on a drill-hosting panel, opts its drill flow into focus
+	// chrome. Absent keeps today's in-card drill rendering.
+	Focus FocusMode `json:"focus,omitempty"`
 }
 
 type TableColumn struct {
@@ -428,6 +737,23 @@ type Encoding struct {
 	Cut      string `json:"cut,omitempty"`
 	CutLabel string `json:"cutLabel,omitempty"`
 	Final    string `json:"final,omitempty"`
+	// Tone names a frame column carrying a per-row semantic tone for a
+	// cascade/waterfall stage: one of CascadeTone's values ("neutral",
+	// "positive", "negative", "inflow" → navy / green / red / orange). It
+	// overrides the flow-direction default color, so a deduction reads as a cost
+	// (negative/red) instead of merely a decrease (green). An unknown or empty
+	// per-row value falls back to the direction default. Optional; absent keeps
+	// the panel's flow-direction coloring byte- and behavior-identical.
+	Tone string `json:"tone,omitempty"`
+	// Share names a frame column carrying a per-element share (already in the
+	// units its format declares); the renderer never recomputes it.
+	Share string `json:"share,omitempty"`
+	// Confidence names a frame column carrying a per-element Confidence value
+	// that overrides the structural default.
+	Confidence string `json:"confidence,omitempty"`
+	// Availability names a frame column carrying a per-element Availability
+	// value that overrides the structural default.
+	Availability string `json:"availability,omitempty"`
 }
 
 type FormatKind string
@@ -526,6 +852,30 @@ type Level struct {
 	Frame           FrameRef         `json:"frame,omitempty"`
 	Encoding        *Encoding        `json:"encoding,omitempty"`
 	Perspectives    []PerspectiveRef `json:"perspectives"`
+	// View, when set, names the chart kind the runtime renders this level
+	// with, instead of the drill host panel's own kind. Only chart kinds are
+	// valid (no tables or metric panels); absent keeps host-kind rendering.
+	View PanelKind `json:"view,omitempty"`
+	// Presentation carries opt-in rendering hints for this level. Absent keeps
+	// the renderer's default treatment.
+	Presentation *Presentation `json:"presentation,omitempty"`
+	// Status, when set, is a data-quality chip rendered next to this level's
+	// heading (already localized by the producer).
+	Status *PanelStatus `json:"status,omitempty"`
+	// Source, when set, declares this level's audit table: the source rows
+	// behind the level's aggregate, rendered behind a collapsed disclosure.
+	Source *LevelSource `json:"source,omitempty"`
+}
+
+// LevelSource declares a drill level's audit table. Frame references the
+// document's Frames; Columns and Format mirror a table panel's shapes so the
+// runtime renders the disclosure exactly like a table panel body.
+type LevelSource struct {
+	// Label is the already-localized disclosure heading (e.g. "Source data").
+	Label   string                 `json:"label,omitempty"`
+	Frame   FrameRef               `json:"frame"`
+	Columns []TableColumn          `json:"columns,omitempty"`
+	Format  map[string]FieldFormat `json:"format,omitempty"`
 }
 
 type DynamicChildren struct {

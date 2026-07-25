@@ -610,7 +610,9 @@ func statRow(result *runtime.PanelResult) map[string]any {
 
 // statView is the resolved data one .lens-stat block renders.
 type statView struct {
-	Value string
+	Value        string
+	Confidence   panel.Confidence
+	Availability panel.Availability
 	// Zero demotes the card (lens-stat--zero) and suppresses trend +
 	// sparkline when the primary value is 0 or absent.
 	Zero bool
@@ -631,9 +633,36 @@ const (
 
 func buildStatView(spec panel.Spec, result *runtime.PanelResult) statView {
 	raw := statRawValue(spec, result)
+	row := statRow(result)
+	confidence := spec.Confidence
+	confidenceField := spec.Fields.Confidence
+	if confidenceField.Empty() {
+		confidenceField = panel.DefaultConfidenceField
+	}
+	if value, ok := row[confidenceField.Name()]; ok && value != nil {
+		if resolved := strings.TrimSpace(fmt.Sprint(value)); resolved != "" {
+			confidence = panel.Confidence(resolved)
+		}
+	}
+	availability := spec.Availability
+	availabilityField := spec.Fields.Availability
+	if availabilityField.Empty() {
+		availabilityField = panel.DefaultAvailabilityField
+	}
+	if value, ok := row[availabilityField.Name()]; ok && value != nil {
+		if resolved := strings.TrimSpace(fmt.Sprint(value)); resolved != "" {
+			availability = panel.Availability(resolved)
+		}
+	}
+	unavailable := availability != "" && availability != panel.AvailabilityAvailable
 	view := statView{
-		Value: formatValue(raw, spec.Formatter, result.Locale, result.Timezone),
-		Zero:  statValueIsZero(raw),
+		Value:        formatValue(raw, spec.Formatter, result.Locale, result.Timezone),
+		Confidence:   confidence,
+		Availability: availability,
+		Zero:         unavailable || statValueIsZero(raw),
+	}
+	if unavailable {
+		view.Value = "—"
 	}
 	if color := strings.TrimSpace(spec.Chrome.AccentColor); color != "" {
 		r, g, b := parseHexColor(color)
@@ -1017,6 +1046,188 @@ type cascadeStage struct {
 	LabelClass string
 	ValueClass string
 	WidthStyle templpkg.SafeCSS
+}
+
+type waterfallView struct {
+	HasData   bool
+	Items     []waterfallItem
+	Ticks     []waterfallTick
+	GridStyle templpkg.SafeCSS
+	ZeroStyle templpkg.SafeCSS
+	AriaLabel string
+}
+
+type waterfallTick struct {
+	Label    string
+	TopStyle templpkg.SafeCSS
+}
+
+type waterfallItem struct {
+	Label          string
+	Amount         string
+	BarStyle       templpkg.SafeCSS
+	ConnectorStyle templpkg.SafeCSS
+	FillClass      string
+	AmountClass    string
+	ShowConnector  bool
+}
+
+// buildWaterfallView projects the Cascade running-balance contract into a
+// conventional vertical waterfall. The first row is the opening total. Every
+// later row contributes one floating movement from the previous authoritative
+// balance to the row's balance; the last row is then repeated as a closing
+// total from zero. Cut labels name the movements, while the displayed movement
+// amount is derived from adjacent balances so every bar visually reconciles.
+func buildWaterfallView(spec panel.Spec, result *runtime.PanelResult) waterfallView {
+	view := waterfallView{}
+	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
+		return view
+	}
+	rows := result.Frames.Primary().Rows()
+	if len(rows) == 0 {
+		return view
+	}
+	labelField := firstField(spec.Fields.Label, spec.Fields.Category, panel.DefaultLabelField)
+	valueField := firstField(spec.Fields.Value, panel.DefaultValueField)
+	cutLabelField := firstField(spec.Fields.CutLabel, panel.DefaultCutLabelField)
+
+	type rawItem struct {
+		label string
+		from  float64
+		to    float64
+		raw   float64
+		total bool
+		final bool
+	}
+	opening := segmentNumeric(rows[0][valueField.Name()])
+	raw := []rawItem{{
+		label: strings.TrimSpace(fmt.Sprint(rows[0][labelField.Name()])),
+		from:  0,
+		to:    opening,
+		raw:   opening,
+		total: true,
+	}}
+	running := opening
+	for i := 1; i < len(rows); i++ {
+		next := segmentNumeric(rows[i][valueField.Name()])
+		label := strings.TrimSpace(fmt.Sprint(rows[i][cutLabelField.Name()]))
+		if label == "" {
+			label = strings.TrimSpace(fmt.Sprint(rows[i][labelField.Name()]))
+		}
+		raw = append(raw, rawItem{
+			label: label,
+			from:  running,
+			to:    next,
+			raw:   next - running,
+		})
+		running = next
+	}
+	if len(rows) > 1 {
+		last := rows[len(rows)-1]
+		closing := segmentNumeric(last[valueField.Name()])
+		raw = append(raw, rawItem{
+			label: strings.TrimSpace(fmt.Sprint(last[labelField.Name()])),
+			from:  0,
+			to:    closing,
+			raw:   closing,
+			total: true,
+			final: true,
+		})
+	}
+
+	minValue, maxValue := 0.0, 0.0
+	for _, item := range raw {
+		minValue = math.Min(minValue, math.Min(item.from, item.to))
+		maxValue = math.Max(maxValue, math.Max(item.from, item.to))
+	}
+	step := waterfallNiceCeiling(math.Max(1, maxValue-minValue) / 3)
+	plotMin := 0.0
+	if minValue < 0 {
+		plotMin = math.Floor(minValue/step) * step
+	}
+	plotMax := math.Max(step, math.Ceil(maxValue/step)*step)
+	plotRange := plotMax - plotMin
+	if plotRange <= 0 {
+		plotRange = 1
+	}
+	yPct := func(value float64) float64 {
+		return clampFloat((plotMax-value)/plotRange*100, 0, 100)
+	}
+
+	view.HasData = true
+	view.Items = make([]waterfallItem, 0, len(raw))
+	for tick := plotMin; tick <= plotMax+step/10; tick += step {
+		view.Ticks = append(view.Ticks, waterfallTick{
+			Label:    formatValue(tick, spec.Formatter, result.Locale, result.Timezone),
+			TopStyle: templpkg.SafeCSS(fmt.Sprintf("top:%.4f%%", yPct(tick))),
+		})
+	}
+	ariaParts := make([]string, 0, len(raw))
+	for i, item := range raw {
+		top := yPct(math.Max(item.from, item.to))
+		bottom := yPct(math.Min(item.from, item.to))
+		height := math.Max(bottom-top, 1.5)
+		fillClass := "bg-blue-600"
+		amountClass := "text-slate-800"
+		if !item.total && item.raw < 0 {
+			fillClass = "bg-green-500"
+			amountClass = "text-green-700"
+		} else if !item.total && item.raw > 0 {
+			fillClass = "bg-orange-500"
+			amountClass = "text-orange-700"
+		}
+		amount := waterfallAmountText(item.raw, item.total, spec.Formatter, result.Locale, result.Timezone)
+		view.Items = append(view.Items, waterfallItem{
+			Label:          item.label,
+			Amount:         amount,
+			BarStyle:       templpkg.SafeCSS(fmt.Sprintf("top:%.4f%%;height:%.4f%%", top, height)),
+			ConnectorStyle: templpkg.SafeCSS(fmt.Sprintf("top:%.4f%%;left:75%%;width:calc(50%% + 12px)", yPct(item.to))),
+			FillClass:      fillClass,
+			AmountClass:    amountClass,
+			ShowConnector:  i < len(raw)-1,
+		})
+		ariaParts = append(ariaParts, item.label+" "+amount)
+	}
+	view.GridStyle = templpkg.SafeCSS(fmt.Sprintf("grid-template-columns:repeat(%d,minmax(0,1fr))", len(raw)))
+	view.ZeroStyle = templpkg.SafeCSS(fmt.Sprintf("top:%.4f%%", yPct(0)))
+	view.AriaLabel = strings.Join(ariaParts, ", ")
+	return view
+}
+
+func waterfallNiceCeiling(value float64) float64 {
+	if value <= 0 || math.IsNaN(value) || math.IsInf(value, 0) {
+		return 1
+	}
+	power := math.Pow(10, math.Floor(math.Log10(value)))
+	fraction := value / power
+	switch {
+	case fraction <= 1:
+		return power
+	case fraction <= 2:
+		return 2 * power
+	case fraction <= 5:
+		return 5 * power
+	default:
+		return 10 * power
+	}
+}
+
+func waterfallAmountText(raw float64, total bool, formatter *format.Spec, locale, timezone string) string {
+	if total {
+		return formatValue(raw, formatter, locale, timezone)
+	}
+	switch {
+	case raw > 0:
+		return "+" + formatValue(raw, formatter, locale, timezone)
+	case raw < 0:
+		return cascadeMinusSign + formatValue(-raw, formatter, locale, timezone)
+	default:
+		return formatValue(0, formatter, locale, timezone)
+	}
+}
+
+func clampFloat(value, minValue, maxValue float64) float64 {
+	return math.Max(minValue, math.Min(maxValue, value))
 }
 
 // cascadeWidthFloorPct keeps non-zero stage bars from becoming invisible
@@ -2011,6 +2222,429 @@ func displayValueOrDash(value string) string {
 	return value
 }
 
+// metricQualityView is the server-rendered counterpart of the React
+// QualityChip. Availability takes precedence over confidence: an unavailable
+// number must never be presented merely as a low-confidence number.
+type metricQualityView struct {
+	Class string
+	Icon  string
+	Label string
+}
+
+func metricQualityLabel(ctx context.Context, key, fallback string) string {
+	if label := translate(ctx, key); label != "" {
+		return label
+	}
+	return fallback
+}
+
+func buildMetricQualityView(
+	ctx context.Context,
+	confidence panel.Confidence,
+	availability panel.Availability,
+) metricQualityView {
+	switch availability {
+	case panel.AvailabilityConfigRequired:
+		return metricQualityView{
+			Class: "lens-quality-config-required",
+			Icon:  "⚙",
+			Label: metricQualityLabel(ctx, "Analytics.Lens.AvailabilityConfigRequired", "Configuration required"),
+		}
+	case panel.AvailabilityEmptySource:
+		return metricQualityView{
+			Class: "lens-quality-empty-source",
+			Icon:  "∅",
+			Label: metricQualityLabel(ctx, "Analytics.Lens.AvailabilityEmptySource", "No source data"),
+		}
+	case panel.AvailabilityUnavailable:
+		return metricQualityView{
+			Class: "lens-quality-unavailable",
+			Icon:  "∅",
+			Label: metricQualityLabel(ctx, "Analytics.Lens.AvailabilityUnavailable", "Unavailable"),
+		}
+	}
+	switch confidence {
+	case panel.ConfidenceVerified:
+		return metricQualityView{
+			Class: "lens-quality-verified",
+			Icon:  "✓",
+			Label: metricQualityLabel(ctx, "Analytics.Lens.ConfidenceVerified", "Verified"),
+		}
+	case panel.ConfidenceCalculated:
+		return metricQualityView{
+			Class: "lens-quality-calculated",
+			Icon:  "∑",
+			Label: metricQualityLabel(ctx, "Analytics.Lens.ConfidenceCalculated", "Calculated"),
+		}
+	case panel.ConfidenceProxy:
+		return metricQualityView{
+			Class: "lens-quality-proxy",
+			Icon:  "≈",
+			Label: metricQualityLabel(ctx, "Analytics.Lens.ConfidenceProxy", "Proxy"),
+		}
+	case panel.ConfidenceRequiresReconciliation:
+		return metricQualityView{
+			Class: "lens-quality-requires-reconciliation",
+			Icon:  "!",
+			Label: metricQualityLabel(ctx, "Analytics.Lens.ConfidenceRequiresReconciliation", "Requires reconciliation"),
+		}
+	default:
+		return metricQualityView{}
+	}
+}
+
+type metricElementView struct {
+	Raw          float64
+	HasValue     bool
+	ShowDash     bool
+	Value        string
+	Share        string
+	Confidence   panel.Confidence
+	Availability panel.Availability
+	Row          map[string]any
+}
+
+func metricRowsByKey(spec panel.Spec, result *runtime.PanelResult) map[string]map[string]any {
+	rows := make(map[string]map[string]any)
+	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
+		return rows
+	}
+	idField := spec.Fields.ID
+	if idField.Empty() {
+		idField = panel.DefaultIDField
+	}
+	for _, row := range result.Frames.Primary().Rows() {
+		key := strings.TrimSpace(fmt.Sprint(row[idField.Name()]))
+		if key != "" {
+			rows[key] = row
+		}
+	}
+	return rows
+}
+
+func metricNumeric(value any) (float64, bool) {
+	if value == nil {
+		return 0, false
+	}
+	switch v := value.(type) {
+	case float64:
+		return v, true
+	case float32:
+		return float64(v), true
+	case int:
+		return float64(v), true
+	case int64:
+		return float64(v), true
+	case int32:
+		return float64(v), true
+	case uint:
+		return float64(v), true
+	case uint64:
+		return float64(v), true
+	case uint32:
+		return float64(v), true
+	case string:
+		parsed, err := strconv.ParseFloat(strings.TrimSpace(v), 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func metricElement(
+	spec panel.Spec,
+	result *runtime.PanelResult,
+	rows map[string]map[string]any,
+	key string,
+	confidence panel.Confidence,
+	availability panel.Availability,
+) metricElementView {
+	row := rows[key]
+	if row == nil {
+		row = map[string]any{}
+	}
+	confidenceField := spec.Fields.Confidence
+	if confidenceField.Empty() {
+		confidenceField = panel.DefaultConfidenceField
+	}
+	if value := strings.TrimSpace(fmt.Sprint(row[confidenceField.Name()])); value != "" {
+		confidence = panel.Confidence(value)
+	} else if confidence == "" {
+		confidence = spec.Confidence
+	}
+	availabilityField := spec.Fields.Availability
+	if availabilityField.Empty() {
+		availabilityField = panel.DefaultAvailabilityField
+	}
+	if value := strings.TrimSpace(fmt.Sprint(row[availabilityField.Name()])); value != "" {
+		availability = panel.Availability(value)
+	} else if availability == "" {
+		availability = spec.Availability
+	}
+	valueField := spec.Fields.Value
+	if valueField.Empty() {
+		valueField = panel.DefaultValueField
+	}
+	raw, hasValue := metricNumeric(row[valueField.Name()])
+	showDash := !hasValue || (availability != "" && availability != panel.AvailabilityAvailable)
+	view := metricElementView{
+		Raw: raw, HasValue: hasValue, ShowDash: showDash,
+		Confidence: confidence, Availability: availability, Row: row,
+	}
+	if hasValue {
+		view.Value = formatValue(raw, spec.Formatter, result.Locale, result.Timezone)
+	}
+	shareField := spec.Fields.Share
+	if shareField.Empty() {
+		shareField = panel.DefaultShareField
+	}
+	if shareRaw, ok := metricNumeric(row[shareField.Name()]); ok {
+		view.Share = formatValue(shareRaw, &format.Spec{Kind: format.KindPercent, Precision: 1}, result.Locale, result.Timezone)
+	}
+	return view
+}
+
+type metricFlowStageView struct {
+	Stage    panel.FlowStage
+	Operator string
+	Element  metricElementView
+	Href     string
+	OnClick  templpkg.ComponentScript
+}
+
+type metricFlowView struct {
+	Stages       []metricFlowStageView
+	Reconcile    string
+	HasReconcile bool
+}
+
+func buildMetricFlowView(ctx context.Context, spec panel.Spec, result *runtime.PanelResult) metricFlowView {
+	rows := metricRowsByKey(spec, result)
+	view := metricFlowView{Stages: make([]metricFlowStageView, 0, len(spec.FlowStages))}
+	sum := 0.0
+	complete := true
+	resultValue := 0.0
+	hasResult := false
+	for _, stage := range spec.FlowStages {
+		element := metricElement(spec, result, rows, stage.Key, stage.Confidence, stage.Availability)
+		operator := ""
+		displayRaw := element.Raw
+		switch stage.Role {
+		case panel.FlowRoleAdd:
+			if !element.ShowDash && element.Raw < 0 {
+				operator = "−"
+			} else {
+				operator = "+"
+			}
+			displayRaw = math.Abs(element.Raw)
+		case panel.FlowRoleSubtract:
+			if !element.ShowDash && element.Raw < 0 {
+				operator = "+"
+			} else {
+				operator = "−"
+			}
+			displayRaw = math.Abs(element.Raw)
+		case panel.FlowRoleIntermediate, panel.FlowRoleResult:
+			operator = "="
+		}
+		if element.HasValue {
+			element.Value = formatValue(displayRaw, spec.Formatter, result.Locale, result.Timezone)
+		}
+		view.Stages = append(view.Stages, metricFlowStageView{
+			Stage: stage, Operator: operator, Element: element,
+			Href:    actionURL(stage.Action, element.Row, result),
+			OnClick: actionOnClick(stage.Action, element.Row, result),
+		})
+		if stage.Role == panel.FlowRoleResult {
+			if element.HasValue && !element.ShowDash {
+				resultValue, hasResult = element.Raw, true
+			} else {
+				complete = false
+			}
+			continue
+		}
+		if stage.Role == panel.FlowRoleIntermediate {
+			continue
+		}
+		if !element.HasValue || element.ShowDash {
+			complete = false
+			continue
+		}
+		if stage.Role == panel.FlowRoleSubtract {
+			sum -= element.Raw
+		} else {
+			sum += element.Raw
+		}
+	}
+	if spec.FlowReconcile != nil && complete && hasResult {
+		delta := resultValue - sum
+		if math.Abs(delta) > spec.FlowReconcile.Tolerance {
+			template := translate(ctx, "Analytics.Lens.FlowDifference")
+			view.Reconcile = strings.ReplaceAll(template, "{delta}", formatValue(delta, spec.Formatter, result.Locale, result.Timezone))
+			view.HasReconcile = true
+		}
+	}
+	return view
+}
+
+type metricHierarchyRowView struct {
+	Row       panel.HierarchyRow
+	Depth     int
+	IsParent  bool
+	Element   metricElementView
+	Href      string
+	OnClick   templpkg.ComponentScript
+	Reconcile string
+	Balanced  bool
+}
+
+func metricHierarchyDepth(row panel.HierarchyRow, byKey map[string]panel.HierarchyRow) int {
+	depth := 0
+	current := row
+	seen := map[string]struct{}{}
+	for current.Parent != "" {
+		if _, exists := seen[current.Key]; exists {
+			break
+		}
+		seen[current.Key] = struct{}{}
+		parentRow, ok := byKey[current.Parent]
+		if !ok {
+			break
+		}
+		depth++
+		current = parentRow
+	}
+	return depth
+}
+
+func metricDepthStyle(depth int) templpkg.SafeCSS {
+	if depth < 0 {
+		depth = 0
+	}
+	return templpkg.SafeCSS("--lens-depth:" + strconv.Itoa(depth))
+}
+
+func metricHierarchyRowClass(view metricHierarchyRowView) string {
+	classes := []string{"lens-hierarchy-row"}
+	if view.IsParent {
+		classes = append(classes, "lens-hierarchy-row-parent")
+	}
+	if view.Row.Unallocated {
+		classes = append(classes, "lens-hierarchy-row-unallocated")
+	}
+	if view.Row.Selected {
+		classes = append(classes, "lens-hierarchy-row-selected")
+	}
+	return strings.Join(classes, " ")
+}
+
+func metricHierarchyReconcileClass(view metricHierarchyRowView) string {
+	if view.Balanced {
+		return "lens-hierarchy-reconcile lens-hierarchy-reconcile-balanced"
+	}
+	return "lens-hierarchy-reconcile lens-hierarchy-reconcile-off"
+}
+
+func buildMetricHierarchyView(ctx context.Context, spec panel.Spec, result *runtime.PanelResult) []metricHierarchyRowView {
+	rows := metricRowsByKey(spec, result)
+	byKey := make(map[string]panel.HierarchyRow, len(spec.HierarchyRows))
+	parentKeys := make(map[string]struct{})
+	children := make(map[string][]panel.HierarchyRow)
+	for _, row := range spec.HierarchyRows {
+		byKey[row.Key] = row
+		if row.Parent != "" {
+			parentKeys[row.Parent] = struct{}{}
+			children[row.Parent] = append(children[row.Parent], row)
+		}
+	}
+	views := make([]metricHierarchyRowView, 0, len(spec.HierarchyRows))
+	for _, row := range spec.HierarchyRows {
+		element := metricElement(spec, result, rows, row.Key, row.Confidence, row.Availability)
+		_, isParent := parentKeys[row.Key]
+		view := metricHierarchyRowView{
+			Row: row, Depth: metricHierarchyDepth(row, byKey), IsParent: isParent, Element: element,
+			Href:    actionURL(row.Action, element.Row, result),
+			OnClick: actionOnClick(row.Action, element.Row, result),
+		}
+		if spec.HierarchyReconcile != nil && isParent && element.HasValue && !element.ShowDash {
+			sum := 0.0
+			complete := true
+			for _, child := range children[row.Key] {
+				childElement := metricElement(spec, result, rows, child.Key, child.Confidence, child.Availability)
+				if !childElement.HasValue || childElement.ShowDash {
+					complete = false
+					break
+				}
+				sum += childElement.Raw
+			}
+			if complete {
+				delta := element.Raw - sum
+				view.Balanced = math.Abs(delta) <= spec.HierarchyReconcile.Tolerance
+				if view.Balanced {
+					view.Reconcile = translate(ctx, "Analytics.Lens.HierarchyAllocated")
+				} else {
+					template := translate(ctx, "Analytics.Lens.HierarchyDifference")
+					view.Reconcile = strings.ReplaceAll(template, "{delta}", formatValue(delta, spec.Formatter, result.Locale, result.Timezone))
+				}
+			}
+		}
+		views = append(views, view)
+	}
+	return views
+}
+
+type metricRelationshipEndView struct {
+	End     panel.RelationshipEnd
+	Element metricElementView
+	Href    string
+	OnClick templpkg.ComponentScript
+}
+
+type metricRelationshipView struct {
+	Source         metricRelationshipEndView
+	Target         metricRelationshipEndView
+	Horizontal     string
+	Vertical       string
+	TypeLabel      string
+	AccessibleText string
+}
+
+func buildMetricRelationshipView(ctx context.Context, spec panel.Spec, result *runtime.PanelResult) metricRelationshipView {
+	rows := metricRowsByKey(spec, result)
+	relationship := spec.Relationship
+	if relationship == nil {
+		return metricRelationshipView{}
+	}
+	endView := func(end panel.RelationshipEnd) metricRelationshipEndView {
+		element := metricElement(spec, result, rows, end.Key, end.Confidence, end.Availability)
+		return metricRelationshipEndView{
+			End: end, Element: element,
+			Href:    actionURL(end.Action, element.Row, result),
+			OnClick: actionOnClick(end.Action, element.Row, result),
+		}
+	}
+	view := metricRelationshipView{
+		Source:     endView(relationship.Source),
+		Target:     endView(relationship.Target),
+		Horizontal: "⇄", Vertical: "⇵",
+	}
+	switch relationship.Type {
+	case panel.RelationshipDerivation:
+		view.TypeLabel = translate(ctx, "Analytics.Lens.RelationshipDerivation")
+		if relationship.Direction == panel.RelationshipTargetToSource {
+			view.Horizontal, view.Vertical = "←", "↑"
+		} else if relationship.Direction == panel.RelationshipSourceToTarget {
+			view.Horizontal, view.Vertical = "→", "↓"
+		}
+	case panel.RelationshipReconciliation:
+		view.TypeLabel = translate(ctx, "Analytics.Lens.RelationshipReconciliation")
+	default:
+		view.TypeLabel = translate(ctx, "Analytics.Lens.RelationshipAssociation")
+	}
+	view.AccessibleText = relationship.Source.Label + " — " + view.TypeLabel + " — " + relationship.Target.Label
+	return view
+}
+
 func tablePrimaryText(ctx context.Context, column panel.TableColumn, row map[string]any, result *runtime.PanelResult) string {
 	value := strings.TrimSpace(tableValueText(column, row, result))
 	if value != "" {
@@ -2051,6 +2685,8 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 px-4 py-3"
 	case panel.KindCascade:
 		return "flex-1 px-4 py-3"
+	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
+		return "flex-1 p-0"
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
 		return "flex-1 px-2 pb-2 pt-1"
 	case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
@@ -2128,6 +2764,12 @@ func panelMinimumHeight(spec panel.Spec) string {
 		return "240px"
 	case panel.KindCascade:
 		return "280px"
+	case panel.KindMetricFlow:
+		return "180px"
+	case panel.KindMetricHierarchy:
+		return "220px"
+	case panel.KindMetricRelationship:
+		return "180px"
 	case panel.KindTabs:
 		if childHeight := maxChildHeight(spec.Children); childHeight != "" {
 			return "calc(" + childHeight + " + 5rem)"

@@ -14,10 +14,22 @@ import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '
 import { CaretDown, CaretLeft, CaretRight } from '../icons'
 import { MarkSelectionContext, PanelChromeContext, RegisteredPanel, type PanelRegistry } from '../panels'
 import { seriesColorResolver } from '../panels/data'
-import { isPerspectiveFork, levelForPath, useDashboard, useDrill, usePanelFrame, useTranslate } from '../runtime'
+import {
+  isPerspectiveFork,
+  levelForPath,
+  perspectivesForPosition,
+  useDashboard,
+  useDrawer,
+  useDrill,
+  usePanelFrame,
+  useTranslate,
+} from '../runtime'
 import { isVisualRegression } from '../visualRegression'
 import { recordForRow, resolveLeafActionURL, variablesFromLocation } from './actions'
 import { DrillOverlay } from './DrillOverlay'
+import { exploreViewForLevel, focusContextForLevel, isFocusCanvas } from './focusModel'
+import { FocusContextHeader } from './FocusContextHeader'
+import { LensSelector } from './LensSelector'
 import {
   breadcrumbsForNavigation,
   drillTargetForLevel,
@@ -28,6 +40,7 @@ import {
   viewForSemantics,
   type DrillTarget,
 } from './model'
+import { SourceDataDisclosure } from './SourceDataDisclosure'
 
 interface ViewTransition {
   ready?: Promise<unknown>
@@ -87,16 +100,36 @@ export interface ExplorePanelProps {
 export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const { document, navigation } = useDashboard()
   const drill = useDrill()
+  const drawer = useDrawer()
   const translate = useTranslate()
   const frame = usePanelFrame(panel.id)
   const active = navigation.panelId === panel.id && navigation.path.length > 0
-  const level = active
-    ? levelForPath(document, navigation.path)
-    : (panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined)
+  const rootLevel = panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined
+  const level = active ? levelForPath(document, navigation.path) : rootLevel
   const perspectives = useMemo(() => perspectivesForLevel(document, level), [document, level])
+  // The lens selector's set: at a perspective root this expands to the whole
+  // branch sibling set (the choice the overlay offered on the parent segment),
+  // because the builder records only the level's own perspective on it. The
+  // plain `perspectives` list above keeps driving the resting-card behaviors
+  // (single-perspective auto-bind, explorability) exactly as before.
+  const positionPerspectives = useMemo(() => perspectivesForPosition(document, level), [document, level])
   const perspective = active ? document.perspectives.find(({ id }) => id === navigation.perspectiveId) : undefined
   const semantics = perspective?.semantics ?? panel.semantics
-  const kind = viewForSemantics(semantics, panel.kind)
+  // A level that declares its own visualization wins over the semantics
+  // mapping; documents that never set `Level.view` render exactly as before.
+  const kind = exploreViewForLevel(level) ?? viewForSemantics(semantics, panel.kind)
+  // Focus-canvas chrome is opt-in per document. It changes nothing until the
+  // panel is actively exploring: the resting card stays byte-identical.
+  const focusCanvas = isFocusCanvas(rootLevel, level)
+  const focusActive = focusCanvas && active && Boolean(level)
+  // Inside a drawer the focus-canvas host is the drawer's whole subject, so it
+  // wears the canvas treatment (full width, roomy body) at rest and surfaces
+  // its root-level lenses immediately — the board can switch perspective before
+  // drilling, instead of a lone card stranded in a corner. On the main
+  // dashboard a resting focus host is unchanged (this is gated on the drawer).
+  const inDrawer = drawer.depth > 0
+  const drawerFocus = focusCanvas && inDrawer
+  const rootLens = drawerFocus && !focusActive && positionPerspectives.length > 1
   const viewPanel = useMemo<Panel>(() => {
     const encoding = level?.encoding ?? panel.encoding
     return {
@@ -133,6 +166,26 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     viewTransitionName: transitionName,
     viewTransitionClass: 'lens-explore-level-transition',
   }) as CSSProperties, [transitionName])
+  // The focus chrome and the source disclosure each carry their own
+  // view-transition-name so `runViewTransition` morphs only the chart: the
+  // chrome stays put (its own group cross-fades content in place) instead of
+  // being swept along with the level swap.
+  const chromeTransitionStyle = useMemo(() => ({
+    viewTransitionName: `${transitionName}-chrome`,
+  }) as CSSProperties, [transitionName])
+  const sourceTransitionStyle = useMemo(() => ({
+    viewTransitionName: `${transitionName}-source`,
+  }) as CSSProperties, [transitionName])
+  // A focus-canvas host names its whole card, at rest and while exploring, so
+  // entering/leaving the canvas FLIP-morphs the card bounds between its
+  // authored grid span and the full row instead of popping. The name exists in
+  // both states of the transition — that is what makes it a morph rather than
+  // an exit+enter — and non-focus hosts carry no name, so nothing about their
+  // transitions changes.
+  const hostTransitionStyle = useMemo(() => (focusCanvas ? {
+    viewTransitionName: `${transitionName}-host`,
+    viewTransitionClass: 'lens-explore-host-transition',
+  } as CSSProperties : undefined), [focusCanvas, transitionName])
 
   useEffect(() => {
     if (!active || perspectives.length !== 1 || perspectives[0]?.id === navigation.perspectiveId) return
@@ -195,11 +248,32 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     return seriesColorResolver(document.theme, viewPanel, { positional: !active })(label, index)
   }, [active, document, frame.data, level, viewPanel])
 
+  const drillTo = useCallback((...keys: Array<NodeKey>) => {
+    setOverlay(undefined)
+    runViewTransition(() => {
+      // A mark's breakdown lists the children of the level that mark expands
+      // to, so landing on one means entering the mark first; the reducer sees
+      // each dispatch in order, so the second key resolves against the first.
+      for (const key of keys) drill.drillInto(key, panel.id)
+    })
+  }, [drill, panel.id])
+
   const openForMark = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
     if (!level) return
     const node = level.children.find((child) => child.key === key || child.key.endsWith(`/${key}`))
     if (!node) return
     const targetLevel = node.target ? document.drill.edges[node.target] : undefined
+    // Focus mode: a segment with exactly one continuation drills straight into
+    // it — the chrome (breadcrumb, parent context, lens selector) replaces the
+    // popover's affordances. The popover keeps its job for leaves (no level to
+    // enter) and forks (a real choice between perspectives).
+    if (focusCanvas && targetLevel) {
+      const fork = isPerspectiveFork(document, targetLevel)
+      if (!fork || perspectivesForLevel(document, targetLevel).length <= 1) {
+        drillTo(node.key)
+        return
+      }
+    }
     const target = drillTargetForNode(document, level, node, frame.data, targetLevel?.frame ? document.frames[targetLevel.frame] : undefined, panel)
     setOverlayTheme(themeOf(focusRef.current))
     setOverlay({
@@ -213,7 +287,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       anchor: anchor ?? anchorFromElement(focusRef.current),
       anchorElement: anchor ? undefined : focusRef.current,
     })
-  }, [colorForNode, document, frame.data, leafHrefFor, level, panel, themeOf, withHrefs])
+  }, [colorForNode, document, drillTo, focusCanvas, frame.data, leafHrefFor, level, panel, themeOf, withHrefs])
 
   const openForLevel = useCallback(() => {
     if (!level) return
@@ -230,16 +304,6 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     setOverlay(undefined)
     exploreRef.current?.focus()
   }, [])
-
-  const drillTo = useCallback((...keys: Array<NodeKey>) => {
-    setOverlay(undefined)
-    runViewTransition(() => {
-      // A mark's breakdown lists the children of the level that mark expands
-      // to, so landing on one means entering the mark first; the reducer sees
-      // each dispatch in order, so the second key resolves against the first.
-      for (const key of keys) drill.drillInto(key, panel.id)
-    })
-  }, [drill, panel.id])
 
   const applyPerspective = useCallback((perspectiveId: string, target: DrillTarget) => {
     setOverlay(undefined)
@@ -352,12 +416,71 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     )
   } else content = <RegisteredPanel panel={viewPanel} registry={registry} />
 
+  // The focus header is a projection over the same document + path the chart
+  // reads; a deep link whose parent frame has not loaded degrades to a
+  // name-only header instead of crashing.
+  const focusContext = focusActive && level
+    ? focusContextForLevel(document, panel, navigation.path, level)
+    : undefined
+  const jumpToCrumb = useCallback((pathIndex: number) => {
+    runViewTransition(() => drill.jumpTo(pathIndex))
+  }, [drill])
+  // Mini-chart colors resolve by label, never positionally: the parent is a
+  // drill level, and its slices must keep the colors the plot drew for them.
+  const miniColorFor = useCallback((label: string, index: number) => (
+    seriesColorResolver(document.theme, panel, { positional: false })(label, index)
+  ), [document.theme, panel])
+  const switchLens = useCallback((perspectiveId: string) => {
+    runViewTransition(() => drill.switchPerspective(perspectiveId))
+  }, [drill])
+  // A root lens is chosen before any drill has entered a level, so the switch
+  // carries the panel id: the reducer resolves the position from the host's
+  // drill root and enters the chosen perspective in one step.
+  const switchRootLens = useCallback((perspectiveId: string) => {
+    runViewTransition(() => drill.switchPerspective(perspectiveId, { panelId: panel.id }))
+  }, [drill, panel.id])
+  const focusParent = focusContext?.parent
+
   return (
     <article
       aria-label={translate('explore.panel', 'Explore {name}', { name: panel.title })}
-      className="lens-explore"
+      className={`lens-explore${focusActive ? ' lens-explore-focus' : ''}${drawerFocus ? ' lens-explore-drawer-focus' : ''}`}
       onKeyDown={onKeyDown}
+      style={hostTransitionStyle}
     >
+      {rootLens && (
+        <div className="lens-focus-chrome lens-focus-chrome-root" style={chromeTransitionStyle}>
+          <LensSelector
+            activeId={navigation.perspectiveId}
+            label={translate('focus.viewAs', 'View as')}
+            moreLabel={translate('focus.moreViews', 'More')}
+            onSelect={switchRootLens}
+            perspectives={positionPerspectives}
+          />
+        </div>
+      )}
+      {focusContext && (
+        <div className="lens-focus-chrome" style={chromeTransitionStyle}>
+          <FocusContextHeader
+            breadcrumbs={breadcrumbs}
+            colorFor={miniColorFor}
+            context={focusContext}
+            onCrumb={jumpToCrumb}
+            onParent={focusParent ? () => jumpToCrumb(focusParent.pathIndex) : undefined}
+            periodLabel={document.header?.subtitle?.trim() || undefined}
+            valueFormat={viewPanel.encoding.value ? viewPanel.format[viewPanel.encoding.value] : undefined}
+          />
+          {positionPerspectives.length > 1 && (
+            <LensSelector
+              activeId={navigation.perspectiveId}
+              label={translate('focus.viewAs', 'View as')}
+              moreLabel={translate('focus.moreViews', 'More')}
+              onSelect={switchLens}
+              perspectives={positionPerspectives}
+            />
+          )}
+        </div>
+      )}
       <div
         className="lens-explore-level"
         data-explore-view={kind}
@@ -371,6 +494,9 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
           </MarkSelectionContext.Provider>
         </PanelChromeContext.Provider>
       </div>
+      {focusActive && level?.source && (
+        <SourceDataDisclosure key={viewKey} source={level.source} style={sourceTransitionStyle} />
+      )}
       {overlay && (
         <DrillOverlay
           accentColor={overlay.accentColor}
