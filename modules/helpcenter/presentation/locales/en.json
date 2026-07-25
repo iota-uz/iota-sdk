@@ -33,6 +33,15 @@
     "CloseNavigation": "Close navigation",
     "CopyCode": "Copy",
     "Copied": "Copied",
+    "Diagram": {
+      "Label": "Process diagram",
+      "ZoomIn": "Zoom in",
+      "ZoomOut": "Zoom out",
+      "ResetZoom": "Reset zoom",
+      "ZoomLevel": "Zoom level",
+      "EnterFullscreen": "Open full screen",
+      "ExitFullscreen": "Exit full screen"
+    },
     "Callouts": {
       "Note": "Note",
       "Tip": "Tip",

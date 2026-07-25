@@ -33,6 +33,15 @@
     "CloseNavigation": "Навигацияни ёпиш",
     "CopyCode": "Нусхалаш",
     "Copied": "Нусхаланди",
+    "Diagram": {
+      "Label": "Жараён диаграммаси",
+      "ZoomIn": "Катталаштириш",
+      "ZoomOut": "Кичрайтириш",
+      "ResetZoom": "Масштабни тиклаш",
+      "ZoomLevel": "Масштаб",
+      "EnterFullscreen": "Тўлиқ экранда очиш",
+      "ExitFullscreen": "Тўлиқ экрандан чиқиш"
+    },
     "Callouts": {
       "Note": "Изоҳ",
       "Tip": "Маслаҳат",

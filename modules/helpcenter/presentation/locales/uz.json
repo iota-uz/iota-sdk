@@ -33,6 +33,15 @@
     "CloseNavigation": "Navigatsiyani yopish",
     "CopyCode": "Nusxalash",
     "Copied": "Nusxalandi",
+    "Diagram": {
+      "Label": "Jarayon diagrammasi",
+      "ZoomIn": "Kattalashtirish",
+      "ZoomOut": "Kichraytirish",
+      "ResetZoom": "Masshtabni tiklash",
+      "ZoomLevel": "Masshtab",
+      "EnterFullscreen": "To‘liq ekranda ochish",
+      "ExitFullscreen": "To‘liq ekrandan chiqish"
+    },
     "Callouts": {
       "Note": "Izoh",
       "Tip": "Maslahat",

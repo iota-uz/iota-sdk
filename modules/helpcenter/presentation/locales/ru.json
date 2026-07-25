@@ -33,6 +33,15 @@
     "CloseNavigation": "Закрыть навигацию",
     "CopyCode": "Копировать",
     "Copied": "Скопировано",
+    "Diagram": {
+      "Label": "Диаграмма процесса",
+      "ZoomIn": "Увеличить",
+      "ZoomOut": "Уменьшить",
+      "ResetZoom": "Сбросить масштаб",
+      "ZoomLevel": "Масштаб",
+      "EnterFullscreen": "Открыть на весь экран",
+      "ExitFullscreen": "Выйти из полноэкранного режима"
+    },
     "Callouts": {
       "Note": "Примечание",
       "Tip": "Совет",

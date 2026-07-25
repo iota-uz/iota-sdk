@@ -404,6 +404,13 @@ templ Index(props IndexProps) {
 			data-mobile-sidebar-open="false"
 			data-copy-label={ pageCtx.T("HelpCenter.CopyCode") }
 			data-copied-label={ pageCtx.T("HelpCenter.Copied") }
+			data-diagram-label={ pageCtx.T("HelpCenter.Diagram.Label") }
+			data-diagram-zoom-in-label={ pageCtx.T("HelpCenter.Diagram.ZoomIn") }
+			data-diagram-zoom-out-label={ pageCtx.T("HelpCenter.Diagram.ZoomOut") }
+			data-diagram-reset-zoom-label={ pageCtx.T("HelpCenter.Diagram.ResetZoom") }
+			data-diagram-zoom-level-label={ pageCtx.T("HelpCenter.Diagram.ZoomLevel") }
+			data-diagram-enter-fullscreen-label={ pageCtx.T("HelpCenter.Diagram.EnterFullscreen") }
+			data-diagram-exit-fullscreen-label={ pageCtx.T("HelpCenter.Diagram.ExitFullscreen") }
 			data-expand-navigation-label={ pageCtx.T("HelpCenter.ExpandNavigation") }
 			data-collapse-navigation-label={ pageCtx.T("HelpCenter.CollapseNavigation") }
 			data-note-label={ pageCtx.T("HelpCenter.Callouts.Note") }
@@ -575,21 +582,36 @@ templ Index(props IndexProps) {
 				});
 
 				async function renderHelpMermaidDiagrams(root = document) {
+					const icons = {
+						zoomOut: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+						zoomIn: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 4v12M4 10h12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+						reset: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M5.1 6.2A6 6 0 1 1 4 11M5.1 6.2V2.8M5.1 6.2h3.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+						expand: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M7.5 3.5h-4v4M12.5 3.5h4v4M16.5 12.5v4h-4M7.5 16.5h-4v-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+						collapse: '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3.5 7.5h4v-4M16.5 7.5h-4v-4M12.5 16.5v-4h4M7.5 12.5h-4v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+					};
+					const createControl = (action, label, icon) => {
+						const button = document.createElement("button");
+						button.type = "button";
+						button.className = "help-mermaid-control";
+						button.dataset.diagramAction = action;
+						button.setAttribute("aria-label", label);
+						button.setAttribute("title", label);
+						button.innerHTML = icon;
+						return button;
+					};
 					const blocks = root.querySelectorAll("pre > code.language-mermaid");
 					for (const block of blocks) {
 						const container = document.createElement("div");
 						container.className = "help-mermaid";
-						container.setAttribute("role", "img");
-						container.setAttribute("aria-label", "Process diagram");
+						container.setAttribute("role", "group");
+						container.setAttribute("aria-label", shell.dataset.diagramLabel);
 						container.textContent = block.textContent;
 						block.parentElement.replaceWith(container);
 						try {
 							await mermaid.run({ nodes: [container] });
 							const diagram = container.querySelector("svg");
 							const viewBox = diagram?.viewBox?.baseVal;
-							if (viewBox && viewBox.width / viewBox.height > 2.5) {
-								container.classList.add("help-mermaid-wide");
-							}
+							if (!diagram || !viewBox?.width || !viewBox?.height) continue;
 							for (const link of container.querySelectorAll("a")) {
 								const rawHref = link.getAttribute("href") || link.getAttribute("xlink:href") || "";
 								let url;
@@ -611,6 +633,95 @@ templ Index(props IndexProps) {
 								link.classList.add("help-mermaid-link");
 								link.setAttribute("aria-label", link.textContent?.trim() || safeHref);
 							}
+
+							const toolbar = document.createElement("div");
+							toolbar.className = "help-mermaid-toolbar";
+							toolbar.setAttribute("role", "toolbar");
+							toolbar.setAttribute("aria-label", shell.dataset.diagramLabel);
+
+							const zoomOut = createControl("zoom-out", shell.dataset.diagramZoomOutLabel, icons.zoomOut);
+							const zoomValue = document.createElement("span");
+							zoomValue.className = "help-mermaid-zoom-value";
+							zoomValue.setAttribute("aria-live", "polite");
+							const zoomIn = createControl("zoom-in", shell.dataset.diagramZoomInLabel, icons.zoomIn);
+							const resetZoom = createControl("reset-zoom", shell.dataset.diagramResetZoomLabel, icons.reset);
+							const divider = document.createElement("span");
+							divider.className = "help-mermaid-toolbar-divider";
+							divider.setAttribute("aria-hidden", "true");
+							const fullscreen = createControl("fullscreen", shell.dataset.diagramEnterFullscreenLabel, icons.expand);
+							toolbar.append(zoomOut, zoomValue, zoomIn, resetZoom, divider, fullscreen);
+
+							const viewport = document.createElement("div");
+							viewport.className = "help-mermaid-viewport";
+							viewport.tabIndex = 0;
+							const canvas = document.createElement("div");
+							canvas.className = "help-mermaid-canvas";
+							diagram.replaceWith(canvas);
+							canvas.appendChild(diagram);
+							viewport.appendChild(canvas);
+							container.prepend(toolbar);
+							container.appendChild(viewport);
+
+							const minZoom = 0.5;
+							const maxZoom = 3;
+							const zoomStep = 0.25;
+							const viewportPadding = parseFloat(getComputedStyle(viewport).paddingLeft) * 2;
+							const availableWidth = Math.max(320, viewport.clientWidth - viewportPadding);
+							const naturalWidth = Math.min(viewBox.width, 1100);
+							const baseWidth = Math.max(availableWidth, naturalWidth);
+							let zoom = 1;
+
+							const updateZoom = (nextZoom, focusX, focusY) => {
+								const previousZoom = zoom;
+								zoom = Math.min(maxZoom, Math.max(minZoom, nextZoom));
+								const previousScrollWidth = viewport.scrollWidth;
+								const previousScrollHeight = viewport.scrollHeight;
+								const anchorX = focusX ?? viewport.clientWidth / 2;
+								const anchorY = focusY ?? viewport.clientHeight / 2;
+								const contentX = viewport.scrollLeft + anchorX;
+								const contentY = viewport.scrollTop + anchorY;
+								canvas.style.width = `${Math.round(baseWidth * zoom)}px`;
+								zoomValue.textContent = `${Math.round(zoom * 100)}%`;
+								zoomValue.setAttribute("aria-label", `${shell.dataset.diagramZoomLevelLabel}: ${zoomValue.textContent}`);
+								zoomOut.disabled = zoom <= minZoom;
+								zoomIn.disabled = zoom >= maxZoom;
+								if (previousZoom !== zoom && previousScrollWidth && previousScrollHeight) {
+									requestAnimationFrame(() => {
+										viewport.scrollLeft = contentX * (viewport.scrollWidth / previousScrollWidth) - anchorX;
+										viewport.scrollTop = contentY * (viewport.scrollHeight / previousScrollHeight) - anchorY;
+									});
+								}
+							};
+
+							const setFullscreen = (enabled) => {
+								container.classList.toggle("help-mermaid-fullscreen", enabled);
+								document.body.classList.toggle("help-mermaid-fullscreen-open", enabled);
+								fullscreen.innerHTML = enabled ? icons.collapse : icons.expand;
+								const label = enabled
+									? shell.dataset.diagramExitFullscreenLabel
+									: shell.dataset.diagramEnterFullscreenLabel;
+								fullscreen.setAttribute("aria-label", label);
+								fullscreen.setAttribute("title", label);
+								fullscreen.setAttribute("aria-pressed", String(enabled));
+							};
+
+							zoomOut.addEventListener("click", () => updateZoom(zoom - zoomStep));
+							zoomIn.addEventListener("click", () => updateZoom(zoom + zoomStep));
+							resetZoom.addEventListener("click", () => updateZoom(1));
+							fullscreen.addEventListener("click", () => setFullscreen(!container.classList.contains("help-mermaid-fullscreen")));
+							viewport.addEventListener("wheel", (event) => {
+								if (!event.ctrlKey && !event.metaKey) return;
+								event.preventDefault();
+								const bounds = viewport.getBoundingClientRect();
+								updateZoom(zoom + (event.deltaY < 0 ? zoomStep : -zoomStep), event.clientX - bounds.left, event.clientY - bounds.top);
+							}, { passive: false });
+							container.addEventListener("keydown", (event) => {
+								if (event.key === "Escape" && container.classList.contains("help-mermaid-fullscreen")) {
+									setFullscreen(false);
+									fullscreen.focus();
+								}
+							});
+							updateZoom(1);
 						} catch (error) {
 							console.error("Unable to render Help Center diagram", error);
 							const fallback = document.createElement("pre");

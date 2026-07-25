@@ -230,8 +230,10 @@ templ Doc(props DocProps) {
 			}
 			.help-article .help-mermaid {
 				position: relative;
+				display: flex;
+				flex-direction: column;
 				margin: 1.75rem 0;
-				overflow-x: auto;
+				overflow: hidden;
 				border: 1px solid #e4e7ec;
 				border-radius: 1rem;
 				background:
@@ -239,23 +241,92 @@ templ Doc(props DocProps) {
 					linear-gradient(90deg, #f8fafc 1px, transparent 1px),
 					white;
 				background-size: 1.25rem 1.25rem;
-				padding: clamp(1rem, 3vw, 2rem);
 				box-shadow: 0 8px 30px rgb(16 24 40 / 0.055);
 			}
 			.help-article .help-mermaid::before {
 				position: absolute;
 				top: 0;
 				left: 1.2rem;
+				z-index: 3;
 				width: 3.5rem;
 				height: 2px;
 				border-radius: 0 0 999px 999px;
 				background: oklch(var(--primary-500));
 				content: "";
 			}
-			.help-article .help-mermaid svg {
+			.help-mermaid-toolbar {
+				position: relative;
+				z-index: 2;
+				display: flex;
+				min-height: 3rem;
+				align-items: center;
+				justify-content: flex-end;
+				gap: 0.25rem;
+				border-bottom: 1px solid #e4e7ec;
+				background: rgb(255 255 255 / 0.94);
+				padding: 0.45rem 0.6rem;
+				backdrop-filter: blur(10px);
+			}
+			.help-mermaid-control {
+				display: inline-grid;
+				width: 2rem;
+				height: 2rem;
+				place-items: center;
+				border: 1px solid transparent;
+				border-radius: 0.5rem;
+				background: transparent;
+				color: #344054;
+				transition: border-color 140ms ease, background 140ms ease, color 140ms ease;
+			}
+			.help-mermaid-control:hover {
+				border-color: #d0d5dd;
+				background: #f8fafc;
+				color: #175cd3;
+			}
+			.help-mermaid-control:focus-visible {
+				border-color: #84adff;
+				outline: 2px solid #d1e0ff;
+				outline-offset: 1px;
+			}
+			.help-mermaid-control:disabled {
+				cursor: not-allowed;
+				opacity: 0.38;
+			}
+			.help-mermaid-control svg {
+				width: 1rem;
+				height: 1rem;
+				pointer-events: none;
+			}
+			.help-mermaid-zoom-value {
+				min-width: 3.25rem;
+				color: #667085;
+				font-variant-numeric: tabular-nums;
+				font-size: 0.72rem;
+				font-weight: 650;
+				text-align: center;
+			}
+			.help-mermaid-toolbar-divider {
+				width: 1px;
+				height: 1.25rem;
+				margin: 0 0.2rem;
+				background: #e4e7ec;
+			}
+			.help-mermaid-viewport {
+				overflow: auto;
+				max-height: min(70vh, 45rem);
+				padding: clamp(1rem, 3vw, 2rem);
+				overscroll-behavior: contain;
+				scrollbar-gutter: stable both-edges;
+			}
+			.help-mermaid-canvas {
+				min-width: 100%;
+				margin: 0 auto;
+			}
+			.help-article .help-mermaid-canvas svg {
 				display: block;
+				width: 100%;
 				height: auto;
-				max-width: 100%;
+				max-width: none !important;
 				margin: 0 auto;
 			}
 			.help-article .help-mermaid .help-mermaid-link {
@@ -276,10 +347,21 @@ templ Doc(props DocProps) {
 				filter: drop-shadow(0 4px 7px rgb(16 24 40 / 0.14));
 				stroke-width: 2px;
 			}
-			.help-article .help-mermaid-wide svg {
-				width: auto;
-				min-width: 68rem;
-				max-width: none !important;
+			.help-article .help-mermaid-fullscreen {
+				position: fixed;
+				inset: 1rem;
+				z-index: 1000;
+				margin: 0;
+				border-color: #d0d5dd;
+				background-color: white;
+				box-shadow: 0 24px 80px rgb(16 24 40 / 0.24);
+			}
+			.help-article .help-mermaid-fullscreen .help-mermaid-viewport {
+				flex: 1;
+				max-height: none;
+			}
+			body.help-mermaid-fullscreen-open {
+				overflow: hidden;
 			}
 			.help-article blockquote {
 				position: relative;
@@ -449,10 +531,16 @@ templ Doc(props DocProps) {
 				.help-article ol > li {
 					padding-left: 2.7rem;
 				}
+				.help-article .help-mermaid-fullscreen {
+					inset: 0;
+					border: 0;
+					border-radius: 0;
+				}
 			}
 			@media (prefers-reduced-motion: reduce) {
 				.help-article a,
-				.help-code-copy {
+				.help-code-copy,
+				.help-mermaid-control {
 					transition: none;
 				}
 			}

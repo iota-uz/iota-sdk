@@ -33,6 +33,15 @@
     "CloseNavigation": "Fechar navegação",
     "CopyCode": "Copiar",
     "Copied": "Copiado",
+    "Diagram": {
+      "Label": "Diagrama do processo",
+      "ZoomIn": "Ampliar",
+      "ZoomOut": "Reduzir",
+      "ResetZoom": "Redefinir zoom",
+      "ZoomLevel": "Zoom",
+      "EnterFullscreen": "Abrir em tela cheia",
+      "ExitFullscreen": "Sair da tela cheia"
+    },
     "Callouts": {
       "Note": "Observação",
       "Tip": "Dica",

@@ -33,6 +33,15 @@
     "CloseNavigation": "关闭导航",
     "CopyCode": "复制",
     "Copied": "已复制",
+    "Diagram": {
+      "Label": "流程图",
+      "ZoomIn": "放大",
+      "ZoomOut": "缩小",
+      "ResetZoom": "重置缩放",
+      "ZoomLevel": "缩放比例",
+      "EnterFullscreen": "全屏查看",
+      "ExitFullscreen": "退出全屏"
+    },
     "Callouts": {
       "Note": "注意",
       "Tip": "提示",
