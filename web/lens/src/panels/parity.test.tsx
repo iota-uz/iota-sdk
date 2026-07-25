@@ -497,6 +497,21 @@ describe('chart legend series toggle', () => {
     expect(container.querySelector('.lens-plot-total')?.textContent).toContain('700')
   })
 
+  it('keeps the header total aligned with the visible legend series', async () => {
+    const panel: Panel = {
+      ...piePanel,
+      presentation: { ...piePanel.presentation, totalBadge: 'header' },
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+    await waitFor(() => expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('700'))
+  })
+
   it('refuses to hide the last visible series', async () => {
     const { inputs } = renderPie()
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))

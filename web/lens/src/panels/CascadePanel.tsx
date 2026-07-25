@@ -178,6 +178,8 @@ function buildWaterfallModel(
     annotation: first.annotation,
     rowIndex: first.rowIndex,
   }]
+  const magnitude = Math.max(...stages.map((stage) => Math.abs(stage.value)), 1)
+  const residual = magnitude * 1e-6
   for (let index = 1; index < stages.length; index += 1) {
     const previousStage = stages[index - 1]
     const currentStage = stages[index]
@@ -191,10 +193,8 @@ function buildWaterfallModel(
     // synthesized `end` total below. Skip it; it is drawn once as that end bar.
     // A final row carrying a genuine movement stays a real deduction/addition
     // and renders here as before. The running totals arrive as floating-point
-    // sums, so the restated delta is a residual (~1e-5) rather than exactly 0;
-    // these are UZS amounts in the billions where any real movement is >= 1e6,
-    // so a sub-unit (< 1 UZS) floor separates residual noise from real deltas.
-    if (currentStage.final && Math.abs(value) < 1) continue
+    // sums, so suppress only residuals relative to the scale of the data.
+    if (currentStage.final && Math.abs(value) < residual) continue
     raw.push({
       label: currentStage.cutLabel || currentStage.label,
       from: previous,

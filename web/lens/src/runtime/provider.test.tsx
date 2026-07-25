@@ -324,4 +324,26 @@ describe('DashboardRuntimeProvider', () => {
     await waitFor(() => expect(query).toHaveBeenCalledTimes(1))
     expect(within(dialog).getByText('43')).toBeInTheDocument()
   })
+
+  it('preserves a data-theme dark dashboard in its drawer portal', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(document), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    }))
+    render(
+      <div className="lens-root" data-theme="dark">
+        <DocumentProvider initialDocument={document} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <Controls />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog.closest('.lens-root')).toHaveAttribute('data-theme', 'dark')
+    expect(dialog.closest('.lens-root')).toHaveClass('dark')
+  })
 })

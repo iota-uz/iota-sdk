@@ -317,6 +317,17 @@ describe('coverage panel', () => {
     expect(view.container.querySelectorAll('.lens-coverage-legend-row')).toHaveLength(2)
   })
 
+  it('keeps a single positive segment visible when a target provides the comparison', () => {
+    runtime.frame = { data: coverageFrame([['a', 'Alpha', '', 100], ['b', 'Beta', '', 0]]), isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CoveragePanel panel={coveragePanel({
+      target: { value: 125, label: 'Target' },
+    })} />)
+
+    expect(view.container.querySelector('.lens-coverage-bullet')).not.toBeNull()
+    expect(view.container.querySelectorAll('.lens-coverage-track-segment')).toHaveLength(1)
+    expect(view.container.querySelector('.lens-coverage-bullet-marker')).not.toBeNull()
+  })
+
   it('makes each segment and legend row its own link for a row-scoped action', () => {
     runtime.frame = {
       data: coverageFrame([['a', 'Alpha', '/drill/a', 60], ['b', 'Beta', '/drill/b', 40]]),
@@ -445,5 +456,29 @@ describe('cascade stages', () => {
     expect(items.some((item) =>
       (item.kind === 'increase' || item.kind === 'decrease') && Math.abs(item.value) < 1,
     )).toBe(false)
+  })
+
+  it('keeps a genuine sub-unit movement on a small-scale waterfall', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [
+        ['Opening ratio', 1, 0, '', false],
+        ['Closing ratio', 1.25, 0.25, 'Adjustment', true],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+
+    expect(items.some((item) => item.kind === 'increase' && item.value === 0.25)).toBe(true)
   })
 })

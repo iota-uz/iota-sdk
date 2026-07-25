@@ -231,8 +231,8 @@ export function DrillOverlay({
     // (a long breakdown/structure list) must NOT close it, or the list is
     // unreachable: the segment can never be expanded.
     const onScroll = (event: Event) => {
-      const node = event.target as Node | null
-      if (node && dialogRef.current?.contains(node)) return
+      const node = event.target
+      if (node instanceof globalThis.Node && dialogRef.current?.contains(node)) return
       onClose()
     }
     document.addEventListener('keydown', onKeyDown, true)

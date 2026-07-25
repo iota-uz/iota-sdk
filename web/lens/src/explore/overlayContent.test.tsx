@@ -53,6 +53,16 @@ afterEach(() => {
 })
 
 describe('overlay segment header', () => {
+  it('closes safely when the window itself is the scroll target', async () => {
+    const onClose = vi.fn()
+    renderOverlay({ label: 'Operating margin', breakdown: [], perspectives: [] }, { onClose })
+
+    await screen.findByRole('dialog')
+    fireEvent.scroll(window)
+
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('stacks a segment overlay above the drawer that opened it', () => {
     render(
       <div className="lens-root">

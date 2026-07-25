@@ -137,11 +137,11 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
     [document.theme, frame.data, panel],
   )
   const headline = panel.headline ?? panel.total ?? total
-  // A meaningful track needs at least two positive segments; a lone 100%
-  // segment is a full bar that says nothing, so the card degrades to its
-  // headline plus legend rows (e.g. claims entirely «within reserve»).
+  // A plain track needs at least two positive segments; a targeted bullet also
+  // has the goal marker as a second reference, so one positive segment remains
+  // meaningful there.
   const positiveCount = segments.reduce((count, segment) => count + (segment.value > 0 ? 1 : 0), 0)
-  const showTrack = positiveCount > 1
+  const showTrack = positiveCount > 1 || (Boolean(panel.target) && positiveCount > 0)
   // Legacy parity: a card-scoped action makes the whole card a link, a
   // row-scoped one makes each track segment and legend row its own link.
   const navigation = usePanelNavigation(panel)

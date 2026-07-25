@@ -51,15 +51,17 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
     const element = globalThis.document.createElement('div')
-    element.className = `lens-root lens-drawer-root${dark ? ' dark' : ''}`
-    if (theme) element.dataset.theme = theme
     globalThis.document.body.appendChild(element)
     setContainer(element)
-    return () => {
-      element.remove()
-      setContainer(undefined)
-    }
-  }, [dark, theme])
+    return () => element.remove()
+  }, [])
+
+  useEffect(() => {
+    if (!container) return
+    container.className = `lens-root lens-drawer-root${dark ? ' dark' : ''}`
+    if (theme) container.dataset.theme = theme
+    else delete container.dataset.theme
+  }, [container, dark, theme])
 
   useEffect(() => {
     if (!container) return undefined

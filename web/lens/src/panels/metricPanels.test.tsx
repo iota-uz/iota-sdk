@@ -121,6 +121,14 @@ describe('MetricFlowPanel', () => {
     expect(container.querySelector('.lens-flow')).toBeNull()
   })
 
+  it('names a missing configured optional column in the panel error', () => {
+    const panel = flowPanel({ encoding: { id: 'key', value: 'value', share: 'share_pct' } })
+    const frame = flowFrame([['premium', 1000]])
+    const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
+
+    expect(container.querySelector('.lens-panel-state-error')?.textContent).toContain('share_pct')
+  })
+
   it('surfaces duplicate frame keys as a panel error state', () => {
     const panel = flowPanel()
     const frame = flowFrame([['premium', 1000], ['premium', 1200]])
@@ -456,6 +464,7 @@ describe('MetricRelationshipPanel', () => {
 
     expect(container.querySelector('.lens-relationship-glyph-h')?.textContent).toBe('⇄')
     expect(container.querySelector('.lens-visually-hidden')?.textContent).toBe('Metric A reconciles with Metric B')
+    expect(container.querySelector('.lens-relationship-type')?.textContent).toBe('Reconciliation')
   })
 
   it('degrades one end independently when only it is unavailable', () => {

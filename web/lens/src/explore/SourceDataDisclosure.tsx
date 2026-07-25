@@ -95,7 +95,12 @@ export function SourceDataDisclosure({ source, style }: SourceDataDisclosureProp
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false)
       })
-    return () => controller.abort()
+    return () => {
+      if (controller.signal.aborted) return
+      controller.abort()
+      requested.current = false
+      setLoading(false)
+    }
   }, [document, endpoint, frame, navigation.path, navigation.perspectiveId, open, source.frame])
 
   const columns = useMemo(() => (frame ? resolveColumns(source, frame) : []), [frame, source])

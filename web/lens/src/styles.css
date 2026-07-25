@@ -1020,14 +1020,14 @@
      effective top of the stack comes from this container's z-index. */
   .lens-drawer-root {
     @apply lens-fixed lens-inset-0 lens-min-h-0 lens-bg-transparent lens-p-0;
-    z-index: var(--lens-drawer-z, 2147483100);
+    z-index: var(--lens-drawer-z, 2147483640);
   }
 
   /* Segment/fork overlays opened by a focus canvas inside the drawer are part
      of the drawer interaction, not the obscured page beneath it. They portal
      to body too, so they need one explicit rung above the drawer root. */
   .lens-overlay-root-over-drawer {
-    z-index: var(--lens-drawer-overlay-z, 2147483200);
+    z-index: var(--lens-drawer-overlay-z, 2147483641);
   }
 
   .lens-panel-overlay {
@@ -2955,7 +2955,7 @@
   }
 
   .lens-flow-stage-label {
-    margin-right: auto;
+    margin-inline-end: auto;
     min-width: 0;
     font-size: 0.875rem;
     font-weight: 500;
@@ -3065,7 +3065,7 @@
     }
 
     .lens-flow-stage-label {
-      margin-right: 0;
+      margin-inline-end: 0;
     }
   }
 
@@ -3172,7 +3172,7 @@
     align-items: baseline;
     gap: 8px;
     justify-self: end;
-    text-align: right;
+    text-align: end;
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--lens-text-strong);
@@ -3186,7 +3186,7 @@
   .lens-hierarchy-share {
     flex-shrink: 0;
     justify-self: end;
-    text-align: right;
+    text-align: end;
     font-size: 0.75rem;
     font-weight: 500;
     color: var(--lens-text-muted);

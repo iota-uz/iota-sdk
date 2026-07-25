@@ -197,7 +197,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // the left of the body.
   const hasLegend = panel.presentation?.legend === 'below' && Boolean(frame.data)
   return (
-    <PanelFrame panel={panel} frame={frame} total={levelTotal ?? panel.total}>
+    <PanelFrame panel={panel} frame={frame} total={visibleTotal ?? levelTotal ?? panel.total}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
         <div className="lens-chart-area">
           {input && (

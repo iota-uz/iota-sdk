@@ -1031,7 +1031,11 @@ function RuntimeCore({
         ?? (typeof globalThis.document !== 'undefined'
           ? globalThis.document.querySelector<HTMLElement>('.lens-root')
           : null)
-      drawerTheme.current = { theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false }
+      const theme = root?.dataset.theme
+      drawerTheme.current = {
+        theme,
+        dark: theme === 'dark' || root?.classList.contains('dark') === true,
+      }
       dispatch(navigationActions.openDrawer(
         src,
         drawerNavigationFromSource(src, new URL(window.location.href)),

@@ -165,13 +165,16 @@ export function buildKeyedJoin(panel: Panel, frame: Frame, messages: KeyedJoinMe
   if (idIndex === 'unset' || idIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn(idField ?? 'id') }
   if (valueIndex === 'unset' || valueIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn(valueField ?? 'value') }
 
-  const shareIndex = roleIndex(frame, panelField(panel, 'share'))
-  const confidenceIndex = roleIndex(frame, panelField(panel, 'confidence'))
-  const availabilityIndex = roleIndex(frame, panelField(panel, 'availability'))
+  const shareField = panelField(panel, 'share')
+  const confidenceField = panelField(panel, 'confidence')
+  const availabilityField = panelField(panel, 'availability')
+  const shareIndex = roleIndex(frame, shareField)
+  const confidenceIndex = roleIndex(frame, confidenceField)
+  const availabilityIndex = roleIndex(frame, availabilityField)
   // Optional roles: absent-when-configured is still a contract error; unset is fine.
-  if (shareIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn('share') }
-  if (confidenceIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn('confidence') }
-  if (availabilityIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn('availability') }
+  if (shareIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn(shareField ?? 'share') }
+  if (confidenceIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn(confidenceField ?? 'confidence') }
+  if (availabilityIndex === 'missing') return { kind: 'contract-error', message: messages.missingColumn(availabilityField ?? 'availability') }
 
   // Narrowed to number here (-1 marks "not configured").
   const share = shareIndex === 'unset' ? -1 : shareIndex

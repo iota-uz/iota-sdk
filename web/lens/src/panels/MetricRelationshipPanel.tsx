@@ -5,6 +5,7 @@ import type {
   MetricRelationshipConfig,
   MetricRelationshipDirection,
   MetricRelationshipEnd,
+  MetricRelationshipType,
   Panel,
 } from '../contract'
 import { useFormat, usePanelFrame, useTranslate, type PanelFrameState } from '../runtime'
@@ -22,6 +23,12 @@ interface Glyphs {
   horizontal: string
   /** Vertical connector glyph for the narrow column layout (no CSS rotation). */
   vertical: string
+}
+
+const typeFallback: Record<MetricRelationshipType, string> = {
+  association: 'Association',
+  derivation: 'Derivation',
+  reconciliation: 'Reconciliation',
 }
 
 function connectorGlyphs(config: MetricRelationshipConfig): Glyphs {
@@ -92,7 +99,8 @@ export function MetricRelationshipPanel({ panel }: MetricRelationshipPanelProps)
   const target = endView(config?.target)
   const glyphs = config ? connectorGlyphs(config) : { horizontal: '⇄', vertical: '⇵' }
 
-  const typeLabel = translate(`relationship.type.${config?.type ?? 'association'}`, config?.type ?? 'association')
+  const type = config?.type ?? 'association'
+  const typeLabel = translate(`relationship.type.${type}`, typeFallback[type])
   const sentence = relationshipSentence(translate, config, source?.end.label ?? '', target?.end.label ?? '')
 
   const renderEnd = (view: EndView | undefined, role: 'source' | 'target'): ReactNode => {
