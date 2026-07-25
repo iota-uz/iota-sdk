@@ -313,7 +313,7 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 		"label": panel.Encoding.Label, "value": panel.Encoding.Value, "id": panel.Encoding.ID,
 		"series": panel.Encoding.Series, "category": panel.Encoding.Category, "cut": panel.Encoding.Cut,
 		"cutLabel": panel.Encoding.CutLabel, "final": panel.Encoding.Final,
-		"tone":  panel.Encoding.Tone,
+		"annotation": panel.Encoding.Annotation, "tone": panel.Encoding.Tone,
 		"share": panel.Encoding.Share, "confidence": panel.Encoding.Confidence,
 		"availability": panel.Encoding.Availability,
 	} {

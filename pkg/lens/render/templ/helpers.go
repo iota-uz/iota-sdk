@@ -23,6 +23,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/filter"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/lens/theme"
@@ -1033,6 +1034,7 @@ type cascadeView struct {
 
 type cascadeStage struct {
 	Label      string
+	Annotation string
 	Value      string
 	CutLabel   string
 	CutValue   string
@@ -1064,6 +1066,7 @@ type waterfallTick struct {
 
 type waterfallItem struct {
 	Label          string
+	Annotation     string
 	Amount         string
 	BarStyle       templpkg.SafeCSS
 	ConnectorStyle templpkg.SafeCSS
@@ -1090,22 +1093,25 @@ func buildWaterfallView(spec panel.Spec, result *runtime.PanelResult) waterfallV
 	labelField := firstField(spec.Fields.Label, spec.Fields.Category, panel.DefaultLabelField)
 	valueField := firstField(spec.Fields.Value, panel.DefaultValueField)
 	cutLabelField := firstField(spec.Fields.CutLabel, panel.DefaultCutLabelField)
+	annotationField := spec.Fields.Annotation
 
 	type rawItem struct {
-		label string
-		from  float64
-		to    float64
-		raw   float64
-		total bool
-		final bool
+		label      string
+		annotation string
+		from       float64
+		to         float64
+		raw        float64
+		total      bool
+		final      bool
 	}
 	opening := segmentNumeric(rows[0][valueField.Name()])
 	raw := []rawItem{{
-		label: strings.TrimSpace(fmt.Sprint(rows[0][labelField.Name()])),
-		from:  0,
-		to:    opening,
-		raw:   opening,
-		total: true,
+		label:      strings.TrimSpace(fmt.Sprint(rows[0][labelField.Name()])),
+		annotation: cascadeAnnotation(rows[0], annotationField),
+		from:       0,
+		to:         opening,
+		raw:        opening,
+		total:      true,
 	}}
 	running := opening
 	for i := 1; i < len(rows); i++ {
@@ -1115,10 +1121,11 @@ func buildWaterfallView(spec panel.Spec, result *runtime.PanelResult) waterfallV
 			label = strings.TrimSpace(fmt.Sprint(rows[i][labelField.Name()]))
 		}
 		raw = append(raw, rawItem{
-			label: label,
-			from:  running,
-			to:    next,
-			raw:   next - running,
+			label:      label,
+			annotation: cascadeAnnotation(rows[i], annotationField),
+			from:       running,
+			to:         next,
+			raw:        next - running,
 		})
 		running = next
 	}
@@ -1179,6 +1186,7 @@ func buildWaterfallView(spec panel.Spec, result *runtime.PanelResult) waterfallV
 		amount := waterfallAmountText(item.raw, item.total, spec.Formatter, result.Locale, result.Timezone)
 		view.Items = append(view.Items, waterfallItem{
 			Label:          item.label,
+			Annotation:     item.annotation,
 			Amount:         amount,
 			BarStyle:       templpkg.SafeCSS(fmt.Sprintf("top:%.4f%%;height:%.4f%%", top, height)),
 			ConnectorStyle: templpkg.SafeCSS(fmt.Sprintf("top:%.4f%%;left:75%%;width:calc(50%% + 12px)", yPct(item.to))),
@@ -1248,6 +1256,7 @@ func buildCascadeView(spec panel.Spec, result *runtime.PanelResult) cascadeView 
 	cutField := firstField(spec.Fields.Cut, panel.DefaultCutField)
 	cutLabelField := firstField(spec.Fields.CutLabel, panel.DefaultCutLabelField)
 	finalField := firstField(spec.Fields.Final, panel.DefaultFinalField)
+	annotationField := spec.Fields.Annotation
 
 	maxStageValue := 0.0
 	for _, row := range rows {
@@ -1279,6 +1288,7 @@ func buildCascadeView(spec panel.Spec, result *runtime.PanelResult) cascadeView 
 		cutLabel := strings.TrimSpace(fmt.Sprint(row[cutLabelField.Name()]))
 		view.Stages = append(view.Stages, cascadeStage{
 			Label:      strings.TrimSpace(fmt.Sprint(row[labelField.Name()])),
+			Annotation: cascadeAnnotation(row, annotationField),
 			Value:      formatValue(raw, spec.Formatter, result.Locale, result.Timezone),
 			CutLabel:   cutLabel,
 			CutValue:   cascadeCutValue(cutRaw, spec.Formatter, result.Locale, result.Timezone),
@@ -1295,6 +1305,13 @@ func buildCascadeView(spec panel.Spec, result *runtime.PanelResult) cascadeView 
 		})
 	}
 	return view
+}
+
+func cascadeAnnotation(row frame.Row, field panel.FieldRef) string {
+	if field.Empty() {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(row[field.Name()]))
 }
 
 // cascadeMinusSign is U+2212 MINUS SIGN, used instead of a hyphen so signed

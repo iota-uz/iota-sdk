@@ -3923,7 +3923,12 @@ templ CascadePanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelErr
 			}
 			<div class="flex flex-col gap-2 py-1.5">
 				<div class="flex items-baseline justify-between gap-4">
-					<span class={ "min-w-0 text-sm " + stage.LabelClass }>{ stage.Label }</span>
+					<span class="flex min-w-0 flex-wrap items-center gap-1.5">
+						<span class={ "min-w-0 text-sm " + stage.LabelClass }>{ stage.Label }</span>
+						if stage.Annotation != "" {
+							<small class="inline-flex w-fit max-w-full items-center rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold leading-3 tabular-nums text-red-700">{ stage.Annotation }</small>
+						}
+					</span>
 					<span class={ "flex-shrink-0 text-sm font-semibold tabular-nums " + stage.ValueClass }>{ stage.Value }</span>
 				</div>
 				<div class="h-2.5 w-full overflow-hidden rounded-full bg-slate-100">
@@ -3987,7 +3992,12 @@ templ WaterfallPanel(spec panel.Spec, result *runtime.PanelResult, resolvePanelE
 		</div>
 		<div class="mt-2 ml-24 grid gap-3" style={ view.GridStyle }>
 			for _, item := range view.Items {
-				<div class="min-w-0 text-center text-xs font-medium leading-4 text-slate-600">{ item.Label }</div>
+				<div class="flex min-w-0 flex-col items-center gap-1 text-center text-xs font-medium leading-4 text-slate-600">
+					<span>{ item.Label }</span>
+					if item.Annotation != "" {
+						<small class="inline-flex w-fit max-w-full items-center rounded border border-red-200 bg-red-50 px-1.5 py-0.5 text-[10px] font-semibold leading-3 tabular-nums text-red-700">{ item.Annotation }</small>
+					}
+				</div>
 			}
 		</div>
 		if spec.Trend != nil {

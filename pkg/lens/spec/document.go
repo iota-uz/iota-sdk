@@ -241,6 +241,7 @@ type FieldMappingSpec struct {
 	Cut          string `json:"cut,omitempty"`
 	CutLabel     string `json:"cutLabel,omitempty"`
 	Final        string `json:"final,omitempty"`
+	Annotation   string `json:"annotation,omitempty"`
 	Tone         string `json:"tone,omitempty"`
 	Share        string `json:"share,omitempty"`
 	Confidence   string `json:"confidence,omitempty"`

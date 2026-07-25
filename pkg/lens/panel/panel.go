@@ -691,6 +691,10 @@ type FieldMapping struct {
 	Cut       FieldRef
 	CutLabel  FieldRef
 	Final     FieldRef
+	// Annotation names a frame column carrying an optional short, already
+	// formatted note for an individual cascade stage. Renderers show it as a
+	// compact badge beside/below the stage label; empty values render nothing.
+	Annotation FieldRef
 	// Tone names a frame column carrying a per-row semantic tone for a cascade
 	// panel's stages ("neutral", "positive", "negative", "inflow"). It overrides
 	// the flow-direction default color. Empty (the default) keeps direction-based
@@ -991,11 +995,15 @@ func (b *Builder) EndField(name FieldRef) *Builder      { b.spec.Fields.EndTime 
 func (b *Builder) CutField(name FieldRef) *Builder      { b.spec.Fields.Cut = name; return b }
 func (b *Builder) CutLabelField(name FieldRef) *Builder { b.spec.Fields.CutLabel = name; return b }
 func (b *Builder) FinalField(name FieldRef) *Builder    { b.spec.Fields.Final = name; return b }
+func (b *Builder) AnnotationField(name FieldRef) *Builder {
+	b.spec.Fields.Annotation = name
+	return b
+}
 
 // ToneField declares the frame column carrying a per-row semantic tone for a
 // cascade panel's stages ("neutral", "positive", "negative", "inflow"). It
 // overrides the flow-direction default color; absent keeps direction coloring.
-func (b *Builder) ToneField(name FieldRef) *Builder { b.spec.Fields.Tone = name; return b }
+func (b *Builder) ToneField(name FieldRef) *Builder  { b.spec.Fields.Tone = name; return b }
 func (b *Builder) ShareField(name FieldRef) *Builder { b.spec.Fields.Share = name; return b }
 func (b *Builder) ConfidenceField(name FieldRef) *Builder {
 	b.spec.Fields.Confidence = name

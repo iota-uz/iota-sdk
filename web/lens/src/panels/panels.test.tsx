@@ -370,7 +370,10 @@ describe('cascade stages', () => {
 
   it('renders a conventional vertical waterfall projection when requested', () => {
     const cascade = panel('cascade', {
-      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      encoding: {
+        label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel',
+        final: 'final', annotation: 'annotation',
+      },
       presentation: { bridgeLayout: 'waterfall' },
     })
     const frame: Frame = {
@@ -380,10 +383,11 @@ describe('cascade stages', () => {
         { name: 'cut', type: 'number' },
         { name: 'cutLabel', type: 'string' },
         { name: 'final', type: 'bool' },
+        { name: 'annotation', type: 'string' },
       ],
       rows: [
-        ['Opening', 235, 0, '', false],
-        ['Closing', 56.98, 178.02, 'Net movement', true],
+        ['Opening', 235, 0, '', false, ''],
+        ['Closing', 56.98, 178.02, 'Net movement', true, '12 above threshold'],
       ],
     }
     const format = (value: unknown) => String(value)
@@ -394,12 +398,14 @@ describe('cascade stages', () => {
       { label: 'Closing', kind: 'end' },
     ])
     expect(items[1]?.formattedValue).toBe('−178.02')
+    expect(items[1]?.annotation).toBe('12 above threshold')
 
     runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
     const view = render(<CascadePanel panel={cascade} />)
     expect(view.container.querySelector('[data-lens-waterfall]')).not.toBeNull()
     expect(view.container.querySelectorAll('.lens-waterfall-bar')).toHaveLength(3)
     expect(view.container.querySelector('.lens-waterfall-bar[data-kind="decrease"]')).not.toBeNull()
+    expect(view.container.querySelector('.lens-waterfall-annotation')).toHaveTextContent('12 above threshold')
   })
 
   it('draws an explicit pure-total final row once, without a zero-delta duplicate', () => {

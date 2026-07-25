@@ -222,6 +222,12 @@ func appendPanelTree(
 		semantics = defaultExplorerSemantics(explorerSpec, semantics)
 		key := explorerRootKey(explorerSpec.ID)
 		drillRoot = &key
+	} else if spec.DrillTree != nil {
+		key, err := buildStaticDrillTree(doc, spec, frameRef)
+		if err != nil {
+			return fmt.Errorf("panel %s drill tree: %w", spec.ID, err)
+		}
+		drillRoot = &key
 	}
 	doc.Panels = append(doc.Panels, Panel{
 		ID: spec.ID, Kind: kind, Title: spec.Title, Semantics: semantics, Frame: frameRef,
@@ -269,6 +275,112 @@ func appendPanelTree(
 				}
 			}
 		}
+	}
+	return nil
+}
+
+// buildStaticDrillTree translates the renderer-neutral, precomputed
+// panel.DrillTree into the wire drill graph used by the React Lens runtime.
+// The legacy renderer consumes DrillTree directly; without this bridge the
+// same valid panel silently lost its in-place navigation in React documents.
+func buildStaticDrillTree(doc *DashboardDocument, spec panel.Spec, rootFrame FrameRef) (NodeKey, error) {
+	rootKey := qualifiedKey("panel-drill", spec.ID)
+	rootPath := NodePath{rootKey}
+	root := Level{
+		Path:         rootPath,
+		Label:        "",
+		Children:     make([]Node, 0, len(spec.DrillTree.Branches)),
+		Frame:        rootFrame,
+		Perspectives: make([]PerspectiveRef, 0),
+		Presentation: buildPresentation(spec),
+	}
+	for _, branch := range spec.DrillTree.Branches {
+		target := qualifiedKey("panel-drill", spec.ID, branch.TriggerKey)
+		childPath := appendPath(rootPath, NodeKey(branch.TriggerKey))
+		root.Children = append(root.Children, Node{
+			Key:    NodeKey(branch.TriggerKey),
+			Path:   childPath,
+			Label:  branch.Label,
+			Target: target,
+		})
+		if err := buildStaticDrillLevel(
+			doc,
+			spec,
+			target,
+			appendPath(rootPath, target),
+			branch.Label,
+			branch.Children,
+			[]string{branch.TriggerKey},
+		); err != nil {
+			return "", err
+		}
+	}
+	doc.Drill.Edges[rootKey] = root
+	return rootKey, nil
+}
+
+func buildStaticDrillLevel(
+	doc *DashboardDocument,
+	spec panel.Spec,
+	levelKey NodeKey,
+	levelPath NodePath,
+	label string,
+	nodes []panel.DrillNode,
+	identityPath []string,
+) error {
+	idField := spec.Fields.ID.Name()
+	labelField := spec.Fields.Label.Name()
+	valueField := spec.Fields.Value.Name()
+	if idField == "" || labelField == "" || valueField == "" {
+		return fmt.Errorf("requires id, label, and value fields")
+	}
+
+	frameRef := FrameRef(qualifiedKey(append([]string{"panel-drill-frame", spec.ID}, identityPath...)...))
+	rows := make([][]any, 0, len(nodes))
+	children := make([]Node, 0, len(nodes))
+	for _, item := range nodes {
+		rows = append(rows, []any{item.Key, item.Label, item.Value})
+		childPath := appendPath(levelPath, NodeKey(item.Key))
+		child := Node{Key: NodeKey(item.Key), Path: childPath, Label: item.Label}
+		if len(item.Children) > 0 {
+			targetParts := append(append([]string{"panel-drill", spec.ID}, identityPath...), item.Key)
+			target := qualifiedKey(targetParts...)
+			child.Target = target
+			if err := buildStaticDrillLevel(
+				doc,
+				spec,
+				target,
+				appendPath(levelPath, target),
+				item.Label,
+				item.Children,
+				append(append([]string(nil), identityPath...), item.Key),
+			); err != nil {
+				return err
+			}
+		} else if item.Action != nil {
+			if converted, ok := convertAction(*item.Action, true); ok {
+				child.Action = &converted
+			}
+		}
+		children = append(children, child)
+	}
+
+	doc.Frames[frameRef] = Frame{
+		Columns: []Column{
+			{Name: idField, Type: ColumnString},
+			{Name: labelField, Type: ColumnString},
+			{Name: valueField, Type: ColumnNumber},
+		},
+		Rows: rows,
+	}
+	encoding := Encoding{ID: idField, Label: labelField, Value: valueField}
+	doc.Drill.Edges[levelKey] = Level{
+		Path:         levelPath,
+		Label:        label,
+		Children:     children,
+		Frame:        frameRef,
+		Encoding:     &encoding,
+		Perspectives: make([]PerspectiveRef, 0),
 	}
 	return nil
 }
@@ -642,6 +754,7 @@ func declaredEncoding(fields panel.FieldMapping) Encoding {
 	assign(&encoding.Cut, fields.Cut)
 	assign(&encoding.CutLabel, fields.CutLabel)
 	assign(&encoding.Final, fields.Final)
+	assign(&encoding.Annotation, fields.Annotation)
 	assign(&encoding.Tone, fields.Tone)
 	assign(&encoding.Share, fields.Share)
 	assign(&encoding.Confidence, fields.Confidence)
@@ -668,6 +781,7 @@ func buildEncoding(fields panel.FieldMapping, frame Frame) Encoding {
 	assign(&encoding.Cut, fields.Cut)
 	assign(&encoding.CutLabel, fields.CutLabel)
 	assign(&encoding.Final, fields.Final)
+	assign(&encoding.Annotation, fields.Annotation)
 	assign(&encoding.Tone, fields.Tone)
 	assign(&encoding.Share, fields.Share)
 	assign(&encoding.Confidence, fields.Confidence)
@@ -1039,7 +1153,11 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 	for _, branch := range spec.Branches {
 		branchKey := qualifiedKey(spec.ID, branch.Key)
 		branchPath := appendPath(rootPath, branchKey)
-		branchLevel := Level{Path: branchPath, Label: branch.Label, Children: make([]Node, 0), Perspectives: make([]PerspectiveRef, 0, len(branch.Perspectives))}
+		branchLevel := Level{
+			Path: branchPath, Label: branch.Label, Children: make([]Node, 0),
+			Perspectives:       make([]PerspectiveRef, 0, len(branch.Perspectives)),
+			DefaultPerspective: string(qualifiedKey(spec.ID, branch.Key, branch.DefaultPerspective)),
+		}
 		root.Children = append(root.Children, Node{Key: branchKey, Path: branchPath, Label: branch.Label, Target: branchKey})
 		for _, view := range branch.Perspectives {
 			perspectiveID := string(qualifiedKey(spec.ID, branch.Key, view.Key))

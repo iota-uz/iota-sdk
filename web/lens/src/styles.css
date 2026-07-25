@@ -251,6 +251,20 @@
     @apply lens-flex lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
   }
 
+  /* Once the action/filter cluster can no longer coexist with the document
+     identity, move it below as one unit. Letting flexbox squeeze the identity
+     instead makes every word (and even every date token) wrap independently,
+     which is unreadable in a board dashboard. */
+  @media (max-width: 1100px) {
+    .lens-dashboard-header {
+      @apply lens-flex-col lens-items-stretch lens-gap-3;
+    }
+
+    .lens-dashboard-controls {
+      @apply lens-justify-start;
+    }
+  }
+
   .lens-filter-bar {
     @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
   }
@@ -270,7 +284,7 @@
   }
 
   .lens-filter-chip {
-    @apply lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-whitespace-nowrap lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
   }
 
   .lens-filter-chip:hover {
@@ -297,7 +311,7 @@
      caret. Hover raises the border; the open state ties it to the popover
      with the accent border and tint. */
   .lens-filter-trigger {
-    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-filter-trigger:hover {
@@ -854,8 +868,30 @@
     max-width: 60%;
   }
 
+  @media (max-width: 1100px) {
+    .lens-panel-header {
+      @apply lens-min-h-12;
+    }
+
+    .lens-panel-title {
+      @apply lens-min-w-0 lens-flex-1 lens-whitespace-normal lens-py-2;
+      max-width: none;
+      display: -webkit-box;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+      line-height: 1.2;
+    }
+  }
+
   .lens-panel-actions {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-justify-end lens-gap-2;
+  }
+
+  @media (max-width: 1100px) {
+    .lens-panel-actions {
+      @apply lens-flex-none;
+    }
   }
 
   /* Controls are fixed-size affordances: only the summary badge gives ground. */
@@ -1100,6 +1136,42 @@
 
   .lens-metric-row-columns {
     @apply lens-flex-row lens-divide-x lens-divide-y-0;
+  }
+
+  /* Four board KPIs need room for their full business labels. At tablet-sized
+     dashboard widths a 2×2 scorecard is easier to scan than four compressed
+     columns with clipped names; phones fall back to one metric per row. */
+  @media (max-width: 1100px) {
+    .lens-metric-row-columns {
+      @apply lens-flex-wrap;
+    }
+
+    .lens-metric-row-columns > * {
+      flex: 1 1 50%;
+      max-width: 50%;
+      border-left-width: 0 !important;
+      border-top-width: 0 !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(even) {
+      border-left-width: 1px !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(n+3) {
+      border-top-width: 1px !important;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .lens-metric-row-columns > * {
+      flex-basis: 100%;
+      max-width: 100%;
+      border-left-width: 0 !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(n+2) {
+      border-top-width: 1px !important;
+    }
   }
 
   .lens-stat-metric {
@@ -1651,6 +1723,19 @@
     @apply lens-text-neg;
   }
 
+  .lens-cascade-stage-title {
+    @apply lens-flex lens-min-w-0 lens-flex-wrap lens-items-center lens-gap-1.5;
+  }
+
+  .lens-cascade-stage-annotation,
+  .lens-waterfall-annotation {
+    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-[10px] lens-font-semibold lens-leading-3;
+    border-color: #fecaca;
+    background: #fef2f2;
+    color: #b91c1c;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
   .lens-cascade-track {
     @apply lens-h-2.5 lens-w-full lens-overflow-hidden lens-rounded-full lens-bg-inset;
   }
@@ -1819,8 +1904,20 @@
     margin-left: 96px;
   }
 
-  .lens-waterfall-labels span {
+  .lens-waterfall-label {
     @apply lens-min-w-0 lens-text-center lens-text-xs lens-font-medium lens-leading-4 lens-text-muted;
+  }
+
+  .lens-waterfall-label {
+    @apply lens-flex lens-flex-col lens-items-center lens-gap-1;
+  }
+
+  .lens-waterfall-label > span {
+    @apply lens-min-w-0;
+  }
+
+  .lens-waterfall-annotation {
+    white-space: normal;
   }
 
   .lens-table-view {

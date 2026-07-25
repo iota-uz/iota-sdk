@@ -1469,7 +1469,9 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
 			return err
 		}
-		for _, field := range []panel.FieldRef{spec.Fields.Cut, spec.Fields.CutLabel, spec.Fields.Final} {
+		for _, field := range []panel.FieldRef{
+			spec.Fields.Cut, spec.Fields.CutLabel, spec.Fields.Final, spec.Fields.Annotation,
+		} {
 			if err := requireField(spec, primary, field); err != nil {
 				return err
 			}

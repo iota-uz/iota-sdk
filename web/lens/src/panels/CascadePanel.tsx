@@ -60,6 +60,8 @@ export interface CascadeStage {
   formattedCut: string
   cutLabel: string
   final: boolean
+  /** Optional producer-authored context shown as a compact stage badge. */
+  annotation: string
   width: number
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
@@ -78,12 +80,14 @@ export function buildCascadeStages(
   const cutField = panelField(panel, 'cut') ?? 'cut'
   const cutLabelField = panelField(panel, 'cutLabel') ?? 'cutLabel'
   const finalField = panelField(panel, 'final') ?? 'final'
+  const annotationField = panelField(panel, 'annotation')
   const toneField = panelField(panel, 'tone')
   const labelIndex = columnIndex(frame, labelField)
   const valueIndex = columnIndex(frame, valueField)
   const cutIndex = columnIndex(frame, cutField)
   const cutLabelIndex = columnIndex(frame, cutLabelField)
   const finalIndex = columnIndex(frame, finalField)
+  const annotationIndex = columnIndex(frame, annotationField)
   const toneIndex = columnIndex(frame, toneField)
   const maximum = Math.max(1, ...frame.rows.map((row) => Math.max(0, numeric(row[valueIndex]))))
 
@@ -99,6 +103,7 @@ export function buildCascadeStages(
       formattedCut: signedCut(cut, formatCut),
       cutLabel: displayText(row[cutLabelIndex], ''),
       final: boolean(row[finalIndex]),
+      annotation: annotationIndex >= 0 ? displayText(row[annotationIndex], '') : '',
       tone: toneIndex >= 0 ? asTone(row[toneIndex]) : undefined,
       width: rawWidth > 0 ? Math.max(widthFloor, rawWidth) : 0,
       rowIndex: index,
@@ -115,6 +120,7 @@ export interface WaterfallItem {
   connectorTop: number
   zero: number
   kind: 'start' | 'increase' | 'decrease' | 'end'
+  annotation: string
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
   /**
@@ -160,6 +166,7 @@ function buildWaterfallModel(
     value: number
     kind: WaterfallItem['kind']
     tone?: CascadeTone
+    annotation: string
     rowIndex?: number
   }> = [{
     label: first.label,
@@ -168,6 +175,7 @@ function buildWaterfallModel(
     value: first.value,
     kind: 'start',
     tone: first.tone,
+    annotation: first.annotation,
     rowIndex: first.rowIndex,
   }]
   for (let index = 1; index < stages.length; index += 1) {
@@ -194,6 +202,7 @@ function buildWaterfallModel(
       value,
       kind: value < 0 ? 'decrease' : 'increase',
       tone: currentStage.tone,
+      annotation: currentStage.annotation,
       rowIndex: currentStage.rowIndex,
     })
   }
@@ -209,6 +218,7 @@ function buildWaterfallModel(
         value: closing.value,
         kind: 'end',
         tone: closing.tone,
+        annotation: closing.annotation,
       })
     }
   }
@@ -240,6 +250,7 @@ function buildWaterfallModel(
       zero: y(0),
       kind: item.kind,
       tone: item.tone,
+      annotation: item.annotation,
       rowIndex: item.rowIndex,
     }
   })
@@ -362,7 +373,12 @@ export function CascadePanel({ panel }: CascadePanelProps) {
           </div>
           <div className="lens-waterfall-labels">
             {waterfall.items.map((item, index) => (
-              <span key={`${item.label}-label-${index}`}>{item.label}</span>
+              <span className="lens-waterfall-label" key={`${item.label}-label-${index}`}>
+                <span>{item.label}</span>
+                {item.annotation && (
+                  <small className="lens-waterfall-annotation">{item.annotation}</small>
+                )}
+              </span>
             ))}
           </div>
         </div>
@@ -390,7 +406,12 @@ export function CascadePanel({ panel }: CascadePanelProps) {
                   {...interaction}
                 >
                   <div className="lens-cascade-stage-label">
-                    <span>{stage.label}</span>
+                    <span className="lens-cascade-stage-title">
+                      <span>{stage.label}</span>
+                      {stage.annotation && (
+                        <small className="lens-cascade-stage-annotation">{stage.annotation}</small>
+                      )}
+                    </span>
                     <strong data-negative={stage.value < 0 || undefined}>{stage.formattedValue}</strong>
                   </div>
                   <div className="lens-cascade-track" aria-hidden="true">

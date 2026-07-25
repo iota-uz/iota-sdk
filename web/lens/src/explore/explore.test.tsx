@@ -40,6 +40,13 @@ const singlePerspectiveDocument = parseDocument({
   },
 })
 
+const focusDefaultFixture = structuredClone(exploreDocument)
+focusDefaultFixture.panels[0]!.presentation = { focus: 'canvas' }
+focusDefaultFixture.drill.edges.profitability!.presentation = { focus: 'canvas' }
+focusDefaultFixture.drill.edges['profitability/operating-margin']!.defaultPerspective =
+  'profitability/operating-margin/composition'
+const focusDefaultDocument = parseDocument(focusDefaultFixture)
+
 const dynamicDocumentFixture = structuredClone(exploreDocument)
 const dynamicRoot = dynamicDocumentFixture.drill.edges['profitability/operating-margin/composition/root']!
 dynamicRoot.dynamicChildren = {
@@ -160,6 +167,35 @@ describe('explore panel at rest', () => {
     const rows = within(overlay()).getAllByRole('button', { name: /Operating margin/ })
     expect(rows[0]).toHaveTextContent('$1,840,000')
     expect(rows[0]).toHaveTextContent('100.0%')
+  })
+})
+
+describe('focus canvas default lens', () => {
+  it('opens a segment directly in its producer-selected view', async () => {
+    renderExplore(focusDefaultDocument.panels[0], focusDefaultDocument)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Operating margin' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Services' })).toBeInTheDocument())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText(/Choose a view/)).toBeNull()
+    expect(new URL(window.location.href).searchParams.get('perspective'))
+      .toBe('profitability/operating-margin/composition')
+    expect(screen.getByRole('radio', { name: 'Composition' })).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('also applies the producer-selected view when the segment is chosen from the breakdown overlay', async () => {
+    renderExplore(focusDefaultDocument.panels[0], focusDefaultDocument)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show breakdown' }))
+    fireEvent.click(within(overlay()).getAllByRole('button', { name: /Operating margin/ })[0]!)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Services' })).toBeInTheDocument())
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(screen.queryByText(/Choose a view/)).toBeNull()
+    expect(new URL(window.location.href).searchParams.get('perspective'))
+      .toBe('profitability/operating-margin/composition')
+    expect(screen.getByRole('radio', { name: 'Composition' })).toHaveAttribute('aria-checked', 'true')
   })
 })
 

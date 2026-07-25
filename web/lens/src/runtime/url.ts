@@ -29,6 +29,20 @@ export function navigationFromURL(url: URL): NavigationView {
   return { path, perspectiveId, ...(drawer ? { drawer } : {}) }
 }
 
+/**
+ * A drawer document may carry its desired initial Lens view in its own
+ * `path` / `perspective` query parameters. Keeping that intent on the source
+ * URL makes a normal open-drawer action deep-linkable without teaching the
+ * action contract about a particular explorer or business domain.
+ */
+export function drawerNavigationFromSource(src: string, current: URL): Omit<NonNullable<NavigationView['drawer']>, 'src'> {
+  const view = navigationFromURL(new URL(src, current))
+  return {
+    path: [...view.path],
+    perspectiveId: view.perspectiveId,
+  }
+}
+
 export function navigationToURL(view: NavigationView, current: URL): URL {
   const next = new URL(current)
   next.searchParams.delete(pathParameter)

@@ -89,6 +89,7 @@ export interface Encoding {
   cut?: string
   cutLabel?: string
   final?: string
+  annotation?: string
   tone?: string
   share?: string
   confidence?: string
@@ -181,6 +182,7 @@ export interface Level {
   frame?: FrameRef
   encoding?: Encoding
   perspectives: Array<PerspectiveRef>
+  defaultPerspective?: string
   view?: PanelKind
   presentation?: Presentation
   status?: PanelStatus

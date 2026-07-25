@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { navigationFromURL, navigationToURL } from './url'
+import { drawerNavigationFromSource, navigationFromURL, navigationToURL } from './url'
 
 describe('navigation URL sync', () => {
   it('round-trips NodeKeys without treating slashes or labels as path syntax', () => {
@@ -39,5 +39,15 @@ describe('navigation URL sync', () => {
   it('rejects a cross-origin drawer source from a shared URL', () => {
     const url = new URL('https://example.test/dashboard?drawer=https%3A%2F%2Fevil.test%2Fdocument')
     expect(navigationFromURL(url)).toEqual({ path: [], perspectiveId: undefined })
+  })
+
+  it('reads a drawer document initial view from the document source', () => {
+    const current = new URL('https://example.test/analytics?tenant=kept')
+    const source = '/analytics/family/lens/document?family=expenses&path=expenses&path=expenses%2Facquisition&perspective=expenses%2Facquisition%2Fcomposition'
+
+    expect(drawerNavigationFromSource(source, current)).toEqual({
+      path: ['expenses', 'expenses/acquisition'],
+      perspectiveId: 'expenses/acquisition/composition',
+    })
   })
 })

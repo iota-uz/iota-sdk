@@ -531,6 +531,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			Cut:          panel.Ref(resolveString(item.Fields.Cut, opts.Values)),
 			CutLabel:     panel.Ref(resolveString(item.Fields.CutLabel, opts.Values)),
 			Final:        panel.Ref(resolveString(item.Fields.Final, opts.Values)),
+			Annotation:   panel.Ref(resolveString(item.Fields.Annotation, opts.Values)),
 			Tone:         panel.Ref(resolveString(item.Fields.Tone, opts.Values)),
 			Share:        panel.Ref(resolveString(item.Fields.Share, opts.Values)),
 			Confidence:   panel.Ref(resolveString(item.Fields.Confidence, opts.Values)),

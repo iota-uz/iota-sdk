@@ -95,6 +95,68 @@ func TestBuild_InlineDepthIncludesOnlyMaterializedAggregateLevels(t *testing.T) 
 	require.NotContains(t, doc.Frames, FrameRef("explore:metric/focus/composition:detail"))
 }
 
+func TestBuild_StaticDrillTreeBecomesReactDrillGraph(t *testing.T) {
+	t.Parallel()
+
+	primary, err := frame.New("broker_receivables",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"broker-a", "broker-b"}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Broker A", "Broker B"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{100.0, 50.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	tree := panel.DrillTree{ExpandedSpan: 8, Branches: []panel.DrillBranch{
+		{
+			TriggerKey: "broker-a",
+			Label:      "Broker A",
+			Children: []panel.DrillNode{{
+				Key: "proxy", Label: "Management estimate", Value: 100,
+				Children: []panel.DrillNode{{Key: "USD", Label: "USD", Value: 100}},
+			}},
+		},
+		{
+			TriggerKey: "broker-b",
+			Label:      "Broker B",
+			Children:   []panel.DrillNode{{Key: "scheduled", Label: "Schedule", Value: 50}},
+		},
+	}}
+	chart := panel.Pie("brokers", "Broker receivables", "broker_receivables").
+		IDField("id").
+		LabelField("label").
+		ValueField("amount").
+		DrillTree(tree).
+		FocusCanvas().
+		Build()
+	spec := lensbuild.Dashboard("underwriting", "Underwriting", lensbuild.Row(chart)).
+		Datasets(lensbuild.StaticDataset("broker_receivables", frames)).
+		Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "static-tree", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, doc.Panels, 1)
+	require.NotNil(t, doc.Panels[0].DrillRoot)
+	root := doc.Drill.Edges[*doc.Panels[0].DrillRoot]
+	require.Equal(t, FocusModeCanvas, root.Presentation.Focus)
+	require.Len(t, root.Children, 2)
+	require.Equal(t, NodeKey("broker-a"), root.Children[0].Key)
+	require.NotEmpty(t, root.Children[0].Target)
+
+	brokerLevel := doc.Drill.Edges[root.Children[0].Target]
+	require.Equal(t, "Broker A", brokerLevel.Label)
+	require.Equal(t, &Encoding{ID: "id", Label: "label", Value: "amount"}, brokerLevel.Encoding)
+	require.Len(t, doc.Frames[brokerLevel.Frame].Rows, 1)
+	require.NotEmpty(t, brokerLevel.Children[0].Target)
+	currencyLevel := doc.Drill.Edges[brokerLevel.Children[0].Target]
+	require.Equal(t, "Management estimate", currencyLevel.Label)
+	require.Equal(t, "USD", doc.Frames[currencyLevel.Frame].Rows[0][1])
+}
+
 // TestBuild_SparklineTargetAndFocusCanvas covers the focus-canvas panel
 // additions end to end: a stat's Go-side sparkline reaches the wire, a
 // coverage panel carries its bullet target marker, and FocusCanvas surfaces as
@@ -150,6 +212,8 @@ func TestBuild_FocusCanvasReachesExplorerRootLevel(t *testing.T) {
 	root := doc.Drill.Edges["metric"]
 	require.NotNil(t, root.Presentation)
 	require.Equal(t, FocusModeCanvas, root.Presentation.Focus)
+	branch := doc.Drill.Edges["metric/focus"]
+	require.Equal(t, "metric/focus/composition", branch.DefaultPerspective)
 }
 
 // TestBuild_ExplorerLevelViewPresentationStatusAndSourceData pins the key
@@ -806,12 +870,16 @@ func TestBuild_CascadeCarriesWaterfallLayout(t *testing.T) {
 		frame.Field{Name: "cut", Type: frame.FieldTypeNumber, Values: []any{0.0, 178.02}},
 		frame.Field{Name: "cutLabel", Type: frame.FieldTypeString, Values: []any{"", "Net movement"}},
 		frame.Field{Name: "final", Type: frame.FieldTypeBoolean, Values: []any{false, true}},
+		frame.Field{Name: "annotation", Type: frame.FieldTypeString, Values: []any{"", "12 above threshold"}},
 	)
 	require.NoError(t, err)
 	frames, err := frame.NewFrameSet(primary)
 	require.NoError(t, err)
 
-	waterfall := panel.Cascade("reserve-movement", "Reserve movement", "bridge").Waterfall().Build()
+	waterfall := panel.Cascade("reserve-movement", "Reserve movement", "bridge").
+		Waterfall().
+		AnnotationField("annotation").
+		Build()
 	spec := lensbuild.Dashboard("waterfall", "Waterfall", lensbuild.Row(waterfall)).
 		Datasets(lensbuild.StaticDataset("bridge", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -823,6 +891,7 @@ func TestBuild_CascadeCarriesWaterfallLayout(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, doc.Panels[0].Presentation)
 	require.Equal(t, BridgeLayoutWaterfall, doc.Panels[0].Presentation.BridgeLayout)
+	require.Equal(t, "annotation", doc.Panels[0].Encoding.Annotation)
 }
 
 // A partition's colors must be reachable both by panel-scoped index and by the

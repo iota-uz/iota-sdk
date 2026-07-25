@@ -324,6 +324,13 @@ func (b *PanelBuilder) FinalField(name string) *PanelBuilder {
 	return b
 }
 
+// AnnotationField declares a short, preformatted per-stage note rendered as a
+// compact badge. It is generic metadata: producers choose the business text.
+func (b *PanelBuilder) AnnotationField(name string) *PanelBuilder {
+	b.panel.Fields.Annotation = name
+	return b
+}
+
 // ToneField declares the frame column carrying a per-row semantic tone for a
 // cascade panel's stages ("neutral", "positive", "negative", "inflow"). It
 // overrides the flow-direction default color; absent keeps direction coloring.

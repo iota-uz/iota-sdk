@@ -47,7 +47,7 @@ import { LensDrawer } from './drawer'
 import { DocumentCache } from './prefetch'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
-import { navigationFromURL, navigationToURL, sameNavigationURL } from './url'
+import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL } from './url'
 import { X } from '../icons'
 
 /* eslint-disable react-refresh/only-export-components */
@@ -637,7 +637,21 @@ function RuntimeCore({
     document,
     inferredInitialNavigation,
   )
-  const navigation = controlledNavigation ?? localNavigation
+  // A drawer source can deep-link with path/perspective before its document is
+  // loaded, so the outer runtime cannot know the nested host panel yet. Once
+  // the document arrives, resolve the panel from that path locally; otherwise
+  // ExplorePanel would keep rendering its resting root while the query runs
+  // against the correct deeper level.
+  const resolvedControlledNavigation = useMemo(() => {
+    if (!controlledNavigation) return undefined
+    const resolved = resolveView(document, controlledNavigation)
+    return resolved
+      ? { ...resolved, history: controlledNavigation.history }
+      : controlledNavigation
+  }, [controlledNavigation, document])
+  const navigation = resolvedControlledNavigation ?? localNavigation
+  const navigationRef = useRef(navigation)
+  navigationRef.current = navigation
   const runtimeViewRef = useRef<NavigationView>()
   if (!runtimeViewRef.current ||
     runtimeViewRef.current.panelId !== navigation.panelId ||
@@ -656,8 +670,9 @@ function RuntimeCore({
       localDispatch(action)
       return
     }
-    const next = runtimeNavigationReducer(document, controlledNavigation, action)
-    if (next !== controlledNavigation) onControlledNavigationChange?.(next)
+    const current = navigationRef.current
+    const next = runtimeNavigationReducer(document, current, action)
+    if (next !== current) onControlledNavigationChange?.(next)
   }, [controlledNavigation, document, onControlledNavigationChange])
   const [notice, setNotice] = useState<string>()
   const documentRef = useRef(document)
@@ -1017,7 +1032,10 @@ function RuntimeCore({
           ? globalThis.document.querySelector<HTMLElement>('.lens-root')
           : null)
       drawerTheme.current = { theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false }
-      dispatch(navigationActions.openDrawer(src))
+      dispatch(navigationActions.openDrawer(
+        src,
+        drawerNavigationFromSource(src, new URL(window.location.href)),
+      ))
     },
     close: closeDrawer,
     prefetch: (src) => {
@@ -1068,7 +1086,10 @@ function RuntimeCore({
                         fetcher={fetcher}
                         locale={locale}
                         onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}
-                        onDrawerNavigate={(src) => dispatch(navigationActions.replaceDrawer(src))}
+                        onDrawerNavigate={(src) => dispatch(navigationActions.replaceDrawer(
+                          src,
+                          drawerNavigationFromSource(src, new URL(window.location.href)),
+                        ))}
                       >
                         {children}
                       </DashboardRuntimeProvider>

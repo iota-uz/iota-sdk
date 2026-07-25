@@ -737,6 +737,9 @@ type Encoding struct {
 	Cut      string `json:"cut,omitempty"`
 	CutLabel string `json:"cutLabel,omitempty"`
 	Final    string `json:"final,omitempty"`
+	// Annotation names a frame column carrying an optional short, preformatted
+	// stage note. Cascade renderers present non-empty values as compact badges.
+	Annotation string `json:"annotation,omitempty"`
 	// Tone names a frame column carrying a per-row semantic tone for a
 	// cascade/waterfall stage: one of CascadeTone's values ("neutral",
 	// "positive", "negative", "inflow" → navy / green / red / orange). It
@@ -852,6 +855,10 @@ type Level struct {
 	Frame           FrameRef         `json:"frame,omitempty"`
 	Encoding        *Encoding        `json:"encoding,omitempty"`
 	Perspectives    []PerspectiveRef `json:"perspectives"`
+	// DefaultPerspective identifies the producer-selected lens for a
+	// perspective fork. Focus canvases use it to enter a segment directly
+	// into a useful view while still exposing the sibling lenses as switches.
+	DefaultPerspective string `json:"defaultPerspective,omitempty"`
 	// View, when set, names the chart kind the runtime renders this level
 	// with, instead of the drill host panel's own kind. Only chart kinds are
 	// valid (no tables or metric panels); absent keeps host-kind rendering.

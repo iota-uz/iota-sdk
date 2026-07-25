@@ -258,6 +258,34 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     })
   }, [drill, panel.id])
 
+  const enterPerspective = useCallback((perspectiveId: string, nodeKey?: NodeKey) => {
+    setOverlay(undefined)
+    runViewTransition(() => {
+      drill.switchPerspective(perspectiveId, nodeKey
+        ? { enter: nodeKey, panelId: panel.id }
+        : undefined)
+    })
+  }, [drill, panel.id])
+
+  const enterFocusNode = useCallback((node: Node, targetLevel: Level | undefined): boolean => {
+    if (!focusCanvas || !targetLevel) return false
+    const fork = isPerspectiveFork(document, targetLevel)
+    const available = perspectivesForLevel(document, targetLevel)
+    const defaultPerspective = targetLevel.defaultPerspective
+    if (fork && defaultPerspective && available.some(({ id }) => id === defaultPerspective)) {
+      // Focus canvases are progressive-disclosure surfaces, not setup
+      // dialogs. Enter the producer-selected useful view immediately; the
+      // focus header keeps every sibling lens one click away.
+      enterPerspective(defaultPerspective, node.key)
+      return true
+    }
+    if (!fork || available.length <= 1) {
+      drillTo(node.key)
+      return true
+    }
+    return false
+  }, [document, drillTo, enterPerspective, focusCanvas])
+
   const openForMark = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
     if (!level) return
     const node = level.children.find((child) => child.key === key || child.key.endsWith(`/${key}`))
@@ -267,13 +295,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     // it — the chrome (breadcrumb, parent context, lens selector) replaces the
     // popover's affordances. The popover keeps its job for leaves (no level to
     // enter) and forks (a real choice between perspectives).
-    if (focusCanvas && targetLevel) {
-      const fork = isPerspectiveFork(document, targetLevel)
-      if (!fork || perspectivesForLevel(document, targetLevel).length <= 1) {
-        drillTo(node.key)
-        return
-      }
-    }
+    if (enterFocusNode(node, targetLevel)) return
     const target = drillTargetForNode(document, level, node, frame.data, targetLevel?.frame ? document.frames[targetLevel.frame] : undefined, panel)
     setOverlayTheme(themeOf(focusRef.current))
     setOverlay({
@@ -287,7 +309,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       anchor: anchor ?? anchorFromElement(focusRef.current),
       anchorElement: anchor ? undefined : focusRef.current,
     })
-  }, [colorForNode, document, drillTo, focusCanvas, frame.data, leafHrefFor, level, panel, themeOf, withHrefs])
+  }, [colorForNode, document, enterFocusNode, frame.data, leafHrefFor, level, panel, themeOf, withHrefs])
 
   const openForLevel = useCallback(() => {
     if (!level) return
@@ -306,19 +328,14 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   }, [])
 
   const applyPerspective = useCallback((perspectiveId: string, target: DrillTarget) => {
-    setOverlay(undefined)
-    runViewTransition(() => {
-      // A segment's perspectives belong to the level it expands to, so entering
-      // the segment first is what makes the perspective addressable. That is
-      // one user action, so it leaves one history entry: the perspective is
-      // folded into the step that entered the segment, and Back returns to the
-      // chart the segment was picked from rather than to the level in between,
-      // which is a fork the user never asked to stand on.
-      drill.switchPerspective(perspectiveId, target.node
-        ? { enter: target.node.key, panelId: panel.id }
-        : undefined)
-    })
-  }, [drill, panel.id])
+    // A segment's perspectives belong to the level it expands to, so entering
+    // the segment first is what makes the perspective addressable. That is
+    // one user action, so it leaves one history entry: the perspective is
+    // folded into the step that entered the segment, and Back returns to the
+    // chart the segment was picked from rather than to the level in between,
+    // which is a fork the user never asked to stand on.
+    enterPerspective(perspectiveId, target.node?.key)
+  }, [enterPerspective])
 
   const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
     if (event.key !== 'Escape' || !active || !drill.canGoBack || overlay) return
@@ -512,10 +529,22 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
           onClose={closeOverlay}
           onDrillChild={(childKey) => {
             const node = overlay.target.node
-            if (node) drillTo(node.key, childKey)
-            else drillTo(childKey)
+            if (node) {
+              drillTo(node.key, childKey)
+              return
+            }
+            const child = level?.children.find((candidate) => (
+              candidate.key === childKey || candidate.key.endsWith(`/${childKey}`)
+            ))
+            const targetLevel = child?.target ? document.drill.edges[child.target] : undefined
+            if (child && enterFocusNode(child, targetLevel)) return
+            drillTo(childKey)
           }}
-          onDrillInto={(target) => { if (target.node) drillTo(target.node.key) }}
+          onDrillInto={(target) => {
+            if (!target.node) return
+            const targetLevel = target.node.target ? document.drill.edges[target.node.target] : undefined
+            if (!enterFocusNode(target.node, targetLevel)) drillTo(target.node.key)
+          }}
           onPerspective={(perspectiveId) => applyPerspective(perspectiveId, overlay.target)}
           selectedPerspectiveId={navigation.perspectiveId}
           target={overlay.target}

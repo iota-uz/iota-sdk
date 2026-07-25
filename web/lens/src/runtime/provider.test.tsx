@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
@@ -59,12 +59,19 @@ function Controls() {
   return (
     <>
       <output data-testid="path">{dashboard.navigation.path.join('/')}</output>
+      <output data-testid="panel">{dashboard.navigation.panelId ?? ''}</output>
       <output data-testid="can-go-back">{String(drill.canGoBack)}</output>
       <button type="button" onClick={() => drill.drillInto('root', 'total')}>Root</button>
       <button type="button" onClick={() => drill.drillInto('detail')}>Detail</button>
       <button type="button" onClick={() => drill.switchPerspective('missing')}>Missing perspective</button>
       <button type="button" onClick={frame.retry}>Refresh frame</button>
       <button type="button" onClick={(event) => drawer.open('/lens/drawer', event.currentTarget)}>Open drawer</button>
+      <button
+        type="button"
+        onClick={(event) => drawer.open('/lens/drawer?path=root&path=detail', event.currentTarget)}
+      >
+        Open drawer at detail
+      </button>
     </>
   )
 }
@@ -290,5 +297,31 @@ describe('DashboardRuntimeProvider', () => {
     act(() => window.history.back())
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     expect(query).toHaveBeenCalledTimes(1)
+  })
+
+  it('opens a drawer source on its declared initial Lens view', async () => {
+    const query = vi.spyOn(QueryClient.prototype, 'query')
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const href = typeof input === 'string'
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : input.url
+      if (href.startsWith('/lens/drawer?')) {
+        return Promise.resolve(new Response(JSON.stringify(document), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+      return Promise.resolve(response(43))
+    })
+    render(<RuntimeFixture fetcher={fetcher} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open drawer at detail' }))
+    const dialog = await screen.findByRole('dialog')
+    await waitFor(() => expect(within(dialog).getByTestId('path')).toHaveTextContent('root/detail'))
+    expect(within(dialog).getByTestId('panel')).toHaveTextContent('total')
+    await waitFor(() => expect(query).toHaveBeenCalledTimes(1))
+    expect(within(dialog).getByText('43')).toBeInTheDocument()
   })
 })
