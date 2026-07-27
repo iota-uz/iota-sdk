@@ -283,9 +283,15 @@ function buildWaterfallModel(
     // is describing an undivided bar, and that is what we draw. Guarding here
     // rather than at the wire keeps a bad number from silently becoming a band
     // taller than the bar it lives in.
+    //
+    // The bounds carry the same residual tolerance the closing-total check uses,
+    // and for the same reason: a movement is a difference of running totals, so
+    // a split that equals it exactly in the producer's arithmetic arrives a few
+    // ulps off here. 178.30 - 150.00 is 28.300000000000011, and a strict "<"
+    // against a declared 28.30 would band the entire bar.
     const splitMagnitude = Math.abs(item.split)
     const magnitude = Math.abs(item.value)
-    const splittable = splitMagnitude > 0 && splitMagnitude < magnitude
+    const splittable = splitMagnitude > residual && splitMagnitude < magnitude - residual
     return {
       label: item.label,
       value: item.value,

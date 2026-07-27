@@ -542,10 +542,13 @@ describe('cascade stages', () => {
         // A quarter of this deduction is of a different kind.
         ['Claims', 60, 40, 'Claims', false, 10, 'above reserve'],
         // A split equal to the whole movement divides nothing; one larger than
-        // the movement is not a part of it. Both leave the bar undivided.
-        ['Acquisition', 50, 10, 'Acquisition', false, 10, 'all of it'],
-        ['Operating', 40, 10, 'Operating', false, 25, 'more than the bar'],
-        ['Result', 40, 0, '', true, 0, ''],
+        // the movement is not a part of it. Both leave the bar undivided. The
+        // equal case is stated in the awkward decimals that actually break a
+        // strict comparison: 60 - 50.1 is 9.899999999999999, so a declared 9.9
+        // reads as larger than the movement it is a part of.
+        ['Acquisition', 50.1, 9.9, 'Acquisition', false, 9.9, 'all of it'],
+        ['Operating', 40.1, 10, 'Operating', false, 25, 'more than the bar'],
+        ['Result', 40.1, 0, '', true, 0, ''],
       ],
     }
     const format = (value: unknown) => String(value)
