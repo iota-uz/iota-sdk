@@ -366,6 +366,8 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 		return panel.Donut(id, title, dataset)
 	case panel.KindPie:
 		return panel.Pie(id, title, dataset)
+	case panel.KindRadial:
+		return panel.Bar(id, title, dataset)
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return panel.Bar(id, title, dataset)
 	}

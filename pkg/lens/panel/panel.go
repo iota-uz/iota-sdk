@@ -395,7 +395,10 @@ type RadialRing struct {
 // It includes both ring and category identity so the same category can carry a
 // different drill action in each decomposition.
 func RadialNodeKey(ringKey, categoryKey string) string {
-	key, _ := json.Marshal([2]string{ringKey, categoryKey})
+	key, err := json.Marshal([2]string{ringKey, categoryKey})
+	if err != nil {
+		panic(err)
+	}
 	return "radial:" + string(key)
 }
 
