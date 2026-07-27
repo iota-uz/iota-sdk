@@ -279,8 +279,15 @@ func (n Node) validate(explorerID, branchKey, perspectiveKey string, nodes map[s
 		if n.DynamicChildren.Label.Kind != action.SourceField || strings.TrimSpace(n.DynamicChildren.Label.Name) == "" {
 			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic child label requires a field source", explorerID, branchKey, perspectiveKey, n.Key)
 		}
-		if (n.DynamicChildren.Target == nil) == (n.DynamicChildren.Action == nil) {
-			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic children require exactly one of target or action", explorerID, branchKey, perspectiveKey, n.Key)
+		if n.DynamicChildren.Target == nil && n.DynamicChildren.Action == nil {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s dynamic children require a target or an action", explorerID, branchKey, perspectiveKey, n.Key)
+		}
+		// Declaring both is how a level says its rows are individually either
+		// drillable or terminal; the per-row target field decides. A literal
+		// target would win on every row, so the action could never fire.
+		if n.DynamicChildren.Target != nil && n.DynamicChildren.Action != nil &&
+			n.DynamicChildren.Target.Kind != action.SourceField {
+			return fmt.Errorf("explorer %s branch %s perspective %s node %s declares both a dynamic target and an action, so the target must be a field source", explorerID, branchKey, perspectiveKey, n.Key)
 		}
 	}
 	return nil

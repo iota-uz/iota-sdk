@@ -1026,8 +1026,15 @@ func validateDynamicChildren(owner string, declaration DynamicChildren) error {
 	if declaration.Label.Kind != ValueSourceField || strings.TrimSpace(declaration.Label.Name) == "" {
 		return fmt.Errorf("drill level %q dynamic child label requires a field source", owner)
 	}
-	if (declaration.Target == nil) == (declaration.Action == nil) {
-		return fmt.Errorf("drill level %q dynamic children require exactly one of target or action", owner)
+	if declaration.Target == nil && declaration.Action == nil {
+		return fmt.Errorf("drill level %q dynamic children require a target or an action", owner)
+	}
+	// Both together is legal only with a field-sourced target: the field is
+	// what decides, per row, whether that point drills deeper or navigates to
+	// records. A literal target would apply to every row and leave the action
+	// permanently unreachable.
+	if declaration.Target != nil && declaration.Action != nil && declaration.Target.Kind != ValueSourceField {
+		return fmt.Errorf("drill level %q dynamic children declare both a target and an action, so the target must be a field source", owner)
 	}
 	if declaration.Target != nil {
 		if declaration.Target.Kind != ValueSourceField && declaration.Target.Kind != ValueSourceLiteral {

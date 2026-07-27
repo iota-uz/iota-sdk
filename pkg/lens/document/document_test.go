@@ -851,3 +851,60 @@ func TestDashboardDocumentValidate_LayoutGroups(t *testing.T) {
 		require.NoError(t, doc.Validate())
 	})
 }
+
+// TestResolveDynamicChildren_PerRowTargetOrAction: a level whose vocabulary
+// mixes drillable and terminal points declares BOTH a field-sourced target and
+// an action. The field decides per row: a row carrying a target drills, a row
+// whose target is blank navigates through the action's field-sourced URL.
+func TestResolveDynamicChildren_PerRowTargetOrAction(t *testing.T) {
+	t.Parallel()
+
+	doc := testDocument()
+	doc.Frames["mixed"] = Frame{
+		Columns: []Column{
+			{Name: "child_key", Type: ColumnString},
+			{Name: "child_label", Type: ColumnString},
+			{Name: "__drill", Type: ColumnString},
+			{Name: "url", Type: ColumnString},
+		},
+		Rows: [][]any{
+			{"2024", "2024", "deeper", ""},
+			{"Q3", "Q3", "", "/records?q=3"},
+		},
+	}
+	doc.Drill.Edges["deeper"] = Level{Path: NodePath{"deeper"}, Children: []Node{}, Perspectives: []PerspectiveRef{}}
+	level := Level{
+		Path: NodePath{"root"}, Frame: "mixed", Children: []Node{}, Perspectives: []PerspectiveRef{},
+		DynamicChildren: &DynamicChildren{
+			Key:    Source{Kind: ValueSourceField, Name: "child_key"},
+			Label:  Source{Kind: ValueSourceField, Name: "child_label"},
+			Target: &Source{Kind: ValueSourceField, Name: "__drill"},
+			Action: &Action{Kind: ActionNavigateToLeaf, URLSource: &Source{Kind: ValueSourceField, Name: "url"}, Params: []ActionParam{}, Payload: map[string]Source{}},
+		},
+	}
+	doc.Drill.Edges["root"] = level
+	require.NoError(t, doc.Validate())
+
+	frame := doc.Frames["mixed"]
+	require.NoError(t, ResolveDynamicChildren(&frame, level))
+	require.Len(t, frame.Children, 2)
+	require.Equal(t, NodeKey("deeper"), frame.Children[0].Target, "a row with a target drills")
+	require.Nil(t, frame.Children[0].Action)
+	require.Empty(t, frame.Children[1].Target, "a row without a target is terminal")
+	require.NotNil(t, frame.Children[1].Action)
+	require.NoError(t, ValidateResolvedChildren(level, frame, doc.Drill.Edges))
+
+	// Both declared with a LITERAL target would apply the target to every row,
+	// leaving the action unreachable — rejected at declaration time.
+	literal := testDocument()
+	literalTarget := Source{Kind: ValueSourceLiteral, Value: "deeper"}
+	broken := level
+	broken.DynamicChildren = &DynamicChildren{
+		Key: level.DynamicChildren.Key, Label: level.DynamicChildren.Label,
+		Target: &literalTarget, Action: level.DynamicChildren.Action,
+	}
+	literal.Frames["mixed"] = doc.Frames["mixed"]
+	literal.Drill.Edges["deeper"] = doc.Drill.Edges["deeper"]
+	literal.Drill.Edges["root"] = broken
+	require.ErrorContains(t, literal.Validate(), "target must be a field source")
+}
