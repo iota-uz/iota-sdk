@@ -4076,7 +4076,7 @@
   padding: 40px;
   background: #fff;
   color: #0f172a;
-  font-family: var(--lens-font);
+  font-family: var(--lens-font, 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif);
 }
 
 .lens-print-cover {
