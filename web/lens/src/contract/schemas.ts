@@ -176,6 +176,7 @@ export const LayoutSchema: z.ZodType<Contract.Layout> = z.lazy(() => z.object({
 export const LayoutGroupSchema: z.ZodType<Contract.LayoutGroup> = z.lazy(() => z.object({
   id: z.string(),
   kind: z.lazy(() => LayoutGroupKindSchema),
+  caption: z.string().optional(),
   label: z.string().optional(),
   layout: z.lazy(() => LayoutGroupLayoutSchema).optional(),
   span: z.number().int(),

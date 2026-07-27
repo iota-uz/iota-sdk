@@ -143,6 +143,7 @@ func appendPanelTree(
 		case panel.KindStatGroup:
 			descriptor := LayoutGroup{
 				ID: spec.ID, Kind: LayoutGroupMetrics, Label: spec.Title,
+				Caption: strings.TrimSpace(spec.Description),
 				Layout: groupLayout(spec.GroupLayout), Span: containerSpan(spec),
 				// A uniform-status group hoists its single chip to the heading
 				// row; per-metric chips then drop for the members below.
@@ -156,7 +157,10 @@ func appendPanelTree(
 			}
 			return nil
 		case panel.KindTabs:
-			base := LayoutGroup{ID: spec.ID, Kind: LayoutGroupTabs, Label: spec.Title, Span: containerSpan(spec)}
+			base := LayoutGroup{
+				ID: spec.ID, Kind: LayoutGroupTabs, Label: spec.Title,
+				Caption: strings.TrimSpace(spec.Description), Span: containerSpan(spec),
+			}
 			for index, child := range spec.Children {
 				tab := base
 				tab.Tab = strings.TrimSpace(child.Title)

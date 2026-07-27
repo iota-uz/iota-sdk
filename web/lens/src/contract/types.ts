@@ -153,6 +153,7 @@ export interface Layout {
 export interface LayoutGroup {
   id: string
   kind: LayoutGroupKind
+  caption?: string
   label?: string
   layout?: LayoutGroupLayout
   span: number

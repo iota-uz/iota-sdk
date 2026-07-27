@@ -119,6 +119,9 @@ function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNod
             {group.status && <StatusChip status={group.status} />}
           </header>
         )}
+        {/* A group's caption reads for the whole strip, so it sits under the
+            heading rather than inside any one member's card. */}
+        {group.caption && <p className="lens-panel-caption">{group.caption}</p>}
         {children}
       </section>
     </div>

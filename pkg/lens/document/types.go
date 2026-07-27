@@ -137,11 +137,16 @@ const (
 // LayoutGroup describes the container card that owns a run of layout items.
 // Every item of the same group repeats the identical descriptor except Tab.
 type LayoutGroup struct {
-	ID     string            `json:"id"`
-	Kind   LayoutGroupKind   `json:"kind"`
-	Label  string            `json:"label,omitempty"`
-	Layout LayoutGroupLayout `json:"layout,omitempty"`
-	Span   int               `json:"span"`
+	ID   string          `json:"id"`
+	Kind LayoutGroupKind `json:"kind"`
+	// Caption explains the group as a whole — why this strip of metrics sits
+	// here, what basis it reads on — the same role Panel.Caption plays for a
+	// single panel. Without it a container's Description would be silently
+	// dropped on the wire, since a group owns no panel of its own.
+	Caption string            `json:"caption,omitempty"`
+	Label   string            `json:"label,omitempty"`
+	Layout  LayoutGroupLayout `json:"layout,omitempty"`
+	Span    int               `json:"span"`
 	// Tab names the tab this item belongs to inside a tabs group.
 	Tab string `json:"tab,omitempty"`
 	// Status, when set, is a single group-level chip rendered once in the
