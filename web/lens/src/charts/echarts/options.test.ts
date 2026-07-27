@@ -47,12 +47,14 @@ interface TestDataItem {
   value?: unknown
   ringKey?: string
   categoryKey?: string
+  share?: number
   remainder?: boolean
 }
 
 interface TestSeries {
   id?: string
   percentPrecision?: number
+  minAngle?: number
   label?: { formatter?: (params: { percent?: number; name?: string; data?: { share?: number } }) => string }
   type?: string
   name?: string
@@ -147,6 +149,33 @@ describe('slice percentages', () => {
       categoryKey: 'north',
     })
     expect(chart.series[0]?.data?.[0]?.itemStyle?.color).toBe(chart.series[1]?.data?.[0]?.itemStyle?.color)
+  })
+
+  it('never draws a sub-percent ring slice as an unclickable hairline', () => {
+    // «Накопленная премия»: 99.1% collected against 0.9% still owed. The owed
+    // share is the reason the ring exists, and inside the arc it has nowhere
+    // to print and nothing to click.
+    const chartInput = input('radial')
+    chartInput.presentation = { sliceLabels: 'percent' }
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [
+        ['collected', 'Собрано', 'payment', 99.1],
+        ['receivable', 'Дебиторка', 'payment', 0.9],
+      ],
+    }
+    chartInput.radial = { mode: 'partition', rings: [{ key: 'payment', label: 'Оплата', order: 1, total: 100 }] }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const [, thin] = (chart.series[0]?.data ?? []) as TestDataItem[]
+
+    // Without a floor the 0.9% arc is a sub-pixel line — invisible, and
+    // unclickable as a drill target. The widening is bounded well below the 4%
+    // floor where slices start carrying their own labels, and the true share
+    // still travels on the data item for the legend and the tooltip to print.
+    expect(chart.series[0]?.minAngle).toBeGreaterThan(0)
+    expect(chart.series[0]?.minAngle).toBeLessThanOrEqual(2)
+    expect(thin?.share).toBeCloseTo(0.9, 5)
   })
 
   it('uses one preferred partition ring below 220px', () => {

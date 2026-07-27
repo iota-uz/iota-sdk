@@ -171,6 +171,45 @@ function RadialFamily({ mode }: { mode: 'light' | 'dark' }) {
   )
 }
 
+/**
+ * The share that only matters because it is small: a collection ring where
+ * 99.1% has been received and the 0.9% still owed is the whole reason anyone
+ * opens the panel. Inside the arc that number has nowhere to print, so it moves
+ * outside on a leader line.
+ */
+const receivableRingFrame: Frame = {
+  columns: radialPartitionFrame.columns,
+  rows: [
+    ['collected', 'Collected', 'payment', 99.1],
+    ['receivable', 'Receivable', 'payment', 0.9],
+  ],
+}
+
+function receivableRingInput(): ChartInput {
+  return {
+    kind: 'radial',
+    frame: receivableRingFrame,
+    encoding: { id: 'id', label: 'label', series: 'ring', value: 'value' },
+    format: (_field, value) => formatFieldValue(value, { kind: 'percent', minorUnits: false, precision: 1 }, 'en-US'),
+    theme: chartTheme,
+    presentation: { sliceLabels: 'percent' },
+    radial: { mode: 'partition', rings: [{ key: 'payment', label: 'Collection', order: 1, total: 100 }] },
+  }
+}
+
+export const RadialMicroSlice: Story = () => (
+  <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+    <section className="lens-stat-card">
+      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
+      <ChartPreview chartInput={receivableRingInput()} />
+    </section>
+    <section className="lens-stat-card lens-root" data-theme="dark">
+      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Dark</h2>
+      <ChartPreview chartInput={receivableRingInput()} />
+    </section>
+  </div>
+)
+
 export const RadialLight: Story = () => <RadialFamily mode="light" />
 export const RadialDark: Story = () => <RadialFamily mode="dark" />
 export const RadialNarrow: Story = () => (

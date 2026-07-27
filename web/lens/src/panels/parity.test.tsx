@@ -512,6 +512,36 @@ describe('chart legend series toggle', () => {
     await waitFor(() => expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('700'))
   })
 
+  it('states the share of a ring category that belongs to exactly one ring', () => {
+    // «Накопленная премия»: the 0.9% still receivable is too thin an arc to
+    // carry a label, so the legend is the only place its share can be read.
+    const ringPanel: Panel = {
+      ...piePanel,
+      id: 'payment',
+      kind: 'radial',
+      frame: 'payment:root',
+      encoding: { id: 'id', label: 'label', series: 'ring', value: 'amount' },
+      radial: { mode: 'partition', rings: [{ key: 'payment', label: 'Collection', order: 1, total: 1000 }] },
+      total: 1000,
+    }
+    const ringFrame: Frame = {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'label', type: 'string' },
+        { name: 'ring', type: 'string' },
+        { name: 'amount', type: 'number' },
+      ],
+      rows: [['collected', 'Collected', 'payment', 991], ['receivable', 'Receivable', 'payment', 9]],
+    }
+    const { container } = renderDocument(
+      documentWith([ringPanel], { 'payment:root': ringFrame }),
+      <ChartPanel panel={ringPanel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    const values = [...container.querySelectorAll('.lens-chart-legend-value')].map((node) => node.textContent)
+    expect(values).toEqual(['99.1%', '0.9%'])
+  })
+
   it('refuses to hide the last visible series', async () => {
     const { inputs } = renderPie()
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))

@@ -27,6 +27,7 @@ class FakeChart {
   readonly mergeOptions: Array<{ notMerge?: boolean; replaceMerge?: string[] }> = []
   readonly resize = vi.fn()
   readonly dispose = vi.fn()
+  readonly dispatchAction = vi.fn()
 
   on(name: string, handler: (event: { data?: unknown }) => void) {
     this.handlers.set(name, handler)
@@ -233,5 +234,63 @@ describe('ECharts adapter', () => {
     expect(chart.options[1]?.series).toMatchObject([{ name: 'Revenue' }])
     expect(chart.dispose).not.toHaveBeenCalled()
     instance.dispose()
+  })
+
+  // A tooltip that outlives the pointer is worse than no tooltip: it keeps
+  // asserting a number about whatever it happens to be covering. ECharts only
+  // hides it from events over the canvas, so every way of leaving the chart
+  // without crossing that canvas has to be closed here.
+  describe('tooltip dismissal', () => {
+    function mountInScroller() {
+      const chart = new FakeChart()
+      const scroller = document.createElement('div')
+      scroller.style.overflowY = 'auto'
+      const element = document.createElement('div')
+      scroller.append(element)
+      document.body.append(scroller)
+      const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), {
+        onSelect: vi.fn(),
+        onHover: vi.fn(),
+      })
+      const hideCalls = () => chart.dispatchAction.mock.calls
+        .filter((call) => (call[0] as { type?: string } | undefined)?.type === 'hideTip').length
+      return { chart, scroller, element, instance, hideCalls }
+    }
+
+    it('hides the tooltip when the pointer leaves, the page scrolls, or the tab goes away', () => {
+      const { scroller, element, instance, hideCalls } = mountInScroller()
+
+      element.dispatchEvent(new MouseEvent('mouseleave'))
+      expect(hideCalls()).toBe(1)
+
+      // The dashboard scrolls an inner container, not the document — this is
+      // the case that stranded tooltips mid-page.
+      scroller.dispatchEvent(new Event('scroll'))
+      expect(hideCalls()).toBe(2)
+
+      window.dispatchEvent(new Event('scroll'))
+      expect(hideCalls()).toBe(3)
+
+      document.dispatchEvent(new Event('visibilitychange'))
+      expect(hideCalls()).toBe(4)
+
+      window.dispatchEvent(new Event('blur'))
+      expect(hideCalls()).toBe(5)
+
+      instance.dispose()
+    })
+
+    it('stops listening once disposed so a torn-down chart cannot be poked', () => {
+      const { chart, scroller, element, instance, hideCalls } = mountInScroller()
+
+      instance.dispose()
+      const afterDispose = hideCalls()
+      expect(chart.dispose).toHaveBeenCalledOnce()
+
+      element.dispatchEvent(new MouseEvent('mouseleave'))
+      scroller.dispatchEvent(new Event('scroll'))
+      window.dispatchEvent(new Event('blur'))
+      expect(hideCalls()).toBe(afterDispose)
+    })
   })
 })

@@ -59,6 +59,22 @@ interface Box {
 }
 
 /**
+ * Every scrollable ancestor of the chart, plus the window. The dashboard
+ * scrolls an inner container rather than the document — `body` is
+ * `overflow: hidden` — so a listener on the window alone never learns that the
+ * chart moved out from under the pointer.
+ */
+function scrollSources(element: HTMLElement): EventTarget[] {
+  const sources: EventTarget[] = []
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY, overflowX } = getComputedStyle(node)
+    if (/(auto|scroll|overlay)/.test(`${overflowY} ${overflowX}`)) sources.push(node)
+  }
+  if (typeof window !== 'undefined') sources.push(window)
+  return sources
+}
+
+/**
  * The box the chart should occupy, read from the ResizeObserver entry when the
  * browser supplies one (the authoritative content box) and falling back to the
  * element's own client box otherwise.
@@ -114,6 +130,27 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       chart.on('mouseout', () => events.onHover(null))
       chart.on('globalout', () => events.onHover(null))
 
+      // The tooltip lives on `body`, and ECharts only ever hides it from
+      // pointer events it receives over the canvas. Scrolling, switching tabs,
+      // or leaving the panel without crossing the canvas edge therefore strands
+      // a visible tooltip at a position that no longer means anything — and the
+      // next hover strands another one beside it. Each of these is a moment the
+      // tooltip has stopped describing what is under the pointer, so each one
+      // dismisses it.
+      const hideTooltip = () => {
+        chart.dispatchAction({ type: 'hideTip' })
+      }
+      const scrollTargets = scrollSources(element)
+      const detach: Array<() => void> = []
+      const listen = (target: EventTarget, type: string, options?: AddEventListenerOptions) => {
+        target.addEventListener(type, hideTooltip, options)
+        detach.push(() => target.removeEventListener(type, hideTooltip, options))
+      }
+      listen(element, 'mouseleave')
+      for (const target of scrollTargets) listen(target, 'scroll', { passive: true })
+      if (typeof window !== 'undefined') listen(window, 'blur')
+      if (typeof document !== 'undefined') listen(document, 'visibilitychange')
+
       // Resize is driven off an explicit box, not `chart.resize()`'s implicit
       // re-measurement, and guarded against the canvas feeding its own height
       // back into the observed element. The container sits in an auto-sized grid
@@ -144,6 +181,12 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
           else render()
         },
         dispose() {
+          for (const remove of detach) remove()
+          detach.length = 0
+          // Hide before disposing: a tooltip shown at teardown has already been
+          // handed to `body`, and hiding it is what returns it to ECharts' own
+          // cleanup path.
+          hideTooltip()
           resizeObserver?.disconnect()
           themeObserver?.disconnect()
           chart.dispose()

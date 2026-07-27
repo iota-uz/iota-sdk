@@ -39,7 +39,7 @@ vi.mock('../runtime', () => ({
 
 import { BarPanel, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
-import { buildCascadeStages, buildWaterfallItems, CascadePanel } from './CascadePanel'
+import { buildCascadeStages, buildWaterfallItems, CascadePanel, waterfallAxisStep } from './CascadePanel'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
@@ -414,6 +414,23 @@ describe('cascade stages', () => {
     ])
     expect(stages[1]?.formattedCut).toBe('−$250')
     expect(stages[2]?.formattedCut).toBe('+$50')
+  })
+
+  it('picks an axis step that leaves the tallest bar near the top of the plot', () => {
+    // The case from the profitability dashboard: 655.09 bn of earned premium
+    // used to sit under a 1 trn ceiling, wasting a third of the plot.
+    const step = waterfallAxisStep(0, 655.09e9)
+    const top = Math.ceil(655.09e9 / step) * step
+    expect(top).toBe(700e9)
+    expect(top / step).toBeLessThanOrEqual(7)
+
+    // A deficit still gets whole steps below zero rather than a clipped bar.
+    const negative = waterfallAxisStep(-30, 120)
+    expect(Math.floor(-30 / negative) * negative).toBeLessThanOrEqual(-30)
+    expect(Math.ceil(120 / negative) * negative).toBeGreaterThanOrEqual(120)
+
+    // Degenerate frames must still produce a usable positive step.
+    expect(waterfallAxisStep(0, 0)).toBeGreaterThan(0)
   })
 
   it('renders a conventional vertical waterfall projection when requested', () => {

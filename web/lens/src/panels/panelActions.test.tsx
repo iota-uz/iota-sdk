@@ -395,7 +395,7 @@ describe('one panel, one click behaviour', () => {
 
 describe('chart tooltips', () => {
   it('renders at body level, confined to the viewport, above the expanded-panel dialog', async () => {
-    const { tooltipChrome, tooltipZIndex } = await import('../charts/echarts/options')
+    const { tooltipChrome, tooltipZIndex, tooltipClassName } = await import('../charts/echarts/options')
     const chrome = tooltipChrome({
       card: '#fff', text: '#111', mutedText: '#666', border: '#eee', divider: '#eee',
       selectedBorder: '#000', fontFamily: 'Inter', colors: [], seriesColor: () => undefined,
@@ -406,6 +406,9 @@ describe('chart tooltips', () => {
     // The expanded-panel overlay sits at 2147483000.
     expect(tooltipZIndex).toBeGreaterThan(2147483000)
     expect(chrome.extraCssText).toContain(`z-index: ${tooltipZIndex}`)
+    // Living outside the chart container, a tooltip needs a name of its own to
+    // be findable — by a test, and by anyone chasing one that outlived its chart.
+    expect(chrome.className).toBe(tooltipClassName)
   })
 })
 

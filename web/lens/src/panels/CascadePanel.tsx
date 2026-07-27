@@ -181,6 +181,43 @@ function niceCeiling(value: number): number {
   return 10 * power
 }
 
+/** Round numbers a money axis is allowed to step by, per power of ten. */
+const axisStepLadder = [1, 1.5, 2, 2.5, 3, 4, 5, 7.5]
+
+/**
+ * The step whose gridlines cover the data with the least dead space above it.
+ *
+ * Deriving one step from `range / 3` and rounding it up compounds two
+ * roundings: a 655 bn column asked for a 218 bn step, got 500 bn, and ended up
+ * under a 1 trn ceiling — a third of the plot spent on air, which is exactly
+ * the height the bars were supposed to gain. Searching the step ladder for the
+ * tightest ceiling instead lands on 100 bn and a 700 bn top. Between two steps
+ * that fit equally well the coarser one wins, so a tight axis never costs a
+ * thicket of gridlines.
+ */
+export function waterfallAxisStep(minimum: number, maximum: number): number {
+  const span = Math.max(1, maximum - minimum)
+  const fallback = niceCeiling(span / 3)
+  let best: number | undefined
+  let bestSpan = Number.POSITIVE_INFINITY
+  for (let power = 10 ** Math.floor(Math.log10(span / 7)); power <= span; power *= 10) {
+    for (const rung of axisStepLadder) {
+      const step = rung * power
+      if (!Number.isFinite(step) || step <= 0) continue
+      const top = maximum > 0 ? Math.ceil(maximum / step) * step : 0
+      const bottom = minimum < 0 ? Math.floor(minimum / step) * step : 0
+      const divisions = Math.round((top - bottom) / step)
+      if (divisions < 2 || divisions > 7) continue
+      const plotSpan = top - bottom
+      if (plotSpan < bestSpan || (plotSpan === bestSpan && step > (best ?? 0))) {
+        bestSpan = plotSpan
+        best = step
+      }
+    }
+  }
+  return best ?? fallback
+}
+
 function buildWaterfallModel(
   stages: CascadeStage[],
   formatValue: (value: unknown) => string,
@@ -267,7 +304,7 @@ function buildWaterfallModel(
     minimum = Math.min(minimum, item.from, item.to)
     maximum = Math.max(maximum, item.from, item.to)
   })
-  const step = niceCeiling(Math.max(1, maximum - minimum) / 3)
+  const step = waterfallAxisStep(minimum, maximum)
   const plotMinimum = minimum < 0 ? Math.floor(minimum / step) * step : 0
   const plotMaximum = Math.max(step, Math.ceil(maximum / step) * step)
   const plotRange = Math.max(1, plotMaximum - plotMinimum)

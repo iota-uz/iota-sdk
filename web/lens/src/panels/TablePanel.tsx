@@ -510,7 +510,13 @@ export function TablePanel({ panel }: TablePanelProps) {
           </div>
           <footer className="lens-table-footer">
             <span className="lens-table-footer-notes">
-              {sortEnabled && <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>}
+              {/* Only a paginated table has a "this page" to scope sorting to.
+                  On a table that shows every row at once the caveat describes a
+                  limit that does not exist, and reads as a warning that some of
+                  the data is out of sight. */}
+              {sortEnabled && frame.page && (
+                <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
+              )}
               {dataRowCount > 10 && (
                 <span className="lens-table-rowcount">{translate('table.rowCount', '{count} rows', { count: dataRowCount })}</span>
               )}

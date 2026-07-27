@@ -537,8 +537,12 @@ func (c TableColumnSpec) Delta(percentField string) TableColumnSpec {
 	return c
 }
 
-// Underline renders the column as a value over a thin proportional rule
-// colored by sign — a low-ink alternative to Bar.
+// Underline renders the column as a value over a thin rule colored by sign.
+//
+// The rule spans the value, not the magnitude: it encodes direction only. A
+// column whose numbers should be comparable at a glance wants Bar, which
+// scales against the column's own maximum — an underline there reads as a data
+// bar that happens to be wrong.
 func (c TableColumnSpec) Underline() TableColumnSpec {
 	c.Cell = &panel.TableCellSpec{Kind: panel.TableCellUnderline}
 	return c

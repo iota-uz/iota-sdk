@@ -76,7 +76,7 @@ export function FocusContextHeader({
       )}
       <div className="lens-focus-context">
         <div className="lens-focus-context-body">
-          <span className="lens-focus-name">{context.label}</span>
+          <span className="lens-focus-name" title={context.label}>{context.label}</span>
           {context.value !== undefined && (
             <span className="lens-focus-value">
               <StatValueTicker text={formatValue(context.value)} />

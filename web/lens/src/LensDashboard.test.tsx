@@ -50,6 +50,36 @@ describe('LensDashboard', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load Lens document: offline')
   })
 
+  it('offers a retry when the document itself failed, and refetches on click', async () => {
+    let rejectRequest: ((reason: Error) => void) | undefined
+    const fetcher = vi.fn(() => new Promise<Response>((resolve, reject) => {
+      rejectRequest = reject
+      if (fetcher.mock.calls.length > 1) resolve({ ok: true, json: () => Promise.resolve(fixture) } as Response)
+    }))
+    render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+
+    rejectRequest?.(new Error('offline'))
+    // A failed document leaves nothing else on the page to act on.
+    const retry = await screen.findByRole('button', { name: 'Retry' })
+    retry.click()
+
+    await waitFor(() => expect(fetcher.mock.calls.length).toBeGreaterThan(1))
+  })
+
+  it('explains a long wait instead of leaving the skeleton silent', () => {
+    vi.useFakeTimers()
+    try {
+      const fetcher = vi.fn(() => new Promise<Response>(() => undefined))
+      const view = render(<LensDashboard src="/lens/document" fetcher={fetcher} />)
+
+      expect(view.container.querySelector('.lens-loading-notice')).toBeNull()
+      act(() => { vi.advanceTimersByTime(9000) })
+      expect(view.container.querySelector('.lens-loading-notice')).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps the server-rendered skeleton until the document arrives', () => {
     const fetcher = vi.fn(() => new Promise<Response>(() => undefined))
     const view = render(

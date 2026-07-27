@@ -347,7 +347,24 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
   // A percent legend suppresses nothing: it is the only place the share of a
   // slice labelled with its own category name is written down.
   const showsPercent = presentation?.legendValue === 'percent'
-  const showsSuffix = showsPercent || panel.radial?.mode !== 'partition'
+  // A partition category that appears in exactly one ring has exactly one
+  // share, so the legend can state it. Only a category repeated across rings
+  // is ambiguous — that is what suppressed the suffix here, and suppressing it
+  // for everyone left sub-4% arcs, the ones the ring exists to show, with their
+  // share written down nowhere at all.
+  const partition = panel.radial?.mode === 'partition'
+  const rowsPerKey = new Map<string, number>()
+  if (partition) {
+    for (let index = 0; index < frame.rows.length; index += 1) {
+      const key = legendKey(frame, panel, index)
+      rowsPerKey.set(key, (rowsPerKey.get(key) ?? 0) + 1)
+    }
+  }
+  const suffixFor = (index: number): 'percent' | 'value' | 'none' => {
+    if (showsPercent) return 'percent'
+    if (!partition) return 'value'
+    return rowsPerKey.get(legendKey(frame, panel, index)) === 1 ? 'percent' : 'none'
+  }
 
   return (
     <ul className="lens-chart-legend">
@@ -378,11 +395,11 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
                 style={{ background: isHidden ? undefined : color(label, index) }}
               />
               <span className="lens-chart-legend-label">{label}</span>
-              {showsSuffix && (
+              {suffixFor(index) !== 'none' && (
                 <>
                   <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
                   <span className="lens-chart-legend-value">
-                    {showsPercent
+                    {suffixFor(index) === 'percent'
                       ? formatShare(shares.get(index))
                       : (valueIndex >= 0 ? formatValue(row[valueIndex]) : '')}
                   </span>

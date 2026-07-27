@@ -1222,14 +1222,18 @@ export function DashboardRuntimeProvider({
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
   if (!context.document) {
-    if (context.error) return <DocumentLoadError message={context.error.message} />
+    if (context.error) {
+      return (
+        <DocumentLoadError
+          locale={locale}
+          message={context.error.message}
+          onRetry={() => { void context.refresh().catch(() => undefined) }}
+        />
+      )
+    }
     // A layout-shaped placeholder, not a spinner: the page keeps its rhythm
     // and nothing jumps when the document lands.
-    return (
-      <div aria-busy="true" className="lens-loading">
-        {fallback ?? <DashboardSkeleton rows={defaultSkeletonRows} />}
-      </div>
-    )
+    return <DocumentLoading locale={locale}>{fallback ?? <DashboardSkeleton rows={defaultSkeletonRows} />}</DocumentLoading>
   }
   return (
     <RuntimeCore
@@ -1332,11 +1336,84 @@ export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {
  * one string the runtime can only render in English unless the host page
  * supplies its own fallback UI.
  */
-function DocumentLoadError({ message }: { message: string }) {
+/**
+ * The strings the runtime may have to show before any document has arrived —
+ * and therefore before it has any translations to look them up in.
+ *
+ * These are the only two states that exist without a document: it failed, or it
+ * is taking a long time. English on a Russian dashboard is a worse answer than
+ * carrying four short strings here, and the host page cannot supply them
+ * either — its own dictionary travels inside the document.
+ */
+const preDocumentStrings: Record<string, Record<string, string>> = {
+  ru: {
+    'runtime.loadError': 'Не удалось загрузить дашборд',
+    'runtime.retry': 'Повторить',
+    'runtime.slowLoad': 'Расчёт продолжается — широкий период считается дольше.',
+  },
+  uz: {
+    'runtime.loadError': 'Boshqaruv panelini yuklab bo‘lmadi',
+    'runtime.retry': 'Qayta urinish',
+    'runtime.slowLoad': 'Hisoblash davom etmoqda — keng davr uzoqroq hisoblanadi.',
+  },
+  'uz-Cyrl': {
+    'runtime.loadError': 'Бошқарув панелини юклаб бўлмади',
+    'runtime.retry': 'Қайта уриниш',
+    'runtime.slowLoad': 'Ҳисоблаш давом этмоқда — кенг давр узоқроқ ҳисобланади.',
+  },
+}
+
+function preDocumentText(locale: string | undefined, key: string, fallback: string): string {
+  if (!locale) return fallback
+  const exact = preDocumentStrings[locale]?.[key]
+  if (exact) return exact
+  const primary = locale.split('-')[0]
+  return (primary ? preDocumentStrings[primary]?.[key] : undefined) ?? fallback
+}
+
+function DocumentLoadError({ locale, message, onRetry }: { locale?: string; message: string; onRetry: () => void }) {
   const translate = useTranslate()
   return (
     <div className="lens-placeholder-state" role="alert">
-      {translate('runtime.loadError', 'Unable to load Lens document')}: {message}
+      <span>
+        {translate('runtime.loadError', preDocumentText(locale, 'runtime.loadError', 'Unable to load Lens document'))}
+        : {message}
+      </span>
+      {/* A failed document leaves the page with nothing on it. Panels already
+          offer their own retry; without one here the only way back is a manual
+          reload, which most readers of a dashboard will not think to try. */}
+      <button className="lens-placeholder-retry" onClick={onRetry} type="button">
+        {translate('runtime.retry', preDocumentText(locale, 'runtime.retry', 'Retry'))}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * How long a blank skeleton is allowed to stand before it says something. A
+ * dashboard over a wide date range genuinely takes tens of seconds to compute;
+ * silence past this point is indistinguishable from a hang.
+ */
+const slowLoadNoticeMs = 8000
+
+function DocumentLoading({ locale, children }: { locale?: string; children: ReactNode }) {
+  const translate = useTranslate()
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), slowLoadNoticeMs)
+    return () => clearTimeout(timer)
+  }, [])
+  return (
+    <div aria-busy="true" className="lens-loading">
+      {slow && (
+        <p className="lens-loading-notice" role="status">
+          {translate(
+            'runtime.slowLoad',
+            preDocumentText(locale, 'runtime.slowLoad', 'Still computing — a wide period takes longer.'),
+          )}
+        </p>
+      )}
+      {children}
     </div>
   )
 }

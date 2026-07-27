@@ -1287,7 +1287,17 @@
   }
 
   .lens-placeholder-state {
-    @apply lens-box-border lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-sm lens-text-muted lens-shadow-card;
+    @apply lens-box-border lens-flex lens-flex-wrap lens-items-center lens-justify-between lens-gap-3 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-sm lens-text-muted lens-shadow-card;
+  }
+
+  .lens-placeholder-retry {
+    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-sans lens-text-sm lens-font-semibold lens-text-text;
+  }
+
+  /* Sits above the skeleton rather than replacing it: the layout stays put and
+     only gains a line explaining why it is still empty. */
+  .lens-loading-notice {
+    @apply lens-m-0 lens-mb-3 lens-font-sans lens-text-sm lens-text-muted;
   }
 
   .lens-panel-stale {
@@ -1881,10 +1891,14 @@
   /* Carried on a chip rather than bare text: the callout leans into whichever
      side has room, which on a crowded plot is often over a neighbouring column
      or its underlay, and bare 10px type does not survive that. */
+  /* Hangs just below the band rather than centred on it. Centred, the chip sits
+     at the height every neighbouring column prints its own value at, and the
+     two collide in the gutter between columns; a few pixels lower it clears
+     that band and lands against the neighbour's empty plot area instead. */
   .lens-waterfall-split-callout {
-    @apply lens-pointer-events-none lens-absolute lens-top-1/2 lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-[10px] lens-font-semibold;
+    @apply lens-pointer-events-none lens-absolute lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-[10px] lens-font-semibold;
+    top: calc(100% + 3px);
     color: var(--lens-neg-alt);
-    transform: translateY(-50%);
     font-variant-numeric: tabular-nums lining-nums;
   }
 

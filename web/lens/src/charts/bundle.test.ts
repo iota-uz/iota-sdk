@@ -48,8 +48,11 @@ describe('chart bundle boundary', () => {
 
     expect(staticChunks.join('\n')).not.toContain(echartsRuntimeMarker)
     // Budget raised from 350k for the metric panel kinds (flow/hierarchy/
-    // relationship + quality chips): the core entry measured 370,298 bytes
-    // after that intentional addition. The cap still catches accidental bloat.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(400_000)
+    // relationship + quality chips), and from 400k for the tooltip-dismissal
+    // listeners, the waterfall axis search, and the document retry/slow-load
+    // states: the core entry measured 401,129 bytes after those intentional
+    // additions. The cap still catches accidental bloat — it is a tripwire for
+    // a chart library wandering into the core entry, not a per-byte budget.
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(410_000)
   })
 })

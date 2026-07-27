@@ -145,6 +145,14 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string) {
  */
 export const tooltipZIndex = 2147483600
 
+/**
+ * Marks every tooltip node this runtime creates. Living outside the chart
+ * container, a tooltip is no longer torn down with it — the adapter needs a way
+ * to find the nodes it is responsible for without touching anything else the
+ * host page appended to `body`.
+ */
+export const tooltipClassName = 'lens-echarts-tooltip'
+
 /** Tooltip settings shared by every chart kind. */
 export function tooltipChrome(theme: EChartsTheme) {
   return {
@@ -152,6 +160,7 @@ export function tooltipChrome(theme: EChartsTheme) {
     borderColor: theme.border,
     textStyle: { color: theme.text },
     appendTo: 'body',
+    className: tooltipClassName,
     // Rendered at body level the tooltip escapes the card's clip, but it must
     // still stay on screen: confine clamps it to the window viewport so a wide
     // tooltip on a left-edge slice no longer overflows behind the sidebar
@@ -251,6 +260,15 @@ function sliceLabel(mode: Presentation['sliceLabels'], params: unknown): string 
 }
 
 /**
+ * The smallest arc a ring will draw, in degrees. Under it a slice is a
+ * sub-pixel hairline: invisible, and — because drill targets are the arcs
+ * themselves — unclickable. Two degrees is 0.55% of the circle, so the widening
+ * is bounded well under the 4% floor where callouts take over, and the callout
+ * always prints the true share beside it.
+ */
+const minimumSliceAngle = 2
+
+/**
  * Relative luminance per WCAG, for choosing ink against a slice fill.
  *
  * Only `#rgb`/`#rrggbb` are parsed: chart palettes are authored as hex in the
@@ -347,6 +365,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       // rounding again to one decimal double-rounds: 87.6459 → 87.65 → 87.7,
       // where the true value reads 87.6. Ask for the raw share and round once.
       percentPrecision: rawPercentPrecision,
+      minAngle: minimumSliceAngle,
       label,
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       data: points.map((point, index) => {
@@ -409,6 +428,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
       selectedMode: false,
       universalTransition: { enabled: morphEnabled() },
       percentPrecision: rawPercentPrecision,
+      minAngle: minimumSliceAngle,
       label: insideLabels
         ? {
             position: 'inside' as const,
