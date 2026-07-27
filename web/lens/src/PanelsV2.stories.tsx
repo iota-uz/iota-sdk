@@ -67,7 +67,10 @@ const tonedBridgeFrame: Frame = {
 const officialResultPanel: Panel = {
   id: 'official-result-bridge', kind: 'cascade', title: 'Андеррайтинговый результат', semantics: 'reconciliation', frame: 'bridge',
   total: 66.34,
-  encoding: { label: 'stage', value: 'balance', cut: 'movement', cutLabel: 'movementLabel', final: 'reconciled', tone: 'tone' },
+  encoding: {
+    label: 'stage', value: 'balance', cut: 'movement', cutLabel: 'movementLabel',
+    final: 'reconciled', tone: 'tone', split: 'split', splitLabel: 'splitLabel',
+  },
   format: {
     balance: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 },
     movement: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 },
@@ -81,18 +84,22 @@ const officialResultFrame: Frame = {
     { name: 'stage', type: 'string' }, { name: 'balance', type: 'number' },
     { name: 'movement', type: 'number' }, { name: 'movementLabel', type: 'string' },
     { name: 'reconciled', type: 'bool' }, { name: 'tone', type: 'string' },
+    { name: 'split', type: 'number' }, { name: 'splitLabel', type: 'string' },
   ],
   rows: [
-    ['Заработанная премия', 178.30, 0, '', false, 'neutral'],
-    ['Аквизиционные расходы', 150.00, 28.30, 'Аквизиционные расходы', false, 'negative'],
-    ['Расходы на ведение дела', 120.00, 30.00, 'Расходы на ведение дела', false, 'negative'],
-    ['Выплаты', 95.00, 25.00, 'Выплаты', false, 'negative'],
-    ['Перестрахование', 80.00, 15.00, 'Перестрахование', false, 'negative'],
-    ['Движение резервов', 66.34, 13.66, 'Движение резервов', false, 'negative'],
+    ['Заработанная премия', 178.30, 0, '', false, 'neutral', 0, ''],
+    ['Аквизиционные расходы', 150.00, 28.30, 'Аквизиционные расходы', false, 'negative', 0, ''],
+    ['Расходы на ведение дела', 120.00, 30.00, 'Расходы на ведение дела', false, 'negative', 0, ''],
+    // The one split stage: part of the payout is met from the product's own
+    // reserve, the rest overflows beyond it. Both halves are the same cost, so
+    // they share one bar and one label instead of a caption under the axis.
+    ['Выплаты', 95.00, 25.00, 'Выплаты', false, 'negative', 6.10, 'сверх резерва'],
+    ['Перестрахование', 80.00, 15.00, 'Перестрахование', false, 'negative', 0, ''],
+    ['Движение резервов', 66.34, 13.66, 'Движение резервов', false, 'negative', 0, ''],
     // Closing row restates the running total, but as a floating-point sum it
     // lands an epsilon off (like the real backend frame) — the tolerance, not
     // strict equality, must suppress the "+0" duplicate bar.
-    ['Андеррайтинговый результат', 66.34 + 1e-5, 0, '', true, 'neutral'],
+    ['Андеррайтинговый результат', 66.34 + 1e-5, 0, '', true, 'neutral', 0, ''],
   ],
 }
 
@@ -184,6 +191,26 @@ export const WaterfallSemanticTone: Story = () => {
 // total, preceded by the navy opening and five red deduction bars — no "+0".
 export const WaterfallClosingTotal: Story = () => {
   const document = storyDocument(officialResultPanel, { bridge: officialResultFrame })
+  return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
+}
+
+// A split on a late column: the callout must flip to the inner side rather than
+// run off the right edge of the plot. Also covers the guards — a split equal to
+// the whole movement, and one larger than it, both leave the bar undivided.
+export const WaterfallSplitCallout: Story = () => {
+  const frame: Frame = {
+    ...officialResultFrame,
+    rows: [
+      ['Заработанная премия', 178.30, 0, '', false, 'neutral', 0, ''],
+      ['Аквизиционные расходы', 150.00, 28.30, 'Аквизиционные расходы', false, 'negative', 28.30, 'вся сумма'],
+      ['Расходы на ведение дела', 120.00, 30.00, 'Расходы на ведение дела', false, 'negative', 44.00, 'больше движения'],
+      ['Выплаты', 95.00, 25.00, 'Выплаты', false, 'negative', 0, ''],
+      ['Перестрахование', 80.00, 15.00, 'Перестрахование', false, 'negative', 0, ''],
+      ['Движение резервов', 66.34, 13.66, 'Движение резервов', false, 'negative', 5.20, 'сверх резерва'],
+      ['Андеррайтинговый результат', 66.34 + 1e-5, 0, '', true, 'neutral', 0, ''],
+    ],
+  }
+  const document = storyDocument(officialResultPanel, { bridge: frame })
   return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
 }
 

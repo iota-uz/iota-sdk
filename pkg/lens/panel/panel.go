@@ -757,6 +757,17 @@ type FieldMapping struct {
 	// the flow-direction default color. Empty (the default) keeps direction-based
 	// coloring; it is opt-in, so it is never defaulted to a column name.
 	Tone FieldRef
+	// Split names a frame column carrying the part of this stage's own movement
+	// that is materially different in kind from the rest of it — claims paid out
+	// of a product's own reserve versus the overflow beyond it, say. The renderer
+	// draws it as a distinct band at the leading end of the same bar, so the
+	// composition is read off the bar instead of a caption beside it. It is a
+	// portion OF the movement, never an addition to it: a value outside
+	// (0, |movement|) is ignored and the bar stays whole.
+	Split FieldRef
+	// SplitLabel names a frame column naming that band. Renderers show it next
+	// to the band; empty values leave the band unlabeled but still drawn.
+	SplitLabel FieldRef
 	// Share names a frame column carrying a per-element share; the renderer
 	// never recomputes it.
 	Share FieldRef
@@ -1073,7 +1084,19 @@ func (b *Builder) AnnotationField(name FieldRef) *Builder {
 // ToneField declares the frame column carrying a per-row semantic tone for a
 // cascade panel's stages ("neutral", "positive", "negative", "inflow"). It
 // overrides the flow-direction default color; absent keeps direction coloring.
-func (b *Builder) ToneField(name FieldRef) *Builder  { b.spec.Fields.Tone = name; return b }
+func (b *Builder) ToneField(name FieldRef) *Builder { b.spec.Fields.Tone = name; return b }
+
+// SplitField declares the frame column carrying the part of a cascade stage's
+// own movement that differs in kind from the rest of it; the renderer bands it
+// separately inside the same bar.
+func (b *Builder) SplitField(name FieldRef) *Builder { b.spec.Fields.Split = name; return b }
+
+// SplitLabelField declares the frame column naming that band.
+func (b *Builder) SplitLabelField(name FieldRef) *Builder {
+	b.spec.Fields.SplitLabel = name
+	return b
+}
+
 func (b *Builder) ShareField(name FieldRef) *Builder { b.spec.Fields.Share = name; return b }
 func (b *Builder) ConfidenceField(name FieldRef) *Builder {
 	b.spec.Fields.Confidence = name

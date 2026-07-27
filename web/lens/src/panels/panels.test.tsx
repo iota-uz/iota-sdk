@@ -518,4 +518,49 @@ describe('cascade stages', () => {
 
     expect(items.some((item) => item.kind === 'increase' && item.value === 0.25)).toBe(true)
   })
+
+  it('bands a split as a fraction of its own bar and ignores one it cannot hold', () => {
+    const cascade = panel('cascade', {
+      encoding: {
+        label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final',
+        split: 'split', splitLabel: 'splitLabel',
+      },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+        { name: 'split', type: 'number' },
+        { name: 'splitLabel', type: 'string' },
+      ],
+      rows: [
+        ['Earned premium', 100, 0, '', false, 0, ''],
+        // A quarter of this deduction is of a different kind.
+        ['Claims', 60, 40, 'Claims', false, 10, 'above reserve'],
+        // A split equal to the whole movement divides nothing; one larger than
+        // the movement is not a part of it. Both leave the bar undivided.
+        ['Acquisition', 50, 10, 'Acquisition', false, 10, 'all of it'],
+        ['Operating', 40, 10, 'Operating', false, 25, 'more than the bar'],
+        ['Result', 40, 0, '', true, 0, ''],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    const byLabel = (label: string) => items.find((item) => item.label === label)
+
+    const claims = byLabel('Claims')
+    expect(claims?.splitHeight).toBeCloseTo((claims?.height ?? 0) / 4)
+    expect(claims?.splitLabel).toBe('above reserve')
+    expect(byLabel('Acquisition')?.splitHeight).toBeUndefined()
+    expect(byLabel('Operating')?.splitHeight).toBeUndefined()
+
+    // Every floating bar leaves a balance under it; the totals stand on zero.
+    expect(byLabel('Claims')?.underlayHeight).toBeGreaterThan(0)
+    expect(byLabel('Earned premium')?.underlayHeight).toBeUndefined()
+    expect(byLabel('Result')?.underlayHeight).toBeUndefined()
+  })
 })

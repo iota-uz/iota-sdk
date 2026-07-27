@@ -114,6 +114,8 @@ export const EncodingSchema: z.ZodType<Contract.Encoding> = z.object({
   final: z.string().optional(),
   annotation: z.string().optional(),
   tone: z.string().optional(),
+  split: z.string().optional(),
+  splitLabel: z.string().optional(),
   share: z.string().optional(),
   confidence: z.string().optional(),
   availability: z.string().optional(),

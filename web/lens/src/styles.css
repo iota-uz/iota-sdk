@@ -22,6 +22,12 @@
     --lens-accent-50: #eff6ff;
     --lens-pos: #059669;
     --lens-neg: #dc2626;
+    /* A second shade of the negative colour for telling one part of a cost apart
+       from the rest of the same cost — a split waterfall band, and its callout.
+       Not a distinct semantic: still negative, just subdivided. It darkens on
+       light surfaces and lightens on dark ones, because on either the point is
+       to separate from --lens-neg without leaving the red family. */
+    --lens-neg-alt: #7f1d1d;
     --lens-warn: #d97706;
     --lens-pos-soft: #ecfdf5;
     --lens-neg-soft: #fef2f2;
@@ -91,6 +97,7 @@
     --lens-shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
     --lens-pos-soft: rgba(5, 150, 105, 0.16);
     --lens-neg-soft: rgba(220, 38, 38, 0.16);
+    --lens-neg-alt: #f87171;
     --lens-warn-soft: rgba(217, 119, 6, 0.16);
     color-scheme: dark;
   }
@@ -1794,14 +1801,20 @@
     gap: 12px;
   }
 
+  /* The plot claims the card's spare height instead of a fixed box: a waterfall
+     is read by comparing column heights, and 208px left the columns squat with
+     dead space below them. min-height is the real working height — dashboard
+     panels shrink-wrap (align-items: start), so flex alone would collapse back
+     to the content. flex still earns its keep where a sibling stretches the
+     card: a tab group, or the wide result drawer. */
   .lens-waterfall-chart {
-    @apply lens-grid;
+    @apply lens-grid lens-min-h-0 lens-flex-1;
     grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .lens-waterfall-axis {
-    @apply lens-relative;
-    height: 208px;
+    @apply lens-relative lens-h-full;
+    min-height: 288px;
   }
 
   .lens-waterfall-axis span {
@@ -1811,8 +1824,8 @@
   }
 
   .lens-waterfall-plot {
-    @apply lens-relative;
-    height: 208px;
+    @apply lens-relative lens-h-full;
+    min-height: 288px;
   }
 
   .lens-waterfall-gridline {
@@ -1850,6 +1863,40 @@
 
   .lens-waterfall-bar[data-kind='end'] {
     background: var(--lens-accent-500);
+  }
+
+  /* The part of the movement that differs in kind from the rest, banded at the
+     top of the same bar. It is deliberately a second shade of the bar's own
+     colour rather than a new hue: it is still the same cost, told apart, not a
+     different thing on the chart. */
+  .lens-waterfall-bar-split {
+    @apply lens-absolute lens-left-0 lens-right-0 lens-top-0 lens-rounded-t-sm;
+    background: var(--lens-neg-alt);
+    border-bottom: 1px solid rgb(255 255 255 / 55%);
+  }
+
+  .lens-waterfall-split-callout {
+    @apply lens-pointer-events-none lens-absolute lens-top-1/2 lens-whitespace-nowrap lens-text-[10px] lens-font-semibold;
+    color: var(--lens-neg-alt);
+    transform: translateY(-50%);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-waterfall-split-callout[data-side='end'] {
+    left: calc(100% + 6px);
+  }
+
+  .lens-waterfall-split-callout[data-side='start'] {
+    right: calc(100% + 6px);
+  }
+
+  /* The balance a floating deduction leaves standing. Drawing it makes the
+     arithmetic visible: the opening total is eaten down, step by step, to the
+     closing one. Behind the bar and the connector, never in front. */
+  .lens-waterfall-underlay {
+    @apply lens-absolute lens-left-1/4 lens-right-1/4 lens-z-0;
+    background: var(--lens-accent-500);
+    opacity: 0.12;
   }
 
   .lens-waterfall-bar strong {

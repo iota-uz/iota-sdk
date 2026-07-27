@@ -65,6 +65,10 @@ export interface CascadeStage {
   width: number
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
+  /** The part of this stage's own movement that differs in kind from the rest. */
+  split: number
+  /** What that part is called. */
+  splitLabel: string
   /** Index of the frame row this stage was built from (per-row actions). */
   rowIndex: number
 }
@@ -82,6 +86,8 @@ export function buildCascadeStages(
   const finalField = panelField(panel, 'final') ?? 'final'
   const annotationField = panelField(panel, 'annotation')
   const toneField = panelField(panel, 'tone')
+  const splitField = panelField(panel, 'split')
+  const splitLabelField = panelField(panel, 'splitLabel')
   const labelIndex = columnIndex(frame, labelField)
   const valueIndex = columnIndex(frame, valueField)
   const cutIndex = columnIndex(frame, cutField)
@@ -89,6 +95,8 @@ export function buildCascadeStages(
   const finalIndex = columnIndex(frame, finalField)
   const annotationIndex = columnIndex(frame, annotationField)
   const toneIndex = columnIndex(frame, toneField)
+  const splitIndex = columnIndex(frame, splitField)
+  const splitLabelIndex = columnIndex(frame, splitLabelField)
   const maximum = Math.max(1, ...frame.rows.map((row) => Math.max(0, numeric(row[valueIndex]))))
 
   return frame.rows.map((row, index) => {
@@ -105,6 +113,8 @@ export function buildCascadeStages(
       final: boolean(row[finalIndex]),
       annotation: annotationIndex >= 0 ? displayText(row[annotationIndex], '') : '',
       tone: toneIndex >= 0 ? asTone(row[toneIndex]) : undefined,
+      split: splitIndex >= 0 ? numeric(row[splitIndex]) : 0,
+      splitLabel: splitLabelIndex >= 0 ? displayText(row[splitLabelIndex], '') : '',
       width: rawWidth > 0 ? Math.max(widthFloor, rawWidth) : 0,
       rowIndex: index,
     }
@@ -123,6 +133,24 @@ export interface WaterfallItem {
   annotation: string
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
+  /**
+   * The band drawn at the leading (upper) end of this bar for the part of the
+   * movement that differs in kind from the rest. Height is a percentage of the
+   * plot, like every other measure here, so it composes with `height`. Absent
+   * when the row declares no split or declares one the bar cannot hold.
+   */
+  splitHeight?: number
+  /** Already-formatted amount of that band. */
+  formattedSplit?: string
+  /** What the band is called; may be empty even when the band is drawn. */
+  splitLabel?: string
+  /**
+   * How far the bar's foot sits above the zero line, as a plot percentage. It
+   * is the remaining balance this deduction leaves behind, drawn as a translucent
+   * accent block so the eye reads "the red bites out of the blue". Absent for
+   * the opening and closing totals, which already stand on zero.
+   */
+  underlayHeight?: number
   /**
    * The frame row backing this column, for per-row actions. The synthetic
    * closing total repeats the last stage the cascade already offers, so it
@@ -167,6 +195,8 @@ function buildWaterfallModel(
     kind: WaterfallItem['kind']
     tone?: CascadeTone
     annotation: string
+    split: number
+    splitLabel: string
     rowIndex?: number
   }> = [{
     label: first.label,
@@ -176,6 +206,10 @@ function buildWaterfallModel(
     kind: 'start',
     tone: first.tone,
     annotation: first.annotation,
+    // An opening total is not a movement, so it has no part-of-a-movement to
+    // band off. Only the deduction/addition bars carry a split.
+    split: 0,
+    splitLabel: '',
     rowIndex: first.rowIndex,
   }]
   const magnitude = Math.max(...stages.map((stage) => Math.abs(stage.value)), 1)
@@ -203,6 +237,8 @@ function buildWaterfallModel(
       kind: value < 0 ? 'decrease' : 'increase',
       tone: currentStage.tone,
       annotation: currentStage.annotation,
+      split: currentStage.split,
+      splitLabel: currentStage.splitLabel,
       rowIndex: currentStage.rowIndex,
     })
   }
@@ -219,6 +255,8 @@ function buildWaterfallModel(
         kind: 'end',
         tone: closing.tone,
         annotation: closing.annotation,
+        split: 0,
+        splitLabel: '',
       })
     }
   }
@@ -235,9 +273,19 @@ function buildWaterfallModel(
   const plotRange = Math.max(1, plotMaximum - plotMinimum)
   const y = (value: number) => Math.max(0, Math.min(100, (plotMaximum - value) / plotRange * 100))
 
+  const zero = y(0)
   const items = raw.map((item) => {
     const top = y(Math.max(item.from, item.to))
     const bottom = y(Math.min(item.from, item.to))
+    const height = Math.max(1.5, bottom - top)
+    // A split is a portion OF the movement. Outside (0, |movement|) it is not
+    // one — a producer that sends the whole movement, more than it, or nothing
+    // is describing an undivided bar, and that is what we draw. Guarding here
+    // rather than at the wire keeps a bad number from silently becoming a band
+    // taller than the bar it lives in.
+    const splitMagnitude = Math.abs(item.split)
+    const magnitude = Math.abs(item.value)
+    const splittable = splitMagnitude > 0 && splitMagnitude < magnitude
     return {
       label: item.label,
       value: item.value,
@@ -245,9 +293,17 @@ function buildWaterfallModel(
         ? formatValue(item.value)
         : signedChange(item.value, formatValue),
       top,
-      height: Math.max(1.5, bottom - top),
+      height,
+      splitHeight: splittable ? height * (splitMagnitude / magnitude) : undefined,
+      formattedSplit: splittable ? formatValue(splitMagnitude) : undefined,
+      splitLabel: splittable ? item.splitLabel : undefined,
+      // Only a floating bar leaves a balance under it; the totals stand on zero
+      // already. A bar dipping below zero leaves nothing, hence the clamp.
+      underlayHeight: item.kind === 'start' || item.kind === 'end'
+        ? undefined
+        : Math.max(0, zero - bottom) || undefined,
       connectorTop: y(item.to),
-      zero: y(0),
+      zero,
       kind: item.kind,
       tone: item.tone,
       annotation: item.annotation,
@@ -345,8 +401,21 @@ export function CascadePanel({ panel }: CascadePanelProps) {
               <div className="lens-waterfall-zero" />
               {waterfall.items.map((item, index) => {
                 const interaction = stageInteraction(item.rowIndex, item.label)
+                // The callout leans away from the nearer plot edge, so a split
+                // on the last columns does not run off the chart.
+                const calloutSide = index * 2 >= waterfall.items.length ? 'start' : 'end'
                 return (
                   <div className="lens-waterfall-column" key={`${item.label}-${index}`}>
+                    {item.underlayHeight !== undefined && (
+                      <span
+                        aria-hidden="true"
+                        className="lens-waterfall-underlay"
+                        style={{
+                          top: `${item.top + item.height}%`,
+                          height: `${item.underlayHeight}%`,
+                        }}
+                      />
+                    )}
                     {index < waterfall.items.length - 1 && (
                       <span
                         className="lens-waterfall-connector"
@@ -365,6 +434,17 @@ export function CascadePanel({ panel }: CascadePanelProps) {
                       {...interaction}
                     >
                       <strong>{item.formattedValue}</strong>
+                      {item.splitHeight !== undefined && (
+                        <span
+                          className="lens-waterfall-bar-split"
+                          style={{ height: `${item.splitHeight}%` }}
+                        >
+                          <span className="lens-waterfall-split-callout" data-side={calloutSide}>
+                            {item.splitLabel ? `${item.splitLabel} ` : ''}
+                            {item.formattedSplit}
+                          </span>
+                        </span>
+                      )}
                     </div>
                   </div>
                 )

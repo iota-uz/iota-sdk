@@ -795,6 +795,17 @@ type Encoding struct {
 	// per-row value falls back to the direction default. Optional; absent keeps
 	// the panel's flow-direction coloring byte- and behavior-identical.
 	Tone string `json:"tone,omitempty"`
+	// Split names a frame column carrying the part of a cascade stage's own
+	// movement that differs in kind from the rest of it — claims met out of a
+	// product's reserve versus the overflow beyond it, say. Waterfall renderers
+	// band it separately at the leading end of the same bar, so the composition
+	// is read off the bar rather than from a caption beside it. It is a portion
+	// OF the movement, never an addition to it: a value outside (0, |movement|)
+	// is ignored and the bar renders whole. Optional; absent keeps solid bars.
+	Split string `json:"split,omitempty"`
+	// SplitLabel names a frame column naming that band. Renderers place it next
+	// to the band; an empty value leaves the band drawn but unlabeled.
+	SplitLabel string `json:"splitLabel,omitempty"`
 	// Share names a frame column carrying a per-element share (already in the
 	// units its format declares); the renderer never recomputes it.
 	Share string `json:"share,omitempty"`

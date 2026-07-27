@@ -91,6 +91,8 @@ export interface Encoding {
   final?: string
   annotation?: string
   tone?: string
+  split?: string
+  splitLabel?: string
   share?: string
   confidence?: string
   availability?: string
