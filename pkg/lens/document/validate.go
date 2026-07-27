@@ -1068,6 +1068,11 @@ func validateDynamicChildFields(owner string, declaration DynamicChildren, frame
 }
 
 func validateFrame(ref FrameRef, frame Frame) error {
+	if frame.Presentation != nil {
+		if err := validatePresentation("frame "+string(ref), frame.Presentation); err != nil {
+			return err
+		}
+	}
 	names := make(map[string]struct{}, len(frame.Columns))
 	for _, column := range frame.Columns {
 		if strings.TrimSpace(column.Name) == "" {

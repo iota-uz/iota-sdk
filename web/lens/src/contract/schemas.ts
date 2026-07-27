@@ -157,6 +157,8 @@ export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({
   rows: z.array(z.array(z.unknown())),
   children: z.array(z.lazy(() => NodeSchema)).optional(),
   total: z.number().optional(),
+  presentation: z.lazy(() => PresentationSchema).optional(),
+  colors: z.array(z.string()).optional(),
 }).strict())
 
 export const FrameRefSchema: z.ZodType<Contract.FrameRef> = z.string()

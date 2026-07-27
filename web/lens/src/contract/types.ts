@@ -134,6 +134,8 @@ export interface Frame {
   rows: Array<Array<unknown>>
   children?: Array<Node>
   total?: number
+  presentation?: Presentation
+  colors?: Array<string>
 }
 
 export type FrameRef = string

@@ -992,6 +992,18 @@ type Frame struct {
 	// level arrives as nothing but a frame: a total on Level would be absent
 	// exactly where the drill goes deepest.
 	Total *float64 `json:"total,omitempty"`
+	// Presentation and Colors are the rendering decisions of the panel that
+	// PRODUCED this frame, which is not always the panel that will draw it: in
+	// document mode a drill level is served as a bare frame into a placeholder
+	// panel frozen before anyone knew which dimension that level would render.
+	// A level that draws years wants the year on the slice and the share in
+	// the legend; the level below it draws quarters, or — after a remainder
+	// step — years again. Only the producer knows, and only the frame reaches
+	// the client, so the decisions travel with the data.
+	//
+	// Absent means "keep the panel's own"; they never merge field by field.
+	Presentation *Presentation `json:"presentation,omitempty"`
+	Colors       []string      `json:"colors,omitempty"`
 }
 
 type Endpoints struct {

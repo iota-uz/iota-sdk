@@ -981,6 +981,8 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 			return Frame{}, err
 		}
 		built.Total = frameTotal(spec)
+		built.Presentation = convertPresentation(spec.Presentation)
+		built.Colors = append([]string(nil), spec.Colors...)
 		return built, nil
 	}
 

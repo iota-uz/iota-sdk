@@ -30,6 +30,10 @@ export interface ChartInput {
    * Absent means "unknown", which keeps the whole-chart treatment.
    */
   expandable?: (key: string) => boolean
+  // Per-row palette shipped with a served frame, indexed like its rows. It
+  // outranks the document palette so a level can paint its remainder neutral
+  // without the placeholder panel knowing a remainder exists.
+  colors?: string[]
 }
 
 /** Viewport coordinates of the activated mark, used to anchor an overlay. */

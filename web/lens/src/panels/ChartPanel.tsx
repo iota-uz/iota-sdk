@@ -167,6 +167,12 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // the badge cannot disagree with the percentages printed next to it, and
   // neither moves when a legend entry is toggled off.
   const shareTotal = frame.data?.total ?? visibleTotal ?? levelTotal ?? panel.total
+  // A served frame may carry the rendering decisions of the panel that produced
+  // it. In document mode a drill level is drawn by a placeholder panel frozen
+  // before anyone knew which dimension that level would render, so the frame is
+  // the only thing that can say "these slices are years, label them as such".
+  const presentation = frame.data?.presentation ?? panel.presentation
+  const frameColors = frame.data?.colors
 
   const toggleSeries = useCallback((key: string) => {
     setHidden((current) => {
@@ -193,10 +199,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     formatAxis,
     theme: document.theme,
     selectedKey,
-    presentation: panel.presentation,
+    presentation,
+    colors: frameColors,
     radial: panel.radial,
     expandable,
-  }) : undefined, [document.theme, expandable, format, formatAxis, kind, panel.encoding, panel.presentation, panel.radial, selectedKey, visibleFrame])
+  }) : undefined, [document.theme, expandable, format, formatAxis, frameColors, kind, panel.encoding, presentation, panel.radial, selectedKey, visibleFrame])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.
@@ -226,7 +233,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // when the panel is too narrow (handled in CSS by a container query). Moving
   // it out of the plot's footer hands the freed width to the chart, which fills
   // the left of the body.
-  const hasLegend = panel.presentation?.legend === 'below' && Boolean(frame.data)
+  const hasLegend = presentation?.legend === 'below' && Boolean(frame.data)
   return (
     <PanelFrame panel={panel} frame={frame} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
@@ -243,11 +250,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             />
           )}
         </div>
-        {panel.presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
+        {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
           <PlotTotalBadge panel={panel} total={shareTotal} />
         )}
         {hasLegend && frame.data && (
-          <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} total={shareTotal} />
+          <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} presentation={presentation} total={shareTotal} />
         )}
       </div>
       {interactive && hoveredKey && (
@@ -281,12 +288,14 @@ function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
  * are measured against `total` — the same authoritative whole the plot uses —
  * so hiding an entry no longer moves the numbers on the entries left behind.
  */
-function ChartLegend({ panel, frame, hidden, onToggle, total }: {
+function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
   panel: Panel
   frame: Frame
   hidden: ReadonlySet<string>
   onToggle: (key: string) => void
   total?: number
+  // The served frame's decisions when it carries any; see ChartPanel.
+  presentation?: Panel['presentation']
 }) {
   const { document, navigation } = useDashboard()
   const translate = useTranslate()
@@ -337,7 +346,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total }: {
   }
   // A percent legend suppresses nothing: it is the only place the share of a
   // slice labelled with its own category name is written down.
-  const showsPercent = panel.presentation?.legendValue === 'percent'
+  const showsPercent = presentation?.legendValue === 'percent'
   const showsSuffix = showsPercent || panel.radial?.mode !== 'partition'
 
   return (
