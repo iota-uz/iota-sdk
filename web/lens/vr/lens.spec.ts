@@ -100,7 +100,7 @@ const staticStories = [
   ['chart-adapter--pie-and-donut-light', 2],
   ['chart-adapter--radial-dark', 2],
   ['chart-adapter--radial-light', 2],
-  ['chart-adapter--radial-narrow', 2],
+  ['chart-adapter--radial-narrow', 1],
   ['drawer-host--closed-dark', 0],
   ['drawer-host--closed-light', 0],
   ['drawer-host--error', 0],
