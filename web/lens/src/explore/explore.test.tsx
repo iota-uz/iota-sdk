@@ -198,6 +198,23 @@ describe('focus canvas default lens', () => {
       .toBe('profitability/operating-margin/composition')
     expect(screen.getByRole('radio', { name: 'Composition' })).toHaveAttribute('aria-checked', 'true')
   })
+
+  it('applies the producer-selected view when a breadcrumb lands on a perspective fork', async () => {
+    // A breadcrumb jump stops at the branch level while the previously active
+    // perspective may still be present in the URL. The branch default must win
+    // and enter its root without showing an intermediate choice screen.
+    window.history.replaceState(null, '', navigationToURL({
+      path: ['profitability', 'profitability/operating-margin'],
+      perspectiveId: 'profitability/operating-margin/trend',
+    }, new URL(window.location.href)))
+    renderExplore(focusDefaultDocument.panels[0], focusDefaultDocument)
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Services' })).toBeInTheDocument())
+    expect(screen.queryByText(/Choose a view/)).toBeNull()
+    expect(new URL(window.location.href).searchParams.get('perspective'))
+      .toBe('profitability/operating-margin/composition')
+    expect(screen.getByRole('radio', { name: 'Composition' })).toHaveAttribute('aria-checked', 'true')
+  })
 })
 
 describe('level data integrity', () => {

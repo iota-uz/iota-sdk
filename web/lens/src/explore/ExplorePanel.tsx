@@ -107,6 +107,11 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const rootLevel = panel.drillRoot ? document.drill.edges[panel.drillRoot] : undefined
   const level = active ? levelForPath(document, navigation.path) : rootLevel
   const perspectives = useMemo(() => perspectivesForLevel(document, level), [document, level])
+  // A level with no frame of its own is a fork: its perspectives own the data.
+  // When the producer declares a default, landing on that fork (including via
+  // a breadcrumb) should enter the useful view immediately instead of making
+  // the user confirm a choice the document has already made.
+  const awaitingPerspective = Boolean(level && isPerspectiveFork(document, level))
   // The lens selector's set: at a perspective root this expands to the whole
   // branch sibling set (the choice the overlay offered on the parent segment),
   // because the builder records only the level's own perspective on it. The
@@ -188,9 +193,17 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   } as CSSProperties : undefined), [focusCanvas, transitionName])
 
   useEffect(() => {
-    if (!active || perspectives.length !== 1 || perspectives[0]?.id === navigation.perspectiveId) return
+    if (!active) return
+    if (awaitingPerspective) {
+      const defaultPerspective = level?.defaultPerspective
+      if (defaultPerspective && perspectives.some(({ id }) => id === defaultPerspective)) {
+        runViewTransition(() => drill.switchPerspective(defaultPerspective, { replace: true }))
+        return
+      }
+    }
+    if (perspectives.length !== 1 || perspectives[0]?.id === navigation.perspectiveId) return
     runViewTransition(() => drill.switchPerspective(perspectives[0]!.id, { replace: true }))
-  }, [active, drill, navigation.perspectiveId, perspectives])
+  }, [active, awaitingPerspective, drill, level?.defaultPerspective, navigation.perspectiveId, perspectives])
 
   useEffect(() => {
     if (previousView.current === viewKey) return
@@ -394,11 +407,6 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
       </nav>
     ) : undefined,
   }), [breadcrumbs, drill, explorable, openForLevel, panel.title, translate])
-
-  // A level with no frame of its own is a fork: its perspectives own the data.
-  // Until one is chosen there is nothing truthful to draw, so the panel asks
-  // for the choice instead of showing the parent level's numbers.
-  const awaitingPerspective = Boolean(level && isPerspectiveFork(document, level))
 
   // A state that replaces the panel still needs the panel's chrome: without the
   // trail there is no way back out of the level it is reporting on.
