@@ -310,7 +310,12 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
     },
     series,
     media: [{
-      query: { maxWidth: 480 },
+      // ECharts evaluates media queries against the chart container, not the
+      // browser viewport. Dashboard cards in desktop grids can be only
+      // 260–480px wide, so a conventional mobile breakpoint hides every inner
+      // ring on desktop. Keep the compact single-ring fallback for only the
+      // genuinely unusable sliver case.
+      query: { maxWidth: 220 },
       option: {
         series: series.map((ring, index) => index === 0
           ? { ...ring, radius: ['46%', '88%'] }

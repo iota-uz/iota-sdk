@@ -176,7 +176,7 @@ export const RadialDark: Story = () => <RadialFamily mode="dark" />
 export const RadialNarrow: Story = () => (
   <div className="lens-root" data-theme="light" style={{ width: 420 }}>
     <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Preferred ring on small screens</h2>
+      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
       <ChartPreview chartInput={radialInput('partition')} />
     </section>
   </div>

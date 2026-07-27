@@ -149,7 +149,7 @@ describe('slice percentages', () => {
     expect(chart.series[0]?.data?.[0]?.itemStyle?.color).toBe(chart.series[1]?.data?.[0]?.itemStyle?.color)
   })
 
-  it('uses one preferred partition ring below 480px', () => {
+  it('uses one preferred partition ring below 220px', () => {
     const chartInput = input('radial')
     chartInput.radial = {
       mode: 'partition',
@@ -162,7 +162,7 @@ describe('slice percentages', () => {
     const chart = testOption(buildChartOption(chartInput, theme))
     const responsive = chart.media?.[0]
 
-    expect(responsive?.query?.maxWidth).toBe(480)
+    expect(responsive?.query?.maxWidth).toBe(220)
     expect(responsive?.option?.series?.[0]?.data).toHaveLength(2)
     expect(responsive?.option?.series?.[1]?.data).toEqual([])
   })
