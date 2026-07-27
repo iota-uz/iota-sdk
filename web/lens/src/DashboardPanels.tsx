@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useContext,
   useEffect,
   useId,
@@ -10,7 +12,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
-import { useDashboard, useDocumentState, useDrawer, useTranslate } from './runtime'
+import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
 import { ExportButton, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
 import { X } from './icons'
 import { ExplorePanel } from './explore'
@@ -18,6 +20,9 @@ import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
 
 /* eslint-disable react-refresh/only-export-components */
+
+const LazyPrintReport = lazy(() => import('./print/PrintReport').then(({ PrintReport }) => ({ default: PrintReport })))
+const LazyPrintButton = lazy(() => import('./panels/PrintButton').then(({ PrintButton }) => ({ default: PrintButton })))
 
 export interface DashboardPanelsProps {
   registry?: PanelRegistry
@@ -211,6 +216,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   registry?: PanelRegistry
 }) {
   const translate = useTranslate()
+  const print = usePrint()
   const store = useContext(TabStateContext)
   const baseId = useId()
   const tabs = [...new Set(items.map((item) => groupAt(item, depth)?.tab ?? ''))]
@@ -276,13 +282,13 @@ function TabsGroup({ group, items, depth, panels, registry }: {
         <div
           aria-labelledby={tabId(index)}
           className="lens-panel-grid lens-tab-panel"
-          hidden={tab !== current}
+          hidden={!print.active && tab !== current}
           id={panelId(index)}
           key={tab}
           role="tabpanel"
           tabIndex={0}
         >
-          {tab === current && (
+          {(print.active || tab === current) && (
             <GroupChain
               depth={depth + 1}
               items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
@@ -400,6 +406,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const { document } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
+  const print = usePrint()
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
   // value is fixed for this mount, so drill, perspective, drawer and refetch
@@ -419,7 +426,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
 
   const header = document.header
   const identityTitle = header?.title || document.meta.title
-  const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) ||
+  const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) || print.available ||
     (document.filters?.length ?? 0) > 0
   return (
     <TabStateContext.Provider value={tabState}>
@@ -441,6 +448,9 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           <div className="lens-dashboard-controls">
             <FilterBar today={filterToday} />
             <ExportButton />
+            <Suspense fallback={null}>
+              <LazyPrintButton />
+            </Suspense>
           </div>
         </header>
       )}
@@ -461,6 +471,11 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           </section>
         ))}
       </div>
+      {print.active && (
+        <Suspense fallback={null}>
+          <LazyPrintReport />
+        </Suspense>
+      )}
     </main>
     </TabStateContext.Provider>
   )

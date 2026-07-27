@@ -96,6 +96,23 @@ const (
 	I18nPanelTotal               = "panel.total"
 	I18nPanelUnsupported         = "panel.unsupported"
 	I18nPanelUpdating            = "panel.updating"
+	I18nPrintAppendix            = "print.appendix"
+	I18nPrintButton              = "print.button"
+	I18nPrintCategory            = "print.category"
+	I18nPrintFailed              = "print.failed"
+	I18nPrintGenerated           = "print.generated"
+	I18nPrintKicker              = "print.kicker"
+	I18nPrintLimitations         = "print.limitations"
+	I18nPrintLimitationsNote     = "print.limitationsNote"
+	I18nPrintNoData              = "print.noData"
+	I18nPrintNote                = "print.note"
+	I18nPrintPending             = "print.pending"
+	I18nPrintSections            = "print.sections"
+	I18nPrintShare               = "print.share"
+	I18nPrintTimeLimit           = "print.timeLimit"
+	I18nPrintTitle               = "print.title"
+	I18nPrintValue               = "print.value"
+	I18nPrintView                = "print.view"
 	I18nRuntimeDismiss           = "runtime.dismissNotice"
 	I18nRuntimeLoadError         = "runtime.loadError"
 	I18nTableActions             = "table.actions"
@@ -168,6 +185,10 @@ func RuntimeI18nKeys() []string {
 		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
+		I18nPrintAppendix, I18nPrintButton, I18nPrintCategory, I18nPrintFailed,
+		I18nPrintGenerated, I18nPrintKicker, I18nPrintLimitations, I18nPrintLimitationsNote,
+		I18nPrintNoData, I18nPrintNote, I18nPrintPending, I18nPrintSections, I18nPrintShare,
+		I18nPrintTimeLimit, I18nPrintTitle, I18nPrintValue, I18nPrintView,
 		I18nRuntimeDismiss, I18nRuntimeLoadError,
 		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,
 		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSortScope,

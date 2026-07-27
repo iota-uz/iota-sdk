@@ -45,6 +45,7 @@ import {
 } from './navigation'
 import { LensDrawer } from './drawer'
 import { DocumentCache } from './prefetch'
+import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL } from './url'
@@ -292,6 +293,17 @@ export interface ExportContextValue {
   run: (panelId?: string) => Promise<void>
 }
 
+export type PrintStatus = 'idle' | 'pending' | 'error'
+
+export interface PrintContextValue {
+  available: boolean
+  active: boolean
+  status: PrintStatus
+  message?: string
+  report?: PrintReport
+  run: () => Promise<void>
+}
+
 function exportScope(panelId?: string): string {
   return panelId ? `panel:${panelId}` : 'dashboard'
 }
@@ -325,6 +337,7 @@ const DrillContext = createContext<DrillContextValue | undefined>(undefined)
 const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
 const PanelPaginationContext = createContext<PanelPaginationContextValue | undefined>(undefined)
 const ExportContext = createContext<ExportContextValue | undefined>(undefined)
+const PrintContext = createContext<PrintContextValue | undefined>(undefined)
 const DrawerContext = createContext<DrawerContextValue | undefined>(undefined)
 const FiltersContext = createContext<FiltersContextValue | undefined>(undefined)
 const LocaleContext = createContext('en')
@@ -694,6 +707,10 @@ function RuntimeCore({
     applyFilters?.(values)
   }, [applyFilters])
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
+  const [printState, setPrintState] = useState<Omit<PrintContextValue, 'available' | 'run'>>({
+    active: false,
+    status: 'idle',
+  })
   const exportSnapshotId = useRef(document.snapshotId)
   const [retryToken, setRetryToken] = useState(0)
   const forceRetry = useRef(false)
@@ -969,6 +986,78 @@ function RuntimeCore({
     run: runExport,
   }), [document.endpoints.export, exportStates, runExport])
 
+  const runPrint = useCallback(async () => {
+    if (drawerDepth > 0 || typeof window === 'undefined' || printState.status === 'pending') return
+    setPrintState({ active: true, status: 'pending' })
+    const printQueryClients = new Map<string, QueryClient>()
+    // Audit exports deliberately favour completeness over dashboard-like
+    // latency: deep product and period lenses can be expensive but must not
+    // silently disappear from the non-interactive report.
+    const reportSignal = AbortSignal.timeout(90_000)
+    const detailSignal = () => AbortSignal.any([
+      reportSignal,
+      AbortSignal.timeout(20_000),
+    ])
+    try {
+      const { buildPrintReport } = await import('./print')
+      const report = await buildPrintReport(
+        document,
+        (request, owner = document) => {
+          const endpoint = owner.endpoints.query
+          if (!endpoint) return Promise.reject(new Error('query'))
+          let client = printQueryClients.get(endpoint)
+          if (!client) {
+            client = new QueryClient(endpoint, { csrf, fetcher })
+            printQueryClients.set(endpoint, client)
+          }
+          return client.query(request, { signal: detailSignal() })
+        },
+        2_000,
+        (src) => fetchDocument(src, {
+          csrf,
+          fetcher,
+          signal: detailSignal(),
+        }),
+        new URL(location.href),
+        reportSignal,
+      )
+      for (const client of printQueryClients.values()) client.dispose()
+      setPrintState({ active: true, status: 'idle', report })
+      // Let React commit the flattened report and let canvas adapters mount
+      // before the print engine snapshots the page.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      await globalThis.document.fonts?.ready
+      await new Promise<void>((resolve) => setTimeout(resolve, 120))
+      globalThis.document.documentElement.classList.add('lens-print-active')
+      const cleanup = () => {
+        globalThis.document.documentElement.classList.remove('lens-print-active')
+        setPrintState({ active: false, status: 'idle' })
+      }
+      window.addEventListener('afterprint', cleanup, { once: true })
+      try {
+        window.print()
+      } catch (cause: unknown) {
+        window.removeEventListener('afterprint', cleanup)
+        cleanup()
+        throw cause
+      }
+    } catch {
+      for (const client of printQueryClients.values()) client.dispose()
+      globalThis.document.documentElement.classList.remove('lens-print-active')
+      setPrintState({
+        active: false,
+        status: 'error',
+        message: translate('print.failed', 'PDF export failed'),
+      })
+    }
+  }, [csrf, document, drawerDepth, fetcher, printState.status, translate])
+
+  const printContext = useMemo<PrintContextValue>(() => ({
+    available: drawerDepth === 0 && typeof window !== 'undefined',
+    ...printState,
+    run: runPrint,
+  }), [drawerDepth, printState, runPrint])
+
   const setPeriod = useCallback((filter: Filter, value: PeriodValue) => {
     if (!filtersEnabled || typeof window === 'undefined' || !filter.period) return
     const merged = { ...filterValuesRef.current, ...periodValues(filter.period, value) }
@@ -1058,6 +1147,7 @@ function RuntimeCore({
         <DrillContext.Provider value={drill}>
           <PanelPaginationContext.Provider value={pagination}>
             <ExportContext.Provider value={exportContext}>
+            <PrintContext.Provider value={printContext}>
               <FramesContext.Provider value={frames}>
                 {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
@@ -1101,6 +1191,7 @@ function RuntimeCore({
                   </DocumentProvider>
                 )}
               </FramesContext.Provider>
+            </PrintContext.Provider>
             </ExportContext.Provider>
           </PanelPaginationContext.Provider>
         </DrillContext.Provider>
@@ -1208,6 +1299,12 @@ export function useExport(panelId?: string): ExportState & { available: boolean;
   const context = useContext(ExportContext)
   if (!context) throw new Error('useExport must be used inside DashboardRuntimeProvider')
   return { ...context.state(panelId), available: context.available, run: () => context.run(panelId) }
+}
+
+export function usePrint(): PrintContextValue {
+  const context = useContext(PrintContext)
+  if (!context) throw new Error('usePrint must be used inside DashboardRuntimeProvider')
+  return context
 }
 
 export function useFormat(field?: FieldFormat): (value: unknown) => string {
