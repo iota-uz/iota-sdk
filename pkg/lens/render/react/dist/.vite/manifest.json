@@ -1,6 +1,6 @@
 {
   "index.html": {
-    "file": "assets/lens-dashboard-uvdrC7x6.js",
+    "file": "assets/lens-dashboard-DxbBUJdv.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -12,7 +12,7 @@
     ]
   },
   "src/charts/echarts/adapter.ts": {
-    "file": "assets/adapter-DkuTJb-k.js",
+    "file": "assets/adapter-CPck1QES.js",
     "name": "adapter",
     "src": "src/charts/echarts/adapter.ts",
     "isDynamicEntry": true,
@@ -21,7 +21,7 @@
     ]
   },
   "src/charts/index.ts": {
-    "file": "assets/index-BZ_p1qLk.js",
+    "file": "assets/index-gYGx43sc.js",
     "name": "index",
     "src": "src/charts/index.ts",
     "isDynamicEntry": true,

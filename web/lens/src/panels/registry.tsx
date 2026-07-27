@@ -32,6 +32,7 @@ export const SUPPORTED = {
   stat: StatPanel,
   pie: PiePanel,
   donut: PiePanel,
+  radial: PiePanel,
   bar: BarPanel,
   hbar: BarPanel,
   line: LinePanel,

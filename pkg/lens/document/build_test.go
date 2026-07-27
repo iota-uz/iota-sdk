@@ -44,6 +44,50 @@ func TestBuild_ExistingExploreSpec(t *testing.T) {
 	require.Equal(t, golden(t, "generated_explore.json"), string(payload)+"\n")
 }
 
+func TestBuild_RadialPanelsCarryExplicitGeometry(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("radial",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"north", "south", "north", "south"}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"North", "South", "North", "South"}},
+		frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"actual", "actual", "plan", "plan"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{60.0, 40.0, 55.0, 45.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	partition := panel.MultiRingDonut("mix", "Mix", "radial",
+		panel.RadialRing{Key: "actual", Label: "Actual", Order: 1, Total: 100},
+		panel.RadialRing{Key: "plan", Label: "Plan", Order: 2, Total: 100},
+	).IDField("id").SeriesField("series").RadialTolerance(0.01).Build()
+	spec := lensbuild.Dashboard("radial", "Radial", lensbuild.Row(partition)).
+		Datasets(lensbuild.StaticDataset("radial", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{
+		SnapshotID: "radial", GeneratedAt: time.Unix(1, 0).UTC(), Locale: "en",
+	})
+	require.NoError(t, err)
+	require.NoError(t, doc.Validate())
+	require.Len(t, doc.Panels, 1)
+	wire := doc.Panels[0]
+	require.Equal(t, PanelKindRadial, wire.Kind)
+	require.Equal(t, SemanticsPartition, wire.Semantics)
+	require.Equal(t, "series", wire.Encoding.Series)
+	require.Equal(t, &RadialConfig{
+		Mode: RadialModePartition,
+		Rings: []RadialRing{
+			{Key: "actual", Label: "Actual", Order: 1, Total: 100},
+			{Key: "plan", Label: "Plan", Order: 2, Total: 100},
+		},
+		Tolerance: 0.01,
+	}, wire.Radial)
+	require.Equal(t, &Presentation{Legend: LegendBelow, SliceLabels: SliceLabelsPercent}, wire.Presentation)
+}
+
 func TestBuild_DocumentHeaderAndDrawerSuppression(t *testing.T) {
 	t.Parallel()
 

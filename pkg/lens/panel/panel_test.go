@@ -20,6 +20,7 @@ var allKinds = []Kind{
 	KindCascade,
 	KindPie,
 	KindDonut,
+	KindRadial,
 	KindTable,
 	KindGauge,
 	KindTabs,
@@ -44,6 +45,7 @@ func TestKindPredicates_ClassifiesAllKnownKinds(t *testing.T) {
 		{KindCascade, false, false, true},
 		{KindPie, false, true, false},
 		{KindDonut, false, true, false},
+		{KindRadial, false, true, false},
 		{KindTable, false, false, true},
 		{KindGauge, false, true, false},
 		{KindTabs, true, false, false},
@@ -68,6 +70,11 @@ func TestKindPredicates_ClassifiesAllKnownKinds(t *testing.T) {
 			assert.Equal(t, tc.rendersNatively, tc.kind.RendersNatively())
 		})
 	}
+}
+
+func TestRadialNodeKey_ContainsRingAndCategoryIdentity(t *testing.T) {
+	require.Equal(t, `radial:["year/2026","direct"]`, RadialNodeKey("year/2026", "direct"))
+	require.NotEqual(t, RadialNodeKey("year/2026", "direct"), RadialNodeKey("year/2025", "direct"))
 }
 
 // TestKindPredicatesPartition asserts the structural invariants the predicates

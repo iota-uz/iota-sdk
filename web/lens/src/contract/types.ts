@@ -293,11 +293,12 @@ export interface Panel {
   metricFlow?: MetricFlowConfig
   metricHierarchy?: MetricHierarchyConfig
   metricRelationship?: MetricRelationshipConfig
+  radial?: RadialConfig
   confidence?: Confidence
   availability?: Availability
 }
 
-export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "stat" | "table"
+export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
 
 export interface PanelStatus {
   label: string
@@ -388,6 +389,22 @@ export interface QueryRequest {
 export interface QueryResponse {
   frames: Record<FrameRef, Frame>
   page?: QueryPage
+}
+
+export interface RadialConfig {
+  mode: RadialMode
+  max?: number
+  rings?: Array<RadialRing>
+  tolerance?: number
+}
+
+export type RadialMode = "partition" | "progress"
+
+export interface RadialRing {
+  key: string
+  label: string
+  order?: number
+  total: number
 }
 
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"

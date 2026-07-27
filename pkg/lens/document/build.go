@@ -213,6 +213,7 @@ func appendPanelTree(
 	var metricFlow *MetricFlowConfig
 	var metricHierarchy *MetricHierarchyConfig
 	var metricRelationship *MetricRelationshipConfig
+	var radial *RadialConfig
 	//nolint:exhaustive // Only the three metric kinds carry a metric config.
 	switch kind {
 	case PanelKindMetricFlow:
@@ -222,6 +223,11 @@ func appendPanelTree(
 	case PanelKindMetricRelationship:
 		metricRelationship = buildMetricRelationship(spec)
 		semantics = metricRelationshipSemantics(metricRelationship)
+	case PanelKindRadial:
+		radial = buildRadial(spec)
+		if radial != nil && radial.Mode == RadialModePartition {
+			semantics = SemanticsPartition
+		}
 	}
 	var drillRoot *NodeKey
 	if explorerSpec, ok := hosts[spec.ID]; ok {
@@ -243,6 +249,7 @@ func appendPanelTree(
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 		Sparkline: buildSparkline(spec), Target: buildTarget(spec),
 		MetricFlow: metricFlow, MetricHierarchy: metricHierarchy, MetricRelationship: metricRelationship,
+		Radial:     radial,
 		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability),
 	})
 	span := spec.Span
@@ -672,6 +679,8 @@ func panelKind(kind panel.Kind) (PanelKind, error) {
 		return PanelKindPie, nil
 	case panel.KindDonut:
 		return PanelKindDonut, nil
+	case panel.KindRadial:
+		return PanelKindRadial, nil
 	case panel.KindBar, panel.KindStackedBar:
 		return PanelKindBar, nil
 	case panel.KindHorizontalBar:
@@ -723,6 +732,20 @@ func inferSemantics(kind PanelKind) Semantics {
 		return SemanticsEvidence
 	default:
 		return SemanticsSeries
+	}
+}
+
+func buildRadial(spec panel.Spec) *RadialConfig {
+	if spec.Radial == nil {
+		return nil
+	}
+	rings := make([]RadialRing, len(spec.Radial.Rings))
+	for index, ring := range spec.Radial.Rings {
+		rings[index] = RadialRing{Key: ring.Key, Label: ring.Label, Order: ring.Order, Total: ring.Total}
+	}
+	return &RadialConfig{
+		Mode: RadialMode(spec.Radial.Mode), Max: spec.Radial.Max,
+		Rings: rings, Tolerance: spec.Radial.Tolerance,
 	}
 }
 

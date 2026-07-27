@@ -42,6 +42,19 @@ func Pie(id, title, dataset string) *PanelBuilder {
 func Donut(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindDonut, id, title, dataset)
 }
+func RadialBars(id, title, dataset string, maximum float64) *PanelBuilder {
+	b := newPanelBuilder(panel.KindRadial, id, title, dataset)
+	b.panel.Radial = &panel.RadialSpec{Mode: panel.RadialProgress, Max: maximum}
+	b.panel.Presentation.LegendBelow = true
+	return b
+}
+func MultiRingDonut(id, title, dataset string, rings ...panel.RadialRing) *PanelBuilder {
+	b := newPanelBuilder(panel.KindRadial, id, title, dataset)
+	b.panel.Radial = &panel.RadialSpec{Mode: panel.RadialPartition, Rings: append([]panel.RadialRing(nil), rings...)}
+	b.panel.Presentation.LegendBelow = true
+	b.panel.Presentation.SliceLabelsPercent = true
+	return b
+}
 func Table(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindTable, id, title, dataset)
 }
@@ -360,6 +373,15 @@ func (b *PanelBuilder) Confidence(confidence panel.Confidence) *PanelBuilder {
 // Availability sets the panel-level default availability for its elements.
 func (b *PanelBuilder) Availability(availability panel.Availability) *PanelBuilder {
 	b.panel.Availability = availability
+	return b
+}
+
+// RadialTolerance permits small source-rounding differences when reconciling
+// partition rows to each ring's declared total.
+func (b *PanelBuilder) RadialTolerance(tolerance float64) *PanelBuilder {
+	if b.panel.Radial != nil {
+		b.panel.Radial.Tolerance = tolerance
+	}
 	return b
 }
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Frame, NodeKey, Panel } from '../contract'
-import type { ChartAdapter, ChartAnchor, ChartFormatResolver, ChartKind } from '../charts/adapter'
+import { radialNodeKey, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartKind } from '../charts/adapter'
 import { childForSelection } from '../explore/model'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
@@ -63,6 +63,19 @@ export function legendKey(frame: Frame, panel: Panel, index: number): string {
 
 /** Index of the frame row a chart mark key identifies. */
 export function rowIndexForKey(frame: Frame, panel: Panel, key: string): number {
+  if (panel.radial?.mode === 'partition' && panel.encoding.series) {
+    const seriesIndex = frame.columns.findIndex((column) => column.name === panel.encoding.series)
+    if (seriesIndex >= 0) {
+      const index = frame.rows.findIndex((row, position) => {
+        const rawSeries = row[seriesIndex]
+        const series = typeof rawSeries === 'string' || typeof rawSeries === 'number' || typeof rawSeries === 'bigint'
+          ? String(rawSeries)
+          : ''
+        return radialNodeKey(series, legendKey(frame, panel, position)) === key
+      })
+      if (index >= 0) return index
+    }
+  }
   const index = frame.rows.findIndex((_, position) => legendKey(frame, panel, position) === key)
   if (index >= 0) return index
   const labelField = panel.encoding.label ?? panel.encoding.category
@@ -130,11 +143,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   }, [frame.data, hidden, panel])
 
   const visibleTotal = useMemo(() => {
-    if (!frame.data || hidden.size === 0 || !panel.encoding.value) return undefined
+    if (!frame.data || hidden.size === 0 || !panel.encoding.value || panel.radial?.mode === 'partition') return undefined
     const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
     if (valueIndex < 0) return undefined
     return (visibleFrame?.rows ?? []).reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
-  }, [frame.data, hidden.size, panel.encoding.value, visibleFrame])
+  }, [frame.data, hidden.size, panel.encoding.value, panel.radial?.mode, visibleFrame])
 
   // `panel.total` is the root frame's total, shipped once with the document. At
   // a drill level the panel is showing the level's frame, so the badge has to
@@ -165,7 +178,8 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     theme: document.theme,
     selectedKey,
     presentation: panel.presentation,
-  }) : undefined, [document.theme, format, formatAxis, kind, panel.encoding, panel.presentation, selectedKey, visibleFrame])
+    radial: panel.radial,
+  }) : undefined, [document.theme, format, formatAxis, kind, panel.encoding, panel.presentation, panel.radial, selectedKey, visibleFrame])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.
@@ -266,17 +280,26 @@ function ChartLegend({ panel, frame, hidden, onToggle }: {
   const atLevel = navigation.panelId === panel.id && navigation.path.length > 0
   const color = seriesColorResolver(document.theme, panel, { positional: !atLevel })
   const visibleCount = frame.rows.filter((_, index) => !hidden.has(legendKey(frame, panel, index))).length
+  const entries = panel.radial?.mode === 'partition'
+    ? frame.rows.reduce<number[]>((indices, _, index) => {
+        const key = legendKey(frame, panel, index)
+        if (!indices.some((candidate) => legendKey(frame, panel, candidate) === key)) indices.push(index)
+        return indices
+      }, [])
+    : frame.rows.map((_, index) => index)
+  const visibleEntryCount = entries.filter((index) => !hidden.has(legendKey(frame, panel, index))).length
 
   return (
     <ul className="lens-chart-legend">
-      {frame.rows.map((row, index) => {
+      {entries.map((index) => {
+        const row = frame.rows[index]!
         const raw = row[labelIndex]
         const label = typeof raw === 'string' ? raw : raw === null || raw === undefined ? '' : JSON.stringify(raw)
         const key = legendKey(frame, panel, index)
         const isHidden = hidden.has(key)
         // Hiding the last visible series would leave an empty plot with no way
         // back except guessing, so the final entry stays locked on.
-        const locked = !isHidden && visibleCount <= 1
+        const locked = !isHidden && (panel.radial?.mode === 'partition' ? visibleEntryCount : visibleCount) <= 1
         return (
           <li className="lens-chart-legend-item" key={`${key}-${index}`}>
             <button
@@ -295,8 +318,12 @@ function ChartLegend({ panel, frame, hidden, onToggle }: {
                 style={{ background: isHidden ? undefined : color(label, index) }}
               />
               <span className="lens-chart-legend-label">{label}</span>
-              <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
-              <span className="lens-chart-legend-value">{valueIndex >= 0 ? formatValue(row[valueIndex]) : ''}</span>
+              {panel.radial?.mode !== 'partition' && (
+                <>
+                  <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+                  <span className="lens-chart-legend-value">{valueIndex >= 0 ? formatValue(row[valueIndex]) : ''}</span>
+                </>
+              )}
             </button>
           </li>
         )

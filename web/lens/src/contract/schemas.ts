@@ -316,11 +316,12 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   metricFlow: z.lazy(() => MetricFlowConfigSchema).optional(),
   metricHierarchy: z.lazy(() => MetricHierarchyConfigSchema).optional(),
   metricRelationship: z.lazy(() => MetricRelationshipConfigSchema).optional(),
+  radial: z.lazy(() => RadialConfigSchema).optional(),
   confidence: z.lazy(() => ConfidenceSchema).optional(),
   availability: z.lazy(() => AvailabilitySchema).optional(),
 }).strict())
 
-export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "cascade", "coverage", "donut", "hbar", "line", "metric_flow", "metric_hierarchy", "metric_relationship", "pie", "stat", "table"])
+export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "cascade", "coverage", "donut", "hbar", "line", "metric_flow", "metric_hierarchy", "metric_relationship", "pie", "radial", "stat", "table"])
 
 export const PanelStatusSchema: z.ZodType<Contract.PanelStatus> = z.lazy(() => z.object({
   label: z.string(),
@@ -411,6 +412,22 @@ export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.object({
 export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.object({
   frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)),
   page: z.lazy(() => QueryPageSchema).optional(),
+}).strict()
+
+export const RadialConfigSchema: z.ZodType<Contract.RadialConfig> = z.lazy(() => z.object({
+  mode: z.lazy(() => RadialModeSchema),
+  max: z.number().optional(),
+  rings: z.array(z.lazy(() => RadialRingSchema)).optional(),
+  tolerance: z.number().optional(),
+}).strict())
+
+export const RadialModeSchema: z.ZodType<Contract.RadialMode> = z.enum(["partition", "progress"])
+
+export const RadialRingSchema: z.ZodType<Contract.RadialRing> = z.object({
+  key: z.string(),
+  label: z.string(),
+  order: z.number().int().optional(),
+  total: z.number(),
 }).strict()
 
 export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.enum(["evidence", "partition", "reconciliation", "series"])

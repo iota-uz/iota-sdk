@@ -522,6 +522,93 @@ func TestDashboardDocumentValidate_PanelQuality(t *testing.T) {
 		doc.Panels[0].MetricFlow = &MetricFlowConfig{}
 		require.ErrorContains(t, doc.Validate(), "metric config for kind")
 	})
+	t.Run("radial config on another kind rejected", func(t *testing.T) {
+		doc := testDocument()
+		doc.Panels[0].Radial = &RadialConfig{Mode: RadialModeProgress, Max: 100}
+		require.ErrorContains(t, doc.Validate(), "radial config for kind")
+	})
+}
+
+func TestDashboardDocumentValidate_Radial(t *testing.T) {
+	t.Parallel()
+	partition := func() *DashboardDocument {
+		doc := testDocument()
+		doc.Frames["panel:total"] = Frame{
+			Columns: []Column{
+				{Name: "id", Type: ColumnString},
+				{Name: "label", Type: ColumnString},
+				{Name: "series", Type: ColumnString},
+				{Name: "value", Type: ColumnNumber},
+			},
+			Rows: [][]any{
+				{"north", "North", "actual", 60.0},
+				{"south", "South", "actual", 40.0},
+				{"north", "North", "plan", 55.0},
+				{"south", "South", "plan", 45.0},
+			},
+		}
+		doc.Panels[0].Kind = PanelKindRadial
+		doc.Panels[0].Semantics = SemanticsPartition
+		doc.Panels[0].Encoding = Encoding{ID: "id", Label: "label", Series: "series", Value: "value"}
+		doc.Panels[0].Radial = &RadialConfig{
+			Mode: RadialModePartition,
+			Rings: []RadialRing{
+				{Key: "actual", Label: "Actual", Total: 100},
+				{Key: "plan", Label: "Plan", Total: 100},
+			},
+		}
+		return doc
+	}
+
+	t.Run("accepts reconciled rings", func(t *testing.T) {
+		require.NoError(t, partition().Validate())
+	})
+	t.Run("rejects silent residual", func(t *testing.T) {
+		doc := partition()
+		doc.Frames["panel:total"].Rows[0][3] = 59.0
+		require.ErrorContains(t, doc.Validate(), "does not reconcile")
+	})
+	t.Run("rejects overallocation", func(t *testing.T) {
+		doc := partition()
+		doc.Frames["panel:total"].Rows[0][3] = 61.0
+		require.ErrorContains(t, doc.Validate(), "does not reconcile")
+	})
+	t.Run("accepts an empty source for the empty panel state", func(t *testing.T) {
+		doc := partition()
+		doc.Frames["panel:total"] = Frame{Columns: doc.Frames["panel:total"].Columns, Rows: [][]any{}}
+		require.NoError(t, doc.Validate())
+	})
+	t.Run("permits declared rounding tolerance", func(t *testing.T) {
+		doc := partition()
+		doc.Panels[0].Radial.Tolerance = 0.02
+		doc.Frames["panel:total"].Rows[0][3] = 59.99
+		require.NoError(t, doc.Validate())
+	})
+	t.Run("rejects undeclared ring", func(t *testing.T) {
+		doc := partition()
+		doc.Frames["panel:total"].Rows[0][2] = "forecast"
+		require.ErrorContains(t, doc.Validate(), "undeclared ring")
+	})
+	t.Run("rejects duplicate ring-category pair", func(t *testing.T) {
+		doc := partition()
+		doc.Frames["panel:total"].Rows[1][0] = "north"
+		doc.Frames["panel:total"].Rows[1][1] = "North"
+		require.ErrorContains(t, doc.Validate(), "duplicate key")
+	})
+	t.Run("rejects a negative value", func(t *testing.T) {
+		doc := partition()
+		doc.Frames["panel:total"].Rows[0][3] = -1.0
+		require.ErrorContains(t, doc.Validate(), "finite and non-negative")
+	})
+	t.Run("progress requires explicit maximum and bounds values", func(t *testing.T) {
+		doc := partition()
+		doc.Panels[0].Semantics = SemanticsSeries
+		doc.Panels[0].Encoding.Series = ""
+		doc.Panels[0].Radial = &RadialConfig{Mode: RadialModeProgress, Max: 50}
+		require.ErrorContains(t, doc.Validate(), "exceeds maximum")
+		doc.Panels[0].Radial.Max = 0
+		require.ErrorContains(t, doc.Validate(), "positive finite maximum")
+	})
 }
 
 func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {

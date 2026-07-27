@@ -224,6 +224,7 @@ const (
 	PanelKindStat    PanelKind = "stat"
 	PanelKindPie     PanelKind = "pie"
 	PanelKindDonut   PanelKind = "donut"
+	PanelKindRadial  PanelKind = "radial"
 	PanelKindBar     PanelKind = "bar"
 	PanelKindHBar    PanelKind = "hbar"
 	PanelKindLine    PanelKind = "line"
@@ -493,12 +494,39 @@ type Panel struct {
 	MetricHierarchy *MetricHierarchyConfig `json:"metricHierarchy,omitempty"`
 	// MetricRelationship carries the structure of a metric_relationship panel.
 	MetricRelationship *MetricRelationshipConfig `json:"metricRelationship,omitempty"`
+	// Radial carries the geometry contract for a radial panel.
+	Radial *RadialConfig `json:"radial,omitempty"`
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence Confidence `json:"confidence,omitempty"`
 	// Availability is the panel-level default availability for its elements; a
 	// frame column value or an element's own availability overrides it.
 	Availability Availability `json:"availability,omitempty"`
+}
+
+// RadialMode selects a radial panel's geometry.
+type RadialMode string
+
+const (
+	RadialModeProgress  RadialMode = "progress"
+	RadialModePartition RadialMode = "partition"
+)
+
+// RadialConfig configures concentric progress arcs or concentric partitions.
+// Max is required only by progress mode.
+type RadialConfig struct {
+	Mode      RadialMode   `json:"mode"`
+	Max       float64      `json:"max,omitempty"`
+	Rings     []RadialRing `json:"rings,omitempty"`
+	Tolerance float64      `json:"tolerance,omitempty"`
+}
+
+// RadialRing is an explicitly ordered, reconciled partition ring.
+type RadialRing struct {
+	Key   string  `json:"key"`
+	Label string  `json:"label"`
+	Order int     `json:"order,omitempty"`
+	Total float64 `json:"total"`
 }
 
 // StatusTone selects a status chip's color treatment.

@@ -1,7 +1,12 @@
-import type { Encoding, Frame, NodeKey, PanelKind, Presentation, Theme } from '../contract'
+import type { Encoding, Frame, NodeKey, PanelKind, Presentation, RadialConfig, Theme } from '../contract'
 
-export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'bar' | 'hbar' | 'line' | 'area'>
+export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'radial' | 'bar' | 'hbar' | 'line' | 'area'>
 export type ChartFormatResolver = (field: string, value: unknown) => string
+
+/** Stable mark identity for a category within a specific partition ring. */
+export function radialNodeKey(ringKey: string, categoryKey: string): NodeKey {
+  return `radial:${JSON.stringify([ringKey, categoryKey])}`
+}
 
 export interface ChartInput {
   kind: ChartKind
@@ -14,6 +19,8 @@ export interface ChartInput {
   selectedKey?: NodeKey
   /** Opt-in density hints; absent hints keep the default chart treatment. */
   presentation?: Presentation
+  /** Required geometry contract for radial charts. */
+  radial?: RadialConfig
 }
 
 /** Viewport coordinates of the activated mark, used to anchor an overlay. */

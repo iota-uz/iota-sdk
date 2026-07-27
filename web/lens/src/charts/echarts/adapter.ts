@@ -30,6 +30,7 @@ function isSelectionOnlyChange(previous: ChartInput, next: ChartInput): boolean 
     && previous.theme === next.theme
     && previous.kind === next.kind
     && previous.presentation === next.presentation
+    && previous.radial === next.radial
     && previous.format === next.format
     && previous.formatAxis === next.formatAxis
 }

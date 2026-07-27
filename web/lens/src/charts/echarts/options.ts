@@ -1,6 +1,6 @@
 import type { EChartsOption } from 'echarts'
 import { isVisualRegression } from '../../visualRegression'
-import type { ChartInput } from '../adapter'
+import { radialNodeKey, type ChartInput } from '../adapter'
 import type { EChartsTheme } from './theme'
 
 type ChartValue = number | '-'
@@ -234,6 +234,154 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   }
 }
 
+function ringRadius(index: number, count: number): [string, string] {
+  const outer = 90 - (index * (68 / count))
+  const inner = outer - (62 / count)
+  return [`${Math.max(12, inner)}%`, `${outer}%`]
+}
+
+function pointColor(point: RowPoint, index: number, theme: EChartsTheme): string {
+  return theme.seriesColor(point.nodeKey ?? '')
+    ?? theme.seriesColor(point.category)
+    ?? theme.colors[index % theme.colors.length]
+    ?? '#2563eb'
+}
+
+function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: RowPoint[]): EChartsOption {
+  const rings = [...(input.radial?.rings ?? [])].sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
+  const categories = [...new Map(points.map((point) => [point.nodeKey ?? point.category, point])).values()]
+  const categoryOrder = new Map(categories.map((point, index) => [point.nodeKey ?? point.category, index]))
+  const insideLabels = input.presentation?.sliceLabels === 'percent'
+  const series = rings.map((ring, ringIndex) => ({
+    type: 'pie' as const,
+    name: ring.label,
+    id: ring.key,
+    radius: ringRadius(ringIndex, rings.length),
+    center: ['50%', '50%'],
+    selectedMode: false,
+    universalTransition: { enabled: morphEnabled() },
+    percentPrecision: rawPercentPrecision,
+    label: insideLabels
+      ? {
+          position: 'inside' as const,
+          color: '#ffffff',
+          fontWeight: 'bold' as const,
+          formatter: (params: { percent?: number }) => slicePercentLabel(params.percent),
+        }
+      : { show: false },
+    labelLine: { show: false },
+    data: points
+      .filter((point) => point.series === ring.key)
+      .sort((left, right) =>
+        (categoryOrder.get(left.nodeKey ?? left.category) ?? 0)
+        - (categoryOrder.get(right.nodeKey ?? right.category) ?? 0))
+      .map((point) => {
+        const mark = { ...point, nodeKey: radialNodeKey(ring.key, point.nodeKey ?? point.category) }
+        const item = dataItem(mark, input, theme)
+        return {
+          ...item,
+          name: point.category,
+          ringKey: ring.key,
+          categoryKey: point.nodeKey,
+          itemStyle: {
+            ...item.itemStyle,
+            color: pointColor(point, categoryOrder.get(point.nodeKey ?? point.category) ?? 0, theme),
+            borderColor: item.itemStyle.borderColor ?? theme.card,
+            borderWidth: item.itemStyle.borderWidth || 1,
+          },
+        }
+      }),
+  }))
+  return {
+    ...baseOption(theme),
+    aria: { enabled: true },
+    tooltip: {
+      trigger: 'item',
+      ...tooltipChrome(theme),
+      formatter: (params: unknown) => {
+        const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
+        const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
+        const ring = text(record.seriesName)
+        const label = text(record.name)
+        const value = input.format(input.encoding.value ?? '', data.value)
+        const percent = typeof record.percent === 'number' ? ` (${record.percent.toFixed(1)}%)` : ''
+        return `${ring}\n${label}: ${value}${percent}`
+      },
+    },
+    series,
+    media: [{
+      query: { maxWidth: 480 },
+      option: {
+        series: series.map((ring, index) => index === 0
+          ? { ...ring, radius: ['46%', '88%'] }
+          : { ...ring, data: [], label: { show: false } }),
+      },
+    }],
+  }
+}
+
+function radialProgressOption(input: ChartInput, theme: EChartsTheme, points: RowPoint[]): EChartsOption {
+  const maximum = input.radial?.max ?? 0
+  return {
+    ...baseOption(theme),
+    aria: { enabled: true },
+    tooltip: {
+      trigger: 'item',
+      ...tooltipChrome(theme),
+      formatter: (params: unknown) => {
+        const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
+        const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
+        if (data.remainder === true) return ''
+        return `${text(record.seriesName)}: ${input.format(input.encoding.value ?? '', data.value)} / ${input.format(input.encoding.value ?? '', maximum)}`
+      },
+    },
+    series: points.map((point, index) => {
+      const value = point.value === '-' ? 0 : point.value
+      const item = dataItem(point, input, theme)
+      return {
+        type: 'pie' as const,
+        name: point.category,
+        radius: ringRadius(index, points.length),
+        center: ['50%', '50%'],
+        startAngle: 90,
+        clockwise: true,
+        selectedMode: false,
+        silent: false,
+        label: { show: false },
+        labelLine: { show: false },
+        animation: !isVisualRegression(),
+        data: [
+          {
+            ...item,
+            name: point.category,
+            value,
+            itemStyle: {
+              ...item.itemStyle,
+              color: pointColor(point, index, theme),
+              borderRadius: 8,
+            },
+          },
+          {
+            name: '',
+            value: Math.max(0, maximum - value),
+            remainder: true,
+            tooltip: { show: false },
+            itemStyle: { color: theme.divider },
+            emphasis: { disabled: true },
+          },
+        ],
+      }
+    }),
+  }
+}
+
+function radialOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
+  const points = rowPoints(input)
+  return input.radial?.mode === 'progress'
+    ? radialProgressOption(input, theme, points)
+    : radialPartitionOption(input, theme, points)
+}
+
 function axisStyle(theme: EChartsTheme) {
   return {
     axisLabel: { color: theme.mutedText },
@@ -312,5 +460,6 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
 
 export function buildChartOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   if (input.kind === 'pie' || input.kind === 'donut') return pieOption(input, theme)
+  if (input.kind === 'radial') return radialOption(input, theme)
   return axisOption(input, theme)
 }

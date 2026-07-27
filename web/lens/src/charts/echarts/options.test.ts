@@ -45,9 +45,13 @@ interface TestDataItem {
   nodeKey?: string
   itemStyle?: { borderColor?: string; borderWidth?: number; color?: string; opacity?: number }
   value?: unknown
+  ringKey?: string
+  categoryKey?: string
+  remainder?: boolean
 }
 
 interface TestSeries {
+  id?: string
   percentPrecision?: number
   label?: { formatter?: (params: { percent?: number }) => string }
   type?: string
@@ -77,6 +81,7 @@ function testOption(option: EChartsOption) {
     tooltip: TestTooltip
     xAxis: TestAxis
     yAxis: TestAxis
+    media?: Array<{ query?: { maxWidth?: number }, option?: { series?: TestSeries[] } }>
   }
 }
 
@@ -106,6 +111,79 @@ describe('slice percentages', () => {
     [undefined, ''],
   ])('formats %s as %s', (percent, expected) => {
     expect(slicePercentLabel(percent)).toBe(expected)
+  })
+
+  it('renders explicit partition rings with stable composite mark identity', () => {
+    const chartInput = input('radial')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [
+        ['north', 'North', 'actual', 60],
+        ['south', 'South', 'actual', 40],
+        ['north', 'North', 'plan', 55],
+        ['south', 'South', 'plan', 45],
+      ],
+    }
+    chartInput.radial = {
+      mode: 'partition',
+      rings: [
+        { key: 'plan', label: 'Plan', order: 2, total: 100 },
+        { key: 'actual', label: 'Actual', order: 1, total: 100 },
+      ],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.map((series) => series.id)).toEqual(['actual', 'plan'])
+    expect(chart.series.map((series) => series.radius)).toEqual([
+      ['59%', '90%'],
+      ['25%', '56%'],
+    ])
+    expect(chart.series[1]?.data?.[0]).toMatchObject({
+      name: 'North',
+      value: 55,
+      nodeKey: 'radial:["plan","north"]',
+      ringKey: 'plan',
+      categoryKey: 'north',
+    })
+    expect(chart.series[0]?.data?.[0]?.itemStyle?.color).toBe(chart.series[1]?.data?.[0]?.itemStyle?.color)
+  })
+
+  it('uses one preferred partition ring below 480px', () => {
+    const chartInput = input('radial')
+    chartInput.radial = {
+      mode: 'partition',
+      rings: [
+        { key: 'Revenue', label: 'Revenue', order: 1, total: 2700 },
+        { key: 'Cost', label: 'Cost', order: 2, total: 1500 },
+      ],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const responsive = chart.media?.[0]
+
+    expect(responsive?.query?.maxWidth).toBe(480)
+    expect(responsive?.option?.series?.[0]?.data).toHaveLength(2)
+    expect(responsive?.option?.series?.[1]?.data).toEqual([])
+  })
+
+  it('renders progress arcs against an explicit maximum without assuming 100', () => {
+    const chartInput = input('radial')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [
+        ['revenue', 'Revenue', '', 1200],
+        ['cost', 'Cost', '', 700],
+      ],
+    }
+    chartInput.radial = { mode: 'progress', max: 2000 }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series).toHaveLength(2)
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ nodeKey: 'revenue', value: 1200 })
+    expect(chart.series[0]?.data?.[1]).toMatchObject({ remainder: true, value: 800 })
+    expect(chart.series[1]?.data?.[1]).toMatchObject({ remainder: true, value: 1300 })
   })
 
   it('asks ECharts for an unrounded share', () => {

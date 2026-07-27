@@ -37,7 +37,7 @@ vi.mock('../runtime', () => ({
   levelForPath: () => runtime.level,
 }))
 
-import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
+import { BarPanel, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
 import { buildCascadeStages, buildWaterfallItems, CascadePanel } from './CascadePanel'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
@@ -99,7 +99,7 @@ function renderKind(kind: PanelKind) {
   if (kind === 'cascade') return render(<CascadePanel panel={value} />)
   if (kind === 'table') return render(<TablePanel panel={value} />)
   if (kind === 'coverage') return render(<CoveragePanel panel={value} />)
-  if (kind === 'pie' || kind === 'donut') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
+  if (kind === 'pie' || kind === 'donut' || kind === 'radial') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'bar' || kind === 'hbar') return render(<BarPanel panel={value} adapter={fakeAdapter()} />)
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
 }
@@ -112,7 +112,7 @@ afterEach(() => {
   runtime.refreshing = false
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
+describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
   it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
@@ -207,8 +207,9 @@ describe('panel registry', () => {
       area: true,
       bar: true,
       cascade: true,
-  coverage: true,
+      coverage: true,
       donut: true,
+      radial: true,
       hbar: true,
       line: true,
       metric_flow: true,
@@ -263,6 +264,42 @@ describe('chart encoding and drill behavior', () => {
     const sparse = panel('bar', { encoding: { value: 'value' } })
     view.rerender(<BarPanel panel={sparse} adapter={fakeAdapter((input) => inputs.push(input))} />)
     await waitFor(() => expect(inputs.at(-1)?.encoding).toEqual({ value: 'value' }))
+  })
+
+  it('passes radial geometry and resolves a ring-specific row selection', async () => {
+    const frame: Frame = {
+      columns: dataFrame.columns,
+      rows: [
+        ['north', 'North', '2026-07-01T00:00:00Z', 'actual', 60],
+        ['north', 'North', '2026-07-01T00:00:00Z', 'plan', 55],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const radial = panel('radial', {
+      semantics: 'partition',
+      radial: {
+        mode: 'partition',
+        rings: [
+          { key: 'actual', label: 'Actual', total: 60 },
+          { key: 'plan', label: 'Plan', order: 1, total: 55 },
+        ],
+      },
+    })
+    const adapter: ChartAdapter = {
+      mount(el, input, events) {
+        inputs.push(input)
+        const button = document.createElement('button')
+        button.textContent = 'radial mark'
+        button.onclick = () => events.onSelect('radial:["plan","north"]')
+        el.append(button)
+        return { update: () => undefined, dispose: () => undefined }
+      },
+    }
+    render(<PiePanel panel={radial} adapter={adapter} />)
+    await waitFor(() => expect(inputs[0]?.radial?.mode).toBe('partition'))
+    expect(rowIndexForKey(frame, radial, 'radial:["plan","north"]')).toBe(1)
+    expect(rowIndexForKey(frame, radial, 'radial:["actual","north"]')).toBe(0)
   })
 
   it('renders the panel title once when the stat label would duplicate it', () => {

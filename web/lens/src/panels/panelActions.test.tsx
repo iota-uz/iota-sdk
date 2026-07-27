@@ -147,7 +147,7 @@ function chartPanel(actions: Action[]): Panel {
 }
 
 describe('charts with a panel-level navigate action', () => {
-  function renderChart(panel: Panel) {
+  function renderChart(panel: Panel, frame = chartFrame) {
     let select: ((key: string) => void) | undefined
     const adapter: ChartAdapter = {
       mount: (_element, _input, events) => {
@@ -156,7 +156,7 @@ describe('charts with a panel-level navigate action', () => {
       },
     }
     const view = renderPanel(
-      documentWith([panel], { 'chart:root': chartFrame }),
+      documentWith([panel], { 'chart:root': frame }),
       <ChartPanel panel={panel} adapter={adapter} />,
     )
     return { ...view, activate: (key: string) => select?.(key) }
@@ -182,6 +182,47 @@ describe('charts with a panel-level navigate action', () => {
     expect(container.querySelector('[data-drillable]')).toBeNull()
     activate('broker')
     expect(assign).not.toHaveBeenCalled()
+  })
+
+  it('resolves ring and category fields from a radial mark', async () => {
+    const assign = vi.mocked(navigateTo)
+    const frame: Frame = {
+      columns: [
+        { name: 'id', type: 'string' },
+        { name: 'label', type: 'string' },
+        { name: 'ring', type: 'string' },
+        { name: 'amount', type: 'number' },
+      ],
+      rows: [
+        ['north', 'North', 'actual', 60],
+        ['north', 'North', 'plan', 55],
+      ],
+    }
+    const panel: Panel = {
+      id: 'mix',
+      kind: 'radial',
+      title: 'Mix',
+      semantics: 'partition',
+      frame: 'chart:root',
+      encoding: { id: 'id', label: 'label', series: 'ring', value: 'amount' },
+      format: { amount: { kind: 'number', minorUnits: false, precision: 0 } },
+      radial: {
+        mode: 'partition',
+        rings: [
+          { key: 'actual', label: 'Actual', total: 60 },
+          { key: 'plan', label: 'Plan', order: 1, total: 55 },
+        ],
+      },
+      actions: [navigate('/mix/{ring}/{category}', [
+        { name: 'ring', source: { kind: 'field', name: 'ring' } },
+        { name: 'category', source: { kind: 'field', name: 'id' } },
+      ])],
+    }
+    const { container, activate } = renderChart(panel, frame)
+
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    activate('radial:["plan","north"]')
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/mix/plan/north'))
   })
 })
 

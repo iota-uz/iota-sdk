@@ -549,6 +549,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		HierarchyRows:      item.HierarchyRows,
 		HierarchyReconcile: item.HierarchyReconcile,
 		Relationship:       item.Relationship,
+		Radial:             item.Radial,
 		Confidence:         item.Confidence,
 		Availability:       item.Availability,
 	}
