@@ -21,6 +21,15 @@ export interface ChartInput {
   presentation?: Presentation
   /** Required geometry contract for radial charts. */
   radial?: RadialConfig
+  /**
+   * Whether a point expands into a further level, keyed by its id (falling
+   * back to its category label). Used for the per-mark cursor: with a Pareto
+   * tail collapsed recursively, neighbouring slices of one ring differ in
+   * whether they go anywhere, and nothing else on the plot says so.
+   *
+   * Absent means "unknown", which keeps the whole-chart treatment.
+   */
+  expandable?: (key: string) => boolean
 }
 
 /** Viewport coordinates of the activated mark, used to anchor an overlay. */

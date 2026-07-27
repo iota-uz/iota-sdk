@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Frame, NodeKey, Panel } from '../contract'
 import { radialNodeKey, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartKind } from '../charts/adapter'
+import { distributeShares, formatShare } from '../charts/shares'
 import { childForSelection } from '../explore/model'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
@@ -133,9 +134,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     setSelectedKey(undefined)
   }, [viewKey])
 
-  // Hidden series are removed from the data, not dimmed: ECharts derives slice
-  // percentages from the data it is given, so dimming would leave every label
-  // computed against the old total — the recalculation is the whole point.
+  // Hidden series are removed from the data rather than dimmed, so the plot
+  // reclaims their arc. The percentages do not follow: they are measured
+  // against the frame's authoritative total, so hiding one slice no longer
+  // rewrites the numbers on every slice that stayed.
   const visibleFrame = useMemo(() => {
     if (!frame.data || hidden.size === 0) return frame.data
     const rows = frame.data.rows.filter((_, index) => !hidden.has(legendKey(frame.data!, panel, index)))
@@ -160,6 +162,12 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     return frame.data.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
   }, [active, frame.data, panel.encoding.value])
 
+  // The whole every share on this panel is measured against. A producer-shipped
+  // frame total outranks anything derived here — including `visibleTotal` — so
+  // the badge cannot disagree with the percentages printed next to it, and
+  // neither moves when a legend entry is toggled off.
+  const shareTotal = frame.data?.total ?? visibleTotal ?? levelTotal ?? panel.total
+
   const toggleSeries = useCallback((key: string) => {
     setHidden((current) => {
       const next = new Set(current)
@@ -168,6 +176,14 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       return next
     })
   }, [])
+
+  // Per-mark drill affordance. Only meaningful once a level is on screen and
+  // its children are known; without a level every mark is equally (un)expandable
+  // and the chart-wide treatment already says so.
+  const expandable = useMemo(() => {
+    if (!level) return undefined
+    return (key: string) => Boolean(childForSelection(level, key)?.target)
+  }, [level])
 
   const input = useMemo(() => visibleFrame ? ({
     kind,
@@ -179,7 +195,8 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     selectedKey,
     presentation: panel.presentation,
     radial: panel.radial,
-  }) : undefined, [document.theme, format, formatAxis, kind, panel.encoding, panel.presentation, panel.radial, selectedKey, visibleFrame])
+    expandable,
+  }) : undefined, [document.theme, expandable, format, formatAxis, kind, panel.encoding, panel.presentation, panel.radial, selectedKey, visibleFrame])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.
@@ -211,7 +228,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // the left of the body.
   const hasLegend = panel.presentation?.legend === 'below' && Boolean(frame.data)
   return (
-    <PanelFrame panel={panel} frame={frame} total={visibleTotal ?? levelTotal ?? panel.total}>
+    <PanelFrame panel={panel} frame={frame} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
         <div className="lens-chart-area">
           {input && (
@@ -226,11 +243,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             />
           )}
         </div>
-        {panel.presentation?.totalBadge === 'plot' && (visibleTotal ?? levelTotal ?? panel.total) !== undefined && (
-          <PlotTotalBadge panel={panel} total={(visibleTotal ?? levelTotal ?? panel.total)!} />
+        {panel.presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
+          <PlotTotalBadge panel={panel} total={shareTotal} />
         )}
         {hasLegend && frame.data && (
-          <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} />
+          <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} total={shareTotal} />
         )}
       </div>
       {interactive && hoveredKey && (
@@ -257,14 +274,19 @@ function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
 /**
  * A legend below the plot lists `label · value` for every slice, so the values
  * stay readable when the plot itself only carries percentages. Entries are
- * buttons: clicking one drops that series from the plot, which is what makes
- * the remaining percentages re-normalize, exactly like the legacy legend.
+ * buttons: clicking one drops that series from the plot.
+ *
+ * With `legendValue: 'percent'` the suffix is the share instead, which is the
+ * half of the pairing that lets a slice carry its own category label. Shares
+ * are measured against `total` — the same authoritative whole the plot uses —
+ * so hiding an entry no longer moves the numbers on the entries left behind.
  */
-function ChartLegend({ panel, frame, hidden, onToggle }: {
+function ChartLegend({ panel, frame, hidden, onToggle, total }: {
   panel: Panel
   frame: Frame
   hidden: ReadonlySet<string>
   onToggle: (key: string) => void
+  total?: number
 }) {
   const { document, navigation } = useDashboard()
   const translate = useTranslate()
@@ -288,6 +310,35 @@ function ChartLegend({ panel, frame, hidden, onToggle }: {
       }, [])
     : frame.rows.map((_, index) => index)
   const visibleEntryCount = entries.filter((index) => !hidden.has(legendKey(frame, panel, index))).length
+
+  // A partition ring reconciles against its own declared total, so a share is
+  // only meaningful within a ring. Rows are grouped by their denominator and
+  // reconciled to 100% inside each group.
+  const seriesIndex = panel.encoding.series
+    ? frame.columns.findIndex((column) => column.name === panel.encoding.series)
+    : -1
+  const ringTotals = new Map((panel.radial?.rings ?? []).map((ring) => [ring.key, ring.total]))
+  const denominatorFor = (index: number): number | undefined => {
+    if (panel.radial?.mode !== 'partition' || seriesIndex < 0) return total
+    const key = frame.rows[index]?.[seriesIndex]
+    return typeof key === 'string' ? ringTotals.get(key) ?? total : total
+  }
+  const shares = new Map<number, number | undefined>()
+  const groups = new Map<number | undefined, number[]>()
+  for (let index = 0; index < frame.rows.length; index += 1) {
+    const denominator = denominatorFor(index)
+    const group = groups.get(denominator) ?? []
+    group.push(index)
+    groups.set(denominator, group)
+  }
+  for (const [denominator, indices] of groups) {
+    const values = indices.map((index) => (valueIndex >= 0 ? numericCell(frame.rows[index]![valueIndex]) : undefined))
+    distributeShares(values, denominator).forEach((share, position) => shares.set(indices[position]!, share))
+  }
+  // A percent legend suppresses nothing: it is the only place the share of a
+  // slice labelled with its own category name is written down.
+  const showsPercent = panel.presentation?.legendValue === 'percent'
+  const showsSuffix = showsPercent || panel.radial?.mode !== 'partition'
 
   return (
     <ul className="lens-chart-legend">
@@ -318,10 +369,14 @@ function ChartLegend({ panel, frame, hidden, onToggle }: {
                 style={{ background: isHidden ? undefined : color(label, index) }}
               />
               <span className="lens-chart-legend-label">{label}</span>
-              {panel.radial?.mode !== 'partition' && (
+              {showsSuffix && (
                 <>
                   <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
-                  <span className="lens-chart-legend-value">{valueIndex >= 0 ? formatValue(row[valueIndex]) : ''}</span>
+                  <span className="lens-chart-legend-value">
+                    {showsPercent
+                      ? formatShare(shares.get(index))
+                      : (valueIndex >= 0 ? formatValue(row[valueIndex]) : '')}
+                  </span>
                 </>
               )}
             </button>

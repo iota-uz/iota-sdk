@@ -53,7 +53,7 @@ interface TestDataItem {
 interface TestSeries {
   id?: string
   percentPrecision?: number
-  label?: { formatter?: (params: { percent?: number }) => string }
+  label?: { formatter?: (params: { percent?: number; name?: string; data?: { share?: number } }) => string }
   type?: string
   name?: string
   areaStyle?: unknown
@@ -194,6 +194,84 @@ describe('slice percentages', () => {
 
     expect(chart.series[0]?.percentPrecision).toBe(rawPercentPrecision)
     expect(chart.series[0]?.label?.formatter?.({ percent: 87.6459 })).toBe('87.6%')
+  })
+
+  it('measures slice shares against the frame total, not the rows', () => {
+    const source = input('pie')
+    const chart = testOption(buildChartOption(
+      // Rows sum to 4200; the producer says the whole is 8400, because half of
+      // it was collapsed into a bucket that is not in this frame.
+      { ...source, frame: { ...source.frame, total: 8400 }, presentation: { sliceLabels: 'percent' } },
+      theme,
+    ))
+
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ share: 14.3 })
+  })
+
+  it('prefers our share over the share ECharts computed', () => {
+    const chart = testOption(buildChartOption(
+      { ...input('pie'), presentation: { sliceLabels: 'percent' } },
+      theme,
+    ))
+
+    expect(chart.series[0]?.label?.formatter?.({ percent: 87.6459, data: { share: 12.5 } })).toBe('12.5%')
+  })
+
+  it('writes the category on the slice when asked, and only when it fits', () => {
+    const chart = testOption(buildChartOption(
+      { ...input('pie'), presentation: { sliceLabels: 'label' } },
+      theme,
+    ))
+    const formatter = chart.series[0]?.label?.formatter
+
+    expect(formatter?.({ name: '2024', data: { share: 28.6 } })).toBe('2024')
+    // Too narrow an arc to hold any label at all.
+    expect(formatter?.({ name: '2024', data: { share: 1.2 } })).toBe('')
+    // Wide enough for a year, nowhere near enough for a product name.
+    expect(formatter?.({ name: 'Обязательное страхование гражданской ответственности', data: { share: 5 } })).toBe('')
+  })
+
+  it('picks readable ink for the slice label from the slice fill', () => {
+    const chart = testOption(buildChartOption(
+      // `seriesColor` gives Revenue a dark green and Cost nothing, so the two
+      // rows exercise both branches.
+      { ...input('pie'), presentation: { sliceLabels: 'percent' } },
+      theme,
+    ))
+
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ label: { color: '#ffffff' } })
+  })
+
+  it('marks which slices expand and which are leaves', () => {
+    const chart = testOption(buildChartOption(
+      { ...input('pie'), expandable: (key: string) => key === 'jan-revenue' },
+      theme,
+    ))
+
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ cursor: 'pointer' })
+    expect(chart.series[0]?.data?.[1]).toMatchObject({ cursor: 'default' })
+  })
+
+  it('measures each ring against its own declared total', () => {
+    const source = input('radial')
+    const chart = testOption(buildChartOption(
+      {
+        ...source,
+        radial: {
+          mode: 'partition',
+          rings: [
+            { key: 'Revenue', label: 'Revenue', order: 0, total: 5400 },
+            { key: 'Cost', label: 'Cost', order: 1, total: 1500 },
+          ],
+        },
+        presentation: { sliceLabels: 'percent' },
+      },
+      theme,
+    ))
+
+    // 1200 of a 5400 ring, not of the 2700 the two revenue rows sum to.
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ share: 22.2 })
+    expect(chart.series[1]?.data?.[0]).toMatchObject({ share: 46.7 })
   })
 })
 

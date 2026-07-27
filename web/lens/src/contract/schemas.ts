@@ -156,6 +156,7 @@ export const FrameSchema: z.ZodType<Contract.Frame> = z.lazy(() => z.object({
   columns: z.array(z.lazy(() => ColumnSchema)),
   rows: z.array(z.array(z.unknown())),
   children: z.array(z.lazy(() => NodeSchema)).optional(),
+  total: z.number().optional(),
 }).strict())
 
 export const FrameRefSchema: z.ZodType<Contract.FrameRef> = z.string()
@@ -196,6 +197,8 @@ export const LayoutRowSchema: z.ZodType<Contract.LayoutRow> = z.object({
 }).strict()
 
 export const LegendPlacementSchema: z.ZodType<Contract.LegendPlacement> = z.enum(["below"])
+
+export const LegendValueSchema: z.ZodType<Contract.LegendValue> = z.enum(["percent", "value"])
 
 export const LevelSchema: z.ZodType<Contract.Level> = z.lazy(() => z.object({
   path: z.lazy(() => NodePathSchema),
@@ -376,6 +379,7 @@ export const PerspectiveRefSchema: z.ZodType<Contract.PerspectiveRef> = z.object
 
 export const PresentationSchema: z.ZodType<Contract.Presentation> = z.lazy(() => z.object({
   legend: z.lazy(() => LegendPlacementSchema).optional(),
+  legendValue: z.lazy(() => LegendValueSchema).optional(),
   sliceLabels: z.lazy(() => SliceLabelsSchema).optional(),
   totalBadge: z.lazy(() => TotalBadgePlacementSchema).optional(),
   colorBy: z.lazy(() => ColorBySchema).optional(),
@@ -432,7 +436,7 @@ export const RadialRingSchema: z.ZodType<Contract.RadialRing> = z.object({
 
 export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.enum(["evidence", "partition", "reconciliation", "series"])
 
-export const SliceLabelsSchema: z.ZodType<Contract.SliceLabels> = z.enum(["percent"])
+export const SliceLabelsSchema: z.ZodType<Contract.SliceLabels> = z.enum(["label", "percent"])
 
 export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   kind: z.lazy(() => ValueSourceKindSchema),

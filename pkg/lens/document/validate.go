@@ -372,8 +372,13 @@ func validatePresentation(owner string, presentation *Presentation) error {
 	default:
 		return fmt.Errorf("%s has unsupported legend placement %q", owner, presentation.Legend)
 	}
+	switch presentation.LegendValue {
+	case "", LegendValueAmount, LegendValuePercent:
+	default:
+		return fmt.Errorf("%s has unsupported legend value %q", owner, presentation.LegendValue)
+	}
 	switch presentation.SliceLabels {
-	case "", SliceLabelsPercent:
+	case "", SliceLabelsPercent, SliceLabelsLabel:
 	default:
 		return fmt.Errorf("%s has unsupported slice labels %q", owner, presentation.SliceLabels)
 	}

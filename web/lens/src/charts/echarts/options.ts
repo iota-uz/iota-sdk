@@ -1,6 +1,8 @@
 import type { EChartsOption } from 'echarts'
+import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
+import { distributeShares, formatShare } from '../shares'
 import type { EChartsTheme } from './theme'
 
 type ChartValue = number | '-'
@@ -69,11 +71,18 @@ function rowPoints(input: ChartInput): RowPoint[] {
  * whole thing looks like it drilled. The mark that was clicked is named in the
  * popover; an outline is all the confirmation the plot has to carry.
  */
-function dataItem(point: RowPoint, input: ChartInput, theme: EChartsTheme) {
+function dataItem(point: RowPoint, input: ChartInput, theme: EChartsTheme, expandKey?: string) {
   const selected = input.selectedKey !== undefined && point.nodeKey === input.selectedKey
+  // A ring's mark key is a composite of ring and category, so the key the
+  // drill tree knows this point by has to be passed in explicitly.
+  const expandable = input.expandable?.(expandKey ?? point.nodeKey ?? point.category)
   return {
     value: point.value,
     nodeKey: point.nodeKey,
+    // The only cue on the plot that this segment goes somewhere. Left alone
+    // when the caller has no opinion, so charts without a drill tree keep the
+    // chart-wide cursor they had.
+    ...(expandable === undefined ? {} : { cursor: expandable ? 'pointer' : 'default' }),
     // A stable per-mark group id lets ECharts morph the same segment across a
     // perspective switch or a drill level instead of redrawing it.
     ...(point.nodeKey ? { groupId: point.nodeKey } : {}),
@@ -177,11 +186,130 @@ export function slicePercentLabel(percent: number | undefined): string {
   return share >= 4 ? `${share.toFixed(1)}%` : ''
 }
 
+/**
+ * Below this share a slice is too narrow to hold text of its own. The percent
+ * label and the category label share the floor: what limits both is the arc,
+ * not the string.
+ */
+const labelledSliceMinShare = 4
+
+/**
+ * A category label on the slice instead of a percent, for dimensions whose
+ * labels are guaranteed short — a year, a quarter. The producer opts in; a
+ * product name on a slice would be clipped to meaninglessness.
+ *
+ * Long labels are still possible (a producer can mislabel a dimension), so the
+ * label is dropped rather than clipped once it cannot plausibly fit the arc.
+ */
+export function sliceCategoryLabel(name: string | undefined, share: number | undefined): string {
+  const label = (name ?? '').trim()
+  if (!label || (share ?? 0) < labelledSliceMinShare) return ''
+  // One character needs roughly a degree of arc to stay legible at the radii
+  // these rings are drawn at; a slice narrower than its own label reads as
+  // corruption, so it goes to the legend instead.
+  return label.length <= Math.max(2, Math.round(((share ?? 0) / 100) * 360)) ? label : ''
+}
+
+/**
+ * The whole a pie's slices are shares of: the producer's total when it shipped
+ * one, otherwise the rows themselves.
+ *
+ * The fallback is what ECharts would have computed anyway, so a producer that
+ * says nothing keeps today's behaviour.
+ */
+function partitionTotal(points: RowPoint[], declared: number | undefined): number | undefined {
+  if (declared !== undefined && Number.isFinite(declared) && declared !== 0) return declared
+  const sum = points.reduce((total, point) => total + (typeof point.value === 'number' ? point.value : 0), 0)
+  return sum === 0 ? undefined : sum
+}
+
+/** Reconciled shares for a set of points, indexed the same way. */
+function pointShares(points: RowPoint[], total: number | undefined): (number | undefined)[] {
+  return distributeShares(
+    points.map((point) => (typeof point.value === 'number' ? point.value : undefined)),
+    total,
+  )
+}
+
+/**
+ * The share a label should print. Ours, carried on the data item, in
+ * preference to ECharts' `percent`: `percent` normalizes against the series it
+ * was handed, which is the sum of the visible rows rather than the whole.
+ */
+function labelShare(params: unknown): { name: string; share: number | undefined } {
+  const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
+  const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
+  const share = typeof data.share === 'number'
+    ? data.share
+    : (typeof record.percent === 'number' ? record.percent : undefined)
+  return { name: text(record.name), share }
+}
+
+function sliceLabel(mode: Presentation['sliceLabels'], params: unknown): string {
+  const { name, share } = labelShare(params)
+  return mode === 'label' ? sliceCategoryLabel(name, share) : slicePercentLabel(share)
+}
+
+/**
+ * Relative luminance per WCAG, for choosing ink against a slice fill.
+ *
+ * Only `#rgb`/`#rrggbb` are parsed: chart palettes are authored as hex in the
+ * document theme, and an unparseable fill falls back to the dark ink, which is
+ * the safe half of the guess on this palette's light end.
+ */
+function luminance(color: string | undefined): number | undefined {
+  const hex = (color ?? '').trim().replace(/^#/, '')
+  const expanded = hex.length === 3 ? hex.split('').map((digit) => digit + digit).join('') : hex
+  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) return undefined
+  const channel = (offset: number) => {
+    const value = parseInt(expanded.slice(offset, offset + 2), 16) / 255
+    return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
+  }
+  return 0.2126 * channel(0) + 0.7152 * channel(2) + 0.0722 * channel(4)
+}
+
+/**
+ * Ink for a label sitting on a slice. White on the palette's darker hues, the
+ * theme's own dark ink on the lighter ones — a fixed white measures below 3:1
+ * on the amber and teal entries, and a category label is wider than a percent,
+ * so more of it lands on the fill.
+ */
+/**
+ * The hover card for a slice: label, amount, and the share of the same total
+ * the printed labels use. Rings prefix the ring's own name, since the same
+ * category appears once per ring.
+ */
+function sliceTooltip(params: unknown, input: ChartInput, ringLabel?: string): string {
+  const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
+  const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
+  const label = text(record.name)
+  const value = input.format(input.encoding.value ?? '', data.value)
+  const share = typeof data.share === 'number'
+    ? data.share
+    : (typeof record.percent === 'number' ? record.percent : undefined)
+  const suffix = share === undefined ? '' : ` (${formatShare(share)})`
+  const heading = ringLabel ? `${ringLabel}\n` : ''
+  return `${heading}${label}: ${value}${suffix}`
+}
+
+function sliceLabelColor(fill: string | undefined, theme: EChartsTheme): string {
+  const light = luminance(fill)
+  // 0.4 is where white and #0f172a-class ink cross over on this palette;
+  // above it the dark ink wins by a wide margin. An unmeasurable fill keeps
+  // white, which is what every slice used before this.
+  return light !== undefined && light > 0.4 ? theme.text : '#ffffff'
+}
+
 function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const donut = input.kind === 'donut'
   const points = rowPoints(input)
   const fill = input.presentation?.fill === true
-  const insideLabels = input.presentation?.sliceLabels === 'percent'
+  const sliceLabels = input.presentation?.sliceLabels
+  const insideLabels = sliceLabels === 'percent' || sliceLabels === 'label'
+  // Shares are resolved here, once, against the authoritative total — not left
+  // to ECharts' `params.percent`, which can only ever normalize the rows it was
+  // handed and so drifts as soon as anything is collapsed or hidden.
+  const shares = pointShares(points, partitionTotal(points, input.frame.total))
   // The legacy pie filled roughly 300px of card; these radii plus the taller
   // plot box below recover that presence without letting the circle touch the
   // legend or the total badge.
@@ -189,15 +317,14 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     ? (fill ? ['54%', '92%'] : ['50%', '82%'])
     : (fill ? ['0%', '92%'] : ['0%', '82%'])
   const label = insideLabels
-    // Percent labels inside the slices remove the leader-line halo that
-    // shrinks the plot, so the pie can fill the card.
+    // Labels inside the slices remove the leader-line halo that shrinks the
+    // plot, so the pie can fill the card.
     ? {
         position: 'inside' as const,
-        color: '#ffffff',
         fontWeight: 'bold' as const,
         // Slices under 4% cannot hold a legible label; the legend below
         // still names them.
-        formatter: (params: { percent?: number }) => slicePercentLabel(params.percent),
+        formatter: (params: unknown) => sliceLabel(sliceLabels, params),
       }
     : { color: theme.text }
   return {
@@ -206,6 +333,9 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       trigger: 'item',
       ...tooltipChrome(theme),
       valueFormatter: valueFormatter(input),
+      // Hovering answers "how much, and how much of the whole" without
+      // committing to the full segment card, which is what the click opens.
+      formatter: (params: unknown) => sliceTooltip(params, input),
     },
     series: [{
       type: 'pie',
@@ -219,14 +349,19 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       percentPrecision: rawPercentPrecision,
       label,
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
-      data: points.map((point) => {
+      data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
+        const fill = theme.seriesColor(point.category)
         return {
           ...item,
           name: point.category,
+          share: shares[index],
+          // Per item rather than per series: the readable ink depends on the
+          // slice's own fill, and ECharts only accepts a literal here.
+          label: insideLabels ? { color: sliceLabelColor(fill, theme) } : undefined,
           itemStyle: {
             ...item.itemStyle,
-            color: theme.seriesColor(point.category),
+            color: fill,
           },
         }
       }),
@@ -251,47 +386,57 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
   const rings = [...(input.radial?.rings ?? [])].sort((left, right) => (left.order ?? 0) - (right.order ?? 0))
   const categories = [...new Map(points.map((point) => [point.nodeKey ?? point.category, point])).values()]
   const categoryOrder = new Map(categories.map((point, index) => [point.nodeKey ?? point.category, index]))
-  const insideLabels = input.presentation?.sliceLabels === 'percent'
-  const series = rings.map((ring, ringIndex) => ({
-    type: 'pie' as const,
-    name: ring.label,
-    id: ring.key,
-    radius: ringRadius(ringIndex, rings.length),
-    center: ['50%', '50%'],
-    selectedMode: false,
-    universalTransition: { enabled: morphEnabled() },
-    percentPrecision: rawPercentPrecision,
-    label: insideLabels
-      ? {
-          position: 'inside' as const,
-          color: '#ffffff',
-          fontWeight: 'bold' as const,
-          formatter: (params: { percent?: number }) => slicePercentLabel(params.percent),
-        }
-      : { show: false },
-    labelLine: { show: false },
-    data: points
+  const sliceLabels = input.presentation?.sliceLabels
+  const insideLabels = sliceLabels === 'percent' || sliceLabels === 'label'
+  const series = rings.map((ring, ringIndex) => {
+    const ringPoints = points
       .filter((point) => point.series === ring.key)
       .sort((left, right) =>
         (categoryOrder.get(left.nodeKey ?? left.category) ?? 0)
         - (categoryOrder.get(right.nodeKey ?? right.category) ?? 0))
-      .map((point) => {
+    // A ring declares the whole it reconciles against, and the document build
+    // already refuses a ring whose rows miss it by more than its tolerance —
+    // so it is a better denominator than the rows, and the only one that keeps
+    // the two rings of a donut comparable.
+    const ringShares = pointShares(ringPoints, partitionTotal(ringPoints, ring.total))
+    return {
+      type: 'pie' as const,
+      name: ring.label,
+      id: ring.key,
+      radius: ringRadius(ringIndex, rings.length),
+      center: ['50%', '50%'],
+      selectedMode: false,
+      universalTransition: { enabled: morphEnabled() },
+      percentPrecision: rawPercentPrecision,
+      label: insideLabels
+        ? {
+            position: 'inside' as const,
+            fontWeight: 'bold' as const,
+            formatter: (params: unknown) => sliceLabel(sliceLabels, params),
+          }
+        : { show: false },
+      labelLine: { show: false },
+      data: ringPoints.map((point, index) => {
         const mark = { ...point, nodeKey: radialNodeKey(ring.key, point.nodeKey ?? point.category) }
-        const item = dataItem(mark, input, theme)
+        const item = dataItem(mark, input, theme, point.nodeKey ?? point.category)
+        const fill = pointColor(point, categoryOrder.get(point.nodeKey ?? point.category) ?? 0, theme)
         return {
           ...item,
           name: point.category,
+          share: ringShares[index],
           ringKey: ring.key,
           categoryKey: point.nodeKey,
+          label: insideLabels ? { color: sliceLabelColor(fill, theme) } : undefined,
           itemStyle: {
             ...item.itemStyle,
-            color: pointColor(point, categoryOrder.get(point.nodeKey ?? point.category) ?? 0, theme),
+            color: fill,
             borderColor: item.itemStyle.borderColor ?? theme.card,
             borderWidth: item.itemStyle.borderWidth || 1,
           },
         }
       }),
-  }))
+    }
+  })
   return {
     ...baseOption(theme),
     aria: { enabled: true },
@@ -300,12 +445,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
       ...tooltipChrome(theme),
       formatter: (params: unknown) => {
         const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
-        const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
-        const ring = text(record.seriesName)
-        const label = text(record.name)
-        const value = input.format(input.encoding.value ?? '', data.value)
-        const percent = typeof record.percent === 'number' ? ` (${record.percent.toFixed(1)}%)` : ''
-        return `${ring}\n${label}: ${value}${percent}`
+        return sliceTooltip(params, input, text(record.seriesName))
       },
     },
     series,

@@ -321,6 +321,14 @@ type PresentationHints struct {
 	LegendBelow bool
 	// SliceLabelsPercent writes each partition slice's share inside the slice.
 	SliceLabelsPercent bool
+	// SliceLabelsCategory writes each partition slice's category label inside
+	// the slice instead of its share. Only for dimensions whose labels are
+	// inherently short — a year, a quarter; a product name would be clipped
+	// away. Pair with LegendPercent so the share still has somewhere to live.
+	SliceLabelsCategory bool
+	// LegendPercent prints each legend entry's share of the frame total
+	// instead of its formatted value.
+	LegendPercent bool
 	// TotalBadgeInPlot floats the total badge inside the plot area instead of
 	// placing it in the panel header.
 	TotalBadgeInPlot bool

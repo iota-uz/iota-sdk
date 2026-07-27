@@ -523,8 +523,17 @@ func convertPresentation(hints panel.PresentationHints) *Presentation {
 	if hints.LegendBelow {
 		presentation.Legend = LegendBelow
 	}
-	if hints.SliceLabelsPercent {
+	// Category labels win over percent labels: a producer asking for both is
+	// asking for the pairing this hint exists for, and only one string fits in
+	// a slice.
+	switch {
+	case hints.SliceLabelsCategory:
+		presentation.SliceLabels = SliceLabelsLabel
+	case hints.SliceLabelsPercent:
 		presentation.SliceLabels = SliceLabelsPercent
+	}
+	if hints.LegendPercent {
+		presentation.LegendValue = LegendValuePercent
 	}
 	switch {
 	case hints.HideTotalBadge:
@@ -967,7 +976,12 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 	// none has no projection to apply, and projecting anyway would emit an
 	// empty frame and silently drop every row's data.
 	if spec.Kind != panel.KindTable || len(spec.Columns) == 0 {
-		return buildFrame(source)
+		built, err := buildFrame(source)
+		if err != nil {
+			return Frame{}, err
+		}
+		built.Total = frameTotal(spec)
+		return built, nil
 	}
 
 	selected := make([]string, 0, len(spec.Columns)+1)
@@ -1071,7 +1085,19 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		}
 		result.Rows[rowIndex] = row
 	}
+	result.Total = frameTotal(spec)
 	return result, nil
+}
+
+// frameTotal is the authoritative whole a panel's rows are shares of. Only an
+// explicit producer-supplied total qualifies: deriving one by summing the rows
+// would reproduce the very number Frame.Total exists to correct.
+func frameTotal(spec panel.Spec) *float64 {
+	if spec.TotalBadgeValue == nil {
+		return nil
+	}
+	total := *spec.TotalBadgeValue
+	return &total
 }
 
 func columnType(kind frame.FieldType) (ColumnType, error) {

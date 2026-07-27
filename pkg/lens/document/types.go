@@ -584,6 +584,24 @@ type SliceLabels string
 const (
 	// SliceLabelsPercent writes each slice's share inside the slice.
 	SliceLabelsPercent SliceLabels = "percent"
+	// SliceLabelsLabel writes each slice's category label inside the slice,
+	// leaving the share to the legend. For dimensions whose labels are short
+	// and self-explaining — a year, a quarter — where naming the slice beats
+	// a number the legend can carry instead. A slice too narrow to hold its
+	// label is left unlabelled rather than clipped.
+	SliceLabelsLabel SliceLabels = "label"
+)
+
+// LegendValue selects what a legend entry prints after its label.
+type LegendValue string
+
+const (
+	// LegendValueAmount is the default: the row's own formatted value.
+	LegendValueAmount LegendValue = "value"
+	// LegendValuePercent prints the row's share of the frame total instead.
+	// Pairs with SliceLabelsLabel: the slice names itself, the legend
+	// quantifies it.
+	LegendValuePercent LegendValue = "percent"
 )
 
 // TotalBadgePlacement selects where Panel.Total is rendered.
@@ -650,6 +668,7 @@ const (
 
 type Presentation struct {
 	Legend      LegendPlacement     `json:"legend,omitempty"`
+	LegendValue LegendValue         `json:"legendValue,omitempty"`
 	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
 	TotalBadge  TotalBadgePlacement `json:"totalBadge,omitempty"`
 	ColorBy     ColorBy             `json:"colorBy,omitempty"`
@@ -960,6 +979,19 @@ type Frame struct {
 	Columns  []Column `json:"columns"`
 	Rows     [][]any  `json:"rows"`
 	Children []Node   `json:"children,omitempty"`
+	// Total is the authoritative whole this frame's rows are shares of, as
+	// the producer computed it — not the sum of the rows shipped here.
+	//
+	// The two differ whenever the producer collapses a tail into an "other"
+	// bucket, drops non-positive rows, or the viewer hides a series from the
+	// legend. Renderers that derive a percentage must use this when present,
+	// so a share means the same thing at every drill depth and stops moving
+	// when the viewer toggles the legend.
+	//
+	// It rides on the frame rather than the level because a lazily loaded
+	// level arrives as nothing but a frame: a total on Level would be absent
+	// exactly where the drill goes deepest.
+	Total *float64 `json:"total,omitempty"`
 }
 
 type Endpoints struct {

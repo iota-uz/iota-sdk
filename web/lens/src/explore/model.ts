@@ -58,6 +58,14 @@ export function breadcrumbsForNavigation(
     const perspective = perspectives.find(({ id }) => id === navigation.perspectiveId)
     const label = level.label.trim() || (pathIndex === 0 ? panel.title : '')
     if (!label) continue
+    // A run of levels sharing one label is one step as far as the reader is
+    // concerned. It happens when a level re-renders its own dimension — a
+    // Pareto "other" bucket nested inside another — and spelling out
+    // "Other → Other → 2017" pushes the informative crumbs past the trail's
+    // ellipsis, hiding exactly what the reader came for. The kept crumb is the
+    // shallowest of the run, so following it steps out of the whole nest
+    // rather than one layer of it.
+    if (crumbs.at(-1)?.label === label) continue
     crumbs.push({ label, pathIndex, current: false, perspective, perspectiveCount: perspectives.length })
   }
 
@@ -158,6 +166,19 @@ function valueForNode(
 }
 
 /**
+ * The whole a level's segments are shares of.
+ *
+ * The producer's frame total when there is one, because the children on screen
+ * are not always the whole story: a collapsed tail, a dropped non-positive row
+ * or a hidden series all make the sibling sum smaller than the level. Summing
+ * the siblings is the fallback, and was the only behaviour before.
+ */
+function levelTotal(frame: Frame | undefined, siblingSum: number): number {
+  const declared = frame?.total
+  return declared !== undefined && Number.isFinite(declared) && declared > 0 ? declared : siblingSum
+}
+
+/**
  * Describes what a user can do with one mark: how big it is relative to its
  * siblings, what it expands into, which perspectives its target level offers,
  * and whether it has a leaf route. The chart shows the level; this describes
@@ -177,13 +198,16 @@ export function drillTargetForNode(
   const sourceEncoding = level.encoding ?? panel.encoding
   const targetEncoding = target?.encoding ?? panel.encoding
   const value = valueForNode(node, level, frame, sourceEncoding)
-  const siblingTotal = level.children.reduce((sum, child) => sum + (valueForNode(child, level, frame, sourceEncoding) ?? 0), 0)
+  const siblingTotal = levelTotal(
+    frame,
+    level.children.reduce((sum, child) => sum + (valueForNode(child, level, frame, sourceEncoding) ?? 0), 0),
+  )
   const breakdownValues = (target?.children ?? []).map((child) => ({
     node: child,
     label: labelForNode(child, target!, document, targetFrame, targetEncoding),
     value: target ? valueForNode(child, target, targetFrame, targetEncoding) : undefined,
   }))
-  const breakdownTotal = breakdownValues.reduce((sum, row) => sum + (row.value ?? 0), 0)
+  const breakdownTotal = levelTotal(targetFrame, breakdownValues.reduce((sum, row) => sum + (row.value ?? 0), 0))
   const breakdown = breakdownValues
     .map((row) => ({ ...row, share: row.value !== undefined && breakdownTotal > 0 ? row.value / breakdownTotal : undefined }))
     .sort((left, right) => (right.value ?? 0) - (left.value ?? 0))
@@ -214,7 +238,7 @@ export function drillTargetForLevel(
     label: labelForNode(child, level, document, frame, encoding),
     value: valueForNode(child, level, frame, encoding),
   }))
-  const total = values.reduce((sum, row) => sum + (row.value ?? 0), 0)
+  const total = levelTotal(frame, values.reduce((sum, row) => sum + (row.value ?? 0), 0))
   return {
     label: level.label.trim() || panel.title,
     total: total > 0 ? total : undefined,

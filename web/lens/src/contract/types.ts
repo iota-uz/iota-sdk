@@ -133,6 +133,7 @@ export interface Frame {
   columns: Array<Column>
   rows: Array<Array<unknown>>
   children?: Array<Node>
+  total?: number
 }
 
 export type FrameRef = string
@@ -173,6 +174,8 @@ export interface LayoutRow {
 }
 
 export type LegendPlacement = "below"
+
+export type LegendValue = "percent" | "value"
 
 export interface Level {
   path: NodePath
@@ -353,6 +356,7 @@ export interface PerspectiveRef {
 
 export interface Presentation {
   legend?: LegendPlacement
+  legendValue?: LegendValue
   sliceLabels?: SliceLabels
   totalBadge?: TotalBadgePlacement
   colorBy?: ColorBy
@@ -409,7 +413,7 @@ export interface RadialRing {
 
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"
 
-export type SliceLabels = "percent"
+export type SliceLabels = "label" | "percent"
 
 export interface Source {
   kind: ValueSourceKind
