@@ -142,6 +142,7 @@ afterEach(() => {
 describe('explore semantics', () => {
   it('maps each semantic shape to its supported view', () => {
     expect(viewForSemantics('partition', 'pie')).toBe('pie')
+    expect(viewForSemantics('partition', 'radial')).toBe('radial')
     expect(viewForSemantics('partition', 'line')).toBe('donut')
     expect(viewForSemantics('reconciliation', 'pie')).toBe('cascade')
     expect(viewForSemantics('series', 'bar')).toBe('line')

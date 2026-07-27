@@ -11,9 +11,9 @@ import type {
 } from '../contract'
 import { isPerspectiveFork, levelForPath, type NavigationView } from '../runtime'
 
-export type ExploreViewKind = Extract<PanelKind, 'bar' | 'cascade' | 'donut' | 'hbar' | 'line' | 'pie' | 'table'>
+export type ExploreViewKind = Extract<PanelKind, 'bar' | 'cascade' | 'donut' | 'hbar' | 'line' | 'pie' | 'radial' | 'table'>
 
-const partitionViews: ReadonlySet<PanelKind> = new Set(['pie', 'donut', 'bar', 'hbar'])
+const partitionViews: ReadonlySet<PanelKind> = new Set(['pie', 'donut', 'radial', 'bar', 'hbar'])
 
 export function viewForSemantics(semantics: Semantics, preferred?: PanelKind): ExploreViewKind {
   switch (semantics) {

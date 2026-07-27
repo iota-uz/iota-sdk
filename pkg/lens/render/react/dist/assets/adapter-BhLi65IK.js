@@ -1,4 +1,4 @@
-import{i as ja,r as kS,n as NS}from"./lens-dashboard-RjLdBy8h.js";/*! *****************************************************************************
+import{i as ja,r as kS,n as NS}from"./lens-dashboard-C-KSKWk6.js";/*! *****************************************************************************
 Copyright (c) Microsoft Corporation.
 
 Permission to use, copy, modify, and/or distribute this software for any
