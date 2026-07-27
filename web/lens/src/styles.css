@@ -1871,12 +1871,18 @@
      different thing on the chart. */
   .lens-waterfall-bar-split {
     @apply lens-absolute lens-left-0 lens-right-0 lens-top-0 lens-rounded-t-sm;
+    /* A band thinner than this is a colour no one can see. A small share of a
+       short bar is exactly when the reader most needs telling it is there. */
+    min-height: 3px;
     background: var(--lens-neg-alt);
     border-bottom: 1px solid rgb(255 255 255 / 55%);
   }
 
+  /* Carried on a chip rather than bare text: the callout leans into whichever
+     side has room, which on a crowded plot is often over a neighbouring column
+     or its underlay, and bare 10px type does not survive that. */
   .lens-waterfall-split-callout {
-    @apply lens-pointer-events-none lens-absolute lens-top-1/2 lens-whitespace-nowrap lens-text-[10px] lens-font-semibold;
+    @apply lens-pointer-events-none lens-absolute lens-top-1/2 lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-[10px] lens-font-semibold;
     color: var(--lens-neg-alt);
     transform: translateY(-50%);
     font-variant-numeric: tabular-nums lining-nums;

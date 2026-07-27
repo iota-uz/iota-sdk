@@ -351,6 +351,21 @@ func (b *PanelBuilder) ToneField(name string) *PanelBuilder {
 	b.panel.Fields.Tone = name
 	return b
 }
+// SplitField declares the frame column carrying the part of a cascade stage's
+// own movement that differs in kind from the rest of it. Waterfall renderers
+// band it separately inside the same bar; a value outside (0, |movement|) is
+// not a part of the movement and leaves the bar whole.
+func (b *PanelBuilder) SplitField(name string) *PanelBuilder {
+	b.panel.Fields.Split = name
+	return b
+}
+
+// SplitLabelField declares the frame column naming that band.
+func (b *PanelBuilder) SplitLabelField(name string) *PanelBuilder {
+	b.panel.Fields.SplitLabel = name
+	return b
+}
+
 func (b *PanelBuilder) ShareField(name string) *PanelBuilder {
 	b.panel.Fields.Share = name
 	return b
