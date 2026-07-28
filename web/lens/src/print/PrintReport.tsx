@@ -262,6 +262,14 @@ function FigureView({ figure }: { figure: PrintFigure }) {
   const { section } = figure
   const panel = sectionPanel(section)
   const waterfall = isWaterfall(panel)
+  // A single value needs neither a chart of one point nor a table of one row.
+  if (figure.metric) {
+    return (
+      <figure className="lens-print-figure lens-print-figure-half lens-print-figure-metric">
+        <MetricTile figure={figure} />
+      </figure>
+    )
+  }
   return (
     <figure className={`lens-print-figure lens-print-figure-${waterfall ? 'full' : figure.width}`}>
       <figcaption className="lens-print-figure-head">
@@ -287,7 +295,8 @@ function FigureView({ figure }: { figure: PrintFigure }) {
   )
 }
 
-function KpiView({ figure }: { figure: PrintFigure }) {
+/** One reading: its name, its number, and what qualifies it. */
+function MetricTile({ figure }: { figure: PrintFigure }) {
   const { section } = figure
   const panel = sectionPanel(section)
   const locale = section.document.meta.locale
@@ -361,7 +370,7 @@ function Cover({
       </dl>
       {kpis.length > 0 && (
         <div className="lens-print-kpis">
-          {kpis.map((figure) => <KpiView figure={figure} key={figure.section.id} />)}
+          {kpis.map((figure) => <MetricTile figure={figure} key={figure.section.id} />)}
         </div>
       )}
       {(report.truncated || report.warnings.length > 0 || outline.missing.length > 0) && (
@@ -411,7 +420,25 @@ function Contents({ outline }: { outline: PrintOutline }) {
 }
 
 function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string }) {
-  const figures = chapter.figures
+  // A chapter can hold more than one authored strip of metrics — two bases for
+  // the same ratios, say. Each strip announces itself where it begins, so two
+  // readings called the same thing are never left to be told apart by order.
+  const printed = new Set<string>([chapter.caption ?? ''])
+  const body: Array<JSX.Element> = []
+  for (const figure of chapter.figures) {
+    const group = figure.group
+    const key = `${group?.label ?? ''}::${group?.caption ?? ''}`
+    if (group && !printed.has(key)) {
+      printed.add(key)
+      body.push(
+        <div className="lens-print-strip" key={`strip-${figure.section.id}`}>
+          {group.label && <h3>{group.label}</h3>}
+          {group.caption && group.caption !== chapter.caption && <p>{group.caption}</p>}
+        </div>,
+      )
+    }
+    body.push(<FigureView figure={figure} key={figure.section.id} />)
+  }
   return (
     <section className="lens-print-chapter">
       <header className="lens-print-chapter-head">
@@ -419,9 +446,7 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
         <h2><span className="lens-print-chapter-number">{chapter.number}</span>{chapter.title}</h2>
         {chapter.caption && <p className="lens-print-lead">{chapter.caption}</p>}
       </header>
-      <div className="lens-print-grid">
-        {figures.map((figure) => <FigureView figure={figure} key={figure.section.id} />)}
-      </div>
+      <div className="lens-print-grid">{body}</div>
     </section>
   )
 }

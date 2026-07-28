@@ -4199,17 +4199,19 @@
 
 .lens-print-kpis {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--lens-border);
-  border: 1px solid var(--lens-border);
+  /* However many headline readings a board carries, they fill their row: an
+     empty cell in a strip of numbers reads as a number that failed. */
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
 }
 
 .lens-print-kpi {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 3px;
-  padding: 12px 14px;
+  padding: 11px 13px;
+  border: 1px solid var(--lens-border);
   background: #fff;
 }
 
@@ -4363,6 +4365,35 @@
   padding-top: 8px;
   border-top: 1px solid var(--lens-text-strong);
   break-inside: avoid;
+}
+
+/* A metric tile carries its own frame, so it drops the figure rule. */
+.lens-print-figure-metric {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The heading of an authored strip of metrics, printed where the strip starts. */
+.lens-print-strip {
+  flex: 1 1 100%;
+  max-width: 100%;
+  margin-top: 4px;
+}
+
+.lens-print-strip h3 {
+  color: var(--lens-text-strong);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-strip p {
+  max-width: 600px;
+  margin-top: 3px !important;
+  color: var(--lens-text-muted);
+  font-size: 9.5px;
+  line-height: 1.5;
 }
 
 .lens-print-figure-head {
@@ -4798,6 +4829,13 @@
 
   .lens-print-figure-half + .lens-print-figure-half {
     margin-left: 2.4%;
+  }
+
+  .lens-print-strip {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    break-after: avoid;
   }
 
   .lens-print-figure:has(.lens-print-data-wide) {

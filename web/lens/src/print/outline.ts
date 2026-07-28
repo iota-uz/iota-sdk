@@ -1,4 +1,4 @@
-import type { DashboardDocument, Panel } from '../contract'
+import type { DashboardDocument, LayoutGroup, LayoutItem, Panel } from '../contract'
 import type { PrintReport, PrintSection } from '../runtime/print'
 import { chartKinds, frameSignature, sectionPanel } from './values'
 
@@ -12,7 +12,14 @@ export interface PrintFigure {
   number: string
   /** Rendered as a chart, rather than as evidence rows only. */
   chart: boolean
+  /**
+   * A single value: printed as a metric tile. A chart of one point and a table
+   * of one row are both worse than the number itself.
+   */
+  metric: boolean
   width: 'half' | 'full'
+  /** The metric strip this reading was authored inside, when it was. */
+  group?: { id: string; label?: string; caption?: string }
   /**
    * A headline reading the cover lifts into its "at a glance" strip. It is not
    * printed a second time in the chapter body.
@@ -65,6 +72,16 @@ function widthFor(panel: Panel): 'half' | 'full' {
   if (panel.kind === 'stat' || panel.kind === 'metric_relationship') return 'half'
   if (panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial') return 'half'
   return 'full'
+}
+
+/**
+ * The strip a panel was authored inside — the one that names and explains this
+ * run of metrics. A dashboard nests groups; the innermost one is the label the
+ * reader sees directly above the numbers.
+ */
+function innermostGroup(item: LayoutItem): LayoutGroup | undefined {
+  const groups = item.groups ?? (item.group ? [item.group] : [])
+  return [...groups].reverse().find((group) => group.label || group.caption)
 }
 
 function chapterTitle(index: number, heading: string | undefined, fallback: string): string {
@@ -141,7 +158,7 @@ export function buildOutline(
     return chapter
   }
 
-  const addFigure = (chapter: PrintChapter, section: PrintSection) => {
+  const addFigure = (chapter: PrintChapter, section: PrintSection, group?: LayoutGroup) => {
     if (!accept(section, 'figure')) return
     const panel = sectionPanel(section)
     const single = (section.frame?.rows.length ?? 0) <= 1
@@ -149,7 +166,11 @@ export function buildOutline(
       section,
       number: `${chapter.number}.${chapter.figures.length + 1}`,
       chart: chartKinds.has(panel.kind) && !single,
-      width: widthFor(panel),
+      metric: single,
+      width: single ? 'half' : widthFor(panel),
+      ...(group && (group.label || group.caption)
+        ? { group: { id: group.id, ...(group.label ? { label: group.label } : {}), ...(group.caption ? { caption: group.caption } : {}) } }
+        : {}),
       // The opening chapter's single-value readings are the dashboard's
       // headline; the cover carries them so page one is already informative.
       kpi: chapter.number === 1 && single && kpiKinds.has(panel.kind) && liftedKpis++ < 6,
@@ -167,10 +188,10 @@ export function buildOutline(
     })
   }
 
-  const addPanel = (chapter: PrintChapter, panelId: string) => {
+  const addPanel = (chapter: PrintChapter, panelId: string, group?: LayoutGroup) => {
     for (const section of rootSections.get(panelId) ?? []) {
       claimed.add(section)
-      addFigure(chapter, section)
+      addFigure(chapter, section, group)
     }
     for (const section of detailSections.get(panelId) ?? []) {
       claimed.add(section)
@@ -185,7 +206,7 @@ export function buildOutline(
       .map((group) => group.caption?.trim())
       .find((value) => Boolean(value))
     const chapter = chapterFor(heading, caption)
-    for (const item of row.panels) addPanel(chapter, item.panelId)
+    for (const item of row.panels) addPanel(chapter, item.panelId, innermostGroup(item))
   }
 
   // Panels the layout never places — and readings reached through a drawer,

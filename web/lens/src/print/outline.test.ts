@@ -251,6 +251,43 @@ describe('buildOutline', () => {
     expect(outline.chapters.map(({ title }) => title)).toEqual(['Premium', 'Other'])
   })
 
+  it('marks a single-value reading as a metric and carries its strip', () => {
+    const mix = panelWith('mix')
+    const ratio = panelWith('loss-ratio', { kind: 'stat', semantics: 'evidence' })
+    const document = documentWith([mix, ratio], {
+      rows: [
+        { heading: 'Premium', panels: [{ panelId: 'mix', span: 12 }] },
+        {
+          heading: 'Key ratios',
+          panels: [{
+            panelId: 'loss-ratio',
+            span: 6,
+            groups: [
+              { id: 'ratios', kind: 'metrics', span: 12, label: 'Ratios' },
+              { id: 'period', kind: 'metrics', span: 6, label: 'On premium for the period', caption: 'Diagnostics.' },
+            ],
+          }],
+        },
+      ],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, mix, frameWith([['Earned', 7], ['Unearned', 3]])),
+        sectionWith(document, ratio, frameWith([['', 0.189]])),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters[1]?.figures[0]).toMatchObject({
+      metric: true,
+      chart: false,
+      width: 'half',
+      // The innermost strip is the one printed above the numbers.
+      group: { id: 'period', label: 'On premium for the period', caption: 'Diagnostics.' },
+    })
+  })
+
   it('gathers what the dashboard says about its own numbers into notes', () => {
     const panel = panelWith('coverage', {
       status: { label: 'Proxy', tone: 'warning' },
