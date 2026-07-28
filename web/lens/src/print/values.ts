@@ -58,9 +58,14 @@ export function viewFor(semantics: Semantics, preferred: PanelKind): PanelKind {
 export function sectionPanel(section: PrintSection): Panel {
   const semantics = section.perspective?.semantics ?? section.panel.semantics
   const encoding = section.level.encoding ?? section.panel.encoding
+  // A panel keeps the form it was authored in wherever it is stated in full —
+  // on the dashboard, or as the top of the drawer a reading opens into. Only a
+  // drill *level* takes the view its own step declares: a formula demoted to
+  // «Категория / Значение» is no longer a formula.
+  const authored = section.root || section.path.length === 0
   return {
     ...section.panel,
-    kind: section.root ? section.panel.kind : (section.level.view ?? viewFor(semantics, section.panel.kind)),
+    kind: authored ? section.panel.kind : (section.level.view ?? viewFor(semantics, section.panel.kind)),
     title: section.level.label.trim() || section.panel.title,
     semantics,
     encoding,
