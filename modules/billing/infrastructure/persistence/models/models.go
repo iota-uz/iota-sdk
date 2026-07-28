@@ -122,6 +122,10 @@ type CashDetails struct {
 	Data map[string]any `json:"data"`
 }
 
+type PayoutDetails struct {
+	Data map[string]any `json:"data"`
+}
+
 type TransferDetails struct {
 	Data    map[string]any `json:"data"`
 	Comment string         `json:"comment"`

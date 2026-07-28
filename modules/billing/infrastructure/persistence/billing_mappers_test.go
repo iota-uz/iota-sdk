@@ -180,6 +180,22 @@ func TestTransactionMapping(t *testing.T) {
 				assert.Len(t, cash.Data(), 3)
 			},
 		},
+		{
+			name:    "PayoutDetails",
+			gateway: billing.Uzum,
+			details: details.NewPayoutDetails(
+				details.PayoutWithData(map[string]any{
+					"external_id": "cashback-42",
+					"direction":   "outbound",
+				}),
+			),
+			validate: func(t *testing.T, d details.Details) {
+				t.Helper()
+				payout := d.(details.PayoutDetails)
+				assert.Equal(t, "cashback-42", payout.Get("external_id"))
+				assert.Equal(t, "outbound", payout.Get("direction"))
+			},
+		},
 		//{
 		//	name:    "StripeDetails",
 		//	gateway: billing.Stripe,
