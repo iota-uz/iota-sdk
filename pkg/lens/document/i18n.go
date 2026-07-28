@@ -98,6 +98,7 @@ const (
 	I18nPanelUpdating            = "panel.updating"
 	I18nPrintAppendix            = "print.appendix"
 	I18nPrintAppendixNote        = "print.appendixNote"
+	I18nPrintBreakdown           = "print.breakdown"
 	I18nPrintButton              = "print.button"
 	I18nPrintCategory            = "print.category"
 	I18nPrintContents            = "print.contents"
@@ -112,14 +113,23 @@ const (
 	I18nPrintMissing             = "print.missing"
 	I18nPrintNoData              = "print.noData"
 	I18nPrintNote                = "print.note"
+	I18nPrintNoteProxy           = "print.noteProxy"
+	I18nPrintNoteReconciliation  = "print.noteReconciliation"
+	I18nPrintNoteUnavailable     = "print.noteUnavailable"
 	I18nPrintOther               = "print.other"
 	I18nPrintPending             = "print.pending"
 	I18nPrintPeriod              = "print.period"
+	I18nPrintQuality             = "print.quality"
+	I18nPrintQualityCount        = "print.qualityCount"
 	I18nPrintSections            = "print.sections"
+	I18nPrintSeriesTail          = "print.seriesTail"
 	I18nPrintShare               = "print.share"
 	I18nPrintSnapshot            = "print.snapshot"
 	I18nPrintSummary             = "print.summary"
+	I18nPrintTarget              = "print.target"
 	I18nPrintTimeLimit           = "print.timeLimit"
+	I18nPrintTotal               = "print.total"
+	I18nPrintTruncated           = "print.truncated"
 	I18nPrintValue               = "print.value"
 	I18nPrintView                = "print.view"
 	// Sentences the printed report composes from a frame it has just printed:
@@ -211,13 +221,16 @@ func RuntimeI18nKeys() []string {
 		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
-		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintButton, I18nPrintCategory,
+		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintBreakdown, I18nPrintButton, I18nPrintCategory,
 		I18nPrintContents, I18nPrintFailed, I18nPrintFigure,
 		I18nPrintGenerated, I18nPrintKicker, I18nPrintLimitations, I18nPrintLimitationsFlag,
 		I18nPrintLimitationsNote, I18nPrintMethod, I18nPrintMissing,
-		I18nPrintNoData, I18nPrintNote, I18nPrintOther, I18nPrintPending, I18nPrintPeriod,
-		I18nPrintSections, I18nPrintShare, I18nPrintSnapshot, I18nPrintSummary,
-		I18nPrintTimeLimit, I18nPrintValue, I18nPrintView,
+		I18nPrintNoData, I18nPrintNote, I18nPrintNoteProxy, I18nPrintNoteReconciliation,
+		I18nPrintNoteUnavailable, I18nPrintOther, I18nPrintPending, I18nPrintPeriod,
+		I18nPrintQuality, I18nPrintQualityCount,
+		I18nPrintSections, I18nPrintSeriesTail, I18nPrintShare, I18nPrintSnapshot, I18nPrintSummary,
+		I18nPrintTarget, I18nPrintTimeLimit, I18nPrintTotal, I18nPrintTruncated,
+		I18nPrintValue, I18nPrintView,
 		I18nPrintFactPartition, I18nPrintFactPair, I18nPrintFactProgress,
 		I18nPrintFactBridge, I18nPrintFactBridgeBare, I18nPrintFactBridgeEnds,
 		I18nPrintFactSeries, I18nPrintFactSeriesBare, I18nPrintFactTable, I18nPrintFactRows,

@@ -250,6 +250,7 @@ func appendPanelTree(
 		Encoding: buildEncoding(spec.Fields, wireFrame), Format: buildFormats(spec), Total: spec.TotalBadgeValue, Columns: columns,
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
+		Info:   strings.TrimSpace(spec.Info),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 		Sparkline: buildSparkline(spec), Target: buildTarget(spec),
 		MetricFlow: metricFlow, MetricHierarchy: metricHierarchy, MetricRelationship: metricRelationship,

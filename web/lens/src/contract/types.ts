@@ -293,6 +293,7 @@ export interface Panel {
   accent?: string
   status?: PanelStatus
   caption?: string
+  info?: string
   headline?: number
   trend?: PanelTrend
   sparkline?: Sparkline

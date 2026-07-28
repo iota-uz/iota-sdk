@@ -288,6 +288,54 @@ describe('buildOutline', () => {
     })
   })
 
+  it('prints a drawer breakdown with the reading it explains', () => {
+    const mix = panelWith('mix')
+    const ratio = panelWith('loss-ratio', { kind: 'stat', semantics: 'evidence' })
+    const numerator = panelWith('ratio-numerator', { kind: 'stat', semantics: 'evidence' })
+    const document = documentWith([mix, ratio], {
+      rows: [
+        { heading: 'Premium', panels: [{ panelId: 'mix', span: 12 }] },
+        { heading: 'Ratios', panels: [{ panelId: 'loss-ratio', span: 6 }] },
+      ],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, mix, frameWith([['Earned', 7], ['Unearned', 3]])),
+        sectionWith(document, ratio, frameWith([['Loss ratio', 0.028]])),
+        sectionWith(document, numerator, frameWith([['Claims paid', 5.63]]), {
+          root: false,
+          owner: 'loss-ratio',
+          breadcrumb: ['Loss ratio', 'Numerator'],
+        }),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    // The breakdown belongs to the tile, not to a loose chapter at the end.
+    expect(outline.chapters.map(({ title }) => title)).toEqual(['Premium', 'Ratios'])
+    expect(outline.chapters[1]?.figures[0]?.breakdown.map(({ panel }) => panel.id)).toEqual(['ratio-numerator'])
+    expect(outline.chapters[1]?.details).toHaveLength(0)
+  })
+
+  it('counts the readings that are an estimate rather than a settled figure', () => {
+    const proxy = panelWith('ibnr', { confidence: 'proxy' })
+    const verified = panelWith('gwp', { confidence: 'verified' })
+    const document = documentWith([proxy, verified], {
+      rows: [{ heading: 'Reserves', panels: [{ panelId: 'ibnr', span: 6 }, { panelId: 'gwp', span: 6 }] }],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, proxy, frameWith([['a', 1], ['b', 2]])),
+        sectionWith(document, verified, frameWith([['c', 3], ['d', 4]])),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.estimated).toBe(1)
+  })
+
   it('gathers what the dashboard says about its own numbers into notes', () => {
     const panel = panelWith('coverage', {
       status: { label: 'Proxy', tone: 'warning' },

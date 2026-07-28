@@ -1,4 +1,5 @@
 import type { DashboardDocument, LayoutGroup, LayoutItem, Panel } from '../contract'
+import { resolveQuality } from '../panels/QualityChip'
 import type { PrintReport, PrintSection } from '../runtime/print'
 import { chartKinds, frameSignature, sectionPanel } from './values'
 
@@ -25,6 +26,12 @@ export interface PrintFigure {
    * printed a second time in the chapter body.
    */
   kpi: boolean
+  /**
+   * What the dashboard shows when this reading is clicked: the numerator and
+   * denominator of a ratio, the components of a total. It prints with the
+   * figure it explains, not as loose fragments at the back of the report.
+   */
+  breakdown: Array<PrintSection>
 }
 
 /** A drill reading, printed as a dense table in the detail appendix. */
@@ -61,6 +68,12 @@ export interface PrintOutline {
   notes: Array<PrintNote>
   /** Readings that resolved to nothing, disclosed instead of printed empty. */
   missing: Array<string>
+  /**
+   * Printed readings that are an estimate, a proxy or an unreconciled figure.
+   * The cover states the count, because "how much of this is settled" is the
+   * first thing a reader of a management report is entitled to know.
+   */
+  estimated: number
   figureCount: number
   detailCount: number
 }
@@ -114,7 +127,17 @@ export function buildOutline(
 
   const rootSections = new Map<string, Array<PrintSection>>()
   const detailSections = new Map<string, Array<PrintSection>>()
+  // A reading reached by clicking a KPI is that KPI's explanation. Kept with
+  // the tile it explains it is a formula; filed at the back of the report it is
+  // five one-row tables called «Итог» and «Числитель — Разбивка».
+  const ownedSections = new Map<string, Array<PrintSection>>()
   for (const section of report.sections) {
+    if (section.owner) {
+      const owned = ownedSections.get(section.owner) ?? []
+      owned.push(section)
+      ownedSections.set(section.owner, owned)
+      continue
+    }
     const bucket = section.root ? rootSections : detailSections
     const list = bucket.get(section.panel.id) ?? []
     list.push(section)
@@ -174,6 +197,7 @@ export function buildOutline(
       // The opening chapter's single-value readings are the dashboard's
       // headline; the cover carries them so page one is already informative.
       kpi: chapter.number === 1 && single && kpiKinds.has(panel.kind) && liftedKpis++ < 6,
+      breakdown: (ownedSections.get(section.panel.id) ?? []).filter((owned) => accept(owned, 'detail')),
     })
   }
 
@@ -236,12 +260,19 @@ export function buildOutline(
       detail.number = `A${chapter.number}.${position + 1}`
     })
   })
+  const qualified = [...kpis, ...populated.flatMap((chapter) => chapter.figures)]
+    .filter(({ section }) => {
+      const panel = sectionPanel(section)
+      const quality = resolveQuality(panel)
+      return quality !== undefined && quality.value !== 'verified' && quality.value !== 'calculated'
+    })
   return {
     chapters: populated,
     appendix: populated.filter((chapter) => chapter.details.length > 0),
     kpis,
     notes: buildNotes(document),
     missing,
+    estimated: qualified.length,
     figureCount: populated.reduce((sum, chapter) => sum + chapter.figures.length, 0),
     detailCount: populated.reduce((sum, chapter) => sum + chapter.details.length, 0),
   }

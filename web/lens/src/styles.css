@@ -4237,6 +4237,53 @@
   line-height: 1.35;
 }
 
+/* A number alone answers "how much"; the change beside it and the shape under
+   it answer "compared with what" — the first question anyone asks of a KPI. */
+.lens-print-kpi-delta {
+  margin-left: 6px;
+  color: var(--lens-pos);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lens-print-kpi-delta[data-negative] {
+  color: var(--lens-neg);
+}
+
+.lens-print-sparkline {
+  width: 100%;
+  max-width: 120px;
+  height: 15px;
+}
+
+.lens-print-sparkline polyline {
+  stroke: var(--lens-accent-500);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.lens-print-kpi-trend {
+  color: var(--lens-pos);
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.lens-print-kpi-trend[data-negative] {
+  color: var(--lens-neg);
+}
+
+.lens-print-kpi-target {
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-kpi-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 .lens-print-cover-flag {
   margin-top: auto !important;
   padding-left: 10px;
@@ -4511,6 +4558,252 @@
   font-weight: 600;
 }
 
+/* The authoritative total the shares below are taken against — the badge the
+   dashboard keeps in the panel header. */
+.lens-print-figure-total {
+  margin-left: auto;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+/* -- Data quality ---------------------------------------------------------- */
+
+/* Quality is stated in words, never in colour alone: a greyscale print must
+   still say that a figure is an estimate. */
+.lens-print-chip[data-quality='proxy'],
+.lens-print-chip[data-quality='requires_reconciliation'] {
+  border-color: #fcd34d;
+  background: var(--lens-warn-soft);
+  color: #92400e;
+}
+
+.lens-print-chip[data-quality='config_required'],
+.lens-print-chip[data-quality='empty_source'],
+.lens-print-chip[data-quality='unavailable'] {
+  border-style: dashed;
+}
+
+/* -- Footnotes ------------------------------------------------------------- */
+
+.lens-print-footnote-marker {
+  margin-left: 2px;
+  color: var(--lens-accent-500);
+  font-size: 7px;
+  font-weight: 700;
+  vertical-align: super;
+}
+
+/* The qualification prints with the figure it qualifies, so the two never
+   land on different pages. */
+.lens-print-footnotes {
+  margin: 6px 0 0;
+  padding-left: 14px;
+  border-top: 1px dotted var(--lens-border);
+  padding-top: 5px;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  line-height: 1.45;
+  list-style: decimal;
+}
+
+.lens-print-truncated,
+.lens-print-detail-note {
+  margin-top: 4px !important;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-style: italic;
+}
+
+/* -- Metric formulas ------------------------------------------------------- */
+
+.lens-print-formula {
+  margin-bottom: 8px;
+}
+
+.lens-print-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  list-style: none;
+}
+
+.lens-print-flow-stage {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--lens-border);
+  font-size: 9.5px;
+}
+
+/* The result is the line the formula walks towards; it reads as a total. */
+.lens-print-flow-stage[data-result] {
+  border-bottom: 0;
+  border-top: 1px solid var(--lens-text-strong);
+  color: var(--lens-text-strong);
+  font-weight: 700;
+}
+
+.lens-print-flow-op {
+  color: var(--lens-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.lens-print-flow-label small {
+  display: block;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  line-height: 1.4;
+}
+
+.lens-print-flow-value,
+.lens-print-hierarchy-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-formula-note {
+  margin-top: 5px !important;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+}
+
+.lens-print-hierarchy {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+}
+
+.lens-print-hierarchy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 52px;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0 3px calc(var(--lens-depth, 0) * 12px);
+  border-bottom: 1px solid var(--lens-border);
+  font-size: 9.5px;
+}
+
+.lens-print-hierarchy-row[data-parent] {
+  color: var(--lens-text-strong);
+  font-weight: 600;
+}
+
+.lens-print-hierarchy-label em {
+  margin-left: 5px;
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.lens-print-hierarchy-label small {
+  display: block;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.lens-print-hierarchy-share {
+  color: var(--lens-text-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+}
+
+.lens-print-hierarchy-reconcile {
+  grid-column: 1 / -1;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-weight: 400;
+}
+
+.lens-print-relationship-claim {
+  color: var(--lens-text-strong);
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 6px !important;
+}
+
+.lens-print-relationship-ends {
+  display: flex;
+  gap: 10px;
+}
+
+.lens-print-relationship-end {
+  position: relative;
+  flex: 1 1 0;
+  padding: 7px 9px;
+  border: 1px solid var(--lens-border);
+}
+
+.lens-print-relationship-label {
+  display: block;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+}
+
+.lens-print-relationship-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--lens-text-strong);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-relationship-glyph {
+  position: absolute;
+  right: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #fff;
+  color: var(--lens-text-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* -- Breakdown attached to a reading --------------------------------------- */
+
+.lens-print-breakdown {
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--lens-border);
+}
+
+.lens-print-breakdown-head,
+.lens-print-breakdown-title {
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-breakdown-title {
+  margin-top: 5px !important;
+  letter-spacing: 0.04em;
+}
+
+.lens-print-breakdown-term {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--lens-border);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
 /* -- Evidence tables ------------------------------------------------------- */
 
 .lens-print-data {
@@ -4588,6 +4881,57 @@
 
 .lens-print-figure:has(.lens-print-data-wide) .lens-print-figure-head {
   break-after: avoid;
+}
+
+/* A bar cell keeps the proportion the screen showed, drawn under the figure
+   rather than beside it so a dense table gains no height for it. */
+.lens-print-data-wide td {
+  position: relative;
+}
+
+.lens-print-cell-bar {
+  position: absolute;
+  left: 0;
+  right: auto;
+  bottom: 1px;
+  height: 2px;
+  background: var(--lens-accent-300);
+}
+
+.lens-print-data-wide td[data-align='right'] .lens-print-cell-bar {
+  left: auto;
+  right: 0;
+}
+
+.lens-print-cell-bar[data-negative] {
+  background: var(--lens-neg);
+}
+
+/* The percentage half of a delta cell: the amount says how much moved, this
+   says whether that is a lot. */
+.lens-print-cell-secondary {
+  display: block;
+  color: var(--lens-pos);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.lens-print-cell-secondary[data-negative] {
+  color: var(--lens-neg);
+}
+
+/* The producer's own verdict on a row — a loss ratio past 100%, say. */
+.lens-print-data td[data-tone='neg'] {
+  color: var(--lens-neg);
+}
+
+.lens-print-data td[data-tone='warn'] {
+  color: #92400e;
+}
+
+.lens-print-data td[data-tone='pos'] {
+  color: var(--lens-pos);
 }
 
 /* The share reads twice over: as a bar the eye scans and as the number an

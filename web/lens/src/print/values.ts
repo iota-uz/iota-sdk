@@ -4,6 +4,13 @@ import type { PrintSection } from '../runtime/print'
 /** Panel kinds ChartHost can draw on its own, without a dashboard provider. */
 export const chartKinds = new Set<PanelKind>(['pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area'])
 
+/**
+ * Panel kinds whose printed form is a formula rather than a chart with an
+ * evidence table: the structure — operators, indent, direction — is the
+ * reading, and a two-column table of the same numbers is not a substitute.
+ */
+export const formulaKinds = new Set<PanelKind>(['metric_flow', 'metric_hierarchy', 'metric_relationship'])
+
 export type ChartKind = 'pie' | 'donut' | 'radial' | 'bar' | 'hbar' | 'line' | 'area'
 
 export function numeric(value: unknown): number | undefined {

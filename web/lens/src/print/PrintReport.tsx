@@ -6,6 +6,7 @@ import { ChartHost } from '../panels/ChartHost'
 import { seriesColorResolver } from '../panels/data'
 import { WaterfallPlot } from '../panels/WaterfallPlot'
 import {
+  clampedDeltaPercent,
   formatAxis,
   formatFieldValue,
   formatFieldValueExact,
@@ -14,9 +15,12 @@ import {
   useTranslate,
 } from '../runtime'
 import type { PrintReport as PrintReportModel, PrintSection } from '../runtime/print'
+import { buildChapterFootnotes, type FigureFootnotes } from './footnotes'
+import { PrintFormula } from './formula'
 import { narrativeFact } from './narrative'
 import { buildOutline, type PrintChapter, type PrintDetail, type PrintFigure, type PrintOutline } from './outline'
-import { chartKinds, indexOf, numeric, sectionPanel, text, type ChartKind } from './values'
+import { PrintQualityChip } from './quality'
+import { chartKinds, formulaKinds, indexOf, numeric, sectionPanel, text, type ChartKind } from './values'
 
 interface AuditRow {
   key: string
@@ -167,8 +171,14 @@ function PrintWaterfall({ section }: { section: PrintSection }) {
   )
 }
 
-function isWaterfall(panel: Panel): boolean {
-  return panel.kind === 'cascade' && panel.presentation?.bridgeLayout === 'waterfall'
+/**
+ * Every bridge prints as a bridge. On screen a cascade without the waterfall
+ * hint renders as stacked stage rows, which paper has no room for; the same
+ * stages drawn as columns say the same thing in a third of the space, and the
+ * evidence table underneath keeps the exact figures.
+ */
+function isWaterfall(panel: Panel, section: PrintSection): boolean {
+  return panel.kind === 'cascade' && Boolean(section.frame) && indexOf(section.frame!, panel.encoding.cut) >= 0
 }
 
 function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boolean }) {
@@ -180,31 +190,74 @@ function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boo
   if (!section.frame) return <p className="lens-print-empty">{translate('print.noData', 'No data')}</p>
   const panel = sectionPanel(section)
   if (panel.kind === 'table' && panel.columns?.length) {
-    const indexes = panel.columns.map(({ field }) => indexOf(section.frame!, field))
+    const frame = section.frame
+    const columns = panel.columns
+    const indexes = columns.map(({ field }) => indexOf(frame, field))
+    const locale = section.document.meta.locale
+    // A bar cell is drawn against the largest magnitude in its own column, the
+    // same scale the dashboard uses, so a printed row keeps the proportion the
+    // reader saw on screen.
+    const maxima = new Map<string, number>()
+    columns.forEach((column, columnIndex) => {
+      if (column.cell.kind !== 'bar') return
+      const index = indexes[columnIndex]!
+      if (index < 0) return
+      maxima.set(column.field, frame.rows.reduce((largest, row) => {
+        const value = numeric(row[index])
+        return value === undefined ? largest : Math.max(largest, Math.abs(value))
+      }, 0))
+    })
     return (
       <table className="lens-print-data lens-print-data-wide">
         <thead>
           <tr>
-            {panel.columns.map((column) => (
+            {columns.map((column) => (
               <th data-align={column.align ?? 'left'} key={column.field}>{column.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {section.frame.rows.map((row, rowIndex) => (
+          {frame.rows.map((row, rowIndex) => (
             <tr key={rowIndex}>
-              {panel.columns!.map((column, columnIndex) => {
+              {columns.map((column, columnIndex) => {
                 const raw = indexes[columnIndex]! >= 0 ? row[indexes[columnIndex]!] : undefined
-                const formatted = formatFieldValue(raw, panel.format[column.field], section.document.meta.locale)
-                const exact = formatFieldValueExact(raw, panel.format[column.field], section.document.meta.locale)
+                const formatted = formatFieldValue(raw, panel.format[column.field], locale)
+                const exact = formatFieldValueExact(raw, panel.format[column.field], locale)
                 const value = numeric(raw)
+                // The producer's own row verdict — a loss ratio past 100%, say.
+                // On screen it tints the value; ink can carry the same tint.
+                const tone = text(row[indexOf(frame, column.cell.toneField)])
+                const max = maxima.get(column.field)
+                // A `delta` column carries two readings in one cell: the amount
+                // and the percentage it moved. Printing only the amount lost the
+                // half that says whether the move was large.
+                const secondaryIndex = indexOf(frame, column.cell.secondaryField)
+                const secondary = secondaryIndex >= 0 ? numeric(row[secondaryIndex]) : undefined
                 return (
                   <td
                     data-align={column.align ?? 'left'}
                     data-negative={value !== undefined && value < 0 ? '' : undefined}
+                    data-tone={tone === 'pos' || tone === 'warn' || tone === 'neg' ? tone : undefined}
                     key={column.field}
                   >
                     {formatted}
+                    {secondary !== undefined && (
+                      <em className="lens-print-cell-secondary" data-negative={secondary < 0 ? '' : undefined}>
+                        {clampedDeltaPercent(secondary) ?? `${secondary > 0 ? '+' : ''}${formatFieldValue(
+                          row[secondaryIndex],
+                          column.cell.secondaryField ? panel.format[column.cell.secondaryField] : undefined,
+                          locale,
+                        )}`}
+                      </em>
+                    )}
+                    {max !== undefined && max > 0 && value !== undefined && (
+                      <span
+                        aria-hidden="true"
+                        className="lens-print-cell-bar"
+                        data-negative={value < 0 ? '' : undefined}
+                        style={{ width: `${Math.min(100, Math.round((Math.abs(value) / max) * 100))}%` }}
+                      />
+                    )}
                     {exact && exact !== formatted && <small>{exact}</small>}
                   </td>
                 )
@@ -258,6 +311,19 @@ function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boo
   )
 }
 
+/** What a printed table stops short of: one page of a level that has more. */
+function TruncationNote({ section }: { section: PrintSection }) {
+  const translate = useTranslate()
+  if (!section.hasMore || !section.frame) return null
+  return (
+    <p className="lens-print-truncated">
+      {translate('print.truncated', 'First {rows} rows shown; the level continues in the dashboard.', {
+        rows: section.frame.rows.length,
+      })}
+    </p>
+  )
+}
+
 function FigureNote({ section }: { section: PrintSection }) {
   const translate = useTranslate()
   const panel = sectionPanel(section)
@@ -275,46 +341,144 @@ function FigureNote({ section }: { section: PrintSection }) {
   )
 }
 
-function FigureView({ figure }: { figure: PrintFigure }) {
+/** The markers a figure carries into the page's footnotes. */
+function FootnoteMarkers({ footnotes }: { footnotes?: FigureFootnotes }) {
+  if (!footnotes || footnotes.markers.length === 0) return null
+  return <sup className="lens-print-footnote-marker">{footnotes.markers.join(', ')}</sup>
+}
+
+/** The notes this figure introduced, printed with it so they share its page. */
+function FootnoteTexts({ footnotes }: { footnotes?: FigureFootnotes }) {
+  if (!footnotes || footnotes.notes.length === 0) return null
+  return (
+    <ol className="lens-print-footnotes">
+      {footnotes.notes.map((note) => (
+        <li key={note.number} value={note.number}>{note.text}</li>
+      ))}
+    </ol>
+  )
+}
+
+/**
+ * What the dashboard shows when the reading above is clicked. A one-row level
+ * is a term of the calculation and prints as one line; anything wider keeps its
+ * table. Printed here, the ratio and its parts are read together.
+ */
+function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
+  const translate = useTranslate()
+  if (sections.length === 0) return null
+  return (
+    <div className="lens-print-breakdown">
+      <p className="lens-print-breakdown-head">{translate('print.breakdown', 'How it is calculated')}</p>
+      {sections.map((section) => {
+        const panel = sectionPanel(section)
+        const frame = section.frame
+        if (formulaKinds.has(panel.kind)) {
+          return <PrintFormula key={section.id} section={section} />
+        }
+        const valueIndex = frame ? indexOf(frame, panel.encoding.value) : -1
+        if (frame && frame.rows.length === 1 && valueIndex >= 0) {
+          return (
+            <p className="lens-print-breakdown-term" key={section.id}>
+              <span>{panel.title}</span>
+              <span>{formatFieldValue(
+                frame.rows[0]?.[valueIndex],
+                panel.encoding.value ? panel.format[panel.encoding.value] : undefined,
+                section.document.meta.locale,
+              )}</span>
+            </p>
+          )
+        }
+        return (
+          <div className="lens-print-breakdown-part" key={section.id}>
+            <p className="lens-print-breakdown-title">{panel.title}</p>
+            <PrintDataTable dense section={section} />
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: FigureFootnotes }) {
   const translate = useTranslate()
   const { section } = figure
   const panel = sectionPanel(section)
-  const waterfall = isWaterfall(panel)
+  const waterfall = isWaterfall(panel, section)
+  const formula = formulaKinds.has(panel.kind)
   // A single value needs neither a chart of one point nor a table of one row.
   if (figure.metric) {
     return (
       <figure className="lens-print-figure lens-print-figure-half lens-print-figure-metric">
-        <MetricTile figure={figure} />
+        <MetricTile figure={figure} footnotes={footnotes} />
+        <BreakdownView sections={figure.breakdown} />
+        <FootnoteTexts footnotes={footnotes} />
       </figure>
     )
   }
+  const total = panel.total !== undefined && panel.encoding.value
+    ? formatFieldValue(panel.total, panel.format[panel.encoding.value], section.document.meta.locale)
+    : undefined
   return (
-    <figure className={`lens-print-figure lens-print-figure-${waterfall ? 'full' : figure.width}`}>
+    <figure className={`lens-print-figure lens-print-figure-${waterfall || formula ? 'full' : figure.width}`}>
       <figcaption className="lens-print-figure-head">
         <span className="lens-print-figure-number">
           {translate('print.figure', 'Fig. {number}', { number: figure.number })}
         </span>
-        <h3>{panel.title}</h3>
+        <h3>{panel.title}<FootnoteMarkers footnotes={footnotes} /></h3>
         {panel.status?.label && (
           <span className="lens-print-chip" data-tone={panel.status.tone ?? 'neutral'}>{panel.status.label}</span>
         )}
+        <PrintQualityChip availability={panel.availability} confidence={panel.confidence} />
         {section.perspective && (
           <span className="lens-print-chip" data-tone="neutral">
             {translate('print.view', 'View')}: {section.perspective.label}
           </span>
         )}
+        {/* The header badge the dashboard shows: the authoritative total the
+            shares below are taken against. */}
+        {total && <span className="lens-print-figure-total">{translate('print.total', 'Total')}: {total}</span>}
       </figcaption>
-      {waterfall
-        ? <PrintWaterfall section={section} />
-        : figure.chart && <PrintChart height={figure.width === 'half' ? 225 : 235} section={section} />}
+      {formula
+        ? <PrintFormula section={section} />
+        : waterfall
+          ? <PrintWaterfall section={section} />
+          : figure.chart && <PrintChart height={figure.width === 'half' ? 225 : 235} section={section} />}
       <FigureNote section={section} />
-      <PrintDataTable section={section} />
+      {!formula && <PrintDataTable section={section} />}
+      <TruncationNote section={section} />
+      <BreakdownView sections={figure.breakdown} />
+      <FootnoteTexts footnotes={footnotes} />
     </figure>
   )
 }
 
-/** One reading: its name, its number, and what qualifies it. */
-function MetricTile({ figure }: { figure: PrintFigure }) {
+/**
+ * A trend line the way the dashboard draws it beside a stat: no axis, no
+ * gridlines, just the shape of the last few periods. Eight quarters of history
+ * cost one line of ink and answer the first question a reader has of any single
+ * number — whether it is going anywhere.
+ */
+function PrintSparkline({ values }: { values: Array<number> }) {
+  const points = values.filter((value) => Number.isFinite(value))
+  if (points.length < 2) return null
+  const min = Math.min(...points)
+  const max = Math.max(...points)
+  const span = max - min || 1
+  const step = 100 / (points.length - 1)
+  const path = points
+    .map((value, index) => `${(index * step).toFixed(2)},${(24 - ((value - min) / span) * 22).toFixed(2)}`)
+    .join(' ')
+  return (
+    <svg aria-hidden="true" className="lens-print-sparkline" preserveAspectRatio="none" viewBox="0 0 100 26">
+      <polyline fill="none" points={path} strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+/** One reading: its name, its number, where it came from and where it is going. */
+function MetricTile({ figure, footnotes }: { figure: PrintFigure; footnotes?: FigureFootnotes }) {
+  const translate = useTranslate()
   const { section } = figure
   const panel = sectionPanel(section)
   const locale = section.document.meta.locale
@@ -322,14 +486,48 @@ function MetricTile({ figure }: { figure: PrintFigure }) {
   const valueIndex = frame ? indexOf(frame, panel.encoding.value) : -1
   const raw = frame && valueIndex >= 0 ? frame.rows[0]?.[valueIndex] : undefined
   const format = panel.encoding.value ? panel.format[panel.encoding.value] : undefined
+  // A stat carries its change against the previous period in the `final` slot —
+  // the same cell the dashboard prints as a delta chip beside the value.
+  const deltaIndex = frame ? indexOf(frame, panel.encoding.final) : -1
+  const deltaRaw = frame && deltaIndex >= 0 ? frame.rows[0]?.[deltaIndex] : undefined
+  const delta = numeric(deltaRaw)
+  const deltaFormat = panel.encoding.final ? panel.format[panel.encoding.final] : format
+  const target = panel.target
   return (
     <div className="lens-print-kpi">
-      <p className="lens-print-kpi-label">{panel.title}</p>
-      <p className="lens-print-kpi-value">{formatFieldValue(raw, format, locale)}</p>
-      {panel.caption && <p className="lens-print-kpi-caption">{panel.caption}</p>}
-      {panel.status?.label && (
-        <span className="lens-print-chip" data-tone={panel.status.tone ?? 'neutral'}>{panel.status.label}</span>
+      <p className="lens-print-kpi-label">
+        {panel.title}
+        <FootnoteMarkers footnotes={footnotes} />
+      </p>
+      <p className="lens-print-kpi-value">
+        {formatFieldValue(raw, format, locale)}
+        {delta !== undefined && (
+          <span className="lens-print-kpi-delta" data-negative={delta < 0 ? '' : undefined}>
+            {delta > 0 ? '+' : ''}{formatFieldValue(deltaRaw, deltaFormat, locale)}
+          </span>
+        )}
+      </p>
+      {panel.sparkline && <PrintSparkline values={panel.sparkline.values} />}
+      {panel.trend && (
+        <p className="lens-print-kpi-trend" data-negative={panel.trend.percent < 0 ? '' : undefined}>
+          {panel.trend.percent > 0 ? '+' : ''}{clampedDeltaPercent(panel.trend.percent)
+            ?? `${new Intl.NumberFormat(locale, { maximumFractionDigits: 1 }).format(panel.trend.percent)}%`}
+          {panel.trend.label ? ` ${panel.trend.label}` : ''}
+        </p>
       )}
+      {target && (
+        <p className="lens-print-kpi-target">
+          {translate('print.target', 'Target')}: {formatFieldValue(target.value, format, locale)}
+          {target.label ? ` · ${target.label}` : ''}
+        </p>
+      )}
+      {panel.caption && <p className="lens-print-kpi-caption">{panel.caption}</p>}
+      <p className="lens-print-kpi-chips">
+        {panel.status?.label && (
+          <span className="lens-print-chip" data-tone={panel.status.tone ?? 'neutral'}>{panel.status.label}</span>
+        )}
+        <PrintQualityChip availability={panel.availability} confidence={panel.confidence} />
+      </p>
     </div>
   )
 }
@@ -385,6 +583,15 @@ function Cover({
           <dt>{translate('print.sections', 'Detailed views')}</dt>
           <dd>{outline.figureCount + outline.detailCount}</dd>
         </div>
+        {(outline.estimated > 0 || outline.missing.length > 0) && (
+          <div>
+            <dt>{translate('print.quality', 'Data quality')}</dt>
+            <dd>{translate('print.qualityCount', '{estimated} estimated · {missing} not calculated', {
+              estimated: outline.estimated,
+              missing: outline.missing.length,
+            })}</dd>
+          </div>
+        )}
       </dl>
       {kpis.length > 0 && (
         <div className="lens-print-kpis">
@@ -438,6 +645,10 @@ function Contents({ outline }: { outline: PrintOutline }) {
 }
 
 function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string }) {
+  const translate = useTranslate()
+  // Footnotes are numbered per chapter and printed where they first apply, so a
+  // reader never has to hold a number across a page break.
+  const footnotes = buildChapterFootnotes(chapter.figures, translate)
   // A chapter can hold more than one authored strip of metrics — two bases for
   // the same ratios, say. Each strip announces itself where it begins, so two
   // readings called the same thing are never left to be told apart by order.
@@ -451,15 +662,18 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
   // halves inherits the gutter of the pair it broke away from and walks down
   // the page in a staircase.
   let pending: PrintFigure | undefined
+  const render = (figure: PrintFigure) => (
+    <FigureView figure={figure} footnotes={footnotes.get(figure.section.id)} key={figure.section.id} />
+  )
   const flush = () => {
     if (!pending) return
-    body.push(<FigureView figure={pending} key={pending.section.id} />)
+    body.push(render(pending))
     pending = undefined
   }
   const place = (figure: PrintFigure) => {
     if (figure.width !== 'half') {
       flush()
-      body.push(<FigureView figure={figure} key={figure.section.id} />)
+      body.push(render(figure))
       return
     }
     if (!pending) {
@@ -470,8 +684,8 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
     pending = undefined
     body.push(
       <div className="lens-print-pair" key={`pair-${left.section.id}`}>
-        <FigureView figure={left} />
-        <FigureView figure={figure} />
+        {render(left)}
+        {render(figure)}
       </div>,
     )
   }
@@ -505,8 +719,25 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
   )
 }
 
+/** Beyond this many points a printed series is a shape, not a list. */
+const seriesTableLimit = 12
+/** How many periods stay in the table when the shape carries the rest. */
+const seriesTableTail = 8
+
 function DetailView({ detail }: { detail: PrintDetail }) {
+  const translate = useTranslate()
   const panel = sectionPanel(detail.section)
+  const rows = detail.section.frame?.rows.length ?? 0
+  // A quarterly series back to 2011 is sixty rows of numbers nobody reads and a
+  // trend nobody can see. The whole run prints as a line; the table keeps the
+  // recent periods, and says so.
+  const compact = panel.semantics === 'series' && rows > seriesTableLimit
+  const section = compact && detail.section.frame
+    ? {
+        ...detail.section,
+        frame: { ...detail.section.frame, rows: detail.section.frame.rows.slice(-seriesTableTail) },
+      }
+    : detail.section
   return (
     <article className="lens-print-detail">
       <header>
@@ -514,7 +745,17 @@ function DetailView({ detail }: { detail: PrintDetail }) {
         <h4>{panel.title}</h4>
         <p className="lens-print-detail-trail">{detail.trail}</p>
       </header>
-      <PrintDataTable dense section={detail.section} />
+      {compact && <PrintChart height={110} section={detail.section} />}
+      <PrintDataTable dense section={section} />
+      <TruncationNote section={detail.section} />
+      {compact && (
+        <p className="lens-print-detail-note">
+          {translate('print.seriesTail', 'The chart carries all {rows} periods; the table keeps the most recent {kept}.', {
+            rows,
+            kept: seriesTableTail,
+          })}
+        </p>
+      )}
     </article>
   )
 }

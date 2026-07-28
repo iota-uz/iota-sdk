@@ -58,6 +58,52 @@ const heroReserve: Panel = {
   actions: [],
   status: { label: 'Proxy', tone: 'warning' },
   caption: 'Management estimate pending the actuarial run',
+  // Only reachable by hovering on screen: quality, the ⓘ explanation, and the
+  // trend line beside the value.
+  confidence: 'proxy',
+  info: 'Chain-ladder over paid claims; the quarter shown may differ from the reporting date.',
+  sparkline: { values: [2.1, 2.4, 2.9, 3.2, 3.4, 3.6, 3.9, 4.1] },
+}
+
+const backlogFlow: Panel = {
+  id: 'claims-backlog',
+  kind: 'metric_flow',
+  title: 'Claims handling',
+  semantics: 'reconciliation',
+  frame: 'claims-backlog:root',
+  encoding: { id: 'key', value: 'value' },
+  format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
+  actions: [],
+  metricFlow: {
+    stages: [
+      { key: 'opening', label: 'Opening backlog', role: 'input', confidence: 'proxy', caption: 'Reconstructed from decision dates' },
+      { key: 'incoming', label: 'Claims reported', role: 'add', confidence: 'verified' },
+      { key: 'closed', label: 'Claims decided', role: 'subtract', confidence: 'verified' },
+      { key: 'closing', label: 'Closing backlog', role: 'result', confidence: 'proxy' },
+    ],
+    reconcile: { tolerance: 0 },
+  },
+}
+
+const reserveHierarchy: Panel = {
+  id: 'reserve-composition',
+  kind: 'metric_hierarchy',
+  title: 'Technical reserves',
+  semantics: 'partition',
+  frame: 'reserve-composition:root',
+  encoding: { id: 'key', value: 'value', share: 'share' },
+  format: { value: money, share: percent },
+  actions: [],
+  metricHierarchy: {
+    rows: [
+      { key: 'total', label: 'Technical reserves', confidence: 'requires_reconciliation' },
+      { key: 'upr', label: 'Unearned premium', parent: 'total' },
+      { key: 'rbns', label: 'Reported but not settled', parent: 'total' },
+      { key: 'ibnr', label: 'Incurred but not reported', parent: 'total', availability: 'config_required' },
+      { key: 'rest', label: 'Unallocated', parent: 'total', unallocated: true },
+    ],
+    reconcile: { tolerance: 0 },
+  },
 }
 
 const premiumPanel: Panel = {
@@ -98,13 +144,19 @@ const productsPanel: Panel = {
   semantics: 'evidence',
   frame: 'product-margin:root',
   encoding: { label: 'product', value: 'result' },
-  format: { start: money, claims: money, result: money, ratio: percent },
+  format: { start: money, claims: money, result: money, ratio: percent, delta: money, delta_pct: percent },
   columns: [
-    { field: 'product', label: 'Product', cell: { kind: 'plain' } },
+    { field: 'product', label: 'Product', cell: { kind: 'plain' }, badgeField: 'hint' },
     { field: 'start', label: 'Earned premium, UZS', align: 'right', cell: { kind: 'plain' } },
     { field: 'claims', label: 'Claims paid, UZS', align: 'right', cell: { kind: 'plain' } },
     { field: 'ratio', label: 'Loss ratio', align: 'right', cell: { kind: 'plain' } },
     { field: 'result', label: 'Result, UZS', align: 'right', cell: { kind: 'bar' } },
+    {
+      field: 'delta',
+      label: 'vs previous, UZS',
+      align: 'right',
+      cell: { kind: 'delta', secondaryField: 'delta_pct', layout: 'stacked' },
+    },
   ],
   actions: [],
 }
@@ -148,10 +200,20 @@ const dashboard: DashboardDocument = {
         }],
       },
       { heading: 'Result formation', panels: [{ panelId: 'result-bridge', span: 12 }, { panelId: 'product-margin', span: 12 }] },
-      { heading: 'Claims and reserves', panels: [{ panelId: 'claims-years', span: 12 }] },
+      {
+        heading: 'Claims and reserves',
+        panels: [
+          { panelId: 'claims-years', span: 12 },
+          { panelId: 'claims-backlog', span: 6 },
+          { panelId: 'reserve-composition', span: 6 },
+        ],
+      },
     ],
   },
-  panels: [heroPanel, heroRatio, heroReserve, premiumPanel, bridgePanel, productsPanel, claimsPanel],
+  panels: [
+    heroPanel, heroRatio, heroReserve, premiumPanel, bridgePanel, productsPanel, claimsPanel,
+    backlogFlow, reserveHierarchy,
+  ],
   frames: {},
   drill: { inlineDepth: 0, edges: {} },
   perspectives: [],
@@ -241,13 +303,39 @@ const report: PrintReport = {
         { name: 'claims', type: 'number' },
         { name: 'ratio', type: 'number' },
         { name: 'result', type: 'number' },
+        { name: 'delta', type: 'number' },
+        { name: 'delta_pct', type: 'number' },
+        { name: 'hint', type: 'string' },
       ],
       rows: [
-        ['Motor third party', 96_100_000_000, 21_400_000_000, 22.3, 74_700_000_000],
-        ['Property', 42_300_000_000, 6_120_000_000, 14.5, 36_180_000_000],
-        ['Cargo', 24_800_000_000, 2_940_000_000, 11.9, 21_860_000_000],
-        ['Travel', 9_600_000_000, 890_000_000, 9.3, 8_710_000_000],
-        ['Accident', 6_080_000_000, 7_320_000_000, 120.4, -1_240_000_000],
+        ['Motor third party', 96_100_000_000, 21_400_000_000, 22.3, 74_700_000_000, 6_200_000_000, 9.1, ''],
+        ['Property', 42_300_000_000, 6_120_000_000, 14.5, 36_180_000_000, -1_450_000_000, -3.9, ''],
+        ['Cargo', 24_800_000_000, 2_940_000_000, 11.9, 21_860_000_000, 940_000_000, 4.5, ''],
+        ['Travel', 9_600_000_000, 890_000_000, 9.3, 8_710_000_000, -220_000_000, -2.5, 'Discontinued product'],
+        ['Accident', 6_080_000_000, 7_320_000_000, 120.4, -1_240_000_000, -3_100_000_000, -142.0, 'Loss ratio above 100%'],
+      ],
+    }),
+    section(backlogFlow, {
+      columns: [{ name: 'key', type: 'string' }, { name: 'value', type: 'number' }],
+      rows: [
+        ['opening', 1_240],
+        ['incoming', 3_180],
+        ['closed', 2_910],
+        ['closing', 1_510],
+      ],
+    }),
+    section(reserveHierarchy, {
+      columns: [
+        { name: 'key', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'share', type: 'number' },
+      ],
+      rows: [
+        ['total', 96_240_000_000, 100],
+        ['upr', 55_410_000_000, 57.6],
+        ['rbns', 24_700_000_000, 25.7],
+        ['ibnr', 0, 0],
+        ['rest', 16_130_000_000, 16.7],
       ],
     }),
     section(claimsPanel, frame(['label', 'value'], [

@@ -316,6 +316,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   accent: z.string().optional(),
   status: z.lazy(() => PanelStatusSchema).optional(),
   caption: z.string().optional(),
+  info: z.string().optional(),
   headline: z.number().optional(),
   trend: z.lazy(() => PanelTrendSchema).optional(),
   sparkline: z.lazy(() => SparklineSchema).optional(),

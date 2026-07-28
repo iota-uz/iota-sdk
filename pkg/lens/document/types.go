@@ -478,6 +478,11 @@ type Panel struct {
 	// Caption is already-localized supporting text rendered below panel chrome.
 	// Newlines are preserved so callers can carry multiple notes or caveats.
 	Caption string `json:"caption,omitempty"`
+	// Info is the already-localized long-form explanation a dashboard keeps
+	// behind an ⓘ affordance — how a figure is obtained, what it excludes. On
+	// screen it costs nothing until asked for; on paper there is nothing to ask,
+	// so a printed report carries it as the figure's footnote.
+	Info string `json:"info,omitempty"`
 	// Headline overrides a coverage panel's computed headline value.
 	Headline *float64 `json:"headline,omitempty"`
 	// Trend is a signed change chip rendered in the panel footer, e.g.

@@ -34,6 +34,18 @@ export interface PrintSection {
   perspective?: Perspective
   depth: number
   root: boolean
+  /**
+   * The panel whose drawer this section was reached through. A breakdown a
+   * reader opens by clicking a KPI belongs to that KPI, not to a loose "other
+   * readings" pile at the end of the report.
+   */
+  owner?: string
+  /**
+   * The level answered with a first page and declared more behind it. Printing
+   * asks for one page per level, so a long table would otherwise end on paper
+   * exactly where the page ended — looking complete. The report says so.
+   */
+  hasMore?: boolean
 }
 
 export interface PrintReport {
@@ -135,6 +147,7 @@ export async function buildPrintReport(
   let truncated = false
   const visited = new Set<string>()
   const visitedDocuments = new Set<string>()
+  const pagedFrames = new Set<string>()
   const visitedDocumentIdentities = new Set<string>()
   const queriedFrames = new Map<string, Promise<Frame | undefined>>()
   const pendingDocuments: Array<{
@@ -142,6 +155,8 @@ export async function buildPrintReport(
     candidate: ActionCandidate
     breadcrumb: Array<string>
     depth: number
+    /** The panel whose drawer this document hangs off. */
+    owner: string
   }> = []
 
   const documentIdentity = (document: DashboardDocument) => JSON.stringify([
@@ -171,7 +186,12 @@ export async function buildPrintReport(
       snapshotId: document.snapshotId,
       path: queryPathForNavigation(document, path),
       ...(perspective ? { perspective: perspective.id } : {}),
-    }, document).then(frameFromResponse).catch((cause: unknown) => {
+    }, document).then((response) => {
+      // One page per level is the print budget; a level that has more to give
+      // is recorded so the printed table can admit where it stops.
+      if (response.page?.hasNext) pagedFrames.add(key)
+      return frameFromResponse(response)
+    }).catch((cause: unknown) => {
       const detail = cause instanceof Error ? cause.message : 'query request failed'
       warnings.push(`${document.meta.title} › ${level.label}: ${detail}`)
       return undefined
@@ -184,6 +204,7 @@ export async function buildPrintReport(
     input: DashboardDocument,
     prefix: Array<string>,
     documentDepth: number,
+    owner?: string,
   ): Promise<void> => {
     if (shouldStop()) return
     if (documentDepth > 12) {
@@ -209,7 +230,7 @@ export async function buildPrintReport(
         })
         if (!href || visitedDocuments.has(href)) continue
         visitedDocuments.add(href)
-        pendingDocuments.push({ href, candidate, breadcrumb, depth })
+        pendingDocuments.push({ href, candidate, breadcrumb, depth, owner: owner ?? panel.id })
       }
     }
 
@@ -267,6 +288,10 @@ export async function buildPrintReport(
         perspective,
         depth: documentDepth + depth,
         root: root && documentDepth === 0,
+        ...(owner ? { owner } : {}),
+        ...(pagedFrames.has(JSON.stringify([document.snapshotId, path, perspective?.id ?? '']))
+          ? { hasMore: true }
+          : {}),
       })
       collectActions(
         panel,
@@ -315,6 +340,7 @@ export async function buildPrintReport(
           breadcrumb,
           depth: documentDepth,
           root: documentDepth === 0,
+          ...(owner ? { owner } : {}),
         })
         collectActions(panel, level, frame, breadcrumb, documentDepth + 1)
         continue
@@ -351,6 +377,7 @@ export async function buildPrintReport(
           ? [...actionTrail, nestedTitle]
           : actionTrail,
         entry.depth,
+        entry.owner,
       )
     }
   }
