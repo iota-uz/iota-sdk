@@ -516,10 +516,14 @@ function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
         // A level whose first column is already named after it — «Общий резерв
         // по группам риска» over a column of the same name — needs the heading
         // said once.
-        const named = panel.columns?.[0]?.label?.trim().toLowerCase() === panel.title.trim().toLowerCase()
+        // Two cuts of one number — by product and by claim size — carry the
+        // panel's name twice and their own name nowhere. The cut is what tells
+        // the two tables apart, so it is what the part is called.
+        const title = section.perspective?.label.trim() || panel.title
+        const named = panel.columns?.[0]?.label?.trim().toLowerCase() === title.trim().toLowerCase()
         return (
           <div className="lens-print-breakdown-part" key={section.id}>
-            {!named && <p className="lens-print-breakdown-title">{panel.title}</p>}
+            {!named && <p className="lens-print-breakdown-title">{title}</p>}
             <PrintDataTable dense section={shown} />
             {capped && frame && (
               // Here the whole term is in hand, so the reader is told what
