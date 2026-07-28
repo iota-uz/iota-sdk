@@ -200,6 +200,12 @@ export function narrativeFact(panel: Panel, frame: Frame | undefined, locale: st
   if (panel.radial?.mode === 'progress') return progressFact(panel, frame, locale)
   if (panel.semantics === 'partition') return partitionFact(panel, frame, locale)
   if (panel.semantics === 'reconciliation') return bridgeFact(panel, frame, locale)
-  if (panel.semantics === 'series') return seriesFact(panel, frame, locale)
+  // "From the first point to the last" is a statement about a progression. A
+  // bar chart of products ordered by size is not one: its first and last
+  // columns are its largest and smallest, and reading them as a change would
+  // invent a trend the chart never claimed.
+  if (panel.semantics === 'series' && (panel.kind === 'line' || panel.kind === 'area')) {
+    return seriesFact(panel, frame, locale)
+  }
   return tableFact(panel, frame, locale)
 }

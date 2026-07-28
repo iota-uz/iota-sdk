@@ -96,6 +96,16 @@ describe('narrativeFact', () => {
     })
   })
 
+  it('does not read a ranked bar chart as a progression', () => {
+    const fact = narrativeFact(
+      panelWith({ kind: 'bar', semantics: 'series' }),
+      frameWith([['Motor', 180], ['Property', 90], ['Cargo', 20]]),
+      'en',
+    )
+
+    expect(fact).toMatchObject({ labelKey: 'print.factTable', vars: { rows: 3, label: 'Motor' } })
+  })
+
   it('counts table rows and names the largest', () => {
     const fact = narrativeFact(
       panelWith({ kind: 'table', semantics: 'evidence' }),
