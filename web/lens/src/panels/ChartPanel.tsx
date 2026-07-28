@@ -84,6 +84,18 @@ export function rowIndexForKey(frame: Frame, panel: Panel, key: string): number 
   return labelIndex >= 0 ? frame.rows.findIndex((row) => String(row[labelIndex]) === key) : -1
 }
 
+function legendSeriesIndex(frame: Frame, panel: Panel): number {
+  if (panel.semantics !== 'series' || !panel.encoding.series) return -1
+  return frame.columns.findIndex((column) => column.name === panel.encoding.series)
+}
+
+function legendEntryKey(frame: Frame, panel: Panel, index: number): string {
+  const seriesIndex = legendSeriesIndex(frame, panel)
+  if (seriesIndex < 0) return legendKey(frame, panel, index)
+  const raw = frame.rows[index]?.[seriesIndex]
+  return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
+}
+
 function numericCell(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() !== '') {
@@ -140,7 +152,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // rewrites the numbers on every slice that stayed.
   const visibleFrame = useMemo(() => {
     if (!frame.data || hidden.size === 0) return frame.data
-    const keep = frame.data.rows.map((_, index) => !hidden.has(legendKey(frame.data!, panel, index)))
+    const keep = frame.data.rows.map((_, index) => !hidden.has(legendEntryKey(frame.data!, panel, index)))
     const rows = frame.data.rows.filter((_, index) => keep[index])
     // `colors` is positional: entry i pins row i. Dropping rows without
     // dropping their pins slides every colour onto its neighbour's slice.
@@ -309,7 +321,8 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
 }) {
   const { document, navigation } = useDashboard()
   const translate = useTranslate()
-  const labelField = panel.encoding.label ?? panel.encoding.category
+  const seriesLegendIndex = legendSeriesIndex(frame, panel)
+  const labelField = seriesLegendIndex >= 0 ? panel.encoding.series : (panel.encoding.label ?? panel.encoding.category)
   const valueField = panel.encoding.value
   const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
@@ -320,14 +333,14 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
   // positional color pins no longer describe them.
   const atLevel = navigation.panelId === panel.id && navigation.path.length > 0
   const color = seriesColorResolver(document.theme, panel, { positional: !atLevel })
-  const visibleCount = frame.rows.filter((_, index) => !hidden.has(legendKey(frame, panel, index))).length
-  // A category repeated across rings is one legend entry, not one per ring.
-  const entries = panel.radial?.mode === 'partition'
+  // A time series repeats its series name for every period, while a partition
+  // radial repeats a category across rings. Both need one legend entry per key.
+  const entries = seriesLegendIndex >= 0 || panel.radial?.mode === 'partition'
     ? (() => {
         const seen = new Set<string>()
         const indices: number[] = []
         frame.rows.forEach((_, index) => {
-          const key = legendKey(frame, panel, index)
+          const key = legendEntryKey(frame, panel, index)
           if (seen.has(key)) return
           seen.add(key)
           indices.push(index)
@@ -335,7 +348,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
         return indices
       })()
     : frame.rows.map((_, index) => index)
-  const visibleEntryCount = entries.filter((index) => !hidden.has(legendKey(frame, panel, index))).length
+  const visibleEntryCount = entries.filter((index) => !hidden.has(legendEntryKey(frame, panel, index))).length
 
   // A partition ring reconciles against its own declared total, so a share is
   // only meaningful within a ring. Rows are grouped by their denominator and
@@ -387,6 +400,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
     }
   }
   const suffixFor = (index: number): 'percent' | 'value' | 'none' => {
+    if (seriesLegendIndex >= 0) return 'none'
     if (showsPercent) return 'percent'
     if (!partition) return 'value'
     return rowsPerKey.get(legendKey(frame, panel, index)) === 1 ? 'percent' : 'none'
@@ -394,15 +408,15 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
 
   return (
     <ul className="lens-chart-legend">
-      {entries.map((index) => {
+      {entries.map((index, entryIndex) => {
         const row = frame.rows[index]!
         const raw = row[labelIndex]
         const label = typeof raw === 'string' ? raw : raw === null || raw === undefined ? '' : JSON.stringify(raw)
-        const key = legendKey(frame, panel, index)
+        const key = legendEntryKey(frame, panel, index)
         const isHidden = hidden.has(key)
         // Hiding the last visible series would leave an empty plot with no way
         // back except guessing, so the final entry stays locked on.
-        const locked = !isHidden && (panel.radial?.mode === 'partition' ? visibleEntryCount : visibleCount) <= 1
+        const locked = !isHidden && visibleEntryCount <= 1
         return (
           <li className="lens-chart-legend-item" key={`${key}-${index}`}>
             <button
@@ -418,7 +432,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
               <span
                 aria-hidden="true"
                 className="lens-chart-legend-mark"
-                style={{ background: isHidden ? undefined : color(label, index) }}
+                style={{ background: isHidden ? undefined : color(label, entryIndex) }}
               />
               <span className="lens-chart-legend-label">{label}</span>
               {suffixFor(index) !== 'none' && (

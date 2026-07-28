@@ -257,6 +257,38 @@ export const PieWithLegendBelowDark: Story = () => {
 }
 PieWithLegendBelowDark.storyName = 'Pie with legend right - dark'
 
+const trendPanel: Panel = {
+  id: 'trend', kind: 'line', title: 'Премия и поступления', semantics: 'series', frame: 'trend:frame',
+  encoding: { category: 'period', series: 'metric', value: 'amount' },
+  format: { amount: money },
+  presentation: { legend: 'below' },
+  actions: [],
+}
+
+const trendFrame: Frame = {
+  columns: [
+    { name: 'period', type: 'string' },
+    { name: 'metric', type: 'string' },
+    { name: 'amount', type: 'number' },
+  ],
+  rows: [
+    ['2024', 'Подписанная премия', 72_000_000_000],
+    ['2024', 'Заработанная премия', 64_000_000_000],
+    ['2025', 'Подписанная премия', 260_000_000_000],
+    ['2025', 'Заработанная премия', 218_000_000_000],
+    ['2026', 'Подписанная премия', 94_000_000_000],
+    ['2026', 'Заработанная премия', 91_000_000_000],
+  ],
+}
+
+export const LineWithSeriesLegend: Story = () => {
+  const doc = storyDocument([trendPanel], { 'trend:frame': trendFrame }, {
+    rows: [{ heading: 'ТЕНДЕНЦИИ', panels: [{ panelId: 'trend', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+LineWithSeriesLegend.storyName = 'Line with series legend'
+
 const skeletonRows = [
   { items: [{ span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }] },
   { heading: true, items: [{ span: 6, kind: 'pie' as const }, { span: 6, kind: 'coverage' as const }] },
