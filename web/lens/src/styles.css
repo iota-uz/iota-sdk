@@ -4353,6 +4353,13 @@
   max-width: calc(50% - 10px);
 }
 
+/* Two half-width readings that share a row. On screen the flex grid already
+   places them; the wrapper only matters on paper, where the figures flow as
+   blocks and a row has to be stated rather than left to wrap. */
+.lens-print-pair {
+  display: contents;
+}
+
 .lens-print-figure-full {
   flex: 1 1 100%;
   max-width: 100%;
@@ -4829,8 +4836,13 @@
     max-width: 48.5%;
   }
 
-  .lens-print-figure-half + .lens-print-figure-half {
-    margin-left: 2.4%;
+  .lens-print-pair {
+    display: block;
+    break-inside: avoid;
+  }
+
+  .lens-print-pair > .lens-print-figure-half + .lens-print-figure-half {
+    margin-left: 3%;
   }
 
   .lens-print-strip {

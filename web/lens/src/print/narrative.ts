@@ -20,6 +20,8 @@ export interface NarrativeFact {
 interface Reading {
   /** Position in the frame, so a fact can align a reading with other columns. */
   row: number
+  /** The series this reading belongs to, when the frame carries more than one. */
+  group: string
   label: string
   value: number
   formatted: string
@@ -28,6 +30,7 @@ interface Reading {
 function readings(panel: Panel, frame: Frame, locale: string): Array<Reading> {
   const labelIndex = indexOf(frame, panel.encoding.label ?? panel.encoding.category ?? panel.encoding.id)
   const valueIndex = indexOf(frame, panel.encoding.value)
+  const seriesIndex = indexOf(frame, panel.encoding.series)
   if (valueIndex < 0) return []
   const format = panel.encoding.value ? panel.format[panel.encoding.value] : undefined
   const result: Array<Reading> = []
@@ -36,6 +39,7 @@ function readings(panel: Panel, frame: Frame, locale: string): Array<Reading> {
     if (value === undefined) return
     result.push({
       row: index,
+      group: seriesIndex >= 0 ? text(row[seriesIndex]) : '',
       label: labelIndex >= 0 ? text(row[labelIndex]) : text(row[valueIndex]),
       value,
       formatted: formatFieldValue(row[valueIndex], format, locale),
@@ -53,20 +57,29 @@ function percent(locale: string, ratio: number): string {
 }
 
 function partitionFact(panel: Panel, frame: Frame, locale: string): NarrativeFact | undefined {
-  const positive = readings(panel, frame, locale).filter(({ value }) => value > 0)
+  const all = readings(panel, frame, locale).filter(({ value }) => value > 0)
+  if (all.length < 2) return undefined
+  // A frame can hold more than one partition — the two rings of a donut, say.
+  // A share only means anything inside one of them, so the sentence speaks
+  // about the partition holding the largest reading and names which one it is.
+  const groups = new Set(all.map(({ group }) => group))
+  const biggest = [...all].sort((left, right) => right.value - left.value)[0]!
+  const positive = all.filter(({ group }) => group === biggest.group)
   if (positive.length < 2) return undefined
   const total = positive.reduce((sum, { value }) => sum + value, 0)
   if (total <= 0) return undefined
   const ranked = [...positive].sort((left, right) => right.value - left.value)
   const leader = ranked[0]!
+  const name = (reading: Reading) =>
+    (groups.size > 1 && reading.group ? `${reading.group} · ${reading.label}` : reading.label)
   if (ranked.length === 2) {
     return {
       labelKey: 'print.factPair',
       fallback: '{label} carries {share} of the total; the remainder is {rest}.',
       vars: {
-        label: leader.label,
+        label: name(leader),
         share: percent(locale, leader.value / total),
-        rest: ranked[1]!.label,
+        rest: name(ranked[1]!),
       },
     }
   }
@@ -75,7 +88,7 @@ function partitionFact(panel: Panel, frame: Frame, locale: string): NarrativeFac
     labelKey: 'print.factPartition',
     fallback: '{label} is the largest share at {share}; the three largest together make {top}, ahead of {rest} smaller categories.',
     vars: {
-      label: leader.label,
+      label: name(leader),
       share: percent(locale, leader.value / total),
       top: percent(locale, topThree / total),
       rest: ranked.length - 3,

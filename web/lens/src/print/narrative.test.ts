@@ -47,6 +47,34 @@ describe('narrativeFact', () => {
     expect(fact).toMatchObject({ labelKey: 'print.factPair', vars: { label: 'Earned', share: '75%', rest: 'Unearned' } })
   })
 
+  it('weighs a share inside its own ring when a frame holds two partitions', () => {
+    // Two rings of one donut: recognition splits the premium, payment splits
+    // the same total again. Summing across them would weigh each reading
+    // against twice its own whole.
+    const fact = narrativeFact(
+      panelWith({ encoding: { label: 'label', value: 'value', series: 'ring' } }),
+      {
+        columns: [
+          { name: 'label', type: 'string' },
+          { name: 'value', type: 'number' },
+          { name: 'ring', type: 'string' },
+        ],
+        rows: [
+          ['Earned', 78, 'recognition'],
+          ['Unearned', 22, 'recognition'],
+          ['Collected', 99, 'payment'],
+          ['Receivable', 1, 'payment'],
+        ],
+      },
+      'en',
+    )
+
+    expect(fact).toMatchObject({
+      labelKey: 'print.factPair',
+      vars: { label: 'payment · Collected', share: '99%', rest: 'payment · Receivable' },
+    })
+  })
+
   it('reads a progress ring against its own maximum', () => {
     const fact = narrativeFact(
       panelWith({ kind: 'radial', radial: { mode: 'progress', max: 200 } }),

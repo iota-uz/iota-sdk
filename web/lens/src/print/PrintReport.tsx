@@ -48,9 +48,23 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): Array<A
     if (value !== undefined && value >= 0) groups.set(group, (groups.get(group) ?? 0) + value)
   })
 
+  // A bridge frame carries the running total in its value column and the step
+  // in `cut`. The chart above the table draws the steps, so a table of running
+  // totals would contradict it row for row — an outward cession of 14.68 bn
+  // printed as 185.21 bn. The stages are what the bridge is about; the opening
+  // and closing rows keep their totals.
+  const cutIndex = panel.semantics === 'reconciliation' ? indexOf(frame, panel.encoding.cut) : -1
+  const finalIndex = indexOf(frame, panel.encoding.final)
+  const stepValue = (row: Array<unknown>, rowIndex: number): unknown => {
+    if (cutIndex < 0 || rowIndex === 0) return valueIndex >= 0 ? row[valueIndex] : undefined
+    if (finalIndex >= 0 && row[finalIndex] === true) return valueIndex >= 0 ? row[valueIndex] : undefined
+    const cut = numeric(row[cutIndex])
+    return cut === undefined || cut === 0 ? (valueIndex >= 0 ? row[valueIndex] : undefined) : row[cutIndex]
+  }
+
   const resolveColor = seriesColorResolver(theme, panel, { positional: section.root })
   return frame.rows.map((row, rowIndex) => {
-    const rawValue = valueIndex >= 0 ? row[valueIndex] : undefined
+    const rawValue = stepValue(row, rowIndex)
     const number = values[rowIndex]
     const group = seriesIndex >= 0 ? text(row[seriesIndex]) : ''
     const denominator = panel.radial?.mode === 'progress' ? panel.radial.max : groups.get(group)
@@ -428,11 +442,43 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
   if (chapter.figures.length === 0) return null
   const printed = new Set<string>([chapter.caption ?? ''])
   const body: Array<JSX.Element> = []
+  // Half-width readings are paired explicitly rather than left to wrap. In a
+  // printed chapter the figures flow as blocks — a wrapping run of inline
+  // halves inherits the gutter of the pair it broke away from and walks down
+  // the page in a staircase.
+  let pending: PrintFigure | undefined
+  const flush = () => {
+    if (!pending) return
+    body.push(<FigureView figure={pending} key={pending.section.id} />)
+    pending = undefined
+  }
+  const place = (figure: PrintFigure) => {
+    if (figure.width !== 'half') {
+      flush()
+      body.push(<FigureView figure={figure} key={figure.section.id} />)
+      return
+    }
+    if (!pending) {
+      pending = figure
+      return
+    }
+    const left = pending
+    pending = undefined
+    body.push(
+      <div className="lens-print-pair" key={`pair-${left.section.id}`}>
+        <FigureView figure={left} />
+        <FigureView figure={figure} />
+      </div>,
+    )
+  }
   for (const figure of chapter.figures) {
     const group = figure.group
     const key = `${group?.label ?? ''}::${group?.caption ?? ''}`
     if (group && !printed.has(key)) {
       printed.add(key)
+      // A strip starts its own run of readings; it never shares a row with the
+      // pair that preceded it.
+      flush()
       body.push(
         <div className="lens-print-strip" key={`strip-${figure.section.id}`}>
           {group.label && <h3>{group.label}</h3>}
@@ -440,8 +486,9 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
         </div>,
       )
     }
-    body.push(<FigureView figure={figure} key={figure.section.id} />)
+    place(figure)
   }
+  flush()
   return (
     <section className="lens-print-chapter">
       <header className="lens-print-chapter-head">
