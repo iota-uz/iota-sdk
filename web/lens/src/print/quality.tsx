@@ -51,6 +51,75 @@ export function qualityFootnote(input: QualityInput, translate: Translate): stri
   return undefined
 }
 
+/**
+ * What each word of the quality vocabulary means, for the closing appendix. The
+ * chip beside a number tells a reader which case applies; only this list tells
+ * them what the case is. Unlike the per-page footnote, the ordinary qualities
+ * are defined too — a report that says «Проверено» owes the reader the
+ * definition it is holding itself to.
+ */
+const DEFINITIONS: Record<string, { labelKey: string; fallback: string }> = {
+  verified: {
+    labelKey: 'print.defVerified',
+    fallback: 'Verified — the figure is taken from the accounting system as recorded, without derivation.',
+  },
+  calculated: {
+    labelKey: 'print.defCalculated',
+    fallback: 'Calculated — derived from recorded data by a stated rule; the rule, not the figure, is what to check.',
+  },
+  proxy: {
+    labelKey: 'print.defProxy',
+    fallback: 'Proxy — a management estimate from adjacent data, used where the direct source does not exist.',
+  },
+  requires_reconciliation: {
+    labelKey: 'print.defReconciliation',
+    fallback: 'Requires reconciliation — a known difference against the accounting system is still open.',
+  },
+  config_required: {
+    labelKey: 'print.defConfigRequired',
+    fallback: 'Configuration required — the calculation exists but its parameters have not been set for this period.',
+  },
+  empty_source: {
+    labelKey: 'print.defEmptySource',
+    fallback: 'No source data — the source holds no rows for this period, which is not the same as a zero.',
+  },
+  unavailable: {
+    labelKey: 'print.defUnavailable',
+    fallback: 'Unavailable — the figure could not be produced, and is shown as a dash rather than as a zero.',
+  },
+}
+
+const AVAILABILITY_VALUES = new Set(['config_required', 'empty_source', 'unavailable'])
+
+export interface QualityDefinition {
+  value: string
+  label: string
+  definition: string
+}
+
+/** The quality vocabulary this document actually used, in a fixed reading order. */
+export function qualityDefinitions(inputs: Array<QualityInput>, translate: Translate): Array<QualityDefinition> {
+  const seen = new Set<string>()
+  const order = Object.keys(DEFINITIONS)
+  for (const input of inputs) {
+    const resolved = resolveQuality(input)
+    if (resolved) seen.add(resolved.value)
+  }
+  return order
+    .filter((value) => seen.has(value))
+    .map((value) => {
+      const meta = DEFINITIONS[value]!
+      const axis: QualityInput = AVAILABILITY_VALUES.has(value)
+        ? { availability: value as Availability }
+        : { confidence: value as Confidence }
+      return {
+        value,
+        label: qualityLabel(axis, translate) ?? value,
+        definition: translate(meta.labelKey, meta.fallback),
+      }
+    })
+}
+
 export function PrintQualityChip({ confidence, availability }: {
   confidence?: Confidence
   availability?: Availability

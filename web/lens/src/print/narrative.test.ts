@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Frame, Panel } from '../contract'
-import { narrativeFact } from './narrative'
+import { headlineReadings, narrativeFact } from './narrative'
 
 function panelWith(overrides: Partial<Panel>): Panel {
   return {
@@ -158,5 +158,46 @@ describe('narrativeFact', () => {
     )
 
     expect(fact).toMatchObject({ labelKey: 'print.factPair', vars: { label: 'Motor', share: '60%' } })
+  })
+})
+
+describe('headlineReadings', () => {
+  const headlinePanel = (title: string, total?: number): Panel => ({
+    id: title,
+    kind: 'donut',
+    title,
+    semantics: 'partition',
+    frame: 'f',
+    encoding: { label: 'label', value: 'value' },
+    format: { value: { kind: 'number', minorUnits: false } },
+    actions: [],
+    ...(total === undefined ? {} : { total }),
+  })
+
+  it('takes a figure’s single value, or the total it is measured against', () => {
+    const single: Frame = {
+      columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+      rows: [['Убыточность', 2.8]],
+    }
+    const many: Frame = {
+      columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+      rows: [['A', 1], ['B', 2]],
+    }
+
+    const readings = headlineReadings([
+      { id: 'one', panel: headlinePanel('Убыточность'), frame: single },
+      { id: 'two', panel: headlinePanel('Премия', 92), frame: many },
+    ], 'ru')
+
+    expect(readings.map(({ label, value }) => `${label} ${value}`)).toEqual(['Убыточность 2,8', 'Премия 92'])
+  })
+
+  it('says nothing when a chapter has only one reading to state', () => {
+    const frame: Frame = {
+      columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+      rows: [['Убыточность', 2.8]],
+    }
+
+    expect(headlineReadings([{ id: 'one', panel: headlinePanel('Убыточность'), frame }], 'ru')).toEqual([])
   })
 })

@@ -1,5 +1,5 @@
 import type { DashboardDocument, LayoutGroup, LayoutItem, Panel } from '../contract'
-import { resolveQuality } from '../panels/QualityChip'
+import { resolveQuality, type QualityInput } from '../panels/QualityChip'
 import type { PrintReport, PrintSection } from '../runtime/print'
 import { chartKinds, frameSignature, sectionPanel } from './values'
 
@@ -74,8 +74,28 @@ export interface PrintOutline {
    * first thing a reader of a management report is entitled to know.
    */
   estimated: number
+  /**
+   * Every quality the document declares anywhere — panel, formula stage,
+   * hierarchy row, relationship end. The closing appendix defines the words
+   * this report actually used, and only those.
+   */
+  qualities: Array<QualityInput>
   figureCount: number
   detailCount: number
+}
+
+/** Every quality declaration in the document, wherever it was authored. */
+function documentQualities(document: DashboardDocument): Array<QualityInput> {
+  const qualities: Array<QualityInput> = []
+  for (const panel of document.panels) {
+    qualities.push(panel)
+    for (const stage of panel.metricFlow?.stages ?? []) qualities.push(stage)
+    for (const row of panel.metricHierarchy?.rows ?? []) qualities.push(row)
+    if (panel.metricRelationship) {
+      qualities.push(panel.metricRelationship.source, panel.metricRelationship.target)
+    }
+  }
+  return qualities
 }
 
 /** Panel kinds whose single reading can stand as a cover headline. */
@@ -276,6 +296,7 @@ export function buildOutline(
     notes: buildNotes(document),
     missing,
     estimated: qualified.length,
+    qualities: documentQualities(document),
     figureCount: populated.reduce((sum, chapter) => sum + chapter.figures.length, 0),
     detailCount: populated.reduce((sum, chapter) => sum + chapter.details.length, 0),
   }

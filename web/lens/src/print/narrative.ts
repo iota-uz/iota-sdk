@@ -202,6 +202,50 @@ function tableFact(panel: Panel, frame: Frame, locale: string): NarrativeFact | 
   }
 }
 
+/** A chapter's own headline: one reading per figure, in printing order. */
+export interface HeadlineReading {
+  id: string
+  label: string
+  value: string
+}
+
+/**
+ * What a chapter says in one line, before its figures.
+ *
+ * A reader arriving at «Формирование результата» should not have to assemble
+ * the chapter's outcome from six figures. Each figure contributes exactly one
+ * number — the value it states when it states only one, or the total it is
+ * taken against — so the opener is a restatement of the pages below it and
+ * never an interpretation of them.
+ */
+export function headlineReadings(
+  figures: Array<{ id: string; panel: Panel; frame?: Frame }>,
+  locale: string,
+  limit = 4,
+): Array<HeadlineReading> {
+  const readings: Array<HeadlineReading> = []
+  for (const figure of figures) {
+    if (readings.length >= limit) break
+    const { panel, frame } = figure
+    const valueField = panel.encoding.value
+    const format = valueField ? panel.format[valueField] : undefined
+    const valueIndex = frame ? indexOf(frame, valueField) : -1
+    const single = frame?.rows.length === 1 && valueIndex >= 0
+      ? frame.rows[0]?.[valueIndex]
+      : undefined
+    const value = single !== undefined
+      ? formatFieldValue(single, format, locale)
+      : panel.total !== undefined
+        ? formatFieldValue(panel.total, format, locale)
+        : undefined
+    if (!value) continue
+    readings.push({ id: figure.id, label: panel.title, value })
+  }
+  // One reading is the figure itself, restated. A line is worth its ink from
+  // two upwards.
+  return readings.length >= 2 ? readings : []
+}
+
 /**
  * The one sentence worth printing under this figure, or nothing when the frame
  * carries no reading that a sentence would add to.

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type CSSProperties } from 'react'
+import { createContext, useCallback, useContext, useMemo, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
@@ -17,10 +17,25 @@ import {
 import type { PrintReport as PrintReportModel, PrintSection } from '../runtime/print'
 import { buildChapterFootnotes, type FigureFootnotes } from './footnotes'
 import { PrintFormula } from './formula'
-import { narrativeFact } from './narrative'
+import { headlineReadings, narrativeFact } from './narrative'
 import { buildOutline, type PrintChapter, type PrintDetail, type PrintFigure, type PrintOutline } from './outline'
-import { PrintQualityChip } from './quality'
+import { buildLabelPalette, printTheme } from './palette'
+import { PrintQualityChip, qualityDefinitions } from './quality'
+import { columnUnit } from './units'
 import { chartKinds, formulaKinds, indexOf, numeric, sectionPanel, text, type ChartKind } from './values'
+
+/**
+ * The colour every figure in this report gives a given name. Prop-drilling it
+ * would thread it through every printed component; a reading's colour is a
+ * property of the document, not of the component tree.
+ */
+const PaletteContext = createContext<Map<string, string>>(new Map())
+
+/** The section's own theme with the report-wide label palette folded in. */
+function useSectionTheme(section: PrintSection): Theme {
+  const labels = useContext(PaletteContext)
+  return useMemo(() => printTheme(section.document.theme, labels), [labels, section.document.theme])
+}
 
 interface AuditRow {
   key: string
@@ -33,9 +48,15 @@ interface AuditRow {
   color?: string
 }
 
-function auditRows(section: PrintSection, locale: string, theme: Theme): Array<AuditRow> {
+interface AuditTable {
+  rows: Array<AuditRow>
+  /** The unit every value in the column shares, said once in its head. */
+  unit?: string
+}
+
+function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTable {
   const frame = section.frame
-  if (!frame) return []
+  if (!frame) return { rows: [] }
   const panel = sectionPanel(section)
   const labelIndex = indexOf(frame, panel.encoding.label ?? panel.encoding.category ?? panel.encoding.id)
   const valueIndex = indexOf(frame, panel.encoding.value)
@@ -76,7 +97,10 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): Array<A
   }
 
   const resolveColor = seriesColorResolver(theme, panel, { positional: section.root })
-  return frame.rows.map((row, rowIndex) => {
+  // The value column is stated in one unit, so a bridge step and a portfolio
+  // total are read against each other rather than digit by digit.
+  const unit = columnUnit(frame.rows.map((row, rowIndex) => stepValue(row, rowIndex)), valueFormat, locale)
+  return { unit: unit.note, rows: frame.rows.map((row, rowIndex) => {
     const rawValue = stepValue(row, rowIndex)
     const number = values[rowIndex]
     const group = seriesIndex >= 0 ? text(row[seriesIndex]) : ''
@@ -92,7 +116,7 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): Array<A
         ? { series: formatFieldValue(row[seriesIndex], seriesFormat, locale) }
         : {}),
       label,
-      value: valueIndex >= 0 ? formatFieldValue(rawValue, valueFormat, locale) : '—',
+      value: valueIndex >= 0 ? unit.format(rawValue) : '—',
       exact: valueIndex >= 0 ? formatFieldValueExact(rawValue, valueFormat, locale) : undefined,
       ...(ratio === undefined ? {} : {
         ratio,
@@ -104,11 +128,12 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): Array<A
       }),
       color: resolveColor(label, rowIndex),
     }
-  })
+  }) }
 }
 
 function PrintChart({ section, height }: { section: PrintSection; height: number }) {
   const panel = useMemo(() => sectionPanel(section), [section])
+  const theme = useSectionTheme(section)
   const format = useCallback(
     (field: string, value: unknown) => formatFieldValue(value, panel.format[field], section.document.meta.locale),
     [panel.format, section.document.meta.locale],
@@ -139,7 +164,7 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
           encoding: panel.encoding,
           format,
           formatAxis: formatChartAxis,
-          theme: section.document.theme,
+          theme,
           presentation,
           radial: panel.radial,
         }}
@@ -188,11 +213,21 @@ function isWaterfall(panel: Panel, section: PrintSection): boolean {
   return panel.kind === 'cascade' && Boolean(section.frame) && indexOf(section.frame!, panel.encoding.cut) >= 0
 }
 
-function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boolean }) {
+function PrintDataTable({ section, dense, exact: withExact }: {
+  section: PrintSection
+  dense?: boolean
+  /**
+   * Print the full-precision figure under every abbreviated one. It doubles the
+   * height of a table, so a chapter states the reading and the appendix — the
+   * part kept for checking — states it to the som.
+   */
+  exact?: boolean
+}) {
   const translate = useTranslate()
+  const theme = useSectionTheme(section)
   const rows = useMemo(
-    () => auditRows(section, section.document.meta.locale, section.document.theme),
-    [section],
+    () => auditRows(section, section.document.meta.locale, theme),
+    [section, theme],
   )
   if (!section.frame) return <p className="lens-print-empty">{translate('print.noData', 'No data')}</p>
   const panel = sectionPanel(section)
@@ -201,6 +236,15 @@ function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boo
     const columns = panel.columns
     const indexes = columns.map(({ field }) => indexOf(frame, field))
     const locale = section.document.meta.locale
+    // Each column says its unit once, in its head.
+    const units = columns.map((column, columnIndex) => {
+      const index = indexes[columnIndex]!
+      return columnUnit(
+        index >= 0 ? frame.rows.map((row) => row[index]) : [],
+        panel.format[column.field],
+        locale,
+      )
+    })
     // A bar cell is drawn against the largest magnitude in its own column, the
     // same scale the dashboard uses, so a printed row keeps the proportion the
     // reader saw on screen.
@@ -218,8 +262,11 @@ function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boo
       <table className="lens-print-data lens-print-data-wide">
         <thead>
           <tr>
-            {columns.map((column) => (
-              <th data-align={column.align ?? 'left'} key={column.field}>{column.label}</th>
+            {columns.map((column, columnIndex) => (
+              <th data-align={column.align ?? 'left'} key={column.field}>
+                {column.label}
+                {units[columnIndex]?.note && <small>{units[columnIndex]?.note}</small>}
+              </th>
             ))}
           </tr>
         </thead>
@@ -228,8 +275,10 @@ function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boo
             <tr key={rowIndex}>
               {columns.map((column, columnIndex) => {
                 const raw = indexes[columnIndex]! >= 0 ? row[indexes[columnIndex]!] : undefined
-                const formatted = formatFieldValue(raw, panel.format[column.field], locale)
-                const exact = formatFieldValueExact(raw, panel.format[column.field], locale)
+                const formatted = units[columnIndex]!.format(raw)
+                const exact = withExact
+                  ? formatFieldValueExact(raw, panel.format[column.field], locale)
+                  : undefined
                 const value = numeric(raw)
                 // The producer's own row verdict — a loss ratio past 100%, say.
                 // On screen it tints the value; ink can carry the same tint.
@@ -275,18 +324,21 @@ function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boo
       </table>
     )
   }
-  const shares = rows.some(({ share }) => share !== undefined)
+  const shares = rows.rows.some(({ share }) => share !== undefined)
   return (
     <table className={`lens-print-data${dense ? ' lens-print-data-dense' : ''}`}>
       <thead>
         <tr>
           <th>{translate('print.category', 'Category')}</th>
-          <th data-align="right">{translate('print.value', 'Value')}</th>
+          <th data-align="right">
+            {translate('print.value', 'Value')}
+            {rows.unit && <small>{rows.unit}</small>}
+          </th>
           {shares && <th data-align="right">{translate('print.share', 'Share')}</th>}
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
+        {rows.rows.map((row) => (
           <tr key={row.key}>
             <td>
               <span className="lens-print-swatch" style={{ backgroundColor: row.color }} />
@@ -295,7 +347,7 @@ function PrintDataTable({ section, dense }: { section: PrintSection; dense?: boo
             </td>
             <td data-align="right">
               {row.value}
-              {row.exact && row.exact !== row.value && <small>{row.exact}</small>}
+              {withExact && row.exact && row.exact !== row.value && <small>{row.exact}</small>}
             </td>
             {shares && (
               <td className="lens-print-share" data-align="right">
@@ -426,10 +478,13 @@ function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
           <div className="lens-print-breakdown-part" key={section.id}>
             {!named && <p className="lens-print-breakdown-title">{panel.title}</p>}
             <PrintDataTable dense section={shown} />
-            {capped && (
+            {capped && frame && (
+              // Here the whole term is in hand, so the reader is told what
+              // share of it the page keeps rather than merely that it was cut.
               <p className="lens-print-truncated">
-                {translate('print.truncated', 'First {rows} rows shown; the level continues in the dashboard.', {
+                {translate('print.truncatedOf', '{rows} of {total} rows shown.', {
                   rows: breakdownRowCap,
+                  total: frame.rows.length,
                 })}
               </p>
             )}
@@ -450,7 +505,7 @@ function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: Fi
   if (figure.metric) {
     return (
       <figure className={`lens-print-figure lens-print-figure-${figure.width} lens-print-figure-metric`}>
-        <MetricTile figure={figure} footnotes={footnotes} />
+        <MetricTile figure={figure} footnotes={footnotes} numbered />
         <BreakdownView sections={figure.breakdown} />
         <FootnoteTexts footnotes={footnotes} />
       </figure>
@@ -517,7 +572,12 @@ function PrintSparkline({ values }: { values: Array<number> }) {
 }
 
 /** One reading: its name, its number, where it came from and where it is going. */
-function MetricTile({ figure, footnotes }: { figure: PrintFigure; footnotes?: FigureFootnotes }) {
+function MetricTile({ figure, footnotes, numbered }: {
+  figure: PrintFigure
+  footnotes?: FigureFootnotes
+  /** Chapter tiles are numbered so the text can point at them; cover tiles are not. */
+  numbered?: boolean
+}) {
   const translate = useTranslate()
   const { section } = figure
   const panel = sectionPanel(section)
@@ -536,6 +596,11 @@ function MetricTile({ figure, footnotes }: { figure: PrintFigure; footnotes?: Fi
   return (
     <div className="lens-print-kpi">
       <p className="lens-print-kpi-label">
+        {numbered && (
+          <span className="lens-print-figure-number">
+            {translate('print.figure', 'Fig. {number}', { number: figure.number })}
+          </span>
+        )}
         {panel.title}
         <FootnoteMarkers footnotes={footnotes} />
       </p>
@@ -686,6 +751,18 @@ function Contents({ outline }: { outline: PrintOutline }) {
 
 function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string }) {
   const translate = useTranslate()
+  // The chapter's own numbers, said once before the figures that carry them.
+  const headline = useMemo(
+    () => headlineReadings(
+      chapter.figures.map((figure) => ({
+        id: figure.section.id,
+        panel: sectionPanel(figure.section),
+        frame: figure.section.frame,
+      })),
+      chapter.figures[0]?.section.document.meta.locale ?? 'en',
+    ),
+    [chapter.figures],
+  )
   // Footnotes are numbered per chapter and printed where they first apply, so a
   // reader never has to hold a number across a page break.
   const footnotes = buildChapterFootnotes(chapter.figures, translate)
@@ -702,18 +779,36 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
   // halves inherits the gutter of the pair it broke away from and walks down
   // the page in a staircase.
   let pending: PrintFigure | undefined
+  // A strip's heading is bound to the first reading under it: `break-after:
+  // avoid` alone still left «По премии за период» as the last line of a page
+  // with its readings overleaf.
+  let lead: JSX.Element | undefined
   const render = (figure: PrintFigure) => (
     <FigureView figure={figure} footnotes={footnotes.get(figure.section.id)} key={figure.section.id} />
   )
+  const push = (element: JSX.Element) => {
+    if (!lead) {
+      body.push(element)
+      return
+    }
+    const heading = lead
+    lead = undefined
+    body.push(
+      <div className="lens-print-lead-group" key={`lead-${element.key}`}>
+        {heading}
+        {element}
+      </div>,
+    )
+  }
   const flush = () => {
     if (!pending) return
-    body.push(render(pending))
+    push(render(pending))
     pending = undefined
   }
   const place = (figure: PrintFigure) => {
     if (figure.width !== 'half') {
       flush()
-      body.push(render(figure))
+      push(render(figure))
       return
     }
     if (!pending) {
@@ -722,7 +817,7 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
     }
     const left = pending
     pending = undefined
-    body.push(
+    push(
       <div className="lens-print-pair" key={`pair-${left.section.id}`}>
         {render(left)}
         {render(figure)}
@@ -737,22 +832,35 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
       // A strip starts its own run of readings; it never shares a row with the
       // pair that preceded it.
       flush()
-      body.push(
+      lead = (
         <div className="lens-print-strip" key={`strip-${figure.section.id}`}>
           {group.label && <h3>{group.label}</h3>}
           {group.caption && group.caption !== chapter.caption && <p>{group.caption}</p>}
-        </div>,
+        </div>
       )
     }
     place(figure)
   }
   flush()
+  // A strip that named nothing — every reading under it was lifted to the
+  // cover — still announces itself rather than vanishing.
+  if (lead) body.push(lead)
   return (
     <section className="lens-print-chapter">
       <header className="lens-print-chapter-head">
         <p className="lens-print-runninghead">{title} · {chapter.number}. {chapter.title}</p>
         <h2><span className="lens-print-chapter-number">{chapter.number}</span>{chapter.title}</h2>
         {chapter.caption && <p className="lens-print-lead">{chapter.caption}</p>}
+        {headline.length > 0 && (
+          <p className="lens-print-chapter-headline">
+            {headline.map((reading) => (
+              <span key={reading.id}>
+                <span className="lens-print-chapter-headline-label">{reading.label}</span>
+                {reading.value}
+              </span>
+            ))}
+          </p>
+        )}
       </header>
       <div className="lens-print-grid">{body}</div>
     </section>
@@ -786,7 +894,7 @@ function DetailView({ detail }: { detail: PrintDetail }) {
         <p className="lens-print-detail-trail">{detail.trail}</p>
       </header>
       {compact && <PrintChart height={110} section={detail.section} />}
-      <PrintDataTable dense section={section} />
+      <PrintDataTable dense exact section={section} />
       <TruncationNote section={detail.section} />
       {compact && (
         <p className="lens-print-detail-note">
@@ -837,6 +945,10 @@ function Methodology({
   title: string
 }) {
   const translate = useTranslate()
+  const definitions = useMemo(
+    () => qualityDefinitions(outline.qualities, translate),
+    [outline.qualities, translate],
+  )
   return (
     <section className="lens-print-method">
       <header className="lens-print-chapter-head">
@@ -846,6 +958,19 @@ function Methodology({
           {translate('print.method', 'Appendix B. Sources and definitions')}
         </h2>
       </header>
+      {definitions.length > 0 && (
+        <div className="lens-print-glossary">
+          <h3>{translate('print.qualityTerms', 'What the quality marks mean')}</h3>
+          <dl>
+            {definitions.map((entry) => (
+              <div key={entry.value}>
+                <dt><span className="lens-print-chip" data-quality={entry.value}>{entry.label}</span></dt>
+                <dd>{entry.definition}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
+      )}
       {outline.notes.length > 0 && (
         <dl className="lens-print-notes">
           {outline.notes.map((note) => (
@@ -894,6 +1019,7 @@ export function PrintReportView({ report }: { report: PrintReportModel }) {
   const translate = useTranslate()
   const document = report.document
   const title = document.header?.title || document.meta.title
+  const labels = useMemo(() => buildLabelPalette(report), [report])
   const outline = useMemo(
     () => buildOutline(
       report,
@@ -903,13 +1029,13 @@ export function PrintReportView({ report }: { report: PrintReportModel }) {
     [report, translate],
   )
   return (
-    <>
+    <PaletteContext.Provider value={labels}>
       <Cover document={document} outline={outline} report={report} />
       <Contents outline={outline} />
       {outline.chapters.map((chapter) => <ChapterView chapter={chapter} key={chapter.id} title={title} />)}
       <DetailAppendix outline={outline} title={title} />
       <Methodology document={document} outline={outline} report={report} title={title} />
-    </>
+    </PaletteContext.Provider>
   )
 }
 

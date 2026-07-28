@@ -4223,6 +4223,11 @@
   text-transform: uppercase;
 }
 
+/* A tile is a numbered figure like any other, so prose can point at it. */
+.lens-print-kpi-label .lens-print-figure-number {
+  margin-right: 6px;
+}
+
 .lens-print-kpi-value {
   color: var(--lens-text-strong);
   font-size: 19px;
@@ -4383,6 +4388,29 @@
   color: var(--lens-text);
   font-size: 10.5px;
   line-height: 1.55;
+}
+
+/* The chapter's own numbers, before the figures that carry them. */
+.lens-print-chapter-headline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 8px !important;
+  padding-top: 7px;
+  border-top: 1px solid var(--lens-divider);
+  color: var(--lens-text-strong);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-chapter-headline-label {
+  margin-right: 5px;
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
 /* Flow, not grid: a printed chapter is fragmented across pages, and a grid
@@ -4841,6 +4869,15 @@
   vertical-align: top;
 }
 
+/* The column's unit, said once under its name instead of on every row. */
+.lens-print-data th small {
+  display: block;
+  margin-top: 1px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
 .lens-print-data th:last-child,
 .lens-print-data td:last-child {
   padding-right: 0;
@@ -5033,6 +5070,39 @@
   line-height: 1.3;
 }
 
+/* The quality vocabulary, defined once for a reader who cannot hover a chip. */
+.lens-print-glossary {
+  margin-bottom: 14px;
+}
+
+.lens-print-glossary h3 {
+  margin: 0 0 6px;
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-glossary > dl {
+  display: grid;
+  gap: 5px;
+}
+
+.lens-print-glossary > dl > div {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  break-inside: avoid;
+}
+
+.lens-print-glossary dd {
+  color: var(--lens-text);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
 .lens-print-notes {
   display: grid;
   gap: 6px;
@@ -5203,6 +5273,14 @@
     width: 100%;
     margin-bottom: 10px;
     break-after: avoid;
+  }
+
+  /* A strip heading travels with the first reading it names. `break-after`
+     alone is advisory enough that Chrome still stranded the heading at the
+     foot of a page. */
+  .lens-print-lead-group {
+    display: block;
+    break-inside: avoid;
   }
 
   .lens-print-figure:has(.lens-print-data-wide) {
