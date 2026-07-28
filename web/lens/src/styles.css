@@ -4136,7 +4136,7 @@
   gap: 22px;
   /* One full page: the identity block sits at the top, and everything that
      dates and qualifies the report is pushed to the foot of the page. */
-  min-height: 247mm;
+  min-height: 168mm;
   padding-bottom: 8px;
 }
 
@@ -4174,7 +4174,7 @@
 
 .lens-print-cover-meta {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
   padding: 12px 0;
   border-top: 1px solid var(--lens-border);
@@ -4230,7 +4230,8 @@
 
 .lens-print-kpi-value {
   color: var(--lens-text-strong);
-  font-size: 19px;
+  /* «199.89 млрд UZS» broken across two lines reads as two numbers. */
+  font-size: 17px;
   font-weight: 700;
   font-variant-numeric: tabular-nums lining-nums;
   line-height: 1.15;
@@ -4284,9 +4285,13 @@
 }
 
 .lens-print-kpi-chips {
+  /* Pinned to the foot of the tile: four tiles of different heights otherwise
+     scatter their quality chips across four different lines. */
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+  margin-top: auto !important;
+  padding-top: 4px;
 }
 
 .lens-print-cover-flag {
@@ -4479,11 +4484,24 @@
 }
 
 .lens-print-figure-head {
+  margin-bottom: 8px;
+}
+
+.lens-print-figure-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* Its own row, kept even when empty: two figures side by side start their
+   charts on one line only if their headings are the same height. */
+.lens-print-figure-meta {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
-  margin-bottom: 8px;
+  min-height: 13px;
+  margin-top: 3px !important;
 }
 
 .lens-print-figure-number {
@@ -4541,7 +4559,9 @@
 /* The printed bridge keeps the dashboard's own columns; only its chrome shrinks
    to the page — a narrower axis gutter and a plot sized for A4. */
 .lens-print-chart-waterfall {
-  height: 300px;
+  /* A bridge is the argument of its chapter and the page has the room: at
+     300px it sat in the top third of an otherwise empty sheet. */
+  height: 380px;
   /* The opening column's value label sits above its bar, outside the plot. */
   padding-top: 14px;
 }
@@ -4568,9 +4588,47 @@
 }
 
 .lens-print-chart-waterfall .lens-waterfall-axis span,
-.lens-print-chart-waterfall .lens-waterfall-bar strong,
 .lens-print-chart-waterfall .lens-waterfall-label {
   font-size: 8px;
+}
+
+/* The value над столбцом is set smaller than its axis: at 8px two adjacent
+   labels — «170.10 млрд UZS» and «−119.28 млрд UZS» — ran into each other. */
+.lens-print-chart-waterfall .lens-waterfall-bar strong {
+  font-size: 7px;
+  letter-spacing: -0.01em;
+}
+
+/* What the colours of a bridge stand for, printed under it and only when the
+   bridge actually uses more than one. */
+.lens-print-tone-key {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px !important;
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  letter-spacing: 0.02em;
+}
+
+.lens-print-tone-key i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-radius: 1px;
+  background: var(--lens-text-muted);
+}
+
+.lens-print-tone-key i[data-tone='positive'] {
+  background: var(--lens-pos);
+}
+
+.lens-print-tone-key i[data-tone='negative'] {
+  background: var(--lens-neg);
+}
+
+.lens-print-tone-key i[data-tone='warning'] {
+  background: var(--lens-warn);
 }
 
 .lens-print-figure-note {
@@ -4580,10 +4638,13 @@
   line-height: 1.5;
 }
 
+/* The dashboard's own note about a figure. It sets the terms the reading is
+   allowed to be used under, so it is stated plainly — four lines of bold under
+   every chart shout at a reader who has not started reading yet. */
 .lens-print-figure-authored {
   display: block;
   color: var(--lens-text-strong);
-  font-weight: 600;
+  font-weight: 500;
 }
 
 /* The authoritative total the shares below are taken against — the badge the
@@ -4705,6 +4766,14 @@
   gap: 5px;
   justify-content: flex-end;
   font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* The magnitude every line of the calculation is stated in, said once. */
+.lens-print-formula-unit {
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  letter-spacing: 0.02em;
+  text-align: right;
 }
 
 .lens-print-formula-note {
@@ -4885,6 +4954,36 @@
 
 .lens-print-data [data-align='right'] {
   text-align: right;
+}
+
+/* One geometry for every category/value/share table in the report. Left to
+   size themselves, two tables printed one under the other put their value
+   columns in different places and the appendix reads as if it were ragged. */
+.lens-print-data:not(.lens-print-data-wide) {
+  table-layout: fixed;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(1) {
+  width: 60%;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(2) {
+  width: 24%;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(2):last-child {
+  width: 40%;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(3) {
+  width: 16%;
+}
+
+/* A swatch means «this row is that colour in the picture above». The appendix
+   has no picture, and colours reused across unrelated tables imply a kinship
+   that does not exist. */
+.lens-print-appendix .lens-print-swatch {
+  display: none;
 }
 
 .lens-print-data td[data-negative] {
@@ -5218,12 +5317,17 @@
     -webkit-print-color-adjust: exact;
   }
 
+  /* The cover states the identity and the headline readings; the contents is
+     six lines. Each on its own page left two sheets half empty, so they share
+     one and the first chapter still opens on a fresh page. */
   .lens-print-cover {
-    break-after: page;
+    break-after: auto;
   }
 
   .lens-print-contents {
     break-after: page;
+    break-inside: avoid;
+    margin-top: 26px;
   }
 
   .lens-print-chapter,

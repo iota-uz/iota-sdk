@@ -82,6 +82,18 @@ function partitionFact(panel: Panel, frame: Frame, locale: string): NarrativeFac
     }
   }
   const topThree = ranked.slice(0, 3).reduce((sum, { value }) => sum + value, 0)
+  // With exactly three readings the three largest are all of them: saying they
+  // are «ahead of 0 smaller categories» invents a tail that is not there.
+  if (ranked.length === 3) {
+    return {
+      labelKey: 'print.factPartitionAll',
+      fallback: '{label} is the largest of the three at {share}; together they make the whole.',
+      vars: {
+        label: leader.label,
+        share: percent(locale, leader.value / total),
+      },
+    }
+  }
   return {
     labelKey: 'print.factPartition',
     fallback: '{label} is the largest share at {share}; the three largest together make {top}, ahead of {rest} smaller categories.',

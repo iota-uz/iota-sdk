@@ -239,8 +239,12 @@ export function buildOutline(
     chapter.details.push({
       section,
       number: `A${chapter.number}.${chapter.details.length + 1}`,
+      // The first segments of the trail repeat the appendix group's own title
+      // on every one of its nine details. What locates a detail is where it
+      // ends, not the path it shares with its neighbours.
       trail: section.breadcrumb
         .filter((part, index, all) => part && part !== all[index - 1])
+        .slice(-2)
         .join(' › '),
     })
   }

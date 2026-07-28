@@ -13,6 +13,7 @@ import { relationshipSentence } from '../panels/MetricRelationshipPanel'
 import { formatFieldValue, useTranslate } from '../runtime'
 import type { PrintSection } from '../runtime/print'
 import { PrintQualityChip } from './quality'
+import { columnUnit } from './units'
 import { sectionPanel } from './values'
 
 /**
@@ -47,11 +48,23 @@ function useValueFormatter(panel: Panel, locale: string, role: 'value' | 'share'
 function FlowFormula({ join, panel, locale }: { join: KeyedJoin; panel: Panel; locale: string }) {
   const translate = useTranslate()
   const formatValue = useValueFormatter(panel, locale)
-  const views = flowStageViews(panel, join, formatValue)
+  // The unit is a property of the calculation, not of each of its six lines.
+  // Collect the amounts, choose one magnitude for all of them, and say it once
+  // above the column — the same contract the printed tables follow.
+  const unit = useMemo(() => {
+    const amounts: Array<number> = []
+    flowStageViews(panel, join, (value) => {
+      amounts.push(value)
+      return ''
+    })
+    return columnUnit(amounts, panel.encoding.value ? panel.format[panel.encoding.value] : undefined, locale)
+  }, [join, locale, panel])
+  const views = flowStageViews(panel, join, (value) => unit.format(value))
   const delta = flowReconcileDelta(panel, join)
   if (views.length === 0) return null
   return (
     <div className="lens-print-formula">
+      {unit.note && <p className="lens-print-formula-unit">{unit.note}</p>}
       <ol className="lens-print-flow">
         {views.map((view, index) => (
           <li

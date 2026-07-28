@@ -73,8 +73,17 @@ export function distributeShares(
   return units.map((unit) => unit / scale)
 }
 
-/** The printed form of a share, e.g. `8.8%`. */
-export function formatShare(share: number | undefined): string {
+/**
+ * The printed form of a share, e.g. `8.8%` — and `8,8%` where the reader's
+ * language writes it that way. A report that prints «11.2%» on a chart and
+ * «11,2 %» in the table beneath it is one report in two typographies.
+ */
+export function formatShare(share: number | undefined, locale?: string): string {
   if (!isFiniteNumber(share)) return ''
-  return `${share.toFixed(sharePrecision)}%`
+  // Rounded exactly as the Go renderer's %.1f rounds it — the two must print
+  // one number — and only then written in the reader's own notation.
+  return `${new Intl.NumberFormat(locale, {
+    minimumFractionDigits: sharePrecision,
+    maximumFractionDigits: sharePrecision,
+  }).format(Number(share.toFixed(sharePrecision)))}%`
 }

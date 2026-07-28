@@ -190,9 +190,9 @@ function baseOption(theme: EChartsTheme): EChartsOption {
 export const rawPercentPrecision = 10
 
 /** The label a pie slice carries: one rounding, and nothing under 4%. */
-export function slicePercentLabel(percent: number | undefined): string {
+export function slicePercentLabel(percent: number | undefined, locale?: string): string {
   const share = percent ?? 0
-  return share >= 4 ? `${share.toFixed(1)}%` : ''
+  return share >= 4 ? formatShare(share, locale) : ''
 }
 
 /**
@@ -254,9 +254,9 @@ function labelShare(params: unknown): { name: string; share: number | undefined 
   return { name: text(record.name), share }
 }
 
-function sliceLabel(mode: Presentation['sliceLabels'], params: unknown): string {
+function sliceLabel(mode: Presentation['sliceLabels'], params: unknown, locale?: string): string {
   const { name, share } = labelShare(params)
-  return mode === 'label' ? sliceCategoryLabel(name, share) : slicePercentLabel(share)
+  return mode === 'label' ? sliceCategoryLabel(name, share) : slicePercentLabel(share, locale)
 }
 
 /**
@@ -305,7 +305,7 @@ function sliceTooltip(params: unknown, input: ChartInput, ringLabel?: string): s
   const share = typeof data.share === 'number'
     ? data.share
     : (typeof record.percent === 'number' ? record.percent : undefined)
-  const suffix = share === undefined ? '' : ` (${formatShare(share)})`
+  const suffix = share === undefined ? '' : ` (${formatShare(share, input.locale)})`
   const heading = ringLabel ? `${ringLabel}\n` : ''
   return `${heading}${label}: ${value}${suffix}`
 }
@@ -342,7 +342,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         fontWeight: 'bold' as const,
         // Slices under 4% cannot hold a legible label; the legend below
         // still names them.
-        formatter: (params: unknown) => sliceLabel(sliceLabels, params),
+        formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
       }
     : { color: theme.text }
   return {
@@ -433,7 +433,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
         ? {
             position: 'inside' as const,
             fontWeight: 'bold' as const,
-            formatter: (params: unknown) => sliceLabel(sliceLabels, params),
+            formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
           }
         : { show: false },
       labelLine: { show: false },

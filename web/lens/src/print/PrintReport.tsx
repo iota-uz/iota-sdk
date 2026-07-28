@@ -120,11 +120,15 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
       exact: valueIndex >= 0 ? formatFieldValueExact(rawValue, valueFormat, locale) : undefined,
       ...(ratio === undefined ? {} : {
         ratio,
-        share: new Intl.NumberFormat(locale, {
-          style: 'percent',
-          minimumFractionDigits: 1,
-          maximumFractionDigits: 1,
-        }).format(ratio),
+        // A row worth 1.5 million printed as «0,0 %» reads as nothing at all.
+        // Below the resolution of the column, the share says it is below it.
+        share: ratio > 0 && ratio < 0.001
+          ? `< ${new Intl.NumberFormat(locale, { style: 'percent', minimumFractionDigits: 1 }).format(0.001)}`
+          : new Intl.NumberFormat(locale, {
+            style: 'percent',
+            minimumFractionDigits: 1,
+            maximumFractionDigits: 1,
+          }).format(ratio),
       }),
       color: resolveColor(label, rowIndex),
     }
@@ -164,6 +168,7 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
           encoding: panel.encoding,
           format,
           formatAxis: formatChartAxis,
+          locale: section.document.meta.locale,
           theme,
           presentation,
           radial: panel.radial,
@@ -198,12 +203,52 @@ function useWaterfallModel(section: PrintSection) {
 }
 
 function PrintWaterfall({ section }: { section: PrintSection }) {
+  const translate = useTranslate()
   const panel = sectionPanel(section)
   const model = useWaterfallModel(section)
-  if (!model || model.items.length === 0) return null
+  const locale = section.document.meta.locale
+  // Paper reads an axis differently from a screen: eight gridlines each
+  // spelling «175.00 млрд UZS» is the unit said eight times and a precision
+  // nothing needs. The scale keeps its top tick in full and states the rest
+  // as compact numbers.
+  const printed = useMemo(() => {
+    if (!model) return undefined
+    const keep = model.ticks.length > 5
+      ? model.ticks.filter((_, index) => index % 2 === 0)
+      : model.ticks
+    const compact = new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 })
+    return {
+      ...model,
+      ticks: keep.map((tick, index) => (
+        index === 0 ? tick : { ...tick, label: compact.format(tick.value) }
+      )),
+    }
+  }, [locale, model])
+  // A colour that means something has to say what it means. The bridge tints a
+  // stage by what the movement is worth to the reader, not by its direction, so
+  // ink alone leaves «green among the orange» unexplained.
+  const tones = useMemo(
+    () => Array.from(new Set((printed?.items ?? []).map((item) => item.tone).filter(Boolean))) as Array<string>,
+    [printed],
+  )
+  if (!printed || printed.items.length === 0) return null
   return (
     <div className="lens-print-chart lens-print-chart-waterfall">
-      <WaterfallPlot label={panel.title} model={model} />
+      <WaterfallPlot label={panel.title} model={printed} />
+      {tones.length > 1 && (
+        <p className="lens-print-tone-key">
+          {tones.map((tone) => (
+            <span key={tone}>
+              <i aria-hidden="true" data-tone={tone} />
+              {tone === 'positive'
+                ? translate('print.toneFavourable', 'favourable')
+                : tone === 'negative'
+                  ? translate('print.toneAdverse', 'adverse')
+                  : translate('print.toneNeutral', 'neutral')}
+            </span>
+          ))}
+        </p>
+      )}
     </div>
   )
 }
@@ -216,14 +261,25 @@ function PrintWaterfall({ section }: { section: PrintSection }) {
  */
 function PrintWaterfallTable({ section }: { section: PrintSection }) {
   const translate = useTranslate()
+  const panel = sectionPanel(section)
   const model = useWaterfallModel(section)
+  // The unit is said once in the column head, as every other printed table
+  // says it: six repetitions of «млрд UZS» down a column are six repetitions.
+  const unit = useMemo(
+    () => columnUnit(
+      (model?.items ?? []).map((item) => item.value),
+      panel.encoding.value ? panel.format[panel.encoding.value] : undefined,
+      section.document.meta.locale,
+    ),
+    [model, panel, section.document.meta.locale],
+  )
   if (!model || model.items.length === 0) return null
   return (
     <table className="lens-print-data">
       <thead>
         <tr>
           <th>{translate('print.stage', 'Stage')}</th>
-          <th className="lens-print-numeric">{translate('print.value', 'Value')}</th>
+          <th data-align="right">{translate('print.value', 'Value')}{unit.note && <small>{unit.note}</small>}</th>
         </tr>
       </thead>
       <tbody>
@@ -231,12 +287,12 @@ function PrintWaterfallTable({ section }: { section: PrintSection }) {
           <Fragment key={`${item.label}:${index}`}>
             <tr data-role={item.kind}>
               <td>{item.label}</td>
-              <td className="lens-print-numeric">{item.formattedValue}</td>
+              <td data-align="right">{unit.format(item.value)}</td>
             </tr>
             {item.formattedSplit && (
               <tr data-role="split">
                 <td>{item.splitLabel || translate('print.splitPart', 'of which')}</td>
-                <td className="lens-print-numeric">{item.formattedSplit}</td>
+                <td data-align="right">{item.formattedSplit}</td>
               </tr>
             )}
           </Fragment>
@@ -288,6 +344,14 @@ function PrintDataTable({ section, dense, exact: withExact }: {
         locale,
       )
     })
+    // A column of numbers is read down its digits: the printed table aligns a
+    // money, count or percentage column to the right unless the panel says
+    // otherwise, so the magnitudes stack instead of ragging.
+    const alignments = columns.map((column) => {
+      if (column.align) return column.align
+      const kind = panel.format[column.field]?.kind
+      return kind === 'money' || kind === 'number' || kind === 'percent' ? 'right' : 'left'
+    })
     // A bar cell is drawn against the largest magnitude in its own column, the
     // same scale the dashboard uses, so a printed row keeps the proportion the
     // reader saw on screen.
@@ -306,7 +370,7 @@ function PrintDataTable({ section, dense, exact: withExact }: {
         <thead>
           <tr>
             {columns.map((column, columnIndex) => (
-              <th data-align={column.align ?? 'left'} key={column.field}>
+              <th data-align={alignments[columnIndex]} key={column.field}>
                 {column.label}
                 {units[columnIndex]?.note && <small>{units[columnIndex]?.note}</small>}
               </th>
@@ -334,7 +398,7 @@ function PrintDataTable({ section, dense, exact: withExact }: {
                 const secondary = secondaryIndex >= 0 ? numeric(row[secondaryIndex]) : undefined
                 return (
                   <td
-                    data-align={column.align ?? 'left'}
+                    data-align={alignments[columnIndex]}
                     data-negative={value !== undefined && value < 0 ? '' : undefined}
                     data-tone={tone === 'pos' || tone === 'warn' || tone === 'neg' ? tone : undefined}
                     key={column.field}
@@ -563,23 +627,29 @@ function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: Fi
     : undefined
   return (
     <figure className={`lens-print-figure lens-print-figure-${waterfall || formula ? 'full' : figure.width}`}>
+      {/* Two rows, always both: a title that runs long must not push the
+          chips down and take the figure beside it out of line. */}
       <figcaption className="lens-print-figure-head">
-        <span className="lens-print-figure-number">
-          {translate('print.figure', 'Fig. {number}', { number: figure.number })}
-        </span>
-        <h3>{panel.title}<FootnoteMarkers footnotes={footnotes} /></h3>
-        {panel.status?.label && (
-          <span className="lens-print-chip" data-tone={panel.status.tone ?? 'neutral'}>{panel.status.label}</span>
-        )}
-        <PrintQualityChip availability={panel.availability} confidence={panel.confidence} />
-        {section.perspective && (
-          <span className="lens-print-chip" data-tone="neutral">
-            {translate('print.view', 'View')}: {section.perspective.label}
+        <p className="lens-print-figure-title">
+          <span className="lens-print-figure-number">
+            {translate('print.figure', 'Fig. {number}', { number: figure.number })}
           </span>
-        )}
-        {/* The header badge the dashboard shows: the authoritative total the
-            shares below are taken against. */}
-        {total && <span className="lens-print-figure-total">{translate('print.total', 'Total')}: {total}</span>}
+          <h3>{panel.title}<FootnoteMarkers footnotes={footnotes} /></h3>
+        </p>
+        <p className="lens-print-figure-meta">
+          {panel.status?.label && (
+            <span className="lens-print-chip" data-tone={panel.status.tone ?? 'neutral'}>{panel.status.label}</span>
+          )}
+          <PrintQualityChip availability={panel.availability} confidence={panel.confidence} />
+          {section.perspective && (
+            <span className="lens-print-chip" data-tone="neutral">
+              {translate('print.view', 'View')}: {section.perspective.label}
+            </span>
+          )}
+          {/* The header badge the dashboard shows: the authoritative total the
+              shares below are taken against. */}
+          {total && <span className="lens-print-figure-total">{translate('print.total', 'Total')}: {total}</span>}
+        </p>
       </figcaption>
       {formula
         ? <PrintFormula section={section} />

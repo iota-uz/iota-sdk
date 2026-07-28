@@ -144,7 +144,8 @@ describe('buildOutline', () => {
     expect(outline.appendix).toHaveLength(1)
     expect(outline.chapters[0]?.details[0]).toMatchObject({
       number: 'A1.1',
-      trail: 'Premium › Earned › By product',
+      // Only where the path ends: the shared head repeats on every detail.
+      trail: 'Earned › By product',
     })
   })
 

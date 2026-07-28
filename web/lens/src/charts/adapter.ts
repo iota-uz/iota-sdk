@@ -15,6 +15,8 @@ export interface ChartInput {
   format: ChartFormatResolver
   /** Compact, locale-aware value formatter for axis ticks. Falls back to `format`. */
   formatAxis?: ChartFormatResolver
+  /** The reader's language, for the shares the chart writes itself. */
+  locale?: string
   theme: Theme
   selectedKey?: NodeKey
   /** Opt-in density hints; absent hints keep the default chart treatment. */

@@ -197,13 +197,14 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     encoding: panel.encoding,
     format,
     formatAxis,
+    locale: document.meta?.locale,
     theme: document.theme,
     selectedKey,
     presentation,
     colors: frameColors,
     radial: panel.radial,
     expandable,
-  }) : undefined, [document.theme, expandable, format, formatAxis, frameColors, kind, panel.encoding, presentation, panel.radial, selectedKey, visibleFrame])
+  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, frameColors, kind, panel.encoding, presentation, panel.radial, selectedKey, visibleFrame])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.

@@ -138,6 +138,9 @@ const (
 	I18nPrintSummary             = "print.summary"
 	I18nPrintTarget              = "print.target"
 	I18nPrintTimeLimit           = "print.timeLimit"
+	I18nPrintToneAdverse         = "print.toneAdverse"
+	I18nPrintToneFavourable      = "print.toneFavourable"
+	I18nPrintToneNeutral         = "print.toneNeutral"
 	I18nPrintTotal               = "print.total"
 	I18nPrintTruncated           = "print.truncated"
 	I18nPrintTruncatedOf         = "print.truncatedOf"
@@ -146,18 +149,19 @@ const (
 	// Sentences the printed report composes from a frame it has just printed:
 	// the leading share, the largest deduction, the change across a series.
 	// They carry placeholders so a catalogue keeps its own word order.
-	I18nPrintFactPartition  = "print.factPartition"
-	I18nPrintFactPair       = "print.factPair"
-	I18nPrintFactProgress   = "print.factProgress"
-	I18nPrintFactBridge     = "print.factBridge"
-	I18nPrintFactBridgeBare = "print.factBridgeBare"
-	I18nPrintFactBridgeEnds = "print.factBridgeEnds"
-	I18nPrintFactSeries     = "print.factSeries"
-	I18nPrintFactSeriesBare = "print.factSeriesBare"
-	I18nPrintFactTable      = "print.factTable"
-	I18nPrintFactRows       = "print.factRows"
-	I18nRuntimeDismiss      = "runtime.dismissNotice"
-	I18nRuntimeLoadError    = "runtime.loadError"
+	I18nPrintFactPartition    = "print.factPartition"
+	I18nPrintFactPartitionAll = "print.factPartitionAll"
+	I18nPrintFactPair         = "print.factPair"
+	I18nPrintFactProgress     = "print.factProgress"
+	I18nPrintFactBridge       = "print.factBridge"
+	I18nPrintFactBridgeBare   = "print.factBridgeBare"
+	I18nPrintFactBridgeEnds   = "print.factBridgeEnds"
+	I18nPrintFactSeries       = "print.factSeries"
+	I18nPrintFactSeriesBare   = "print.factSeriesBare"
+	I18nPrintFactTable        = "print.factTable"
+	I18nPrintFactRows         = "print.factRows"
+	I18nRuntimeDismiss        = "runtime.dismissNotice"
+	I18nRuntimeLoadError      = "runtime.loadError"
 	// Shown before a document exists, so the runtime falls back to its own
 	// bundled wording; a host that translates them wins once the document lands.
 	I18nRuntimeRetry          = "runtime.retry"
@@ -244,8 +248,9 @@ func RuntimeI18nKeys() []string {
 		I18nPrintSections, I18nPrintSeriesTail, I18nPrintShare, I18nPrintSnapshot, I18nPrintSummary,
 		I18nPrintTarget, I18nPrintTimeLimit, I18nPrintTotal, I18nPrintTruncated, I18nPrintTruncatedOf,
 		I18nPrintSplitPart, I18nPrintStage,
+		I18nPrintToneAdverse, I18nPrintToneFavourable, I18nPrintToneNeutral,
 		I18nPrintValue, I18nPrintView,
-		I18nPrintFactPartition, I18nPrintFactPair, I18nPrintFactProgress,
+		I18nPrintFactPartition, I18nPrintFactPartitionAll, I18nPrintFactPair, I18nPrintFactProgress,
 		I18nPrintFactBridge, I18nPrintFactBridgeBare, I18nPrintFactBridgeEnds,
 		I18nPrintFactSeries, I18nPrintFactSeriesBare, I18nPrintFactTable, I18nPrintFactRows,
 		I18nRuntimeDismiss, I18nRuntimeLoadError, I18nRuntimeRetry, I18nRuntimeSlowLoad,
