@@ -97,63 +97,89 @@ const (
 	I18nPanelUnsupported         = "panel.unsupported"
 	I18nPanelUpdating            = "panel.updating"
 	I18nPrintAppendix            = "print.appendix"
+	I18nPrintAppendixNote        = "print.appendixNote"
 	I18nPrintButton              = "print.button"
 	I18nPrintCategory            = "print.category"
+	I18nPrintContents            = "print.contents"
 	I18nPrintFailed              = "print.failed"
+	I18nPrintFigure              = "print.figure"
 	I18nPrintGenerated           = "print.generated"
 	I18nPrintKicker              = "print.kicker"
 	I18nPrintLimitations         = "print.limitations"
+	I18nPrintLimitationsFlag     = "print.limitationsFlag"
 	I18nPrintLimitationsNote     = "print.limitationsNote"
+	I18nPrintMethod              = "print.method"
+	I18nPrintMissing             = "print.missing"
 	I18nPrintNoData              = "print.noData"
 	I18nPrintNote                = "print.note"
+	I18nPrintOther               = "print.other"
 	I18nPrintPending             = "print.pending"
+	I18nPrintPeriod              = "print.period"
 	I18nPrintSections            = "print.sections"
 	I18nPrintShare               = "print.share"
+	I18nPrintSnapshot            = "print.snapshot"
+	I18nPrintSummary             = "print.summary"
 	I18nPrintTimeLimit           = "print.timeLimit"
-	I18nPrintTitle               = "print.title"
 	I18nPrintValue               = "print.value"
 	I18nPrintView                = "print.view"
-	I18nRuntimeDismiss           = "runtime.dismissNotice"
-	I18nRuntimeLoadError         = "runtime.loadError"
-	I18nTableActions             = "table.actions"
-	I18nTableEmptyPage           = "table.emptyPage"
-	I18nTableLoadingPage         = "table.loadingPage"
-	I18nTableNext                = "table.next"
-	I18nTableOpenRecord          = "table.openRecord"
-	I18nTablePage                = "table.page"
-	I18nTablePages               = "table.pages"
-	I18nTablePrevious            = "table.previous"
-	I18nTableRowCount            = "table.rowCount"
-	I18nTableSortScope           = "table.sortScope"
-	I18nAvailConfig              = "availability.config_required"
-	I18nAvailEmptySource         = "availability.empty_source"
-	I18nAvailUnavailable         = "availability.unavailable"
-	I18nConfCalculated           = "confidence.calculated"
-	I18nConfProxy                = "confidence.proxy"
-	I18nConfRequiresRecon        = "confidence.requires_reconciliation"
-	I18nConfVerified             = "confidence.verified"
-	I18nFlowDifference           = "flow.difference"
-	I18nFlowEquals               = "flow.equals"
-	I18nFlowMinus                = "flow.minus"
-	I18nFlowPlus                 = "flow.plus"
-	I18nFlowStages               = "flow.stages"
-	I18nHierAllocated            = "hierarchy.allocated"
-	I18nHierDifference           = "hierarchy.difference"
-	I18nHierUnallocated          = "hierarchy.unallocated"
-	I18nPanelDuplicateKey        = "panel.duplicateKey"
-	I18nPanelMissingCol          = "panel.missingColumn"
-	I18nRelAssociation           = "relationship.association"
-	I18nRelDerivation            = "relationship.derivation"
-	I18nRelReconciliation        = "relationship.reconciliation"
-	I18nRelTypePrefix            = "relationship.type."
-	I18nRelTypeAssociation       = I18nRelTypePrefix + string(MetricRelationshipAssociation)
-	I18nRelTypeDerivation        = I18nRelTypePrefix + string(MetricRelationshipDerivation)
-	I18nRelTypeReconciliation    = I18nRelTypePrefix + string(MetricRelationshipReconciliation)
-	I18nSemanticsPrefix          = "explore.semantics."
-	I18nSemanticsEvidence        = I18nSemanticsPrefix + string(SemanticsEvidence)
-	I18nSemanticsPartn           = I18nSemanticsPrefix + string(SemanticsPartition)
-	I18nSemanticsRecon           = I18nSemanticsPrefix + string(SemanticsReconciliation)
-	I18nSemanticsSeries          = I18nSemanticsPrefix + string(SemanticsSeries)
+	// Sentences the printed report composes from a frame it has just printed:
+	// the leading share, the largest deduction, the change across a series.
+	// They carry placeholders so a catalogue keeps its own word order.
+	I18nPrintFactPartition  = "print.factPartition"
+	I18nPrintFactPair       = "print.factPair"
+	I18nPrintFactProgress   = "print.factProgress"
+	I18nPrintFactBridge     = "print.factBridge"
+	I18nPrintFactBridgeBare = "print.factBridgeBare"
+	I18nPrintFactBridgeEnds = "print.factBridgeEnds"
+	I18nPrintFactSeries     = "print.factSeries"
+	I18nPrintFactSeriesBare = "print.factSeriesBare"
+	I18nPrintFactTable      = "print.factTable"
+	I18nPrintFactRows       = "print.factRows"
+	I18nRuntimeDismiss      = "runtime.dismissNotice"
+	I18nRuntimeLoadError    = "runtime.loadError"
+	// Shown before a document exists, so the runtime falls back to its own
+	// bundled wording; a host that translates them wins once the document lands.
+	I18nRuntimeRetry          = "runtime.retry"
+	I18nRuntimeSlowLoad       = "runtime.slowLoad"
+	I18nTableActions          = "table.actions"
+	I18nTableEmptyPage        = "table.emptyPage"
+	I18nTableLoadingPage      = "table.loadingPage"
+	I18nTableNext             = "table.next"
+	I18nTableOpenRecord       = "table.openRecord"
+	I18nTablePage             = "table.page"
+	I18nTablePages            = "table.pages"
+	I18nTablePrevious         = "table.previous"
+	I18nTableRowCount         = "table.rowCount"
+	I18nTableSortScope        = "table.sortScope"
+	I18nAvailConfig           = "availability.config_required"
+	I18nAvailEmptySource      = "availability.empty_source"
+	I18nAvailUnavailable      = "availability.unavailable"
+	I18nConfCalculated        = "confidence.calculated"
+	I18nConfProxy             = "confidence.proxy"
+	I18nConfRequiresRecon     = "confidence.requires_reconciliation"
+	I18nConfVerified          = "confidence.verified"
+	I18nFlowDifference        = "flow.difference"
+	I18nFlowEquals            = "flow.equals"
+	I18nFlowMinus             = "flow.minus"
+	I18nFlowPlus              = "flow.plus"
+	I18nFlowStages            = "flow.stages"
+	I18nHierAllocated         = "hierarchy.allocated"
+	I18nHierDifference        = "hierarchy.difference"
+	I18nHierUnallocated       = "hierarchy.unallocated"
+	I18nPanelDuplicateKey     = "panel.duplicateKey"
+	I18nPanelMissingCol       = "panel.missingColumn"
+	I18nRelAssociation        = "relationship.association"
+	I18nRelDerivation         = "relationship.derivation"
+	I18nRelReconciliation     = "relationship.reconciliation"
+	I18nRelTypePrefix         = "relationship.type."
+	I18nRelTypeAssociation    = I18nRelTypePrefix + string(MetricRelationshipAssociation)
+	I18nRelTypeDerivation     = I18nRelTypePrefix + string(MetricRelationshipDerivation)
+	I18nRelTypeReconciliation = I18nRelTypePrefix + string(MetricRelationshipReconciliation)
+	I18nSemanticsPrefix       = "explore.semantics."
+	I18nSemanticsEvidence     = I18nSemanticsPrefix + string(SemanticsEvidence)
+	I18nSemanticsPartn        = I18nSemanticsPrefix + string(SemanticsPartition)
+	I18nSemanticsRecon        = I18nSemanticsPrefix + string(SemanticsReconciliation)
+	I18nSemanticsSeries       = I18nSemanticsPrefix + string(SemanticsSeries)
 )
 
 // RuntimeI18nKeys lists every translation key the runtime resolves, sorted.
@@ -185,11 +211,17 @@ func RuntimeI18nKeys() []string {
 		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
-		I18nPrintAppendix, I18nPrintButton, I18nPrintCategory, I18nPrintFailed,
-		I18nPrintGenerated, I18nPrintKicker, I18nPrintLimitations, I18nPrintLimitationsNote,
-		I18nPrintNoData, I18nPrintNote, I18nPrintPending, I18nPrintSections, I18nPrintShare,
-		I18nPrintTimeLimit, I18nPrintTitle, I18nPrintValue, I18nPrintView,
-		I18nRuntimeDismiss, I18nRuntimeLoadError,
+		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintButton, I18nPrintCategory,
+		I18nPrintContents, I18nPrintFailed, I18nPrintFigure,
+		I18nPrintGenerated, I18nPrintKicker, I18nPrintLimitations, I18nPrintLimitationsFlag,
+		I18nPrintLimitationsNote, I18nPrintMethod, I18nPrintMissing,
+		I18nPrintNoData, I18nPrintNote, I18nPrintOther, I18nPrintPending, I18nPrintPeriod,
+		I18nPrintSections, I18nPrintShare, I18nPrintSnapshot, I18nPrintSummary,
+		I18nPrintTimeLimit, I18nPrintValue, I18nPrintView,
+		I18nPrintFactPartition, I18nPrintFactPair, I18nPrintFactProgress,
+		I18nPrintFactBridge, I18nPrintFactBridgeBare, I18nPrintFactBridgeEnds,
+		I18nPrintFactSeries, I18nPrintFactSeriesBare, I18nPrintFactTable, I18nPrintFactRows,
+		I18nRuntimeDismiss, I18nRuntimeLoadError, I18nRuntimeRetry, I18nRuntimeSlowLoad,
 		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,
 		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSortScope,
 		I18nSemanticsEvidence, I18nSemanticsPartn, I18nSemanticsRecon, I18nSemanticsSeries,

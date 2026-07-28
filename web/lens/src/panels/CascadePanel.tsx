@@ -1,9 +1,10 @@
-import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import type { Frame, Panel } from '../contract'
 import { useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
 import { columnIndex, displayText, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
+import { WaterfallPlot } from './WaterfallPlot'
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -159,13 +160,13 @@ export interface WaterfallItem {
   rowIndex?: number
 }
 
-interface WaterfallTick {
+export interface WaterfallTick {
   value: number
   label: string
   top: number
 }
 
-interface WaterfallModel {
+export interface WaterfallModel {
   items: WaterfallItem[]
   ticks: WaterfallTick[]
   zero: number
@@ -218,7 +219,7 @@ export function waterfallAxisStep(minimum: number, maximum: number): number {
   return best ?? fallback
 }
 
-function buildWaterfallModel(
+export function buildWaterfallModel(
   stages: CascadeStage[],
   formatValue: (value: unknown) => string,
 ): WaterfallModel {
@@ -415,96 +416,14 @@ export function CascadePanel({ panel }: CascadePanelProps) {
   return (
     <PanelFrame panel={panel} frame={frame}>
       {panel.presentation?.bridgeLayout === 'waterfall' ? (
-        <div
-          aria-label={translate('cascade.stages', '{name} stages', { name: panel.title })}
-          className="lens-waterfall"
-          data-lens-waterfall
+        <WaterfallPlot
+          interaction={(item) => stageInteraction(item.rowIndex, item.label)}
+          label={translate('cascade.stages', '{name} stages', { name: panel.title })}
+          model={waterfall}
           // An image exposes no children to assistive tech; once the columns
           // are activatable the container must group them instead.
           role={anyInteractive ? 'group' : 'img'}
-          style={{
-            '--lens-waterfall-count': waterfall.items.length,
-            '--lens-waterfall-zero': `${waterfall.zero}%`,
-          } as CSSProperties}
-        >
-          <div className="lens-waterfall-chart">
-            <div className="lens-waterfall-axis" aria-hidden="true">
-              {waterfall.ticks.map((tick) => (
-                <span key={tick.value} style={{ top: `${tick.top}%` }}>{tick.label}</span>
-              ))}
-            </div>
-            <div className="lens-waterfall-plot">
-              {waterfall.ticks.map((tick) => (
-                <span
-                  className="lens-waterfall-gridline"
-                  key={`grid-${tick.value}`}
-                  style={{ top: `${tick.top}%` }}
-                />
-              ))}
-              <div className="lens-waterfall-zero" />
-              {waterfall.items.map((item, index) => {
-                const interaction = stageInteraction(item.rowIndex, item.label)
-                // The callout leans away from the nearer plot edge, so a split
-                // on the last columns does not run off the chart.
-                const calloutSide = index * 2 >= waterfall.items.length ? 'start' : 'end'
-                return (
-                  <div className="lens-waterfall-column" key={`${item.label}-${index}`}>
-                    {item.underlayHeight !== undefined && (
-                      <span
-                        aria-hidden="true"
-                        className="lens-waterfall-underlay"
-                        style={{
-                          top: `${item.top + item.height}%`,
-                          height: `${item.underlayHeight}%`,
-                        }}
-                      />
-                    )}
-                    {index < waterfall.items.length - 1 && (
-                      <span
-                        className="lens-waterfall-connector"
-                        style={{ top: `${item.connectorTop}%` }}
-                      />
-                    )}
-                    <div
-                      className="lens-waterfall-bar"
-                      data-kind={item.kind}
-                      data-tone={item.tone}
-                      style={{
-                        top: `${item.top}%`,
-                        height: `${item.height}%`,
-                        ...(interaction ? { cursor: 'pointer' } : {}),
-                      }}
-                      {...interaction}
-                    >
-                      <strong>{item.formattedValue}</strong>
-                      {item.splitHeight !== undefined && (
-                        <span
-                          className="lens-waterfall-bar-split"
-                          style={{ height: `${item.splitHeight}%` }}
-                        >
-                          <span className="lens-waterfall-split-callout" data-side={calloutSide}>
-                            {item.splitLabel ? `${item.splitLabel} ` : ''}
-                            {item.formattedSplit}
-                          </span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          <div className="lens-waterfall-labels">
-            {waterfall.items.map((item, index) => (
-              <span className="lens-waterfall-label" key={`${item.label}-label-${index}`}>
-                <span>{item.label}</span>
-                {item.annotation && (
-                  <small className="lens-waterfall-annotation">{item.annotation}</small>
-                )}
-              </span>
-            ))}
-          </div>
-        </div>
+        />
       ) : (
         <div
           aria-label={translate('cascade.stages', '{name} stages', { name: panel.title })}

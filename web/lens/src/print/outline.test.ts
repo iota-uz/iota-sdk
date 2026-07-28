@@ -1,0 +1,275 @@
+import { describe, expect, it } from 'vitest'
+import type { DashboardDocument, Frame, Level, Panel } from '../contract'
+import type { PrintReport, PrintSection } from '../runtime/print'
+import { buildOutline } from './outline'
+
+function panelWith(id: string, overrides: Partial<Panel> = {}): Panel {
+  return {
+    id,
+    kind: 'donut',
+    title: id,
+    semantics: 'partition',
+    frame: `${id}:root`,
+    encoding: { label: 'label', value: 'value' },
+    format: {},
+    actions: [],
+    ...overrides,
+  }
+}
+
+function frameWith(rows: Array<Array<unknown>>): Frame {
+  return {
+    columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+    rows,
+  }
+}
+
+function documentWith(panels: Array<Panel>, layout: DashboardDocument['layout']): DashboardDocument {
+  return {
+    version: '1.0.0',
+    snapshotId: 'snapshot',
+    meta: { dashboardId: 'board', title: 'Board', generatedAt: '2026-07-28T00:00:00Z', locale: 'en' },
+    layout,
+    panels,
+    frames: {},
+    drill: { inlineDepth: 0, edges: {} },
+    perspectives: [],
+    endpoints: {},
+    i18n: {},
+    theme: { palette: {}, series: {} },
+  }
+}
+
+function sectionWith(
+  document: DashboardDocument,
+  panel: Panel,
+  frame: Frame | undefined,
+  overrides: Partial<PrintSection> = {},
+): PrintSection {
+  const level: Level = { path: [], label: panel.title, children: [], perspectives: [] }
+  return {
+    id: `${panel.id}:${overrides.breadcrumb?.join('/') ?? 'root'}`,
+    document,
+    panel,
+    level,
+    ...(frame ? { frame } : {}),
+    path: [],
+    breadcrumb: [panel.title],
+    depth: 0,
+    root: true,
+    ...overrides,
+  }
+}
+
+function reportWith(document: DashboardDocument, sections: Array<PrintSection>): PrintReport {
+  return { document, sections, warnings: [], truncated: false }
+}
+
+describe('buildOutline', () => {
+  it('opens a chapter per layout heading and numbers figures inside it', () => {
+    const premium = panelWith('premium')
+    const claims = panelWith('claims')
+    const document = documentWith([premium, claims], {
+      rows: [
+        { heading: 'Premium', panels: [{ panelId: 'premium', span: 6 }] },
+        { heading: 'Claims', panels: [{ panelId: 'claims', span: 6 }] },
+      ],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, premium, frameWith([['Earned', 7], ['Unearned', 3]])),
+        sectionWith(document, claims, frameWith([['Paid', 4], ['Reserved', 6]])),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters.map(({ number, title }) => `${number} ${title}`)).toEqual(['1 Premium', '2 Claims'])
+    expect(outline.chapters.map(({ figures }) => figures.map(({ number }) => number))).toEqual([['1.1'], ['2.1']])
+    expect(outline.figureCount).toBe(2)
+  })
+
+  it('continues the current chapter through rows that carry no heading', () => {
+    const first = panelWith('first')
+    const second = panelWith('second')
+    const document = documentWith([first, second], {
+      rows: [
+        { heading: 'Premium', panels: [{ panelId: 'first', span: 6 }] },
+        { panels: [{ panelId: 'second', span: 6 }] },
+      ],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, first, frameWith([['a', 1], ['b', 2]])),
+        sectionWith(document, second, frameWith([['c', 3], ['d', 4]])),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters).toHaveLength(1)
+    expect(outline.chapters[0]?.figures.map(({ number }) => number)).toEqual(['1.1', '1.2'])
+  })
+
+  it('names the opening chapter when the first row has no heading of its own', () => {
+    const panel = panelWith('hero')
+    const document = documentWith([panel], { rows: [{ panels: [{ panelId: 'hero', span: 12 }] }] })
+    const outline = buildOutline(
+      reportWith(document, [sectionWith(document, panel, frameWith([['a', 1], ['b', 2]]))]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters[0]?.title).toBe('Summary')
+  })
+
+  it('routes drill readings into the detail appendix of their own chapter', () => {
+    const panel = panelWith('premium')
+    const document = documentWith([panel], {
+      rows: [{ heading: 'Premium', panels: [{ panelId: 'premium', span: 12 }] }],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, panel, frameWith([['Earned', 7], ['Unearned', 3]])),
+        sectionWith(document, panel, frameWith([['Motor', 5], ['Cargo', 2]]), {
+          root: false,
+          breadcrumb: ['Premium', 'Earned', 'By product'],
+        }),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters[0]?.figures).toHaveLength(1)
+    expect(outline.appendix).toHaveLength(1)
+    expect(outline.chapters[0]?.details[0]).toMatchObject({
+      number: 'A1.1',
+      trail: 'Premium › Earned › By product',
+    })
+  })
+
+  it('prints a drill reading that only restates its parent once', () => {
+    const panel = panelWith('premium')
+    const document = documentWith([panel], {
+      rows: [{ heading: 'Premium', panels: [{ panelId: 'premium', span: 12 }] }],
+    })
+    const rows = frameWith([['Earned', 7], ['Unearned', 3]])
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, panel, rows),
+        sectionWith(document, panel, frameWith([['Earned', 7], ['Unearned', 3]]), {
+          root: false,
+          breadcrumb: ['Premium', 'Recognition'],
+        }),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters[0]?.figures).toHaveLength(1)
+    expect(outline.chapters[0]?.details).toHaveLength(0)
+    expect(outline.appendix).toHaveLength(0)
+  })
+
+  it('discloses an empty reading by name instead of printing it', () => {
+    const panel = panelWith('ibnr')
+    const document = documentWith([panel], {
+      rows: [{ heading: 'Reserves', panels: [{ panelId: 'ibnr', span: 12 }] }],
+    })
+    const outline = buildOutline(
+      reportWith(document, [sectionWith(document, panel, undefined)]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters).toHaveLength(0)
+    expect(outline.missing).toEqual(['ibnr'])
+  })
+
+  it('lifts the opening chapter single-value readings onto the cover', () => {
+    const hero = panelWith('hero', { kind: 'stat', semantics: 'evidence' })
+    const share = panelWith('share')
+    const document = documentWith([hero, share], {
+      rows: [
+        { heading: 'Summary', panels: [{ panelId: 'hero', span: 3 }] },
+        { heading: 'Premium', panels: [{ panelId: 'share', span: 12 }] },
+      ],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, hero, frameWith([['Earned premium', 178]])),
+        sectionWith(document, share, frameWith([['Earned', 7], ['Unearned', 3]])),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    // The headline reading leaves the body entirely: chapter 1 of the printed
+    // report is the first chapter that still has something to show.
+    expect(outline.kpis).toHaveLength(1)
+    expect(outline.kpis[0]).toMatchObject({ kpi: true, chart: false, width: 'half' })
+    expect(outline.chapters.map(({ number, title }) => `${number} ${title}`)).toEqual(['1 Premium'])
+    expect(outline.chapters[0]?.figures[0]).toMatchObject({ kpi: false, chart: true, number: '1.1' })
+  })
+
+  it('carries a group caption onto its chapter', () => {
+    const panel = panelWith('ratios')
+    const document = documentWith([panel], {
+      rows: [{
+        heading: 'Key ratios',
+        panels: [{
+          panelId: 'ratios',
+          span: 12,
+          group: { id: 'ratios', kind: 'metrics', span: 12, caption: 'Diagnostics, not a verdict.' },
+        }],
+      }],
+    })
+    const outline = buildOutline(
+      reportWith(document, [sectionWith(document, panel, frameWith([['a', 1], ['b', 2]]))]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters[0]?.caption).toBe('Diagnostics, not a verdict.')
+  })
+
+  it('collects readings the layout never places into a closing chapter', () => {
+    const placed = panelWith('placed')
+    const loose = panelWith('loose')
+    const document = documentWith([placed, loose], {
+      rows: [{ heading: 'Premium', panels: [{ panelId: 'placed', span: 12 }] }],
+    })
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, placed, frameWith([['a', 1], ['b', 2]])),
+        sectionWith(document, loose, frameWith([['c', 3], ['d', 4]])),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.chapters.map(({ title }) => title)).toEqual(['Premium', 'Other'])
+  })
+
+  it('gathers what the dashboard says about its own numbers into notes', () => {
+    const panel = panelWith('coverage', {
+      status: { label: 'Proxy', tone: 'warning' },
+      metricRelationship: {
+        source: { key: 'a', label: 'A' },
+        target: { key: 'b', label: 'B' },
+        type: 'derivation',
+        note: 'Same amount, two names.',
+      },
+    })
+    const document = documentWith([panel], {
+      rows: [{ heading: 'Coverage', panels: [{ panelId: 'coverage', span: 12 }] }],
+    })
+    const outline = buildOutline(
+      reportWith(document, [sectionWith(document, panel, frameWith([['a', 1], ['b', 2]]))]),
+      'Summary',
+      'Other',
+    )
+
+    expect(outline.notes.map(({ detail }) => detail)).toEqual(['Proxy', 'Same amount, two names.'])
+  })
+})

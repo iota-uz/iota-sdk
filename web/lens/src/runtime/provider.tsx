@@ -301,7 +301,14 @@ export interface PrintContextValue {
   status: PrintStatus
   message?: string
   report?: PrintReport
-  run: () => Promise<void>
+  /**
+   * Builds the report and hands it to the browser's print dialog. In preview
+   * mode it stops one step earlier and leaves the composed document on screen —
+   * the only way to review printed output, since a print dialog blocks both the
+   * page and any automation driving it.
+   */
+  run: (options?: { preview?: boolean }) => Promise<void>
+  preview: boolean
 }
 
 function exportScope(panelId?: string): string {
@@ -710,6 +717,7 @@ function RuntimeCore({
   const [printState, setPrintState] = useState<Omit<PrintContextValue, 'available' | 'run'>>({
     active: false,
     status: 'idle',
+    preview: false,
   })
   const exportSnapshotId = useRef(document.snapshotId)
   const [retryToken, setRetryToken] = useState(0)
@@ -986,9 +994,9 @@ function RuntimeCore({
     run: runExport,
   }), [document.endpoints.export, exportStates, runExport])
 
-  const runPrint = useCallback(async () => {
+  const runPrint = useCallback(async ({ preview = false }: { preview?: boolean } = {}) => {
     if (drawerDepth > 0 || typeof window === 'undefined' || printState.status === 'pending') return
-    setPrintState({ active: true, status: 'pending' })
+    setPrintState({ active: true, status: 'pending', preview })
     const printQueryClients = new Map<string, QueryClient>()
     // Audit exports deliberately favour completeness over dashboard-like
     // latency: deep product and period lenses can be expensive but must not
@@ -1022,7 +1030,10 @@ function RuntimeCore({
         reportSignal,
       )
       for (const client of printQueryClients.values()) client.dispose()
-      setPrintState({ active: true, status: 'idle', report })
+      setPrintState({ active: true, status: 'idle', report, preview })
+      // Preview stops here: the composed document stays on screen, on canvas,
+      // for review — no print dialog, nothing to dismiss.
+      if (preview) return
       // Let React commit the flattened report and let canvas adapters mount
       // before the print engine snapshots the page.
       await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
@@ -1031,7 +1042,7 @@ function RuntimeCore({
       globalThis.document.documentElement.classList.add('lens-print-active')
       const cleanup = () => {
         globalThis.document.documentElement.classList.remove('lens-print-active')
-        setPrintState({ active: false, status: 'idle' })
+        setPrintState({ active: false, status: 'idle', preview: false })
       }
       window.addEventListener('afterprint', cleanup, { once: true })
       try {
@@ -1047,6 +1058,7 @@ function RuntimeCore({
       setPrintState({
         active: false,
         status: 'error',
+        preview: false,
         message: translate('print.failed', 'PDF export failed'),
       })
     }

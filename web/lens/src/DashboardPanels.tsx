@@ -405,6 +405,24 @@ function DocumentRefetchError() {
   )
 }
 
+/**
+ * `?lens-print-preview=1` composes the printed report and leaves it on screen.
+ * Print output is otherwise unreviewable: the browser's print dialog blocks the
+ * page, so neither a person nor an automated check can look at the result.
+ */
+function usePrintPreview(): void {
+  const print = usePrint()
+  const run = print.run
+  const requested = typeof window !== 'undefined' &&
+    new URL(window.location.href).searchParams.get('lens-print-preview') === '1'
+  const started = useRef(false)
+  useEffect(() => {
+    if (!requested || started.current) return
+    started.current = true
+    void run({ preview: true })
+  }, [requested, run])
+}
+
 export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
   const { document } = useDashboard()
   const translate = useTranslate()
@@ -418,6 +436,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const entrance = useRef(!isVisualRegression() && drawer.depth === 0)
   // Active-tab memory shared by every (possibly nested) tab group in this mount.
   const tabState = useRef<Map<string, string>>(new Map()).current
+  usePrintPreview()
 
   if (!document.layout.rows.length || !document.panels.length) {
     return (
