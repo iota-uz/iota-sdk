@@ -185,19 +185,22 @@ export function buildOutline(
     if (!accept(section, 'figure')) return
     const panel = sectionPanel(section)
     const single = (section.frame?.rows.length ?? 0) <= 1
+    const breakdown = (ownedSections.get(section.panel.id) ?? []).filter((owned) => accept(owned, 'detail'))
     chapter.figures.push({
       section,
       number: `${chapter.number}.${chapter.figures.length + 1}`,
       chart: chartKinds.has(panel.kind) && !single,
       metric: single,
-      width: single ? 'half' : widthFor(panel),
+      // A reading that prints its calculation needs the width to hold it; half
+      // a page beside another figure is where the two collide.
+      width: breakdown.length > 0 ? 'full' : single ? 'half' : widthFor(panel),
       ...(group && (group.label || group.caption)
         ? { group: { id: group.id, ...(group.label ? { label: group.label } : {}), ...(group.caption ? { caption: group.caption } : {}) } }
         : {}),
       // The opening chapter's single-value readings are the dashboard's
       // headline; the cover carries them so page one is already informative.
       kpi: chapter.number === 1 && single && kpiKinds.has(panel.kind) && liftedKpis++ < 6,
-      breakdown: (ownedSections.get(section.panel.id) ?? []).filter((owned) => accept(owned, 'detail')),
+      breakdown,
     })
   }
 

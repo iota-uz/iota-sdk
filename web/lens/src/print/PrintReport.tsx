@@ -364,6 +364,8 @@ function FootnoteTexts({ footnotes }: { footnotes?: FigureFootnotes }) {
  * is a term of the calculation and prints as one line; anything wider keeps its
  * table. Printed here, the ratio and its parts are read together.
  */
+const breakdownRowCap = 8
+
 function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
   const translate = useTranslate()
   if (sections.length === 0) return null
@@ -389,10 +391,24 @@ function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
             </p>
           )
         }
+        // A term of a calculation is a handful of rows. Anything longer is a
+        // dataset that belongs in the appendix, so the tile keeps the head of
+        // it and says what it kept.
+        const capped = frame && frame.rows.length > breakdownRowCap
+        const shown = capped && frame
+          ? { ...section, frame: { ...frame, rows: frame.rows.slice(0, breakdownRowCap) } }
+          : section
         return (
           <div className="lens-print-breakdown-part" key={section.id}>
             <p className="lens-print-breakdown-title">{panel.title}</p>
-            <PrintDataTable dense section={section} />
+            <PrintDataTable dense section={shown} />
+            {capped && (
+              <p className="lens-print-truncated">
+                {translate('print.truncated', 'First {rows} rows shown; the level continues in the dashboard.', {
+                  rows: breakdownRowCap,
+                })}
+              </p>
+            )}
           </div>
         )
       })}
@@ -409,7 +425,7 @@ function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: Fi
   // A single value needs neither a chart of one point nor a table of one row.
   if (figure.metric) {
     return (
-      <figure className="lens-print-figure lens-print-figure-half lens-print-figure-metric">
+      <figure className={`lens-print-figure lens-print-figure-${figure.width} lens-print-figure-metric`}>
         <MetricTile figure={figure} footnotes={footnotes} />
         <BreakdownView sections={figure.breakdown} />
         <FootnoteTexts footnotes={footnotes} />

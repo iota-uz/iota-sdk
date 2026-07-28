@@ -288,7 +288,10 @@ export async function buildPrintReport(
         perspective,
         depth: documentDepth + depth,
         root: root && documentDepth === 0,
-        ...(owner ? { owner } : {}),
+        // Only the drawer's own top level is the reading's explanation. Its
+        // drill levels are detail like any other and belong in the appendix —
+        // a KPI tile cannot hold sixty quarters of history.
+        ...(owner && depth === 0 ? { owner } : {}),
         ...(pagedFrames.has(JSON.stringify([document.snapshotId, path, perspective?.id ?? '']))
           ? { hasMore: true }
           : {}),
