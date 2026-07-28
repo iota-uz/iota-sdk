@@ -591,7 +591,17 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         return { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, index) } }
       }),
   }))
-  const categoryAxis = { type: 'category' as const, data: categories, ...axisStyle(theme) }
+  // A horizontal bar hangs its category names in the plot's left margin, and
+  // `containLabel` gives that margin whatever the longest name asks for. A
+  // catalogue product name asks for the whole width, leaving the bars a sliver
+  // — the chart then states nothing at all. Names are capped and the reading
+  // stays with the bars; the full name is in the tooltip and in the table.
+  const categoryAxis = {
+    type: 'category' as const,
+    data: categories,
+    ...axisStyle(theme),
+    ...(horizontal ? { axisLabel: { color: theme.mutedText, width: 160, overflow: 'truncate' as const } } : {}),
+  }
   const temporalAxis = {
     type: 'time' as const,
     ...axisStyle(theme),

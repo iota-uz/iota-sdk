@@ -388,6 +388,10 @@ function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
       {sections.map((section) => {
         const panel = sectionPanel(section)
         const frame = section.frame
+        // A level of one column carries no reading — on screen it is a row of
+        // links into the claim register, on paper it is the word «Открыть
+        // претензии» under a heading.
+        if (frame && frame.columns.length <= 1) return null
         if (formulaKinds.has(panel.kind)) {
           return <PrintFormula key={section.id} section={section} />
         }
