@@ -518,6 +518,9 @@ func buildPresentation(spec panel.Spec) *Presentation {
 	if spec.Distributed {
 		hints.ColorByCategory = true
 	}
+	if spec.ShowLegend {
+		hints.LegendBelow = true
+	}
 	return convertPresentation(hints)
 }
 
