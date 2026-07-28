@@ -143,7 +143,7 @@ func (o *octoProvider) CheckStatus(ctx context.Context, shopTransactionID string
 	result := &billing.StatusCheckResult{
 		Status:            resp.Data.GetStatus(),
 		ShopTransactionID: resp.Data.GetShopTransactionId(),
-		OctoPaymentUUID:   resp.Data.GetOctoPaymentUUID(),
+		ProviderPaymentID: resp.Data.GetOctoPaymentUUID(),
 	}
 
 	return result, nil
