@@ -389,7 +389,7 @@ function Contents({ outline }: { outline: PrintOutline }) {
     <section className="lens-print-contents">
       <h2>{translate('print.contents', 'Contents')}</h2>
       <ol>
-        {outline.chapters.map((chapter) => (
+        {outline.chapters.filter(({ figures }) => figures.length > 0).map((chapter) => (
           <li key={chapter.id}>
             <span className="lens-print-contents-number">{chapter.number}</span>
             <span className="lens-print-contents-title">{chapter.title}</span>
@@ -423,6 +423,9 @@ function ChapterView({ chapter, title }: { chapter: PrintChapter; title: string 
   // A chapter can hold more than one authored strip of metrics — two bases for
   // the same ratios, say. Each strip announces itself where it begins, so two
   // readings called the same thing are never left to be told apart by order.
+  // A chapter whose readings are all drill detail has nothing to show here;
+  // its numbers are printed, once, in the detail appendix.
+  if (chapter.figures.length === 0) return null
   const printed = new Set<string>([chapter.caption ?? ''])
   const body: Array<JSX.Element> = []
   for (const figure of chapter.figures) {

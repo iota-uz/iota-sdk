@@ -4470,7 +4470,9 @@
 }
 
 .lens-print-chart-waterfall .lens-waterfall-chart {
-  grid-template-columns: 64px minmax(0, 1fr);
+  /* Wide enough for a money tick: "150 млрд UZS" is the widest label a
+     printed bridge has to hold, and a clipped axis is a lying axis. */
+  grid-template-columns: 84px minmax(0, 1fr);
 }
 
 .lens-print-chart-waterfall .lens-waterfall-axis,
