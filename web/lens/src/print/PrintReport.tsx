@@ -48,18 +48,22 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): Array<A
     if (value !== undefined && value >= 0) groups.set(group, (groups.get(group) ?? 0) + value)
   })
 
-  // A bridge frame carries the running total in its value column and the step
-  // in `cut`. The chart above the table draws the steps, so a table of running
-  // totals would contradict it row for row — an outward cession of 14.68 bn
-  // printed as 185.21 bn. The stages are what the bridge is about; the opening
-  // and closing rows keep their totals.
-  const cutIndex = panel.semantics === 'reconciliation' ? indexOf(frame, panel.encoding.cut) : -1
+  // A bridge frame carries the running total in its value column. The chart
+  // above the table draws the movement between stages, so a table of running
+  // totals contradicts it row for row — an outward cession drawn as −14.68 bn
+  // printed as 185.21 bn beneath it. The stages are what a bridge is about, so
+  // the table states the same movement the bars do, computed the same way; the
+  // opening and closing rows keep their totals.
+  const bridge = panel.semantics === 'reconciliation' && indexOf(frame, panel.encoding.cut) >= 0
   const finalIndex = indexOf(frame, panel.encoding.final)
   const stepValue = (row: Array<unknown>, rowIndex: number): unknown => {
-    if (cutIndex < 0 || rowIndex === 0) return valueIndex >= 0 ? row[valueIndex] : undefined
-    if (finalIndex >= 0 && row[finalIndex] === true) return valueIndex >= 0 ? row[valueIndex] : undefined
-    const cut = numeric(row[cutIndex])
-    return cut === undefined || cut === 0 ? (valueIndex >= 0 ? row[valueIndex] : undefined) : row[cutIndex]
+    const raw = valueIndex >= 0 ? row[valueIndex] : undefined
+    if (!bridge || rowIndex === 0) return raw
+    if (finalIndex >= 0 && row[finalIndex] === true) return raw
+    const current = values[rowIndex]
+    const previous = values[rowIndex - 1]
+    if (current === undefined || previous === undefined) return raw
+    return current - previous
   }
 
   const resolveColor = seriesColorResolver(theme, panel, { positional: section.root })

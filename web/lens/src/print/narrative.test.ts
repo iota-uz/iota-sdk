@@ -71,7 +71,7 @@ describe('narrativeFact', () => {
 
     expect(fact).toMatchObject({
       labelKey: 'print.factPair',
-      vars: { label: 'payment · Collected', share: '99%', rest: 'payment · Receivable' },
+      vars: { label: 'Collected', share: '99%', rest: 'Receivable' },
     })
   })
 
