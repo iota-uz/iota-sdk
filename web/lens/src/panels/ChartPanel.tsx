@@ -140,8 +140,12 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // rewrites the numbers on every slice that stayed.
   const visibleFrame = useMemo(() => {
     if (!frame.data || hidden.size === 0) return frame.data
-    const rows = frame.data.rows.filter((_, index) => !hidden.has(legendKey(frame.data!, panel, index)))
-    return { ...frame.data, rows }
+    const keep = frame.data.rows.map((_, index) => !hidden.has(legendKey(frame.data!, panel, index)))
+    const rows = frame.data.rows.filter((_, index) => keep[index])
+    // `colors` is positional: entry i pins row i. Dropping rows without
+    // dropping their pins slides every colour onto its neighbour's slice.
+    const colors = frame.data.colors?.filter((_, index) => keep[index])
+    return { ...frame.data, rows, ...(colors ? { colors } : {}) }
   }, [frame.data, hidden, panel])
 
   const visibleTotal = useMemo(() => {
@@ -157,6 +161,9 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // against — or it prints the root's figure over the level's chart.
   const levelTotal = useMemo(() => {
     if (!active || !frame.data || !panel.encoding.value) return undefined
+    // A partition radial holds several decompositions of the same headline at
+    // once, so summing its rows counts that headline once per ring.
+    if (panel.radial?.mode === 'partition') return undefined
     const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
     if (valueIndex < 0) return undefined
     return frame.data.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
@@ -172,7 +179,9 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // before anyone knew which dimension that level would render, so the frame is
   // the only thing that can say "these slices are years, label them as such".
   const presentation = frame.data?.presentation ?? panel.presentation
-  const frameColors = frame.data?.colors
+  // Positional colour pins follow the rows they pin, so they come off the
+  // frame the chart is actually drawing.
+  const frameColors = visibleFrame?.colors
 
   const toggleSeries = useCallback((key: string) => {
     setHidden((current) => {
@@ -312,12 +321,19 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
   const atLevel = navigation.panelId === panel.id && navigation.path.length > 0
   const color = seriesColorResolver(document.theme, panel, { positional: !atLevel })
   const visibleCount = frame.rows.filter((_, index) => !hidden.has(legendKey(frame, panel, index))).length
+  // A category repeated across rings is one legend entry, not one per ring.
   const entries = panel.radial?.mode === 'partition'
-    ? frame.rows.reduce<number[]>((indices, _, index) => {
-        const key = legendKey(frame, panel, index)
-        if (!indices.some((candidate) => legendKey(frame, panel, candidate) === key)) indices.push(index)
+    ? (() => {
+        const seen = new Set<string>()
+        const indices: number[] = []
+        frame.rows.forEach((_, index) => {
+          const key = legendKey(frame, panel, index)
+          if (seen.has(key)) return
+          seen.add(key)
+          indices.push(index)
+        })
         return indices
-      }, [])
+      })()
     : frame.rows.map((_, index) => index)
   const visibleEntryCount = entries.filter((index) => !hidden.has(legendKey(frame, panel, index))).length
 
@@ -333,15 +349,24 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
     const key = frame.rows[index]?.[seriesIndex]
     return typeof key === 'string' ? ringTotals.get(key) ?? total : total
   }
+  const ringOf = (index: number): string => {
+    if (panel.radial?.mode !== 'partition' || seriesIndex < 0) return ''
+    const key = frame.rows[index]?.[seriesIndex]
+    return typeof key === 'string' ? key : ''
+  }
   const shares = new Map<number, number | undefined>()
-  const groups = new Map<number | undefined, number[]>()
+  // Two rings commonly declare the same total — both 100% of their own whole.
+  // Grouping by the denominator would then reconcile them as one set of rows
+  // and hand each ring a share of half its own decomposition.
+  const groups = new Map<string, { denominator: number | undefined; indices: number[] }>()
   for (let index = 0; index < frame.rows.length; index += 1) {
     const denominator = denominatorFor(index)
-    const group = groups.get(denominator) ?? []
-    group.push(index)
-    groups.set(denominator, group)
+    const key = panel.radial?.mode === 'partition' ? ringOf(index) : String(denominator)
+    const group = groups.get(key) ?? { denominator, indices: [] }
+    group.indices.push(index)
+    groups.set(key, group)
   }
-  for (const [denominator, indices] of groups) {
+  for (const { denominator, indices } of groups.values()) {
     const values = indices.map((index) => (valueIndex >= 0 ? numericCell(frame.rows[index]![valueIndex]) : undefined))
     distributeShares(values, denominator).forEach((share, position) => shares.set(indices[position]!, share))
   }

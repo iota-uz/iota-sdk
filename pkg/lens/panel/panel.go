@@ -2,6 +2,7 @@
 package panel
 
 import (
+	"bytes"
 	"encoding/json"
 	"strings"
 
@@ -402,12 +403,18 @@ type RadialRing struct {
 // RadialNodeKey returns the stable mark key emitted for a partition segment.
 // It includes both ring and category identity so the same category can carry a
 // different drill action in each decomposition.
+// The runtime builds the same key with JSON.stringify, which leaves `<`, `>`
+// and `&` alone; encoding/json escapes them to < and friends unless told
+// not to, and a category named "A&B" would then carry two different identities
+// on the two sides of the wire.
 func RadialNodeKey(ringKey, categoryKey string) string {
-	key, err := json.Marshal([2]string{ringKey, categoryKey})
-	if err != nil {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode([2]string{ringKey, categoryKey}); err != nil {
 		panic(err)
 	}
-	return "radial:" + string(key)
+	return "radial:" + strings.TrimSuffix(buffer.String(), "\n")
 }
 
 // GroupLayout selects how a StatGroup panel arranges its children inside the

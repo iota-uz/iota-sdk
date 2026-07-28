@@ -58,7 +58,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 
 	options := charts.ChartOptions{
 		Chart: charts.ChartConfig{
-			Type:    chartType(panelSpec.Kind),
+			Type:    chartType(panelSpec),
 			Height:  panelHeight(panelSpec, heightOverride),
 			Toolbar: charts.Toolbar{Show: false},
 			Stacked: panelSpec.Kind == panel.KindStackedBar,
@@ -576,7 +576,7 @@ func appendResponsiveDefaults(options *charts.ChartOptions, panelSpec panel.Spec
 	// Circular charts scale via SVG naturally. Side legends still need one
 	// mobile override so the plot is not squeezed into a narrow column.
 	switch panelSpec.Kind {
-	case panel.KindPie, panel.KindDonut:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial:
 		if options.Legend != nil && options.Legend.Position != nil &&
 			(*options.Legend.Position == charts.LegendPositionLeft || *options.Legend.Position == charts.LegendPositionRight) {
 			bottom := charts.LegendPositionBottom
@@ -603,7 +603,7 @@ func appendResponsiveDefaults(options *charts.ChartOptions, panelSpec panel.Spec
 			}
 		}
 		return
-	case panel.KindRadial, panel.KindGauge, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
+	case panel.KindGauge, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return
 	case panel.KindStat,
 		panel.KindTimeSeries,
@@ -1875,15 +1875,24 @@ func chartExploreConfig(spec *action.Spec) *chartExplore {
 	return &chartExplore{ExplorerID: spec.Explore.ExplorerID, Perspective: spec.Explore.Perspective}
 }
 
-func chartType(kind panel.Kind) charts.ChartType {
-	switch kind {
+func chartType(spec panel.Spec) charts.ChartType {
+	switch spec.Kind {
 	case panel.KindTimeSeries:
 		return charts.LineChartType
 	case panel.KindPie:
 		return charts.PieChartType
 	case panel.KindDonut:
 		return charts.DonutChartType
-	case panel.KindRadial, panel.KindGauge:
+	case panel.KindRadial:
+		// A partition radial is several concentric decompositions of one
+		// headline; ApexCharts has no concentric-ring donut, so this renderer
+		// draws the outermost decomposition it is given as a single donut.
+		// The runtime in web/lens draws the rings themselves.
+		if spec.Radial != nil && spec.Radial.Mode == panel.RadialPartition {
+			return charts.DonutChartType
+		}
+		return charts.RadialBarChartType
+	case panel.KindGauge:
 		return charts.RadialBarChartType
 	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return charts.BarChartType

@@ -100,3 +100,25 @@ func TestKindPredicatesPartition(t *testing.T) {
 		assert.NotEqualf(t, leaf, k.IsContainer(), "%q: leaf=%v but IsContainer()=%v; leaf and container must be mutually exclusive and exhaustive", k, leaf, k.IsContainer())
 	}
 }
+
+// TestRadialNodeKeyMatchesJSONStringify pins the key format against the one
+// the runtime builds with JSON.stringify. encoding/json escapes `<`, `>` and
+// `&` by default, which would give the two sides different identities for the
+// same segment.
+func TestRadialNodeKeyMatchesJSONStringify(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		ring     string
+		category string
+		want     string
+	}{
+		{name: "plain", ring: "plan", category: "north", want: `radial:["plan","north"]`},
+		{name: "ampersand", ring: "plan", category: "A&B", want: `radial:["plan","A&B"]`},
+		{name: "angle brackets", ring: "<plan>", category: "north", want: `radial:["<plan>","north"]`},
+		{name: "quote", ring: "plan", category: `"q"`, want: `radial:["plan","\"q\""]`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Equal(t, testCase.want, RadialNodeKey(testCase.ring, testCase.category))
+		})
+	}
+}

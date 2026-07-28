@@ -306,7 +306,9 @@ function sliceTooltip(params: unknown, input: ChartInput, ringLabel?: string): s
     ? data.share
     : (typeof record.percent === 'number' ? record.percent : undefined)
   const suffix = share === undefined ? '' : ` (${formatShare(share, input.locale)})`
-  const heading = ringLabel ? `${ringLabel}\n` : ''
+  // The tooltip body is parsed as HTML, so a newline collapses to a space and
+  // the ring name runs into the category it heads.
+  const heading = ringLabel ? `${ringLabel}<br/>` : ''
   return `${heading}${label}: ${value}${suffix}`
 }
 

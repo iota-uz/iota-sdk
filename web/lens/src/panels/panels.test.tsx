@@ -302,6 +302,61 @@ describe('chart encoding and drill behavior', () => {
     expect(rowIndexForKey(frame, radial, 'radial:["actual","north"]')).toBe(0)
   })
 
+  it('reconciles legend shares inside each ring when two rings declare the same total', async () => {
+    const third = 100 / 3
+    const frame: Frame = {
+      columns: dataFrame.columns,
+      rows: [
+        ['alpha', 'Alpha', '2026-07-01T00:00:00Z', 'actual', third],
+        ['beta', 'Beta', '2026-07-01T00:00:00Z', 'actual', third],
+        ['gamma', 'Gamma', '2026-07-01T00:00:00Z', 'actual', third],
+        ['delta', 'Delta', '2026-07-01T00:00:00Z', 'plan', third],
+        ['epsilon', 'Epsilon', '2026-07-01T00:00:00Z', 'plan', third],
+        ['zeta', 'Zeta', '2026-07-01T00:00:00Z', 'plan', third],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const radial = panel('radial', {
+      semantics: 'partition',
+      presentation: { legend: 'below', legendValue: 'percent' },
+      radial: {
+        mode: 'partition',
+        rings: [
+          { key: 'actual', label: 'Actual', total: 100 },
+          { key: 'plan', label: 'Plan', order: 1, total: 100 },
+        ],
+      },
+    })
+    const view = render(<PiePanel panel={radial} adapter={fakeAdapter()} />)
+    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item').length).toBe(6))
+    const shares = Array.from(view.container.querySelectorAll('.lens-chart-legend-value')).map((node) => node.textContent)
+    // Both rings declare 100. Grouped by that denominator the six rows sum to
+    // 200%, so nothing reconciles and each ring prints 99.9%. Grouped by ring,
+    // each thirds-decomposition adds up to exactly 100.0%.
+    expect(shares).toEqual(['33.4%', '33.3%', '33.3%', '33.4%', '33.3%', '33.3%'])
+  })
+
+  it('drops the colour pins of the rows a legend toggle hid', async () => {
+    const frame: Frame = {
+      columns: dataFrame.columns,
+      rows: [
+        ['alpha', 'Alpha', '2026-07-01T00:00:00Z', 'actual', 60],
+        ['beta', 'Beta', '2026-07-01T00:00:00Z', 'actual', 40],
+      ],
+      colors: ['#111111', '#222222'],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const pie = panel('pie', { presentation: { legend: 'below' } })
+    render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+    fireEvent.click(screen.getByText('Alpha'))
+    // The pins are positional: keeping Alpha's after dropping Alpha's row
+    // would paint Beta's slice with Alpha's colour.
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(1))
+    expect(inputs.at(-1)?.colors).toEqual(['#222222'])
+  })
+
   it('renders the panel title once when the stat label would duplicate it', () => {
     runtime.frame = state('data')
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)

@@ -77,6 +77,13 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
     const value = values[rowIndex]
     if (value !== undefined && value >= 0) groups.set(group, (groups.get(group) ?? 0) + value)
   })
+  // A partition ring declares the whole its parts are measured against, and a
+  // tolerance says the rows may miss it slightly. The chart divides by the
+  // declared total; a table dividing by the row sum prints a different share
+  // for the same arc.
+  for (const ring of panel.radial?.mode === 'partition' ? panel.radial.rings ?? [] : []) {
+    if (groups.has(ring.key)) groups.set(ring.key, ring.total)
+  }
 
   // A bridge frame carries the running total in its value column. The chart
   // above the table draws the movement between stages, so a table of running

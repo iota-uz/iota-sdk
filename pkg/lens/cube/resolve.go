@@ -367,6 +367,11 @@ func panelBuilder(kind panel.Kind, id, title, dataset string) *panel.Builder {
 	case panel.KindPie:
 		return panel.Pie(id, title, dataset)
 	case panel.KindRadial:
+		// A radial panel needs geometry a cube dimension cannot state: a
+		// declared maximum for progress, or the ring totals a partition
+		// reconciles against. A dimension asking for one is asking for a
+		// chart it has not described, so it gets the cube's default bar.
+		// Radial panels belong in a hand-written DashboardSpec.
 		return panel.Bar(id, title, dataset)
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return panel.Bar(id, title, dataset)

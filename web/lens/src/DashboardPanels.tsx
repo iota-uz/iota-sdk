@@ -280,12 +280,15 @@ function TabsGroup({ group, items, depth, panels, registry }: {
       </div>
       {/* Every tabpanel element exists so each tab's aria-controls resolves, but
           only the active one mounts its content — the inactive ones are hidden
-          and empty, so hidden panels never fetch. */}
+          and empty, so hidden panels never fetch. A print run is the exception:
+          the report covers every tab, so the others mount to resolve their
+          frames. They stay hidden while it does, or the dashboard behind the
+          report flashes every tab at once. */}
       {tabs.map((tab, index) => (
         <div
           aria-labelledby={tabId(index)}
           className="lens-panel-grid lens-tab-panel"
-          hidden={!print.active && tab !== current}
+          hidden={tab !== current}
           id={panelId(index)}
           key={tab}
           role="tabpanel"

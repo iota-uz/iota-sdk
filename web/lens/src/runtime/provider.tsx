@@ -311,6 +311,29 @@ export interface PrintContextValue {
   preview: boolean
 }
 
+// `AbortSignal.timeout` and `AbortSignal.any` are recent enough that a browser
+// still in the field can lack them, and there they would throw where a report
+// is being built rather than degrade. The fallbacks are the same contract.
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms)
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(new DOMException('signal timed out', 'TimeoutError')), ms)
+  return controller.signal
+}
+
+function anySignal(signals: Array<AbortSignal>): AbortSignal {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any(signals)
+  const controller = new AbortController()
+  const aborted = signals.find((signal) => signal.aborted)
+  if (aborted) controller.abort(aborted.reason)
+  else {
+    for (const signal of signals) {
+      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+    }
+  }
+  return controller.signal
+}
+
 function exportScope(panelId?: string): string {
   return panelId ? `panel:${panelId}` : 'dashboard'
 }
@@ -1001,18 +1024,19 @@ function RuntimeCore({
     // Audit exports deliberately favour completeness over dashboard-like
     // latency: deep product and period lenses can be expensive but must not
     // silently disappear from the non-interactive report.
-    const reportSignal = AbortSignal.timeout(90_000)
-    const detailSignal = () => AbortSignal.any([
-      reportSignal,
-      AbortSignal.timeout(20_000),
-    ])
+    const reportSignal = timeoutSignal(90_000)
+    const detailSignal = () => anySignal([reportSignal, timeoutSignal(20_000)])
     try {
       const { buildPrintReport } = await import('./print')
       const report = await buildPrintReport(
         document,
         (request, owner = document) => {
           const endpoint = owner.endpoints.query
-          if (!endpoint) return Promise.reject(new Error('query'))
+          if (!endpoint) {
+            return Promise.reject(new Error(
+              `lens: ${owner.meta.dashboardId} declares no query endpoint, so its detail cannot be printed`,
+            ))
+          }
           let client = printQueryClients.get(endpoint)
           if (!client) {
             client = new QueryClient(endpoint, { csrf, fetcher })

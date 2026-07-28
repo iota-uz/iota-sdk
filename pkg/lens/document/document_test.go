@@ -560,55 +560,128 @@ func TestDashboardDocumentValidate_Radial(t *testing.T) {
 		return doc
 	}
 
-	t.Run("accepts reconciled rings", func(t *testing.T) {
-		require.NoError(t, partition().Validate())
-	})
-	t.Run("rejects silent residual", func(t *testing.T) {
-		doc := partition()
-		doc.Frames["panel:total"].Rows[0][3] = 59.0
-		require.ErrorContains(t, doc.Validate(), "does not reconcile")
-	})
-	t.Run("rejects overallocation", func(t *testing.T) {
-		doc := partition()
-		doc.Frames["panel:total"].Rows[0][3] = 61.0
-		require.ErrorContains(t, doc.Validate(), "does not reconcile")
-	})
-	t.Run("accepts an empty source for the empty panel state", func(t *testing.T) {
-		doc := partition()
-		doc.Frames["panel:total"] = Frame{Columns: doc.Frames["panel:total"].Columns, Rows: [][]any{}}
-		require.NoError(t, doc.Validate())
-	})
-	t.Run("permits declared rounding tolerance", func(t *testing.T) {
-		doc := partition()
-		doc.Panels[0].Radial.Tolerance = 0.02
-		doc.Frames["panel:total"].Rows[0][3] = 59.99
-		require.NoError(t, doc.Validate())
-	})
-	t.Run("rejects undeclared ring", func(t *testing.T) {
-		doc := partition()
-		doc.Frames["panel:total"].Rows[0][2] = "forecast"
-		require.ErrorContains(t, doc.Validate(), "undeclared ring")
-	})
-	t.Run("rejects duplicate ring-category pair", func(t *testing.T) {
-		doc := partition()
-		doc.Frames["panel:total"].Rows[1][0] = "north"
-		doc.Frames["panel:total"].Rows[1][1] = "North"
-		require.ErrorContains(t, doc.Validate(), "duplicate key")
-	})
-	t.Run("rejects a negative value", func(t *testing.T) {
-		doc := partition()
-		doc.Frames["panel:total"].Rows[0][3] = -1.0
-		require.ErrorContains(t, doc.Validate(), "finite and non-negative")
-	})
-	t.Run("progress requires explicit maximum and bounds values", func(t *testing.T) {
+	progress := func(maximum float64) *DashboardDocument {
 		doc := partition()
 		doc.Panels[0].Semantics = SemanticsSeries
 		doc.Panels[0].Encoding.Series = ""
-		doc.Panels[0].Radial = &RadialConfig{Mode: RadialModeProgress, Max: 50}
-		require.ErrorContains(t, doc.Validate(), "exceeds maximum")
-		doc.Panels[0].Radial.Max = 0
-		require.ErrorContains(t, doc.Validate(), "positive finite maximum")
-	})
+		doc.Panels[0].Radial = &RadialConfig{Mode: RadialModeProgress, Max: maximum}
+		return doc
+	}
+
+	for _, testCase := range []struct {
+		name     string
+		document func() *DashboardDocument
+		rejects  string
+	}{
+		{
+			name:     "accepts reconciled rings",
+			document: partition,
+		},
+		{
+			name: "rejects silent residual",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][3] = 59.0
+				return doc
+			},
+			rejects: "does not reconcile",
+		},
+		{
+			name: "rejects overallocation",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][3] = 61.0
+				return doc
+			},
+			rejects: "does not reconcile",
+		},
+		{
+			name: "accepts an empty source for the empty panel state",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"] = Frame{Columns: doc.Frames["panel:total"].Columns, Rows: [][]any{}}
+				return doc
+			},
+		},
+		{
+			name: "permits declared rounding tolerance",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Panels[0].Radial.Tolerance = 0.02
+				doc.Frames["panel:total"].Rows[0][3] = 59.99
+				return doc
+			},
+		},
+		{
+			name: "rejects undeclared ring",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][2] = "forecast"
+				return doc
+			},
+			rejects: "undeclared ring",
+		},
+		{
+			name: "rejects duplicate ring-category pair",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[1][0] = "north"
+				doc.Frames["panel:total"].Rows[1][1] = "North"
+				return doc
+			},
+			rejects: "duplicate key",
+		},
+		{
+			name: "rejects a negative value",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][3] = -1.0
+				return doc
+			},
+			rejects: "finite and non-negative",
+		},
+		{
+			name:     "progress bounds values by its maximum",
+			document: func() *DashboardDocument { return progress(50) },
+			rejects:  "exceeds maximum",
+		},
+		{
+			name:     "progress requires an explicit maximum",
+			document: func() *DashboardDocument { return progress(0) },
+			rejects:  "positive finite maximum",
+		},
+		{
+			// The encoding is the panel's claim about its own frame. A claim
+			// the frame cannot honour has to be rejected before the radial
+			// rules index rows by it, or the read panics on -1.
+			name: "rejects an encoding the frame has no column for",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Panels[0].Encoding.Value = "amount"
+				return doc
+			},
+			rejects: `value encoding references missing field "amount"`,
+		},
+		{
+			name: "rejects a partition series the frame has no column for",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Panels[0].Encoding.Series = "ring"
+				return doc
+			},
+			rejects: `series encoding references missing field "ring"`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			err := testCase.document().Validate()
+			if testCase.rejects == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, testCase.rejects)
+		})
+	}
 }
 
 func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {

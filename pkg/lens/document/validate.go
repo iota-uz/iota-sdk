@@ -514,6 +514,15 @@ func validateRadialConfig(panel Panel, frame Frame) error {
 			seriesIndex = index
 		}
 	}
+	// An encoding naming a column the frame does not carry leaves its index at
+	// -1, and the row reads below would panic on it. validateEncodingFields
+	// rejects that before this runs; the guard keeps a reordering of the two
+	// from turning a bad document into a crash.
+	if idIndex < 0 || labelIndex < 0 || valueIndex < 0 ||
+		(panel.Radial.Mode == RadialModePartition && seriesIndex < 0) {
+		return fmt.Errorf("panel %s radial encoding names a column its frame does not carry", panel.ID)
+	}
+
 	seen := make(map[string]struct{}, len(frame.Rows))
 	labels := make(map[string]string)
 	rings := make(map[string]RadialRing, len(panel.Radial.Rings))
