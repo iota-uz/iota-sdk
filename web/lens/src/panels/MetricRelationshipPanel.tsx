@@ -1,45 +1,23 @@
 import { useMemo, type ReactNode } from 'react'
 import type {
-  Availability,
-  Confidence,
   MetricRelationshipConfig,
-  MetricRelationshipDirection,
-  MetricRelationshipEnd,
-  MetricRelationshipType,
   Panel,
 } from '../contract'
 import { useFormat, usePanelFrame, useTranslate, type PanelFrameState } from '../runtime'
 import { useElementActionResolver } from './actions'
-import { buildKeyedJoin, panelField, type KeyedJoinMessages, type ResolvedElement } from './data'
+import { buildKeyedJoin, panelField, type KeyedJoinMessages } from './data'
+import {
+  connectorGlyphs,
+  relationshipEndView,
+  relationshipOperands,
+  relationshipTypeFallback,
+  type RelationshipEndView,
+} from './metricViews'
 import { PanelFrame } from './PanelFrame'
 import { QualityChip } from './QualityChip'
 
 export interface MetricRelationshipPanelProps {
   panel: Panel
-}
-
-interface Glyphs {
-  /** Horizontal connector glyph. */
-  horizontal: string
-  /** Vertical connector glyph for the narrow column layout (no CSS rotation). */
-  vertical: string
-}
-
-const typeFallback: Record<MetricRelationshipType, string> = {
-  association: 'Association',
-  derivation: 'Derivation',
-  reconciliation: 'Reconciliation',
-}
-
-function connectorGlyphs(config: MetricRelationshipConfig): Glyphs {
-  const direction: MetricRelationshipDirection = config.direction ?? 'bidirectional'
-  // association and reconciliation are symmetric by nature — a neutral
-  // double-headed connector that never implies containment or derivation.
-  if (config.type !== 'derivation' || direction === 'bidirectional') {
-    return { horizontal: '⇄', vertical: '⇵' }
-  }
-  if (direction === 'target_to_source') return { horizontal: '←', vertical: '↑' }
-  return { horizontal: '→', vertical: '↓' }
 }
 
 function useMessages(): KeyedJoinMessages {
@@ -48,14 +26,6 @@ function useMessages(): KeyedJoinMessages {
     missingColumn: (column) => translate('panel.missingColumn', 'Panel data is missing the “{column}” column.', { column }),
     duplicateKey: (key) => translate('panel.duplicateKey', 'Panel data has a duplicate key “{key}”.', { key }),
   }), [translate])
-}
-
-interface EndView {
-  end: MetricRelationshipEnd
-  showDash: boolean
-  valueText: string
-  confidence?: Confidence
-  availability?: Availability
 }
 
 export function MetricRelationshipPanel({ panel }: MetricRelationshipPanelProps) {
@@ -76,34 +46,15 @@ export function MetricRelationshipPanel({ panel }: MetricRelationshipPanelProps)
     ? { ...frame, data: undefined, error: new Error(contractError) }
     : frame
 
-  const endView = (end: MetricRelationshipEnd | undefined): EndView | undefined => {
-    if (!end) return undefined
-    const element: ResolvedElement = join?.kind === 'ok' ? join.resolve(end.key) : { value: { kind: 'unavailable' } }
-    const confidence = element.confidence ?? end.confidence ?? panel.confidence
-    const structuralAvailability = element.availability ?? end.availability ?? panel.availability
-    const missing = element.value.kind === 'unavailable'
-    const availability: Availability | undefined = missing
-      ? (structuralAvailability && structuralAvailability !== 'available' ? structuralAvailability : 'unavailable')
-      : structuralAvailability
-    const showDash = missing || (availability !== undefined && availability !== 'available')
-    return {
-      end,
-      showDash,
-      valueText: element.value.kind === 'value' ? formatValue(element.value.value) : '—',
-      confidence,
-      availability,
-    }
-  }
-
-  const source = endView(config?.source)
-  const target = endView(config?.target)
+  const source = relationshipEndView(panel, join, config?.source, formatValue)
+  const target = relationshipEndView(panel, join, config?.target, formatValue)
   const glyphs = config ? connectorGlyphs(config) : { horizontal: '⇄', vertical: '⇵' }
 
   const type = config?.type ?? 'association'
-  const typeLabel = translate(`relationship.type.${type}`, typeFallback[type])
+  const typeLabel = translate(`relationship.type.${type}`, relationshipTypeFallback[type])
   const sentence = relationshipSentence(translate, config, source?.end.label ?? '', target?.end.label ?? '')
 
-  const renderEnd = (view: EndView | undefined, role: 'source' | 'target'): ReactNode => {
+  const renderEnd = (view: RelationshipEndView | undefined, role: 'source' | 'target'): ReactNode => {
     if (!view) return <div className={`lens-relationship-end lens-relationship-end-${role}`} />
     const targetAction = resolveAction(view.end.action)
     const body = (
@@ -152,23 +103,24 @@ export function MetricRelationshipPanel({ panel }: MetricRelationshipPanelProps)
 
 type Translate = (key: string, fallback: string, vars?: Record<string, string | number>) => string
 
-function relationshipSentence(
+/**
+ * What the relationship claims, in words. On screen it is the screen-reader
+ * sentence behind the glyph; on paper it is the only form the claim has, since
+ * a printed page carries no connector animation and no tooltip.
+ */
+export function relationshipSentence(
   translate: Translate,
   config: MetricRelationshipConfig | undefined,
-  source: string,
-  target: string,
+  sourceLabel: string,
+  targetLabel: string,
 ): string {
   const type = config?.type ?? 'association'
+  const { source, target } = relationshipOperands(config, sourceLabel, targetLabel)
   if (type === 'association') {
     return translate('relationship.association', '{source} is economically linked to {target}', { source, target })
   }
   if (type === 'reconciliation') {
     return translate('relationship.reconciliation', '{source} reconciles with {target}', { source, target })
-  }
-  // derivation: the arrow follows the declared direction, so the sentence names
-  // the deriving end first.
-  if (config?.direction === 'target_to_source') {
-    return translate('relationship.derivation', '{source} derives {target}', { source: target, target: source })
   }
   return translate('relationship.derivation', '{source} derives {target}', { source, target })
 }

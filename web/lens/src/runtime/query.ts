@@ -32,6 +32,7 @@ export interface QueryClientOptions {
 
 export interface QueryOptions {
   force?: boolean
+  signal?: AbortSignal
 }
 
 export function queryCacheKey(request: QueryRequest): string {
@@ -59,6 +60,11 @@ export class QueryClient {
   }
 
   async query(input: QueryRequest, options: QueryOptions = {}): Promise<QueryResponse> {
+    if (options.signal?.aborted) {
+      throw options.signal.reason instanceof Error
+        ? options.signal.reason
+        : new DOMException('The operation was aborted', 'AbortError')
+    }
     const request = QueryRequestSchema.parse(input)
     if (this.snapshotId !== request.snapshotId) {
       this.snapshotId = request.snapshotId
@@ -71,6 +77,8 @@ export class QueryClient {
     if (pending) return pending
 
     const controller = new AbortController()
+    const abort = () => controller.abort(options.signal?.reason)
+    options.signal?.addEventListener('abort', abort, { once: true })
     this.controllers.add(controller)
     const promise = this.fetch(request, controller.signal)
       .then((response) => {
@@ -78,6 +86,7 @@ export class QueryClient {
         return response
       })
       .finally(() => {
+        options.signal?.removeEventListener('abort', abort)
         this.inFlight.delete(key)
         this.controllers.delete(controller)
       })

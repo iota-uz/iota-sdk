@@ -330,6 +330,9 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if err := d.validateMetricConfigs(panel); err != nil {
 		return err
 	}
+	if err := validateRadialConfig(panel, d.Frames[panel.Frame]); err != nil {
+		return err
+	}
 	if panel.Semantics == SemanticsPartition {
 		if err := validatePartitionFrame("panel "+panel.ID, panel.Encoding, d.Frames[panel.Frame]); err != nil {
 			return err
@@ -369,8 +372,13 @@ func validatePresentation(owner string, presentation *Presentation) error {
 	default:
 		return fmt.Errorf("%s has unsupported legend placement %q", owner, presentation.Legend)
 	}
+	switch presentation.LegendValue {
+	case "", LegendValueAmount, LegendValuePercent:
+	default:
+		return fmt.Errorf("%s has unsupported legend value %q", owner, presentation.LegendValue)
+	}
 	switch presentation.SliceLabels {
-	case "", SliceLabelsPercent:
+	case "", SliceLabelsPercent, SliceLabelsLabel:
 	default:
 		return fmt.Errorf("%s has unsupported slice labels %q", owner, presentation.SliceLabels)
 	}
@@ -444,7 +452,7 @@ func (d *DashboardDocument) validateMetricConfigs(panel Panel) error {
 			return fmt.Errorf("panel %s carries a metric config for another kind", panel.ID)
 		}
 		return d.validateMetricRelationship(panel)
-	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindBar, PanelKindHBar,
+	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
 		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindTable, PanelKindCoverage:
 		if hasFlow || hasHierarchy || hasRelationship {
 			return fmt.Errorf("panel %s has a metric config for kind %q", panel.ID, panel.Kind)
@@ -452,6 +460,136 @@ func (d *DashboardDocument) validateMetricConfigs(panel Panel) error {
 	default:
 		if hasFlow || hasHierarchy || hasRelationship {
 			return fmt.Errorf("panel %s has a metric config for kind %q", panel.ID, panel.Kind)
+		}
+	}
+	return nil
+}
+
+func validateRadialConfig(panel Panel, frame Frame) error {
+	if panel.Kind != PanelKindRadial {
+		if panel.Radial != nil {
+			return fmt.Errorf("panel %s has radial config for kind %q", panel.ID, panel.Kind)
+		}
+		return nil
+	}
+	if panel.Radial == nil {
+		return fmt.Errorf("panel %s radial kind requires radial config", panel.ID)
+	}
+	for role, field := range map[string]string{
+		"id": panel.Encoding.ID, "label": panel.Encoding.Label, "value": panel.Encoding.Value,
+	} {
+		if strings.TrimSpace(field) == "" {
+			return fmt.Errorf("panel %s radial kind requires %s encoding", panel.ID, role)
+		}
+	}
+	switch panel.Radial.Mode {
+	case RadialModeProgress:
+		if math.IsNaN(panel.Radial.Max) || math.IsInf(panel.Radial.Max, 0) || panel.Radial.Max <= 0 {
+			return fmt.Errorf("panel %s radial progress requires a positive finite maximum", panel.ID)
+		}
+	case RadialModePartition:
+		if strings.TrimSpace(panel.Encoding.Series) == "" {
+			return fmt.Errorf("panel %s radial partition requires series encoding", panel.ID)
+		}
+		if len(panel.Radial.Rings) == 0 {
+			return fmt.Errorf("panel %s radial partition requires rings", panel.ID)
+		}
+		if math.IsNaN(panel.Radial.Tolerance) || math.IsInf(panel.Radial.Tolerance, 0) || panel.Radial.Tolerance < 0 {
+			return fmt.Errorf("panel %s radial tolerance must be finite and non-negative", panel.ID)
+		}
+	default:
+		return fmt.Errorf("panel %s has unsupported radial mode %q", panel.ID, panel.Radial.Mode)
+	}
+
+	idIndex, labelIndex, valueIndex, seriesIndex := -1, -1, -1, -1
+	for index, column := range frame.Columns {
+		switch column.Name {
+		case panel.Encoding.ID:
+			idIndex = index
+		case panel.Encoding.Label:
+			labelIndex = index
+		case panel.Encoding.Value:
+			valueIndex = index
+		case panel.Encoding.Series:
+			seriesIndex = index
+		}
+	}
+	// An encoding naming a column the frame does not carry leaves its index at
+	// -1, and the row reads below would panic on it. validateEncodingFields
+	// rejects that before this runs; the guard keeps a reordering of the two
+	// from turning a bad document into a crash.
+	if idIndex < 0 || labelIndex < 0 || valueIndex < 0 ||
+		(panel.Radial.Mode == RadialModePartition && seriesIndex < 0) {
+		return fmt.Errorf("panel %s radial encoding names a column its frame does not carry", panel.ID)
+	}
+
+	seen := make(map[string]struct{}, len(frame.Rows))
+	labels := make(map[string]string)
+	rings := make(map[string]RadialRing, len(panel.Radial.Rings))
+	sums := make(map[string]float64, len(panel.Radial.Rings))
+	for index, ring := range panel.Radial.Rings {
+		if strings.TrimSpace(ring.Key) == "" || ring.Key != strings.TrimSpace(ring.Key) {
+			return fmt.Errorf("panel %s radial ring %d requires a nonblank key", panel.ID, index)
+		}
+		if strings.TrimSpace(ring.Label) == "" {
+			return fmt.Errorf("panel %s radial ring %q requires a label", panel.ID, ring.Key)
+		}
+		if math.IsNaN(ring.Total) || math.IsInf(ring.Total, 0) || ring.Total <= 0 {
+			return fmt.Errorf("panel %s radial ring %q requires a positive finite total", panel.ID, ring.Key)
+		}
+		if _, duplicate := rings[ring.Key]; duplicate {
+			return fmt.Errorf("panel %s has duplicate radial ring %q", panel.ID, ring.Key)
+		}
+		rings[ring.Key] = ring
+	}
+	if len(frame.Rows) == 0 {
+		return nil
+	}
+	for rowIndex, row := range frame.Rows {
+		id, idOK := row[idIndex].(string)
+		label, labelOK := row[labelIndex].(string)
+		if !idOK || strings.TrimSpace(id) == "" || id != strings.TrimSpace(id) {
+			return fmt.Errorf("panel %s radial id row %d requires a nonblank string", panel.ID, rowIndex)
+		}
+		if !labelOK || strings.TrimSpace(label) == "" {
+			return fmt.Errorf("panel %s radial label row %d requires a nonblank string", panel.ID, rowIndex)
+		}
+		value, ok := numericValue(row[valueIndex])
+		if !ok || math.IsNaN(value) || math.IsInf(value, 0) || value < 0 {
+			return fmt.Errorf("panel %s radial value row %d must be finite and non-negative", panel.ID, rowIndex)
+		}
+		if panel.Radial.Mode == RadialModeProgress && value > panel.Radial.Max {
+			return fmt.Errorf("panel %s radial value row %d exceeds maximum", panel.ID, rowIndex)
+		}
+		if existing, ok := labels[id]; ok && existing != label {
+			return fmt.Errorf("panel %s radial category %q has inconsistent labels", panel.ID, id)
+		}
+		labels[id] = label
+		key := id
+		if panel.Radial.Mode == RadialModePartition {
+			ring, ok := row[seriesIndex].(string)
+			if !ok || strings.TrimSpace(ring) == "" {
+				return fmt.Errorf("panel %s radial series row %d requires a nonblank string", panel.ID, rowIndex)
+			}
+			if _, declared := rings[ring]; !declared {
+				return fmt.Errorf("panel %s radial series row %d references undeclared ring %q", panel.ID, rowIndex, ring)
+			}
+			sums[ring] += value
+			key = ring + "\x00" + id
+		}
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("panel %s radial frame has duplicate key at row %d", panel.ID, rowIndex)
+		}
+		seen[key] = struct{}{}
+	}
+	if panel.Radial.Mode == RadialModePartition {
+		for _, ring := range panel.Radial.Rings {
+			if math.Abs(sums[ring.Key]-ring.Total) > panel.Radial.Tolerance {
+				return fmt.Errorf(
+					"panel %s radial ring %q sum %g does not reconcile to total %g within tolerance %g",
+					panel.ID, ring.Key, sums[ring.Key], ring.Total, panel.Radial.Tolerance,
+				)
+			}
 		}
 	}
 	return nil
@@ -897,8 +1035,15 @@ func validateDynamicChildren(owner string, declaration DynamicChildren) error {
 	if declaration.Label.Kind != ValueSourceField || strings.TrimSpace(declaration.Label.Name) == "" {
 		return fmt.Errorf("drill level %q dynamic child label requires a field source", owner)
 	}
-	if (declaration.Target == nil) == (declaration.Action == nil) {
-		return fmt.Errorf("drill level %q dynamic children require exactly one of target or action", owner)
+	if declaration.Target == nil && declaration.Action == nil {
+		return fmt.Errorf("drill level %q dynamic children require a target or an action", owner)
+	}
+	// Both together is legal only with a field-sourced target: the field is
+	// what decides, per row, whether that point drills deeper or navigates to
+	// records. A literal target would apply to every row and leave the action
+	// permanently unreachable.
+	if declaration.Target != nil && declaration.Action != nil && declaration.Target.Kind != ValueSourceField {
+		return fmt.Errorf("drill level %q dynamic children declare both a target and an action, so the target must be a field source", owner)
 	}
 	if declaration.Target != nil {
 		if declaration.Target.Kind != ValueSourceField && declaration.Target.Kind != ValueSourceLiteral {
@@ -932,6 +1077,11 @@ func validateDynamicChildFields(owner string, declaration DynamicChildren, frame
 }
 
 func validateFrame(ref FrameRef, frame Frame) error {
+	if frame.Presentation != nil {
+		if err := validatePresentation("frame "+string(ref), frame.Presentation); err != nil {
+			return err
+		}
+	}
 	names := make(map[string]struct{}, len(frame.Columns))
 	for _, column := range frame.Columns {
 		if strings.TrimSpace(column.Name) == "" {
@@ -1172,7 +1322,7 @@ func hasLeafTableColumnAction(columns []TableColumn) bool {
 
 func validPanelKind(kind PanelKind) bool {
 	switch kind {
-	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindBar, PanelKindHBar,
+	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
 		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindTable, PanelKindCoverage,
 		PanelKindMetricFlow, PanelKindMetricHierarchy, PanelKindMetricRelationship:
 		return true
@@ -1186,7 +1336,7 @@ func validPanelKind(kind PanelKind) bool {
 // stat/metric kinds carry configs a level cannot supply.
 func validLevelView(kind PanelKind) bool {
 	switch kind {
-	case PanelKindPie, PanelKindDonut, PanelKindBar, PanelKindHBar,
+	case PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
 		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindCoverage:
 		return true
 	case PanelKindStat, PanelKindTable, PanelKindMetricFlow, PanelKindMetricHierarchy,

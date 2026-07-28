@@ -141,8 +141,12 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
         <header className="lens-drawer-header">
           <div className="lens-drawer-identity">
             <span className="lens-drawer-eyebrow">{headerEyebrow}</span>
-            {headerTitle && <span className="lens-drawer-title">{headerTitle}</span>}
-            {headerCaption && <span className="lens-drawer-caption">{headerCaption}</span>}
+            {/* The title is what the drawer is about — a product name, a
+                counterparty — and it is the one line here that truncates. Panel
+                cards already carry their title as a tooltip; without the same
+                here, an ellipsis is where the subject's identity ends. */}
+            {headerTitle && <span className="lens-drawer-title" title={headerTitle}>{headerTitle}</span>}
+            {headerCaption && <span className="lens-drawer-caption" title={headerCaption}>{headerCaption}</span>}
           </div>
           <button
             aria-label={closeLabel}

@@ -86,4 +86,22 @@ describe('QueryClient', () => {
     client.dispose()
     expect(signal?.aborted).toBe(true)
   })
+
+  it('propagates a caller abort signal to the request', async () => {
+    let signal: AbortSignal | undefined
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      signal = init?.signal as AbortSignal
+      return new Promise<Response>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError')), { once: true })
+      })
+    })
+    const client = new QueryClient('/lens/query', { fetcher })
+    const controller = new AbortController()
+    const pending = client.query(request, { signal: controller.signal })
+
+    controller.abort(new DOMException('timed out', 'TimeoutError'))
+
+    await expect(pending).rejects.toMatchObject({ name: 'TimeoutError' })
+    expect(signal?.aborted).toBe(true)
+  })
 })

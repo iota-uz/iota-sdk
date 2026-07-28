@@ -533,6 +533,8 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 			Final:        panel.Ref(resolveString(item.Fields.Final, opts.Values)),
 			Annotation:   panel.Ref(resolveString(item.Fields.Annotation, opts.Values)),
 			Tone:         panel.Ref(resolveString(item.Fields.Tone, opts.Values)),
+			Split:        panel.Ref(resolveString(item.Fields.Split, opts.Values)),
+			SplitLabel:   panel.Ref(resolveString(item.Fields.SplitLabel, opts.Values)),
 			Share:        panel.Ref(resolveString(item.Fields.Share, opts.Values)),
 			Confidence:   panel.Ref(resolveString(item.Fields.Confidence, opts.Values)),
 			Availability: panel.Ref(resolveString(item.Fields.Availability, opts.Values)),
@@ -549,6 +551,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		HierarchyRows:      item.HierarchyRows,
 		HierarchyReconcile: item.HierarchyReconcile,
 		Relationship:       item.Relationship,
+		Radial:             item.Radial,
 		Confidence:         item.Confidence,
 		Availability:       item.Availability,
 	}

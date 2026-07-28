@@ -45,11 +45,17 @@ interface TestDataItem {
   nodeKey?: string
   itemStyle?: { borderColor?: string; borderWidth?: number; color?: string; opacity?: number }
   value?: unknown
+  ringKey?: string
+  categoryKey?: string
+  share?: number
+  remainder?: boolean
 }
 
 interface TestSeries {
+  id?: string
   percentPrecision?: number
-  label?: { formatter?: (params: { percent?: number }) => string }
+  minAngle?: number
+  label?: { formatter?: (params: { percent?: number; name?: string; data?: { share?: number } }) => string }
   type?: string
   name?: string
   areaStyle?: unknown
@@ -77,6 +83,7 @@ function testOption(option: EChartsOption) {
     tooltip: TestTooltip
     xAxis: TestAxis
     yAxis: TestAxis
+    media?: Array<{ query?: { maxWidth?: number }, option?: { series?: TestSeries[] } }>
   }
 }
 
@@ -108,6 +115,106 @@ describe('slice percentages', () => {
     expect(slicePercentLabel(percent)).toBe(expected)
   })
 
+  it('renders explicit partition rings with stable composite mark identity', () => {
+    const chartInput = input('radial')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [
+        ['north', 'North', 'actual', 60],
+        ['south', 'South', 'actual', 40],
+        ['north', 'North', 'plan', 55],
+        ['south', 'South', 'plan', 45],
+      ],
+    }
+    chartInput.radial = {
+      mode: 'partition',
+      rings: [
+        { key: 'plan', label: 'Plan', order: 2, total: 100 },
+        { key: 'actual', label: 'Actual', order: 1, total: 100 },
+      ],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.map((series) => series.id)).toEqual(['actual', 'plan'])
+    expect(chart.series.map((series) => series.radius)).toEqual([
+      ['59%', '90%'],
+      ['25%', '56%'],
+    ])
+    expect(chart.series[1]?.data?.[0]).toMatchObject({
+      name: 'North',
+      value: 55,
+      nodeKey: 'radial:["plan","north"]',
+      ringKey: 'plan',
+      categoryKey: 'north',
+    })
+    expect(chart.series[0]?.data?.[0]?.itemStyle?.color).toBe(chart.series[1]?.data?.[0]?.itemStyle?.color)
+  })
+
+  it('never draws a sub-percent ring slice as an unclickable hairline', () => {
+    // «Накопленная премия»: 99.1% collected against 0.9% still owed. The owed
+    // share is the reason the ring exists, and inside the arc it has nowhere
+    // to print and nothing to click.
+    const chartInput = input('radial')
+    chartInput.presentation = { sliceLabels: 'percent' }
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [
+        ['collected', 'Собрано', 'payment', 99.1],
+        ['receivable', 'Дебиторка', 'payment', 0.9],
+      ],
+    }
+    chartInput.radial = { mode: 'partition', rings: [{ key: 'payment', label: 'Оплата', order: 1, total: 100 }] }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const [, thin] = (chart.series[0]?.data ?? []) as TestDataItem[]
+
+    // Without a floor the 0.9% arc is a sub-pixel line — invisible, and
+    // unclickable as a drill target. The widening is bounded well below the 4%
+    // floor where slices start carrying their own labels, and the true share
+    // still travels on the data item for the legend and the tooltip to print.
+    expect(chart.series[0]?.minAngle).toBeGreaterThan(0)
+    expect(chart.series[0]?.minAngle).toBeLessThanOrEqual(2)
+    expect(thin?.share).toBeCloseTo(0.9, 5)
+  })
+
+  it('uses one preferred partition ring below 220px', () => {
+    const chartInput = input('radial')
+    chartInput.radial = {
+      mode: 'partition',
+      rings: [
+        { key: 'Revenue', label: 'Revenue', order: 1, total: 2700 },
+        { key: 'Cost', label: 'Cost', order: 2, total: 1500 },
+      ],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const responsive = chart.media?.[0]
+
+    expect(responsive?.query?.maxWidth).toBe(220)
+    expect(responsive?.option?.series?.[0]?.data).toHaveLength(2)
+    expect(responsive?.option?.series?.[1]?.data).toEqual([])
+  })
+
+  it('renders progress arcs against an explicit maximum without assuming 100', () => {
+    const chartInput = input('radial')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [
+        ['revenue', 'Revenue', '', 1200],
+        ['cost', 'Cost', '', 700],
+      ],
+    }
+    chartInput.radial = { mode: 'progress', max: 2000 }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series).toHaveLength(2)
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ nodeKey: 'revenue', value: 1200 })
+    expect(chart.series[0]?.data?.[1]).toMatchObject({ remainder: true, value: 800 })
+    expect(chart.series[1]?.data?.[1]).toMatchObject({ remainder: true, value: 1300 })
+  })
+
   it('asks ECharts for an unrounded share', () => {
     const chart = testOption(buildChartOption(
       { ...input('pie'), presentation: { sliceLabels: 'percent' } },
@@ -116,6 +223,84 @@ describe('slice percentages', () => {
 
     expect(chart.series[0]?.percentPrecision).toBe(rawPercentPrecision)
     expect(chart.series[0]?.label?.formatter?.({ percent: 87.6459 })).toBe('87.6%')
+  })
+
+  it('measures slice shares against the frame total, not the rows', () => {
+    const source = input('pie')
+    const chart = testOption(buildChartOption(
+      // Rows sum to 4200; the producer says the whole is 8400, because half of
+      // it was collapsed into a bucket that is not in this frame.
+      { ...source, frame: { ...source.frame, total: 8400 }, presentation: { sliceLabels: 'percent' } },
+      theme,
+    ))
+
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ share: 14.3 })
+  })
+
+  it('prefers our share over the share ECharts computed', () => {
+    const chart = testOption(buildChartOption(
+      { ...input('pie'), presentation: { sliceLabels: 'percent' } },
+      theme,
+    ))
+
+    expect(chart.series[0]?.label?.formatter?.({ percent: 87.6459, data: { share: 12.5 } })).toBe('12.5%')
+  })
+
+  it('writes the category on the slice when asked, and only when it fits', () => {
+    const chart = testOption(buildChartOption(
+      { ...input('pie'), presentation: { sliceLabels: 'label' } },
+      theme,
+    ))
+    const formatter = chart.series[0]?.label?.formatter
+
+    expect(formatter?.({ name: '2024', data: { share: 28.6 } })).toBe('2024')
+    // Too narrow an arc to hold any label at all.
+    expect(formatter?.({ name: '2024', data: { share: 1.2 } })).toBe('')
+    // Wide enough for a year, nowhere near enough for a product name.
+    expect(formatter?.({ name: 'Обязательное страхование гражданской ответственности', data: { share: 5 } })).toBe('')
+  })
+
+  it('picks readable ink for the slice label from the slice fill', () => {
+    const chart = testOption(buildChartOption(
+      // `seriesColor` gives Revenue a dark green and Cost nothing, so the two
+      // rows exercise both branches.
+      { ...input('pie'), presentation: { sliceLabels: 'percent' } },
+      theme,
+    ))
+
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ label: { color: '#ffffff' } })
+  })
+
+  it('marks which slices expand and which are leaves', () => {
+    const chart = testOption(buildChartOption(
+      { ...input('pie'), expandable: (key: string) => key === 'jan-revenue' },
+      theme,
+    ))
+
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ cursor: 'pointer' })
+    expect(chart.series[0]?.data?.[1]).toMatchObject({ cursor: 'default' })
+  })
+
+  it('measures each ring against its own declared total', () => {
+    const source = input('radial')
+    const chart = testOption(buildChartOption(
+      {
+        ...source,
+        radial: {
+          mode: 'partition',
+          rings: [
+            { key: 'Revenue', label: 'Revenue', order: 0, total: 5400 },
+            { key: 'Cost', label: 'Cost', order: 1, total: 1500 },
+          ],
+        },
+        presentation: { sliceLabels: 'percent' },
+      },
+      theme,
+    ))
+
+    // 1200 of a 5400 ring, not of the 2700 the two revenue rows sum to.
+    expect(chart.series[0]?.data?.[0]).toMatchObject({ share: 22.2 })
+    expect(chart.series[1]?.data?.[0]).toMatchObject({ share: 46.7 })
   })
 })
 

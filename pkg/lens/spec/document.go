@@ -198,6 +198,8 @@ type PanelSpec struct {
 	// Relationship declares a metric_relationship panel's two ends, link type,
 	// and direction.
 	Relationship *panel.RelationshipSpec `json:"relationship,omitempty"`
+	// Radial configures a radial panel's progress or partition geometry.
+	Radial *panel.RadialSpec `json:"radial,omitempty"`
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence panel.Confidence `json:"confidence,omitempty"`
@@ -243,6 +245,8 @@ type FieldMappingSpec struct {
 	Final        string `json:"final,omitempty"`
 	Annotation   string `json:"annotation,omitempty"`
 	Tone         string `json:"tone,omitempty"`
+	Split        string `json:"split,omitempty"`
+	SplitLabel   string `json:"splitLabel,omitempty"`
 	Share        string `json:"share,omitempty"`
 	Confidence   string `json:"confidence,omitempty"`
 	Availability string `json:"availability,omitempty"`

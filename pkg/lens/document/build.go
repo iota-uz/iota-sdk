@@ -143,7 +143,8 @@ func appendPanelTree(
 		case panel.KindStatGroup:
 			descriptor := LayoutGroup{
 				ID: spec.ID, Kind: LayoutGroupMetrics, Label: spec.Title,
-				Layout: groupLayout(spec.GroupLayout), Span: containerSpan(spec),
+				Caption: strings.TrimSpace(spec.Description),
+				Layout:  groupLayout(spec.GroupLayout), Span: containerSpan(spec),
 				// A uniform-status group hoists its single chip to the heading
 				// row; per-metric chips then drop for the members below.
 				Status: buildStatus(spec),
@@ -156,7 +157,10 @@ func appendPanelTree(
 			}
 			return nil
 		case panel.KindTabs:
-			base := LayoutGroup{ID: spec.ID, Kind: LayoutGroupTabs, Label: spec.Title, Span: containerSpan(spec)}
+			base := LayoutGroup{
+				ID: spec.ID, Kind: LayoutGroupTabs, Label: spec.Title,
+				Caption: strings.TrimSpace(spec.Description), Span: containerSpan(spec),
+			}
 			for index, child := range spec.Children {
 				tab := base
 				tab.Tab = strings.TrimSpace(child.Title)
@@ -213,6 +217,7 @@ func appendPanelTree(
 	var metricFlow *MetricFlowConfig
 	var metricHierarchy *MetricHierarchyConfig
 	var metricRelationship *MetricRelationshipConfig
+	var radial *RadialConfig
 	//nolint:exhaustive // Only the three metric kinds carry a metric config.
 	switch kind {
 	case PanelKindMetricFlow:
@@ -222,6 +227,11 @@ func appendPanelTree(
 	case PanelKindMetricRelationship:
 		metricRelationship = buildMetricRelationship(spec)
 		semantics = metricRelationshipSemantics(metricRelationship)
+	case PanelKindRadial:
+		radial = buildRadial(spec)
+		if radial != nil && radial.Mode == RadialModePartition {
+			semantics = SemanticsPartition
+		}
 	}
 	var drillRoot *NodeKey
 	if explorerSpec, ok := hosts[spec.ID]; ok {
@@ -240,9 +250,11 @@ func appendPanelTree(
 		Encoding: buildEncoding(spec.Fields, wireFrame), Format: buildFormats(spec), Total: spec.TotalBadgeValue, Columns: columns,
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
+		Info:     strings.TrimSpace(spec.Info),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
 		Sparkline: buildSparkline(spec), Target: buildTarget(spec),
 		MetricFlow: metricFlow, MetricHierarchy: metricHierarchy, MetricRelationship: metricRelationship,
+		Radial:     radial,
 		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability),
 	})
 	span := spec.Span
@@ -516,8 +528,17 @@ func convertPresentation(hints panel.PresentationHints) *Presentation {
 	if hints.LegendBelow {
 		presentation.Legend = LegendBelow
 	}
-	if hints.SliceLabelsPercent {
+	// Category labels win over percent labels: a producer asking for both is
+	// asking for the pairing this hint exists for, and only one string fits in
+	// a slice.
+	switch {
+	case hints.SliceLabelsCategory:
+		presentation.SliceLabels = SliceLabelsLabel
+	case hints.SliceLabelsPercent:
 		presentation.SliceLabels = SliceLabelsPercent
+	}
+	if hints.LegendPercent {
+		presentation.LegendValue = LegendValuePercent
 	}
 	switch {
 	case hints.HideTotalBadge:
@@ -672,6 +693,8 @@ func panelKind(kind panel.Kind) (PanelKind, error) {
 		return PanelKindPie, nil
 	case panel.KindDonut:
 		return PanelKindDonut, nil
+	case panel.KindRadial:
+		return PanelKindRadial, nil
 	case panel.KindBar, panel.KindStackedBar:
 		return PanelKindBar, nil
 	case panel.KindHorizontalBar:
@@ -726,6 +749,20 @@ func inferSemantics(kind PanelKind) Semantics {
 	}
 }
 
+func buildRadial(spec panel.Spec) *RadialConfig {
+	if spec.Radial == nil {
+		return nil
+	}
+	rings := make([]RadialRing, len(spec.Radial.Rings))
+	for index, ring := range spec.Radial.Rings {
+		rings[index] = RadialRing{Key: ring.Key, Label: ring.Label, Order: ring.Order, Total: ring.Total}
+	}
+	return &RadialConfig{
+		Mode: RadialMode(spec.Radial.Mode), Max: spec.Radial.Max,
+		Rings: rings, Tolerance: spec.Radial.Tolerance,
+	}
+}
+
 // metricRelationshipSemantics resolves a metric_relationship panel's final
 // semantics from its declared link type: reconciliation and derivation are
 // reconciliation-shaped (one side explains the other), association is neutral
@@ -763,6 +800,8 @@ func declaredEncoding(fields panel.FieldMapping) Encoding {
 	assign(&encoding.Final, fields.Final)
 	assign(&encoding.Annotation, fields.Annotation)
 	assign(&encoding.Tone, fields.Tone)
+	assign(&encoding.Split, fields.Split)
+	assign(&encoding.SplitLabel, fields.SplitLabel)
 	assign(&encoding.Share, fields.Share)
 	assign(&encoding.Confidence, fields.Confidence)
 	assign(&encoding.Availability, fields.Availability)
@@ -790,6 +829,8 @@ func buildEncoding(fields panel.FieldMapping, frame Frame) Encoding {
 	assign(&encoding.Final, fields.Final)
 	assign(&encoding.Annotation, fields.Annotation)
 	assign(&encoding.Tone, fields.Tone)
+	assign(&encoding.Split, fields.Split)
+	assign(&encoding.SplitLabel, fields.SplitLabel)
 	assign(&encoding.Share, fields.Share)
 	assign(&encoding.Confidence, fields.Confidence)
 	assign(&encoding.Availability, fields.Availability)
@@ -944,7 +985,14 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 	// none has no projection to apply, and projecting anyway would emit an
 	// empty frame and silently drop every row's data.
 	if spec.Kind != panel.KindTable || len(spec.Columns) == 0 {
-		return buildFrame(source)
+		built, err := buildFrame(source)
+		if err != nil {
+			return Frame{}, err
+		}
+		built.Total = frameTotal(spec)
+		built.Presentation = convertPresentation(spec.Presentation)
+		built.Colors = append([]string(nil), spec.Colors...)
+		return built, nil
 	}
 
 	selected := make([]string, 0, len(spec.Columns)+1)
@@ -1048,7 +1096,19 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 		}
 		result.Rows[rowIndex] = row
 	}
+	result.Total = frameTotal(spec)
 	return result, nil
+}
+
+// frameTotal is the authoritative whole a panel's rows are shares of. Only an
+// explicit producer-supplied total qualifies: deriving one by summing the rows
+// would reproduce the very number Frame.Total exists to correct.
+func frameTotal(spec panel.Spec) *float64 {
+	if spec.TotalBadgeValue == nil {
+		return nil
+	}
+	total := *spec.TotalBadgeValue
+	return &total
 }
 
 func columnType(kind frame.FieldType) (ColumnType, error) {

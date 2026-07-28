@@ -42,6 +42,19 @@ func Pie(id, title, dataset string) *PanelBuilder {
 func Donut(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindDonut, id, title, dataset)
 }
+func RadialBars(id, title, dataset string, maximum float64) *PanelBuilder {
+	b := newPanelBuilder(panel.KindRadial, id, title, dataset)
+	b.panel.Radial = &panel.RadialSpec{Mode: panel.RadialProgress, Max: maximum}
+	b.panel.Presentation.LegendBelow = true
+	return b
+}
+func MultiRingDonut(id, title, dataset string, rings ...panel.RadialRing) *PanelBuilder {
+	b := newPanelBuilder(panel.KindRadial, id, title, dataset)
+	b.panel.Radial = &panel.RadialSpec{Mode: panel.RadialPartition, Rings: append([]panel.RadialRing(nil), rings...)}
+	b.panel.Presentation.LegendBelow = true
+	b.panel.Presentation.SliceLabelsPercent = true
+	return b
+}
 func Table(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindTable, id, title, dataset)
 }
@@ -338,6 +351,22 @@ func (b *PanelBuilder) ToneField(name string) *PanelBuilder {
 	b.panel.Fields.Tone = name
 	return b
 }
+
+// SplitField declares the frame column carrying the part of a cascade stage's
+// own movement that differs in kind from the rest of it. Waterfall renderers
+// band it separately inside the same bar; a value outside (0, |movement|) is
+// not a part of the movement and leaves the bar whole.
+func (b *PanelBuilder) SplitField(name string) *PanelBuilder {
+	b.panel.Fields.Split = name
+	return b
+}
+
+// SplitLabelField declares the frame column naming that band.
+func (b *PanelBuilder) SplitLabelField(name string) *PanelBuilder {
+	b.panel.Fields.SplitLabel = name
+	return b
+}
+
 func (b *PanelBuilder) ShareField(name string) *PanelBuilder {
 	b.panel.Fields.Share = name
 	return b
@@ -360,6 +389,15 @@ func (b *PanelBuilder) Confidence(confidence panel.Confidence) *PanelBuilder {
 // Availability sets the panel-level default availability for its elements.
 func (b *PanelBuilder) Availability(availability panel.Availability) *PanelBuilder {
 	b.panel.Availability = availability
+	return b
+}
+
+// RadialTolerance permits small source-rounding differences when reconciling
+// partition rows to each ring's declared total.
+func (b *PanelBuilder) RadialTolerance(tolerance float64) *PanelBuilder {
+	if b.panel.Radial != nil {
+		b.panel.Radial.Tolerance = tolerance
+	}
 	return b
 }
 
@@ -500,8 +538,12 @@ func (c TableColumnSpec) Delta(percentField string) TableColumnSpec {
 	return c
 }
 
-// Underline renders the column as a value over a thin proportional rule
-// colored by sign — a low-ink alternative to Bar.
+// Underline renders the column as a value over a thin rule colored by sign.
+//
+// The rule spans the value, not the magnitude: it encodes direction only. A
+// column whose numbers should be comparable at a glance wants Bar, which
+// scales against the column's own maximum — an underline there reads as a data
+// bar that happens to be wrong.
 func (c TableColumnSpec) Underline() TableColumnSpec {
 	c.Cell = &panel.TableCellSpec{Kind: panel.TableCellUnderline}
 	return c

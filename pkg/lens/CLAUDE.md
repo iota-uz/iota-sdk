@@ -33,6 +33,35 @@ HTML/CSS instead of ApexCharts. The primary dataset rows should contain:
 Override fields with `LabelField`, `ValueField`, `CutField`, `CutLabelField`,
 and `FinalField` when a dataset uses different column names.
 
+### Radial panels
+
+Use `spec.RadialBars(id, title, dataset, maximum)` for several labeled values
+measured against one explicit maximum. The maximum is mandatory and uses the
+same unit as `ValueField`; Lens never assumes a percentage scale.
+
+Use `spec.MultiRingDonut(id, title, dataset, rings...)` when several rings are
+different decompositions of the same headline:
+
+```go
+spec.MultiRingDonut("mix", "Portfolio mix", "mix",
+    panel.RadialRing{Key: "actual", Label: "Actual", Order: 1, Total: 100},
+    panel.RadialRing{Key: "plan", Label: "Plan", Order: 2, Total: 100},
+).
+    IDField("category_key").
+    LabelField("category_label").
+    SeriesField("ring_key").
+    ValueField("amount").
+    RadialTolerance(0.01)
+```
+
+The frame is tidy: one row per `(ring_key, category_key)`. Category keys are
+stable across rings when the same category should keep one color. Every ring
+declares its authoritative total and its rows must reconcile within the
+configured tolerance. Lens does not invent or normalize a residual; producers
+must emit an explicit `Other` row when that is the intended business statement.
+Mark actions receive the selected row, while `panel.RadialNodeKey(ring, category)`
+provides the stable composite identity used by drill graphs.
+
 ## Cube Pattern
 
 Use `cube.New(...)` when:

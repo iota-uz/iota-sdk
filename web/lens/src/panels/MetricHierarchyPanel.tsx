@@ -1,26 +1,14 @@
 import { useMemo, type CSSProperties } from 'react'
-import type { Availability, Confidence, MetricHierarchyRow, Panel } from '../contract'
+import type { Panel } from '../contract'
 import { useFormat, usePanelFrame, useTranslate, type PanelFrameState } from '../runtime'
 import { useElementActionResolver } from './actions'
 import { buildKeyedJoin, panelField, type KeyedJoinMessages } from './data'
+import { hierarchyRowViews, type HierarchyRowView } from './metricViews'
 import { PanelFrame } from './PanelFrame'
 import { QualityChip, resolveQuality } from './QualityChip'
 
 export interface MetricHierarchyPanelProps {
   panel: Panel
-}
-
-interface HierarchyRowView {
-  row: MetricHierarchyRow
-  depth: number
-  isParent: boolean
-  showDash: boolean
-  valueText: string
-  shareText?: string
-  confidence?: Confidence
-  availability?: Availability
-  /** Per-parent reconciliation summary, when reconciliation is enabled. */
-  reconcile?: { balanced: boolean; text: string }
 }
 
 function useMessages(): KeyedJoinMessages {
@@ -40,8 +28,6 @@ export function MetricHierarchyPanel({ panel }: MetricHierarchyPanelProps) {
   const formatValue = useFormat(panel.format[valueField])
   const formatShare = useFormat(shareField ? panel.format[shareField] : undefined)
   const resolveAction = useElementActionResolver()
-  const rows = useMemo(() => panel.metricHierarchy?.rows ?? [], [panel.metricHierarchy])
-  const reconcile = panel.metricHierarchy?.reconcile
 
   const join = useMemo(
     () => (frame.data ? buildKeyedJoin(panel, frame.data, messages) : undefined),
@@ -52,79 +38,16 @@ export function MetricHierarchyPanel({ panel }: MetricHierarchyPanelProps) {
     ? { ...frame, data: undefined, error: new Error(contractError) }
     : frame
 
-  const views: HierarchyRowView[] = useMemo(() => {
-    if (join?.kind !== 'ok') return []
-    const byKey = new Map(rows.map((row) => [row.key, row]))
-    const parentKeys = new Set(rows.map((row) => row.parent).filter((key): key is string => Boolean(key)))
-    const childrenByParent = new Map<string, MetricHierarchyRow[]>()
-    for (const row of rows) {
-      if (!row.parent) continue
-      const list = childrenByParent.get(row.parent) ?? []
-      list.push(row)
-      childrenByParent.set(row.parent, list)
-    }
+  const views: Array<HierarchyRowView> = useMemo(
+    () => (join ? hierarchyRowViews(panel, join, formatValue, formatShare) : []),
+    [formatShare, formatValue, join, panel],
+  )
 
-    // Depth: parent is authoritative; the wire may carry a derived depth, but
-    // it is reconstructed here from the parent chain when absent (guarding a
-    // detached parent reference against a runaway walk).
-    const depthOf = (row: MetricHierarchyRow): number => {
-      if (typeof row.depth === 'number') return row.depth
-      let depth = 0
-      let current: MetricHierarchyRow | undefined = row
-      const seen = new Set<string>()
-      while (current?.parent && !seen.has(current.key)) {
-        seen.add(current.key)
-        current = byKey.get(current.parent)
-        if (!current) break
-        depth += 1
-      }
-      return depth
-    }
-
-    return rows.map((row) => {
-      const element = join.resolve(row.key)
-      const confidence = element.confidence ?? row.confidence ?? panel.confidence
-      const structuralAvailability = element.availability ?? row.availability ?? panel.availability
-      const missing = element.value.kind === 'unavailable'
-      const availability: Availability | undefined = missing
-        ? (structuralAvailability && structuralAvailability !== 'available' ? structuralAvailability : 'unavailable')
-        : structuralAvailability
-      const showDash = missing || (availability !== undefined && availability !== 'available')
-      const valueText = element.value.kind === 'value' ? formatValue(element.value.value) : '—'
-      const shareText = element.share !== undefined ? formatShare(element.share) : undefined
-
-      const children = childrenByParent.get(row.key)
-      let reconcileSummary: HierarchyRowView['reconcile']
-      if (reconcile && children && children.length > 0 && element.value.kind === 'value') {
-        let sum = 0
-        let complete = true
-        for (const child of children) {
-          const childValue = join.resolve(child.key).value
-          if (childValue.kind !== 'value') { complete = false; break }
-          sum += childValue.value
-        }
-        if (complete) {
-          const delta = element.value.value - sum
-          const balanced = Math.abs(delta) <= (reconcile.tolerance ?? 0)
-          reconcileSummary = balanced
-            ? { balanced: true, text: translate('hierarchy.allocated', 'Allocated 100%') }
-            : { balanced: false, text: translate('hierarchy.difference', 'Difference: {delta}', { delta: formatValue(delta) }) }
-        }
-      }
-
-      return {
-        row,
-        depth: depthOf(row),
-        isParent: parentKeys.has(row.key),
-        showDash,
-        valueText,
-        shareText,
-        confidence,
-        availability,
-        reconcile: reconcileSummary,
-      }
-    })
-  }, [formatShare, formatValue, join, panel.availability, panel.confidence, reconcile, rows, translate])
+  const reconcileText = (summary: NonNullable<HierarchyRowView['reconcile']>): string => (
+    summary.balanced
+      ? translate('hierarchy.allocated', 'Allocated 100%')
+      : translate('hierarchy.difference', 'Difference: {delta}', { delta: formatValue(summary.delta) })
+  )
 
   return (
     <PanelFrame panel={panel} frame={effectiveFrame} allowEmptyContent>
@@ -183,7 +106,7 @@ export function MetricHierarchyPanel({ panel }: MetricHierarchyPanelProps) {
                 <p
                   className={`lens-hierarchy-reconcile${view.reconcile.balanced ? ' lens-hierarchy-reconcile-balanced' : ' lens-hierarchy-reconcile-off'}`}
                 >
-                  {view.reconcile.text}
+                  {reconcileText(view.reconcile)}
                 </p>
               )}
             </li>

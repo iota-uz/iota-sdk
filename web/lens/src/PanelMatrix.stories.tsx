@@ -14,6 +14,7 @@ type StoryKind = PanelKind
 
 const kinds: StoryKind[] = [
   'stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'table',
+  'radial',
   'metric_flow', 'metric_hierarchy', 'metric_relationship',
 ]
 const states: PanelState[] = ['loading', 'empty', 'error', 'stale', 'data']
@@ -31,6 +32,21 @@ const chartFrame: Frame = {
     ['root/north', 'North', '2026-04-01T00:00:00Z', 'Actual', 64],
     ['root/south', 'South', '2026-05-01T00:00:00Z', 'Actual', 41],
     ['root/east', 'East', '2026-06-01T00:00:00Z', 'Plan', 27],
+  ],
+}
+
+const radialFrame: Frame = {
+  columns: [
+    { name: 'id', type: 'string' },
+    { name: 'label', type: 'string' },
+    { name: 'series', type: 'string' },
+    { name: 'value', type: 'number' },
+  ],
+  rows: [
+    ['north', 'North', 'actual', 60],
+    ['south', 'South', 'actual', 40],
+    ['north', 'North', 'plan', 55],
+    ['south', 'South', 'plan', 45],
   ],
 }
 
@@ -177,12 +193,14 @@ function storyPanel(kind: StoryKind): Panel {
     id: `${kind}-panel`,
     kind,
     title: chart ? `${kind} performance` : 'Revenue this quarter',
-    semantics: kind === 'pie' || kind === 'donut' ? 'partition' : kind === 'cascade' ? 'reconciliation' : kind === 'table' ? 'evidence' : 'series',
+    semantics: kind === 'pie' || kind === 'donut' || kind === 'radial' ? 'partition' : kind === 'cascade' ? 'reconciliation' : kind === 'table' ? 'evidence' : 'series',
     frame: `${kind}-frame`,
     encoding: kind === 'cascade'
       ? { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' }
       : kind === 'table'
         ? { id: 'transactionId', label: 'counterparty', value: 'amount' }
+        : kind === 'radial'
+        ? { id: 'id', label: 'label', series: 'series', value: 'value' }
         : chart
       ? { id: 'id', label: 'label', category: 'period', series: 'series', value: 'value' }
       : { label: 'label', value: 'value', final: 'delta' },
@@ -199,6 +217,13 @@ function storyPanel(kind: StoryKind): Panel {
       kind: 'navigate_to_leaf', urlTemplate: '/transactions/{id}',
       params: [{ name: 'id', source: { kind: 'field', name: 'transactionId' } }], payload: {},
     }] : [],
+    radial: kind === 'radial' ? {
+      mode: 'partition',
+      rings: [
+        { key: 'actual', label: 'Actual', total: 100 },
+        { key: 'plan', label: 'Plan', order: 1, total: 100 },
+      ],
+    } : undefined,
   }
 }
 
@@ -216,6 +241,8 @@ function storyDocument(kind: StoryKind, state: PanelState): DashboardDocument {
     ? hierarchyFrame
     : kind === 'metric_relationship'
     ? relationshipFrame
+    : kind === 'radial'
+    ? radialFrame
     : chartFrame
   const includeFrame = state === 'data' || state === 'stale' || state === 'empty'
   return {

@@ -20,6 +20,7 @@ var allKinds = []Kind{
 	KindCascade,
 	KindPie,
 	KindDonut,
+	KindRadial,
 	KindTable,
 	KindGauge,
 	KindTabs,
@@ -44,6 +45,7 @@ func TestKindPredicates_ClassifiesAllKnownKinds(t *testing.T) {
 		{KindCascade, false, false, true},
 		{KindPie, false, true, false},
 		{KindDonut, false, true, false},
+		{KindRadial, false, true, false},
 		{KindTable, false, false, true},
 		{KindGauge, false, true, false},
 		{KindTabs, true, false, false},
@@ -70,6 +72,11 @@ func TestKindPredicates_ClassifiesAllKnownKinds(t *testing.T) {
 	}
 }
 
+func TestRadialNodeKey_ContainsRingAndCategoryIdentity(t *testing.T) {
+	require.Equal(t, `radial:["year/2026","direct"]`, RadialNodeKey("year/2026", "direct"))
+	require.NotEqual(t, RadialNodeKey("year/2026", "direct"), RadialNodeKey("year/2025", "direct"))
+}
+
 // TestKindPredicatesPartition asserts the structural invariants the predicates
 // rely on across the render/runtime code:
 //   - every kind is exactly one of: container, chart, or native leaf
@@ -91,5 +98,27 @@ func TestKindPredicatesPartition(t *testing.T) {
 
 		leaf := k.IsChart() || k.RendersNatively()
 		assert.NotEqualf(t, leaf, k.IsContainer(), "%q: leaf=%v but IsContainer()=%v; leaf and container must be mutually exclusive and exhaustive", k, leaf, k.IsContainer())
+	}
+}
+
+// TestRadialNodeKeyMatchesJSONStringify pins the key format against the one
+// the runtime builds with JSON.stringify. encoding/json escapes `<`, `>` and
+// `&` by default, which would give the two sides different identities for the
+// same segment.
+func TestRadialNodeKeyMatchesJSONStringify(t *testing.T) {
+	for _, testCase := range []struct {
+		name     string
+		ring     string
+		category string
+		want     string
+	}{
+		{name: "plain", ring: "plan", category: "north", want: `radial:["plan","north"]`},
+		{name: "ampersand", ring: "plan", category: "A&B", want: `radial:["plan","A&B"]`},
+		{name: "angle brackets", ring: "<plan>", category: "north", want: `radial:["<plan>","north"]`},
+		{name: "quote", ring: "plan", category: `"q"`, want: `radial:["plan","\"q\""]`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			assert.Equal(t, testCase.want, RadialNodeKey(testCase.ring, testCase.category))
+		})
 	}
 }

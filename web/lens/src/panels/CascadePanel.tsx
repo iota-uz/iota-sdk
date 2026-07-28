@@ -1,9 +1,10 @@
-import type { CSSProperties, KeyboardEvent, MouseEvent } from 'react'
+import type { KeyboardEvent, MouseEvent } from 'react'
 import type { Frame, Panel } from '../contract'
 import { useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
 import { columnIndex, displayText, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
+import { WaterfallPlot } from './WaterfallPlot'
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -65,6 +66,10 @@ export interface CascadeStage {
   width: number
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
+  /** The part of this stage's own movement that differs in kind from the rest. */
+  split: number
+  /** What that part is called. */
+  splitLabel: string
   /** Index of the frame row this stage was built from (per-row actions). */
   rowIndex: number
 }
@@ -82,6 +87,8 @@ export function buildCascadeStages(
   const finalField = panelField(panel, 'final') ?? 'final'
   const annotationField = panelField(panel, 'annotation')
   const toneField = panelField(panel, 'tone')
+  const splitField = panelField(panel, 'split')
+  const splitLabelField = panelField(panel, 'splitLabel')
   const labelIndex = columnIndex(frame, labelField)
   const valueIndex = columnIndex(frame, valueField)
   const cutIndex = columnIndex(frame, cutField)
@@ -89,6 +96,8 @@ export function buildCascadeStages(
   const finalIndex = columnIndex(frame, finalField)
   const annotationIndex = columnIndex(frame, annotationField)
   const toneIndex = columnIndex(frame, toneField)
+  const splitIndex = columnIndex(frame, splitField)
+  const splitLabelIndex = columnIndex(frame, splitLabelField)
   const maximum = Math.max(1, ...frame.rows.map((row) => Math.max(0, numeric(row[valueIndex]))))
 
   return frame.rows.map((row, index) => {
@@ -105,6 +114,8 @@ export function buildCascadeStages(
       final: boolean(row[finalIndex]),
       annotation: annotationIndex >= 0 ? displayText(row[annotationIndex], '') : '',
       tone: toneIndex >= 0 ? asTone(row[toneIndex]) : undefined,
+      split: splitIndex >= 0 ? numeric(row[splitIndex]) : 0,
+      splitLabel: splitLabelIndex >= 0 ? displayText(row[splitLabelIndex], '') : '',
       width: rawWidth > 0 ? Math.max(widthFloor, rawWidth) : 0,
       rowIndex: index,
     }
@@ -124,6 +135,24 @@ export interface WaterfallItem {
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
   /**
+   * The band drawn at the leading (upper) end of this bar for the part of the
+   * movement that differs in kind from the rest. Height is a percentage of the
+   * plot, like every other measure here, so it composes with `height`. Absent
+   * when the row declares no split or declares one the bar cannot hold.
+   */
+  splitHeight?: number
+  /** Already-formatted amount of that band. */
+  formattedSplit?: string
+  /** What the band is called; may be empty even when the band is drawn. */
+  splitLabel?: string
+  /**
+   * How far the bar's foot sits above the zero line, as a plot percentage. It
+   * is the remaining balance this deduction leaves behind, drawn as a translucent
+   * accent block so the eye reads "the red bites out of the blue". Absent for
+   * the opening and closing totals, which already stand on zero.
+   */
+  underlayHeight?: number
+  /**
    * The frame row backing this column, for per-row actions. The synthetic
    * closing total repeats the last stage the cascade already offers, so it
    * carries none and stays inert.
@@ -131,13 +160,13 @@ export interface WaterfallItem {
   rowIndex?: number
 }
 
-interface WaterfallTick {
+export interface WaterfallTick {
   value: number
   label: string
   top: number
 }
 
-interface WaterfallModel {
+export interface WaterfallModel {
   items: WaterfallItem[]
   ticks: WaterfallTick[]
   zero: number
@@ -153,7 +182,44 @@ function niceCeiling(value: number): number {
   return 10 * power
 }
 
-function buildWaterfallModel(
+/** Round numbers a money axis is allowed to step by, per power of ten. */
+const axisStepLadder = [1, 1.5, 2, 2.5, 3, 4, 5, 7.5]
+
+/**
+ * The step whose gridlines cover the data with the least dead space above it.
+ *
+ * Deriving one step from `range / 3` and rounding it up compounds two
+ * roundings: a 655 bn column asked for a 218 bn step, got 500 bn, and ended up
+ * under a 1 trn ceiling — a third of the plot spent on air, which is exactly
+ * the height the bars were supposed to gain. Searching the step ladder for the
+ * tightest ceiling instead lands on 100 bn and a 700 bn top. Between two steps
+ * that fit equally well the coarser one wins, so a tight axis never costs a
+ * thicket of gridlines.
+ */
+export function waterfallAxisStep(minimum: number, maximum: number): number {
+  const span = Math.max(1, maximum - minimum)
+  const fallback = niceCeiling(span / 3)
+  let best: number | undefined
+  let bestSpan = Number.POSITIVE_INFINITY
+  for (let power = 10 ** Math.floor(Math.log10(span / 7)); power <= span; power *= 10) {
+    for (const rung of axisStepLadder) {
+      const step = rung * power
+      if (!Number.isFinite(step) || step <= 0) continue
+      const top = maximum > 0 ? Math.ceil(maximum / step) * step : 0
+      const bottom = minimum < 0 ? Math.floor(minimum / step) * step : 0
+      const divisions = Math.round((top - bottom) / step)
+      if (divisions < 2 || divisions > 7) continue
+      const plotSpan = top - bottom
+      if (plotSpan < bestSpan || (plotSpan === bestSpan && step > (best ?? 0))) {
+        bestSpan = plotSpan
+        best = step
+      }
+    }
+  }
+  return best ?? fallback
+}
+
+export function buildWaterfallModel(
   stages: CascadeStage[],
   formatValue: (value: unknown) => string,
 ): WaterfallModel {
@@ -167,6 +233,8 @@ function buildWaterfallModel(
     kind: WaterfallItem['kind']
     tone?: CascadeTone
     annotation: string
+    split: number
+    splitLabel: string
     rowIndex?: number
   }> = [{
     label: first.label,
@@ -176,6 +244,10 @@ function buildWaterfallModel(
     kind: 'start',
     tone: first.tone,
     annotation: first.annotation,
+    // An opening total is not a movement, so it has no part-of-a-movement to
+    // band off. Only the deduction/addition bars carry a split.
+    split: 0,
+    splitLabel: '',
     rowIndex: first.rowIndex,
   }]
   const magnitude = Math.max(...stages.map((stage) => Math.abs(stage.value)), 1)
@@ -203,6 +275,8 @@ function buildWaterfallModel(
       kind: value < 0 ? 'decrease' : 'increase',
       tone: currentStage.tone,
       annotation: currentStage.annotation,
+      split: currentStage.split,
+      splitLabel: currentStage.splitLabel,
       rowIndex: currentStage.rowIndex,
     })
   }
@@ -219,6 +293,8 @@ function buildWaterfallModel(
         kind: 'end',
         tone: closing.tone,
         annotation: closing.annotation,
+        split: 0,
+        splitLabel: '',
       })
     }
   }
@@ -229,15 +305,31 @@ function buildWaterfallModel(
     minimum = Math.min(minimum, item.from, item.to)
     maximum = Math.max(maximum, item.from, item.to)
   })
-  const step = niceCeiling(Math.max(1, maximum - minimum) / 3)
+  const step = waterfallAxisStep(minimum, maximum)
   const plotMinimum = minimum < 0 ? Math.floor(minimum / step) * step : 0
   const plotMaximum = Math.max(step, Math.ceil(maximum / step) * step)
   const plotRange = Math.max(1, plotMaximum - plotMinimum)
   const y = (value: number) => Math.max(0, Math.min(100, (plotMaximum - value) / plotRange * 100))
 
+  const zero = y(0)
   const items = raw.map((item) => {
     const top = y(Math.max(item.from, item.to))
     const bottom = y(Math.min(item.from, item.to))
+    const height = Math.max(1.5, bottom - top)
+    // A split is a portion OF the movement. Outside (0, |movement|) it is not
+    // one — a producer that sends the whole movement, more than it, or nothing
+    // is describing an undivided bar, and that is what we draw. Guarding here
+    // rather than at the wire keeps a bad number from silently becoming a band
+    // taller than the bar it lives in.
+    //
+    // The bounds carry the same residual tolerance the closing-total check uses,
+    // and for the same reason: a movement is a difference of running totals, so
+    // a split that equals it exactly in the producer's arithmetic arrives a few
+    // ulps off here. 178.30 - 150.00 is 28.300000000000011, and a strict "<"
+    // against a declared 28.30 would band the entire bar.
+    const splitMagnitude = Math.abs(item.split)
+    const magnitude = Math.abs(item.value)
+    const splittable = splitMagnitude > residual && splitMagnitude < magnitude - residual
     return {
       label: item.label,
       value: item.value,
@@ -245,9 +337,17 @@ function buildWaterfallModel(
         ? formatValue(item.value)
         : signedChange(item.value, formatValue),
       top,
-      height: Math.max(1.5, bottom - top),
+      height,
+      splitHeight: splittable ? height * (splitMagnitude / magnitude) : undefined,
+      formattedSplit: splittable ? formatValue(splitMagnitude) : undefined,
+      splitLabel: splittable ? item.splitLabel : undefined,
+      // Only a floating bar leaves a balance under it; the totals stand on zero
+      // already. A bar dipping below zero leaves nothing, hence the clamp.
+      underlayHeight: item.kind === 'start' || item.kind === 'end'
+        ? undefined
+        : Math.max(0, zero - bottom) || undefined,
       connectorTop: y(item.to),
-      zero: y(0),
+      zero,
       kind: item.kind,
       tone: item.tone,
       annotation: item.annotation,
@@ -316,72 +416,14 @@ export function CascadePanel({ panel }: CascadePanelProps) {
   return (
     <PanelFrame panel={panel} frame={frame}>
       {panel.presentation?.bridgeLayout === 'waterfall' ? (
-        <div
-          aria-label={translate('cascade.stages', '{name} stages', { name: panel.title })}
-          className="lens-waterfall"
-          data-lens-waterfall
+        <WaterfallPlot
+          interaction={(item) => stageInteraction(item.rowIndex, item.label)}
+          label={translate('cascade.stages', '{name} stages', { name: panel.title })}
+          model={waterfall}
           // An image exposes no children to assistive tech; once the columns
           // are activatable the container must group them instead.
           role={anyInteractive ? 'group' : 'img'}
-          style={{
-            '--lens-waterfall-count': waterfall.items.length,
-            '--lens-waterfall-zero': `${waterfall.zero}%`,
-          } as CSSProperties}
-        >
-          <div className="lens-waterfall-chart">
-            <div className="lens-waterfall-axis" aria-hidden="true">
-              {waterfall.ticks.map((tick) => (
-                <span key={tick.value} style={{ top: `${tick.top}%` }}>{tick.label}</span>
-              ))}
-            </div>
-            <div className="lens-waterfall-plot">
-              {waterfall.ticks.map((tick) => (
-                <span
-                  className="lens-waterfall-gridline"
-                  key={`grid-${tick.value}`}
-                  style={{ top: `${tick.top}%` }}
-                />
-              ))}
-              <div className="lens-waterfall-zero" />
-              {waterfall.items.map((item, index) => {
-                const interaction = stageInteraction(item.rowIndex, item.label)
-                return (
-                  <div className="lens-waterfall-column" key={`${item.label}-${index}`}>
-                    {index < waterfall.items.length - 1 && (
-                      <span
-                        className="lens-waterfall-connector"
-                        style={{ top: `${item.connectorTop}%` }}
-                      />
-                    )}
-                    <div
-                      className="lens-waterfall-bar"
-                      data-kind={item.kind}
-                      data-tone={item.tone}
-                      style={{
-                        top: `${item.top}%`,
-                        height: `${item.height}%`,
-                        ...(interaction ? { cursor: 'pointer' } : {}),
-                      }}
-                      {...interaction}
-                    >
-                      <strong>{item.formattedValue}</strong>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </div>
-          <div className="lens-waterfall-labels">
-            {waterfall.items.map((item, index) => (
-              <span className="lens-waterfall-label" key={`${item.label}-label-${index}`}>
-                <span>{item.label}</span>
-                {item.annotation && (
-                  <small className="lens-waterfall-annotation">{item.annotation}</small>
-                )}
-              </span>
-            ))}
-          </div>
-        </div>
+        />
       ) : (
         <div
           aria-label={translate('cascade.stages', '{name} stages', { name: panel.title })}

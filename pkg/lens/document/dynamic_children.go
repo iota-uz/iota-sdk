@@ -75,12 +75,23 @@ func ResolveDynamicChildren(frame *Frame, level Level) error {
 				return readErr
 			}
 			target, targetOK := targetValue.(string)
-			if !targetOK || strings.TrimSpace(target) == "" || target != strings.TrimSpace(target) {
+			if !targetOK || target != strings.TrimSpace(target) {
 				return fmt.Errorf("dynamic child row %d target must be a nonblank string", rowIndex)
 			}
-			child.Target = dynamicTarget(level, target)
+			// A field-sourced target that is blank on this row means the row is
+			// not drillable — a level whose vocabulary mixes drillable and
+			// terminal points (a period step that renders both deeper periods
+			// and record-bearing leaves) says so per row, and falls through to
+			// the declared action. A blank literal target is still a
+			// declaration error: it would leave every row inert.
+			if target == "" && (declaration.Target.Kind != ValueSourceField || declaration.Action == nil) {
+				return fmt.Errorf("dynamic child row %d target must be a nonblank string", rowIndex)
+			}
+			if target != "" {
+				child.Target = dynamicTarget(level, target)
+			}
 		}
-		if declaration.Action != nil {
+		if declaration.Action != nil && child.Target == "" {
 			action := *declaration.Action
 			child.Action = &action
 		}

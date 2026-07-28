@@ -522,6 +522,166 @@ func TestDashboardDocumentValidate_PanelQuality(t *testing.T) {
 		doc.Panels[0].MetricFlow = &MetricFlowConfig{}
 		require.ErrorContains(t, doc.Validate(), "metric config for kind")
 	})
+	t.Run("radial config on another kind rejected", func(t *testing.T) {
+		doc := testDocument()
+		doc.Panels[0].Radial = &RadialConfig{Mode: RadialModeProgress, Max: 100}
+		require.ErrorContains(t, doc.Validate(), "radial config for kind")
+	})
+}
+
+func TestDashboardDocumentValidate_Radial(t *testing.T) {
+	t.Parallel()
+	partition := func() *DashboardDocument {
+		doc := testDocument()
+		doc.Frames["panel:total"] = Frame{
+			Columns: []Column{
+				{Name: "id", Type: ColumnString},
+				{Name: "label", Type: ColumnString},
+				{Name: "series", Type: ColumnString},
+				{Name: "value", Type: ColumnNumber},
+			},
+			Rows: [][]any{
+				{"north", "North", "actual", 60.0},
+				{"south", "South", "actual", 40.0},
+				{"north", "North", "plan", 55.0},
+				{"south", "South", "plan", 45.0},
+			},
+		}
+		doc.Panels[0].Kind = PanelKindRadial
+		doc.Panels[0].Semantics = SemanticsPartition
+		doc.Panels[0].Encoding = Encoding{ID: "id", Label: "label", Series: "series", Value: "value"}
+		doc.Panels[0].Radial = &RadialConfig{
+			Mode: RadialModePartition,
+			Rings: []RadialRing{
+				{Key: "actual", Label: "Actual", Total: 100},
+				{Key: "plan", Label: "Plan", Total: 100},
+			},
+		}
+		return doc
+	}
+
+	progress := func(maximum float64) *DashboardDocument {
+		doc := partition()
+		doc.Panels[0].Semantics = SemanticsSeries
+		doc.Panels[0].Encoding.Series = ""
+		doc.Panels[0].Radial = &RadialConfig{Mode: RadialModeProgress, Max: maximum}
+		return doc
+	}
+
+	for _, testCase := range []struct {
+		name     string
+		document func() *DashboardDocument
+		rejects  string
+	}{
+		{
+			name:     "accepts reconciled rings",
+			document: partition,
+		},
+		{
+			name: "rejects silent residual",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][3] = 59.0
+				return doc
+			},
+			rejects: "does not reconcile",
+		},
+		{
+			name: "rejects overallocation",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][3] = 61.0
+				return doc
+			},
+			rejects: "does not reconcile",
+		},
+		{
+			name: "accepts an empty source for the empty panel state",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"] = Frame{Columns: doc.Frames["panel:total"].Columns, Rows: [][]any{}}
+				return doc
+			},
+		},
+		{
+			name: "permits declared rounding tolerance",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Panels[0].Radial.Tolerance = 0.02
+				doc.Frames["panel:total"].Rows[0][3] = 59.99
+				return doc
+			},
+		},
+		{
+			name: "rejects undeclared ring",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][2] = "forecast"
+				return doc
+			},
+			rejects: "undeclared ring",
+		},
+		{
+			name: "rejects duplicate ring-category pair",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[1][0] = "north"
+				doc.Frames["panel:total"].Rows[1][1] = "North"
+				return doc
+			},
+			rejects: "duplicate key",
+		},
+		{
+			name: "rejects a negative value",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Frames["panel:total"].Rows[0][3] = -1.0
+				return doc
+			},
+			rejects: "finite and non-negative",
+		},
+		{
+			name:     "progress bounds values by its maximum",
+			document: func() *DashboardDocument { return progress(50) },
+			rejects:  "exceeds maximum",
+		},
+		{
+			name:     "progress requires an explicit maximum",
+			document: func() *DashboardDocument { return progress(0) },
+			rejects:  "positive finite maximum",
+		},
+		{
+			// The encoding is the panel's claim about its own frame. A claim
+			// the frame cannot honour has to be rejected before the radial
+			// rules index rows by it, or the read panics on -1.
+			name: "rejects an encoding the frame has no column for",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Panels[0].Encoding.Value = "amount"
+				return doc
+			},
+			rejects: `value encoding references missing field "amount"`,
+		},
+		{
+			name: "rejects a partition series the frame has no column for",
+			document: func() *DashboardDocument {
+				doc := partition()
+				doc.Panels[0].Encoding.Series = "ring"
+				return doc
+			},
+			rejects: `series encoding references missing field "ring"`,
+		},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			err := testCase.document().Validate()
+			if testCase.rejects == "" {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorContains(t, err, testCase.rejects)
+		})
+	}
 }
 
 func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {
@@ -763,4 +923,61 @@ func TestDashboardDocumentValidate_LayoutGroups(t *testing.T) {
 		doc.Layout.Rows[0].Panels[0].Group = &LayoutGroup{ID: "g", Kind: LayoutGroupMetrics, Span: 12, Layout: LayoutGroupColumns}
 		require.NoError(t, doc.Validate())
 	})
+}
+
+// TestResolveDynamicChildren_PerRowTargetOrAction: a level whose vocabulary
+// mixes drillable and terminal points declares BOTH a field-sourced target and
+// an action. The field decides per row: a row carrying a target drills, a row
+// whose target is blank navigates through the action's field-sourced URL.
+func TestResolveDynamicChildren_PerRowTargetOrAction(t *testing.T) {
+	t.Parallel()
+
+	doc := testDocument()
+	doc.Frames["mixed"] = Frame{
+		Columns: []Column{
+			{Name: "child_key", Type: ColumnString},
+			{Name: "child_label", Type: ColumnString},
+			{Name: "__drill", Type: ColumnString},
+			{Name: "url", Type: ColumnString},
+		},
+		Rows: [][]any{
+			{"2024", "2024", "deeper", ""},
+			{"Q3", "Q3", "", "/records?q=3"},
+		},
+	}
+	doc.Drill.Edges["deeper"] = Level{Path: NodePath{"deeper"}, Children: []Node{}, Perspectives: []PerspectiveRef{}}
+	level := Level{
+		Path: NodePath{"root"}, Frame: "mixed", Children: []Node{}, Perspectives: []PerspectiveRef{},
+		DynamicChildren: &DynamicChildren{
+			Key:    Source{Kind: ValueSourceField, Name: "child_key"},
+			Label:  Source{Kind: ValueSourceField, Name: "child_label"},
+			Target: &Source{Kind: ValueSourceField, Name: "__drill"},
+			Action: &Action{Kind: ActionNavigateToLeaf, URLSource: &Source{Kind: ValueSourceField, Name: "url"}, Params: []ActionParam{}, Payload: map[string]Source{}},
+		},
+	}
+	doc.Drill.Edges["root"] = level
+	require.NoError(t, doc.Validate())
+
+	frame := doc.Frames["mixed"]
+	require.NoError(t, ResolveDynamicChildren(&frame, level))
+	require.Len(t, frame.Children, 2)
+	require.Equal(t, NodeKey("deeper"), frame.Children[0].Target, "a row with a target drills")
+	require.Nil(t, frame.Children[0].Action)
+	require.Empty(t, frame.Children[1].Target, "a row without a target is terminal")
+	require.NotNil(t, frame.Children[1].Action)
+	require.NoError(t, ValidateResolvedChildren(level, frame, doc.Drill.Edges))
+
+	// Both declared with a LITERAL target would apply the target to every row,
+	// leaving the action unreachable — rejected at declaration time.
+	literal := testDocument()
+	literalTarget := Source{Kind: ValueSourceLiteral, Value: "deeper"}
+	broken := level
+	broken.DynamicChildren = &DynamicChildren{
+		Key: level.DynamicChildren.Key, Label: level.DynamicChildren.Label,
+		Target: &literalTarget, Action: level.DynamicChildren.Action,
+	}
+	literal.Frames["mixed"] = doc.Frames["mixed"]
+	literal.Drill.Edges["deeper"] = doc.Drill.Edges["deeper"]
+	literal.Drill.Edges["root"] = broken
+	require.ErrorContains(t, literal.Validate(), "target must be a field source")
 }

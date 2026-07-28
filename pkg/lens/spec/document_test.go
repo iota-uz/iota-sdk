@@ -103,6 +103,21 @@ func TestPanelBuilder_FocusCanvasAndTarget(t *testing.T) {
 	require.Contains(t, string(payload), `"target":{"value":58.21,"label":"Known liabilities"}`)
 }
 
+func TestPanelBuilder_RadialJSONContract(t *testing.T) {
+	t.Parallel()
+
+	spec := MultiRingDonut("mix", "Mix", "rows",
+		panel.RadialRing{Key: "actual", Label: "Actual", Order: 1, Total: 100},
+		panel.RadialRing{Key: "plan", Label: "Plan", Order: 2, Total: 100},
+	).SeriesField("ring").IDField("category").RadialTolerance(0.1).Build()
+	payload, err := json.Marshal(spec) //nolint:musttag // PanelSpec is the canonical Lens JSON payload under test.
+	require.NoError(t, err)
+	require.Contains(t, string(payload), `"kind":"radial"`)
+	require.Contains(t, string(payload), `"radial":{"mode":"partition","rings":[{"key":"actual","label":"Actual","order":1,"total":100},{"key":"plan","label":"Plan","order":2,"total":100}],"tolerance":0.1}`) //nolint:lll // exact producer contract
+	require.True(t, spec.Presentation.LegendBelow)
+	require.True(t, spec.Presentation.SliceLabelsPercent)
+}
+
 func TestDocumentValidate(t *testing.T) {
 	t.Parallel()
 

@@ -3,7 +3,11 @@
 @tailwind utilities;
 
 @layer base {
-  .lens-root {
+  /* The printed report is a lens surface that lives outside .lens-root (it is
+     portaled to body), so it declares the same tokens. It never carries a
+     data-theme, which is how it stays light on paper whatever the screen is. */
+  .lens-root,
+  .lens-print-report {
     --lens-bg-page: #f6f7f9;
     --lens-bg-card: #ffffff;
     --lens-bg-inset: #f8fafc;
@@ -22,6 +26,12 @@
     --lens-accent-50: #eff6ff;
     --lens-pos: #059669;
     --lens-neg: #dc2626;
+    /* A second shade of the negative colour for telling one part of a cost apart
+       from the rest of the same cost — a split waterfall band, and its callout.
+       Not a distinct semantic: still negative, just subdivided. It darkens on
+       light surfaces and lightens on dark ones, because on either the point is
+       to separate from --lens-neg without leaving the red family. */
+    --lens-neg-alt: #7f1d1d;
     --lens-warn: #d97706;
     --lens-pos-soft: #ecfdf5;
     --lens-neg-soft: #fef2f2;
@@ -91,6 +101,7 @@
     --lens-shadow-popover: 0 4px 12px rgba(0, 0, 0, 0.4), 0 16px 40px rgba(0, 0, 0, 0.5);
     --lens-pos-soft: rgba(5, 150, 105, 0.16);
     --lens-neg-soft: rgba(220, 38, 38, 0.16);
+    --lens-neg-alt: #f87171;
     --lens-warn-soft: rgba(217, 119, 6, 0.16);
     color-scheme: dark;
   }
@@ -1280,7 +1291,17 @@
   }
 
   .lens-placeholder-state {
-    @apply lens-box-border lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-sm lens-text-muted lens-shadow-card;
+    @apply lens-box-border lens-flex lens-flex-wrap lens-items-center lens-justify-between lens-gap-3 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-sm lens-text-muted lens-shadow-card;
+  }
+
+  .lens-placeholder-retry {
+    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-sans lens-text-sm lens-font-semibold lens-text-text;
+  }
+
+  /* Sits above the skeleton rather than replacing it: the layout stays put and
+     only gains a line explaining why it is still empty. */
+  .lens-loading-notice {
+    @apply lens-m-0 lens-mb-3 lens-font-sans lens-text-sm lens-text-muted;
   }
 
   .lens-panel-stale {
@@ -1794,14 +1815,20 @@
     gap: 12px;
   }
 
+  /* The plot claims the card's spare height instead of a fixed box: a waterfall
+     is read by comparing column heights, and 208px left the columns squat with
+     dead space below them. min-height is the real working height — dashboard
+     panels shrink-wrap (align-items: start), so flex alone would collapse back
+     to the content. flex still earns its keep where a sibling stretches the
+     card: a tab group, or the wide result drawer. */
   .lens-waterfall-chart {
-    @apply lens-grid;
+    @apply lens-grid lens-min-h-0 lens-flex-1;
     grid-template-columns: 96px minmax(0, 1fr);
   }
 
   .lens-waterfall-axis {
-    @apply lens-relative;
-    height: 208px;
+    @apply lens-relative lens-h-full;
+    min-height: 288px;
   }
 
   .lens-waterfall-axis span {
@@ -1811,8 +1838,8 @@
   }
 
   .lens-waterfall-plot {
-    @apply lens-relative;
-    height: 208px;
+    @apply lens-relative lens-h-full;
+    min-height: 288px;
   }
 
   .lens-waterfall-gridline {
@@ -1850,6 +1877,50 @@
 
   .lens-waterfall-bar[data-kind='end'] {
     background: var(--lens-accent-500);
+  }
+
+  /* The part of the movement that differs in kind from the rest, banded at the
+     top of the same bar. It is deliberately a second shade of the bar's own
+     colour rather than a new hue: it is still the same cost, told apart, not a
+     different thing on the chart. */
+  .lens-waterfall-bar-split {
+    @apply lens-absolute lens-left-0 lens-right-0 lens-top-0 lens-rounded-t-sm;
+    /* A band thinner than this is a colour no one can see. A small share of a
+       short bar is exactly when the reader most needs telling it is there. */
+    min-height: 3px;
+    background: var(--lens-neg-alt);
+    border-bottom: 1px solid rgb(255 255 255 / 55%);
+  }
+
+  /* Carried on a chip rather than bare text: the callout leans into whichever
+     side has room, which on a crowded plot is often over a neighbouring column
+     or its underlay, and bare 10px type does not survive that. */
+  /* Hangs just below the band rather than centred on it. Centred, the chip sits
+     at the height every neighbouring column prints its own value at, and the
+     two collide in the gutter between columns; a few pixels lower it clears
+     that band and lands against the neighbour's empty plot area instead. */
+  .lens-waterfall-split-callout {
+    @apply lens-pointer-events-none lens-absolute lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-[10px] lens-font-semibold;
+    top: calc(100% + 3px);
+    color: var(--lens-neg-alt);
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-waterfall-split-callout[data-side='end'] {
+    left: calc(100% + 6px);
+  }
+
+  .lens-waterfall-split-callout[data-side='start'] {
+    right: calc(100% + 6px);
+  }
+
+  /* The balance a floating deduction leaves standing. Drawing it makes the
+     arithmetic visible: the opening total is eaten down, step by step, to the
+     closing one. Behind the bar and the connector, never in front. */
+  .lens-waterfall-underlay {
+    @apply lens-absolute lens-left-1/4 lens-right-1/4 lens-z-0;
+    background: var(--lens-accent-500);
+    opacity: 0.12;
   }
 
   .lens-waterfall-bar strong {
@@ -3998,5 +4069,1336 @@
     .lens-focus-lens-pill:hover {
       transform: none;
     }
+  }
+}
+
+/* -------------------------------------------------------------------------- */
+/* Printed report                                                             */
+/* -------------------------------------------------------------------------- */
+
+/* The report is composed for paper, not screen: A4 portrait, one measure of
+   text, figures numbered so a chapter can point at them. It stays mounted
+   off-canvas while it is prepared so charts receive a real, page-sized box
+   before window.print() snapshots their canvas, without flashing a second
+   dashboard on screen. `?lens-print-preview=1` shows the same document on
+   screen — the only way to review print output without a print dialog. */
+.lens-print-report {
+  display: none;
+}
+
+.lens-print-report[aria-hidden='false'],
+.lens-print-report[data-preview='true'] {
+  box-sizing: border-box;
+  display: block;
+  position: fixed;
+  left: -200vw;
+  top: 0;
+  visibility: hidden;
+  /* A4 portrait less its margins, at 96dpi. */
+  width: 745px;
+  background: #fff;
+  color: var(--lens-text-strong);
+  font-family: var(--lens-font);
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.lens-print-report[data-preview='true'] {
+  position: static;
+  visibility: visible;
+  margin: 0 auto;
+  padding: 24px;
+  box-shadow: var(--lens-shadow-popover);
+}
+
+.lens-print-report h1,
+.lens-print-report h2,
+.lens-print-report h3,
+.lens-print-report h4,
+.lens-print-report p,
+.lens-print-report dl,
+.lens-print-report dd,
+.lens-print-report ol,
+.lens-print-report ul {
+  margin: 0;
+  padding: 0;
+}
+
+.lens-print-report li {
+  list-style: none;
+}
+
+/* -- Cover ----------------------------------------------------------------- */
+
+.lens-print-cover {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  /* One full page: the identity block sits at the top, and everything that
+     dates and qualifies the report is pushed to the foot of the page. */
+  min-height: 104mm;
+  padding-bottom: 8px;
+}
+
+.lens-print-cover-head {
+  margin-bottom: auto;
+  padding-top: 84px;
+  border-top: 3px solid var(--lens-text-strong);
+}
+
+.lens-print-kicker {
+  margin-bottom: 14px !important;
+  color: var(--lens-accent-500);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.lens-print-cover h1 {
+  max-width: 620px;
+  color: var(--lens-text-strong);
+  font-size: 34px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+
+.lens-print-cover-subtitle {
+  max-width: 560px;
+  margin-top: 10px !important;
+  color: var(--lens-text-muted);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+.lens-print-cover-meta {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid var(--lens-border);
+  border-bottom: 1px solid var(--lens-border);
+}
+
+.lens-print-cover-meta dt {
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.lens-print-cover-meta dd {
+  margin-top: 3px !important;
+  color: var(--lens-text-strong);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-kpis {
+  display: grid;
+  /* However many headline readings a board carries, they fill their row: an
+     empty cell in a strip of numbers reads as a number that failed. */
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 8px;
+}
+
+.lens-print-kpi {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  padding: 11px 13px;
+  border: 1px solid var(--lens-border);
+  background: #fff;
+}
+
+.lens-print-kpi-label {
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* A tile is a numbered figure like any other, so prose can point at it. */
+.lens-print-kpi-label .lens-print-figure-number {
+  margin-right: 6px;
+}
+
+.lens-print-kpi-value {
+  color: var(--lens-text-strong);
+  /* «199.89 млрд UZS» broken across two lines reads as two numbers, so the
+     headline is sized to hold an abbreviated amount on one line. */
+  font-size: 14px;
+  white-space: nowrap;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1.15;
+}
+
+.lens-print-kpi-caption {
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  line-height: 1.35;
+}
+
+/* A number alone answers "how much"; the change beside it and the shape under
+   it answer "compared with what" — the first question anyone asks of a KPI. */
+.lens-print-kpi-delta {
+  margin-left: 6px;
+  color: var(--lens-pos);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.lens-print-kpi-delta[data-negative] {
+  color: var(--lens-neg);
+}
+
+.lens-print-sparkline {
+  width: 100%;
+  max-width: 120px;
+  height: 15px;
+}
+
+.lens-print-sparkline polyline {
+  stroke: var(--lens-accent-500);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.lens-print-kpi-trend {
+  color: var(--lens-pos);
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.lens-print-kpi-trend[data-negative] {
+  color: var(--lens-neg);
+}
+
+.lens-print-kpi-target {
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-kpi-chips {
+  /* Pinned to the foot of the tile: four tiles of different heights otherwise
+     scatter their quality chips across four different lines. */
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: auto !important;
+  padding-top: 4px;
+}
+
+.lens-print-cover-flag {
+  margin-top: auto !important;
+  padding-left: 10px;
+  border-left: 2px solid var(--lens-warn);
+  color: var(--lens-text-muted);
+  font-size: 9px;
+}
+
+/* -- Contents -------------------------------------------------------------- */
+
+.lens-print-contents {
+  padding-top: 8px;
+}
+
+.lens-print-contents h2 {
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--lens-text-strong);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.lens-print-contents ol {
+  margin: 10px 0 14px !important;
+}
+
+.lens-print-contents li {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 4px 8px;
+  align-items: baseline;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--lens-divider);
+}
+
+.lens-print-contents-number {
+  color: var(--lens-accent-500);
+  font-size: 10px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lens-print-contents-title {
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.lens-print-contents-caption {
+  grid-column: 2;
+  color: var(--lens-text-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.lens-print-contents-note {
+  max-width: 620px;
+  color: var(--lens-text-muted);
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+/* -- Chapters -------------------------------------------------------------- */
+
+.lens-print-chapter-head {
+  margin-bottom: 14px;
+}
+
+.lens-print-runninghead {
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--lens-border);
+  color: var(--lens-text-faint);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-chapter-head h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-top: 12px !important;
+  color: var(--lens-text-strong);
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.lens-print-chapter-number {
+  color: var(--lens-accent-500);
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lens-print-lead {
+  max-width: 600px;
+  margin-top: 6px !important;
+  color: var(--lens-text);
+  font-size: 10.5px;
+  line-height: 1.55;
+}
+
+/* The chapter's own numbers, before the figures that carry them. */
+.lens-print-chapter-headline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 8px !important;
+  padding-top: 7px;
+  border-top: 1px solid var(--lens-divider);
+  color: var(--lens-text-strong);
+  font-size: 9.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-chapter-headline-label {
+  margin-right: 5px;
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* Flow, not grid: a printed chapter is fragmented across pages, and a grid
+   container refuses to split cleanly — it pushes a whole row to the next page
+   and leaves a chapter heading stranded on an empty one. */
+.lens-print-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 20px;
+  align-items: flex-start;
+}
+
+.lens-print-figure-half {
+  flex: 1 1 calc(50% - 10px);
+  max-width: calc(50% - 10px);
+}
+
+/* Two half-width readings that share a row. On screen the flex grid already
+   places them; the wrapper only matters on paper, where the figures flow as
+   blocks and a row has to be stated rather than left to wrap. */
+.lens-print-pair {
+  display: contents;
+}
+
+.lens-print-figure-full {
+  flex: 1 1 100%;
+  max-width: 100%;
+}
+
+/* -- Figures --------------------------------------------------------------- */
+
+.lens-print-figure {
+  margin: 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--lens-text-strong);
+  break-inside: avoid;
+}
+
+/* A metric tile carries its own frame, so it drops the figure rule. */
+.lens-print-figure-metric {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The heading of an authored strip of metrics, printed where the strip starts. */
+.lens-print-strip {
+  flex: 1 1 100%;
+  max-width: 100%;
+  margin-top: 4px;
+}
+
+.lens-print-strip h3 {
+  color: var(--lens-text-strong);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-strip p {
+  max-width: 600px;
+  margin-top: 3px !important;
+  color: var(--lens-text-muted);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+.lens-print-figure-head {
+  margin-bottom: 8px;
+}
+
+.lens-print-figure-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+/* Its own row, kept even when empty: two figures side by side start their
+   charts on one line only if their headings are the same height. */
+.lens-print-figure-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  min-height: 13px;
+  margin-top: 3px !important;
+}
+
+.lens-print-figure-number {
+  color: var(--lens-accent-500);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-figure-head h3 {
+  flex: 1 1 auto;
+  color: var(--lens-text-strong);
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.lens-print-chip {
+  padding: 1px 5px;
+  border: 1px solid var(--lens-border-strong);
+  border-radius: var(--lens-radius-badge);
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lens-print-chip[data-tone='warning'] {
+  border-color: #fcd34d;
+  background: var(--lens-warn-soft);
+  color: #92400e;
+}
+
+.lens-print-chip[data-tone='positive'] {
+  border-color: #a7f3d0;
+  background: var(--lens-pos-soft);
+  color: #065f46;
+}
+
+.lens-print-chart {
+  margin-bottom: 8px;
+  overflow: hidden;
+}
+
+.lens-print-chart .lens-chart-host,
+.lens-print-chart .lens-chart-canvas {
+  height: 100%;
+  min-height: 0;
+  border: 0;
+  background: #fff;
+}
+
+/* The printed bridge keeps the dashboard's own columns; only its chrome shrinks
+   to the page — a narrower axis gutter and a plot sized for A4. */
+.lens-print-chart-waterfall {
+  /* A bridge is the argument of its chapter and the page has the room: at
+     300px it sat in the top third of an otherwise empty sheet. */
+  height: 380px;
+  /* The opening column's value label sits above its bar, outside the plot. */
+  padding-top: 14px;
+}
+
+.lens-print-chart-waterfall .lens-waterfall {
+  padding: 0;
+  height: 100%;
+}
+
+.lens-print-chart-waterfall .lens-waterfall-chart {
+  /* Wide enough for a money tick: "150 млрд UZS" is the widest label a
+     printed bridge has to hold, and a clipped axis is a lying axis. */
+  grid-template-columns: 84px minmax(0, 1fr);
+}
+
+.lens-print-chart-waterfall .lens-waterfall-axis,
+.lens-print-chart-waterfall .lens-waterfall-plot,
+.lens-print-chart-waterfall .lens-waterfall-chart {
+  min-height: 0;
+}
+
+.lens-print-chart-waterfall .lens-waterfall-labels {
+  padding-top: 4px;
+}
+
+.lens-print-chart-waterfall .lens-waterfall-axis span,
+.lens-print-chart-waterfall .lens-waterfall-label {
+  font-size: 8px;
+}
+
+/* The value над столбцом is set smaller than its axis: at 8px two adjacent
+   labels — «170.10 млрд UZS» and «−119.28 млрд UZS» — ran into each other. */
+.lens-print-chart-waterfall .lens-waterfall-bar strong {
+  font-size: 7px;
+  letter-spacing: -0.01em;
+}
+
+/* What the colours of a bridge stand for, printed under it and only when the
+   bridge actually uses more than one. */
+.lens-print-tone-key {
+  display: flex;
+  gap: 10px;
+  margin-top: 4px !important;
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  letter-spacing: 0.02em;
+}
+
+.lens-print-tone-key i {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 3px;
+  border-radius: 1px;
+  background: var(--lens-text-muted);
+}
+
+.lens-print-tone-key i[data-tone='positive'] {
+  background: var(--lens-pos);
+}
+
+.lens-print-tone-key i[data-tone='negative'] {
+  background: var(--lens-neg);
+}
+
+.lens-print-tone-key i[data-tone='warning'] {
+  background: var(--lens-warn);
+}
+
+.lens-print-figure-note {
+  margin-bottom: 8px !important;
+  color: var(--lens-text);
+  font-size: 9.5px;
+  line-height: 1.5;
+}
+
+/* The dashboard's own note about a figure. It sets the terms the reading is
+   allowed to be used under, so it is stated plainly — four lines of bold under
+   every chart shout at a reader who has not started reading yet. */
+.lens-print-figure-authored {
+  display: block;
+  color: var(--lens-text-strong);
+  font-weight: 500;
+}
+
+/* The authoritative total the shares below are taken against — the badge the
+   dashboard keeps in the panel header. */
+.lens-print-figure-total {
+  margin-left: auto;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+/* -- Data quality ---------------------------------------------------------- */
+
+/* Quality is stated in words, never in colour alone: a greyscale print must
+   still say that a figure is an estimate. */
+.lens-print-chip[data-quality='proxy'],
+.lens-print-chip[data-quality='requires_reconciliation'] {
+  border-color: #fcd34d;
+  background: var(--lens-warn-soft);
+  color: #92400e;
+}
+
+.lens-print-chip[data-quality='config_required'],
+.lens-print-chip[data-quality='empty_source'],
+.lens-print-chip[data-quality='unavailable'] {
+  border-style: dashed;
+}
+
+/* -- Footnotes ------------------------------------------------------------- */
+
+.lens-print-footnote-marker {
+  margin-left: 2px;
+  color: var(--lens-accent-500);
+  font-size: 7px;
+  font-weight: 700;
+  vertical-align: super;
+}
+
+/* The qualification prints with the figure it qualifies, so the two never
+   land on different pages. */
+.lens-print-footnotes {
+  margin: 6px 0 0;
+  padding-left: 14px;
+  border-top: 1px dotted var(--lens-border);
+  padding-top: 5px;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  line-height: 1.45;
+  list-style: none;
+  padding-left: 0;
+}
+
+.lens-print-footnote-index {
+  margin-right: 4px;
+  color: var(--lens-accent-500);
+  font-weight: 700;
+  vertical-align: super;
+  font-size: 7px;
+}
+
+.lens-print-truncated,
+.lens-print-detail-note {
+  margin-top: 4px !important;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-style: italic;
+}
+
+/* -- Metric formulas ------------------------------------------------------- */
+
+.lens-print-formula {
+  margin-bottom: 8px;
+}
+
+.lens-print-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  list-style: none;
+}
+
+.lens-print-flow-stage {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0;
+  border-bottom: 1px solid var(--lens-border);
+  font-size: 9.5px;
+}
+
+/* The result is the line the formula walks towards; it reads as a total. */
+.lens-print-flow-stage[data-result] {
+  border-bottom: 0;
+  border-top: 1px solid var(--lens-text-strong);
+  color: var(--lens-text-strong);
+  font-weight: 700;
+}
+
+.lens-print-flow-op {
+  color: var(--lens-text-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.lens-print-flow-label small {
+  display: block;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  line-height: 1.4;
+}
+
+.lens-print-flow-value,
+.lens-print-hierarchy-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  justify-content: flex-end;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* The magnitude every line of the calculation is stated in, said once. */
+.lens-print-formula-unit {
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  letter-spacing: 0.02em;
+  text-align: right;
+}
+
+.lens-print-formula-note {
+  margin-top: 5px !important;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+}
+
+.lens-print-hierarchy {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+}
+
+.lens-print-hierarchy-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto 52px;
+  align-items: baseline;
+  gap: 6px;
+  padding: 3px 0 3px calc(var(--lens-depth, 0) * 12px);
+  border-bottom: 1px solid var(--lens-border);
+  font-size: 9.5px;
+}
+
+.lens-print-hierarchy-row[data-parent] {
+  color: var(--lens-text-strong);
+  font-weight: 600;
+}
+
+.lens-print-hierarchy-label em {
+  margin-left: 5px;
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-style: normal;
+  text-transform: uppercase;
+}
+
+.lens-print-hierarchy-label small {
+  display: block;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-weight: 400;
+  line-height: 1.4;
+}
+
+.lens-print-hierarchy-share {
+  color: var(--lens-text-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+}
+
+.lens-print-hierarchy-reconcile {
+  grid-column: 1 / -1;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+  font-weight: 400;
+}
+
+.lens-print-relationship-claim {
+  color: var(--lens-text-strong);
+  font-size: 10px;
+  font-weight: 600;
+  margin-bottom: 6px !important;
+}
+
+.lens-print-relationship-ends {
+  display: flex;
+  gap: 10px;
+}
+
+.lens-print-relationship-end {
+  position: relative;
+  flex: 1 1 0;
+  padding: 7px 9px;
+  border: 1px solid var(--lens-border);
+}
+
+.lens-print-relationship-label {
+  display: block;
+  color: var(--lens-text-muted);
+  font-size: 8.5px;
+}
+
+.lens-print-relationship-value {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  color: var(--lens-text-strong);
+  font-size: 13px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.lens-print-relationship-glyph {
+  position: absolute;
+  right: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #fff;
+  color: var(--lens-text-muted);
+  font-size: 11px;
+  line-height: 1;
+}
+
+/* -- Breakdown attached to a reading --------------------------------------- */
+
+.lens-print-breakdown {
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--lens-border);
+}
+
+.lens-print-breakdown-head,
+.lens-print-breakdown-title {
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-breakdown-title {
+  margin-top: 5px !important;
+  letter-spacing: 0.04em;
+}
+
+.lens-print-breakdown-term {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid var(--lens-border);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* -- Evidence tables ------------------------------------------------------- */
+
+.lens-print-data {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--lens-text);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1.35;
+}
+
+.lens-print-data th {
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--lens-border-strong);
+  color: var(--lens-text-muted);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.lens-print-data td {
+  padding: 4px 6px 4px 0;
+  border-bottom: 1px solid var(--lens-divider);
+  vertical-align: top;
+}
+
+/* The column's unit, said once under its name instead of on every row. */
+.lens-print-data th small {
+  display: block;
+  margin-top: 1px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  text-transform: none;
+}
+
+.lens-print-data th:last-child,
+.lens-print-data td:last-child {
+  padding-right: 0;
+}
+
+.lens-print-data [data-align='right'] {
+  text-align: right;
+}
+
+/* One geometry for every category/value/share table in the report. Left to
+   size themselves, two tables printed one under the other put their value
+   columns in different places and the appendix reads as if it were ragged. */
+.lens-print-data:not(.lens-print-data-wide) {
+  table-layout: fixed;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(1) {
+  width: 60%;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(2) {
+  width: 24%;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(2):last-child {
+  width: 40%;
+}
+
+.lens-print-data:not(.lens-print-data-wide) th:nth-child(3) {
+  width: 16%;
+}
+
+/* A swatch means «this row is that colour in the picture above». The appendix
+   has no picture, and colours reused across unrelated tables imply a kinship
+   that does not exist. */
+.lens-print-appendix .lens-print-swatch {
+  display: none;
+}
+
+.lens-print-data td[data-negative] {
+  color: var(--lens-neg);
+}
+
+.lens-print-data tr:last-child td {
+  border-bottom: 0;
+}
+
+.lens-print-data td small {
+  display: block;
+  margin-top: 1px;
+  color: var(--lens-text-faint);
+  font-size: 7.5px;
+  white-space: nowrap;
+}
+
+.lens-print-data-dense {
+  font-size: 8px;
+}
+
+.lens-print-data-dense th,
+.lens-print-data-dense td {
+  padding: 3px 5px 3px 0;
+}
+
+.lens-print-data-wide {
+  font-size: 8px;
+}
+
+.lens-print-data-wide th,
+.lens-print-data-wide td {
+  padding: 3px 5px 3px 0;
+}
+
+.lens-print-figure:has(.lens-print-data-wide) {
+  break-inside: auto;
+}
+
+.lens-print-figure:has(.lens-print-data-wide) .lens-print-figure-head {
+  break-after: avoid;
+}
+
+/* A bar cell keeps the proportion the screen showed, drawn under the figure
+   rather than beside it so a dense table gains no height for it. */
+.lens-print-data-wide td {
+  position: relative;
+}
+
+.lens-print-cell-bar {
+  position: absolute;
+  left: 0;
+  right: auto;
+  bottom: 1px;
+  height: 2px;
+  background: var(--lens-accent-300);
+}
+
+.lens-print-data-wide td[data-align='right'] .lens-print-cell-bar {
+  left: auto;
+  right: 0;
+}
+
+.lens-print-cell-bar[data-negative] {
+  background: var(--lens-neg);
+}
+
+/* The percentage half of a delta cell: the amount says how much moved, this
+   says whether that is a lot. */
+.lens-print-cell-secondary {
+  display: block;
+  color: var(--lens-pos);
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.lens-print-cell-secondary[data-negative] {
+  color: var(--lens-neg);
+}
+
+/* The producer's own verdict on a row — a loss ratio past 100%, say. */
+.lens-print-data td[data-tone='neg'] {
+  color: var(--lens-neg);
+}
+
+.lens-print-data td[data-tone='warn'] {
+  color: #92400e;
+}
+
+.lens-print-data td[data-tone='pos'] {
+  color: var(--lens-pos);
+}
+
+/* The share reads twice over: as a bar the eye scans and as the number an
+   auditor checks, without spending a second line on either. */
+.lens-print-share {
+  position: relative;
+  min-width: 54px;
+}
+
+.lens-print-share-bar {
+  position: absolute;
+  right: 0;
+  top: 4px;
+  bottom: 4px;
+  border-radius: 1px;
+  background: var(--lens-accent-100);
+}
+
+.lens-print-share span {
+  position: relative;
+}
+
+.lens-print-swatch {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 5px;
+  border-radius: 1px;
+  vertical-align: 1px;
+}
+
+.lens-print-series {
+  color: var(--lens-text-muted);
+  font-weight: 600;
+}
+
+.lens-print-empty {
+  color: var(--lens-text-muted);
+  font-size: 9px;
+}
+
+/* -- Appendices ------------------------------------------------------------ */
+
+.lens-print-appendix-chapter {
+  margin-top: 16px;
+}
+
+.lens-print-appendix-chapter h3 {
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--lens-border);
+  color: var(--lens-text-strong);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lens-print-grid-dense {
+  gap: 12px 20px;
+}
+
+.lens-print-detail {
+  break-inside: avoid;
+}
+
+.lens-print-detail header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.lens-print-detail-number {
+  color: var(--lens-accent-500);
+  font-size: 8px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.lens-print-detail h4 {
+  flex: 1 1 auto;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.lens-print-detail-trail {
+  flex: 1 1 100%;
+  color: var(--lens-text-faint);
+  font-size: 7.5px;
+  line-height: 1.3;
+}
+
+/* The quality vocabulary, defined once for a reader who cannot hover a chip. */
+.lens-print-glossary {
+  margin-bottom: 14px;
+}
+
+.lens-print-glossary h3 {
+  margin: 0 0 6px;
+  color: var(--lens-text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.lens-print-glossary > dl {
+  display: grid;
+  gap: 5px;
+}
+
+.lens-print-glossary > dl > div {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  break-inside: avoid;
+}
+
+.lens-print-glossary dd {
+  color: var(--lens-text);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.lens-print-notes {
+  display: grid;
+  gap: 6px;
+  margin-top: 12px !important;
+}
+
+.lens-print-notes > div {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr);
+  gap: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--lens-divider);
+  break-inside: avoid;
+}
+
+.lens-print-notes dt {
+  color: var(--lens-text-strong);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.lens-print-notes dd {
+  color: var(--lens-text);
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+.lens-print-limits {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-left: 2px solid var(--lens-warn);
+  background: var(--lens-warn-soft);
+  break-inside: avoid;
+}
+
+.lens-print-limits h3 {
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.lens-print-limits p,
+.lens-print-limits li {
+  color: #78350f;
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+
+.lens-print-limits ul {
+  margin-top: 5px !important;
+}
+
+.lens-print-limits li {
+  padding-left: 10px;
+  text-indent: -10px;
+}
+
+.lens-print-limits li::before {
+  content: '— ';
+}
+
+.lens-print-provenance {
+  margin-top: 14px !important;
+  padding-top: 6px;
+  border-top: 1px solid var(--lens-border);
+  color: var(--lens-text-faint);
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -- Paper ----------------------------------------------------------------- */
+
+@page {
+  size: A4 portrait;
+  margin: 13mm;
+}
+
+/* A product table is wider than a portrait measure. Chrome ≥118 honours a named
+   page, so those sections turn the paper instead of shrinking the type; older
+   engines simply keep them portrait. */
+@page wide {
+  size: A4 landscape;
+  margin: 12mm;
+}
+
+@media print {
+  html.lens-print-active,
+  html.lens-print-active body {
+    width: auto !important;
+    min-width: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+
+  html.lens-print-active body * {
+    visibility: hidden !important;
+  }
+
+  html.lens-print-active .lens-print-report,
+  html.lens-print-active .lens-print-report * {
+    visibility: visible !important;
+  }
+
+  html.lens-print-active .lens-print-report {
+    display: block !important;
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    padding: 0 !important;
+    color: var(--lens-text-strong) !important;
+    background: #fff !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* The cover states the identity and the headline readings; the contents is
+     six lines. Each on its own page left two sheets half empty, so they share
+     one and the first chapter still opens on a fresh page. */
+  .lens-print-cover {
+    break-after: auto;
+  }
+
+  .lens-print-contents {
+    break-after: page;
+    break-inside: avoid;
+    margin-top: 26px;
+  }
+
+  .lens-print-chapter,
+  .lens-print-appendix,
+  .lens-print-method {
+    break-before: page;
+  }
+
+  .lens-print-chapter-head,
+  .lens-print-appendix-chapter h3 {
+    break-after: avoid;
+    break-inside: avoid;
+  }
+
+  /* Flex and grid containers fragment badly across pages: Chrome keeps the
+     whole box together and strands the chapter heading on an empty page.
+     Printed chapters therefore flow as blocks, with half-width figures set
+     side by side as inline blocks. */
+  .lens-print-grid {
+    display: block;
+  }
+
+  .lens-print-figure {
+    display: inline-block;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: 16px;
+    vertical-align: top;
+  }
+
+  .lens-print-figure-half {
+    width: 48.5%;
+    max-width: 48.5%;
+  }
+
+  .lens-print-pair {
+    display: block;
+    break-inside: avoid;
+  }
+
+  .lens-print-pair > .lens-print-figure-half + .lens-print-figure-half {
+    margin-left: 3%;
+  }
+
+  .lens-print-strip {
+    display: block;
+    width: 100%;
+    margin-bottom: 10px;
+    break-after: avoid;
+  }
+
+  /* A strip heading travels with the first reading it names. `break-after`
+     alone is advisory enough that Chrome still stranded the heading at the
+     foot of a page. */
+  .lens-print-lead-group {
+    display: block;
+    break-inside: avoid;
+  }
+
+  .lens-print-figure:has(.lens-print-data-wide) {
+    page: wide;
+  }
+
+  .lens-print-data thead {
+    display: table-header-group;
+  }
+
+  .lens-print-data tr,
+  .lens-print-chart {
+    break-inside: avoid;
   }
 }

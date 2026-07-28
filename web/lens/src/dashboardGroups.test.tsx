@@ -182,6 +182,27 @@ describe('StatGroup inside Tabs', () => {
   })
 })
 
+describe('group caption', () => {
+  it('renders a group caption once, beneath the group heading', () => {
+    const group: LayoutGroup = {
+      id: 'ratios', kind: 'metrics', span: 12, label: 'Key ratios', layout: 'columns',
+      caption: 'Diagnostic basis, not a competing verdict.',
+    }
+    const { container } = renderDocument(documentWith(
+      [statPanel('metric-a', 'Metric A'), statPanel('metric-b', 'Metric B')],
+      { 'metric-a:root': statFrame(1), 'metric-b:root': statFrame(2) },
+      { rows: [{ panels: [
+        { panelId: 'metric-a', span: 6, group },
+        { panelId: 'metric-b', span: 6, group },
+      ] }] },
+    ))
+
+    const captions = container.querySelectorAll('.lens-panel-group-metrics > .lens-panel-caption')
+    expect(captions).toHaveLength(1)
+    expect(captions[0]?.textContent).toBe('Diagnostic basis, not a competing verdict.')
+  })
+})
+
 describe('metric group context', () => {
   it('renders a metric caption beneath the value', () => {
     const group: LayoutGroup = { id: 'hero', kind: 'metrics', span: 12, layout: 'columns' }

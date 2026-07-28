@@ -137,11 +137,16 @@ const (
 // LayoutGroup describes the container card that owns a run of layout items.
 // Every item of the same group repeats the identical descriptor except Tab.
 type LayoutGroup struct {
-	ID     string            `json:"id"`
-	Kind   LayoutGroupKind   `json:"kind"`
-	Label  string            `json:"label,omitempty"`
-	Layout LayoutGroupLayout `json:"layout,omitempty"`
-	Span   int               `json:"span"`
+	ID   string          `json:"id"`
+	Kind LayoutGroupKind `json:"kind"`
+	// Caption explains the group as a whole — why this strip of metrics sits
+	// here, what basis it reads on — the same role Panel.Caption plays for a
+	// single panel. Without it a container's Description would be silently
+	// dropped on the wire, since a group owns no panel of its own.
+	Caption string            `json:"caption,omitempty"`
+	Label   string            `json:"label,omitempty"`
+	Layout  LayoutGroupLayout `json:"layout,omitempty"`
+	Span    int               `json:"span"`
 	// Tab names the tab this item belongs to inside a tabs group.
 	Tab string `json:"tab,omitempty"`
 	// Status, when set, is a single group-level chip rendered once in the
@@ -224,6 +229,7 @@ const (
 	PanelKindStat    PanelKind = "stat"
 	PanelKindPie     PanelKind = "pie"
 	PanelKindDonut   PanelKind = "donut"
+	PanelKindRadial  PanelKind = "radial"
 	PanelKindBar     PanelKind = "bar"
 	PanelKindHBar    PanelKind = "hbar"
 	PanelKindLine    PanelKind = "line"
@@ -472,6 +478,11 @@ type Panel struct {
 	// Caption is already-localized supporting text rendered below panel chrome.
 	// Newlines are preserved so callers can carry multiple notes or caveats.
 	Caption string `json:"caption,omitempty"`
+	// Info is the already-localized long-form explanation a dashboard keeps
+	// behind an ⓘ affordance — how a figure is obtained, what it excludes. On
+	// screen it costs nothing until asked for; on paper there is nothing to ask,
+	// so a printed report carries it as the figure's footnote.
+	Info string `json:"info,omitempty"`
 	// Headline overrides a coverage panel's computed headline value.
 	Headline *float64 `json:"headline,omitempty"`
 	// Trend is a signed change chip rendered in the panel footer, e.g.
@@ -493,12 +504,39 @@ type Panel struct {
 	MetricHierarchy *MetricHierarchyConfig `json:"metricHierarchy,omitempty"`
 	// MetricRelationship carries the structure of a metric_relationship panel.
 	MetricRelationship *MetricRelationshipConfig `json:"metricRelationship,omitempty"`
+	// Radial carries the geometry contract for a radial panel.
+	Radial *RadialConfig `json:"radial,omitempty"`
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence Confidence `json:"confidence,omitempty"`
 	// Availability is the panel-level default availability for its elements; a
 	// frame column value or an element's own availability overrides it.
 	Availability Availability `json:"availability,omitempty"`
+}
+
+// RadialMode selects a radial panel's geometry.
+type RadialMode string
+
+const (
+	RadialModeProgress  RadialMode = "progress"
+	RadialModePartition RadialMode = "partition"
+)
+
+// RadialConfig configures concentric progress arcs or concentric partitions.
+// Max is required only by progress mode.
+type RadialConfig struct {
+	Mode      RadialMode   `json:"mode"`
+	Max       float64      `json:"max,omitempty"`
+	Rings     []RadialRing `json:"rings,omitempty"`
+	Tolerance float64      `json:"tolerance,omitempty"`
+}
+
+// RadialRing is an explicitly ordered, reconciled partition ring.
+type RadialRing struct {
+	Key   string  `json:"key"`
+	Label string  `json:"label"`
+	Order int     `json:"order,omitempty"`
+	Total float64 `json:"total"`
 }
 
 // StatusTone selects a status chip's color treatment.
@@ -556,6 +594,24 @@ type SliceLabels string
 const (
 	// SliceLabelsPercent writes each slice's share inside the slice.
 	SliceLabelsPercent SliceLabels = "percent"
+	// SliceLabelsLabel writes each slice's category label inside the slice,
+	// leaving the share to the legend. For dimensions whose labels are short
+	// and self-explaining — a year, a quarter — where naming the slice beats
+	// a number the legend can carry instead. A slice too narrow to hold its
+	// label is left unlabelled rather than clipped.
+	SliceLabelsLabel SliceLabels = "label"
+)
+
+// LegendValue selects what a legend entry prints after its label.
+type LegendValue string
+
+const (
+	// LegendValueAmount is the default: the row's own formatted value.
+	LegendValueAmount LegendValue = "value"
+	// LegendValuePercent prints the row's share of the frame total instead.
+	// Pairs with SliceLabelsLabel: the slice names itself, the legend
+	// quantifies it.
+	LegendValuePercent LegendValue = "percent"
 )
 
 // TotalBadgePlacement selects where Panel.Total is rendered.
@@ -622,6 +678,7 @@ const (
 
 type Presentation struct {
 	Legend      LegendPlacement     `json:"legend,omitempty"`
+	LegendValue LegendValue         `json:"legendValue,omitempty"`
 	SliceLabels SliceLabels         `json:"sliceLabels,omitempty"`
 	TotalBadge  TotalBadgePlacement `json:"totalBadge,omitempty"`
 	ColorBy     ColorBy             `json:"colorBy,omitempty"`
@@ -748,6 +805,17 @@ type Encoding struct {
 	// per-row value falls back to the direction default. Optional; absent keeps
 	// the panel's flow-direction coloring byte- and behavior-identical.
 	Tone string `json:"tone,omitempty"`
+	// Split names a frame column carrying the part of a cascade stage's own
+	// movement that differs in kind from the rest of it — claims met out of a
+	// product's reserve versus the overflow beyond it, say. Waterfall renderers
+	// band it separately at the leading end of the same bar, so the composition
+	// is read off the bar rather than from a caption beside it. It is a portion
+	// OF the movement, never an addition to it: a value outside (0, |movement|)
+	// is ignored and the bar renders whole. Optional; absent keeps solid bars.
+	Split string `json:"split,omitempty"`
+	// SplitLabel names a frame column naming that band. Renderers place it next
+	// to the band; an empty value leaves the band drawn but unlabeled.
+	SplitLabel string `json:"splitLabel,omitempty"`
 	// Share names a frame column carrying a per-element share (already in the
 	// units its format declares); the renderer never recomputes it.
 	Share string `json:"share,omitempty"`
@@ -932,6 +1000,31 @@ type Frame struct {
 	Columns  []Column `json:"columns"`
 	Rows     [][]any  `json:"rows"`
 	Children []Node   `json:"children,omitempty"`
+	// Total is the authoritative whole this frame's rows are shares of, as
+	// the producer computed it — not the sum of the rows shipped here.
+	//
+	// The two differ whenever the producer collapses a tail into an "other"
+	// bucket, drops non-positive rows, or the viewer hides a series from the
+	// legend. Renderers that derive a percentage must use this when present,
+	// so a share means the same thing at every drill depth and stops moving
+	// when the viewer toggles the legend.
+	//
+	// It rides on the frame rather than the level because a lazily loaded
+	// level arrives as nothing but a frame: a total on Level would be absent
+	// exactly where the drill goes deepest.
+	Total *float64 `json:"total,omitempty"`
+	// Presentation and Colors are the rendering decisions of the panel that
+	// PRODUCED this frame, which is not always the panel that will draw it: in
+	// document mode a drill level is served as a bare frame into a placeholder
+	// panel frozen before anyone knew which dimension that level would render.
+	// A level that draws years wants the year on the slice and the share in
+	// the legend; the level below it draws quarters, or — after a remainder
+	// step — years again. Only the producer knows, and only the frame reaches
+	// the client, so the decisions travel with the data.
+	//
+	// Absent means "keep the panel's own"; they never merge field by field.
+	Presentation *Presentation `json:"presentation,omitempty"`
+	Colors       []string      `json:"colors,omitempty"`
 }
 
 type Endpoints struct {

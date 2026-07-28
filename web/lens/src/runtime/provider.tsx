@@ -45,6 +45,7 @@ import {
 } from './navigation'
 import { LensDrawer } from './drawer'
 import { DocumentCache } from './prefetch'
+import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL } from './url'
@@ -292,6 +293,47 @@ export interface ExportContextValue {
   run: (panelId?: string) => Promise<void>
 }
 
+export type PrintStatus = 'idle' | 'pending' | 'error'
+
+export interface PrintContextValue {
+  available: boolean
+  active: boolean
+  status: PrintStatus
+  message?: string
+  report?: PrintReport
+  /**
+   * Builds the report and hands it to the browser's print dialog. In preview
+   * mode it stops one step earlier and leaves the composed document on screen —
+   * the only way to review printed output, since a print dialog blocks both the
+   * page and any automation driving it.
+   */
+  run: (options?: { preview?: boolean }) => Promise<void>
+  preview: boolean
+}
+
+// `AbortSignal.timeout` and `AbortSignal.any` are recent enough that a browser
+// still in the field can lack them, and there they would throw where a report
+// is being built rather than degrade. The fallbacks are the same contract.
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms)
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(new DOMException('signal timed out', 'TimeoutError')), ms)
+  return controller.signal
+}
+
+function anySignal(signals: Array<AbortSignal>): AbortSignal {
+  if (typeof AbortSignal.any === 'function') return AbortSignal.any(signals)
+  const controller = new AbortController()
+  const aborted = signals.find((signal) => signal.aborted)
+  if (aborted) controller.abort(aborted.reason)
+  else {
+    for (const signal of signals) {
+      signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true })
+    }
+  }
+  return controller.signal
+}
+
 function exportScope(panelId?: string): string {
   return panelId ? `panel:${panelId}` : 'dashboard'
 }
@@ -325,6 +367,7 @@ const DrillContext = createContext<DrillContextValue | undefined>(undefined)
 const FramesContext = createContext<PanelFrameStore | undefined>(undefined)
 const PanelPaginationContext = createContext<PanelPaginationContextValue | undefined>(undefined)
 const ExportContext = createContext<ExportContextValue | undefined>(undefined)
+const PrintContext = createContext<PrintContextValue | undefined>(undefined)
 const DrawerContext = createContext<DrawerContextValue | undefined>(undefined)
 const FiltersContext = createContext<FiltersContextValue | undefined>(undefined)
 const LocaleContext = createContext('en')
@@ -694,6 +737,11 @@ function RuntimeCore({
     applyFilters?.(values)
   }, [applyFilters])
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
+  const [printState, setPrintState] = useState<Omit<PrintContextValue, 'available' | 'run'>>({
+    active: false,
+    status: 'idle',
+    preview: false,
+  })
   const exportSnapshotId = useRef(document.snapshotId)
   const [retryToken, setRetryToken] = useState(0)
   const forceRetry = useRef(false)
@@ -969,6 +1017,83 @@ function RuntimeCore({
     run: runExport,
   }), [document.endpoints.export, exportStates, runExport])
 
+  const runPrint = useCallback(async ({ preview = false }: { preview?: boolean } = {}) => {
+    if (drawerDepth > 0 || typeof window === 'undefined' || printState.status === 'pending') return
+    setPrintState({ active: true, status: 'pending', preview })
+    const printQueryClients = new Map<string, QueryClient>()
+    // Audit exports deliberately favour completeness over dashboard-like
+    // latency: deep product and period lenses can be expensive but must not
+    // silently disappear from the non-interactive report.
+    const reportSignal = timeoutSignal(90_000)
+    const detailSignal = () => anySignal([reportSignal, timeoutSignal(20_000)])
+    try {
+      const { buildPrintReport } = await import('./print')
+      const report = await buildPrintReport(
+        document,
+        (request, owner = document) => {
+          const endpoint = owner.endpoints.query
+          if (!endpoint) {
+            return Promise.reject(new Error(
+              `lens: ${owner.meta.dashboardId} declares no query endpoint, so its detail cannot be printed`,
+            ))
+          }
+          let client = printQueryClients.get(endpoint)
+          if (!client) {
+            client = new QueryClient(endpoint, { csrf, fetcher })
+            printQueryClients.set(endpoint, client)
+          }
+          return client.query(request, { signal: detailSignal() })
+        },
+        2_000,
+        (src) => fetchDocument(src, {
+          csrf,
+          fetcher,
+          signal: detailSignal(),
+        }),
+        new URL(location.href),
+        reportSignal,
+      )
+      for (const client of printQueryClients.values()) client.dispose()
+      setPrintState({ active: true, status: 'idle', report, preview })
+      // Preview stops here: the composed document stays on screen, on canvas,
+      // for review — no print dialog, nothing to dismiss.
+      if (preview) return
+      // Let React commit the flattened report and let canvas adapters mount
+      // before the print engine snapshots the page.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
+      await globalThis.document.fonts?.ready
+      await new Promise<void>((resolve) => setTimeout(resolve, 120))
+      globalThis.document.documentElement.classList.add('lens-print-active')
+      const cleanup = () => {
+        globalThis.document.documentElement.classList.remove('lens-print-active')
+        setPrintState({ active: false, status: 'idle', preview: false })
+      }
+      window.addEventListener('afterprint', cleanup, { once: true })
+      try {
+        window.print()
+      } catch (cause: unknown) {
+        window.removeEventListener('afterprint', cleanup)
+        cleanup()
+        throw cause
+      }
+    } catch {
+      for (const client of printQueryClients.values()) client.dispose()
+      globalThis.document.documentElement.classList.remove('lens-print-active')
+      setPrintState({
+        active: false,
+        status: 'error',
+        preview: false,
+        message: translate('print.failed', 'PDF export failed'),
+      })
+    }
+  }, [csrf, document, drawerDepth, fetcher, printState.status, translate])
+
+  const printContext = useMemo<PrintContextValue>(() => ({
+    available: drawerDepth === 0 && typeof window !== 'undefined',
+    ...printState,
+    run: runPrint,
+  }), [drawerDepth, printState, runPrint])
+
   const setPeriod = useCallback((filter: Filter, value: PeriodValue) => {
     if (!filtersEnabled || typeof window === 'undefined' || !filter.period) return
     const merged = { ...filterValuesRef.current, ...periodValues(filter.period, value) }
@@ -1058,6 +1183,7 @@ function RuntimeCore({
         <DrillContext.Provider value={drill}>
           <PanelPaginationContext.Provider value={pagination}>
             <ExportContext.Provider value={exportContext}>
+            <PrintContext.Provider value={printContext}>
               <FramesContext.Provider value={frames}>
                 {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                 {children}
@@ -1101,6 +1227,7 @@ function RuntimeCore({
                   </DocumentProvider>
                 )}
               </FramesContext.Provider>
+            </PrintContext.Provider>
             </ExportContext.Provider>
           </PanelPaginationContext.Provider>
         </DrillContext.Provider>
@@ -1131,14 +1258,18 @@ export function DashboardRuntimeProvider({
   const context = useContext(DocumentContext)
   if (!context) throw new Error('DashboardRuntimeProvider must be inside DocumentProvider')
   if (!context.document) {
-    if (context.error) return <DocumentLoadError message={context.error.message} />
+    if (context.error) {
+      return (
+        <DocumentLoadError
+          locale={locale}
+          message={context.error.message}
+          onRetry={() => { void context.refresh().catch(() => undefined) }}
+        />
+      )
+    }
     // A layout-shaped placeholder, not a spinner: the page keeps its rhythm
     // and nothing jumps when the document lands.
-    return (
-      <div aria-busy="true" className="lens-loading">
-        {fallback ?? <DashboardSkeleton rows={defaultSkeletonRows} />}
-      </div>
-    )
+    return <DocumentLoading locale={locale}>{fallback ?? <DashboardSkeleton rows={defaultSkeletonRows} />}</DocumentLoading>
   }
   return (
     <RuntimeCore
@@ -1210,6 +1341,12 @@ export function useExport(panelId?: string): ExportState & { available: boolean;
   return { ...context.state(panelId), available: context.available, run: () => context.run(panelId) }
 }
 
+export function usePrint(): PrintContextValue {
+  const context = useContext(PrintContext)
+  if (!context) throw new Error('usePrint must be used inside DashboardRuntimeProvider')
+  return context
+}
+
 export function useFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useContext(LocaleContext)
   return useCallback((value: unknown) => formatFieldValue(value, field, locale), [field, locale])
@@ -1235,11 +1372,84 @@ export function useAxisFormat(field?: FieldFormat): (value: unknown) => string {
  * one string the runtime can only render in English unless the host page
  * supplies its own fallback UI.
  */
-function DocumentLoadError({ message }: { message: string }) {
+/**
+ * The strings the runtime may have to show before any document has arrived —
+ * and therefore before it has any translations to look them up in.
+ *
+ * These are the only two states that exist without a document: it failed, or it
+ * is taking a long time. English on a Russian dashboard is a worse answer than
+ * carrying four short strings here, and the host page cannot supply them
+ * either — its own dictionary travels inside the document.
+ */
+const preDocumentStrings: Record<string, Record<string, string>> = {
+  ru: {
+    'runtime.loadError': 'Не удалось загрузить дашборд',
+    'runtime.retry': 'Повторить',
+    'runtime.slowLoad': 'Расчёт продолжается — широкий период считается дольше.',
+  },
+  uz: {
+    'runtime.loadError': 'Boshqaruv panelini yuklab bo‘lmadi',
+    'runtime.retry': 'Qayta urinish',
+    'runtime.slowLoad': 'Hisoblash davom etmoqda — keng davr uzoqroq hisoblanadi.',
+  },
+  'uz-Cyrl': {
+    'runtime.loadError': 'Бошқарув панелини юклаб бўлмади',
+    'runtime.retry': 'Қайта уриниш',
+    'runtime.slowLoad': 'Ҳисоблаш давом этмоқда — кенг давр узоқроқ ҳисобланади.',
+  },
+}
+
+function preDocumentText(locale: string | undefined, key: string, fallback: string): string {
+  if (!locale) return fallback
+  const exact = preDocumentStrings[locale]?.[key]
+  if (exact) return exact
+  const primary = locale.split('-')[0]
+  return (primary ? preDocumentStrings[primary]?.[key] : undefined) ?? fallback
+}
+
+function DocumentLoadError({ locale, message, onRetry }: { locale?: string; message: string; onRetry: () => void }) {
   const translate = useTranslate()
   return (
     <div className="lens-placeholder-state" role="alert">
-      {translate('runtime.loadError', 'Unable to load Lens document')}: {message}
+      <span>
+        {translate('runtime.loadError', preDocumentText(locale, 'runtime.loadError', 'Unable to load Lens document'))}
+        : {message}
+      </span>
+      {/* A failed document leaves the page with nothing on it. Panels already
+          offer their own retry; without one here the only way back is a manual
+          reload, which most readers of a dashboard will not think to try. */}
+      <button className="lens-placeholder-retry" onClick={onRetry} type="button">
+        {translate('runtime.retry', preDocumentText(locale, 'runtime.retry', 'Retry'))}
+      </button>
+    </div>
+  )
+}
+
+/**
+ * How long a blank skeleton is allowed to stand before it says something. A
+ * dashboard over a wide date range genuinely takes tens of seconds to compute;
+ * silence past this point is indistinguishable from a hang.
+ */
+const slowLoadNoticeMs = 8000
+
+function DocumentLoading({ locale, children }: { locale?: string; children: ReactNode }) {
+  const translate = useTranslate()
+  const [slow, setSlow] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setSlow(true), slowLoadNoticeMs)
+    return () => clearTimeout(timer)
+  }, [])
+  return (
+    <div aria-busy="true" className="lens-loading">
+      {slow && (
+        <p className="lens-loading-notice" role="status">
+          {translate(
+            'runtime.slowLoad',
+            preDocumentText(locale, 'runtime.slowLoad', 'Still computing — a wide period takes longer.'),
+          )}
+        </p>
+      )}
+      {children}
     </div>
   )
 }

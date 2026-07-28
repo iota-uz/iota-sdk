@@ -37,9 +37,9 @@ vi.mock('../runtime', () => ({
   levelForPath: () => runtime.level,
 }))
 
-import { BarPanel, LinePanel, PiePanel } from './ChartPanel'
+import { BarPanel, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
-import { buildCascadeStages, buildWaterfallItems, CascadePanel } from './CascadePanel'
+import { buildCascadeStages, buildWaterfallItems, CascadePanel, waterfallAxisStep } from './CascadePanel'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
@@ -99,7 +99,7 @@ function renderKind(kind: PanelKind) {
   if (kind === 'cascade') return render(<CascadePanel panel={value} />)
   if (kind === 'table') return render(<TablePanel panel={value} />)
   if (kind === 'coverage') return render(<CoveragePanel panel={value} />)
-  if (kind === 'pie' || kind === 'donut') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
+  if (kind === 'pie' || kind === 'donut' || kind === 'radial') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'bar' || kind === 'hbar') return render(<BarPanel panel={value} adapter={fakeAdapter()} />)
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
 }
@@ -112,7 +112,7 @@ afterEach(() => {
   runtime.refreshing = false
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
+describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
   it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
@@ -207,8 +207,9 @@ describe('panel registry', () => {
       area: true,
       bar: true,
       cascade: true,
-  coverage: true,
+      coverage: true,
       donut: true,
+      radial: true,
       hbar: true,
       line: true,
       metric_flow: true,
@@ -263,6 +264,97 @@ describe('chart encoding and drill behavior', () => {
     const sparse = panel('bar', { encoding: { value: 'value' } })
     view.rerender(<BarPanel panel={sparse} adapter={fakeAdapter((input) => inputs.push(input))} />)
     await waitFor(() => expect(inputs.at(-1)?.encoding).toEqual({ value: 'value' }))
+  })
+
+  it('passes radial geometry and resolves a ring-specific row selection', async () => {
+    const frame: Frame = {
+      columns: dataFrame.columns,
+      rows: [
+        ['north', 'North', '2026-07-01T00:00:00Z', 'actual', 60],
+        ['north', 'North', '2026-07-01T00:00:00Z', 'plan', 55],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const radial = panel('radial', {
+      semantics: 'partition',
+      radial: {
+        mode: 'partition',
+        rings: [
+          { key: 'actual', label: 'Actual', total: 60 },
+          { key: 'plan', label: 'Plan', order: 1, total: 55 },
+        ],
+      },
+    })
+    const adapter: ChartAdapter = {
+      mount(el, input, events) {
+        inputs.push(input)
+        const button = document.createElement('button')
+        button.textContent = 'radial mark'
+        button.onclick = () => events.onSelect('radial:["plan","north"]')
+        el.append(button)
+        return { update: () => undefined, dispose: () => undefined }
+      },
+    }
+    render(<PiePanel panel={radial} adapter={adapter} />)
+    await waitFor(() => expect(inputs[0]?.radial?.mode).toBe('partition'))
+    expect(rowIndexForKey(frame, radial, 'radial:["plan","north"]')).toBe(1)
+    expect(rowIndexForKey(frame, radial, 'radial:["actual","north"]')).toBe(0)
+  })
+
+  it('reconciles legend shares inside each ring when two rings declare the same total', async () => {
+    const third = 100 / 3
+    const frame: Frame = {
+      columns: dataFrame.columns,
+      rows: [
+        ['alpha', 'Alpha', '2026-07-01T00:00:00Z', 'actual', third],
+        ['beta', 'Beta', '2026-07-01T00:00:00Z', 'actual', third],
+        ['gamma', 'Gamma', '2026-07-01T00:00:00Z', 'actual', third],
+        ['delta', 'Delta', '2026-07-01T00:00:00Z', 'plan', third],
+        ['epsilon', 'Epsilon', '2026-07-01T00:00:00Z', 'plan', third],
+        ['zeta', 'Zeta', '2026-07-01T00:00:00Z', 'plan', third],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const radial = panel('radial', {
+      semantics: 'partition',
+      presentation: { legend: 'below', legendValue: 'percent' },
+      radial: {
+        mode: 'partition',
+        rings: [
+          { key: 'actual', label: 'Actual', total: 100 },
+          { key: 'plan', label: 'Plan', order: 1, total: 100 },
+        ],
+      },
+    })
+    const view = render(<PiePanel panel={radial} adapter={fakeAdapter()} />)
+    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item').length).toBe(6))
+    const shares = Array.from(view.container.querySelectorAll('.lens-chart-legend-value')).map((node) => node.textContent)
+    // Both rings declare 100. Grouped by that denominator the six rows sum to
+    // 200%, so nothing reconciles and each ring prints 99.9%. Grouped by ring,
+    // each thirds-decomposition adds up to exactly 100.0%.
+    expect(shares).toEqual(['33.4%', '33.3%', '33.3%', '33.4%', '33.3%', '33.3%'])
+  })
+
+  it('drops the colour pins of the rows a legend toggle hid', async () => {
+    const frame: Frame = {
+      columns: dataFrame.columns,
+      rows: [
+        ['alpha', 'Alpha', '2026-07-01T00:00:00Z', 'actual', 60],
+        ['beta', 'Beta', '2026-07-01T00:00:00Z', 'actual', 40],
+      ],
+      colors: ['#111111', '#222222'],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const pie = panel('pie', { presentation: { legend: 'below' } })
+    render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+    fireEvent.click(screen.getByText('Alpha'))
+    // The pins are positional: keeping Alpha's after dropping Alpha's row
+    // would paint Beta's slice with Alpha's colour.
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(1))
+    expect(inputs.at(-1)?.colors).toEqual(['#222222'])
   })
 
   it('renders the panel title once when the stat label would duplicate it', () => {
@@ -379,6 +471,23 @@ describe('cascade stages', () => {
     expect(stages[2]?.formattedCut).toBe('+$50')
   })
 
+  it('picks an axis step that leaves the tallest bar near the top of the plot', () => {
+    // The case from the profitability dashboard: 655.09 bn of earned premium
+    // used to sit under a 1 trn ceiling, wasting a third of the plot.
+    const step = waterfallAxisStep(0, 655.09e9)
+    const top = Math.ceil(655.09e9 / step) * step
+    expect(top).toBe(700e9)
+    expect(top / step).toBeLessThanOrEqual(7)
+
+    // A deficit still gets whole steps below zero rather than a clipped bar.
+    const negative = waterfallAxisStep(-30, 120)
+    expect(Math.floor(-30 / negative) * negative).toBeLessThanOrEqual(-30)
+    expect(Math.ceil(120 / negative) * negative).toBeGreaterThanOrEqual(120)
+
+    // Degenerate frames must still produce a usable positive step.
+    expect(waterfallAxisStep(0, 0)).toBeGreaterThan(0)
+  })
+
   it('renders a conventional vertical waterfall projection when requested', () => {
     const cascade = panel('cascade', {
       encoding: {
@@ -480,5 +589,53 @@ describe('cascade stages', () => {
     const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
 
     expect(items.some((item) => item.kind === 'increase' && item.value === 0.25)).toBe(true)
+  })
+
+  it('bands a split as a fraction of its own bar and ignores one it cannot hold', () => {
+    const cascade = panel('cascade', {
+      encoding: {
+        label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final',
+        split: 'split', splitLabel: 'splitLabel',
+      },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+        { name: 'split', type: 'number' },
+        { name: 'splitLabel', type: 'string' },
+      ],
+      rows: [
+        ['Earned premium', 100, 0, '', false, 0, ''],
+        // A quarter of this deduction is of a different kind.
+        ['Claims', 60, 40, 'Claims', false, 10, 'above reserve'],
+        // A split equal to the whole movement divides nothing; one larger than
+        // the movement is not a part of it. Both leave the bar undivided. The
+        // equal case is stated in the awkward decimals that actually break a
+        // strict comparison: 60 - 50.1 is 9.899999999999999, so a declared 9.9
+        // reads as larger than the movement it is a part of.
+        ['Acquisition', 50.1, 9.9, 'Acquisition', false, 9.9, 'all of it'],
+        ['Operating', 40.1, 10, 'Operating', false, 25, 'more than the bar'],
+        ['Result', 40.1, 0, '', true, 0, ''],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    const byLabel = (label: string) => items.find((item) => item.label === label)
+
+    const claims = byLabel('Claims')
+    expect(claims?.splitHeight).toBeCloseTo((claims?.height ?? 0) / 4)
+    expect(claims?.splitLabel).toBe('above reserve')
+    expect(byLabel('Acquisition')?.splitHeight).toBeUndefined()
+    expect(byLabel('Operating')?.splitHeight).toBeUndefined()
+
+    // Every floating bar leaves a balance under it; the totals stand on zero.
+    expect(byLabel('Claims')?.underlayHeight).toBeGreaterThan(0)
+    expect(byLabel('Earned premium')?.underlayHeight).toBeUndefined()
+    expect(byLabel('Result')?.underlayHeight).toBeUndefined()
   })
 })

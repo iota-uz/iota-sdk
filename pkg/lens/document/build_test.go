@@ -44,6 +44,50 @@ func TestBuild_ExistingExploreSpec(t *testing.T) {
 	require.Equal(t, golden(t, "generated_explore.json"), string(payload)+"\n")
 }
 
+func TestBuild_RadialPanelsCarryExplicitGeometry(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("radial",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"north", "south", "north", "south"}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"North", "South", "North", "South"}},
+		frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"actual", "actual", "plan", "plan"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{60.0, 40.0, 55.0, 45.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	partition := panel.MultiRingDonut("mix", "Mix", "radial",
+		panel.RadialRing{Key: "actual", Label: "Actual", Order: 1, Total: 100},
+		panel.RadialRing{Key: "plan", Label: "Plan", Order: 2, Total: 100},
+	).IDField("id").SeriesField("series").RadialTolerance(0.01).Build()
+	spec := lensbuild.Dashboard("radial", "Radial", lensbuild.Row(partition)).
+		Datasets(lensbuild.StaticDataset("radial", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{
+		SnapshotID: "radial", GeneratedAt: time.Unix(1, 0).UTC(), Locale: "en",
+	})
+	require.NoError(t, err)
+	require.NoError(t, doc.Validate())
+	require.Len(t, doc.Panels, 1)
+	wire := doc.Panels[0]
+	require.Equal(t, PanelKindRadial, wire.Kind)
+	require.Equal(t, SemanticsPartition, wire.Semantics)
+	require.Equal(t, "series", wire.Encoding.Series)
+	require.Equal(t, &RadialConfig{
+		Mode: RadialModePartition,
+		Rings: []RadialRing{
+			{Key: "actual", Label: "Actual", Order: 1, Total: 100},
+			{Key: "plan", Label: "Plan", Order: 2, Total: 100},
+		},
+		Tolerance: 0.01,
+	}, wire.Radial)
+	require.Equal(t, &Presentation{Legend: LegendBelow, SliceLabels: SliceLabelsPercent}, wire.Presentation)
+}
+
 func TestBuild_DocumentHeaderAndDrawerSuppression(t *testing.T) {
 	t.Parallel()
 
@@ -490,6 +534,40 @@ func TestBuild_StatGroupAndTabsBecomeLayoutGroups_LegacyShapeUnchanged(t *testin
 	require.NotNil(t, doc.Layout.Rows[0].Panels[0].Group)
 	require.Nil(t, doc.Layout.Rows[1].Panels[0].Groups)
 	require.NotNil(t, doc.Layout.Rows[1].Panels[0].Group)
+}
+
+// TestBuild_ContainerDescriptionBecomesGroupCaption pins that a container's
+// Description survives the wire. A container owns no Panel of its own, so
+// before LayoutGroup.Caption existed the text was silently dropped — a
+// dashboard could set it, pass validation, and render nothing.
+func TestBuild_ContainerDescriptionBecomesGroupCaption(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Alpha"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{10.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	group := panel.StatGroup("ratios", "By written premium").Span(12).
+		Description("  Diagnostic basis, not a competing verdict.  ").
+		Children(panel.Stat("ratio-a", "Ratio A", "rows").Build()).Build()
+	tabs := panel.Tabs("result", "Result").Span(12).
+		Description("Cash and underwriting views of the same period.").
+		Children(panel.Stat("cash", "Cash result", "rows").Build()).Build()
+	spec := lensbuild.Dashboard("groups", "Groups", lensbuild.Row(group), lensbuild.Row(tabs)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+
+	require.Equal(t, "Diagnostic basis, not a competing verdict.", doc.Layout.Rows[0].Panels[0].Group.Caption)
+	require.Equal(t, "Cash and underwriting views of the same period.", doc.Layout.Rows[1].Panels[0].Group.Caption)
 }
 
 // TestBuild_MetricKinds covers all three metric panel kinds end to end: kind

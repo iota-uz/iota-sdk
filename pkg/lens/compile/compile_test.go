@@ -166,6 +166,29 @@ func TestCompilePanelPreservesDrillTree(t *testing.T) {
 	require.Equal(t, &tree, compiled.DrillTree)
 }
 
+func TestCompilePanelPreservesRadialContract(t *testing.T) {
+	t.Parallel()
+
+	rings := []panel.RadialRing{
+		{Key: "actual", Label: "Actual", Order: 1, Total: 100},
+		{Key: "plan", Label: "Plan", Order: 2, Total: 100},
+	}
+	item := lensspec.MultiRingDonut("mix", "Mix", "mix_dataset", rings...).
+		IDField("category_key").
+		SeriesField("ring_key").
+		RadialTolerance(0.01).
+		Build()
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.Equal(t, panel.KindRadial, compiled.Kind)
+	require.Equal(t, panel.Ref("category_key"), compiled.Fields.ID)
+	require.Equal(t, panel.Ref("ring_key"), compiled.Fields.Series)
+	require.Equal(t, &panel.RadialSpec{
+		Mode: panel.RadialPartition, Rings: rings, Tolerance: 0.01,
+	}, compiled.Radial)
+}
+
 // Presentation hints and the rich table-column treatments are producer-side
 // contract: a document that declares them must reach panel.Spec unchanged, or
 // the wire document builder can never see them.

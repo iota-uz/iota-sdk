@@ -91,6 +91,8 @@ export interface Encoding {
   final?: string
   annotation?: string
   tone?: string
+  split?: string
+  splitLabel?: string
   share?: string
   confidence?: string
   availability?: string
@@ -133,6 +135,9 @@ export interface Frame {
   columns: Array<Column>
   rows: Array<Array<unknown>>
   children?: Array<Node>
+  total?: number
+  presentation?: Presentation
+  colors?: Array<string>
 }
 
 export type FrameRef = string
@@ -148,6 +153,7 @@ export interface Layout {
 export interface LayoutGroup {
   id: string
   kind: LayoutGroupKind
+  caption?: string
   label?: string
   layout?: LayoutGroupLayout
   span: number
@@ -173,6 +179,8 @@ export interface LayoutRow {
 }
 
 export type LegendPlacement = "below"
+
+export type LegendValue = "percent" | "value"
 
 export interface Level {
   path: NodePath
@@ -285,6 +293,7 @@ export interface Panel {
   accent?: string
   status?: PanelStatus
   caption?: string
+  info?: string
   headline?: number
   trend?: PanelTrend
   sparkline?: Sparkline
@@ -293,11 +302,12 @@ export interface Panel {
   metricFlow?: MetricFlowConfig
   metricHierarchy?: MetricHierarchyConfig
   metricRelationship?: MetricRelationshipConfig
+  radial?: RadialConfig
   confidence?: Confidence
   availability?: Availability
 }
 
-export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "stat" | "table"
+export type PanelKind = "area" | "bar" | "cascade" | "coverage" | "donut" | "hbar" | "line" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
 
 export interface PanelStatus {
   label: string
@@ -352,6 +362,7 @@ export interface PerspectiveRef {
 
 export interface Presentation {
   legend?: LegendPlacement
+  legendValue?: LegendValue
   sliceLabels?: SliceLabels
   totalBadge?: TotalBadgePlacement
   colorBy?: ColorBy
@@ -390,9 +401,25 @@ export interface QueryResponse {
   page?: QueryPage
 }
 
+export interface RadialConfig {
+  mode: RadialMode
+  max?: number
+  rings?: Array<RadialRing>
+  tolerance?: number
+}
+
+export type RadialMode = "partition" | "progress"
+
+export interface RadialRing {
+  key: string
+  label: string
+  order?: number
+  total: number
+}
+
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"
 
-export type SliceLabels = "percent"
+export type SliceLabels = "label" | "percent"
 
 export interface Source {
   kind: ValueSourceKind

@@ -2,6 +2,8 @@
 package panel
 
 import (
+	"bytes"
+	"encoding/json"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -33,12 +35,16 @@ const (
 	KindCascade Kind = "cascade"
 	KindPie     Kind = "pie"
 	KindDonut   Kind = "donut"
-	KindTable   Kind = "table"
-	KindGauge   Kind = "gauge"
-	KindTabs    Kind = "tabs"
-	KindGrid    Kind = "grid"
-	KindSplit   Kind = "split"
-	KindRepeat  Kind = "repeat"
+	// KindRadial renders concentric circular series. RadialProgress compares
+	// each row against an explicit maximum; RadialPartition renders one
+	// part-to-whole decomposition per SeriesField ring.
+	KindRadial Kind = "radial"
+	KindTable  Kind = "table"
+	KindGauge  Kind = "gauge"
+	KindTabs   Kind = "tabs"
+	KindGrid   Kind = "grid"
+	KindSplit  Kind = "split"
+	KindRepeat Kind = "repeat"
 	// KindStatGroup renders several Stat children inside ONE card, separated
 	// by hairline dividers (columns or rows per GroupLayout), instead of one
 	// card per KPI. The group is a layout container: it has no dataset of its
@@ -88,7 +94,7 @@ func (k Kind) IsContainer() bool {
 	case KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
 		return true
 	case KindStat, KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindSegmentBar, KindCascade, KindPie, KindDonut, KindTable, KindGauge,
+		KindSegmentBar, KindCascade, KindPie, KindDonut, KindRadial, KindTable, KindGauge,
 		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
 		return false
 	}
@@ -105,7 +111,7 @@ func (k Kind) IsContainer() bool {
 func (k Kind) IsChart() bool {
 	switch k {
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindPie, KindDonut, KindGauge:
+		KindPie, KindDonut, KindRadial, KindGauge:
 		return true
 	case KindStat, KindSegmentBar, KindCascade, KindTable,
 		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup,
@@ -128,7 +134,7 @@ func (k Kind) RendersNatively() bool {
 		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
 		return true
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindPie, KindDonut, KindGauge,
+		KindPie, KindDonut, KindRadial, KindGauge,
 		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
 		return false
 	}
@@ -316,6 +322,14 @@ type PresentationHints struct {
 	LegendBelow bool
 	// SliceLabelsPercent writes each partition slice's share inside the slice.
 	SliceLabelsPercent bool
+	// SliceLabelsCategory writes each partition slice's category label inside
+	// the slice instead of its share. Only for dimensions whose labels are
+	// inherently short — a year, a quarter; a product name would be clipped
+	// away. Pair with LegendPercent so the share still has somewhere to live.
+	SliceLabelsCategory bool
+	// LegendPercent prints each legend entry's share of the frame total
+	// instead of its formatted value.
+	LegendPercent bool
 	// TotalBadgeInPlot floats the total badge inside the plot area instead of
 	// placing it in the panel header.
 	TotalBadgeInPlot bool
@@ -353,6 +367,54 @@ type PresentationHints struct {
 	// standalone lens selector around the drilled visualization. Non-focus
 	// panels render exactly as before.
 	FocusCanvas bool
+}
+
+// RadialMode selects the geometry of a radial panel.
+type RadialMode string
+
+const (
+	// RadialProgress renders one concentric progress arc per frame row.
+	RadialProgress RadialMode = "progress"
+	// RadialPartition renders one concentric part-to-whole ring per distinct
+	// SeriesField value. Stable IDField values align category identity and
+	// color across rings.
+	RadialPartition RadialMode = "partition"
+)
+
+// RadialSpec configures a radial panel. Max is required only for progress
+// mode and is expressed in the same units as ValueField.
+type RadialSpec struct {
+	Mode      RadialMode   `json:"mode"`
+	Max       float64      `json:"max,omitempty"`
+	Rings     []RadialRing `json:"rings,omitempty"`
+	Tolerance float64      `json:"tolerance,omitempty"`
+}
+
+// RadialRing declares one partition ring. Key is stored in SeriesField,
+// Label is presentation text, Order controls outside-to-inside placement, and
+// Total is the authoritative whole against which row values reconcile.
+type RadialRing struct {
+	Key   string  `json:"key"`
+	Label string  `json:"label"`
+	Order int     `json:"order,omitempty"`
+	Total float64 `json:"total"`
+}
+
+// RadialNodeKey returns the stable mark key emitted for a partition segment.
+// It includes both ring and category identity so the same category can carry a
+// different drill action in each decomposition.
+// The runtime builds the same key with JSON.stringify, which leaves `<`, `>`
+// and `&` alone; encoding/json escapes them to < and friends unless told
+// not to, and a category named "A&B" would then carry two different identities
+// on the two sides of the wire.
+func RadialNodeKey(ringKey, categoryKey string) string {
+	buffer := &bytes.Buffer{}
+	encoder := json.NewEncoder(buffer)
+	encoder.SetEscapeHTML(false)
+	if err := encoder.Encode([2]string{ringKey, categoryKey}); err != nil {
+		panic(err)
+	}
+	return "radial:" + strings.TrimSuffix(buffer.String(), "\n")
 }
 
 // GroupLayout selects how a StatGroup panel arranges its children inside the
@@ -577,6 +639,8 @@ type Spec struct {
 	// Relationship, when set (KindMetricRelationship), declares the panel's
 	// two ends, link type, and direction.
 	Relationship *RelationshipSpec
+	// Radial, when set (KindRadial), selects progress or partition geometry.
+	Radial *RadialSpec
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence Confidence
@@ -700,6 +764,17 @@ type FieldMapping struct {
 	// the flow-direction default color. Empty (the default) keeps direction-based
 	// coloring; it is opt-in, so it is never defaulted to a column name.
 	Tone FieldRef
+	// Split names a frame column carrying the part of this stage's own movement
+	// that is materially different in kind from the rest of it — claims paid out
+	// of a product's own reserve versus the overflow beyond it, say. The renderer
+	// draws it as a distinct band at the leading end of the same bar, so the
+	// composition is read off the bar instead of a caption beside it. It is a
+	// portion OF the movement, never an addition to it: a value outside
+	// (0, |movement|) is ignored and the bar stays whole.
+	Split FieldRef
+	// SplitLabel names a frame column naming that band. Renderers show it next
+	// to the band; empty values leave the band unlabeled but still drawn.
+	SplitLabel FieldRef
 	// Share names a frame column carrying a per-element share; the renderer
 	// never recomputes it.
 	Share FieldRef
@@ -732,8 +807,21 @@ func SegmentBar(id, title, dataset string) *Builder {
 func Cascade(id, title, dataset string) *Builder { return newBuilder(KindCascade, id, title, dataset) }
 func Pie(id, title, dataset string) *Builder     { return newBuilder(KindPie, id, title, dataset) }
 func Donut(id, title, dataset string) *Builder   { return newBuilder(KindDonut, id, title, dataset) }
-func Table(id, title, dataset string) *Builder   { return newBuilder(KindTable, id, title, dataset) }
-func Gauge(id, title, dataset string) *Builder   { return newBuilder(KindGauge, id, title, dataset) }
+func RadialBars(id, title, dataset string, maximum float64) *Builder {
+	b := newBuilder(KindRadial, id, title, dataset)
+	b.spec.Radial = &RadialSpec{Mode: RadialProgress, Max: maximum}
+	b.spec.Presentation.LegendBelow = true
+	return b
+}
+func MultiRingDonut(id, title, dataset string, rings ...RadialRing) *Builder {
+	b := newBuilder(KindRadial, id, title, dataset)
+	b.spec.Radial = &RadialSpec{Mode: RadialPartition, Rings: append([]RadialRing(nil), rings...)}
+	b.spec.Presentation.LegendBelow = true
+	b.spec.Presentation.SliceLabelsPercent = true
+	return b
+}
+func Table(id, title, dataset string) *Builder { return newBuilder(KindTable, id, title, dataset) }
+func Gauge(id, title, dataset string) *Builder { return newBuilder(KindGauge, id, title, dataset) }
 
 // MetricFlow builds a result-formula panel: an ordered sequence of signed
 // operand stages reading left-to-right to a single supplied result. See
@@ -1003,7 +1091,19 @@ func (b *Builder) AnnotationField(name FieldRef) *Builder {
 // ToneField declares the frame column carrying a per-row semantic tone for a
 // cascade panel's stages ("neutral", "positive", "negative", "inflow"). It
 // overrides the flow-direction default color; absent keeps direction coloring.
-func (b *Builder) ToneField(name FieldRef) *Builder  { b.spec.Fields.Tone = name; return b }
+func (b *Builder) ToneField(name FieldRef) *Builder { b.spec.Fields.Tone = name; return b }
+
+// SplitField declares the frame column carrying the part of a cascade stage's
+// own movement that differs in kind from the rest of it; the renderer bands it
+// separately inside the same bar.
+func (b *Builder) SplitField(name FieldRef) *Builder { b.spec.Fields.Split = name; return b }
+
+// SplitLabelField declares the frame column naming that band.
+func (b *Builder) SplitLabelField(name FieldRef) *Builder {
+	b.spec.Fields.SplitLabel = name
+	return b
+}
+
 func (b *Builder) ShareField(name FieldRef) *Builder { b.spec.Fields.Share = name; return b }
 func (b *Builder) ConfidenceField(name FieldRef) *Builder {
 	b.spec.Fields.Confidence = name
@@ -1023,6 +1123,15 @@ func (b *Builder) Confidence(confidence Confidence) *Builder {
 // Availability sets the panel-level default availability for its elements.
 func (b *Builder) Availability(availability Availability) *Builder {
 	b.spec.Availability = availability
+	return b
+}
+
+// RadialTolerance permits small source-rounding differences when reconciling
+// partition rows to each ring's declared total.
+func (b *Builder) RadialTolerance(tolerance float64) *Builder {
+	if b.spec.Radial != nil {
+		b.spec.Radial.Tolerance = tolerance
+	}
 	return b
 }
 

@@ -139,7 +139,13 @@ export const MetricGroup: Story = () => {
         heading: 'КЛЮЧЕВЫЕ КОЭФФИЦИЕНТЫ',
         panels: contextualMetrics.map(({ panel }) => ({
           panelId: panel.id, span: 3,
-          group: { id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ', layout: 'columns' as const, span: 12 },
+          group: {
+            id: 'earned', kind: 'metrics' as const, label: 'ПО ЗАРАБОТАННОЙ ПРЕМИИ',
+            // The group caption names the basis for the whole strip — the one
+            // sentence that would otherwise be repeated on every metric card.
+            caption: 'База — заработанная премия периода.',
+            layout: 'columns' as const, span: 12,
+          },
         })),
       }],
     },

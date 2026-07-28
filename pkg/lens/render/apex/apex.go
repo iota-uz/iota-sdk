@@ -58,7 +58,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 
 	options := charts.ChartOptions{
 		Chart: charts.ChartConfig{
-			Type:    chartType(panelSpec.Kind),
+			Type:    chartType(panelSpec),
 			Height:  panelHeight(panelSpec, heightOverride),
 			Toolbar: charts.Toolbar{Show: false},
 			Stacked: panelSpec.Kind == panel.KindStackedBar,
@@ -118,7 +118,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	fields := panelSpec.Fields
 
 	switch panelSpec.Kind {
-	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindGauge:
 		labels := make([]string, 0, len(rows))
 		values := make([]any, 0, len(rows))
 		for _, row := range rows {
@@ -181,7 +181,7 @@ func options(panelSpec panel.Spec, panelResult *runtime.PanelResult, heightOverr
 	}
 
 	switch panelSpec.Kind {
-	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindGauge:
 		if options.Grid == nil {
 			options.Grid = &charts.GridConfig{}
 		}
@@ -390,7 +390,7 @@ func hasAdditiveTotal(spec *format.Spec) bool {
 func applyBarHoverStates(options *charts.ChartOptions, panelSpec panel.Spec) {
 	switch panelSpec.Kind {
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade:
-	case panel.KindStat, panel.KindTimeSeries, panel.KindPie, panel.KindDonut, panel.KindGauge,
+	case panel.KindStat, panel.KindTimeSeries, panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindGauge,
 		panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup,
 		panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return
@@ -576,7 +576,7 @@ func appendResponsiveDefaults(options *charts.ChartOptions, panelSpec panel.Spec
 	// Circular charts scale via SVG naturally. Side legends still need one
 	// mobile override so the plot is not squeezed into a narrow column.
 	switch panelSpec.Kind {
-	case panel.KindPie, panel.KindDonut:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial:
 		if options.Legend != nil && options.Legend.Position != nil &&
 			(*options.Legend.Position == charts.LegendPositionLeft || *options.Legend.Position == charts.LegendPositionRight) {
 			bottom := charts.LegendPositionBottom
@@ -1685,6 +1685,7 @@ func applyCategoryLabelFormatting(options *charts.ChartOptions, panelSpec panel.
 		panel.KindTimeSeries,
 		panel.KindPie,
 		panel.KindDonut,
+		panel.KindRadial,
 		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindTable,
 		panel.KindGauge,
@@ -1874,14 +1875,23 @@ func chartExploreConfig(spec *action.Spec) *chartExplore {
 	return &chartExplore{ExplorerID: spec.Explore.ExplorerID, Perspective: spec.Explore.Perspective}
 }
 
-func chartType(kind panel.Kind) charts.ChartType {
-	switch kind {
+func chartType(spec panel.Spec) charts.ChartType {
+	switch spec.Kind {
 	case panel.KindTimeSeries:
 		return charts.LineChartType
 	case panel.KindPie:
 		return charts.PieChartType
 	case panel.KindDonut:
 		return charts.DonutChartType
+	case panel.KindRadial:
+		// A partition radial is several concentric decompositions of one
+		// headline; ApexCharts has no concentric-ring donut, so this renderer
+		// draws the outermost decomposition it is given as a single donut.
+		// The runtime in web/lens draws the rings themselves.
+		if spec.Radial != nil && spec.Radial.Mode == panel.RadialPartition {
+			return charts.DonutChartType
+		}
+		return charts.RadialBarChartType
 	case panel.KindGauge:
 		return charts.RadialBarChartType
 	case panel.KindStat, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindSegmentBar, panel.KindCascade, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup, panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
@@ -1944,6 +1954,7 @@ func distributedTooltipMarkerSyncJS(panelSpec panel.Spec, rows []map[string]any,
 		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindPie,
 		panel.KindDonut,
+		panel.KindRadial,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,
@@ -2086,7 +2097,7 @@ func fallbackPanelColorCount(panelSpec panel.Spec, panelResult *runtime.PanelRes
 		return len(uniqueDisplayValues(rows, panelSpec.Fields.Series.Name()))
 	}
 	switch panelSpec.Kind {
-	case panel.KindPie, panel.KindDonut, panel.KindStackedBar:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindStackedBar:
 		return len(rows)
 	case panel.KindBar, panel.KindHorizontalBar:
 		if usesDistributedBarColorsForRows(panelSpec, rows, panelSpec.Fields) {
@@ -2126,6 +2137,7 @@ func usesDistributedBarColorsForRows(panelSpec panel.Spec, rows []map[string]any
 		panel.KindSegmentBar, panel.KindCascade,
 		panel.KindPie,
 		panel.KindDonut,
+		panel.KindRadial,
 		panel.KindTable,
 		panel.KindGauge,
 		panel.KindTabs,

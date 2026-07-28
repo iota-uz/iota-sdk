@@ -1165,6 +1165,50 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires label or category field", spec.ID)
 		}
+	case panel.KindRadial:
+		if spec.Fields.Label.Empty() {
+			return fmt.Errorf("panel %s requires label field", spec.ID)
+		}
+		if spec.Fields.ID.Empty() {
+			return fmt.Errorf("panel %s requires id field", spec.ID)
+		}
+		if spec.Radial == nil {
+			return fmt.Errorf("panel %s radial kind requires radial config", spec.ID)
+		}
+		switch spec.Radial.Mode {
+		case panel.RadialProgress:
+			if math.IsNaN(spec.Radial.Max) || math.IsInf(spec.Radial.Max, 0) || spec.Radial.Max <= 0 {
+				return fmt.Errorf("panel %s radial progress requires a positive finite maximum", spec.ID)
+			}
+		case panel.RadialPartition:
+			if spec.Fields.Series.Empty() {
+				return fmt.Errorf("panel %s radial partition requires series field", spec.ID)
+			}
+			if len(spec.Radial.Rings) == 0 {
+				return fmt.Errorf("panel %s radial partition requires rings", spec.ID)
+			}
+			if math.IsNaN(spec.Radial.Tolerance) || math.IsInf(spec.Radial.Tolerance, 0) || spec.Radial.Tolerance < 0 {
+				return fmt.Errorf("panel %s radial tolerance must be finite and non-negative", spec.ID)
+			}
+			seenRings := make(map[string]struct{}, len(spec.Radial.Rings))
+			for index, ring := range spec.Radial.Rings {
+				if strings.TrimSpace(ring.Key) == "" || ring.Key != strings.TrimSpace(ring.Key) {
+					return fmt.Errorf("panel %s radial ring %d requires a nonblank key", spec.ID, index)
+				}
+				if strings.TrimSpace(ring.Label) == "" {
+					return fmt.Errorf("panel %s radial ring %q requires a label", spec.ID, ring.Key)
+				}
+				if math.IsNaN(ring.Total) || math.IsInf(ring.Total, 0) || ring.Total <= 0 {
+					return fmt.Errorf("panel %s radial ring %q requires a positive finite total", spec.ID, ring.Key)
+				}
+				if _, duplicate := seenRings[ring.Key]; duplicate {
+					return fmt.Errorf("panel %s has duplicate radial ring %q", spec.ID, ring.Key)
+				}
+				seenRings[ring.Key] = struct{}{}
+			}
+		default:
+			return fmt.Errorf("panel %s has unsupported radial mode %q", spec.ID, spec.Radial.Mode)
+		}
 	case panel.KindStackedBar, panel.KindTimeSeries:
 		if spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires category field", spec.ID)
@@ -1462,6 +1506,15 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 		}
 		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
 			return err
+		}
+	case panel.KindRadial:
+		for _, field := range []panel.FieldRef{spec.Fields.ID, spec.Fields.Label, spec.Fields.Value} {
+			if err := requireField(spec, primary, field); err != nil {
+				return err
+			}
+		}
+		if spec.Radial != nil && spec.Radial.Mode == panel.RadialPartition {
+			return requireField(spec, primary, spec.Fields.Series)
 		}
 	case panel.KindCascade:
 		if err := requireField(spec, primary, spec.Fields.Value); err != nil {

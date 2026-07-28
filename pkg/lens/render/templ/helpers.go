@@ -1939,7 +1939,7 @@ func panelIcon(kind panel.Kind) templpkg.Component {
 		return icons.ChartBar(iconProps)
 	case panel.KindSegmentBar, panel.KindCascade:
 		return icons.ChartBar(iconProps)
-	case panel.KindPie, panel.KindDonut:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial:
 		return icons.ChartPie(iconProps)
 	case panel.KindGauge:
 		return icons.Gauge(iconProps)
@@ -2019,7 +2019,7 @@ func panelUsesRadialActionSurface(spec panel.Spec) bool {
 		return false
 	}
 	switch spec.Kind {
-	case panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindGauge:
 		return true
 	case panel.KindStat,
 		panel.KindTimeSeries,
@@ -2132,7 +2132,7 @@ func metricInfoTemplateKey(kind panel.Kind) string {
 		return "Lens.Chart.Info.TimeSeries"
 	case panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar:
 		return "Lens.Chart.Info.Category"
-	case panel.KindPie, panel.KindDonut:
+	case panel.KindPie, panel.KindDonut, panel.KindRadial:
 		return "Lens.Chart.Info.Distribution"
 	case panel.KindGauge:
 		return "Lens.Chart.Info.Gauge"
@@ -2718,7 +2718,7 @@ func panelBodyClass(spec panel.Spec) string {
 		return "flex-1 px-4 py-3"
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return "flex-1 p-0"
-	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindGauge:
 		return "flex-1 px-2 pb-2 pt-1"
 	case panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return "flex-1 p-3"
@@ -2811,7 +2811,7 @@ func panelMinimumHeight(spec panel.Spec) string {
 			return childHeight
 		}
 		return "240px"
-	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindGauge:
 		if strings.TrimSpace(spec.Height) != "" {
 			return strings.TrimSpace(spec.Height)
 		}
@@ -2910,7 +2910,7 @@ func panelPlaceholderRows(spec panel.Spec) int {
 		return 5
 	case panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat:
 		return 4
-	case panel.KindSegmentBar, panel.KindCascade, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindSegmentBar, panel.KindCascade, panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar, panel.KindPie, panel.KindDonut, panel.KindRadial, panel.KindGauge:
 		return 4
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return 4

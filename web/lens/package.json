@@ -18,6 +18,7 @@
     "ladle:build": "ladle build --viteConfig .ladle/vite.config.ts",
     "ladle:preview": "ladle preview --viteConfig .ladle/vite.config.ts --host 127.0.0.1 --port 61000",
     "fixture": "node ./scripts/fetch-fixture.mjs",
+    "print-pdf": "node ./scripts/print-pdf.mjs",
     "vr": "node ./scripts/vr.mjs",
     "vr-update": "node ./scripts/vr.mjs --update"
   },

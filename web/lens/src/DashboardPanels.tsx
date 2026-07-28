@@ -1,5 +1,7 @@
 import {
   createContext,
+  lazy,
+  Suspense,
   useContext,
   useEffect,
   useId,
@@ -10,7 +12,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
-import { useDashboard, useDocumentState, useDrawer, useTranslate } from './runtime'
+import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
 import { ExportButton, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
 import { X } from './icons'
 import { ExplorePanel } from './explore'
@@ -18,6 +20,9 @@ import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
 
 /* eslint-disable react-refresh/only-export-components */
+
+const LazyPrintReport = lazy(() => import('./print/PrintReport').then(({ PrintReport }) => ({ default: PrintReport })))
+const LazyPrintButton = lazy(() => import('./panels/PrintButton').then(({ PrintButton }) => ({ default: PrintButton })))
 
 export interface DashboardPanelsProps {
   registry?: PanelRegistry
@@ -114,6 +119,9 @@ function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNod
             {group.status && <StatusChip status={group.status} />}
           </header>
         )}
+        {/* A group's caption reads for the whole strip, so it sits under the
+            heading rather than inside any one member's card. */}
+        {group.caption && <p className="lens-panel-caption">{group.caption}</p>}
         {children}
       </section>
     </div>
@@ -211,6 +219,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   registry?: PanelRegistry
 }) {
   const translate = useTranslate()
+  const print = usePrint()
   const store = useContext(TabStateContext)
   const baseId = useId()
   const tabs = [...new Set(items.map((item) => groupAt(item, depth)?.tab ?? ''))]
@@ -271,7 +280,10 @@ function TabsGroup({ group, items, depth, panels, registry }: {
       </div>
       {/* Every tabpanel element exists so each tab's aria-controls resolves, but
           only the active one mounts its content — the inactive ones are hidden
-          and empty, so hidden panels never fetch. */}
+          and empty, so hidden panels never fetch. A print run is the exception:
+          the report covers every tab, so the others mount to resolve their
+          frames. They stay hidden while it does, or the dashboard behind the
+          report flashes every tab at once. */}
       {tabs.map((tab, index) => (
         <div
           aria-labelledby={tabId(index)}
@@ -282,7 +294,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
           role="tabpanel"
           tabIndex={0}
         >
-          {tab === current && (
+          {(print.active || tab === current) && (
             <GroupChain
               depth={depth + 1}
               items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
@@ -396,10 +408,29 @@ function DocumentRefetchError() {
   )
 }
 
+/**
+ * `?lens-print-preview=1` composes the printed report and leaves it on screen.
+ * Print output is otherwise unreviewable: the browser's print dialog blocks the
+ * page, so neither a person nor an automated check can look at the result.
+ */
+function usePrintPreview(): void {
+  const print = usePrint()
+  const run = print.run
+  const requested = typeof window !== 'undefined' &&
+    new URL(window.location.href).searchParams.get('lens-print-preview') === '1'
+  const started = useRef(false)
+  useEffect(() => {
+    if (!requested || started.current) return
+    started.current = true
+    void run({ preview: true })
+  }, [requested, run])
+}
+
 export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
   const { document } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
+  const print = usePrint()
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
   // value is fixed for this mount, so drill, perspective, drawer and refetch
@@ -408,6 +439,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const entrance = useRef(!isVisualRegression() && drawer.depth === 0)
   // Active-tab memory shared by every (possibly nested) tab group in this mount.
   const tabState = useRef<Map<string, string>>(new Map()).current
+  usePrintPreview()
 
   if (!document.layout.rows.length || !document.panels.length) {
     return (
@@ -419,7 +451,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
 
   const header = document.header
   const identityTitle = header?.title || document.meta.title
-  const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) ||
+  const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) || print.available ||
     (document.filters?.length ?? 0) > 0
   return (
     <TabStateContext.Provider value={tabState}>
@@ -441,6 +473,9 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           <div className="lens-dashboard-controls">
             <FilterBar today={filterToday} />
             <ExportButton />
+            <Suspense fallback={null}>
+              <LazyPrintButton />
+            </Suspense>
           </div>
         </header>
       )}
@@ -461,6 +496,11 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           </section>
         ))}
       </div>
+      {print.active && (
+        <Suspense fallback={null}>
+          <LazyPrintReport />
+        </Suspense>
+      )}
     </main>
     </TabStateContext.Provider>
   )

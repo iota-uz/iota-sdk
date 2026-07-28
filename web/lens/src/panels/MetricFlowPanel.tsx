@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
-import type { Availability, Confidence, MetricFlowStage, MetricFlowStageRole, Panel } from '../contract'
+import type { Panel } from '../contract'
 import { useFormat, usePanelFrame, useTranslate, type PanelFrameState } from '../runtime'
 import { useElementActionResolver } from './actions'
-import { buildKeyedJoin, panelField, type KeyedJoinMessages, type ResolvedNumber } from './data'
+import { buildKeyedJoin, panelField, type KeyedJoinMessages } from './data'
+import { flowReconcileDelta, flowStageViews, type FlowStageView } from './metricViews'
 import { PanelFrame } from './PanelFrame'
 import { QualityChip, resolveQuality } from './QualityChip'
 
@@ -10,27 +11,9 @@ export interface MetricFlowPanelProps {
   panel: Panel
 }
 
-/** The running-formula grammar: which stages carry an operator and its sign. */
-const OPERATOR_ROLES: ReadonlySet<MetricFlowStageRole> = new Set<MetricFlowStageRole>(['add', 'subtract'])
-
-/** A stage's signed contribution to the reconciliation sum (grammar, not display). */
-function contribution(role: MetricFlowStageRole, value: number): number {
-  return role === 'subtract' ? -value : value
-}
-
-interface FlowStageView {
-  stage: MetricFlowStage
-  role: MetricFlowStageRole
-  /** Rendered operator glyph, or '' for an input stage. */
-  operator: string
+interface FlowStageRow extends FlowStageView {
   /** Spoken operator word folded into the aria sentence. */
   operatorWord: string
-  /** True when the value slot shows an em dash rather than a number. */
-  showDash: boolean
-  /** Formatted magnitude (absolute for operands, signed for input/intermediate/result). */
-  text: string
-  confidence?: Confidence
-  availability?: Availability
   ariaLabel: string
 }
 
@@ -49,8 +32,6 @@ export function MetricFlowPanel({ panel }: MetricFlowPanelProps) {
   const valueField = panelField(panel, 'value') ?? 'value'
   const formatValue = useFormat(panel.format[valueField])
   const resolveAction = useElementActionResolver()
-  const stages = useMemo(() => panel.metricFlow?.stages ?? [], [panel.metricFlow])
-  const tolerance = panel.metricFlow?.reconcile?.tolerance
 
   const join = useMemo(
     () => (frame.data ? buildKeyedJoin(panel, frame.data, messages) : undefined),
@@ -64,73 +45,34 @@ export function MetricFlowPanel({ panel }: MetricFlowPanelProps) {
     ? { ...frame, data: undefined, error: new Error(contractError) }
     : frame
 
-  const views: FlowStageView[] = useMemo(() => {
-    if (join?.kind !== 'ok') return []
+  const views: FlowStageRow[] = useMemo(() => {
+    if (!join) return []
     const operatorWord = (operator: string): string => {
       if (operator === '+') return translate('flow.plus', 'plus')
       if (operator === '−') return translate('flow.minus', 'minus')
       if (operator === '=') return translate('flow.equals', 'equals')
       return ''
     }
-    return stages.map((stage) => {
-      const element = join.resolve(stage.key)
-      const confidence = element.confidence ?? stage.confidence ?? panel.confidence
-      const structuralAvailability = element.availability ?? stage.availability ?? panel.availability
-      const missing = element.value.kind === 'unavailable'
-      // A genuinely missing value is at least "unavailable"; a more specific
-      // producer status (config_required / empty_source) is kept.
-      const availability: Availability | undefined = missing
-        ? (structuralAvailability && structuralAvailability !== 'available' ? structuralAvailability : 'unavailable')
-        : structuralAvailability
-      const showDash = missing || (availability !== undefined && availability !== 'available')
-
-      const numeric = element.value.kind === 'value' ? element.value.value : 0
-      const isOperand = OPERATOR_ROLES.has(stage.role)
-      const magnitude = isOperand ? Math.abs(numeric) : numeric
-      let operator = ''
-      // When the amount is unavailable, the absent numeric payload must not
-      // rewrite the declared formula grammar. Keep "+" for an add stage and
-      // "−" for a subtract stage; signed-value normalization only applies to
-      // values that are actually shown.
-      if (showDash && stage.role === 'add') operator = '+'
-      else if (showDash && stage.role === 'subtract') operator = '−'
-      else if (isOperand) operator = contribution(stage.role, numeric) >= 0 ? '+' : '−'
-      else if (stage.role === 'intermediate' || stage.role === 'result') operator = '='
-      const text = formatValue(magnitude)
-
-      const quality = resolveQuality({ confidence, availability })
+    return flowStageViews(panel, join, formatValue).map((view) => {
+      const quality = resolveQuality(view)
       const qualityLabel = quality ? translate(quality.meta.labelKey, quality.meta.fallback) : undefined
-      const word = operatorWord(operator)
-      const spokenValue = showDash ? (qualityLabel ?? translate('availability.unavailable', 'Unavailable')) : text
-      const trailingQuality = !showDash && qualityLabel ? `, ${qualityLabel}` : ''
-      const ariaLabel = `${word ? `${word} ` : ''}${stage.label}, ${spokenValue}${trailingQuality}`
-
-      return { stage, role: stage.role, operator, operatorWord: word, showDash, text, confidence, availability, ariaLabel }
+      const word = operatorWord(view.operator)
+      const spokenValue = view.showDash ? (qualityLabel ?? translate('availability.unavailable', 'Unavailable')) : view.text
+      const trailingQuality = !view.showDash && qualityLabel ? `, ${qualityLabel}` : ''
+      return {
+        ...view,
+        operatorWord: word,
+        ariaLabel: `${word ? `${word} ` : ''}${view.stage.label}, ${spokenValue}${trailingQuality}`,
+      }
     })
-  }, [formatValue, join, panel.availability, panel.confidence, stages, translate])
+  }, [formatValue, join, panel, translate])
 
   const reconcileNote = useMemo(() => {
-    if (join?.kind !== 'ok' || panel.metricFlow?.reconcile === undefined) return undefined
-    let sum = 0
-    let resultValue: number | undefined
-    for (const stage of stages) {
-      const value: ResolvedNumber = join.resolve(stage.key).value
-      if (stage.role === 'result') {
-        if (value.kind !== 'value') return undefined
-        resultValue = value.value
-        continue
-      }
-      if (stage.role === 'intermediate') continue
-      // input / add / subtract are operands; an unresolved operand makes the
-      // sum meaningless, so no note is shown rather than a false discrepancy.
-      if (value.kind !== 'value') return undefined
-      sum += contribution(stage.role, value.value)
-    }
-    if (resultValue === undefined) return undefined
-    const delta = resultValue - sum
-    if (Math.abs(delta) <= (tolerance ?? 0)) return undefined
+    if (!join) return undefined
+    const delta = flowReconcileDelta(panel, join)
+    if (delta === undefined) return undefined
     return translate('flow.difference', 'Difference: {delta}', { delta: formatValue(delta) })
-  }, [formatValue, join, panel.metricFlow?.reconcile, stages, tolerance, translate])
+  }, [formatValue, join, panel, translate])
 
   return (
     <PanelFrame panel={panel} frame={effectiveFrame} allowEmptyContent>

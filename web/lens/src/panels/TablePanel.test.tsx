@@ -168,6 +168,12 @@ describe('TablePanel columns', () => {
 
     // No panel-level "Open record" action column in columns mode.
     expect(screen.queryByText('Open record')).toBeNull()
+
+    // Sorting is on, but every row is already on screen: there is no "this
+    // page" for the caveat to be about, and printing it reads as a warning
+    // that some of the data is hidden.
+    expect(screen.queryByText('Sort applies to this page only')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Next' })).toBeNull()
   })
 })
 
