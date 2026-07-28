@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, type CSSProperties } from 'react'
+import { createContext, Fragment, useCallback, useContext, useMemo, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
@@ -180,10 +180,10 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
  * frame, so the printed page can carry the same columns the dashboard draws
  * instead of demoting the argument of the page to a list of numbers.
  */
-function PrintWaterfall({ section }: { section: PrintSection }) {
+function useWaterfallModel(section: PrintSection) {
   const panel = sectionPanel(section)
   const locale = section.document.meta.locale
-  const model = useMemo(() => {
+  return useMemo(() => {
     if (!section.frame) return undefined
     const valueField = panel.encoding.value ?? 'value'
     const cutField = panel.encoding.cut ?? 'cut'
@@ -195,11 +195,54 @@ function PrintWaterfall({ section }: { section: PrintSection }) {
     )
     return buildWaterfallModel(buildCascadeStages(panel, section.frame, formatValue, formatCut), formatValue)
   }, [locale, panel, section.frame])
+}
+
+function PrintWaterfall({ section }: { section: PrintSection }) {
+  const panel = sectionPanel(section)
+  const model = useWaterfallModel(section)
   if (!model || model.items.length === 0) return null
   return (
     <div className="lens-print-chart lens-print-chart-waterfall">
       <WaterfallPlot label={panel.title} model={model} />
     </div>
+  )
+}
+
+/**
+ * A bridge's evidence is the bridge: the same stages, in the same order, with
+ * the same signs the plot draws. Printing the backing frame instead lets the
+ * table disagree with the picture above it — a stage the plot splits out goes
+ * missing, and an intermediate keeps a name the axis never shows.
+ */
+function PrintWaterfallTable({ section }: { section: PrintSection }) {
+  const translate = useTranslate()
+  const model = useWaterfallModel(section)
+  if (!model || model.items.length === 0) return null
+  return (
+    <table className="lens-print-data">
+      <thead>
+        <tr>
+          <th>{translate('print.stage', 'Stage')}</th>
+          <th className="lens-print-numeric">{translate('print.value', 'Value')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {model.items.map((item, index) => (
+          <Fragment key={`${item.label}:${index}`}>
+            <tr data-role={item.kind}>
+              <td>{item.label}</td>
+              <td className="lens-print-numeric">{item.formattedValue}</td>
+            </tr>
+            {item.formattedSplit && (
+              <tr data-role="split">
+                <td>{item.splitLabel || translate('print.splitPart', 'of which')}</td>
+                <td className="lens-print-numeric">{item.formattedSplit}</td>
+              </tr>
+            )}
+          </Fragment>
+        ))}
+      </tbody>
+    </table>
   )
 }
 
@@ -540,7 +583,7 @@ function FigureView({ figure, footnotes }: { figure: PrintFigure; footnotes?: Fi
           ? <PrintWaterfall section={section} />
           : figure.chart && <PrintChart height={figure.width === 'half' ? 225 : 235} section={section} />}
       <FigureNote section={section} />
-      {!formula && <PrintDataTable section={section} />}
+      {!formula && (waterfall ? <PrintWaterfallTable section={section} /> : <PrintDataTable section={section} />)}
       <TruncationNote section={section} />
       <BreakdownView sections={figure.breakdown} />
       <FootnoteTexts footnotes={footnotes} />

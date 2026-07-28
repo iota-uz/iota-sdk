@@ -133,6 +133,8 @@ const (
 	I18nPrintSeriesTail          = "print.seriesTail"
 	I18nPrintShare               = "print.share"
 	I18nPrintSnapshot            = "print.snapshot"
+	I18nPrintSplitPart           = "print.splitPart"
+	I18nPrintStage               = "print.stage"
 	I18nPrintSummary             = "print.summary"
 	I18nPrintTarget              = "print.target"
 	I18nPrintTimeLimit           = "print.timeLimit"
@@ -241,6 +243,7 @@ func RuntimeI18nKeys() []string {
 		I18nPrintQuality, I18nPrintQualityCount, I18nPrintQualityTerms,
 		I18nPrintSections, I18nPrintSeriesTail, I18nPrintShare, I18nPrintSnapshot, I18nPrintSummary,
 		I18nPrintTarget, I18nPrintTimeLimit, I18nPrintTotal, I18nPrintTruncated, I18nPrintTruncatedOf,
+		I18nPrintSplitPart, I18nPrintStage,
 		I18nPrintValue, I18nPrintView,
 		I18nPrintFactPartition, I18nPrintFactPair, I18nPrintFactProgress,
 		I18nPrintFactBridge, I18nPrintFactBridgeBare, I18nPrintFactBridgeEnds,

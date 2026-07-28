@@ -164,7 +164,7 @@ export function buildOutline(
     bucket.set(section.panel.id, list)
   }
 
-  const accept = (section: PrintSection, kind: 'figure' | 'detail'): boolean => {
+  const accept = (section: PrintSection, kind: 'figure' | 'detail' | 'owned'): boolean => {
     const panel = sectionPanel(section)
     const signature = frameSignature(section.frame)
     if (!signature) {
@@ -173,6 +173,10 @@ export function buildOutline(
       missing.push(panel.title)
       return false
     }
+    // A term of a tile's own calculation is not a repetition: two ratios over
+    // the same earned premium each need their denominator stated, or the
+    // printed formula loses the side it divides by.
+    if (kind === 'owned') return true
     const owner = printed.get(signature)
     // A drill level that restates numbers already printed anywhere adds only
     // pages. Two authored panels may legitimately agree on a figure, so a body
@@ -205,7 +209,13 @@ export function buildOutline(
     if (!accept(section, 'figure')) return
     const panel = sectionPanel(section)
     const single = (section.frame?.rows.length ?? 0) <= 1
-    const breakdown = (ownedSections.get(section.panel.id) ?? []).filter((owned) => accept(owned, 'detail'))
+    const breakdown = (ownedSections.get(section.panel.id) ?? []).filter((owned) => {
+      if (!accept(owned, 'owned')) return false
+      // Printed as a term of this tile's calculation, it is not also a loose
+      // reading for the leftover pass to file under «Прочие показатели».
+      claimed.add(owned)
+      return true
+    })
     chapter.figures.push({
       section,
       number: `${chapter.number}.${chapter.figures.length + 1}`,
@@ -287,7 +297,10 @@ export function buildOutline(
     .filter(({ section }) => {
       const panel = sectionPanel(section)
       const quality = resolveQuality(panel)
-      return quality !== undefined && quality.value !== 'verified' && quality.value !== 'calculated'
+      // Anything not taken verbatim from the accounting system is a reading the
+      // cover should count: an estimate, a proxy and an open reconciliation are
+      // all figures a reviewer must weigh differently from a recorded one.
+      return quality !== undefined && quality.value !== 'verified'
     })
   return {
     chapters: populated,

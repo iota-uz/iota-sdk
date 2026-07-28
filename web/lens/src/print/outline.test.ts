@@ -318,6 +318,38 @@ describe('buildOutline', () => {
     expect(outline.chapters[1]?.details).toHaveLength(0)
   })
 
+  it('keeps a shared denominator under every ratio that divides by it', () => {
+    const loss = panelWith('loss-ratio', { kind: 'stat', semantics: 'evidence' })
+    const expense = panelWith('expense-ratio', { kind: 'stat', semantics: 'evidence' })
+    const document = documentWith([loss, expense], {
+      rows: [{ heading: 'Ratios', panels: [{ panelId: 'loss-ratio', span: 6 }, { panelId: 'expense-ratio', span: 6 }] }],
+    })
+    const denominator = frameWith([['Earned premium', 199.89]])
+    const outline = buildOutline(
+      reportWith(document, [
+        sectionWith(document, loss, frameWith([['Loss ratio', 2.8]])),
+        sectionWith(document, expense, frameWith([['Expense ratio', 30.4]])),
+        sectionWith(document, panelWith('loss-denominator', { kind: 'stat', semantics: 'evidence' }), denominator, {
+          root: false,
+          owner: 'loss-ratio',
+          breadcrumb: ['Loss ratio', 'Denominator'],
+        }),
+        sectionWith(document, panelWith('expense-denominator', { kind: 'stat', semantics: 'evidence' }), denominator, {
+          root: false,
+          owner: 'expense-ratio',
+          breadcrumb: ['Expense ratio', 'Denominator'],
+        }),
+      ]),
+      'Summary',
+      'Other',
+    )
+
+    // Identical rows, but each formula still states what it divides by.
+    expect(outline.kpis.map(({ section }) => section.panel.id)).toEqual(['loss-ratio', 'expense-ratio'])
+    expect(outline.kpis[0]?.breakdown.map(({ panel }) => panel.id)).toEqual(['loss-denominator'])
+    expect(outline.kpis[1]?.breakdown.map(({ panel }) => panel.id)).toEqual(['expense-denominator'])
+  })
+
   it('counts the readings that are an estimate rather than a settled figure', () => {
     const proxy = panelWith('ibnr', { confidence: 'proxy' })
     const verified = panelWith('gwp', { confidence: 'verified' })

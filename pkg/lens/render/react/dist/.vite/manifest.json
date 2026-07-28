@@ -1,6 +1,6 @@
 {
   "index.html": {
-    "file": "assets/lens-dashboard-cwuiQsQK.js",
+    "file": "assets/lens-dashboard-DPTpMcIi.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -15,7 +15,7 @@
     ]
   },
   "src/charts/echarts/adapter.ts": {
-    "file": "assets/adapter-LpHwRctB.js",
+    "file": "assets/adapter-Bvg75e5h.js",
     "name": "adapter",
     "src": "src/charts/echarts/adapter.ts",
     "isDynamicEntry": true,
@@ -24,7 +24,7 @@
     ]
   },
   "src/charts/index.ts": {
-    "file": "assets/index-BUIgAiB1.js",
+    "file": "assets/index-CMM57bzT.js",
     "name": "index",
     "src": "src/charts/index.ts",
     "isDynamicEntry": true,
@@ -36,7 +36,7 @@
     ]
   },
   "src/panels/PrintButton.tsx": {
-    "file": "assets/PrintButton-AzfIcym3.js",
+    "file": "assets/PrintButton-DZ2pC8aN.js",
     "name": "PrintButton",
     "src": "src/panels/PrintButton.tsx",
     "isDynamicEntry": true,
@@ -45,7 +45,7 @@
     ]
   },
   "src/print/PrintReport.tsx": {
-    "file": "assets/PrintReport-DbcUB8Z4.js",
+    "file": "assets/PrintReport-BzoACP27.js",
     "name": "PrintReport",
     "src": "src/print/PrintReport.tsx",
     "isDynamicEntry": true,
@@ -54,7 +54,7 @@
     ]
   },
   "src/runtime/print.ts": {
-    "file": "assets/print-BC0iF65V.js",
+    "file": "assets/print-oyHV9uLn.js",
     "name": "print",
     "src": "src/runtime/print.ts",
     "isDynamicEntry": true,
