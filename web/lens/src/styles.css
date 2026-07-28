@@ -4136,7 +4136,7 @@
   gap: 22px;
   /* One full page: the identity block sits at the top, and everything that
      dates and qualifies the report is pushed to the foot of the page. */
-  min-height: 168mm;
+  min-height: 128mm;
   padding-bottom: 8px;
 }
 
@@ -4231,7 +4231,7 @@
 .lens-print-kpi-value {
   color: var(--lens-text-strong);
   /* «199.89 млрд UZS» broken across two lines reads as two numbers. */
-  font-size: 17px;
+  font-size: 15px;
   font-weight: 700;
   font-variant-numeric: tabular-nums lining-nums;
   line-height: 1.15;
