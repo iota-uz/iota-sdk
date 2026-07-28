@@ -95,6 +95,8 @@ func clonePayoutReflect(value reflect.Value, visited map[payoutCloneVisit]reflec
 			kind:      value.Kind(),
 			valueType: value.Type(),
 			pointer:   value.Pointer(),
+			length:    0,
+			capacity:  0,
 		}
 		if result, ok := visited[visit]; ok {
 			return result
@@ -149,6 +151,8 @@ func clonePayoutReflect(value reflect.Value, visited map[payoutCloneVisit]reflec
 			kind:      value.Kind(),
 			valueType: value.Type(),
 			pointer:   value.Pointer(),
+			length:    0,
+			capacity:  0,
 		}
 		if result, ok := visited[visit]; ok {
 			return result
@@ -157,7 +161,28 @@ func clonePayoutReflect(value reflect.Value, visited map[payoutCloneVisit]reflec
 		visited[visit] = result
 		result.Elem().Set(clonePayoutReflect(value.Elem(), visited))
 		return result
-	default:
+	case reflect.Invalid,
+		reflect.Bool,
+		reflect.Int,
+		reflect.Int8,
+		reflect.Int16,
+		reflect.Int32,
+		reflect.Int64,
+		reflect.Uint,
+		reflect.Uint8,
+		reflect.Uint16,
+		reflect.Uint32,
+		reflect.Uint64,
+		reflect.Uintptr,
+		reflect.Float32,
+		reflect.Float64,
+		reflect.Complex64,
+		reflect.Complex128,
+		reflect.Chan,
+		reflect.Func,
+		reflect.String,
+		reflect.UnsafePointer:
 		return value
 	}
+	return value
 }
