@@ -15,3 +15,4 @@ CREATE INDEX idx_billing_transactions_status ON billing_transactions (status);
 CREATE INDEX idx_billing_transactions_gateway ON billing_transactions (gateway);
 
 CREATE INDEX idx_billing_transactions_tenant_id ON billing_transactions (tenant_id);
+
