@@ -600,7 +600,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     type: 'category' as const,
     data: categories,
     ...axisStyle(theme),
-    ...(horizontal ? { axisLabel: { color: theme.mutedText, width: 160, overflow: 'truncate' as const } } : {}),
+    ...(horizontal ? { axisLabel: { color: theme.mutedText, width: 260, overflow: 'truncate' as const } } : {}),
   }
   const temporalAxis = {
     type: 'time' as const,
