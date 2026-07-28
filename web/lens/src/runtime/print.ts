@@ -41,6 +41,12 @@ export interface PrintSection {
    */
   owner?: string
   /**
+   * The drawer document this section was read from. Two panels may open the
+   * same drawer; the traversal fetches it once and this is how the second
+   * panel's copy is made.
+   */
+  origin?: string
+  /**
    * The level answered with a first page and declared more behind it. Printing
    * asks for one page per level, so a long table would otherwise end on paper
    * exactly where the page ended — looking complete. The report says so.
@@ -146,7 +152,7 @@ export async function buildPrintReport(
   const warnings: Array<string> = []
   let truncated = false
   const visited = new Set<string>()
-  const visitedDocuments = new Set<string>()
+  const documentOpeners = new Map<string, Array<string>>()
   const pagedFrames = new Set<string>()
   const visitedDocumentIdentities = new Set<string>()
   const queriedFrames = new Map<string, Promise<Frame | undefined>>()
@@ -205,6 +211,7 @@ export async function buildPrintReport(
     prefix: Array<string>,
     documentDepth: number,
     owner?: string,
+    origin?: string,
   ): Promise<void> => {
     if (shouldStop()) return
     if (documentDepth > 12) {
@@ -228,9 +235,18 @@ export async function buildPrintReport(
           variables: variablesFromLocation(location),
           location,
         })
-        if (!href || visitedDocuments.has(href)) continue
-        visitedDocuments.add(href)
-        pendingDocuments.push({ href, candidate, breadcrumb, depth, owner: owner ?? panel.id })
+        if (!href) continue
+        const opener = owner ?? panel.id
+        const openers = documentOpeners.get(href)
+        if (openers) {
+          // A hero tile and its strip twin open one drawer. Fetching it twice
+          // would be waste; leaving the second panel out would print one of
+          // them without the calculation it exists to explain.
+          if (!openers.includes(opener)) openers.push(opener)
+          continue
+        }
+        documentOpeners.set(href, [opener])
+        pendingDocuments.push({ href, candidate, breadcrumb, depth, owner: opener })
       }
     }
 
@@ -292,6 +308,7 @@ export async function buildPrintReport(
         // drill levels are detail like any other and belong in the appendix —
         // a KPI tile cannot hold sixty quarters of history.
         ...(owner && depth === 0 ? { owner } : {}),
+        ...(origin && depth === 0 ? { origin } : {}),
         ...(pagedFrames.has(JSON.stringify([document.snapshotId, path, perspective?.id ?? '']))
           ? { hasMore: true }
           : {}),
@@ -344,6 +361,7 @@ export async function buildPrintReport(
           depth: documentDepth,
           root: documentDepth === 0,
           ...(owner ? { owner } : {}),
+          ...(origin ? { origin } : {}),
         })
         collectActions(panel, level, frame, breadcrumb, documentDepth + 1)
         continue
@@ -381,7 +399,18 @@ export async function buildPrintReport(
           : actionTrail,
         entry.depth,
         entry.owner,
+        entry.href,
       )
+    }
+  }
+  for (const [href, openers] of documentOpeners) {
+    if (openers.length < 2) continue
+    const [primary, ...aliases] = openers
+    const originals = sections.filter((section) => section.origin === href && section.owner === primary)
+    for (const alias of aliases) {
+      for (const section of originals) {
+        sections.push({ ...section, id: `${section.id}:${alias}`, owner: alias })
+      }
     }
   }
   return { document: source, sections, warnings, truncated }

@@ -16,6 +16,41 @@ describe('buildPrintReport', () => {
     })
   })
 
+  it('gives every panel that opens one drawer its own copy of the reading', async () => {
+    const drawerAction = {
+      kind: 'open_drawer' as const,
+      urlTemplate: '/drawer',
+      params: [],
+      payload: {},
+    }
+    const document = parseDocument({
+      ...fixture,
+      panels: [
+        { ...fixture.panels[0], id: 'hero', actions: [drawerAction] },
+        { ...fixture.panels[0], id: 'strip', actions: [drawerAction] },
+      ],
+      layout: {
+        rows: [{ panels: [{ panelId: 'hero', span: 6 }, { panelId: 'strip', span: 6 }] }],
+      },
+    })
+    const drawer = parseDocument({
+      ...fixture,
+      meta: { ...fixture.meta, dashboardId: 'drawer' },
+      panels: [{ ...fixture.panels[0], id: 'numerator', actions: [] }],
+      layout: { rows: [{ panels: [{ panelId: 'numerator', span: 12 }] }] },
+    })
+    let loads = 0
+    const report = await buildPrintReport(document, undefined, 2_000, () => {
+      loads += 1
+      return Promise.resolve(drawer)
+    })
+
+    // Fetched once, attached twice: neither tile prints without its calculation.
+    expect(loads).toBe(1)
+    expect(report.sections.filter(({ owner }) => owner === 'hero')).toHaveLength(1)
+    expect(report.sections.filter(({ owner }) => owner === 'strip')).toHaveLength(1)
+  })
+
   it('loads dynamic children and flattens their query paths in order', async () => {
     const document = parseDocument({
       ...fixture,
