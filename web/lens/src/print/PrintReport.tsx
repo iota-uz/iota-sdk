@@ -45,6 +45,11 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): Array<A
   const valueFormat = valueField ? panel.format[valueField] : undefined
   const values = frame.rows.map((row) => numeric(row[valueIndex]))
   const groups = new Map<string, number>()
+  // A series column is how a chart separates its rings; its values are only
+  // reader-facing when the dashboard declared a format for them. Printing the
+  // undeclared ones put the internal keys «recognition ·» and «payment ·» in
+  // front of every label — the table below the rings names them already.
+  const seriesFormat = panel.encoding.series ? panel.format[panel.encoding.series] : undefined
 
   frame.rows.forEach((row, rowIndex) => {
     const group = seriesIndex >= 0 ? text(row[seriesIndex]) : ''
@@ -83,7 +88,9 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): Array<A
     const label = labelIndex >= 0 ? text(row[labelIndex]) : text(row[idIndex])
     return {
       key: `${group}:${idIndex >= 0 ? text(row[idIndex]) : rowIndex}`,
-      ...(group ? { series: group } : {}),
+      ...(group && seriesFormat
+        ? { series: formatFieldValue(row[seriesIndex], seriesFormat, locale) }
+        : {}),
       label,
       value: valueIndex >= 0 ? formatFieldValue(rawValue, valueFormat, locale) : '—',
       exact: valueIndex >= 0 ? formatFieldValueExact(rawValue, valueFormat, locale) : undefined,
@@ -353,7 +360,13 @@ function FootnoteTexts({ footnotes }: { footnotes?: FigureFootnotes }) {
   return (
     <ol className="lens-print-footnotes">
       {footnotes.notes.map((note) => (
-        <li key={note.number} value={note.number}>{note.text}</li>
+        // The number is drawn rather than left to the list marker: a marker is
+        // the one glyph a print engine feels free to drop, and a note nobody
+        // can tie back to its figure is a note nobody reads.
+        <li key={note.number} value={note.number}>
+          <span className="lens-print-footnote-index">{note.number}</span>
+          {note.text}
+        </li>
       ))}
     </ol>
   )
@@ -398,9 +411,13 @@ function BreakdownView({ sections }: { sections: Array<PrintSection> }) {
         const shown = capped && frame
           ? { ...section, frame: { ...frame, rows: frame.rows.slice(0, breakdownRowCap) } }
           : section
+        // A level whose first column is already named after it — «Общий резерв
+        // по группам риска» over a column of the same name — needs the heading
+        // said once.
+        const named = panel.columns?.[0]?.label?.trim().toLowerCase() === panel.title.trim().toLowerCase()
         return (
           <div className="lens-print-breakdown-part" key={section.id}>
-            <p className="lens-print-breakdown-title">{panel.title}</p>
+            {!named && <p className="lens-print-breakdown-title">{panel.title}</p>}
             <PrintDataTable dense section={shown} />
             {capped && (
               <p className="lens-print-truncated">
