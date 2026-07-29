@@ -103,7 +103,9 @@ describe('LensDashboard', () => {
     const exportable = parseDocument({ ...fixture, endpoints: { export: '/lens/export' } })
     render(<LensDashboard initialDocument={exportable} />)
 
-    expect(screen.getByRole('button', { name: 'Export dashboard' })).toBeInTheDocument()
+    // The dashboard's formats live behind one trigger; a panel still exports
+    // its own single artefact in place.
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export panel' })).toBeInTheDocument()
   })
 
