@@ -212,6 +212,15 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     return (key: string) => Boolean(childForSelection(level, key)?.target)
   }, [level])
 
+  // The plot and the legend resolve colours through the same function, with the
+  // same positional rule, so a panel's declared palette reaches both or
+  // neither. Resolving them separately is how the legend came to print one
+  // colour beside a line drawn in another.
+  const seriesColor = useMemo(
+    () => seriesColorResolver(document.theme, panel, { positional: !active }),
+    [active, document.theme, panel],
+  )
+
   const input = useMemo(() => visibleFrame ? ({
     kind,
     frame: visibleFrame,
@@ -223,9 +232,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     selectedKey,
     presentation,
     colors: frameColors,
+    seriesColor,
     radial: panel.radial,
     expandable,
-  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, frameColors, kind, panel.encoding, presentation, panel.radial, selectedKey, visibleFrame])
+  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, frameColors, kind, panel.encoding, presentation, panel.radial, selectedKey, seriesColor, visibleFrame])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.

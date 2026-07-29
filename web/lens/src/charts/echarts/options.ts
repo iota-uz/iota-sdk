@@ -372,7 +372,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
-        const fill = input.colors?.[index] ?? theme.seriesColor(point.category)
+        const fill = input.colors?.[index] ?? theme.seriesColor(point.category) ?? input.seriesColor?.(point.category, index)
         return {
           ...item,
           name: point.category,
@@ -396,10 +396,17 @@ function ringRadius(index: number, count: number): [string, string] {
   return [`${Math.max(12, inner)}%`, `${outer}%`]
 }
 
-function pointColor(point: RowPoint, index: number, theme: EChartsTheme, colors?: string[]): string {
+function pointColor(
+  point: RowPoint,
+  index: number,
+  theme: EChartsTheme,
+  colors?: string[],
+  seriesColor?: (label: string, index: number) => string | undefined,
+): string {
   return colors?.[index]
     ?? theme.seriesColor(point.nodeKey ?? '')
     ?? theme.seriesColor(point.category)
+    ?? seriesColor?.(point.category, index)
     ?? theme.colors[index % theme.colors.length]
     ?? '#2563eb'
 }
@@ -442,7 +449,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
       data: ringPoints.map((point, index) => {
         const mark = { ...point, nodeKey: radialNodeKey(ring.key, point.nodeKey ?? point.category) }
         const item = dataItem(mark, input, theme, point.nodeKey ?? point.category)
-        const fill = pointColor(point, categoryOrder.get(point.nodeKey ?? point.category) ?? 0, theme, input.colors)
+        const fill = pointColor(point, categoryOrder.get(point.nodeKey ?? point.category) ?? 0, theme, input.colors, input.seriesColor)
         return {
           ...item,
           name: point.category,
@@ -525,7 +532,7 @@ function radialProgressOption(input: ChartInput, theme: EChartsTheme, points: Ro
             value,
             itemStyle: {
               ...item.itemStyle,
-              color: pointColor(point, index, theme, input.colors),
+              color: pointColor(point, index, theme, input.colors, input.seriesColor),
               borderRadius: 8,
             },
           },
@@ -571,13 +578,16 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const colorByCategory = isBar && input.presentation?.colorBy === 'category'
   const barWidth = input.presentation?.barWidthPx
   const categoryColor = (category: string, index: number) =>
-    theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
-  const series = seriesNames.map((name) => ({
+    theme.seriesColor(category) ?? input.seriesColor?.(category, index) ?? theme.colors[index % theme.colors.length]
+  const series = seriesNames.map((name, index) => ({
     type: isBar ? 'bar' as const : 'line' as const,
     name: name || undefined,
     universalTransition: { enabled: morphEnabled() },
     barWidth: isBar && barWidth ? barWidth : undefined,
-    itemStyle: { color: theme.seriesColor(name) },
+    // The panel's resolver knows about colours pinned to the n-th series of
+    // this panel; ECharts' own palette does not, and left to itself it walks a
+    // default sequence that has nothing to do with the legend beside it.
+    itemStyle: { color: theme.seriesColor(name) ?? input.seriesColor?.(name, index) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
     showSymbol: !isBar,
     data: timeAxis

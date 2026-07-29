@@ -36,6 +36,14 @@ export interface ChartInput {
   // outranks the document palette so a level can paint its remainder neutral
   // without the placeholder panel knowing a remainder exists.
   colors?: string[]
+  /**
+   * The panel's own colour resolver — the same function its legend uses. The
+   * chart cannot derive it: a document pins colours positionally, per panel
+   * (`panelId:index`), and the chart knows neither which panel it is drawing
+   * nor that such pins exist. Without it a panel's declared colours reach the
+   * legend and never the plot, and the two disagree in front of the reader.
+   */
+  seriesColor?: (label: string, index: number) => string | undefined
 }
 
 /** Viewport coordinates of the activated mark, used to anchor an overlay. */

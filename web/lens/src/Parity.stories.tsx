@@ -103,7 +103,13 @@ function storyDocument(panels: Panel[], frames: Record<string, Frame>, layout: D
     layout, panels, frames,
     drill: { inlineDepth: 0, edges: {} },
     perspectives: [], endpoints: {}, i18n: {},
-    theme: { palette: { blue: '#2f56d9', orange: '#d97824', purple: '#7c3aed' }, series: { 'payouts:0': '#2f56d9', 'payouts:1': '#d97824' } },
+    // `trend:*` pins deliberately run against the palette's own order: the
+    // plot must take its colours from the panel's pins like the legend does,
+    // so a line drawn in palette order instead shows up as a mismatch here.
+    theme: {
+      palette: { blue: '#2f56d9', orange: '#d97824', purple: '#7c3aed' },
+      series: { 'payouts:0': '#2f56d9', 'payouts:1': '#d97824', 'trend:0': 'purple', 'trend:1': 'orange' },
+    },
   }
 }
 

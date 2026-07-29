@@ -443,4 +443,29 @@ describe('buildChartOption', () => {
     expect(format).toHaveBeenCalledWith('category', time)
     expect(format).toHaveBeenCalledWith('value', 1200)
   })
+
+  it('draws each series in the colour its legend prints', () => {
+    // A dashboard pins colours to the n-th series of a panel, and only the
+    // panel can resolve those pins. Left to ECharts the lines walk a default
+    // palette, and the legend beside them names a different colour.
+    const chartInput = input('line')
+    chartInput.seriesColor = (_label, index) => ['#111111', '#222222'][index]
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // 'Revenue' carries a named pin in the theme, which stays authoritative;
+    // 'Cost' has none, and takes the panel's positional colour instead of
+    // whatever ECharts would have reached for.
+    expect(chart.series.map((series) => series.itemStyle?.color)).toEqual(['#059669', '#222222'])
+  })
+
+  it('paints pie slices from the panel resolver when the theme names no colour', () => {
+    const chartInput = input('pie')
+    chartInput.seriesColor = (_label, index) => ['#111111', '#222222', '#333333', '#444444'][index]
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const colors = (chart.series[0]?.data ?? []).map((item) => item?.itemStyle?.color)
+
+    expect(colors).toEqual(['#111111', '#222222', '#333333', '#444444'])
+  })
 })
