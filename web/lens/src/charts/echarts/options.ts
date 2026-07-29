@@ -372,7 +372,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
-        const fill = input.colors?.[index] ?? theme.seriesColor(point.category) ?? input.seriesColor?.(point.category, index)
+        const fill = input.colors?.[index] ?? input.seriesColor?.(point.category, index) ?? theme.seriesColor(point.category)
         return {
           ...item,
           name: point.category,
@@ -405,8 +405,8 @@ function pointColor(
 ): string {
   return colors?.[index]
     ?? theme.seriesColor(point.nodeKey ?? '')
-    ?? theme.seriesColor(point.category)
     ?? seriesColor?.(point.category, index)
+    ?? theme.seriesColor(point.category)
     ?? theme.colors[index % theme.colors.length]
     ?? '#2563eb'
 }
@@ -584,7 +584,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const lineSeries = new Set(input.presentation?.lineSeries ?? [])
   const stacked = isBar && input.presentation?.stack === true
   const categoryColor = (category: string, index: number) =>
-    theme.seriesColor(category) ?? input.seriesColor?.(category, index) ?? theme.colors[index % theme.colors.length]
+    input.seriesColor?.(category, index) ?? theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
   const series = seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
     name: name || undefined,
@@ -594,7 +594,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // The panel's resolver knows about colours pinned to the n-th series of
     // this panel; ECharts' own palette does not, and left to itself it walks a
     // default sequence that has nothing to do with the legend beside it.
-    itemStyle: { color: theme.seriesColor(name) ?? input.seriesColor?.(name, index) },
+    itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
     showSymbol: !isBar || lineSeries.has(name),
     data: timeAxis

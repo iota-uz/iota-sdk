@@ -468,10 +468,11 @@ describe('buildChartOption', () => {
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
-    // 'Revenue' carries a named pin in the theme, which stays authoritative;
-    // 'Cost' has none, and takes the panel's positional colour instead of
-    // whatever ECharts would have reached for.
-    expect(chart.series.map((series) => series.itemStyle?.color)).toEqual(['#059669', '#222222'])
+    // The panel resolver is authoritative — it is the very function the
+    // legend calls — so both series take its colour even though the theme
+    // also names 'Revenue' directly; a raw theme lookup only applies when the
+    // panel has no resolver at all.
+    expect(chart.series.map((series) => series.itemStyle?.color)).toEqual(['#111111', '#222222'])
   })
 
   it('paints pie slices from the panel resolver when the theme names no colour', () => {

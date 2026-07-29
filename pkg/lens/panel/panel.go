@@ -377,7 +377,9 @@ type PresentationHints struct {
 // IsZero reports whether no hint is set. LineSeries makes PresentationHints
 // uncomparable, so callers ask this instead of comparing against a zero value.
 func (h PresentationHints) IsZero() bool {
-	return len(h.LineSeries) == 0 && reflect.DeepEqual(h, PresentationHints{})
+	lineSeries := h.LineSeries
+	h.LineSeries = nil
+	return len(lineSeries) == 0 && reflect.DeepEqual(h, PresentationHints{})
 }
 
 // RadialMode selects the geometry of a radial panel.
