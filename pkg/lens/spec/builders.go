@@ -441,6 +441,22 @@ func (b *PanelBuilder) Waterfall() *PanelBuilder {
 	return b
 }
 
+// BarWidth pins the rendered column thickness in CSS pixels. Five yearly
+// columns across a full-width card otherwise read as blocks of colour rather
+// than as a series.
+func (b *PanelBuilder) BarWidth(pixels int) *PanelBuilder {
+	b.panel.Presentation.BarWidthPx = pixels
+	return b
+}
+
+// LineSeries draws the named series as a line over a stacked bar's columns.
+// A measure on another basis — earned against written, actual against plan —
+// belongs beside the stack; inside it, it would claim to be one of its parts.
+func (b *PanelBuilder) LineSeries(names ...string) *PanelBuilder {
+	b.panel.Presentation.LineSeries = append(b.panel.Presentation.LineSeries, names...)
+	return b
+}
+
 // FocusCanvas opts this drill-hosting panel into focus chrome in the wire
 // runtime (breadcrumb, parent-context header, standalone lens selector).
 func (b *PanelBuilder) FocusCanvas() *PanelBuilder {

@@ -357,6 +357,39 @@ describe('chart encoding and drill behavior', () => {
     expect(inputs.at(-1)?.colors).toEqual(['#222222'])
   })
 
+  it('renders one legend entry per line series and toggles the whole series', async () => {
+    const frame: Frame = {
+      columns: [
+        { name: 'category', type: 'string' },
+        { name: 'series', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['2025', 'Written premium', 100],
+        ['2025', 'Earned premium', 80],
+        ['2026', 'Written premium', 120],
+        ['2026', 'Earned premium', 90],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
+    expect(screen.getByText('Written premium')).toBeInTheDocument()
+    expect(screen.getByText('Earned premium')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Earned premium/ }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([
+      ['2025', 'Written premium', 100],
+      ['2026', 'Written premium', 120],
+    ]))
+  })
+
   it('renders the panel title once when the stat label would duplicate it', () => {
     runtime.frame = state('data')
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)

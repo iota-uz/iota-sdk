@@ -13,7 +13,7 @@ import {
 } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
-import { ExportButton, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
+import { ExportMenu, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
 import { X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
@@ -22,7 +22,6 @@ import { isVisualRegression } from './visualRegression'
 /* eslint-disable react-refresh/only-export-components */
 
 const LazyPrintReport = lazy(() => import('./print/PrintReport').then(({ PrintReport }) => ({ default: PrintReport })))
-const LazyPrintButton = lazy(() => import('./panels/PrintButton').then(({ PrintButton }) => ({ default: PrintButton })))
 
 export interface DashboardPanelsProps {
   registry?: PanelRegistry
@@ -472,10 +471,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           )}
           <div className="lens-dashboard-controls">
             <FilterBar today={filterToday} />
-            <ExportButton />
-            <Suspense fallback={null}>
-              <LazyPrintButton />
-            </Suspense>
+            <ExportMenu />
           </div>
         </header>
       )}

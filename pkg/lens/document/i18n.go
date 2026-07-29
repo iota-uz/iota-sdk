@@ -59,8 +59,11 @@ const (
 	I18nFocusSourceUnav   = "focus.sourceUnavailable"
 	I18nFocusToParent     = "focus.toParent"
 	I18nFocusViewAs       = "focus.viewAs"
+	I18nExportData        = "export.data"
 	I18nExportDashboard   = "export.dashboard"
+	I18nExportMenu        = "export.menu"
 	I18nExportPanel       = "export.panel"
+	I18nExportReport      = "export.report"
 	I18nExportPending     = "export.pending"
 	I18nExportRetry       = "export.retry"
 	I18nExportRetryHint   = "export.retryHint"
@@ -99,7 +102,6 @@ const (
 	I18nPrintAppendix            = "print.appendix"
 	I18nPrintAppendixNote        = "print.appendixNote"
 	I18nPrintBreakdown           = "print.breakdown"
-	I18nPrintButton              = "print.button"
 	I18nPrintCategory            = "print.category"
 	I18nPrintContents            = "print.contents"
 	I18nPrintDefCalculated       = "print.defCalculated"
@@ -233,10 +235,11 @@ func RuntimeI18nKeys() []string {
 		I18nFocusBackToParent, I18nFocusMoreViews, I18nFocusPath,
 		I18nFocusSourceData, I18nFocusSourceLoad, I18nFocusSourceRows, I18nFocusSourceUnav,
 		I18nFocusToParent, I18nFocusViewAs,
-		I18nExportDashboard, I18nExportPanel, I18nExportPending, I18nExportRetry, I18nExportRetryHint,
+		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
+		I18nExportPending, I18nExportRetry, I18nExportRetryHint,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
-		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintBreakdown, I18nPrintButton, I18nPrintCategory,
+		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintBreakdown, I18nPrintCategory,
 		I18nPrintContents, I18nPrintFailed, I18nPrintFigure,
 		I18nPrintDefCalculated, I18nPrintDefConfigRequired, I18nPrintDefEmptySource,
 		I18nPrintDefProxy, I18nPrintDefReconciliation, I18nPrintDefUnavailable, I18nPrintDefVerified,

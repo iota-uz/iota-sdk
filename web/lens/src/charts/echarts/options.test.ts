@@ -58,6 +58,7 @@ interface TestSeries {
   label?: { formatter?: (params: { percent?: number; name?: string; data?: { share?: number } }) => string }
   type?: string
   name?: string
+  stack?: string
   areaStyle?: unknown
   radius?: string[]
   itemStyle?: { color?: string }
@@ -442,5 +443,45 @@ describe('buildChartOption', () => {
       .toBe(`category=${time}\nRevenue: value=1200`)
     expect(format).toHaveBeenCalledWith('category', time)
     expect(format).toHaveBeenCalledWith('value', 1200)
+  })
+
+  it('stacks the parts of a whole and keeps another basis beside them', () => {
+    const chartInput = input('bar')
+    chartInput.presentation = { stack: true, lineSeries: ['Cost'] }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // 'Revenue' is a segment of the column; 'Cost' is measured on another
+    // basis, so it runs over the stack instead of claiming to be part of it.
+    expect(chart.series.map((series) => [series.type, series.stack])).toEqual([
+      ['bar', 'total'],
+      ['line', undefined],
+    ])
+  })
+
+  it('draws each series in the colour its legend prints', () => {
+    // A dashboard pins colours to the n-th series of a panel, and only the
+    // panel can resolve those pins. Left to ECharts the lines walk a default
+    // palette, and the legend beside them names a different colour.
+    const chartInput = input('line')
+    chartInput.seriesColor = (_label, index) => ['#111111', '#222222'][index]
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // The panel resolver is authoritative — it is the very function the
+    // legend calls — so both series take its colour even though the theme
+    // also names 'Revenue' directly; a raw theme lookup only applies when the
+    // panel has no resolver at all.
+    expect(chart.series.map((series) => series.itemStyle?.color)).toEqual(['#111111', '#222222'])
+  })
+
+  it('paints pie slices from the panel resolver when the theme names no colour', () => {
+    const chartInput = input('pie')
+    chartInput.seriesColor = (_label, index) => ['#111111', '#222222', '#333333', '#444444'][index]
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const colors = (chart.series[0]?.data ?? []).map((item) => item?.itemStyle?.color)
+
+    expect(colors).toEqual(['#111111', '#222222', '#333333', '#444444'])
   })
 })

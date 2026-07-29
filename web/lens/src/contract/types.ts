@@ -374,6 +374,8 @@ export interface Presentation {
   exportable?: boolean
   rowGroupField?: string
   focus?: FocusMode
+  stack?: boolean
+  lineSeries?: Array<string>
 }
 
 export type QueryErrorCode = "bad_request" | "internal" | "snapshot_gone"

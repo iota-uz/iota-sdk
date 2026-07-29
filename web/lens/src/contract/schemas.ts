@@ -397,6 +397,8 @@ export const PresentationSchema: z.ZodType<Contract.Presentation> = z.lazy(() =>
   exportable: z.boolean().optional(),
   rowGroupField: z.string().optional(),
   focus: z.lazy(() => FocusModeSchema).optional(),
+  stack: z.boolean().optional(),
+  lineSeries: z.array(z.string()).optional(),
 }).strict())
 
 export const QueryErrorCodeSchema: z.ZodType<Contract.QueryErrorCode> = z.enum(["bad_request", "internal", "snapshot_gone"])

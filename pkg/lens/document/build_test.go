@@ -88,6 +88,12 @@ func TestBuild_RadialPanelsCarryExplicitGeometry(t *testing.T) {
 	require.Equal(t, &Presentation{Legend: LegendBelow, SliceLabels: SliceLabelsPercent}, wire.Presentation)
 }
 
+func TestBuildPresentation_ShowLegendFallsBackToBelow(t *testing.T) {
+	t.Parallel()
+
+	require.Equal(t, &Presentation{Legend: LegendBelow}, buildPresentation(panel.Spec{ShowLegend: true}))
+}
+
 func TestBuild_DocumentHeaderAndDrawerSuppression(t *testing.T) {
 	t.Parallel()
 

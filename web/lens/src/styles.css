@@ -1256,6 +1256,25 @@
 
   /* The pending note is a quiet inline chip, not the bordered card an error
      gets: it appears for a second and must not shove the header around. */
+  /* One trigger, one menu: the formats a dashboard can produce are a choice,
+     not a row of competing buttons. */
+  .lens-export-caret {
+    @apply lens-text-faint;
+  }
+
+  .lens-export-menu {
+    @apply lens-absolute lens-right-0 lens-top-full lens-z-30 lens-mt-1 lens-flex lens-w-max lens-min-w-40 lens-flex-col lens-gap-0.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-1 lens-shadow-card;
+  }
+
+  .lens-export-menu-item {
+    @apply lens-w-full lens-rounded-control lens-border-0 lens-bg-transparent lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
+  }
+
+  .lens-export-menu-item:hover,
+  .lens-export-menu-item:focus-visible {
+    @apply lens-bg-inset lens-text-strong;
+  }
+
   .lens-export-message-pending {
     @apply lens-static lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-xs lens-font-medium lens-text-muted lens-shadow-none;
   }
