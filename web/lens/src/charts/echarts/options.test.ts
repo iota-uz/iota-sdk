@@ -58,6 +58,7 @@ interface TestSeries {
   label?: { formatter?: (params: { percent?: number; name?: string; data?: { share?: number } }) => string }
   type?: string
   name?: string
+  stack?: string
   areaStyle?: unknown
   radius?: string[]
   itemStyle?: { color?: string }
@@ -442,6 +443,20 @@ describe('buildChartOption', () => {
       .toBe(`category=${time}\nRevenue: value=1200`)
     expect(format).toHaveBeenCalledWith('category', time)
     expect(format).toHaveBeenCalledWith('value', 1200)
+  })
+
+  it('stacks the parts of a whole and keeps another basis beside them', () => {
+    const chartInput = input('bar')
+    chartInput.presentation = { stack: true, lineSeries: ['Cost'] }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // 'Revenue' is a segment of the column; 'Cost' is measured on another
+    // basis, so it runs over the stack instead of claiming to be part of it.
+    expect(chart.series.map((series) => [series.type, series.stack])).toEqual([
+      ['bar', 'total'],
+      ['line', undefined],
+    ])
   })
 
   it('draws each series in the colour its legend prints', () => {

@@ -709,6 +709,27 @@ type Presentation struct {
 	// Focus, when set on a drill-hosting panel, opts its drill flow into focus
 	// chrome. Absent keeps today's in-card drill rendering.
 	Focus FocusMode `json:"focus,omitempty"`
+	// Stack draws a bar panel's series as one column per category instead of
+	// one column per series. Only set it where the series really are parts of
+	// a whole: a stack states that its segments add up, and a reader takes the
+	// column height as that sum.
+	Stack bool `json:"stack,omitempty"`
+	// LineSeries names series drawn as a line over the bars. A measure on a
+	// different basis — earned against written, actual against plan — belongs
+	// beside the stack rather than inside it, where it would claim to be one of
+	// its parts.
+	LineSeries []string `json:"lineSeries,omitempty"`
+}
+
+// isZero reports whether no presentation hint is set. LineSeries makes
+// Presentation uncomparable, so the check is spelled out rather than compared
+// against a zero value.
+func (p Presentation) isZero() bool {
+	return len(p.LineSeries) == 0 &&
+		p.Legend == "" && p.LegendValue == "" && p.SliceLabels == "" &&
+		p.TotalBadge == "" && p.ColorBy == "" && !p.Fill && p.BarWidthPx == 0 &&
+		p.BridgeLayout == "" && p.Sortable == nil && p.Expandable == nil &&
+		p.Exportable == nil && p.RowGroupField == "" && p.Focus == "" && !p.Stack
 }
 
 type TableColumn struct {

@@ -295,6 +295,46 @@ export const LineWithSeriesLegend: Story = () => {
 }
 LineWithSeriesLegend.storyName = 'Line with series legend'
 
+/**
+ * Written premium is the sum of its two sources, so the columns stack; earned
+ * premium is a different basis and runs over them as a line rather than
+ * pretending to be a third source.
+ */
+const compositionPanel: Panel = {
+  id: 'composition', kind: 'bar', title: 'Премия по источникам', semantics: 'series', frame: 'composition:frame',
+  encoding: { category: 'period', series: 'metric', value: 'amount' },
+  format: { amount: money },
+  presentation: { legend: 'below', stack: true, lineSeries: ['Заработанная премия'] },
+  actions: [],
+}
+
+const compositionFrame: Frame = {
+  columns: [
+    { name: 'period', type: 'string' },
+    { name: 'metric', type: 'string' },
+    { name: 'amount', type: 'number' },
+  ],
+  rows: [
+    ['2024', 'Прямое страхование', 30_000_000_000],
+    ['2024', 'Входящее перестрахование', 42_000_000_000],
+    ['2024', 'Заработанная премия', 64_000_000_000],
+    ['2025', 'Прямое страхование', 38_000_000_000],
+    ['2025', 'Входящее перестрахование', 222_000_000_000],
+    ['2025', 'Заработанная премия', 218_000_000_000],
+    ['2026', 'Прямое страхование', 21_000_000_000],
+    ['2026', 'Входящее перестрахование', 73_000_000_000],
+    ['2026', 'Заработанная премия', 91_000_000_000],
+  ],
+}
+
+export const StackedComposition: Story = () => {
+  const doc = storyDocument([compositionPanel], { 'composition:frame': compositionFrame }, {
+    rows: [{ heading: 'СОСТАВ ПРЕМИИ', panels: [{ panelId: 'composition', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+StackedComposition.storyName = 'Stacked composition with a line'
+
 const skeletonRows = [
   { items: [{ span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }, { span: 3, kind: 'stat' as const }] },
   { heading: true, items: [{ span: 6, kind: 'pie' as const }, { span: 6, kind: 'coverage' as const }] },

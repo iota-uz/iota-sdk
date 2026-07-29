@@ -4,6 +4,7 @@ package panel
 import (
 	"bytes"
 	"encoding/json"
+	"reflect"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
@@ -362,11 +363,21 @@ type PresentationHints struct {
 	// RowGroupField names a frame column carrying a per-row group tag on a table
 	// panel, enabling collapsible member rows behind a synthetic toggle row.
 	RowGroupField string
+	// LineSeries names series a stacked bar draws as a line over the columns.
+	// A measure on another basis — earned against written, actual against plan
+	// — reads beside the stack, never as one of its parts.
+	LineSeries []string
 	// FocusCanvas opts a drill-hosting panel into focus chrome in the wire
 	// runtime: a persistent breadcrumb, a parent-context header, and a
 	// standalone lens selector around the drilled visualization. Non-focus
 	// panels render exactly as before.
 	FocusCanvas bool
+}
+
+// IsZero reports whether no hint is set. LineSeries makes PresentationHints
+// uncomparable, so callers ask this instead of comparing against a zero value.
+func (h PresentationHints) IsZero() bool {
+	return len(h.LineSeries) == 0 && reflect.DeepEqual(h, PresentationHints{})
 }
 
 // RadialMode selects the geometry of a radial panel.

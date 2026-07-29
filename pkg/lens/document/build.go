@@ -521,7 +521,23 @@ func buildPresentation(spec panel.Spec) *Presentation {
 	if spec.ShowLegend {
 		hints.LegendBelow = true
 	}
-	return convertPresentation(hints)
+	return presentationForKind(hints, spec.Kind)
+}
+
+// presentationForKind adds what only the panel's kind can say. A stacked bar
+// and a grouped bar share one wire kind, so the stacking has to travel as a
+// hint: without it a producer that asked for parts of a whole gets columns
+// standing side by side, which states something else entirely.
+func presentationForKind(hints panel.PresentationHints, kind panel.Kind) *Presentation {
+	presentation := convertPresentation(hints)
+	if kind != panel.KindStackedBar {
+		return presentation
+	}
+	if presentation == nil {
+		presentation = &Presentation{}
+	}
+	presentation.Stack = true
+	return presentation
 }
 
 // convertPresentation maps Go-side presentation hints onto the wire, returning
@@ -565,10 +581,11 @@ func convertPresentation(hints panel.PresentationHints) *Presentation {
 		presentation.Exportable = boolPtr(false)
 	}
 	presentation.RowGroupField = hints.RowGroupField
+	presentation.LineSeries = append([]string(nil), hints.LineSeries...)
 	if hints.FocusCanvas {
 		presentation.Focus = FocusModeCanvas
 	}
-	if presentation == (Presentation{}) {
+	if presentation.isZero() {
 		return nil
 	}
 	return &presentation
@@ -993,7 +1010,11 @@ func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDepende
 			return Frame{}, err
 		}
 		built.Total = frameTotal(spec)
-		built.Presentation = convertPresentation(spec.Presentation)
+		// A served frame's presentation outranks the panel's in the runtime, so
+		// the two are built the same way. Anything less and a frame that
+		// carries one hint silently drops every other: a stack becomes a
+		// group, a legend disappears.
+		built.Presentation = buildPresentation(spec)
 		built.Colors = append([]string(nil), spec.Colors...)
 		return built, nil
 	}

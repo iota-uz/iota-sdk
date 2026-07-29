@@ -577,19 +577,26 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
   const colorByCategory = isBar && input.presentation?.colorBy === 'category'
   const barWidth = input.presentation?.barWidthPx
+  // A stack states that its segments add up to the column, so only the series
+  // that really are parts of the whole may join it: anything the producer
+  // named as a line is drawn over the columns instead, on the same axis but
+  // outside the sum.
+  const lineSeries = new Set(input.presentation?.lineSeries ?? [])
+  const stacked = isBar && input.presentation?.stack === true
   const categoryColor = (category: string, index: number) =>
     theme.seriesColor(category) ?? input.seriesColor?.(category, index) ?? theme.colors[index % theme.colors.length]
   const series = seriesNames.map((name, index) => ({
-    type: isBar ? 'bar' as const : 'line' as const,
+    type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
     name: name || undefined,
     universalTransition: { enabled: morphEnabled() },
-    barWidth: isBar && barWidth ? barWidth : undefined,
+    stack: stacked && !lineSeries.has(name) ? 'total' : undefined,
+    barWidth: isBar && !lineSeries.has(name) && barWidth ? barWidth : undefined,
     // The panel's resolver knows about colours pinned to the n-th series of
     // this panel; ECharts' own palette does not, and left to itself it walks a
     // default sequence that has nothing to do with the legend beside it.
     itemStyle: { color: theme.seriesColor(name) ?? input.seriesColor?.(name, index) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
-    showSymbol: !isBar,
+    showSymbol: !isBar || lineSeries.has(name),
     data: timeAxis
       ? points
         .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
