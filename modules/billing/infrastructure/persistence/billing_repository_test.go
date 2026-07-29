@@ -53,6 +53,51 @@ func TestBillingRepository_Create(t *testing.T) {
 	assert.Equal(t, "https://example.com/pay", click.Link())
 }
 
+func TestBillingRepository_CreateNewGateways(t *testing.T) {
+	t.Parallel()
+	f := setupTest(t)
+	repository := persistence.NewBillingRepository()
+
+	tenant, err := composables.UseTenantID(f.Ctx)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name    string
+		gateway billing.Gateway
+		details details.Details
+	}{
+		{
+			name:    "transfer",
+			gateway: billing.Transfer,
+			details: details.NewTransferDetails(details.TransferWithComment("bank transfer")),
+		},
+		{
+			name:    "uzum",
+			gateway: billing.Uzum,
+			details: details.NewPayoutDetails(details.PayoutWithData(map[string]any{
+				"external_id": "cashback-42",
+				"direction":   "outbound",
+			})),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			transaction := billing.New(
+				100,
+				billing.UZS,
+				tt.gateway,
+				tt.details,
+				billing.WithTenantID(tenant),
+				billing.WithStatus(billing.Created),
+			)
+
+			created, err := repository.Save(f.Ctx, transaction)
+			require.NoError(t, err)
+			assert.Equal(t, tt.gateway, created.Gateway())
+		})
+	}
+}
+
 func TestBillingRepository_GetByID(t *testing.T) {
 	t.Parallel()
 	f := setupTest(t)

@@ -4,7 +4,7 @@ CREATE TABLE billing_transactions (
     status varchar(50) NOT NULL CHECK (status IN ('created', 'pending', 'completed', 'failed', 'canceled', 'refunded', 'partially-refunded', 'expired')),
     quantity float8 NOT NULL,
     currency varchar(3) NOT NULL CHECK (currency IN ('UZS', 'USD', 'EUR', 'RUB')),
-    gateway varchar(50) NOT NULL CHECK (gateway IN ('click', 'payme', 'octo', 'stripe')),
+    gateway varchar(50) NOT NULL CHECK (gateway IN ('click', 'payme', 'octo', 'stripe', 'cash', 'transfer', 'integrator', 'uzum')),
     details jsonb NOT NULL,
     created_at timestamptz NOT NULL DEFAULT NOW(),
     updated_at timestamptz NOT NULL DEFAULT NOW()

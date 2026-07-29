@@ -9,6 +9,7 @@ import (
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/billing"
 	"github.com/iota-uz/iota-sdk/modules/billing/domain/aggregates/details"
 	"github.com/iota-uz/iota-sdk/modules/billing/infrastructure/persistence/models"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
 func ToDomainTransaction(dbRow *models.Transaction) (billing.Transaction, error) {
@@ -62,6 +63,8 @@ func ToDBTransaction(entity billing.Transaction) (*models.Transaction, error) {
 }
 
 func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Details, error) {
+	const op serrors.Op = "billing.persistence.ToDomainDetails"
+
 	switch gateway {
 	case billing.Click:
 		var d models.ClickDetails
@@ -205,6 +208,13 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 		cashDetails := details.NewCashDetails(details.CashWithData(d.Data))
 		return cashDetails, nil
 
+	case billing.Uzum:
+		var d models.PayoutDetails
+		if err := json.Unmarshal(data, &d); err != nil {
+			return nil, serrors.E(op, err, "deserialize payout details")
+		}
+		return details.NewPayoutDetails(details.PayoutWithData(d.Data)), nil
+
 	case billing.Transfer:
 		var d models.TransferDetails
 		if err := json.Unmarshal(data, &d); err != nil {
@@ -233,6 +243,8 @@ func ToDomainDetails(gateway billing.Gateway, data json.RawMessage) (details.Det
 }
 
 func ToDBDetails(data details.Details) (json.RawMessage, error) {
+	const op serrors.Op = "billing.persistence.ToDBDetails"
+
 	switch d := data.(type) {
 	case details.ClickDetails:
 		return json.Marshal(&models.ClickDetails{
@@ -336,6 +348,15 @@ func ToDBDetails(data details.Details) (json.RawMessage, error) {
 		return json.Marshal(&models.CashDetails{
 			Data: d.Data(),
 		})
+
+	case details.PayoutDetails:
+		result, err := json.Marshal(&models.PayoutDetails{
+			Data: d.Data(),
+		})
+		if err != nil {
+			return nil, serrors.E(op, err, "serialize payout details")
+		}
+		return result, nil
 
 	case details.TransferDetails:
 		return json.Marshal(&models.TransferDetails{
