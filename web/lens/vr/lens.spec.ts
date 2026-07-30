@@ -119,11 +119,11 @@ const staticStories = [
   ['drawer-host--closed-light', 0],
   ['drawer-host--error', 0],
   ['drawer-host--loading', 0],
-  ['drawer-host--long-document-scrolls', 0],
+  ['drawer-host--long-document-scrolls', 0, 10],
   ['drawer-host--open-dark', 0],
-  ['drawer-host--open-light', 0],
+  ['drawer-host--open-light', 0, 10],
   ['drawer-host--open-over-expanded-panel', 0],
-  ['drawer-host--open-wide', 0],
+  ['drawer-host--open-wide', 0, 10],
   // A donut host renders one ECharts canvas; the card-corner raster is bistable
   // across a few antialiased pixels like the other focus stories (#932).
   ['drawer-host--open-wide-focus-canvas', 1, 50],
