@@ -1000,6 +1000,27 @@
     @apply lens-flex-none;
   }
 
+  /* The ⓘ affordance and its bubble. It sits next to the title, because the
+     note explains the panel's subject rather than being a control you apply to
+     it. The wrapper is the positioning context, so the bubble hangs off the
+     glyph and grows rightwards into the card. */
+  .lens-info-tip {
+    @apply lens-relative lens-flex lens-flex-none lens-items-center;
+  }
+
+  .lens-info-tip-bubble {
+    @apply lens-absolute lens-left-0 lens-top-full lens-z-30 lens-mt-1.5 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+    box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-info-tip-title {
+    @apply lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
+  }
+
+  .lens-info-tip-text {
+    @apply lens-whitespace-pre-line lens-text-xs lens-leading-relaxed lens-text-muted;
+  }
+
   .lens-panel-caption {
     @apply lens-m-0 lens-whitespace-pre-line lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4 lens-py-3 lens-text-sm lens-leading-relaxed lens-text-muted;
   }
@@ -1305,8 +1326,12 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  /* A caption may carry more than one statement (the formula, then a variant
+     of the same figure). Newlines in the producer's text are the separator, so
+     they must survive: run together, two statements read as one broken
+     sentence. */
   .lens-stat-metric-caption {
-    @apply lens-m-0 lens-text-[11px] lens-leading-tight lens-text-muted;
+    @apply lens-m-0 lens-whitespace-pre-line lens-text-[11px] lens-leading-tight lens-text-muted;
   }
 
   /* The value and its trend line share one baseline-anchored row; the sparkline
@@ -1988,6 +2013,7 @@
     background: var(--lens-accent-500);
   }
 
+
   /* The part of the movement that differs in kind from the rest, banded at the
      top of the same bar. It is deliberately a second shade of the bar's own
      colour rather than a new hue: it is still the same cost, told apart, not a
@@ -2065,6 +2091,16 @@
 
   .lens-waterfall-bar[data-tone='inflow'] {
     background: var(--lens-warn);
+  }
+
+  /* A total the cascade carries on past. Same colour family as the closing
+     total — it IS a total — but hollowed out, so the one solid dark column
+     stays unambiguously the place the cascade ends. Placed after the tone rules
+     and carrying both attributes so a checkpoint keeps its outline whatever
+     tone the producer declared on it. */
+  .lens-waterfall-bar[data-kind='end'][data-checkpoint='true'] {
+    background: color-mix(in srgb, var(--lens-accent-500) 16%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--lens-accent-500);
   }
 
   .lens-waterfall-bar[data-tone='negative'] strong {
@@ -4128,24 +4164,24 @@
     }
   }
 
+  /* The label's inline edge is anchored to the tick and its max-width is the
+     room left on that side (both set inline by CoveragePanel), so it can never
+     reach past the track. */
   .lens-coverage-bullet-label {
     position: absolute;
     top: 27px;
-    transform: translateX(-50%);
     font-size: 10.5px;
     line-height: 1.3;
     color: var(--lens-text-muted);
     white-space: nowrap;
-    max-width: 60%;
     overflow: hidden;
     text-overflow: ellipsis;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
-  /* A marker in the right half hangs its label leftwards so it cannot clip
-     against the card edge. */
+  /* A tick past the midpoint reads its label to the left of the notch. */
   .lens-coverage-bullet-label-end {
-    transform: translateX(-100%);
+    text-align: right;
   }
 
   /* -- stat sparkline (Panel.sparkline) ----------------------------------- */

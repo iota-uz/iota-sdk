@@ -623,6 +623,43 @@ describe('cascade stages', () => {
     )).toBe(false)
   })
 
+  it('draws each pure-total final row in place, so a cascade can pass through a checkpoint', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [
+        ['Earned premium', 200, 0, '', false],
+        ['Claims paid', 190, 10, 'Claims paid', false],
+        // The statutory result: a total the reader recognises, mid-cascade.
+        ['Underwriting result', 190, 0, '', true],
+        ['Case reserves', 170, 20, 'Case reserves', false],
+        ['Pre-tax result', 170, 0, '', true],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    expect(items.map(({ label, kind, checkpoint }) => ({ label, kind, checkpoint }))).toEqual([
+      { label: 'Earned premium', kind: 'start', checkpoint: undefined },
+      { label: 'Claims paid', kind: 'decrease', checkpoint: undefined },
+      // Stands on zero where it was declared, not hoisted to the end...
+      { label: 'Underwriting result', kind: 'end', checkpoint: true },
+      { label: 'Case reserves', kind: 'decrease', checkpoint: undefined },
+      // ...and only the last total is the finish.
+      { label: 'Pre-tax result', kind: 'end', checkpoint: undefined },
+    ])
+    // Both totals stand on zero and carry their absolute value, not a delta.
+    expect(items.filter((item) => item.kind === 'end').map((item) => item.value)).toEqual([190, 170])
+  })
+
   it('keeps a genuine sub-unit movement on a small-scale waterfall', () => {
     const cascade = panel('cascade', {
       encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },

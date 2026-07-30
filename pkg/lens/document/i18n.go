@@ -97,6 +97,7 @@ const (
 	I18nPanelCollapse            = "panel.collapse"
 	I18nPanelEmpty               = "panel.empty"
 	I18nPanelExpand              = "panel.expand"
+	I18nPanelInfo                = "panel.info"
 	I18nPanelMissing             = "panel.missing"
 	I18nPanelOpenMetric          = "panel.openMetric"
 	I18nPanelRetry               = "panel.retry"
@@ -242,7 +243,7 @@ func RuntimeI18nKeys() []string {
 		I18nFocusToParent, I18nFocusViewAs,
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint,
-		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelMissing, I18nPanelOpenMetric,
+		I18nPanelCollapse, I18nPanelEmpty, I18nPanelExpand, I18nPanelInfo, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintBreakdown, I18nPrintCategory,
 		I18nPrintContents, I18nPrintFailed, I18nPrintFigure,

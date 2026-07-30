@@ -71,6 +71,7 @@ export function WaterfallPlot({ model, label, interaction, role = 'img', childre
                 )}
                 <div
                   className="lens-waterfall-bar"
+                  data-checkpoint={item.checkpoint}
                   data-kind={item.kind}
                   data-tone={item.tone}
                   style={{

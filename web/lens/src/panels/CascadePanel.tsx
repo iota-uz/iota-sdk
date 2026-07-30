@@ -131,6 +131,13 @@ export interface WaterfallItem {
   connectorTop: number
   zero: number
   kind: 'start' | 'increase' | 'decrease' | 'end'
+  /**
+   * True on a total that the cascade carries on past — a milestone rather than
+   * the finish. Two identically filled dark columns would otherwise read as two
+   * endings; the checkpoint takes a lighter treatment so the eye still knows
+   * which bar the cascade stops at.
+   */
+  checkpoint?: boolean
   annotation: string
   /** Explicit semantic tone overriding the direction default; absent = default. */
   tone?: CascadeTone
@@ -252,6 +259,7 @@ export function buildWaterfallModel(
   }]
   const magnitude = Math.max(...stages.map((stage) => Math.abs(stage.value)), 1)
   const residual = magnitude * 1e-6
+  let totalDrawn = false
   for (let index = 1; index < stages.length; index += 1) {
     const previousStage = stages[index - 1]
     const currentStage = stages[index]
@@ -259,14 +267,31 @@ export function buildWaterfallModel(
     const previous = previousStage.value
     const current = currentStage.value
     const value = current - previous
-    // A final=true row is a closing TOTAL checkpoint, not a stage-to-stage
-    // movement. The canonical closing row restates the running total it closes
-    // (cut=0), so a delta bar here would be a zero-height "+0" duplicate of the
-    // synthesized `end` total below. Skip it; it is drawn once as that end bar.
-    // A final row carrying a genuine movement stays a real deduction/addition
-    // and renders here as before. The running totals arrive as floating-point
-    // sums, so suppress only residuals relative to the scale of the data.
-    if (currentStage.final && Math.abs(value) < residual) continue
+    // A final=true row is a TOTAL checkpoint, not a stage-to-stage movement.
+    // The canonical checkpoint row restates the running total it closes
+    // (cut=0), so a delta bar here would be a zero-height "+0" duplicate; it is
+    // drawn instead as a full-height `end` bar standing on zero, IN PLACE. A
+    // cascade may declare several — a statutory result mid-chart that the
+    // remaining stages then carry on to a second, final total — and each one
+    // marks its own position rather than being hoisted to the end. A final row
+    // carrying a genuine movement stays a real deduction/addition and renders
+    // below as before. The running totals arrive as floating-point sums, so
+    // suppress only residuals relative to the scale of the data.
+    if (currentStage.final && Math.abs(value) < residual) {
+      raw.push({
+        label: currentStage.label,
+        from: 0,
+        to: current,
+        value: current,
+        kind: 'end',
+        tone: currentStage.tone,
+        annotation: currentStage.annotation,
+        split: 0,
+        splitLabel: '',
+      })
+      totalDrawn = true
+      continue
+    }
     raw.push({
       label: currentStage.cutLabel || currentStage.label,
       from: previous,
@@ -280,9 +305,10 @@ export function buildWaterfallModel(
       rowIndex: currentStage.rowIndex,
     })
   }
-  if (stages.length > 1) {
-    // Prefer an explicit final=true stage as the closing total; fall back to the
-    // last stage for frames that never mark one (back-compat, unchanged output).
+  if (stages.length > 1 && !totalDrawn) {
+    // No row drew itself as a checkpoint, so the cascade still needs a closing
+    // total: prefer an explicit final=true stage, and fall back to the last
+    // stage for frames that never mark one (back-compat, unchanged output).
     const closing = stages.find((stage) => stage.final) ?? stages.at(-1)
     if (closing) {
       raw.push({
@@ -312,7 +338,7 @@ export function buildWaterfallModel(
   const y = (value: number) => Math.max(0, Math.min(100, (plotMaximum - value) / plotRange * 100))
 
   const zero = y(0)
-  const items = raw.map((item) => {
+  const items = raw.map((item, index) => {
     const top = y(Math.max(item.from, item.to))
     const bottom = y(Math.min(item.from, item.to))
     const height = Math.max(1.5, bottom - top)
@@ -349,6 +375,7 @@ export function buildWaterfallModel(
       connectorTop: y(item.to),
       zero,
       kind: item.kind,
+      checkpoint: item.kind === 'end' && index < raw.length - 1 ? true : undefined,
       tone: item.tone,
       annotation: item.annotation,
       rowIndex: item.rowIndex,

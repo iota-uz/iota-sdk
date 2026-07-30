@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Panel } from '../contract'
 import { clampedDeltaPercent, type PanelFrameState, useDocumentRefreshing, useFormat, useTranslate } from '../runtime'
 import { ExportButton } from './ExportButton'
+import { InfoTip } from './InfoTip'
 import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
 import { PanelOverlay } from './PanelOverlay'
@@ -67,8 +68,17 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   // A stat headline reads number-first: the value leads, and its supporting
   // caption (exact figure, then the muted explainer + period) sits beneath it
   // rather than pushing the number below the fold.
+  //
+  // A chart panel gets no caption band at all: on a card whose whole job is a
+  // plot, a paragraph of prose above it is a permanent tax that pushes the
+  // figure below the fold. The caption joins `info` behind the header's ⓘ,
+  // which is what the templ runtime already does for stat descriptions.
   const captionBelow = variant === 'stat'
-  const captionNode = panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
+  const captionNode = captionBelow && panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
+  const infoText = [variant === 'chart' ? panel.caption : '', panel.info]
+    .map((part) => part?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n\n')
 
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => {
@@ -116,6 +126,10 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         {/* A drill trail replaces the static title: it says where the panel is
             and how to get back without spending a row of the grid. */}
         {chrome?.trail ?? <h3 className="lens-panel-title" title={panel.title}>{panel.title}</h3>}
+        {/* The note explains the panel's subject, so it hangs off the title
+            rather than joining the controls: export and expand are things you
+            do to the panel, this is something the panel says. */}
+        {infoText && <InfoTip text={infoText} />}
         {chrome?.explore}
         <div className="lens-panel-actions">
           {showTotal && (
@@ -142,7 +156,6 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
           )}
         </div>
       </header>
-      {!captionBelow && captionNode}
       <div className="lens-panel-body">
         {showLoading ? (
           <PanelSkeletonBody kind={panel.kind} />
