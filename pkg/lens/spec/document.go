@@ -133,6 +133,11 @@ type DatasetSpec struct {
 type RowSpec struct {
 	Panels []PanelSpec `json:"panels"`
 	Class  string      `json:"class,omitempty"`
+	// Anchor, when set, gives the rendered section an element id so anything
+	// on the page can link to it with a fragment. A summary card whose subject
+	// is expanded by a section further down should take the reader there
+	// rather than reopen the same content in a drawer.
+	Anchor string `json:"anchor,omitempty"`
 	// Heading, when set, renders the row as a section header band instead of
 	// a panel grid. Used to group panels into labeled sections.
 	Heading Text `json:"heading,omitempty,omitzero"`

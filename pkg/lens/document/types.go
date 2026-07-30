@@ -89,9 +89,12 @@ type Layout struct {
 }
 
 type LayoutRow struct {
-	Heading string       `json:"heading,omitempty"`
-	Class   string       `json:"class,omitempty"`
-	Panels  []LayoutItem `json:"panels"`
+	Heading string `json:"heading,omitempty"`
+	Class   string `json:"class,omitempty"`
+	// Anchor is rendered as the section's element id, making the row a link
+	// target within the page.
+	Anchor string       `json:"anchor,omitempty"`
+	Panels []LayoutItem `json:"panels"`
 }
 
 type LayoutItem struct {

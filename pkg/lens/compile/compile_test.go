@@ -382,6 +382,29 @@ func TestDocumentRejectsHeadingRowWithPanels(t *testing.T) {
 	require.ErrorContains(t, err, `row heading "Summary" cannot be combined with panels`)
 }
 
+// A row anchor is what makes a section addressable from elsewhere on the page,
+// so it has to survive the compile step that everything else about the row
+// goes through.
+func TestDocumentCarriesRowAnchorThrough(t *testing.T) {
+	t.Parallel()
+
+	doc := lensspec.Document{
+		Version: lensspec.DocumentVersion,
+		ID:      "manual-report",
+		Title:   lensspec.LiteralText("Manual"),
+		Rows: []lensspec.RowSpec{
+			{Heading: lensspec.LiteralText("Result"), Anchor: "manual-report-result"},
+			{Panels: []lensspec.PanelSpec{{ID: "total", Kind: panel.KindStat}}},
+		},
+	}
+
+	compiled, err := Document(doc, Options{Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, compiled.Spec.Rows, 2)
+	require.Equal(t, "manual-report-result", compiled.Spec.Rows[0].Anchor)
+	require.Empty(t, compiled.Spec.Rows[1].Anchor)
+}
+
 func TestDocumentTreatsBlankHeadingAsPanelRow(t *testing.T) {
 	t.Parallel()
 

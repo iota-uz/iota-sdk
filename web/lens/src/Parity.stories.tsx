@@ -263,6 +263,33 @@ export const PieWithLegendBelowDark: Story = () => {
 }
 PieWithLegendBelowDark.storyName = 'Pie with legend right - dark'
 
+/**
+ * The same panel with the legend the real dashboard has: enough long Russian
+ * labels to fill the right-hand column top to bottom. Two entries centre
+ * themselves mid-column and leave the top corner empty, which is why this
+ * layout passed its stories for months while the live «Итого» sat on the first
+ * legend row. The total must clear the legend at every list length.
+ */
+const premiumTallFrame: Frame = {
+  columns: premiumFrame.columns,
+  rows: [
+    ['earned', 'Заработанная часть премии, подписанной в периоде', 105_814_921_823],
+    ['unearned', 'Незаработанная часть премии, подписанной в периоде', 57_985_078_177],
+    ['direct', 'Чистая прямая подписанная премия', 6_900_000_000],
+    ['inward', 'Входящее перестрахование', 255_700_000_000],
+    ['ceded', 'Исходящее перестрахование, переданное партнёрам', 14_360_000_000],
+    ['coinsurance', 'Сострахование', 2_140_000_000],
+  ],
+}
+
+export const PieWithTallLegend: Story = () => {
+  const doc = storyDocument([premiumPanel], { 'premium:frame': premiumTallFrame }, {
+    rows: [{ heading: 'ПРЕМИИ', panels: [{ panelId: 'premium', span: 6 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+PieWithTallLegend.storyName = 'Pie with tall legend'
+
 const trendPanel: Panel = {
   id: 'trend', kind: 'line', title: 'Премия и поступления', semantics: 'series', frame: 'trend:frame',
   encoding: { category: 'period', series: 'metric', value: 'amount' },

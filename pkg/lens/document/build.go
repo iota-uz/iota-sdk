@@ -103,7 +103,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 
 	hosts := explorerHosts(spec.Explorers)
 	for _, rowSpec := range spec.Rows {
-		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Panels: make([]LayoutItem, 0)}
+		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Anchor: rowSpec.Anchor, Panels: make([]LayoutItem, 0)}
 		for _, panelSpec := range rowSpec.Panels {
 			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow, nil); err != nil {
 				return nil, serrors.E(op, err)

@@ -304,6 +304,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     <PanelFrame panel={panel} frame={frame} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
         <div className="lens-chart-area">
+          {/* Above the plot, in flow — see PlotTotalBadge. */}
+          {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
+            <PlotTotalBadge panel={panel} total={shareTotal} />
+          )}
           {input && (
             <ChartHost
               input={input}
@@ -316,9 +320,6 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             />
           )}
         </div>
-        {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
-          <PlotTotalBadge panel={panel} total={shareTotal} />
-        )}
         {hasLegend && frame.data && (
           <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} presentation={presentation} total={shareTotal} />
         )}
@@ -332,6 +333,18 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   )
 }
 
+/**
+ * The plot's own total, as the first row OF the plot column rather than a chip
+ * floating over it.
+ *
+ * It used to be absolutely positioned, and every time something new appeared in
+ * whichever corner it had been parked in, the fix was to park it in another
+ * corner: away from the drill-back overlay, then out from under the chart
+ * toolbar, then out of the plot and into the panel body's top-right — which on a
+ * wide panel is the legend column, so it landed on the first legend entry. An
+ * overlay has to be told what to avoid, and the list of things to avoid keeps
+ * growing. In flow it takes its own height and nothing can be under it.
+ */
 function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
   const translate = useTranslate()
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)

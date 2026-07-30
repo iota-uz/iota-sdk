@@ -485,6 +485,23 @@ describe('chart legend series toggle', () => {
     return { ...view, inputs }
   }
 
+  it('keeps the total badge in the plot column, ahead of the plot', () => {
+    const { container } = renderPie()
+
+    // The badge has been absolutely positioned three times and has collided
+    // with three different neighbours — the last being the legend column, which
+    // is what the panel body's top-right corner IS on a wide panel. It lives in
+    // flow at the top of the plot column now, and the stylesheet lays it out
+    // from that position: a badge hoisted back up to `.lens-chart-layout` would
+    // be over the legend again the moment the panel is wide.
+    const area = container.querySelector('.lens-chart-area')
+    const badge = container.querySelector('.lens-plot-total')
+
+    expect(badge?.parentElement).toBe(area)
+    expect(area?.firstElementChild).toBe(badge)
+    expect(container.querySelector('.lens-chart-layout > .lens-plot-total')).toBeNull()
+  })
+
   it('removes the datum so the chart re-normalizes, and follows the total badge', async () => {
     const { inputs, container } = renderPie()
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))

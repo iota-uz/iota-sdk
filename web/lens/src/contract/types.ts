@@ -175,6 +175,7 @@ export interface LayoutItem {
 export interface LayoutRow {
   heading?: string
   class?: string
+  anchor?: string
   panels: Array<LayoutItem>
 }
 

@@ -198,6 +198,7 @@ export const LayoutItemSchema: z.ZodType<Contract.LayoutItem> = z.object({
 export const LayoutRowSchema: z.ZodType<Contract.LayoutRow> = z.object({
   heading: z.string().optional(),
   class: z.string().optional(),
+  anchor: z.string().optional(),
   panels: z.array(z.lazy(() => LayoutItemSchema)),
 }).strict()
 

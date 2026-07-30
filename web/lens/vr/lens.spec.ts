@@ -98,6 +98,7 @@ const storyIds = [
   'parity--panel-skeletons-light',
   'parity--pie-with-legend-right--light',
   'parity--pie-with-legend-right--dark',
+  'parity--pie-with-tall-legend',
   'parity--tab-group',
 ] as const
 
@@ -199,6 +200,9 @@ const staticStories = [
   ['parity--panel-skeletons-light', 0],
   ['parity--pie-with-legend-right--light', 1],
   ['parity--pie-with-legend-right--dark', 1],
+  // A legend long enough to reach the top of its column — the arrangement the
+  // total badge kept colliding with and the two-entry stories never produced.
+  ['parity--pie-with-tall-legend', 1],
   ['parity--tab-group', 0],
 ] as const
 

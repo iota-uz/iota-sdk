@@ -129,9 +129,13 @@
     to { opacity: 1; }
   }
 
+  /* Fluid, not fixed: the drawer hosts real charts, and a slab pinned at 720px
+     spent the same width on a 1280px laptop and a 2560px desk. It keeps 720 as
+     its floor (the width every drawer was designed against) and grows with the
+     viewport up to a ceiling, so the page behind it is still visibly the page. */
   .lens-drawer {
     @apply lens-flex lens-h-[100dvh] lens-w-full lens-flex-col lens-bg-card lens-text-text lens-shadow-2xl;
-    max-width: min(720px, calc(100vw - 24px));
+    max-width: min(clamp(720px, 56vw, 1040px), calc(100vw - 24px));
     animation: lens-drawer-enter 180ms ease-out;
   }
 
@@ -204,9 +208,20 @@
   }
 
   /* The wide variant hosts cross-metric detail views (a full focus canvas
-     inside the drawer); same chrome, same slide, roomier slab. */
+     inside the drawer); same chrome, same slide, roomier slab. It starts where
+     the default tier stops so the two stay distinguishable at every width. */
   .lens-drawer-wide {
-    max-width: min(1080px, calc(100vw - 24px));
+    max-width: min(clamp(1040px, 68vw, 1280px), calc(100vw - 24px));
+  }
+
+  /* A drawer is a column, not a page. Authored spans assume a dashboard's
+     width: two half-span charts inside a drawer land near 300px each, below
+     every threshold the chart internals degrade on — the legend that should sit
+     beside a donut drops under it, and a product name wraps to three lines. One
+     panel per row instead, at the drawer's full width. (The focus canvas has
+     claimed the same exemption since it arrived; this generalises it.) */
+  .lens-drawer-document .lens-grid-item {
+    grid-column: 1 / -1;
   }
 
   @keyframes lens-drawer-enter {
@@ -899,8 +914,11 @@
     @apply lens-flex lens-flex-col lens-gap-6;
   }
 
+  /* A row can be a link target (LayoutRow.anchor). Host pages carry a sticky
+     top bar, so land the section below it rather than under it. */
   .lens-dashboard-row {
     @apply lens-min-w-0;
+    scroll-margin-top: 5rem;
   }
 
   /* Section headings sit a tier above panel titles: same uppercase family, but
@@ -1597,8 +1615,11 @@
   /* Plot and legend share the body. It stacks them by default (narrow panel);
      a wide panel moves the legend into a right-hand column, and the plot claims
      the freed width and sits on the left. */
+  /* Deliberately NOT a positioning context: the total badge was anchored here
+     once and quietly resolved "top right" against the legend column. Nothing
+     inside this box is absolute any more, and nothing should become absolute
+     without saying what it is meant to line up with. */
   .lens-chart-layout {
-    position: relative;
     display: flex;
     flex: 1 1 0%;
     min-height: 0;
@@ -1618,18 +1639,32 @@
     }
 
     /* A vertical list pinned to the right, centred against the plot; it scrolls
-       inside its own column when there are more entries than height. */
+       inside its own column when there are more entries than height.
+       The cap is stated in rem rather than as `100%`, which resolves against a
+       container whose height the legend itself is setting — a 25-product legend
+       stretched the card to 1856px and left the donut adrift in the middle of
+       it. It is a shade over `.lens-chart-host`'s own 19rem floor, so a legend
+       that fits beside the plot never scrolls and a longer one scrolls instead
+       of dragging the plot's height along with it. An expanded panel has a real
+       height to measure against, so there the legend follows it. */
     .lens-chart-layout-legend > .lens-chart-legend {
       flex: 0 0 auto;
       width: clamp(9rem, 32%, 15rem);
-      max-height: 100%;
+      max-height: var(--lens-chart-legend-max, 21rem);
       flex-direction: column;
       flex-wrap: nowrap;
       align-items: stretch;
-      justify-content: center;
+      /* `safe` so a list longer than the column starts at its first entry.
+         Plain centring pushes the overflow out of both ends and opens on the
+         middle of the legend, with the first products above the scroll origin. */
+      justify-content: safe center;
       align-self: center;
       overflow-y: auto;
       padding: 0.75rem 0.5rem;
+    }
+
+    .lens-panel-expanded .lens-chart-layout-legend > .lens-chart-legend {
+      --lens-chart-legend-max: 100%;
     }
 
     /* Side-column rows stack label over value: mark + label on the first
@@ -1684,8 +1719,10 @@
     @apply lens-p-0;
   }
 
+  /* In flow at the top of the plot column, aligned right. Never absolute: an
+     overlay only ever moves the collision somewhere else. */
   .lens-plot-total {
-    @apply lens-pointer-events-none lens-absolute lens-right-3 lens-top-3 lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-pointer-events-none lens-mr-3 lens-mt-3 lens-self-end lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -3655,15 +3692,10 @@
   }
 
   /* A focus-canvas host inside a drawer is the drawer's whole subject, so it
-     wears the canvas treatment at rest, not only while exploring: it spans the
-     drawer's full width, carries the card frame once, and gives its body room
-     to breathe so the drawer never reads as a small card stranded in a corner.
-     Scoped to the drawer — a resting focus host on the main dashboard keeps its
-     authored span and card, so nothing there changes. */
-  .lens-drawer-document .lens-grid-item:has(> .lens-explore-drawer-focus) {
-    grid-column: 1 / -1;
-  }
-
+     wears the canvas treatment at rest, not only while exploring: it carries
+     the card frame once and gives its body room to breathe so the drawer never
+     reads as a small card stranded in a corner. (Spanning the drawer's full
+     width is no longer stated here — every panel in a drawer does that now.) */
   .lens-explore-drawer-focus {
     container: lens-focus / inline-size;
     box-sizing: border-box;
