@@ -36,8 +36,6 @@ func TestNormalizeProviderErrorKnownCodes(t *testing.T) {
 	}
 
 	for code, expected := range tests {
-		code := code
-		expected := expected
 		t.Run(code, func(t *testing.T) {
 			t.Parallel()
 			assert.Equal(t, expected, NormalizeProviderError(code, ""))

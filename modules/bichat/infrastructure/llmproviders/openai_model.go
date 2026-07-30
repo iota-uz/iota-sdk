@@ -231,8 +231,6 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 
 // Stream sends a streaming request to the OpenAI Responses API.
 func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
-	const op serrors.Op = "OpenAIModel.Stream"
-
 	config := agents.ApplyGenerateOptions(opts...)
 
 	return types.NewGenerator(ctx, func(genCtx context.Context, yield func(agents.Chunk) bool) error {
@@ -409,7 +407,10 @@ type openAIStreamError struct {
 }
 
 func (e *openAIStreamError) Error() string {
-	payload, _ := json.Marshal(e)
+	payload, err := json.Marshal(e)
+	if err != nil {
+		return e.Message
+	}
 	return string(payload)
 }
 

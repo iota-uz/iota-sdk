@@ -243,6 +243,8 @@ func (s *chatServiceImpl) reconcileContinuationRunState(
 
 	err := s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
 		switch runtimeRun.Status() {
+		case domain.GenerationRunStatusStreaming:
+			return nil
 		case domain.GenerationRunStatusCompleted:
 			return s.chatRepo.CompleteRun(txCtx, run.ID())
 		case domain.GenerationRunStatusFailed:

@@ -170,6 +170,8 @@ const staticStories = [
   ['panels-v2--cascade-final-stage', 0],
   ['panels-v2--cascade-semantic-tone', 0],
   ['panels-v2--export-idle', 0],
+  ['panels-v2--panel-info-tip-dark', 0],
+  ['panels-v2--panel-info-tip-light', 0],
   ['panels-v2--export-pending', 0],
   ['panels-v2--export-snapshot-retry', 0],
   ['panels-v2--table-columns', 0],
