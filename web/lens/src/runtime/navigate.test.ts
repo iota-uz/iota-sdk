@@ -66,4 +66,12 @@ describe('navigateTo', () => {
 
     expect(assign).toHaveBeenCalledWith('/analytics/drill/earned_premium')
   })
+
+  it('navigates normally when a fragment has malformed encoding', () => {
+    const assign = stubLocation()
+
+    navigateTo('#%E0%A4%A')
+
+    expect(assign).toHaveBeenCalledWith('#%E0%A4%A')
+  })
 })

@@ -254,7 +254,7 @@ func (m *OpenAIModel) consumeOpenAIStream(
 	yield func(agents.Chunk) bool,
 	emitted *bool,
 ) error {
-	const op serrors.Op = "OpenAIModel.Stream"
+	const op serrors.Op = "OpenAIModel.consumeOpenAIStream"
 
 	stream := m.client.Responses.NewStreaming(ctx, params)
 	defer func() {

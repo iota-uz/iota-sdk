@@ -14,7 +14,7 @@ func TestParseProviderStreamError(t *testing.T) {
 	t.Parallel()
 
 	raw := `StreamController.StreamMessage: Executor.Execute: OpenAIModel.Stream: stream error: received error while streaming: {"type":"insufficient_quota","code":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details.","param":null}`
-	code, message, ok := parseProviderStreamError(raw)
+	code, message, ok := bichatmodsvcs.ParseProviderStreamError(raw)
 	require.True(t, ok)
 	assert.Equal(t, "insufficient_quota", code)
 	assert.Equal(t, "You exceeded your current quota, please check your plan and billing details.", message)
@@ -23,7 +23,7 @@ func TestParseProviderStreamError(t *testing.T) {
 func TestParseProviderStreamError_NoJSON(t *testing.T) {
 	t.Parallel()
 
-	code, message, ok := parseProviderStreamError("plain upstream failure")
+	code, message, ok := bichatmodsvcs.ParseProviderStreamError("plain upstream failure")
 	assert.False(t, ok)
 	assert.Empty(t, code)
 	assert.Empty(t, message)
@@ -33,7 +33,7 @@ func TestParseProviderStreamError_CodeMarker(t *testing.T) {
 	t.Parallel()
 
 	raw := `provider stream failed: {"code":"rate_limit_exceeded","message":"Rate limit exceeded.","type":""}`
-	code, message, ok := parseProviderStreamError(raw)
+	code, message, ok := bichatmodsvcs.ParseProviderStreamError(raw)
 	require.True(t, ok)
 	assert.Equal(t, "rate_limit_exceeded", code)
 	assert.Equal(t, "Rate limit exceeded.", message)

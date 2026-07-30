@@ -385,7 +385,7 @@ func TestDocumentRejectsHeadingRowWithPanels(t *testing.T) {
 // A row anchor is what makes a section addressable from elsewhere on the page,
 // so it has to survive the compile step that everything else about the row
 // goes through.
-func TestDocumentCarriesRowAnchorThrough(t *testing.T) {
+func TestDocument_RowAnchorIsPreserved(t *testing.T) {
 	t.Parallel()
 
 	doc := lensspec.Document{

@@ -33,7 +33,11 @@ function sameDocumentAnchor(url: string): string | undefined {
   if (target.origin !== here.origin || target.pathname !== here.pathname || target.search !== here.search) {
     return undefined
   }
-  return decodeURIComponent(target.hash.slice(1))
+  try {
+    return decodeURIComponent(target.hash.slice(1))
+  } catch {
+    return undefined
+  }
 }
 
 function scrollToAnchor(id: string): void {

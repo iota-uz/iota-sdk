@@ -731,7 +731,7 @@ func (c *StreamController) streamClientErrorMessage(err error, chunkType bichats
 		return sanitizeErrorString(err)
 	}
 
-	code, _, _ := parseProviderStreamError(err.Error())
+	code, _, _ := bichatmodsvcs.ParseProviderStreamError(err.Error())
 	if normalized := bichatmodsvcs.NormalizeProviderError(code, err.Error()); normalized != "" {
 		return normalized
 	}
@@ -743,39 +743,4 @@ func sanitizeErrorString(err error) string {
 		return ""
 	}
 	return "internal error"
-}
-
-// parseProviderStreamError expects provider errors to include a JSON fragment
-// containing "type"/"code"/"message". It scans the raw string for {"type": or
-// {"code":, then attempts to unmarshal that fragment. If parsing fails, it
-// intentionally returns ok=false so callers fall back to a generic safe message.
-func parseProviderStreamError(raw string) (string, string, bool) {
-	start := strings.Index(raw, "{\"type\":")
-	if start < 0 {
-		start = strings.Index(raw, "{\"code\":")
-	}
-	if start < 0 {
-		return "", "", false
-	}
-	fragment := raw[start:]
-	end := strings.LastIndex(fragment, "}")
-	if end < 0 {
-		return "", "", false
-	}
-	fragment = fragment[:end+1]
-
-	var providerErr struct {
-		Type    string `json:"type"`
-		Code    string `json:"code"`
-		Message string `json:"message"`
-	}
-	if err := json.Unmarshal([]byte(fragment), &providerErr); err != nil {
-		return "", "", false
-	}
-
-	code := providerErr.Code
-	if strings.TrimSpace(code) == "" {
-		code = providerErr.Type
-	}
-	return code, providerErr.Message, strings.TrimSpace(code) != ""
 }

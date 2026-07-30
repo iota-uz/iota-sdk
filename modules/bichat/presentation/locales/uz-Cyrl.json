@@ -429,8 +429,8 @@
       "Skip": "O'tkazib yuborish"
     },
   "StreamError": {
-    "Retry": "Qayta urinish",
-    "Regenerate": "Qayta yaratish",
+    "Retry": "Қайта уриниш",
+    "Regenerate": "Қайта яратиш",
     "AdminAction": "Муаммони тизим администратори ҳал қилиши керак.",
     "OpenBilling": "OpenAI биллингини очиш",
     "OpenAPIKeys": "API калитларини очиш",

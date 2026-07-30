@@ -1,6 +1,9 @@
 package services
 
-import "strings"
+import (
+	"encoding/json"
+	"strings"
+)
 
 const (
 	ProviderBillingBalanceExhaustedError  = "provider_billing_balance_exhausted"
@@ -80,20 +83,24 @@ func NormalizeProviderError(code, raw string) string {
 	}
 
 	normalizedRaw := strings.ToLower(raw)
-	for marker, canonical := range map[string]string{
-		"credit_balance_exhausted":          ProviderBillingBalanceExhaustedError,
-		"organization_spend_limit_exceeded": ProviderBillingOrgSpendLimitError,
-		"project_spend_limit_exceeded":      ProviderBillingProjectSpendLimitError,
-		"organization_usage_limit_exceeded": ProviderBillingOrgUsageLimitError,
-		"insufficient_quota":                ProviderBillingQuotaError,
-		"rate_limit_exceeded":               ProviderRateLimitedError,
-		"invalid_api_key":                   ProviderAuthInvalidError,
-		"context_length_exceeded":           ProviderContextLimitError,
-		"response_incomplete":               ProviderResponseIncompleteError,
-		"response_failed":                   ProviderResponseFailedError,
-	} {
-		if strings.Contains(normalizedRaw, marker) {
-			return canonical
+	rawMarkers := []struct {
+		marker    string
+		canonical string
+	}{
+		{"credit_balance_exhausted", ProviderBillingBalanceExhaustedError},
+		{"organization_spend_limit_exceeded", ProviderBillingOrgSpendLimitError},
+		{"project_spend_limit_exceeded", ProviderBillingProjectSpendLimitError},
+		{"organization_usage_limit_exceeded", ProviderBillingOrgUsageLimitError},
+		{"insufficient_quota", ProviderBillingQuotaError},
+		{"rate_limit_exceeded", ProviderRateLimitedError},
+		{"invalid_api_key", ProviderAuthInvalidError},
+		{"context_length_exceeded", ProviderContextLimitError},
+		{"response_incomplete", ProviderResponseIncompleteError},
+		{"response_failed", ProviderResponseFailedError},
+	}
+	for _, item := range rawMarkers {
+		if strings.Contains(normalizedRaw, item.marker) {
+			return item.canonical
 		}
 	}
 
@@ -110,4 +117,34 @@ func NormalizeProviderError(code, raw string) string {
 	default:
 		return ""
 	}
+}
+
+func ParseProviderStreamError(raw string) (string, string, bool) {
+	start := strings.Index(raw, "{\"type\":")
+	if start < 0 {
+		start = strings.Index(raw, "{\"code\":")
+	}
+	if start < 0 {
+		return "", "", false
+	}
+	fragment := raw[start:]
+	end := strings.LastIndex(fragment, "}")
+	if end < 0 {
+		return "", "", false
+	}
+
+	var providerErr struct {
+		Type    string `json:"type"`
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal([]byte(fragment[:end+1]), &providerErr); err != nil {
+		return "", "", false
+	}
+
+	code := strings.TrimSpace(providerErr.Code)
+	if code == "" {
+		code = strings.TrimSpace(providerErr.Type)
+	}
+	return code, providerErr.Message, code != ""
 }

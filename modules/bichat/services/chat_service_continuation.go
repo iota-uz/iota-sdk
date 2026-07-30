@@ -241,7 +241,9 @@ func (s *chatServiceImpl) reconcileContinuationRunState(
 		runtimeRun = failedRun
 	}
 
-	err := s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
+	reconcileCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	err := s.withinTx(reconcileCtx, func(txCtx context.Context) error {
 		switch runtimeRun.Status() {
 		case domain.GenerationRunStatusStreaming:
 			return nil

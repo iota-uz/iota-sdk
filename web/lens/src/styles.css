@@ -135,6 +135,7 @@
      viewport up to a ceiling, so the page behind it is still visibly the page. */
   .lens-drawer {
     @apply lens-flex lens-h-[100dvh] lens-w-full lens-flex-col lens-bg-card lens-text-text lens-shadow-2xl;
+
     max-width: min(clamp(720px, 56vw, 1040px), calc(100vw - 24px));
     animation: lens-drawer-enter 180ms ease-out;
   }
@@ -918,6 +919,7 @@
      top bar, so land the section below it rather than under it. */
   .lens-dashboard-row {
     @apply lens-min-w-0;
+
     scroll-margin-top: 5rem;
   }
 
@@ -1028,6 +1030,7 @@
 
   .lens-info-tip-bubble {
     @apply lens-absolute lens-left-0 lens-top-full lens-z-30 lens-mt-1.5 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+
     box-shadow: var(--lens-shadow-popover);
   }
 

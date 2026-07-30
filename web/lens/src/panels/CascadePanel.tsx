@@ -259,7 +259,6 @@ export function buildWaterfallModel(
   }]
   const magnitude = Math.max(...stages.map((stage) => Math.abs(stage.value)), 1)
   const residual = magnitude * 1e-6
-  let totalDrawn = false
   for (let index = 1; index < stages.length; index += 1) {
     const previousStage = stages[index - 1]
     const currentStage = stages[index]
@@ -288,8 +287,8 @@ export function buildWaterfallModel(
         annotation: currentStage.annotation,
         split: 0,
         splitLabel: '',
+        rowIndex: currentStage.rowIndex,
       })
-      totalDrawn = true
       continue
     }
     raw.push({
@@ -305,11 +304,8 @@ export function buildWaterfallModel(
       rowIndex: currentStage.rowIndex,
     })
   }
-  if (stages.length > 1 && !totalDrawn) {
-    // No row drew itself as a checkpoint, so the cascade still needs a closing
-    // total: prefer an explicit final=true stage, and fall back to the last
-    // stage for frames that never mark one (back-compat, unchanged output).
-    const closing = stages.find((stage) => stage.final) ?? stages.at(-1)
+  if (stages.length > 1 && raw.at(-1)?.kind !== 'end') {
+    const closing = stages.at(-1)
     if (closing) {
       raw.push({
         label: closing.label,
@@ -321,6 +317,7 @@ export function buildWaterfallModel(
         annotation: closing.annotation,
         split: 0,
         splitLabel: '',
+        rowIndex: closing.rowIndex,
       })
     }
   }
