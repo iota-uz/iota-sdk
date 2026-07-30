@@ -210,8 +210,58 @@ export const RadialMicroSlice: Story = () => (
   </div>
 )
 
+/**
+ * Three decompositions of one whole — the shape the accumulated-premium donut
+ * ships: how much is recognised, how much is collected, and which risk groups
+ * it came from. Three rings is where the band arithmetic is tightest, so this
+ * is the case that proves the hub still clears the innermost ring.
+ */
+const threeRingFrame: Frame = {
+  columns: radialPartitionFrame.columns,
+  rows: [
+    ['earned', 'Earned', 'recognition', 64],
+    ['unearned', 'Unearned', 'recognition', 36],
+    ['received', 'Received', 'payment', 91],
+    ['receivable', 'Receivable', 'payment', 9],
+    ['motor', 'Motor', 'groups', 52],
+    ['property', 'Property', 'groups', 31],
+    ['liability', 'Liability', 'groups', 17],
+  ],
+}
+
+function threeRingInput(): ChartInput {
+  return {
+    kind: 'radial',
+    frame: threeRingFrame,
+    encoding: { id: 'id', label: 'label', series: 'ring', value: 'value' },
+    format: (_field, value) => formatFieldValue(value, { kind: 'number', minorUnits: false, precision: 0 }, 'en-US'),
+    theme: chartTheme,
+    presentation: { sliceLabels: 'percent' },
+    radial: {
+      mode: 'partition',
+      rings: [
+        { key: 'recognition', label: 'Recognition', order: 1, total: 100 },
+        { key: 'payment', label: 'Collection', order: 2, total: 100 },
+        { key: 'groups', label: 'Risk group', order: 3, total: 100 },
+      ],
+    },
+  }
+}
+
 export const RadialLight: Story = () => <RadialFamily mode="light" />
 export const RadialDark: Story = () => <RadialFamily mode="dark" />
+export const RadialThreeRings: Story = () => (
+  <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
+    <section className="lens-stat-card">
+      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Three rings, one whole</h2>
+      <ChartPreview chartInput={threeRingInput()} />
+    </section>
+    <section className="lens-stat-card lens-root" data-theme="dark">
+      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Dark</h2>
+      <ChartPreview chartInput={threeRingInput()} />
+    </section>
+  </div>
+)
 export const RadialNarrow: Story = () => (
   <div className="lens-root" data-theme="light" style={{ width: 420 }}>
     <section className="lens-stat-card">

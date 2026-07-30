@@ -28,6 +28,37 @@ export function seriesColorResolver(
     ?? panel.accent
 }
 
+/**
+ * Resolves the colour of one frame *row*: the served frame's own positional
+ * palette first, then a series entry keyed by the row's id, then everything
+ * `seriesColorResolver` knows.
+ *
+ * A drill level ships its palette on the frame rather than on the panel — the
+ * aggregation that just ran is the only thing that knows which of its rows is
+ * the collapsed remainder and owes the neutral. The plot read that palette and
+ * the legend did not, so a level drew an arc in one colour and printed another
+ * in the swatch beside it. Both sides come through here now, each handed the
+ * frame it is actually drawing: the plot the visible rows, the legend all of
+ * them, so a hidden entry cannot slide the palette off its rows either.
+ */
+export function rowColorResolver(
+  theme: Theme,
+  panel: Panel,
+  { colors, positional = true }: { colors?: readonly string[]; positional?: boolean } = {},
+): (label: string, index: number, nodeKey?: string) => string | undefined {
+  const series = seriesColorResolver(theme, panel, { positional })
+  // A blank pin is an absent one. The document copies a producer's colour list
+  // verbatim onto the frame, holes included, and `??` would hand ECharts an
+  // empty string to paint with.
+  const resolve = (value: string | undefined) => {
+    const named = value?.trim()
+    return named ? theme.palette[named] ?? named : undefined
+  }
+  return (label, index, nodeKey) => resolve(colors?.[index])
+    ?? resolve(nodeKey ? theme.series[nodeKey] : undefined)
+    ?? series(label, index)
+}
+
 export function columnIndex(frame: Frame | undefined, field: string | undefined): number {
   if (!frame || !field?.trim()) return -1
   return frame.columns.findIndex((column) => column.name === field)

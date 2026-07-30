@@ -1,22 +1,24 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { CaretDoubleLeft, CaretDoubleRight, CaretLeft, CaretRight } from '../icons'
+import { CaretLeft, CaretRight } from '../icons'
 import type { TranslationVars } from '../runtime'
 import {
   addMonths,
   clampDate,
   compareDates,
   dayLabel,
+  daysInMonth,
   firstDayOfWeek,
   formatISODate,
   keyboardTarget,
   monthGrid,
   monthLabel,
+  monthShortLabels,
   previewRange,
-  rangeDayCount,
   rangeDayState,
   selectDay,
   sameDate,
   weekdayLabels,
+  yearBlock,
   type CalendarDate,
   type CalendarKey,
   type MonthCell,
@@ -71,10 +73,14 @@ function useNarrow(): boolean {
   return narrow
 }
 
+/** The day grid, or the month/year jump panel that temporarily replaces it. */
+type CalendarView = 'days' | 'months' | 'years'
+
 /**
  * A dual-pane range calendar on the Lens design tokens: two consecutive
  * months side by side (one pane below the stacked breakpoint), one navigation
- * window that shifts by month or year. The day cells form roving-tabindex
+ * window that steps by month. Deep jumps go through the month/year panel
+ * behind the heading rather than a second pair of carets. The day cells form roving-tabindex
  * ARIA grids: arrows move by day and week, PageUp/PageDown by month, Home/End
  * to the locale's week bounds, Enter/Space picks. Out-of-month padding days
  * are decorative placeholders — never shaded, never interactive. Month
@@ -90,6 +96,8 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
   const [visibleMonth, setVisibleMonth] = useState<CalendarDate>(startOfMonth(initialFocus))
   const [hover, setHover] = useState<CalendarDate>()
   const [announcement, setAnnouncement] = useState('')
+  const [view, setView] = useState<CalendarView>('days')
+  const [panelYear, setPanelYear] = useState(initialFocus.year)
   const panesRef = useRef<HTMLDivElement>(null)
   const focusPending = useRef(false)
 
@@ -188,12 +196,6 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
 
   const weekdays = weekdayLabels(locale, firstDay)
   const focusWindow = inWindow(focused)
-  const draftComplete = draft.start && draft.end && compareDates(draft.start, draft.end) <= 0
-  const hint = draftComplete
-    ? translate('filter.period.dayCount', '{count} d.', { count: rangeDayCount(draft.start!, draft.end!) })
-    : !draft.start
-      ? translate('calendar.hintStart', 'Select a start date')
-      : translate('calendar.hintEnd', 'Select an end date')
 
   const monthNav = useCallback((offset: number) => {
     const month = addMonths(visibleMonth, offset)
@@ -202,8 +204,105 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
     setFocused((current) => clampDate(addMonths(current, offset), min, max))
   }, [locale, max, min, visibleMonth])
 
+  const openMonthPanel = (year: number) => {
+    setPanelYear(year)
+    setView('months')
+  }
+
+  /** A whole month is unreachable when it falls entirely outside min/max. */
+  const monthDisabled = (year: number, month: number) => (
+    (min !== undefined && compareDates({ year, month, day: daysInMonth(year, month) }, min) < 0) ||
+    (max !== undefined && compareDates({ year, month, day: 1 }, max) > 0)
+  )
+
+  const yearDisabled = (year: number) => (
+    (min !== undefined && year < min.year) || (max !== undefined && year > max.year)
+  )
+
+  const pickMonth = (month: number) => {
+    const target = { year: panelYear, month, day: 1 }
+    setVisibleMonth(target)
+    setFocused((current) => clampDate({ ...target, day: Math.min(current.day, daysInMonth(panelYear, month)) }, min, max))
+    setAnnouncement(monthLabel(locale, panelYear, month))
+    setView('days')
+  }
+
+  // The jump panel takes the day grid's place: months for one year, or the
+  // twelve-year block that year sits in. It is the only way to travel far,
+  // which is why the heading that opens it is a button in every pane.
+  if (view !== 'days') {
+    const years = yearBlock(panelYear)
+    const monthsView = view === 'months'
+    const step = monthsView ? 1 : 12
+    const heading = monthsView ? String(panelYear) : `${years[0]} – ${years[years.length - 1]}`
+    const monthNames = monthShortLabels(locale)
+    return (
+      <div className="lens-calendar" data-panes={paneCount} data-view={view}>
+        <div className="lens-calendar-jump">
+          <div className="lens-calendar-header">
+            <span className="lens-calendar-nav-group">
+              <button
+                aria-label={translate('calendar.prevPage', 'Previous')}
+                className="lens-calendar-nav"
+                onClick={() => setPanelYear((current) => current - step)}
+                type="button"
+              >
+                <CaretLeft size={12} />
+              </button>
+            </span>
+            <button
+              className="lens-calendar-month"
+              onClick={() => setView(monthsView ? 'years' : 'months')}
+              type="button"
+            >
+              {heading}
+            </button>
+            <span className="lens-calendar-nav-group">
+              <button
+                aria-label={translate('calendar.nextPage', 'Next')}
+                className="lens-calendar-nav"
+                onClick={() => setPanelYear((current) => current + step)}
+                type="button"
+              >
+                <CaretRight size={12} />
+              </button>
+            </span>
+          </div>
+          <div className="lens-calendar-jump-grid">
+            {monthsView
+              ? monthNames.map((name, index) => (
+                <button
+                  aria-pressed={panelYear === visibleMonth.year && index + 1 === visibleMonth.month}
+                  className="lens-calendar-jump-cell"
+                  disabled={monthDisabled(panelYear, index + 1)}
+                  key={name}
+                  onClick={() => pickMonth(index + 1)}
+                  type="button"
+                >
+                  {name}
+                </button>
+              ))
+              : years.map((year) => (
+                <button
+                  aria-pressed={year === visibleMonth.year}
+                  className="lens-calendar-jump-cell"
+                  disabled={yearDisabled(year)}
+                  key={year}
+                  onClick={() => { setPanelYear(year); setView('months') }}
+                  type="button"
+                >
+                  {year}
+                </button>
+              ))}
+          </div>
+        </div>
+        <div aria-live="polite" className="lens-visually-hidden" role="status">{announcement}</div>
+      </div>
+    )
+  }
+
   return (
-    <div className="lens-calendar" data-panes={paneCount}>
+    <div className="lens-calendar" data-panes={paneCount} data-view="days">
       <div
         className="lens-calendar-panes"
         onKeyDown={onKeyDown}
@@ -224,47 +323,34 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
               <div className="lens-calendar-header">
                 <span className="lens-calendar-nav-group">
                   {paneIndex === 0 && (
-                    <>
-                      <button
-                        aria-label={translate('calendar.prevYear', 'Previous year')}
-                        className="lens-calendar-nav"
-                        onClick={() => monthNav(-12)}
-                        type="button"
-                      >
-                        <CaretDoubleLeft />
-                      </button>
-                      <button
-                        aria-label={translate('calendar.prevMonth', 'Previous month')}
-                        className="lens-calendar-nav"
-                        onClick={() => monthNav(-1)}
-                        type="button"
-                      >
-                        <CaretLeft size={12} />
-                      </button>
-                    </>
+                    <button
+                      aria-label={translate('calendar.prevMonth', 'Previous month')}
+                      className="lens-calendar-nav"
+                      onClick={() => monthNav(-1)}
+                      type="button"
+                    >
+                      <CaretLeft size={12} />
+                    </button>
                   )}
                 </span>
-                <span aria-hidden="true" className="lens-calendar-month">{heading}</span>
+                <button
+                  aria-label={`${translate('calendar.chooseMonth', 'Choose month')}: ${heading}`}
+                  className="lens-calendar-month"
+                  onClick={() => openMonthPanel(month.year)}
+                  type="button"
+                >
+                  {heading}
+                </button>
                 <span className="lens-calendar-nav-group">
                   {paneIndex === paneMonths.length - 1 && (
-                    <>
-                      <button
-                        aria-label={translate('calendar.nextMonth', 'Next month')}
-                        className="lens-calendar-nav"
-                        onClick={() => monthNav(1)}
-                        type="button"
-                      >
-                        <CaretRight size={12} />
-                      </button>
-                      <button
-                        aria-label={translate('calendar.nextYear', 'Next year')}
-                        className="lens-calendar-nav"
-                        onClick={() => monthNav(12)}
-                        type="button"
-                      >
-                        <CaretDoubleRight />
-                      </button>
-                    </>
+                    <button
+                      aria-label={translate('calendar.nextMonth', 'Next month')}
+                      className="lens-calendar-nav"
+                      onClick={() => monthNav(1)}
+                      type="button"
+                    >
+                      <CaretRight size={12} />
+                    </button>
                   )}
                 </span>
               </div>
@@ -334,7 +420,6 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
           )
         })}
       </div>
-      <p className="lens-calendar-hint" data-complete={draftComplete || undefined}>{hint}</p>
       <div aria-live="polite" className="lens-visually-hidden" role="status">{announcement}</div>
     </div>
   )

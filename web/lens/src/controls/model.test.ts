@@ -4,6 +4,7 @@ import {
   addMonths,
   canonicalCalendarLocale,
   clampDate,
+  compactRangeLabel,
   dayLabel,
   dayOfWeek,
   daysInMonth,
@@ -12,12 +13,15 @@ import {
   keyboardTarget,
   monthGrid,
   monthLabel,
+  monthShortLabels,
   parseISODate,
   previewRange,
   rangeDayState,
+  rangeHint,
   resolvePreset,
   selectDay,
   weekdayLabels,
+  yearBlock,
   type CalendarDate,
   type PeriodPresetId,
 } from './model'
@@ -260,5 +264,38 @@ describe('locale data', () => {
   it('formats day labels for announcements', () => {
     expect(dayLabel('en', date(2026, 7, 22))).toContain('2026')
     expect(dayLabel('ru', date(2026, 7, 22))).toContain('июл')
+  })
+
+  it('names the twelve short months per locale', () => {
+    const en = monthShortLabels('en')
+    expect(en).toHaveLength(12)
+    expect(en[0]).toBe('Jan')
+    // Standalone Cyrillic month names arrive lowercase; the panel capitalizes.
+    expect(monthShortLabels('ru')[0]).toMatch(/^[А-ЯЁ]/)
+  })
+
+  it('aligns the year block to multiples of twelve', () => {
+    expect(yearBlock(2026)).toEqual([2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025, 2026, 2027])
+    // Any year in a block yields the same block; the next one starts after it.
+    expect(yearBlock(2016)[0]).toBe(2016)
+    expect(yearBlock(2027)[0]).toBe(2016)
+    expect(yearBlock(2028)[0]).toBe(2028)
+  })
+
+  it('states a range compactly, collapsing a single day', () => {
+    expect(compactRangeLabel(date(2026, 1, 1), date(2026, 7, 22))).toBe('01.01.26 – 22.07.26')
+    expect(compactRangeLabel(date(2026, 3, 5), date(2026, 3, 5))).toBe('05.03.26')
+  })
+
+  it('summarizes a draft as a day count, or the next step it needs', () => {
+    const translate = (_key: string, fallback: string, vars?: Record<string, string | number>) => (
+      vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => String(vars[name] ?? match)) : fallback
+    )
+    expect(rangeHint({}, translate)).toBe('Select a start date')
+    expect(rangeHint({ start: date(2026, 7, 3) }, translate)).toBe('Select an end date')
+    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 18) }, translate)).toBe('16 d.')
+    // A single-day range counts one, and an inverted draft is not a range yet.
+    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 3) }, translate)).toBe('1 d.')
+    expect(rangeHint({ start: date(2026, 7, 18), end: date(2026, 7, 3) }, translate)).toBe('Select an end date')
   })
 })

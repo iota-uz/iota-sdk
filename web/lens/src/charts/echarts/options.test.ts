@@ -138,9 +138,11 @@ describe('slice percentages', () => {
     const chart = testOption(buildChartOption(chartInput, theme))
 
     expect(chart.series.map((series) => series.id)).toEqual(['actual', 'plan'])
+    // Equal bands around a hub that stays clear — the hub is where the total
+    // badge sits, and a ring thicker than the hole reads as a filled disc.
     expect(chart.series.map((series) => series.radius)).toEqual([
-      ['59%', '90%'],
-      ['25%', '56%'],
+      ['66.5%', '90%'],
+      ['40%', '63.5%'],
     ])
     expect(chart.series[1]?.data?.[0]).toMatchObject({
       name: 'North',
@@ -476,8 +478,10 @@ describe('buildChartOption', () => {
   })
 
   it('paints pie slices from the panel resolver when the theme names no colour', () => {
+    // A slice is a row, so it resolves through the row-indexed half of the
+    // panel's resolver — the same one its legend swatches come from.
     const chartInput = input('pie')
-    chartInput.seriesColor = (_label, index) => ['#111111', '#222222', '#333333', '#444444'][index]
+    chartInput.rowColor = (_label, index) => ['#111111', '#222222', '#333333', '#444444'][index]
 
     const chart = testOption(buildChartOption(chartInput, theme))
     const colors = (chart.series[0]?.data ?? []).map((item) => item?.itemStyle?.color)

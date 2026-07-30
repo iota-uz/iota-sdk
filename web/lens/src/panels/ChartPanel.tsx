@@ -7,7 +7,7 @@ import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePane
 import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
-import { encodingRoles, seriesColorResolver } from './data'
+import { encodingRoles, rowColorResolver, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
 export interface ChartPanelProps {
@@ -220,6 +220,13 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     () => seriesColorResolver(document.theme, panel, { positional: !active }),
     [active, document.theme, panel],
   )
+  // The row-indexed half of the same rule. It is handed the *visible* palette
+  // because the plot draws the visible rows; the legend builds its own over the
+  // full frame, and the two agree row for row either way.
+  const rowColor = useMemo(
+    () => rowColorResolver(document.theme, panel, { colors: frameColors, positional: !active }),
+    [active, document.theme, frameColors, panel],
+  )
 
   const input = useMemo(() => visibleFrame ? ({
     kind,
@@ -231,11 +238,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     theme: document.theme,
     selectedKey,
     presentation,
-    colors: frameColors,
     seriesColor,
+    rowColor,
     radial: panel.radial,
     expandable,
-  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, frameColors, kind, panel.encoding, presentation, panel.radial, selectedKey, seriesColor, visibleFrame])
+  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, kind, panel.encoding, presentation, panel.radial, rowColor, selectedKey, seriesColor, visibleFrame])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.
@@ -343,6 +350,27 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
   // positional color pins no longer describe them.
   const atLevel = navigation.panelId === panel.id && navigation.path.length > 0
   const color = seriesColorResolver(document.theme, panel, { positional: !atLevel })
+  // Part-to-whole entries stand for rows, and a row's colour can come off the
+  // frame the level served — which `color` cannot see. Same resolver the plot
+  // is built with, over the whole frame rather than the visible part of it.
+  const rowColor = rowColorResolver(document.theme, panel, { colors: frame.colors, positional: !atLevel })
+  const idIndex = panel.encoding.id ? frame.columns.findIndex((column) => column.name === panel.encoding.id) : -1
+  // The plot pins one colour per category across every ring of a partition, so
+  // its palette index is the category's, not the row's (see `categoryOrder` in
+  // the chart adapter). Anywhere else a row is its own category.
+  const categoryOrder = new Map<string, number>()
+  if (panel.radial?.mode === 'partition') {
+    frame.rows.forEach((_, index) => {
+      const key = legendKey(frame, panel, index)
+      if (!categoryOrder.has(key)) categoryOrder.set(key, categoryOrder.size)
+    })
+  }
+  const swatch = (label: string, index: number, entryIndex: number): string | undefined => {
+    if (seriesLegendIndex >= 0) return color(label, entryIndex)
+    const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : undefined
+    const nodeKey = typeof raw === 'string' && raw.trim() !== '' ? raw : undefined
+    return rowColor(label, categoryOrder.get(legendKey(frame, panel, index)) ?? index, nodeKey)
+  }
   // A time series repeats its series name for every period, while a partition
   // radial repeats a category across rings. Both need one legend entry per key.
   const entries = seriesLegendIndex >= 0 || panel.radial?.mode === 'partition'
@@ -442,7 +470,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
               <span
                 aria-hidden="true"
                 className="lens-chart-legend-mark"
-                style={{ background: isHidden ? undefined : color(label, entryIndex) }}
+                style={{ background: isHidden ? undefined : swatch(label, index, entryIndex) }}
               />
               <span className="lens-chart-legend-label">{label}</span>
               {suffixFor(index) !== 'none' && (

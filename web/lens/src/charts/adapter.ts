@@ -32,18 +32,23 @@ export interface ChartInput {
    * Absent means "unknown", which keeps the whole-chart treatment.
    */
   expandable?: (key: string) => boolean
-  // Per-row palette shipped with a served frame, indexed like its rows. It
-  // outranks the document palette so a level can paint its remainder neutral
-  // without the placeholder panel knowing a remainder exists.
-  colors?: string[]
   /**
    * The panel's own colour resolver — the same function its legend uses. The
    * chart cannot derive it: a document pins colours positionally, per panel
    * (`panelId:index`), and the chart knows neither which panel it is drawing
    * nor that such pins exist. Without it a panel's declared colours reach the
    * legend and never the plot, and the two disagree in front of the reader.
+   *
+   * Indexed by series (or, for a distributed bar, by category) ordinal.
    */
   seriesColor?: (label: string, index: number) => string | undefined
+  /**
+   * The same resolver indexed by frame *row*, which is what a part-to-whole
+   * chart draws. It also carries the per-row palette a served frame ships —
+   * that palette outranks the document's, so a drill level can paint its
+   * remainder neutral without the placeholder panel knowing a remainder exists.
+   */
+  rowColor?: (label: string, index: number, nodeKey?: string) => string | undefined
 }
 
 /** Viewport coordinates of the activated mark, used to anchor an overlay. */

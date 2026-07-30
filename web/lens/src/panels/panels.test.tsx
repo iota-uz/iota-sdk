@@ -354,7 +354,30 @@ describe('chart encoding and drill behavior', () => {
     // The pins are positional: keeping Alpha's after dropping Alpha's row
     // would paint Beta's slice with Alpha's colour.
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(1))
-    expect(inputs.at(-1)?.colors).toEqual(['#222222'])
+    expect(inputs.at(-1)?.rowColor?.('Beta', 0, 'beta')).toBe('#222222')
+  })
+
+  it('prints a legend swatch in the colour its slice is drawn with', async () => {
+    const frame: Frame = {
+      columns: dataFrame.columns,
+      rows: [
+        ['alpha', 'Alpha', '2026-07-01T00:00:00Z', 'actual', 60],
+        ['beta', 'Beta', '2026-07-01T00:00:00Z', 'actual', 40],
+      ],
+      // A served level ships its own palette. The plot has always read it; the
+      // legend used to fall through to the theme ramp and print a colour that
+      // appeared nowhere on the chart.
+      colors: ['#111111', '#222222'],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const pie = panel('pie', { presentation: { legend: 'below' } })
+    const view = render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-mark').length).toBe(2))
+    const marks = Array.from(view.container.querySelectorAll<HTMLElement>('.lens-chart-legend-mark'))
+    expect(marks.map((mark) => mark.style.background)).toEqual(['rgb(17, 17, 17)', 'rgb(34, 34, 34)'])
+    expect(inputs.at(-1)?.rowColor?.('Alpha', 0, 'alpha')).toBe('#111111')
+    expect(inputs.at(-1)?.rowColor?.('Beta', 1, 'beta')).toBe('#222222')
   })
 
   it('renders one legend entry per line series and toggles the whole series', async () => {

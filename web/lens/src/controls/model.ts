@@ -363,7 +363,63 @@ export function weekdayLabels(locale: string, firstDay: number): Array<string> {
   return labels
 }
 
-/** Localized full date, e.g. for the trigger button and announcements. */
+/** Localized full date, e.g. for announcements and accessible names. */
 export function dayLabel(locale: string, date: CalendarDate): string {
   return dateTimeFormat(locale, { day: 'numeric', month: 'short', year: 'numeric' }).format(utcDate(date))
+}
+
+/** Localized short month names, January first, capitalized like the heading. */
+export function monthShortLabels(locale: string): Array<string> {
+  const format = dateTimeFormat(locale, { month: 'short' })
+  return Array.from({ length: 12 }, (_, index) => {
+    const name = format.format(utcDate({ year: 2024, month: index + 1, day: 1 }))
+    return `${name.charAt(0).toUpperCase()}${name.slice(1)}`
+  })
+}
+
+/**
+ * The twelve-year block a year belongs to, aligned to multiples of twelve so
+ * the year panel keeps one stable 4×3 grid however it is reached.
+ */
+export function yearBlock(year: number): Array<number> {
+  const start = Math.floor(year / 12) * 12
+  return Array.from({ length: 12 }, (_, index) => start + index)
+}
+
+/**
+ * The compact numeric day form `dd.mm.yy`. The trigger wears it so the applied
+ * range is stated in the same vocabulary as the typed From/To fields instead of
+ * a second, locale-dependent long form.
+ */
+export function formatCompactDate(date: CalendarDate): string {
+  const day = String(date.day).padStart(2, '0')
+  const month = String(date.month).padStart(2, '0')
+  const year = String(date.year % 100).padStart(2, '0')
+  return `${day}.${month}.${year}`
+}
+
+/** The trigger's range label; a single-day range states one date. */
+export function compactRangeLabel(start: CalendarDate, end: CalendarDate): string {
+  const from = formatCompactDate(start)
+  const to = formatCompactDate(end)
+  return from === to ? from : `${from} – ${to}`
+}
+
+/**
+ * The picker's one-line status: the inclusive day count once the draft is a
+ * usable range, the next-step prompt while it is not. It lives here rather
+ * than in the calendar because the popover footer is what states it.
+ */
+export function rangeHint(
+  draft: RangeDraft,
+  translate: (key: string, fallback: string, vars?: Record<string, string | number>) => string,
+): string {
+  if (draft.start && draft.end && compareDates(draft.start, draft.end) <= 0) {
+    return translate('filter.period.dayCount', '{count} d.', {
+      count: rangeDayCount(draft.start, draft.end),
+    })
+  }
+  return draft.start
+    ? translate('calendar.hintEnd', 'Select an end date')
+    : translate('calendar.hintStart', 'Select a start date')
 }
