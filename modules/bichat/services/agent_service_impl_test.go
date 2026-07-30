@@ -208,6 +208,12 @@ func (s *spyRenderer) Render(block bichatctx.ContextBlock) (bichatctx.RenderedBl
 		}
 		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("history")}}, nil
 
+	case bichatctx.KindContinuation:
+		if v, ok := block.Payload.(string); ok && v != "" {
+			return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage(v)}}, nil
+		}
+		return bichatctx.RenderedBlock{Messages: []types.Message{types.SystemMessage("continuation")}}, nil
+
 	case bichatctx.KindTurn:
 		if t, ok := block.Payload.(codecs.TurnPayload); ok {
 			return bichatctx.RenderedBlock{Messages: []types.Message{types.UserMessage(t.Content)}}, nil
@@ -300,6 +306,7 @@ type mockChatRepository struct {
 	messages    map[uuid.UUID][]types.Message
 	attachments map[uuid.UUID]domain.Attachment
 	artifacts   map[uuid.UUID]domain.Artifact
+	runs        map[uuid.UUID]domain.GenerationRun
 }
 
 func newMockChatRepository() *mockChatRepository {
@@ -308,6 +315,7 @@ func newMockChatRepository() *mockChatRepository {
 		messages:    make(map[uuid.UUID][]types.Message),
 		attachments: make(map[uuid.UUID]domain.Attachment),
 		artifacts:   make(map[uuid.UUID]domain.Artifact),
+		runs:        make(map[uuid.UUID]domain.GenerationRun),
 	}
 }
 
@@ -682,27 +690,245 @@ func (m *mockChatRepository) GetPendingQuestionMessage(ctx context.Context, sess
 }
 
 func (m *mockChatRepository) CreateRun(ctx context.Context, run domain.GenerationRun) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if _, exists := m.runs[run.ID()]; exists {
+		return domain.ErrActiveRunExists
+	}
+	staleBefore := time.Now().Add(-domain.GenerationRunStaleAfter)
+	for id, existing := range m.runs {
+		lastSeen := existing.LastUpdatedAt()
+		if lastSeen.IsZero() {
+			lastSeen = existing.StartedAt()
+		}
+		if existing.Status() == domain.GenerationRunStatusStreaming &&
+			lastSeen.Before(staleBefore) {
+			cancelled, err := existing.Cancel(time.Now())
+			if err != nil {
+				return err
+			}
+			m.runs[id] = cancelled
+		}
+	}
+	for _, existing := range m.runs {
+		if existing.SessionID() == run.SessionID() &&
+			existing.Status() == domain.GenerationRunStatusStreaming {
+			return domain.ErrActiveRunExists
+		}
+	}
+	m.runs[run.ID()] = run
 	return nil
 }
 
 func (m *mockChatRepository) GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (domain.GenerationRun, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	for _, run := range m.runs {
+		if run.SessionID() == sessionID && run.Status() == domain.GenerationRunStatusStreaming {
+			return run, nil
+		}
+	}
 	return nil, domain.ErrNoActiveRun
 }
 
 func (m *mockChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID) (domain.GenerationRun, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	run, ok := m.runs[runID]
+	if ok {
+		return run, nil
+	}
 	return nil, domain.ErrRunNotFound
 }
 
+func (m *mockChatRepository) RestartRun(
+	ctx context.Context,
+	runID uuid.UUID,
+	staleBefore time.Time,
+) (domain.GenerationRun, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	run, ok := m.runs[runID]
+	if !ok {
+		return nil, domain.ErrRunNotFound
+	}
+	if run.Status() == domain.GenerationRunStatusStreaming &&
+		!run.LastUpdatedAt().Before(staleBefore) {
+		return nil, domain.ErrRunNotFound
+	}
+	if run.Status() != domain.GenerationRunStatusStreaming &&
+		run.Status() != domain.GenerationRunStatusCancelled &&
+		run.Status() != domain.GenerationRunStatusFailed {
+		return nil, domain.ErrRunNotFound
+	}
+	for id, existing := range m.runs {
+		if id != runID &&
+			existing.SessionID() == run.SessionID() &&
+			existing.Status() == domain.GenerationRunStatusStreaming {
+			return nil, domain.ErrActiveRunExists
+		}
+	}
+	restarted, err := domain.NewGenerationRun(domain.GenerationRunSpec{
+		ID:        run.ID(),
+		SessionID: run.SessionID(),
+		TenantID:  run.TenantID(),
+		UserID:    run.UserID(),
+		StartedAt: time.Now(),
+	})
+	if err != nil {
+		return nil, err
+	}
+	m.runs[runID] = restarted
+	return restarted, nil
+}
+
 func (m *mockChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	run, ok := m.runs[runID]
+	if !ok {
+		return domain.ErrRunNotFound
+	}
+	updated, err := run.UpdateSnapshot(partialContent, partialMetadata, time.Now())
+	if err != nil {
+		return err
+	}
+	m.runs[runID] = updated
 	return nil
 }
 
 func (m *mockChatRepository) CompleteRun(ctx context.Context, runID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	run, ok := m.runs[runID]
+	if !ok {
+		return nil
+	}
+	completed, err := run.Complete(time.Now())
+	if err != nil {
+		if run.Status() == domain.GenerationRunStatusCompleted {
+			return nil
+		}
+		return err
+	}
+	m.runs[runID] = completed
+	return nil
+}
+
+func (m *mockChatRepository) FailRun(ctx context.Context, runID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	run, ok := m.runs[runID]
+	if !ok {
+		return nil
+	}
+	failed, err := run.Fail(time.Now())
+	if err != nil {
+		if run.Status() == domain.GenerationRunStatusFailed {
+			return nil
+		}
+		return err
+	}
+	m.runs[runID] = failed
 	return nil
 }
 
 func (m *mockChatRepository) CancelRun(ctx context.Context, runID uuid.UUID) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	run, ok := m.runs[runID]
+	if !ok {
+		return nil
+	}
+	cancelled, err := run.Cancel(time.Now())
+	if err != nil {
+		if run.Status() == domain.GenerationRunStatusCancelled {
+			return nil
+		}
+		return err
+	}
+	m.runs[runID] = cancelled
 	return nil
+}
+
+func TestProcessContinuation_UsesInternalBlockWithoutUserTurn(t *testing.T) {
+	t.Parallel()
+
+	agent := newMockAgent()
+	model := newMockModel()
+	renderer := &spyRenderer{}
+	chatRepo := newMockChatRepository()
+	service := NewAgentService(AgentServiceConfig{
+		Agent: agent,
+		Model: model,
+		Policy: bichatctx.ContextPolicy{
+			ContextWindow:     4096,
+			CompletionReserve: 1024,
+			MaxSensitivity:    bichatctx.SensitivityInternal,
+			OverflowStrategy:  bichatctx.OverflowTruncate,
+		},
+		Renderer:     renderer,
+		Checkpointer: newMockCheckpointer(),
+		EventBus:     hooks.NewEventBus(),
+		ChatRepo:     chatRepo,
+	})
+
+	tenantID := uuid.New()
+	sessionID := uuid.New()
+	ctx := composables.WithTenantID(context.Background(), tenantID)
+	require.NoError(t, chatRepo.CreateSession(ctx, mustSession(t,
+		withSessionID(sessionID),
+		withSessionTenantID(tenantID),
+		withSessionUserID(1),
+		withSessionTitle("continuation"),
+	)))
+	require.NoError(t, chatRepo.SaveMessage(ctx, types.UserMessage(
+		"prepare the report",
+		types.WithSessionID(sessionID),
+	)))
+	require.NoError(t, chatRepo.SaveMessage(ctx, types.AssistantMessage(
+		"snapshot started",
+		types.WithSessionID(sessionID),
+	)))
+
+	continuationService := service.(services.ContinuationAgentService)
+	gen, err := continuationService.ProcessContinuation(ctx, sessionID, services.ContinuationEvent{
+		Trigger:       "background_task_completed",
+		CorrelationID: "snapshot-42",
+		Payload:       []byte(`{"artifact_id":"artifact-7"}`),
+	})
+	require.NoError(t, err)
+	defer gen.Close()
+
+	renderer.mu.Lock()
+	rendered := append([]bichatctx.ContextBlock(nil), renderer.renderedBlocks...)
+	renderer.mu.Unlock()
+
+	require.Len(t, rendered, 3)
+	assert.Equal(t, bichatctx.KindPinned, rendered[0].Meta.Kind)
+	assert.Equal(t, bichatctx.KindHistory, rendered[1].Meta.Kind)
+	assert.Equal(t, bichatctx.KindContinuation, rendered[2].Meta.Kind)
+	assert.Equal(t, "internal-continuation", rendered[2].Meta.Source)
+	assert.Contains(t, rendered[2].Payload, `"artifact_id":"artifact-7"`)
+	for _, block := range rendered {
+		assert.NotEqual(t, bichatctx.KindTurn, block.Meta.Kind)
+	}
+}
+
+func TestContinuationEventContextRoundTrip(t *testing.T) {
+	t.Parallel()
+	event := services.ContinuationEvent{
+		Trigger:       "snapshot_ready",
+		CorrelationID: "workflow-42",
+		Payload:       []byte(`{"workflow_id":"workflow-42"}`),
+	}
+	ctx := services.WithContinuationEvent(context.Background(), event)
+	actual, ok := services.UseContinuationEvent(ctx)
+	require.True(t, ok)
+	assert.Equal(t, event.Trigger, actual.Trigger)
+	assert.Equal(t, event.CorrelationID, actual.CorrelationID)
+	assert.JSONEq(t, string(event.Payload), string(actual.Payload))
 }
 
 func TestProcessMessage_Success(t *testing.T) {

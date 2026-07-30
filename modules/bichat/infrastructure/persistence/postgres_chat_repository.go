@@ -296,6 +296,14 @@ const (
 			id, session_id, tenant_id, user_id, status, partial_content, partial_metadata, started_at, last_updated_at
 		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`
+	cancelStaleGenerationRunQuery = `
+		UPDATE bichat.generation_runs
+		SET status = 'cancelled', last_updated_at = $1::timestamptz
+		WHERE tenant_id = $3
+		  AND session_id = $4
+		  AND status = 'streaming'
+		  AND last_updated_at < $2::timestamptz
+	`
 	selectActiveGenerationRunBySessionQuery = `
 		SELECT id, session_id, tenant_id, user_id, status, partial_content, partial_metadata, started_at, last_updated_at
 		FROM bichat.generation_runs
@@ -308,6 +316,21 @@ const (
 		WHERE tenant_id = $1 AND id = $2
 		LIMIT 1
 	`
+	restartGenerationRunQuery = `
+		UPDATE bichat.generation_runs
+		SET status = 'streaming',
+		    partial_content = '',
+		    partial_metadata = '{}'::jsonb,
+		    started_at = $1,
+		    last_updated_at = $1
+		WHERE tenant_id = $3
+		  AND id = $4
+		  AND (
+		      status IN ('cancelled', 'failed')
+		      OR (status = 'streaming' AND last_updated_at < $2)
+		  )
+		RETURNING id, session_id, tenant_id, user_id, status, partial_content, partial_metadata, started_at, last_updated_at
+	`
 	updateGenerationRunSnapshotQuery = `
 		UPDATE bichat.generation_runs
 		SET partial_content = $1, partial_metadata = $2, last_updated_at = $3
@@ -316,6 +339,11 @@ const (
 	completeGenerationRunQuery = `
 		UPDATE bichat.generation_runs
 		SET status = 'completed', last_updated_at = $1
+		WHERE tenant_id = $2 AND id = $3
+	`
+	failGenerationRunQuery = `
+		UPDATE bichat.generation_runs
+		SET status = 'failed', last_updated_at = $1
 		WHERE tenant_id = $2 AND id = $3
 	`
 	cancelGenerationRunQuery = `
@@ -1477,6 +1505,21 @@ func (r *PostgresChatRepository) CreateRun(ctx context.Context, run domain.Gener
 	}
 	model.TenantID = tenantID
 
+	// Redis is optional, but the PostgreSQL refresh-state table is not. If a
+	// process dies while streaming, its row cannot heartbeat and must not
+	// block the next durable continuation forever.
+	now := time.Now()
+	if _, err := tx.Exec(
+		ctx,
+		cancelStaleGenerationRunQuery,
+		now,
+		now.Add(-domain.GenerationRunStaleAfter),
+		tenantID,
+		model.SessionID,
+	); err != nil {
+		return serrors.E(op, err)
+	}
+
 	_, err = tx.Exec(ctx, insertGenerationRunQuery,
 		model.ID,
 		model.SessionID,
@@ -1578,6 +1621,54 @@ func (r *PostgresChatRepository) GetRunByID(ctx context.Context, runID uuid.UUID
 	return runEntity, nil
 }
 
+// RestartRun atomically reopens a terminal run for an idempotent retry.
+func (r *PostgresChatRepository) RestartRun(
+	ctx context.Context,
+	runID uuid.UUID,
+	staleBefore time.Time,
+) (domain.GenerationRun, error) {
+	const op serrors.Op = "PostgresChatRepository.RestartRun"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+
+	row := tx.QueryRow(ctx, restartGenerationRunQuery, time.Now(), staleBefore, tenantID, runID)
+	var model models.GenerationRunModel
+	err = row.Scan(
+		&model.ID,
+		&model.SessionID,
+		&model.TenantID,
+		&model.UserID,
+		&model.Status,
+		&model.PartialContent,
+		&model.PartialMeta,
+		&model.StartedAt,
+		&model.LastUpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, domain.ErrRunNotFound
+		}
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, domain.ErrActiveRunExists
+		}
+		return nil, serrors.E(op, err)
+	}
+
+	runEntity, err := model.ToDomain()
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return runEntity, nil
+}
+
 // UpdateRunSnapshot updates partial content and metadata for the run.
 func (r *PostgresChatRepository) UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error {
 	const op serrors.Op = "PostgresChatRepository.UpdateRunSnapshot"
@@ -1617,6 +1708,26 @@ func (r *PostgresChatRepository) CompleteRun(ctx context.Context, runID uuid.UUI
 	}
 
 	_, err = tx.Exec(ctx, completeGenerationRunQuery, time.Now(), tenantID, runID)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	return nil
+}
+
+// FailRun marks the run as failed.
+func (r *PostgresChatRepository) FailRun(ctx context.Context, runID uuid.UUID) error {
+	const op serrors.Op = "PostgresChatRepository.FailRun"
+
+	tenantID, err := composables.UseTenantID(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+	tx, err := composables.UseTx(ctx)
+	if err != nil {
+		return serrors.E(op, err)
+	}
+
+	_, err = tx.Exec(ctx, failGenerationRunQuery, time.Now(), tenantID, runID)
 	if err != nil {
 		return serrors.E(op, err)
 	}

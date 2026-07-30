@@ -93,10 +93,15 @@ type GenerationRunRepository interface {
 	GetActiveRunBySession(ctx context.Context, sessionID uuid.UUID) (GenerationRun, error)
 	// GetRunByID returns a run by id regardless of status.
 	GetRunByID(ctx context.Context, runID uuid.UUID) (GenerationRun, error)
+	// RestartRun reopens a failed or cancelled run with the same deterministic id.
+	// It returns ErrRunNotFound when the row is absent or no longer restartable.
+	RestartRun(ctx context.Context, runID uuid.UUID, staleBefore time.Time) (GenerationRun, error)
 	// UpdateRunSnapshot updates partial_content and partial_metadata for the run.
 	UpdateRunSnapshot(ctx context.Context, runID uuid.UUID, partialContent string, partialMetadata map[string]any) error
 	// CompleteRun marks the run as completed.
 	CompleteRun(ctx context.Context, runID uuid.UUID) error
+	// FailRun marks the run as failed.
+	FailRun(ctx context.Context, runID uuid.UUID) error
 	// CancelRun marks the run as cancelled.
 	CancelRun(ctx context.Context, runID uuid.UUID) error
 }

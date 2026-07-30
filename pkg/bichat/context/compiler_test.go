@@ -24,7 +24,7 @@ func newMockRenderer() *mockRenderer {
 
 func (r *mockRenderer) Render(block context.ContextBlock) (context.RenderedBlock, error) {
 	switch block.Meta.Kind {
-	case context.KindPinned:
+	case context.KindPinned, context.KindContinuation:
 		// System blocks produce system messages
 		content, ok := block.Payload.(string)
 		if !ok {

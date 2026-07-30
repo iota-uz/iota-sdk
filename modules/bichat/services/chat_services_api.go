@@ -10,13 +10,14 @@ import (
 
 // ChatApplicationServices exposes explicit command/query facades over shared use cases.
 type ChatApplicationServices struct {
-	SessionCommands bichatservices.SessionCommands
-	SessionQueries  bichatservices.SessionQueries
-	TurnCommands    bichatservices.TurnCommands
-	TurnQueries     bichatservices.TurnQueries
-	StreamCommands  bichatservices.StreamCommands
-	HITLCommands    bichatservices.HITLCommands
-	Observability   *StreamObservability
+	SessionCommands      bichatservices.SessionCommands
+	SessionQueries       bichatservices.SessionQueries
+	TurnCommands         bichatservices.TurnCommands
+	ContinuationCommands bichatservices.ContinuationCommands
+	TurnQueries          bichatservices.TurnQueries
+	StreamCommands       bichatservices.StreamCommands
+	HITLCommands         bichatservices.HITLCommands
+	Observability        *StreamObservability
 	// core holds the single chatServiceImpl so shutdown helpers can reach it.
 	core *chatServiceImpl
 }
@@ -24,6 +25,7 @@ type ChatApplicationServices struct {
 type sessionCommandsService struct{ *chatServiceImpl }
 type sessionQueriesService struct{ *chatServiceImpl }
 type turnCommandsService struct{ *chatServiceImpl }
+type continuationCommandsService struct{ *chatServiceImpl }
 type turnQueriesService struct{ *chatServiceImpl }
 type streamCommandsService struct{ *chatServiceImpl }
 type hitlCommandsService struct{ *chatServiceImpl }
@@ -47,14 +49,15 @@ func NewChatApplicationServices(
 		core.WithLogger(logger[0])
 	}
 	return ChatApplicationServices{
-		SessionCommands: &sessionCommandsService{chatServiceImpl: core},
-		SessionQueries:  &sessionQueriesService{chatServiceImpl: core},
-		TurnCommands:    &turnCommandsService{chatServiceImpl: core},
-		TurnQueries:     &turnQueriesService{chatServiceImpl: core},
-		StreamCommands:  &streamCommandsService{chatServiceImpl: core},
-		HITLCommands:    &hitlCommandsService{chatServiceImpl: core},
-		Observability:   NewStreamObservability(core.runRegistry),
-		core:            core,
+		SessionCommands:      &sessionCommandsService{chatServiceImpl: core},
+		SessionQueries:       &sessionQueriesService{chatServiceImpl: core},
+		TurnCommands:         &turnCommandsService{chatServiceImpl: core},
+		ContinuationCommands: &continuationCommandsService{chatServiceImpl: core},
+		TurnQueries:          &turnQueriesService{chatServiceImpl: core},
+		StreamCommands:       &streamCommandsService{chatServiceImpl: core},
+		HITLCommands:         &hitlCommandsService{chatServiceImpl: core},
+		Observability:        NewStreamObservability(core.runRegistry),
+		core:                 core,
 	}, nil
 }
 

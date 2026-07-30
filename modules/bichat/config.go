@@ -293,20 +293,21 @@ type ModuleConfig struct {
 // ServiceContainer holds built services created by ModuleConfig.BuildServices().
 // Use accessor methods to retrieve individual services.
 type ServiceContainer struct {
-	sessionCommands   bichatservices.SessionCommands
-	sessionQueries    bichatservices.SessionQueries
-	turnCommands      bichatservices.TurnCommands
-	turnQueries       bichatservices.TurnQueries
-	streamCommands    bichatservices.StreamCommands
-	hitlCommands      bichatservices.HITLCommands
-	agentService      bichatservices.AgentService
-	attachmentService bichatservices.AttachmentService
-	artifactService   bichatservices.ArtifactService
-	observability     *services.StreamObservability
-	titleService      services.TitleService
-	titleJobQueue     *services.RedisTitleJobQueue
-	titleQueueConfig  *TitleQueueConfig
-	logger            *logrus.Logger
+	sessionCommands      bichatservices.SessionCommands
+	sessionQueries       bichatservices.SessionQueries
+	turnCommands         bichatservices.TurnCommands
+	continuationCommands bichatservices.ContinuationCommands
+	turnQueries          bichatservices.TurnQueries
+	streamCommands       bichatservices.StreamCommands
+	hitlCommands         bichatservices.HITLCommands
+	agentService         bichatservices.AgentService
+	attachmentService    bichatservices.AttachmentService
+	artifactService      bichatservices.ArtifactService
+	observability        *services.StreamObservability
+	titleService         services.TitleService
+	titleJobQueue        *services.RedisTitleJobQueue
+	titleQueueConfig     *TitleQueueConfig
+	logger               *logrus.Logger
 	// sharedRedisClose is the single owner of the *redis.Client shared across
 	// all Redis-backed components (event log, active-run index, job queue).
 	// Component Close() calls are no-ops when the client was supplied externally.
@@ -328,6 +329,11 @@ func (sc *ServiceContainer) SessionQueries() bichatservices.SessionQueries { ret
 
 // TurnCommands returns non-streaming turn command actions.
 func (sc *ServiceContainer) TurnCommands() bichatservices.TurnCommands { return sc.turnCommands }
+
+// ContinuationCommands returns trusted internal continuation actions.
+func (sc *ServiceContainer) ContinuationCommands() bichatservices.ContinuationCommands {
+	return sc.continuationCommands
+}
 
 // TurnQueries returns turn query actions.
 func (sc *ServiceContainer) TurnQueries() bichatservices.TurnQueries { return sc.turnQueries }
