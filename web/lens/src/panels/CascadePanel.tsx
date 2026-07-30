@@ -364,7 +364,11 @@ export function buildWaterfallModel(
         : signedChange(item.value, formatValue),
       top,
       height,
-      splitHeight: splittable ? height * (splitMagnitude / magnitude) : undefined,
+      // Share of the bar, not of the plot: the band is painted inside the bar,
+      // so its percentage resolves against the bar's own box. Scaling by the
+      // bar's plot height too shrank every band by that height again — a 24.5%
+      // share of a bar 18% tall drew as 4.5% of it.
+      splitHeight: splittable ? 100 * (splitMagnitude / magnitude) : undefined,
       formattedSplit: splittable ? formatValue(splitMagnitude) : undefined,
       splitLabel: splittable ? item.splitLabel : undefined,
       // Only a floating bar leaves a balance under it; the totals stand on zero
