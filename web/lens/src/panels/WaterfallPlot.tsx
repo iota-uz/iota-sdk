@@ -4,12 +4,25 @@ import type { WaterfallItem, WaterfallModel } from './CascadePanel'
 /** Chrome a host wraps around a single column, today: activation for a drill. */
 export type WaterfallInteraction = (item: WaterfallItem, index: number) => Record<string, unknown> | undefined
 
+/**
+ * When the split band names itself. The band's own colour already says a part of
+ * the movement differs in kind; its chip answers a follow-up question — how much,
+ * and called what — and standing permanently beside the bar it spends the plot's
+ * scarcest space (the gutter the neighbouring columns print their totals in) on
+ * an answer nobody asked for yet. `hover` holds it until the reader points at
+ * that column. A sheet of paper has no pointer, so the printed report keeps it
+ * standing.
+ */
+export type WaterfallSplitCallout = 'hover' | 'always'
+
 export interface WaterfallPlotProps {
   model: WaterfallModel
   label: string
   interaction?: WaterfallInteraction
   /** A grouping role when the columns are activatable; an image otherwise. */
   role?: 'group' | 'img'
+  /** Defaults to `hover`; a static rendering must pass `always`. */
+  splitCallout?: WaterfallSplitCallout
   children?: ReactNode
 }
 
@@ -19,7 +32,14 @@ export interface WaterfallPlotProps {
  * clickable dashboard column and an inert printed one — the printed report gets
  * the real bridge instead of a table of the same numbers.
  */
-export function WaterfallPlot({ model, label, interaction, role = 'img', children }: WaterfallPlotProps) {
+export function WaterfallPlot({
+  model,
+  label,
+  interaction,
+  role = 'img',
+  splitCallout = 'hover',
+  children,
+}: WaterfallPlotProps) {
   return (
     <div
       aria-label={label}
@@ -87,7 +107,11 @@ export function WaterfallPlot({ model, label, interaction, role = 'img', childre
                       className="lens-waterfall-bar-split"
                       style={{ height: `${item.splitHeight}%` }}
                     >
-                      <span className="lens-waterfall-split-callout" data-side={calloutSide}>
+                      <span
+                        className="lens-waterfall-split-callout"
+                        data-reveal={splitCallout}
+                        data-side={calloutSide}
+                      >
                         {item.splitLabel ? `${item.splitLabel} ` : ''}
                         {item.formattedSplit}
                       </span>

@@ -241,7 +241,8 @@ function PrintWaterfall({ section }: { section: PrintSection }) {
   if (!printed || printed.items.length === 0) return null
   return (
     <div className="lens-print-chart lens-print-chart-waterfall">
-      <WaterfallPlot label={panel.title} model={printed} />
+      {/* Paper cannot be hovered, so every split names itself here. */}
+      <WaterfallPlot label={panel.title} model={printed} splitCallout="always" />
       {tones.length > 1 && (
         <p className="lens-print-tone-key">
           {tones.map((tone) => (

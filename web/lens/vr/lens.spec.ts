@@ -313,6 +313,18 @@ test('panel-level actions expose their affordance on hover', async ({ page }) =>
   await screenshot(page, 'parity-clickable-panels-hover', { pointer: 'keep' })
 })
 
+test('a split band names itself when its column is hovered', async ({ page }) => {
+  await openStory(page, 'panels-v2--waterfall-split-callout', 0)
+  const callout = page.locator('.lens-waterfall-split-callout')
+  // Parked off the plot, the chip is transparent — the static baseline of this
+  // same story is the proof that it takes none of the reader's attention.
+  await expect(callout).toHaveCSS('opacity', '0')
+  // The whole column is the target, not the few pixels of the band itself.
+  await page.locator('.lens-waterfall-column').filter({ has: page.locator('.lens-waterfall-bar-split') }).hover()
+  await expect(callout).toHaveCSS('opacity', '1')
+  await screenshot(page, 'panels-v2-waterfall-split-callout-hover', { pointer: 'keep' })
+})
+
 test('chart tooltips escape the card', async ({ page }) => {
   await openStory(page, 'parity--pie-with-legend-right--light', 1)
   // Left edge of the pie: anchored inside the card this tooltip was clipped.

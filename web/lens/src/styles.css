@@ -2049,6 +2049,23 @@
     right: calc(100% + 6px);
   }
 
+  /* Held back until the reader points at the column it belongs to. The chip has
+     nowhere to sit that is not over a neighbour, and standing there permanently
+     it costs the plot more than the number is worth at a glance — the band's own
+     colour already says a part of this cost is different in kind. Faded rather
+     than removed, so the amount stays in the accessibility tree and is read out
+     with the bar whether or not a pointer exists. The whole column is the target:
+     the band is a few pixels tall on a short bar, and no one should have to aim
+     at it. */
+  .lens-waterfall-split-callout[data-reveal='hover'] {
+    @apply lens-opacity-0 lens-transition-opacity;
+  }
+
+  .lens-waterfall-column:hover .lens-waterfall-split-callout[data-reveal='hover'],
+  .lens-waterfall-column:focus-within .lens-waterfall-split-callout[data-reveal='hover'] {
+    @apply lens-opacity-100;
+  }
+
   /* The balance a floating deduction leaves standing. Drawing it makes the
      arithmetic visible: the opening total is eaten down, step by step, to the
      closing one. Behind the bar and the connector, never in front. */

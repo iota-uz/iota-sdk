@@ -39,7 +39,8 @@ vi.mock('../runtime', () => ({
 
 import { BarPanel, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
-import { buildCascadeStages, buildWaterfallItems, CascadePanel, waterfallAxisStep } from './CascadePanel'
+import { buildCascadeStages, buildWaterfallItems, buildWaterfallModel, CascadePanel, waterfallAxisStep } from './CascadePanel'
+import { WaterfallPlot } from './WaterfallPlot'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
@@ -777,5 +778,52 @@ describe('cascade stages', () => {
     expect(byLabel('Claims')?.underlayHeight).toBeGreaterThan(0)
     expect(byLabel('Earned premium')?.underlayHeight).toBeUndefined()
     expect(byLabel('Result')?.underlayHeight).toBeUndefined()
+  })
+
+  it('keeps a split callout in the document but holds it for the pointer', () => {
+    const cascade = panel('cascade', {
+      encoding: {
+        label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final',
+        split: 'split', splitLabel: 'splitLabel',
+      },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+        { name: 'split', type: 'number' },
+        { name: 'splitLabel', type: 'string' },
+      ],
+      rows: [
+        ['Earned premium', 100, 0, '', false, 0, ''],
+        ['Claims', 60, 40, 'Claims', false, 10, 'above reserve'],
+        ['Result', 60, 0, '', true, 0, ''],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CascadePanel panel={cascade} />)
+    const callout = view.container.querySelector('.lens-waterfall-split-callout')
+    // The chip stays in the DOM — assistive tech reads the amount out with the
+    // bar whether or not the reader has a pointer. Only the paint waits, and
+    // the stylesheet keys that on this attribute.
+    expect(callout).toHaveTextContent('above reserve 10')
+    expect(callout?.getAttribute('data-reveal')).toBe('hover')
+
+    const printed = render(
+      <WaterfallPlot
+        label="Bridge"
+        model={buildWaterfallModel(buildCascadeStages(cascade, frame, format, format), format)}
+        splitCallout="always"
+      />,
+    )
+
+    expect(printed.container.querySelector('.lens-waterfall-split-callout')?.getAttribute('data-reveal'))
+      .toBe('always')
   })
 })
