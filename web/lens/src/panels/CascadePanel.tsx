@@ -317,7 +317,6 @@ export function buildWaterfallModel(
         annotation: closing.annotation,
         split: 0,
         splitLabel: '',
-        rowIndex: closing.rowIndex,
       })
     }
   }
