@@ -1611,17 +1611,20 @@ type stubTitleJobQueue struct {
 }
 
 type stubAgentService struct {
-	processEvents    []agents.ExecutorEvent
-	processErr       error
-	processStreamErr error
-	resumeEvents     []agents.ExecutorEvent
-	resumeErr        error
-	resumeStreamErr  error
-	resumeCalls      int
-	resumeCheckpoint string
-	resumeAnswers    map[string]types.Answer
-	resumeStarted    chan struct{}
-	resumeRelease    <-chan struct{}
+	processEvents       []agents.ExecutorEvent
+	processErr          error
+	processStreamErr    error
+	resumeEvents        []agents.ExecutorEvent
+	resumeErr           error
+	resumeStreamErr     error
+	resumeCalls         int
+	resumeCheckpoint    string
+	resumeAnswers       map[string]types.Answer
+	resumeStarted       chan struct{}
+	resumeRelease       <-chan struct{}
+	continuationEvents  []agents.ExecutorEvent
+	continuationErr     error
+	continuationStarted chan bichatservices.ContinuationEvent
 }
 
 func (s *stubAgentService) ProcessMessage(ctx context.Context, sessionID uuid.UUID, content string, attachments []domain.Attachment) (types.Generator[agents.ExecutorEvent], error) {
@@ -1681,6 +1684,142 @@ func (s *stubAgentService) ResumeWithAnswer(ctx context.Context, sessionID uuid.
 		}
 		return streamErr
 	}), nil
+}
+
+func (s *stubAgentService) ProcessContinuation(
+	ctx context.Context,
+	_ uuid.UUID,
+	event bichatservices.ContinuationEvent,
+) (types.Generator[agents.ExecutorEvent], error) {
+	if s.continuationStarted != nil {
+		select {
+		case s.continuationStarted <- event:
+		default:
+		}
+	}
+	if s.continuationErr != nil {
+		return nil, s.continuationErr
+	}
+	evs := append([]agents.ExecutorEvent(nil), s.continuationEvents...)
+	return types.NewGenerator(ctx, func(_ context.Context, yield func(agents.ExecutorEvent) bool) error {
+		for _, ev := range evs {
+			if !yield(ev) {
+				return nil
+			}
+		}
+		return nil
+	}), nil
+}
+
+func TestChatService_ContinueSession_PersistsAssistantWithoutUserMessage(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("durable workflow"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	started := make(chan bichatservices.ContinuationEvent, 1)
+	agentSvc := &stubAgentService{
+		continuationStarted: started,
+		continuationEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "analysis resumed"},
+			{Type: agents.EventTypeDone},
+		},
+	}
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
+
+	accepted, err := svc.ContinueSession(t.Context(), bichatservices.ContinueSessionRequest{
+		SessionID: session.ID(),
+		Event: bichatservices.ContinuationEvent{
+			Trigger:       "background_task_completed",
+			CorrelationID: "snapshot-42",
+			Payload:       []byte(`{"artifact_id":"artifact-7"}`),
+		},
+		IdempotencyKey: "workflow-1/snapshot-42",
+	})
+	require.NoError(t, err)
+	assert.True(t, accepted.Accepted)
+	assert.Equal(t, bichatservices.AsyncRunOperationContinuation, accepted.Operation)
+	assert.NotEqual(t, uuid.Nil, accepted.RunID)
+
+	select {
+	case event := <-started:
+		assert.Equal(t, "background_task_completed", event.Trigger)
+	case <-time.After(time.Second):
+		require.Fail(t, "continuation did not start")
+	}
+
+	require.Eventually(t, func() bool {
+		messages, msgErr := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+		if msgErr != nil || len(messages) != 1 {
+			return false
+		}
+		return messages[0].Role() == types.RoleAssistant && messages[0].Content() == "analysis resumed"
+	}, time.Second, 10*time.Millisecond)
+}
+
+func TestChatService_ContinueSession_DeduplicatesCompletedDelivery(t *testing.T) {
+	t.Parallel()
+
+	chatRepo := newMockChatRepository()
+	session := mustSession(t,
+		withSessionTenantID(uuid.New()),
+		withSessionUserID(1),
+		withSessionTitle("idempotent continuation"),
+	)
+	require.NoError(t, chatRepo.CreateSession(t.Context(), session))
+
+	started := make(chan bichatservices.ContinuationEvent, 2)
+	agentSvc := &stubAgentService{
+		continuationStarted: started,
+		continuationEvents: []agents.ExecutorEvent{
+			{Type: agents.EventTypeContent, Content: "one durable result"},
+			{Type: agents.EventTypeDone},
+		},
+	}
+	svc, err := NewChatService(chatRepo, agentSvc, nil, nil, nil)
+	require.NoError(t, err)
+	request := bichatservices.ContinueSessionRequest{
+		SessionID: session.ID(),
+		Event: bichatservices.ContinuationEvent{
+			Trigger:       "background_task_completed",
+			CorrelationID: "snapshot-42",
+			Payload:       []byte(`{"artifact_id":"artifact-7"}`),
+		},
+		IdempotencyKey: "workflow-1/snapshot-42",
+	}
+
+	first, err := svc.ContinueSession(t.Context(), request)
+	require.NoError(t, err)
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		require.Fail(t, "first continuation did not start")
+	}
+	require.Eventually(t, func() bool {
+		run, runErr := chatRepo.GetRunByID(t.Context(), first.RunID)
+		return runErr == nil && run.Status() == domain.GenerationRunStatusCompleted
+	}, time.Second, 10*time.Millisecond)
+
+	second, err := svc.ContinueSession(t.Context(), request)
+	require.NoError(t, err)
+	assert.True(t, second.Accepted)
+	assert.Equal(t, first.RunID, second.RunID)
+	select {
+	case <-started:
+		require.Fail(t, "duplicate continuation started a second agent turn")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	messages, err := chatRepo.GetSessionMessages(t.Context(), session.ID(), domain.ListOptions{})
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	assert.Equal(t, "one durable result", messages[0].Content())
 }
 
 func (s *captureTitleContextService) GenerateSessionTitle(ctx context.Context, _ uuid.UUID) error {

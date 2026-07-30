@@ -333,6 +333,11 @@ func (s *chatServiceImpl) updateRunSnapshot(ctx context.Context, tenantID, sessi
 }
 
 func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	if err := s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
+		return s.chatRepo.CompleteRun(txCtx, runID)
+	}); err != nil {
+		return err
+	}
 	err := s.runState.CompleteRunState(ctx, tenantID, sessionID, runID)
 	if err == nil {
 		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCompleted))
@@ -341,6 +346,11 @@ func (s *chatServiceImpl) completeRunState(ctx context.Context, tenantID, sessio
 }
 
 func (s *chatServiceImpl) cancelRunState(ctx context.Context, tenantID, sessionID, runID uuid.UUID) error {
+	if err := s.withinTx(context.WithoutCancel(ctx), func(txCtx context.Context) error {
+		return s.chatRepo.CancelRun(txCtx, runID)
+	}); err != nil {
+		return err
+	}
 	err := s.runState.CancelRunState(ctx, tenantID, sessionID, runID)
 	if err == nil {
 		s.publishTerminalStatus(ctx, tenantID, sessionID, runID, string(domain.GenerationRunStatusCancelled))
@@ -370,6 +380,7 @@ func (s *chatServiceImpl) startAsyncRun(
 	ctx context.Context,
 	sessionID uuid.UUID,
 	operation bichatservices.AsyncRunOperation,
+	idempotencyKey string,
 	prepare func(txCtx context.Context, session domain.Session) error,
 	worker asyncRunWorker,
 ) (bichatservices.AsyncRunAccepted, error) {
@@ -380,19 +391,41 @@ func (s *chatServiceImpl) startAsyncRun(
 		run             domain.GenerationRun
 		err             error
 		runStateCreated bool
+		existingRun     bool
 	)
 	err = s.withinTx(ctx, func(txCtx context.Context) error {
 		session, err = s.chatRepo.GetSession(txCtx, sessionID)
 		if err != nil {
 			return serrors.E(op, err)
 		}
+		var runID uuid.UUID
+		if strings.TrimSpace(idempotencyKey) != "" {
+			runID = continuationRunID(session.TenantID(), sessionID, idempotencyKey)
+			run, err = s.chatRepo.GetRunByID(txCtx, runID)
+			if err == nil {
+				if run.SessionID() != sessionID || run.TenantID() != session.TenantID() {
+					return serrors.E(op, serrors.KindValidation, "idempotent run belongs to another session")
+				}
+				existingRun = true
+				return nil
+			}
+			if !errors.Is(err, domain.ErrRunNotFound) {
+				return serrors.E(op, err)
+			}
+		}
 		run, err = domain.NewGenerationRun(domain.GenerationRunSpec{
+			ID:        runID,
 			SessionID: sessionID,
 			TenantID:  session.TenantID(),
 			UserID:    session.UserID(),
 		})
 		if err != nil {
 			return serrors.E(op, serrors.KindValidation, err)
+		}
+		if strings.TrimSpace(idempotencyKey) != "" {
+			if err := s.chatRepo.CreateRun(txCtx, run); err != nil {
+				return serrors.E(op, err)
+			}
 		}
 		runStateCreated, err = s.createRunState(txCtx, run)
 		if err != nil {
@@ -410,6 +443,15 @@ func (s *chatServiceImpl) startAsyncRun(
 			_ = s.cancelRunState(context.WithoutCancel(ctx), session.TenantID(), sessionID, run.ID())
 		}
 		return bichatservices.AsyncRunAccepted{}, serrors.E(op, err)
+	}
+	if existingRun {
+		return bichatservices.AsyncRunAccepted{
+			Accepted:  true,
+			Operation: operation,
+			SessionID: sessionID,
+			RunID:     run.ID(),
+			StartedAt: run.StartedAt(),
+		}, nil
 	}
 
 	processCtx, cancelProcess := context.WithCancel(context.WithoutCancel(ctx))
@@ -429,6 +471,11 @@ func (s *chatServiceImpl) startAsyncRun(
 		RunID:     run.ID(),
 		StartedAt: active.StartedAt,
 	}, nil
+}
+
+func continuationRunID(tenantID, sessionID uuid.UUID, idempotencyKey string) uuid.UUID {
+	name := tenantID.String() + "/" + sessionID.String() + "/" + strings.TrimSpace(idempotencyKey)
+	return uuid.NewSHA1(uuid.NameSpaceURL, []byte("iota-sdk/bichat/continuation/"+name))
 }
 
 // ResumeStream attaches to an active run and streams snapshot then new chunks.
