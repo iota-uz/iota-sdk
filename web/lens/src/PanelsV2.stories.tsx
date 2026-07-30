@@ -175,6 +175,44 @@ function Runtime({ document, fetcher, children }: { document: DashboardDocument;
   )
 }
 
+// The panel note lives behind the header's ⓘ, not in a caption band above the
+// plot: a chart card's caption and info are merged there, and the bubble is the
+// only place either is readable on screen. Both themes, opened on mount so the
+// bubble itself is the subject.
+const notedPanel: Panel = {
+  ...cascadePanel,
+  id: 'noted-bridge',
+  caption: 'Rolled up by contributing year, so the total differs from the event-based composition next to it.',
+  info: 'Also the gross RNP / UPR — a management calculation under the A/B/C rules, not the official net RNP.',
+}
+
+function OpenInfoTip({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('.lens-info-tip-button')?.click()
+  }, [])
+  return <div ref={ref}>{children}</div>
+}
+
+function InfoTipStory({ theme }: { theme: 'light' | 'dark' }) {
+  const document = storyDocument(notedPanel, { bridge: cascadeFrame })
+  return (
+    <div className="lens-root" data-theme={theme}>
+      <DocumentProvider initialDocument={document}>
+        <DashboardRuntimeProvider locale="en">
+          <OpenInfoTip><CascadePanel panel={notedPanel} /></OpenInfoTip>
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+export const PanelInfoTipLight: Story = () => <InfoTipStory theme="light" />
+PanelInfoTipLight.storyName = 'Panel info tip light'
+
+export const PanelInfoTipDark: Story = () => <InfoTipStory theme="dark" />
+PanelInfoTipDark.storyName = 'Panel info tip dark'
+
 export const CascadeFinalStage: Story = () => {
   const document = storyDocument(cascadePanel, { bridge: cascadeFrame })
   return <Runtime document={document}><CascadePanel panel={cascadePanel} /></Runtime>
@@ -208,6 +246,30 @@ export const WaterfallSplitCallout: Story = () => {
       ['Перестрахование', 80.00, 15.00, 'Перестрахование', false, 'negative', 0, ''],
       ['Движение резервов', 66.34, 13.66, 'Движение резервов', false, 'negative', 5.20, 'сверх резерва'],
       ['Андеррайтинговый результат', 66.34 + 1e-5, 0, '', true, 'neutral', 0, ''],
+    ],
+  }
+  const document = storyDocument(officialResultPanel, { bridge: frame })
+  return <Runtime document={document}><CascadePanel panel={officialResultPanel} /></Runtime>
+}
+
+// Two totals in one cascade: the statutory underwriting result is a checkpoint
+// the reader recognises, and the remaining reserve movements carry on from it
+// to the pre-tax result. The checkpoint stands on zero where it was declared
+// (not hoisted to the end) and renders hollow, so the one solid navy column
+// stays unambiguously the finish.
+export const WaterfallCheckpointTotal: Story = () => {
+  const frame: Frame = {
+    ...officialResultFrame,
+    rows: [
+      ['Заработанная премия', 200.41, 0, '', false, 'neutral', 0, ''],
+      ['Исходящее перестрахование', 185.73, 14.68, 'Исходящее перестрахование', false, 'negative', 0, ''],
+      ['Страховые выплаты', 180.10, 5.63, 'Страховые выплаты', false, 'negative', 0, ''],
+      ['Операционные расходы', 133.92, 46.18, 'Операционные расходы', false, 'negative', 0, ''],
+      ['Андеррайтинговый результат', 133.92 + 1e-5, 0, '', true, 'neutral', 0, ''],
+      ['Изменение РЗУ', 116.71, 17.21, 'Изменение РЗУ', false, 'negative', 0, ''],
+      ['Изменение РПНУ', 104.37, 12.34, 'Изменение РПНУ', false, 'negative', 0, ''],
+      ['Изменение резерва катастроф', 106.05, -1.68, 'Изменение резерва катастроф', false, 'positive', 0, ''],
+      ['Результат до налогообложения', 106.05, 0, '', true, 'neutral', 0, ''],
     ],
   }
   const document = storyDocument(officialResultPanel, { bridge: frame })

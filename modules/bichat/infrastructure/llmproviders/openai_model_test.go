@@ -3,6 +3,7 @@ package llmproviders
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -12,6 +13,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/bichat/tools/chart"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/types"
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/bichatconfig"
+	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,6 +33,24 @@ func TestNewOpenAIModelFromConfig_MissingAPIKey(t *testing.T) {
 	_, err := NewOpenAIModelFromConfig(bichatconfig.OpenAIConfig{APIKey: ""})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key")
+}
+
+func TestIsPreviousResponseNotFoundError(t *testing.T) {
+	assert.True(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "previous_response_not_found",
+		Param: "previous_response_id",
+	}))
+	assert.False(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "invalid_request_error",
+		Param: "previous_response_id",
+	}))
+	assert.False(t, isPreviousResponseNotFoundError(&openai.Error{
+		Code:  "previous_response_not_found",
+		Param: "input",
+	}))
+	assert.True(t, isPreviousResponseNotFoundError(errors.New(
+		`stream error: {"code":"previous_response_not_found","param":"previous_response_id"}`,
+	)))
 }
 
 func TestNewOpenAIModelFromConfig_WithAPIKey(t *testing.T) {
@@ -87,6 +107,108 @@ func TestNewOpenAIHTTPClient_ReturnsConfiguredTransport(t *testing.T) {
 	assert.Equal(t, 2*time.Minute, client.Timeout)
 	_, ok := client.Transport.(*http.Transport)
 	assert.True(t, ok)
+}
+
+func TestOpenAIStreamTerminalError_Failed(t *testing.T) {
+	event := responses.ResponseStreamEventUnion{
+		Type: "response.failed",
+		Response: responses.Response{
+			ID: "resp_failed",
+			Error: responses.ResponseError{
+				Code:    responses.ResponseErrorCodeServerError,
+				Message: "The model failed to generate a response.",
+			},
+		},
+	}
+
+	err := openAIStreamTerminalError(event)
+	require.Error(t, err)
+
+	var streamErr *openAIStreamError
+	require.ErrorAs(t, err, &streamErr)
+	assert.Equal(t, "response_failed", streamErr.Type)
+	assert.Equal(t, "server_error", streamErr.Code)
+	assert.Equal(t, "The model failed to generate a response.", streamErr.Message)
+	assert.Equal(t, "resp_failed", streamErr.ResponseID)
+	assert.JSONEq(t, `{
+		"type": "response_failed",
+		"code": "server_error",
+		"message": "The model failed to generate a response.",
+		"response_id": "resp_failed"
+	}`, err.Error())
+}
+
+func TestOpenAIStreamTerminalError_FailedWithoutProviderDetails(t *testing.T) {
+	event := responses.ResponseStreamEventUnion{
+		Type:     "response.failed",
+		Response: responses.Response{ID: "resp_failed"},
+	}
+
+	err := openAIStreamTerminalError(event)
+	require.Error(t, err)
+
+	var streamErr *openAIStreamError
+	require.ErrorAs(t, err, &streamErr)
+	assert.Equal(t, "response_failed", streamErr.Code)
+	assert.NotEmpty(t, streamErr.Message)
+	assert.Equal(t, "resp_failed", streamErr.ResponseID)
+}
+
+func TestOpenAIStreamTerminalError_Incomplete(t *testing.T) {
+	tests := []struct {
+		name           string
+		reason         string
+		expectedReason string
+	}{
+		{
+			name:           "output token limit",
+			reason:         "max_output_tokens",
+			expectedReason: "max_output_tokens",
+		},
+		{
+			name:           "content filter",
+			reason:         "content_filter",
+			expectedReason: "content_filter",
+		},
+		{
+			name:           "missing reason",
+			expectedReason: "unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := responses.ResponseStreamEventUnion{
+				Type: "response.incomplete",
+				Response: responses.Response{
+					ID: "resp_incomplete",
+					IncompleteDetails: responses.ResponseIncompleteDetails{
+						Reason: tt.reason,
+					},
+				},
+			}
+
+			err := openAIStreamTerminalError(event)
+			require.Error(t, err)
+
+			var streamErr *openAIStreamError
+			require.ErrorAs(t, err, &streamErr)
+			assert.Equal(t, "response_incomplete", streamErr.Type)
+			assert.Equal(t, "response_incomplete", streamErr.Code)
+			assert.Equal(t, tt.expectedReason, streamErr.Reason)
+			assert.Equal(t, "resp_incomplete", streamErr.ResponseID)
+			assert.Contains(t, streamErr.Message, tt.expectedReason)
+		})
+	}
+}
+
+func TestOpenAIStreamTerminalError_NonTerminalEvent(t *testing.T) {
+	err := openAIStreamTerminalError(responses.ResponseStreamEventUnion{
+		Type:  "response.output_text.delta",
+		Delta: "partial output",
+	})
+
+	require.NoError(t, err)
 }
 
 func TestOpenAIModel_Info(t *testing.T) {

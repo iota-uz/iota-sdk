@@ -96,6 +96,24 @@ func TestEncodeRunEventFromChunk_SnapshotRoundTrip(t *testing.T) {
 	assert.Equal(t, "hi", decoded.Snapshot.PartialContent)
 }
 
+func TestEncodeRunEventFromChunk_QuotaErrorKeepsSafeClassification(t *testing.T) {
+	t.Parallel()
+
+	chunk := bichatservices.StreamChunk{
+		Type: bichatservices.ChunkTypeError,
+		Error: errors.New(
+			`provider stream error: {"code":"credit_balance_exhausted","message":"sensitive upstream detail"}`,
+		),
+	}
+	_, body, err := encodeRunEventFromChunk(chunk)
+	require.NoError(t, err)
+
+	var decoded httpdto.StreamChunkPayload
+	require.NoError(t, json.Unmarshal(body, &decoded))
+	assert.Equal(t, ProviderBillingBalanceExhaustedError, decoded.Error)
+	assert.NotContains(t, decoded.Error, "sensitive upstream detail")
+}
+
 func TestEncodeRunEventFromChunk_EmptyTypeFallsBackToChunk(t *testing.T) {
 	t.Parallel()
 

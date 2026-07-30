@@ -111,9 +111,18 @@ function CoverageBullet({ panel, segments, total, target, tooltip, segmentHref, 
         style={{ left: percent(target.value) }}
       />
       {markerLabel && (
+        // The label hangs off the tick rather than straddling it: a centred
+        // label whose text is wider than twice the tick's offset spills past
+        // the card's left edge, where the panel clips it mid-word. Anchoring
+        // one edge to the tick and capping the width at the room actually
+        // available on that side keeps every label inside the track — long
+        // ones ellipsize (the full text stays in the title) instead of
+        // escaping.
         <span
-          className={`lens-coverage-bullet-label${markerShare > 0.55 ? ' lens-coverage-bullet-label-end' : ''}`}
-          style={{ left: percent(target.value) }}
+          className={`lens-coverage-bullet-label${markerShare > 0.5 ? ' lens-coverage-bullet-label-end' : ''}`}
+          style={markerShare > 0.5
+            ? { right: percent(scaleMax - target.value), maxWidth: percent(target.value) }
+            : { left: percent(target.value), maxWidth: percent(scaleMax - target.value) }}
           title={markerLabel}
         >
           {markerLabel}

@@ -284,3 +284,16 @@ export const SlashCircle = glyph(
   </>,
   12,
 )
+
+/**
+ * The panel's ⓘ affordance. Long-form explanation costs nothing until asked
+ * for, so the note lives behind this glyph instead of a paragraph of chrome.
+ */
+export const Info = glyph(
+  <>
+    <circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="120 120 128 120 128 176 136 176" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <circle cx="126" cy="84" r="12" />
+  </>,
+  14,
+)

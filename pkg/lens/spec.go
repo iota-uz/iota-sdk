@@ -104,6 +104,9 @@ type DrillFacetOptionMeta struct {
 type RowSpec struct {
 	Panels []panel.Spec
 	Class  string
+	// Anchor, when non-empty, becomes the rendered section's element id so the
+	// row can be linked to with a fragment from elsewhere on the page.
+	Anchor string
 	// Heading, when non-empty, renders the row as a section header band
 	// instead of a panel grid.
 	Heading string

@@ -479,6 +479,7 @@ func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
 	out := lens.RowSpec{
 		Panels:  make([]panel.Spec, 0, len(item.Panels)),
 		Class:   resolveString(item.Class, opts.Values),
+		Anchor:  resolveString(item.Anchor, opts.Values),
 		Heading: heading,
 	}
 	for _, panelSpec := range item.Panels {

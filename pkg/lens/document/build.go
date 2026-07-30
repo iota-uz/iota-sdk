@@ -103,7 +103,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 
 	hosts := explorerHosts(spec.Explorers)
 	for _, rowSpec := range spec.Rows {
-		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Panels: make([]LayoutItem, 0)}
+		layoutRow := LayoutRow{Heading: rowSpec.Heading, Class: rowSpec.Class, Anchor: rowSpec.Anchor, Panels: make([]LayoutItem, 0)}
 		for _, panelSpec := range rowSpec.Panels {
 			if err := appendPanelTree(doc, panelSpec, result, hosts, &layoutRow, nil); err != nil {
 				return nil, serrors.E(op, err)
@@ -275,7 +275,7 @@ func appendPanelTree(
 		}
 	}
 	row.Panels = append(row.Panels, LayoutItem{PanelID: spec.ID, Span: span, Group: legacyGroup, Groups: nestedGroups})
-	labels := seriesLabels(spec, wireFrame)
+	labels := seriesLabels(spec, wireFrame, semantics)
 	for index, color := range spec.Colors {
 		if strings.TrimSpace(color) == "" {
 			continue
@@ -403,12 +403,27 @@ func buildStaticDrillLevel(
 	return nil
 }
 
-// seriesLabels returns the panel's per-row label values in plot order, so a
-// color list positioned by index can also be published under the label each
-// color belongs to.
-func seriesLabels(spec panel.Spec, wireFrame Frame) []string {
+// seriesLabels returns the names a positional color list is pinned to, in the
+// order the colors are given, so a color published under index i can also be
+// published under the name it belongs to.
+//
+// What "index i" means depends on the panel. A part-to-whole panel positions
+// its colors by row, so the names are the per-row labels. A series panel
+// positions them by *series* — the n-th color is the n-th distinct series in
+// plot order, and its rows are one per (category, series) pair. Reading the row
+// label there published month names as series colors and left the series
+// themselves without an alias, so a renderer that resolves a color by series
+// name found nothing and fell back to the palette.
+// A distributed bar is the exception: it declares a series but positions its
+// colors by category, one per bar, so it keeps the row reading.
+func seriesLabels(spec panel.Spec, wireFrame Frame, semantics Semantics) []string {
+	bySeries := semantics == SemanticsSeries &&
+		!spec.Fields.Series.Empty() &&
+		!spec.Presentation.ColorByCategory
 	field := spec.Fields.Label
-	if field.Empty() {
+	if bySeries {
+		field = spec.Fields.Series
+	} else if field.Empty() {
 		field = spec.Fields.Category
 	}
 	if field.Empty() {
@@ -424,17 +439,24 @@ func seriesLabels(spec panel.Spec, wireFrame Frame) []string {
 	if column < 0 {
 		return nil
 	}
+	seen := map[string]bool{}
 	labels := make([]string, 0, len(wireFrame.Rows))
 	for _, row := range wireFrame.Rows {
-		if column >= len(row) {
-			labels = append(labels, "")
+		label := ""
+		if column < len(row) {
+			if value, ok := row[column].(string); ok {
+				label = value
+			}
+		}
+		if !bySeries {
+			labels = append(labels, label)
 			continue
 		}
-		if value, ok := row[column].(string); ok {
-			labels = append(labels, value)
+		if label == "" || seen[label] {
 			continue
 		}
-		labels = append(labels, "")
+		seen[label] = true
+		labels = append(labels, label)
 	}
 	return labels
 }

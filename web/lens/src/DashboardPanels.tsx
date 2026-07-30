@@ -481,7 +481,11 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
       {hasHeader && !header && <DashboardFreshness />}
       <div className="lens-dashboard-rows">
         {document.layout.rows.map((row, rowIndex) => (
-          <section className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`} key={`${row.heading ?? 'row'}-${rowIndex}`}>
+          <section
+            className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
+            id={row.anchor || undefined}
+            key={`${row.heading ?? 'row'}-${rowIndex}`}
+          >
             {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
             <div
               className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}

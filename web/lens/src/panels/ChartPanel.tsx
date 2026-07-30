@@ -89,6 +89,31 @@ function legendSeriesIndex(frame: Frame, panel: Panel): number {
   return frame.columns.findIndex((column) => column.name === panel.encoding.series)
 }
 
+/**
+ * Ordinal of each series name in the panel's *own* frame, in plot order.
+ *
+ * A colour pinned to a panel is pinned by position (`panelId:index`), and the
+ * chart derives that position from the frame it is drawing. Hiding a legend
+ * entry drops its rows, so every series after it slides one position down and
+ * repaints itself in the hidden series' colour — while the legend, which is
+ * built over the full frame, keeps printing the old one. Resolving against the
+ * full frame's order pins a series to its colour for as long as the panel is
+ * showing that frame, however few of its series are on screen.
+ */
+function seriesOrder(frame: Frame | undefined, panel: Panel): Map<string, number> {
+  const order = new Map<string, number>()
+  if (!frame) return order
+  const seriesIndex = frame.columns.findIndex((column) => column.name === panel.encoding.series)
+  if (seriesIndex < 0) return order
+  for (const row of frame.rows) {
+    const raw = row[seriesIndex]
+    if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'bigint') continue
+    const name = String(raw)
+    if (!order.has(name)) order.set(name, order.size)
+  }
+  return order
+}
+
 function legendEntryKey(frame: Frame, panel: Panel, index: number): string {
   const seriesIndex = legendSeriesIndex(frame, panel)
   if (seriesIndex < 0) return legendKey(frame, panel, index)
@@ -216,10 +241,12 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // same positional rule, so a panel's declared palette reaches both or
   // neither. Resolving them separately is how the legend came to print one
   // colour beside a line drawn in another.
-  const seriesColor = useMemo(
-    () => seriesColorResolver(document.theme, panel, { positional: !active }),
-    [active, document.theme, panel],
-  )
+  const seriesColor = useMemo(() => {
+    const resolve = seriesColorResolver(document.theme, panel, { positional: !active })
+    const order = seriesOrder(frame.data, panel)
+    if (order.size === 0) return resolve
+    return (label: string, index: number) => resolve(label, order.get(label) ?? index)
+  }, [active, document.theme, frame.data, panel])
   // The row-indexed half of the same rule. It is handed the *visible* palette
   // because the plot draws the visible rows; the legend builds its own over the
   // full frame, and the two agree row for row either way.
@@ -277,6 +304,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     <PanelFrame panel={panel} frame={frame} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
         <div className="lens-chart-area">
+          {/* Above the plot, in flow — see PlotTotalBadge. */}
+          {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
+            <PlotTotalBadge panel={panel} total={shareTotal} />
+          )}
           {input && (
             <ChartHost
               input={input}
@@ -289,9 +320,6 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             />
           )}
         </div>
-        {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
-          <PlotTotalBadge panel={panel} total={shareTotal} />
-        )}
         {hasLegend && frame.data && (
           <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} presentation={presentation} total={shareTotal} />
         )}
@@ -305,6 +333,18 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   )
 }
 
+/**
+ * The plot's own total, as the first row OF the plot column rather than a chip
+ * floating over it.
+ *
+ * It used to be absolutely positioned, and every time something new appeared in
+ * whichever corner it had been parked in, the fix was to park it in another
+ * corner: away from the drill-back overlay, then out from under the chart
+ * toolbar, then out of the plot and into the panel body's top-right — which on a
+ * wide panel is the legend column, so it landed on the first legend entry. An
+ * overlay has to be told what to avoid, and the list of things to avoid keeps
+ * growing. In flow it takes its own height and nothing can be under it.
+ */
 function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
   const translate = useTranslate()
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)

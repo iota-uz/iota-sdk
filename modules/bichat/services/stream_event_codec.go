@@ -109,6 +109,10 @@ func sanitizeChunkError(chunk bichatservices.StreamChunk) string {
 		// preserve them so the applet can display tool-level error detail.
 		return chunk.Error.Error()
 	}
+	code, _, _ := ParseProviderStreamError(chunk.Error.Error())
+	if normalized := NormalizeProviderError(code, chunk.Error.Error()); normalized != "" {
+		return normalized
+	}
 	// For terminal error chunks, return a generic safe message to avoid
 	// leaking provider internals. The applet only needs to know the run failed.
 	return "An error occurred while processing your request"

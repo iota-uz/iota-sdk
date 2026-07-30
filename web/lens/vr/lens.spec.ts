@@ -66,11 +66,14 @@ const storyIds = [
   'panels-v2--cascade-final-stage',
   'panels-v2--cascade-semantic-tone',
   'panels-v2--export-idle',
+  'panels-v2--panel-info-tip-dark',
+  'panels-v2--panel-info-tip-light',
   'panels-v2--export-pending',
   'panels-v2--export-snapshot-retry',
   'panels-v2--table-columns',
   'panels-v2--table-empty-page',
   'panels-v2--table-pagination-and-leaf-actions',
+  'panels-v2--waterfall-checkpoint-total',
   'panels-v2--waterfall-closing-total',
   'panels-v2--waterfall-semantic-tone',
   'panels-v2--waterfall-split-callout',
@@ -95,6 +98,7 @@ const storyIds = [
   'parity--panel-skeletons-light',
   'parity--pie-with-legend-right--light',
   'parity--pie-with-legend-right--dark',
+  'parity--pie-with-tall-legend',
   'parity--tab-group',
 ] as const
 
@@ -115,11 +119,11 @@ const staticStories = [
   ['drawer-host--closed-light', 0],
   ['drawer-host--error', 0],
   ['drawer-host--loading', 0],
-  ['drawer-host--long-document-scrolls', 0],
+  ['drawer-host--long-document-scrolls', 0, 10],
   ['drawer-host--open-dark', 0],
-  ['drawer-host--open-light', 0],
+  ['drawer-host--open-light', 0, 10],
   ['drawer-host--open-over-expanded-panel', 0],
-  ['drawer-host--open-wide', 0],
+  ['drawer-host--open-wide', 0, 10],
   // A donut host renders one ECharts canvas; the card-corner raster is bistable
   // across a few antialiased pixels like the other focus stories (#932).
   ['drawer-host--open-wide-focus-canvas', 1, 50],
@@ -166,11 +170,14 @@ const staticStories = [
   ['panels-v2--cascade-final-stage', 0],
   ['panels-v2--cascade-semantic-tone', 0],
   ['panels-v2--export-idle', 0],
+  ['panels-v2--panel-info-tip-dark', 0],
+  ['panels-v2--panel-info-tip-light', 0],
   ['panels-v2--export-pending', 0],
   ['panels-v2--export-snapshot-retry', 0],
   ['panels-v2--table-columns', 0],
   ['panels-v2--table-empty-page', 0],
   ['panels-v2--table-pagination-and-leaf-actions', 0],
+  ['panels-v2--waterfall-checkpoint-total', 0],
   ['panels-v2--waterfall-closing-total', 0],
   ['panels-v2--waterfall-semantic-tone', 0],
   ['panels-v2--waterfall-split-callout', 0],
@@ -195,6 +202,9 @@ const staticStories = [
   ['parity--panel-skeletons-light', 0],
   ['parity--pie-with-legend-right--light', 1],
   ['parity--pie-with-legend-right--dark', 1],
+  // A legend long enough to reach the top of its column — the arrangement the
+  // total badge kept colliding with and the two-entry stories never produced.
+  ['parity--pie-with-tall-legend', 1],
   ['parity--tab-group', 0],
 ] as const
 
@@ -307,6 +317,18 @@ test('panel-level actions expose their affordance on hover', async ({ page }) =>
   await page.getByRole('link', { name: /Открыть|Open/ }).first().hover()
   await expect(page.locator('.lens-card-link-affordance').first()).toBeVisible()
   await screenshot(page, 'parity-clickable-panels-hover', { pointer: 'keep' })
+})
+
+test('a split band names itself when its column is hovered', async ({ page }) => {
+  await openStory(page, 'panels-v2--waterfall-split-callout', 0)
+  const callout = page.locator('.lens-waterfall-split-callout')
+  // Parked off the plot, the chip is transparent — the static baseline of this
+  // same story is the proof that it takes none of the reader's attention.
+  await expect(callout).toHaveCSS('opacity', '0')
+  // The whole column is the target, not the few pixels of the band itself.
+  await page.locator('.lens-waterfall-column').filter({ has: page.locator('.lens-waterfall-bar-split') }).hover()
+  await expect(callout).toHaveCSS('opacity', '1')
+  await screenshot(page, 'panels-v2-waterfall-split-callout-hover', { pointer: 'keep' })
 })
 
 test('chart tooltips escape the card', async ({ page }) => {

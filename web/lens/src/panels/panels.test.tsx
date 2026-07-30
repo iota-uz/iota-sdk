@@ -39,7 +39,8 @@ vi.mock('../runtime', () => ({
 
 import { BarPanel, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
-import { buildCascadeStages, buildWaterfallItems, CascadePanel, waterfallAxisStep } from './CascadePanel'
+import { buildCascadeStages, buildWaterfallItems, buildWaterfallModel, CascadePanel, waterfallAxisStep } from './CascadePanel'
+import { WaterfallPlot } from './WaterfallPlot'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
 import { StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
@@ -104,12 +105,15 @@ function renderKind(kind: PanelKind) {
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
 }
 
+const baseDocument = runtime.document
+
 afterEach(() => {
   cleanup()
   runtime.drillInto.mockReset()
   runtime.navigation = { path: [], history: [] }
   runtime.level = undefined
   runtime.refreshing = false
+  runtime.document = baseDocument
 })
 
 describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
@@ -413,6 +417,48 @@ describe('chart encoding and drill behavior', () => {
     ]))
   })
 
+  it('keeps a series in its own colour when the series before it is hidden', async () => {
+    const frame: Frame = {
+      columns: [
+        { name: 'category', type: 'string' },
+        { name: 'series', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['2025', 'Claimed', 100],
+        ['2025', 'Paid', 10],
+        ['2026', 'Claimed', 120],
+        ['2026', 'Paid', 20],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    // The pins are panel-scoped and positional, which is what makes this
+    // breakable: hiding a series used to slide every series after it one
+    // position down, so the payout line repainted itself in the hidden
+    // series' colour while its legend swatch kept the old one.
+    runtime.document = {
+      ...runtime.document,
+      theme: { palette: {}, series: { 'panel-line:0': '#2563eb', 'panel-line:1': '#d97706' } },
+    } as DashboardDocument
+    const inputs: ChartInput[] = []
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
+    expect(inputs.at(-1)?.seriesColor?.('Paid', 1)).toBe('#d97706')
+
+    fireEvent.click(screen.getByRole('button', { name: /Claimed/ }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    // The chart now hands index 0 — the only series it can see — and must
+    // still be told amber, the colour the legend beside it is still printing.
+    expect(inputs.at(-1)?.seriesColor?.('Paid', 0)).toBe('#d97706')
+    const marks = Array.from(view.container.querySelectorAll<HTMLElement>('.lens-chart-legend-mark'))
+    expect(marks.at(-1)?.style.background).toBe('rgb(217, 119, 6)')
+  })
+
   it('renders the panel title once when the stat label would duplicate it', () => {
     runtime.frame = state('data')
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
@@ -623,6 +669,43 @@ describe('cascade stages', () => {
     )).toBe(false)
   })
 
+  it('draws each pure-total final row in place, so a cascade can pass through a checkpoint', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [
+        ['Earned premium', 200, 0, '', false],
+        ['Claims paid', 190, 10, 'Claims paid', false],
+        // The statutory result: a total the reader recognises, mid-cascade.
+        ['Underwriting result', 190, 0, '', true],
+        ['Case reserves', 170, 20, 'Case reserves', false],
+        ['Pre-tax result', 170, 0, '', true],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    expect(items.map(({ label, kind, checkpoint }) => ({ label, kind, checkpoint }))).toEqual([
+      { label: 'Earned premium', kind: 'start', checkpoint: undefined },
+      { label: 'Claims paid', kind: 'decrease', checkpoint: undefined },
+      // Stands on zero where it was declared, not hoisted to the end...
+      { label: 'Underwriting result', kind: 'end', checkpoint: true },
+      { label: 'Case reserves', kind: 'decrease', checkpoint: undefined },
+      // ...and only the last total is the finish.
+      { label: 'Pre-tax result', kind: 'end', checkpoint: undefined },
+    ])
+    // Both totals stand on zero and carry their absolute value, not a delta.
+    expect(items.filter((item) => item.kind === 'end').map((item) => item.value)).toEqual([190, 170])
+  })
+
   it('keeps a genuine sub-unit movement on a small-scale waterfall', () => {
     const cascade = panel('cascade', {
       encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
@@ -684,7 +767,9 @@ describe('cascade stages', () => {
     const byLabel = (label: string) => items.find((item) => item.label === label)
 
     const claims = byLabel('Claims')
-    expect(claims?.splitHeight).toBeCloseTo((claims?.height ?? 0) / 4)
+    // A quarter of the movement is a quarter of the bar that draws it, whatever
+    // share of the plot that bar happens to occupy.
+    expect(claims?.splitHeight).toBeCloseTo(25)
     expect(claims?.splitLabel).toBe('above reserve')
     expect(byLabel('Acquisition')?.splitHeight).toBeUndefined()
     expect(byLabel('Operating')?.splitHeight).toBeUndefined()
@@ -693,5 +778,52 @@ describe('cascade stages', () => {
     expect(byLabel('Claims')?.underlayHeight).toBeGreaterThan(0)
     expect(byLabel('Earned premium')?.underlayHeight).toBeUndefined()
     expect(byLabel('Result')?.underlayHeight).toBeUndefined()
+  })
+
+  it('keeps a split callout in the document but holds it for the pointer', () => {
+    const cascade = panel('cascade', {
+      encoding: {
+        label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final',
+        split: 'split', splitLabel: 'splitLabel',
+      },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+        { name: 'split', type: 'number' },
+        { name: 'splitLabel', type: 'string' },
+      ],
+      rows: [
+        ['Earned premium', 100, 0, '', false, 0, ''],
+        ['Claims', 60, 40, 'Claims', false, 10, 'above reserve'],
+        ['Result', 60, 0, '', true, 0, ''],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const view = render(<CascadePanel panel={cascade} />)
+    const callout = view.container.querySelector('.lens-waterfall-split-callout')
+    // The chip stays in the DOM — assistive tech reads the amount out with the
+    // bar whether or not the reader has a pointer. Only the paint waits, and
+    // the stylesheet keys that on this attribute.
+    expect(callout).toHaveTextContent('above reserve 10')
+    expect(callout?.getAttribute('data-reveal')).toBe('hover')
+
+    const printed = render(
+      <WaterfallPlot
+        label="Bridge"
+        model={buildWaterfallModel(buildCascadeStages(cascade, frame, format, format), format)}
+        splitCallout="always"
+      />,
+    )
+
+    expect(printed.container.querySelector('.lens-waterfall-split-callout')?.getAttribute('data-reveal'))
+      .toBe('always')
   })
 })

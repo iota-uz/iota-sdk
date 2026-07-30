@@ -3,6 +3,8 @@ package llmproviders
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/url"
@@ -12,6 +14,7 @@ import (
 
 	openai "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
+	"github.com/openai/openai-go/v3/responses"
 
 	"github.com/iota-uz/iota-sdk/pkg/bichat/agents"
 	"github.com/iota-uz/iota-sdk/pkg/bichat/domain"
@@ -213,6 +216,12 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 	params := m.buildResponseParams(ctx, req, config)
 
 	resp, err := m.client.Responses.New(ctx, params)
+	if err != nil && hasPreviousResponseID(req) && isPreviousResponseNotFoundError(err) {
+		recoveryReq := req
+		recoveryReq.PreviousResponseID = nil
+		params = m.buildResponseParams(ctx, recoveryReq, config)
+		resp, err = m.client.Responses.New(ctx, params)
+	}
 	if err != nil {
 		return nil, serrors.E(op, err, "OpenAI API request failed")
 	}
@@ -222,127 +231,221 @@ func (m *OpenAIModel) Generate(ctx context.Context, req agents.Request, opts ...
 
 // Stream sends a streaming request to the OpenAI Responses API.
 func (m *OpenAIModel) Stream(ctx context.Context, req agents.Request, opts ...agents.GenerateOption) (types.Generator[agents.Chunk], error) {
-	const op serrors.Op = "OpenAIModel.Stream"
-
 	config := agents.ApplyGenerateOptions(opts...)
-	params := m.buildResponseParams(ctx, req, config)
-
-	stream := m.client.Responses.NewStreaming(ctx, params)
 
 	return types.NewGenerator(ctx, func(genCtx context.Context, yield func(agents.Chunk) bool) error {
-		defer func() {
-			if err := stream.Close(); err != nil {
-				m.logger.Warn(genCtx, "stream close error", map[string]any{
-					"error": err.Error(),
-					"model": m.modelName,
-				})
-			}
-		}()
+		params := m.buildResponseParams(genCtx, req, config)
+		emitted := false
+		err := m.consumeOpenAIStream(genCtx, params, yield, &emitted)
+		if err == nil || emitted || !hasPreviousResponseID(req) || !isPreviousResponseNotFoundError(err) {
+			return err
+		}
 
-		toolCallAccum := make(map[string]*toolCallAccumEntry)
-		var toolCallOrder []string
+		recoveryReq := req
+		recoveryReq.PreviousResponseID = nil
+		recoveryParams := m.buildResponseParams(genCtx, recoveryReq, config)
+		return m.consumeOpenAIStream(genCtx, recoveryParams, yield, &emitted)
+	}, types.WithBufferSize(10)), nil
+}
 
-		for stream.Next() {
-			event := stream.Current()
+func (m *OpenAIModel) consumeOpenAIStream(
+	ctx context.Context,
+	params responses.ResponseNewParams,
+	yield func(agents.Chunk) bool,
+	emitted *bool,
+) error {
+	const op serrors.Op = "OpenAIModel.consumeOpenAIStream"
 
-			switch event.Type {
-			case "response.output_text.delta":
-				if !yield(agents.Chunk{Delta: event.Delta}) {
-					return nil
-				}
+	stream := m.client.Responses.NewStreaming(ctx, params)
+	defer func() {
+		if err := stream.Close(); err != nil {
+			m.logger.Warn(ctx, "stream close error", map[string]any{
+				"error": err.Error(),
+				"model": m.modelName,
+			})
+		}
+	}()
 
-			case "response.reasoning_summary_text.delta":
-				if !yield(agents.Chunk{Thinking: event.Delta}) {
-					return nil
-				}
+	toolCallAccum := make(map[string]*toolCallAccumEntry)
+	var toolCallOrder []string
 
-			case "response.function_call_arguments.delta":
-				callID := event.ItemID
-				if _, ok := toolCallAccum[callID]; !ok {
-					toolCallAccum[callID] = &toolCallAccumEntry{id: callID}
-					toolCallOrder = append(toolCallOrder, callID)
-				}
-				toolCallAccum[callID].args += event.Delta
+	for stream.Next() {
+		event := stream.Current()
 
-			case "response.function_call_arguments.done":
-				callID := event.ItemID
-				if a, ok := toolCallAccum[callID]; ok {
-					a.name = event.Name
-					a.args = event.Arguments
-				}
+		if err := openAIStreamTerminalError(event); err != nil {
+			return serrors.E(op, err, "OpenAI response stream terminated unsuccessfully")
+		}
 
-			case "response.output_item.done":
-				if event.Item.Type == "function_call" {
-					itemID := functionCallItemKey(event.Item, event.ItemID)
-					if itemID == "" {
-						m.logger.Warn(genCtx, "skipping function_call output_item.done without item id", map[string]any{
-							"call_id": event.Item.CallID,
-							"name":    event.Item.Name,
-						})
-						continue
-					}
-					if a, ok := toolCallAccum[itemID]; ok {
-						a.callID = event.Item.CallID
-						if a.name == "" {
-							a.name = event.Item.Name
-						}
-						if a.args == "" {
-							a.args = event.Item.Arguments
-						}
-					} else {
-						toolCallAccum[itemID] = &toolCallAccumEntry{
-							id:     itemID,
-							callID: event.Item.CallID,
-							name:   event.Item.Name,
-							args:   event.Item.Arguments,
-						}
-						toolCallOrder = append(toolCallOrder, itemID)
-					}
-
-					readyToolCalls := m.buildReadyToolCallsFromAccum(toolCallAccum, toolCallOrder)
-					if len(readyToolCalls) > 0 {
-						if !yield(agents.Chunk{ToolCalls: readyToolCalls}) {
-							return nil
-						}
-					}
-				}
-
-			case "response.completed":
-				resp := event.Response
-				agentResp, err := m.mapResponse(&resp)
-				if err != nil {
-					return serrors.E(op, err, "failed to map completed response")
-				}
-
-				toolCalls := m.buildToolCallsFromAccum(toolCallAccum, toolCallOrder)
-				if len(agentResp.Message.ToolCalls()) > 0 && len(toolCalls) == 0 {
-					toolCalls = agentResp.Message.ToolCalls()
-				}
-
-				chunk := agents.Chunk{
-					Done:                   true,
-					ToolCalls:              toolCalls,
-					Usage:                  &agentResp.Usage,
-					FinishReason:           agentResp.FinishReason,
-					Citations:              agentResp.Message.Citations(),
-					CodeInterpreterResults: agentResp.CodeInterpreterResults,
-					FileAnnotations:        agentResp.FileAnnotations,
-					ProviderResponseID:     agentResp.ProviderResponseID,
-					Thinking:               agentResp.Thinking,
-				}
-				if !yield(chunk) {
-					return nil
-				}
+		switch event.Type {
+		case "response.output_text.delta":
+			*emitted = true
+			if !yield(agents.Chunk{Delta: event.Delta}) {
 				return nil
 			}
-		}
 
-		if err := stream.Err(); err != nil {
-			return serrors.E(op, err, "stream error")
-		}
+		case "response.reasoning_summary_text.delta":
+			*emitted = true
+			if !yield(agents.Chunk{Thinking: event.Delta}) {
+				return nil
+			}
 
+		case "response.function_call_arguments.delta":
+			callID := event.ItemID
+			if _, ok := toolCallAccum[callID]; !ok {
+				toolCallAccum[callID] = &toolCallAccumEntry{id: callID}
+				toolCallOrder = append(toolCallOrder, callID)
+			}
+			toolCallAccum[callID].args += event.Delta
+
+		case "response.function_call_arguments.done":
+			callID := event.ItemID
+			if a, ok := toolCallAccum[callID]; ok {
+				a.name = event.Name
+				a.args = event.Arguments
+			}
+
+		case "response.output_item.done":
+			if event.Item.Type == "function_call" {
+				itemID := functionCallItemKey(event.Item, event.ItemID)
+				if itemID == "" {
+					m.logger.Warn(ctx, "skipping function_call output_item.done without item id", map[string]any{
+						"call_id": event.Item.CallID,
+						"name":    event.Item.Name,
+					})
+					continue
+				}
+				if a, ok := toolCallAccum[itemID]; ok {
+					a.callID = event.Item.CallID
+					if a.name == "" {
+						a.name = event.Item.Name
+					}
+					if a.args == "" {
+						a.args = event.Item.Arguments
+					}
+				} else {
+					toolCallAccum[itemID] = &toolCallAccumEntry{
+						id:     itemID,
+						callID: event.Item.CallID,
+						name:   event.Item.Name,
+						args:   event.Item.Arguments,
+					}
+					toolCallOrder = append(toolCallOrder, itemID)
+				}
+
+				readyToolCalls := m.buildReadyToolCallsFromAccum(toolCallAccum, toolCallOrder)
+				if len(readyToolCalls) > 0 {
+					*emitted = true
+					if !yield(agents.Chunk{ToolCalls: readyToolCalls}) {
+						return nil
+					}
+				}
+			}
+
+		case "response.completed":
+			resp := event.Response
+			agentResp, err := m.mapResponse(&resp)
+			if err != nil {
+				return serrors.E(op, err, "failed to map completed response")
+			}
+
+			toolCalls := m.buildToolCallsFromAccum(toolCallAccum, toolCallOrder)
+			if len(agentResp.Message.ToolCalls()) > 0 && len(toolCalls) == 0 {
+				toolCalls = agentResp.Message.ToolCalls()
+			}
+
+			chunk := agents.Chunk{
+				Done:                   true,
+				ToolCalls:              toolCalls,
+				Usage:                  &agentResp.Usage,
+				FinishReason:           agentResp.FinishReason,
+				Citations:              agentResp.Message.Citations(),
+				CodeInterpreterResults: agentResp.CodeInterpreterResults,
+				FileAnnotations:        agentResp.FileAnnotations,
+				ProviderResponseID:     agentResp.ProviderResponseID,
+				Thinking:               agentResp.Thinking,
+			}
+			*emitted = true
+			if !yield(chunk) {
+				return nil
+			}
+			return nil
+		}
+	}
+
+	if err := stream.Err(); err != nil {
+		return serrors.E(op, err, "stream error")
+	}
+
+	return nil
+}
+
+func hasPreviousResponseID(req agents.Request) bool {
+	return req.PreviousResponseID != nil && strings.TrimSpace(*req.PreviousResponseID) != ""
+}
+
+func isPreviousResponseNotFoundError(err error) bool {
+	var apiErr *openai.Error
+	if errors.As(err, &apiErr) {
+		return apiErr.Code == "previous_response_not_found" &&
+			apiErr.Param == "previous_response_id"
+	}
+
+	// Some streaming transports preserve the provider payload only in the
+	// wrapped error text. Keep this fallback deliberately narrow: both the
+	// exact provider code and the exact parameter must be present.
+	raw := err.Error()
+	return strings.Contains(raw, "previous_response_not_found") &&
+		strings.Contains(raw, "previous_response_id")
+}
+
+type openAIStreamError struct {
+	Type       string `json:"type"`
+	Code       string `json:"code"`
+	Message    string `json:"message"`
+	ResponseID string `json:"response_id,omitempty"`
+	Reason     string `json:"reason,omitempty"`
+}
+
+func (e *openAIStreamError) Error() string {
+	payload, err := json.Marshal(e)
+	if err != nil {
+		return e.Message
+	}
+	return string(payload)
+}
+
+func openAIStreamTerminalError(event responses.ResponseStreamEventUnion) error {
+	switch event.Type {
+	case "response.failed":
+		code := strings.TrimSpace(string(event.Response.Error.Code))
+		if code == "" {
+			code = "response_failed"
+		}
+		message := strings.TrimSpace(event.Response.Error.Message)
+		if message == "" {
+			message = "OpenAI failed to generate a response"
+		}
+		return &openAIStreamError{
+			Type:       "response_failed",
+			Code:       code,
+			Message:    message,
+			ResponseID: event.Response.ID,
+		}
+	case "response.incomplete":
+		reason := strings.TrimSpace(event.Response.IncompleteDetails.Reason)
+		if reason == "" {
+			reason = "unknown"
+		}
+		return &openAIStreamError{
+			Type:       "response_incomplete",
+			Code:       "response_incomplete",
+			Message:    "OpenAI response was incomplete: " + reason,
+			ResponseID: event.Response.ID,
+			Reason:     reason,
+		}
+	default:
 		return nil
-	}, types.WithBufferSize(10)), nil
+	}
 }
 
 func normalizeCodeInterpreterMemoryLimit(limit string) (string, bool) {

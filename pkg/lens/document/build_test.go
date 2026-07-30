@@ -1030,6 +1030,45 @@ func TestBuild_PanelColorsPublishIndexAndLabelSeriesKeys(t *testing.T) {
 	require.Equal(t, "#d97706", doc.Theme.Series["Unearned"])
 }
 
+// A series panel positions its colors by series, not by row: the n-th color is
+// the n-th distinct series, and its rows are one per (category, series) pair.
+// Reading the row label there published the category values as series colors
+// and left the series themselves without an alias, so a renderer resolving a
+// color by series name found nothing and fell back to its own palette.
+func TestBuild_SeriesPanelColorsPublishSeriesNameKeys(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("rows",
+		frame.Field{Name: "month", Type: frame.FieldTypeString, Values: []any{"2025-01", "2025-01", "2025-02", "2025-02"}},
+		frame.Field{Name: "series", Type: frame.FieldTypeString, Values: []any{"Claimed", "Paid", "Claimed", "Paid"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{9.0, 1.0, 8.0, 2.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	bar := panel.StackedBar("claimed", "Claimed", "rows").
+		CategoryField("month").SeriesField("series").ValueField("amount").
+		Colors("#2563eb", "#d97706").
+		Build()
+	spec := lensbuild.Dashboard("claims-dash", "Claims", lensbuild.Row(bar)).
+		Datasets(lensbuild.StaticDataset("rows", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Equal(t, "#2563eb", doc.Theme.Series["claimed:0"])
+	require.Equal(t, "#d97706", doc.Theme.Series["claimed:1"])
+	require.Equal(t, "#2563eb", doc.Theme.Series["Claimed"])
+	require.Equal(t, "#d97706", doc.Theme.Series["Paid"])
+	// A month is a position on the axis, not a series, and must not claim a
+	// color that another panel's category of the same name would then inherit.
+	require.NotContains(t, doc.Theme.Series, "2025-01")
+	require.NotContains(t, doc.Theme.Series, "2025-02")
+}
+
 func TestBuild_PercentFormatPinsSeparator(t *testing.T) {
 	t.Parallel()
 	primary, err := frame.New("rows",
