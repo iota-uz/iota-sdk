@@ -138,7 +138,33 @@ func (s *agentServiceImpl) ProcessMessage(
 	content string,
 	attachments []domain.Attachment,
 ) (types.Generator[agents.ExecutorEvent], error) {
-	const op serrors.Op = "agentServiceImpl.ProcessMessage"
+	return s.process(ctx, sessionID, content, attachments, "")
+}
+
+// ProcessContinuation executes a trusted internal continuation in the same
+// session without synthesizing a user turn.
+func (s *agentServiceImpl) ProcessContinuation(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	event services.ContinuationEvent,
+) (types.Generator[agents.ExecutorEvent], error) {
+	const op serrors.Op = "agentServiceImpl.ProcessContinuation"
+	prompt, err := event.Prompt()
+	if err != nil {
+		return nil, serrors.E(op, serrors.KindValidation, err)
+	}
+	ctx = services.WithContinuationEvent(ctx, event)
+	return s.process(ctx, sessionID, "", nil, prompt)
+}
+
+func (s *agentServiceImpl) process(
+	ctx context.Context,
+	sessionID uuid.UUID,
+	content string,
+	attachments []domain.Attachment,
+	continuation string,
+) (types.Generator[agents.ExecutorEvent], error) {
+	const op serrors.Op = "agentServiceImpl.process"
 	ctx = agents.WithRuntimeSessionID(ctx, sessionID)
 
 	// Get tenant ID for multi-tenant isolation
@@ -208,16 +234,26 @@ You are assisting a developer in diagnostic mode. Provide complete and explicit 
 		builder.History(historyCodec, historyPayload)
 	}
 
-	// 3. Current user turn (KindTurn)
-	turnCodec := codecs.NewTurnCodec()
-	turnPayload := codecs.TurnPayload{
-		Content: content,
+	if continuation != "" {
+		builder.Continuation(
+			codecs.NewSystemRulesCodec(),
+			continuation,
+			bichatctx.BlockOptions{
+				Sensitivity: bichatctx.SensitivityInternal,
+				Source:      "internal-continuation",
+				Tags:        []string{"internal", "continuation"},
+			},
+		)
+	} else {
+		turnCodec := codecs.NewTurnCodec()
+		turnPayload := codecs.TurnPayload{
+			Content: content,
+		}
+		if len(attachments) > 0 {
+			turnPayload.Attachments = codecs.ConvertAttachmentsToTurnAttachments(convertToTypeAttachments(attachments))
+		}
+		builder.Turn(turnCodec, turnPayload)
 	}
-	// Add attachments if present
-	if len(attachments) > 0 {
-		turnPayload.Attachments = codecs.ConvertAttachmentsToTurnAttachments(convertToTypeAttachments(attachments))
-	}
-	builder.Turn(turnCodec, turnPayload)
 
 	// Compile with renderer and policy
 	compiled, err := builder.Compile(s.renderer, s.policy)

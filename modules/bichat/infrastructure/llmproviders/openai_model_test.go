@@ -227,6 +227,27 @@ func TestOpenAIModel_BuildResponseParams(t *testing.T) {
 	assert.NotNil(t, params.Text.Format.OfJSONObject)
 }
 
+func TestOpenAIModel_BuildResponseParams_AllowsToolOutputFromPreviousResponse(t *testing.T) {
+	t.Parallel()
+
+	model, err := NewOpenAIModelFromConfig(testCfg())
+	require.NoError(t, err)
+	oaiModel := model.(*OpenAIModel)
+	previousResponseID := "resp_with_tool_call"
+	params := oaiModel.buildResponseParams(context.Background(), agents.Request{
+		Messages: []types.Message{
+			types.SystemMessage("Keep the developer instruction."),
+			types.ToolResponse("call_from_previous_response", `{"value":"found"}`),
+		},
+		PreviousResponseID: &previousResponseID,
+	}, agents.GenerateConfig{})
+
+	require.True(t, params.PreviousResponseID.Valid())
+	assert.Equal(t, previousResponseID, params.PreviousResponseID.Value)
+	require.NotNil(t, params.Input.OfInputItemList)
+	assert.Len(t, params.Input.OfInputItemList, 2)
+}
+
 func TestOpenAIModel_BuildResponseParams_NativeWebSearch(t *testing.T) {
 	model, err := NewOpenAIModelFromConfig(testCfg())
 	require.NoError(t, err)

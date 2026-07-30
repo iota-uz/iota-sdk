@@ -12,6 +12,10 @@ import (
 type GenerationRunStatus string
 
 const (
+	// GenerationRunStaleAfter is the shared liveness threshold used by both
+	// service orchestration and persistence when reclaiming abandoned runs.
+	GenerationRunStaleAfter = 5 * time.Minute
+
 	GenerationRunStatusStreaming GenerationRunStatus = "streaming"
 	GenerationRunStatusCompleted GenerationRunStatus = "completed"
 	GenerationRunStatusCancelled GenerationRunStatus = "cancelled"

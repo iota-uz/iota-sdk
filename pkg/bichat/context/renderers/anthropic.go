@@ -60,6 +60,8 @@ func (r *AnthropicRenderer) Render(block context.ContextBlock) (context.Rendered
 		return r.renderToolOutput(block)
 	case context.KindHistory:
 		return r.renderHistory(block)
+	case context.KindContinuation:
+		return r.renderState(block)
 	case context.KindTurn:
 		return r.renderTurn(block)
 	default:
