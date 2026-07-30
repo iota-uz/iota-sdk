@@ -64,9 +64,27 @@ function filteredDocument(locale = 'en'): DashboardDocument {
   }
 }
 
-function DashboardScene({ theme }: { theme: LensThemeMode }) {
-  return <LensDashboard filterToday={storyToday} initialDocument={filteredDocument()} theme={theme} />
+function DashboardScene({ theme, period = periodFilter }: { theme: LensThemeMode; period?: Filter }) {
+  const base = filteredDocument()
+  return (
+    <LensDashboard
+      filterToday={storyToday}
+      initialDocument={{ ...base, filters: [period] }}
+      theme={theme}
+    />
+  )
 }
+
+/** The applied range is a year chip: that chip, not the trigger, is raised. */
+const chipMatchedFilter: Filter = {
+  ...periodFilter,
+  period: { ...periodFilter.period!, value: { start: '2025-01-01', end: '2025-12-31' } },
+}
+
+export const DashboardFilterChipActive: Story = () => (
+  <DashboardScene period={chipMatchedFilter} theme="light" />
+)
+DashboardFilterChipActive.storyName = 'Dashboard filter chip active'
 
 export const DashboardFilterLight: Story = () => <DashboardScene theme="light" />
 DashboardFilterLight.storyName = 'Dashboard filter light'
@@ -180,6 +198,31 @@ export const CalendarRangePending: Story = () => (
   </CalendarCard>
 )
 CalendarRangePending.storyName = 'Calendar range pending'
+
+/** Clicks a selector once mounted, so a click-only state can be a story. */
+function AutoClick({ children, selector }: { children: React.ReactNode; selector: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>(selector)?.click()
+  }, [selector])
+  return <div ref={ref}>{children}</div>
+}
+
+/** The month panel behind the heading: the only way to travel by year. */
+export const CalendarMonthPanel: Story = () => (
+  <AutoClick selector=".lens-calendar-month">
+    <CalendarCard>
+      <Calendar
+        draft={committedRange}
+        locale="en"
+        onPick={() => undefined}
+        today={storyToday}
+        translate={identityTranslate}
+      />
+    </CalendarCard>
+  </AutoClick>
+)
+CalendarMonthPanel.storyName = 'Calendar month panel'
 
 /** All four product locales: month names, weekday rows, first day of week. */
 export const CalendarLocales: Story = () => (

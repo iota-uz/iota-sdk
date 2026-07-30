@@ -6,12 +6,13 @@ import { currentPeriodValue, useDashboard, useFilters, useTranslate } from '../r
 import { isVisualRegression } from '../visualRegression'
 import { Calendar } from './Calendar'
 import {
+  compactRangeLabel,
   compareDates,
-  dayLabel,
   daysInMonth,
   defaultPeriodPresets,
   formatISODate,
   parseISODate,
+  rangeHint,
   resolvePreset,
   type CalendarDate,
   type RangeDraft,
@@ -293,13 +294,18 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
 
   if (!period) return null
 
+  // Calendar picks build the draft and nothing else: the popover has exactly
+  // one commit path (Apply), so a mis-clicked start date costs a correction
+  // rather than an applied period and a document refetch. The rail's presets
+  // are the deliberate exception — a single unambiguous click.
   const onPick = (selection: RangeSelection) => {
     setDraft(selection.draft)
-    if (!selection.complete) return
-    setPeriod(filter, {
-      start: formatISODate(selection.complete.start),
-      end: formatISODate(selection.complete.end),
-    })
+  }
+
+  const cancel = () => {
+    const applied = draftFromValue(period ? currentPeriodValue(period, values) : { start: '', end: '' })
+    setDraft(applied)
+    setFields({ start: fieldFromDate(applied.start), end: fieldFromDate(applied.end) })
     close()
   }
 
@@ -361,51 +367,59 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
 
   const allTime = translate('filter.period.allTime', 'All time')
   // The active period source: a chip when the applied range matches one, the
-  // trigger (a custom range) when none does. The trigger carries a persistent
-  // active cue in that case, in the same visual language as a pressed chip.
+  // trigger (a custom range) when none does. Chips and trigger are members of
+  // one segmented tray, so exactly one of them is ever raised.
   const customActive = !presets.some((preset) => sameValue(preset.value, value))
   const start = parseISODate(value.start)
   const end = parseISODate(value.end)
   const triggerLabel = value.start === '' && value.end === ''
     ? allTime
     : start && end
-      ? `${dayLabel(locale, start)} – ${dayLabel(locale, end)}`
+      ? compactRangeLabel(start, end)
       : translate('filter.period.custom', 'Custom range')
   const min = period.min ? parseISODate(period.min) : undefined
   const max = period.max ? parseISODate(period.max) : undefined
 
   return (
     <div className="lens-filter" data-filter-id={filter.id}>
-      {filter.label && <span className="lens-filter-name">{filter.label}</span>}
-      {presets.length > 0 && (
-        <span className="lens-filter-presets">
-          {presets.map((preset) => (
-            <button
-              aria-pressed={sameValue(preset.value, value)}
-              className="lens-filter-chip"
-              key={preset.id}
-              onClick={() => applyValue(preset.value)}
-              type="button"
-            >
-              {preset.label}
-            </button>
-          ))}
-        </span>
-      )}
-      <button
-        aria-expanded={open}
-        aria-haspopup="dialog"
-        aria-label={`${translate('filter.period.open', 'Change period')}: ${triggerLabel}`}
-        className="lens-filter-trigger"
-        data-active={customActive || undefined}
-        onClick={() => (open ? close(false) : openPopover())}
-        ref={triggerRef}
-        type="button"
+      {/* One tray, one raised member: the year chips and the calendar trigger
+          are segments of the same control, so the applied period is stated in
+          a single visual language instead of two competing ones. The filter's
+          own label names the group rather than printing a caption beside it. */}
+      <div
+        aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')}
+        className="lens-filter-segments"
+        role="group"
       >
-        <CalendarBlank className="lens-filter-trigger-icon" size={14} />
-        <span className="lens-filter-trigger-label">{triggerLabel}</span>
-        <CaretDown className="lens-filter-trigger-caret" size={11} />
-      </button>
+        {presets.map((preset) => (
+          <button
+            aria-pressed={sameValue(preset.value, value)}
+            className="lens-filter-chip"
+            key={preset.id}
+            onClick={() => applyValue(preset.value)}
+            type="button"
+          >
+            {preset.label}
+          </button>
+        ))}
+        <button
+          aria-expanded={open}
+          aria-haspopup="dialog"
+          aria-label={`${translate('filter.period.open', 'Change period')}: ${triggerLabel}`}
+          className="lens-filter-trigger"
+          data-active={customActive || undefined}
+          onClick={() => (open ? close(false) : openPopover())}
+          ref={triggerRef}
+          type="button"
+        >
+          <CalendarBlank className="lens-filter-trigger-icon" size={14} />
+          {/* The range is printed only when the trigger is the active source.
+              With a chip raised, that chip already states the period and the
+              trigger is just the way into the calendar. */}
+          {customActive && <span className="lens-filter-trigger-label">{triggerLabel}</span>}
+          <CaretDown className="lens-filter-trigger-caret" size={11} />
+        </button>
+      </div>
       {open && container && createPortal(
         <>
           <div aria-hidden="true" className="lens-filter-scrim" onMouseDown={() => close(false)} />
@@ -419,11 +433,32 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
             tabIndex={-1}
           >
             {(relativePresets.length > 0 || period.allowEmpty) && (
+              // The rail is two headed groups — periods still running, then
+              // completed ones — with All time pinned to the foot as the
+              // clear-like action it is, not a third relative preset.
               <div className="lens-filter-popover-side">
-                <span className="lens-filter-preset-heading">
-                  {translate('filter.period.quickSelect', 'Quick select')}
-                </span>
+                {toDatePresets.length > 0 && (
+                  <span className="lens-filter-preset-heading">
+                    {translate('filter.period.quickSelect', 'Quick select')}
+                  </span>
+                )}
                 {toDatePresets.map((preset) => (
+                  <button
+                    aria-pressed={sameValue(preset.value, value)}
+                    className="lens-filter-preset"
+                    key={preset.id}
+                    onClick={() => applyValue(preset.value)}
+                    type="button"
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+                {pastPresets.length > 0 && (
+                  <span className="lens-filter-preset-heading">
+                    {translate('filter.period.completed', 'Completed')}
+                  </span>
+                )}
+                {pastPresets.map((preset) => (
                   <button
                     aria-pressed={sameValue(preset.value, value)}
                     className="lens-filter-preset"
@@ -437,27 +472,13 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                 {period.allowEmpty && (
                   <button
                     aria-pressed={value.start === '' && value.end === ''}
-                    className="lens-filter-preset"
+                    className="lens-filter-preset lens-filter-preset-clear"
                     onClick={() => applyValue({ start: '', end: '' })}
                     type="button"
                   >
                     {allTime}
                   </button>
                 )}
-                {pastPresets.length > 0 && (toDatePresets.length > 0 || period.allowEmpty) && (
-                  <div aria-hidden="true" className="lens-filter-preset-divider" />
-                )}
-                {pastPresets.map((preset) => (
-                  <button
-                    aria-pressed={sameValue(preset.value, value)}
-                    className="lens-filter-preset"
-                    key={preset.id}
-                    onClick={() => applyValue(preset.value)}
-                    type="button"
-                  >
-                    {preset.label}
-                  </button>
-                ))}
               </div>
             )}
             <div className="lens-filter-popover-main">
@@ -474,7 +495,6 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                 <label className="lens-filter-range-field">
                   <span className="lens-filter-range-caption">{translate('filter.period.from', 'From')}</span>
                   <span className="lens-filter-range-input" data-invalid={fields.start.invalid || undefined}>
-                    <CalendarBlank className="lens-filter-range-icon" size={12} />
                     <input
                       className="lens-filter-input"
                       inputMode="numeric"
@@ -491,7 +511,6 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                 <label className="lens-filter-range-field">
                   <span className="lens-filter-range-caption">{translate('filter.period.to', 'To')}</span>
                   <span className="lens-filter-range-input" data-invalid={fields.end.invalid || undefined}>
-                    <CalendarBlank className="lens-filter-range-icon" size={12} />
                     <input
                       className="lens-filter-input"
                       inputMode="numeric"
@@ -505,13 +524,19 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
                   </span>
                 </label>
               </div>
+              {/* The footer states what the draft currently is — the day count
+                  once it is a range, the next step while it is not — so the
+                  summary has a home instead of dangling under the grid. */}
               <div className="lens-filter-popover-footer">
+                <span className="lens-filter-summary" data-complete={draftComplete || undefined}>
+                  {rangeHint(draft, translate)}
+                </span>
                 <button
-                  className="lens-filter-chip lens-filter-close"
-                  onClick={() => close()}
+                  className="lens-filter-chip lens-filter-cancel"
+                  onClick={cancel}
                   type="button"
                 >
-                  {translate('filter.period.close', 'Close')}
+                  {translate('filter.period.cancel', 'Cancel')}
                 </button>
                 <button
                   className="lens-filter-chip lens-filter-apply"

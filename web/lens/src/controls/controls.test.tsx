@@ -78,15 +78,54 @@ describe('Calendar', () => {
     expect(screen.getByRole('status').textContent).toContain('September 2026')
   })
 
-  it('steps the window by month and year through the header buttons', () => {
+  it('steps the window by month through the header buttons', () => {
     render(<Calendar {...baseProps} onPick={() => undefined} />)
     fireEvent.click(screen.getByRole('button', { name: 'Next month' }))
     expect(grids()[0]!.getAttribute('aria-label')).toContain('August 2026')
-    fireEvent.click(screen.getByRole('button', { name: 'Previous year' }))
-    expect(grids()[0]!.getAttribute('aria-label')).toContain('August 2025')
-    expect(grids()[1]!.getAttribute('aria-label')).toContain('September 2025')
-    fireEvent.click(screen.getByRole('button', { name: 'Next year' }))
-    expect(grids()[0]!.getAttribute('aria-label')).toContain('August 2026')
+    fireEvent.click(screen.getByRole('button', { name: 'Previous month' }))
+    expect(grids()[0]!.getAttribute('aria-label')).toContain('July 2026')
+  })
+
+  it('travels by year through the month panel behind the heading', () => {
+    render(<Calendar {...baseProps} onPick={() => undefined} />)
+
+    // The heading opens the month panel for its own year; the panel replaces
+    // the day grid rather than resizing the popover.
+    fireEvent.click(screen.getByRole('button', { name: /Choose month: July 2026/ }))
+    expect(screen.queryAllByRole('grid')).toHaveLength(0)
+    expect(screen.getByRole('button', { name: '2026' })).toBeInTheDocument()
+
+    // One more level up: the twelve-year block, aligned to multiples of twelve.
+    fireEvent.click(screen.getByRole('button', { name: '2026' }))
+    expect(screen.getByRole('button', { name: '2016 – 2027' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Previous' }))
+    expect(screen.getByRole('button', { name: '2004 – 2015' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    expect(screen.getByRole('button', { name: '2016 – 2027' })).toBeInTheDocument()
+
+    // Year, then month: the window lands there and the day grid comes back.
+    fireEvent.click(screen.getByRole('button', { name: '2019' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Mar' }))
+    expect(grids()[0]!.getAttribute('aria-label')).toContain('March 2019')
+    expect(grids()[1]!.getAttribute('aria-label')).toContain('April 2019')
+  })
+
+  it('refuses months and years the min/max bounds exclude', () => {
+    render(
+      <Calendar
+        {...baseProps}
+        max={{ year: 2026, month: 7, day: 25 }}
+        min={{ year: 2026, month: 3, day: 10 }}
+        onPick={() => undefined}
+      />,
+    )
+    fireEvent.click(screen.getByRole('button', { name: 'Choose month: July 2026' }))
+    expect(screen.getByRole('button', { name: 'Feb' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Mar' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Aug' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: '2026' }))
+    expect(screen.getByRole('button', { name: '2025' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: '2026' })).toBeEnabled()
   })
 
   it('shows a live hover preview between the anchor and the hovered day', () => {
@@ -132,20 +171,6 @@ describe('Calendar', () => {
     expect(day('Jul 10, 2026').dataset.cap).toBeUndefined()
     // Endpoints are pills, never capped washes.
     expect(day('Jul 3, 2026').dataset.cap).toBeUndefined()
-  })
-
-  it('summarizes a complete range as a day count and prompts otherwise', () => {
-    const { unmount } = render(
-      <Calendar
-        {...baseProps}
-        draft={{ start: { year: 2026, month: 7, day: 3 }, end: { year: 2026, month: 7, day: 18 } }}
-        onPick={() => undefined}
-      />,
-    )
-    expect(screen.getByText('16 d.')).toBeInTheDocument()
-    unmount()
-    render(<Calendar {...baseProps} onPick={() => undefined} />)
-    expect(screen.getByText('Select a start date')).toBeInTheDocument()
   })
 
   it('draws no band for a single-day range', () => {
@@ -451,14 +476,61 @@ describe('FilterBar runtime integration', () => {
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toBeInTheDocument()
 
+    // Calendar picks are a draft: nothing is applied until Apply, so the
+    // popover has exactly one commit path however the range was entered.
     fireEvent.click(screen.getByRole('gridcell', { name: 'Jan 3, 2026' }))
     fireEvent.click(screen.getByRole('gridcell', { name: 'Jan 9, 2026' }))
+    expect(window.location.search).toBe('')
+    expect(within(dialog).getByText('7 d.')).toBeInTheDocument()
 
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
     expect(window.location.search).toBe('?ActualRangeStart=2026-01-03&ActualRangeEnd=2026-01-09')
     await waitFor(() => {
       expect(calls.at(-1)).toBe('/lens/document?ActualRangeStart=2026-01-03&ActualRangeEnd=2026-01-09')
     })
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+  })
+
+  it('abandons the draft on Cancel and reopens from the applied range', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={periodFetcher(calls)} />)
+    fireEvent.click(await screen.findByRole('button', { name: /Change period/ }))
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.click(within(dialog).getByRole('gridcell', { name: 'Jan 3, 2026' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    expect(window.location.search).toBe('')
+    expect(calls).toEqual(['/lens/document'])
+
+    // Reopened, the fields state the applied range again, not the abandoned pick.
+    fireEvent.click(screen.getByRole('button', { name: /Change period/ }))
+    await screen.findByRole('dialog')
+    expect(screen.getByLabelText('From')).toHaveValue('01.01.2026')
+    expect(screen.getByLabelText('To')).toHaveValue('22.07.2026')
+  })
+
+  it('keeps exactly one raised member in the segmented period group', async () => {
+    window.history.replaceState(null, '', '/dash')
+    render(<FiltersFixture fetcher={periodFetcher([])} />)
+    const group = await screen.findByRole('group', { name: 'Period' })
+    const raised = () => group.querySelectorAll('[aria-pressed="true"], [data-active]')
+
+    // The document default matches no chip: the trigger is the raised segment.
+    expect(raised()).toHaveLength(1)
+    expect(raised()[0]).toHaveClass('lens-filter-trigger')
+    // The chips live in the same tray as the trigger, so the caption beside
+    // them is gone: the group carries the filter's label instead.
+    expect(within(group).getByRole('button', { name: '2025' })).toBeInTheDocument()
+    expect(screen.queryByText('Period')).not.toBeInTheDocument()
+
+    fireEvent.click(within(group).getByRole('button', { name: '2025' }))
+    await waitFor(() => {
+      expect(within(group).getByRole('button', { name: '2025' })).toHaveAttribute('aria-pressed', 'true')
+    })
+    expect(raised()).toHaveLength(1)
+    expect(raised()[0]).toHaveTextContent('2025')
   })
 
   it('falls back to built-in presets and resolves them against today', async () => {

@@ -372,7 +372,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       labelLine: insideLabels ? { show: false } : { lineStyle: { color: theme.border } },
       data: points.map((point, index) => {
         const item = dataItem(point, input, theme)
-        const fill = input.colors?.[index] ?? input.seriesColor?.(point.category, index) ?? theme.seriesColor(point.category)
+        const fill = pointColor(point, index, theme, input.rowColor)
         return {
           ...item,
           name: point.category,
@@ -390,22 +390,38 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   }
 }
 
+/** Radius of the innermost hole, as a share of the plot box. */
+const ringHubRadius = 40
+/** Radius the outermost ring reaches. */
+const ringOuterRadius = 90
+/** Blank space between two adjacent rings. */
+const ringGap = 3
+
+/**
+ * Bands for `count` concentric rings, outermost first.
+ *
+ * Every ring gets the same thickness and the hub stays clear, which is what
+ * makes the figure read as rings at all. Dividing the whole radius among the
+ * rings instead — the first rule here — left a two-ring donut with a hole
+ * narrower than its own inner band: the inner ring came out a filled disc with
+ * a dot punched in it, and the total badge that sits in the hub landed on top
+ * of the slices rather than inside them.
+ */
 function ringRadius(index: number, count: number): [string, string] {
-  const outer = 90 - (index * (68 / count))
-  const inner = outer - (62 / count)
-  return [`${Math.max(12, inner)}%`, `${outer}%`]
+  const rings = Math.max(1, count)
+  const band = (ringOuterRadius - ringHubRadius - (ringGap * (rings - 1))) / rings
+  const outer = ringOuterRadius - (index * (band + ringGap))
+  return [`${outer - band}%`, `${outer}%`]
 }
 
 function pointColor(
   point: RowPoint,
   index: number,
   theme: EChartsTheme,
-  colors?: string[],
-  seriesColor?: (label: string, index: number) => string | undefined,
+  rowColor?: (label: string, index: number, nodeKey?: string) => string | undefined,
 ): string {
-  return colors?.[index]
+  return rowColor?.(point.category, index, point.nodeKey)
     ?? theme.seriesColor(point.nodeKey ?? '')
-    ?? seriesColor?.(point.category, index)
     ?? theme.seriesColor(point.category)
     ?? theme.colors[index % theme.colors.length]
     ?? '#2563eb'
@@ -449,7 +465,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
       data: ringPoints.map((point, index) => {
         const mark = { ...point, nodeKey: radialNodeKey(ring.key, point.nodeKey ?? point.category) }
         const item = dataItem(mark, input, theme, point.nodeKey ?? point.category)
-        const fill = pointColor(point, categoryOrder.get(point.nodeKey ?? point.category) ?? 0, theme, input.colors, input.seriesColor)
+        const fill = pointColor(point, categoryOrder.get(point.nodeKey ?? point.category) ?? 0, theme, input.rowColor)
         return {
           ...item,
           name: point.category,
@@ -532,7 +548,7 @@ function radialProgressOption(input: ChartInput, theme: EChartsTheme, points: Ro
             value,
             itemStyle: {
               ...item.itemStyle,
-              color: pointColor(point, index, theme, input.colors, input.seriesColor),
+              color: pointColor(point, index, theme, input.rowColor),
               borderRadius: 8,
             },
           },
