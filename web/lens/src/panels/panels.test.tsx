@@ -104,12 +104,15 @@ function renderKind(kind: PanelKind) {
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
 }
 
+const baseDocument = runtime.document
+
 afterEach(() => {
   cleanup()
   runtime.drillInto.mockReset()
   runtime.navigation = { path: [], history: [] }
   runtime.level = undefined
   runtime.refreshing = false
+  runtime.document = baseDocument
 })
 
 describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
@@ -411,6 +414,48 @@ describe('chart encoding and drill behavior', () => {
       ['2025', 'Written premium', 100],
       ['2026', 'Written premium', 120],
     ]))
+  })
+
+  it('keeps a series in its own colour when the series before it is hidden', async () => {
+    const frame: Frame = {
+      columns: [
+        { name: 'category', type: 'string' },
+        { name: 'series', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['2025', 'Claimed', 100],
+        ['2025', 'Paid', 10],
+        ['2026', 'Claimed', 120],
+        ['2026', 'Paid', 20],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    // The pins are panel-scoped and positional, which is what makes this
+    // breakable: hiding a series used to slide every series after it one
+    // position down, so the payout line repainted itself in the hidden
+    // series' colour while its legend swatch kept the old one.
+    runtime.document = {
+      ...runtime.document,
+      theme: { palette: {}, series: { 'panel-line:0': '#2563eb', 'panel-line:1': '#d97706' } },
+    } as DashboardDocument
+    const inputs: ChartInput[] = []
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
+    expect(inputs.at(-1)?.seriesColor?.('Paid', 1)).toBe('#d97706')
+
+    fireEvent.click(screen.getByRole('button', { name: /Claimed/ }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    // The chart now hands index 0 — the only series it can see — and must
+    // still be told amber, the colour the legend beside it is still printing.
+    expect(inputs.at(-1)?.seriesColor?.('Paid', 0)).toBe('#d97706')
+    const marks = Array.from(view.container.querySelectorAll<HTMLElement>('.lens-chart-legend-mark'))
+    expect(marks.at(-1)?.style.background).toBe('rgb(217, 119, 6)')
   })
 
   it('renders the panel title once when the stat label would duplicate it', () => {
@@ -721,7 +766,9 @@ describe('cascade stages', () => {
     const byLabel = (label: string) => items.find((item) => item.label === label)
 
     const claims = byLabel('Claims')
-    expect(claims?.splitHeight).toBeCloseTo((claims?.height ?? 0) / 4)
+    // A quarter of the movement is a quarter of the bar that draws it, whatever
+    // share of the plot that bar happens to occupy.
+    expect(claims?.splitHeight).toBeCloseTo(25)
     expect(claims?.splitLabel).toBe('above reserve')
     expect(byLabel('Acquisition')?.splitHeight).toBeUndefined()
     expect(byLabel('Operating')?.splitHeight).toBeUndefined()

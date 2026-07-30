@@ -48,11 +48,13 @@ describe('chart bundle boundary', () => {
 
     expect(staticChunks.join('\n')).not.toContain(echartsRuntimeMarker)
     // Budget raised from 350k for the metric panel kinds (flow/hierarchy/
-    // relationship + quality chips), and from 400k for the tooltip-dismissal
+    // relationship + quality chips), from 400k for the tooltip-dismissal
     // listeners, the waterfall axis search, and the document retry/slow-load
-    // states: the core entry measured 401,129 bytes after those intentional
-    // additions. The cap still catches accidental bloat — it is a tripwire for
-    // a chart library wandering into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(410_000)
+    // states, and from 410k for the info tips and the panel-scoped series
+    // order that pins a series' colour across a legend toggle: the core entry
+    // measured 410,462 bytes after those intentional additions. The cap still
+    // catches accidental bloat — it is a tripwire for a chart library
+    // wandering into the core entry, not a per-byte budget.
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(420_000)
   })
 })
