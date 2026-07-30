@@ -731,30 +731,11 @@ func (c *StreamController) streamClientErrorMessage(err error, chunkType bichats
 		return sanitizeErrorString(err)
 	}
 
-	code, message, ok := parseProviderStreamError(err.Error())
-	if !ok {
-		return generic
+	code, _, _ := parseProviderStreamError(err.Error())
+	if normalized := bichatmodsvcs.NormalizeProviderError(code, err.Error()); normalized != "" {
+		return normalized
 	}
-
-	switch strings.ToLower(code) {
-	case "insufficient_quota":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "You exceeded your current quota. Please check your plan and billing details."
-	case "rate_limit_exceeded", "rate_limit":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "Rate limit exceeded. Please retry shortly."
-	case "invalid_api_key", "authentication_error", "auth_error":
-		if strings.TrimSpace(message) != "" {
-			return message
-		}
-		return "Authentication failed with the model provider. Please verify API credentials."
-	default:
-		return generic
-	}
+	return generic
 }
 
 func sanitizeErrorString(err error) string {

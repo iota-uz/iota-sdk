@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	bichatmodsvcs "github.com/iota-uz/iota-sdk/modules/bichat/services"
 	bichatservices "github.com/iota-uz/iota-sdk/pkg/bichat/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,16 @@ func TestStreamClientErrorMessage_KnownProviderError(t *testing.T) {
 	controller := &StreamController{}
 	err := errors.New(`OpenAIModel.Stream: stream error: {"type":"insufficient_quota","code":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details."}`)
 	got := controller.streamClientErrorMessage(err, bichatservices.ChunkTypeError)
-	assert.Contains(t, got, "You exceeded your current quota")
+	assert.Equal(t, bichatmodsvcs.ProviderBillingQuotaError, got)
+}
+
+func TestStreamClientErrorMessage_CreditBalanceExhausted(t *testing.T) {
+	t.Parallel()
+
+	controller := &StreamController{}
+	err := errors.New(`OpenAIModel.Stream: stream error: {"type":"insufficient_quota","code":"credit_balance_exhausted","message":"Your credit balance is too low."}`)
+	got := controller.streamClientErrorMessage(err, bichatservices.ChunkTypeError)
+	assert.Equal(t, bichatmodsvcs.ProviderBillingBalanceExhaustedError, got)
 }
 
 func TestStreamClientErrorMessage_NilError(t *testing.T) {
@@ -69,7 +79,7 @@ func TestStreamClientErrorMessage_KnownRateLimitCode(t *testing.T) {
 	controller := &StreamController{}
 	err := errors.New(`provider stream error: {"code":"rate_limit_exceeded","message":"Too many requests."}`)
 	got := controller.streamClientErrorMessage(err, bichatservices.ChunkTypeError)
-	assert.Equal(t, "Too many requests.", got)
+	assert.Equal(t, bichatmodsvcs.ProviderRateLimitedError, got)
 }
 
 func TestStreamClientErrorMessage_KnownInvalidAPIKeyCode(t *testing.T) {
@@ -78,7 +88,7 @@ func TestStreamClientErrorMessage_KnownInvalidAPIKeyCode(t *testing.T) {
 	controller := &StreamController{}
 	err := errors.New(`provider stream error: {"code":"invalid_api_key","message":"Invalid key."}`)
 	got := controller.streamClientErrorMessage(err, bichatservices.ChunkTypeError)
-	assert.Equal(t, "Invalid key.", got)
+	assert.Equal(t, bichatmodsvcs.ProviderAuthInvalidError, got)
 }
 
 func TestStreamClientErrorMessage_UnknownProviderErrorReturnsGeneric(t *testing.T) {

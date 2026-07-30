@@ -916,7 +916,7 @@ func TestProcessContinuation_UsesInternalBlockWithoutUserTurn(t *testing.T) {
 	}
 }
 
-func TestContinuationEventContextRoundTrip(t *testing.T) {
+func TestContinuationEventContext_RoundTrip(t *testing.T) {
 	t.Parallel()
 	event := services.ContinuationEvent{
 		Trigger:       "snapshot_ready",
