@@ -261,12 +261,18 @@ func TestHandlers_DynamicChildrenResolveAndCachePerPath(t *testing.T) {
 	handlers, executor, store := newTestHandlers(t, 0)
 	spec := handlers.spec
 	detail := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[1]
+	detailPanel := panel.Table("detail-panel", "Detail", "detail-data").
+		IDField("row_id").
+		Columns(panel.TableColumn{Field: "value", Label: "Value"}).
+		Build()
+	detail.Panel = &detailPanel
 	detail.Edges = nil
 	detail.DynamicEdges = true
 	detail.DynamicTargets = []string{"end"}
+	leaf := action.Navigate("").WithFieldURL("url")
 	detail.DynamicChildren = &explore.DynamicChildren{
-		Key: action.FieldValue("id"), Label: action.FieldValue("label"),
-		Target: sourcePtr(action.LiteralValue("end")),
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"),
+		Target: sourcePtr(action.FieldValue("target")), Action: &leaf,
 	}
 	handlers.spec = spec
 	executor.pathFrames = map[string]*frame.FrameSet{
@@ -277,6 +283,14 @@ func TestHandlers_DynamicChildrenResolveAndCachePerPath(t *testing.T) {
 
 	first := queryLevel(t, handlers, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2025", "detail"}, Perspective: "composition"})
 	second := queryLevel(t, handlers, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2024", "detail"}, Perspective: "composition"})
+	require.Equal(t, []document.Column{
+		{Name: "value", Type: document.ColumnNumber},
+		{Name: "row_id", Type: document.ColumnString},
+		{Name: "child_id", Type: document.ColumnString},
+		{Name: "child_label", Type: document.ColumnString},
+		{Name: "target", Type: document.ColumnString},
+		{Name: "url", Type: document.ColumnString},
+	}, first.Frames["explore:metric/focus/composition:detail"].Columns)
 	require.Equal(t, document.NodeKey("month-12"), first.Frames["explore:metric/focus/composition:detail"].Children[0].Key)
 	require.Equal(t, "December", first.Frames["explore:metric/focus/composition:detail"].Children[0].Label)
 	require.Equal(t, document.NodeKey("metric/focus/composition/end"), first.Frames["explore:metric/focus/composition:detail"].Children[0].Target)
@@ -358,6 +372,13 @@ func TestHandlers_EvidenceIsLiveAndPaginated(t *testing.T) {
 	require.Equal(t, "17", call.request.Request.Get(lensruntime.TablePaginationLimitQuery))
 	require.Equal(t, "evidence-panel", call.request.Request.Get(lensruntime.TablePaginationPanelQuery))
 	require.Equal(t, "east", call.request.Overrides["region"])
+	frame := first.Frames[document.FrameRef("explore:metric/focus/evidence:evidence")]
+	require.Equal(t, []document.Column{
+		{Name: "policy", Type: document.ColumnString},
+		{Name: "amount", Type: document.ColumnNumber},
+		{Name: "record_id", Type: document.ColumnString},
+	}, frame.Columns)
+	require.Equal(t, []any{"P-1", float64(1), "row-1"}, frame.Rows[0])
 	snapshot, err := store.Get(t.Context(), doc.SnapshotID)
 	require.NoError(t, err)
 	require.NotContains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/evidence:evidence"))
@@ -633,7 +654,13 @@ func testDashboard(t *testing.T) (lens.DashboardSpec, map[string]*frame.FrameSet
 	root := panel.Pie("root-panel", "Root", "root-data").IDField("id").Build()
 	detail := panel.Pie("detail-panel", "Detail", "detail-data").IDField("id").Build()
 	end := panel.Pie("end-panel", "End", "end-data").IDField("id").Build()
-	evidence := panel.Table("evidence-panel", "Evidence", "evidence-data").Build()
+	evidence := panel.Table("evidence-panel", "Evidence", "evidence-data").
+		IDField("record_id").
+		Columns(
+			panel.TableColumn{Field: "policy", Label: "Policy"},
+			panel.TableColumn{Field: "amount", Label: "Amount"},
+		).
+		Build()
 	explorer := explore.Spec{
 		ID: "metric", HostPanelID: "host", Branches: []explore.Branch{{
 			Key: "focus", Label: "Focus", DefaultPerspective: "composition", Perspectives: []explore.Perspective{
@@ -682,8 +709,11 @@ func testFrames(t *testing.T, name string, value float64) *frame.FrameSet {
 func dynamicFrames(t *testing.T, key, label string) *frame.FrameSet {
 	t.Helper()
 	primary, err := frame.New("dynamic",
-		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{key}},
-		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{label}},
+		frame.Field{Name: "row_id", Type: frame.FieldTypeString, Values: []any{"row-" + key}},
+		frame.Field{Name: "child_id", Type: frame.FieldTypeString, Values: []any{key}},
+		frame.Field{Name: "child_label", Type: frame.FieldTypeString, Values: []any{label}},
+		frame.Field{Name: "target", Type: frame.FieldTypeString, Values: []any{"end"}},
+		frame.Field{Name: "url", Type: frame.FieldTypeString, Values: []any{"/records/" + key}},
 		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1.0}},
 	)
 	require.NoError(t, err)
@@ -703,13 +733,16 @@ func evidenceFrames(t *testing.T) *frame.FrameSet {
 
 func evidenceFramesWithRows(t *testing.T, count int) *frame.FrameSet {
 	t.Helper()
+	ids := make([]any, count)
 	policies := make([]any, count)
 	amounts := make([]any, count)
 	for index := range count {
+		ids[index] = "row-" + strconv.Itoa(index+1)
 		policies[index] = "P-" + strconv.Itoa(index+1)
 		amounts[index] = float64(index + 1)
 	}
 	primary, err := frame.New("evidence",
+		frame.Field{Name: "record_id", Type: frame.FieldTypeString, Values: ids},
 		frame.Field{Name: "policy", Type: frame.FieldTypeString, Values: policies},
 		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: amounts},
 	)

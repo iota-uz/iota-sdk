@@ -10,44 +10,24 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-func wireFrame(ref document.FrameRef, result *lensruntime.PanelResult) (document.Frame, error) {
+func wireFrame(
+	ref document.FrameRef,
+	spec panel.Spec,
+	dynamicChildren *explore.DynamicChildren,
+	result *lensruntime.PanelResult,
+) (document.Frame, error) {
+	const op serrors.Op = "lens/serve.wireFrame"
 	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
-		return document.Frame{}, fmt.Errorf("frame %q has no primary frame", ref)
+		return document.Frame{}, serrors.E(op, fmt.Errorf("frame %q has no primary frame", ref))
 	}
-	source := result.Frames.Primary()
-	wire := document.Frame{Columns: make([]document.Column, 0, len(source.Fields)), Rows: make([][]any, source.RowCount)}
-	for _, field := range source.Fields {
-		kind, err := wireColumnType(field.Type)
-		if err != nil {
-			return document.Frame{}, fmt.Errorf("frame %q field %s: %w", ref, field.Name, err)
-		}
-		wire.Columns = append(wire.Columns, document.Column{Name: field.Name, Type: kind})
-	}
-	for rowIndex := 0; rowIndex < source.RowCount; rowIndex++ {
-		wire.Rows[rowIndex] = make([]any, len(source.Fields))
-		for columnIndex := range source.Fields {
-			wire.Rows[rowIndex][columnIndex] = source.Fields[columnIndex].Values[rowIndex]
-		}
+	wire, err := document.ProjectPanelFrame(spec, result.Frames.Primary(), dynamicChildren)
+	if err != nil {
+		return document.Frame{}, serrors.E(op, fmt.Errorf("frame %q: %w", ref, err))
 	}
 	return wire, nil
-}
-
-func wireColumnType(kind frame.FieldType) (document.ColumnType, error) {
-	//nolint:exhaustive // Unknown field types are rejected by the meaningful default.
-	switch kind {
-	case frame.FieldTypeString, frame.FieldTypeLocalized:
-		return document.ColumnString, nil
-	case frame.FieldTypeNumber:
-		return document.ColumnNumber, nil
-	case frame.FieldTypeBoolean:
-		return document.ColumnBool, nil
-	case frame.FieldTypeTime:
-		return document.ColumnTime, nil
-	default:
-		return "", fmt.Errorf("unsupported field type %q", kind)
-	}
 }
 
 func runtimeResultFromSnapshot(spec lens.DashboardSpec, snapshot *document.Snapshot, request lensruntime.Request) (*lensruntime.DashboardResult, error) {

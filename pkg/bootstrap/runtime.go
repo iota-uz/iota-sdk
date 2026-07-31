@@ -109,6 +109,7 @@ type options struct {
 	poolFactory        func(context.Context, any, *logrus.Logger) (*pgxpool.Pool, func() error, error)
 	bundleFactory      func(context.Context, any) (*i18n.Bundle, error)
 	appFactory         func(context.Context, *Runtime) (application.Application, error)
+	supportedLanguages []string
 }
 
 func WithLoggerFactory(factory func(context.Context, any) (*logrus.Logger, func() error, error)) Option {
@@ -132,6 +133,15 @@ func WithBundleFactory(factory func(context.Context, any) (*i18n.Bundle, error))
 func WithApplicationFactory(factory func(context.Context, *Runtime) (application.Application, error)) Option {
 	return func(o *options) {
 		o.appFactory = factory
+	}
+}
+
+// WithSupportedLanguages overrides the SDK defaults for applications created by
+// IotaSource. The slice is copied so callers may safely reuse their input.
+func WithSupportedLanguages(languages []string) Option {
+	configured := append([]string(nil), languages...)
+	return func(o *options) {
+		o.supportedLanguages = append([]string(nil), configured...)
 	}
 }
 

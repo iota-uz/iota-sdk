@@ -377,7 +377,8 @@ test('explore full drill flow keyframes', async ({ page }) => {
   await page.getByRole('option', { name: /Composition/ }).click()
   await page.getByRole('button', { name: 'Show breakdown' }).click()
   await expect(page.getByRole('dialog').getByRole('button', { name: /Services/ })).toBeVisible()
-  await screenshot(page, 'explore-full-drill-04-composition')
+  // Same bistable card-corner raster as the next drill keyframe (#932).
+  await screenshot(page, 'explore-full-drill-04-composition', { maxDiffPixels: 50 })
 
   await page.getByRole('dialog').getByRole('button', { name: /Services/ }).click()
   await page.getByRole('button', { name: 'Show breakdown' }).click()

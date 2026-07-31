@@ -94,7 +94,7 @@ CREATE TABLE users (
     middle_name varchar(255),
     email varchar(255) NOT NULL,
     password VARCHAR(255),
-    ui_language varchar(3) NOT NULL,
+    ui_language varchar(16) NOT NULL,
     phone varchar(255),
     avatar_id int REFERENCES uploads (id) ON DELETE SET NULL,
     last_login timestamp NULL,

@@ -152,7 +152,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		h.writeExecutionError(r.Context(), w, err)
 		return
 	}
-	wire, err := wireFrame(target.ref, panelResult)
+	wire, err := wireFrame(target.ref, target.panel, target.dynamicChildren, panelResult)
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "level result conversion failed", err)
 		return
@@ -199,7 +199,7 @@ func (h *Handlers) evidenceHasNext(
 	if err != nil {
 		return false, err
 	}
-	nextWire, err := wireFrame(target.ref, next)
+	nextWire, err := wireFrame(target.ref, target.panel, target.dynamicChildren, next)
 	if err != nil {
 		return false, err
 	}
@@ -224,7 +224,7 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 		if err != nil {
 			return nil, err
 		}
-		wire, err := wireFrame(target.ref, panelResult)
+		wire, err := wireFrame(target.ref, target.panel, target.dynamicChildren, panelResult)
 		if err != nil {
 			return nil, err
 		}
