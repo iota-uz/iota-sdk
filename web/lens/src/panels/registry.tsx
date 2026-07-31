@@ -1,14 +1,29 @@
-import type { ComponentType } from 'react'
+import { lazy, Suspense, type ComponentType } from 'react'
 import type { Panel, PanelKind } from '../contract'
 import { useTranslate } from '../runtime'
-import { CascadePanel, type CascadePanelProps } from './CascadePanel'
-import { CoveragePanel, type CoveragePanelProps } from './CoveragePanel'
-import { BarPanel, LinePanel, PiePanel, type ChartPanelProps } from './ChartPanel'
-import { MetricFlowPanel, type MetricFlowPanelProps } from './MetricFlowPanel'
-import { MetricHierarchyPanel, type MetricHierarchyPanelProps } from './MetricHierarchyPanel'
-import { MetricRelationshipPanel, type MetricRelationshipPanelProps } from './MetricRelationshipPanel'
+import type { CascadePanelProps } from './CascadePanel'
+import type { CoveragePanelProps } from './CoveragePanel'
+import type { GaugePanelProps } from './GaugePanel'
+import type { ChartPanelProps } from './ChartPanel'
+import type { MetricFlowPanelProps } from './MetricFlowPanel'
+import type { MetricHierarchyPanelProps } from './MetricHierarchyPanel'
+import type { MetricRelationshipPanelProps } from './MetricRelationshipPanel'
+import type { MapPanelProps } from './MapPanel'
 import { StatPanel, type StatPanelProps } from './StatPanel'
-import { TablePanel, type TablePanelProps } from './TablePanel'
+import type { TablePanelProps } from './TablePanel'
+
+const PiePanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).PiePanel }))
+const BarPanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).BarPanel }))
+const LinePanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).LinePanel }))
+const DistributionPanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).DistributionPanel }))
+const CascadePanel: ComponentType<CascadePanelProps> = lazy(async () => ({ default: (await import('./CascadePanel')).CascadePanel }))
+const CoveragePanel: ComponentType<CoveragePanelProps> = lazy(async () => ({ default: (await import('./CoveragePanel')).CoveragePanel }))
+const GaugePanel: ComponentType<GaugePanelProps> = lazy(async () => ({ default: (await import('./GaugePanel')).GaugePanel }))
+const MetricFlowPanel: ComponentType<MetricFlowPanelProps> = lazy(async () => ({ default: (await import('./MetricFlowPanel')).MetricFlowPanel }))
+const MetricHierarchyPanel: ComponentType<MetricHierarchyPanelProps> = lazy(async () => ({ default: (await import('./MetricHierarchyPanel')).MetricHierarchyPanel }))
+const MetricRelationshipPanel: ComponentType<MetricRelationshipPanelProps> = lazy(async () => ({ default: (await import('./MetricRelationshipPanel')).MetricRelationshipPanel }))
+const MapPanel: ComponentType<MapPanelProps> = lazy(async () => ({ default: (await import('./MapPanel')).MapPanel }))
+const TablePanel: ComponentType<TablePanelProps> = lazy(async () => ({ default: (await import('./TablePanel')).TablePanel }))
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -18,9 +33,11 @@ export type PanelComponent = ComponentType<
   | CascadePanelProps
   | TablePanelProps
   | CoveragePanelProps
+  | GaugePanelProps
   | MetricFlowPanelProps
   | MetricHierarchyPanelProps
   | MetricRelationshipPanelProps
+  | MapPanelProps
 >
 export type PanelRegistry = Partial<Record<PanelKind, PanelComponent>>
 
@@ -40,6 +57,11 @@ export const SUPPORTED = {
   cascade: CascadePanel,
   table: TablePanel,
   coverage: CoveragePanel,
+  gauge: GaugePanel,
+  histogram: DistributionPanel,
+  boxplot: DistributionPanel,
+  heatmap: DistributionPanel,
+  map: MapPanel,
   metric_flow: MetricFlowPanel,
   metric_hierarchy: MetricHierarchyPanel,
   metric_relationship: MetricRelationshipPanel,
@@ -75,5 +97,17 @@ export function UnsupportedPanel({ panel }: { panel: Panel }) {
 
 export function RegisteredPanel({ panel, registry = panelRegistry }: RegisteredPanelProps) {
   const Component = registry[panel.kind]
-  return Component ? <Component panel={panel} /> : <UnsupportedPanel panel={panel} />
+  return Component ? (
+    <Suspense fallback={<PanelModuleFallback panel={panel} />}>
+      <Component panel={panel} />
+    </Suspense>
+  ) : <UnsupportedPanel panel={panel} />
+}
+
+function PanelModuleFallback({ panel }: { panel: Panel }) {
+  return (
+    <section aria-busy="true" aria-label={panel.title} className="lens-panel lens-panel-loading">
+      <div className="lens-panel-skeleton" />
+    </section>
+  )
 }

@@ -15,6 +15,7 @@ function statPanel(id: string, title: string, action?: Action): Panel {
     encoding: { label: 'label', value: 'value' },
     format: { value: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' } },
     actions: action ? [action] : [],
+    terminal: action ? undefined : true,
   }
 }
 
@@ -43,7 +44,7 @@ const dashboard = documentWith('Profitability overview', dashboardPanels, [{
   heading: 'Key ratios',
   panels: dashboardPanels.map((panel) => ({
     panelId: panel.id, span: 4,
-    group: { id: 'ratios', kind: 'metrics', label: 'Earned basis', layout: 'columns', span: 12 },
+    groups: [{ id: 'ratios', kind: 'metrics', label: 'Earned basis', layout: 'columns', span: 12 }],
   })),
 }])
 

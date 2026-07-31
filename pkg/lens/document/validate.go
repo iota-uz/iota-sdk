@@ -133,7 +133,7 @@ func validateFilters(filters []Filter) error {
 			if filter.Period == nil {
 				return fmt.Errorf("filter %s requires a period payload", filter.ID)
 			}
-			if filter.Facet != nil {
+			if filter.Facet != nil || filter.Compare != nil {
 				return fmt.Errorf("filter %s cannot carry both period and facet payloads", filter.ID)
 			}
 			if err := validatePeriodFilter(filter.ID, *filter.Period); err != nil {
@@ -143,10 +143,20 @@ func validateFilters(filters []Filter) error {
 			if filter.Facet == nil {
 				return fmt.Errorf("filter %s requires a facet payload", filter.ID)
 			}
-			if filter.Period != nil {
+			if filter.Period != nil || filter.Compare != nil {
 				return fmt.Errorf("filter %s cannot carry both period and facet payloads", filter.ID)
 			}
 			if err := validateFacetFilter(filter.ID, *filter.Facet); err != nil {
+				return err
+			}
+		case FilterKindCompare:
+			if filter.Compare == nil {
+				return fmt.Errorf("filter %s requires a comparison payload", filter.ID)
+			}
+			if filter.Period != nil || filter.Facet != nil {
+				return fmt.Errorf("filter %s cannot mix comparison with another payload", filter.ID)
+			}
+			if err := validateCompareFilter(filter.ID, *filter.Compare); err != nil {
 				return err
 			}
 		default:
@@ -154,6 +164,23 @@ func validateFilters(filters []Filter) error {
 		}
 	}
 	return nil
+}
+
+func validateCompareFilter(id string, comparison CompareFilter) error {
+	if strings.TrimSpace(comparison.ModeParam) == "" || strings.TrimSpace(comparison.StartParam) == "" || strings.TrimSpace(comparison.EndParam) == "" {
+		return fmt.Errorf("filter %s comparison requires mode, start, and end params", id)
+	}
+	switch comparison.Value.Mode {
+	case CompareModeOff, CompareModePreviousPeriod, CompareModeYearAgo:
+		return nil
+	case CompareModeCustom:
+		if comparison.Value.Start == "" || comparison.Value.End == "" || !validPeriodDate(comparison.Value.Start) || !validPeriodDate(comparison.Value.End) || comparison.Value.End < comparison.Value.Start {
+			return fmt.Errorf("filter %s comparison has invalid custom range", id)
+		}
+		return nil
+	default:
+		return fmt.Errorf("filter %s comparison has unsupported mode %q", id, comparison.Value.Mode)
+	}
 }
 
 func validateFacetFilter(id string, facet FacetFilter) error {
@@ -235,20 +262,11 @@ func validatePeriodValue(owner string, value PeriodValue, allowEmpty bool) error
 	return nil
 }
 
-// validateItemGroups validates an item's container chain. When Groups is
-// non-empty it is authoritative and validated outermost → innermost; otherwise
-// the legacy singular Group is validated as a one-element chain. A chain must
+// validateItemGroups validates an item's container chain outermost → innermost. A chain must
 // not repeat a group ID, and a group ID must carry consistent descriptors
-// (kind/label/layout/span) everywhere it appears in the document. Items with no
-// grouping validate exactly as before.
+// (kind/label/layout/span) everywhere it appears in the document.
 func validateItemGroups(item LayoutItem, descriptors map[string]LayoutGroup) error {
 	chain := item.Groups
-	if len(chain) == 0 {
-		if item.Group == nil {
-			return nil
-		}
-		chain = []LayoutGroup{*item.Group}
-	}
 	seen := make(map[string]struct{}, len(chain))
 	for _, group := range chain {
 		if err := validateGroupDescriptor(item, group); err != nil {
@@ -304,7 +322,7 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if strings.TrimSpace(panel.ID) == "" {
 		return fmt.Errorf("panel id is required")
 	}
-	if _, ok := d.Frames[panel.Frame]; !ok {
+	if _, ok := d.Frames[panel.Frame]; !ok && !panel.Deferred {
 		return fmt.Errorf("panel %s references missing frame %q", panel.ID, panel.Frame)
 	}
 	if !validPanelKind(panel.Kind) {
@@ -324,18 +342,28 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 			return fmt.Errorf("panel %s references missing drill root %q", panel.ID, *panel.DrillRoot)
 		}
 	}
+	actionable := panelIsActionable(panel)
+	if panel.Terminal && actionable {
+		return fmt.Errorf("panel %s cannot be terminal and actionable", panel.ID)
+	}
+	if !panel.Terminal && !actionable {
+		return fmt.Errorf("panel %s must be actionable or explicitly terminal", panel.ID)
+	}
 	if err := validateStatus("panel "+panel.ID, panel.Status); err != nil {
 		return err
 	}
 	if panel.Target != nil {
-		if panel.Kind != PanelKindCoverage && panel.Kind != PanelKindHBar {
-			return fmt.Errorf("panel %s target marker is only supported on coverage and hbar kinds, got %q", panel.ID, panel.Kind)
+		if panel.Kind != PanelKindCoverage && panel.Kind != PanelKindHBar && panel.Kind != PanelKindLine && panel.Kind != PanelKindArea {
+			return fmt.Errorf("panel %s target marker is only supported on coverage, hbar, line, and area kinds, got %q", panel.ID, panel.Kind)
 		}
 		if math.IsNaN(panel.Target.Value) || math.IsInf(panel.Target.Value, 0) {
 			return fmt.Errorf("panel %s target value must be finite", panel.ID)
 		}
 	}
 	if err := validatePresentation("panel "+panel.ID, panel.Presentation); err != nil {
+		return err
+	}
+	if err := validateTemporalPanel(panel, d.Frames[panel.Frame]); err != nil {
 		return err
 	}
 	for field, format := range panel.Format {
@@ -350,20 +378,54 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 		default:
 			return fmt.Errorf("panel %s field %s has unsupported format %q", panel.ID, field, format.Kind)
 		}
-		if !frameHasColumn(d.Frames[panel.Frame], field) {
+		if !panel.Deferred && !frameHasColumn(d.Frames[panel.Frame], field) {
 			return fmt.Errorf("panel %s format references missing field %q", panel.ID, field)
 		}
 	}
 	for role, field := range map[string]string{
-		"label": panel.Encoding.Label, "value": panel.Encoding.Value, "id": panel.Encoding.ID,
+		"label": panel.Encoding.Label, "value": panel.Encoding.Value, "previous": panel.Encoding.Previous, "id": panel.Encoding.ID,
+		"lower": panel.Encoding.Lower, "q1": panel.Encoding.Q1, "median": panel.Encoding.Median,
+		"q3": panel.Encoding.Q3, "upper": panel.Encoding.Upper,
 		"series": panel.Encoding.Series, "category": panel.Encoding.Category, "cut": panel.Encoding.Cut,
 		"cutLabel": panel.Encoding.CutLabel, "final": panel.Encoding.Final,
 		"annotation": panel.Encoding.Annotation, "tone": panel.Encoding.Tone,
 		"share": panel.Encoding.Share, "confidence": panel.Encoding.Confidence,
 		"availability": panel.Encoding.Availability,
 	} {
-		if field != "" && !frameHasColumn(d.Frames[panel.Frame], field) {
+		if !panel.Deferred && field != "" && !frameHasColumn(d.Frames[panel.Frame], field) {
 			return fmt.Errorf("panel %s %s encoding references missing field %q", panel.ID, role, field)
+		}
+	}
+	if !panel.Deferred && panel.Kind == PanelKindBoxPlot {
+		if strings.TrimSpace(panel.Encoding.Category) == "" && strings.TrimSpace(panel.Encoding.Label) == "" {
+			return fmt.Errorf("panel %s boxplot requires category or label encoding", panel.ID)
+		}
+		for role, field := range map[string]string{
+			"lower": panel.Encoding.Lower, "q1": panel.Encoding.Q1, "median": panel.Encoding.Median,
+			"q3": panel.Encoding.Q3, "upper": panel.Encoding.Upper,
+		} {
+			if strings.TrimSpace(field) == "" {
+				return fmt.Errorf("panel %s boxplot requires %s encoding", panel.ID, role)
+			}
+			if err := requireNumberFrameColumn("panel "+panel.ID, role, d.Frames[panel.Frame], field); err != nil {
+				return err
+			}
+		}
+	}
+	if !panel.Deferred && panel.Kind == PanelKindHistogram {
+		if (strings.TrimSpace(panel.Encoding.Category) == "" && strings.TrimSpace(panel.Encoding.Label) == "") || strings.TrimSpace(panel.Encoding.Value) == "" {
+			return fmt.Errorf("panel %s histogram requires category or label and value encoding", panel.ID)
+		}
+		if err := requireNumberFrameColumn("panel "+panel.ID, "value", d.Frames[panel.Frame], panel.Encoding.Value); err != nil {
+			return err
+		}
+	}
+	if !panel.Deferred && panel.Kind == PanelKindHeatmap {
+		if strings.TrimSpace(panel.Encoding.Category) == "" || strings.TrimSpace(panel.Encoding.Series) == "" || strings.TrimSpace(panel.Encoding.Value) == "" {
+			return fmt.Errorf("panel %s heatmap requires category, series, and value encoding", panel.ID)
+		}
+		if err := requireNumberFrameColumn("panel "+panel.ID, "value", d.Frames[panel.Frame], panel.Encoding.Value); err != nil {
+			return err
 		}
 	}
 	if !validConfidence(panel.Confidence) {
@@ -375,10 +437,15 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if err := d.validateMetricConfigs(panel); err != nil {
 		return err
 	}
-	if err := validateRadialConfig(panel, d.Frames[panel.Frame]); err != nil {
+	if !panel.Deferred {
+		if err := validateRadialConfig(panel, d.Frames[panel.Frame]); err != nil {
+			return err
+		}
+	}
+	if err := validateMapConfig(panel, d.Frames[panel.Frame]); err != nil {
 		return err
 	}
-	if panel.Semantics == SemanticsPartition {
+	if !panel.Deferred && panel.Semantics == SemanticsPartition {
 		if err := validatePartitionFrame("panel "+panel.ID, panel.Encoding, d.Frames[panel.Frame]); err != nil {
 			return err
 		}
@@ -391,14 +458,25 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 		if err := validateAction(panel.ID, action); err != nil {
 			return err
 		}
-		if err := validateActionFields(panel.ID, action, actionFrames...); err != nil {
-			return err
+		if !panel.Deferred {
+			if err := validateActionFields(panel.ID, action, actionFrames...); err != nil {
+				return err
+			}
+		}
+	}
+	if panel.Trend != nil {
+		for role, field := range map[string]string{"trend absolute": panel.Trend.AbsoluteField, "trend percent": panel.Trend.PercentField} {
+			if !panel.Deferred && field != "" {
+				if err := requireNumberFrameColumn("panel "+panel.ID, role, d.Frames[panel.Frame], field); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	if panel.Kind != PanelKindTable && len(panel.Columns) > 0 {
 		return fmt.Errorf("panel %s has table columns for kind %q", panel.ID, panel.Kind)
 	}
-	if panel.Kind == PanelKindTable {
+	if panel.Kind == PanelKindTable && !panel.Deferred {
 		if err := validateTableColumns(panel, d.Frames[panel.Frame]); err != nil {
 			return err
 		}
@@ -498,7 +576,8 @@ func (d *DashboardDocument) validateMetricConfigs(panel Panel) error {
 		}
 		return d.validateMetricRelationship(panel)
 	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
-		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindTable, PanelKindCoverage:
+		PanelKindLine, PanelKindArea, PanelKindGauge, PanelKindHistogram, PanelKindBoxPlot, PanelKindHeatmap, PanelKindMap,
+		PanelKindCascade, PanelKindTable, PanelKindCoverage:
 		if hasFlow || hasHierarchy || hasRelationship {
 			return fmt.Errorf("panel %s has a metric config for kind %q", panel.ID, panel.Kind)
 		}
@@ -638,6 +717,130 @@ func validateRadialConfig(panel Panel, frame Frame) error {
 		}
 	}
 	return nil
+}
+
+func validateMapConfig(panel Panel, frame Frame) error {
+	if panel.Kind != PanelKindMap {
+		if panel.Map != nil {
+			return fmt.Errorf("panel %s has map config for kind %q", panel.ID, panel.Kind)
+		}
+		return nil
+	}
+	if panel.Map == nil {
+		return fmt.Errorf("panel %s map kind requires map config", panel.ID)
+	}
+	config := panel.Map
+	featureProperty := strings.TrimSpace(config.FeatureProperty)
+	if featureProperty == "" {
+		return fmt.Errorf("panel %s map requires featureProperty", panel.ID)
+	}
+	if strings.TrimSpace(panel.Encoding.ID) == "" || strings.TrimSpace(panel.Encoding.Value) == "" {
+		return fmt.Errorf("panel %s map requires id and value encoding", panel.ID)
+	}
+	inline := config.Source.Inline != nil
+	remote := strings.TrimSpace(config.Source.URL) != ""
+	if inline == remote {
+		return fmt.Errorf("panel %s map source requires exactly one of inline or url", panel.ID)
+	}
+	if remote {
+		if err := validateMapSourceURL(config.Source.URL); err != nil {
+			return fmt.Errorf("panel %s map source: %w", panel.ID, err)
+		}
+		if config.Source.MaxBytes <= 0 || config.Source.MaxBytes > MaxMapGeoJSONBytes {
+			return fmt.Errorf("panel %s map source maxBytes must be between 1 and %d", panel.ID, MaxMapGeoJSONBytes)
+		}
+	} else if config.Source.MaxBytes != 0 {
+		return fmt.Errorf("panel %s inline map source cannot set maxBytes", panel.ID)
+	}
+
+	featureKeys := map[string]struct{}{}
+	if inline {
+		var err error
+		featureKeys, err = validateGeoJSONFeatureCollection(panel.ID, *config.Source.Inline, featureProperty, strings.TrimSpace(config.LabelProperty))
+		if err != nil {
+			return err
+		}
+	}
+	if panel.Deferred {
+		return nil
+	}
+	if err := requireStringFrameColumn("panel "+panel.ID, "map id", frame, panel.Encoding.ID); err != nil {
+		return err
+	}
+	if err := requireNumberFrameColumn("panel "+panel.ID, "map value", frame, panel.Encoding.Value); err != nil {
+		return err
+	}
+	idIndex := -1
+	for index, column := range frame.Columns {
+		if column.Name == panel.Encoding.ID {
+			idIndex = index
+			break
+		}
+	}
+	seen := make(map[string]struct{}, len(frame.Rows))
+	for rowIndex, row := range frame.Rows {
+		key, ok := row[idIndex].(string)
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			return fmt.Errorf("panel %s map id row %d must be a non-empty string", panel.ID, rowIndex)
+		}
+		if _, duplicate := seen[key]; duplicate {
+			return fmt.Errorf("panel %s map has duplicate region key %q", panel.ID, key)
+		}
+		seen[key] = struct{}{}
+		if inline {
+			if _, exists := featureKeys[key]; !exists {
+				return fmt.Errorf("panel %s map region key %q has no GeoJSON feature", panel.ID, key)
+			}
+		}
+	}
+	return nil
+}
+
+func validateMapSourceURL(raw string) error {
+	if strings.Contains(raw, "\\") || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
+		return fmt.Errorf("url must be a same-origin absolute path")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "" || parsed.Host != "" || parsed.User != nil || parsed.Fragment != "" {
+		return fmt.Errorf("url must be a same-origin absolute path")
+	}
+	return nil
+}
+
+func validateGeoJSONFeatureCollection(panelID string, collection GeoJSONFeatureCollection, featureProperty, labelProperty string) (map[string]struct{}, error) {
+	if collection.Type != "FeatureCollection" || len(collection.Features) == 0 {
+		return nil, fmt.Errorf("panel %s map inline source must be a non-empty FeatureCollection", panelID)
+	}
+	keys := make(map[string]struct{}, len(collection.Features))
+	for index, feature := range collection.Features {
+		if feature.Type != "Feature" {
+			return nil, fmt.Errorf("panel %s map feature %d must have type Feature", panelID, index)
+		}
+		key, ok := feature.Properties[featureProperty].(string)
+		key = strings.TrimSpace(key)
+		if !ok || key == "" {
+			return nil, fmt.Errorf("panel %s map feature %d property %q must be a non-empty string", panelID, index, featureProperty)
+		}
+		if _, duplicate := keys[key]; duplicate {
+			return nil, fmt.Errorf("panel %s map has duplicate GeoJSON feature key %q", panelID, key)
+		}
+		keys[key] = struct{}{}
+		if labelProperty != "" {
+			label, ok := feature.Properties[labelProperty].(string)
+			if !ok || strings.TrimSpace(label) == "" {
+				return nil, fmt.Errorf("panel %s map feature %q label property %q must be a non-empty string", panelID, key, labelProperty)
+			}
+		}
+		geometryType, ok := feature.Geometry["type"].(string)
+		if !ok || (geometryType != "Polygon" && geometryType != "MultiPolygon") {
+			return nil, fmt.Errorf("panel %s map feature %q geometry must be Polygon or MultiPolygon", panelID, key)
+		}
+		if feature.Geometry["coordinates"] == nil {
+			return nil, fmt.Errorf("panel %s map feature %q geometry requires coordinates", panelID, key)
+		}
+	}
+	return keys, nil
 }
 
 // requireMetricEncoding enforces the missing-data contract's mandatory join
@@ -941,6 +1144,27 @@ func validateTableColumns(panel Panel, frame Frame) error {
 				return err
 			}
 		}
+		if column.SampleSizeField != "" {
+			if err := requireNumberFrameColumn(owner, "sample size", frame, column.SampleSizeField); err != nil {
+				return err
+			}
+			if column.MinSampleSize < 0 {
+				return fmt.Errorf("%s minimum sample size cannot be negative", owner)
+			}
+		}
+		if column.Total {
+			if err := requireNumberFrameColumn(owner, "total", frame, column.Field); err != nil {
+				return err
+			}
+		}
+		if column.ShareOf != "" {
+			if err := requireNumberFrameColumn(owner, "share", frame, column.Field); err != nil {
+				return err
+			}
+			if err := requireNumberFrameColumn(owner, "share source", frame, column.ShareOf); err != nil {
+				return err
+			}
+		}
 		if column.Cell.ToneField != "" {
 			if err := requireStringFrameColumn(owner, "tone", frame, column.Cell.ToneField); err != nil {
 				return err
@@ -1228,6 +1452,19 @@ func requireStringFrameColumn(owner, role string, frame Frame, name string) erro
 	return fmt.Errorf("%s references missing %s field %q", owner, role, name)
 }
 
+func requireNumberFrameColumn(owner, role string, frame Frame, name string) error {
+	for _, column := range frame.Columns {
+		if column.Name != name {
+			continue
+		}
+		if column.Type != ColumnNumber {
+			return fmt.Errorf("%s %s field %q must be number, got %q", owner, role, name, column.Type)
+		}
+		return nil
+	}
+	return fmt.Errorf("%s references missing %s field %q", owner, role, name)
+}
+
 func validateAction(owner string, action Action) error {
 	switch action.Kind {
 	case ActionNavigate, ActionNavigateToLeaf, ActionOpenDrawer:
@@ -1237,6 +1474,13 @@ func validateAction(owner string, action Action) error {
 	case ActionEmitEvent:
 		if strings.TrimSpace(action.Event) == "" {
 			return fmt.Errorf("%s emit action requires event", owner)
+		}
+	case ActionCubeDrill, ActionCrossFilter:
+		if action.Filter == nil || strings.TrimSpace(action.Filter.Dimension) == "" {
+			return fmt.Errorf("%s filter action requires dimension", owner)
+		}
+		if err := validateSource(owner, action.Filter.Value); err != nil {
+			return err
 		}
 	default:
 		return fmt.Errorf("%s has unsupported action kind %q", owner, action.Kind)
@@ -1261,6 +1505,11 @@ func validateAction(owner string, action Action) error {
 	}
 	for _, source := range action.Payload {
 		if err := validateSource(owner, source); err != nil {
+			return err
+		}
+	}
+	if action.Filter != nil {
+		if err := validateSource(owner, action.Filter.Value); err != nil {
 			return err
 		}
 	}
@@ -1328,6 +1577,11 @@ func validateActionFields(owner string, action Action, frames ...Frame) error {
 			return err
 		}
 	}
+	if action.Filter != nil {
+		if err := validate(action.Filter.Value); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -1365,10 +1619,41 @@ func hasLeafTableColumnAction(columns []TableColumn) bool {
 	return false
 }
 
+func panelIsActionable(panel Panel) bool {
+	if panel.DrillRoot != nil || len(panel.Actions) > 0 {
+		return true
+	}
+	for _, column := range panel.Columns {
+		if column.Action != nil {
+			return true
+		}
+	}
+	if panel.MetricFlow != nil {
+		for _, stage := range panel.MetricFlow.Stages {
+			if stage.Action != nil {
+				return true
+			}
+		}
+	}
+	if panel.MetricHierarchy != nil {
+		for _, row := range panel.MetricHierarchy.Rows {
+			if row.Action != nil {
+				return true
+			}
+		}
+	}
+	if panel.MetricRelationship != nil &&
+		(panel.MetricRelationship.Source.Action != nil || panel.MetricRelationship.Target.Action != nil) {
+		return true
+	}
+	return false
+}
+
 func validPanelKind(kind PanelKind) bool {
 	switch kind {
 	case PanelKindStat, PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
-		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindTable, PanelKindCoverage,
+		PanelKindLine, PanelKindArea, PanelKindGauge, PanelKindHistogram, PanelKindBoxPlot, PanelKindHeatmap, PanelKindMap,
+		PanelKindCascade, PanelKindTable, PanelKindCoverage,
 		PanelKindMetricFlow, PanelKindMetricHierarchy, PanelKindMetricRelationship:
 		return true
 	default:
@@ -1382,10 +1667,11 @@ func validPanelKind(kind PanelKind) bool {
 func validLevelView(kind PanelKind) bool {
 	switch kind {
 	case PanelKindPie, PanelKindDonut, PanelKindRadial, PanelKindBar, PanelKindHBar,
-		PanelKindLine, PanelKindArea, PanelKindCascade, PanelKindCoverage:
+		PanelKindLine, PanelKindArea, PanelKindGauge, PanelKindHistogram, PanelKindBoxPlot, PanelKindHeatmap,
+		PanelKindCascade, PanelKindCoverage:
 		return true
 	case PanelKindStat, PanelKindTable, PanelKindMetricFlow, PanelKindMetricHierarchy,
-		PanelKindMetricRelationship:
+		PanelKindMetricRelationship, PanelKindMap:
 		return false
 	}
 	return false

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Frame, NodeKey, Panel } from '../contract'
-import { radialNodeKey, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartKind } from '../charts/adapter'
+import { radialNodeKey, type ChartActivation, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartKind } from '../charts/adapter'
+import { fallbackMarkKey } from '../charts/keys'
 import { distributeShares, formatShare } from '../charts/shares'
+import { shouldUseLogarithmicScale } from '../charts/scales'
 import { childForSelection } from '../explore/model'
 import { WarningTriangle } from '../icons'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { hiddenSeriesFromURL, hiddenSeriesToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
 import { useLegendVisibility, useMarkSelection } from './context'
@@ -20,6 +23,12 @@ function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis
   const fallback = useFormat()
   const label = useFormat(panel.encoding.label ? panel.format[panel.encoding.label] : undefined)
   const value = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
+  const previous = useFormat(panel.encoding.previous ? panel.format[panel.encoding.previous] : undefined)
+  const lower = useFormat(panel.encoding.lower ? panel.format[panel.encoding.lower] : undefined)
+  const q1 = useFormat(panel.encoding.q1 ? panel.format[panel.encoding.q1] : undefined)
+  const median = useFormat(panel.encoding.median ? panel.format[panel.encoding.median] : undefined)
+  const q3 = useFormat(panel.encoding.q3 ? panel.format[panel.encoding.q3] : undefined)
+  const upper = useFormat(panel.encoding.upper ? panel.format[panel.encoding.upper] : undefined)
   const id = useFormat(panel.encoding.id ? panel.format[panel.encoding.id] : undefined)
   const series = useFormat(panel.encoding.series ? panel.format[panel.encoding.series] : undefined)
   const category = useFormat(panel.encoding.category ? panel.format[panel.encoding.category] : undefined)
@@ -28,9 +37,10 @@ function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis
   const final = useFormat(panel.encoding.final ? panel.format[panel.encoding.final] : undefined)
   // Compact axis labels for the value field prevent overlapping full-precision money ticks.
   const valueAxis = useAxisFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
+  const distributionAxis = useAxisFormat(panel.encoding.median ? panel.format[panel.encoding.median] : undefined)
 
   const format = useMemo<ChartFormatResolver>(() => {
-    const formatters = { label, value, id, series, category, cut, cutLabel, final }
+    const formatters = { label, value, previous, lower, q1, median, q3, upper, id, series, category, cut, cutLabel, final }
     const byField = new Map<string, (input: unknown) => string>()
     for (const role of encodingRoles) {
       const field = panel.encoding[role]
@@ -41,12 +51,15 @@ function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis
       if (field && formatter) byField.set(field, formatter)
     }
     return (field: string, input: unknown) => (byField.get(field) ?? fallback)(input)
-  }, [category, cut, cutLabel, fallback, final, id, label, panel.encoding, series, value])
+  }, [category, cut, cutLabel, fallback, final, id, label, lower, median, panel.encoding, previous, q1, q3, series, upper, value])
 
   const formatAxis = useMemo<ChartFormatResolver>(() => {
     const valueField = panel.encoding.value
-    return (field: string, input: unknown) => valueField && field === valueField ? valueAxis(input) : format(field, input)
-  }, [format, panel.encoding.value, valueAxis])
+    const medianField = panel.encoding.median
+    return (field: string, input: unknown) => valueField && field === valueField
+      ? valueAxis(input)
+      : medianField && field === medianField ? distributionAxis(input) : format(field, input)
+  }, [distributionAxis, format, panel.encoding.median, panel.encoding.value, valueAxis])
 
   return useMemo(() => ({ format, formatAxis }), [format, formatAxis])
 }
@@ -57,7 +70,11 @@ function useChartFormat(panel: Panel): { format: ChartFormatResolver; formatAxis
  */
 export function legendKey(frame: Frame, panel: Panel, index: number): string {
   const idIndex = panel.encoding.id ? frame.columns.findIndex((column) => column.name === panel.encoding.id) : -1
-  const labelField = panel.encoding.label ?? panel.encoding.category
+  // Axis marks are keyed from `category` first (see the ECharts adapter).
+  // Some documents retain a legacy `label` role even though that column is
+  // absent from the served frame, so resolving the click must use the same
+  // category-first rule that created the mark key.
+  const labelField = panel.encoding.category ?? panel.encoding.label
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
   const raw = idIndex >= 0 ? frame.rows[index]?.[idIndex] : frame.rows[index]?.[labelIndex]
   return typeof raw === 'string' || typeof raw === 'number' || typeof raw === 'bigint' ? String(raw) : String(index)
@@ -80,9 +97,14 @@ export function rowIndexForKey(frame: Frame, panel: Panel, key: string): number 
   }
   const index = frame.rows.findIndex((_, position) => legendKey(frame, panel, position) === key)
   if (index >= 0) return index
-  const labelField = panel.encoding.label ?? panel.encoding.category
+  const labelField = panel.encoding.category ?? panel.encoding.label
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
-  return labelIndex >= 0 ? frame.rows.findIndex((row) => String(row[labelIndex]) === key) : -1
+  const seriesIndex = frame.columns.findIndex((column) => column.name === panel.encoding.series)
+  if (labelIndex < 0) return -1
+  return frame.rows.findIndex((row) => fallbackMarkKey(
+    textCell(row[labelIndex]),
+    seriesIndex >= 0 ? textCell(row[seriesIndex]) : '',
+  ) === key)
 }
 
 function legendSeriesIndex(frame: Frame, panel: Panel): number {
@@ -131,6 +153,71 @@ function numericCell(value: unknown): number | undefined {
   return undefined
 }
 
+function textCell(value: unknown): string {
+  return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint'
+    ? String(value)
+    : ''
+}
+
+function distinctCategoryCount(frame: Frame, panel: Panel): number {
+  const partition = panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial'
+  const field = partition ? (panel.encoding.label ?? panel.encoding.category) : (panel.encoding.category ?? panel.encoding.label)
+  const index = frame.columns.findIndex((column) => column.name === field)
+  if (index < 0) return 0
+  return new Set(frame.rows.map((row) => row[index]).filter((value) => value !== null && value !== undefined).map(String)).size
+}
+
+function distinctSeriesCount(frame: Frame, panel: Panel): number {
+  const index = frame.columns.findIndex((column) => column.name === panel.encoding.series)
+  if (index < 0) return 1
+  return new Set(frame.rows.map((row) => row[index]).filter((value) => value !== null && value !== undefined).map(String)).size
+}
+
+export const donutRemainderKey = '__lens_other__'
+export const topNGroupField = '__lens_topn_group'
+
+export function collapseExpandableTopN(frame: Frame, panel: Panel): { frame: Frame; collapsed: boolean } {
+  const groupIndex = frame.columns.findIndex((column) => column.name === topNGroupField)
+  const labelIndex = frame.columns.findIndex((column) => column.name === (panel.encoding.label ?? panel.encoding.category))
+  const idIndex = frame.columns.findIndex((column) => column.name === panel.encoding.id)
+  const valueIndex = frame.columns.findIndex((column) => column.name === panel.encoding.value)
+  if (groupIndex < 0 || labelIndex < 0 || valueIndex < 0) return { frame, collapsed: false }
+  const tail = frame.rows.filter((row) => typeof row[groupIndex] === 'string' && String(row[groupIndex]).trim() !== '')
+  if (tail.length === 0) return { frame, collapsed: false }
+  const rows = frame.rows.filter((row) => !tail.includes(row)).map((row) => [...row])
+  const remainder = new Array<unknown>(frame.columns.length).fill(null)
+  remainder[groupIndex] = tail[0]?.[groupIndex]
+  remainder[labelIndex] = tail[0]?.[groupIndex]
+  if (idIndex >= 0) remainder[idIndex] = donutRemainderKey
+  remainder[valueIndex] = tail.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+  rows.push(remainder)
+  return { frame: { ...frame, rows }, collapsed: true }
+}
+
+export function collapseMinorDonutSlices(frame: Frame, panel: Panel, otherLabel: string): { frame: Frame; collapsed: boolean } {
+  if (panel.kind !== 'donut' || frame.rows.length < 2) return { frame, collapsed: false }
+  const labelIndex = frame.columns.findIndex((column) => column.name === (panel.encoding.label ?? panel.encoding.category))
+  const idIndex = frame.columns.findIndex((column) => column.name === panel.encoding.id)
+  const valueIndex = frame.columns.findIndex((column) => column.name === panel.encoding.value)
+  if (labelIndex < 0 || valueIndex < 0) return { frame, collapsed: false }
+  const total = frame.total ?? frame.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+  if (!Number.isFinite(total) || total <= 0) return { frame, collapsed: false }
+  const minor = frame.rows.map((row, index) => ({ index, value: numericCell(row[valueIndex]) ?? 0 }))
+    .filter(({ value }) => value / total < 0.02)
+  if (minor.length === 0) return { frame, collapsed: false }
+  const minorIndices = new Set(minor.map(({ index }) => index))
+  const rows = frame.rows.filter((_, index) => !minorIndices.has(index)).map((row) => [...row])
+  const remainder = new Array<unknown>(frame.columns.length).fill(null)
+  remainder[labelIndex] = otherLabel
+  if (idIndex >= 0) remainder[idIndex] = donutRemainderKey
+  remainder[valueIndex] = minor.reduce((sum, item) => sum + item.value, 0)
+  rows.push(remainder)
+  const colors = frame.colors
+    ? [...frame.colors.filter((_, index) => !minorIndices.has(index)), '#94a3b8']
+    : undefined
+  return { frame: { ...frame, rows, ...(colors ? { colors } : {}) }, collapsed: true }
+}
+
 export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const frame = usePanelFrame(panel.id)
   const translate = useTranslate()
@@ -139,7 +226,13 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const { format, formatAxis } = useChartFormat(panel)
   const [selectedKey, setSelectedKey] = useState<NodeKey>()
   const [hoveredKey, setHoveredKey] = useState<NodeKey | null>(null)
-  const [localHidden, setLocalHidden] = useState<ReadonlySet<string>>(() => new Set())
+  const [remainderExpanded, setRemainderExpanded] = useState(false)
+  const [resetZoomKey, setResetZoomKey] = useState(0)
+  const [showRegression, setShowRegression] = useState(false)
+  const [movingAverageWindow, setMovingAverageWindow] = useState<number>()
+  const [localHidden, setLocalHidden] = useState<ReadonlySet<string>>(() => (
+    typeof window === 'undefined' ? new Set() : hiddenSeriesFromURL(new URL(window.location.href), panel.id)
+  ))
   const legendVisibility = useLegendVisibility()
   const hidden = legendVisibility?.hidden ?? localHidden
   const active = navigation.panelId === panel.id && navigation.path.length > 0
@@ -160,6 +253,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     return panelNavigation.urlForRow(frame.data, index >= 0 ? frame.data.rows[index] : undefined)
   }, [frame.data, hasTree, panelNavigation, panel])
   const kind = panel.kind as ChartKind
+  const degenerate = frame.data
+    ? distinctCategoryCount(frame.data, panel) <= 1 && distinctSeriesCount(frame.data, panel) <= 1
+    : false
+  const logarithmic = frame.data ? shouldUseLogarithmicScale(frame.data, panel.encoding, panel.valueAxis) : false
 
   // A new level or perspective is new data; carrying hidden keys across would
   // silently blank out unrelated segments, and carrying the selected key would
@@ -170,10 +267,27 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   useEffect(() => {
     if (previousViewKey.current === viewKey) return
     previousViewKey.current = viewKey
-    if (legendVisibility) legendVisibility.reset()
-    else setLocalHidden(new Set())
     setSelectedKey(undefined)
-  }, [legendVisibility, viewKey])
+  }, [viewKey])
+
+  const setHiddenSeries = useCallback((keys: ReadonlySet<string>) => {
+    if (legendVisibility) legendVisibility.set(keys)
+    else setLocalHidden(new Set(keys))
+  }, [legendVisibility])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const restore = () => setHiddenSeries(hiddenSeriesFromURL(new URL(window.location.href), panel.id))
+    window.addEventListener('popstate', restore)
+    return () => window.removeEventListener('popstate', restore)
+  }, [panel.id, setHiddenSeries])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const current = new URL(window.location.href)
+    const next = hiddenSeriesToURL(current, panel.id, hidden)
+    if (next.search !== current.search) window.history.replaceState(window.history.state, '', next)
+  }, [hidden, panel.id])
 
   // Hidden series are removed from the data rather than dimmed, so the plot
   // reclaims their arc. The percentages do not follow: they are measured
@@ -188,6 +302,23 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     const colors = frame.data.colors?.filter((_, index) => keep[index])
     return { ...frame.data, rows, ...(colors ? { colors } : {}) }
   }, [frame.data, hidden, panel])
+  const collapsedRemainder = useMemo(() => visibleFrame
+    ? (() => {
+        const topN = collapseExpandableTopN(visibleFrame, panel)
+        return topN.collapsed ? topN : collapseMinorDonutSlices(visibleFrame, panel, translate('chart.other', 'Other'))
+      })()
+    : { frame: visibleFrame, collapsed: false }, [panel, translate, visibleFrame])
+  const renderFrame = remainderExpanded || !collapsedRemainder.collapsed ? visibleFrame : collapsedRemainder.frame
+  // Keep the legend independent of visibility. Hidden entries must remain in
+  // the command surface so they can be restored one by one, and their ordinal
+  // (therefore their positional colour pin) must not shift when a neighbour is
+  // hidden. Remainder grouping still applies so a collapsed tail has one
+  // honest "Other" entry rather than exposing rows the plot has folded away.
+  const legendFrame = useMemo(() => {
+    if (!frame.data || remainderExpanded) return frame.data
+    const topN = collapseExpandableTopN(frame.data, panel)
+    return topN.collapsed ? topN.frame : collapseMinorDonutSlices(frame.data, panel, translate('chart.other', 'Other')).frame
+  }, [frame.data, panel, remainderExpanded, translate])
 
   const visibleTotal = useMemo(() => {
     if (!frame.data || hidden.size === 0 || !panel.encoding.value || panel.radial?.mode === 'partition') return undefined
@@ -208,7 +339,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
     if (valueIndex < 0) return undefined
     return frame.data.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
-  }, [active, frame.data, panel.encoding.value])
+  }, [active, frame.data, panel.encoding.value, panel.radial?.mode])
 
   // The whole every share on this panel is measured against. A producer-shipped
   // frame total outranks anything derived here — including `visibleTotal` — so
@@ -222,20 +353,14 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const presentation = frame.data?.presentation ?? panel.presentation
   // Positional colour pins follow the rows they pin, so they come off the
   // frame the chart is actually drawing.
-  const frameColors = visibleFrame?.colors
+  const frameColors = renderFrame?.colors
 
   const toggleSeries = useCallback((key: string) => {
-    if (legendVisibility) {
-      legendVisibility.toggle(key)
-      return
-    }
-    setLocalHidden((current) => {
-      const next = new Set(current)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [legendVisibility])
+    const next = new Set(hidden)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    setHiddenSeries(next)
+  }, [hidden, setHiddenSeries])
 
   // Per-mark drill affordance. Only meaningful once a level is on screen and
   // its children are known; without a level every mark is equally (un)expandable
@@ -263,12 +388,47 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     [active, document.theme, frameColors, panel],
   )
 
-  const input = useMemo(() => visibleFrame ? ({
+  const temporal = useMemo(() => panel.temporal ? {
+    ...panel.temporal,
+    regression: showRegression ? panel.temporal.regression : undefined,
+    movingAverages: panel.temporal.movingAverages?.filter(({ window }) => window === movingAverageWindow),
+  } : undefined, [movingAverageWindow, panel.temporal, showRegression])
+  const temporalControls = (kind === 'line' || kind === 'area') && panel.temporal
+    && (panel.temporal.regression || panel.temporal.movingAverages?.length) ? (
+      <div className="lens-temporal-controls">
+        {panel.temporal.regression && (
+          <button
+            aria-pressed={showRegression}
+            className="lens-temporal-toggle"
+            onClick={() => setShowRegression((current) => !current)}
+            type="button"
+          >
+            {translate('chart.regression', 'Trend')}
+          </button>
+        )}
+        {Boolean(panel.temporal.movingAverages?.length) && (
+          <select
+            aria-label={translate('chart.movingAverage', 'Moving average')}
+            className="lens-temporal-select"
+            onChange={(event) => setMovingAverageWindow(event.target.value ? Number(event.target.value) : undefined)}
+            value={movingAverageWindow ?? ''}
+          >
+            <option value="">{translate('chart.movingAverage', 'Moving average')}</option>
+            {panel.temporal.movingAverages?.map(({ window, label }) => (
+              <option key={window} value={window}>{label || `SMA ${window}`}</option>
+            ))}
+          </select>
+        )}
+      </div>
+    ) : undefined
+
+  const input = useMemo(() => renderFrame ? ({
     kind,
-    frame: visibleFrame,
+    frame: renderFrame,
     encoding: panel.encoding,
     format,
     formatAxis,
+    categoryFormatDefined: Boolean(panel.encoding.category && panel.format[panel.encoding.category]),
     locale: document.meta?.locale,
     tooltipTotalLabel: translate('panel.total', 'Total'),
     theme: document.theme,
@@ -277,19 +437,26 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     seriesColor,
     rowColor,
     radial: panel.radial,
+    temporal,
     valueAxis: panel.valueAxis,
     expandable,
-  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, kind, panel.encoding, panel.valueAxis, presentation, panel.radial, rowColor, selectedKey, seriesColor, translate, visibleFrame])
+  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, kind, panel.encoding, panel.format, panel.radial, panel.valueAxis, presentation, renderFrame, rowColor, selectedKey, seriesColor, temporal, translate])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.
   const interactive = hasTree
     ? (onMarkSelect ? Boolean(level?.children.length ?? panel.drillRoot) : drillable)
     : Boolean(panelNavigation.action)
-  const select = useCallback((key: NodeKey, anchor?: ChartAnchor) => {
+  const distribution = kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap'
+  const compact = degenerate && !interactive && !distribution
+  const select = useCallback((key: NodeKey, anchor?: ChartAnchor, activation?: ChartActivation) => {
+    if (key === donutRemainderKey && collapsedRemainder.collapsed) {
+      setRemainderExpanded((current) => !current)
+      return
+    }
     if (!hasTree) {
       const href = markURL(key)
-      panelNavigation.activate(href)
+      panelNavigation.activate(href, undefined, { newTab: activation?.newTab })
       return
     }
     // With an explore host present the mark opens its overlay; without one the
@@ -303,22 +470,23 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     if (level && !node?.target) return
     setSelectedKey(key)
     drillInto(node?.key ?? key, panel.id)
-  }, [drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
+  }, [collapsedRemainder.collapsed, drillInto, hasTree, level, markURL, onMarkSelect, panel.id, panelNavigation])
 
   // A legend sits to the RIGHT of the plot on a wide panel and drops below it
   // when the panel is too narrow (handled in CSS by a container query). Moving
   // it out of the plot's footer hands the freed width to the chart, which fills
   // the left of the body.
-  const hasLegend = presentation?.legend === 'below' && Boolean(frame.data)
+  const hasLegend = !compact && presentation?.legend === 'below' && Boolean(renderFrame)
+  const chartInteractive = interactive || collapsedRemainder.collapsed
   return (
-    <PanelFrame panel={panel} frame={frame} total={shareTotal}>
+    <PanelFrame allowEmptyContent={!distribution} panel={panel} frame={frame} headerActions={temporalControls} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
         <div className="lens-chart-area">
           {/* Above the plot, in flow — see PlotTotalBadge. */}
           {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
             <PlotTotalBadge panel={panel} total={shareTotal} />
           )}
-          {panel.valueAxis?.scale === 'logarithmic' && (
+          {logarithmic && (
             <div
               aria-label={translate('chart.logScaleHint', 'Values are shown on a logarithmic scale')}
               className="lens-chart-log-scale"
@@ -329,20 +497,41 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
               <span>{translate('chart.logScale', 'Logarithmic scale')}</span>
             </div>
           )}
-          {input && (
+          {remainderExpanded && collapsedRemainder.collapsed && (
+            <button className="lens-chart-collapse-other" onClick={() => setRemainderExpanded(false)} type="button">
+              {translate('chart.collapseOther', 'Collapse Other')}
+            </button>
+          )}
+          {(kind === 'line' || kind === 'area') && (
+            <button className="lens-chart-reset-zoom" onClick={() => setResetZoomKey((value) => value + 1)} type="button">
+              {translate('chart.resetZoom', 'Reset zoom')}
+            </button>
+          )}
+          {input && compact ? (
+            <CompactChartValue frame={input.frame} panel={panel} />
+          ) : input && (
             <ChartHost
               input={input}
               panelId={panel.id}
               adapter={adapter}
               label={translate('chart.label', '{name} chart', { name: panel.title })}
-              drillable={interactive}
-              onSelect={interactive ? select : undefined}
-              onHover={interactive ? setHoveredKey : undefined}
+              drillable={chartInteractive}
+              onSelect={chartInteractive ? select : undefined}
+              onHover={chartInteractive ? setHoveredKey : undefined}
+              resetZoomKey={resetZoomKey}
             />
           )}
         </div>
-        {hasLegend && frame.data && (
-          <ChartLegend frame={frame.data} hidden={hidden} onToggle={toggleSeries} panel={panel} presentation={presentation} total={shareTotal} />
+        {hasLegend && legendFrame && (
+          <ChartLegend
+            frame={legendFrame}
+            hidden={hidden}
+            onSetHidden={setHiddenSeries}
+            onToggle={toggleSeries}
+            panel={panel}
+            presentation={presentation}
+            total={shareTotal}
+          />
         )}
       </div>
       {interactive && hoveredKey && (
@@ -351,6 +540,30 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
         </span>
       )}
     </PanelFrame>
+  )
+}
+
+function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
+  const translate = useTranslate()
+  const labelField = panel.encoding.category ?? panel.encoding.label
+  const valueField = panel.encoding.value
+  const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
+  const valueIndex = frame.columns.findIndex((column) => column.name === valueField)
+  const formatValue = useFormat(valueField ? panel.format[valueField] : undefined)
+  const total = valueIndex < 0 ? undefined : frame.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+  const rawLabel = labelIndex < 0 ? undefined : frame.rows[0]?.[labelIndex]
+  const label = textCell(rawLabel)
+  return (
+    <div className="lens-chart-compact" role="status">
+      {frame.rows.length === 0 ? (
+        <span className="lens-chart-compact-empty">{translate('panel.empty', 'No data')}</span>
+      ) : (
+        <>
+          {label && <span className="lens-chart-compact-label" title={label}>{label}</span>}
+          <strong className="lens-chart-compact-value">{formatValue(total)}</strong>
+        </>
+      )}
+    </div>
   )
 }
 
@@ -388,10 +601,11 @@ function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
  * are measured against `total` — the same authoritative whole the plot uses —
  * so hiding an entry no longer moves the numbers on the entries left behind.
  */
-function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
+function ChartLegend({ panel, frame, hidden, onSetHidden, onToggle, total, presentation }: {
   panel: Panel
   frame: Frame
   hidden: ReadonlySet<string>
+  onSetHidden: (keys: ReadonlySet<string>) => void
   onToggle: (key: string) => void
   total?: number
   // The served frame's decisions when it carries any; see ChartPanel.
@@ -399,6 +613,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
 }) {
   const { document, navigation } = useDashboard()
   const translate = useTranslate()
+  const [search, setSearch] = useState('')
   const seriesLegendIndex = legendSeriesIndex(frame, panel)
   const labelField = seriesLegendIndex >= 0 ? panel.encoding.series : (panel.encoding.label ?? panel.encoding.category)
   const valueField = panel.encoding.value
@@ -447,7 +662,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
         return indices
       })()
     : frame.rows.map((_, index) => index)
-  const visibleEntryCount = entries.filter((index) => !hidden.has(legendEntryKey(frame, panel, index))).length
+  const allKeys = entries.map((index) => legendEntryKey(frame, panel, index))
 
   // A partition ring reconciles against its own declared total, so a share is
   // only meaningful within a ring. Rows are grouped by their denominator and
@@ -499,33 +714,64 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
     }
   }
   const suffixFor = (index: number): 'percent' | 'value' | 'none' => {
-    if (seriesLegendIndex >= 0) return 'none'
+    if (seriesLegendIndex >= 0) return 'value'
     if (showsPercent) return 'percent'
     if (!partition) return 'value'
     return rowsPerKey.get(legendKey(frame, panel, index)) === 1 ? 'percent' : 'none'
   }
 
+  const valueFor = (index: number): number | undefined => {
+    if (valueIndex < 0) return undefined
+    if (seriesLegendIndex < 0) return numericCell(frame.rows[index]?.[valueIndex])
+    const key = legendEntryKey(frame, panel, index)
+    return frame.rows.reduce((sum, row, rowIndex) => (
+      legendEntryKey(frame, panel, rowIndex) === key ? sum + (numericCell(row[valueIndex]) ?? 0) : sum
+    ), 0)
+  }
+  const normalizedSearch = search.trim().toLocaleLowerCase()
+  const visibleEntries = normalizedSearch === '' ? entries : entries.filter((index) => {
+    const raw = frame.rows[index]?.[labelIndex]
+    return textCell(raw).toLocaleLowerCase().includes(normalizedSearch)
+  })
+  const solo = (key: string) => {
+    const alreadySolo = !hidden.has(key) && allKeys.every((candidate) => candidate === key || hidden.has(candidate))
+    onSetHidden(alreadySolo ? new Set() : new Set(allKeys.filter((candidate) => candidate !== key)))
+  }
+
   return (
-    <ul className="lens-chart-legend">
-      {entries.map((index, entryIndex) => {
+    <div className="lens-chart-legend-shell">
+      <div className="lens-chart-legend-tools" role="toolbar" aria-label={translate('chart.legendControls', 'Legend controls')}>
+        <button onClick={() => onSetHidden(new Set(allKeys))} type="button">{translate('chart.legendHideAll', 'Hide all')}</button>
+        <button onClick={() => onSetHidden(new Set())} type="button">{translate('chart.legendShowAll', 'Show all')}</button>
+        <button onClick={() => onSetHidden(new Set(allKeys.filter((key) => !hidden.has(key))))} type="button">{translate('chart.legendInvert', 'Invert')}</button>
+      </div>
+      {entries.length > 8 && (
+        <label className="lens-chart-legend-search">
+          <span className="lens-sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
+          <input
+            onChange={(event) => setSearch(event.currentTarget.value)}
+            placeholder={translate('chart.legendSearch', 'Search legend')}
+            type="search"
+            value={search}
+          />
+        </label>
+      )}
+      <ul className="lens-chart-legend">
+      {visibleEntries.map((index) => {
         const row = frame.rows[index]!
+        const entryIndex = entries.indexOf(index)
         const raw = row[labelIndex]
         const label = typeof raw === 'string' ? raw : raw === null || raw === undefined ? '' : JSON.stringify(raw)
         const key = legendEntryKey(frame, panel, index)
         const isHidden = hidden.has(key)
-        // Hiding the last visible series would leave an empty plot with no way
-        // back except guessing, so the final entry stays locked on.
-        const locked = !isHidden && visibleEntryCount <= 1
         return (
           <li className="lens-chart-legend-item" key={`${key}-${index}`}>
             <button
               aria-pressed={!isHidden}
               className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
-              disabled={locked}
               onClick={() => onToggle(key)}
-              title={locked
-                ? translate('chart.legendLast', 'The last visible series cannot be hidden')
-                : translate('chart.legendToggle', 'Toggle series')}
+              onDoubleClick={() => solo(key)}
+              title={translate('chart.legendToggle', 'Toggle series; double-click to isolate')}
               type="button"
             >
               <span
@@ -540,7 +786,7 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
                   <span className="lens-chart-legend-value">
                     {suffixFor(index) === 'percent'
                       ? formatShare(shares.get(index))
-                      : (valueIndex >= 0 ? formatValue(row[valueIndex]) : '')}
+                      : formatValue(valueFor(index))}
                   </span>
                 </>
               )}
@@ -548,7 +794,8 @@ function ChartLegend({ panel, frame, hidden, onToggle, total, presentation }: {
           </li>
         )
       })}
-    </ul>
+      </ul>
+    </div>
   )
 }
 
@@ -561,5 +808,9 @@ export function BarPanel(props: ChartPanelProps) {
 }
 
 export function LinePanel(props: ChartPanelProps) {
+  return <ChartPanel {...props} />
+}
+
+export function DistributionPanel(props: ChartPanelProps) {
   return <ChartPanel {...props} />
 }

@@ -61,6 +61,20 @@ func Table(id, title, dataset string) *PanelBuilder {
 func Gauge(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindGauge, id, title, dataset)
 }
+func Choropleth(id, title, dataset string, source panel.GeoJSONSource, featureProperty string) *PanelBuilder {
+	builder := newPanelBuilder(panel.KindMap, id, title, dataset)
+	builder.panel.Map = &panel.MapSpec{Source: source, FeatureProperty: featureProperty}
+	return builder
+}
+
+// MapLabelProperty chooses a human-readable feature property for map labels.
+// Region identity still joins exactly through FeatureProperty and IDField.
+func (b *PanelBuilder) MapLabelProperty(name string) *PanelBuilder {
+	if b.panel.Map != nil {
+		b.panel.Map.LabelProperty = strings.TrimSpace(name)
+	}
+	return b
+}
 
 // MetricFlow builds a result-formula panel: an ordered sequence of signed
 // operand stages reading left-to-right to a single supplied result.
@@ -256,6 +270,9 @@ func (b *PanelBuilder) Layout(l panel.GroupLayout) *PanelBuilder {
 }
 func (b *PanelBuilder) Format(spec format.Spec) *PanelBuilder { b.panel.Formatter = &spec; return b }
 func (b *PanelBuilder) Action(spec action.Spec) *PanelBuilder { b.panel.Action = &spec; return b }
+
+// Terminal marks this leaf as an intentional end of the interaction path.
+func (b *PanelBuilder) Terminal() *PanelBuilder { b.panel.Terminal = true; return b }
 func (b *PanelBuilder) Description(text string) *PanelBuilder {
 	b.panel.Description = LiteralText(text)
 	return b
@@ -608,6 +625,37 @@ func (c TableColumnSpec) Badge(badgeField string) TableColumnSpec {
 func (c TableColumnSpec) Clamp(lines int) TableColumnSpec {
 	c.ClampLines = lines
 	return c
+}
+
+// Heatmap opts a numeric column into a value-intensity background.
+func (c TableColumnSpec) Heatmap() TableColumnSpec {
+	c.Heat = true
+	return c
+}
+
+// LowSample qualifies values backed by fewer than minimum observations.
+func (c TableColumnSpec) LowSample(sampleSizeField string, minimum int) TableColumnSpec {
+	c.SampleSizeField = sampleSizeField
+	c.MinSampleSize = minimum
+	return c
+}
+
+// WithTotal includes this numeric column in the server-computed total row.
+func (c TableColumnSpec) WithTotal() TableColumnSpec {
+	c.Total = true
+	return c
+}
+
+// AsShareOf computes this percentage column from sourceField after filtering.
+func (c TableColumnSpec) AsShareOf(sourceField string) TableColumnSpec {
+	c.ShareOf = sourceField
+	return c
+}
+
+// Searchable enables server-side substring search for a table panel.
+func (b *PanelBuilder) Searchable() *PanelBuilder {
+	b.panel.Table = &panel.TableOptions{Searchable: true}
+	return b
 }
 
 func Ref(name string) string {

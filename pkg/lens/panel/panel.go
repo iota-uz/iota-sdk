@@ -31,8 +31,7 @@ const (
 	// pure noise.
 	KindSegmentBar Kind = "segment_bar"
 	// KindCascade renders a bridge/cascade as narrowing running-total rows
-	// with deduction connectors between them. It is native HTML/CSS rather
-	// than an ApexCharts chart.
+	// with deduction connectors between them rather than a chart canvas.
 	KindCascade Kind = "cascade"
 	KindPie     Kind = "pie"
 	KindDonut   Kind = "donut"
@@ -42,6 +41,17 @@ const (
 	KindRadial Kind = "radial"
 	KindTable  Kind = "table"
 	KindGauge  Kind = "gauge"
+	// KindHistogram renders already-bucketed distribution rows. Category is
+	// the bucket label/bound and Value is its observation count.
+	KindHistogram Kind = "histogram"
+	// KindBoxPlot renders producer-computed five-number summaries. The SDK does
+	// not infer quantiles from raw observations.
+	KindBoxPlot Kind = "boxplot"
+	// KindHeatmap renders Category × Series cells colored by Value.
+	KindHeatmap Kind = "heatmap"
+	// KindMap renders a choropleth by joining the panel ID field to one exact
+	// string property on a GeoJSON Polygon/MultiPolygon feature collection.
+	KindMap    Kind = "map"
 	KindTabs   Kind = "tabs"
 	KindGrid   Kind = "grid"
 	KindSplit  Kind = "split"
@@ -96,23 +106,23 @@ func (k Kind) IsContainer() bool {
 		return true
 	case KindStat, KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
 		KindSegmentBar, KindCascade, KindPie, KindDonut, KindRadial, KindTable, KindGauge,
+		KindHistogram, KindBoxPlot, KindHeatmap, KindMap,
 		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
 		return false
 	}
 	return false
 }
 
-// IsChart reports whether the kind is a leaf panel rendered through the Apex
-// charts engine. Membership: KindTimeSeries, KindBar, KindHorizontalBar,
+// IsChart reports whether the kind is a leaf panel rendered through the chart
+// adapter. Membership: KindTimeSeries, KindBar, KindHorizontalBar,
 // KindStackedBar, KindPie, KindDonut, KindGauge.
 //
-// This is the complement, among leaf panels, of RendersNatively: every leaf is
-// either an apex chart or a native (non-apex) render. KindStat, KindSegmentBar,
-// KindCascade and KindTable draw their own HTML/CSS and are therefore NOT charts.
+// This is the complement, among leaf panels, of RendersNatively. KindStat,
+// KindSegmentBar, KindCascade and KindTable are therefore not charts.
 func (k Kind) IsChart() bool {
 	switch k {
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindPie, KindDonut, KindRadial, KindGauge:
+		KindPie, KindDonut, KindRadial, KindGauge, KindHistogram, KindBoxPlot, KindHeatmap, KindMap:
 		return true
 	case KindStat, KindSegmentBar, KindCascade, KindTable,
 		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup,
@@ -123,7 +133,7 @@ func (k Kind) IsChart() bool {
 }
 
 // RendersNatively reports whether the kind is a leaf panel drawn with native
-// HTML/CSS rather than the ApexCharts engine. Membership: KindStat,
+// HTML/CSS rather than the chart adapter. Membership: KindStat,
 // KindSegmentBar, KindCascade, KindTable.
 //
 // Together, IsChart() and RendersNatively() partition the leaf (non-container)
@@ -135,7 +145,7 @@ func (k Kind) RendersNatively() bool {
 		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
 		return true
 	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindPie, KindDonut, KindRadial, KindGauge,
+		KindPie, KindDonut, KindRadial, KindGauge, KindHistogram, KindBoxPlot, KindHeatmap, KindMap,
 		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
 		return false
 	}
@@ -166,13 +176,67 @@ type SparklineSpec struct {
 	Color  string    `json:"color,omitempty"`
 }
 
-// TargetSpec renders a target/threshold marker on a coverage (segment-bar) or
-// horizontal-bar panel: a bullet-style tick at Value with an optional
-// already-localized Label beside it. Value is in the same units as the panel's
-// plotted amounts; the renderer never rescales it.
+// TargetSpec renders a target/threshold marker on a coverage (segment-bar),
+// horizontal-bar, or time-series panel. Value is in the same units as the
+// panel's plotted amounts; the renderer never rescales it.
 type TargetSpec struct {
 	Value float64 `json:"value"`
 	Label string  `json:"label,omitempty"`
+}
+
+// MovingAverageSpec names a server-computed SMA field exposed as an optional
+// time-series overlay. Window is constrained to the reader-facing choices
+// supported by Lens (3, 7, or 12 points).
+type MovingAverageSpec struct {
+	Window int
+	Field  FieldRef
+	Label  string
+}
+
+type TemporalPeriodState string
+
+const (
+	TemporalPeriodYTD        TemporalPeriodState = "ytd"
+	TemporalPeriodAnnualized TemporalPeriodState = "annualized"
+)
+
+// TemporalPeriodSpec marks one category as incomplete. AnnualizedField may
+// supply a separately computed estimate; it never silently replaces the fact.
+type TemporalPeriodSpec struct {
+	Category        string
+	State           TemporalPeriodState
+	Label           string
+	AnnualizedField FieldRef
+}
+
+// TimeAnnotationSpec is a vertical time-axis event marker.
+type TimeAnnotationSpec struct {
+	At    string
+	Label string
+}
+
+// ForecastSpec names forecast and confidence-bound fields already present on
+// the frame. Start is the first forecast category and visually separates fact
+// from projection.
+type ForecastSpec struct {
+	Start      string
+	ValueField FieldRef
+	LowerField FieldRef
+	UpperField FieldRef
+	Label      string
+}
+
+// TemporalSpec is the generic time-series overlay contract. Computed fields
+// stay in the frame so CSV/report exports contain the same values the chart
+// draws.
+type TemporalSpec struct {
+	RegressionField FieldRef
+	RegressionLabel string
+	MovingAverages  []MovingAverageSpec
+	ReferenceLines  []TargetSpec
+	Period          *TemporalPeriodSpec
+	Annotations     []TimeAnnotationSpec
+	Forecast        *ForecastSpec
 }
 
 // Confidence states how a displayed number was produced (mirrors
@@ -318,6 +382,9 @@ type RelationshipSpec struct {
 // PresentationHints are optional, renderer-level density choices carried on a
 // panel spec. Every field is opt-in: the zero value keeps today's rendering.
 type PresentationHints struct {
+	// DataLabels writes formatted values directly on bar and line marks. It is
+	// intentionally opt-in: dense charts keep tooltips as their reading surface.
+	DataLabels bool
 	// LegendBelow renders a centered wrapping legend under the plot with one
 	// "label · value" entry per slice.
 	LegendBelow bool
@@ -413,6 +480,42 @@ type RadialRing struct {
 	Total float64 `json:"total"`
 }
 
+// MaxMapGeoJSONBytes is the absolute client/server contract limit for a
+// fetched map source. Producers may request a lower MaxBytes but never a
+// higher one. Inline sources are already bounded by the dashboard response.
+const MaxMapGeoJSONBytes = 5 * 1024 * 1024
+
+// GeoJSONFeatureCollection is the deliberately narrow geometry accepted by a
+// choropleth panel. Validation restricts every feature to Polygon or
+// MultiPolygon; the generic map preserves coordinates as JSON-shaped data.
+type GeoJSONFeatureCollection struct {
+	Type     string           `json:"type"`
+	Features []GeoJSONFeature `json:"features"`
+}
+
+type GeoJSONFeature struct {
+	Type       string         `json:"type"`
+	Properties map[string]any `json:"properties"`
+	Geometry   map[string]any `json:"geometry"`
+}
+
+// GeoJSONSource selects exactly one source. URL must be a same-origin absolute
+// path and carries a positive MaxBytes no larger than MaxMapGeoJSONBytes.
+type GeoJSONSource struct {
+	Inline   *GeoJSONFeatureCollection `json:"inline,omitempty"`
+	URL      string                    `json:"url,omitempty"`
+	MaxBytes int                       `json:"maxBytes,omitempty"`
+}
+
+// MapSpec configures an exact, case-sensitive one-to-one region join.
+// FeatureProperty is compared to the panel's ID field; LabelProperty, when
+// set, supplies human-readable region labels from feature properties.
+type MapSpec struct {
+	Source          GeoJSONSource `json:"source"`
+	FeatureProperty string        `json:"featureProperty"`
+	LabelProperty   string        `json:"labelProperty,omitempty"`
+}
+
 // RadialNodeKey returns the stable mark key emitted for a partition segment.
 // It includes both ring and category identity so the same category can carry a
 // different drill action in each decomposition.
@@ -491,6 +594,19 @@ type TableColumn struct {
 	// BadgeField names a frame column carrying a per-row badge tooltip; a
 	// non-empty value renders a muted "?" badge after the cell value.
 	BadgeField FieldRef
+	// Heat shades numeric cells by their value relative to the visible column
+	// range. It is opt-in so ordinary numeric columns remain visually neutral.
+	Heat bool
+	// SampleSizeField names the numeric frame column carrying the observation
+	// count behind this value. Values below MinSampleSize remain visible but are
+	// visually qualified as a small sample.
+	SampleSizeField FieldRef
+	MinSampleSize   int
+	// Total includes this numeric column in the server-computed footer.
+	Total bool
+	// ShareOf names the numeric denominator field used to recompute this
+	// percentage column after server-side search/filtering.
+	ShareOf FieldRef
 }
 
 // Pill marks an actionable column's cells as compact drill pills.
@@ -516,6 +632,36 @@ func (c TableColumn) Width(px int) TableColumn {
 func (c TableColumn) Clamp(lines int) TableColumn {
 	c.ClampLines = lines
 	return c
+}
+
+// Heatmap opts a numeric column into a value-intensity background.
+func (c TableColumn) Heatmap() TableColumn {
+	c.Heat = true
+	return c
+}
+
+// LowSample qualifies values backed by fewer than minimum observations.
+func (c TableColumn) LowSample(sampleSizeField FieldRef, minimum int) TableColumn {
+	c.SampleSizeField = sampleSizeField
+	c.MinSampleSize = minimum
+	return c
+}
+
+// WithTotal includes this numeric column in the server-computed total row.
+func (c TableColumn) WithTotal() TableColumn {
+	c.Total = true
+	return c
+}
+
+// AsShareOf computes this percentage column from sourceField after filtering.
+func (c TableColumn) AsShareOf(sourceField FieldRef) TableColumn {
+	c.ShareOf = sourceField
+	return c
+}
+
+// TableOptions configures server-backed table interactions.
+type TableOptions struct {
+	Searchable bool
 }
 
 // TableCellKind selects a Table panel's rich cell renderer.
@@ -613,30 +759,34 @@ type Spec struct {
 	// Sparkline renders a small inline trend polyline in a stat card's footer
 	// row. Only Stat panels (including StatGroup children) render it.
 	Sparkline *SparklineSpec
-	// Target renders a target/threshold marker on a SegmentBar or
-	// HorizontalBar panel (bullet-style). Ignored on every other kind.
+	// Target renders a target/threshold marker on a SegmentBar, HorizontalBar,
+	// or TimeSeries panel. TimeSeries renders it as a horizontal reference line.
 	Target *TargetSpec
+	// Temporal carries optional overlays for a time-series panel.
+	Temporal *TemporalSpec
 	// GroupLayout arranges a StatGroup's children ("columns" default, or
 	// "rows"). Ignored on every other kind.
 	GroupLayout GroupLayout
-	// Presentation carries opt-in rendering hints for wire (document)
-	// renderers. The templ/Apex renderer ignores them; they exist so a
-	// dashboard can ask the React runtime for a denser treatment without a
-	// bespoke panel kind.
+	// Presentation carries opt-in rendering hints for the document runtime so
+	// a dashboard can ask for a denser treatment without a bespoke panel kind.
 	Presentation PresentationHints
 	Fields       FieldMapping
 	Formatter    *format.Spec
 	Columns      []TableColumn
+	Table        *TableOptions
 	Transforms   []transform.Spec
 	Action       *action.Spec
-	Children     []Spec
-	ClassName    string
-	Chrome       chrome.Spec
-	ValueAxis    ValueAxis
-	Distributed  bool
-	ColorField   FieldRef
-	ColorScale   string
-	Export       exportmeta.Spec
+	// Terminal explicitly marks a panel whose displayed value is the end of
+	// the interaction path. It is mutually exclusive with Action and drill.
+	Terminal    bool
+	Children    []Spec
+	ClassName   string
+	Chrome      chrome.Spec
+	ValueAxis   ValueAxis
+	Distributed bool
+	ColorField  FieldRef
+	ColorScale  string
+	Export      exportmeta.Spec
 	// FlowStages, when set (KindMetricFlow), declares the panel's ordered
 	// operand stages.
 	FlowStages []FlowStage
@@ -654,6 +804,9 @@ type Spec struct {
 	Relationship *RelationshipSpec
 	// Radial, when set (KindRadial), selects progress or partition geometry.
 	Radial *RadialSpec
+	// Map, when set (KindMap), declares the bounded geometry source and exact
+	// region-key join.
+	Map *MapSpec
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence Confidence
@@ -665,12 +818,11 @@ type Spec struct {
 // DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
 // panel "zoom" client-side (year -> quarter, and expand a trailing-years
 // "Others" bucket) with zero further server round-trips. See EAI's
-// analytics dashboards.buildPremiumBySourceYearChart for the producer and
-// render/apex's buildDrillHierarchyJS for the consumer.
+// analytics dashboards.buildPremiumBySourceYearChart for a producer.
 type DrillHierarchy struct {
 	// Sources lists the raw (untranslated) source keys in the same order as
 	// the chart's series/Colors (index i is series i). Lets the click
-	// handler resolve ApexCharts' numeric seriesIndex to a stable key
+	// handler resolve a numeric series index to a stable key
 	// without string-matching the locale-dependent series display name.
 	Sources []string
 	// OthersLabel is the already-localized category label for the top-level
@@ -755,11 +907,21 @@ type TrendSpec struct {
 	// (e.g. loss ratio): a negative percent renders with the positive
 	// (green) treatment and vice versa. The arrow always follows the sign.
 	Invert bool `json:"invert,omitempty"`
+	// AbsoluteField and PercentField opt into frame-backed automatic deltas.
+	// When set they take precedence over the manual Percent value.
+	AbsoluteField FieldRef `json:"-"`
+	PercentField  FieldRef `json:"-"`
 }
 
 type FieldMapping struct {
 	Label     FieldRef
 	Value     FieldRef
+	Previous  FieldRef
+	Lower     FieldRef
+	Q1        FieldRef
+	Median    FieldRef
+	Q3        FieldRef
+	Upper     FieldRef
 	Series    FieldRef
 	Category  FieldRef
 	ID        FieldRef
@@ -835,6 +997,20 @@ func MultiRingDonut(id, title, dataset string, rings ...RadialRing) *Builder {
 }
 func Table(id, title, dataset string) *Builder { return newBuilder(KindTable, id, title, dataset) }
 func Gauge(id, title, dataset string) *Builder { return newBuilder(KindGauge, id, title, dataset) }
+func Histogram(id, title, dataset string) *Builder {
+	return newBuilder(KindHistogram, id, title, dataset)
+}
+func BoxPlot(id, title, dataset string) *Builder {
+	builder := newBuilder(KindBoxPlot, id, title, dataset)
+	builder.spec.Fields.Value = ""
+	return builder
+}
+func Heatmap(id, title, dataset string) *Builder { return newBuilder(KindHeatmap, id, title, dataset) }
+func Choropleth(id, title, dataset string, source GeoJSONSource, featureProperty string) *Builder {
+	builder := newBuilder(KindMap, id, title, dataset)
+	builder.spec.Map = &MapSpec{Source: source, FeatureProperty: featureProperty}
+	return builder
+}
 
 // MetricFlow builds a result-formula panel: an ordered sequence of signed
 // operand stages reading left-to-right to a single supplied result. See
@@ -995,6 +1171,14 @@ func (b *Builder) TrendWithInvert(percent float64, label string, invert bool) *B
 	return b
 }
 
+// AutoTrend renders absolute and percent deltas from the panel frame.
+func (b *Builder) AutoTrend(absoluteField, percentField FieldRef, label string, invert bool) *Builder {
+	b.spec.Trend = &TrendSpec{
+		Label: label, Invert: invert, AbsoluteField: absoluteField, PercentField: percentField,
+	}
+	return b
+}
+
 // Status renders a small tone-colored chip in the stat card's label row.
 func (b *Builder) Status(label string, tone StatusTone) *Builder {
 	b.spec.Status = &StatusSpec{Label: label, Tone: tone}
@@ -1014,10 +1198,68 @@ func (b *Builder) SparklineColored(values []float64, color string) *Builder {
 	return b
 }
 
-// Target renders a target/threshold marker on a SegmentBar or HorizontalBar
-// panel (bullet-style): a tick at value with label beside it.
+// Target renders a target/threshold marker: a bullet tick on SegmentBar and
+// HorizontalBar, or a labelled horizontal line on TimeSeries.
 func (b *Builder) Target(value float64, label string) *Builder {
 	b.spec.Target = &TargetSpec{Value: value, Label: label}
+	return b
+}
+
+// Regression exposes a server-computed least-squares field behind a reader
+// toggle in the panel header.
+func (b *Builder) Regression(field FieldRef, label string) *Builder {
+	if b.spec.Temporal == nil {
+		b.spec.Temporal = &TemporalSpec{}
+	}
+	b.spec.Temporal.RegressionField = field
+	b.spec.Temporal.RegressionLabel = label
+	return b
+}
+
+// MovingAverage exposes a server-computed SMA field for window 3, 7, or 12.
+func (b *Builder) MovingAverage(window int, field FieldRef, label string) *Builder {
+	if b.spec.Temporal == nil {
+		b.spec.Temporal = &TemporalSpec{}
+	}
+	b.spec.Temporal.MovingAverages = append(b.spec.Temporal.MovingAverages, MovingAverageSpec{Window: window, Field: field, Label: label})
+	return b
+}
+
+// ReferenceLine adds a labelled horizontal threshold to a time series.
+func (b *Builder) ReferenceLine(value float64, label string) *Builder {
+	if b.spec.Temporal == nil {
+		b.spec.Temporal = &TemporalSpec{}
+	}
+	b.spec.Temporal.ReferenceLines = append(b.spec.Temporal.ReferenceLines, TargetSpec{Value: value, Label: label})
+	return b
+}
+
+// IncompletePeriod marks a YTD or explicitly annualized category.
+func (b *Builder) IncompletePeriod(category string, state TemporalPeriodState, label string, annualizedField FieldRef) *Builder {
+	if b.spec.Temporal == nil {
+		b.spec.Temporal = &TemporalSpec{}
+	}
+	b.spec.Temporal.Period = &TemporalPeriodSpec{Category: category, State: state, Label: label, AnnualizedField: annualizedField}
+	return b
+}
+
+// AnnotateTime adds a labelled event marker to the category axis.
+func (b *Builder) AnnotateTime(at, label string) *Builder {
+	if b.spec.Temporal == nil {
+		b.spec.Temporal = &TemporalSpec{}
+	}
+	b.spec.Temporal.Annotations = append(b.spec.Temporal.Annotations, TimeAnnotationSpec{At: at, Label: label})
+	return b
+}
+
+// Forecast exposes projected values and their confidence interval.
+func (b *Builder) Forecast(start string, valueField, lowerField, upperField FieldRef, label string) *Builder {
+	if b.spec.Temporal == nil {
+		b.spec.Temporal = &TemporalSpec{}
+	}
+	b.spec.Temporal.Forecast = &ForecastSpec{
+		Start: start, ValueField: valueField, LowerField: lowerField, UpperField: upperField, Label: label,
+	}
 	return b
 }
 
@@ -1048,6 +1290,7 @@ func (b *Builder) FocusCanvas() *Builder {
 }
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
+func (b *Builder) Terminal() *Builder               { b.spec.Terminal = true; return b }
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
 func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
@@ -1086,8 +1329,16 @@ func (b *Builder) Fields(mapping FieldMapping) *Builder {
 	b.spec.Fields = mapping
 	return b
 }
-func (b *Builder) LabelField(name FieldRef) *Builder    { b.spec.Fields.Label = name; return b }
-func (b *Builder) ValueField(name FieldRef) *Builder    { b.spec.Fields.Value = name; return b }
+func (b *Builder) LabelField(name FieldRef) *Builder { b.spec.Fields.Label = name; return b }
+func (b *Builder) ValueField(name FieldRef) *Builder { b.spec.Fields.Value = name; return b }
+func (b *Builder) BoxFields(lower, q1, median, q3, upper FieldRef) *Builder {
+	b.spec.Fields.Lower = lower
+	b.spec.Fields.Q1 = q1
+	b.spec.Fields.Median = median
+	b.spec.Fields.Q3 = q3
+	b.spec.Fields.Upper = upper
+	return b
+}
 func (b *Builder) SeriesField(name FieldRef) *Builder   { b.spec.Fields.Series = name; return b }
 func (b *Builder) CategoryField(name FieldRef) *Builder { b.spec.Fields.Category = name; return b }
 func (b *Builder) IDField(name FieldRef) *Builder       { b.spec.Fields.ID = name; return b }
@@ -1148,6 +1399,15 @@ func (b *Builder) RadialTolerance(tolerance float64) *Builder {
 	return b
 }
 
+// MapLabelProperty chooses the human-readable GeoJSON feature property while
+// the exact identity join remains FeatureProperty ↔ IDField.
+func (b *Builder) MapLabelProperty(name string) *Builder {
+	if b.spec.Map != nil {
+		b.spec.Map.LabelProperty = strings.TrimSpace(name)
+	}
+	return b
+}
+
 // FlowReconcile opts a MetricFlow panel into a tolerance-based mismatch note
 // between the displayed operands and the supplied result.
 func (b *Builder) FlowReconcile(tolerance float64) *Builder {
@@ -1165,6 +1425,12 @@ func (b *Builder) HierarchyReconcile(tolerance float64) *Builder {
 
 func (b *Builder) Columns(columns ...TableColumn) *Builder {
 	b.spec.Columns = columns
+	return b
+}
+
+// Searchable enables server-side substring search for a table panel.
+func (b *Builder) Searchable() *Builder {
+	b.spec.Table = &TableOptions{Searchable: true}
 	return b
 }
 func (b *Builder) Transforms(specs ...transform.Spec) *Builder {

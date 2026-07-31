@@ -248,6 +248,42 @@ function documentWithPeriod(value: { start: string; end: string }): DashboardDoc
   })
 }
 
+function documentWithCompare(value: { mode: 'off' | 'previous_period' | 'year_ago' | 'custom'; start?: string; end?: string }): DashboardDocument {
+  return parseDocument({
+    ...fixture,
+    filters: [{
+      id: 'compare',
+      kind: 'compare',
+      label: 'Compare with',
+      compare: {
+        modeParam: 'compare',
+        startParam: 'compare_start',
+        endParam: 'compare_end',
+        compareTo: 'period',
+        value,
+      },
+    }],
+  })
+}
+
+function compareFetcher(calls: Array<string>): typeof fetch {
+  return (input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost/')
+    calls.push(`${url.pathname}${url.search}`)
+    const mode = url.searchParams.get('compare')
+    const start = url.searchParams.get('compare_start')
+    const end = url.searchParams.get('compare_end')
+    const value = mode === 'custom' && start && end
+      ? { mode: 'custom' as const, start, end }
+      : { mode: 'off' as const }
+    return Promise.resolve(new Response(
+      JSON.stringify(documentWithCompare(value)),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+  }
+}
+
 /** Like documentWithPeriod, but declares no server presets so the control
  * falls back to its built-in, today-relative preset catalog. */
 function documentWithoutPresets(value: { start: string; end: string }): DashboardDocument {
@@ -351,6 +387,30 @@ function refetchFailureFetcher(calls: Array<string>): typeof fetch {
 }
 
 describe('FilterBar runtime integration', () => {
+  it('stages a custom comparison interval before applying it', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={compareFetcher(calls)} />)
+
+    const select = await screen.findByRole('combobox', { name: 'Compare with' })
+    fireEvent.change(select, { target: { value: 'custom' } })
+
+    expect(screen.getByLabelText('Comparison start')).toBeInTheDocument()
+    expect(screen.getByLabelText('Comparison end')).toBeInTheDocument()
+    expect(calls).toEqual(['/lens/document'])
+
+    fireEvent.change(screen.getByLabelText('Comparison start'), { target: { value: '2026-06-01' } })
+    fireEvent.change(screen.getByLabelText('Comparison end'), { target: { value: '2026-06-30' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => expect(calls).toContain('/lens/document?compare=custom&compare_start=2026-06-01&compare_end=2026-06-30'))
+    expect(select).toHaveValue('custom')
+
+    fireEvent.change(select, { target: { value: 'off' } })
+    await waitFor(() => expect(calls).toContain('/lens/document?compare=off'))
+    expect(window.location.search).toBe('?compare=off')
+  })
+
   it('keeps the previous document visible and shows a dismissable refetch error', async () => {
     window.history.replaceState(null, '', '/dash')
     render(<DashboardFiltersFixture fetcher={refetchFailureFetcher([])} />)

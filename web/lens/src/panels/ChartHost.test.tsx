@@ -59,7 +59,7 @@ describe('ChartHost', () => {
     select?.('b')
     expect(firstSelect).not.toHaveBeenCalled()
     // The anchor is optional context for overlay placement; the key is the contract.
-    expect(secondSelect).toHaveBeenCalledWith('b', undefined)
+    expect(secondSelect).toHaveBeenCalledWith('b', undefined, undefined)
 
     view.unmount()
     expect(dispose).toHaveBeenCalledTimes(1)

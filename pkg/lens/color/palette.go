@@ -117,16 +117,6 @@ func Categorical(n int) []string {
 	return colors
 }
 
-// Sequence returns size categorical colors. The scope parameter is ignored:
-// the historical FNV scope-hash offset made different dashboards start at
-// different palette positions, which is exactly the inconsistency the v2
-// design system removes.
-//
-// Deprecated: use Categorical.
-func Sequence(_ string, size int) []string {
-	return Categorical(size)
-}
-
 func CanonicalProductKey(key string) string {
 	normalized := normalizeToken(key)
 	if alias, ok := productAliases[normalized]; ok {

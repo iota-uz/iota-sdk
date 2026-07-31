@@ -1,10 +1,13 @@
 package cube
 
 import (
+	"net/url"
 	"testing"
+	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	lensbuild "github.com/iota-uz/iota-sdk/pkg/lens/build"
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -149,8 +152,43 @@ func TestBuildDimensionPanelUsesBaseURLForFacetToggle(t *testing.T) {
 
 	panelSpec := buildDimensionPanel(spec, spec.Dimensions[0], dimensionDatasetResolution{Name: "cube_dim_payment_method"}, "/crm/reports/sales", 1, 0)
 	require.NotNil(t, panelSpec.Action)
-	require.Equal(t, action.KindCubeDrill, panelSpec.Action.Kind)
+	require.Equal(t, action.KindCrossFilter, panelSpec.Action.Kind)
 	require.Equal(t, "/crm/reports/sales", panelSpec.Action.URL)
+}
+
+func TestBuildDimensionPanelCarriesChoroplethConfig(t *testing.T) {
+	t.Parallel()
+
+	spec := New("regional-sales", "Regional sales").
+		Dataset(nil).
+		Dimension("region", "Region").
+		Field("region_code").
+		Choropleth(
+			panel.GeoJSONSource{URL: "/maps/regions.geojson", MaxBytes: 200_000},
+			"shapeISO",
+			"shapeName",
+		).
+		Measure("premium", "Premium").
+		Field("premium").
+		Sum().
+		Build()
+	dim := spec.Dimensions[0]
+
+	got := buildDimensionPanel(
+		spec,
+		dim,
+		dimensionDatasetResolution{Name: "cube_dim_region"},
+		"/sales",
+		1,
+		0,
+	)
+
+	require.Equal(t, panel.KindMap, got.Kind)
+	require.Equal(t, panel.Ref("filter_value"), got.Fields.ID)
+	require.Equal(t, "/maps/regions.geojson", got.Map.Source.URL)
+	require.Equal(t, "shapeISO", got.Map.FeatureProperty)
+	require.Equal(t, "shapeName", got.Map.LabelProperty)
+	require.Equal(t, action.KindCrossFilter, got.Action.Kind)
 }
 
 func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {
@@ -172,6 +210,69 @@ func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {
 	require.Equal(t, action.KindNavigate, panels[0].Action.Kind)
 	require.Equal(t, "/crm/reports/sales/drill/policies", panels[0].Action.URL)
 	require.True(t, panels[0].Action.PreserveQuery)
+}
+
+func TestResolveComparisonBuildsPairedDatasetsAndDeltaPresentation(t *testing.T) {
+	t.Parallel()
+
+	spec := New("sales", "Sales").
+		SQL("primary", "policies p").
+		ParamVariable("period_param", "period").
+		Variable(lensbuild.DateRangeVariable("period", "Period", 30*24*time.Hour)).
+		Variable(lensbuild.CompareVariable("compare", "Compare", "period")).
+		Dimension("region", "Region").Column("p.region").
+		Measure("premium", "Premium").Column("p.premium").Sum().InvertTrend().
+		Build()
+
+	compared, err := Resolve(spec, ParseDrillContext(url.Values{"compare": []string{"previous_period"}}), "/sales")
+	require.NoError(t, err)
+	datasets := make(map[string]lens.DatasetSpec, len(compared.Datasets))
+	for _, dataset := range compared.Datasets {
+		datasets[dataset.Name] = dataset
+	}
+	require.Contains(t, datasets, "cube_stats_comparison")
+	require.Contains(t, datasets, "cube_stats_compared")
+	require.Equal(t, "compare", datasets["cube_stats_comparison"].TimeRangeVariable)
+	require.Equal(t, []string{"cube_stats", "cube_stats_comparison"}, datasets["cube_stats_compared"].DependsOn)
+	require.Contains(t, datasets, "cube_dim_region_comparison")
+	require.Contains(t, datasets, "cube_dim_region_compared")
+
+	require.Len(t, compared.Rows, 2)
+	stat := compared.Rows[0].Panels[0].Children[0]
+	require.Equal(t, panel.Ref("premium_delta"), stat.Trend.AbsoluteField)
+	require.Equal(t, panel.Ref("premium_delta_percent"), stat.Trend.PercentField)
+	require.True(t, stat.Trend.Invert)
+	require.True(t, stat.Terminal)
+	chart := compared.Rows[1].Panels[0]
+	require.Equal(t, panel.Ref("previous_premium"), chart.Fields.Previous)
+	require.Equal(t, action.KindCrossFilter, chart.Action.Kind)
+
+	off, err := Resolve(spec, ParseDrillContext(url.Values{}), "/sales")
+	require.NoError(t, err)
+	for _, dataset := range off.Datasets {
+		require.NotContains(t, dataset.Name, comparisonSuffix)
+		require.NotContains(t, dataset.Name, "_compared")
+	}
+	require.Nil(t, off.Rows[0].Panels[0].Children[0].Trend)
+}
+
+func TestBuildComparedTableShowsBeforeAfterAndDelta(t *testing.T) {
+	t.Parallel()
+
+	spec := New("sales", "Sales").Dataset(nil).
+		Dimension("region", "Region").Field("region").PanelKind(panel.KindTable).
+		Measure("premium", "Premium").Field("premium").Sum().Build()
+	dim := spec.Dimensions[0]
+	got := buildDimensionPanel(spec, dim, dimensionDatasetResolution{
+		Name: "cube_dim_region_compared", Compared: true,
+	}, "/sales", 1, 0)
+
+	require.Equal(t, panel.KindTable, got.Kind)
+	require.Equal(t, []string{"Before", "After", "Δ"}, []string{
+		got.Columns[1].Label, got.Columns[2].Label, got.Columns[3].Label,
+	})
+	require.Equal(t, panel.TableCellDelta, got.Columns[3].Cell.Kind)
+	require.Equal(t, panel.Ref("premium_delta_percent"), got.Columns[3].Cell.PercentField)
 }
 
 func TestResolveDimensionDataset_TransformResolutionScenarios(t *testing.T) {

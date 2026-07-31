@@ -32,6 +32,7 @@ const (
 	VariableText         VariableKind = "text"
 	VariableNumber       VariableKind = "number"
 	VariableToggle       VariableKind = "toggle"
+	VariableCompare      VariableKind = "compare"
 )
 
 type VariableComponent string
@@ -43,6 +44,7 @@ const (
 	VariableComponentTextInput       VariableComponent = "text_input"
 	VariableComponentNumberInput     VariableComponent = "number_input"
 	VariableComponentToggle          VariableComponent = "toggle"
+	VariableComponentComparePicker   VariableComponent = "compare_picker"
 )
 
 type DashboardSpec struct {
@@ -129,6 +131,9 @@ type VariableSpec struct {
 	Options         []VariableOption
 	AllowAllTime    bool
 	DefaultDuration time.Duration
+	// CompareTo names the date-range variable whose interval this comparison
+	// derives from. Required for VariableCompare.
+	CompareTo string
 }
 
 func DefaultVariableComponent(kind VariableKind) VariableComponent {
@@ -143,6 +148,8 @@ func DefaultVariableComponent(kind VariableKind) VariableComponent {
 		return VariableComponentNumberInput
 	case VariableToggle:
 		return VariableComponentToggle
+	case VariableCompare:
+		return VariableComponentComparePicker
 	case VariableText:
 		fallthrough
 	default:
@@ -154,6 +161,22 @@ type DateRangeValue struct {
 	Mode  string
 	Start *time.Time
 	End   *time.Time
+}
+
+type CompareMode string
+
+const (
+	CompareOff            CompareMode = "off"
+	ComparePreviousPeriod CompareMode = "previous_period"
+	CompareYearAgo        CompareMode = "year_ago"
+	CompareCustom         CompareMode = "custom"
+)
+
+// CompareValue is the normalized comparison selection. Range is empty when
+// Mode is off; every active mode resolves to an explicit bounded interval.
+type CompareValue struct {
+	Mode  CompareMode
+	Range DateRangeValue
 }
 
 type ParamValue struct {
@@ -180,9 +203,16 @@ type DatasetSpec struct {
 	Description string
 	Cache       CachePolicy
 	Export      exportmeta.Spec
+	// TimeRangeVariable overrides the dashboard's primary date range for this
+	// dataset. Comparison branches use it to execute the same query against a
+	// second normalized interval.
+	TimeRangeVariable string
 }
 
 func ResolveTimeRange(value any) datasource.TimeRange {
+	if comparison, ok := value.(CompareValue); ok {
+		value = comparison.Range
+	}
 	dateRange, ok := value.(DateRangeValue)
 	if !ok {
 		return datasource.TimeRange{}

@@ -21,6 +21,7 @@ type Snapshot struct {
 	Params    map[string]any
 	Frames    map[FrameRef]Frame
 	Levels    map[NodeKey]Level
+	Panels    map[string]PanelCalculation
 	CreatedAt time.Time
 }
 
@@ -28,6 +29,9 @@ type SnapshotStore interface {
 	Put(context.Context, *Snapshot) error
 	Get(context.Context, string) (*Snapshot, error)
 	Append(context.Context, string, map[FrameRef]Frame) error
+	// PutPanel atomically stores or replaces one independently materialised
+	// panel and its calculation provenance.
+	PutPanel(context.Context, string, string, FrameRef, Frame, PanelCalculation) error
 }
 
 type memoryStore struct {
@@ -146,6 +150,47 @@ func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef
 	return nil
 }
 
+func (m *memoryStore) PutPanel(
+	ctx context.Context,
+	id string,
+	panelID string,
+	ref FrameRef,
+	frame Frame,
+	calculation PanelCalculation,
+) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	id = strings.TrimSpace(id)
+	panelID = strings.TrimSpace(panelID)
+	if panelID == "" || strings.TrimSpace(string(ref)) == "" {
+		return fmt.Errorf("panel id and frame reference are required")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	element, ok := m.items[id]
+	if !ok {
+		return ErrSnapshotGone
+	}
+	entry := element.Value.(*memorySnapshot)
+	now := m.clock()
+	if !entry.expiresAt.After(now) {
+		m.remove(element)
+		return ErrSnapshotGone
+	}
+	if entry.snapshot.Frames == nil {
+		entry.snapshot.Frames = make(map[FrameRef]Frame)
+	}
+	if entry.snapshot.Panels == nil {
+		entry.snapshot.Panels = make(map[string]PanelCalculation)
+	}
+	entry.snapshot.Frames[ref] = cloneFrame(frame)
+	entry.snapshot.Panels[panelID] = calculation
+	entry.expiresAt = now.Add(m.ttl)
+	m.lru.MoveToFront(element)
+	return nil
+}
+
 func (m *memoryStore) remove(element *list.Element) {
 	if element == nil {
 		return
@@ -162,7 +207,7 @@ func cloneSnapshot(snapshot *Snapshot) *Snapshot {
 	result := &Snapshot{
 		ID: snapshot.ID, CreatedAt: snapshot.CreatedAt,
 		Params: make(map[string]any, len(snapshot.Params)), Frames: make(map[FrameRef]Frame, len(snapshot.Frames)),
-		Levels: make(map[NodeKey]Level, len(snapshot.Levels)),
+		Levels: make(map[NodeKey]Level, len(snapshot.Levels)), Panels: make(map[string]PanelCalculation, len(snapshot.Panels)),
 	}
 	for key, value := range snapshot.Params {
 		result.Params[key] = cloneAny(value)
@@ -172,6 +217,9 @@ func cloneSnapshot(snapshot *Snapshot) *Snapshot {
 	}
 	for key, level := range snapshot.Levels {
 		result.Levels[key] = cloneLevel(level)
+	}
+	for panelID, calculation := range snapshot.Panels {
+		result.Panels[panelID] = calculation
 	}
 	return result
 }
@@ -271,6 +319,10 @@ func cloneAction(source *Action) *Action {
 		urlSource := *source.URLSource
 		result.URLSource = &urlSource
 	}
+	if source.Filter != nil {
+		filter := *source.Filter
+		result.Filter = &filter
+	}
 	return &result
 }
 
@@ -331,6 +383,10 @@ func cloneFilters(filters []Filter) []Filter {
 			facet := *filter.Facet
 			facet.Selections = slices.Clone(filter.Facet.Selections)
 			cloned.Facet = &facet
+		}
+		if filter.Compare != nil {
+			comparison := *filter.Compare
+			cloned.Compare = &comparison
 		}
 		result[index] = cloned
 	}

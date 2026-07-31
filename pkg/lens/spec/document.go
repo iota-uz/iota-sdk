@@ -72,6 +72,7 @@ type VariableSpec struct {
 	Options         []VariableOption  `json:"options,omitempty"`
 	AllowAllTime    bool              `json:"allowAllTime,omitempty"`
 	DefaultDuration Duration          `json:"defaultDuration,omitempty"`
+	CompareTo       string            `json:"compareTo,omitempty"`
 }
 
 type VariableOption struct {
@@ -98,6 +99,7 @@ type DimensionSpec struct {
 	Colors       []string           `json:"colors,omitempty"`
 	ValueAxis    panel.ValueAxis    `json:"valueAxis,omitempty"`
 	ColorScale   string             `json:"colorScale,omitempty"`
+	Map          *panel.MapSpec     `json:"map,omitempty"`
 }
 
 type MeasureSpec struct {
@@ -113,21 +115,23 @@ type MeasureSpec struct {
 	RequiresJoin []string         `json:"requiresJoin,omitempty"`
 	Override     *DatasetSpec     `json:"override,omitempty"`
 	Action       *action.Spec     `json:"action,omitempty"`
+	InvertTrend  bool             `json:"invertTrend,omitempty"`
 }
 
 type DatasetSpec struct {
-	Name        string           `json:"name"`
-	Title       Text             `json:"title"`
-	Kind        lens.DatasetKind `json:"kind"`
-	Source      string           `json:"source,omitempty"`
-	DependsOn   []string         `json:"dependsOn,omitempty"`
-	Query       *lens.QuerySpec  `json:"query,omitempty"`
-	Transforms  []transform.Spec `json:"transforms,omitempty"`
-	StaticRef   string           `json:"staticRef,omitempty"`
-	Static      *frame.FrameSet  `json:"-"`
-	Description Text             `json:"description"`
-	Cache       CachePolicy      `json:"cache,omitempty"`
-	Export      exportmeta.Spec  `json:"export,omitempty"`
+	Name              string           `json:"name"`
+	Title             Text             `json:"title"`
+	Kind              lens.DatasetKind `json:"kind"`
+	Source            string           `json:"source,omitempty"`
+	DependsOn         []string         `json:"dependsOn,omitempty"`
+	Query             *lens.QuerySpec  `json:"query,omitempty"`
+	Transforms        []transform.Spec `json:"transforms,omitempty"`
+	StaticRef         string           `json:"staticRef,omitempty"`
+	Static            *frame.FrameSet  `json:"-"`
+	Description       Text             `json:"description"`
+	Cache             CachePolicy      `json:"cache,omitempty"`
+	Export            exportmeta.Spec  `json:"export,omitempty"`
+	TimeRangeVariable string           `json:"timeRangeVariable,omitempty"`
 }
 
 type RowSpec struct {
@@ -177,18 +181,23 @@ type PanelSpec struct {
 	Fields       FieldMappingSpec        `json:"fields,omitempty"`
 	Formatter    *format.Spec            `json:"formatter,omitempty"`
 	Columns      []TableColumnSpec       `json:"columns,omitempty"`
+	Table        *panel.TableOptions     `json:"table,omitempty"`
 	Transforms   []transform.Spec        `json:"transforms,omitempty"`
 	Action       *action.Spec            `json:"action,omitempty"`
-	Children     []PanelSpec             `json:"children,omitempty"`
-	ClassName    string                  `json:"className,omitempty"`
-	Chrome       chrome.Spec             `json:"-"`
-	ChromeIcon   string                  `json:"icon,omitempty"`
-	AccentColor  string                  `json:"accentColor,omitempty"`
-	ValueAxis    panel.ValueAxis         `json:"valueAxis,omitempty"`
-	Distributed  bool                    `json:"distributed,omitempty"`
-	ColorField   string                  `json:"colorField,omitempty"`
-	ColorScale   string                  `json:"colorScale,omitempty"`
-	Export       exportmeta.Spec         `json:"export,omitempty"`
+	// Terminal explicitly declares that this leaf is an intentional end of the
+	// interaction path. Every compiled leaf must set Terminal or expose an
+	// action/drill path; the two states are mutually exclusive.
+	Terminal    bool            `json:"terminal,omitempty"`
+	Children    []PanelSpec     `json:"children,omitempty"`
+	ClassName   string          `json:"className,omitempty"`
+	Chrome      chrome.Spec     `json:"-"`
+	ChromeIcon  string          `json:"icon,omitempty"`
+	AccentColor string          `json:"accentColor,omitempty"`
+	ValueAxis   panel.ValueAxis `json:"valueAxis,omitempty"`
+	Distributed bool            `json:"distributed,omitempty"`
+	ColorField  string          `json:"colorField,omitempty"`
+	ColorScale  string          `json:"colorScale,omitempty"`
+	Export      exportmeta.Spec `json:"export,omitempty"`
 	// FlowStages declares a metric_flow panel's ordered operand stages.
 	FlowStages []panel.FlowStage `json:"flowStages,omitempty"`
 	// FlowReconcile opts a metric_flow panel into a tolerance-based mismatch
@@ -205,6 +214,8 @@ type PanelSpec struct {
 	Relationship *panel.RelationshipSpec `json:"relationship,omitempty"`
 	// Radial configures a radial panel's progress or partition geometry.
 	Radial *panel.RadialSpec `json:"radial,omitempty"`
+	// Map configures a choropleth panel's geometry source and exact region join.
+	Map *panel.MapSpec `json:"map,omitempty"`
 	// Confidence is the panel-level default confidence for its elements; a
 	// frame column value or an element's own confidence overrides it.
 	Confidence panel.Confidence `json:"confidence,omitempty"`
@@ -235,6 +246,15 @@ type TableColumnSpec struct {
 	// BadgeField names a frame column carrying a per-row badge tooltip; a
 	// non-empty value renders a muted "?" badge after the cell value.
 	BadgeField string `json:"badgeField,omitempty"`
+	// Heat shades numeric cells by value intensity across the returned frame.
+	Heat bool `json:"heat,omitempty"`
+	// SampleSizeField carries the observation count behind a derived value.
+	SampleSizeField string `json:"sampleSizeField,omitempty"`
+	// MinSampleSize is the exclusive confidence threshold. Values below it are
+	// retained but marked as a small sample. Zero defaults to five.
+	MinSampleSize int    `json:"minSampleSize,omitempty"`
+	Total         bool   `json:"total,omitempty"`
+	ShareOf       string `json:"shareOf,omitempty"`
 }
 
 type FieldMappingSpec struct {

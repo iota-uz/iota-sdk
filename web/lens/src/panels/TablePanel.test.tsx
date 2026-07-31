@@ -416,3 +416,78 @@ describe('TablePanel pagination', () => {
     expect(requestedPages).toEqual([1, 2])
   })
 })
+
+describe('TablePanel server readability features', () => {
+  it('searches the full server frame and renders server totals, shares, heat, clamp, and low-sample context', async () => {
+    const panel: Panel = {
+      id: 'claims-products', kind: 'table', title: 'Claims by product', semantics: 'series', frame: 'panel:claims-products',
+      encoding: { id: 'id', label: 'product', value: 'paid' }, deferred: true, table: { searchable: true },
+      format: {
+        claims: { kind: 'number', minorUnits: false, precision: 0 },
+        paid: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
+        share: { kind: 'percent', minorUnits: false, precision: 1 },
+        average: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
+      },
+      columns: [
+        { field: 'product', label: 'Product', cell: { kind: 'plain' }, clamp: 2 },
+        { field: 'claims', label: 'Claims', cell: { kind: 'plain' }, total: true },
+        { field: 'paid', label: 'Paid', cell: { kind: 'plain' }, heat: true, total: true },
+        { field: 'share', label: 'Share', cell: { kind: 'plain' }, shareOf: 'paid', total: true },
+        { field: 'average', label: 'Average', cell: { kind: 'plain' }, sampleSizeField: 'claims', minSampleSize: 5 },
+      ],
+      actions: [],
+    }
+    const document_: DashboardDocument = {
+      version: '1.0.0', snapshotId: 'claims-snapshot',
+      meta: { dashboardId: 'claims', title: 'Claims', generatedAt: '2026-07-31T00:00:00Z', locale: 'en' },
+      layout: { rows: [{ panels: [{ panelId: panel.id, span: 12 }] }] }, panels: [panel],
+      frames: { 'panel:claims-products': { columns: [], rows: [] } },
+      drill: { inlineDepth: 0, edges: {} }, perspectives: [], endpoints: { panel: '/lens/panel' }, i18n: {}, theme: { palette: {}, series: {} },
+    }
+    const requests: Array<{ search?: string }> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { search?: string }
+      requests.push(request)
+      const filtered = request.search === 'motor'
+      return Promise.resolve(new Response(JSON.stringify({
+        frames: {
+          'panel:claims-products': {
+            columns: [
+              { name: 'id', type: 'string' }, { name: 'product', type: 'string' }, { name: 'claims', type: 'number' },
+              { name: 'paid', type: 'number' }, { name: 'share', type: 'number' }, { name: 'average', type: 'number' },
+            ],
+            rows: filtered
+              ? [['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 100, 37.5]]
+              : [
+                ['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 75, 37.5],
+                ['2', 'Travel', 10, 25, 25, 2.5],
+              ],
+          },
+        },
+        calculation: { durationMs: 12, cacheHit: false, calculatedAt: '2026-07-31T00:00:00Z' },
+        summary: { values: filtered ? { claims: 2, paid: 75, share: 100 } : { claims: 12, paid: 100, share: 100 }, filteredRows: filtered ? 1 : 2 },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document_}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <TablePanel panel={panel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    const longProduct = await screen.findByTitle('Compulsory motor liability insurance with a deliberately long product label')
+    expect(longProduct).toHaveClass('lens-table-clamp')
+    expect(screen.getByLabelText('Small sample: n=2, minimum 5')).toBeInTheDocument()
+    expect(screen.getByText('Total')).toBeInTheDocument()
+    expect(screen.getAllByRole('cell').some((cell) => cell.getAttribute('style')?.includes('color-mix'))).toBe(true)
+
+    fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: 'motor' } })
+    await waitFor(() => expect(requests.at(-1)?.search).toBe('motor'))
+    await waitFor(() => expect(screen.queryByText('Travel')).not.toBeInTheDocument())
+    expect(screen.getAllByText('$75')).toHaveLength(2)
+  })
+})

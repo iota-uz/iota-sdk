@@ -24,22 +24,22 @@ function precisionOptions(precision: number | undefined): Intl.NumberFormatOptio
 /**
  * Compact magnitudes come from the locale's own CLDR data (ru → «млрд», uz →
  * «mlrd», en → «B»), never from a hardcoded suffix table. Only the decimal
- * separator can be pinned: `decimalSeparator` exists because the Go renderer
- * prints the mantissa with `%.*f`, i.e. a dot in every locale, so a document
+ * separator can be pinned: `decimalSeparator` exists because the server
+ * formatter prints the mantissa with `%.*f`, so a document
  * that must match it byte for byte asks for ".".
  */
 function applyDecimalSeparator(parts: Intl.NumberFormatPart[], separator: string | undefined): string {
   const text = parts.map((part) => (part.type === 'decimal' && separator ? separator : part.value)).join('')
   if (!separator) return text
-  // Pinning the separator means "match the Go renderer", which also prints an
+  // Pinning the separator means "match the server formatter", which also prints an
   // ASCII space before magnitude words and no space before the percent sign.
   return text.replace(/[\u00A0\u202F]/g, ' ').replace(/\s+%/, '%')
 }
 
 /**
  * Below this magnitude compact notation falls back to the exact grouped
- * integer: «12 500 UZS» instead of «12.50 тыс UZS». Mirrors the Go renderer's
- * abbreviationFloor so both runtimes agree.
+ * integer: «12 500 UZS» instead of «12.50 тыс UZS». Mirrors the server's
+ * abbreviation floor so screen and export output agree.
  */
 const COMPACT_FLOOR = 100_000
 
@@ -64,7 +64,7 @@ function formatMoney(value: number, field: FieldFormat, locale: string): string 
   const currency = field.currency ?? 'USD'
   const scaled = field.minorUnits ? value / 100 : value
   if (field.compact) return formatCompactNumber(scaled, field, locale, currency)
-  // A document that pins the currency's grapheme wants the Go renderer's
+  // A document that pins the currency's grapheme wants the server formatter's
   // "<amount> <symbol>" shape (UZS → "so’m"), not the locale's own currency
   // display for the ISO code.
   if (field.symbol) {
@@ -156,7 +156,7 @@ export function formatFieldValueExact(value: unknown, field: FieldFormat | undef
 
 /**
  * Delta chips clamp beyond ±999.9%: «+13 417.3%» is noise, «>999%» is honest.
- * Returns undefined inside the displayable range. Mirrors the Go renderer's
+ * Returns undefined inside the displayable range. Mirrors the server's
  * trendPercentText clamp.
  */
 export function clampedDeltaPercent(value: number): string | undefined {

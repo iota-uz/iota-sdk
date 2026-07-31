@@ -1,4 +1,6 @@
-import { useFilters, useTranslate } from '../runtime'
+import { useDashboard, useFilters, useTranslate } from '../runtime'
+import { X } from '../icons'
+import { CompareFilterControl } from './CompareFilterControl'
 import { FacetFilterControl } from './FacetFilterControl'
 import { PeriodFilterControl } from './PeriodFilterControl'
 import type { CalendarDate } from './model'
@@ -14,14 +16,26 @@ export interface FilterBarProps {
  * no filters).
  */
 export function FilterBar({ today }: FilterBarProps) {
-  const { filters } = useFilters()
+	const { filters, applyURL } = useFilters()
+	const { document } = useDashboard()
   const translate = useTranslate()
-  if (filters.length === 0) return null
+	if (filters.length === 0 && (document.activeFilters?.length ?? 0) === 0) return null
+	const intercept = (url: string) => (event: React.MouseEvent<HTMLAnchorElement>) => {
+		if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+		event.preventDefault()
+		applyURL(url)
+	}
   const clearURL = filters.find((filter) =>
     filter.kind === 'facet' &&
     (filter.facet?.selections?.length ?? 0) > 0 &&
     Boolean(filter.facet?.clearUrl),
   )?.facet?.clearUrl
+  const representedFacetDimensions = new Set(filters.flatMap((filter) =>
+    filter.kind === 'facet' && filter.facet ? [filter.facet.dimension] : [],
+  ))
+  const extraActiveFilters = document.activeFilters?.filter((filter) =>
+    !representedFacetDimensions.has(filter.dimension),
+  )
   return (
     <div aria-label={translate('filter.bar.label', 'Dashboard filters')} className="lens-filter-bar" role="group">
       {filters.map((filter) => (
@@ -29,9 +43,19 @@ export function FilterBar({ today }: FilterBarProps) {
           ? <PeriodFilterControl filter={filter} key={filter.id} today={today} />
           : filter.kind === 'facet' && filter.facet
             ? <FacetFilterControl filter={filter} key={filter.id} />
+            : filter.kind === 'compare' && filter.compare
+              ? <CompareFilterControl filter={filter} key={filter.id} />
           : null
       ))}
-      {clearURL && (
+		{extraActiveFilters?.map((filter) => (
+			<a aria-label={`${translate('filter.facet.remove', 'Remove filter')}: ${filter.label}`} className="lens-facet-active-chip" href={filter.removeUrl} key={`${filter.dimension}:${filter.value}`} onClick={intercept(filter.removeUrl)}>
+				<span>{filter.label}</span><X aria-hidden="true" />
+			</a>
+		))}
+		{document.resetFiltersUrl && (document.activeFilters?.length ?? 0) > 0 && (
+			<a className="lens-facet-clear" href={document.resetFiltersUrl} onClick={intercept(document.resetFiltersUrl)}>{translate('filter.facet.clearAll', 'Clear all')}</a>
+		)}
+      {clearURL && !document.resetFiltersUrl && (
         <a className="lens-facet-clear" href={clearURL}>
           {translate('filter.facet.clearAll', 'Clear all')}
         </a>

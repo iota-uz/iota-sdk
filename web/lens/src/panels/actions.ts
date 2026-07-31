@@ -3,6 +3,7 @@ import type { Action, Frame, Panel } from '../contract'
 import { recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
 import { navigateTo } from '../runtime/navigate'
 import { useDrawer } from '../runtime'
+import { filterActionURL, useFilters } from '../runtime'
 
 /** How long a pointer/focus must dwell before a drawer document is prefetched. */
 const prefetchIntentDelayMs = 65
@@ -44,11 +45,9 @@ export function usePrefetch(url: string | undefined, action: Action | undefined)
 /**
  * Panel-level navigation.
  *
- * The legacy renderer made a whole stat / segment-bar card a link, and made a
- * chart's data points navigate, whenever the panel spec carried a navigate
- * action. The wire keeps that action in `panel.actions` as kind `navigate`;
- * without this layer those panels render as inert cards, which is how the
- * «Ключевые коэффициенты» strip lost its drill-down.
+ * A panel-level navigate action makes a whole stat / segment-bar card a link
+ * and makes chart data points navigate. The wire keeps that action in
+ * `panel.actions` as kind `navigate`.
  */
 
 export function panelNavigateAction(panel: Panel): Action | undefined {
@@ -57,13 +56,12 @@ export function panelNavigateAction(panel: Panel): Action | undefined {
   // tree turns its navigate action into a click target. Without this rule a
   // segment click both opened the overlay and left the page.
   if (panel.drillRoot) return undefined
-  return panel.actions.find((action) => action.kind === 'navigate' || action.kind === 'open_drawer')
+  return panel.actions.find((action) => action.kind === 'navigate' || action.kind === 'open_drawer' || action.kind === 'cross_filter' || action.kind === 'cube_drill')
 }
 
 /**
  * True when the action's URL depends on the row it is resolved against — the
- * same rule the legacy renderer used to decide between one card-wide link and
- * one link per segment.
+ * rule used to decide between one card-wide link and one link per segment.
  */
 export function isRowScoped(action: Action): boolean {
   if (action.urlSource) return action.urlSource.kind === 'field'
@@ -79,7 +77,7 @@ export interface PanelNavigation {
   /** URL for the panel as a whole: the first row's, when the action is not row-scoped. */
   cardURL: (frame: Frame | undefined) => string | undefined
   onClick: (url: string | undefined) => MouseEventHandler<HTMLAnchorElement> | undefined
-  activate: (url: string | undefined, opener?: HTMLElement) => void
+  activate: (url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => void
 }
 
 /**
@@ -128,13 +126,16 @@ export function useElementActionResolver(): (action: Action | undefined, fields?
 
 export function useActionActivation(action: Action | undefined) {
   const drawer = useDrawer()
-  const opensDrawer = action?.kind === 'open_drawer'
+	const filters = useFilters()
+	const opensDrawer = action?.kind === 'open_drawer'
+	const filtersData = action?.kind === 'cross_filter' || action?.kind === 'cube_drill'
   const available = Boolean(action) && (!opensDrawer || drawer.depth === 0 || drawer.canOpen === true)
-  const activate = useCallback((url: string | undefined, opener?: HTMLElement) => {
+  const activate = useCallback((url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => {
     if (!url || !available) return
     if (opensDrawer) drawer.open(url, opener)
+		else if (filtersData) filters.applyURL(url, options)
     else navigateTo(url)
-  }, [available, drawer, opensDrawer])
+	}, [available, drawer, filters, filtersData, opensDrawer])
   const onClick = useCallback((url: string | undefined): MouseEventHandler<HTMLAnchorElement> | undefined => {
     if (!url || !opensDrawer || !available) return undefined
     return (event) => {
@@ -153,6 +154,9 @@ export function usePanelNavigation(panel: Panel): PanelNavigation {
   const urlForRow = useCallback((frame: Frame | undefined, row: Array<unknown> | undefined) => {
     if (!action) return undefined
     const location = new URL(globalThis.location.href)
+		if ((action.kind === 'cross_filter' || action.kind === 'cube_drill') && action.filter) {
+			return filterActionURL(action, frame && row ? recordForRow(frame, row) : {}, location)?.href
+		}
     return resolveActionURL(action, {
       fields: frame && row ? recordForRow(frame, row) : {},
       variables: variablesFromLocation(location),

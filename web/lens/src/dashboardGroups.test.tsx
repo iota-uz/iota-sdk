@@ -211,8 +211,8 @@ describe('legend visibility across tabs', () => {
       {
         rows: [{
           panels: [
-            { panelId: revenue.id, span: 12, group: group('Revenue') },
-            { panelId: count.id, span: 12, group: group('Count') },
+            { panelId: revenue.id, span: 12, groups: [group('Revenue')] },
+            { panelId: count.id, span: 12, groups: [group('Count')] },
           ],
         }],
       },
@@ -261,8 +261,8 @@ describe('group caption', () => {
       [statPanel('metric-a', 'Metric A'), statPanel('metric-b', 'Metric B')],
       { 'metric-a:root': statFrame(1), 'metric-b:root': statFrame(2) },
       { rows: [{ panels: [
-        { panelId: 'metric-a', span: 6, group },
-        { panelId: 'metric-b', span: 6, group },
+        { panelId: 'metric-a', span: 6, groups: [group] },
+        { panelId: 'metric-b', span: 6, groups: [group] },
       ] }] },
     ))
 
@@ -279,7 +279,7 @@ describe('metric group context', () => {
     renderDocument(documentWith(
       [panel],
       { 'metric-a:root': statFrame(178_880_000_000) },
-      { rows: [{ panels: [{ panelId: panel.id, span: 12, group }] }] },
+      { rows: [{ panels: [{ panelId: panel.id, span: 12, groups: [group] }] }] },
     ))
 
     expect(screen.getByText('Coverage basis · all earning cohorts')).toHaveClass('lens-stat-metric-caption')

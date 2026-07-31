@@ -76,6 +76,7 @@ type DimensionSpec struct {
 	Colors       []string
 	ValueAxis    panel.ValueAxis
 	ColorScale   string
+	Map          *panel.MapSpec
 }
 
 type MeasureSpec struct {
@@ -91,6 +92,7 @@ type MeasureSpec struct {
 	RequiresJoin []string
 	Override     *lens.DatasetSpec
 	Action       *action.Spec
+	InvertTrend  bool
 }
 
 type LeafSpec struct {
@@ -109,6 +111,30 @@ func (s CubeSpec) Validate() error {
 	}
 	if len(s.Measures) == 0 {
 		return fmt.Errorf("cube %q requires at least one measure", s.ID)
+	}
+	for _, dimension := range s.Dimensions {
+		if dimension.PanelKind == panel.KindMap && dimension.Map == nil {
+			return fmt.Errorf("cube %q map dimension %q requires map config", s.ID, dimension.Name)
+		}
+	}
+	variableKinds := make(map[string]lens.VariableKind, len(s.Variables))
+	compareCount := 0
+	for _, variable := range s.Variables {
+		variableKinds[variable.Name] = variable.Kind
+		if variable.Kind == lens.VariableCompare {
+			compareCount++
+			if strings.TrimSpace(variable.CompareTo) == "" {
+				return fmt.Errorf("cube %q comparison variable %q requires compare target", s.ID, variable.Name)
+			}
+		}
+	}
+	if compareCount > 1 {
+		return fmt.Errorf("cube %q supports one comparison variable", s.ID)
+	}
+	for _, variable := range s.Variables {
+		if variable.Kind == lens.VariableCompare && variableKinds[variable.CompareTo] != lens.VariableDateRange {
+			return fmt.Errorf("cube %q comparison variable %q target %q must be a date range", s.ID, variable.Name, variable.CompareTo)
+		}
 	}
 	switch s.DataMode {
 	case DataModeSQL:

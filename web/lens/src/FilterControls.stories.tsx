@@ -1,5 +1,5 @@
 import type { Story } from '@ladle/react'
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DashboardDocument, Filter, Panel } from './contract'
 import { Calendar } from './controls'
 import { LensDashboard } from './LensDashboard'
@@ -35,6 +35,7 @@ function statPanel(id: string, title: string): Panel {
     id, kind: 'stat', semantics: 'series', title, frame: `${id}:frame`,
     encoding: { label: 'label', value: 'value' },
     format: { value: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' } },
+    terminal: true,
     actions: [],
   }
 }
@@ -122,6 +123,49 @@ export const DashboardFacetActive: Story = () => {
 }
 DashboardFacetActive.storyName = 'Dashboard facet active'
 
+function FacetOptionsScene() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const original = globalThis.fetch
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (target.startsWith('/lens/facet-options')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          applyUrl: '/reports/sales?_f=product%3Aosago',
+          options: [
+            { label: 'Tashkent city', value: 'tashkent', count: 275, selected: true, toggleUrl: '/reports/sales' },
+            { label: 'Samarkand region', value: 'samarkand', count: 256, toggleUrl: '/reports/sales' },
+            { label: 'Fergana region', value: 'fergana', count: 229, toggleUrl: '/reports/sales' },
+            { label: 'Andijan region', value: 'andijan', count: 205, toggleUrl: '/reports/sales' },
+            { label: 'Bukhara region', value: 'bukhara', count: 182, toggleUrl: '/reports/sales' },
+            { label: 'Khorezm region', value: 'khorezm', count: 151, toggleUrl: '/reports/sales' },
+          ],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+      return original(input, init)
+    }) as typeof fetch
+    setReady(true)
+    return () => { globalThis.fetch = original }
+  }, [])
+  if (!ready) return null
+  const base = filteredDocument()
+  return (
+    <AutoClick selector=".lens-facet-trigger">
+      <div style={{ width: 960 }}>
+        <LensDashboard
+          filterToday={storyToday}
+          initialDocument={{ ...base, filters: [regionFacet] }}
+          theme="light"
+        />
+      </div>
+    </AutoClick>
+  )
+}
+
+/** Historical staged multi-select: checkboxes, count bars, and one Apply. */
+export const FacetOptionsOpen: Story = () => <FacetOptionsScene />
+FacetOptionsOpen.storyName = 'Facet options open'
+
 function RefetchErrorScene() {
   const requests = useRef(0)
   const fetcher = useCallback<typeof fetch>(() => {
@@ -150,12 +194,30 @@ function RefetchErrorScene() {
 export const RefetchError: Story = () => <RefetchErrorScene />
 RefetchError.storyName = 'Refetch error'
 
+function clickWhenReady(find: () => HTMLElement | null | undefined): () => void {
+  let cancelled = false
+  let attempts = 0
+  const click = () => {
+    if (cancelled) return
+    const element = find()
+    if (element) {
+      element.click()
+      return
+    }
+    if (attempts++ < 60) window.requestAnimationFrame(click)
+  }
+  void window.document.fonts.ready.then(() => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(click))
+  })
+  return () => { cancelled = true }
+}
+
 /** Clicks the period trigger once mounted so the popover is the subject. */
 function AutoOpen({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('.lens-filter-trigger')?.click()
-  }, [])
+  useEffect(() => clickWhenReady(
+    () => ref.current?.querySelector<HTMLElement>('.lens-filter-trigger'),
+  ), [])
   return <div ref={ref}>{children}</div>
 }
 
@@ -232,9 +294,9 @@ CalendarRangePending.storyName = 'Calendar range pending'
 /** Clicks a selector once mounted, so a click-only state can be a story. */
 function AutoClick({ children, selector }: { children: React.ReactNode; selector: string }) {
   const ref = useRef<HTMLDivElement>(null)
-  useEffect(() => {
-    ref.current?.querySelector<HTMLElement>(selector)?.click()
-  }, [selector])
+  useEffect(() => clickWhenReady(
+    () => ref.current?.querySelector<HTMLElement>(selector),
+  ), [selector])
   return <div ref={ref}>{children}</div>
 }
 

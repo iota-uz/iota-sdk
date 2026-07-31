@@ -9,7 +9,7 @@ import { QueryClient } from './query'
 
 const document = parseDocument({
   ...fixture,
-  panels: [{ ...fixture.panels[0], drillRoot: 'root' }],
+  panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
   drill: {
     inlineDepth: 0,
     edges: {
@@ -22,9 +22,30 @@ const document = parseDocument({
   },
 })
 const statPanel = document.panels[0]!
+const progressiveDocument = parseDocument({
+  ...fixture,
+  snapshotId: 'progressive-snapshot',
+  panels: [
+    { ...fixture.panels[0], id: 'ready', title: 'Ready', frame: 'panel:ready', deferred: true },
+    { ...fixture.panels[0], id: 'retrying', title: 'Retrying', frame: 'panel:retrying', deferred: true },
+  ],
+  frames: {},
+  layout: { rows: [{ panels: [{ panelId: 'ready', span: 6 }, { panelId: 'retrying', span: 6 }] }] },
+  endpoints: { ...fixture.endpoints, panel: '/lens/panel' },
+})
+const recurringProgressiveDocument = parseDocument({
+  ...progressiveDocument,
+  snapshotId: 'recurring-snapshot',
+  panels: [progressiveDocument.panels[0]],
+  layout: { rows: [{ panels: [{ panelId: 'ready', span: 12 }] }] },
+})
+const filteredProgressiveDocument = parseDocument({
+  ...recurringProgressiveDocument,
+  snapshotId: 'filtered-snapshot',
+})
 const dynamicDocument = parseDocument({
   ...fixture,
-  panels: [{ ...fixture.panels[0], drillRoot: 'root' }],
+  panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
   drill: {
     inlineDepth: 0,
     edges: {
@@ -95,12 +116,116 @@ function FrameProbe({ panelId, onRender }: { panelId: string; onRender: () => vo
   return null
 }
 
+function RecomputeProbe() {
+  const { recompute, isRecomputing } = useDashboard()
+  return <button type="button" disabled={isRecomputing} onClick={recompute}>Recompute panels</button>
+}
+
 afterEach(() => {
   cleanup()
   window.history.replaceState(null, '', '/')
 })
 
 describe('DashboardRuntimeProvider', () => {
+  it('rehydrates a previously seen snapshot after browser Back restores it', async () => {
+    const attempts: Record<string, number> = {}
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as {
+        snapshotId: string
+        panelId: string
+      }
+      attempts[request.snapshotId] = (attempts[request.snapshotId] ?? 0) + 1
+      const value = request.snapshotId === 'recurring-snapshot' ? attempts[request.snapshotId] : 20
+      return Promise.resolve(new Response(JSON.stringify({
+        frames: {
+          'panel:ready': {
+            columns: fixture.frames['panel:total'].columns,
+            rows: [['Ready', value]],
+          },
+        },
+        calculation: { durationMs: 1, cacheHit: false, calculatedAt: '2026-07-31T10:00:00Z' },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+
+    function SnapshotSwitcher() {
+      const [current, setCurrent] = useState(recurringProgressiveDocument)
+      return (
+        <div className="lens-root">
+          <button type="button" onClick={() => setCurrent(filteredProgressiveDocument)}>Filter</button>
+          <button type="button" onClick={() => setCurrent(recurringProgressiveDocument)}>Back</button>
+          <DocumentProvider initialDocument={current} fetcher={fetcher}>
+            <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+              <StatPanel panel={current.panels[0]!} />
+            </DashboardRuntimeProvider>
+          </DocumentProvider>
+        </div>
+      )
+    }
+
+    render(<SnapshotSwitcher />)
+    expect(await screen.findByText('1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    expect(await screen.findByText('20')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Back' }))
+    expect(await screen.findByText('2')).toBeInTheDocument()
+    expect(attempts).toEqual({ 'recurring-snapshot': 2, 'filtered-snapshot': 1 })
+  })
+
+  it('loads, fails, and retries deferred siblings independently', async () => {
+    const attempts: Record<string, number> = {}
+		const recomputed: string[] = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+			const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panelId: string; recompute?: boolean }
+			if (request.recompute) recomputed.push(request.panelId)
+      attempts[request.panelId] = (attempts[request.panelId] ?? 0) + 1
+      if (request.panelId === 'retrying' && attempts[request.panelId] === 1) {
+        return Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'retrying failed' }), {
+          status: 500, headers: { 'Content-Type': 'application/json' },
+        }))
+      }
+      const value = request.panelId === 'ready' ? 11 : 22
+      return Promise.resolve(new Response(JSON.stringify({
+        frames: {
+          [`panel:${request.panelId}`]: {
+            columns: fixture.frames['panel:total'].columns,
+            rows: [[request.panelId, value]],
+          },
+        },
+        calculation: { durationMs: 1250, cacheHit: request.panelId === 'ready', calculatedAt: '2026-07-31T10:00:00Z' },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={progressiveDocument} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <RecomputeProbe />
+            <StatPanel panel={progressiveDocument.panels[0]!} />
+            <StatPanel panel={progressiveDocument.panels[1]!} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    const ready = screen.getByLabelText('Ready')
+    const retrying = screen.getByLabelText('Retrying')
+    expect(await within(ready).findByText('11')).toBeInTheDocument()
+    expect(await within(retrying).findByRole('alert')).toHaveTextContent('retrying failed')
+    expect(within(ready).getByText('11')).toBeInTheDocument()
+		fireEvent.click(within(ready).getByRole('button', { name: 'About this metric' }))
+		expect(await screen.findByText('Calculated in 1.3 s · cache hit')).toBeInTheDocument()
+
+    fireEvent.click(within(retrying).getByRole('button', { name: 'Retry' }))
+    expect(within(retrying).queryByRole('alert')).toBeNull()
+    expect(within(ready).getByText('11')).toBeInTheDocument()
+    expect(await within(retrying).findByText('22')).toBeInTheDocument()
+    expect(attempts).toEqual({ ready: 1, retrying: 2 })
+
+		fireEvent.click(screen.getByRole('button', { name: 'Recompute panels' }))
+		await waitFor(() => expect(attempts).toEqual({ ready: 2, retrying: 3 }))
+		expect(recomputed.sort()).toEqual(['ready', 'retrying'])
+		expect(screen.getByRole('button', { name: 'Recompute panels' })).not.toBeDisabled()
+  })
+
   it('replaces cached data with the skeleton through refresh, then exposes error and retry', async () => {
     let request = 0
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() => {

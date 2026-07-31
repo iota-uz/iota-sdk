@@ -21,8 +21,7 @@ Use plain `lens.DashboardSpec` when:
 ### Native cascade panels
 
 Use `spec.Cascade(id, title, dataset)` or `panel.Cascade(id, title, dataset)`
-for bridge/waterfall-style running totals that should render as server-side
-HTML/CSS instead of ApexCharts. The primary dataset rows should contain:
+for bridge/waterfall-style running totals. The primary dataset rows should contain:
 
 - `label`: stage label
 - `value`: running total after the stage
@@ -207,7 +206,7 @@ Rules:
 
 - Order matters
 - Each `_f` entry is one drill level
-- Lens preserves `_f` values during HTMX/filter interactions as long as the filter form re-emits hidden query inputs
+- Lens preserves `_f` values when document requests and filter controls re-emit the current query inputs
 - Leaf routes should parse `cube.ParseDrillContext(r.URL.Query())`
 
 ## Date Range + Drill
@@ -220,44 +219,17 @@ When a drilled page also has external date filters:
 
 Both report controllers in this repo follow that pattern through `persistentDashboardQuery(...)`.
 
-## Async Shell + Panel Fragments
+## React document endpoints
 
-Lens supports shell-first dashboard rendering when a page wants to lazy load individual panels.
+Mount dashboards with `render/react.LensDashboard` and serve their data through
+`pkg/lens/serve`. Register the document, query, and export handlers below the
+same authenticated middleware chain and supply a shared, bounded
+`document.SnapshotStore`. The React runtime owns loading, error, retry, drill,
+filter, and export states; hosts do not render parallel HTML fragments.
 
-Use this pattern when:
-
-- Panels are backed by Lens runtime execution and can be scoped cheaply with `runtime.PanelScope(panelID)`
-- The page already has a Lens spec before execution
-- Fetching one panel is meaningfully cheaper than fetching the entire dashboard
-
-Do not use this pattern blindly for dashboards that are built from already-materialized report data or manual in-memory datasets. In those cases, turning one request into N panel requests often makes the page slower, not faster.
-
-Controller contract:
-
-1. Prepare the dashboard spec first with `engine.Prepare(...)` or `engine.Prepare` via existing page helpers
-2. On the initial non-HTMX request, render the shell with:
-   - `Result: nil`
-   - `Spec: prepared.Spec`
-   - `AsyncProps.PanelBasePath`
-   - `AsyncProps.FilterFormID`
-3. Expose a panel fragment route such as `GET /reports/panels/{panel_id}`
-4. In that fragment route, execute only the requested panel with `runtime.PanelScope(panelID)`
-5. Return the fragment with `render/templ.RenderPanelFragment(...)`
-
-Template contract:
-
-- Pass `DashboardProps{Spec: spec, Async: &templ.AsyncProps{...}}` to `render/templ.Dashboard(...)` for the main area
-- Use `render/templ.PanelShell(...)` for sidebar cards or any panel rendered outside the main dashboard grid
-- Preserve drill/query state with hidden inputs so `_f=...` and non-date state survive HTMX updates
-
-Reference implementation:
-
-- `modules/insurance/presentation/controllers/sales_report_controller.go`
-- `modules/insurance/presentation/templates/pages/sales_report/lens.templ`
-
-Current helper:
-
-- `render/templ.RenderPanelFragment(...)` renders a single panel body from a fully prepared `runtime.Result`
+Use `runtime.PanelScope(panelID)` only inside a generic document/query mechanism
+when one panel can be executed independently. Do not add renderer-specific panel
+URLs or reintroduce `PanelBasePath`.
 
 ## Performance Profiling
 
@@ -276,6 +248,6 @@ This repo can verify correctness locally, but true performance sign-off still re
 ## Critical Rules
 
 - Keep generated `*_templ.go` files out of manual edits
-- Run `templ generate` after Templ changes
+- Run `templ generate` after changing the React mount template
 - Prefer cube mode for hierarchical drill dashboards, not for every dashboard
 - Keep leaf routes responsible for translating drill filters into repository/query params

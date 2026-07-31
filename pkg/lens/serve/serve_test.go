@@ -42,6 +42,7 @@ type fakeExecutor struct {
 	executeErrs map[string]error
 	panelErrs   map[string]error
 	startOnce   sync.Once
+	cacheHit    bool
 }
 
 func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
@@ -75,6 +76,10 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 		Spec: spec, Variables: map[string]any{"region": requestValue(req.Request, "region", "all")},
 		Panels: make(map[string]*lensruntime.PanelResult), Datasets: make(map[string]*lensruntime.DatasetResult),
 		Locale: req.Locale, Timezone: req.Timezone, RequestPath: req.Path, Request: req.Request, StartedAt: time.Unix(100, 0).UTC(),
+		Duration: 25 * time.Millisecond, CacheHit: f.cacheHit,
+	}
+	if scope.MetadataOnly {
+		return result, nil
 	}
 	if panelID == "" {
 		host, ok := lens.FindPanel(spec, "host")
@@ -99,6 +104,160 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 	result.Panels[panelID] = panelResult(target, frames, req)
 	result.Panels[panelID].Error = f.panelErrs[panelID]
 	return result, nil
+}
+
+func TestHandlers_ProgressivePanelsAreIndependentCachedAndScopeIsolated(t *testing.T) {
+	t.Parallel()
+	spec, frames := testDashboard(t)
+	executor := &fakeExecutor{frames: frames, panelErrs: map[string]error{"host": errors.New("host failed")}}
+	store := document.NewMemoryStore(time.Minute, 8)
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: store, BasePath: "/dash", Progressive: true,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{
+				Locale: "en", DataScope: requestValue(r.URL.Query(), "tenant", "tenant:one"), Request: r.URL.Query(),
+			}
+		},
+	})
+	require.NoError(t, err)
+
+	doc := requestDocument(t, handlers, "/dash/document?tenant=tenant:one&region=west")
+	require.Equal(t, "/dash/lens/panel", doc.Endpoints.Panel)
+	require.True(t, doc.Panels[0].Deferred)
+	require.Equal(t, 0, executor.callCount("host"), "shell must not execute a panel")
+
+	failed := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host"}, "tenant:one")
+	require.Equal(t, http.StatusInternalServerError, failed.Code)
+	require.NoError(t, doc.Validate(), "a panel failure must not invalidate the shell")
+
+	delete(executor.panelErrs, "host")
+	loaded := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host"}, "tenant:one")
+	require.Equal(t, http.StatusOK, loaded.Code)
+	var response PanelResponse
+	require.NoError(t, json.Unmarshal(loaded.Body.Bytes(), &response))
+	require.Equal(t, int64(25), response.Calculation.DurationMS)
+	require.False(t, response.Calculation.CacheHit)
+	require.Contains(t, response.Frames, document.FrameRef("panel:host"))
+	require.Equal(t, "west", executor.lastCall("host").request.Request.Get("region"))
+
+	cached := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host"}, "tenant:one")
+	require.Equal(t, http.StatusOK, cached.Code)
+	require.Equal(t, 2, executor.callCount("host"), "failure plus one successful execution; cache must avoid a third")
+	require.NoError(t, json.Unmarshal(cached.Body.Bytes(), &response))
+	require.True(t, response.Calculation.CacheHit)
+
+	recomputed := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host", Recompute: true}, "tenant:one")
+	require.Equal(t, http.StatusOK, recomputed.Code)
+	require.True(t, executor.lastCall("host").request.Recompute)
+	require.Equal(t, "west", executor.lastCall("host").request.Request.Get("region"), "recompute must retain frozen filters")
+
+	foreign := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host"}, "tenant:two")
+	require.Equal(t, http.StatusGone, foreign.Code)
+}
+
+func TestHandlers_ProgressiveTableSearchUsesFullScopedFrameAndDoesNotReplaceBaseCache(t *testing.T) {
+	t.Parallel()
+	primary, err := frame.New("claims",
+		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{"1", "2", "3"}},
+		frame.Field{Name: "product", Type: frame.FieldTypeString, Values: []any{"Motor", "Travel", "Motor Plus"}},
+		frame.Field{Name: "claims", Type: frame.FieldTypeNumber, Values: []any{2.0, 3.0, 4.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+	table := panel.Table("claims", "Claims", "claims-data").Searchable().Columns(
+		panel.TableColumn{Field: "product", Label: "Product"},
+		panel.TableColumn{Field: "claims", Label: "Claims", Total: true},
+	).Terminal().Build()
+	spec := lens.DashboardSpec{
+		ID: "searchable-table", Title: "Searchable table",
+		Rows:     []lens.RowSpec{{Panels: []panel.Spec{table}}},
+		Datasets: []lens.DatasetSpec{staticDataset("claims-data", frames)},
+	}
+	executor := &fakeExecutor{frames: map[string]*frame.FrameSet{"claims": frames}}
+	observer := &recordingObserver{}
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: document.NewMemoryStore(time.Minute, 8), Progressive: true,
+		Observer: observer,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: "tenant:test", Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+
+	doc := requestDocument(t, handlers, "/document")
+	searched := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "claims", Search: "motor"}, "tenant:test")
+	observed := observer.recorded()
+	observedMessage := ""
+	if len(observed) > 0 {
+		observedMessage = observed[0].err.Error()
+	}
+	require.Equal(t, http.StatusOK, searched.Code, "%s: %s", searched.Body.String(), observedMessage)
+	var response PanelResponse
+	require.NoError(t, json.Unmarshal(searched.Body.Bytes(), &response))
+	require.Equal(t, 2, response.Summary.FilteredRows)
+	require.InDelta(t, 6.0, response.Summary.Values["claims"], 1e-9)
+	require.Equal(t, "motor", executor.lastCall("claims").request.Request.Get(lensruntime.TableSearchQuery))
+
+	base := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "claims"}, "tenant:test")
+	require.Equal(t, http.StatusOK, base.Code, base.Body.String())
+	require.NoError(t, json.Unmarshal(base.Body.Bytes(), &response))
+	require.Equal(t, 3, response.Summary.FilteredRows)
+	require.InDelta(t, 9.0, response.Summary.Values["claims"], 1e-9)
+	require.Equal(t, 2, executor.callCount("claims"), "search results must not replace the unfiltered panel cache")
+
+	cached := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "claims"}, "tenant:test")
+	require.Equal(t, http.StatusOK, cached.Code, cached.Body.String())
+	require.Equal(t, 2, executor.callCount("claims"))
+}
+
+type failPanelExecutor struct {
+	base *lensruntime.Runtime
+}
+
+func (f failPanelExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
+	result, err := f.base.Execute(ctx, spec, req, scope)
+	if err != nil || scope.MetadataOnly || len(scope.PanelIDs) != 1 || scope.PanelIDs[0] != "slow" || scope.IncludeExportEvidence {
+		return result, err
+	}
+	result.Panels["slow"].Error = errors.New("slow panel failed")
+	result.Panels["slow"].Frames = nil
+	return result, nil
+}
+
+func TestHandlers_ProgressiveExportMaterializesMissingPanels(t *testing.T) {
+	t.Parallel()
+	fastFrames := testFrames(t, "fast", 10)
+	slowFrames := testFrames(t, "slow", 20)
+	fast := panel.Stat("fast", "Fast", "fast-data").Terminal().Build()
+	slow := panel.Stat("slow", "Slow", "slow-data").Terminal().Build()
+	spec := lens.DashboardSpec{
+		ID: "progressive-export", Title: "Progressive export",
+		Rows:     []lens.RowSpec{{Panels: []panel.Spec{fast, slow}}},
+		Datasets: []lens.DatasetSpec{staticDataset("fast-data", fastFrames), staticDataset("slow-data", slowFrames)},
+	}
+	runtime := lensruntime.New(lensruntime.Options{})
+	handlers, err := New(Config{
+		Spec: spec, Engine: failPanelExecutor{base: runtime}, Snapshots: document.NewMemoryStore(time.Minute, 8),
+		BasePath: "/dash", Progressive: true,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: "tenant:test", Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+
+	before := requestDocument(t, handlers, "/dash/document")
+	exported := httptest.NewRecorder()
+	handlers.Export(exported, httptest.NewRequest(http.MethodGet, "/dash/export?snapshot="+before.SnapshotID, nil))
+	require.Equal(t, http.StatusOK, exported.Code, exported.Body.String())
+	require.Equal(t, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", exported.Header().Get("Content-Type"))
+
+	afterFailure := requestDocument(t, handlers, "/dash/document")
+	failed := requestPanel(t, handlers, PanelRequest{SnapshotID: afterFailure.SnapshotID, PanelID: "slow"}, "tenant:test")
+	require.Equal(t, http.StatusInternalServerError, failed.Code)
+	exported = httptest.NewRecorder()
+	handlers.Export(exported, httptest.NewRequest(http.MethodGet, "/dash/export?snapshot="+afterFailure.SnapshotID, nil))
+	require.Equal(t, http.StatusOK, exported.Code, exported.Body.String())
 }
 
 type observedError struct {
@@ -184,7 +343,7 @@ func TestHandlers_DocumentExecutesSourceDataPanels(t *testing.T) {
 	spec, frames := testDashboard(t)
 	sourceTable := panel.Table("source-panel", "Source rows", "root-data").IDField("id").Columns(
 		panel.TableColumn{Field: "label", Label: "Label"},
-	).Build()
+	).Terminal().Build()
 	root := spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
 	root.SourceData = &explore.SourceData{Label: "Исходные данные", Panel: sourceTable}
 	spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0] = root
@@ -653,14 +812,14 @@ func testDashboard(t *testing.T) (lens.DashboardSpec, map[string]*frame.FrameSet
 	host.Export.EvidenceDatasets = []string{"evidence-data"}
 	root := panel.Pie("root-panel", "Root", "root-data").IDField("id").Build()
 	detail := panel.Pie("detail-panel", "Detail", "detail-data").IDField("id").Build()
-	end := panel.Pie("end-panel", "End", "end-data").IDField("id").Build()
+	end := panel.Pie("end-panel", "End", "end-data").IDField("id").Terminal().Build()
 	evidence := panel.Table("evidence-panel", "Evidence", "evidence-data").
 		IDField("record_id").
 		Columns(
 			panel.TableColumn{Field: "policy", Label: "Policy"},
 			panel.TableColumn{Field: "amount", Label: "Amount"},
 		).
-		Build()
+		Terminal().Build()
 	explorer := explore.Spec{
 		ID: "metric", HostPanelID: "host", Branches: []explore.Branch{{
 			Key: "focus", Label: "Focus", DefaultPerspective: "composition", Perspectives: []explore.Perspective{
@@ -764,6 +923,16 @@ func requestDocument(t *testing.T, handlers *Handlers, target string) document.D
 	var response document.DashboardDocument
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
 	return response
+}
+
+func requestPanel(t *testing.T, handlers *Handlers, request PanelRequest, tenant string) *httptest.ResponseRecorder {
+	t.Helper()
+	payload, err := json.Marshal(request)
+	require.NoError(t, err)
+	recorder := httptest.NewRecorder()
+	target := "/dash/lens/panel?tenant=" + url.QueryEscape(tenant)
+	handlers.Panel(recorder, httptest.NewRequest(http.MethodPost, target, bytes.NewReader(payload)))
+	return recorder
 }
 
 func queryLevel(t *testing.T, handlers *Handlers, request QueryRequest) QueryResponse {

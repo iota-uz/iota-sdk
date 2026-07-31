@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import type { DashboardDocument, Filter } from '../contract'
+import type { Action, DashboardDocument, Filter } from '../contract'
 import {
+  compareValues,
   currentPeriodValue,
   declaredFilters,
+  filterActionURL,
   filterParamNames,
   periodValues,
   readFilterValues,
@@ -94,7 +96,7 @@ describe('writeFilterValues', () => {
     const url = new URL('https://x.test/dash?path=a&path=b&_f=product%3Aone&_f=region%3Atwo&other=1')
     const values = { ActualRangeStart: '2026-02-01', ActualRangeEnd: '2026-03-01' }
     const next = writeFilterValues(url, doc, values)
-    expect(readFilterValues(doc, next)).toEqual(values)
+    expect(readFilterValues(doc, next)).toEqual({ ...values, _f: ['product:one', 'region:two'] })
     expect(next.searchParams.getAll('path')).toEqual(['a', 'b'])
     expect(next.searchParams.getAll('_f')).toEqual(['product:one', 'region:two'])
     expect(next.searchParams.get('other')).toBe('1')
@@ -158,5 +160,40 @@ describe('srcWithFilterParams', () => {
   it('keeps the all-time empty form on the src', () => {
     expect(srcWithFilterParams('/doc', [], { ActualRangeStart: '', ActualRangeEnd: '' }))
       .toBe('/doc?ActualRangeStart=&ActualRangeEnd=')
+  })
+})
+
+describe('comparison and cube interaction state', () => {
+  it('encodes custom comparison values and leaves preset ranges implicit', () => {
+    const compare = {
+      modeParam: 'compare', startParam: 'compare_start', endParam: 'compare_end', compareTo: 'period',
+      value: { mode: 'off' as const },
+    }
+    expect(compareValues(compare, { mode: 'previous_period' })).toEqual({ compare: 'previous_period' })
+    expect(compareValues(compare, { mode: 'custom', start: '2026-01-01', end: '2026-01-31' })).toEqual({
+      compare: 'custom', compare_start: '2026-01-01', compare_end: '2026-01-31',
+    })
+  })
+
+  it('toggles cross-filter values on the same repeated _f stack and preserves drill group-by', () => {
+    const action: Action = {
+      kind: 'cross_filter', urlTemplate: '/sales', params: [], payload: {},
+      filter: { dimension: 'product', value: { kind: 'field', name: 'product_id' } },
+    }
+    const current = new URL('https://x.test/sales?_f=region%3Atashkent&_groupby=region')
+    const selected = filterActionURL(action, { product_id: 'osago' }, current)!
+    expect(selected.searchParams.getAll('_f')).toEqual(['region:tashkent', 'product:osago'])
+    expect(selected.searchParams.get('_groupby')).toBe('region')
+    expect(filterActionURL(action, { product_id: 'osago' }, selected)!.searchParams.getAll('_f')).toEqual(['region:tashkent'])
+  })
+
+  it('adds cube drill group-by without replacing the shared filter stack', () => {
+    const action: Action = {
+      kind: 'cube_drill', urlTemplate: '/sales', params: [], payload: {},
+      filter: { dimension: 'product', groupBy: 'region', value: { kind: 'field', name: 'product_id' } },
+    }
+    const next = filterActionURL(action, { product_id: 'osago' }, new URL('https://x.test/sales?_f=channel%3Aagent'))!
+    expect(next.searchParams.getAll('_f')).toEqual(['channel:agent', 'product:osago'])
+    expect(next.searchParams.get('_groupby')).toBe('region')
   })
 })

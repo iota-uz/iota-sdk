@@ -40,29 +40,37 @@ func (f ObserverFunc) OnError(ctx context.Context, op string, err error) {
 
 // Config describes one host-registered dashboard HTTP surface.
 type Config struct {
-	Spec        lens.DashboardSpec
-	Engine      engine.Executor
-	Snapshots   document.SnapshotStore
-	BasePath    string
-	InlineDepth int
-	PageSize    int
-	WorkTimeout time.Duration
-	Request     RequestResolver
-	Observer    Observer
+	Spec              lens.DashboardSpec
+	Engine            engine.Executor
+	Snapshots         document.SnapshotStore
+	BasePath          string
+	InlineDepth       int
+	PageSize          int
+	WorkTimeout       time.Duration
+	Request           RequestResolver
+	Observer          Observer
+	ViewsEndpoint     string
+	SchedulesEndpoint string
+	// Progressive returns a layout-only document and materialises each panel
+	// independently through Handlers.Panel.
+	Progressive bool
 }
 
 // Handlers serves one dashboard registration.
 type Handlers struct {
-	spec        lens.DashboardSpec
-	engine      engine.Executor
-	snapshots   document.SnapshotStore
-	basePath    string
-	inlineDepth int
-	pageSize    int
-	workTimeout time.Duration
-	request     RequestResolver
-	observer    Observer
-	loads       singleflight.Group
+	spec              lens.DashboardSpec
+	engine            engine.Executor
+	snapshots         document.SnapshotStore
+	basePath          string
+	inlineDepth       int
+	pageSize          int
+	workTimeout       time.Duration
+	request           RequestResolver
+	observer          Observer
+	progressive       bool
+	viewsEndpoint     string
+	schedulesEndpoint string
+	loads             singleflight.Group
 }
 
 type noopObserver struct{}
@@ -106,7 +114,8 @@ func New(cfg Config) (*Handlers, error) {
 	return &Handlers{
 		spec: cfg.Spec, engine: cfg.Engine, snapshots: cfg.Snapshots,
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
-		request: cfg.Request, observer: observer,
+		request: cfg.Request, observer: observer, progressive: cfg.Progressive,
+		viewsEndpoint: cfg.ViewsEndpoint, schedulesEndpoint: cfg.SchedulesEndpoint,
 	}, nil
 }
 

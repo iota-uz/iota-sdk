@@ -80,8 +80,8 @@ export function distributeShares(
  */
 export function formatShare(share: number | undefined, locale?: string): string {
   if (!isFiniteNumber(share)) return ''
-  // Rounded exactly as the Go renderer's %.1f rounds it — the two must print
-  // one number — and only then written in the reader's own notation.
+  // Rounded exactly as the server's %.1f rounds it, then written in the
+  // reader's own notation.
   return `${new Intl.NumberFormat(locale, {
     minimumFractionDigits: sharePrecision,
     maximumFractionDigits: sharePrecision,

@@ -39,6 +39,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/config/stdconfig/uploadsconfig"
 	"github.com/iota-uz/iota-sdk/pkg/eventbus"
 	"github.com/iota-uz/iota-sdk/pkg/health"
+	lensshare "github.com/iota-uz/iota-sdk/pkg/lens/share"
 	"github.com/iota-uz/iota-sdk/pkg/rbac"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 	"github.com/iota-uz/iota-sdk/pkg/spotlight"
@@ -61,6 +62,10 @@ type ModuleOptions struct {
 	DashboardLinkPermissions []permission.Permission
 	SettingsLinkPermissions  []permission.Permission
 	UserControllerOptions    []controllers.UserControllerOption
+	// LensShareHTTPOptions resolves host-provided Lens share capabilities once
+	// the composition container is complete. The SDK keeps scheduled delivery
+	// disabled unless a host has registered and started its real delivery stack.
+	LensShareHTTPOptions func(*composition.Container) ([]lensshare.HTTPOption, error)
 
 	// SkipAdminControllers suppresses registration of the admin-facing
 	// controllers (dashboard, users, roles, groups, settings, sessions,
@@ -297,6 +302,18 @@ func (c *component) Build(builder *composition.Builder) error {
 				controllers.NewLogoutController(httpCfg, cookiesCfg, appCfg),
 				controllers.NewUploadController(uploadService, uploadsCfg),
 			}
+			var lensShareOptions []lensshare.HTTPOption
+			if opts.LensShareHTTPOptions != nil {
+				lensShareOptions, err = opts.LensShareHTTPOptions(container)
+				if err != nil {
+					return nil, err
+				}
+			}
+			lensShareController, err := controllers.NewLensShareController(app.DB(), lensShareOptions...)
+			if err != nil {
+				return nil, err
+			}
+			ctrls = append(ctrls, lensShareController)
 			if opts.UploadsAuthorizer != nil || opts.DefaultTenantID != uuid.Nil {
 				ctrls = append(ctrls, controllers.NewUploadAPIController(uploadService, uploadsCfg, uploadAPIControllerOpts(opts)...))
 			}

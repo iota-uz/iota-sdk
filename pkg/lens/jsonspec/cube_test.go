@@ -7,6 +7,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/cube"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/stretchr/testify/require"
 )
@@ -167,6 +168,38 @@ func TestLoadCubeSupportsDatasetRef(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cube.DataModeDataset, spec.DataMode)
 	require.Same(t, frameSet, spec.Data)
+}
+
+func TestLoadCubeResolvesMapDimension(t *testing.T) {
+	t.Parallel()
+
+	spec, err := LoadCube([]byte(`{
+		"version": 1,
+		"id": "regional-sales",
+		"title": "Regional sales",
+		"dataMode": "sql",
+		"dataSource": "primary",
+		"fromSQL": "sales",
+		"dimensions": [{
+			"name": "region",
+			"label": "Region",
+			"column": "region_code",
+			"panelKind": "map",
+			"map": {
+				"source": {"url": "{{basePath}}/regions.geojson", "maxBytes": 200000},
+				"featureProperty": "shapeISO",
+				"labelProperty": "shapeName"
+			}
+		}],
+		"measures": [{"name": "premium", "label": "Premium", "column": "premium", "aggregation": "sum"}]
+	}`), ResolveOptions{Values: map[string]any{"basePath": "/maps"}})
+
+	require.NoError(t, err)
+	require.Equal(t, panel.KindMap, spec.Dimensions[0].PanelKind)
+	require.Equal(t, "/maps/regions.geojson", spec.Dimensions[0].Map.Source.URL)
+	require.Equal(t, 200000, spec.Dimensions[0].Map.Source.MaxBytes)
+	require.Equal(t, "shapeISO", spec.Dimensions[0].Map.FeatureProperty)
+	require.Equal(t, "shapeName", spec.Dimensions[0].Map.LabelProperty)
 }
 
 func TestLoadCubeResolvesVariableDefaults(t *testing.T) {

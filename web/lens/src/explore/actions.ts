@@ -19,7 +19,7 @@ export function variablesFromLocation(location: URL): Record<string, unknown> {
   return variables
 }
 
-function sourceValue(source: Source, context: LeafActionContext): unknown {
+export function resolveSourceValue(source: Source, context: LeafActionContext): unknown {
   let value: unknown
   if (source.kind === 'literal') value = source.value
   if (source.kind === 'field' && source.name) value = context.fields[source.name]
@@ -48,7 +48,7 @@ function resolveTemplate(action: Action, context: LeafActionContext): string | u
   if (!action.urlTemplate) return undefined
   let resolved = action.urlTemplate
   for (const param of action.params) {
-    const value = sourceValue(param.source, context)
+    const value = resolveSourceValue(param.source, context)
     if (value === undefined || value === null) return undefined
     const text = parameterText(value)
     if (text === undefined) return undefined
@@ -72,7 +72,7 @@ export function resolveActionURL(action: Action, context: LeafActionContext): st
   if (action.kind !== 'navigate' && action.kind !== 'navigate_to_leaf' && action.kind !== 'open_drawer') return undefined
   let resolved: string | undefined
   if (action.urlSource) {
-    const value = sourceValue(action.urlSource, context)
+    const value = resolveSourceValue(action.urlSource, context)
     if (value === undefined || value === null) return undefined
     resolved = typeof value === 'string' ? value : parameterText(value)
   } else {

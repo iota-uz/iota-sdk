@@ -2,6 +2,7 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter } from '../charts/adapter'
+import { fallbackMarkKey } from '../charts/keys'
 import { CoveragePanel, ChartPanel, MarkSelectionContext, StatMetric, StatPanel } from './index'
 import { CascadePanel } from './CascadePanel'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
@@ -156,7 +157,7 @@ describe('charts with a panel-level navigate action', () => {
       },
     }
     const view = renderPanel(
-      documentWith([panel], { 'chart:root': frame }),
+      documentWith([panel], { [panel.frame]: frame }),
       <ChartPanel panel={panel} adapter={adapter} />,
     )
     return { ...view, activate: (key: string) => select?.(key) }
@@ -172,6 +173,37 @@ describe('charts with a panel-level navigate action', () => {
     await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
     activate('broker')
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('/risk/broker'))
+  })
+
+  it('resolves an actionable stacked mark when the frame has no explicit id column', async () => {
+    const assign = vi.mocked(navigateTo)
+    const frame: Frame = {
+      columns: [
+        { name: 'day', type: 'string' },
+        { name: 'product', type: 'string' },
+        { name: 'amount', type: 'number' },
+        { name: 'product_code', type: 'string' },
+      ],
+      rows: [
+        ['03.07', 'ОСАГО', 12_000_000, 'OSAGO'],
+        ['03.07', 'КАСКО', 2_500_000, 'KASKO'],
+      ],
+    }
+    const panel: Panel = {
+      id: 'daily', kind: 'bar', title: 'Daily revenue', semantics: 'series', frame: 'daily:root',
+      // Production keeps the legacy `label` role even though the deferred
+      // daily frame only contains `day` as its category column.
+      encoding: { id: 'id', label: 'label', category: 'day', series: 'product', value: 'amount' },
+      format: { amount: { kind: 'number', minorUnits: false, precision: 0 } },
+      actions: [navigate('/policies/{product}', [
+        { name: 'product', source: { kind: 'field', name: 'product_code' } },
+      ])],
+    }
+    const { container, activate } = renderChart(panel, frame)
+
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    activate(fallbackMarkKey('03.07', 'КАСКО')!)
+    expect(assign).toHaveBeenCalledWith(expect.stringContaining('/policies/KASKO'))
   })
 
   it('leaves a chart without a drill root or an action inert', async () => {

@@ -21,6 +21,7 @@ interface FloatingPosition {
 
 const popoverGap = 6
 const viewportGutter = 8
+const hoverBridgeDelay = 120
 
 /**
  * Keeps a note inside the viewport while preferring the familiar
@@ -63,6 +64,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
   const wrapperRef = useRef<HTMLSpanElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
+  const closeTimer = useRef<ReturnType<typeof globalThis.setTimeout>>()
   const bubbleId = useId()
   const label = translate('panel.info', 'About this metric')
   const open = pinned || hovered
@@ -75,7 +77,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
     if (!open || typeof document === 'undefined') return undefined
     const element = document.createElement('div')
     const root = wrapperRef.current?.closest<HTMLElement>('.lens-root')
-    element.className = `lens-root lens-overlay-root${root?.classList.contains('dark') ? ' dark' : ''}`
+    element.className = `lens-root lens-overlay-root lens-info-tip-overlay-root${root?.classList.contains('dark') ? ' dark' : ''}`
     if (root?.dataset.theme) element.dataset.theme = root.dataset.theme
     document.body.appendChild(element)
     setContainer(element)
@@ -137,15 +139,26 @@ export function InfoTip({ text, inline }: InfoTipProps) {
   }, [pinned])
 
   const paragraphs = text.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
+  const cancelClose = () => {
+    if (closeTimer.current !== undefined) globalThis.clearTimeout(closeTimer.current)
+    closeTimer.current = undefined
+  }
   const leavingSurface = (event: ReactMouseEvent, other: HTMLElement | null) => {
     const next = event.relatedTarget
     if (next instanceof Node && other?.contains(next)) return
-    setHovered(false)
+    cancelClose()
+    // The bubble lives in a body portal with a deliberate visual gap from its
+    // trigger. Give the pointer enough time to cross that gap; otherwise the
+    // portal unmounts under the cursor and appears to flicker.
+    closeTimer.current = globalThis.setTimeout(() => setHovered(false), hoverBridgeDelay)
   }
+
+  useEffect(() => () => cancelClose(), [])
 
   const bubbleStyle: CSSProperties = {
     left: position?.left ?? 0,
     top: position?.top ?? 0,
+    pointerEvents: 'auto',
     visibility: position ? 'visible' : 'hidden',
   }
 
@@ -155,7 +168,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
       // interpolated modifier and would drop the rule.
       className={inline ? 'lens-info-tip lens-info-tip-inline' : 'lens-info-tip'}
       ref={wrapperRef}
-      onMouseEnter={() => setHovered(true)}
+      onMouseEnter={() => { cancelClose(); setHovered(true) }}
       onMouseLeave={(event) => leavingSurface(event, bubbleRef.current)}
     >
       <button
@@ -178,7 +191,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
         <span
           className="lens-info-tip-bubble"
           id={bubbleId}
-          onMouseEnter={() => setHovered(true)}
+          onMouseEnter={() => { cancelClose(); setHovered(true) }}
           onMouseLeave={(event) => leavingSurface(event, wrapperRef.current)}
           ref={bubbleRef}
           role="tooltip"

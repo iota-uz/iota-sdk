@@ -63,6 +63,34 @@ describe('invalid Lens documents', () => {
     expect(DashboardDocumentSchema.safeParse(document).success).toBe(false)
   })
 
+  it('rejects the removed singular layout group key', () => {
+    const document = validDocument()
+    const layout = document['layout'] as { rows: Array<{ panels: Array<Record<string, unknown>> }> }
+    const item = layout.rows[0]?.panels[0]
+    if (!item) throw new Error('expected at least one layout item in small.json')
+    item['group'] = { id: 'removed', kind: 'metrics', span: 12 }
+
+    expect(DashboardDocumentSchema.safeParse(document).success).toBe(false)
+  })
+
+  it('rejects a silent panel that is neither actionable nor terminal', () => {
+    const document = validDocument()
+    const panels = document['panels'] as Array<Record<string, unknown>>
+    panels[0]!['terminal'] = false
+
+    expect(() => parseDocument(document)).toThrow('must be actionable or explicitly terminal')
+  })
+
+  it('rejects a terminal panel that also exposes an action', () => {
+    const document = validDocument()
+    const panels = document['panels'] as Array<Record<string, unknown>>
+    panels[0]!['actions'] = [{
+      kind: 'emit_event', event: 'lens.selected', params: [], payload: {},
+    }]
+
+    expect(() => parseDocument(document)).toThrow('cannot be terminal and actionable')
+  })
+
   it('reports an incompatible major version with a typed error', () => {
     const goldenFixture = goldenFixtures[0]
     if (!goldenFixture) throw new Error('expected at least one Go golden fixture')

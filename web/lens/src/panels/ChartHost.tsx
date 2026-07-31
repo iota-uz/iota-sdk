@@ -1,19 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { NodeKey } from '../contract'
-import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'
+import type { ChartActivation, ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../charts/adapter'
 import { useTranslate } from '../runtime'
 
 export interface ChartHostProps {
   input: ChartInput
   panelId?: string
-  onSelect?: (key: NodeKey, anchor?: ChartAnchor) => void
+  onSelect?: (key: NodeKey, anchor?: ChartAnchor, activation?: ChartActivation) => void
   onHover?: (key: NodeKey | null) => void
   adapter?: ChartAdapter
   label?: string
   drillable?: boolean
+	resetZoomKey?: number
 }
 
-export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, drillable = false }: ChartHostProps) {
+export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, drillable = false, resetZoomKey = 0 }: ChartHostProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const instanceRef = useRef<ChartInstance>()
   const inputRef = useRef(input)
@@ -32,7 +33,7 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
   useEffect(() => {
     let active = true
     const events: ChartEvents = {
-      onSelect: (key, anchor) => eventsRef.current.onSelect?.(key, anchor),
+      onSelect: (key, anchor, activation) => eventsRef.current.onSelect?.(key, anchor, activation),
       onHover: (key) => eventsRef.current.onHover?.(key),
     }
 
@@ -67,6 +68,10 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
       setLoadError(reportError(cause, 'chart failed to update'))
     }
   }, [input, reportError])
+
+	useEffect(() => {
+		if (resetZoomKey > 0) instanceRef.current?.resetZoom?.()
+	}, [resetZoomKey])
 
   return (
     <div

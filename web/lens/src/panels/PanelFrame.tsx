@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
-import type { Panel } from '../contract'
-import { clampedDeltaPercent, type PanelFrameState, useDocumentRefreshing, useFormat, useTranslate } from '../runtime'
-import { ExportButton } from './ExportButton'
+import type { Frame, Panel } from '../contract'
+import { clampedDeltaPercent, type PanelFrameState, useFormat, useTranslate } from '../runtime'
+import { PanelExportMenu } from './PanelExportMenu'
 import { InfoTip } from './InfoTip'
 import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
 import { usePanelChrome } from './context'
@@ -14,6 +14,8 @@ export interface PanelFrameProps {
   children: ReactNode
   variant?: 'stat' | 'chart'
   allowEmptyContent?: boolean
+  /** Reader controls that belong to this panel, placed before export chrome. */
+  headerActions?: ReactNode
   /**
    * The total the header badge prints. Overrides `panel.total`, which is the
    * root frame's total and is wrong once the panel is showing a drill level:
@@ -22,25 +24,41 @@ export interface PanelFrameProps {
   total?: number
 }
 
-export function TrendChip({ trend }: { trend: NonNullable<Panel['trend']> }) {
-  const up = trend.percent > 0
-  const flat = trend.percent === 0
+function numericFrameValue(frame: Frame | undefined, field: string | undefined): number | undefined {
+	if (!frame || !field) return undefined
+	const index = frame.columns.findIndex((column) => column.name === field)
+	const value = index < 0 ? undefined : frame.rows[0]?.[index]
+	const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+	return Number.isFinite(number) ? number : undefined
+}
+
+export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
+	const trend = panel.trend!
+	const percent = numericFrameValue(frame, trend.percentField) ?? trend.percent
+	const absolute = numericFrameValue(frame, trend.absoluteField)
+	const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
+	const translate = useTranslate()
+  const up = percent > 0
+  const flat = percent === 0
   // Invert flips the good/bad mapping for down-is-good metrics; the arrow
   // always follows the sign.
   const good = trend.invert ? !up : up
   const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
-  const sign = up ? '+' : ''
+	const sign = up ? '+' : ''
   const TrendIcon = flat ? TrendFlat : up ? TrendUp : TrendDown
   return (
     <span className={`lens-trend-chip ${tone}`}>
       <TrendIcon />
-      <strong>{clampedDeltaPercent(trend.percent) ?? `${sign}${trend.percent.toFixed(1)}%`}</strong>
-      {trend.label && <span className="lens-trend-chip-label">{trend.label}</span>}
+	  <strong>{clampedDeltaPercent(percent) ?? `${sign}${percent.toFixed(1)}%`}</strong>
+	  {absolute !== undefined && <span className="lens-trend-chip-absolute">({absolute > 0 ? '+' : ''}{formatAbsolute(absolute)})</span>}
+	  <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
     </span>
   )
 }
 
-export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmptyContent = false, total: totalOverride }: PanelFrameProps) {
+export function PanelFrame({
+  panel, frame, children, variant = 'chart', allowEmptyContent = false, total: totalOverride, headerActions,
+}: PanelFrameProps) {
   const translate = useTranslate()
   const chrome = usePanelChrome()
   const [expanded, setExpanded] = useState(false)
@@ -50,13 +68,9 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const total = totalOverride ?? panel.total
   const hasRows = Boolean(frame.data?.rows.length)
-  // A date/period change refetches the whole document; the panel's own drill
-  // query sets isLoading. Either way the panel is recomputing, so it shows the
-  // same skeleton as the first load instead of a subtle dim — an unmistakable
-  // "this is being recalculated" affordance, and the exact shape the data will
-  // land in.
-  const isRefreshing = useDocumentRefreshing()
-  const showLoading = frame.isLoading || isRefreshing
+  // Loading is panel-local. A sibling calculation or a background document
+  // refresh must never replace this panel's usable data with a skeleton.
+  const showLoading = frame.isLoading
   const badgePlacement = panel.presentation?.totalBadge ?? 'header'
   const showTotal = variant === 'chart' && total !== undefined && badgePlacement === 'header'
   const totalLabel = translate('panel.total', 'Total')
@@ -75,7 +89,21 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
   // which is what the templ runtime already does for stat descriptions.
   const captionBelow = variant === 'stat'
   const captionNode = captionBelow && panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
-  const infoText = [variant === 'chart' ? panel.caption : '', panel.info]
+  const calculationText = frame.calculation
+    ? translate(
+      'panel.calculation',
+      'Calculated in {duration} · {cache}',
+      {
+        duration: frame.calculation.durationMs < 1000
+          ? `${frame.calculation.durationMs} ms`
+          : `${(frame.calculation.durationMs / 1000).toFixed(1)} s`,
+        cache: frame.calculation.cacheHit
+          ? translate('panel.cacheHit', 'cache hit')
+          : translate('panel.cacheMiss', 'computed'),
+      },
+    )
+    : ''
+  const infoText = [variant === 'chart' ? panel.caption : '', panel.info, calculationText]
     .map((part) => part?.trim() ?? '')
     .filter(Boolean)
     .join('\n\n')
@@ -120,6 +148,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       aria-label={panel.title}
       aria-busy={showLoading}
       data-panel-kind={panel.kind}
+      data-panel-id={panel.id}
       data-stale={frame.isStale || undefined}
     >
       <header className="lens-panel-header">
@@ -132,6 +161,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
         {infoText && <InfoTip text={infoText} />}
         {chrome?.explore}
         <div className="lens-panel-actions">
+          {headerActions}
           {showTotal && (
             <span className="lens-panel-total" title={`${totalLabel}: ${formatTotal(total)}`}>
               <span className="lens-panel-total-label">{totalLabel}:</span>
@@ -140,7 +170,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
             </span>
           )}
           {frame.isStale && !showLoading && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
-          {exportable && <ExportButton panelId={panel.id} iconOnly />}
+          {exportable && <PanelExportMenu panelId={panel.id} title={panel.title} />}
           {expandable && (
             <button
               aria-label={expandLabel}
@@ -173,7 +203,7 @@ export function PanelFrame({ panel, frame, children, variant = 'chart', allowEmp
       </div>
       {captionBelow && captionNode}
       {panel.trend && hasRows && (
-        <footer className="lens-panel-footer"><TrendChip trend={panel.trend} /></footer>
+		<footer className="lens-panel-footer"><TrendChip panel={panel} frame={frame.data} /></footer>
       )}
       {frame.error && frame.data && (
         <div className="lens-panel-error" role="alert">

@@ -1,10 +1,9 @@
 // Package theme is the single source of truth for the Lens design system v2
-// tokens. Render targets (render/apex options, templ style blocks) and any
-// consumer that needs a Lens color, radius, or typography value should read
-// it from here rather than hardcoding hexes.
+// tokens. Renderers and any consumer that needs a Lens color, radius, or
+// typography value should read it from here rather than hardcoding hexes.
 //
-// The CSS custom properties emitted by render/templ.LensThemeStyles() mirror
-// these constants one-to-one; keep the two in sync when changing a token.
+// The React runtime's CSS custom properties mirror these constants one-to-one;
+// keep the two in sync when changing a token.
 package theme
 
 // Surfaces.

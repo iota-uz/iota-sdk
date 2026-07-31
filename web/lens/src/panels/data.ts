@@ -76,7 +76,8 @@ export function displayText(value: unknown, fallback: string): string {
 }
 
 export const encodingRoles: ReadonlyArray<keyof Encoding> = [
-  'label', 'value', 'id', 'series', 'category', 'cut', 'cutLabel', 'final',
+  'label', 'value', 'previous', 'lower', 'q1', 'median', 'q3', 'upper',
+  'id', 'series', 'category', 'cut', 'cutLabel', 'final',
   'tone', 'share', 'confidence', 'availability',
 ]
 

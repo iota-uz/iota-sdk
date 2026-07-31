@@ -1,6 +1,9 @@
 package transform
 
 import (
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -210,6 +213,22 @@ func TestTopN_AggregatesOverflowIntoOtherBucket(t *testing.T) {
 	}, rows[2])
 }
 
+func TestExpandableTopN_PreservesAndTagsRemainderRows(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("products",
+		frame.Row{"label": "OSAGO", "value": 100.0},
+		frame.Row{"label": "Travel", "value": 10.0},
+		frame.Row{"label": "KASKO", "value": 2.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(set, nil, []Spec{ExpandableTopN("value", 1, "Other")})
+	require.NoError(t, err)
+	require.Equal(t, []any{nil, "Other", "Other"}, next.Primary().MustField(TopNGroupField).Values)
+	require.Len(t, next.Primary().Rows(), 3, "expandable mode must retain the tail source rows")
+}
+
 func TestTopN_PreservesNonAdditiveMeasuresInOtherBucket(t *testing.T) {
 	t.Parallel()
 
@@ -239,4 +258,106 @@ func TestTopN_PreservesNonAdditiveMeasuresInOtherBucket(t *testing.T) {
 	assert.InDelta(t, 50.0, rows[0]["avg_ticket"], 1e-9)
 	assert.Nil(t, rows[1]["avg_ticket"])
 	assert.InDelta(t, 7.0, rows[1]["total_policies"], 1e-9)
+}
+
+func TestMovingAverage_AppendsExportableSMAAndKeepsSeriesIndependent(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("daily",
+		frame.Row{"series": "A", "value": 3.0},
+		frame.Row{"series": "B", "value": 30.0},
+		frame.Row{"series": "A", "value": 6.0},
+		frame.Row{"series": "B", "value": 60.0},
+		frame.Row{"series": "A", "value": 9.0},
+		frame.Row{"series": "B", "value": 90.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(set, nil, []Spec{MovingAverageBy("value", "series", "sma_3", 3)})
+	require.NoError(t, err)
+	require.Equal(t, []any{nil, nil, nil, nil, 6.0, 60.0}, next.Primary().MustField("sma_3").Values)
+	require.Equal(t, []any{3.0, 30.0, 6.0, 60.0, 9.0, 90.0}, next.Primary().MustField("value").Values)
+}
+
+func TestLinearRegression_AppendsLeastSquaresTrend(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("trend",
+		frame.Row{"value": 2.0},
+		frame.Row{"value": 5.0},
+		frame.Row{"value": 8.0},
+		frame.Row{"value": 11.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(set, nil, []Spec{LinearRegression("value", "regression")})
+	require.NoError(t, err)
+	require.Equal(t, []any{2.0, 5.0, 8.0, 11.0}, next.Primary().MustField("regression").Values)
+}
+
+func TestLinearForecast_AppendsDeterministicProjectionAndPredictionInterval(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("monthly",
+		frame.Row{"month": "2026-01-01T00:00:00Z", "series": "Observed", "value": 10.0},
+		frame.Row{"month": "2026-02-01T00:00:00Z", "series": "Observed", "value": 12.0},
+		frame.Row{"month": "2026-03-01T00:00:00Z", "series": "Observed", "value": 13.0},
+		frame.Row{"month": "2026-04-01T00:00:00Z", "series": "Observed", "value": 17.0},
+		frame.Row{"month": "2026-05-01T00:00:00Z", "series": "Observed", "value": 18.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(set, nil, []Spec{
+		LinearForecast("month", "value", "series", "forecast", "forecast_lower", "forecast_upper", "month", 3),
+	})
+	require.NoError(t, err)
+	fr := next.Primary()
+	require.Equal(t, 8, fr.RowCount)
+	require.Equal(t, []any{
+		"2026-06-01T00:00:00Z", "2026-07-01T00:00:00Z", "2026-08-01T00:00:00Z",
+	}, fr.MustField("month").Values[5:])
+	require.Equal(t, []any{nil, nil, nil}, fr.MustField("value").Values[5:])
+	require.Equal(t, []any{"Observed", "Observed", "Observed"}, fr.MustField("series").Values[5:])
+
+	forecast := fr.MustField("forecast").Values
+	lower := fr.MustField("forecast_lower").Values
+	upper := fr.MustField("forecast_upper").Values
+	require.InDelta(t, 20.3, forecast[5], 1e-9)
+	require.InDelta(t, 22.4, forecast[6], 1e-9)
+	require.InDelta(t, 24.5, forecast[7], 1e-9)
+	require.InDelta(t, 18.039, lower[5], 1e-3)
+	require.InDelta(t, 22.561, upper[5], 1e-3)
+	require.Less(t, lower[7].(float64), forecast[7].(float64))
+	require.Greater(t, upper[7].(float64), forecast[7].(float64))
+	for index := 0; index < 5; index++ {
+		require.Nil(t, forecast[index], "observed rows must not be relabelled as forecast")
+	}
+
+	fixtureBytes, err := os.ReadFile(filepath.Join("..", "..", "..", "web", "lens", "fixtures", "linear-forecast.json"))
+	require.NoError(t, err)
+	var fixture struct {
+		Rows [][]any `json:"rows"`
+	}
+	require.NoError(t, json.Unmarshal(fixtureBytes, &fixture))
+	actualRows := make([][]any, fr.RowCount)
+	for row := range actualRows {
+		actualRows[row] = []any{
+			fr.MustField("month").Values[row], fr.MustField("series").Values[row], fr.MustField("value").Values[row],
+			forecast[row], lower[row], upper[row],
+		}
+	}
+	require.Equal(t, fixture.Rows, actualRows, "the visible story fixture must be the transform's exact deterministic output")
+}
+
+func TestTemporalTransforms_ValidateConfiguration(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("trend", frame.Row{"value": 1.0})
+	require.NoError(t, err)
+	_, err = Apply(set, nil, []Spec{MovingAverage("value", "sma", 0)})
+	require.ErrorContains(t, err, "positive window")
+	_, err = Apply(set, nil, []Spec{LinearRegression("missing", "trend")})
+	require.ErrorContains(t, err, "not found")
+	_, err = Apply(set, nil, []Spec{LinearForecast("missing", "value", "", "forecast", "lower", "upper", "month", 2)})
+	require.ErrorContains(t, err, "category field")
 }

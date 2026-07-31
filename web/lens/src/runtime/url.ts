@@ -7,6 +7,39 @@ const drawerParameter = 'drawer'
 const drawerPathParameter = 'drawerPath'
 const drawerPerspectiveParameter = 'drawerPerspective'
 const drawerPanelParameter = 'drawerPanel'
+const hiddenSeriesParameter = 'lensHidden'
+
+function hiddenSeriesValue(panelId: string, key: string): string {
+  return JSON.stringify([panelId, key])
+}
+
+function parseHiddenSeriesValue(value: string): [string, string] | undefined {
+  try {
+    const parsed: unknown = JSON.parse(value)
+    if (!Array.isArray(parsed) || parsed.length !== 2 || parsed.some((item) => typeof item !== 'string')) return undefined
+    return parsed as [string, string]
+  } catch {
+    return undefined
+  }
+}
+
+export function hiddenSeriesFromURL(url: URL, panelId: string): ReadonlySet<string> {
+  const hidden = new Set<string>()
+  for (const value of url.searchParams.getAll(hiddenSeriesParameter)) {
+    const parsed = parseHiddenSeriesValue(value)
+    if (parsed?.[0] === panelId) hidden.add(parsed[1])
+  }
+  return hidden
+}
+
+export function hiddenSeriesToURL(current: URL, panelId: string, hidden: ReadonlySet<string>): URL {
+  const next = new URL(current)
+  const retained = next.searchParams.getAll(hiddenSeriesParameter).filter((value) => parseHiddenSeriesValue(value)?.[0] !== panelId)
+  next.searchParams.delete(hiddenSeriesParameter)
+  for (const value of retained) next.searchParams.append(hiddenSeriesParameter, value)
+  for (const key of [...hidden].sort()) next.searchParams.append(hiddenSeriesParameter, hiddenSeriesValue(panelId, key))
+  return next
+}
 
 export function navigationFromURL(url: URL): NavigationView {
   const path = url.searchParams.getAll(pathParameter).filter((key) => key.length > 0) as NodePath

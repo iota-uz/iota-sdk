@@ -2,6 +2,7 @@
 package react
 
 import (
+	"crypto/sha256"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -16,6 +17,7 @@ var embeddedAssets embed.FS
 
 type AssetBundle struct {
 	Entry       string
+	Revision    string
 	Stylesheets []string
 }
 
@@ -39,6 +41,7 @@ func DistFS() fs.FS {
 func Assets() AssetBundle {
 	return AssetBundle{
 		Entry:       productionAssets.Entry,
+		Revision:    productionAssets.Revision,
 		Stylesheets: append([]string(nil), productionAssets.Stylesheets...),
 	}
 }
@@ -89,5 +92,10 @@ func loadAssetBundle(data []byte) AssetBundle {
 	}
 	sort.Strings(stylesheets)
 
-	return AssetBundle{Entry: entry.File, Stylesheets: stylesheets}
+	digest := sha256.Sum256(data)
+	return AssetBundle{
+		Entry:       entry.File,
+		Revision:    fmt.Sprintf("%x", digest[:6]),
+		Stylesheets: stylesheets,
+	}
 }

@@ -164,6 +164,7 @@ function ColumnCell({
   column, frame, row, panel, location, max,
 }: { column: TableColumn; frame: Frame; row: Array<unknown>; panel: Panel; location: URL; max: number }) {
   const activation = useActionActivation(column.action)
+  const translate = useTranslate()
   const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
   const type = frame.columns[index]?.type ?? 'string'
   const value = index >= 0 ? row[index] : undefined
@@ -202,8 +203,15 @@ function ColumnCell({
   }
 
   if (column.clamp) {
+    const fullText = typeof value === 'string' ? value : undefined
     content = (
-      <span className="lens-table-clamp" style={{ WebkitLineClamp: column.clamp } as CSSProperties}>{content}</span>
+      <span
+        className="lens-table-clamp"
+        style={{ WebkitLineClamp: column.clamp } as CSSProperties}
+        title={fullText}
+      >
+        {content}
+      </span>
     )
   }
 
@@ -241,6 +249,26 @@ function ColumnCell({
   // A badge (e.g. an unmatched-source marker) rides beside the value; its
   // tooltip carries the producer's explanation.
   const badge = rowFieldString(frame, row, column.badgeField)
+  const sampleIndex = column.sampleSizeField
+    ? frame.columns.findIndex((candidate) => candidate.name === column.sampleSizeField)
+    : -1
+  const sampleSize = sampleIndex >= 0 ? numericValue(row[sampleIndex]) : undefined
+  const minimum = (column.minSampleSize ?? 0) > 0 ? column.minSampleSize! : 5
+  if (sampleSize !== undefined && sampleSize < minimum) {
+    const smallSampleLabel = translate(
+      'table.smallSample',
+      'Small sample: n={count}, minimum {minimum}',
+      { count: sampleSize, minimum },
+    )
+    rendered = (
+      <span className="lens-table-small-sample">
+        {rendered}
+        <span aria-label={smallSampleLabel} className="lens-table-small-sample-marker" title={smallSampleLabel}>
+          n&lt;{minimum}
+        </span>
+      </span>
+    )
+  }
   if (!badge) return rendered
   return (
     <span className="lens-table-cell-badged">
@@ -248,6 +276,23 @@ function ColumnCell({
       <span className="lens-table-cell-badge" title={badge}>?</span>
     </span>
   )
+}
+
+interface NumericRange {
+  min: number
+  max: number
+}
+
+function heatCellStyle(column: TableColumn, frame: Frame, row: Array<unknown>, ranges: Map<string, NumericRange>): CSSProperties | undefined {
+  if (!column.heat) return undefined
+  const index = frame.columns.findIndex((candidate) => candidate.name === column.field)
+  const value = index >= 0 ? numericValue(row[index]) : undefined
+  const range = ranges.get(column.field)
+  if (value === undefined || !range) return undefined
+  const spread = range.max - range.min
+  const intensity = spread > 0 ? (value - range.min) / spread : 0.5
+  const percentage = Math.round(7 + Math.max(0, Math.min(1, intensity)) * 21)
+  return { backgroundColor: `color-mix(in srgb, var(--lens-accent-500) ${percentage}%, var(--lens-bg-card))` }
 }
 
 function sortedRows(frame: Frame, sort: SortState | undefined): Array<{ row: Array<unknown>; index: number }> {
@@ -267,6 +312,11 @@ export interface TablePanelProps {
   panel: Panel
 }
 
+function TableSummaryCell({ panel, field, value }: { panel: Panel; field: string; value: unknown }) {
+  const display = useFormat(panel.format[field])
+  return <>{value === undefined ? '' : display(value)}</>
+}
+
 type RenderRow =
   | { row: Array<unknown>; index: number; kind: 'normal' | 'member' }
   | { row: Array<unknown>; index: number; kind: 'toggle'; group: string; expanded: boolean }
@@ -277,6 +327,8 @@ export function TablePanel({ panel }: TablePanelProps) {
   const pagination = usePanelPagination()
   const translate = useTranslate()
   const [sort, setSort] = useState<SortState>()
+  const [search, setSearch] = useState('')
+  const searchInitialized = useRef(false)
   const [requestedPage, setRequestedPage] = useState(frame.page?.number ?? 1)
   const requestedSnapshotId = useRef(document.snapshotId)
   const level: Level | undefined = navigation.panelId === panel.id && navigation.path.length
@@ -296,19 +348,19 @@ export function TablePanel({ panel }: TablePanelProps) {
   const columns = panel.columns?.length ? panel.columns : undefined
   // Column maxima scale bar cells. Computing them per cell is quadratic in
   // row count, so they are derived once per frame.
-  const columnMaxima = useMemo(() => {
+  const columnStats = useMemo(() => {
     const maxima = new Map<string, number>()
-    if (!frame.data || !columns) return maxima
+    const ranges = new Map<string, NumericRange>()
+    if (!frame.data || !columns) return { maxima, ranges }
     for (const column of columns) {
-      if (column.cell.kind !== 'bar') continue
+      if (column.cell.kind !== 'bar' && !column.heat) continue
       const index = frame.data.columns.findIndex((candidate) => candidate.name === column.field)
       if (index < 0) continue
-      maxima.set(column.field, frame.data.rows.reduce((accumulator, row) => {
-        const number = numericValue(row[index])
-        return number === undefined ? accumulator : Math.max(accumulator, Math.abs(number))
-      }, 0))
+      const values = frame.data.rows.map((row) => numericValue(row[index])).filter((value): value is number => value !== undefined)
+      if (column.cell.kind === 'bar') maxima.set(column.field, values.reduce((maximum, value) => Math.max(maximum, Math.abs(value)), 0))
+      if (column.heat && values.length > 0) ranges.set(column.field, { min: Math.min(...values), max: Math.max(...values) })
     }
-    return maxima
+    return { maxima, ranges }
   }, [columns, frame.data])
   // A panel-level leaf action applies to whole rows. In columns mode it has
   // no column of its own, so the table appends one; otherwise the action the
@@ -361,10 +413,22 @@ export function TablePanel({ panel }: TablePanelProps) {
     if (requestedSnapshotId.current !== document.snapshotId) {
       requestedSnapshotId.current = document.snapshotId
       setRequestedPage(1)
+      setSearch('')
+      searchInitialized.current = false
       return
     }
     if (frame.page?.number) setRequestedPage(frame.page.number)
   }, [document.snapshotId, frame.page?.number])
+
+  useEffect(() => {
+    if (!panel.table?.searchable) return undefined
+    if (!searchInitialized.current) {
+      searchInitialized.current = true
+      return undefined
+    }
+    const timeout = globalThis.setTimeout(() => { void pagination.search(panel.id, search) }, 250)
+    return () => globalThis.clearTimeout(timeout)
+  }, [pagination, panel.id, panel.table?.searchable, search])
 
   const changePage = (next: number) => {
     setRequestedPage(next)
@@ -386,6 +450,18 @@ export function TablePanel({ panel }: TablePanelProps) {
     <PanelFrame panel={panel} frame={frame} allowEmptyContent={Boolean(frame.page)}>
       {frame.data && (
         <div className="lens-table-view">
+          {panel.table?.searchable && (
+            <label className="lens-table-search">
+              <span className="lens-sr-only">{translate('table.search', 'Search table')}</span>
+              <input
+                aria-label={translate('table.search', 'Search table')}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder={translate('table.searchPlaceholder', 'Search all rows…')}
+                type="search"
+                value={search}
+              />
+            </label>
+          )}
           <div className="lens-table-scroll">
             <table className="lens-table">
               <thead>
@@ -468,7 +544,8 @@ export function TablePanel({ panel }: TablePanelProps) {
                     row={entry.row}
                     panel={panel}
                     location={location}
-                    columnMaxima={columnMaxima}
+                    columnMaxima={columnStats.maxima}
+                    columnRanges={columnStats.ranges}
                     expanded={entry.expanded}
                     onToggle={() => toggleGroup(entry.group)}
                     key={`toggle-${entry.group}`}
@@ -479,7 +556,10 @@ export function TablePanel({ panel }: TablePanelProps) {
                       <td
                         className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
                         key={column.field || `column-${columnIndex}`}
-                        style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
+                        style={{
+                          ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
+                          ...heatCellStyle(column, frame.data!, entry.row, columnStats.ranges),
+                        }}
                       >
                         <ColumnCell
                           column={column}
@@ -487,7 +567,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                           row={entry.row}
                           panel={panel}
                           location={location}
-                          max={columnMaxima.get(column.field) ?? 0}
+                          max={columnStats.maxima.get(column.field) ?? 0}
                         />
                       </td>
                     ))}
@@ -506,6 +586,23 @@ export function TablePanel({ panel }: TablePanelProps) {
                   </tr>
                 ))}
               </tbody>
+              {columns && frame.summary && Object.keys(frame.summary.values).length > 0 && (
+                <tfoot>
+                  <tr>
+                    {columns.map((column, index) => (
+                      <td
+                        className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+                        key={column.field || `summary-${index}`}
+                      >
+                        {index === 0
+                          ? translate('table.total', 'Total')
+                          : <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />}
+                      </td>
+                    ))}
+                    {rowLeafAction && <td />}
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
           <footer className="lens-table-footer">
@@ -517,8 +614,8 @@ export function TablePanel({ panel }: TablePanelProps) {
               {sortEnabled && frame.page && (
                 <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
               )}
-              {dataRowCount > 10 && (
-                <span className="lens-table-rowcount">{translate('table.rowCount', '{count} rows', { count: dataRowCount })}</span>
+              {(frame.summary?.filteredRows ?? dataRowCount) > 10 && (
+                <span className="lens-table-rowcount">{translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}</span>
               )}
             </span>
             {frame.page && (
@@ -551,7 +648,7 @@ export function TablePanel({ panel }: TablePanelProps) {
 // label, e.g. "Discontinued products (12)"); the remaining cells render the
 // row's aggregate values (e.g. the group's total delta) without drill chrome.
 function GroupToggleRow({
-  columns, frame, row, panel, location, columnMaxima, expanded, onToggle,
+  columns, frame, row, panel, location, columnMaxima, columnRanges, expanded, onToggle,
 }: {
   columns: Array<TableColumn>
   frame: Frame
@@ -559,6 +656,7 @@ function GroupToggleRow({
   panel: Panel
   location: URL
   columnMaxima: Map<string, number>
+  columnRanges: Map<string, NumericRange>
   expanded: boolean
   onToggle: () => void
 }) {
@@ -572,7 +670,10 @@ function GroupToggleRow({
           <td
             className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
             key={column.field || `column-${columnIndex}`}
-            style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
+            style={{
+              ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
+              ...heatCellStyle(column, frame, row, columnRanges),
+            }}
           >
             {columnIndex === 0 ? (
               <button aria-expanded={expanded} className="lens-table-group-toggle-btn" onClick={onToggle} type="button">

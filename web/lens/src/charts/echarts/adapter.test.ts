@@ -22,14 +22,14 @@ class FakeResizeObserver {
 }
 
 class FakeChart {
-  readonly handlers = new Map<string, (event: { data?: unknown }) => void>()
+  readonly handlers = new Map<string, (event: Record<string, unknown>) => void>()
   readonly options: EChartsOption[] = []
   readonly mergeOptions: Array<{ notMerge?: boolean; replaceMerge?: string[] }> = []
   readonly resize = vi.fn()
   readonly dispose = vi.fn()
   readonly dispatchAction = vi.fn()
 
-  on(name: string, handler: (event: { data?: unknown }) => void) {
+  on(name: string, handler: (event: Record<string, unknown>) => void) {
     this.handlers.set(name, handler)
   }
 
@@ -38,7 +38,7 @@ class FakeChart {
     this.mergeOptions.push(mergeOptions)
   }
 
-  emit(name: string, event: { data?: unknown } = {}) {
+  emit(name: string, event: Record<string, unknown> = {}) {
     this.handlers.get(name)?.(event)
   }
 }
@@ -100,7 +100,7 @@ describe('ECharts adapter', () => {
     chart.emit('mouseout')
 
     expect(onSelect).toHaveBeenCalledOnce()
-    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined)
+    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined, { newTab: false })
     expect(onHover).toHaveBeenNthCalledWith(1, 'stable/key')
     expect(onHover).toHaveBeenNthCalledWith(2, null)
 
@@ -109,6 +109,40 @@ describe('ECharts adapter', () => {
     instance.dispose()
     expect(chart.dispose).toHaveBeenCalledOnce()
     expect(FakeResizeObserver.instances[0]?.disconnect).toHaveBeenCalledOnce()
+  })
+
+  it('carries Ctrl/Cmd activation and resets the time zoom window', () => {
+    const chart = new FakeChart()
+    const onSelect = vi.fn()
+    const element = document.createElement('div')
+    document.body.append(element)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), { onSelect, onHover: vi.fn() })
+
+    chart.emit('click', { data: { nodeKey: 'stable/key' }, event: { event: { ctrlKey: true, metaKey: false } } })
+    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined, { newTab: true })
+    instance.resetZoom?.()
+    expect(chart.dispatchAction).toHaveBeenCalledWith({ type: 'dataZoom', start: 0, end: 100 })
+    instance.dispose()
+  })
+
+  it('shows the full axis label on hover and removes it on exit', () => {
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    document.body.append(element)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), {
+      onSelect: vi.fn(), onHover: vi.fn(),
+    })
+
+    chart.emit('mouseover', {
+      componentType: 'xAxis',
+      value: 'A very long insurance product name',
+      event: { event: new MouseEvent('mousemove', { clientX: 120, clientY: 80 }) },
+    })
+    expect(document.querySelector('.lens-axis-label-tooltip')).toHaveTextContent('A very long insurance product name')
+
+    chart.emit('mouseout')
+    expect(document.querySelector('.lens-axis-label-tooltip')).toBeNull()
+    instance.dispose()
   })
 
   it('ignores self-fed height growth so the chart converges instead of inflating', () => {

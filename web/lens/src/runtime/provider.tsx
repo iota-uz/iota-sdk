@@ -10,9 +10,10 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import type { DashboardDocument, FieldFormat, Filter, Frame, NodeKey, NodePath, Panel, PeriodValue, QueryPage, QueryRequest } from '../contract'
+import type { CompareValue, DashboardDocument, FieldFormat, Filter, Frame, NodeKey, NodePath, Panel, PanelCalculation, PeriodValue, QueryPage, QueryRequest, TableSummary } from '../contract'
 import { fetchDocument } from './document'
 import {
+	compareValues,
   declaredFilters,
   periodValues,
   readFilterValues,
@@ -47,6 +48,8 @@ import { LensDrawer } from './drawer'
 import { DocumentCache } from './prefetch'
 import type { PrintReport } from './print'
 import { QueryClient } from './query'
+import { PanelClient } from './panel'
+import { SnapshotGoneError } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
 import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL } from './url'
 import { X } from '../icons'
@@ -234,6 +237,9 @@ export interface DashboardContextValue {
   navigation: NavigationState
   notice?: string
   dismissNotice: () => void
+  canRecompute: boolean
+  isRecomputing: boolean
+  recompute: () => void
 }
 
 export interface DrillContextValue {
@@ -255,6 +261,8 @@ export interface FiltersContextValue {
   /** URL-derived values; a control falls back to its declared value. */
   values: FilterValues
   setPeriod: (filter: Filter, value: PeriodValue) => void
+	setCompare: (filter: Filter, value: CompareValue) => void
+	applyURL: (url: string | URL, options?: { newTab?: boolean }) => void
 }
 
 export interface DrawerContextValue {
@@ -274,6 +282,8 @@ export interface PanelFrameState {
   isLoading: boolean
   error: Error | null
   retry: () => void
+  calculation?: PanelCalculation
+  summary?: TableSummary
 }
 
 export type ExportStatus = 'idle' | 'pending' | 'retry' | 'error'
@@ -285,6 +295,7 @@ export interface ExportState {
 
 export interface PanelPaginationContextValue {
   loadPage: (panelId: string, page: number) => Promise<void>
+  search: (panelId: string, value: string) => Promise<void>
 }
 
 export interface ExportContextValue {
@@ -746,6 +757,7 @@ function RuntimeCore({
   const [retryToken, setRetryToken] = useState(0)
   const forceRetry = useRef(false)
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
+  const searchLoader = useRef<(panelId: string, search: string) => Promise<void>>()
   const replaceNextURL = useRef(true)
   const drawerOpener = useRef<HTMLElement>()
   // The drawer portals to body and stacks above an expanded panel, so it carries
@@ -758,6 +770,15 @@ function RuntimeCore({
     drawerCache.current?.configure({ csrf, fetcher })
   }, [csrf, fetcher])
   const frameStore = useRef<PanelFrameStore>()
+	const [panelAttempts, setPanelAttempts] = useState<Record<string, number>>({})
+	const panelForces = useRef(new Set<string>())
+	const launchedPanelAttempts = useRef(new Map<string, number>())
+	const recomputePending = useRef(new Set<string>())
+	const [isRecomputing, setIsRecomputing] = useState(false)
+	const schedulePanel = useCallback((panelId: string, recompute = false) => {
+		if (recompute) panelForces.current.add(panelId)
+		setPanelAttempts((current) => ({ ...current, [panelId]: (current[panelId] ?? 0) + 1 }))
+	}, [])
   const retryFrame = useCallback(() => {
     forceRetry.current = true
     setRetryToken((value) => value + 1)
@@ -777,16 +798,22 @@ function RuntimeCore({
       frames.set(panel.id, {
         data: document.frames[panel.frame],
         isStale: false,
-        isLoading: false,
+        isLoading: Boolean(panel.deferred),
         error: null,
-        retry: retryFrame,
+        retry: panel.deferred ? () => schedulePanel(panel.id) : retryFrame,
       })
     }
   }
   const endpoint = document.endpoints.query
   const queryClient = useMemo(() => endpoint ? new QueryClient(endpoint, { csrf, fetcher }) : undefined, [csrf, endpoint, fetcher])
+	const panelEndpoint = sourceDocument.endpoints.panel
+	const panelClient = useMemo(
+		() => panelEndpoint ? new PanelClient(panelEndpoint, { csrf, fetcher }) : undefined,
+		[csrf, fetcher, panelEndpoint],
+	)
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])
+	useEffect(() => () => panelClient?.dispose(), [panelClient])
 
   useEffect(() => {
     if (exportSnapshotId.current === document.snapshotId) return
@@ -795,16 +822,94 @@ function RuntimeCore({
   }, [document.snapshotId])
 
   useEffect(() => {
-    for (const panel of document.panels) {
+	// A document can legitimately return to an earlier snapshot through
+	// browser Back. Panel attempts are scoped to the active document lifecycle,
+	// not to a snapshot forever: retaining the old `${snapshot}:${panel}` keys
+	// makes every deferred panel in the restored document stay on its skeleton
+	// because the runtime mistakes a previous hydration for the current one.
+	launchedPanelAttempts.current.clear()
+    for (const panel of sourceDocument.panels) {
       frames.set(panel.id, {
-        data: document.frames[panel.frame],
+        data: sourceDocument.frames[panel.frame],
         isStale: false,
-        isLoading: false,
+        isLoading: Boolean(panel.deferred),
         error: null,
-        retry: retryFrame,
+        retry: panel.deferred ? () => schedulePanel(panel.id) : retryFrame,
       })
     }
-  }, [document, frames, retryFrame])
+  }, [frames, retryFrame, schedulePanel, sourceDocument])
+
+	useEffect(() => {
+		if (!panelClient) return
+		for (const panel of sourceDocument.panels) {
+			const attempt = panelAttempts[panel.id] ?? 0
+			const force = panelForces.current.has(panel.id)
+			if (!panel.deferred && !force) continue
+			const key = `${sourceDocument.snapshotId}:${panel.id}`
+			if (launchedPanelAttempts.current.get(key) === attempt) continue
+			launchedPanelAttempts.current.set(key, attempt)
+			panelForces.current.delete(panel.id)
+			const previous = frames.get(panel.id)?.data
+			const retry = () => schedulePanel(panel.id)
+			frames.set(panel.id, {
+				data: previous,
+				isStale: Boolean(previous),
+				isLoading: true,
+				error: null,
+				retry,
+				calculation: frames.get(panel.id)?.calculation,
+			})
+			void panelClient.load({
+				snapshotId: sourceDocument.snapshotId,
+				panelId: panel.id,
+				...(force ? { recompute: true } : {}),
+			}).then((response) => {
+				if (launchedPanelAttempts.current.get(key) !== attempt) return
+				const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
+				if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
+				frames.set(panel.id, {
+					data: loaded, isStale: false, isLoading: false, error: null, retry,
+					calculation: response.calculation,
+					summary: response.summary,
+				})
+				setRuntimeDocument((current) => {
+					if (current.snapshotId !== sourceDocument.snapshotId || current.frames[panel.frame] === loaded) return current
+					return { ...current, frames: { ...current.frames, [panel.frame]: loaded } }
+				})
+			}).catch((cause: unknown) => {
+				if (launchedPanelAttempts.current.get(key) !== attempt) return
+				if (cause instanceof SnapshotGoneError) {
+					void refreshDocument().catch(() => undefined)
+					return
+				}
+				frames.set(panel.id, {
+					data: previous,
+					isStale: Boolean(previous),
+					isLoading: false,
+					error: cause instanceof Error ? cause : new Error('panel request failed'),
+					retry,
+					calculation: frames.get(panel.id)?.calculation,
+				})
+			}).finally(() => {
+				if (!force) return
+				if (!recomputePending.current.delete(panel.id)) return
+				if (recomputePending.current.size === 0) setIsRecomputing(false)
+			})
+		}
+	}, [frames, panelAttempts, panelClient, refreshDocument, schedulePanel, setRuntimeDocument, sourceDocument])
+
+	const recompute = useCallback(() => {
+		if (!panelClient || sourceDocument.panels.length === 0) return
+		const ids = sourceDocument.panels.map(({ id }) => id)
+		recomputePending.current = new Set(ids)
+		for (const id of ids) panelForces.current.add(id)
+		setIsRecomputing(true)
+		setPanelAttempts((current) => {
+			const next = { ...current }
+			for (const id of ids) next[id] = (next[id] ?? 0) + 1
+			return next
+		})
+	}, [panelClient, sourceDocument.panels])
 
   useEffect(() => {
     if (pathResolves(document, runtimeView.path, runtimeView.perspectiveId) ||
@@ -973,9 +1078,43 @@ function RuntimeCore({
   }, [dispatch, document, driftNotice, frames, queryClient, refreshDocument, runtimeView])
   pageLoader.current = loadPage
 
+  const searchPanel = useCallback(async (panelId: string, search: string) => {
+	if (!panelClient) return
+	const panel = sourceDocument.panels.find((candidate) => candidate.id === panelId)
+	if (!panel?.table?.searchable) return
+	const previousState = frames.get(panelId)
+	const previous = previousState?.data ?? sourceDocument.frames[panel.frame]
+	const retry = () => { void searchLoader.current?.(panelId, search) }
+	frames.set(panelId, {
+		data: previous, isStale: Boolean(previous), isLoading: !previous, error: null, retry,
+		calculation: previousState?.calculation, summary: previousState?.summary,
+	})
+	try {
+		const response = await panelClient.load({ snapshotId: sourceDocument.snapshotId, panelId, search })
+		const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
+		if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
+		frames.set(panelId, {
+			data: loaded, isStale: false, isLoading: false, error: null, retry,
+			calculation: response.calculation, summary: response.summary,
+		})
+	} catch (cause: unknown) {
+		if (cause instanceof SnapshotGoneError) {
+			await refreshDocument().catch(() => undefined)
+			return
+		}
+		frames.set(panelId, {
+			data: previous, isStale: Boolean(previous), isLoading: false,
+			error: cause instanceof Error ? cause : new Error('panel search failed'), retry,
+			calculation: previousState?.calculation, summary: previousState?.summary,
+		})
+	}
+  }, [frames, panelClient, refreshDocument, sourceDocument])
+  searchLoader.current = searchPanel
+
   const pagination = useMemo<PanelPaginationContextValue>(() => ({
     loadPage: (panelId, page) => loadPage(panelId, page),
-  }), [loadPage])
+    search: (panelId, value) => searchPanel(panelId, value),
+  }), [loadPage, searchPanel])
 
   const runExport = useCallback(async (panelId?: string) => {
     const scope = exportScope(panelId)
@@ -1105,11 +1244,38 @@ function RuntimeCore({
     syncFiltersFromURL()
   }, [filtersEnabled, navigation, syncFiltersFromURL])
 
+	const applyFilterURL = useCallback((target: string | URL, options?: { newTab?: boolean }) => {
+		if (!filtersEnabled || typeof window === 'undefined') return
+		const next = new URL(target, window.location.href)
+		if (next.origin !== window.location.origin) return
+		if (options?.newTab) {
+			window.open(next.href, '_blank', 'noopener')
+			return
+		}
+		const current = new URL(window.location.href)
+		if (!sameNavigationURL(current, next)) {
+			window.history.pushState(browserStateFor(navigation, window.history.state), '', next)
+		}
+		syncFiltersFromURL()
+	}, [filtersEnabled, navigation, syncFiltersFromURL])
+
+	const setCompare = useCallback((filter: Filter, value: CompareValue) => {
+		if (!filter.compare || typeof window === 'undefined') return
+		const merged = { ...filterValuesRef.current }
+		delete merged[filter.compare.startParam]
+		delete merged[filter.compare.endParam]
+		Object.assign(merged, compareValues(filter.compare, value))
+		const next = writeFilterValues(new URL(window.location.href), documentRef.current, merged)
+		applyFilterURL(next)
+	}, [applyFilterURL])
+
   const filters = useMemo<FiltersContextValue>(() => ({
     filters: filtersEnabled ? declaredFilters(document) : [],
     values: filterValues,
     setPeriod,
-  }), [document, filterValues, filtersEnabled, setPeriod])
+		setCompare,
+		applyURL: applyFilterURL,
+	}), [applyFilterURL, document, filterValues, filtersEnabled, setCompare, setPeriod])
 
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
@@ -1172,7 +1338,10 @@ function RuntimeCore({
       void drawerCache.current?.prefetch(src)
     },
   }), [closeDrawer, dispatch, drawerDepth, navigation.drawer, onDrawerNavigate])
-  const dashboard = useMemo(() => ({ document, navigation, notice, dismissNotice: () => setNotice(undefined) }), [document, navigation, notice])
+  const dashboard = useMemo(() => ({
+    document, navigation, notice, dismissNotice: () => setNotice(undefined),
+    canRecompute: Boolean(panelClient), isRecomputing, recompute,
+  }), [document, isRecomputing, navigation, notice, panelClient, recompute])
 
   return (
     <LocaleContext.Provider value={locale}>

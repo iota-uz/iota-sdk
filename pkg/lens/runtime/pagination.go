@@ -10,6 +10,7 @@ const (
 	TablePaginationPanelQuery = "_lp"
 	TablePaginationPageQuery  = "_lpage"
 	TablePaginationLimitQuery = "_llimit"
+	TableSearchQuery          = "_lsearch"
 
 	DefaultTablePage    = 1
 	DefaultTablePerPage = 50

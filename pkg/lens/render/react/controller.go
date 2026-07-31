@@ -9,10 +9,12 @@ import (
 )
 
 const immutableCacheControl = "public, max-age=31536000, immutable"
+const staticRouteName = "lens.react.assets"
 
 type StaticController struct {
-	basePath string
-	handler  http.Handler
+	basePath         string
+	handler          http.Handler
+	versionedHandler http.Handler
 }
 
 var _ application.Controller = (*StaticController)(nil)
@@ -24,8 +26,9 @@ func NewStaticController() *StaticController {
 func NewStaticControllerAt(basePath string) *StaticController {
 	basePath = normalizeAssetBasePath(basePath)
 	return &StaticController{
-		basePath: basePath,
-		handler:  http.StripPrefix(basePath+"/", http.FileServer(http.FS(DistFS()))),
+		basePath:         basePath,
+		handler:          http.StripPrefix(basePath+"/", http.FileServer(http.FS(DistFS()))),
+		versionedHandler: http.StripPrefix(basePath+"/"+productionAssets.Revision+"/", http.FileServer(http.FS(DistFS()))),
 	}
 }
 
@@ -38,17 +41,25 @@ func (c *StaticController) Descriptor() application.ControllerDescriptor {
 }
 
 func (c *StaticController) Register(router *mux.Router) {
-	router.PathPrefix(c.basePath + "/").Handler(http.HandlerFunc(c.serveHTTP))
+	if router.GetRoute(staticRouteName) != nil {
+		return
+	}
+	router.PathPrefix(c.basePath + "/").Name(staticRouteName).Handler(http.HandlerFunc(c.serveHTTP))
 }
 
 func (c *StaticController) serveHTTP(w http.ResponseWriter, r *http.Request) {
 	relativePath := strings.TrimPrefix(r.URL.Path, c.basePath+"/")
-	if strings.HasPrefix(relativePath, "assets/") {
+	versionedPrefix := productionAssets.Revision + "/"
+	if strings.HasPrefix(relativePath, "assets/") || strings.HasPrefix(relativePath, versionedPrefix+"assets/") {
 		w.Header().Set("Cache-Control", immutableCacheControl)
 	} else {
 		w.Header().Set("Cache-Control", "no-cache")
 	}
 	w.Header().Set("X-Content-Type-Options", "nosniff")
+	if strings.HasPrefix(relativePath, versionedPrefix) {
+		c.versionedHandler.ServeHTTP(w, r)
+		return
+	}
 	c.handler.ServeHTTP(w, r)
 }
 

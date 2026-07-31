@@ -33,6 +33,7 @@ export function useMarkSelection(): MarkSelectionHandler | undefined {
 
 export interface LegendVisibility {
   hidden: ReadonlySet<string>
+  set(keys: ReadonlySet<string>): void
   toggle(key: string): void
   reset(): void
 }

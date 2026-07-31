@@ -13,6 +13,7 @@ const cascadePanel: Panel = {
     balance: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
     movement: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -41,6 +42,7 @@ const tonedBridgePanel: Panel = {
     movement: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 },
   },
   presentation: { bridgeLayout: 'waterfall' },
+  terminal: true,
   actions: [],
 }
 
@@ -76,6 +78,7 @@ const officialResultPanel: Panel = {
     movement: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 },
   },
   presentation: { bridgeLayout: 'waterfall' },
+  terminal: true,
   actions: [],
 }
 
@@ -189,7 +192,21 @@ const notedPanel: Panel = {
 function OpenInfoTip({ children }: { children: React.ReactNode }) {
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    ref.current?.querySelector<HTMLElement>('.lens-info-tip-button')?.click()
+    let cancelled = false
+    let attempts = 0
+    const open = () => {
+      if (cancelled) return
+      const button = ref.current?.querySelector<HTMLElement>('.lens-info-tip-button')
+      if (button) {
+        button.click()
+        return
+      }
+      if (attempts++ < 60) window.requestAnimationFrame(open)
+    }
+    void window.document.fonts.ready.then(() => {
+      window.requestAnimationFrame(() => window.requestAnimationFrame(open))
+    })
+    return () => { cancelled = true }
   }, [])
   return <div ref={ref}>{children}</div>
 }

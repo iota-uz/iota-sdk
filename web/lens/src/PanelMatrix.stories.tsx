@@ -3,7 +3,7 @@ import { useEffect } from 'react'
 import type { DashboardDocument, Frame, Panel, PanelKind } from './contract'
 import type { ChartAdapter, ChartInput } from './charts/adapter'
 import {
-  BarPanel, CascadePanel, CoveragePanel, LinePanel, MetricFlowPanel, MetricHierarchyPanel,
+  BarPanel, CascadePanel, CoveragePanel, DistributionPanel, LinePanel, MetricFlowPanel, MetricHierarchyPanel,
   MetricRelationshipPanel, PiePanel, StatPanel, TablePanel,
 } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider, useDrill } from './runtime'
@@ -14,7 +14,7 @@ type StoryKind = PanelKind
 
 const kinds: StoryKind[] = [
   'stat', 'pie', 'donut', 'bar', 'hbar', 'line', 'area', 'cascade', 'table',
-  'radial',
+  'radial', 'histogram', 'boxplot', 'heatmap',
   'metric_flow', 'metric_hierarchy', 'metric_relationship',
 ]
 const states: PanelState[] = ['loading', 'empty', 'error', 'stale', 'data']
@@ -33,6 +33,24 @@ const chartFrame: Frame = {
     ['root/south', 'South', '2026-05-01T00:00:00Z', 'Actual', 41],
     ['root/east', 'East', '2026-06-01T00:00:00Z', 'Plan', 27],
   ],
+}
+
+const histogramFrame: Frame = {
+  columns: [{ name: 'bucket', type: 'string' }, { name: 'count', type: 'number' }],
+  rows: [['0–7', 18], ['8–14', 42], ['15–30', 31]],
+}
+
+const boxPlotFrame: Frame = {
+  columns: [
+    { name: 'product', type: 'string' }, { name: 'lower', type: 'number' }, { name: 'q1', type: 'number' },
+    { name: 'median', type: 'number' }, { name: 'q3', type: 'number' }, { name: 'upper', type: 'number' },
+  ],
+  rows: [['OSAGO', 1, 8, 19, 42, 146], ['KASKO', 2, 12, 31, 68, 210]],
+}
+
+const heatmapFrame: Frame = {
+  columns: [{ name: 'hour', type: 'string' }, { name: 'weekday', type: 'string' }, { name: 'count', type: 'number' }],
+  rows: [['08:00', 'Mon', 8], ['12:00', 'Mon', 17], ['08:00', 'Tue', 12], ['12:00', 'Tue', 24]],
 }
 
 const radialFrame: Frame = {
@@ -115,6 +133,7 @@ const flowPanel: Panel = {
     ],
     reconcile: { tolerance: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -154,6 +173,7 @@ const hierarchyPanel: Panel = {
     ],
     reconcile: { tolerance: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -176,6 +196,7 @@ const relationshipPanel: Panel = {
     type: 'association',
     direction: 'bidirectional',
   },
+  terminal: true,
   actions: [],
 }
 
@@ -189,6 +210,7 @@ function storyPanel(kind: StoryKind): Panel {
   const metricPanel = metricPanels[kind]
   if (metricPanel) return metricPanel
   const chart = kind !== 'stat'
+  const distribution = kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap'
   return {
     id: `${kind}-panel`,
     kind,
@@ -199,6 +221,12 @@ function storyPanel(kind: StoryKind): Panel {
       ? { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' }
       : kind === 'table'
         ? { id: 'transactionId', label: 'counterparty', value: 'amount' }
+        : kind === 'histogram'
+          ? { category: 'bucket', value: 'count' }
+          : kind === 'boxplot'
+            ? { category: 'product', lower: 'lower', q1: 'q1', median: 'median', q3: 'q3', upper: 'upper' }
+            : kind === 'heatmap'
+              ? { category: 'hour', series: 'weekday', value: 'count' }
         : kind === 'radial'
         ? { id: 'id', label: 'label', series: 'series', value: 'value' }
         : chart
@@ -212,7 +240,8 @@ function storyPanel(kind: StoryKind): Panel {
           value: { kind: 'money', currency: 'USD', minorUnits: true, precision: 0 },
           delta: { kind: 'percent', minorUnits: false, precision: 1 },
         },
-    drillRoot: 'root',
+    drillRoot: distribution ? undefined : 'root',
+    terminal: distribution || undefined,
     actions: kind === 'table' ? [{
       kind: 'navigate_to_leaf', urlTemplate: '/transactions/{id}',
       params: [{ name: 'id', source: { kind: 'field', name: 'transactionId' } }], payload: {},
@@ -243,6 +272,12 @@ function storyDocument(kind: StoryKind, state: PanelState): DashboardDocument {
     ? relationshipFrame
     : kind === 'radial'
     ? radialFrame
+    : kind === 'histogram'
+    ? histogramFrame
+    : kind === 'boxplot'
+    ? boxPlotFrame
+    : kind === 'heatmap'
+    ? heatmapFrame
     : chartFrame
   const includeFrame = state === 'data' || state === 'stale' || state === 'empty'
   return {
@@ -369,6 +404,7 @@ function StoryPanel({ panel }: { panel: Panel }) {
   if (panel.kind === 'metric_flow') return <MetricFlowPanel panel={panel} />
   if (panel.kind === 'metric_hierarchy') return <MetricHierarchyPanel panel={panel} />
   if (panel.kind === 'metric_relationship') return <MetricRelationshipPanel panel={panel} />
+  if (panel.kind === 'histogram' || panel.kind === 'boxplot' || panel.kind === 'heatmap') return <DistributionPanel panel={panel} adapter={storyChartAdapter} />
   if (panel.kind === 'pie' || panel.kind === 'donut') return <PiePanel panel={panel} adapter={storyChartAdapter} />
   if (panel.kind === 'bar' || panel.kind === 'hbar') return <BarPanel panel={panel} adapter={storyChartAdapter} />
   return <LinePanel panel={panel} adapter={storyChartAdapter} />

@@ -86,12 +86,16 @@ func resolveDashboardOptions(options ...Option) dashboardOptions {
 	}
 
 	assets := Assets()
-	resolved.EntryURL = joinAssetURL(resolved.AssetBasePath, assets.Entry)
+	resolved.EntryURL = versionedAssetURL(resolved.AssetBasePath, assets.Revision, assets.Entry)
 	resolved.Stylesheets = make([]string, 0, len(assets.Stylesheets))
 	for _, stylesheet := range assets.Stylesheets {
-		resolved.Stylesheets = append(resolved.Stylesheets, joinAssetURL(resolved.AssetBasePath, stylesheet))
+		resolved.Stylesheets = append(resolved.Stylesheets, versionedAssetURL(resolved.AssetBasePath, assets.Revision, stylesheet))
 	}
 	return resolved
+}
+
+func versionedAssetURL(basePath, revision, assetPath string) string {
+	return joinAssetURL(joinAssetURL(basePath, revision), assetPath)
 }
 
 func joinAssetURL(basePath, assetPath string) string {

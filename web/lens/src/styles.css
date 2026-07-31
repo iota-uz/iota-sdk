@@ -83,6 +83,113 @@
   }
 }
 
+.lens-saved-views {
+  position: relative;
+}
+
+.lens-saved-views-popover {
+  background: var(--lens-bg-card);
+  border: 1px solid var(--lens-border);
+  border-radius: var(--lens-radius-card);
+  box-shadow: var(--lens-shadow-popover);
+  color: var(--lens-text);
+  display: grid;
+  gap: 0;
+  max-height: min(620px, calc(100vh - 96px));
+  overflow: auto;
+  padding: 0.75rem;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  width: min(420px, calc(100vw - 2rem));
+  z-index: 45;
+}
+
+.lens-saved-views-section {
+  display: grid;
+  gap: 0.5rem;
+  padding: 0.65rem 0;
+}
+
+.lens-saved-views-section + .lens-saved-views-section {
+  border-top: 1px solid var(--lens-border);
+}
+
+.lens-saved-views-section input,
+.lens-saved-views-section select {
+  background: var(--lens-bg-card);
+  border: 1px solid var(--lens-border);
+  border-radius: var(--lens-radius-sm);
+  color: var(--lens-text);
+  min-height: 2.25rem;
+  min-width: 0;
+  padding: 0.4rem 0.55rem;
+}
+
+.lens-saved-view-fields {
+  display: grid;
+  gap: 0.5rem;
+  grid-template-columns: minmax(0, 1fr) minmax(7rem, auto);
+}
+
+.lens-saved-view-fields button,
+.lens-saved-view-delete {
+  background: var(--lens-bg-inset);
+  border: 1px solid var(--lens-border);
+  border-radius: var(--lens-radius-sm);
+  color: var(--lens-text);
+  cursor: pointer;
+  padding: 0.4rem 0.65rem;
+}
+
+.lens-saved-view-row {
+  align-items: stretch;
+  display: flex;
+  gap: 0.35rem;
+}
+
+.lens-saved-view-open {
+  align-items: flex-start;
+  background: transparent;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex: 1;
+  justify-content: space-between;
+  min-width: 0;
+  padding: 0.4rem 0.25rem;
+  text-align: left;
+}
+
+.lens-saved-view-open span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lens-saved-view-open small,
+.lens-saved-view-schedule,
+.lens-muted {
+  color: var(--lens-text-muted);
+}
+
+.lens-saved-view-schedule {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 640px) {
+  .lens-saved-views-popover {
+    position: fixed;
+    right: 1rem;
+    top: 4.5rem;
+  }
+
+  .lens-saved-view-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 @layer components {
   .lens-root {
     @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
@@ -315,6 +422,43 @@
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-3;
   }
 
+	.lens-compare-filter,
+	.lens-compare-filter label,
+	.lens-compare-custom {
+		display: inline-flex;
+		align-items: center;
+		gap: 0.5rem;
+	}
+
+	.lens-compare-filter select,
+	.lens-compare-custom input,
+	.lens-compare-custom button {
+		min-height: 2rem;
+		border: 1px solid var(--lens-border);
+		border-radius: 0.5rem;
+		background: var(--lens-surface);
+		color: var(--lens-text);
+		padding: 0.25rem 0.5rem;
+	}
+
+	.lens-chart-reset-zoom {
+		position: absolute;
+		right: 0.5rem;
+		top: 0.25rem;
+		z-index: 2;
+		border: 1px solid var(--lens-border);
+		border-radius: 999px;
+		background: var(--lens-surface);
+		color: var(--lens-muted);
+		padding: 0.2rem 0.55rem;
+		font-size: 0.72rem;
+	}
+
+	.lens-trend-chip-absolute {
+		font-variant-numeric: tabular-nums;
+		opacity: 0.82;
+	}
+
   .lens-filter {
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
   }
@@ -377,24 +521,48 @@
   }
 
   .lens-facet-option {
-    @apply lens-flex lens-min-h-9 lens-items-center lens-gap-2 lens-rounded-control lens-px-2 lens-py-1.5 lens-text-sm lens-text-text lens-no-underline;
+    @apply lens-relative lens-isolate lens-flex lens-min-h-9 lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-px-2 lens-py-1.5 lens-text-sm lens-text-text;
   }
 
-  .lens-facet-option:hover,
-  .lens-facet-option[aria-current='true'] {
+  .lens-facet-option:hover {
     @apply lens-bg-accent-50 lens-text-strong;
   }
 
-  .lens-facet-check {
-    @apply lens-flex lens-size-4 lens-flex-none lens-items-center lens-justify-center lens-text-xs lens-font-bold lens-text-accent-600;
+  .lens-facet-option > input {
+    @apply lens-relative lens-z-10 lens-size-4 lens-flex-none lens-cursor-pointer;
+
+    accent-color: var(--lens-accent-500);
+  }
+
+  .lens-facet-option-bar {
+    @apply lens-pointer-events-none lens-absolute lens-inset-y-0 lens-left-0 lens-z-0 lens-rounded-control;
+
+    background: color-mix(in srgb, var(--lens-accent-500) 10%, transparent);
+    transition: width var(--lens-dur-base) var(--lens-ease-standard);
   }
 
   .lens-facet-option-label {
-    @apply lens-min-w-0 lens-flex-1 lens-break-words;
+    @apply lens-relative lens-z-10 lens-min-w-0 lens-flex-1 lens-break-words;
   }
 
   .lens-facet-option-count {
-    @apply lens-flex-none lens-tabular-nums lens-text-xs lens-text-muted;
+    @apply lens-relative lens-z-10 lens-flex-none lens-tabular-nums lens-text-xs lens-text-muted;
+  }
+
+  .lens-facet-actions {
+    @apply lens-flex lens-items-center lens-justify-end lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-2;
+  }
+
+  .lens-facet-actions button {
+    @apply lens-min-h-8 lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+  }
+
+  .lens-facet-actions .lens-facet-apply {
+    @apply lens-border-accent-600 lens-bg-accent-600 lens-text-white;
+  }
+
+  .lens-facet-actions button:disabled {
+    @apply lens-cursor-not-allowed lens-opacity-50;
   }
 
   .lens-facet-state {
@@ -1042,19 +1210,14 @@
     background: var(--lens-border-strong);
   }
 
-  /* Items align to the START of their track, not stretch: a short panel (a
-     cascade, a coverage card, a stat) shrink-wraps to its content instead of
-     being pulled to the height of a tall sibling (a 25-row product table),
-     which used to leave dead whitespace under the short panel and float its
-     footer/delta chip at the bottom of that gap. Panels that must hold a floor
-     height carry their own min-height (`.lens-panel` min-h-44; `.lens-chart-host`
-     19rem, `.lens-chart-canvas` 17rem), so charts never collapse. */
+  /* One analytical row is one visual band: every card stretches to the tallest
+     sibling, so a short plot cannot leave a misleading hole beneath itself. */
   .lens-panel-grid {
-    @apply lens-grid lens-grid-cols-1 lens-items-start lens-gap-4 md:lens-grid-cols-12;
+    @apply lens-grid lens-grid-cols-1 lens-items-stretch lens-gap-4 md:lens-grid-cols-12;
   }
 
   .lens-grid-item {
-    @apply lens-col-span-1 lens-min-w-0;
+    @apply lens-col-span-1 lens-h-full lens-min-w-0;
   }
 
   @media (min-width: 768px) {
@@ -1102,7 +1265,7 @@
     }
   }
 
-  .lens-panel-actions {
+.lens-panel-actions {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-justify-end lens-gap-2;
   }
 
@@ -1139,19 +1302,27 @@
     @apply lens-size-4 lens-text-[13px];
   }
 
+  /* The portal host fills the viewport only to carry theme variables. It must
+     not become an invisible hit target over the trigger: doing so alternates
+     mouseleave/mouseenter forever while the pointer stays on the info glyph.
+     The bubble opts back into hit testing so its text remains selectable. */
+  .lens-info-tip-overlay-root {
+    pointer-events: none;
+  }
+
   .lens-info-tip-bubble {
-    @apply lens-fixed lens-z-50 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-overflow-y-auto lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+    @apply lens-fixed lens-z-50 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-overflow-y-auto lens-rounded-card lens-border lens-border-solid lens-border-strong lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
 
     max-height: calc(100vh - 1rem);
     box-shadow: var(--lens-shadow-popover);
   }
 
   .lens-info-tip-title {
-    @apply lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
+    @apply lens-text-[10px] lens-font-bold lens-uppercase lens-tracking-wider lens-text-text;
   }
 
   .lens-info-tip-text {
-    @apply lens-whitespace-pre-line lens-text-xs lens-leading-relaxed lens-text-muted;
+    @apply lens-whitespace-pre-line lens-text-xs lens-font-medium lens-leading-relaxed lens-text-strong;
   }
 
   .lens-panel-caption {
@@ -1648,8 +1819,8 @@
   }
 
   /* A sweeping gradient reads as "in flight" on a white card, where a plain
-     gray pulse is nearly invisible. Matches the templ renderer's shimmer so a
-     server-rendered placeholder and a runtime one are indistinguishable. */
+     gray pulse is nearly invisible. Matches the server fallback shimmer so
+     the pre-document and runtime placeholders are indistinguishable. */
   .lens-shimmer {
     @apply lens-block lens-rounded-full;
     background-color: #e2e8f0;
@@ -1799,10 +1970,14 @@
        that fits beside the plot never scrolls and a longer one scrolls instead
        of dragging the plot's height along with it. An expanded panel has a real
        height to measure against, so there the legend follows it. */
-    .lens-chart-layout-legend > .lens-chart-legend {
+    .lens-chart-layout-legend > .lens-chart-legend-shell {
       flex: 0 0 auto;
       width: clamp(9rem, 32%, 15rem);
       max-height: var(--lens-chart-legend-max, 21rem);
+      align-self: center;
+    }
+
+    .lens-chart-layout-legend > .lens-chart-legend-shell > .lens-chart-legend {
       flex-direction: column;
       flex-wrap: nowrap;
       align-items: stretch;
@@ -1810,12 +1985,11 @@
          Plain centring pushes the overflow out of both ends and opens on the
          middle of the legend, with the first products above the scroll origin. */
       justify-content: safe center;
-      align-self: center;
       overflow-y: auto;
       padding: 0.75rem 0.5rem;
     }
 
-    .lens-panel-expanded .lens-chart-layout-legend > .lens-chart-legend {
+    .lens-panel-expanded .lens-chart-layout-legend > .lens-chart-legend-shell {
       --lens-chart-legend-max: 100%;
     }
 
@@ -1869,8 +2043,16 @@
     @apply lens-size-3 lens-flex-none;
   }
 
+  .lens-chart-collapse-other {
+    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-[11px] lens-font-medium lens-text-muted;
+  }
+
+  .lens-axis-label-tooltip {
+    @apply lens-pointer-events-none lens-fixed lens-z-50 lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-xs lens-text-text lens-shadow-card;
+  }
+
   /* Plot presence: the chart is the panel's content, so the box gives it the
-     room the legacy renderer did (~300px tall pies) and keeps the padding
+     room a full chart card needs (~300px tall pies) and keeps the padding
      tight. The legend below and the in-plot badge sit outside this box. */
   .lens-chart-host {
     @apply lens-relative lens-flex lens-flex-1 lens-p-2;
@@ -1890,6 +2072,34 @@
 
   .lens-chart-legend {
     @apply lens-m-0 lens-flex lens-list-none lens-flex-wrap lens-items-center lens-justify-center lens-gap-x-4 lens-gap-y-1 lens-px-3 lens-pb-3 lens-pt-1 lens-text-xs lens-text-muted;
+  }
+
+  .lens-chart-legend-shell {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1;
+  }
+
+  .lens-chart-legend-tools {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-justify-center lens-gap-1 lens-px-3 lens-pt-2;
+  }
+
+  .lens-chart-legend-tools button {
+    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-[11px] lens-font-medium lens-text-muted;
+  }
+
+  .lens-chart-legend-tools button:hover {
+    @apply lens-bg-inset lens-text-text;
+  }
+
+  .lens-chart-legend-search {
+    @apply lens-px-3;
+  }
+
+  .lens-chart-legend-search input {
+    @apply lens-box-border lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-xs lens-text-text lens-outline-none;
+  }
+
+  .lens-chart-legend-search input:focus {
+    box-shadow: 0 0 0 2px var(--lens-accent-100);
   }
 
   .lens-chart-legend-item {
@@ -1935,6 +2145,71 @@
 
   .lens-chart-legend-separator {
     @apply lens-text-faint;
+  }
+
+  .lens-chart-compact {
+    @apply lens-m-4 lens-flex lens-min-h-24 lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-inset lens-p-4 lens-text-center;
+  }
+
+  .lens-chart-compact-label,
+  .lens-chart-compact-empty {
+    @apply lens-max-w-full lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-sm lens-text-muted;
+  }
+
+  .lens-chart-compact-value {
+    @apply lens-text-2xl lens-font-semibold lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-gauge {
+    @apply lens-relative lens-mx-auto lens-flex lens-w-full lens-max-w-sm lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-p-5;
+    min-height: 14rem;
+  }
+
+  .lens-gauge-arc {
+    @apply lens-w-full;
+    overflow: visible;
+  }
+
+  .lens-gauge-track,
+  .lens-gauge-value-arc {
+    fill: none;
+    stroke-linecap: round;
+    stroke-width: 12;
+  }
+
+  .lens-gauge-track {
+    stroke: var(--lens-bg-inset);
+  }
+
+  .lens-gauge-value-arc {
+    stroke: var(--lens-accent-500);
+    transition: stroke-dasharray 250ms ease;
+  }
+
+  .lens-gauge-reading {
+    @apply lens-absolute lens-bottom-12 lens-flex lens-flex-col lens-items-center lens-gap-0.5;
+  }
+
+  .lens-gauge-reading strong {
+    @apply lens-text-3xl lens-font-semibold lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-gauge-reading span,
+  .lens-gauge-scale {
+    @apply lens-text-xs lens-text-muted;
+  }
+
+  .lens-gauge-scale {
+    @apply lens-flex lens-w-[88%] lens-justify-between;
+    margin-top: -0.75rem;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lens-gauge-value-arc {
+      transition: none;
+    }
   }
 
   .lens-coverage {
@@ -2360,12 +2635,29 @@
     @apply lens-min-h-0 lens-flex-1 lens-overflow-auto;
   }
 
+  .lens-table-search {
+    @apply lens-block lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-card lens-p-3;
+  }
+
+  .lens-table-search input {
+    @apply lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-font-sans lens-text-sm lens-text-strong lens-outline-none;
+  }
+
+  .lens-table-search input:focus {
+    border-color: var(--lens-accent-500);
+    box-shadow: 0 0 0 2px var(--lens-accent-50);
+  }
+
   .lens-table {
     @apply lens-w-full lens-border-collapse lens-text-left lens-text-sm;
   }
 
   .lens-table th {
     @apply lens-sticky lens-top-0 lens-z-10 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-p-0 lens-text-xs lens-font-semibold lens-text-muted;
+  }
+
+  .lens-table th:first-child {
+    @apply lens-left-0 lens-z-20;
   }
 
   .lens-table th button {
@@ -2381,7 +2673,24 @@
     border-color: var(--lens-divider);
   }
 
+  .lens-table tfoot td {
+    @apply lens-sticky lens-bottom-0 lens-z-10 lens-bg-inset lens-font-semibold lens-text-strong;
+    border-top: 1px solid var(--lens-border);
+  }
+
+  .lens-table tfoot td:first-child {
+    @apply lens-z-20 lens-bg-inset;
+  }
+
+  .lens-table td:first-child {
+    @apply lens-sticky lens-left-0 lens-z-[1] lens-bg-card;
+  }
+
   .lens-table tbody tr:hover {
+    @apply lens-bg-accent-50;
+  }
+
+  .lens-table tbody tr:hover td:first-child {
     @apply lens-bg-accent-50;
   }
 
@@ -2475,6 +2784,15 @@
     @apply lens-block lens-overflow-hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
+  }
+
+  .lens-table-small-sample {
+    @apply lens-inline-flex lens-items-center lens-justify-end lens-gap-1.5 lens-text-muted;
+  }
+
+  .lens-table-small-sample-marker {
+    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-1.5 lens-py-0.5 lens-text-[10px] lens-font-semibold lens-leading-none lens-text-faint;
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-table-heading-static {
@@ -4429,6 +4747,33 @@
       transform: none;
     }
   }
+}
+
+.lens-temporal-controls {
+  @apply lens-flex lens-items-center lens-gap-1;
+}
+
+.lens-temporal-toggle,
+.lens-temporal-select {
+  @apply lens-h-7 lens-rounded-md lens-border lens-border-slate-200 lens-bg-white lens-px-2 lens-text-[11px] lens-font-semibold lens-text-slate-600 lens-shadow-sm lens-transition-colors;
+}
+
+.lens-temporal-toggle:hover,
+.lens-temporal-select:hover {
+  @apply lens-border-slate-300 lens-text-slate-900;
+}
+
+.lens-temporal-toggle[aria-pressed="true"] {
+  @apply lens-border-blue-300 lens-bg-blue-50 lens-text-blue-700;
+}
+
+.dark .lens-temporal-toggle,
+.dark .lens-temporal-select {
+  @apply lens-border-slate-700 lens-bg-slate-900 lens-text-slate-300;
+}
+
+.dark .lens-temporal-toggle[aria-pressed="true"] {
+  @apply lens-border-blue-700 lens-bg-blue-950 lens-text-blue-300;
 }
 
 /* -------------------------------------------------------------------------- */

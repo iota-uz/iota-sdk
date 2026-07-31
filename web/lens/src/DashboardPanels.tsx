@@ -15,7 +15,7 @@ import {
 } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
-import { ExportMenu, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
+import { ExportMenu, RegisteredPanel, SavedViewsMenu, ShareSliceButton, StatMetric, StatusChip, type PanelRegistry } from './panels'
 import { LegendVisibilityContext } from './panels/context'
 import { X } from './icons'
 import { ExplorePanel } from './explore'
@@ -47,12 +47,10 @@ interface LayoutCluster {
 }
 
 /**
- * The group chain for an item, outermost→innermost. `groups` is authoritative
- * when present; the legacy singular `group` is the single-level fallback so
- * existing documents render byte-for-byte the same.
+ * The group chain for an item, outermost→innermost.
  */
 function chainOf(item: LayoutItem): LayoutGroup[] {
-  return item.groups && item.groups.length ? item.groups : item.group ? [item.group] : []
+  return item.groups ?? []
 }
 
 function groupAt(item: LayoutItem, depth: number): LayoutGroup | undefined {
@@ -240,11 +238,13 @@ function TabsGroup({ group, items, depth, panels, registry }: {
     })
   }, [])
   const resetSeries = useCallback(() => setHiddenSeries(new Set()), [])
+  const replaceSeries = useCallback((keys: ReadonlySet<string>) => setHiddenSeries(new Set(keys)), [])
   const legendVisibility = useMemo(() => ({
     hidden: hiddenSeries,
+    set: replaceSeries,
     toggle: toggleSeries,
     reset: resetSeries,
-  }), [hiddenSeries, resetSeries, toggleSeries])
+  }), [hiddenSeries, replaceSeries, resetSeries, toggleSeries])
 
   const select = (tab: string) => {
     store?.set(group.id, tab)
@@ -446,10 +446,13 @@ function usePrintPreview(): void {
 }
 
 export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
-  const { document } = useDashboard()
+  const { document, canRecompute, isRecomputing, recompute } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
   const print = usePrint()
+	const recomputeLabel = isRecomputing
+		? translate('dashboard.recomputing', 'Recomputing…')
+		: translate('dashboard.recompute', 'Recompute')
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
   // value is fixed for this mount, so drill, perspective, drawer and refetch
@@ -471,7 +474,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const header = document.header
   const identityTitle = header?.title || document.meta.title
   const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) || print.available ||
-    (document.filters?.length ?? 0) > 0
+    (document.filters?.length ?? 0) > 0 || canRecompute
   return (
     <TabStateContext.Provider value={tabState}>
     <main className="lens-dashboard" aria-label={identityTitle}>
@@ -491,6 +494,18 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           )}
           <div className="lens-dashboard-controls">
             <FilterBar today={filterToday} />
+            {canRecompute && (
+              <button
+                className="lens-export-button"
+                disabled={isRecomputing}
+                onClick={recompute}
+                type="button"
+              >
+                {recomputeLabel}
+              </button>
+            )}
+            <SavedViewsMenu />
+            <ShareSliceButton />
             <ExportMenu />
           </div>
         </header>

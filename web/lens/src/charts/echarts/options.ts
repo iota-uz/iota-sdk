@@ -2,17 +2,22 @@ import type { EChartsOption } from 'echarts'
 import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
+import { fallbackMarkKey } from '../keys'
+import { shouldUseLogarithmicScale } from '../scales'
 import { distributeShares, formatShare } from '../shares'
 import type { EChartsTheme } from './theme'
+import { buildDistributionOption, type DistributionInput } from './distributions'
 
 type ChartValue = number | '-'
 
 interface RowPoint {
   category: string
   nodeKey?: string
+  rowIndex: number
   series: string
   timestamp?: number
   value: ChartValue
+	previous: ChartValue
 }
 
 function columnIndex(input: ChartInput, field: string | undefined): number {
@@ -50,16 +55,28 @@ function rowPoints(input: ChartInput): RowPoint[] {
   const categoryField = input.encoding.category ?? input.encoding.label
   const categoryIndex = columnIndex(input, categoryField)
   const valueIndex = columnIndex(input, input.encoding.value)
+	const previousIndex = columnIndex(input, input.encoding.previous)
   const idIndex = columnIndex(input, input.encoding.id)
   const seriesIndex = columnIndex(input, input.encoding.series)
 
-  return input.frame.rows.map((row) => ({
-    category: text(row[categoryIndex]),
-    nodeKey: idIndex >= 0 ? text(row[idIndex]) || undefined : undefined,
-    series: seriesIndex >= 0 ? text(row[seriesIndex]) : '',
-    timestamp: timestamp(row[categoryIndex]),
-    value: chartValue(row[valueIndex]),
-  }))
+  return input.frame.rows.map((row, rowIndex) => {
+    const category = text(row[categoryIndex])
+    const series = seriesIndex >= 0 ? text(row[seriesIndex]) : ''
+    return {
+      category,
+      // A partition radial adds its ring to the category key below; composing
+      // the series here as well would wrap the ring twice.
+      nodeKey: (idIndex >= 0 ? text(row[idIndex]) : '') || fallbackMarkKey(
+        category,
+        input.radial?.mode === 'partition' ? '' : series,
+      ),
+      rowIndex,
+      series,
+      timestamp: timestamp(row[categoryIndex]),
+      value: chartValue(row[valueIndex]),
+			previous: chartValue(row[previousIndex]),
+    }
+  })
 }
 
 /**
@@ -137,7 +154,7 @@ function nonZeroTooltipRecords(params: unknown): Record<string, unknown>[] {
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
     // A sparse stack can contain dozens of declared series at a given
     // category. Zero rows add no information and used to be omitted by the
-    // legacy renderer; printing them turns a useful tooltip into a catalogue.
+    // server source; printing them turns a useful tooltip into a catalogue.
     .filter((entry) => numericTooltipValue(entry.value) !== 0)
 }
 
@@ -146,7 +163,10 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeri
   return (params: unknown) => {
     const records = nonZeroTooltipRecords(params)
     if (records.length === 0) return ''
-    const header = input.format(categoryField, records[0]?.axisValue)
+    const axisValue = records[0]?.axisValue
+    const header = typeof axisValue === 'number'
+      ? timeLabel(input, categoryField, axisValue)
+      : input.format(categoryField, axisValue)
     const lines = records.map((entry) => {
       const seriesName = text(entry.seriesName)
       const formatted = input.format(valueField, tooltipValue(entry.value))
@@ -242,6 +262,73 @@ function baseOption(theme: EChartsTheme): EChartsOption {
   }
 }
 
+export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
+  if (!input.map) throw new Error('map chart requires registered geometry')
+  const idIndex = columnIndex(input, input.encoding.id)
+  const labelIndex = columnIndex(input, input.encoding.label)
+  const valueIndex = columnIndex(input, input.encoding.value)
+  const featureLabels = new Map<string, string>()
+  for (const feature of input.map.geoJSON.features) {
+    const key = text(feature.properties[input.map.featureProperty])
+    const label = input.map.labelProperty ? text(feature.properties[input.map.labelProperty]) : key
+    if (key) featureLabels.set(key, label || key)
+  }
+  const frameLabels = new Map<string, string>()
+  const values: number[] = []
+  const data = input.frame.rows.map((row) => {
+    const key = text(row[idIndex])
+    const raw = chartValue(row[valueIndex])
+    if (typeof raw === 'number') values.push(raw)
+    const frameLabel = labelIndex >= 0 ? text(row[labelIndex]) : ''
+    if (key && frameLabel) frameLabels.set(key, frameLabel)
+    return { name: key, value: raw, nodeKey: key, displayLabel: frameLabel || featureLabels.get(key) || key }
+  })
+  const min = values.length > 0 ? Math.min(...values) : 0
+  const max = values.length > 0 ? Math.max(...values) : 0
+  const rangeMax = max === min ? min + 1 : max
+  return {
+    ...baseOption(theme),
+    tooltip: {
+      ...tooltipChrome(theme),
+      trigger: 'item',
+      formatter: (params: unknown) => {
+        const record = params as { data?: { displayLabel?: string; value?: unknown }; name?: string }
+        const label = record.data?.displayLabel || record.name || ''
+        return `${escapeTooltipHTML(label)}<br><strong>${escapeTooltipHTML(input.format(input.encoding.value ?? '', record.data?.value))}</strong>`
+      },
+    },
+    visualMap: {
+      type: 'continuous', min, max: rangeMax, calculable: false, orient: 'horizontal',
+      left: 'center', bottom: 4, itemWidth: 12, itemHeight: 96,
+      text: [input.formatAxis?.(input.encoding.value ?? '', max) ?? input.format(input.encoding.value ?? '', max), input.formatAxis?.(input.encoding.value ?? '', min) ?? input.format(input.encoding.value ?? '', min)],
+      textStyle: { color: theme.mutedText, fontSize: 10 },
+      inRange: { color: [theme.divider, input.theme.palette.accent ?? theme.colors[0]] },
+    },
+    series: [{
+      type: 'map',
+      map: input.map.name,
+      nameProperty: input.map.featureProperty,
+      roam: true,
+      scaleLimit: { min: 1, max: 8 },
+      selectedMode: 'single',
+      data,
+      label: {
+        show: true,
+        color: theme.text,
+        fontSize: 10,
+        formatter: (params: { name?: string }) =>
+          frameLabels.get(params.name ?? '') ?? featureLabels.get(params.name ?? '') ?? params.name ?? '',
+      },
+      itemStyle: { areaColor: theme.divider, borderColor: theme.card, borderWidth: 1.5 },
+      emphasis: {
+        label: { show: true, color: theme.selectedBorder, fontWeight: 600 },
+        itemStyle: { borderColor: theme.selectedBorder, borderWidth: 2 },
+      },
+      select: { itemStyle: { borderColor: theme.selectedBorder, borderWidth: 3 } },
+    }],
+  }
+}
+
 /**
  * ECharts pre-rounds `params.percent` to `percentPrecision` decimals; asking
  * for more precision than any label prints keeps the single rounding step in
@@ -317,6 +404,25 @@ function labelShare(params: unknown): { name: string; share: number | undefined 
 function sliceLabel(mode: Presentation['sliceLabels'], params: unknown, locale?: string): string {
   const { name, share } = labelShare(params)
   return mode === 'label' ? sliceCategoryLabel(name, share) : slicePercentLabel(share, locale)
+}
+
+export function donutSliceLabel(params: unknown, input: ChartInput): string {
+  const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
+  const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
+  const share = typeof data.share === 'number'
+    ? data.share
+    : (typeof record.percent === 'number' ? record.percent : undefined)
+  if (input.viewportWidth !== undefined && input.viewportWidth < 500) return text(record.name)
+  const value = input.format(input.encoding.value ?? '', data.value)
+  return `${text(record.name)}\n${value} · ${formatShare(share, input.locale)}`
+}
+
+function timeLabel(input: ChartInput, field: string, value: number): string {
+  const formatted = input.format(field, value)
+  if (input.categoryFormatDefined) return formatted
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return formatted
+  return new Intl.DateTimeFormat(input.locale, { month: 'short', year: 'numeric', timeZone: 'UTC' }).format(date)
 }
 
 /**
@@ -406,9 +512,25 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         // still names them.
         formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
       }
-    : { color: theme.text }
+    : donut
+      ? {
+          color: theme.text,
+          formatter: (params: unknown) => donutSliceLabel(params, input),
+          lineHeight: 16,
+        }
+      : { color: theme.text }
+  const total = partitionTotal(points, input.frame.total)
   return {
     ...baseOption(theme),
+    graphic: donut && total !== undefined ? [{
+      type: 'group',
+      left: 'center',
+      top: 'middle',
+      children: [
+        { type: 'text', style: { text: input.tooltipTotalLabel ?? 'Total', fill: theme.mutedText, font: `12px ${theme.fontFamily}`, align: 'center' }, left: 'center', top: -12 },
+        { type: 'text', style: { text: input.format(input.encoding.value ?? '', total), fill: theme.text, font: `600 16px ${theme.fontFamily}`, align: 'center' }, left: 'center', top: 5 },
+      ],
+    }] : undefined,
     tooltip: {
       trigger: 'item',
       ...tooltipChrome(theme),
@@ -642,6 +764,90 @@ function axisStyle(theme: EChartsTheme) {
   }
 }
 
+function temporalFieldData(
+  input: ChartInput,
+  points: RowPoint[],
+  field: string,
+  seriesName: string,
+  categories: string[],
+  timeAxis: boolean,
+): Array<ChartValue | [number, ChartValue] | null> {
+  const fieldIndex = columnIndex(input, field)
+  if (fieldIndex < 0) return []
+  const matching = points.filter((point) => point.series === seriesName)
+  if (timeAxis) {
+    return matching
+      .filter((point): point is RowPoint & { timestamp: number } => point.timestamp !== undefined)
+      .sort((left, right) => left.timestamp - right.timestamp)
+      .map((point) => [point.timestamp, chartValue(input.frame.rows[point.rowIndex]?.[fieldIndex])])
+  }
+  return categories.map((category) => {
+    const point = matching.find((candidate) => candidate.category === category)
+    return point ? chartValue(input.frame.rows[point.rowIndex]?.[fieldIndex]) : null
+  })
+}
+
+function confidenceBandData(
+  input: ChartInput,
+  points: RowPoint[],
+  lowerField: string,
+  upperField: string,
+  seriesName: string,
+  categories: string[],
+  timeAxis: boolean,
+): Array<ChartValue | [number, ChartValue] | null> {
+  const lowerIndex = columnIndex(input, lowerField)
+  const upperIndex = columnIndex(input, upperField)
+  if (lowerIndex < 0 || upperIndex < 0) return []
+  const difference = (point: RowPoint): ChartValue => {
+    const lower = chartValue(input.frame.rows[point.rowIndex]?.[lowerIndex])
+    const upper = chartValue(input.frame.rows[point.rowIndex]?.[upperIndex])
+    return typeof lower === 'number' && typeof upper === 'number' ? Math.max(0, upper - lower) : '-'
+  }
+  const matching = points.filter((point) => point.series === seriesName)
+  if (timeAxis) {
+    return matching
+      .filter((point): point is RowPoint & { timestamp: number } => point.timestamp !== undefined)
+      .sort((left, right) => left.timestamp - right.timestamp)
+      .map((point) => [point.timestamp, difference(point)])
+  }
+  return categories.map((category) => {
+    const point = matching.find((candidate) => candidate.category === category)
+    return point ? difference(point) : null
+  })
+}
+
+function incompletePeriodItem<T extends Record<string, unknown>>(
+  item: T,
+  point: RowPoint,
+  input: ChartInput,
+  theme: EChartsTheme,
+): T & Record<string, unknown> {
+  const period = input.temporal?.period
+  if (!period || point.category !== period.category) return item
+  const label = period.label || (period.state === 'annualized' ? 'Estimate' : 'YTD')
+  const itemStyle = item.itemStyle && typeof item.itemStyle === 'object'
+    ? item.itemStyle as Record<string, unknown>
+    : {}
+  return {
+    ...item,
+    symbol: 'emptyCircle',
+    symbolSize: 12,
+    label: { show: true, formatter: label, color: theme.text, position: 'top' },
+    itemStyle: {
+      ...itemStyle,
+      borderWidth: 2,
+      decal: {
+        color: theme.mutedText,
+        dashArrayX: [1, 0],
+        dashArrayY: [2, 4],
+        rotation: -Math.PI / 4,
+        symbol: 'rect',
+      },
+    },
+  }
+}
+
 function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const points = rowPoints(input)
   const categories = [...new Set(points.map((point) => point.category))]
@@ -650,7 +856,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const compactFormatter = axisValueFormatter(input)
   const isBar = input.kind === 'bar' || input.kind === 'hbar'
   const horizontal = input.kind === 'hbar'
-  const logarithmic = input.valueAxis?.scale === 'logarithmic'
+  const logarithmic = shouldUseLogarithmicScale(input.frame, input.encoding, input.valueAxis)
   const showSeriesName = Boolean(input.encoding.series)
   const categoryField = input.encoding.category ?? input.encoding.label ?? ''
   const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
@@ -664,7 +870,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const stacked = isBar && input.presentation?.stack === true
   const categoryColor = (category: string, index: number) =>
     input.seriesColor?.(category, index) ?? theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
-  const series = seriesNames.map((name, index) => ({
+  const currentSeries = seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
     name: name || undefined,
     universalTransition: { enabled: morphEnabled() },
@@ -673,15 +879,20 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // Bar length on a logarithmic axis communicates order of magnitude, not
     // the literal value. Print that value on the mark so restoring the scale
     // never makes the chart less informative than its linear counterpart.
-    label: logarithmic && isBar && !lineSeries.has(name)
+    label: (input.presentation?.dataLabels === true || logarithmic) && !lineSeries.has(name)
       ? {
           show: true,
-          position: horizontal ? 'right' as const : 'top' as const,
+          // Neighbouring line series often carry close values at the same
+          // category. Alternating sides preserves both readings instead of
+          // painting two formatted values on top of each other.
+          position: isBar
+            ? (horizontal ? 'right' as const : 'top' as const)
+            : (index % 2 === 0 ? 'top' as const : 'bottom' as const),
           color: theme.text,
           formatter: (params: { value?: unknown }) => compactFormatter(tooltipValue(params.value)),
         }
       : undefined,
-    labelLayout: logarithmic && isBar && !lineSeries.has(name)
+    labelLayout: (input.presentation?.dataLabels === true || logarithmic) && !lineSeries.has(name)
       ? { hideOverlap: true }
       : undefined,
     // The panel's resolver knows about colours pinned to the n-th series of
@@ -694,15 +905,176 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       ? points
         .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
         .sort((left, right) => left.timestamp - right.timestamp)
-        .map((point) => ({ ...dataItem(point, input, theme), value: [point.timestamp, point.value] }))
+        .map((point) => incompletePeriodItem(
+          { ...dataItem(point, input, theme), value: [point.timestamp, point.value] },
+          point,
+          input,
+          theme,
+        ))
       : categories.map((category, index) => {
         const point = points.find((candidate) => candidate.category === category && candidate.series === name)
         if (!point) return null
         const item = dataItem(point, input, theme)
-        if (!colorByCategory) return item
-        return { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, index) } }
+        return incompletePeriodItem(
+          colorByCategory ? { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, index) } } : item,
+          point,
+          input,
+          theme,
+        )
       }),
   }))
+  const comparisonSeries = input.encoding.previous ? seriesNames.map((name, index) => ({
+    type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
+    name: `${name ? `${name} · ` : ''}Previous`,
+    silent: true,
+    z: 0,
+    barGap: isBar ? '-100%' : undefined,
+    barWidth: isBar && barWidth ? barWidth : undefined,
+    itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name), opacity: 0.24 },
+    lineStyle: { opacity: 0.38, type: 'dashed' as const, width: 2 },
+    areaStyle: input.kind === 'area' ? { opacity: 0.06 } : undefined,
+    showSymbol: false,
+    data: timeAxis
+      ? points
+        .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
+        .sort((left, right) => left.timestamp - right.timestamp)
+        .map((point) => [point.timestamp, point.previous])
+      : categories.map((category) => points.find((point) => point.category === category && point.series === name)?.previous ?? null),
+  })) : []
+  const regression = input.temporal?.regression
+  const regressionSeries = regression ? seriesNames.map((name, index) => ({
+    type: 'line' as const,
+    name: `${name ? `${name} · ` : ''}${regression.label || 'Trend'}`,
+    silent: true,
+    z: 4,
+    showSymbol: false,
+    itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name) },
+    lineStyle: { type: 'dashed' as const, width: 2.5, opacity: 0.9 },
+    data: temporalFieldData(input, points, regression.field, name, categories, timeAxis),
+  })) : []
+  const movingAverageSeries = (input.temporal?.movingAverages ?? []).flatMap((average) => seriesNames.map((name, index) => ({
+    type: 'line' as const,
+    name: `${name ? `${name} · ` : ''}${average.label || `SMA ${average.window}`}`,
+    silent: true,
+    z: 5,
+    showSymbol: false,
+    itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name) },
+    lineStyle: { width: 3, opacity: 0.95 },
+    data: temporalFieldData(input, points, average.field, name, categories, timeAxis),
+  })))
+  const annualizedSeries = input.temporal?.period?.annualizedField ? seriesNames.map((name) => ({
+    type: 'line' as const,
+    name: input.temporal?.period?.label || 'Estimate',
+    silent: true,
+    z: 6,
+    showSymbol: true,
+    symbol: 'diamond',
+    symbolSize: 11,
+    itemStyle: { color: theme.mutedText },
+    lineStyle: { type: 'dotted' as const, width: 2, color: theme.mutedText },
+    data: temporalFieldData(input, points, input.temporal!.period!.annualizedField!, name, categories, timeAxis),
+  })) : []
+  const forecastSeries = input.temporal?.forecast ? seriesNames.flatMap((name, index) => {
+    const forecast = input.temporal!.forecast!
+    const color = input.seriesColor?.(name, index) ?? theme.seriesColor(name) ?? theme.colors[index % theme.colors.length]
+    const stack = `lens-forecast-${index}`
+    return [
+      {
+        type: 'line' as const,
+        name: `${name ? `${name} · ` : ''}${forecast.label || 'Forecast'}`,
+        silent: true,
+        z: 5,
+        showSymbol: false,
+        itemStyle: { color },
+        lineStyle: { type: 'dashed' as const, width: 2.5, color },
+        data: temporalFieldData(input, points, forecast.valueField, name, categories, timeAxis),
+      },
+      {
+        type: 'line' as const,
+        name: `${forecast.label || 'Forecast'} lower`,
+        silent: true,
+        stack,
+        stackStrategy: 'all' as const,
+        showSymbol: false,
+        lineStyle: { opacity: 0 },
+        areaStyle: { opacity: 0 },
+        data: temporalFieldData(input, points, forecast.lowerField, name, categories, timeAxis),
+      },
+      {
+        type: 'line' as const,
+        name: `${forecast.label || 'Forecast'} confidence`,
+        silent: true,
+        stack,
+        stackStrategy: 'all' as const,
+        showSymbol: false,
+        lineStyle: { opacity: 0 },
+        areaStyle: { color, opacity: 0.14 },
+        data: confidenceBandData(input, points, forecast.lowerField, forecast.upperField, name, categories, timeAxis),
+      },
+    ]
+  }) : []
+  const timestamps = points
+    .map((point) => point.timestamp)
+    .filter((value): value is number => value !== undefined)
+    .sort((left, right) => left - right)
+  const observedValues = points
+    .map((point) => point.value)
+    .filter((value): value is number => typeof value === 'number')
+  const referenceValues = (input.temporal?.referenceLines ?? []).map(({ value }) => value)
+  const extentValues = [...observedValues, ...referenceValues]
+  const extentMin = Math.min(...extentValues)
+  const extentMax = Math.max(...extentValues)
+  const extentPad = Math.max(1, (extentMax - extentMin) * 0.08)
+  const markerMin = Number.isFinite(extentMin) ? extentMin - extentPad : 0
+  const markerMax = Number.isFinite(extentMax) ? extentMax + extentPad : 1
+  const referenceSeries = (input.temporal?.referenceLines ?? []).map((reference) => ({
+    type: 'line' as const,
+    name: reference.label || input.format(input.encoding.value ?? '', reference.value),
+    silent: true,
+    z: 2,
+    showSymbol: false,
+    tooltip: { show: false },
+    lineStyle: { type: 'dashed' as const, color: theme.mutedText, width: 1.5 },
+    endLabel: {
+      show: true,
+      formatter: reference.label || input.format(input.encoding.value ?? '', reference.value),
+      color: theme.mutedText,
+      distance: 4,
+    },
+    data: timeAxis && timestamps.length > 0
+      ? [[timestamps[0], reference.value], [timestamps[timestamps.length - 1], reference.value]]
+      : categories.map(() => reference.value),
+  }))
+  const verticalMarkerSeries = [
+    ...(input.temporal?.annotations ?? []).map(({ at, label }) => ({ at, label, type: 'dotted' as const })),
+    ...(input.temporal?.forecast ? [{
+      at: input.temporal.forecast.start,
+      label: input.temporal.forecast.label || 'Forecast',
+      type: 'dashed' as const,
+    }] : []),
+  ].map((marker) => ({
+    type: 'line' as const,
+    name: marker.label,
+    silent: true,
+    z: 3,
+    showSymbol: false,
+    tooltip: { show: false },
+    lineStyle: { type: marker.type, color: theme.mutedText, width: marker.type === 'dashed' ? 2 : 1.5 },
+    endLabel: { show: true, formatter: marker.label, color: theme.mutedText, distance: 4 },
+    data: timeAxis
+      ? [[timestamp(marker.at) ?? marker.at, markerMin], [timestamp(marker.at) ?? marker.at, markerMax]]
+      : categories.map((category) => category === marker.at ? markerMax : null),
+  }))
+  const series = [
+    ...comparisonSeries,
+    ...currentSeries,
+    ...regressionSeries,
+    ...movingAverageSeries,
+    ...annualizedSeries,
+    ...forecastSeries,
+    ...referenceSeries,
+    ...verticalMarkerSeries,
+  ]
   // A horizontal bar hangs its category names in the plot's left margin, and
   // `containLabel` gives that margin whatever the longest name asks for. A
   // catalogue product name asks for the whole width, leaving the bars a sliver
@@ -711,17 +1083,19 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const categoryAxis = {
     type: 'category' as const,
     data: categories,
+    triggerEvent: true,
     ...axisStyle(theme),
     ...(horizontal ? { axisLabel: { color: theme.mutedText, width: 260, overflow: 'truncate' as const } } : {}),
   }
   const temporalAxis = {
     type: 'time' as const,
+    triggerEvent: true,
     ...axisStyle(theme),
-    axisLabel: { color: theme.mutedText, formatter: (value: number) => input.format(categoryField, value) },
+    axisLabel: { color: theme.mutedText, formatter: (value: number) => timeLabel(input, categoryField, value) },
   }
   const valueAxis = {
-    type: input.valueAxis?.scale === 'logarithmic' ? 'log' as const : 'value' as const,
-    logBase: input.valueAxis?.scale === 'logarithmic' ? (input.valueAxis.logBase || 10) : undefined,
+    type: logarithmic ? 'log' as const : 'value' as const,
+    logBase: logarithmic ? (input.valueAxis?.logBase || 10) : undefined,
     ...axisStyle(theme),
     axisLabel: { color: theme.mutedText, formatter: axisValueFormatter(input), hideOverlap: true },
   }
@@ -732,8 +1106,18 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // canvas text measurement, which lands on a rounding boundary for the
     // variable font and shifts the whole plot by 1px between runs.
     grid: isVisualRegression()
-      ? { left: 96, right: 32, top: 24, bottom: 32, containLabel: false }
-      : { left: 16, right: horizontal && logarithmic ? 88 : 16, top: 24, bottom: 12, containLabel: true },
+      ? { left: 96, right: referenceSeries.length > 0 ? 168 : 32, top: 24, bottom: timeAxis ? 58 : 32, containLabel: false }
+      : {
+          left: 16,
+          right: referenceSeries.length > 0 ? 152 : horizontal && logarithmic ? 88 : 16,
+          top: 24,
+          bottom: timeAxis ? 52 : 12,
+          containLabel: true,
+        },
+    dataZoom: timeAxis ? [
+      { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
+      { type: 'slider', xAxisIndex: 0, filterMode: 'none', height: 18, bottom: 8 },
+    ] : undefined,
     tooltip: {
       trigger: 'axis',
       renderMode: timeAxis ? 'richText' : undefined,
@@ -750,6 +1134,10 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
 }
 
 export function buildChartOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
+  if (input.kind === 'map') return buildMapOption(input, theme)
+  if (input.kind === 'histogram' || input.kind === 'boxplot' || input.kind === 'heatmap') {
+    return buildDistributionOption(input as DistributionInput, theme)
+  }
   if (input.kind === 'pie' || input.kind === 'donut') return pieOption(input, theme)
   if (input.kind === 'radial') return radialOption(input, theme)
   return axisOption(input, theme)

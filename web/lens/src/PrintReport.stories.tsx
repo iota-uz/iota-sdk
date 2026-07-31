@@ -30,6 +30,7 @@ const heroPanel: Panel = {
   frame: 'hero-result:root',
   encoding: { label: 'label', value: 'value' },
   format: { value: money },
+  terminal: true,
   actions: [],
   caption: 'Earned basis · after acquisition, claims and operating expenses',
   status: { label: 'Actual', tone: 'positive' },
@@ -43,6 +44,7 @@ const heroRatio: Panel = {
   frame: 'hero-combined:root',
   encoding: { label: 'label', value: 'value' },
   format: { value: percent },
+  terminal: true,
   actions: [],
   caption: 'Claims and expenses against earned premium',
 }
@@ -55,6 +57,7 @@ const heroReserve: Panel = {
   frame: 'hero-reserve:root',
   encoding: { label: 'label', value: 'value' },
   format: { value: money },
+  terminal: true,
   actions: [],
   status: { label: 'Proxy', tone: 'warning' },
   caption: 'Management estimate pending the actuarial run',
@@ -73,6 +76,7 @@ const backlogFlow: Panel = {
   frame: 'claims-backlog:root',
   encoding: { id: 'key', value: 'value' },
   format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
+  terminal: true,
   actions: [],
   metricFlow: {
     stages: [
@@ -93,6 +97,7 @@ const reserveHierarchy: Panel = {
   frame: 'reserve-composition:root',
   encoding: { id: 'key', value: 'value', share: 'share' },
   format: { value: money, share: percent },
+  terminal: true,
   actions: [],
   metricHierarchy: {
     rows: [
@@ -114,6 +119,7 @@ const premiumPanel: Panel = {
   frame: 'premium-mix:root',
   encoding: { label: 'label', value: 'value' },
   format: { value: money },
+  terminal: true,
   actions: [],
   caption: 'Written premium split by recognition at the period end.',
 }
@@ -127,6 +133,7 @@ const bridgePanel: Panel = {
   encoding: { label: 'label', value: 'value', cut: 'cut', final: 'final', tone: 'tone' },
   format: { value: money, cut: money },
   presentation: { bridgeLayout: 'waterfall' },
+  terminal: true,
   actions: [],
   caption: 'Every deduction is charged in the period it belongs to.',
   metricRelationship: {
@@ -158,6 +165,7 @@ const productsPanel: Panel = {
       cell: { kind: 'delta', secondaryField: 'delta_pct', layout: 'stacked' },
     },
   ],
+  terminal: true,
   actions: [],
 }
 
@@ -169,6 +177,7 @@ const claimsPanel: Panel = {
   frame: 'claims-years:root',
   encoding: { label: 'label', value: 'value' },
   format: { value: money },
+  terminal: true,
   actions: [],
 }
 
@@ -191,12 +200,12 @@ const dashboard: DashboardDocument = {
         panels: [{
           panelId: 'premium-mix',
           span: 6,
-          group: {
+          groups: [{
             id: 'premium',
             kind: 'metrics',
             span: 12,
             caption: 'Written premium, before any reinsurance is ceded.',
-          },
+          }],
         }],
       },
       { heading: 'Result formation', panels: [{ panelId: 'result-bridge', span: 12 }, { panelId: 'product-margin', span: 12 }] },

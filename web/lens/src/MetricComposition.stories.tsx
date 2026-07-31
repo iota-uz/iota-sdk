@@ -84,6 +84,7 @@ const associationMetric: Panel = {
   frame: 'tab1-metric:frame',
   encoding: { label: 'label', value: 'value' },
   format: { value: money },
+  terminal: true,
   actions: [],
 }
 
@@ -106,6 +107,7 @@ const associationRelationship: Panel = {
     type: 'association',
     direction: 'bidirectional',
   },
+  terminal: true,
   actions: [],
 }
 
@@ -131,6 +133,7 @@ function hierarchyLensPanel(id: string, title: string): Panel {
         { key: `${id}/c`, label: 'Category C', parent: `${id}/root`, confidence: 'proxy' },
       ],
     },
+    terminal: true,
     actions: [],
   }
 }
@@ -162,6 +165,7 @@ const compositionRelationship: Panel = {
     type: 'reconciliation',
     direction: 'bidirectional',
   },
+  terminal: true,
   actions: [],
 }
 
@@ -192,6 +196,7 @@ const breakdownHierarchy: Panel = {
     ],
     reconcile: { tolerance: 0 },
   },
+  terminal: true,
   actions: [],
 }
 
@@ -244,12 +249,12 @@ function fullDocument(): DashboardDocument {
         {
           heading: 'Composition',
           panels: [
-            { panelId: 'tab1-metric', span: 6, group: outerGroup('Association') },
-            { panelId: 'tab1-relationship', span: 6, group: outerGroup('Association') },
+            { panelId: 'tab1-metric', span: 6, groups: [outerGroup('Association')] },
+            { panelId: 'tab1-relationship', span: 6, groups: [outerGroup('Association')] },
             { panelId: 'stock-hierarchy', span: 6, groups: [outerGroup('Composition'), innerGroup('Stock')] },
             { panelId: 'movement-hierarchy', span: 6, groups: [outerGroup('Composition'), innerGroup('Movement')] },
-            { panelId: 'tab2-relationship', span: 12, group: outerGroup('Composition') },
-            { panelId: 'breakdown-hierarchy', span: 12, group: outerGroup('Breakdown') },
+            { panelId: 'tab2-relationship', span: 12, groups: [outerGroup('Composition')] },
+            { panelId: 'breakdown-hierarchy', span: 12, groups: [outerGroup('Breakdown')] },
           ],
         },
       ],
@@ -387,6 +392,7 @@ function relationshipVariant(
       type,
       direction,
     },
+    terminal: true,
     actions: [],
   }
   const frame: Frame = {

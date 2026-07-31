@@ -7,6 +7,7 @@ import { StatValueTicker } from './StatValueTicker'
 import { cell, displayText, panelField } from './data'
 import { InfoTip } from './InfoTip'
 import { PanelFrame } from './PanelFrame'
+import { TrendChip } from './PanelFrame'
 
 export interface StatPanelProps {
   panel: Panel
@@ -98,9 +99,7 @@ function useStatValues(panel: Panel) {
 }
 
 /**
- * A stat card that carries a panel-level navigate action is a link in full:
- * the legacy renderer covered the card with an absolutely positioned anchor,
- * and losing it is what made the KPI strips inert.
+ * A stat card that carries a panel-level navigate action is a link in full.
  */
 export function StatLink({ href, label, children, onClick, prefetch }: {
   href?: string
@@ -200,6 +199,7 @@ export function StatMetric({ panel }: StatPanelProps) {
           {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
         </p>
       )}
+	  {panel.trend && frame.data?.rows.length ? <TrendChip panel={panel} frame={frame.data} /> : null}
       {panel.caption && <p className="lens-stat-metric-caption">{panel.caption}</p>}
     </div>
     </StatLink>

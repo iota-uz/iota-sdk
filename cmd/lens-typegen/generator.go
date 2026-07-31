@@ -277,15 +277,39 @@ func emitSchemas(model *contractModel) (string, error) {
 	}
 
 	output.WriteString("const DocumentVersionSchema = z.object({ version: z.string() }).passthrough()\n\n")
+	output.WriteString(`function panelIsActionable(panel: Contract.Panel): boolean {
+  return Boolean(
+    panel.drillRoot || panel.actions.length > 0 || panel.columns?.some((column) => column.action) ||
+    panel.metricFlow?.stages.some((stage) => stage.action) ||
+    panel.metricHierarchy?.rows.some((row) => row.action) ||
+    panel.metricRelationship?.source.action || panel.metricRelationship?.target.action
+  )
+}
+
+function assertPanelInteractionContract(document: Contract.DashboardDocument): void {
+  document.panels.forEach((panel, index) => {
+    const actionable = panelIsActionable(panel)
+    if (panel.terminal && actionable) {
+      throw new z.ZodError([{ code: 'custom', path: ['panels', index], message: 'panel ' + panel.id + ' cannot be terminal and actionable' }])
+    }
+    if (!panel.terminal && !actionable) {
+      throw new z.ZodError([{ code: 'custom', path: ['panels', index], message: 'panel ' + panel.id + ' must be actionable or explicitly terminal' }])
+    }
+  })
+}
+
+`)
 	output.WriteString("export function parseDocument(input: unknown): Contract.")
 	output.WriteString(model.root)
 	output.WriteString(" {\n")
 	output.WriteString("  const version = DocumentVersionSchema.safeParse(input)\n")
 	output.WriteString("  if (version.success && contractMajor(version.data.version) !== CONTRACT_MAJOR_VERSION) {\n")
 	output.WriteString("    throw new ContractVersionMismatchError(version.data.version)\n  }\n")
-	output.WriteString("  return ")
+	output.WriteString("  const document = ")
 	output.WriteString(model.root)
-	output.WriteString("Schema.parse(input)\n}\n")
+	output.WriteString("Schema.parse(input)\n")
+	output.WriteString("  assertPanelInteractionContract(document)\n")
+	output.WriteString("  return document\n}\n")
 	return output.String(), nil
 }
 

@@ -1,7 +1,8 @@
 import type { EChartsOption } from 'echarts'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
-import { buildChartOption, rawPercentPrecision, slicePercentLabel } from './options'
+import { fallbackMarkKey } from '../keys'
+import { buildChartOption, donutSliceLabel, rawPercentPrecision, slicePercentLabel } from './options'
 import type { EChartsTheme } from './theme'
 
 const theme: EChartsTheme = {
@@ -49,6 +50,7 @@ interface TestDataItem {
   categoryKey?: string
   share?: number
   remainder?: boolean
+  symbol?: string
 }
 
 interface TestSeries {
@@ -64,6 +66,9 @@ interface TestSeries {
   type?: string
   name?: string
   stack?: string
+  silent?: boolean
+  lineStyle?: { type?: string }
+  endLabel?: { formatter?: string }
   areaStyle?: unknown
   radius?: string[]
   itemStyle?: { color?: string }
@@ -75,6 +80,7 @@ interface TestAxis {
   logBase?: number
   data?: string[]
   axisLabel?: { formatter?: (value: unknown) => string }
+  triggerEvent?: boolean
 }
 
 interface TestTooltip {
@@ -91,14 +97,27 @@ function testOption(option: EChartsOption) {
     xAxis: TestAxis
     yAxis: TestAxis
     media?: Array<{ query?: { maxWidth?: number }, option?: { series?: TestSeries[] } }>
+    graphic?: unknown[]
+    dataZoom?: Array<{ type?: string }>
   }
+}
+
+function logarithmicInput(kind: 'bar' | 'hbar'): ChartInput {
+  const chartInput = input(kind)
+  chartInput.frame.rows = [
+    ['tiny', 'Tiny', 'Revenue', 1],
+    ['middle', 'Middle', 'Revenue', 50],
+    ['large', 'Large', 'Revenue', 1200],
+  ]
+  chartInput.valueAxis = { scale: 'logarithmic', logBase: 10 }
+  return chartInput
 }
 
 describe('slice percentages', () => {
   it('rounds the true share once, not the share ECharts already rounded', () => {
     // «Распределение риска»: 104 119 330 137 of 118 795 253 476 is 87.6459…%,
     // which reads 87.6. Rounded to ECharts' default two decimals first (87.65)
-    // it reads 87.7 — the double rounding the legacy renderer never had.
+    // it reads 87.7, exposing the double rounding this helper prevents.
     const share = (100 * 104_119_330_137) / (104_119_330_137 + 14_675_923_339)
     expect(slicePercentLabel(share)).toBe('87.6%')
     expect(slicePercentLabel(100 - share)).toBe('12.4%')
@@ -111,8 +130,7 @@ describe('slice percentages', () => {
     [87.6459, '87.6%'],
     [87.66, '87.7%'],
     // A literal x.x5 resolves by the binary value it actually holds — 12.35 is
-    // stored as 12.3499…, so one decimal reads 12.3. Go's %.1f agrees, which
-    // is what keeps the two renderers printing the same number.
+    // stored as 12.3499…, so one decimal reads 12.3. The server's %.1f agrees.
     [12.35, '12.3%'],
     [0.4999, ''],
     [3.99, ''],
@@ -339,7 +357,7 @@ describe('buildChartOption', () => {
     expect(series?.data?.[0]).toMatchObject({ itemStyle: { borderWidth: 0 } })
   })
 
-  it('does not select id-less points when no selection exists', () => {
+  it('gives every id-less multi-series mark a stable selectable key', () => {
     const chartInput = input('bar')
     chartInput.encoding = { category: 'category', series: 'series', value: 'value' }
     chartInput.selectedKey = undefined
@@ -347,9 +365,11 @@ describe('buildChartOption', () => {
     const chart = testOption(buildChartOption(chartInput, theme))
 
     expect(chart.series[0]?.data?.[0]).toMatchObject({
-      nodeKey: undefined,
+      nodeKey: fallbackMarkKey('Jan', 'Revenue'),
       itemStyle: { borderWidth: 0 },
     })
+    expect(chart.series[1]?.data?.[0]).toMatchObject({ nodeKey: fallbackMarkKey('Jan', 'Cost') })
+    expect(chart.series[0]?.data?.[0]?.nodeKey).not.toBe(chart.series[1]?.data?.[0]?.nodeKey)
     expect(chart.series[0]?.data?.[0]?.itemStyle?.borderColor).toBeUndefined()
   })
 
@@ -367,10 +387,7 @@ describe('buildChartOption', () => {
   })
 
   it('uses the requested logarithmic value axis and base', () => {
-    const chart = testOption(buildChartOption({
-      ...input('hbar'),
-      valueAxis: { scale: 'logarithmic', logBase: 10 },
-    }, theme))
+    const chart = testOption(buildChartOption(logarithmicInput('hbar'), theme))
 
     expect(chart.xAxis.type).toBe('log')
     expect(chart.xAxis.logBase).toBe(10)
@@ -381,10 +398,7 @@ describe('buildChartOption', () => {
   })
 
   it('puts logarithmic vertical-bar values above their columns', () => {
-    const chart = testOption(buildChartOption({
-      ...input('bar'),
-      valueAxis: { scale: 'logarithmic', logBase: 10 },
-    }, theme))
+    const chart = testOption(buildChartOption(logarithmicInput('bar'), theme))
 
     expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'top' })
     expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
@@ -394,6 +408,76 @@ describe('buildChartOption', () => {
     const chart = testOption(buildChartOption(input('bar'), theme))
 
     expect(chart.series.every((series) => series.label === undefined)).toBe(true)
+  })
+
+  it.each(['bar', 'line'] as const)('enables formatted data labels for %s only when requested', (kind) => {
+    const chartInput = input(kind)
+    chartInput.presentation = { dataLabels: true }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.every((series) => series.label?.show === true)).toBe(true)
+    expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
+  })
+
+  it('places neighbouring line-series labels on opposite sides of their marks', () => {
+    const chartInput = input('line')
+    chartInput.presentation = { dataLabels: true }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.label?.position).toBe('top')
+    expect(chart.series[1]?.label?.position).toBe('bottom')
+  })
+
+  it('adds a muted prior-period series and zoom controls to time series', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+    chartInput.frame.columns.push({ name: 'previous', type: 'number' })
+    chartInput.frame.rows = chartInput.frame.rows.map((row, index) => [row[0], `2026-0${index + 1}-01`, row[2], row[3], 900 + index * 100])
+    chartInput.encoding = { ...chartInput.encoding, previous: 'previous' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.name).toContain('Previous')
+    expect(chart.series[0]?.silent).toBe(true)
+    expect(chart.series[0]?.lineStyle).toMatchObject({ type: 'dashed' })
+    expect(chart.dataZoom?.map((zoom) => zoom.type)).toEqual(['inside', 'slider'])
+  })
+
+  it('falls back from log to linear for fewer than three categories or less than 100x spread', () => {
+    const few = input('hbar')
+    few.valueAxis = { scale: 'logarithmic', logBase: 10 }
+    expect(testOption(buildChartOption(few, theme)).xAxis.type).toBe('value')
+
+    const narrow = logarithmicInput('hbar')
+    narrow.frame.rows = [
+      ['a', 'A', 'Revenue', 10], ['b', 'B', 'Revenue', 20], ['c', 'C', 'Revenue', 99],
+    ]
+    expect(testOption(buildChartOption(narrow, theme)).xAxis.type).toBe('value')
+  })
+
+  it('makes category labels emit hover events for their full-name tooltip', () => {
+    const chart = testOption(buildChartOption(input('hbar'), theme))
+    expect(chart.yAxis.triggerEvent).toBe(true)
+  })
+
+  it('prints donut value and share labels and the total in its center', () => {
+    const chartInput = input('donut')
+    chartInput.tooltipTotalLabel = 'Итого'
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const first = chart.series[0]?.data?.[0]
+
+    expect(donutSliceLabel({ name: first?.name, data: first }, chartInput)).toBe('Jan\n$1200 · 28.6%')
+    expect(chart.graphic).toHaveLength(1)
+    expect(chart.tooltip.formatter?.({ name: 'Jan', data: first })).toContain('$1200 (28.6%)')
+  })
+
+  it('keeps outside donut labels readable in a narrow plot', () => {
+    const chartInput = input('donut')
+    chartInput.viewportWidth = 480
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const first = chart.series[0]?.data?.[0]
+
+    expect(donutSliceLabel({ name: first?.name, data: first }, chartInput)).toBe('Jan')
   })
 
   it.each(['bar', 'line'] as const)('applies configured series brand colors to %s series', (kind) => {
@@ -520,6 +604,7 @@ describe('buildChartOption', () => {
     const time = Date.parse('2026-01-01T00:00:00Z')
     chartInput.frame.columns[1] = { name: 'category', type: 'time' }
     chartInput.format = format
+    chartInput.categoryFormatDefined = true
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
@@ -529,6 +614,18 @@ describe('buildChartOption', () => {
       .toBe(`category=${time}\nRevenue: value=1200`)
     expect(format).toHaveBeenCalledWith('category', time)
     expect(format).toHaveBeenCalledWith('value', 1200)
+  })
+
+  it('uses a readable calendar label when a time field has no explicit format', () => {
+    const chartInput = input('line')
+    const time = Date.parse('2026-01-01T00:00:00Z')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.xAxis.axisLabel?.formatter?.(time)).toBe('Jan 2026')
+    expect(chart.tooltip.formatter?.([{ axisValue: time, seriesName: 'Revenue', value: [time, 1200] }]))
+      .toContain('Jan 2026')
   })
 
   it('omits zero-valued series from time-axis tooltips too', () => {
@@ -584,6 +681,52 @@ describe('buildChartOption', () => {
     // also names 'Revenue' directly; a raw theme lookup only applies when the
     // panel has no resolver at all.
     expect(chart.series.map((series) => series.itemStyle?.color)).toEqual(['#111111', '#222222'])
+  })
+
+  it('renders temporal readability overlays as distinct, labelled chart layers', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns.push(
+      { name: 'regression', type: 'number' },
+      { name: 'sma_3', type: 'number' },
+      { name: 'annualized', type: 'number' },
+      { name: 'forecast', type: 'number' },
+      { name: 'forecast_lower', type: 'number' },
+      { name: 'forecast_upper', type: 'number' },
+    )
+    chartInput.frame.rows = chartInput.frame.rows.map((row, index) => [
+      ...row,
+      1100 + index * 100,
+      index < 2 ? null : 1000 + index * 100,
+      index === 2 ? 1700 : null,
+      index >= 2 ? 1600 + index * 100 : null,
+      index >= 2 ? 1450 + index * 100 : null,
+      index >= 2 ? 1750 + index * 100 : null,
+    ])
+    chartInput.temporal = {
+      regression: { field: 'regression', label: 'Trend' },
+      movingAverages: [{ window: 3, field: 'sma_3', label: 'SMA 3' }],
+      referenceLines: [{ value: 1400, label: 'Threshold' }],
+      period: { category: 'Feb', state: 'annualized', label: 'Estimate', annualizedField: 'annualized' },
+      annotations: [{ at: 'Feb', label: 'Method changed' }],
+      forecast: {
+        start: 'Feb', valueField: 'forecast', lowerField: 'forecast_lower', upperField: 'forecast_upper', label: 'Projection',
+      },
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.map((series) => series.name)).toEqual(expect.arrayContaining([
+      'Revenue · Trend', 'Revenue · SMA 3', 'Estimate', 'Revenue · Projection', 'Projection confidence',
+    ]))
+    expect(chart.series.find((series) => series.name === 'Revenue · Trend')?.lineStyle).toMatchObject({ type: 'dashed' })
+    expect(chart.series.find((series) => series.name === 'Revenue · SMA 3')?.lineStyle).not.toMatchObject({ type: 'dashed' })
+    expect(chart.series.find((series) => series.name === 'Threshold')).toMatchObject({
+      lineStyle: { type: 'dashed' }, endLabel: { formatter: 'Threshold' },
+    })
+    expect(chart.series.find((series) => series.name === 'Method changed')).toMatchObject({
+      lineStyle: { type: 'dotted' }, endLabel: { formatter: 'Method changed' },
+    })
+    expect(chart.series[0]?.data?.[1]).toMatchObject({ symbol: 'emptyCircle', label: { formatter: 'Estimate' } })
   })
 
   it('paints pie slices from the panel resolver when the theme names no colour', () => {

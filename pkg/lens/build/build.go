@@ -130,3 +130,16 @@ func DateRangeVariable(name, label string, defaultDuration time.Duration) lens.V
 		Default:         lens.DateRangeValue{Mode: "default"},
 	}
 }
+
+// CompareVariable adds an opt-in period comparison beside a date-range
+// variable. Its default is off, preserving dashboards that do not select it.
+func CompareVariable(name, label, dateRangeVariable string) lens.VariableSpec {
+	return lens.VariableSpec{
+		Name:      name,
+		Label:     label,
+		Kind:      lens.VariableCompare,
+		Component: lens.VariableComponentComparePicker,
+		Default:   lens.CompareValue{Mode: lens.CompareOff},
+		CompareTo: dateRangeVariable,
+	}
+}

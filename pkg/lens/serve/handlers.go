@@ -10,9 +10,12 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	lensexport "github.com/iota-uz/iota-sdk/pkg/lens/export"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
@@ -23,6 +26,8 @@ type errorResponse = document.QueryErrorResponse
 type QueryRequest = document.QueryRequest
 type Page = document.QueryPage
 type QueryResponse = document.QueryResponse
+type PanelRequest = document.PanelRequest
+type PanelResponse = document.PanelResponse
 
 // Document executes and returns a new snapshot-backed dashboard document.
 func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
@@ -31,7 +36,11 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req := h.runtimeRequest(r)
-	result, err := h.engine.Execute(r.Context(), h.spec, req, lensruntime.DashboardScope())
+	scope := lensruntime.DashboardScope()
+	if h.progressive {
+		scope = lensruntime.ShellScope()
+	}
+	result, err := h.engine.Execute(r.Context(), h.spec, req, scope)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
 		return
@@ -45,6 +54,9 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 	}
 	frozen := freezeParams(result, req)
 	for _, target := range inlineTargets(h.spec, h.inlineDepth) {
+		if h.progressive {
+			break
+		}
 		existing := result.Panel(target.panel.ID)
 		if existing != nil && existing.Error == nil && existing.Frames != nil && existing.Frames.Primary() != nil {
 			continue
@@ -60,6 +72,9 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		result.Panels[target.panel.ID] = levelResult
 	}
 	for _, target := range sourceDataTargets(h.spec, h.inlineDepth) {
+		if h.progressive {
+			break
+		}
 		existing := result.Panel(target.panel.ID)
 		if existing != nil && existing.Error == nil && existing.Frames != nil && existing.Frames.Primary() != nil {
 			continue
@@ -79,7 +94,18 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, err := document.Build(h.spec, result, document.BuildOptions{
 		Locale: result.Locale, InlineDepth: h.inlineDepth,
-		Endpoints: document.Endpoints{Query: h.endpoint("/lens/query"), Export: h.endpoint("/export")},
+		Endpoints: document.Endpoints{
+			Query: h.endpoint("/lens/query"), Export: h.endpoint("/export"),
+			Views: h.viewsEndpoint, Schedules: h.schedulesEndpoint,
+			Panel: func() string {
+				if h.progressive {
+					return h.endpoint("/lens/panel")
+				}
+				return ""
+			}(),
+		},
+		DeferPanels: h.progressive,
+		Filters:     wireVariableFilters(result.Filters),
 	})
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Document", "document build failed", err)
@@ -95,6 +121,166 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, doc)
+}
+
+type loadedPanel struct {
+	frame       document.Frame
+	calculation document.PanelCalculation
+	summary     *document.TableSummary
+}
+
+// Panel materialises one top-level panel against the immutable request frozen
+// by Document. A failure is returned only to this endpoint, leaving the shell
+// and every sibling panel usable and independently retryable.
+func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be POST")
+		return
+	}
+	var req PanelRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		return
+	}
+	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
+	req.PanelID = strings.TrimSpace(req.PanelID)
+	req.Search = strings.TrimSpace(req.Search)
+	if req.SnapshotID == "" || req.PanelID == "" {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "snapshotId and panelId are required")
+		return
+	}
+	if len([]rune(req.Search)) > 200 {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "search cannot exceed 200 characters")
+		return
+	}
+	panelSpec, ok := lens.FindPanel(h.spec, req.PanelID)
+	if !ok || panelSpec.Kind.IsContainer() {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available")
+		return
+	}
+	if req.Search != "" && (panelSpec.Kind != panel.KindTable || panelSpec.Table == nil || !panelSpec.Table.Searchable) {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not searchable")
+		return
+	}
+	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
+	if err != nil {
+		h.writeSnapshotError(r.Context(), w, err)
+		return
+	}
+	current := h.runtimeRequest(r)
+	if !sameSnapshotScope(current, snapshot.Params) {
+		// Conceal cross-scope snapshot existence exactly like an expired ID.
+		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
+		return
+	}
+	ref := document.FrameRef("panel:" + panelSpec.ID)
+	if !req.Recompute && req.Search == "" {
+		calculation, materialized := snapshot.Panels[panelSpec.ID]
+		if cached, exists := snapshot.Frames[ref]; exists && materialized {
+			calculation.CacheHit = true
+			if calculation.CalculatedAt.IsZero() {
+				calculation.CalculatedAt = snapshot.CreatedAt
+			}
+			view, summary := tableFrameView(panelSpec, cached, "")
+			writeJSON(w, http.StatusOK, PanelResponse{
+				Frames: map[document.FrameRef]document.Frame{ref: view}, Calculation: calculation, Summary: summary,
+			})
+			return
+		}
+	}
+	h.loadPanel(w, r, req, snapshot, panelSpec, ref, current)
+}
+
+func (h *Handlers) loadPanel(
+	w http.ResponseWriter,
+	r *http.Request,
+	req PanelRequest,
+	snapshot *document.Snapshot,
+	panelSpec panel.Spec,
+	ref document.FrameRef,
+	current lensruntime.Request,
+) {
+	ctx := r.Context()
+	key := "panel:" + snapshot.ID + ":" + panelSpec.ID
+	if req.Recompute {
+		key += ":recompute"
+	}
+	if req.Search != "" {
+		key += ":search:" + req.Search
+	}
+	result := h.loads.DoChan(key, func() (any, error) {
+		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
+		defer cancel()
+		latest, err := h.snapshots.Get(workCtx, snapshot.ID)
+		if err != nil {
+			return nil, err
+		}
+		if !sameSnapshotScope(current, latest.Params) {
+			return nil, document.ErrSnapshotGone
+		}
+		if !req.Recompute && req.Search == "" {
+			calculation, materialized := latest.Panels[panelSpec.ID]
+			if cached, exists := latest.Frames[ref]; exists && materialized {
+				calculation.CacheHit = true
+				view, summary := tableFrameView(panelSpec, cached, "")
+				return loadedPanel{frame: view, calculation: calculation, summary: summary}, nil
+			}
+		}
+		base := thawRuntimeRequest(current, latest.Params)
+		base.Recompute = req.Recompute
+		if req.Search != "" {
+			base.Request.Set(lensruntime.TableSearchQuery, req.Search)
+		}
+		executed, err := h.engine.Execute(workCtx, h.spec, base, lensruntime.PanelScope(panelSpec.ID))
+		if err != nil {
+			return nil, err
+		}
+		if executed == nil {
+			return nil, fmt.Errorf("panel executor returned a nil dashboard result")
+		}
+		panelResult := executed.Panel(panelSpec.ID)
+		if panelResult == nil {
+			return nil, fmt.Errorf("panel %q is missing from runtime result", panelSpec.ID)
+		}
+		if panelResult.Error != nil {
+			return nil, panelResult.Error
+		}
+		wire, err := wireFrame(ref, panelSpec, nil, panelResult)
+		if err != nil {
+			return nil, err
+		}
+		wire, summary := tableFrameView(panelSpec, wire, req.Search)
+		calculation := document.PanelCalculation{
+			DurationMS: executed.Duration.Milliseconds(), CacheHit: executed.CacheHit, CalculatedAt: time.Now().UTC(),
+		}
+		if req.Search == "" {
+			if err := h.snapshots.PutPanel(workCtx, latest.ID, panelSpec.ID, ref, wire, calculation); err != nil {
+				return nil, err
+			}
+		}
+		return loadedPanel{frame: wire, calculation: calculation, summary: summary}, nil
+	})
+	select {
+	case <-ctx.Done():
+		return
+	case loaded := <-result:
+		if loaded.Err != nil {
+			if errors.Is(loaded.Err, document.ErrSnapshotGone) {
+				h.writeSnapshotError(ctx, w, loaded.Err)
+				return
+			}
+			h.writeExecutionError(ctx, w, loaded.Err)
+			return
+		}
+		panel, ok := loaded.Val.(loadedPanel)
+		if !ok {
+			h.writeInternalError(ctx, w, "lens/serve.Panel", "panel execution failed", fmt.Errorf("panel execution returned %T", loaded.Val))
+			return
+		}
+		writeJSON(w, http.StatusOK, PanelResponse{
+			Frames: map[document.FrameRef]document.Frame{ref: panel.frame}, Calculation: panel.calculation, Summary: panel.summary,
+		})
+	}
 }
 
 // Query returns a cached aggregate level or executes one level using frozen
@@ -276,16 +462,46 @@ func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 		h.writeSnapshotError(r.Context(), w, err)
 		return
 	}
-	request := thawRuntimeRequest(h.runtimeRequest(r), snapshot.Params)
-	result, err := runtimeResultFromSnapshot(h.spec, snapshot, request)
-	if err != nil {
-		h.writeInternalError(r.Context(), w, "lens/serve.Export", "snapshot conversion failed", err)
+	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
+	current := h.runtimeRequest(r)
+	if h.progressive && !sameSnapshotScope(current, snapshot.Params) {
+		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
 		return
 	}
-	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
-	if panelID != "" && result.Panel(panelID) == nil {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available in the snapshot")
-		return
+	request := thawRuntimeRequest(current, snapshot.Params)
+	var result *lensruntime.DashboardResult
+	if h.progressive {
+		scope := lensruntime.DashboardExportScope()
+		if panelID != "" {
+			if spec, ok := lens.FindPanel(h.spec, panelID); !ok || spec.Kind.IsContainer() {
+				writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available in the snapshot")
+				return
+			}
+			scope = lensruntime.PanelExportScope(panelID)
+		}
+		result, err = h.engine.Execute(r.Context(), h.spec, request, scope)
+		if err != nil {
+			h.writeExecutionError(r.Context(), w, err)
+			return
+		}
+		if result == nil {
+			h.writeInternalError(r.Context(), w, "lens/serve.Export", "export execution failed", fmt.Errorf("executor returned a nil dashboard result"))
+			return
+		}
+		// Workbook identity belongs to the immutable document snapshot rather
+		// than the runtime's internal dataset-cache key.
+		result.SnapshotID = snapshot.ID
+		result.StartedAt = snapshot.CreatedAt
+	} else {
+		result, err = runtimeResultFromSnapshot(h.spec, snapshot, request)
+		if err != nil {
+			h.writeInternalError(r.Context(), w, "lens/serve.Export", "snapshot conversion failed", err)
+			return
+		}
+		if panelID != "" && result.Panel(panelID) == nil {
+			writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available in the snapshot")
+			return
+		}
 	}
 	var workbook bytes.Buffer
 	if err := lensexport.New().Write(r.Context(), &workbook, lensexport.Request{Result: result, PanelID: panelID}); err != nil {

@@ -33,12 +33,15 @@ vi.mock('../runtime', () => ({
   ),
   useDrill: () => ({ drillInto: runtime.drillInto }),
   useDrawer: () => ({ depth: 0, open: vi.fn(), close: vi.fn() }),
+  useFilters: () => ({ applyURL: vi.fn() }),
   useDashboard: () => ({ document: runtime.document, navigation: runtime.navigation }),
   levelForPath: () => runtime.level,
 }))
 
-import { BarPanel, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
+import { BarPanel, collapseExpandableTopN, collapseMinorDonutSlices, DistributionPanel, donutRemainderKey, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
+import { GaugePanel } from './GaugePanel'
+import { MapPanel } from './MapPanel'
 import { buildCascadeStages, buildWaterfallItems, buildWaterfallModel, CascadePanel, waterfallAxisStep } from './CascadePanel'
 import { WaterfallPlot } from './WaterfallPlot'
 import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
@@ -66,6 +69,18 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
     encoding: { id: 'id', label: 'label', category: 'category', series: 'series', value: 'value' },
     format: {},
     actions: [],
+    ...(kind === 'map' ? {
+      map: {
+        source: { inline: {
+          type: 'FeatureCollection',
+          features: [{
+            type: 'Feature', properties: { code: 'root/a', name: 'Alpha' },
+            geometry: { type: 'Polygon', coordinates: [[[0, 0], [1, 0], [1, 1], [0, 0]]] },
+          }],
+        } },
+        featureProperty: 'code', labelProperty: 'name',
+      },
+    } : {}),
     ...overrides,
   }
 }
@@ -100,6 +115,9 @@ function renderKind(kind: PanelKind) {
   if (kind === 'cascade') return render(<CascadePanel panel={value} />)
   if (kind === 'table') return render(<TablePanel panel={value} />)
   if (kind === 'coverage') return render(<CoveragePanel panel={value} />)
+  if (kind === 'gauge') return render(<GaugePanel panel={value} />)
+  if (kind === 'map') return render(<MapPanel panel={value} adapter={fakeAdapter()} />)
+  if (kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap') return render(<DistributionPanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'pie' || kind === 'donut' || kind === 'radial') return render(<PiePanel panel={value} adapter={fakeAdapter()} />)
   if (kind === 'bar' || kind === 'hbar') return render(<BarPanel panel={value} adapter={fakeAdapter()} />)
   return render(<LinePanel panel={value} adapter={fakeAdapter()} />)
@@ -114,9 +132,10 @@ afterEach(() => {
   runtime.level = undefined
   runtime.refreshing = false
   runtime.document = baseDocument
+  window.history.replaceState({}, '', '/')
 })
 
-describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
+describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'gauge', 'histogram', 'boxplot', 'heatmap', 'map', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
   it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
@@ -128,7 +147,12 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       expect(panelElement).toHaveAttribute('aria-busy', 'true')
       expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
     }
-    if (stateName === 'empty') expect(screen.getByText('No data')).toBeInTheDocument()
+    if (stateName === 'empty') {
+      expect(screen.getByText('No data')).toBeInTheDocument()
+      if (['pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area'].includes(kind)) {
+        expect(view.container.querySelector('.lens-chart-compact')).not.toBeNull()
+      }
+    }
     if (stateName === 'error') {
       fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
       expect(runtime.frame.retry).toHaveBeenCalledTimes(1)
@@ -146,9 +170,26 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       else if (kind === 'cascade') expect(screen.getByRole('list', { name: 'cascade panel stages' })).toBeInTheDocument()
       else if (kind === 'table') expect(screen.getByRole('table')).toBeInTheDocument()
       else if (kind === 'coverage') expect(panelElement.querySelector('.lens-coverage-headline')).not.toBeNull()
-      else await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
+      else if (kind === 'gauge') expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '42')
+      else if (kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap') expect(panelElement.querySelector('.lens-chart-host')).not.toBeNull()
+      else if (kind === 'map') await waitFor(() => expect(panelElement.querySelector('.lens-chart-host')).not.toBeNull())
+      else expect(panelElement.querySelector('.lens-chart-compact')).toHaveTextContent('42')
     }
     view.unmount()
+  })
+})
+
+describe('map panel', () => {
+  it('passes the exact feature join to ECharts and drills with the region key', async () => {
+    runtime.frame = state('data')
+    const inputs: ChartInput[] = []
+    render(<MapPanel panel={panel('map', { drillRoot: 'root' })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    const mark = await screen.findByRole('button', { name: 'chart data' })
+    expect(inputs.at(-1)?.kind).toBe('map')
+    expect(inputs.at(-1)?.map).toMatchObject({ featureProperty: 'code', labelProperty: 'name' })
+    fireEvent.click(mark)
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-map')
   })
 })
 
@@ -157,7 +198,7 @@ describe('panel total badge', () => {
     runtime.frame = state('data')
     const view = render(<BarPanel panel={panel('bar', { total: 12345 })} adapter={fakeAdapter()} />)
     const badge = view.container.querySelector('.lens-panel-total')
-    // The badge names what it totals, like the legacy renderer's "Итого:".
+    // The badge names what it totals instead of showing an unlabeled number.
     expect(badge).toHaveTextContent('Total: 12345')
   })
 
@@ -192,9 +233,75 @@ describe('panel total badge', () => {
   })
 })
 
+describe('gauge panel', () => {
+  it('renders a formatted reading against the documented zero-to-100 range', () => {
+    runtime.frame = {
+      data: { columns: [{ name: 'value', type: 'number' }], rows: [[68.4]] },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const view = render(<GaugePanel panel={panel('gauge', { encoding: { value: 'value' } })} />)
+    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '68.4')
+    expect(view.container.querySelector('.lens-gauge-reading')).toHaveTextContent('68.4of 100')
+    expect(view.container.querySelector('.lens-gauge-value-arc')).toHaveStyle({ strokeDasharray: '68.4 100' })
+  })
+})
+
+describe('temporal overlay controls', () => {
+  it('keeps regression off by default and selects one documented moving-average window', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: {
+        columns: [
+          ...dataFrame.columns,
+          { name: 'regression', type: 'number' },
+          { name: 'sma_3', type: 'number' },
+          { name: 'sma_7', type: 'number' },
+        ],
+        rows: [
+          ['root/a', 'Alpha', '2026-07-01T00:00:00Z', 'Actual', 42, 40, null, null],
+          ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 45, 43, 43, null],
+          ['root/c', 'Gamma', '2026-07-03T00:00:00Z', 'Actual', 48, 46, 45, 44],
+        ],
+      },
+    }
+    const inputs: ChartInput[] = []
+    const temporal = panel('line', {
+      temporal: {
+        regression: { field: 'regression', label: 'Trend' },
+        movingAverages: [
+          { window: 3, field: 'sma_3', label: 'SMA 3' },
+          { window: 7, field: 'sma_7', label: 'SMA 7' },
+        ],
+        referenceLines: [{ value: 50, label: 'Threshold' }],
+      },
+    })
+    render(<LinePanel panel={temporal} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+    expect(inputs.at(-1)?.temporal).toMatchObject({ referenceLines: [{ value: 50, label: 'Threshold' }] })
+    expect(inputs.at(-1)?.temporal?.regression).toBeUndefined()
+    expect(inputs.at(-1)?.temporal?.movingAverages).toEqual([])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Trend' }))
+    await waitFor(() => expect(inputs.at(-1)?.temporal?.regression?.field).toBe('regression'))
+    expect(screen.getByRole('button', { name: 'Trend' })).toHaveAttribute('aria-pressed', 'true')
+
+    fireEvent.change(screen.getByRole('combobox', { name: 'Moving average' }), { target: { value: '7' } })
+    await waitFor(() => expect(inputs.at(-1)?.temporal?.movingAverages).toEqual([
+      { window: 7, field: 'sma_7', label: 'SMA 7' },
+    ]))
+  })
+})
+
 describe('logarithmic scale warning', () => {
   it('keeps the non-linear scale visible on the chart reading surface', () => {
-    runtime.frame = state('data')
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [
+        ['a', 'A', 'A', 'Actual', 1],
+        ['b', 'B', 'B', 'Actual', 100],
+        ['c', 'C', 'C', 'Actual', 10_000],
+      ] },
+    }
     render(
       <BarPanel
         panel={panel('bar', { valueAxis: { scale: 'logarithmic', logBase: 10 } })}
@@ -213,18 +320,24 @@ describe('logarithmic scale warning', () => {
 
     expect(screen.queryByRole('note')).toBeNull()
   })
+
+  it('silently falls back to linear for one category', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar', { valueAxis: { scale: 'logarithmic', logBase: 10 } })} adapter={fakeAdapter()} />)
+    expect(screen.queryByRole('note')).toBeNull()
+    expect(screen.getByText('42')).toBeInTheDocument()
+  })
 })
 
-describe('document refetch loading', () => {
-  it('shows the skeleton while a date/period refetch is in flight', () => {
+describe('background document refetch isolation', () => {
+  it('keeps a usable panel visible while the document refreshes', () => {
     runtime.frame = state('data')
     runtime.refreshing = true
     const view = render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
     const panelElement = screen.getByLabelText('bar panel')
-    expect(panelElement).toHaveAttribute('aria-busy', 'true')
-    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
-    // The stale chart is gone; the panel is unmistakably recomputing.
-    expect(screen.queryByText('chart data')).toBeNull()
+    expect(panelElement).toHaveAttribute('aria-busy', 'false')
+    expect(view.container.querySelector('.lens-panel-skeleton')).toBeNull()
+    expect(screen.getByText('42')).toBeInTheDocument()
   })
 })
 
@@ -236,6 +349,11 @@ describe('panel registry', () => {
       cascade: true,
       coverage: true,
       donut: true,
+      gauge: true,
+      histogram: true,
+      boxplot: true,
+      heatmap: true,
+      map: true,
       radial: true,
       hbar: true,
       line: true,
@@ -254,18 +372,28 @@ describe('panel registry', () => {
     }
   })
 
-  it('maps every kind and preserves an explicit fallback for custom registries', () => {
+  it('maps every kind and preserves an explicit fallback for custom registries', async () => {
     runtime.frame = state('data')
     const view = render(<RegisteredPanel panel={panel('table')} />)
-    expect(screen.getByRole('table')).toBeInTheDocument()
+    expect(await screen.findByRole('table')).toBeInTheDocument()
     view.rerender(<RegisteredPanel panel={panel('cascade')} registry={{}} />)
     expect(screen.getByText('Unsupported panel: cascade')).toBeInTheDocument()
   })
 })
 
 describe('chart encoding and drill behavior', () => {
-  it('adds selection and hover affordances only when DrillRoot is present', async () => {
+  it.each(['histogram', 'boxplot', 'heatmap'] as const)('passes %s through the chart runtime', async (kind) => {
     runtime.frame = state('data')
+    const inputs: ChartInput[] = []
+    render(<DistributionPanel panel={panel(kind)} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    await waitFor(() => expect(inputs.at(-1)?.kind).toBe(kind))
+  })
+
+  it('adds selection and hover affordances only when DrillRoot is present', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 21]] },
+    }
     const adapter = fakeAdapter()
     const view = render(<PiePanel panel={panel('pie')} adapter={adapter} />)
     await waitFor(() => expect(screen.getByText('chart data')).toBeInTheDocument())
@@ -280,7 +408,10 @@ describe('chart encoding and drill behavior', () => {
   })
 
   it('passes time and series encodings through and tolerates missing optional roles', async () => {
-    runtime.frame = state('data')
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Plan', 21]] },
+    }
     const inputs: ChartInput[] = []
     const timePanel = panel('line', { encoding: { category: 'category', value: 'value', series: 'series' } })
     const view = render(<LinePanel panel={timePanel} adapter={fakeAdapter((input) => inputs.push(input))} />)
@@ -290,7 +421,10 @@ describe('chart encoding and drill behavior', () => {
 
     const sparse = panel('bar', { encoding: { value: 'value' } })
     view.rerender(<BarPanel panel={sparse} adapter={fakeAdapter((input) => inputs.push(input))} />)
-    await waitFor(() => expect(inputs.at(-1)?.encoding).toEqual({ value: 'value' }))
+    // With no categorical role this is the intentional compact-value state;
+    // the missing optional encodings are therefore tolerated without asking
+    // the chart adapter to invent an axis.
+    expect(screen.getByText('63')).toBeInTheDocument()
   })
 
   it('passes radial geometry and resolves a ring-specific row selection', async () => {
@@ -438,6 +572,130 @@ describe('chart encoding and drill behavior', () => {
       ['2025', 'Written premium', 100],
       ['2026', 'Written premium', 120],
     ]))
+  })
+
+  it('prints period sums and supports solo, repeat-solo restore, and bulk controls', async () => {
+    const frame: Frame = {
+      columns: [
+        { name: 'category', type: 'string' },
+        { name: 'series', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['2025', 'Written', 100], ['2025', 'Earned', 80],
+        ['2026', 'Written', 120], ['2026', 'Earned', 90],
+      ],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    expect(screen.getByRole('button', { name: /Written/ })).toHaveTextContent('220')
+    fireEvent.doubleClick(screen.getByRole('button', { name: /Earned/ }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows.every((row) => row[1] === 'Earned')).toBe(true))
+    expect(new URL(window.location.href).searchParams.getAll('lensHidden').length).toBe(1)
+
+    fireEvent.doubleClick(screen.getByRole('button', { name: /Earned/ }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(0))
+    fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
+    fireEvent.click(screen.getByRole('button', { name: 'Invert' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(0))
+  })
+
+  it('shows legend search only above eight series and filters without changing the plot', () => {
+    const rows = ['2025', '2026'].flatMap((year) => Array.from({ length: 9 }, (_, index) => [year, `Product ${index + 1}`, index + 1]))
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows,
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const line = panel('line', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below' },
+    })
+    const view = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    const search = screen.getByRole('searchbox', { name: 'Search legend' })
+    fireEvent.change(search, { target: { value: 'Product 9' } })
+    expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(1)
+    expect(screen.getByText('Product 9')).toBeInTheDocument()
+  })
+
+  it('rebuilds a hidden stack from zero by removing its rows from the chart input', async () => {
+    const frame: Frame = {
+      columns: [
+        { name: 'category', type: 'string' }, { name: 'series', type: 'string' }, { name: 'value', type: 'number' },
+      ],
+      rows: [['2026', 'Direct', 100], ['2026', 'Inward', 50], ['2027', 'Direct', 80], ['2027', 'Inward', 30]],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    render(<BarPanel panel={panel('bar', {
+      encoding: { category: 'category', series: 'series', value: 'value' },
+      presentation: { legend: 'below', stack: true },
+    })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Direct/ }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([['2026', 'Inward', 50], ['2027', 'Inward', 30]]))
+  })
+
+  it('collapses expandable TopN and sub-two-percent donut tails without discarding their source rows', () => {
+    const topNFrame: Frame = {
+      columns: [
+        { name: 'id', type: 'string' }, { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' }, { name: '__lens_topn_group', type: 'string' },
+      ],
+      rows: [['a', 'A', 100, null], ['b', 'B', 4, 'Other'], ['c', 'C', 3, 'Other']],
+    }
+    const topN = collapseExpandableTopN(topNFrame, panel('bar', { encoding: { id: 'id', label: 'label', value: 'value' } }))
+    expect(topN.frame.rows).toEqual([['a', 'A', 100, null], [donutRemainderKey, 'Other', 7, 'Other']])
+
+    const donut = collapseMinorDonutSlices({ ...topNFrame, rows: [['a', 'A', 98, null], ['b', 'B', 1, null], ['c', 'C', 1, null]] }, panel('donut', {
+      encoding: { id: 'id', label: 'label', value: 'value' },
+    }), 'Other')
+    expect(donut.frame.rows.at(-1)?.slice(0, 3)).toEqual([donutRemainderKey, 'Other', 2])
+  })
+
+  it('expands a collapsed TopN remainder when its synthetic mark is selected', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'id', type: 'string' }, { name: 'label', type: 'string' },
+          { name: 'value', type: 'number' }, { name: '__lens_topn_group', type: 'string' },
+        ],
+        rows: [['a', 'A', 100, null], ['b', 'B', 4, 'Other'], ['c', 'C', 3, 'Other']],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    const inputs: ChartInput[] = []
+    const adapter: ChartAdapter = {
+      mount(el, input, events) {
+        inputs.push(input)
+        const button = document.createElement('button')
+        button.textContent = 'Other'
+        button.onclick = () => events.onSelect(donutRemainderKey)
+        el.append(button)
+        return { update: (next) => inputs.push(next), dispose: () => el.replaceChildren() }
+      },
+    }
+    render(<BarPanel panel={panel('bar', { encoding: { id: 'id', label: 'label', value: 'value' } })} adapter={adapter} />)
+
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
+    fireEvent.click(screen.getByRole('button', { name: 'Other' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(3))
+    expect(screen.getByRole('button', { name: 'Collapse Other' })).toBeInTheDocument()
   })
 
   it('keeps a series in its own colour when the series before it is hidden', async () => {

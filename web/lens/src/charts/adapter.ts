@@ -1,6 +1,6 @@
-import type { Encoding, Frame, NodeKey, PanelKind, Presentation, RadialConfig, Theme, ValueAxis } from '../contract'
+import type { Encoding, Frame, GeoJSONFeatureCollection, NodeKey, PanelKind, PanelTemporal, Presentation, RadialConfig, Theme, ValueAxis } from '../contract'
 
-export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'radial' | 'bar' | 'hbar' | 'line' | 'area'>
+export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'radial' | 'bar' | 'hbar' | 'line' | 'area' | 'histogram' | 'boxplot' | 'heatmap' | 'map'>
 export type ChartFormatResolver = (field: string, value: unknown) => string
 
 /** Stable mark identity for a category within a specific partition ring. */
@@ -27,6 +27,15 @@ export interface ChartInput {
   valueAxis?: ValueAxis
   /** Required geometry contract for radial charts. */
   radial?: RadialConfig
+  /** Opt-in readability overlays for line and area time series. */
+  temporal?: PanelTemporal
+  /** Registered geometry and exact feature-property join for a map panel. */
+  map?: {
+    name: string
+    geoJSON: GeoJSONFeatureCollection
+    featureProperty: string
+    labelProperty?: string
+  }
   /**
    * Whether a point expands into a further level, keyed by its id (falling
    * back to its category label). Used for the per-mark cursor: with a Pareto
@@ -53,6 +62,10 @@ export interface ChartInput {
    * remainder neutral without the placeholder panel knowing a remainder exists.
    */
   rowColor?: (label: string, index: number, nodeKey?: string) => string | undefined
+  /** Current plot width, supplied by the mounted adapter for responsive labels. */
+  viewportWidth?: number
+  /** Whether the producer declared formatting for the category/time field. */
+  categoryFormatDefined?: boolean
 }
 
 /** Viewport coordinates of the activated mark, used to anchor an overlay. */
@@ -61,13 +74,18 @@ export interface ChartAnchor {
   y: number
 }
 
+export interface ChartActivation {
+	newTab: boolean
+}
+
 export interface ChartEvents {
-  onSelect(key: NodeKey, anchor?: ChartAnchor): void
+  onSelect(key: NodeKey, anchor?: ChartAnchor, activation?: ChartActivation): void
   onHover(key: NodeKey | null): void
 }
 
 export interface ChartInstance {
   update(input: ChartInput): void
+	resetZoom?(): void
   dispose(): void
 }
 

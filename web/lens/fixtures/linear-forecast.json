@@ -1,0 +1,20 @@
+{
+  "columns": [
+    { "name": "month", "type": "time" },
+    { "name": "series", "type": "string" },
+    { "name": "value", "type": "number" },
+    { "name": "forecast", "type": "number" },
+    { "name": "forecast_lower", "type": "number" },
+    { "name": "forecast_upper", "type": "number" }
+  ],
+  "rows": [
+    ["2026-01-01T00:00:00Z", "Observed", 10, null, null, null],
+    ["2026-02-01T00:00:00Z", "Observed", 12, null, null, null],
+    ["2026-03-01T00:00:00Z", "Observed", 13, null, null, null],
+    ["2026-04-01T00:00:00Z", "Observed", 17, null, null, null],
+    ["2026-05-01T00:00:00Z", "Observed", 18, null, null, null],
+    ["2026-06-01T00:00:00Z", "Observed", null, 20.3, 18.039617731444526, 22.560382268555475],
+    ["2026-07-01T00:00:00Z", "Observed", null, 22.400000000000002, 19.78993537755608, 25.010064622443924],
+    ["2026-08-01T00:00:00Z", "Observed", null, 24.5, 21.49964179916242, 27.50035820083758]
+  ]
+}

@@ -14,6 +14,7 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,7 +38,7 @@ func execute(ctx context.Context, spec lens.DashboardSpec, req Request) (*Dashbo
 
 func TestExecute_RejectsIncompleteCacheIdentity(t *testing.T) {
 	t.Parallel()
-	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Bar("chart", "Chart", "data").Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Bar("chart", "Chart", "data").Terminal().Build())).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
 	ds := &stubDataSource{}
 	_, err := New(Options{}).Execute(context.Background(), spec, Request{DataSources: map[string]datasource.DataSource{"primary": ds}}, DashboardScope())
 	require.ErrorContains(t, err, "data scope is required")
@@ -48,7 +49,7 @@ func TestExecute_RejectsIncompleteCacheIdentity(t *testing.T) {
 func TestExecute_FailsClosedForUnserializableIdentity(t *testing.T) {
 	t.Parallel()
 	frames := mustFrameSet(t, "static")
-	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Table("table", "Table", "data").Build())).Datasets(lensbuild.StaticDataset("data", frames)).Build()
+	spec := lensbuild.Dashboard("identity", "Identity", lensbuild.Row(panel.Table("table", "Table", "data").Terminal().Build())).Datasets(lensbuild.StaticDataset("data", frames)).Build()
 	spec.Variables = []lens.VariableSpec{{Name: "invalid", Default: "valid"}}
 	_, err := New(Options{}).Execute(context.Background(), spec, Request{DataScope: "tenant:a", Overrides: map[string]any{"invalid": func() {}}}, DashboardScope())
 	require.Error(t, err)
@@ -76,8 +77,8 @@ func TestRunReusesDatasetAcrossPanels(t *testing.T) {
 	ds := &stubDataSource{}
 	spec := lensbuild.Dashboard("shared", "Shared Dataset",
 		lensbuild.Row(
-			panel.Bar("p1", "Panel 1", "shared-data").Build(),
-			panel.Table("p2", "Panel 2", "shared-data").Build(),
+			panel.Bar("p1", "Panel 1", "shared-data").Terminal().Build(),
+			panel.Table("p2", "Panel 2", "shared-data").Terminal().Build(),
 		),
 	).Datasets(
 		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
@@ -97,7 +98,7 @@ func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {
 	ds := &stubDataSource{}
 	spec := lensbuild.Dashboard("shared", "Shared Dataset",
 		lensbuild.Row(
-			panel.Table("p1", "Panel 1", "shared-data").Build(),
+			panel.Table("p1", "Panel 1", "shared-data").Terminal().Build(),
 		),
 	).Datasets(
 		lensbuild.QueryDataset("shared-data", "primary", "select 1"),
@@ -177,7 +178,7 @@ func TestPlan_Scenarios(t *testing.T) {
 			name: "includes only required datasets",
 			spec: lensbuild.Dashboard("planned", "Planned",
 				lensbuild.Row(
-					panel.Bar("sales", "Sales", "daily_sales").Build(),
+					panel.Bar("sales", "Sales", "daily_sales").Terminal().Build(),
 				),
 			).Datasets(
 				lensbuild.StaticDataset("source_lookup", mustFrameSet(t, "source_lookup")),
@@ -214,7 +215,7 @@ func TestPlan_ExportScopeMaterializesEvidenceWithoutSlowingDashboardScope(t *tes
 	t.Parallel()
 
 	spec := lensbuild.Dashboard("audit", "Audit",
-		lensbuild.Row(panel.Bar("sales", "Sales", "sales").Export("/export", "panel_evidence").Build()),
+		lensbuild.Row(panel.Bar("sales", "Sales", "sales").Export("/export", "panel_evidence").Terminal().Build()),
 	).Datasets(
 		lensbuild.QueryDataset("sales", "primary", "select 1"),
 		lensbuild.QueryDataset("panel_evidence", "primary", "select 2"),
@@ -251,7 +252,7 @@ func TestRun_Scenarios(t *testing.T) {
 			name: "skips unused datasets",
 			spec: lensbuild.Dashboard("planned", "Planned",
 				lensbuild.Row(
-					panel.Bar("sales", "Sales", "shared-data").Build(),
+					panel.Bar("sales", "Sales", "shared-data").Terminal().Build(),
 				),
 			).Datasets(
 				lensbuild.QueryDataset("shared-data", "primary", "select 1"),
@@ -335,6 +336,47 @@ func TestDateRangeVariableUsesStartAndEndRequestKeysWhenModeKeyIsPresent(t *test
 	assert.Equal(t, time.Date(2026, 3, 15, 23, 59, 59, int(time.Second-time.Nanosecond), time.UTC), bounded.End.UTC())
 }
 
+func TestCompareVariableResolvesEveryModeAgainstItsDateRange(t *testing.T) {
+	t.Parallel()
+
+	variables := []lens.VariableSpec{
+		lensbuild.CompareVariable("compare", "Compare", "range"),
+		lensbuild.DateRangeVariable("range", "Range", 24*time.Hour),
+	}
+	base := func() url.Values {
+		return url.Values{
+			"range":       []string{"bounded"},
+			"range_start": []string{"2026-03-10"},
+			"range_end":   []string{"2026-03-15"},
+		}
+	}
+	assertRange := func(mode lens.CompareMode, start, end string) {
+		request := base()
+		request.Set("compare", string(mode))
+		resolved, err := resolveVariables(variables, Request{Request: request})
+		require.NoError(t, err)
+		value := resolved["compare"].(lens.CompareValue)
+		require.Equal(t, mode, value.Mode)
+		require.Equal(t, start, value.Range.Start.Format("2006-01-02"))
+		require.Equal(t, end, value.Range.End.Format("2006-01-02"))
+	}
+
+	assertRange(lens.ComparePreviousPeriod, "2026-03-04", "2026-03-09")
+	assertRange(lens.CompareYearAgo, "2025-03-10", "2025-03-15")
+
+	custom := base()
+	custom.Set("compare", string(lens.CompareCustom))
+	custom.Set("compare_start", "2026-02-01")
+	custom.Set("compare_end", "2026-02-28")
+	resolved, err := resolveVariables(variables, Request{Request: custom})
+	require.NoError(t, err)
+	require.Equal(t, lens.CompareCustom, resolved["compare"].(lens.CompareValue).Mode)
+
+	off, err := resolveVariables(variables, Request{Request: base()})
+	require.NoError(t, err)
+	require.Equal(t, lens.CompareOff, off["compare"].(lens.CompareValue).Mode)
+}
+
 func TestValidateRejectsDuplicatePanels(t *testing.T) {
 	t.Parallel()
 
@@ -343,11 +385,11 @@ func TestValidateRejectsDuplicatePanels(t *testing.T) {
 			panel.Bar("same", "Panel 1", "dataset-a").
 				LabelField("label").
 				ValueField("value").
-				Build(),
+				Terminal().Build(),
 			panel.Bar("same", "Panel 2", "dataset-b").
 				LabelField("label").
 				ValueField("value").
-				Build(),
+				Terminal().Build(),
 		),
 	).Datasets(
 		lensbuild.StaticDataset("dataset-a", mustFrameSet(t, "dataset-a")),
@@ -366,7 +408,7 @@ func TestValidateRejectsDuplicateDatasets(t *testing.T) {
 			panel.Bar("panel-a", "Panel 1", "dataset-a").
 				LabelField("label").
 				ValueField("value").
-				Build(),
+				Terminal().Build(),
 		),
 	).Datasets(
 		lensbuild.StaticDataset("dataset-a", mustFrameSet(t, "dataset-a")),
@@ -642,7 +684,7 @@ func TestExecuteMarksMissingPanelFieldsAsPanelError(t *testing.T) {
 			panel.Bar("sales", "Sales", "dataset").
 				LabelField("missing_label").
 				ValueField("value").
-				Build(),
+				Terminal().Build(),
 		),
 	).Datasets(
 		lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset")),
@@ -734,6 +776,66 @@ func TestValidateAllowsUngroupedTimeSeriesPanels(t *testing.T) {
 	}
 
 	require.NoError(t, Validate(spec))
+}
+
+func TestTemporalOverlayFieldsValidateAfterTransforms(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("daily",
+		frame.Row{"category": "2026-07-01", "value": 3.0},
+		frame.Row{"category": "2026-07-02", "value": 6.0},
+		frame.Row{"category": "2026-07-03", "value": 9.0},
+	)
+	require.NoError(t, err)
+	chart := panel.TimeSeries("daily", "Daily", "daily").
+		CategoryField("category").ValueField("value").
+		Transforms(transform.MovingAverage("value", "sma_3", 3), transform.LinearRegression("value", "regression")).
+		MovingAverage(3, panel.FieldRef("sma_3"), "SMA 3").
+		Regression(panel.FieldRef("regression"), "Trend").Terminal().Build()
+	spec := lensbuild.Dashboard("daily", "Daily", lensbuild.Row(chart)).Datasets(lensbuild.StaticDataset("daily", set)).Build()
+
+	result, err := execute(context.Background(), spec, Request{})
+	require.NoError(t, err)
+	require.NoError(t, result.Panels["daily"].Error)
+	require.InDelta(t, 6.0, result.Panels["daily"].Frames.Primary().MustField("sma_3").Values[2], 1e-9)
+}
+
+func TestTemporalOverlayRejectsUnsupportedSMAWindow(t *testing.T) {
+	t.Parallel()
+
+	primary, err := frame.New("daily",
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"2026-07-01"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{3.0}},
+		frame.Field{Name: "sma", Type: frame.FieldTypeNumber, Values: []any{3.0}},
+	)
+	require.NoError(t, err)
+	spec := panel.TimeSeries("daily", "Daily", "daily").
+		CategoryField("category").ValueField("value").
+		MovingAverage(5, panel.FieldRef("sma"), "SMA 5").Terminal().Build()
+
+	require.ErrorContains(t, validateRequiredPanelFields(spec, primary), "3, 7, or 12")
+}
+
+func TestDistributionPanelsValidateExplicitFrameContracts(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("distribution", frame.Row{
+		"bucket": "0–10", "count": 12.0, "product": "OSAGO", "region": "Tashkent",
+		"min": 1.0, "q1": 3.0, "median": 5.0, "q3": 8.0, "max": 20.0,
+	})
+	require.NoError(t, err)
+	spec := lensbuild.Dashboard("distribution", "Distribution", lensbuild.Row(
+		panel.Histogram("hist", "Histogram", "distribution").CategoryField("bucket").ValueField("count").Terminal().Build(),
+		panel.BoxPlot("box", "Box plot", "distribution").CategoryField("product").BoxFields("min", "q1", "median", "q3", "max").Terminal().Build(),
+		panel.Heatmap("heat", "Heatmap", "distribution").CategoryField("region").SeriesField("product").ValueField("count").Terminal().Build(),
+	)).Datasets(lensbuild.StaticDataset("distribution", set)).Build()
+
+	require.NoError(t, Validate(spec))
+	result, err := execute(context.Background(), spec, Request{})
+	require.NoError(t, err)
+	for _, panelID := range []string{"hist", "box", "heat"} {
+		require.NoError(t, result.Panels[panelID].Error)
+	}
 }
 
 func mustFrameSet(t *testing.T, name string) *frame.FrameSet {

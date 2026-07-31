@@ -25,6 +25,7 @@ type Input struct {
 	Values      []string
 	Checked     bool
 	DateRange   DateRange
+	Compare     Compare
 }
 
 type Option struct {
@@ -40,6 +41,15 @@ type DateRange struct {
 	EndName      string
 	Start        string
 	End          string
+}
+
+type Compare struct {
+	Mode      lens.CompareMode
+	StartName string
+	EndName   string
+	Start     string
+	End       string
+	CompareTo string
 }
 
 func Build(specs []lens.VariableSpec, values map[string]any) Model {
@@ -90,10 +100,31 @@ func buildInput(spec lens.VariableSpec, value any) Input {
 		input.Checked = asBool(value)
 	case lens.VariableMultiSelect:
 		input.Values = asStrings(value)
+	case lens.VariableCompare:
+		input.Compare = buildCompare(spec, value)
 	case lens.VariableSingleSelect, lens.VariableText, lens.VariableNumber:
 		input.Value = asString(value)
 	}
 	return input
+}
+
+func buildCompare(spec lens.VariableSpec, value any) Compare {
+	current, ok := value.(lens.CompareValue)
+	if !ok {
+		current = lens.CompareValue{Mode: lens.CompareOff}
+	}
+	startName, endName := compareRequestNames(spec)
+	return Compare{
+		Mode: current.Mode, StartName: startName, EndName: endName,
+		Start: formatDate(current.Range.Start), End: formatDate(current.Range.End), CompareTo: spec.CompareTo,
+	}
+}
+
+func compareRequestNames(spec lens.VariableSpec) (string, string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	return spec.Name + "_start", spec.Name + "_end"
 }
 
 func buildOptions(specs []lens.VariableOption, value any) []Option {

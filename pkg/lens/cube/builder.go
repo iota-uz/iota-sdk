@@ -153,6 +153,19 @@ func (b *DimensionBuilder) PanelKind(kind panel.Kind) *DimensionBuilder {
 	return b
 }
 
+// Choropleth renders this dimension as an exact region-key map. The
+// dimension's resolved filter_value is joined to featureProperty; labelProperty
+// is optional fallback text when a row has no localized label.
+func (b *DimensionBuilder) Choropleth(source panel.GeoJSONSource, featureProperty, labelProperty string) *DimensionBuilder {
+	b.spec.PanelKind = panel.KindMap
+	b.spec.Map = &panel.MapSpec{
+		Source:          source,
+		FeatureProperty: featureProperty,
+		LabelProperty:   labelProperty,
+	}
+	return b
+}
+
 func (b *DimensionBuilder) Height(height string) *DimensionBuilder {
 	b.spec.Height = height
 	return b
@@ -286,6 +299,12 @@ func (b *MeasureBuilder) Action(spec action.Spec) *MeasureBuilder {
 		cloned.Drill = &drill
 	}
 	b.spec.Action = &cloned
+	return b
+}
+
+// InvertTrend marks a measure where a decrease is the positive outcome.
+func (b *MeasureBuilder) InvertTrend() *MeasureBuilder {
+	b.spec.InvertTrend = true
 	return b
 }
 

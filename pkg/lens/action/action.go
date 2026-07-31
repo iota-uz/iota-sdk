@@ -10,12 +10,13 @@ import (
 type Kind string
 
 const (
-	KindNavigate   Kind = "navigate"
-	KindOpenDrawer Kind = "open_drawer"
-	KindHtmxSwap   Kind = "htmx_swap"
-	KindEmitEvent  Kind = "emit_event"
-	KindCubeDrill  Kind = "cube_drill"
-	KindExplore    Kind = "explore"
+	KindNavigate    Kind = "navigate"
+	KindOpenDrawer  Kind = "open_drawer"
+	KindHtmxSwap    Kind = "htmx_swap"
+	KindEmitEvent   Kind = "emit_event"
+	KindCubeDrill   Kind = "cube_drill"
+	KindCrossFilter Kind = "cross_filter"
+	KindExplore     Kind = "explore"
 )
 
 type ValueSourceKind string
@@ -103,6 +104,21 @@ func CubeDrill(url, dimension string, params ...Param) Spec {
 	}
 }
 
+// CrossFilter toggles one dimension value without changing the cube's active
+// grouping. CubeDrill and CrossFilter share the same ordered filter stack.
+func CrossFilter(url, dimension string, params ...Param) Spec {
+	return Spec{
+		Kind:   KindCrossFilter,
+		Method: "GET",
+		URL:    url,
+		Params: params,
+		Drill: &DrillSpec{
+			Dimension: dimension,
+			Value:     FieldValue("filter_value"),
+		},
+	}
+}
+
 // Explore opens a branch in a dashboard's metric explorer. branch identifies
 // a stable branch key and may be replaced with WithExploreBranch for actions
 // whose branch is resolved from a dataset row.
@@ -159,6 +175,17 @@ func (s Spec) WithDrillValue(source ValueSource) Spec {
 	}
 	s = s.withClonedDrill()
 	s.Drill.Value = source
+	return s
+}
+
+// WithDrillGroupBy selects the dimension shown after a cube drill. It has no
+// effect on a cross-filter action, which deliberately preserves grouping.
+func (s Spec) WithDrillGroupBy(dimension string) Spec {
+	if s.Drill == nil {
+		return s
+	}
+	s = s.withClonedDrill()
+	s.Drill.GroupBy = dimension
 	return s
 }
 

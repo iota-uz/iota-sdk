@@ -50,3 +50,16 @@ func TestExploreBuildsStableBranchAction(t *testing.T) {
 	require.Equal(t, SourceField, dynamic.Explore.Branch.Kind)
 	require.Equal(t, "metric_key", dynamic.Explore.Branch.Name)
 }
+
+func TestFilterActionsShareDrillState(t *testing.T) {
+	t.Parallel()
+
+	cross := CrossFilter("/sales", "product")
+	drill := CubeDrill("/sales", "product").WithDrillGroupBy("region")
+
+	require.Equal(t, KindCrossFilter, cross.Kind)
+	require.Equal(t, "product", cross.Drill.Dimension)
+	require.Empty(t, cross.Drill.GroupBy)
+	require.Equal(t, KindCubeDrill, drill.Kind)
+	require.Equal(t, "region", drill.Drill.GroupBy)
+}

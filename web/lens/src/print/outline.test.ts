@@ -221,7 +221,7 @@ describe('buildOutline', () => {
         panels: [{
           panelId: 'ratios',
           span: 12,
-          group: { id: 'ratios', kind: 'metrics', span: 12, caption: 'Diagnostics, not a verdict.' },
+          groups: [{ id: 'ratios', kind: 'metrics', span: 12, caption: 'Diagnostics, not a verdict.' }],
         }],
       }],
     })

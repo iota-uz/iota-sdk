@@ -64,6 +64,10 @@ type DashboardResult struct {
 	StartedAt   time.Time
 	Duration    time.Duration
 	SnapshotID  string
+	// CacheHit reports whether every dataset required by this execution scope
+	// came from the runtime snapshot store. It is transport metadata only and
+	// never participates in the dashboard's business result.
+	CacheHit bool
 }
 
 type Result = DashboardResult
@@ -97,6 +101,10 @@ type Request struct {
 	DataScope            string
 	Namespace            string
 	DataSourceIdentities map[string]string
+	// Recompute bypasses the runtime snapshot cache while preserving the same
+	// execution identity. Serve uses it for an explicit user-requested panel
+	// recalculation; ordinary document and query requests leave it false.
+	Recompute bool
 }
 
 type Options struct {
@@ -146,6 +154,9 @@ type Scope struct {
 	PanelIDs                 []string
 	IncludeExportEvidence    bool
 	includeDashboardEvidence bool
+	// MetadataOnly resolves variables and execution identity without datasets
+	// or panels. Custom executors should preserve this ShellScope contract.
+	MetadataOnly bool
 }
 
 func DashboardScope() Scope {
@@ -158,6 +169,13 @@ func PanelsScope(panelIDs ...string) Scope {
 
 func PanelScope(panelID string) Scope {
 	return Scope{PanelIDs: []string{panelID}}
+}
+
+// ShellScope resolves variables and a stable execution identity without
+// materialising datasets or panels. It backs progressive documents whose
+// layout arrives first and whose panels load independently afterwards.
+func ShellScope() Scope {
+	return Scope{MetadataOnly: true}
 }
 
 // DashboardExportScope executes the visible dashboard datasets plus every
@@ -223,7 +241,8 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 		return nil, serrors.E(op, err)
 	}
 	result.SnapshotID = state.snapshotKey
-	if spec.Cache.Mode != lens.CacheDisabled {
+	cacheHit := false
+	if spec.Cache.Mode != lens.CacheDisabled && !req.Recompute {
 		if snapshot, ok := r.store.Load(ctx, state.snapshotKey); ok {
 			if r.observer != nil {
 				r.observer.SnapshotHit(snapshot.ID)
@@ -236,10 +255,19 @@ func (r *Runtime) Execute(ctx context.Context, spec lens.DashboardSpec, req Requ
 					}
 				}
 			}
+			cacheHit = true
+			for _, stage := range internalPlan.datasetStages {
+				for _, datasetSpec := range stage {
+					if result.Datasets[datasetSpec.Name] == nil {
+						cacheHit = false
+					}
+				}
+			}
 		} else if r.observer != nil {
 			r.observer.SnapshotMiss(state.snapshotKey)
 		}
 	}
+	result.CacheHit = cacheHit
 
 	if err := state.executeDatasets(ctx, internalPlan.datasetStages, result.Datasets); err != nil {
 		return nil, serrors.E(op, err)
@@ -284,6 +312,9 @@ func Plan(spec lens.DashboardSpec, scope Scope) (ExecutionPlan, error) {
 
 func compileExecutionPlan(spec lens.DashboardSpec, scope Scope) (executionPlan, error) {
 	datasets := indexDatasets(spec.Datasets)
+	if scope.MetadataOnly {
+		return executionPlan{view: ExecutionPlan{}, datasetStages: nil, panels: nil}, nil
+	}
 	targetPanels, err := scopedPanels(spec, scope.PanelIDs)
 	if err != nil {
 		return executionPlan{}, err
@@ -515,7 +546,7 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		Params:    resolveParams(spec.Query.Params, s.variables),
 		Timezone:  s.runtime.Timezone,
 		Locale:    s.runtime.Locale,
-		TimeRange: resolveDatasetTimeRange(s.spec.Variables, s.variables),
+		TimeRange: resolveDatasetTimeRangeFor(spec, s.spec.Variables, s.variables),
 		MaxRows:   spec.Query.MaxRows,
 		Kind:      spec.Query.Kind,
 	}
@@ -761,14 +792,27 @@ func resolveDependencyFrames(name string, dependencies []string, results map[str
 
 func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, error) {
 	values := make(map[string]any, len(specs))
+	// Date ranges are comparison anchors, so resolve them before the remaining
+	// variables regardless of declaration order.
 	for _, spec := range specs {
+		if spec.Kind != lens.VariableDateRange {
+			continue
+		}
+		if override, ok := rt.Overrides[spec.Name]; ok {
+			values[spec.Name] = override
+			continue
+		}
+		values[spec.Name] = resolveDateRange(spec, rt.Request)
+	}
+	for _, spec := range specs {
+		if spec.Kind == lens.VariableDateRange {
+			continue
+		}
 		if override, ok := rt.Overrides[spec.Name]; ok {
 			values[spec.Name] = override
 			continue
 		}
 		switch spec.Kind {
-		case lens.VariableDateRange:
-			values[spec.Name] = resolveDateRange(spec, rt.Request)
 		case lens.VariableToggle:
 			raw := strings.TrimSpace(requestValue(rt.Request, spec.Name, spec.RequestKeys...))
 			if raw == "" {
@@ -799,9 +843,57 @@ func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, er
 			} else {
 				values[spec.Name] = spec.Default
 			}
+		case lens.VariableCompare:
+			anchor, _ := values[spec.CompareTo].(lens.DateRangeValue)
+			values[spec.Name] = resolveCompare(spec, anchor, rt.Request)
+		case lens.VariableDateRange:
+			continue
 		}
 	}
 	return values, nil
+}
+
+func resolveCompare(spec lens.VariableSpec, anchor lens.DateRangeValue, values url.Values) lens.CompareValue {
+	rawMode := strings.TrimSpace(values.Get(compareModeRequestKey(spec)))
+	mode := lens.CompareMode(rawMode)
+	if rawMode == "" {
+		if defaultValue, ok := spec.Default.(lens.CompareValue); ok {
+			mode = defaultValue.Mode
+			if mode == lens.CompareCustom && defaultValue.Range.Start != nil && defaultValue.Range.End != nil {
+				return defaultValue
+			}
+		}
+	}
+	switch mode {
+	case lens.ComparePreviousPeriod, lens.CompareYearAgo, lens.CompareCustom:
+	case lens.CompareOff:
+		return lens.CompareValue{Mode: lens.CompareOff}
+	default:
+		return lens.CompareValue{Mode: lens.CompareOff}
+	}
+	if mode == lens.CompareCustom {
+		startKey, endKey := compareRequestKeys(spec)
+		start, startErr := time.Parse("2006-01-02", values.Get(startKey))
+		end, endErr := time.Parse("2006-01-02", values.Get(endKey))
+		if startErr != nil || endErr != nil || end.Before(start) {
+			return lens.CompareValue{Mode: lens.CompareOff}
+		}
+		end = end.Add(24*time.Hour - time.Nanosecond)
+		return lens.CompareValue{Mode: mode, Range: lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end}}
+	}
+	if anchor.Start == nil || anchor.End == nil {
+		return lens.CompareValue{Mode: lens.CompareOff}
+	}
+	start, end := *anchor.Start, *anchor.End
+	if mode == lens.CompareYearAgo {
+		start = start.AddDate(-1, 0, 0)
+		end = end.AddDate(-1, 0, 0)
+	} else {
+		duration := end.Sub(start)
+		end = start.Add(-time.Nanosecond)
+		start = end.Add(-duration)
+	}
+	return lens.CompareValue{Mode: mode, Range: lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end}}
 }
 
 func splitMultiSelectValues(raw []string) []string {
@@ -899,6 +991,20 @@ func dateRangeRequestKeys(spec lens.VariableSpec) (string, string) {
 	return spec.Name + "_start", spec.Name + "_end"
 }
 
+func compareRequestKeys(spec lens.VariableSpec) (string, string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	return spec.Name + "_start", spec.Name + "_end"
+}
+
+func compareModeRequestKey(spec lens.VariableSpec) string {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[0]
+	}
+	return spec.Name
+}
+
 func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) map[string]any {
 	if len(specs) == 0 {
 		return nil
@@ -906,7 +1012,11 @@ func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) m
 	out := make(map[string]any, len(specs))
 	for key, spec := range specs {
 		if spec.Variable != "" {
-			out[key] = variables[spec.Variable]
+			value := variables[spec.Variable]
+			if comparison, ok := value.(lens.CompareValue); ok {
+				value = comparison.Range
+			}
+			out[key] = value
 			continue
 		}
 		out[key] = spec.Literal
@@ -925,6 +1035,13 @@ func resolveDatasetTimeRange(specs []lens.VariableSpec, variables map[string]any
 		}
 	}
 	return datasource.TimeRange{}
+}
+
+func resolveDatasetTimeRangeFor(dataset lens.DatasetSpec, specs []lens.VariableSpec, variables map[string]any) datasource.TimeRange {
+	if name := strings.TrimSpace(dataset.TimeRangeVariable); name != "" {
+		return lens.ResolveTimeRange(variables[name])
+	}
+	return resolveDatasetTimeRange(specs, variables)
 }
 
 func queryCacheKey(req datasource.QueryRequest) string {
@@ -1154,16 +1271,47 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 	if _, ok := datasets[spec.Dataset]; !ok {
 		return fmt.Errorf("panel %s references missing dataset %s", spec.ID, spec.Dataset)
 	}
-	if spec.Kind != panel.KindTable && spec.Fields.Value.Empty() {
+	if spec.Kind != panel.KindTable && spec.Kind != panel.KindBoxPlot && spec.Fields.Value.Empty() {
 		return fmt.Errorf("panel %s is missing value field", spec.ID)
 	}
 	switch spec.Kind {
-	case panel.KindStat, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup,
+	case panel.KindStat, panel.KindGauge, panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup,
 		panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		// These panel kinds do not require label/category validation here.
-	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindCascade, panel.KindPie, panel.KindDonut, panel.KindGauge:
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindCascade, panel.KindPie, panel.KindDonut, panel.KindHistogram:
 		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
 			return fmt.Errorf("panel %s requires label or category field", spec.ID)
+		}
+	case panel.KindBoxPlot:
+		if spec.Fields.Label.Empty() && spec.Fields.Category.Empty() {
+			return fmt.Errorf("panel %s requires label or category field", spec.ID)
+		}
+		for name, field := range map[string]panel.FieldRef{
+			"lower": spec.Fields.Lower, "q1": spec.Fields.Q1, "median": spec.Fields.Median,
+			"q3": spec.Fields.Q3, "upper": spec.Fields.Upper,
+		} {
+			if field.Empty() {
+				return fmt.Errorf("panel %s boxplot requires %s field", spec.ID, name)
+			}
+		}
+	case panel.KindHeatmap:
+		if spec.Fields.Category.Empty() || spec.Fields.Series.Empty() {
+			return fmt.Errorf("panel %s heatmap requires category and series fields", spec.ID)
+		}
+	case panel.KindMap:
+		if spec.Fields.ID.Empty() {
+			return fmt.Errorf("panel %s map requires id field", spec.ID)
+		}
+		if spec.Map == nil || strings.TrimSpace(spec.Map.FeatureProperty) == "" {
+			return fmt.Errorf("panel %s map requires map config and feature property", spec.ID)
+		}
+		inline := spec.Map.Source.Inline != nil
+		remote := strings.TrimSpace(spec.Map.Source.URL) != ""
+		if inline == remote {
+			return fmt.Errorf("panel %s map source requires exactly one of inline or url", spec.ID)
+		}
+		if remote && (spec.Map.Source.MaxBytes <= 0 || spec.Map.Source.MaxBytes > panel.MaxMapGeoJSONBytes) {
+			return fmt.Errorf("panel %s map source maxBytes must be between 1 and %d", spec.ID, panel.MaxMapGeoJSONBytes)
 		}
 	case panel.KindRadial:
 		if spec.Fields.Label.Empty() {
@@ -1243,9 +1391,18 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 	}
 	switch spec.Kind {
 	case action.KindNavigate, action.KindOpenDrawer, action.KindHtmxSwap, action.KindEmitEvent:
-	case action.KindCubeDrill:
+	case action.KindCubeDrill, action.KindCrossFilter:
 		if !opts.allowCubeDrill {
 			return fmt.Errorf("%s action has unsupported kind %q", owner, spec.Kind)
+		}
+		if spec.Drill == nil {
+			return fmt.Errorf("%s action %q requires filter spec", owner, spec.Kind)
+		}
+		if strings.TrimSpace(spec.Drill.Dimension) == "" {
+			return fmt.Errorf("%s action %q requires dimension", owner, spec.Kind)
+		}
+		if err := validateActionValueSource(owner, "filter value", spec.Drill.Value, opts); err != nil {
+			return err
 		}
 	case action.KindExplore:
 		if spec.Explore == nil {
@@ -1493,19 +1650,43 @@ func validateDrillTreeFrame(spec panel.Spec, primary *frame.Frame) error {
 
 func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 	switch spec.Kind {
-	case panel.KindStat:
+	case panel.KindStat, panel.KindGauge:
 		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindTimeSeries:
 		if err := requireField(spec, primary, spec.Fields.Category); err != nil {
 			return err
 		}
-		return requireField(spec, primary, spec.Fields.Value)
-	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindPie, panel.KindDonut, panel.KindGauge:
+		if err := requireField(spec, primary, spec.Fields.Value); err != nil {
+			return err
+		}
+		return validateTemporalFields(spec, primary)
+	case panel.KindBar, panel.KindHorizontalBar, panel.KindSegmentBar, panel.KindPie, panel.KindDonut, panel.KindHistogram:
 		if err := requireField(spec, primary, spec.Fields.Value); err != nil {
 			return err
 		}
 		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
 			return err
+		}
+	case panel.KindBoxPlot:
+		if err := requireOneField(spec, primary, spec.Fields.Label, spec.Fields.Category); err != nil {
+			return err
+		}
+		for _, field := range []panel.FieldRef{spec.Fields.Lower, spec.Fields.Q1, spec.Fields.Median, spec.Fields.Q3, spec.Fields.Upper} {
+			if err := requireField(spec, primary, field); err != nil {
+				return err
+			}
+		}
+	case panel.KindHeatmap:
+		for _, field := range []panel.FieldRef{spec.Fields.Category, spec.Fields.Series, spec.Fields.Value} {
+			if err := requireField(spec, primary, field); err != nil {
+				return err
+			}
+		}
+	case panel.KindMap:
+		for _, field := range []panel.FieldRef{spec.Fields.ID, spec.Fields.Value} {
+			if err := requireField(spec, primary, field); err != nil {
+				return err
+			}
 		}
 	case panel.KindRadial:
 		for _, field := range []panel.FieldRef{spec.Fields.ID, spec.Fields.Label, spec.Fields.Value} {
@@ -1548,6 +1729,67 @@ func validateRequiredPanelFields(spec panel.Spec, primary *frame.Frame) error {
 		return requireField(spec, primary, spec.Fields.Value)
 	case panel.KindTable, panel.KindTabs, panel.KindGrid, panel.KindSplit, panel.KindRepeat, panel.KindStatGroup:
 		return nil
+	}
+	return nil
+}
+
+func validateTemporalFields(spec panel.Spec, primary *frame.Frame) error {
+	temporal := spec.Temporal
+	if temporal == nil {
+		return nil
+	}
+	if err := requireField(spec, primary, temporal.RegressionField); err != nil {
+		return err
+	}
+	seenWindows := make(map[int]struct{}, len(temporal.MovingAverages))
+	for _, average := range temporal.MovingAverages {
+		switch average.Window {
+		case 3, 7, 12:
+		default:
+			return fmt.Errorf("panel %s moving average window must be 3, 7, or 12", spec.ID)
+		}
+		if _, exists := seenWindows[average.Window]; exists {
+			return fmt.Errorf("panel %s has duplicate moving average window %d", spec.ID, average.Window)
+		}
+		seenWindows[average.Window] = struct{}{}
+		if err := requireField(spec, primary, average.Field); err != nil {
+			return err
+		}
+	}
+	for _, reference := range temporal.ReferenceLines {
+		if math.IsNaN(reference.Value) || math.IsInf(reference.Value, 0) {
+			return fmt.Errorf("panel %s reference line value must be finite", spec.ID)
+		}
+	}
+	if temporal.Period != nil {
+		if strings.TrimSpace(temporal.Period.Category) == "" {
+			return fmt.Errorf("panel %s incomplete period category is required", spec.ID)
+		}
+		switch temporal.Period.State {
+		case panel.TemporalPeriodYTD, panel.TemporalPeriodAnnualized:
+		default:
+			return fmt.Errorf("panel %s incomplete period state %q is invalid", spec.ID, temporal.Period.State)
+		}
+		if err := requireField(spec, primary, temporal.Period.AnnualizedField); err != nil {
+			return err
+		}
+	}
+	for _, annotation := range temporal.Annotations {
+		if strings.TrimSpace(annotation.At) == "" || strings.TrimSpace(annotation.Label) == "" {
+			return fmt.Errorf("panel %s time annotation requires at and label", spec.ID)
+		}
+	}
+	if temporal.Forecast != nil {
+		if strings.TrimSpace(temporal.Forecast.Start) == "" {
+			return fmt.Errorf("panel %s forecast start is required", spec.ID)
+		}
+		for _, field := range []panel.FieldRef{
+			temporal.Forecast.ValueField, temporal.Forecast.LowerField, temporal.Forecast.UpperField,
+		} {
+			if err := requireField(spec, primary, field); err != nil {
+				return err
+			}
+		}
 	}
 	return nil
 }

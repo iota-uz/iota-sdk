@@ -2,9 +2,9 @@
  * Phosphor icon glyphs, inlined.
  *
  * The runtime used Unicode characters (⤢, ↓, ↻, →) which differ from the
- * legacy renderer's Phosphor set in shape, weight and baseline, and which
+ * host application's Phosphor set in shape, weight and baseline, and which
  * change with whatever font the host page loads. These are the same regular
- * (16px stroke on a 256 grid) paths the Go renderer emits through
+ * (16px stroke on a 256 grid) paths Granite emits through
  * github.com/iota-uz/icons/phosphor, inlined so no request leaves the page.
  *
  * Every glyph is decorative: the interactive element around it carries the
@@ -14,7 +14,7 @@
 import type { ReactNode } from 'react'
 
 export interface IconProps {
-  /** Square size in CSS pixels. Defaults match the legacy renderer's usage. */
+  /** Square size in CSS pixels. Defaults match Granite's standard usage. */
   size?: number
   className?: string
 }
@@ -74,6 +74,12 @@ export const DownloadSimple = glyph(
     <polyline points="216 144 216 208 40 208 40 144" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
     <polyline points="168 104 128 144 88 104" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
   </>,
+  14,
+)
+
+/** Saved dashboard slice. */
+export const BookmarkSimple = glyph(
+  <path d="M48 216V48a16 16 0 0 1 16-16h128a16 16 0 0 1 16 16v168l-80-48Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />,
   14,
 )
 

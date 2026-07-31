@@ -21,6 +21,7 @@ describe('LensDashboard', () => {
   })
 
   it('renders optional facet filters and loads only human-readable options', async () => {
+    window.history.replaceState({}, '', '/report?_f=product%3Aone&_f=product%3Atwo&_f=region%3Atashkent')
     // Keep this contract test independent from chart rendering. ECharts owns
     // asynchronous canvas work, which can outlive jsdom teardown and turn a
     // focused filter test into a source of unrelated background errors.
@@ -43,6 +44,7 @@ describe('LensDashboard', () => {
         encoding: { label: 'label', value: 'value' },
         format: {},
         actions: [],
+        terminal: true,
       }],
       frames: {
         'panel:total': {
@@ -74,13 +76,21 @@ describe('LensDashboard', () => {
           clearUrl: '/report',
         },
       }],
+      activeFilters: [{
+        dimension: 'region', value: 'tashkent', label: 'Tashkent', removeUrl: '/report?_f=product%3Aone',
+      }],
+      resetFiltersUrl: '/report',
       endpoints: {},
       i18n: {},
       theme: { palette: {}, series: {} },
     }
     const document = parseDocument(facetFixture)
     const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      options: [{ label: 'Samarkand', count: 12, toggleUrl: '/report?_f=region%3Asamarkand' }],
+      applyUrl: '/report?_f=product%3Aone&_f=product%3Atwo',
+      options: [
+        { label: 'Tashkent', value: 'tashkent', count: 20, selected: true, toggleUrl: '/report?_f=product%3Aone' },
+        { label: 'Samarkand', value: 'samarkand', count: 12, toggleUrl: '/report?_f=region%3Asamarkand' },
+      ],
     }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
     vi.stubGlobal('fetch', fetchMock)
 
@@ -89,11 +99,22 @@ describe('LensDashboard', () => {
       'href', '/report?_f=product%3Aone',
     )
     expect(screen.getAllByRole('link', { name: 'Clear all' })).toHaveLength(1)
-    fireEvent.click(screen.getByRole('button', { name: /Region/ }))
+    const trigger = screen.getByRole('button', { name: /Region/ })
+    fireEvent.pointerEnter(trigger)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    fireEvent.click(trigger)
 
-    expect(await screen.findByRole('link', { name: /Samarkand/ })).toHaveAttribute(
-      'href', '/report?_f=region%3Asamarkand',
-    )
+    const samarkand = await screen.findByRole('checkbox', { name: /Samarkand/ })
+    expect(screen.getByRole('checkbox', { name: /Tashkent/ })).toBeChecked()
+    expect(globalThis.document.body.querySelector('.lens-facet-option-bar')).toHaveStyle({ width: '100%' })
+    fireEvent.click(samarkand)
+    expect(new URL(window.location.href).searchParams.getAll('_f')).toEqual([
+      'product:one', 'product:two', 'region:tashkent',
+    ])
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(new URL(window.location.href).searchParams.getAll('_f')).toEqual([
+      'product:one', 'product:two', 'region:tashkent', 'region:samarkand',
+    ])
     expect(fetchMock.mock.calls[0]?.[0]).toContain('_f=product%3Aone&_f=product%3Atwo')
   })
 
@@ -174,6 +195,22 @@ describe('LensDashboard', () => {
     })
     render(<LensDashboard initialDocument={empty} />)
     expect(screen.getByText('The document contains no panels.')).toBeInTheDocument()
+  })
+
+  it('keeps recompute visible for a headerless deferred dashboard', () => {
+    const headerless = parseDocument({
+      ...fixture,
+      meta: { ...fixture.meta, title: '' },
+      header: undefined,
+      panels: [{ ...fixture.panels[0], deferred: true }],
+      frames: {},
+      endpoints: { panel: '/lens/panel' },
+    })
+
+    render(<LensDashboard initialDocument={headerless} />)
+
+    expect(screen.getByRole('button', { name: 'Recompute' })).toBeInTheDocument()
+    expect(screen.getByText(/Updated/)).toBeInTheDocument()
   })
 
   it('wires dashboard and panel exports when the document exposes an endpoint', () => {

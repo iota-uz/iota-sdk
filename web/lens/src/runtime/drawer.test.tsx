@@ -12,7 +12,7 @@ function statDocument(title: string, action?: Action): DashboardDocument {
     layout: { rows: [{ panels: [{ panelId: 'metric', span: 12 }] }] },
     panels: [{
       id: 'metric', kind: 'stat', semantics: 'series', title: `${title} metric`, frame: 'metric-frame',
-      encoding: { value: 'value' }, format: {}, actions: action ? [action] : [],
+      encoding: { value: 'value' }, format: {}, actions: action ? [action] : [], terminal: !action,
     }],
     frames: { 'metric-frame': { columns: [{ name: 'value', type: 'number' }], rows: [[42]] } },
     drill: { inlineDepth: 0, edges: {} },

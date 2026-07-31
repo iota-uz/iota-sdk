@@ -5,8 +5,8 @@ import type { LayoutItem, Panel, PanelKind } from '../contract'
 /**
  * Loading placeholders mirror the layout they replace instead of showing a
  * spinner: the same rows, the same 12-column spans and a shape per panel kind,
- * so nothing jumps when the data lands. Shapes match the server-rendered templ
- * skeleton (pkg/lens/render/templ/dashboard.templ) one for one.
+ * so nothing jumps when the data lands. Shapes match the server fallback in
+ * pkg/lens/render/react so the handoff does not shift the grid.
  */
 
 export function ShimmerBar({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -54,7 +54,7 @@ export function PanelSkeletonBody({ kind }: { kind: PanelKind }) {
 
 export interface SkeletonRow {
   heading?: boolean
-  items: Array<{ span: number; kind: PanelKind; group?: LayoutItem['group'] }>
+  items: Array<{ span: number; kind: PanelKind }>
 }
 
 /**
@@ -95,7 +95,6 @@ export function skeletonRowsFromLayout(
     items: row.panels.map((item) => ({
       span: item.span,
       kind: panels.get(item.panelId)?.kind ?? 'bar',
-      group: item.group,
     })),
   }))
 }

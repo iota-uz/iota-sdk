@@ -15,6 +15,8 @@ const (
 	ResourceSession    permission.Resource = "session"
 	ResourceDepartment permission.Resource = "department"
 	ResourcePosition   permission.Resource = "position"
+	ResourceLensView   permission.Resource = "lens_saved_view"
+	ResourceLensExport permission.Resource = "lens_export_schedule"
 )
 
 var (
@@ -207,6 +209,20 @@ var (
 		permission.ActionDelete,
 		permission.ModifierAll,
 	)
+	LensViewTeamManage = permission.MustCreate(
+		uuid.MustParse("89cf29b8-e8ae-40b7-a0b9-aa54378a3762"),
+		"Lens.View.TeamManage",
+		ResourceLensView,
+		permission.ActionUpdate,
+		permission.ModifierAll,
+	)
+	LensExportSchedule = permission.MustCreate(
+		uuid.MustParse("075303f9-abde-4b44-b880-e5d4ec6fae3b"),
+		"Lens.Export.Schedule",
+		ResourceLensExport,
+		permission.ActionCreate,
+		permission.ModifierAll,
+	)
 )
 
 var Permissions = []permission.Permission{
@@ -237,4 +253,6 @@ var Permissions = []permission.Permission{
 	PositionRead,
 	PositionUpdate,
 	PositionDelete,
+	LensViewTeamManage,
+	LensExportSchedule,
 }

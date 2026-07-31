@@ -11,7 +11,10 @@ import { StatMetric, StatPanel } from './StatPanel'
 import { PanelSkeletonBody } from './Skeleton'
 import { TablePanel } from './TablePanel'
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  window.history.replaceState({}, '', '/')
+})
 
 function documentWith(panels: Panel[], frames: Record<string, Frame>, layout?: DashboardDocument['layout']): DashboardDocument {
   return {
@@ -104,6 +107,23 @@ describe('stat panels', () => {
     // The note is a floating surface. Keeping it outside the panel prevents
     // the next KPI cell from painting over it.
     expect(tooltip.closest('.lens-panel')).toBeNull()
+  })
+
+  it('keeps the portaled info tip open while the pointer crosses the visual gap', async () => {
+    const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <div className="lens-panel"><StatMetric panel={panel} /></div>,
+    )
+    const wrapper = container.querySelector<HTMLElement>('.lens-info-tip')!
+    fireEvent.mouseEnter(wrapper)
+    const tooltip = await screen.findByRole('tooltip')
+    expect(tooltip.closest('.lens-info-tip-overlay-root')).not.toBeNull()
+    expect(tooltip).toHaveStyle({ pointerEvents: 'auto' })
+    fireEvent.mouseLeave(wrapper, { relatedTarget: null })
+    fireEvent.mouseEnter(tooltip)
+    await new Promise((resolve) => globalThis.setTimeout(resolve, 150))
+    expect(screen.getByRole('tooltip')).toBeInTheDocument()
   })
 
   it('leaves a metric without a note free of info chrome', () => {
@@ -289,18 +309,18 @@ describe('layout groups', () => {
     rows: [{
       heading: 'Key ratios',
       panels: [
-        { panelId: 'metric-a', span: 3, group: { id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 } },
-        { panelId: 'metric-b', span: 3, group: { id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 } },
+        { panelId: 'metric-a', span: 3, groups: [{ id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 }] },
+        { panelId: 'metric-b', span: 3, groups: [{ id: 'ratios', kind: 'metrics', label: 'By earned premium', layout: 'columns', span: 12 }] },
       ],
     }],
   }
 
   it('groups consecutive items that share a group id', () => {
     const clusters = clusterRow([
-      { panelId: 'a', span: 3, group: { id: 'g', kind: 'metrics', span: 12 } },
-      { panelId: 'b', span: 3, group: { id: 'g', kind: 'metrics', span: 12 } },
+      { panelId: 'a', span: 3, groups: [{ id: 'g', kind: 'metrics', span: 12 }] },
+      { panelId: 'b', span: 3, groups: [{ id: 'g', kind: 'metrics', span: 12 }] },
       { panelId: 'c', span: 6 },
-      { panelId: 'd', span: 3, group: { id: 'h', kind: 'metrics', span: 12 } },
+      { panelId: 'd', span: 3, groups: [{ id: 'h', kind: 'metrics', span: 12 }] },
     ])
 
     expect(clusters.map((cluster) => cluster.items.map((item) => item.panelId))).toEqual([['a', 'b'], ['c'], ['d']])
@@ -320,8 +340,8 @@ describe('layout groups', () => {
     const tabsLayout: DashboardDocument['layout'] = {
       rows: [{
         panels: [
-          { panelId: 'metric-a', span: 12, group: { id: 'result', kind: 'tabs', span: 12, tab: 'Cash' } },
-          { panelId: 'metric-b', span: 12, group: { id: 'result', kind: 'tabs', span: 12, tab: 'Underwriting' } },
+          { panelId: 'metric-a', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Cash' }] },
+          { panelId: 'metric-b', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Underwriting' }] },
         ],
       }],
     }
@@ -468,17 +488,17 @@ describe('expanded panel', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
-  it('escapes a tab group without being trapped by its card', () => {
+  it('escapes a tab group without being trapped by its card', async () => {
     const layout: DashboardDocument['layout'] = {
       rows: [{
-        panels: [{ panelId: 'expandable', span: 12, group: { id: 'result', kind: 'tabs', span: 12, tab: 'Cash' } }],
+        panels: [{ panelId: 'expandable', span: 12, groups: [{ id: 'result', kind: 'tabs', span: 12, tab: 'Cash' }] }],
       }],
     }
     const { container } = renderDocument(
       documentWith([expandable], { 'coverage:root': coverageFrame }, layout),
       <DashboardPanels />,
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Expand panel' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Expand panel' }))
 
     const dialog = screen.getByRole('dialog')
     expect(container.contains(dialog)).toBe(false)
@@ -611,15 +631,13 @@ describe('chart legend series toggle', () => {
     expect(values).toEqual(['99.1%', '0.9%'])
   })
 
-  it('refuses to hide the last visible series', async () => {
+  it('allows hiding every series and restoring them from the legend toolbar', async () => {
     const { inputs } = renderPie()
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
 
-    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
-    fireEvent.click(screen.getByRole('button', { name: /Inward/ }))
-
-    await waitFor(() => expect(screen.getByRole('button', { name: /Direct/ })).toBeDisabled())
-    fireEvent.click(screen.getByRole('button', { name: /Direct/ }))
-    expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct'])
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([]))
+    fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward']))
   })
 })

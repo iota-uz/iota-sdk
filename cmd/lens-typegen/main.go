@@ -19,10 +19,13 @@ func run() error {
 		return err
 	}
 	files, err := generate(config{
-		dir:             root,
-		packagePattern:  "./pkg/lens/document",
-		rootType:        "DashboardDocument",
-		additionalTypes: []string{"QueryRequest", "QueryResponse", "QueryErrorResponse"},
+		dir:            root,
+		packagePattern: "./pkg/lens/document",
+		rootType:       "DashboardDocument",
+		additionalTypes: []string{
+			"QueryRequest", "QueryResponse", "QueryErrorResponse",
+			"PanelRequest", "PanelResponse",
+		},
 		versionConstant: "ContractVersion",
 	})
 	if err != nil {

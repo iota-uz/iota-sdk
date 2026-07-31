@@ -16,7 +16,7 @@ function documentResponse(id: string): Response {
     layout: { rows: [{ panels: [{ panelId: 'metric', span: 12 }] }] },
     panels: [{
       id: 'metric', kind: 'stat', semantics: 'series', title: id, frame: 'frame',
-      encoding: { value: 'value' }, format: {}, actions: [],
+      encoding: { value: 'value' }, format: {}, actions: [], terminal: true,
     }],
     frames: { frame: { columns: [{ name: 'value', type: 'number' }], rows: [[1]] } },
     drill: { inlineDepth: 0, edges: {} },

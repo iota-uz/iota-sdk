@@ -1,6 +1,6 @@
-import { BarChart, LineChart, PieChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent } from 'echarts/components'
-import { init, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
+import { BarChart, BoxplotChart, HeatmapChart, LineChart, MapChart, PieChart } from 'echarts/charts'
+import { DataZoomComponent, GeoComponent, GraphicComponent, GridComponent, TooltipComponent, VisualMapComponent } from 'echarts/components'
+import { init, registerMap, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { UniversalTransition } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
@@ -8,7 +8,11 @@ import { nodeKeyFromEvent } from './events'
 import { buildChartOption } from './options'
 import { buildEChartsTheme } from './theme'
 
-registerEChartsModules([BarChart, LineChart, PieChart, GridComponent, TooltipComponent, CanvasRenderer, UniversalTransition])
+registerEChartsModules([
+  BarChart, BoxplotChart, HeatmapChart, LineChart, MapChart, PieChart,
+  DataZoomComponent, GeoComponent, GraphicComponent, GridComponent, TooltipComponent, VisualMapComponent,
+  CanvasRenderer, UniversalTransition,
+])
 
 type ChartInitializer = (element: HTMLElement) => ECharts
 
@@ -31,6 +35,7 @@ function isSelectionOnlyChange(previous: ChartInput, next: ChartInput): boolean 
     && previous.kind === next.kind
     && previous.presentation === next.presentation
     && previous.radial === next.radial
+    && previous.map === next.map
     && previous.format === next.format
     && previous.formatAxis === next.formatAxis
 }
@@ -43,6 +48,11 @@ function anchorFromEvent(event: unknown): ChartAnchor | undefined {
   const wrapper = (event as { event?: { event?: MouseEvent } } | undefined)?.event?.event
   if (!wrapper || typeof wrapper.clientX !== 'number' || typeof wrapper.clientY !== 'number') return undefined
   return { x: wrapper.clientX, y: wrapper.clientY }
+}
+
+function activationFromEvent(event: unknown) {
+	const wrapper = (event as { event?: { event?: MouseEvent } } | undefined)?.event?.event
+	return { newTab: Boolean(wrapper?.metaKey || wrapper?.ctrlKey) }
 }
 
 function observeTheme(element: HTMLElement, rebuild: () => void): MutationObserver | undefined {
@@ -102,9 +112,12 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       const chart = initialize(element)
       let input = initialInput
 
+      const responsiveInput = (): ChartInput => ({ ...input, viewportWidth: element.clientWidth })
+
       const render = () => {
+        if (input.kind === 'map' && input.map) registerMap(input.map.name, input.map.geoJSON as unknown as Parameters<typeof registerMap>[1])
         const theme = buildEChartsTheme(element, input.theme)
-        const option: EChartsCoreOption = buildChartOption(input, theme)
+        const option: EChartsCoreOption = buildChartOption(responsiveInput(), theme)
         chart.setOption(option, { notMerge: false, replaceMerge: ['series', 'xAxis', 'yAxis'] })
       }
       // Selection restyle: merge the rebuilt option in place with animation
@@ -112,23 +125,59 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       // series or re-running the entrance transition.
       const restyleSelection = () => {
         const theme = buildEChartsTheme(element, input.theme)
-        const option = buildChartOption(input, theme) as EChartsCoreOption & { animation?: boolean }
+        const option = buildChartOption(responsiveInput(), theme) as EChartsCoreOption & { animation?: boolean }
         option.animation = false
         chart.setOption(option, { notMerge: false })
       }
       const select = (event: Parameters<typeof nodeKeyFromEvent>[0]) => {
         const key = nodeKeyFromEvent(event)
-        if (key !== undefined) events.onSelect(key, anchorFromEvent(event))
+        if (key !== undefined) events.onSelect(key, anchorFromEvent(event), activationFromEvent(event))
       }
       const hover = (event: Parameters<typeof nodeKeyFromEvent>[0]) => {
         const key = nodeKeyFromEvent(event)
         if (key !== undefined) events.onHover(key)
       }
 
+      let axisTooltip: HTMLDivElement | undefined
+      const hideAxisTooltip = () => {
+        axisTooltip?.remove()
+        axisTooltip = undefined
+      }
+      const showAxisTooltip = (event: unknown) => {
+        const record = event && typeof event === 'object' ? event as Record<string, unknown> : {}
+        if (record.componentType !== 'xAxis' && record.componentType !== 'yAxis') {
+          hideAxisTooltip()
+          return
+        }
+        const raw = record.value
+        if (raw === null || raw === undefined || !input.encoding.category && !input.encoding.label) return
+        const wrapper = (record.event as { event?: MouseEvent } | undefined)?.event
+        if (!wrapper) return
+        const categoryField = input.encoding.category ?? input.encoding.label ?? ''
+        const label = input.format(categoryField, raw)
+        hideAxisTooltip()
+        axisTooltip = document.createElement('div')
+        axisTooltip.className = 'lens-axis-label-tooltip'
+        axisTooltip.setAttribute('role', 'tooltip')
+        axisTooltip.textContent = label
+        axisTooltip.style.left = `${Math.min(wrapper.clientX + 12, window.innerWidth - 280)}px`
+        axisTooltip.style.top = `${Math.max(8, wrapper.clientY - 36)}px`
+        document.body.append(axisTooltip)
+      }
+
       chart.on('click', select)
-      chart.on('mouseover', hover)
-      chart.on('mouseout', () => events.onHover(null))
-      chart.on('globalout', () => events.onHover(null))
+      chart.on('mouseover', (event) => {
+        showAxisTooltip(event)
+        hover(event)
+      })
+      chart.on('mouseout', () => {
+        hideAxisTooltip()
+        events.onHover(null)
+      })
+      chart.on('globalout', () => {
+        hideAxisTooltip()
+        events.onHover(null)
+      })
 
       // The tooltip lives on `body`, and ECharts only ever hides it from
       // pointer events it receives over the canvas. Scrolling, switching tabs,
@@ -166,8 +215,12 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const { width, height } = readBox(element, entries)
         if (width <= 0 || height <= 0) return
         if (appliedBox && width === appliedBox.width && height >= appliedBox.height) return
+        const crossedCompactLabelBoundary = appliedBox
+          ? (appliedBox.width < 500) !== (width < 500)
+          : false
         appliedBox = { width, height }
         chart.resize({ width, height })
+        if (crossedCompactLabelBoundary && (input.kind === 'donut' || input.kind === 'pie')) render()
       }
       const resizeObserver = observeSize(element, resizeChart)
       const themeObserver = observeTheme(element, render)
@@ -180,6 +233,9 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
           if (selectionOnly) restyleSelection()
           else render()
         },
+		resetZoom() {
+			chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })
+		},
         dispose() {
           for (const remove of detach) remove()
           detach.length = 0
@@ -187,6 +243,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
           // handed to `body`, and hiding it is what returns it to ECharts' own
           // cleanup path.
           hideTooltip()
+          hideAxisTooltip()
           resizeObserver?.disconnect()
           themeObserver?.disconnect()
           chart.dispose()

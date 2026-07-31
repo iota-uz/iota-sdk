@@ -133,6 +133,7 @@ func TestDashboardDocumentValidate_Semantics(t *testing.T) {
 		doc.Panels[0].Actions = nil
 		require.ErrorContains(t, doc.Validate(), "requires a leaf action")
 		doc.Panels[0].Actions = []Action{{Kind: ActionNavigateToLeaf, URLTemplate: "/evidence/{id}", Params: []ActionParam{}, Payload: map[string]Source{}}}
+		doc.Panels[0].Terminal = false
 		require.NoError(t, doc.Validate())
 	})
 	t.Run("emit event action", func(t *testing.T) {
@@ -141,6 +142,7 @@ func TestDashboardDocumentValidate_Semantics(t *testing.T) {
 			Kind: ActionEmitEvent, Event: "lens.selected", Params: []ActionParam{},
 			Payload: map[string]Source{"id": {Kind: ValueSourceField, Name: "label"}},
 		}}
+		doc.Panels[0].Terminal = false
 		require.NoError(t, doc.Validate())
 	})
 	for _, value := range []float64{-1, math.Inf(1), math.NaN()} {
@@ -179,6 +181,7 @@ func TestDashboardDocumentValidate_TableColumns(t *testing.T) {
 			Params: []ActionParam{}, Payload: map[string]Source{},
 		},
 	}}
+	doc.Panels[0].Terminal = false
 	doc.Panels[0].Semantics = SemanticsEvidence
 	require.NoError(t, doc.Validate())
 
@@ -229,6 +232,25 @@ func TestDashboardDocumentValidate_DetectsVersionMismatch(t *testing.T) {
 	require.ErrorContains(t, doc.Validate(), "unsupported contract version")
 }
 
+func TestDashboardDocumentValidate_RequiresExactlyOneInteractionDisposition(t *testing.T) {
+	t.Parallel()
+
+	silent := testDocument()
+	silent.Panels[0].Terminal = false
+	require.ErrorContains(t, silent.Validate(), "must be actionable or explicitly terminal")
+
+	actionable := testDocument()
+	actionable.Panels[0].Terminal = false
+	actionable.Panels[0].Actions = []Action{{
+		Kind: ActionEmitEvent, Event: "lens.selected", Params: []ActionParam{}, Payload: map[string]Source{},
+	}}
+	require.NoError(t, actionable.Validate())
+
+	ambiguous := testDocument()
+	ambiguous.Panels[0].Actions = actionable.Panels[0].Actions
+	require.ErrorContains(t, ambiguous.Validate(), "cannot be terminal and actionable")
+}
+
 func metricBaseDocument(id string, kind PanelKind) *DashboardDocument {
 	frame := FrameRef("panel:" + id)
 	return &DashboardDocument{
@@ -238,7 +260,7 @@ func metricBaseDocument(id string, kind PanelKind) *DashboardDocument {
 		Layout:     Layout{Rows: []LayoutRow{{Panels: []LayoutItem{{PanelID: id, Span: 6}}}}},
 		Panels: []Panel{{
 			ID: id, Kind: kind, Title: "Metric", Semantics: SemanticsSeries, Frame: frame,
-			Encoding: Encoding{ID: "id", Value: "value"}, Format: map[string]FieldFormat{}, Actions: []Action{},
+			Encoding: Encoding{ID: "id", Value: "value"}, Format: map[string]FieldFormat{}, Actions: []Action{}, Terminal: true,
 		}},
 		Frames: map[FrameRef]Frame{
 			frame: {Columns: []Column{{Name: "id", Type: ColumnString}, {Name: "value", Type: ColumnNumber}}, Rows: [][]any{{"opening", 10.0}}},
@@ -705,11 +727,15 @@ func TestDashboardDocumentValidate_FocusCanvasAdditions(t *testing.T) {
 		doc.Drill.Edges["root"] = level
 		require.NoError(t, doc.Validate())
 	})
-	t.Run("target only on coverage and hbar", func(t *testing.T) {
+	t.Run("target only on coverage, hbar, line, and area", func(t *testing.T) {
 		doc := testDocument()
 		doc.Panels[0].Target = &PanelTarget{Value: 10, Label: "Plan"}
-		require.ErrorContains(t, doc.Validate(), "target marker is only supported on coverage and hbar")
+		require.ErrorContains(t, doc.Validate(), "target marker is only supported on coverage, hbar, line, and area")
 		doc.Panels[0].Kind = PanelKindHBar
+		require.NoError(t, doc.Validate())
+		doc.Panels[0].Kind = PanelKindLine
+		require.NoError(t, doc.Validate())
+		doc.Panels[0].Kind = PanelKindArea
 		require.NoError(t, doc.Validate())
 	})
 	t.Run("target value must be finite", func(t *testing.T) {
@@ -852,7 +878,7 @@ func testDocument() *DashboardDocument {
 		Layout:     Layout{Rows: []LayoutRow{{Panels: []LayoutItem{{PanelID: "total", Span: 6}}}}},
 		Panels: []Panel{{
 			ID: "total", Kind: PanelKindStat, Title: "Total", Semantics: SemanticsSeries, Frame: "panel:total",
-			Encoding: Encoding{Label: "label", Value: "value"}, Format: map[string]FieldFormat{}, Actions: []Action{},
+			Encoding: Encoding{Label: "label", Value: "value"}, Format: map[string]FieldFormat{}, Actions: []Action{}, Terminal: true,
 		}},
 		Frames: map[FrameRef]Frame{
 			"panel:total": {Columns: []Column{{Name: "label", Type: ColumnString}, {Name: "value", Type: ColumnNumber}}, Rows: [][]any{{"Total", 42.0}}},
@@ -879,6 +905,7 @@ func TestDashboardDocumentValidate_PanelActionFieldsResolveAgainstLevelFrames(t 
 		doc := testDocument()
 		root := NodeKey("root")
 		doc.Panels[0].DrillRoot = &root
+		doc.Panels[0].Terminal = false
 		doc.Frames["level:root"] = Frame{
 			Columns: []Column{{Name: "policy_id", Type: ColumnString}},
 			Rows:    [][]any{{"PL-1"}},
@@ -910,17 +937,17 @@ func TestDashboardDocumentValidate_LayoutGroups(t *testing.T) {
 
 	t.Run("tabs group requires a tab", func(t *testing.T) {
 		doc := testDocument()
-		doc.Layout.Rows[0].Panels[0].Group = &LayoutGroup{ID: "g", Kind: LayoutGroupTabs, Span: 12}
+		doc.Layout.Rows[0].Panels[0].Groups = []LayoutGroup{{ID: "g", Kind: LayoutGroupTabs, Span: 12}}
 		require.ErrorContains(t, doc.Validate(), "requires a tab")
 	})
 	t.Run("group span is bounded", func(t *testing.T) {
 		doc := testDocument()
-		doc.Layout.Rows[0].Panels[0].Group = &LayoutGroup{ID: "g", Kind: LayoutGroupMetrics, Span: 13}
+		doc.Layout.Rows[0].Panels[0].Groups = []LayoutGroup{{ID: "g", Kind: LayoutGroupMetrics, Span: 13}}
 		require.ErrorContains(t, doc.Validate(), "span must be between 1 and 12")
 	})
 	t.Run("metrics group is accepted", func(t *testing.T) {
 		doc := testDocument()
-		doc.Layout.Rows[0].Panels[0].Group = &LayoutGroup{ID: "g", Kind: LayoutGroupMetrics, Span: 12, Layout: LayoutGroupColumns}
+		doc.Layout.Rows[0].Panels[0].Groups = []LayoutGroup{{ID: "g", Kind: LayoutGroupMetrics, Span: 12, Layout: LayoutGroupColumns}}
 		require.NoError(t, doc.Validate())
 	})
 }
