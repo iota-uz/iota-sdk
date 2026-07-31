@@ -545,6 +545,17 @@ describe('buildChartOption', () => {
     expect(tooltip).not.toContain('Cost')
   })
 
+  it('omits an all-zero time-axis tooltip', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.tooltip.formatter?.([
+      { axisValue: 1, seriesName: 'Revenue', value: [1, 0] },
+      { axisValue: 1, seriesName: 'Cost', value: [1, 0] },
+    ])).toBe('')
+  })
+
   it('stacks the parts of a whole and keeps another basis beside them', () => {
     const chartInput = input('bar')
     chartInput.presentation = { stack: true, lineSeries: ['Cost'] }

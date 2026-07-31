@@ -101,8 +101,8 @@ const regionFacet: Filter = {
     optionsEndpoint: '/lens/facet-options?_facet=region',
     searchParam: '_facet_search',
     selections: [
-      { label: 'Tashkent city', removeUrl: '/reports/sales?_f=product%3Aosago' },
-      { label: 'Samarkand region', removeUrl: '/reports/sales?_f=product%3Aosago' },
+      { label: 'Tashkent city', removeUrl: '/reports/sales?_f=region%3Asamarkand&_f=product%3Aosago' },
+      { label: 'Samarkand region', removeUrl: '/reports/sales?_f=region%3Atashkent&_f=product%3Aosago' },
     ],
     clearUrl: '/reports/sales',
   },

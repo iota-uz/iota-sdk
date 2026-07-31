@@ -115,6 +115,7 @@
 
   .lens-dashboard {
     @apply lens-mx-auto lens-w-full lens-min-w-0 lens-max-w-screen-2xl;
+
     container: lens-dashboard / inline-size;
   }
 
@@ -326,6 +327,7 @@
      there the tray sinks below the page and the card sits above it. */
   .lens-filter-segments {
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-overflow-x-auto lens-rounded-control lens-border lens-border-solid lens-border-border;
+
     --lens-seg-tray: rgb(15 23 42 / 0.05);
     --lens-seg-raised: var(--lens-bg-card);
     background: var(--lens-seg-tray);
@@ -350,11 +352,13 @@
 
   .lens-facet-count {
     @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-[10px] lens-text-accent-700;
+
     background: var(--lens-accent-100);
   }
 
   .lens-facet-popover {
-    @apply lens-absolute lens-left-0 lens-top-full lens-z-50 lens-mt-1.5 lens-flex lens-w-72 lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens-fixed lens-z-[1100] lens-flex lens-w-72 lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+
     box-shadow: var(--lens-shadow-popover);
   }
 
@@ -364,6 +368,7 @@
 
   .lens-facet-search:focus {
     @apply lens-border-accent-500;
+
     box-shadow: 0 0 0 2px var(--lens-accent-100);
   }
 

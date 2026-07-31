@@ -178,7 +178,11 @@ func validateFacetFilter(id string, facet FacetFilter) error {
 }
 
 func validRelativeURL(raw string) bool {
-	parsed, err := url.Parse(strings.TrimSpace(raw))
+	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, `/\\`) {
+		return false
+	}
+	parsed, err := url.Parse(trimmed)
 	return err == nil && parsed != nil && !parsed.IsAbs() && parsed.Host == "" &&
 		strings.HasPrefix(parsed.Path, "/")
 }

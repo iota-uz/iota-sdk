@@ -56,23 +56,27 @@ func TestDashboardDocumentValidate_Filters(t *testing.T) {
 		require.NoError(t, doc.Validate())
 	})
 
-	t.Run("facet payload and same-origin URLs required", func(t *testing.T) {
-		doc := testDocument()
-		filter := facetFilter()
-		filter.Facet = nil
-		doc.Filters = []Filter{filter}
-		require.ErrorContains(t, doc.Validate(), "requires a facet payload")
-
-		filter = facetFilter()
-		filter.Facet.OptionsEndpoint = "https://example.com/options"
-		doc.Filters = []Filter{filter}
-		require.ErrorContains(t, doc.Validate(), "same-origin options endpoint")
-
-		filter = facetFilter()
-		filter.Facet.Selections[0].Label = " "
-		doc.Filters = []Filter{filter}
-		require.ErrorContains(t, doc.Validate(), "requires a label")
-	})
+	for _, test := range []struct {
+		name    string
+		mutate  func(*Filter)
+		message string
+	}{
+		{name: "payload required", mutate: func(filter *Filter) { filter.Facet = nil }, message: "requires a facet payload"},
+		{name: "absolute options endpoint rejected", mutate: func(filter *Filter) { filter.Facet.OptionsEndpoint = "https://example.com/options" }, message: "same-origin options endpoint"},
+		{name: "network-path options endpoint rejected", mutate: func(filter *Filter) { filter.Facet.OptionsEndpoint = "//example.com/options" }, message: "same-origin options endpoint"},
+		{name: "backslash network-path options endpoint rejected", mutate: func(filter *Filter) { filter.Facet.OptionsEndpoint = `/\\example.com/options` }, message: "same-origin options endpoint"},
+		{name: "network-path clear URL rejected", mutate: func(filter *Filter) { filter.Facet.ClearURL = "//example.com/clear" }, message: "invalid clear URL"},
+		{name: "network-path remove URL rejected", mutate: func(filter *Filter) { filter.Facet.Selections[0].RemoveURL = "//example.com/remove" }, message: "invalid remove URL"},
+		{name: "selection label required", mutate: func(filter *Filter) { filter.Facet.Selections[0].Label = " " }, message: "requires a label"},
+	} {
+		t.Run("facet "+test.name, func(t *testing.T) {
+			doc := testDocument()
+			filter := facetFilter()
+			test.mutate(&filter)
+			doc.Filters = []Filter{filter}
+			require.ErrorContains(t, doc.Validate(), test.message)
+		})
+	}
 
 	t.Run("id required and unique", func(t *testing.T) {
 		doc := testDocument()

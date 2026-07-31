@@ -90,7 +90,7 @@ describe('stat panels', () => {
     const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
     const { container } = renderDocument(
       documentWith([panel], { 'stat:root': statFrame }),
-      <StatMetric panel={panel} />,
+      <div className="lens-panel"><StatMetric panel={panel} /></div>,
     )
 
     const tip = container.querySelector('.lens-info-tip-button-inline')

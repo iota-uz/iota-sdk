@@ -145,6 +145,7 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeri
   const valueField = input.encoding.value ?? ''
   return (params: unknown) => {
     const records = nonZeroTooltipRecords(params)
+    if (records.length === 0) return ''
     const header = input.format(categoryField, records[0]?.axisValue)
     const lines = records.map((entry) => {
       const seriesName = text(entry.seriesName)

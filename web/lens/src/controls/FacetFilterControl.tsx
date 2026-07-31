@@ -1,7 +1,9 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import type { Filter } from '../contract'
 import { CaretDown, X } from '../icons'
 import { useTranslate } from '../runtime'
+import { positionPopover } from './PeriodFilterControl'
 
 const searchDelay = 250
 
@@ -16,12 +18,10 @@ interface FacetOptionsResponse {
   options: Array<FacetOption>
 }
 
-function optionsURL(filter: Filter, search: string): string {
-  const facet = filter.facet
-  if (!facet) return ''
+function optionsURL(optionsEndpoint: string, searchParam: string | undefined, search: string): string {
   const base = typeof window === 'undefined' ? 'http://localhost/' : window.location.href
-  const target = new URL(facet.optionsEndpoint, base)
-  const param = facet.searchParam?.trim() || 'q'
+  const target = new URL(optionsEndpoint, base)
+  const param = searchParam?.trim() || 'q'
   target.searchParams.delete(param)
   if (search.trim()) target.searchParams.set(param, search.trim())
   return `${target.pathname}${target.search}${target.hash}`
@@ -32,18 +32,23 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
   const translate = useTranslate()
   const popoverID = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false)
   const [search, setSearch] = useState('')
   const [options, setOptions] = useState<Array<FacetOption>>([])
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
+  const [container, setContainer] = useState<HTMLElement>()
+  const [position, setPosition] = useState({ left: 0, top: 0 })
+  const optionsEndpoint = facet?.optionsEndpoint ?? ''
+  const searchParam = facet?.searchParam
 
   useEffect(() => {
-    if (!open || !facet) return undefined
+    if (!open || !optionsEndpoint) return undefined
     const controller = new AbortController()
     setStatus('loading')
     const timer = globalThis.setTimeout(() => {
-      void fetch(optionsURL(filter, search), {
+      void fetch(optionsURL(optionsEndpoint, searchParam, search), {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
         signal: controller.signal,
@@ -62,7 +67,53 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
       globalThis.clearTimeout(timer)
       controller.abort()
     }
-  }, [facet, filter, open, search])
+  }, [open, optionsEndpoint, search, searchParam])
+
+  useEffect(() => {
+    if (!open || typeof document === 'undefined') return undefined
+    const element = document.createElement('div')
+    const root = triggerRef.current?.closest('.lens-root')
+    element.className = `lens-root lens-overlay-root${root?.classList.contains('dark') ? ' dark' : ''}`
+    if (root instanceof HTMLElement && root.dataset.theme) element.dataset.theme = root.dataset.theme
+    document.body.appendChild(element)
+    setContainer(element)
+    return () => {
+      element.remove()
+      setContainer(undefined)
+    }
+  }, [open])
+
+  const reposition = useCallback(() => {
+    const trigger = triggerRef.current
+    const popover = popoverRef.current
+    if (!trigger || !popover) return
+    const anchor = trigger.getBoundingClientRect()
+    const size = popover.getBoundingClientRect()
+    setPosition(positionPopover(
+      anchor,
+      { width: size.width, height: size.height },
+      { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 },
+    ))
+  }, [])
+
+  useLayoutEffect(() => {
+    if (container) reposition()
+  }, [container, reposition])
+
+  useEffect(() => {
+    if (!container) return undefined
+    const frame = globalThis.requestAnimationFrame(reposition)
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
+    if (popoverRef.current) observer?.observe(popoverRef.current)
+    globalThis.addEventListener('resize', reposition)
+    globalThis.addEventListener('scroll', reposition, true)
+    return () => {
+      globalThis.cancelAnimationFrame(frame)
+      observer?.disconnect()
+      globalThis.removeEventListener('resize', reposition)
+      globalThis.removeEventListener('scroll', reposition, true)
+    }
+  }, [container, reposition])
 
   useEffect(() => {
     if (!open) return undefined
@@ -71,7 +122,7 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
       const target = event.target
       if (!(target instanceof Node)) return
       const root = triggerRef.current?.closest('.lens-filter-facet')
-      if (!root?.contains(target)) setOpen(false)
+      if (!root?.contains(target) && !popoverRef.current?.contains(target)) setOpen(false)
     }
     const onKeyDown = (event: globalThis.KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -84,7 +135,7 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
       globalThis.document.removeEventListener('pointerdown', onPointerDown)
       globalThis.document.removeEventListener('keydown', onKeyDown)
     }
-  }, [open])
+  }, [container, open])
 
   if (!facet) return null
   const selectedCount = facet.selections?.length ?? 0
@@ -102,8 +153,15 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
         {selectedCount > 0 && <span className="lens-facet-count">{selectedCount}</span>}
         <CaretDown aria-hidden="true" />
       </button>
-      {open && (
-        <div className="lens-facet-popover" id={popoverID} role="dialog" aria-label={filter.label}>
+      {open && container && createPortal(
+        <div
+          aria-label={filter.label}
+          className="lens-facet-popover"
+          id={popoverID}
+          ref={popoverRef}
+          role="dialog"
+          style={{ left: position.left, top: position.top }}
+        >
           <input
             aria-label={translate('filter.facet.search', 'Search options')}
             className="lens-facet-search"
@@ -133,7 +191,8 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
               </a>
             ))}
           </div>
-        </div>
+        </div>,
+        container,
       )}
       {facet.selections?.map((selection) => (
         <a
