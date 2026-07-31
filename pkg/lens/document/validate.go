@@ -3,6 +3,7 @@ package document
 import (
 	"fmt"
 	"math"
+	"net/url"
 	"strings"
 	"time"
 
@@ -132,7 +133,20 @@ func validateFilters(filters []Filter) error {
 			if filter.Period == nil {
 				return fmt.Errorf("filter %s requires a period payload", filter.ID)
 			}
+			if filter.Facet != nil {
+				return fmt.Errorf("filter %s cannot carry both period and facet payloads", filter.ID)
+			}
 			if err := validatePeriodFilter(filter.ID, *filter.Period); err != nil {
+				return err
+			}
+		case FilterKindFacet:
+			if filter.Facet == nil {
+				return fmt.Errorf("filter %s requires a facet payload", filter.ID)
+			}
+			if filter.Period != nil {
+				return fmt.Errorf("filter %s cannot carry both period and facet payloads", filter.ID)
+			}
+			if err := validateFacetFilter(filter.ID, *filter.Facet); err != nil {
 				return err
 			}
 		default:
@@ -140,6 +154,37 @@ func validateFilters(filters []Filter) error {
 		}
 	}
 	return nil
+}
+
+func validateFacetFilter(id string, facet FacetFilter) error {
+	if strings.TrimSpace(facet.Dimension) == "" {
+		return fmt.Errorf("filter %s facet requires a dimension", id)
+	}
+	if !validRelativeURL(facet.OptionsEndpoint) {
+		return fmt.Errorf("filter %s facet requires a same-origin options endpoint", id)
+	}
+	if facet.ClearURL != "" && !validRelativeURL(facet.ClearURL) {
+		return fmt.Errorf("filter %s facet has an invalid clear URL", id)
+	}
+	for index, selection := range facet.Selections {
+		if strings.TrimSpace(selection.Label) == "" {
+			return fmt.Errorf("filter %s facet selection %d requires a label", id, index)
+		}
+		if !validRelativeURL(selection.RemoveURL) {
+			return fmt.Errorf("filter %s facet selection %d has an invalid remove URL", id, index)
+		}
+	}
+	return nil
+}
+
+func validRelativeURL(raw string) bool {
+	trimmed := strings.TrimSpace(raw)
+	if strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, `/\\`) {
+		return false
+	}
+	parsed, err := url.Parse(trimmed)
+	return err == nil && parsed != nil && !parsed.IsAbs() && parsed.Host == "" &&
+		strings.HasPrefix(parsed.Path, "/")
 }
 
 func validatePeriodFilter(id string, period PeriodFilter) error {

@@ -91,11 +91,12 @@ describe('readFilterValues', () => {
 
 describe('writeFilterValues', () => {
   it('round-trips through a URL and preserves unrelated params', () => {
-    const url = new URL('https://x.test/dash?path=a&path=b&other=1')
+    const url = new URL('https://x.test/dash?path=a&path=b&_f=product%3Aone&_f=region%3Atwo&other=1')
     const values = { ActualRangeStart: '2026-02-01', ActualRangeEnd: '2026-03-01' }
     const next = writeFilterValues(url, doc, values)
     expect(readFilterValues(doc, next)).toEqual(values)
     expect(next.searchParams.getAll('path')).toEqual(['a', 'b'])
+    expect(next.searchParams.getAll('_f')).toEqual(['product:one', 'region:two'])
     expect(next.searchParams.get('other')).toBe('1')
   })
 

@@ -3,8 +3,10 @@ import {
   lazy,
   Suspense,
   useContext,
+  useCallback,
   useEffect,
   useId,
+  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -14,6 +16,7 @@ import {
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
 import { ExportMenu, RegisteredPanel, StatMetric, StatusChip, type PanelRegistry } from './panels'
+import { LegendVisibilityContext } from './panels/context'
 import { X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
@@ -227,6 +230,21 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   const [active, setActive] = useState(() => store?.get(group.id) ?? tabs[0] ?? '')
   const current = tabs.includes(active) ? active : tabs[0] ?? ''
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<string>>(() => new Set())
+  const toggleSeries = useCallback((key: string) => {
+    setHiddenSeries((currentHidden) => {
+      const next = new Set(currentHidden)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
+  const resetSeries = useCallback(() => setHiddenSeries(new Set()), [])
+  const legendVisibility = useMemo(() => ({
+    hidden: hiddenSeries,
+    toggle: toggleSeries,
+    reset: resetSeries,
+  }), [hiddenSeries, resetSeries, toggleSeries])
 
   const select = (tab: string) => {
     store?.set(group.id, tab)
@@ -255,7 +273,8 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   const panelId = (index: number) => `${baseId}-panel-${index}`
 
   return (
-    <GroupCard group={group}>
+    <LegendVisibilityContext.Provider value={legendVisibility}>
+      <GroupCard group={group}>
       {/* An unlabelled group would otherwise expose its raw id to a screen
           reader; a translated generic name is the honest fallback. */}
       <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
@@ -303,7 +322,8 @@ function TabsGroup({ group, items, depth, panels, registry }: {
           )}
         </div>
       ))}
-    </GroupCard>
+      </GroupCard>
+    </LegendVisibilityContext.Provider>
   )
 }
 

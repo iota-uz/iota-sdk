@@ -51,6 +51,7 @@ const storyIds = [
   'filter-controls--dashboard-filter-chip-active',
   'filter-controls--dashboard-filter-dark',
   'filter-controls--dashboard-filter-light',
+  'filter-controls--dashboard-facet-active',
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
   'filter-controls--refetch-error',
@@ -90,8 +91,10 @@ const storyIds = [
   'parity--icon-set-light',
   'parity--legend-hidden-series',
   'parity--line-with-series-legend',
+  'parity--logarithmic-horizontal-bar',
   'parity--stacked-composition-with-a-line',
   'parity--metric-group',
+  'parity--metric-group-info',
   'parity--metric-group-sparkline',
   'parity--panel-header-pressure',
   'parity--panel-skeletons-dark',
@@ -100,6 +103,7 @@ const storyIds = [
   'parity--pie-with-legend-right--dark',
   'parity--pie-with-tall-legend',
   'parity--tab-group',
+  'parity--tabbed-legend-state',
 ] as const
 
 const staticStories = [
@@ -154,6 +158,7 @@ const staticStories = [
   ['filter-controls--dashboard-filter-chip-active', 0],
   ['filter-controls--dashboard-filter-dark', 0],
   ['filter-controls--dashboard-filter-light', 0],
+  ['filter-controls--dashboard-facet-active', 0],
   // The period trigger's focus ring alternates between two stable rasters
   // differing by ~25 antialiased pixels at its corners (iota-uz/iota-sdk#932).
   ['filter-controls--popover-open-dark', 0, 50],
@@ -194,8 +199,13 @@ const staticStories = [
   ['parity--icon-set-light', 0],
   ['parity--legend-hidden-series', 1],
   ['parity--line-with-series-legend', 1],
+  // ECharts' logarithmic axis labels and bar edges can land on adjacent
+  // subpixels in the Linux browser image even when the chart geometry and
+  // values are unchanged. Keep the tolerance local to this canvas story.
+  ['parity--logarithmic-horizontal-bar', 1, 4_000],
   ['parity--stacked-composition-with-a-line', 1],
   ['parity--metric-group', 0],
+  ['parity--metric-group-info', 0],
   ['parity--metric-group-sparkline', 0],
   ['parity--panel-header-pressure', 1],
   ['parity--panel-skeletons-dark', 0],
@@ -206,6 +216,7 @@ const staticStories = [
   // total badge kept colliding with and the two-entry stories never produced.
   ['parity--pie-with-tall-legend', 1],
   ['parity--tab-group', 0],
+  ['parity--tabbed-legend-state', 1],
 ] as const
 
 async function openStory(page: Page, storyId: string, canvasCount: number): Promise<void> {

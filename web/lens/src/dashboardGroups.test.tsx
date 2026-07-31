@@ -2,6 +2,9 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { afterEach, describe, expect, it } from 'vitest'
 import type { DashboardDocument, Frame, LayoutGroup, LayoutItem, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
+import type { ChartAdapter } from './charts/adapter'
+import { ChartPanel } from './panels/ChartPanel'
+import type { PanelRegistry } from './panels'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
 
 afterEach(cleanup)
@@ -23,11 +26,11 @@ function documentWith(panels: Panel[], frames: Record<string, Frame>, layout: Da
   }
 }
 
-function renderDocument(document: DashboardDocument) {
+function renderDocument(document: DashboardDocument, registry?: PanelRegistry) {
   return render(
     <div className="lens-root">
       <DocumentProvider initialDocument={document}>
-        <DashboardRuntimeProvider locale="en"><DashboardPanels /></DashboardRuntimeProvider>
+        <DashboardRuntimeProvider locale="en"><DashboardPanels registry={registry} /></DashboardRuntimeProvider>
       </DocumentProvider>
     </div>,
   )
@@ -157,6 +160,72 @@ describe('nested tabs', () => {
     const innerTabs = within(screen.getAllByRole('tablist')[1]!).getAllByRole('tab')
     expect(innerTabs.find((tab) => tab.textContent === 'Summary')).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Metric B')).toBeVisible()
+  })
+})
+
+describe('legend visibility across tabs', () => {
+  it('keeps a hidden series hidden when switching between related charts', () => {
+    const group = (tab: string): LayoutGroup => ({
+      id: 'daily-sales',
+      kind: 'tabs',
+      span: 12,
+      label: 'Daily sales',
+      tab,
+    })
+    const chartPanel = (id: string, title: string): Panel => ({
+      id,
+      kind: 'bar',
+      title,
+      semantics: 'series',
+      frame: `${id}:root`,
+      encoding: { category: 'day', series: 'product', value: 'value' },
+      format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
+      presentation: { legend: 'below' },
+      actions: [],
+    })
+    const chartFrame = (osago: number, kasko: number): Frame => ({
+      columns: [
+        { name: 'day', type: 'string' },
+        { name: 'product', type: 'string' },
+        { name: 'value', type: 'number' },
+      ],
+      rows: [
+        ['31.07', 'ОСАГО', osago],
+        ['31.07', 'КАСКО', kasko],
+      ],
+    })
+    const adapter: ChartAdapter = {
+      mount: () => ({ update: () => {}, dispose: () => {} }),
+    }
+    const TestChart = ({ panel }: { panel: Panel }) => <ChartPanel adapter={adapter} panel={panel} />
+    const registry: PanelRegistry = { bar: TestChart }
+    const revenue = chartPanel('revenue', 'Revenue')
+    const count = chartPanel('count', 'Count')
+
+    renderDocument(documentWith(
+      [revenue, count],
+      {
+        'revenue:root': chartFrame(1_000, 500),
+        'count:root': chartFrame(10, 5),
+      },
+      {
+        rows: [{
+          panels: [
+            { panelId: revenue.id, span: 12, group: group('Revenue') },
+            { panelId: count.id, span: 12, group: group('Count') },
+          ],
+        }],
+      },
+    ), registry)
+
+    fireEvent.click(screen.getByRole('button', { name: /ОСАГО/ }))
+    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Count' }))
+    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Revenue' }))
+    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')
   })
 })
 

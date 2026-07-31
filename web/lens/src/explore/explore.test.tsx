@@ -698,6 +698,26 @@ describe('leaf actions', () => {
     expect(href).toBe('https://example.test/transactions/TX%201042?mode=detail&region=north')
   })
 
+  it('preserves every value of a repeated host query parameter', () => {
+    const href = resolveLeafActionURL({
+      kind: 'navigate_to_leaf',
+      urlTemplate: '/policies',
+      params: [],
+      payload: {},
+      preserveQuery: true,
+    }, {
+      fields: {},
+      variables: {},
+      location: new URL(
+        'https://example.test/dashboard?_f=product%3Aone&_f=product%3Atwo&ActualRangeStart=2026-01-01',
+      ),
+    })
+
+    expect(href).toBe(
+      'https://example.test/policies?_f=product%3Aone&_f=product%3Atwo&ActualRangeStart=2026-01-01',
+    )
+  })
+
   it('treats an empty field URL as inert instead of resolving it to the current page', () => {
     // An inert segment (e.g. the aggregate «Ceded» slice) carries an empty
     // action_url. Without the guard `new URL('', location)` would resolve to the

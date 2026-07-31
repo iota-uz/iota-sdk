@@ -55,7 +55,12 @@ interface TestSeries {
   id?: string
   percentPrecision?: number
   minAngle?: number
-  label?: { formatter?: (params: { percent?: number; name?: string; data?: { share?: number } }) => string }
+  label?: {
+    show?: boolean
+    position?: string
+    formatter?: (params: { percent?: number; name?: string; value?: unknown; data?: { share?: number } }) => string
+  }
+  labelLayout?: { hideOverlap?: boolean }
   type?: string
   name?: string
   stack?: string
@@ -67,6 +72,7 @@ interface TestSeries {
 
 interface TestAxis {
   type?: string
+  logBase?: number
   data?: string[]
   axisLabel?: { formatter?: (value: unknown) => string }
 }
@@ -360,6 +366,36 @@ describe('buildChartOption', () => {
     expect(chart.series[0]?.data?.[1]).toMatchObject({ value: 1500, nodeKey: 'feb-revenue' })
   })
 
+  it('uses the requested logarithmic value axis and base', () => {
+    const chart = testOption(buildChartOption({
+      ...input('hbar'),
+      valueAxis: { scale: 'logarithmic', logBase: 10 },
+    }, theme))
+
+    expect(chart.xAxis.type).toBe('log')
+    expect(chart.xAxis.logBase).toBe(10)
+    expect(chart.yAxis.type).toBe('category')
+    expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'right' })
+    expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
+    expect(chart.series[0]?.labelLayout).toEqual({ hideOverlap: true })
+  })
+
+  it('puts logarithmic vertical-bar values above their columns', () => {
+    const chart = testOption(buildChartOption({
+      ...input('bar'),
+      valueAxis: { scale: 'logarithmic', logBase: 10 },
+    }, theme))
+
+    expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'top' })
+    expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
+  })
+
+  it('keeps data labels off ordinary linear bars', () => {
+    const chart = testOption(buildChartOption(input('bar'), theme))
+
+    expect(chart.series.every((series) => series.label === undefined)).toBe(true)
+  })
+
   it.each(['bar', 'line'] as const)('applies configured series brand colors to %s series', (kind) => {
     const chart = testOption(buildChartOption(input(kind), theme))
 
@@ -392,6 +428,54 @@ describe('buildChartOption', () => {
     const chart = testOption(buildChartOption(input('bar'), theme))
 
     expect(chart.yAxis.axisLabel?.formatter?.(1200)).toBe('$1200')
+  })
+
+  it('does not expose ECharts synthetic series names for a single-series chart', () => {
+    const chartInput = input('bar')
+    chartInput.encoding = { id: 'id', category: 'category', value: 'value' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', marker: '<span class="marker"></span>', seriesName: 'series0', value: 1200 },
+    ]) ?? ''
+
+    expect(tooltip).toContain('Jan')
+    expect(tooltip).toContain('$1200')
+    expect(tooltip).not.toContain('series0')
+  })
+
+  it('omits zero-valued stack entries and restores the localized column total', () => {
+    const chartInput = input('bar')
+    chartInput.presentation = { stack: true }
+    chartInput.tooltipTotalLabel = 'Итого'
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', marker: '<span class="marker"></span>', seriesName: 'Revenue', value: 1200 },
+      { axisValueLabel: 'Jan', marker: '<span class="marker"></span>', seriesName: 'Cost', value: 0 },
+    ]) ?? ''
+
+    expect(tooltip).toContain('Jan')
+    expect(tooltip).toContain('Revenue')
+    expect(tooltip).not.toContain('Cost')
+    expect(tooltip).toContain('Итого')
+    expect(tooltip).toContain('$1200')
+  })
+
+  it('does not add an overlaid line series to a stacked column total', () => {
+    const chartInput = input('bar')
+    chartInput.presentation = { stack: true, lineSeries: ['Cost'] }
+    chartInput.tooltipTotalLabel = 'Итого'
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: 'Jan', seriesName: 'Revenue', value: 1200 },
+      { axisValueLabel: 'Jan', seriesName: 'Cost', value: 700 },
+    ]) ?? ''
+
+    expect(tooltip).toContain('Cost')
+    expect(tooltip).toContain('Итого')
+    expect(tooltip).not.toContain('$1900')
   })
 
   it.each(['line', 'area'] as const)('uses sorted timestamp pairs on a time axis for %s', (kind) => {
@@ -445,6 +529,31 @@ describe('buildChartOption', () => {
       .toBe(`category=${time}\nRevenue: value=1200`)
     expect(format).toHaveBeenCalledWith('category', time)
     expect(format).toHaveBeenCalledWith('value', 1200)
+  })
+
+  it('omits zero-valued series from time-axis tooltips too', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValue: 1, seriesName: 'Revenue', value: [1, 1200] },
+      { axisValue: 1, seriesName: 'Cost', value: [1, 0] },
+    ]) ?? ''
+
+    expect(tooltip).toContain('Revenue')
+    expect(tooltip).not.toContain('Cost')
+  })
+
+  it('omits an all-zero time-axis tooltip', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.tooltip.formatter?.([
+      { axisValue: 1, seriesName: 'Revenue', value: [1, 0] },
+      { axisValue: 1, seriesName: 'Cost', value: [1, 0] },
+    ])).toBe('')
   })
 
   it('stacks the parts of a whole and keeps another basis beside them', () => {

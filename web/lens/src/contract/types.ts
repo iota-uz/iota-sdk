@@ -22,6 +22,8 @@ export interface ActionParam {
 
 export type Availability = "available" | "config_required" | "empty_source" | "unavailable"
 
+export type AxisScale = "linear" | "logarithmic"
+
 export type BridgeLayout = "waterfall"
 
 export type CascadeTone = "inflow" | "negative" | "neutral" | "positive"
@@ -103,6 +105,19 @@ export interface Endpoints {
   export?: string
 }
 
+export interface FacetFilter {
+  dimension: string
+  optionsEndpoint: string
+  searchParam?: string
+  selections?: Array<FacetSelection>
+  clearUrl?: string
+}
+
+export interface FacetSelection {
+  label: string
+  removeUrl: string
+}
+
 export interface FieldFormat {
   kind: FormatKind
   currency?: string
@@ -119,9 +134,10 @@ export interface Filter {
   kind: FilterKind
   label?: string
   period?: PeriodFilter
+  facet?: FacetFilter
 }
 
-export type FilterKind = "period"
+export type FilterKind = "facet" | "period"
 
 export interface FlowReconciliation {
   tolerance?: number
@@ -300,6 +316,7 @@ export interface Panel {
   sparkline?: Sparkline
   target?: PanelTarget
   presentation?: Presentation
+  valueAxis?: ValueAxis
   metricFlow?: MetricFlowConfig
   metricHierarchy?: MetricHierarchyConfig
   metricRelationship?: MetricRelationshipConfig
@@ -472,6 +489,11 @@ export interface Theme {
 }
 
 export type TotalBadgePlacement = "header" | "none" | "plot"
+
+export interface ValueAxis {
+  scale: AxisScale
+  logBase?: number
+}
 
 export type ValueSourceKind = "field" | "literal" | "variable"
 

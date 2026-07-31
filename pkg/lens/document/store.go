@@ -327,6 +327,11 @@ func cloneFilters(filters []Filter) []Filter {
 			period.Presets = slices.Clone(filter.Period.Presets)
 			cloned.Period = &period
 		}
+		if filter.Facet != nil {
+			facet := *filter.Facet
+			facet.Selections = slices.Clone(filter.Facet.Selections)
+			cloned.Facet = &facet
+		}
 		result[index] = cloned
 	}
 	return result

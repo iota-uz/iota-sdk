@@ -107,7 +107,9 @@ func Resolve(spec CubeSpec, ctx DrillContext, baseURL string) (lens.DashboardSpe
 		return lens.DashboardSpec{}, serrors.E(op, err)
 	}
 	dashboard.Datasets = append(dashboard.Datasets, statsResolution.Datasets...)
-	dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: buildStatPanels(spec, statsResolution.DatasetByMeasure)})
+	if statPanels := buildStatPanels(spec, statsResolution.DatasetByMeasure); len(statPanels) > 0 {
+		dashboard.Rows = append(dashboard.Rows, lens.RowSpec{Panels: []panel.Spec{buildStatStrip(spec, statPanels)}})
+	}
 
 	// Render one panel per dimension (the full overview grid). The group-by
 	// dimension is sorted to the front so the selector still "focuses" a
@@ -263,6 +265,20 @@ func buildStatPanels(spec CubeSpec, datasetByMeasure map[string]string) []panel.
 		panels = append(panels, builder.Build())
 	}
 	return panels
+}
+
+// buildStatStrip gathers a cube's measure cards into one KPI strip. Left as
+// loose panels each measure claims a full card — header chrome, a tall empty
+// body, and the figure adrift in the middle of it — so three numbers occupy a
+// screenful. A StatGroup renders the same measures as one hairline-separated
+// row of compact metrics, which is the shape every hand-built Lens dashboard
+// already uses for its KPI band. The strip stays headerless: a cube's stats are
+// the dashboard's headline, and the page title above them already says so.
+func buildStatStrip(spec CubeSpec, stats []panel.Spec) panel.Spec {
+	return panel.StatGroup(spec.ID+"-kpi", "", stats...).
+		Layout(panel.GroupColumns).
+		Span(12).
+		Build()
 }
 
 func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDatasetResolution, baseURL string, remainingCount, index int) panel.Spec {

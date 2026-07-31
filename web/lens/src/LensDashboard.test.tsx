@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../fixtures/small.json'
 import { LensDashboard } from './LensDashboard'
@@ -18,6 +18,83 @@ describe('LensDashboard', () => {
     expect(screen.getByRole('heading', { name: 'Operations overview' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Headline metrics' })).toBeInTheDocument()
     expect(view.container.querySelector('[style*="--lens-panel-span: 4"]')).not.toBeNull()
+  })
+
+  it('renders optional facet filters and loads only human-readable options', async () => {
+    // Keep this contract test independent from chart rendering. ECharts owns
+    // asynchronous canvas work, which can outlive jsdom teardown and turn a
+    // focused filter test into a source of unrelated background errors.
+    const facetFixture = {
+      version: '1.0.0',
+      snapshotId: 'facet-test',
+      meta: {
+        dashboardId: 'facet-test',
+        title: 'Facet test',
+        generatedAt: '2026-07-31T00:00:00Z',
+        locale: 'en',
+      },
+      layout: { rows: [{ panels: [{ panelId: 'total', span: 4 }] }] },
+      panels: [{
+        id: 'total',
+        kind: 'stat',
+        title: 'Total',
+        semantics: 'series',
+        frame: 'panel:total',
+        encoding: { label: 'label', value: 'value' },
+        format: {},
+        actions: [],
+      }],
+      frames: {
+        'panel:total': {
+          columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+          rows: [['Total', 42]],
+        },
+      },
+      drill: { edges: {}, inlineDepth: 0 },
+      perspectives: [],
+      filters: [{
+        id: 'facet-region',
+        kind: 'facet',
+        label: 'Region',
+        facet: {
+          dimension: 'region',
+          optionsEndpoint: '/lens/facets?_facet=region&_f=product%3Aone&_f=product%3Atwo',
+          searchParam: '_facet_search',
+          selections: [{ label: 'Tashkent', removeUrl: '/report?_f=product%3Aone' }],
+          clearUrl: '/report',
+        },
+      }, {
+        id: 'facet-product',
+        kind: 'facet',
+        label: 'Product',
+        facet: {
+          dimension: 'product',
+          optionsEndpoint: '/lens/facets?_facet=product',
+          selections: [{ label: 'OSAGO', removeUrl: '/report?_f=region%3Atashkent' }],
+          clearUrl: '/report',
+        },
+      }],
+      endpoints: {},
+      i18n: {},
+      theme: { palette: {}, series: {} },
+    }
+    const document = parseDocument(facetFixture)
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      options: [{ label: 'Samarkand', count: 12, toggleUrl: '/report?_f=region%3Asamarkand' }],
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<LensDashboard initialDocument={document} />)
+    expect(screen.getByRole('link', { name: /Remove filter: Tashkent/ })).toHaveAttribute(
+      'href', '/report?_f=product%3Aone',
+    )
+    expect(screen.getAllByRole('link', { name: 'Clear all' })).toHaveLength(1)
+    fireEvent.click(screen.getByRole('button', { name: /Region/ }))
+
+    expect(await screen.findByRole('link', { name: /Samarkand/ })).toHaveAttribute(
+      'href', '/report?_f=region%3Asamarkand',
+    )
+    expect(fetchMock.mock.calls[0]?.[0]).toContain('_f=product%3Aone&_f=product%3Atwo')
   })
 
   it('loads a document with same-origin credentials and csrf', async () => {

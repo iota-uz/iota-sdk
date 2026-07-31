@@ -192,6 +192,29 @@ describe('panel total badge', () => {
   })
 })
 
+describe('logarithmic scale warning', () => {
+  it('keeps the non-linear scale visible on the chart reading surface', () => {
+    runtime.frame = state('data')
+    render(
+      <BarPanel
+        panel={panel('bar', { valueAxis: { scale: 'logarithmic', logBase: 10 } })}
+        adapter={fakeAdapter()}
+      />,
+    )
+
+    const warning = screen.getByRole('note', { name: 'Values are shown on a logarithmic scale' })
+    expect(warning).toHaveTextContent('Logarithmic scale')
+    expect(warning).toHaveAttribute('title', 'Values are shown on a logarithmic scale')
+  })
+
+  it('does not warn for an ordinary linear chart', () => {
+    runtime.frame = state('data')
+    render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
+
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+})
+
 describe('document refetch loading', () => {
   it('shows the skeleton while a date/period refetch is in flight', () => {
     runtime.frame = state('data')

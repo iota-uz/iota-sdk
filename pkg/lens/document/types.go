@@ -168,6 +168,9 @@ type FilterKind string
 const (
 	// FilterKindPeriod is a date-range control: a calendar with presets.
 	FilterKindPeriod FilterKind = "period"
+	// FilterKindFacet is a searchable multi-select control backed by a
+	// producer-owned options endpoint.
+	FilterKindFacet FilterKind = "facet"
 )
 
 // Filter declares one dashboard-level control. The document owns the
@@ -185,6 +188,41 @@ type Filter struct {
 	// Period carries the payload of a period filter. Exactly the kinds' own
 	// payload field must be set.
 	Period *PeriodFilter `json:"period,omitempty"`
+	// Facet carries the payload of a searchable multi-select filter.
+	Facet *FacetFilter `json:"facet,omitempty"`
+}
+
+// FacetFilter declares a producer-owned searchable option list and the
+// server-resolved active selections. URLs are opaque same-origin navigation
+// targets so the runtime never has to reconstruct producer query semantics.
+type FacetFilter struct {
+	Dimension       string           `json:"dimension"`
+	OptionsEndpoint string           `json:"optionsEndpoint"`
+	SearchParam     string           `json:"searchParam,omitempty"`
+	Selections      []FacetSelection `json:"selections,omitempty"`
+	ClearURL        string           `json:"clearUrl,omitempty"`
+}
+
+// FacetSelection is one active, human-readable filter. RemoveURL removes only
+// this selection while preserving every unrelated query parameter.
+type FacetSelection struct {
+	Label     string `json:"label"`
+	RemoveURL string `json:"removeUrl"`
+}
+
+// FacetOptionsResponse is the wire response returned by FacetFilter's options
+// endpoint.
+type FacetOptionsResponse struct {
+	Options []FacetOption `json:"options"`
+}
+
+// FacetOption is one searchable option. ToggleURL adds or removes it while
+// preserving the producer's complete filter state.
+type FacetOption struct {
+	Label     string `json:"label"`
+	Count     int    `json:"count,omitempty"`
+	Selected  bool   `json:"selected,omitempty"`
+	ToggleURL string `json:"toggleUrl"`
 }
 
 // PeriodFilter is the payload of a period (date-range) filter.
@@ -459,6 +497,18 @@ const (
 	SemanticsEvidence       Semantics = "evidence"
 )
 
+type AxisScale string
+
+const (
+	AxisScaleLinear      AxisScale = "linear"
+	AxisScaleLogarithmic AxisScale = "logarithmic"
+)
+
+type ValueAxis struct {
+	Scale   AxisScale `json:"scale"`
+	LogBase int       `json:"logBase,omitempty"`
+}
+
 type Panel struct {
 	ID        string                 `json:"id"`
 	Kind      PanelKind              `json:"kind"`
@@ -500,6 +550,9 @@ type Panel struct {
 	// Presentation carries opt-in rendering hints. Every field is optional
 	// and absent hints keep the renderer's default treatment.
 	Presentation *Presentation `json:"presentation,omitempty"`
+	// ValueAxis carries the numeric-axis scale requested by the producer.
+	// Absent keeps the runtime's linear default.
+	ValueAxis *ValueAxis `json:"valueAxis,omitempty"`
 	// MetricFlow carries the structure of a metric_flow panel. Exactly the
 	// panel kind's own config field must be set.
 	MetricFlow *MetricFlowConfig `json:"metricFlow,omitempty"`

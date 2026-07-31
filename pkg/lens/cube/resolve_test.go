@@ -118,8 +118,11 @@ func TestResolveMeasureOverrideBacksStatPanelOnly(t *testing.T) {
 	dashboard, err := Resolve(spec, DrillContext{}, "/crm/reports/sales")
 	require.NoError(t, err)
 	require.Len(t, dashboard.Rows, 2)
-	require.Equal(t, "cube_stat_total_policies", dashboard.Rows[0].Panels[0].Dataset)
-	require.Equal(t, "total_policies", dashboard.Rows[0].Panels[0].Fields.Value.Name())
+	strip := dashboard.Rows[0].Panels[0]
+	require.Equal(t, panel.KindStatGroup, strip.Kind)
+	require.Len(t, strip.Children, 1)
+	require.Equal(t, "cube_stat_total_policies", strip.Children[0].Dataset)
+	require.Equal(t, "total_policies", strip.Children[0].Fields.Value.Name())
 	require.Equal(t, "cube_dim_product", dashboard.Rows[1].Panels[0].Dataset)
 
 	names := make([]string, 0, len(dashboard.Datasets))

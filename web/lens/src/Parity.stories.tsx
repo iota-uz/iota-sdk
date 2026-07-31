@@ -191,6 +191,73 @@ export const MetricGroupSparkline: Story = () => {
 }
 MetricGroupSparkline.storyName = 'Metric group sparkline'
 
+/**
+ * A cube dashboard's KPI band is a headerless strip whose metrics carry both a
+ * caption and a supporting note, and whose first metric is a link to its own
+ * evidence. Three things have to hold at once here, and each of them broke a
+ * naive version of the compact ⓘ:
+ *
+ *  - the glyph is sized for a 10px label, not the 28px header hit box;
+ *  - it out-ranks the card-wide navigate anchor stretched over the cell, so
+ *    the note can be opened at all on a linked metric;
+ *  - its bubble escapes the strip card, which is far shorter than the note.
+ *
+ * The tip is opened on mount so the bubble itself is the subject.
+ */
+const notedMetrics: Array<{ panel: Panel; value: number }> = [
+  {
+    panel: {
+      ...metrics[0]!.panel,
+      status: undefined,
+      caption: 'Проданные полисы',
+      info: 'Число уникальных полисов, выпущенных в выбранном периоде. Аннулированные полисы исключены.',
+      actions: [{
+        kind: 'navigate', urlTemplate: '/insurance/sales-report/drill/policies', params: [], payload: {},
+      }],
+    },
+    value: 3.1,
+  },
+  {
+    panel: {
+      ...metrics[1]!.panel,
+      caption: 'GWP по дате заключения',
+      info: 'Подписанная премия по дате заключения договора, без вычета исходящего перестрахования.',
+    },
+    value: 41.7,
+  },
+  { panel: { ...metrics[2]!.panel, caption: 'Страховая сумма по действующим полисам' }, value: 44.8 },
+]
+
+export const MetricGroupInfo: Story = () => {
+  const frames = Object.fromEntries(notedMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
+  const doc = storyDocument(
+    notedMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        panels: notedMetrics.map(({ panel }) => ({
+          panelId: panel.id, span: 4,
+          group: { id: 'kpi', kind: 'metrics' as const, label: '', layout: 'columns' as const, span: 12 },
+        })),
+      }],
+    },
+  )
+  return (
+    <Runtime doc={doc}>
+      <OpenFirstInfoTip><DashboardPanels /></OpenFirstInfoTip>
+    </Runtime>
+  )
+}
+MetricGroupInfo.storyName = 'Metric group info'
+
+function OpenFirstInfoTip({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('.lens-info-tip-button-inline')?.click()
+  }, [])
+  return <div ref={ref}>{children}</div>
+}
+
 export const TabGroup: Story = () => {
   const doc = storyDocument(
     [coveragePanel, underwritingPanel, groupsPanel],
@@ -208,6 +275,36 @@ export const TabGroup: Story = () => {
   )
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
+
+const logarithmicProductsPanel: Panel = {
+  id: 'log-products',
+  kind: 'hbar',
+  title: 'Продажи по продуктам',
+  semantics: 'series',
+  frame: 'log-products:frame',
+  encoding: { category: 'product', value: 'policies' },
+  format: { policies: { kind: 'number', minorUnits: false, precision: 0 } },
+  valueAxis: { scale: 'logarithmic', logBase: 10 },
+  actions: [],
+}
+
+const logarithmicProductsFrame: Frame = {
+  columns: [{ name: 'product', type: 'string' }, { name: 'policies', type: 'number' }],
+  rows: [
+    ['ОСАГО', 18_000],
+    ['Страхование имущества', 470],
+    ['КАСКО', 36],
+    ['Профессиональная ответственность', 2],
+  ],
+}
+
+export const LogarithmicHorizontalBar: Story = () => {
+  const doc = storyDocument([logarithmicProductsPanel], { 'log-products:frame': logarithmicProductsFrame }, {
+    rows: [{ heading: 'ПРОДУКТОВЫЙ ПОРТФЕЛЬ', panels: [{ panelId: 'log-products', span: 12 }] }],
+  })
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+LogarithmicHorizontalBar.storyName = 'Logarithmic horizontal bar'
 
 export const CoverageComposite: Story = () => {
   const doc = storyDocument([coveragePanel], { 'payouts:frame': coverageFrame }, {
@@ -518,6 +615,19 @@ function HiddenSeries({ label }: { label: string }) {
   return null
 }
 
+function HideSeriesAndSelectTab({ label, tab }: { label: string; tab: string }) {
+  const pressed = useRef(false)
+  useEffect(() => {
+    if (pressed.current) return
+    pressed.current = true
+    const entries = [...window.document.querySelectorAll<HTMLButtonElement>('.lens-chart-legend-toggle')]
+    entries.find((entry) => entry.textContent?.includes(label))?.click()
+    const tabs = [...window.document.querySelectorAll<HTMLButtonElement>('[role="tab"]')]
+    tabs.find((entry) => entry.textContent === tab)?.click()
+  }, [label, tab])
+  return null
+}
+
 /**
  * A hidden legend entry leaves the plot entirely, so the remaining slice reads
  * 100% and the total badge drops to the visible sum — the legacy ApexCharts
@@ -535,6 +645,67 @@ export const LegendHiddenSeries: Story = () => {
   )
 }
 LegendHiddenSeries.storyName = 'Legend hidden series'
+
+const dailyRevenuePanel: Panel = {
+  id: 'daily-revenue',
+  kind: 'bar',
+  title: 'Доход',
+  semantics: 'series',
+  frame: 'daily-revenue:frame',
+  encoding: { category: 'day', series: 'product', value: 'value' },
+  format: { value: money },
+  presentation: { legend: 'below' },
+  actions: [],
+}
+
+const dailyCountPanel: Panel = {
+  ...dailyRevenuePanel,
+  id: 'daily-count',
+  title: 'Количество',
+  frame: 'daily-count:frame',
+  format: { value: { kind: 'number', minorUnits: false, precision: 0 } },
+}
+
+const dailySeriesFrame = (osago: number, kasko: number): Frame => ({
+  columns: [
+    { name: 'day', type: 'string' },
+    { name: 'product', type: 'string' },
+    { name: 'value', type: 'number' },
+  ],
+  rows: [
+    ['30.07', 'ОСАГО', osago],
+    ['30.07', 'КАСКО', kasko],
+    ['31.07', 'ОСАГО', osago * 1.1],
+    ['31.07', 'КАСКО', kasko * 1.2],
+  ],
+})
+
+export const TabbedLegendState: Story = () => {
+  const group = (tab: string) => ({ id: 'daily', kind: 'tabs' as const, span: 12, tab })
+  const doc = storyDocument(
+    [dailyRevenuePanel, dailyCountPanel],
+    {
+      'daily-revenue:frame': dailySeriesFrame(48_000_000, 13_000_000),
+      'daily-count:frame': dailySeriesFrame(120, 9),
+    },
+    {
+      rows: [{
+        heading: 'ЕЖЕДНЕВНЫЕ ПРОДАЖИ',
+        panels: [
+          { panelId: dailyRevenuePanel.id, span: 12, group: group('Доход') },
+          { panelId: dailyCountPanel.id, span: 12, group: group('Количество') },
+        ],
+      }],
+    },
+  )
+  return (
+    <Runtime doc={doc}>
+      <DashboardPanels />
+      <HideSeriesAndSelectTab label="ОСАГО" tab="Количество" />
+    </Runtime>
+  )
+}
+TabbedLegendState.storyName = 'Tabbed legend state'
 
 const crowdedHeaderPanel: Panel = {
   ...premiumPanel,

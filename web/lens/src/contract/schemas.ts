@@ -45,6 +45,8 @@ export const ActionParamSchema: z.ZodType<Contract.ActionParam> = z.lazy(() => z
 
 export const AvailabilitySchema: z.ZodType<Contract.Availability> = z.enum(["available", "config_required", "empty_source", "unavailable"])
 
+export const AxisScaleSchema: z.ZodType<Contract.AxisScale> = z.enum(["linear", "logarithmic"])
+
 export const BridgeLayoutSchema: z.ZodType<Contract.BridgeLayout> = z.enum(["waterfall"])
 
 export const CascadeToneSchema: z.ZodType<Contract.CascadeTone> = z.enum(["inflow", "negative", "neutral", "positive"])
@@ -126,6 +128,19 @@ export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.object({
   export: z.string().optional(),
 }).strict()
 
+export const FacetFilterSchema: z.ZodType<Contract.FacetFilter> = z.lazy(() => z.object({
+  dimension: z.string(),
+  optionsEndpoint: z.string(),
+  searchParam: z.string().optional(),
+  selections: z.array(z.lazy(() => FacetSelectionSchema)).optional(),
+  clearUrl: z.string().optional(),
+}).strict())
+
+export const FacetSelectionSchema: z.ZodType<Contract.FacetSelection> = z.object({
+  label: z.string(),
+  removeUrl: z.string(),
+}).strict()
+
 export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z.object({
   kind: z.lazy(() => FormatKindSchema),
   currency: z.string().optional(),
@@ -142,9 +157,10 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
   kind: z.lazy(() => FilterKindSchema),
   label: z.string().optional(),
   period: z.lazy(() => PeriodFilterSchema).optional(),
+  facet: z.lazy(() => FacetFilterSchema).optional(),
 }).strict())
 
-export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["period"])
+export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["facet", "period"])
 
 export const FlowReconciliationSchema: z.ZodType<Contract.FlowReconciliation> = z.object({
   tolerance: z.number().optional(),
@@ -323,6 +339,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   sparkline: z.lazy(() => SparklineSchema).optional(),
   target: z.lazy(() => PanelTargetSchema).optional(),
   presentation: z.lazy(() => PresentationSchema).optional(),
+  valueAxis: z.lazy(() => ValueAxisSchema).optional(),
   metricFlow: z.lazy(() => MetricFlowConfigSchema).optional(),
   metricHierarchy: z.lazy(() => MetricHierarchyConfigSchema).optional(),
   metricRelationship: z.lazy(() => MetricRelationshipConfigSchema).optional(),
@@ -495,6 +512,11 @@ export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
 }).strict()
 
 export const TotalBadgePlacementSchema: z.ZodType<Contract.TotalBadgePlacement> = z.enum(["header", "none", "plot"])
+
+export const ValueAxisSchema: z.ZodType<Contract.ValueAxis> = z.object({
+  scale: z.lazy(() => AxisScaleSchema),
+  logBase: z.number().int().optional(),
+}).strict()
 
 export const ValueSourceKindSchema: z.ZodType<Contract.ValueSourceKind> = z.enum(["field", "literal", "variable"])
 

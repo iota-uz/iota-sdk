@@ -1,4 +1,4 @@
-import type { Encoding, Frame, NodeKey, PanelKind, Presentation, RadialConfig, Theme } from '../contract'
+import type { Encoding, Frame, NodeKey, PanelKind, Presentation, RadialConfig, Theme, ValueAxis } from '../contract'
 
 export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'radial' | 'bar' | 'hbar' | 'line' | 'area'>
 export type ChartFormatResolver = (field: string, value: unknown) => string
@@ -17,10 +17,14 @@ export interface ChartInput {
   formatAxis?: ChartFormatResolver
   /** The reader's language, for the shares the chart writes itself. */
   locale?: string
+  /** Localized label used for the sum of a stacked column in its tooltip. */
+  tooltipTotalLabel?: string
   theme: Theme
   selectedKey?: NodeKey
   /** Opt-in density hints; absent hints keep the default chart treatment. */
   presentation?: Presentation
+  /** Numeric-axis scale requested by the dashboard producer. */
+  valueAxis?: ValueAxis
   /** Required geometry contract for radial charts. */
   radial?: RadialConfig
   /**

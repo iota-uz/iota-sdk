@@ -92,6 +92,36 @@ DashboardFilterLight.storyName = 'Dashboard filter light'
 export const DashboardFilterDark: Story = () => <DashboardScene theme="dark" />
 DashboardFilterDark.storyName = 'Dashboard filter dark'
 
+const regionFacet: Filter = {
+  id: 'facet-region',
+  kind: 'facet',
+  label: 'Region',
+  facet: {
+    dimension: 'region',
+    optionsEndpoint: '/lens/facet-options?_facet=region',
+    searchParam: '_facet_search',
+    selections: [
+      { label: 'Tashkent city', removeUrl: '/reports/sales?_f=region%3Asamarkand&_f=product%3Aosago' },
+      { label: 'Samarkand region', removeUrl: '/reports/sales?_f=region%3Atashkent&_f=product%3Aosago' },
+    ],
+    clearUrl: '/reports/sales',
+  },
+}
+
+export const DashboardFacetActive: Story = () => {
+  const base = filteredDocument()
+  return (
+    <div style={{ width: 960 }}>
+      <LensDashboard
+        filterToday={storyToday}
+        initialDocument={{ ...base, filters: [periodFilter, regionFacet] }}
+        theme="light"
+      />
+    </div>
+  )
+}
+DashboardFacetActive.storyName = 'Dashboard facet active'
+
 function RefetchErrorScene() {
   const requests = useRef(0)
   const fetcher = useCallback<typeof fetch>(() => {

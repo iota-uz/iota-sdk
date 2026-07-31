@@ -121,18 +121,78 @@ function tooltipValue(value: unknown): unknown {
   return Array.isArray(value) ? (value as unknown[])[1] : value
 }
 
-function timeTooltipFormatter(input: ChartInput, categoryField: string) {
+function numericTooltipValue(value: unknown): number | undefined {
+  const raw = tooltipValue(value)
+  if (typeof raw === 'number' && Number.isFinite(raw)) return raw
+  if (typeof raw === 'string' && raw.trim() !== '') {
+    const parsed = Number(raw)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return undefined
+}
+
+function nonZeroTooltipRecords(params: unknown): Record<string, unknown>[] {
+  const entries = Array.isArray(params) ? params : [params]
+  return entries
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    // A sparse stack can contain dozens of declared series at a given
+    // category. Zero rows add no information and used to be omitted by the
+    // legacy renderer; printing them turns a useful tooltip into a catalogue.
+    .filter((entry) => numericTooltipValue(entry.value) !== 0)
+}
+
+function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeriesName: boolean) {
   const valueField = input.encoding.value ?? ''
   return (params: unknown) => {
-    const entries = Array.isArray(params) ? params : [params]
-    const records = entries.filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    const records = nonZeroTooltipRecords(params)
+    if (records.length === 0) return ''
     const header = input.format(categoryField, records[0]?.axisValue)
     const lines = records.map((entry) => {
       const seriesName = text(entry.seriesName)
       const formatted = input.format(valueField, tooltipValue(entry.value))
-      return seriesName ? `${seriesName}: ${formatted}` : formatted
+      return showSeriesName && seriesName ? `${seriesName}: ${formatted}` : formatted
     })
     return [header, ...lines].join('\n')
+  }
+}
+
+function escapeTooltipHTML(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
+}
+
+function categoryTooltipFormatter(
+  input: ChartInput,
+  categoryField: string,
+  stacked: boolean,
+  lineSeries: ReadonlySet<string>,
+  showSeriesName: boolean,
+) {
+  const valueField = input.encoding.value ?? ''
+  return (params: unknown) => {
+    const records = nonZeroTooltipRecords(params)
+    if (records.length === 0) return ''
+    const header = input.format(categoryField, records[0]?.axisValueLabel ?? records[0]?.axisValue)
+    const lines = records.map((entry) => {
+      const marker = typeof entry.marker === 'string' ? entry.marker : ''
+      const seriesName = text(entry.seriesName)
+      const formatted = input.format(valueField, tooltipValue(entry.value))
+      const label = showSeriesName ? escapeTooltipHTML(seriesName) : ''
+      return `<div>${marker}${label}<span style="float:right;margin-left:24px;font-weight:600">${escapeTooltipHTML(formatted)}</span></div>`
+    })
+    if (stacked) {
+      const total = records.reduce((sum, entry) => {
+        if (lineSeries.has(text(entry.seriesName))) return sum
+        return sum + (numericTooltipValue(entry.value) ?? 0)
+      }, 0)
+      const label = input.tooltipTotalLabel ?? 'Total'
+      lines.push(`<div style="margin-top:6px;padding-top:6px;border-top:1px solid currentColor;font-weight:600">${escapeTooltipHTML(label)}<span style="float:right;margin-left:24px">${escapeTooltipHTML(input.format(valueField, total))}</span></div>`)
+    }
+    return `<div><div style="margin-bottom:6px">${escapeTooltipHTML(header)}</div>${lines.join('')}</div>`
   }
 }
 
@@ -587,8 +647,11 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const categories = [...new Set(points.map((point) => point.category))]
   const seriesNames = [...new Set(points.map((point) => point.series))]
   const formatter = valueFormatter(input)
+  const compactFormatter = axisValueFormatter(input)
   const isBar = input.kind === 'bar' || input.kind === 'hbar'
   const horizontal = input.kind === 'hbar'
+  const logarithmic = input.valueAxis?.scale === 'logarithmic'
+  const showSeriesName = Boolean(input.encoding.series)
   const categoryField = input.encoding.category ?? input.encoding.label ?? ''
   const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
   const colorByCategory = isBar && input.presentation?.colorBy === 'category'
@@ -607,6 +670,20 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     universalTransition: { enabled: morphEnabled() },
     stack: stacked && !lineSeries.has(name) ? 'total' : undefined,
     barWidth: isBar && !lineSeries.has(name) && barWidth ? barWidth : undefined,
+    // Bar length on a logarithmic axis communicates order of magnitude, not
+    // the literal value. Print that value on the mark so restoring the scale
+    // never makes the chart less informative than its linear counterpart.
+    label: logarithmic && isBar && !lineSeries.has(name)
+      ? {
+          show: true,
+          position: horizontal ? 'right' as const : 'top' as const,
+          color: theme.text,
+          formatter: (params: { value?: unknown }) => compactFormatter(tooltipValue(params.value)),
+        }
+      : undefined,
+    labelLayout: logarithmic && isBar && !lineSeries.has(name)
+      ? { hideOverlap: true }
+      : undefined,
     // The panel's resolver knows about colours pinned to the n-th series of
     // this panel; ECharts' own palette does not, and left to itself it walks a
     // default sequence that has nothing to do with the legend beside it.
@@ -643,7 +720,8 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     axisLabel: { color: theme.mutedText, formatter: (value: number) => input.format(categoryField, value) },
   }
   const valueAxis = {
-    type: 'value' as const,
+    type: input.valueAxis?.scale === 'logarithmic' ? 'log' as const : 'value' as const,
+    logBase: input.valueAxis?.scale === 'logarithmic' ? (input.valueAxis.logBase || 10) : undefined,
     ...axisStyle(theme),
     axisLabel: { color: theme.mutedText, formatter: axisValueFormatter(input), hideOverlap: true },
   }
@@ -655,12 +733,14 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // variable font and shifts the whole plot by 1px between runs.
     grid: isVisualRegression()
       ? { left: 96, right: 32, top: 24, bottom: 32, containLabel: false }
-      : { left: 16, right: 16, top: 24, bottom: 12, containLabel: true },
+      : { left: 16, right: horizontal && logarithmic ? 88 : 16, top: 24, bottom: 12, containLabel: true },
     tooltip: {
       trigger: 'axis',
       renderMode: timeAxis ? 'richText' : undefined,
       ...tooltipChrome(theme),
-      formatter: timeAxis ? timeTooltipFormatter(input, categoryField) : undefined,
+      formatter: timeAxis
+        ? timeTooltipFormatter(input, categoryField, showSeriesName)
+        : categoryTooltipFormatter(input, categoryField, stacked, lineSeries, showSeriesName),
       valueFormatter: timeAxis ? undefined : formatter,
     },
     xAxis: horizontal ? valueAxis : timeAxis ? temporalAxis : categoryAxis,

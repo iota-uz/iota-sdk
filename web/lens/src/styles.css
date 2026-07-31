@@ -85,7 +85,7 @@
 
 @layer components {
   .lens-root {
-    @apply lens-box-border lens-min-h-32 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
+    @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
     color-scheme: light;
   }
 
@@ -114,7 +114,9 @@
   }
 
   .lens-dashboard {
-    @apply lens-mx-auto lens-w-full lens-max-w-screen-2xl;
+    @apply lens-mx-auto lens-w-full lens-min-w-0 lens-max-w-screen-2xl;
+
+    container: lens-dashboard / inline-size;
   }
 
   .lens-drawer-backdrop {
@@ -248,7 +250,7 @@
   }
 
   .lens-dashboard-header {
-    @apply lens-mb-5 lens-flex lens-items-end lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
+    @apply lens-mb-5 lens-flex lens-min-w-0 lens-max-w-full lens-items-end lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
   }
 
   .lens-dashboard-header h1 {
@@ -282,7 +284,7 @@
   }
 
   .lens-dashboard-controls {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
   }
 
   /* Once the action/filter cluster can no longer coexist with the document
@@ -299,12 +301,22 @@
     }
   }
 
+  @container lens-dashboard (max-width: 1100px) {
+    .lens-dashboard-header {
+      @apply lens-flex-col lens-items-stretch lens-gap-3;
+    }
+
+    .lens-dashboard-controls {
+      @apply lens-justify-start;
+    }
+  }
+
   .lens-filter-bar {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-3;
   }
 
   .lens-filter {
-    @apply lens-flex lens-items-center lens-gap-2;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
   }
 
   /* One segmented tray holds the declared period chips and the calendar
@@ -314,12 +326,99 @@
      surfaces are local variables because "raised" inverts in the dark theme:
      there the tray sinks below the page and the card sits above it. */
   .lens-filter-segments {
-    @apply lens-flex lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-overflow-x-auto lens-rounded-control lens-border lens-border-solid lens-border-border;
+
     --lens-seg-tray: rgb(15 23 42 / 0.05);
     --lens-seg-raised: var(--lens-bg-card);
     background: var(--lens-seg-tray);
     padding: 2px;
     gap: 2px;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .lens-filter-facet {
+    @apply lens-relative lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
+  }
+
+  .lens-facet-trigger {
+    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-text;
+  }
+
+  .lens-facet-trigger:hover,
+  .lens-facet-trigger[aria-expanded='true'] {
+    @apply lens-border-strong lens-text-strong;
+  }
+
+  .lens-facet-count {
+    @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-[10px] lens-text-accent-700;
+
+    background: var(--lens-accent-100);
+  }
+
+  .lens-facet-popover {
+    @apply lens-fixed lens-z-[1100] lens-flex lens-w-72 lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+
+    box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-facet-search {
+    @apply lens-m-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-font-sans lens-text-sm lens-text-strong lens-outline-none;
+  }
+
+  .lens-facet-search:focus {
+    @apply lens-border-accent-500;
+
+    box-shadow: 0 0 0 2px var(--lens-accent-100);
+  }
+
+  .lens-facet-options {
+    @apply lens-max-h-72 lens-overflow-y-auto lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-1;
+  }
+
+  .lens-facet-option {
+    @apply lens-flex lens-min-h-9 lens-items-center lens-gap-2 lens-rounded-control lens-px-2 lens-py-1.5 lens-text-sm lens-text-text lens-no-underline;
+  }
+
+  .lens-facet-option:hover,
+  .lens-facet-option[aria-current='true'] {
+    @apply lens-bg-accent-50 lens-text-strong;
+  }
+
+  .lens-facet-check {
+    @apply lens-flex lens-size-4 lens-flex-none lens-items-center lens-justify-center lens-text-xs lens-font-bold lens-text-accent-600;
+  }
+
+  .lens-facet-option-label {
+    @apply lens-min-w-0 lens-flex-1 lens-break-words;
+  }
+
+  .lens-facet-option-count {
+    @apply lens-flex-none lens-tabular-nums lens-text-xs lens-text-muted;
+  }
+
+  .lens-facet-state {
+    @apply lens-p-4 lens-text-center lens-text-sm lens-text-muted;
+  }
+
+  .lens-facet-error {
+    @apply lens-text-neg;
+  }
+
+  .lens-facet-active-chip {
+    @apply lens-flex lens-min-h-7 lens-min-w-0 lens-max-w-56 lens-items-center lens-gap-1 lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-text-xs lens-font-medium lens-text-accent-700 lens-no-underline;
+  }
+
+  .lens-facet-active-chip span {
+    @apply lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+  }
+
+  .lens-facet-active-chip svg {
+    @apply lens-size-3.5 lens-flex-none;
+  }
+
+  .lens-facet-clear {
+    @apply lens-whitespace-nowrap lens-px-1 lens-text-xs lens-font-medium lens-text-accent-700 lens-underline;
   }
 
   .lens-root[data-theme='dark'] .lens-filter-segments {
@@ -329,7 +428,7 @@
 
   .lens-filter-chip,
   .lens-filter-trigger {
-    @apply lens-flex lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
     border-radius: var(--lens-radius-badge);
     min-height: 26px;
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
@@ -1028,9 +1127,22 @@
     @apply lens-relative lens-flex lens-flex-none lens-items-center;
   }
 
-  .lens-info-tip-bubble {
-    @apply lens-absolute lens-left-0 lens-top-full lens-z-30 lens-mt-1.5 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+  /* Inside a metric strip the glyph rides a 10px label, so it shrinks to match
+     the type it annotates. It also has to out-rank the card-wide navigate
+     anchor (.lens-card-link, z-10) stretched across the cell — otherwise the
+     anchor takes the click and the note can never be opened. */
+  .lens-info-tip-inline {
+    @apply lens-z-20;
+  }
 
+  .lens-info-tip-button-inline {
+    @apply lens-size-4 lens-text-[13px];
+  }
+
+  .lens-info-tip-bubble {
+    @apply lens-fixed lens-z-50 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-overflow-y-auto lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+
+    max-height: calc(100vh - 1rem);
     box-shadow: var(--lens-shadow-popover);
   }
 
@@ -1273,8 +1385,45 @@
     @apply lens-justify-start;
   }
 
+  /* A metric strip is short, so a cell's ⓘ bubble hangs well past the card's
+     bottom edge; the default clipping would cut the note in half. The templ
+     renderer settled this the same way (lens-card--overflow on stat and
+     stat_group cards) — the tooltip mounts in-tree, not portaled. Nothing in a
+     metrics group needs clipping: it holds no plots, only type. */
+  .lens-panel-group-metrics {
+    @apply lens-overflow-visible;
+  }
+
   .lens-metric-row {
     @apply lens-flex lens-flex-1 lens-flex-col lens-divide-y lens-divide-solid lens-divide-border;
+  }
+
+  /* With the card no longer clipping, an end cell's hover fill would paint
+     over the card's rounded corners and square them off. The row relays the
+     card radius so only the cells at the strip's ends round, on the sides that
+     actually meet the card edge. */
+  .lens-metric-row {
+    border-radius: inherit;
+  }
+
+  .lens-metric-row-columns > :first-child {
+    border-top-left-radius: inherit;
+    border-bottom-left-radius: inherit;
+  }
+
+  .lens-metric-row-columns > :last-child {
+    border-top-right-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
+
+  .lens-metric-row-rows > :first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+
+  .lens-metric-row-rows > :last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
   }
 
   .lens-metric-row-columns {
@@ -1708,6 +1857,16 @@
 
   .lens-chart-area {
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+  }
+
+  /* A logarithmic bar is deliberately non-linear. Keep that warning on the
+     reading surface instead of hiding it in an info tooltip. */
+  .lens-chart-log-scale {
+    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-border-amber-200 lens-bg-amber-50 lens-px-2.5 lens-py-1 lens-text-[11px] lens-font-medium lens-text-amber-700;
+  }
+
+  .lens-chart-log-scale svg {
+    @apply lens-size-3 lens-flex-none;
   }
 
   /* Plot presence: the chart is the panel's content, so the box gives it the
