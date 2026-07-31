@@ -90,6 +90,7 @@ const storyIds = [
   'parity--icon-set-light',
   'parity--legend-hidden-series',
   'parity--line-with-series-legend',
+  'parity--logarithmic-horizontal-bar',
   'parity--stacked-composition-with-a-line',
   'parity--metric-group',
   'parity--metric-group-sparkline',
@@ -100,6 +101,7 @@ const storyIds = [
   'parity--pie-with-legend-right--dark',
   'parity--pie-with-tall-legend',
   'parity--tab-group',
+  'parity--tabbed-legend-state',
 ] as const
 
 const staticStories = [
@@ -194,6 +196,7 @@ const staticStories = [
   ['parity--icon-set-light', 0],
   ['parity--legend-hidden-series', 1],
   ['parity--line-with-series-legend', 1],
+  ['parity--logarithmic-horizontal-bar', 1],
   ['parity--stacked-composition-with-a-line', 1],
   ['parity--metric-group', 0],
   ['parity--metric-group-sparkline', 0],
@@ -206,6 +209,7 @@ const staticStories = [
   // total badge kept colliding with and the two-entry stories never produced.
   ['parity--pie-with-tall-legend', 1],
   ['parity--tab-group', 0],
+  ['parity--tabbed-legend-state', 1],
 ] as const
 
 async function openStory(page: Page, storyId: string, canvasCount: number): Promise<void> {

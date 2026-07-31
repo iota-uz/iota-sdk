@@ -6,7 +6,7 @@ import { childForSelection } from '../explore/model'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
-import { useMarkSelection } from './context'
+import { useLegendVisibility, useMarkSelection } from './context'
 import { encodingRoles, rowColorResolver, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
@@ -138,7 +138,9 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const { format, formatAxis } = useChartFormat(panel)
   const [selectedKey, setSelectedKey] = useState<NodeKey>()
   const [hoveredKey, setHoveredKey] = useState<NodeKey | null>(null)
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set())
+  const [localHidden, setLocalHidden] = useState<ReadonlySet<string>>(() => new Set())
+  const legendVisibility = useLegendVisibility()
+  const hidden = legendVisibility?.hidden ?? localHidden
   const active = navigation.panelId === panel.id && navigation.path.length > 0
   const level = active
     ? levelForPath(document, navigation.path)
@@ -167,9 +169,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   useEffect(() => {
     if (previousViewKey.current === viewKey) return
     previousViewKey.current = viewKey
-    setHidden(new Set())
+    if (legendVisibility) legendVisibility.reset()
+    else setLocalHidden(new Set())
     setSelectedKey(undefined)
-  }, [viewKey])
+  }, [legendVisibility, viewKey])
 
   // Hidden series are removed from the data rather than dimmed, so the plot
   // reclaims their arc. The percentages do not follow: they are measured
@@ -221,13 +224,17 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const frameColors = visibleFrame?.colors
 
   const toggleSeries = useCallback((key: string) => {
-    setHidden((current) => {
+    if (legendVisibility) {
+      legendVisibility.toggle(key)
+      return
+    }
+    setLocalHidden((current) => {
       const next = new Set(current)
       if (next.has(key)) next.delete(key)
       else next.add(key)
       return next
     })
-  }, [])
+  }, [legendVisibility])
 
   // Per-mark drill affordance. Only meaningful once a level is on screen and
   // its children are known; without a level every mark is equally (un)expandable
@@ -262,14 +269,16 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     format,
     formatAxis,
     locale: document.meta?.locale,
+    tooltipTotalLabel: translate('panel.total', 'Total'),
     theme: document.theme,
     selectedKey,
     presentation,
     seriesColor,
     rowColor,
     radial: panel.radial,
+    valueAxis: panel.valueAxis,
     expandable,
-  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, kind, panel.encoding, presentation, panel.radial, rowColor, selectedKey, seriesColor, visibleFrame])
+  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, kind, panel.encoding, panel.valueAxis, presentation, panel.radial, rowColor, selectedKey, seriesColor, translate, visibleFrame])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.

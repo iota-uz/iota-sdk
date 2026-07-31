@@ -433,6 +433,35 @@ func TestBuild_PanelTotalBadgeValue(t *testing.T) {
 	require.NotContains(t, wirePanels[1], "total")
 }
 
+func TestBuild_PreservesLogarithmicValueAxis(t *testing.T) {
+	t.Parallel()
+
+	primary, err := frame.New("products",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Large", "Small"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1000.0, 1.0}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+
+	spec := lensbuild.Dashboard("sales", "Sales",
+		lensbuild.Row(
+			panel.HorizontalBar("products", "Products", "products").
+				LogarithmicValueAxis(10).
+				Build(),
+		),
+	).Datasets(lensbuild.StaticDataset("products", frames)).Build()
+	executed, err := runtime.New(runtime.Options{}).Execute(
+		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
+	)
+	require.NoError(t, err)
+
+	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "log-axis", GeneratedAt: time.Unix(1, 0), Locale: "en"})
+	require.NoError(t, err)
+	require.Len(t, doc.Panels, 1)
+	require.Equal(t, &ValueAxis{Scale: AxisScaleLogarithmic, LogBase: 10}, doc.Panels[0].ValueAxis)
+}
+
 func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 	t.Parallel()
 	primary, err := frame.New("profitability",

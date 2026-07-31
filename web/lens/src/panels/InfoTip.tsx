@@ -5,6 +5,12 @@ import { Info } from '../icons'
 export interface InfoTipProps {
   /** Already-localized note. Newlines separate paragraphs. */
   text: string
+  /**
+   * Compact form for a metric strip cell, whose label is 10px type: the
+   * header glyph's 28px hit box would tower over it. Also lifts the control
+   * above a card-wide navigate anchor, which otherwise swallows the click.
+   */
+  inline?: boolean
 }
 
 /**
@@ -19,7 +25,7 @@ export interface InfoTipProps {
  * Hover and focus open it; a click pins it open so the text can be read on a
  * touch screen and selected with the pointer.
  */
-export function InfoTip({ text }: InfoTipProps) {
+export function InfoTip({ text, inline }: InfoTipProps) {
   const translate = useTranslate()
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -50,7 +56,9 @@ export function InfoTip({ text }: InfoTipProps) {
 
   return (
     <span
-      className="lens-info-tip"
+      // Class names stay literal: Tailwind's content scan cannot see an
+      // interpolated modifier and would drop the rule.
+      className={inline ? 'lens-info-tip lens-info-tip-inline' : 'lens-info-tip'}
       ref={wrapperRef}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
@@ -59,7 +67,9 @@ export function InfoTip({ text }: InfoTipProps) {
         aria-describedby={open ? bubbleId : undefined}
         aria-expanded={pinned}
         aria-label={label}
-        className="lens-export-button lens-icon-button lens-info-tip-button"
+        className={inline
+          ? 'lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline'
+          : 'lens-export-button lens-icon-button lens-info-tip-button'}
         onBlur={() => setHovered(false)}
         onClick={() => setPinned((current) => !current)}
         onFocus={() => setHovered(true)}

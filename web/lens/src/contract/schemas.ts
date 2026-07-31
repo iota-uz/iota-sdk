@@ -45,6 +45,8 @@ export const ActionParamSchema: z.ZodType<Contract.ActionParam> = z.lazy(() => z
 
 export const AvailabilitySchema: z.ZodType<Contract.Availability> = z.enum(["available", "config_required", "empty_source", "unavailable"])
 
+export const AxisScaleSchema: z.ZodType<Contract.AxisScale> = z.enum(["linear", "logarithmic"])
+
 export const BridgeLayoutSchema: z.ZodType<Contract.BridgeLayout> = z.enum(["waterfall"])
 
 export const CascadeToneSchema: z.ZodType<Contract.CascadeTone> = z.enum(["inflow", "negative", "neutral", "positive"])
@@ -323,6 +325,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   sparkline: z.lazy(() => SparklineSchema).optional(),
   target: z.lazy(() => PanelTargetSchema).optional(),
   presentation: z.lazy(() => PresentationSchema).optional(),
+  valueAxis: z.lazy(() => ValueAxisSchema).optional(),
   metricFlow: z.lazy(() => MetricFlowConfigSchema).optional(),
   metricHierarchy: z.lazy(() => MetricHierarchyConfigSchema).optional(),
   metricRelationship: z.lazy(() => MetricRelationshipConfigSchema).optional(),
@@ -495,6 +498,11 @@ export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
 }).strict()
 
 export const TotalBadgePlacementSchema: z.ZodType<Contract.TotalBadgePlacement> = z.enum(["header", "none", "plot"])
+
+export const ValueAxisSchema: z.ZodType<Contract.ValueAxis> = z.object({
+  scale: z.lazy(() => AxisScaleSchema),
+  logBase: z.number().int().optional(),
+}).strict()
 
 export const ValueSourceKindSchema: z.ZodType<Contract.ValueSourceKind> = z.enum(["field", "literal", "variable"])
 

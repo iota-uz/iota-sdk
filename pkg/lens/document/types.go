@@ -459,6 +459,18 @@ const (
 	SemanticsEvidence       Semantics = "evidence"
 )
 
+type AxisScale string
+
+const (
+	AxisScaleLinear      AxisScale = "linear"
+	AxisScaleLogarithmic AxisScale = "logarithmic"
+)
+
+type ValueAxis struct {
+	Scale   AxisScale `json:"scale"`
+	LogBase int       `json:"logBase,omitempty"`
+}
+
 type Panel struct {
 	ID        string                 `json:"id"`
 	Kind      PanelKind              `json:"kind"`
@@ -500,6 +512,9 @@ type Panel struct {
 	// Presentation carries opt-in rendering hints. Every field is optional
 	// and absent hints keep the renderer's default treatment.
 	Presentation *Presentation `json:"presentation,omitempty"`
+	// ValueAxis carries the numeric-axis scale requested by the producer.
+	// Absent keeps the runtime's linear default.
+	ValueAxis *ValueAxis `json:"valueAxis,omitempty"`
 	// MetricFlow carries the structure of a metric_flow panel. Exactly the
 	// panel kind's own config field must be set.
 	MetricFlow *MetricFlowConfig `json:"metricFlow,omitempty"`

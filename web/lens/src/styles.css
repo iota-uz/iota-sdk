@@ -1028,6 +1028,18 @@
     @apply lens-relative lens-flex lens-flex-none lens-items-center;
   }
 
+  /* Inside a metric strip the glyph rides a 10px label, so it shrinks to match
+     the type it annotates. It also has to out-rank the card-wide navigate
+     anchor (.lens-card-link, z-10) stretched across the cell — otherwise the
+     anchor takes the click and the note can never be opened. */
+  .lens-info-tip-inline {
+    @apply lens-z-20;
+  }
+
+  .lens-info-tip-button-inline {
+    @apply lens-size-4 lens-text-[13px];
+  }
+
   .lens-info-tip-bubble {
     @apply lens-absolute lens-left-0 lens-top-full lens-z-30 lens-mt-1.5 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
 
@@ -1273,8 +1285,36 @@
     @apply lens-justify-start;
   }
 
+  /* A metric strip is short, so a cell's ⓘ bubble hangs well past the card's
+     bottom edge; the default clipping would cut the note in half. The templ
+     renderer settled this the same way (lens-card--overflow on stat and
+     stat_group cards) — the tooltip mounts in-tree, not portaled. Nothing in a
+     metrics group needs clipping: it holds no plots, only type. */
+  .lens-panel-group-metrics {
+    @apply lens-overflow-visible;
+  }
+
   .lens-metric-row {
     @apply lens-flex lens-flex-1 lens-flex-col lens-divide-y lens-divide-solid lens-divide-border;
+  }
+
+  /* With the card no longer clipping, an end cell's hover fill would paint
+     over the card's rounded corners and square them off. The row carries the
+     radius instead, and the end cells inherit it. */
+  .lens-metric-row,
+  .lens-metric-row > :first-child,
+  .lens-metric-row > :last-child {
+    border-radius: inherit;
+  }
+
+  .lens-metric-row-columns > :first-child {
+    border-top-right-radius: 0;
+    border-bottom-right-radius: 0;
+  }
+
+  .lens-metric-row-columns > :last-child {
+    border-top-left-radius: 0;
+    border-bottom-left-radius: 0;
   }
 
   .lens-metric-row-columns {

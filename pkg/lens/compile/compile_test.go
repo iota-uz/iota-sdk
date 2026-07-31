@@ -99,7 +99,7 @@ func TestDocumentCompilesMeasureOverrideStaticRef(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, compiled.Semantic)
 	require.NotNil(t, compiled.Semantic.Measures[0].Override)
-	require.Equal(t, "cube_stat_total_policies", compiled.Spec.Rows[0].Panels[0].Dataset)
+	require.Equal(t, "cube_stat_total_policies", compiled.Spec.Rows[0].Panels[0].Children[0].Dataset)
 }
 
 func TestDocumentCompilesManualStaticDashboard(t *testing.T) {

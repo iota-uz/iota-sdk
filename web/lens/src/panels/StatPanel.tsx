@@ -5,6 +5,7 @@ import { ArrowUpRight } from '../icons'
 import { usePanelNavigation, usePrefetch, type PrefetchHandlers } from './actions'
 import { StatValueTicker } from './StatValueTicker'
 import { cell, displayText, panelField } from './data'
+import { InfoTip } from './InfoTip'
 import { PanelFrame } from './PanelFrame'
 
 export interface StatPanelProps {
@@ -178,6 +179,11 @@ export function StatMetric({ panel }: StatPanelProps) {
         {panel.accent && <span aria-hidden="true" className="lens-stat-metric-bullet" style={{ background: panel.accent }} />}
         <span className="lens-stat-metric-label-text">{caption}</span>
         {panel.status && <StatusChip status={panel.status} />}
+        {/* The compact form drops the card header, and with it the ⓘ that
+            explains how a figure is obtained. A metric that carries that note
+            keeps it here, next to the name it belongs to; the caption below
+            stays visible prose. */}
+        {panel.info && <InfoTip inline text={panel.info} />}
       </p>
       {/* A metric that carries a wire sparkline shows it inline to the right of
           the value, echoing the hero card's trend line; a metric without one

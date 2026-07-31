@@ -252,6 +252,7 @@ func appendPanelTree(
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
 		Info:     strings.TrimSpace(spec.Info),
 		Headline: spec.HeadlineValue, Trend: buildTrend(spec), Presentation: buildPresentation(spec),
+		ValueAxis: buildValueAxis(spec.ValueAxis),
 		Sparkline: buildSparkline(spec), Target: buildTarget(spec),
 		MetricFlow: metricFlow, MetricHierarchy: metricHierarchy, MetricRelationship: metricRelationship,
 		Radial:     radial,
@@ -544,6 +545,16 @@ func buildPresentation(spec panel.Spec) *Presentation {
 		hints.LegendBelow = true
 	}
 	return presentationForKind(hints, spec.Kind)
+}
+
+func buildValueAxis(axis panel.ValueAxis) *ValueAxis {
+	if axis.Scale == "" {
+		return nil
+	}
+	return &ValueAxis{
+		Scale:   AxisScale(axis.Scale),
+		LogBase: axis.LogBase,
+	}
 }
 
 // presentationForKind adds what only the panel's kind can say. A stacked bar
