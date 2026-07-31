@@ -358,6 +358,13 @@ func TestHandlers_EvidenceIsLiveAndPaginated(t *testing.T) {
 	require.Equal(t, "17", call.request.Request.Get(lensruntime.TablePaginationLimitQuery))
 	require.Equal(t, "evidence-panel", call.request.Request.Get(lensruntime.TablePaginationPanelQuery))
 	require.Equal(t, "east", call.request.Overrides["region"])
+	frame := first.Frames[document.FrameRef("explore:metric/focus/evidence:evidence")]
+	require.Equal(t, []document.Column{
+		{Name: "policy", Type: document.ColumnString},
+		{Name: "amount", Type: document.ColumnNumber},
+		{Name: "record_id", Type: document.ColumnString},
+	}, frame.Columns)
+	require.Equal(t, []any{"P-1", float64(1), "row-1"}, frame.Rows[0])
 	snapshot, err := store.Get(t.Context(), doc.SnapshotID)
 	require.NoError(t, err)
 	require.NotContains(t, snapshot.Frames, document.FrameRef("explore:metric/focus/evidence:evidence"))
@@ -633,7 +640,13 @@ func testDashboard(t *testing.T) (lens.DashboardSpec, map[string]*frame.FrameSet
 	root := panel.Pie("root-panel", "Root", "root-data").IDField("id").Build()
 	detail := panel.Pie("detail-panel", "Detail", "detail-data").IDField("id").Build()
 	end := panel.Pie("end-panel", "End", "end-data").IDField("id").Build()
-	evidence := panel.Table("evidence-panel", "Evidence", "evidence-data").Build()
+	evidence := panel.Table("evidence-panel", "Evidence", "evidence-data").
+		IDField("record_id").
+		Columns(
+			panel.TableColumn{Field: "policy", Label: "Policy"},
+			panel.TableColumn{Field: "amount", Label: "Amount"},
+		).
+		Build()
 	explorer := explore.Spec{
 		ID: "metric", HostPanelID: "host", Branches: []explore.Branch{{
 			Key: "focus", Label: "Focus", DefaultPerspective: "composition", Perspectives: []explore.Perspective{
@@ -703,13 +716,16 @@ func evidenceFrames(t *testing.T) *frame.FrameSet {
 
 func evidenceFramesWithRows(t *testing.T, count int) *frame.FrameSet {
 	t.Helper()
+	ids := make([]any, count)
 	policies := make([]any, count)
 	amounts := make([]any, count)
 	for index := range count {
+		ids[index] = "row-" + strconv.Itoa(index+1)
 		policies[index] = "P-" + strconv.Itoa(index+1)
 		amounts[index] = float64(index + 1)
 	}
 	primary, err := frame.New("evidence",
+		frame.Field{Name: "record_id", Type: frame.FieldTypeString, Values: ids},
 		frame.Field{Name: "policy", Type: frame.FieldTypeString, Values: policies},
 		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: amounts},
 	)

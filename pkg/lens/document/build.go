@@ -1017,6 +1017,15 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 	return result, nil
 }
 
+// ProjectPanelFrame applies the panel's wire projection to a runtime frame.
+// Live query responses must use the same column order as the initial document.
+func ProjectPanelFrame(spec panel.Spec, source *frame.Frame) (Frame, error) {
+	if source == nil {
+		return Frame{}, fmt.Errorf("source frame is required")
+	}
+	return buildPanelFrame(spec, source)
+}
+
 type frameDependencies struct {
 	sources []action.ValueSource
 	actions []*action.Spec
