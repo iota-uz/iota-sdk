@@ -85,6 +85,31 @@ describe('stat panels', () => {
     expect(screen.getByText('Net of reinsurance')).toBeInTheDocument()
   })
 
+  it('carries a metric note behind a compact info tip in the label row', () => {
+    const panel: Panel = { ...statPanel, info: 'Claims paid divided by earned premium.' }
+    const { container } = renderDocument(
+      documentWith([panel], { 'stat:root': statFrame }),
+      <StatMetric panel={panel} />,
+    )
+
+    const tip = container.querySelector('.lens-info-tip-button-inline')
+    expect(tip).not.toBeNull()
+    // The label row owns it: the compact form has no header to hang it from.
+    expect(container.querySelector('.lens-stat-metric-label')?.contains(tip)).toBe(true)
+
+    fireEvent.click(tip!)
+    expect(screen.getByRole('tooltip').textContent).toContain('Claims paid divided by earned premium.')
+  })
+
+  it('leaves a metric without a note free of info chrome', () => {
+    const { container } = renderDocument(
+      documentWith([statPanel], { 'stat:root': statFrame }),
+      <StatMetric panel={statPanel} />,
+    )
+
+    expect(container.querySelector('.lens-info-tip')).toBeNull()
+  })
+
   it('renders multiline captions without flattening their content', () => {
     const panel: Panel = { ...statPanel, caption: 'First caveat\nSecond caveat' }
     const { container } = renderDocument(

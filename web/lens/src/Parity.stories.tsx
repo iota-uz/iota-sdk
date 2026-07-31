@@ -191,6 +191,73 @@ export const MetricGroupSparkline: Story = () => {
 }
 MetricGroupSparkline.storyName = 'Metric group sparkline'
 
+/**
+ * A cube dashboard's KPI band is a headerless strip whose metrics carry both a
+ * caption and a supporting note, and whose first metric is a link to its own
+ * evidence. Three things have to hold at once here, and each of them broke a
+ * naive version of the compact ⓘ:
+ *
+ *  - the glyph is sized for a 10px label, not the 28px header hit box;
+ *  - it out-ranks the card-wide navigate anchor stretched over the cell, so
+ *    the note can be opened at all on a linked metric;
+ *  - its bubble escapes the strip card, which is far shorter than the note.
+ *
+ * The tip is opened on mount so the bubble itself is the subject.
+ */
+const notedMetrics: Array<{ panel: Panel; value: number }> = [
+  {
+    panel: {
+      ...metrics[0]!.panel,
+      status: undefined,
+      caption: 'Проданные полисы',
+      info: 'Число уникальных полисов, выпущенных в выбранном периоде. Аннулированные полисы исключены.',
+      actions: [{
+        kind: 'navigate', urlTemplate: '/insurance/sales-report/drill/policies', params: [], payload: {},
+      }],
+    },
+    value: 3.1,
+  },
+  {
+    panel: {
+      ...metrics[1]!.panel,
+      caption: 'GWP по дате заключения',
+      info: 'Подписанная премия по дате заключения договора, без вычета исходящего перестрахования.',
+    },
+    value: 41.7,
+  },
+  { panel: { ...metrics[2]!.panel, caption: 'Страховая сумма по действующим полисам' }, value: 44.8 },
+]
+
+export const MetricGroupInfo: Story = () => {
+  const frames = Object.fromEntries(notedMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
+  const doc = storyDocument(
+    notedMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        panels: notedMetrics.map(({ panel }) => ({
+          panelId: panel.id, span: 4,
+          group: { id: 'kpi', kind: 'metrics' as const, label: '', layout: 'columns' as const, span: 12 },
+        })),
+      }],
+    },
+  )
+  return (
+    <Runtime doc={doc}>
+      <OpenFirstInfoTip><DashboardPanels /></OpenFirstInfoTip>
+    </Runtime>
+  )
+}
+MetricGroupInfo.storyName = 'Metric group info'
+
+function OpenFirstInfoTip({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    ref.current?.querySelector<HTMLElement>('.lens-info-tip-button-inline')?.click()
+  }, [])
+  return <div ref={ref}>{children}</div>
+}
+
 export const TabGroup: Story = () => {
   const doc = storyDocument(
     [coveragePanel, underwritingPanel, groupsPanel],

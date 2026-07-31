@@ -3,6 +3,7 @@ import type { Frame, NodeKey, Panel } from '../contract'
 import { radialNodeKey, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartKind } from '../charts/adapter'
 import { distributeShares, formatShare } from '../charts/shares'
 import { childForSelection } from '../explore/model'
+import { WarningTriangle } from '../icons'
 import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
@@ -316,6 +317,17 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           {/* Above the plot, in flow — see PlotTotalBadge. */}
           {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
             <PlotTotalBadge panel={panel} total={shareTotal} />
+          )}
+          {panel.valueAxis?.scale === 'logarithmic' && (
+            <div
+              aria-label={translate('chart.logScaleHint', 'Values are shown on a logarithmic scale')}
+              className="lens-chart-log-scale"
+              role="note"
+              title={translate('chart.logScaleHint', 'Values are shown on a logarithmic scale')}
+            >
+              <WarningTriangle aria-hidden="true" />
+              <span>{translate('chart.logScale', 'Logarithmic scale')}</span>
+            </div>
           )}
           {input && (
             <ChartHost

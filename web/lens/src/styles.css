@@ -1299,22 +1299,31 @@
   }
 
   /* With the card no longer clipping, an end cell's hover fill would paint
-     over the card's rounded corners and square them off. The row carries the
-     radius instead, and the end cells inherit it. */
-  .lens-metric-row,
-  .lens-metric-row > :first-child,
-  .lens-metric-row > :last-child {
+     over the card's rounded corners and square them off. The row relays the
+     card radius so only the cells at the strip's ends round, on the sides that
+     actually meet the card edge. */
+  .lens-metric-row {
     border-radius: inherit;
   }
 
   .lens-metric-row-columns > :first-child {
-    border-top-right-radius: 0;
-    border-bottom-right-radius: 0;
+    border-top-left-radius: inherit;
+    border-bottom-left-radius: inherit;
   }
 
   .lens-metric-row-columns > :last-child {
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
+    border-top-right-radius: inherit;
+    border-bottom-right-radius: inherit;
+  }
+
+  .lens-metric-row-rows > :first-child {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+
+  .lens-metric-row-rows > :last-child {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
   }
 
   .lens-metric-row-columns {
@@ -1748,6 +1757,16 @@
 
   .lens-chart-area {
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
+  }
+
+  /* A logarithmic bar is deliberately non-linear. Keep that warning on the
+     reading surface instead of hiding it in an info tooltip. */
+  .lens-chart-log-scale {
+    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-border-amber-200 lens-bg-amber-50 lens-px-2.5 lens-py-1 lens-text-[11px] lens-font-medium lens-text-amber-700;
+  }
+
+  .lens-chart-log-scale svg {
+    @apply lens-size-3 lens-flex-none;
   }
 
   /* Plot presence: the chart is the panel's content, so the box gives it the
