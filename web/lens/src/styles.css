@@ -85,7 +85,7 @@
 
 @layer components {
   .lens-root {
-    @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-max-w-full lens-bg-page lens-p-4 lens-font-sans lens-text-text;
+    @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
     color-scheme: light;
   }
 
