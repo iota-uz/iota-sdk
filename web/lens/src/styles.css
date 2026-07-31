@@ -1041,8 +1041,9 @@
   }
 
   .lens-info-tip-bubble {
-    @apply lens-absolute lens-left-0 lens-top-full lens-z-30 lens-mt-1.5 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+    @apply lens-fixed lens-z-50 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-overflow-y-auto lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
 
+    max-height: calc(100vh - 1rem);
     box-shadow: var(--lens-shadow-popover);
   }
 

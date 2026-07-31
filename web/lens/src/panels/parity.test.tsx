@@ -6,6 +6,7 @@ import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
 import { ChartPanel } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
+import { positionInfoTip } from './InfoTip'
 import { StatMetric, StatPanel } from './StatPanel'
 import { PanelSkeletonBody } from './Skeleton'
 import { TablePanel } from './TablePanel'
@@ -98,7 +99,11 @@ describe('stat panels', () => {
     expect(container.querySelector('.lens-stat-metric-label')?.contains(tip)).toBe(true)
 
     fireEvent.click(tip!)
-    expect(screen.getByRole('tooltip').textContent).toContain('Claims paid divided by earned premium.')
+    const tooltip = screen.getByRole('tooltip')
+    expect(tooltip.textContent).toContain('Claims paid divided by earned premium.')
+    // The note is a floating surface. Keeping it outside the panel prevents
+    // the next KPI cell from painting over it.
+    expect(tooltip.closest('.lens-panel')).toBeNull()
   })
 
   it('leaves a metric without a note free of info chrome', () => {
@@ -118,6 +123,24 @@ describe('stat panels', () => {
     )
 
     expect(container.querySelector('.lens-panel-caption')?.textContent).toBe('First caveat\nSecond caveat')
+  })
+})
+
+describe('info tip placement', () => {
+  it('keeps a tooltip anchored near the right edge inside the viewport', () => {
+    expect(positionInfoTip(
+      { left: 1140, top: 380, bottom: 408 },
+      { width: 320, height: 160 },
+      { width: 1280, height: 720 },
+    )).toEqual({ left: 952, top: 414 })
+  })
+
+  it('flips a tooltip above its trigger when there is no room below', () => {
+    expect(positionInfoTip(
+      { left: 400, top: 680, bottom: 708 },
+      { width: 320, height: 160 },
+      { width: 1280, height: 720 },
+    )).toEqual({ left: 400, top: 514 })
   })
 })
 
