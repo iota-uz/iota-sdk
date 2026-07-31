@@ -28,8 +28,13 @@ function sourceValue(source: Source, context: LeafActionContext): unknown {
 }
 
 function withPreservedQuery(target: URL, current: URL): void {
+  // Decide precedence from the destination's original query, not from the
+  // progressively appended result. Otherwise the first value of a repeated
+  // parameter (for example multi-select `_f`) makes the remaining values look
+  // destination-owned and silently drops them.
+  const explicitNames = new Set(target.searchParams.keys())
   for (const [name, value] of current.searchParams) {
-    if (!target.searchParams.has(name)) target.searchParams.append(name, value)
+    if (!explicitNames.has(name)) target.searchParams.append(name, value)
   }
 }
 

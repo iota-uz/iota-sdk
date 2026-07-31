@@ -15,6 +15,8 @@ const (
 	I18nChartLabel        = "chart.label"
 	I18nChartLegendLast   = "chart.legendLast"
 	I18nChartLegendToggle = "chart.legendToggle"
+	I18nChartLogScale     = "chart.logScale"
+	I18nChartLogScaleHint = "chart.logScaleHint"
 	I18nCalendarAnnRange  = "calendar.announceRange"
 	I18nCalendarAnnStart  = "calendar.announceStart"
 	I18nCalendarHintEnd   = "calendar.hintEnd"
@@ -71,6 +73,12 @@ const (
 	I18nExportRetry         = "export.retry"
 	I18nExportRetryHint     = "export.retryHint"
 	I18nFilterBarLabel      = "filter.bar.label"
+	I18nFilterFacetClearAll = "filter.facet.clearAll"
+	I18nFilterFacetEmpty    = "filter.facet.empty"
+	I18nFilterFacetError    = "filter.facet.error"
+	I18nFilterFacetLoading  = "filter.facet.loading"
+	I18nFilterFacetRemove   = "filter.facet.remove"
+	I18nFilterFacetSearch   = "filter.facet.search"
 	I18nFilterAllTime       = "filter.period.allTime"
 	I18nFilterApply         = "filter.period.apply"
 	I18nFilterCancel        = "filter.period.cancel"
@@ -223,12 +231,15 @@ func RuntimeI18nKeys() []string {
 		I18nCalendarChooseMonth, I18nCalendarNextPage, I18nCalendarPrevPage,
 		I18nCascadeOpenStage, I18nCascadeStages,
 		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterApply, I18nFilterCancel,
+		I18nFilterFacetClearAll, I18nFilterFacetEmpty, I18nFilterFacetError,
+		I18nFilterFacetLoading, I18nFilterFacetRemove, I18nFilterFacetSearch,
 		I18nFilterCompleted, I18nFilterCustom,
 		I18nFilterDateFormat, I18nFilterDayCount,
 		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartDrillHint, I18nChartError, I18nChartLabel, I18nChartLegendLast, I18nChartLegendToggle,
+		I18nChartLogScale, I18nChartLogScaleHint,
 		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDrillReset,
 		I18nDocumentRefetch, I18nDocumentRetry,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,

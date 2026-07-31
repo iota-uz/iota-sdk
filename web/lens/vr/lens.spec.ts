@@ -51,6 +51,7 @@ const storyIds = [
   'filter-controls--dashboard-filter-chip-active',
   'filter-controls--dashboard-filter-dark',
   'filter-controls--dashboard-filter-light',
+  'filter-controls--dashboard-facet-active',
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
   'filter-controls--refetch-error',
@@ -156,6 +157,7 @@ const staticStories = [
   ['filter-controls--dashboard-filter-chip-active', 0],
   ['filter-controls--dashboard-filter-dark', 0],
   ['filter-controls--dashboard-filter-light', 0],
+  ['filter-controls--dashboard-facet-active', 0],
   // The period trigger's focus ring alternates between two stable rasters
   // differing by ~25 antialiased pixels at its corners (iota-uz/iota-sdk#932).
   ['filter-controls--popover-open-dark', 0, 50],

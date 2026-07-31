@@ -25,11 +25,53 @@ func periodFilter() Filter {
 	}
 }
 
+func facetFilter() Filter {
+	return Filter{
+		ID:    "facet-region",
+		Kind:  FilterKindFacet,
+		Label: "Region",
+		Facet: &FacetFilter{
+			Dimension:       "region",
+			OptionsEndpoint: "/reports/sales/facets?_facet=region",
+			SearchParam:     "_facet_search",
+			Selections: []FacetSelection{{
+				Label:     "Tashkent",
+				RemoveURL: "/reports/sales?_f=product%3Aosago",
+			}},
+			ClearURL: "/reports/sales?period=2026",
+		},
+	}
+}
+
 func TestDashboardDocumentValidate_Filters(t *testing.T) {
 	t.Run("valid period filter passes", func(t *testing.T) {
 		doc := testDocument()
 		doc.Filters = []Filter{periodFilter()}
 		require.NoError(t, doc.Validate())
+	})
+
+	t.Run("valid facet filter passes", func(t *testing.T) {
+		doc := testDocument()
+		doc.Filters = []Filter{periodFilter(), facetFilter()}
+		require.NoError(t, doc.Validate())
+	})
+
+	t.Run("facet payload and same-origin URLs required", func(t *testing.T) {
+		doc := testDocument()
+		filter := facetFilter()
+		filter.Facet = nil
+		doc.Filters = []Filter{filter}
+		require.ErrorContains(t, doc.Validate(), "requires a facet payload")
+
+		filter = facetFilter()
+		filter.Facet.OptionsEndpoint = "https://example.com/options"
+		doc.Filters = []Filter{filter}
+		require.ErrorContains(t, doc.Validate(), "same-origin options endpoint")
+
+		filter = facetFilter()
+		filter.Facet.Selections[0].Label = " "
+		doc.Filters = []Filter{filter}
+		require.ErrorContains(t, doc.Validate(), "requires a label")
 	})
 
 	t.Run("id required and unique", func(t *testing.T) {
@@ -124,7 +166,7 @@ func TestDashboardDocumentValidate_Filters(t *testing.T) {
 }
 
 func TestCloneFilters_Isolation(t *testing.T) {
-	source := []Filter{periodFilter()}
+	source := []Filter{periodFilter(), facetFilter()}
 	cloned := cloneFilters(source)
 	require.Equal(t, source, cloned)
 
@@ -132,11 +174,13 @@ func TestCloneFilters_Isolation(t *testing.T) {
 	cloned[0].Period.Value.Start = "1999-01-01"
 	require.Equal(t, "2026", source[0].Period.Presets[0].Label)
 	require.Equal(t, "2026-01-01", source[0].Period.Value.Start)
+	cloned[1].Facet.Selections[0].Label = "mutated"
+	require.Equal(t, "Tashkent", source[1].Facet.Selections[0].Label)
 }
 
 func TestFilterJSONRoundTrip(t *testing.T) {
 	doc := testDocument()
-	doc.Filters = []Filter{periodFilter()}
+	doc.Filters = []Filter{periodFilter(), facetFilter()}
 	require.NoError(t, doc.Validate())
 
 	encoded, err := doc.MarshalJSON()

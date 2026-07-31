@@ -15,13 +15,15 @@ import { parseISODate } from '../controls/model'
 export type FilterValues = Record<string, string>
 
 export function declaredFilters(document: DashboardDocument): Array<Filter> {
-  return (document.filters ?? []).filter((filter) => filter.kind === 'period' && filter.period)
+  return (document.filters ?? []).filter((filter) =>
+    filter.kind === 'period' && filter.period || filter.kind === 'facet' && filter.facet,
+  )
 }
 
 export function filterParamNames(document: DashboardDocument): Array<string> {
   const names: Array<string> = []
   for (const filter of declaredFilters(document)) {
-    if (!filter.period) continue
+    if (filter.kind !== 'period' || !filter.period) continue
     names.push(filter.period.startParam, filter.period.endParam)
   }
   return names
@@ -44,6 +46,7 @@ function validBoundary(period: PeriodFilter, raw: string): boolean {
 export function readFilterValues(document: DashboardDocument, url: URL): FilterValues {
   const values: FilterValues = {}
   for (const filter of declaredFilters(document)) {
+    if (filter.kind !== 'period') continue
     const period = filter.period
     if (!period) continue
     const start = url.searchParams.get(period.startParam)

@@ -85,7 +85,7 @@
 
 @layer components {
   .lens-root {
-    @apply lens-box-border lens-min-h-32 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
+    @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-max-w-full lens-bg-page lens-p-4 lens-font-sans lens-text-text;
     color-scheme: light;
   }
 
@@ -114,7 +114,8 @@
   }
 
   .lens-dashboard {
-    @apply lens-mx-auto lens-w-full lens-max-w-screen-2xl;
+    @apply lens-mx-auto lens-w-full lens-min-w-0 lens-max-w-screen-2xl;
+    container: lens-dashboard / inline-size;
   }
 
   .lens-drawer-backdrop {
@@ -248,7 +249,7 @@
   }
 
   .lens-dashboard-header {
-    @apply lens-mb-5 lens-flex lens-items-end lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
+    @apply lens-mb-5 lens-flex lens-min-w-0 lens-max-w-full lens-items-end lens-justify-between lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-3;
   }
 
   .lens-dashboard-header h1 {
@@ -282,7 +283,7 @@
   }
 
   .lens-dashboard-controls {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
   }
 
   /* Once the action/filter cluster can no longer coexist with the document
@@ -299,12 +300,22 @@
     }
   }
 
+  @container lens-dashboard (max-width: 1100px) {
+    .lens-dashboard-header {
+      @apply lens-flex-col lens-items-stretch lens-gap-3;
+    }
+
+    .lens-dashboard-controls {
+      @apply lens-justify-start;
+    }
+  }
+
   .lens-filter-bar {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-3;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-3;
   }
 
   .lens-filter {
-    @apply lens-flex lens-items-center lens-gap-2;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
   }
 
   /* One segmented tray holds the declared period chips and the calendar
@@ -314,12 +325,95 @@
      surfaces are local variables because "raised" inverts in the dark theme:
      there the tray sinks below the page and the card sits above it. */
   .lens-filter-segments {
-    @apply lens-flex lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-overflow-x-auto lens-rounded-control lens-border lens-border-solid lens-border-border;
     --lens-seg-tray: rgb(15 23 42 / 0.05);
     --lens-seg-raised: var(--lens-bg-card);
     background: var(--lens-seg-tray);
     padding: 2px;
     gap: 2px;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .lens-filter-facet {
+    @apply lens-relative lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
+  }
+
+  .lens-facet-trigger {
+    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-text;
+  }
+
+  .lens-facet-trigger:hover,
+  .lens-facet-trigger[aria-expanded='true'] {
+    @apply lens-border-strong lens-text-strong;
+  }
+
+  .lens-facet-count {
+    @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-[10px] lens-text-accent-700;
+    background: var(--lens-accent-100);
+  }
+
+  .lens-facet-popover {
+    @apply lens-absolute lens-left-0 lens-top-full lens-z-50 lens-mt-1.5 lens-flex lens-w-72 lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+    box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-facet-search {
+    @apply lens-m-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-font-sans lens-text-sm lens-text-strong lens-outline-none;
+  }
+
+  .lens-facet-search:focus {
+    @apply lens-border-accent-500;
+    box-shadow: 0 0 0 2px var(--lens-accent-100);
+  }
+
+  .lens-facet-options {
+    @apply lens-max-h-72 lens-overflow-y-auto lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-1;
+  }
+
+  .lens-facet-option {
+    @apply lens-flex lens-min-h-9 lens-items-center lens-gap-2 lens-rounded-control lens-px-2 lens-py-1.5 lens-text-sm lens-text-text lens-no-underline;
+  }
+
+  .lens-facet-option:hover,
+  .lens-facet-option[aria-current='true'] {
+    @apply lens-bg-accent-50 lens-text-strong;
+  }
+
+  .lens-facet-check {
+    @apply lens-flex lens-size-4 lens-flex-none lens-items-center lens-justify-center lens-text-xs lens-font-bold lens-text-accent-600;
+  }
+
+  .lens-facet-option-label {
+    @apply lens-min-w-0 lens-flex-1 lens-break-words;
+  }
+
+  .lens-facet-option-count {
+    @apply lens-flex-none lens-tabular-nums lens-text-xs lens-text-muted;
+  }
+
+  .lens-facet-state {
+    @apply lens-p-4 lens-text-center lens-text-sm lens-text-muted;
+  }
+
+  .lens-facet-error {
+    @apply lens-text-neg;
+  }
+
+  .lens-facet-active-chip {
+    @apply lens-flex lens-min-h-7 lens-min-w-0 lens-max-w-56 lens-items-center lens-gap-1 lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-text-xs lens-font-medium lens-text-accent-700 lens-no-underline;
+  }
+
+  .lens-facet-active-chip span {
+    @apply lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+  }
+
+  .lens-facet-active-chip svg {
+    @apply lens-size-3.5 lens-flex-none;
+  }
+
+  .lens-facet-clear {
+    @apply lens-whitespace-nowrap lens-px-1 lens-text-xs lens-font-medium lens-text-accent-700 lens-underline;
   }
 
   .lens-root[data-theme='dark'] .lens-filter-segments {
@@ -329,7 +423,7 @@
 
   .lens-filter-chip,
   .lens-filter-trigger {
-    @apply lens-flex lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
     border-radius: var(--lens-radius-badge);
     min-height: 26px;
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),

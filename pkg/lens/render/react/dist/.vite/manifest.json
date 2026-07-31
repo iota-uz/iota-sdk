@@ -1,6 +1,6 @@
 {
   "index.html": {
-    "file": "assets/lens-dashboard-DIT13N6S.js",
+    "file": "assets/lens-dashboard-BMETE46Y.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -10,11 +10,11 @@
       "src/print/PrintReport.tsx"
     ],
     "css": [
-      "assets/index-FHeqEcq8.css"
+      "assets/index-Dv7q2vkO.css"
     ]
   },
   "src/charts/echarts/adapter.ts": {
-    "file": "assets/adapter-CuTQ7D_G.js",
+    "file": "assets/adapter-MfkqspZz.js",
     "name": "adapter",
     "src": "src/charts/echarts/adapter.ts",
     "isDynamicEntry": true,
@@ -23,7 +23,7 @@
     ]
   },
   "src/charts/index.ts": {
-    "file": "assets/index-BYBmDESx.js",
+    "file": "assets/index-DxkJ1lGl.js",
     "name": "index",
     "src": "src/charts/index.ts",
     "isDynamicEntry": true,
@@ -35,7 +35,7 @@
     ]
   },
   "src/print/PrintReport.tsx": {
-    "file": "assets/PrintReport-Cf6FNK7e.js",
+    "file": "assets/PrintReport-B1_cwNy9.js",
     "name": "PrintReport",
     "src": "src/print/PrintReport.tsx",
     "isDynamicEntry": true,
@@ -44,7 +44,7 @@
     ]
   },
   "src/runtime/print.ts": {
-    "file": "assets/print-B0C_RrYt.js",
+    "file": "assets/print-BVV7nBS5.js",
     "name": "print",
     "src": "src/runtime/print.ts",
     "isDynamicEntry": true,

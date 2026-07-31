@@ -128,6 +128,19 @@ export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.object({
   export: z.string().optional(),
 }).strict()
 
+export const FacetFilterSchema: z.ZodType<Contract.FacetFilter> = z.lazy(() => z.object({
+  dimension: z.string(),
+  optionsEndpoint: z.string(),
+  searchParam: z.string().optional(),
+  selections: z.array(z.lazy(() => FacetSelectionSchema)).optional(),
+  clearUrl: z.string().optional(),
+}).strict())
+
+export const FacetSelectionSchema: z.ZodType<Contract.FacetSelection> = z.object({
+  label: z.string(),
+  removeUrl: z.string(),
+}).strict()
+
 export const FieldFormatSchema: z.ZodType<Contract.FieldFormat> = z.lazy(() => z.object({
   kind: z.lazy(() => FormatKindSchema),
   currency: z.string().optional(),
@@ -144,9 +157,10 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
   kind: z.lazy(() => FilterKindSchema),
   label: z.string().optional(),
   period: z.lazy(() => PeriodFilterSchema).optional(),
+  facet: z.lazy(() => FacetFilterSchema).optional(),
 }).strict())
 
-export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["period"])
+export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["facet", "period"])
 
 export const FlowReconciliationSchema: z.ZodType<Contract.FlowReconciliation> = z.object({
   tolerance: z.number().optional(),

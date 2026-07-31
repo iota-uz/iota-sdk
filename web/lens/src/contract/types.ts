@@ -105,6 +105,19 @@ export interface Endpoints {
   export?: string
 }
 
+export interface FacetFilter {
+  dimension: string
+  optionsEndpoint: string
+  searchParam?: string
+  selections?: Array<FacetSelection>
+  clearUrl?: string
+}
+
+export interface FacetSelection {
+  label: string
+  removeUrl: string
+}
+
 export interface FieldFormat {
   kind: FormatKind
   currency?: string
@@ -121,9 +134,10 @@ export interface Filter {
   kind: FilterKind
   label?: string
   period?: PeriodFilter
+  facet?: FacetFilter
 }
 
-export type FilterKind = "period"
+export type FilterKind = "facet" | "period"
 
 export interface FlowReconciliation {
   tolerance?: number
