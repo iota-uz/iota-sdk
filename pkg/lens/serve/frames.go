@@ -10,15 +10,22 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
+	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-func wireFrame(ref document.FrameRef, spec panel.Spec, result *lensruntime.PanelResult) (document.Frame, error) {
+func wireFrame(
+	ref document.FrameRef,
+	spec panel.Spec,
+	dynamicChildren *explore.DynamicChildren,
+	result *lensruntime.PanelResult,
+) (document.Frame, error) {
+	const op serrors.Op = "lens/serve.wireFrame"
 	if result == nil || result.Frames == nil || result.Frames.Primary() == nil {
-		return document.Frame{}, fmt.Errorf("frame %q has no primary frame", ref)
+		return document.Frame{}, serrors.E(op, fmt.Errorf("frame %q has no primary frame", ref))
 	}
-	wire, err := document.ProjectPanelFrame(spec, result.Frames.Primary())
+	wire, err := document.ProjectPanelFrame(spec, result.Frames.Primary(), dynamicChildren)
 	if err != nil {
-		return document.Frame{}, fmt.Errorf("frame %q: %w", ref, err)
+		return document.Frame{}, serrors.E(op, fmt.Errorf("frame %q: %w", ref, err))
 	}
 	return wire, nil
 }

@@ -139,8 +139,9 @@ func WithApplicationFactory(factory func(context.Context, *Runtime) (application
 // WithSupportedLanguages overrides the SDK defaults for applications created by
 // IotaSource. The slice is copied so callers may safely reuse their input.
 func WithSupportedLanguages(languages []string) Option {
+	configured := append([]string(nil), languages...)
 	return func(o *options) {
-		o.supportedLanguages = append([]string(nil), languages...)
+		o.supportedLanguages = append([]string(nil), configured...)
 	}
 }
 

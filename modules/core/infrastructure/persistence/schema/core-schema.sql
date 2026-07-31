@@ -247,3 +247,4 @@ CREATE TABLE core.user_positions (
 CREATE INDEX user_positions_tenant_id_user_id_idx ON core.user_positions (tenant_id, user_id);
 
 CREATE INDEX user_positions_tenant_id_department_id_idx ON core.user_positions (tenant_id, department_id);
+

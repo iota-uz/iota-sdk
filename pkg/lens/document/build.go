@@ -1019,16 +1019,35 @@ func buildFrame(source *frame.Frame) (Frame, error) {
 
 // ProjectPanelFrame applies the panel's wire projection to a runtime frame.
 // Live query responses must use the same column order as the initial document.
-func ProjectPanelFrame(spec panel.Spec, source *frame.Frame) (Frame, error) {
+func ProjectPanelFrame(spec panel.Spec, source *frame.Frame, dynamicChildren *explore.DynamicChildren) (Frame, error) {
+	const op serrors.Op = "lens/document.ProjectPanelFrame"
 	if source == nil {
-		return Frame{}, fmt.Errorf("source frame is required")
+		return Frame{}, serrors.E(op, fmt.Errorf("source frame is required"))
 	}
-	return buildPanelFrame(spec, source)
+	projected, err := buildPanelFrame(spec, source, dynamicChildFrameDependencies(dynamicChildren))
+	if err != nil {
+		return Frame{}, serrors.E(op, err)
+	}
+	return projected, nil
 }
 
 type frameDependencies struct {
 	sources []action.ValueSource
 	actions []*action.Spec
+}
+
+func dynamicChildFrameDependencies(children *explore.DynamicChildren) frameDependencies {
+	if children == nil {
+		return frameDependencies{}
+	}
+	dependencies := frameDependencies{sources: []action.ValueSource{children.Key, children.Label}}
+	if children.Target != nil {
+		dependencies.sources = append(dependencies.sources, *children.Target)
+	}
+	if children.Action != nil {
+		dependencies.actions = append(dependencies.actions, children.Action)
+	}
+	return dependencies
 }
 
 func buildPanelFrame(spec panel.Spec, source *frame.Frame, extra ...frameDependencies) (Frame, error) {
@@ -1332,20 +1351,11 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				if nodeSpec.Panel != nil && depths[nodeSpec.Key] <= doc.Drill.InlineDepth {
 					if panelResult := result.Panel(nodeSpec.Panel.ID); panelResult != nil && panelResult.Error == nil && panelResult.Frames.Primary() != nil {
 						frameRef := FrameRef("explore:" + perspectiveID + ":" + nodeSpec.Key)
-						var wireFrame Frame
-						var err error
-						if nodeSpec.DynamicChildren != nil {
-							dependencies := frameDependencies{sources: []action.ValueSource{nodeSpec.DynamicChildren.Key, nodeSpec.DynamicChildren.Label}}
-							if nodeSpec.DynamicChildren.Target != nil {
-								dependencies.sources = append(dependencies.sources, *nodeSpec.DynamicChildren.Target)
-							}
-							if nodeSpec.DynamicChildren.Action != nil {
-								dependencies.actions = append(dependencies.actions, nodeSpec.DynamicChildren.Action)
-							}
-							wireFrame, err = buildPanelFrame(*nodeSpec.Panel, panelResult.Frames.Primary(), dependencies)
-						} else {
-							wireFrame, err = buildPanelFrame(*nodeSpec.Panel, panelResult.Frames.Primary())
-						}
+						wireFrame, err := buildPanelFrame(
+							*nodeSpec.Panel,
+							panelResult.Frames.Primary(),
+							dynamicChildFrameDependencies(nodeSpec.DynamicChildren),
+						)
 						if err != nil {
 							return fmt.Errorf("explorer %s node %s: %w", spec.ID, nodeSpec.Key, err)
 						}

@@ -16,16 +16,17 @@ import (
 )
 
 type levelTarget struct {
-	explorerID     string
-	branchKey      string
-	perspectiveKey string
-	nodeKey        string
-	path           []string
-	panel          panel.Spec
-	ref            document.FrameRef
-	evidence       bool
-	perspective    explore.Perspective
-	levelKey       document.NodeKey
+	explorerID      string
+	branchKey       string
+	perspectiveKey  string
+	nodeKey         string
+	path            []string
+	panel           panel.Spec
+	dynamicChildren *explore.DynamicChildren
+	ref             document.FrameRef
+	evidence        bool
+	perspective     explore.Perspective
+	levelKey        document.NodeKey
 	// points are the concrete selections the request path carries between its
 	// node steps (e.g. the "2026" in [root, "2026", detail]). A level reached
 	// through a point aggregates only that selection, so its frame must never
@@ -189,7 +190,7 @@ func makeTarget(explorerID, branchKey string, perspective explore.Perspective, n
 	perspectiveID := qualified(explorerID, branchKey, perspective.Key)
 	return levelTarget{
 		explorerID: explorerID, branchKey: branchKey, perspectiveKey: perspective.Key, nodeKey: node.Key,
-		path: []string{node.Key}, panel: *node.Panel,
+		path: []string{node.Key}, panel: *node.Panel, dynamicChildren: node.DynamicChildren,
 		ref: document.FrameRef("explore:" + perspectiveID + ":" + node.Key), evidence: isEvidence(perspective, node),
 		perspective: perspective,
 		levelKey:    document.NodeKey(qualified(perspectiveID, node.Key)),

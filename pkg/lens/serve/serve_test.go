@@ -261,12 +261,18 @@ func TestHandlers_DynamicChildrenResolveAndCachePerPath(t *testing.T) {
 	handlers, executor, store := newTestHandlers(t, 0)
 	spec := handlers.spec
 	detail := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[1]
+	detailPanel := panel.Table("detail-panel", "Detail", "detail-data").
+		IDField("row_id").
+		Columns(panel.TableColumn{Field: "value", Label: "Value"}).
+		Build()
+	detail.Panel = &detailPanel
 	detail.Edges = nil
 	detail.DynamicEdges = true
 	detail.DynamicTargets = []string{"end"}
+	leaf := action.Navigate("").WithFieldURL("url")
 	detail.DynamicChildren = &explore.DynamicChildren{
-		Key: action.FieldValue("id"), Label: action.FieldValue("label"),
-		Target: sourcePtr(action.LiteralValue("end")),
+		Key: action.FieldValue("child_id"), Label: action.FieldValue("child_label"),
+		Target: sourcePtr(action.FieldValue("target")), Action: &leaf,
 	}
 	handlers.spec = spec
 	executor.pathFrames = map[string]*frame.FrameSet{
@@ -277,6 +283,14 @@ func TestHandlers_DynamicChildrenResolveAndCachePerPath(t *testing.T) {
 
 	first := queryLevel(t, handlers, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2025", "detail"}, Perspective: "composition"})
 	second := queryLevel(t, handlers, QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root", "2024", "detail"}, Perspective: "composition"})
+	require.Equal(t, []document.Column{
+		{Name: "value", Type: document.ColumnNumber},
+		{Name: "row_id", Type: document.ColumnString},
+		{Name: "child_id", Type: document.ColumnString},
+		{Name: "child_label", Type: document.ColumnString},
+		{Name: "target", Type: document.ColumnString},
+		{Name: "url", Type: document.ColumnString},
+	}, first.Frames["explore:metric/focus/composition:detail"].Columns)
 	require.Equal(t, document.NodeKey("month-12"), first.Frames["explore:metric/focus/composition:detail"].Children[0].Key)
 	require.Equal(t, "December", first.Frames["explore:metric/focus/composition:detail"].Children[0].Label)
 	require.Equal(t, document.NodeKey("metric/focus/composition/end"), first.Frames["explore:metric/focus/composition:detail"].Children[0].Target)
@@ -695,8 +709,11 @@ func testFrames(t *testing.T, name string, value float64) *frame.FrameSet {
 func dynamicFrames(t *testing.T, key, label string) *frame.FrameSet {
 	t.Helper()
 	primary, err := frame.New("dynamic",
-		frame.Field{Name: "id", Type: frame.FieldTypeString, Values: []any{key}},
-		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{label}},
+		frame.Field{Name: "row_id", Type: frame.FieldTypeString, Values: []any{"row-" + key}},
+		frame.Field{Name: "child_id", Type: frame.FieldTypeString, Values: []any{key}},
+		frame.Field{Name: "child_label", Type: frame.FieldTypeString, Values: []any{label}},
+		frame.Field{Name: "target", Type: frame.FieldTypeString, Values: []any{"end"}},
+		frame.Field{Name: "url", Type: frame.FieldTypeString, Values: []any{"/records/" + key}},
 		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1.0}},
 	)
 	require.NoError(t, err)
