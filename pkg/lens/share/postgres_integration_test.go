@@ -93,15 +93,66 @@ func TestPostgresStoreOwnershipConcurrentLeaseAndClaimLoss(t *testing.T) {
 	require.Len(t, claimed, 1, "SKIP LOCKED must lease a due schedule to only one worker")
 
 	claim := claimed[0]
-	err = store.FinishSchedule(environment.Ctx, access.TenantID, claim.ID,
-		claim.NextRunAt.Add(time.Second), now, now.Add(time.Hour), nil)
+	completion := share.ScheduleCompletion{
+		TenantID: access.TenantID, ScheduleID: claim.ID, ClaimedUntil: claim.NextRunAt,
+		RanAt: now, NextRunAt: now.Add(time.Hour), ConsecutiveFailureLimit: 3,
+	}
+	wrongClaim := completion
+	wrongClaim.ClaimedUntil = wrongClaim.ClaimedUntil.Add(time.Second)
+	_, err = store.FinishSchedule(environment.Ctx, wrongClaim)
 	require.ErrorIs(t, err, share.ErrClaimLost)
-	err = store.FinishSchedule(environment.Ctx, access.TenantID, claim.ID,
-		claim.NextRunAt, now, now.Add(time.Hour), errors.New("delivery failed"))
+	completion.RunError = errors.New("delivery failed")
+	_, err = store.FinishSchedule(environment.Ctx, completion)
 	require.NoError(t, err)
 
 	schedules, err := store.ListSchedules(environment.Ctx, access, view.DashboardID)
 	require.NoError(t, err)
 	require.Len(t, schedules, 1)
 	require.Equal(t, "delivery failed", schedules[0].LastError)
+	require.Equal(t, 1, schedules[0].ConsecutiveFailures)
+	require.True(t, schedules[0].Enabled)
+	schedules[0].Name = "Renamed hourly audit"
+	edited, err := store.PutSchedule(environment.Ctx, access, schedules[0])
+	require.NoError(t, err)
+	require.Equal(t, schedules[0].LastRunAt, edited.LastRunAt)
+	require.Equal(t, schedules[0].LastError, edited.LastError)
+	require.Equal(t, schedules[0].ConsecutiveFailures, edited.ConsecutiveFailures)
+	require.Equal(t, schedules[0].NextRunAt, edited.NextRunAt)
+
+	due, err := store.DueSchedules(environment.Ctx, edited.NextRunAt, 1)
+	require.NoError(t, err)
+	require.Len(t, due, 1)
+	succeeded, err := store.FinishSchedule(environment.Ctx, share.ScheduleCompletion{
+		TenantID: access.TenantID, ScheduleID: due[0].ID, ClaimedUntil: due[0].NextRunAt,
+		RanAt: edited.NextRunAt, NextRunAt: edited.NextRunAt.Add(time.Hour),
+		ConsecutiveFailureLimit: 3,
+	})
+	require.NoError(t, err)
+	require.Zero(t, succeeded.ConsecutiveFailures)
+	require.Empty(t, succeeded.LastError)
+
+	current := succeeded
+	for attempt := 1; attempt <= 3; attempt++ {
+		due, err = store.DueSchedules(environment.Ctx, current.NextRunAt, 1)
+		require.NoError(t, err)
+		require.Len(t, due, 1)
+		current, err = store.FinishSchedule(environment.Ctx, share.ScheduleCompletion{
+			TenantID: access.TenantID, ScheduleID: due[0].ID, ClaimedUntil: due[0].NextRunAt,
+			RanAt: current.NextRunAt, NextRunAt: current.NextRunAt.Add(time.Hour),
+			RunError: errors.New("persistent delivery failure"), ConsecutiveFailureLimit: 3,
+		})
+		require.NoError(t, err)
+		require.Equal(t, attempt, current.ConsecutiveFailures)
+	}
+	require.False(t, current.Enabled)
+	require.True(t, current.NextRunAt.IsZero())
+	require.Equal(t, "persistent delivery failure", current.LastError)
+
+	current.Enabled = true
+	reenabled, err := store.PutSchedule(environment.Ctx, access, current)
+	require.NoError(t, err)
+	require.True(t, reenabled.Enabled)
+	require.Zero(t, reenabled.ConsecutiveFailures)
+	require.Empty(t, reenabled.LastError)
+	require.False(t, reenabled.NextRunAt.IsZero())
 }

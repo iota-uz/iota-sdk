@@ -137,6 +137,7 @@
 }
 
 .lens-saved-view-fields button,
+.lens-saved-view-reenable,
 .lens-saved-view-delete {
   background: var(--lens-bg-inset);
   border: 1px solid var(--lens-border);
@@ -144,6 +145,11 @@
   color: var(--lens-text);
   cursor: pointer;
   padding: 0.4rem 0.65rem;
+}
+
+.lens-saved-view-reenable,
+.lens-saved-view-delete {
+  align-self: flex-start;
 }
 
 .lens-saved-view-row {
@@ -179,7 +185,19 @@
 }
 
 .lens-saved-view-schedule {
+  flex: 1;
   overflow-wrap: anywhere;
+}
+
+.lens-saved-view-disabled,
+.lens-saved-view-error {
+  display: block;
+  margin-top: 0.2rem;
+}
+
+.lens-saved-view-disabled {
+  color: var(--lens-neg);
+  font-weight: 600;
 }
 
 @media (max-width: 640px) {

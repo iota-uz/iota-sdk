@@ -53,6 +53,7 @@ CREATE TABLE lens_export_schedules (
     next_run_at TIMESTAMPTZ,
     last_run_at TIMESTAMPTZ,
     last_error TEXT NOT NULL DEFAULT '',
+    consecutive_failures INTEGER NOT NULL DEFAULT 0 CHECK (consecutive_failures >= 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     CONSTRAINT lens_export_schedules_recipients_check CHECK (cardinality(recipients) BETWEEN 1 AND 20),

@@ -14,11 +14,14 @@ interface SavedView {
 
 interface ExportSchedule {
   id: string
+  dashboardId: string
   viewId: string
   name: string
   cron: string
   timezone: string
   recipients: string[]
+  enabled: boolean
+  consecutiveFailures: number
   nextRunAt?: string
   lastError?: string
 }
@@ -85,6 +88,7 @@ export function SavedViewsMenu() {
   const [cron, setCron] = useState('0 8 * * 1')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
+  const [status, setStatus] = useState<string>()
   const [popoverPosition, setPopoverPosition] = useState({ maxHeight: 620, top: 0 })
   const [capabilities, setCapabilities] = useState<ShareCapabilities>({ manageTeam: false, scheduleMail: false })
   const container = useRef<HTMLDivElement>(null)
@@ -210,6 +214,7 @@ export function SavedViewsMenu() {
     if (!endpoints.schedules || !scheduleView || !recipients.trim()) return
     setPending(true)
     setError(undefined)
+    setStatus(undefined)
     try {
       await requestJSON<ExportSchedule>(endpoints.schedules, csrfToken(container.current), {
         method: 'POST',
@@ -228,6 +233,34 @@ export function SavedViewsMenu() {
     } catch (cause: unknown) {
       console.error('[lens] schedule could not be saved', cause)
       setError(translate('views.scheduleSaveError', 'Schedule could not be saved'))
+      setPending(false)
+    }
+  }
+
+  const reenableSchedule = async (schedule: ExportSchedule) => {
+    if (!endpoints.schedules) return
+    setPending(true)
+    setError(undefined)
+    setStatus(undefined)
+    try {
+      await requestJSON<ExportSchedule>(endpoints.schedules, csrfToken(container.current), {
+        method: 'POST',
+        body: JSON.stringify({
+          id: schedule.id,
+          dashboardId: schedule.dashboardId,
+          viewId: schedule.viewId,
+          name: schedule.name,
+          cron: schedule.cron,
+          timezone: schedule.timezone,
+          recipients: schedule.recipients,
+          enabled: true,
+        }),
+      })
+      await load()
+      setStatus(translate('views.scheduleReenabled', '{name} re-enabled', { name: schedule.name }))
+    } catch (cause: unknown) {
+      console.error('[lens] schedule could not be re-enabled', cause)
+      setError(translate('views.scheduleReenableError', 'Schedule could not be re-enabled'))
       setPending(false)
     }
   }
@@ -309,15 +342,32 @@ export function SavedViewsMenu() {
                 <div className="lens-saved-view-row" key={schedule.id}>
                   <small className="lens-saved-view-schedule">
                     {schedule.name} · {schedule.cron} · {schedule.recipients.join(', ')}
-                    {schedule.nextRunAt && <> · {translate('views.nextRun', 'Next run: {time}', { time: schedule.nextRunAt })}</>}
+                    {schedule.enabled !== false && schedule.nextRunAt && <> · {translate('views.nextRun', 'Next run: {time}', { time: schedule.nextRunAt })}</>}
+                    {schedule.enabled === false && (
+                      <span className="lens-saved-view-disabled" role="status">
+                        {translate('views.scheduleDisabled', 'Disabled after {count} consecutive failures', { count: schedule.consecutiveFailures })}
+                      </span>
+                    )}
                     {schedule.lastError && <span className="lens-saved-view-error" role="alert">{schedule.lastError}</span>}
                   </small>
+                  {schedule.enabled === false && (
+                    <button
+                      aria-label={translate('views.scheduleReenable', 'Re-enable {name}', { name: schedule.name })}
+                      className="lens-saved-view-reenable"
+                      disabled={pending}
+                      onClick={() => { void reenableSchedule(schedule) }}
+                      type="button"
+                    >
+                      {translate('views.reenable', 'Re-enable')}
+                    </button>
+                  )}
                   <button aria-label={translate('views.delete', 'Delete {name}', { name: schedule.name })} className="lens-saved-view-delete" onClick={() => { void removeSchedule(schedule.id) }} type="button">×</button>
                 </div>
               ))}
             </div>
           )}
           {pending && <span className="lens-muted" role="status">{translate('views.loading', 'Loading…')}</span>}
+          {status && <span className="lens-export-message" role="status">{status}</span>}
           {error && <span className="lens-export-message lens-export-message-error" role="alert">{error}</span>}
         </div>
       )}

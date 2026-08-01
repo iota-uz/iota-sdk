@@ -66,22 +66,52 @@ type Mailer interface {
 	Send(context.Context, Mail) error
 }
 
-type ScheduleRunner struct {
-	store    Store
-	exporter WorkbookExporter
-	mailer   Mailer
-	batch    int
-	mu       sync.Mutex
+type ScheduleFailureStage string
+
+const (
+	ScheduleFailureStageAuthorization ScheduleFailureStage = "authorization"
+	ScheduleFailureStageExport        ScheduleFailureStage = "export"
+	ScheduleFailureStageMail          ScheduleFailureStage = "mail"
+)
+
+type ScheduleFailureEvent struct {
+	Schedule ExportSchedule
+	Stage    ScheduleFailureStage
+	Err      error
 }
 
-func NewScheduleRunner(store Store, exporter WorkbookExporter, mailer Mailer, batch int) (*ScheduleRunner, error) {
+type ScheduleFailureObserver interface {
+	ObserveScheduleFailure(context.Context, ScheduleFailureEvent)
+}
+
+type ScheduleRunnerConfig struct {
+	BatchSize               int
+	ConsecutiveFailureLimit int
+	FailureObserver         ScheduleFailureObserver
+}
+
+type ScheduleRunner struct {
+	store        Store
+	exporter     WorkbookExporter
+	mailer       Mailer
+	batch        int
+	failureLimit int
+	observer     ScheduleFailureObserver
+	mu           sync.Mutex
+}
+
+func NewScheduleRunner(store Store, exporter WorkbookExporter, mailer Mailer, config ScheduleRunnerConfig) (*ScheduleRunner, error) {
 	if store == nil || exporter == nil || mailer == nil {
 		return nil, fmt.Errorf("store, exporter, and mailer are required")
 	}
-	if batch <= 0 {
-		batch = 25
+	if config.BatchSize <= 0 {
+		config.BatchSize = 25
 	}
-	return &ScheduleRunner{store: store, exporter: exporter, mailer: mailer, batch: batch}, nil
+	config.ConsecutiveFailureLimit = normalizedFailureLimit(config.ConsecutiveFailureLimit)
+	return &ScheduleRunner{
+		store: store, exporter: exporter, mailer: mailer,
+		batch: config.BatchSize, failureLimit: config.ConsecutiveFailureLimit, observer: config.FailureObserver,
+	}, nil
 }
 
 // RunDue renders and mails each due workbook independently. Delivery is
@@ -98,7 +128,7 @@ func (r *ScheduleRunner) RunDue(ctx context.Context, now time.Time) error {
 	}
 	var failures []error
 	for _, schedule := range due {
-		runErr := r.deliver(ctx, schedule)
+		failureStage, runErr := r.deliver(ctx, schedule)
 		finishedAt := time.Now().UTC()
 		if finishedAt.Before(now) {
 			finishedAt = now
@@ -109,16 +139,17 @@ func (r *ScheduleRunner) RunDue(ctx context.Context, now time.Time) error {
 			next = finishedAt.Add(24 * time.Hour).UTC()
 		}
 		finishCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), scheduleFinishTimeout)
-		if finishErr := r.store.FinishSchedule(
-			finishCtx,
-			schedule.TenantID,
-			schedule.ID,
-			schedule.NextRunAt,
-			finishedAt,
-			next,
-			runErr,
-		); finishErr != nil {
+		completed, finishErr := r.store.FinishSchedule(finishCtx, ScheduleCompletion{
+			TenantID: schedule.TenantID, ScheduleID: schedule.ID, ClaimedUntil: schedule.NextRunAt,
+			RanAt: finishedAt, NextRunAt: next, RunError: runErr,
+			ConsecutiveFailureLimit: r.failureLimit,
+		})
+		if finishErr != nil {
 			runErr = errors.Join(runErr, finishErr)
+		} else if runErr != nil && r.observer != nil {
+			r.observer.ObserveScheduleFailure(context.WithoutCancel(ctx), ScheduleFailureEvent{
+				Schedule: completed, Stage: failureStage, Err: runErr,
+			})
 		}
 		cancel()
 		if runErr != nil {
@@ -128,24 +159,27 @@ func (r *ScheduleRunner) RunDue(ctx context.Context, now time.Time) error {
 	return errors.Join(failures...)
 }
 
-func (r *ScheduleRunner) deliver(ctx context.Context, schedule ExportSchedule) error {
+func (r *ScheduleRunner) deliver(ctx context.Context, schedule ExportSchedule) (ScheduleFailureStage, error) {
 	if err := r.exporter.AuthorizeScheduledExport(ctx, schedule); err != nil {
-		return fmt.Errorf("scheduled export authorization failed: %w", err)
+		return ScheduleFailureStageAuthorization, fmt.Errorf("scheduled export authorization failed: %w", err)
 	}
 	workbook, err := r.exporter.ExportSavedView(ctx, schedule)
 	if err != nil {
-		return fmt.Errorf("export workbook: %w", err)
+		return ScheduleFailureStageExport, fmt.Errorf("export workbook: %w", err)
 	}
 	if len(workbook.Content) == 0 || workbook.Filename == "" {
-		return fmt.Errorf("exporter returned an empty workbook")
+		return ScheduleFailureStageExport, fmt.Errorf("exporter returned an empty workbook")
 	}
 	if strings.TrimSpace(workbook.MailSubject) == "" || strings.TrimSpace(workbook.MailBody) == "" {
-		return fmt.Errorf("exporter returned empty localized mail content")
+		return ScheduleFailureStageExport, fmt.Errorf("exporter returned empty localized mail content")
 	}
-	return r.mailer.Send(ctx, Mail{
+	if err := r.mailer.Send(ctx, Mail{
 		Recipients: append([]string(nil), schedule.Recipients...),
 		Subject:    workbook.MailSubject,
 		Body:       workbook.MailBody,
 		Attachment: workbook,
-	})
+	}); err != nil {
+		return ScheduleFailureStageMail, fmt.Errorf("send workbook: %w", err)
+	}
+	return "", nil
 }

@@ -125,6 +125,7 @@ func TestTeamViewDowngradeRevokesOtherOwnersSchedules(t *testing.T) {
 
 type recordingExporter struct {
 	authorizeErr   error
+	exportErr      error
 	authorizations int
 	calls          int
 	stateURL       string
@@ -138,14 +139,34 @@ func (e *recordingExporter) AuthorizeScheduledExport(_ context.Context, _ Export
 func (e *recordingExporter) ExportSavedView(_ context.Context, schedule ExportSchedule) (Workbook, error) {
 	e.calls++
 	e.stateURL = schedule.StateURL
+	if e.exportErr != nil {
+		return Workbook{}, e.exportErr
+	}
 	return Workbook{Filename: "claims.xlsx", Content: []byte("xlsx"), MailSubject: "Weekly claims report", MailBody: "Your scheduled claims report is attached."}, nil
 }
 
-type recordingMailer struct{ mails []Mail }
+type recordingMailer struct {
+	mails []Mail
+	err   error
+}
 
 func (m *recordingMailer) Send(_ context.Context, mail Mail) error {
 	m.mails = append(m.mails, mail)
-	return nil
+	return m.err
+}
+
+type recordingFailureObserver struct{ events []ScheduleFailureEvent }
+
+func (o *recordingFailureObserver) ObserveScheduleFailure(_ context.Context, event ScheduleFailureEvent) {
+	o.events = append(o.events, event)
+}
+
+func TestScheduleRunnerUsesOperationalDefaults(t *testing.T) {
+	t.Parallel()
+	runner, err := NewScheduleRunner(NewMemoryStore(), &recordingExporter{}, &recordingMailer{}, ScheduleRunnerConfig{})
+	require.NoError(t, err)
+	require.Equal(t, 25, runner.batch)
+	require.Equal(t, DefaultConsecutiveFailureLimit, runner.failureLimit)
 }
 
 type cancelingExporter struct{ cancel context.CancelFunc }
@@ -164,20 +185,12 @@ type contextCheckingFinishStore struct {
 	finishContextErr error
 }
 
-func (s *contextCheckingFinishStore) FinishSchedule(
-	ctx context.Context,
-	tenantID uuid.UUID,
-	id uuid.UUID,
-	claimedUntil time.Time,
-	ranAt time.Time,
-	nextRun time.Time,
-	runErr error,
-) error {
+func (s *contextCheckingFinishStore) FinishSchedule(ctx context.Context, completion ScheduleCompletion) (ExportSchedule, error) {
 	s.finishContextErr = ctx.Err()
 	if s.finishContextErr != nil {
-		return s.finishContextErr
+		return ExportSchedule{}, s.finishContextErr
 	}
-	return s.Store.FinishSchedule(ctx, tenantID, id, claimedUntil, ranAt, nextRun, runErr)
+	return s.Store.FinishSchedule(ctx, completion)
 }
 
 func TestScheduleRunnerExportsAndMailsTheSavedSlice(t *testing.T) {
@@ -197,7 +210,7 @@ func TestScheduleRunnerExportsAndMailsTheSavedSlice(t *testing.T) {
 
 	exporter := &recordingExporter{}
 	mailer := &recordingMailer{}
-	runner, err := NewScheduleRunner(store, exporter, mailer, 10)
+	runner, err := NewScheduleRunner(store, exporter, mailer, ScheduleRunnerConfig{BatchSize: 10})
 	require.NoError(t, err)
 	require.NoError(t, runner.RunDue(t.Context(), dueAt))
 	require.Equal(t, 1, exporter.calls)
@@ -229,7 +242,7 @@ func TestScheduleRunnerDoesNotExportOrMailAfterAuthorizationRevocation(t *testin
 	require.NoError(t, err)
 	exporter := &recordingExporter{authorizeErr: errors.New("owner is inactive or no longer has dashboard access")}
 	mailer := &recordingMailer{}
-	runner, err := NewScheduleRunner(store, exporter, mailer, 1)
+	runner, err := NewScheduleRunner(store, exporter, mailer, ScheduleRunnerConfig{BatchSize: 1})
 	require.NoError(t, err)
 	err = runner.RunDue(t.Context(), schedule.NextRunAt)
 	require.ErrorContains(t, err, "scheduled export authorization failed")
@@ -241,6 +254,107 @@ func TestScheduleRunnerDoesNotExportOrMailAfterAuthorizationRevocation(t *testin
 	require.NoError(t, err)
 	require.Len(t, schedules, 1)
 	require.Contains(t, schedules[0].LastError, "owner is inactive or no longer has dashboard access")
+}
+
+func TestScheduleRunnerObservesEachDeliveryFailureAfterCompletion(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name     string
+		stage    ScheduleFailureStage
+		exporter *recordingExporter
+		mailer   *recordingMailer
+	}{
+		{name: "authorization", stage: ScheduleFailureStageAuthorization, exporter: &recordingExporter{authorizeErr: errors.New("revoked")}, mailer: &recordingMailer{}},
+		{name: "export", stage: ScheduleFailureStageExport, exporter: &recordingExporter{exportErr: errors.New("render failed")}, mailer: &recordingMailer{}},
+		{name: "mail", stage: ScheduleFailureStageMail, exporter: &recordingExporter{}, mailer: &recordingMailer{err: errors.New("SMTP failed")}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			store := NewMemoryStore()
+			access := Access{TenantID: uuid.New(), UserID: 11, ScheduleMail: true}
+			view, err := store.PutView(t.Context(), access, SavedView{
+				DashboardID: "claims", Name: "Current claims", Scope: ViewScopePersonal, StateURL: "/claims",
+			})
+			require.NoError(t, err)
+			schedule, err := store.PutSchedule(t.Context(), access, ExportSchedule{
+				DashboardID: "claims", ViewID: view.ID, Name: "Weekly claims", Cron: "0 8 * * 1", Timezone: "UTC",
+				Recipients: []string{"analyst@example.com"}, Enabled: true,
+			})
+			require.NoError(t, err)
+			observer := &recordingFailureObserver{}
+			runner, err := NewScheduleRunner(store, test.exporter, test.mailer, ScheduleRunnerConfig{
+				BatchSize: 1, ConsecutiveFailureLimit: 1, FailureObserver: observer,
+			})
+			require.NoError(t, err)
+
+			require.Error(t, runner.RunDue(t.Context(), schedule.NextRunAt))
+			require.Len(t, observer.events, 1)
+			require.Equal(t, test.stage, observer.events[0].Stage)
+			require.Equal(t, schedule.ID, observer.events[0].Schedule.ID)
+			require.Equal(t, 1, observer.events[0].Schedule.ConsecutiveFailures)
+			require.False(t, observer.events[0].Schedule.Enabled)
+			require.True(t, observer.events[0].Schedule.NextRunAt.IsZero())
+			require.Error(t, observer.events[0].Err)
+		})
+	}
+}
+
+func TestMemorySchedulePreservesAndResetsOperationalState(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore()
+	access := Access{TenantID: uuid.New(), UserID: 11, ScheduleMail: true}
+	view, err := store.PutView(t.Context(), access, SavedView{
+		DashboardID: "claims", Name: "Current claims", Scope: ViewScopePersonal, StateURL: "/claims",
+	})
+	require.NoError(t, err)
+	schedule, err := store.PutSchedule(t.Context(), access, ExportSchedule{
+		DashboardID: "claims", ViewID: view.ID, Name: "Weekly claims", Cron: "0 8 * * 1", Timezone: "UTC",
+		Recipients: []string{"analyst@example.com"}, Enabled: true,
+		LastError: "client supplied", ConsecutiveFailures: 99, LastRunAt: time.Now().UTC(),
+	})
+	require.NoError(t, err)
+	require.Empty(t, schedule.LastError)
+	require.Zero(t, schedule.ConsecutiveFailures)
+	require.True(t, schedule.LastRunAt.IsZero())
+
+	due, err := store.DueSchedules(t.Context(), schedule.NextRunAt, 1)
+	require.NoError(t, err)
+	failed, err := store.FinishSchedule(t.Context(), ScheduleCompletion{
+		TenantID: access.TenantID, ScheduleID: schedule.ID, ClaimedUntil: due[0].NextRunAt,
+		RanAt: schedule.NextRunAt, NextRunAt: schedule.NextRunAt.Add(7 * 24 * time.Hour),
+		RunError: errors.New("delivery failed"), ConsecutiveFailureLimit: 2,
+	})
+	require.NoError(t, err)
+	require.Equal(t, 1, failed.ConsecutiveFailures)
+
+	failed.Name = "Renamed weekly claims"
+	edited, err := store.PutSchedule(t.Context(), access, failed)
+	require.NoError(t, err)
+	require.Equal(t, failed.LastRunAt, edited.LastRunAt)
+	require.Equal(t, failed.LastError, edited.LastError)
+	require.Equal(t, failed.ConsecutiveFailures, edited.ConsecutiveFailures)
+	require.Equal(t, failed.NextRunAt, edited.NextRunAt)
+
+	due, err = store.DueSchedules(t.Context(), edited.NextRunAt, 1)
+	require.NoError(t, err)
+	disabled, err := store.FinishSchedule(t.Context(), ScheduleCompletion{
+		TenantID: access.TenantID, ScheduleID: edited.ID, ClaimedUntil: due[0].NextRunAt,
+		RanAt: edited.NextRunAt, NextRunAt: edited.NextRunAt.Add(7 * 24 * time.Hour),
+		RunError: errors.New("delivery still failed"), ConsecutiveFailureLimit: 2,
+	})
+	require.NoError(t, err)
+	require.False(t, disabled.Enabled)
+	require.Equal(t, 2, disabled.ConsecutiveFailures)
+	require.NotEmpty(t, disabled.LastError)
+
+	disabled.Enabled = true
+	reenabled, err := store.PutSchedule(t.Context(), access, disabled)
+	require.NoError(t, err)
+	require.True(t, reenabled.Enabled)
+	require.Zero(t, reenabled.ConsecutiveFailures)
+	require.Empty(t, reenabled.LastError)
+	require.False(t, reenabled.NextRunAt.IsZero())
 }
 
 func TestScheduleRunnerFinalizesClaimAfterDeliveryContextCancellation(t *testing.T) {
@@ -258,7 +372,7 @@ func TestScheduleRunnerFinalizesClaimAfterDeliveryContextCancellation(t *testing
 	})
 	require.NoError(t, err)
 	ctx, cancel := context.WithCancel(t.Context())
-	runner, err := NewScheduleRunner(store, cancelingExporter{cancel: cancel}, &recordingMailer{}, 1)
+	runner, err := NewScheduleRunner(store, cancelingExporter{cancel: cancel}, &recordingMailer{}, ScheduleRunnerConfig{BatchSize: 1})
 	require.NoError(t, err)
 	require.NoError(t, runner.RunDue(ctx, schedule.NextRunAt))
 	require.NoError(t, store.finishContextErr)
@@ -312,18 +426,22 @@ func TestScheduleFinishRequiresMatchingTenantAndActiveClaim(t *testing.T) {
 	require.Len(t, due, 1)
 
 	next := due[0].NextRunAt.Add(time.Hour)
-	require.ErrorIs(t, store.FinishSchedule(
-		t.Context(), uuid.New(), due[0].ID, due[0].NextRunAt, schedule.NextRunAt, next, nil,
-	), ErrClaimLost)
-	require.ErrorIs(t, store.FinishSchedule(
-		t.Context(), access.TenantID, due[0].ID, due[0].NextRunAt.Add(time.Second), schedule.NextRunAt, next, nil,
-	), ErrClaimLost)
-	require.NoError(t, store.FinishSchedule(
-		t.Context(), access.TenantID, due[0].ID, due[0].NextRunAt, schedule.NextRunAt, next, nil,
-	))
-	require.ErrorIs(t, store.FinishSchedule(
-		t.Context(), access.TenantID, due[0].ID, due[0].NextRunAt, schedule.NextRunAt, next, nil,
-	), ErrClaimLost)
+	completion := ScheduleCompletion{
+		TenantID: access.TenantID, ScheduleID: due[0].ID, ClaimedUntil: due[0].NextRunAt,
+		RanAt: schedule.NextRunAt, NextRunAt: next, ConsecutiveFailureLimit: 3,
+	}
+	wrongTenant := completion
+	wrongTenant.TenantID = uuid.New()
+	_, err = store.FinishSchedule(t.Context(), wrongTenant)
+	require.ErrorIs(t, err, ErrClaimLost)
+	wrongClaim := completion
+	wrongClaim.ClaimedUntil = wrongClaim.ClaimedUntil.Add(time.Second)
+	_, err = store.FinishSchedule(t.Context(), wrongClaim)
+	require.ErrorIs(t, err, ErrClaimLost)
+	_, err = store.FinishSchedule(t.Context(), completion)
+	require.NoError(t, err)
+	_, err = store.FinishSchedule(t.Context(), completion)
+	require.ErrorIs(t, err, ErrClaimLost)
 }
 
 func TestScheduleValidationRejectsInvalidStateAndRecipients(t *testing.T) {

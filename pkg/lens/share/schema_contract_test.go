@@ -20,6 +20,7 @@ func TestPostgresStoreMigrationContainsQueryContract(t *testing.T) {
 		"FOREIGN KEY (tenant_id, dashboard_id, view_id)",
 		"scope IN ('personal', 'team')",
 		"last_error TEXT NOT NULL DEFAULT ''",
+		"consecutive_failures INTEGER NOT NULL DEFAULT 0",
 		"CREATE INDEX lens_export_schedules_due_idx",
 	} {
 		require.Contains(t, schema, fragment)

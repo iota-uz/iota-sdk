@@ -276,11 +276,16 @@ const (
 	I18nViewsConfirmDelete       = "views.confirmDelete"
 	I18nViewsConfirmDeleteSched  = "views.confirmDeleteSchedule"
 	I18nViewsNextRun             = "views.nextRun"
+	I18nViewsScheduleDisabled    = "views.scheduleDisabled"
+	I18nViewsScheduleReenable    = "views.scheduleReenable"
+	I18nViewsReenable            = "views.reenable"
+	I18nViewsScheduleReenabled   = "views.scheduleReenabled"
 	I18nViewsLoadError           = "views.loadError"
 	I18nViewsSaveError           = "views.saveError"
 	I18nViewsDeleteError         = "views.deleteError"
 	I18nViewsScheduleSaveError   = "views.scheduleSaveError"
 	I18nViewsScheduleDeleteError = "views.scheduleDeleteError"
+	I18nViewsScheduleReenableErr = "views.scheduleReenableError"
 	I18nViewsTriggerTitle        = "views.triggerTitle"
 	I18nViewsDialogTitle         = "views.dialogTitle"
 	I18nViewsSavedList           = "views.savedList"
@@ -387,8 +392,9 @@ func RuntimeI18nKeys() []string {
 		I18nViewsSave, I18nViewsSchedule, I18nViewsRecipients, I18nViewsRecipientsHint,
 		I18nViewsCron, I18nViewsScheduleSave, I18nViewsLoading,
 		I18nViewsConfirmDelete, I18nViewsConfirmDeleteSched, I18nViewsNextRun,
+		I18nViewsScheduleDisabled, I18nViewsScheduleReenable, I18nViewsReenable, I18nViewsScheduleReenabled,
 		I18nViewsLoadError, I18nViewsSaveError, I18nViewsDeleteError,
-		I18nViewsScheduleSaveError, I18nViewsScheduleDeleteError,
+		I18nViewsScheduleSaveError, I18nViewsScheduleDeleteError, I18nViewsScheduleReenableErr,
 		I18nViewsTriggerTitle, I18nViewsDialogTitle, I18nViewsSavedList, I18nViewsSavedView,
 		I18nSemanticsEvidence, I18nSemanticsPartn, I18nSemanticsRecon, I18nSemanticsSeries,
 		I18nAvailConfig, I18nAvailEmptySource, I18nAvailUnavailable,

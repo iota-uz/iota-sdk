@@ -13,6 +13,8 @@ func TestRuntimeI18nDefaultsOwnNewChromeAndPlaceholders(t *testing.T) {
 		I18nChartGaugeValue, I18nChartGaugeRange, I18nChartData, I18nChartOpenMark,
 		I18nPanelError, I18nPanelTrendNew, I18nPanelTrendNotAvailable,
 		I18nViewsConfirmDelete, I18nViewsConfirmDeleteSched, I18nViewsNextRun,
+		I18nViewsScheduleDisabled, I18nViewsScheduleReenable, I18nViewsReenable,
+		I18nViewsScheduleReenabled, I18nViewsScheduleReenableErr,
 		I18nTableBooleanYes, I18nTableBooleanNo, I18nTableScrollLeft, I18nTableScrollRight,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
 		I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage,
@@ -27,6 +29,9 @@ func TestRuntimeI18nDefaultsOwnNewChromeAndPlaceholders(t *testing.T) {
 	require.Contains(t, defaults[I18nChartSeriesMovingAverage], "{window}")
 	require.Contains(t, defaults[I18nChartSeriesForecastLower], "{forecast}")
 	require.Contains(t, defaults[I18nViewsNextRun], "{time}")
+	require.Contains(t, defaults[I18nViewsScheduleDisabled], "{count}")
+	require.Contains(t, defaults[I18nViewsScheduleReenable], "{name}")
+	require.Contains(t, defaults[I18nViewsScheduleReenabled], "{name}")
 
 	defaults[I18nPanelError] = "mutated"
 	require.NotEqual(t, "mutated", RuntimeI18nDefaults()[I18nPanelError])

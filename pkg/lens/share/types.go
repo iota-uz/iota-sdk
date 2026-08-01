@@ -98,22 +98,23 @@ func (v SavedView) Validate() error {
 }
 
 type ExportSchedule struct {
-	ID          uuid.UUID `json:"id"`
-	TenantID    uuid.UUID `json:"-"`
-	OwnerUserID uint      `json:"ownerUserId"`
-	DashboardID string    `json:"dashboardId"`
-	ViewID      uuid.UUID `json:"viewId"`
-	StateURL    string    `json:"-"`
-	Name        string    `json:"name"`
-	Cron        string    `json:"cron"`
-	Timezone    string    `json:"timezone"`
-	Recipients  []string  `json:"recipients"`
-	Enabled     bool      `json:"enabled"`
-	NextRunAt   time.Time `json:"nextRunAt"`
-	LastRunAt   time.Time `json:"lastRunAt,omitempty"`
-	LastError   string    `json:"lastError,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID                  uuid.UUID `json:"id"`
+	TenantID            uuid.UUID `json:"-"`
+	OwnerUserID         uint      `json:"ownerUserId"`
+	DashboardID         string    `json:"dashboardId"`
+	ViewID              uuid.UUID `json:"viewId"`
+	StateURL            string    `json:"-"`
+	Name                string    `json:"name"`
+	Cron                string    `json:"cron"`
+	Timezone            string    `json:"timezone"`
+	Recipients          []string  `json:"recipients"`
+	Enabled             bool      `json:"enabled"`
+	NextRunAt           time.Time `json:"nextRunAt"`
+	LastRunAt           time.Time `json:"lastRunAt,omitempty"`
+	LastError           string    `json:"lastError,omitempty"`
+	ConsecutiveFailures int       `json:"consecutiveFailures"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }
 
 func (s ExportSchedule) Validate() error {

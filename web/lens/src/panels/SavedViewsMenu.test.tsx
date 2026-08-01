@@ -62,6 +62,59 @@ describe('SavedViewsMenu', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Delivery failed')
   })
 
+  it('renders an auto-disabled schedule and re-enables it with its full configuration', async () => {
+    const requests: Array<{ url: string; init?: RequestInit }> = []
+    let reenabled = false
+    const schedule = {
+      id: 'schedule-1', dashboardId: 'small', viewId: 'view-1', name: 'Weekly', cron: '0 8 * * 1', timezone: 'UTC',
+      recipients: ['analyst@example.com'], enabled: false, consecutiveFailures: 3, nextRunAt: '0001-01-01T00:00:00Z',
+      lastError: 'Saved page exceeded 2 MiB',
+    }
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      requests.push({ url, init })
+      if (init?.method === 'POST' && url === '/lens/share/schedules') {
+        reenabled = true
+        return Promise.resolve(new Response(JSON.stringify({ ...schedule, enabled: true, consecutiveFailures: 0, lastError: '' }), { status: 200 }))
+      }
+      if (url.startsWith('/lens/share/schedules?')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          schedules: [{ ...schedule, enabled: reenabled, consecutiveFailures: reenabled ? 0 : 3, lastError: reenabled ? '' : schedule.lastError }],
+        }), { status: 200 }))
+      }
+      return Promise.resolve(new Response(JSON.stringify({
+        views: [{ id: 'view-1', dashboardId: 'small', name: 'Team baseline', scope: 'team', stateUrl: '/claims?year=2026' }],
+        capabilities: { manageTeam: false, scheduleMail: true },
+      }), { status: 200 }))
+    }))
+    const document_ = parseDocument({
+      ...fixture,
+      endpoints: { ...fixture.endpoints, views: '/lens/share/views', schedules: '/lens/share/schedules' },
+    })
+    render(
+      <DocumentProvider initialDocument={document_}>
+        <DashboardRuntimeProvider locale="en"><SavedViewsMenu /></DashboardRuntimeProvider>
+      </DocumentProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Views' }))
+    expect(await screen.findByText('Disabled after 3 consecutive failures')).toHaveAttribute('role', 'status')
+    expect(screen.getByRole('alert')).toHaveTextContent('Saved page exceeded 2 MiB')
+    expect(screen.queryByText(/Next run:/)).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Re-enable Weekly' }))
+
+    await waitFor(() => expect(requests.some(({ url, init }) => url === '/lens/share/schedules' && init?.method === 'POST')).toBe(true))
+    const posted = requests.find(({ url, init }) => url === '/lens/share/schedules' && init?.method === 'POST')
+    expect(typeof posted?.init?.body === 'string' ? JSON.parse(posted.init.body) : undefined).toEqual({
+      id: 'schedule-1', dashboardId: 'small', viewId: 'view-1', name: 'Weekly', cron: '0 8 * * 1', timezone: 'UTC',
+      recipients: ['analyst@example.com'], enabled: true,
+    })
+    await waitFor(() => expect(screen.getByText('Weekly re-enabled')).toHaveAttribute('role', 'status'))
+    expect(screen.queryByText('Disabled after 3 consecutive failures')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Re-enable Weekly' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Saved page exceeded 2 MiB')).not.toBeInTheDocument()
+  })
+
   it('lists, saves, and schedules exact dashboard slices', async () => {
     history.replaceState({}, '', '/analytics/claims?year=2026&lensHidden=paid#panel-losses')
     const meta = document.createElement('meta')

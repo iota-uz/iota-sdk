@@ -150,7 +150,8 @@ func (s *PostgresStore) ListSchedules(ctx context.Context, access Access, dashbo
 		SELECT schedules.id, schedules.tenant_id, schedules.owner_user_id, schedules.dashboard_id,
 		       schedules.view_id, views.state_url, schedules.name, schedules.cron_expr,
 		       schedules.timezone, schedules.recipients, schedules.enabled, schedules.next_run_at,
-		       schedules.last_run_at, schedules.last_error, schedules.created_at, schedules.updated_at
+		       schedules.last_run_at, schedules.last_error, schedules.consecutive_failures,
+		       schedules.created_at, schedules.updated_at
 		FROM lens_export_schedules AS schedules
 		JOIN lens_saved_views AS views
 		  ON views.id = schedules.view_id
@@ -188,23 +189,26 @@ func (s *PostgresStore) PutSchedule(ctx context.Context, access Access, schedule
 		return ExportSchedule{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	var existing *ExportSchedule
 	if schedule.ID != uuid.Nil {
-		var tenantID uuid.UUID
-		var ownerID int64
-		var dashboardID string
-		if err := tx.QueryRow(ctx, `SELECT tenant_id, owner_user_id, dashboard_id FROM lens_export_schedules WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, schedule.ID, access.TenantID).
-			Scan(&tenantID, &ownerID, &dashboardID); err != nil {
-			if errors.Is(err, pgx.ErrNoRows) {
+		stored, queryErr := scanSchedule(tx.QueryRow(ctx, `
+			SELECT id, tenant_id, owner_user_id, dashboard_id, view_id, ''::text, name, cron_expr,
+			       timezone, recipients, enabled, next_run_at, last_run_at, last_error,
+			       consecutive_failures, created_at, updated_at
+			FROM lens_export_schedules WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, schedule.ID, access.TenantID))
+		if queryErr != nil {
+			if errors.Is(queryErr, pgx.ErrNoRows) {
 				return ExportSchedule{}, ErrNotFound
 			}
-			return ExportSchedule{}, err
+			return ExportSchedule{}, queryErr
 		}
-		if tenantID != access.TenantID || uint(ownerID) != access.UserID {
+		if stored.TenantID != access.TenantID || stored.OwnerUserID != access.UserID {
 			return ExportSchedule{}, ErrNotFound
 		}
-		if dashboardID != schedule.DashboardID {
+		if stored.DashboardID != schedule.DashboardID {
 			return ExportSchedule{}, invalidInput(errors.New("schedule dashboard cannot be changed"))
 		}
+		existing = &stored
 	}
 	var stateURL string
 	if err := tx.QueryRow(ctx, `
@@ -220,31 +224,61 @@ func (s *PostgresStore) PutSchedule(ctx context.Context, access Access, schedule
 	}
 	schedule.StateURL = stateURL
 	now := time.Now().UTC()
-	if schedule.Enabled {
-		nextRunAt, err := schedule.Next(now)
-		if err != nil {
-			return ExportSchedule{}, err
-		}
-		schedule.NextRunAt = nextRunAt
-	} else {
-		schedule.NextRunAt = time.Time{}
-	}
-	if schedule.ID == uuid.Nil {
+	if existing == nil {
 		schedule.ID = uuid.New()
+		schedule.LastRunAt = time.Time{}
+		schedule.LastError = ""
+		schedule.ConsecutiveFailures = 0
+		if schedule.Enabled {
+			nextRunAt, nextErr := schedule.Next(now)
+			if nextErr != nil {
+				return ExportSchedule{}, nextErr
+			}
+			schedule.NextRunAt = nextRunAt
+		}
+	} else {
+		schedule.CreatedAt = existing.CreatedAt
+		schedule.LastRunAt = existing.LastRunAt
+		schedule.LastError = existing.LastError
+		schedule.ConsecutiveFailures = existing.ConsecutiveFailures
+		schedule.NextRunAt = existing.NextRunAt
+		if !existing.Enabled && schedule.Enabled {
+			schedule.LastError = ""
+			schedule.ConsecutiveFailures = 0
+			nextRunAt, nextErr := schedule.Next(now)
+			if nextErr != nil {
+				return ExportSchedule{}, nextErr
+			}
+			schedule.NextRunAt = nextRunAt
+		} else if existing.Enabled && schedule.Enabled && (existing.Cron != schedule.Cron || existing.Timezone != schedule.Timezone) {
+			nextRunAt, nextErr := schedule.Next(now)
+			if nextErr != nil {
+				return ExportSchedule{}, nextErr
+			}
+			schedule.NextRunAt = nextRunAt
+		}
+	}
+	if !schedule.Enabled {
+		schedule.NextRunAt = time.Time{}
 	}
 	stored, err := scanSchedule(tx.QueryRow(ctx, `
 		INSERT INTO lens_export_schedules
-			(id, tenant_id, owner_user_id, dashboard_id, view_id, name, cron_expr, timezone, recipients, enabled, next_run_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+			(id, tenant_id, owner_user_id, dashboard_id, view_id, name, cron_expr, timezone, recipients,
+			 enabled, next_run_at, last_run_at, last_error, consecutive_failures)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT (id) DO UPDATE SET
 			dashboard_id = EXCLUDED.dashboard_id, view_id = EXCLUDED.view_id,
 			name = EXCLUDED.name, cron_expr = EXCLUDED.cron_expr,
 			timezone = EXCLUDED.timezone, recipients = EXCLUDED.recipients,
-			enabled = EXCLUDED.enabled, next_run_at = EXCLUDED.next_run_at, updated_at = now()
+			enabled = EXCLUDED.enabled, next_run_at = EXCLUDED.next_run_at,
+			last_run_at = EXCLUDED.last_run_at, last_error = EXCLUDED.last_error,
+			consecutive_failures = EXCLUDED.consecutive_failures, updated_at = now()
 		RETURNING id, tenant_id, owner_user_id, dashboard_id, view_id, ''::text, name, cron_expr,
-		          timezone, recipients, enabled, next_run_at, last_run_at, last_error, created_at, updated_at`,
+		          timezone, recipients, enabled, next_run_at, last_run_at, last_error,
+		          consecutive_failures, created_at, updated_at`,
 		schedule.ID, schedule.TenantID, int64(schedule.OwnerUserID), schedule.DashboardID, schedule.ViewID,
-		schedule.Name, schedule.Cron, schedule.Timezone, schedule.Recipients, schedule.Enabled, nullableTime(schedule.NextRunAt)))
+		schedule.Name, schedule.Cron, schedule.Timezone, schedule.Recipients, schedule.Enabled,
+		nullableTime(schedule.NextRunAt), nullableTime(schedule.LastRunAt), schedule.LastError, schedule.ConsecutiveFailures))
 	if err != nil {
 		return ExportSchedule{}, err
 	}
@@ -301,7 +335,7 @@ func (s *PostgresStore) DueSchedules(ctx context.Context, now time.Time, limit i
 		RETURNING schedules.id, schedules.tenant_id, schedules.owner_user_id, schedules.dashboard_id,
 		          schedules.view_id, due.state_url, schedules.name, schedules.cron_expr, schedules.timezone, schedules.recipients,
 		          schedules.enabled, schedules.next_run_at, schedules.last_run_at, schedules.last_error,
-		          schedules.created_at, schedules.updated_at`,
+		          schedules.consecutive_failures, schedules.created_at, schedules.updated_at`,
 		now.UTC(), limit, now.UTC().Add(scheduleClaimLease))
 	if err != nil {
 		return nil, err
@@ -325,31 +359,33 @@ func (s *PostgresStore) DueSchedules(ctx context.Context, now time.Time, limit i
 	return schedules, nil
 }
 
-func (s *PostgresStore) FinishSchedule(
-	ctx context.Context,
-	tenantID uuid.UUID,
-	id uuid.UUID,
-	claimedUntil time.Time,
-	ranAt time.Time,
-	nextRun time.Time,
-	runErr error,
-) error {
+func (s *PostgresStore) FinishSchedule(ctx context.Context, completion ScheduleCompletion) (ExportSchedule, error) {
 	lastError := ""
-	if runErr != nil {
-		lastError = runErr.Error()
+	failed := completion.RunError != nil
+	if failed {
+		lastError = completion.RunError.Error()
 	}
-	command, err := s.pool.Exec(ctx, `
+	stored, err := scanSchedule(s.pool.QueryRow(ctx, `
 		UPDATE lens_export_schedules
-		SET last_run_at = $4, next_run_at = $5, last_error = $6, updated_at = now()
-		WHERE id = $1 AND tenant_id = $2 AND next_run_at = $3`,
-		id, tenantID, claimedUntil.UTC(), ranAt.UTC(), nextRun.UTC(), lastError)
+		SET last_run_at = $4,
+		    consecutive_failures = CASE WHEN $6 THEN consecutive_failures + 1 ELSE 0 END,
+		    last_error = CASE WHEN $6 THEN $7 ELSE '' END,
+		    enabled = CASE WHEN $6 AND consecutive_failures + 1 >= $8 THEN FALSE ELSE enabled END,
+		    next_run_at = CASE WHEN $6 AND consecutive_failures + 1 >= $8 THEN NULL ELSE $5::timestamptz END,
+		    updated_at = now()
+		WHERE id = $1 AND tenant_id = $2 AND next_run_at = $3
+		RETURNING id, tenant_id, owner_user_id, dashboard_id, view_id, ''::text, name, cron_expr,
+		          timezone, recipients, enabled, next_run_at, last_run_at, last_error,
+		          consecutive_failures, created_at, updated_at`,
+		completion.ScheduleID, completion.TenantID, completion.ClaimedUntil.UTC(), completion.RanAt.UTC(),
+		completion.NextRunAt.UTC(), failed, lastError, normalizedFailureLimit(completion.ConsecutiveFailureLimit)))
 	if err != nil {
-		return err
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ExportSchedule{}, ErrClaimLost
+		}
+		return ExportSchedule{}, err
 	}
-	if command.RowsAffected() == 0 {
-		return ErrClaimLost
-	}
-	return nil
+	return stored, nil
 }
 
 type scanner interface {
@@ -378,7 +414,8 @@ func scanSchedule(row scanner) (ExportSchedule, error) {
 	var nextRunAt, lastRunAt *time.Time
 	if err := row.Scan(&schedule.ID, &schedule.TenantID, &ownerID, &schedule.DashboardID, &schedule.ViewID, &schedule.StateURL,
 		&schedule.Name, &schedule.Cron, &schedule.Timezone, &schedule.Recipients, &schedule.Enabled,
-		&nextRunAt, &lastRunAt, &schedule.LastError, &schedule.CreatedAt, &schedule.UpdatedAt); err != nil {
+		&nextRunAt, &lastRunAt, &schedule.LastError, &schedule.ConsecutiveFailures,
+		&schedule.CreatedAt, &schedule.UpdatedAt); err != nil {
 		return ExportSchedule{}, err
 	}
 	schedule.OwnerUserID = uint(ownerID)

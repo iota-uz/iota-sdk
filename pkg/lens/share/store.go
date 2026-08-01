@@ -20,8 +20,20 @@ type Store interface {
 	PutSchedule(context.Context, Access, ExportSchedule) (ExportSchedule, error)
 	DeleteSchedule(context.Context, Access, uuid.UUID) error
 	DueSchedules(context.Context, time.Time, int) ([]ExportSchedule, error)
-	FinishSchedule(context.Context, uuid.UUID, uuid.UUID, time.Time, time.Time, time.Time, error) error
+	FinishSchedule(context.Context, ScheduleCompletion) (ExportSchedule, error)
 }
+
+type ScheduleCompletion struct {
+	TenantID                uuid.UUID
+	ScheduleID              uuid.UUID
+	ClaimedUntil            time.Time
+	RanAt                   time.Time
+	NextRunAt               time.Time
+	RunError                error
+	ConsecutiveFailureLimit int
+}
+
+const DefaultConsecutiveFailureLimit = 3
 
 type MemoryStore struct {
 	mu        sync.Mutex
@@ -170,16 +182,16 @@ func (s *MemoryStore) PutSchedule(_ context.Context, access Access, schedule Exp
 	}
 	schedule.TenantID = access.TenantID
 	schedule.OwnerUserID = access.UserID
-	var existingCreatedAt time.Time
+	var existing *ExportSchedule
 	if schedule.ID != uuid.Nil {
-		existing, exists := s.schedules[schedule.ID]
-		if !exists || existing.TenantID != access.TenantID || existing.OwnerUserID != access.UserID {
+		stored, exists := s.schedules[schedule.ID]
+		if !exists || stored.TenantID != access.TenantID || stored.OwnerUserID != access.UserID {
 			return ExportSchedule{}, ErrNotFound
 		}
-		if existing.DashboardID != schedule.DashboardID {
+		if stored.DashboardID != schedule.DashboardID {
 			return ExportSchedule{}, invalidInput(errors.New("schedule dashboard cannot be changed"))
 		}
-		existingCreatedAt = existing.CreatedAt
+		existing = &stored
 	}
 	view, ok := s.views[schedule.ViewID]
 	if !ok || view.TenantID != access.TenantID || view.DashboardID != schedule.DashboardID || (view.Scope == ViewScopePersonal && view.OwnerUserID != access.UserID) {
@@ -190,19 +202,42 @@ func (s *MemoryStore) PutSchedule(_ context.Context, access Access, schedule Exp
 		return ExportSchedule{}, invalidInput(err)
 	}
 	now := time.Now().UTC()
-	if schedule.ID == uuid.Nil {
+	if existing == nil {
 		schedule.ID = uuid.New()
 		schedule.CreatedAt = now
-	} else if !existingCreatedAt.IsZero() {
-		schedule.CreatedAt = existingCreatedAt
-	}
-	if schedule.Enabled {
-		next, err := schedule.Next(now)
-		if err != nil {
-			return ExportSchedule{}, invalidInput(err)
+		schedule.LastRunAt = time.Time{}
+		schedule.LastError = ""
+		schedule.ConsecutiveFailures = 0
+		if schedule.Enabled {
+			next, err := schedule.Next(now)
+			if err != nil {
+				return ExportSchedule{}, invalidInput(err)
+			}
+			schedule.NextRunAt = next
 		}
-		schedule.NextRunAt = next
 	} else {
+		schedule.CreatedAt = existing.CreatedAt
+		schedule.LastRunAt = existing.LastRunAt
+		schedule.LastError = existing.LastError
+		schedule.ConsecutiveFailures = existing.ConsecutiveFailures
+		schedule.NextRunAt = existing.NextRunAt
+		if !existing.Enabled && schedule.Enabled {
+			schedule.LastError = ""
+			schedule.ConsecutiveFailures = 0
+			next, err := schedule.Next(now)
+			if err != nil {
+				return ExportSchedule{}, invalidInput(err)
+			}
+			schedule.NextRunAt = next
+		} else if existing.Enabled && schedule.Enabled && (existing.Cron != schedule.Cron || existing.Timezone != schedule.Timezone) {
+			next, err := schedule.Next(now)
+			if err != nil {
+				return ExportSchedule{}, invalidInput(err)
+			}
+			schedule.NextRunAt = next
+		}
+	}
+	if !schedule.Enabled {
 		schedule.NextRunAt = time.Time{}
 	}
 	schedule.UpdatedAt = now
@@ -258,28 +293,34 @@ func (s *MemoryStore) DueSchedules(_ context.Context, now time.Time, limit int) 
 	return due, nil
 }
 
-func (s *MemoryStore) FinishSchedule(
-	_ context.Context,
-	tenantID uuid.UUID,
-	id uuid.UUID,
-	claimedUntil time.Time,
-	ranAt time.Time,
-	nextRun time.Time,
-	runErr error,
-) error {
+func (s *MemoryStore) FinishSchedule(_ context.Context, completion ScheduleCompletion) (ExportSchedule, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	schedule, ok := s.schedules[id]
-	if !ok || schedule.TenantID != tenantID || !schedule.NextRunAt.Equal(claimedUntil) {
-		return ErrClaimLost
+	schedule, ok := s.schedules[completion.ScheduleID]
+	if !ok || schedule.TenantID != completion.TenantID || !schedule.NextRunAt.Equal(completion.ClaimedUntil) {
+		return ExportSchedule{}, ErrClaimLost
 	}
-	schedule.LastRunAt = ranAt.UTC()
-	schedule.NextRunAt = nextRun.UTC()
+	schedule.LastRunAt = completion.RanAt.UTC()
+	schedule.NextRunAt = completion.NextRunAt.UTC()
 	schedule.LastError = ""
-	if runErr != nil {
-		schedule.LastError = runErr.Error()
+	if completion.RunError == nil {
+		schedule.ConsecutiveFailures = 0
+	} else {
+		schedule.LastError = completion.RunError.Error()
+		schedule.ConsecutiveFailures++
+		if schedule.ConsecutiveFailures >= normalizedFailureLimit(completion.ConsecutiveFailureLimit) {
+			schedule.Enabled = false
+			schedule.NextRunAt = time.Time{}
+		}
 	}
 	schedule.UpdatedAt = time.Now().UTC()
-	s.schedules[id] = schedule
-	return nil
+	s.schedules[completion.ScheduleID] = schedule
+	return schedule, nil
+}
+
+func normalizedFailureLimit(limit int) int {
+	if limit <= 0 {
+		return DefaultConsecutiveFailureLimit
+	}
+	return limit
 }
