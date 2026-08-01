@@ -37,11 +37,14 @@ describe('choropleth option', () => {
         map: string
         nameProperty: string
         data: Array<Record<string, unknown>>
-        label: { formatter: (params: { name?: string }) => string }
+        label: { padding: number[]; formatter: (params: { name?: string }) => string }
+        labelLayout: { hideOverlap: boolean }
       }>
     }
     expect(option.visualMap).toMatchObject({ min: 18, max: 42 })
     expect(option.series[0]).toMatchObject({ map: 'synthetic', nameProperty: 'code' })
+    expect(option.series[0]!.labelLayout).toEqual({ hideOverlap: true })
+    expect(option.series[0]!.label.padding).toEqual([4, 8])
     expect(option.series[0]!.data).toEqual([
       { name: 'north', value: 42, nodeKey: 'north', displayLabel: 'North district' },
       { name: 'south', value: 18, nodeKey: 'south', displayLabel: 'South district' },

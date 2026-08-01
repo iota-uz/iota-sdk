@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 
 const storyIds = [
+  'choropleth-map--dense-region-labels',
   'choropleth-map--state-matrix',
   'comparison-interactions--previous-period',
   'distributions--histogram',
@@ -119,6 +120,7 @@ const storyIds = [
   'parity--stacked-composition-with-a-line',
   'parity--metric-group',
   'parity--metric-group-info',
+  'parity--metric-group-responsive',
   'parity--metric-group-sparkline',
   'parity--panel-header-pressure',
   'parity--panel-skeletons-dark',
@@ -132,6 +134,7 @@ const storyIds = [
 ] as const
 
 const staticStories = [
+  ['choropleth-map--dense-region-labels', 1, 10],
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
   ['choropleth-map--state-matrix', 2, 10],
@@ -342,6 +345,7 @@ test('VR manifest covers every Ladle story', async ({ request }) => {
   const covered = new Set<string>([
     ...staticStories.map(([storyId]) => storyId),
     ...keyframeCovered,
+    'parity--metric-group-responsive',
   ])
 
   expect(storyIds.filter((storyId) => !covered.has(storyId))).toEqual([])
@@ -351,6 +355,37 @@ for (const [storyId, canvasCount, maxDiffPixels] of staticStories) {
   test(storyId, async ({ page }) => {
     await openStory(page, storyId, canvasCount)
     await screenshot(page, storyId, { maxDiffPixels })
+  })
+}
+
+for (const [width, expectedBasis, expectedMaxWidth, expectedColumns] of [
+  [1101, '0%', 'none', 4],
+  [1100, '50%', '50%', 2],
+  [641, '50%', '50%', 2],
+  [640, '100%', '100%', 1],
+] as const) {
+  test(`parity--metric-group-responsive-${width}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 })
+    await openStory(page, 'parity--metric-group-responsive', 0)
+    const metrics = page.locator('.lens-metric-row-columns > *')
+    await expect(metrics).toHaveCount(4)
+    const layout = await metrics.evaluateAll((elements) => elements.map((element) => {
+      const style = getComputedStyle(element)
+      return { basis: style.flexBasis, maxWidth: style.maxWidth }
+    }))
+    expect(layout.map(({ basis }) => basis)).toEqual(Array(4).fill(expectedBasis))
+    expect(layout.map(({ maxWidth }) => maxWidth)).toEqual(Array(4).fill(expectedMaxWidth))
+    const boxes = await metrics.evaluateAll((elements) => elements.map((element) => {
+      const { left, top, width: elementWidth } = element.getBoundingClientRect()
+      return { left, top, width: elementWidth }
+    }))
+    expect(new Set(boxes.map(({ left }) => Math.round(left))).size).toBe(expectedColumns)
+    expect(new Set(boxes.map(({ top }) => Math.round(top))).size).toBe(4 / expectedColumns)
+    if (width <= 1100) {
+      expect(Math.max(...boxes.map(({ width: elementWidth }) => elementWidth))
+        - Math.min(...boxes.map(({ width: elementWidth }) => elementWidth))).toBeLessThanOrEqual(1)
+    }
+    await screenshot(page, `parity--metric-group-responsive-${width}`)
   })
 }
 

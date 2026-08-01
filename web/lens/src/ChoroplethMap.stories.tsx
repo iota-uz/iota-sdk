@@ -24,13 +24,13 @@ const regions: Frame = {
   ],
 }
 
-function mapPanel(id: string, title: string, deferred = false): Panel {
+function mapPanel(id: string, title: string, deferred = false, mapGeometry = geometry): Panel {
   return {
     id, kind: 'map', title, semantics: 'series', frame: `${id}:frame`, deferred,
     encoding: { id: 'code', label: 'name', value: 'policies' },
     format: { policies: { kind: 'number', minorUnits: false, precision: 0 } },
     map: {
-      source: { inline: geometry }, featureProperty: 'code', labelProperty: 'name',
+      source: { inline: mapGeometry }, featureProperty: 'code', labelProperty: 'name',
       attribution: '© Example contributors · Synthetic boundaries (ODbL)',
     },
     terminal: true, actions: [],
@@ -98,3 +98,54 @@ export const StateMatrix: Story = () => (
   </div>
 )
 StateMatrix.storyName = 'State matrix'
+
+const denseRegionSpecs = [
+  ['karakalpakstan', 'Республика Каракалпакстан', 0, 2.5, 4, 5],
+  ['khorezm', 'Хорезмская область', 1, 2, 3, 2.8],
+  ['navoi', 'Навоийская область', 3, 2.2, 6, 5],
+  ['bukhara', 'Бухарская область', 3, 1.1, 5, 2.2],
+  ['kashkadarya', 'Кашкадарьинская область', 4, 0, 6, 1.1],
+  ['surkhandarya', 'Сурхандарьинская область', 5, -1, 6.5, 0],
+  ['samarkand', 'Самаркандская область', 5, 1.1, 6.5, 2.2],
+  ['jizzakh', 'Джизакская область', 6.2, 1.4, 7.1, 2.3],
+  ['syrdarya', 'Сырдарьинская область', 7, 1.6, 7.8, 2.3],
+  ['tashkent-region', 'Ташкентская область', 7.7, 1.8, 9, 2.7],
+  ['tashkent-city', 'город Ташкент', 8, 1.9, 8.2, 2.1],
+  ['namangan', 'Наманганская область', 8.7, 2.1, 9.7, 2.8],
+  ['fergana', 'Ферганская область', 8.9, 1.5, 10, 2.1],
+  ['andijan', 'Андижанская область', 9.5, 2, 10.3, 2.6],
+] as const
+
+const denseGeometry: GeoJSONFeatureCollection = {
+  type: 'FeatureCollection',
+  features: denseRegionSpecs.map(([code, name, x0, y0, x1, y1]) => ({
+    type: 'Feature',
+    properties: { code, name },
+    geometry: { type: 'Polygon', coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] },
+  })),
+}
+
+const densePanel = mapPanel('dense-map', 'Регион', false, denseGeometry)
+const denseDocument: DashboardDocument = {
+  ...dashboardDocument,
+  snapshotId: 'synthetic-dense-map',
+  meta: { ...dashboardDocument.meta, dashboardId: 'synthetic-dense-map', title: 'Dense regional map', locale: 'ru' },
+  header: undefined,
+  layout: { rows: [{ panels: [{ panelId: densePanel.id, span: 12 }] }] },
+  panels: [densePanel],
+  frames: {
+    'dense-map:frame': {
+      columns: regions.columns,
+      rows: denseRegionSpecs.map(([code, name], index) => [code, name, index + 1]),
+    },
+  },
+}
+
+export const DenseRegionLabels: Story = () => (
+  <div className="lens-root" style={{ width: 500 }}>
+    <DocumentProvider initialDocument={denseDocument} fetcher={fetcher}>
+      <DashboardRuntimeProvider locale="ru" fetcher={fetcher}><DashboardPanels registry={registry} /></DashboardRuntimeProvider>
+    </DocumentProvider>
+  </div>
+)
+DenseRegionLabels.storyName = 'Dense region labels'

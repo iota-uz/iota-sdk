@@ -1,7 +1,7 @@
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
 import { DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent } from 'echarts/components'
 import { init, registerMap, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
-import { UniversalTransition } from 'echarts/features'
+import { LabelLayout, UniversalTransition } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
@@ -11,7 +11,7 @@ import { buildEChartsTheme } from './theme'
 registerEChartsModules([
   BarChart, LineChart, PieChart,
   DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent,
-  CanvasRenderer, UniversalTransition,
+  CanvasRenderer, LabelLayout, UniversalTransition,
 ])
 
 const optionalKinds = new Set<ChartInput['kind']>(['boxplot', 'heatmap', 'map'])

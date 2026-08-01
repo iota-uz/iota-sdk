@@ -1592,6 +1592,16 @@
     border-radius: inherit;
   }
 
+  /* The row owns child sizing, regardless of whether a metric renders as the
+     direct metric node or as a linked wrapper around it. Keeping flex-basis
+     off the child component prevents its internal layout from overriding the
+     responsive 2×2 / single-column contract below. */
+  .lens-metric-row > * {
+    box-sizing: border-box;
+    flex: 1 1 0%;
+    min-width: 0;
+  }
+
   .lens-metric-row-columns > :first-child {
     border-top-left-radius: inherit;
     border-bottom-left-radius: inherit;
@@ -1642,7 +1652,7 @@
 
   @media (max-width: 640px) {
     .lens-metric-row-columns > * {
-      flex-basis: 100%;
+      flex: 1 1 100%;
       max-width: 100%;
       border-left-width: 0 !important;
     }
@@ -1653,7 +1663,7 @@
   }
 
   .lens-stat-metric {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col lens-justify-center lens-gap-2 lens-px-4 lens-py-3;
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-justify-center lens-gap-2 lens-px-4 lens-py-3;
   }
 
   .lens-stat-metric-label {

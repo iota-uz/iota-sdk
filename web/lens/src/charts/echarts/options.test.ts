@@ -279,6 +279,46 @@ describe('slice percentages', () => {
     expect(chart.series[0]?.label?.formatter?.({ percent: 87.6459, data: { share: 12.5 } })).toBe('12.5%')
   })
 
+  it('renders real-shaped expense amounts as shares of their truthful money total', () => {
+    const total = 45_561_778_243.57
+    const chartInput: ChartInput = {
+      ...input('donut'),
+      frame: {
+        columns: [
+          { name: 'ring_id', type: 'string' },
+          { name: 'category_id', type: 'string' },
+          { name: 'category', type: 'string' },
+          { name: 'amount', type: 'number' },
+        ],
+        rows: [
+          ['components', 'acquisition_cost', 'Acquisition', 1_068_717_254.18],
+          ['components', 'operating_expenses', 'Operating', 29_812_997_444.63],
+          ['components', 'reinsurance_cost', 'Reinsurance', 14_680_063_544.76],
+        ],
+        total,
+      },
+      encoding: { id: 'category_id', label: 'category', value: 'amount' },
+      format: (_field, value) => `${(Number(value) / 1_000_000_000).toFixed(2)} млрд UZS`,
+      presentation: { sliceLabels: 'percent' },
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ nodeKey: 'acquisition_cost', value: 1_068_717_254.18, share: 2.4 }),
+      expect.objectContaining({ nodeKey: 'operating_expenses', value: 29_812_997_444.63, share: 65.4 }),
+      expect.objectContaining({ nodeKey: 'reinsurance_cost', value: 14_680_063_544.76, share: 32.2 }),
+    ]))
+    expect(chart.series[0]?.label?.formatter?.({ data: { share: 65.4 } })).toBe('65.4%')
+    expect(chart.graphic).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        children: expect.arrayContaining([
+          expect.objectContaining({ style: expect.objectContaining({ text: '45.56 млрд UZS' }) }),
+        ]),
+      }),
+    ]))
+  })
+
   it('writes the category on the slice when asked, and only when it fits', () => {
     const chart = testOption(buildChartOption(
       { ...input('pie'), presentation: { sliceLabels: 'label' } },

@@ -160,6 +160,37 @@ export const MetricGroup: Story = () => {
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
 
+const responsiveMetrics = metrics.map(({ panel, value }, index) => ({
+  panel: index === 0
+    ? {
+      ...panel,
+      terminal: false,
+      actions: [{ kind: 'navigate' as const, urlTemplate: '/analytics/drill/loss-ratio', params: [], payload: {} }],
+    }
+    : panel,
+  value,
+}))
+
+export const MetricGroupResponsive: Story = () => {
+  const frames = Object.fromEntries(responsiveMetrics.map(({ panel, value }) => [`${panel.id}:frame`, statFrame(panel.title, value)]))
+  const doc = storyDocument(
+    responsiveMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        heading: 'АДАПТИВНАЯ KPI-ПОЛОСА',
+        panels: responsiveMetrics.map(({ panel }) => ({
+          panelId: panel.id,
+          span: 3,
+          groups: [{ id: 'responsive', kind: 'metrics' as const, layout: 'columns' as const, span: 12 }],
+        })),
+      }],
+    },
+  )
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+MetricGroupResponsive.storyName = 'Metric group responsive'
+
 /**
  * The compact metric form now carries the same quiet trend line the hero stat
  * card does when the wire supplies `Panel.sparkline`. The first two metrics

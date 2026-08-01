@@ -346,7 +346,11 @@ func (h *Handlers) loadPanelValue(
 		if panelResult.Error != nil {
 			return nil, panelResult.Error
 		}
-		wire, err := wireFrame(ref, panelSpec, nil, panelResult)
+		projectionSpec, err := progressiveProjectionSpec(panelSpec, panelResult.Panel)
+		if err != nil {
+			return nil, err
+		}
+		wire, err := wireFrame(ref, projectionSpec, nil, panelResult)
 		if err != nil {
 			return nil, err
 		}
@@ -371,6 +375,23 @@ func (h *Handlers) loadPanelValue(
 		}
 		return panel, nil
 	}
+}
+
+// progressiveProjectionSpec keeps the document's structural panel contract
+// frozen while accepting rendering metadata that can only be known after the
+// deferred panel executes against real data.
+func progressiveProjectionSpec(frozen panel.Spec, executed panel.Spec) (panel.Spec, error) {
+	if executed.ID != frozen.ID {
+		return panel.Spec{}, fmt.Errorf("executed panel %q does not match frozen panel %q", executed.ID, frozen.ID)
+	}
+	if executed.Kind != frozen.Kind {
+		return panel.Spec{}, fmt.Errorf("executed panel %q changed kind from %q to %q", frozen.ID, frozen.Kind, executed.Kind)
+	}
+	result := frozen
+	result.TotalBadgeValue = executed.TotalBadgeValue
+	result.Presentation = executed.Presentation
+	result.Colors = append([]string(nil), executed.Colors...)
+	return result, nil
 }
 
 func successfulPanel(ref document.FrameRef, frame document.Frame, calculation document.PanelCalculation, summary *document.TableSummary, page *document.QueryPage) document.PanelBatchResult {

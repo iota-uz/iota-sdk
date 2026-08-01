@@ -51,6 +51,7 @@ type fakeExecutor struct {
 	blockOnce   sync.Once
 	cacheHit    bool
 	pageHasMore map[string]map[int]bool
+	panelSpecs  map[string]panel.Spec
 }
 
 func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
@@ -110,6 +111,9 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 	target, ok := lens.FindPanel(spec, panelID)
 	if !ok {
 		return nil, errors.New("scoped panel is missing")
+	}
+	if actual, exists := f.panelSpecs[panelID]; exists {
+		target = actual
 	}
 	frames := f.frames[panelID]
 	if selected := f.pathFrames[panelID+":"+strings.Join(req.Request["lens_explore_path"], "/")]; selected != nil {
@@ -213,6 +217,50 @@ func TestHandlers_PanelBatchPreservesPerPanelResultsAndRejectsForeignScope(t *te
 	foreign := httptest.NewRecorder()
 	handlers.Panel(foreign, httptest.NewRequest(http.MethodPost, "/dash/lens/panel?tenant=tenant:two", marshal(t, request)))
 	require.Equal(t, http.StatusGone, foreign.Code)
+}
+
+func TestHandlers_ProgressivePanelUsesExecutedTotalInsteadOfShellPlaceholder(t *testing.T) {
+	t.Parallel()
+
+	const total = 45_561_778_243.57
+	primary, err := frame.New("expenses",
+		frame.Field{Name: "ring_id", Type: frame.FieldTypeString, Values: []any{"components", "components", "components"}},
+		frame.Field{Name: "category_id", Type: frame.FieldTypeString, Values: []any{"acquisition_cost", "operating_expenses", "reinsurance_cost"}},
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Values: []any{"Acquisition", "Operating", "Reinsurance"}},
+		frame.Field{Name: "amount", Type: frame.FieldTypeNumber, Values: []any{1_068_717_254.18, 29_812_997_444.63, 14_680_063_544.76}},
+	)
+	require.NoError(t, err)
+	frames, err := frame.NewFrameSet(primary)
+	require.NoError(t, err)
+	shellPanel := panel.Donut("expenses", "Expenses", "expenses").
+		IDField("category_id").LabelField("category").ValueField("amount").
+		TotalBadgeValue(3).Terminal().Build()
+	actualPanel := shellPanel
+	actualTotal := float64(total)
+	actualPanel.TotalBadgeValue = &actualTotal
+	spec := lens.DashboardSpec{
+		ID: "expenses", Title: "Expenses", Rows: []lens.RowSpec{{Panels: []panel.Spec{shellPanel}}},
+		Datasets: []lens.DatasetSpec{staticDataset("expenses", frames)},
+	}
+	executor := &fakeExecutor{
+		frames:     map[string]*frame.FrameSet{"expenses": frames},
+		panelSpecs: map[string]panel.Spec{"expenses": actualPanel},
+	}
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: document.NewMemoryStore(time.Minute, 8), BasePath: "/dash", Progressive: true,
+		Request: func(*http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: "tenant:one"}
+		},
+	})
+	require.NoError(t, err)
+	doc := requestDocument(t, handlers, "/dash/document")
+	recorder := requestPanel(t, handlers, doc.SnapshotID, PanelRequest{PanelID: "expenses"}, "")
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+	var response PanelResponse
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	wire := response.Frames[document.FrameRef("panel:expenses")]
+	require.NotNil(t, wire.Total)
+	require.InDelta(t, total, *wire.Total, 0.01)
 }
 
 func TestHandlers_PanelBatchFlushesFastResultBeforeSlowPanelCompletes(t *testing.T) {

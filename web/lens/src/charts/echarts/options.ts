@@ -328,9 +328,17 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
         show: true,
         color: theme.text,
         fontSize: 10,
+        // Also reserve a small clear zone between labels whose glyph bounds
+        // merely touch; without it dense neighbouring names read as one line.
+        padding: [4, 8],
         formatter: (params: { name?: string }) =>
           frameLabels.get(params.name ?? '') ?? featureLabels.get(params.name ?? '') ?? params.name ?? '',
       },
+      // Region centroids are fixed by the boundary geometry. Moving their
+      // labels would visually associate names with the wrong region, so keep
+      // the centroid position and suppress only labels that collide. The
+      // region name and value remain available from the item tooltip.
+      labelLayout: { hideOverlap: true },
       itemStyle: { areaColor: theme.divider, borderColor: theme.card, borderWidth: 1.5 },
       emphasis: {
         label: { show: true, color: theme.selectedBorder, fontWeight: 600 },
