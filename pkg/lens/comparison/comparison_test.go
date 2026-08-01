@@ -110,7 +110,7 @@ func TestApplyStaticOrdinalRejectsReorderedSeries(t *testing.T) {
 	require.ErrorContains(t, err, `ordinal comparison field "series" mismatch at row 0`)
 }
 
-func TestApplyStaticOrdinalRejectsRowCountMismatch(t *testing.T) {
+func TestApplyStaticOrdinalAlignsSharedPositionsWhenBaselineIsShorter(t *testing.T) {
 	t.Parallel()
 
 	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
@@ -121,8 +121,60 @@ func TestApplyStaticOrdinalRejectsRowCountMismatch(t *testing.T) {
 		ordinalDataset(t, "trends", []string{"2024"}, []string{"premium"}, []float64{100}),
 	}}
 
-	err := ApplyStatic(&current, &baseline, StaticOptions{})
-	require.ErrorContains(t, err, "ordinal comparison row count mismatch: current has 2 rows, baseline has 1")
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{100.0, nil}, primary.MustField(PreviousField("value")).Values)
+	require.Equal(t, []any{20.0, nil}, primary.MustField(DeltaField("value")).Values)
+}
+
+func TestApplyStaticOrdinalIgnoresBaselinePositionsWithoutCurrentRows(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2026"}, []string{"premium"}, []float64{120}),
+	}}
+	current.Datasets[0].ComparisonAlignment = lens.ComparisonAlignmentOrdinal
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2024", "2025"}, []string{"premium", "premium"}, []float64{100, 110}),
+	}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{100.0}, primary.MustField(PreviousField("value")).Values)
+	require.Equal(t, []any{20.0}, primary.MustField(DeltaField("value")).Values)
+}
+
+func TestApplyStaticOrdinalAllowsCategoryDerivedIDsAndLinks(t *testing.T) {
+	t.Parallel()
+
+	dataset := func(category, id, link string, value float64) lens.DatasetSpec {
+		fr, err := frame.New("trends",
+			frame.Field{Name: "id", Type: frame.FieldTypeString, Role: frame.RoleID, Values: []any{id}},
+			frame.Field{Name: "category", Type: frame.FieldTypeString, Role: frame.RoleDimension, Values: []any{category}},
+			frame.Field{Name: "series", Type: frame.FieldTypeString, Role: frame.RoleSeries, Values: []any{"premium"}},
+			frame.Field{Name: "link", Type: frame.FieldTypeString, Role: frame.RoleLinkParam, Values: []any{link}},
+			frame.Field{Name: "value", Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: []any{value}},
+		)
+		require.NoError(t, err)
+		set, err := frame.NewFrameSet(fr)
+		require.NoError(t, err)
+		return lens.DatasetSpec{
+			Name: "trends", Kind: lens.DatasetKindStatic, Static: set,
+			ComparisonAlignment: lens.ComparisonAlignmentOrdinal,
+		}
+	}
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		dataset("2026-01", "2026-01|premium", "/drill?month=2026-01", 120),
+	}}
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		dataset("2025-01", "2025-01|premium", "/drill?month=2025-01", 100),
+	}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{100.0}, primary.MustField(PreviousField("value")).Values)
+	require.Equal(t, []any{20.0}, primary.MustField(DeltaField("value")).Values)
 }
 
 func TestApplyStaticOrdinalAllowsEmptyBaselineAsUnavailable(t *testing.T) {

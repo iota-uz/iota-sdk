@@ -215,18 +215,12 @@ func mergeOrdinalFrames(
 	currentFrame, baselineFrame *frame.Frame,
 	currentRows, baselineRows []map[string]any,
 ) (*frame.FrameSet, error) {
-	if len(baselineRows) > 0 && len(currentRows) != len(baselineRows) {
-		return nil, fmt.Errorf(
-			"ordinal comparison row count mismatch: current has %d rows, baseline has %d",
-			len(currentRows), len(baselineRows),
-		)
-	}
-
 	stableFields, err := ordinalStableFields(currentFrame, baselineFrame)
 	if err != nil {
 		return nil, err
 	}
-	for rowIndex := range baselineRows {
+	matchedRows := min(len(currentRows), len(baselineRows))
+	for rowIndex := range matchedRows {
 		for _, field := range stableFields {
 			if !reflect.DeepEqual(currentRows[rowIndex][field], baselineRows[rowIndex][field]) {
 				return nil, fmt.Errorf(
@@ -289,10 +283,11 @@ func appendComparisonMetrics(
 	return merged, nil
 }
 
-// ordinalStableFields returns shared identity-bearing fields that must remain
+// ordinalStableFields returns shared series/group fields that must remain
 // equal at each position. A time field, or otherwise the first dimension, is
-// the ordered axis; remaining time/dimension fields, IDs, and series labels
-// are structural identity.
+// the ordered axis. IDs and link parameters are deliberately excluded because
+// they commonly encode that axis (for example month|series and a month-scoped
+// drill URL) and therefore necessarily differ between comparison periods.
 func ordinalStableFields(current, baseline *frame.Frame) ([]string, error) {
 	type fieldContract struct {
 		fieldType frame.FieldType
@@ -350,9 +345,7 @@ func ordinalStableFields(current, baseline *frame.Frame) ([]string, error) {
 			continue
 		}
 		switch field.Role {
-		case frame.RoleTime, frame.RoleDimension:
-			stable = append(stable, field.Name)
-		case frame.RoleID, frame.RoleSeries, frame.RoleLinkParam:
+		case frame.RoleTime, frame.RoleDimension, frame.RoleSeries:
 			stable = append(stable, field.Name)
 		}
 	}

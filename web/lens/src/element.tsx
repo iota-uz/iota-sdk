@@ -14,7 +14,8 @@ export class LensDashboardElement extends HTMLElement {
     const encoded = this.getAttribute('initial-document')
     if (!encoded) return undefined
     try {
-      return parseDocument(JSON.parse(globalThis.atob(encoded)))
+      const bytes = Uint8Array.from(globalThis.atob(encoded), (character) => character.charCodeAt(0))
+      return parseDocument(JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)))
     } catch (cause) {
       console.error('[lens] embedded initial document is invalid', cause)
       return undefined

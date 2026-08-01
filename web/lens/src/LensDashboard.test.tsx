@@ -236,6 +236,20 @@ describe('LensDashboard', () => {
 })
 
 describe('<lens-dashboard>', () => {
+  it('decodes an embedded document as UTF-8', async () => {
+    registerLensDashboardElement()
+    const documentFixture = structuredClone(fixture)
+    documentFixture.meta.title = 'Тренды страхового бизнеса'
+    const bytes = new TextEncoder().encode(JSON.stringify(documentFixture))
+    const encoded = btoa(Array.from(bytes, (byte) => String.fromCharCode(byte)).join(''))
+    const element = document.createElement('lens-dashboard')
+    element.setAttribute('initial-document', encoded)
+
+    act(() => document.body.append(element))
+
+    await waitFor(() => expect(screen.getByRole('heading', { name: 'Тренды страхового бизнеса' })).toBeInTheDocument())
+  })
+
   it('re-renders on attribute changes and unmounts on disconnect', () => {
     registerLensDashboardElement()
     const element = document.createElement('lens-dashboard')

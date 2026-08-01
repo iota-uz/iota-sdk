@@ -106,6 +106,7 @@ function testOption(option: EChartsOption) {
     tooltip: TestTooltip
     xAxis: TestAxis
     yAxis: TestAxis
+    grid?: { right?: number; containLabel?: boolean }
     media?: Array<{ query?: { maxWidth?: number }, option?: { series?: TestSeries[] } }>
     graphic?: TestGraphic[]
     dataZoom?: Array<{ type?: string }>
@@ -728,6 +729,15 @@ describe('buildChartOption', () => {
     expect(chart.xAxis.axisLabel?.formatter?.(time)).toBe('Jan 2026')
     expect(chart.tooltip.formatter?.([{ axisValue: time, seriesName: 'Revenue', value: [time, 1200] }]))
       .toContain('Jan 2026')
+  })
+
+  it('reserves enough right inset for the final time-axis label', () => {
+    const chartInput = input('line')
+    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.grid).toMatchObject({ right: 48, containLabel: true })
   })
 
   it('omits zero-valued series from time-axis tooltips too', () => {
