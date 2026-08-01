@@ -943,6 +943,41 @@ export const PanelHeaderPressure: Story = () => {
 }
 PanelHeaderPressure.storyName = 'Panel header pressure'
 
+const referralHeaderMetrics = [
+  { panel: statPanel('earned-total', 'Всего заработано', '#2f56d9'), value: 8.69 },
+  { panel: statPanel('available-balance', 'Доступный баланс', '#059669'), value: 2.04 },
+  { panel: statPanel('pending-balance', 'Баланс в ожидании', '#d97824'), value: 6.65 },
+  { panel: statPanel('withdrawn-total', 'Всего выведено', '#7c3aed'), value: 0 },
+]
+
+function ReferralHeaderStrip({ width }: { width: number }) {
+  const frames = Object.fromEntries(referralHeaderMetrics.map(({ panel, value }) => [
+    `${panel.id}:frame`, statFrame(panel.title, value),
+  ]))
+  const doc = storyDocument(
+    referralHeaderMetrics.map(({ panel }) => panel),
+    frames,
+    {
+      rows: [{
+        heading: `${width} PX HOST CONTENT · FOUR-UP`,
+        panels: referralHeaderMetrics.map(({ panel }) => ({ panelId: panel.id, span: 3 })),
+      }],
+    },
+  )
+  return <div style={{ width }}><Runtime doc={doc}><DashboardPanels /></Runtime></div>
+}
+
+/** Desktop-host and tablet-host content widths keep the same four-up layout.
+ * Every long title must remain visible while all export/expand controls keep
+ * their own stable row inside the card. */
+export const PanelHeaderFourUpPressure: Story = () => (
+  <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>
+    <ReferralHeaderStrip width={1030} />
+    <ReferralHeaderStrip width={640} />
+  </div>
+)
+PanelHeaderFourUpPressure.storyName = 'Panel header four-up pressure'
+
 const navigateAction = (urlTemplate: string, params: Panel['actions'][number]['params'] = []) => ({
   kind: 'navigate' as const, method: 'GET', urlTemplate, params, payload: {},
 })

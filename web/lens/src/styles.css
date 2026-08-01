@@ -1255,7 +1255,7 @@
   }
 
   .lens-panel-header {
-    @apply lens-flex lens-min-h-10 lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
+    @apply lens-flex lens-min-h-10 lens-flex-wrap lens-items-center lens-justify-between lens-gap-x-3 lens-gap-y-1 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
     /* Named container so the drill trail can decide whether its label still
        fits, which no amount of flex shrinking can express. */
     container: lens-panel-header / inline-size;
@@ -1287,6 +1287,29 @@
 
   .lens-panel-actions {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-justify-end lens-gap-2;
+  }
+
+  /* Four-up KPI cards are narrow even on a desktop viewport, so viewport
+     breakpoints cannot resolve their header pressure. Give the panel identity
+     and its fixed-size action chrome separate rows based on the card itself.
+     The title stays complete; export/expand controls remain reachable. */
+  @container lens-panel-header (max-width: 320px) {
+    .lens-panel-title {
+      @apply lens-flex-none lens-whitespace-normal lens-py-2;
+      flex-basis: 100%;
+      max-width: none;
+      overflow: visible;
+      text-overflow: clip;
+      display: block;
+      -webkit-line-clamp: unset;
+      line-clamp: unset;
+      line-height: 1.2;
+    }
+
+    .lens-panel-actions {
+      @apply lens-flex-none lens-pb-1;
+      flex-basis: 100%;
+    }
   }
 
   @media (max-width: 1100px) {

@@ -540,7 +540,11 @@ describe('panel header pressure', () => {
     )
 
     expect(container.querySelector('.lens-panel-title')).toHaveAttribute('title', panel.title)
+    expect(container.querySelector('.lens-panel-title')).toHaveTextContent(panel.title)
+    expect(container.querySelector('.lens-panel')).toHaveAccessibleName(panel.title)
     expect(container.querySelector('.lens-panel-total')).toHaveAttribute('title', 'Total: 1,000')
+    expect(screen.getByRole('button', { name: 'Export panel' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Expand panel' })).toBeEnabled()
   })
 })
 
