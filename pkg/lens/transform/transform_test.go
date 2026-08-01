@@ -290,6 +290,25 @@ func TestExpandableTopN_PreservesAndTagsRemainderRows(t *testing.T) {
 	require.Len(t, next.Primary().Rows(), 3, "expandable mode must retain the tail source rows")
 }
 
+func TestTopN_DoesNotFabricateOtherForOneRemainingCategory(t *testing.T) {
+	t.Parallel()
+
+	set, err := frame.FromRows("products",
+		frame.Row{"label": "OSAGO", "value": 100.0},
+		frame.Row{"label": "Travel", "value": 10.0},
+		frame.Row{"label": "KASKO", "value": 1.0},
+	)
+	require.NoError(t, err)
+
+	collapsed, err := Apply(set, nil, []Spec{TopN("value", 2, "Other")})
+	require.NoError(t, err)
+	require.Equal(t, []any{"OSAGO", "Travel", "KASKO"}, collapsed.Primary().MustField("label").Values)
+
+	expandable, err := Apply(set, nil, []Spec{ExpandableTopN("value", 2, "Other")})
+	require.NoError(t, err)
+	require.Equal(t, []any{nil, nil, nil}, expandable.Primary().MustField(TopNGroupField).Values)
+}
+
 func TestTopN_PreservesNonAdditiveMeasuresInOtherBucket(t *testing.T) {
 	t.Parallel()
 

@@ -789,6 +789,18 @@ function RuntimeCore({
   }, [])
   if (!frameStore.current) frameStore.current = new PanelFrameStore()
   const frames = frameStore.current
+  const markPanelFramesPending = useCallback(() => {
+    for (const panel of sourceDocument.panels) {
+      const current = frames.get(panel.id)
+      if (!current) continue
+      frames.set(panel.id, {
+        ...current,
+        isStale: Boolean(current.data),
+        isLoading: true,
+        error: null,
+      })
+    }
+  }, [frames, sourceDocument.panels])
   const translate = useCallback(
     (key: string, fallback: string) => translation(document.i18n, key, fallback),
     [document.i18n],
@@ -963,14 +975,17 @@ function RuntimeCore({
     if (controlledNavigation) return
     if (typeof window === 'undefined') return
     const onPopState = (event: PopStateEvent) => {
-      const view = navigationFromURL(new URL(window.location.href))
+      const url = new URL(window.location.href)
+      const view = navigationFromURL(url)
       const restored = navigationFromBrowserState(document, view, event.state)
+      const values = readFilterValues(documentRef.current, url)
+      if (!sameFilterValues(values, filterValuesRef.current)) markPanelFramesPending()
       dispatch(navigationActions.restore(restored, restored.history))
       syncFiltersFromURL()
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [controlledNavigation, dispatch, document, syncFiltersFromURL])
+  }, [controlledNavigation, dispatch, document, markPanelFramesPending, syncFiltersFromURL])
 
   useEffect(() => {
     const pendingPath = dynamicParentPath(document, runtimeView.path)

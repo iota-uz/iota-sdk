@@ -44,4 +44,45 @@ describe('panelSVG', () => {
     const parsed = new DOMParser().parseFromString(markup, 'image/svg+xml')
     expect(parsed.querySelector('parsererror')).toBeNull()
   })
+
+  it('exports resolved chart content without interactive chrome or hidden legend rows', async () => {
+    const panel = document.createElement('section')
+    panel.className = 'lens-panel'
+    panel.dataset.panelId = 'revenue'
+    panel.innerHTML = `
+      <header><h3>Revenue</h3><div class="lens-panel-actions"><button>Export</button></div></header>
+      <div class="lens-chart-reset-zoom">Reset zoom</div>
+      <div class="lens-chart-keyboard-actions"><button>Open mark</button></div>
+      <div class="lens-chart-legend-shell"><div class="lens-chart-legend-scroll-frame">
+        <div class="lens-chart-legend-tools"><button>Hide all</button></div>
+        <label class="lens-chart-legend-search"><input placeholder="Search legend" /></label>
+        <ul class="lens-chart-legend">
+          <li class="lens-chart-legend-item"><button><span>Visible</span></button><button class="lens-chart-legend-solo">Solo</button></li>
+          <li class="lens-chart-legend-item"><button class="lens-chart-legend-hidden"><span>Hidden</span></button></li>
+        </ul>
+      </div></div>
+      <div class="lens-chart-canvas">Resolved chart</div>
+    `
+    vi.spyOn(panel, 'getBoundingClientRect').mockReturnValue({
+      width: 800, height: 420, x: 0, y: 0, top: 0, left: 0, right: 800, bottom: 420, toJSON: () => ({}),
+    })
+    document.body.append(panel)
+
+    const markup = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onerror = () => reject(reader.error ?? new Error('blob read failed'))
+      reader.onload = () => resolve(typeof reader.result === 'string' ? reader.result : '')
+      reader.readAsText(panelSVG('revenue').blob)
+    })
+    expect(markup).toContain('Revenue')
+    expect(markup).toContain('Resolved chart')
+    expect(markup).toContain('Visible')
+    expect(markup).not.toContain('Export')
+    expect(markup).not.toContain('Reset zoom')
+    expect(markup).not.toContain('Open mark')
+    expect(markup).not.toContain('Hide all')
+    expect(markup).not.toContain('Search legend')
+    expect(markup).not.toContain('Solo')
+    expect(markup).not.toContain('Hidden')
+  })
 })

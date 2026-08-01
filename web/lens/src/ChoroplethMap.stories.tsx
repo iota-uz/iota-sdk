@@ -1,6 +1,8 @@
 import type { Story } from '@ladle/react'
 import type { DashboardDocument, Frame, GeoJSONFeatureCollection, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
+import { MapPanel } from './panels/MapPanel'
+import type { PanelRegistry } from './panels/registry'
 import { DashboardRuntimeProvider, DocumentProvider } from './runtime'
 import './styles.css'
 
@@ -80,10 +82,18 @@ const fetcher: typeof fetch = () => {
   return Promise.resolve(new Response(stream, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
 }
 
+function StateMapPanel({ panel }: { panel: Panel }) {
+  return panel.id === 'map-loading'
+    ? <MapPanel panel={panel} frame={{ isLoading: true, isStale: false, error: null, retry: () => undefined }} />
+    : <MapPanel panel={panel} />
+}
+
+const registry: PanelRegistry = { map: StateMapPanel }
+
 export const StateMatrix: Story = () => (
   <div className="lens-root">
     <DocumentProvider initialDocument={dashboardDocument} fetcher={fetcher}>
-      <DashboardRuntimeProvider locale="en" fetcher={fetcher}><DashboardPanels /></DashboardRuntimeProvider>
+      <DashboardRuntimeProvider locale="en" fetcher={fetcher}><DashboardPanels registry={registry} /></DashboardRuntimeProvider>
     </DocumentProvider>
   </div>
 )

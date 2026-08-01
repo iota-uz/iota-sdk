@@ -874,8 +874,7 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
                     aria-pressed={!isHidden}
                     className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
                     onClick={() => onToggle(key)}
-                    onDoubleClick={() => solo(key)}
-                    title={translate('chart.legendToggle', 'Toggle series; double-click to isolate')}
+                    title={translate('chart.legendToggle', 'Toggle series')}
                     type="button"
                   >
                     <span

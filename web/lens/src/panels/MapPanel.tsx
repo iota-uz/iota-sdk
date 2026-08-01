@@ -2,7 +2,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Frame, GeoJSONFeatureCollection, GeoJSONSource, MapConfig, NodeKey, Panel } from '../contract'
 import type { ChartActivation, ChartAdapter, ChartInput, ChartFormatResolver } from '../charts/adapter'
-import { useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { useDashboard, useDrill, useFormat, usePanelFrame, useTranslate, type PanelFrameState } from '../runtime'
 import { ChartHost } from './ChartHost'
 import { usePanelNavigation } from './actions'
 import { PanelFrame } from './PanelFrame'
@@ -142,14 +142,16 @@ export interface MapPanelProps {
   panel: Panel
   adapter?: ChartAdapter
   fetcher?: typeof fetch
+  frame?: PanelFrameState
 }
 
 type GeometryState = { loading: true; data?: undefined; error?: undefined }
   | { loading: false; data: GeoJSONFeatureCollection; error?: undefined }
   | { loading: false; data?: undefined; error: Error }
 
-export function MapPanel({ panel, adapter, fetcher }: MapPanelProps) {
-  const frame = usePanelFrame(panel.id)
+export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapPanelProps) {
+  const runtimeFrame = usePanelFrame(panel.id)
+  const frame = frameOverride ?? runtimeFrame
   const { document } = useDashboard()
   const { drillInto } = useDrill()
   const translate = useTranslate()

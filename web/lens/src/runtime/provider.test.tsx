@@ -43,6 +43,21 @@ const filteredProgressiveDocument = parseDocument({
   ...recurringProgressiveDocument,
   snapshotId: 'filtered-snapshot',
 })
+const popstateFilteredDocument = parseDocument({
+  ...fixture,
+  snapshotId: 'popstate-filtered',
+  filters: [{
+    id: 'age-group',
+    kind: 'facet',
+    label: 'Age group',
+    facet: {
+      dimension: 'age_group',
+      optionsEndpoint: '/lens/facets?_facet=age_group',
+      selections: [{ label: '65+', removeUrl: '/' }],
+      clearUrl: '/',
+    },
+  }],
+})
 const dynamicDocument = parseDocument({
   ...fixture,
   panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
@@ -349,6 +364,58 @@ describe('DashboardRuntimeProvider', () => {
     window.dispatchEvent(new PopStateEvent('popstate'))
     await waitFor(() => expect(screen.getByTestId('path')).toHaveTextContent('root'))
     expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
+  })
+
+  it('marks panels stale immediately and refetches once when popstate changes filters', async () => {
+    window.history.replaceState(null, '', '/?_f=age_group%3A65%2B')
+    let resolvePopstate: ((response: Response) => void) | undefined
+    const fetcher = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(JSON.stringify(popstateFilteredDocument), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolvePopstate = resolve }))
+
+    const view = render(
+      <div className="lens-root">
+        <DocumentProvider src="/lens/document" fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <StatPanel panel={popstateFilteredDocument.panels[0]!} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    expect(await screen.findByText('42')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(1)
+
+    act(() => {
+      window.history.replaceState(null, '', '/')
+      window.dispatchEvent(new PopStateEvent('popstate'))
+    })
+
+    expect(screen.getByLabelText('Total')).toHaveAttribute('data-stale', 'true')
+    expect(screen.getByLabelText('Total')).toHaveAttribute('aria-busy', 'true')
+    expect(screen.queryByText('42')).toBeNull()
+    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(fetcher.mock.calls[1]?.[0]).toBe('/lens/document')
+
+    const unfiltered = {
+      ...popstateFilteredDocument,
+      snapshotId: 'popstate-unfiltered',
+      frames: {
+        ...popstateFilteredDocument.frames,
+        'panel:total': { ...popstateFilteredDocument.frames['panel:total'], rows: [['Total', 43]] },
+      },
+    }
+    act(() => resolvePopstate?.(new Response(JSON.stringify(unfiltered), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    })))
+
+    expect(await screen.findByText('43')).toBeInTheDocument()
+    expect(screen.getByLabelText('Total')).not.toHaveAttribute('data-stale', 'true')
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
   it('restores a deep link after fetching its dynamic parent step', async () => {

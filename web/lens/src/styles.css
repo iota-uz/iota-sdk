@@ -2342,7 +2342,7 @@
   }
 
   .lens-chart-host-drillable:hover {
-    @apply lens-bg-accent-50;
+    box-shadow: inset 2px 0 0 var(--lens-accent-500);
   }
 
   .lens-chart-host-drillable:focus-visible {

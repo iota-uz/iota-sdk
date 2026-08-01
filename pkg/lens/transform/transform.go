@@ -943,6 +943,12 @@ func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *To
 	if len(rows) <= keep {
 		return sorted, nil
 	}
+	// An "Other" row must be an actual bucket. Renaming a single remaining
+	// category makes the tail longer and less truthful while aggregating
+	// nothing, so retain that category verbatim.
+	if len(rows)-keep < 2 {
+		return sorted, nil
+	}
 	out, err := frame.New(fr.Name)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -1007,7 +1013,13 @@ func applyTopNMembership(primary, ranked *frame.FrameSet, cfg *TopNConfig) (*fra
 				tail = append(tail, row)
 			}
 		}
-		outRows = append(outRows, frame.Row(topNOtherRow(primaryFrame, tail, cfg)))
+		if len(tail) < 2 {
+			for _, row := range tail {
+				outRows = append(outRows, frame.Row(row))
+			}
+		} else {
+			outRows = append(outRows, frame.Row(topNOtherRow(primaryFrame, tail, cfg)))
+		}
 	}
 	out, err := frame.New(primaryFrame.Name)
 	if err != nil {
@@ -1053,8 +1065,10 @@ func markTopNRemainder(sorted *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet
 		keep = 0
 	}
 	values := make([]any, fr.RowCount)
-	for row := keep; row < fr.RowCount; row++ {
-		values[row] = cfg.Other
+	if fr.RowCount-keep >= 2 {
+		for row := keep; row < fr.RowCount; row++ {
+			values[row] = cfg.Other
+		}
 	}
 	fr.Fields = append(fr.Fields, frame.Field{
 		Name: TopNGroupField, Type: frame.FieldTypeString, Role: frame.RoleDimension, Values: values,

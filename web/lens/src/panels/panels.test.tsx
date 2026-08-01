@@ -684,11 +684,11 @@ describe('chart encoding and drill behavior', () => {
     render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
     expect(screen.getByRole('button', { name: /Written/ })).toHaveTextContent('220')
-    fireEvent.doubleClick(screen.getByRole('button', { name: /Earned/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Isolate series' })[1]!)
     await waitFor(() => expect(inputs.at(-1)?.frame.rows.every((row) => row[1] === 'Earned')).toBe(true))
     expect(new URL(window.location.href).searchParams.getAll('lens-state').length).toBe(1)
 
-    fireEvent.doubleClick(screen.getByRole('button', { name: /Earned/ }))
+    fireEvent.click(screen.getAllByRole('button', { name: 'Isolate series' })[1]!)
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
     fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(0))

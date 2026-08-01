@@ -48,9 +48,26 @@ export function panelSVG(panelId: string): { background: string; blob: Blob; wid
   const source = panelNode(panelId)
   const bounds = source.getBoundingClientRect()
   const width = Math.max(1, Math.ceil(bounds.width || source.offsetWidth || fallbackPanelWidth))
-  const height = Math.max(1, Math.ceil(bounds.height || source.offsetHeight || fallbackPanelHeight))
+  const legendOverflow = Math.max(0, ...Array.from(source.querySelectorAll<HTMLElement>('.lens-chart-legend'))
+    .map((legend) => legend.scrollHeight - legend.clientHeight))
+  const height = Math.max(1, Math.ceil(bounds.height || source.offsetHeight || fallbackPanelHeight) + legendOverflow)
   const clone = source.cloneNode(true) as HTMLElement
-  clone.querySelectorAll('.lens-panel-actions').forEach((node) => node.remove())
+  clone.querySelectorAll([
+    '.lens-panel-actions',
+    '.lens-chart-collapse-other',
+    '.lens-chart-drill-hint',
+    '.lens-chart-keyboard-actions',
+    '.lens-chart-legend-edge',
+    '.lens-chart-legend-search',
+    '.lens-chart-legend-solo',
+    '.lens-chart-legend-tools',
+    '.lens-chart-reset-zoom',
+  ].join(',')).forEach((node) => node.remove())
+  clone.querySelectorAll('.lens-chart-legend-hidden').forEach((node) => node.closest('.lens-chart-legend-item')?.remove())
+  clone.querySelectorAll<HTMLElement>('.lens-chart-legend, .lens-chart-legend-scroll-frame, .lens-chart-legend-shell').forEach((node) => {
+    node.style.maxHeight = 'none'
+    node.style.overflow = 'visible'
+  })
   clone.style.width = `${width}px`
   clone.style.height = `${height}px`
   const sourceCanvases = Array.from(source.querySelectorAll('canvas'))
