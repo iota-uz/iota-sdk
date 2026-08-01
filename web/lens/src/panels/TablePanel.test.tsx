@@ -83,6 +83,8 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
   expect(styles).toContain('min-width: var(--lens-table-sticky-width, 0px)')
   expect(styles).toContain('.lens-table:has(.lens-table-scroll-spacer)')
   expect(styles).toContain('width: calc(100% + var(--lens-table-sticky-width, 0px))')
+  expect(styles).toContain("[data-overflow-left='true'][data-overflow-right='false']")
+  expect(styles).toContain('position: static')
 })
 
 it('wraps custom comparison dates without widening narrow dashboards', () => {
