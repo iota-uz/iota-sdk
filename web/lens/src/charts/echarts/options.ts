@@ -1145,7 +1145,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         left: 16,
         right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : horizontal ? (logarithmic ? 88 : 16) : 64,
         top: 24,
-        bottom: timeAxis ? 52 : 12,
+        bottom: timeAxis ? 52 : horizontal ? 12 : 32,
         containLabel: true,
       },
     dataZoom: timeAxis ? [

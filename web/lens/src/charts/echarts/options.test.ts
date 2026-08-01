@@ -731,13 +731,13 @@ describe('buildChartOption', () => {
       .toContain('Jan 2026')
   })
 
-  it('reserves enough right inset for the final label on vertical bars', () => {
+  it('reserves enough right and bottom inset for labels on vertical bars', () => {
     const chartInput = input('bar')
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
     expect(chart.xAxis).toMatchObject({ type: 'category' })
-    expect(chart.grid).toMatchObject({ right: 64, containLabel: true })
+    expect(chart.grid).toMatchObject({ right: 64, bottom: 32, containLabel: true })
   })
 
   it('omits zero-valued series from time-axis tooltips too', () => {
