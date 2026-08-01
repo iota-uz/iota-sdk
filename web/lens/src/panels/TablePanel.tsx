@@ -479,11 +479,15 @@ export function TablePanel({ panel }: TablePanelProps) {
   useLayoutEffect(() => {
     const scroller = scrollRef.current
     if (!scroller) return undefined
+    let animationFrame: number | undefined
     const measure = () => {
-      const stickyWidth = scroller.querySelector<HTMLElement>('thead th:first-child')?.offsetWidth ?? 0
+      const sticky = scroller.querySelector<HTMLElement>('thead th:first-child')
+      const stickyWidth = sticky?.offsetWidth ?? 0
+      const previousStickyWidth = Number.parseFloat(scroller.parentElement?.style.getPropertyValue('--lens-table-sticky-width') ?? '')
       scroller.parentElement?.style.setProperty('--lens-table-sticky-width', `${stickyWidth}px`)
       const table = scroller.querySelector<HTMLTableElement>('table')
       const tableWidth = table?.scrollWidth || scroller.scrollWidth
+      const spacerWidth = scroller.querySelector<HTMLElement>('thead .lens-table-scroll-spacer')?.offsetWidth ?? 0
       // The trailing spacer is part of the table's real scroll box, but must
       // not create overflow on a table whose data columns fit. Remove its
       // known width when deciding whether the spacer remains necessary.
@@ -493,19 +497,30 @@ export function TablePanel({ panel }: TablePanelProps) {
       // A translated sticky first column contributes its width to Chromium's
       // scrollWidth. Clamp against the table itself so the native scrollbar
       // cannot move past the real content and crop the sticky cells.
-      const maximum = Math.max(0, tableWidth - scroller.clientWidth)
+      const maximum = Math.max(0, tableWidth - spacerWidth - scroller.clientWidth)
       if (scroller.scrollLeft > maximum) scroller.scrollLeft = maximum
       const left = scroller.scrollLeft > 1
       const right = scroller.scrollLeft < maximum - 1
       setScrollEdges((current) => current.left === left && current.right === right ? current : { left, right })
+      // Adding the spacer can reflow the sticky column. Measure once more
+      // after that layout settles so both widths converge to the same value.
+      if (!Number.isFinite(previousStickyWidth) || Math.abs(previousStickyWidth - stickyWidth) > 0.5) {
+        if (animationFrame !== undefined) globalThis.cancelAnimationFrame(animationFrame)
+        animationFrame = globalThis.requestAnimationFrame(measure)
+      }
     }
     measure()
     scroller.addEventListener('scroll', measure, { passive: true })
     const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
     observer?.observe(scroller)
+    const table = scroller.querySelector<HTMLElement>('table')
+    const sticky = scroller.querySelector<HTMLElement>('thead th:first-child')
+    if (table) observer?.observe(table)
+    if (sticky) observer?.observe(sticky)
     return () => {
       scroller.removeEventListener('scroll', measure)
       observer?.disconnect()
+      if (animationFrame !== undefined) globalThis.cancelAnimationFrame(animationFrame)
       scroller.parentElement?.style.removeProperty('--lens-table-sticky-width')
     }
   }, [columnCount, frame.data, hasHorizontalOverflow])
@@ -514,7 +529,8 @@ export function TablePanel({ panel }: TablePanelProps) {
     const scroller = scrollRef.current
     if (!scroller) return
     const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
-    const maximum = Math.max(0, tableWidth - scroller.clientWidth)
+    const spacerWidth = scroller.querySelector<HTMLElement>('thead .lens-table-scroll-spacer')?.offsetWidth ?? 0
+    const maximum = Math.max(0, tableWidth - spacerWidth - scroller.clientWidth)
     const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer)'))
     const stickyWidth = headers[0]?.offsetWidth ?? 0
     const targets = headers.slice(1)

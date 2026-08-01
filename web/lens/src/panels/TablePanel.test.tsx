@@ -564,14 +564,15 @@ describe('TablePanel server readability features', () => {
     expect(spacerHeader).toHaveAttribute('aria-hidden', 'true')
     expect(scrollFrame?.querySelectorAll('tbody .lens-table-scroll-spacer')).toHaveLength(2)
 
-    // The explicit spacer is part of the table box. Native Chromium overflow
-    // may still include the translated sticky cell, so the table maximum must
-    // retain the 160px allowance while excluding that native inflation.
+    // The explicit spacer stays in the table containing box, while the
+    // programmatic maximum stops at the data edge rather than scrolling the
+    // spacer itself into view.
     Object.defineProperty(scroller.querySelector('table'), 'scrollWidth', { configurable: true, value: 893 })
     Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 1053 })
+    Object.defineProperty(spacerHeader, 'offsetWidth', { configurable: true, value: 160 })
 
     fireEvent.click(scrollRight)
-    expect(scroller.scrollLeft).toBe(388)
+    expect(scroller.scrollLeft).toBe(228)
     expect(scroller).toHaveFocus()
     expect(scrollLeft).toBeEnabled()
     expect(scrollRight).toBeDisabled()
@@ -584,16 +585,16 @@ describe('TablePanel server readability features', () => {
     expect(scrollLeft).toBeDisabled()
     expect(scrollRight).toBeEnabled()
 
-    scroller.scrollLeft = 388
+    scroller.scrollLeft = 228
     fireEvent.scroll(scroller)
     expect(scrollFrame).toHaveAttribute('data-overflow-left', 'true')
     expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
 
     // Chromium counts the translated sticky column as scrollable overflow.
     // Scrolling to that inflated native maximum must clamp at the table edge.
-    scroller.scrollLeft = 548
+    scroller.scrollLeft = 388
     fireEvent.scroll(scroller)
-    expect(scroller.scrollLeft).toBe(388)
+    expect(scroller.scrollLeft).toBe(228)
     expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: 'motor' } })
