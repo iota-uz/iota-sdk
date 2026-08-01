@@ -47,6 +47,7 @@ func cloneComparisonGraph(
 	datasets []lens.DatasetSpec,
 	comparison comparisonConfig,
 	terminalFields map[string][]string,
+	topNRankKeys map[string][]string,
 ) []lens.DatasetSpec {
 	names := make(map[string]string, len(datasets))
 	for _, dataset := range datasets {
@@ -63,6 +64,18 @@ func cloneComparisonGraph(
 			}
 		}
 		dataset.Transforms = append([]transform.Spec(nil), source.Transforms...)
+		for index := range dataset.Transforms {
+			topN := dataset.Transforms[index].TopN
+			keyFields := topNRankKeys[source.Name]
+			if topN == nil || len(keyFields) == 0 {
+				continue
+			}
+			clonedTopN := *topN
+			clonedTopN.RankByDataset = source.Name
+			clonedTopN.KeyFields = append([]string(nil), keyFields...)
+			dataset.Transforms[index].TopN = &clonedTopN
+			dataset.DependsOn = append(dataset.DependsOn, source.Name)
+		}
 		if source.Query != nil {
 			query := *source.Query
 			query.Params = cloneParamValues(source.Query.Params)

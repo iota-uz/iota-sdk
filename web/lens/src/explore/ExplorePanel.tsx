@@ -12,7 +12,8 @@ import {
 import type { ChartAnchor } from '../charts/adapter'
 import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '../contract'
 import { CaretDown, CaretLeft, CaretRight } from '../icons'
-import { MarkSelectionContext, PanelChromeContext, RegisteredPanel, type PanelRegistry } from '../panels'
+import { MarkSelectionContext, PanelChromeContext } from '../panels/context'
+import { RegisteredPanel, type PanelRegistry } from '../panels/registry'
 import { seriesColorResolver } from '../panels/data'
 import {
   isPerspectiveFork,
@@ -467,6 +468,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   const focusParent = focusContext?.parent
 
   return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- shortcuts are delegated from focusable panel descendants; the article is not another focus stop.
     <article
       aria-label={translate('explore.panel', 'Explore {name}', { name: panel.title })}
       className={`lens-explore${focusActive ? ' lens-explore-focus' : ''}${drawerFocus ? ' lens-explore-drawer-focus' : ''}`}

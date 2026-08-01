@@ -18,3 +18,16 @@ func TestCreateDTOUsesExplicitExpiryForShortLivedSessions(t *testing.T) {
 	require.Equal(t, expiresAt, created.ExpiresAt())
 	require.Equal(t, StatusActive, created.Status())
 }
+
+func TestCreateDTOUsesDefaultLifetimeWhenExpiryIsZero(t *testing.T) {
+	t.Parallel()
+	before := time.Now().Add(defaultSessionDuration)
+	created := (&CreateDTO{
+		Token: "interactive-token", UserID: 42, TenantID: uuid.New(),
+		IP: "192.0.2.10", UserAgent: "browser",
+	}).ToEntity()
+	after := time.Now().Add(defaultSessionDuration)
+	require.False(t, created.ExpiresAt().Before(before))
+	require.False(t, created.ExpiresAt().After(after))
+	require.Equal(t, StatusActive, created.Status())
+}

@@ -9,6 +9,11 @@ import { InfoTip } from './InfoTip'
 
 type SortDirection = 'ascending' | 'descending'
 
+const defaultMinimumSampleSize = 5
+const heatMinimumMixPercent = 7
+const heatMixRangePercent = 21
+const rowCountDisclosureThreshold = 10
+
 interface SortState {
   column: string
   direction: SortDirection
@@ -124,15 +129,21 @@ function DeltaCell({
 }) {
   const displayValue = useFormat(valueFormat)
   const displaySecondary = useFormat(secondaryFormat)
+  const translate = useTranslate()
+  const { document } = useDashboard()
+  const absolute = numericValue(value)
   const secondary = numericValue(secondaryValue)
   const hasSecondary = secondaryValue !== null && secondaryValue !== undefined && secondaryValue !== ''
+  const isNew = !hasSecondary && absolute !== undefined && absolute !== 0
   const negative = secondary !== undefined && secondary < 0
   // Percent changes beyond ±999.9% clamp to «>999%» / «<−999%»: a precise
   // «+13 417.3%» is noise, and the absolute value beside it carries the story.
-  const clamped = secondary !== undefined ? clampedDeltaPercent(secondary) : undefined
-  const percent = hasSecondary && (
+  const clamped = secondary !== undefined ? clampedDeltaPercent(secondary, document.meta.locale) : undefined
+  const percent = (hasSecondary || isNew) && (
     <span className={`lens-table-delta-pct${negative ? ' lens-table-delta-pct-negative' : ''}`}>
-      {clamped ?? <>{secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}</>}
+      {isNew
+        ? translate('panel.trend.new', 'New')
+        : clamped ?? <>{secondary !== undefined && secondary > 0 ? '+' : ''}{displaySecondary(secondaryValue)}</>}
     </span>
   )
   if (stacked) {
@@ -257,7 +268,7 @@ function ColumnCell({
     ? frame.columns.findIndex((candidate) => candidate.name === column.sampleSizeField)
     : -1
   const sampleSize = sampleIndex >= 0 ? numericValue(row[sampleIndex]) : undefined
-  const minimum = (column.minSampleSize ?? 0) > 0 ? column.minSampleSize! : 5
+  const minimum = (column.minSampleSize ?? 0) > 0 ? column.minSampleSize! : defaultMinimumSampleSize
   if (sampleSize !== undefined && sampleSize < minimum) {
     const smallSampleLabel = translate(
       'table.smallSample',
@@ -278,7 +289,7 @@ function ColumnCell({
   return (
     <span className="lens-table-cell-badged">
       {rendered}
-		<span className="lens-table-cell-badge" title={badge}><InfoTip inline text={badge} /></span>
+      <span className="lens-table-cell-badge" title={badge}><InfoTip inline text={badge} /></span>
     </span>
   )
 }
@@ -296,7 +307,7 @@ function heatCellStyle(column: TableColumn, frame: Frame, row: Array<unknown>, r
   if (value === undefined || !range) return undefined
   const spread = range.max - range.min
   const intensity = spread > 0 ? (value - range.min) / spread : 0.5
-  const percentage = Math.round(7 + Math.max(0, Math.min(1, intensity)) * 21)
+  const percentage = Math.round(heatMinimumMixPercent + Math.max(0, Math.min(1, intensity)) * heatMixRangePercent)
   return { backgroundColor: `color-mix(in srgb, var(--lens-accent-500) ${percentage}%, var(--lens-bg-card))` }
 }
 
@@ -333,6 +344,7 @@ export function TablePanel({ panel }: TablePanelProps) {
   const translate = useTranslate()
   const [sort, setSort] = useState<SortState>()
   const [search, setSearch] = useState('')
+  const [locationHref, setLocationHref] = useState(() => globalThis.location.href)
   const searchInitialized = useRef(false)
   const [requestedPage, setRequestedPage] = useState(frame.page?.number ?? 1)
   const requestedSnapshotId = useRef(document.snapshotId)
@@ -349,7 +361,12 @@ export function TablePanel({ panel }: TablePanelProps) {
   const loadingPage = requestedSnapshotId.current === document.snapshotId ? requestedPage : 1
   // The row-count check keeps pagination working with older servers that omit hasNext.
   const hasNext = frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
-  const location = useMemo(() => new URL(globalThis.location.href), [document.snapshotId])
+  useEffect(() => {
+    const syncLocation = () => setLocationHref(globalThis.location.href)
+    globalThis.addEventListener('popstate', syncLocation)
+    return () => globalThis.removeEventListener('popstate', syncLocation)
+  }, [])
+  const location = useMemo(() => new URL(locationHref), [locationHref])
   const columns = panel.columns?.length ? panel.columns : undefined
   // Column maxima scale bar cells. Computing them per cell is quadratic in
   // row count, so they are derived once per frame.
@@ -431,9 +448,9 @@ export function TablePanel({ panel }: TablePanelProps) {
       searchInitialized.current = true
       return undefined
     }
-    const timeout = globalThis.setTimeout(() => { void pagination.search(panel.id, search) }, 250)
+    const timeout = globalThis.setTimeout(() => { void pagination.search(panel.id, search) }, document.theme.debounceMs ?? 500)
     return () => globalThis.clearTimeout(timeout)
-  }, [pagination, panel.id, panel.table?.searchable, search])
+  }, [document.theme.debounceMs, pagination, panel.id, panel.table?.searchable, search])
 
   const changePage = (next: number) => {
     setRequestedPage(next)
@@ -621,7 +638,7 @@ export function TablePanel({ panel }: TablePanelProps) {
               {sortEnabled && frame.page && (
                 <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
               )}
-              {(frame.summary?.filteredRows ?? dataRowCount) > 10 && (
+              {(frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold && (
                 <span className="lens-table-rowcount">{translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}</span>
               )}
             </span>

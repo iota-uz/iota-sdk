@@ -17,6 +17,7 @@ const stat: Panel = {
 
 const line: Panel = {
   id: 'monthly', kind: 'line', title: 'Premium by month', semantics: 'series', frame: 'monthly:frame',
+  comparisonUnsupported: true,
   encoding: { category: 'month', value: 'premium', previous: 'previous_premium' },
   format: { premium: { kind: 'money', currency: 'UZS', minorUnits: false, precision: 0, compact: true } },
   actions: [{
@@ -82,7 +83,7 @@ const comparisonDocument: DashboardDocument = {
       ],
       rows: [
         ['Tashkent', 2_100_000_000, 2_430_000_000, 330_000_000, 15.7],
-        ['Samarkand', 980_000_000, 1_040_000_000, 60_000_000, 6.1],
+        ['Samarkand', 0, 60_000_000, 60_000_000, null],
         ['Fergana', 760_000_000, 690_000_000, -70_000_000, -9.2],
       ],
     },

@@ -22,7 +22,7 @@ export interface IconProps {
 function glyph(children: ReactNode, defaultSize: number) {
   return function Glyph({ size = defaultSize, className }: IconProps) {
     return (
-    <svg
+      <svg
         aria-hidden="true"
         className={className ? `lens-icon ${className}` : 'lens-icon'}
         focusable="false"
@@ -32,7 +32,7 @@ function glyph(children: ReactNode, defaultSize: number) {
         xmlns="http://www.w3.org/2000/svg"
       >
         {children}
-    </svg>
+      </svg>
     )
   }
 }

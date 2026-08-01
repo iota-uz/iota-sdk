@@ -203,6 +203,11 @@ type TopNConfig struct {
 	N              int
 	Other          string
 	AdditiveFields map[string]bool
+	// RankByDataset fixes membership and ordering to an already-ranked frame.
+	// It is used by period comparison so both periods contain the same
+	// categories. KeyFields identify a category across the two frames.
+	RankByDataset string
+	KeyFields     []string
 	// Expandable keeps the tail rows on the frame and tags them for the React
 	// renderer to collapse into Other. The aggregate remains clickable because
 	// its source rows were not discarded by the transform.
@@ -254,7 +259,7 @@ func applyOne(primary *frame.FrameSet, deps map[string]*frame.FrameSet, spec Spe
 	case KindBucketTime:
 		return bucketTime(primary, spec.BucketTime)
 	case KindTopN:
-		return applyTopN(primary, spec.TopN)
+		return applyTopN(primary, deps, spec.TopN)
 	case KindPivot:
 		return pivot(primary, spec.Pivot)
 	case KindUnpivot:
@@ -900,10 +905,17 @@ func bucketTime(primary *frame.FrameSet, cfg *BucketTimeConfig) (*frame.FrameSet
 	return next, fr.Normalize()
 }
 
-func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+func applyTopN(primary *frame.FrameSet, deps map[string]*frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
 	op := serrors.Op("lens/transform.applyTopN")
 	if cfg == nil {
 		return primary.Clone(), nil
+	}
+	if rankBy := strings.TrimSpace(cfg.RankByDataset); rankBy != "" {
+		ranked := deps[rankBy]
+		if ranked == nil {
+			return nil, serrors.E(op, fmt.Errorf("rank dataset %q is required", rankBy))
+		}
+		return applyTopNMembership(primary, ranked, cfg)
 	}
 	sorted, err := sortRows(primary, []SortField{{Field: cfg.Field, Direction: SortDesc}})
 	if err != nil {
@@ -952,6 +964,78 @@ func applyTopN(primary *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error
 		return nil, serrors.E(op, err)
 	}
 	return fs, nil
+}
+
+func applyTopNMembership(primary, ranked *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {
+	op := serrors.Op("lens/transform.applyTopNMembership")
+	if len(cfg.KeyFields) == 0 {
+		return nil, serrors.E(op, fmt.Errorf("key fields are required with rank dataset"))
+	}
+	primaryFrame, rankedFrame := primary.Primary(), ranked.Primary()
+	if primaryFrame == nil || rankedFrame == nil {
+		return primary.Clone(), nil
+	}
+	primaryRows, rankedRows := primaryFrame.Rows(), rankedFrame.Rows()
+	keep := max(cfg.N, 0)
+	if keep > len(rankedRows) {
+		keep = len(rankedRows)
+	}
+	byKey := make(map[string][]map[string]any, len(primaryRows))
+	for _, row := range primaryRows {
+		key := topNKey(row, cfg.KeyFields)
+		byKey[key] = append(byKey[key], row)
+	}
+	outRows := make([]frame.Row, 0, keep+1)
+	selected := make(map[string]struct{}, keep)
+	for _, rankedRow := range rankedRows[:keep] {
+		key := topNKey(rankedRow, cfg.KeyFields)
+		selected[key] = struct{}{}
+		if matches := byKey[key]; len(matches) > 0 {
+			for _, match := range matches {
+				outRows = append(outRows, frame.Row(match))
+			}
+		}
+	}
+	if len(rankedRows) > keep && strings.TrimSpace(cfg.Other) != "" {
+		tail := make([]map[string]any, 0, len(primaryRows))
+		for _, row := range primaryRows {
+			if _, ok := selected[topNKey(row, cfg.KeyFields)]; !ok {
+				tail = append(tail, row)
+			}
+		}
+		outRows = append(outRows, frame.Row(topNOtherRow(primaryFrame, tail, cfg)))
+	}
+	out, err := frame.New(primaryFrame.Name)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	out.Fields = make([]frame.Field, len(primaryFrame.Fields))
+	for index, field := range primaryFrame.Fields {
+		out.Fields[index] = field.Clone()
+		out.Fields[index].Values = nil
+	}
+	for _, row := range outRows {
+		if err := out.AppendRow(row); err != nil {
+			return nil, serrors.E(op, err)
+		}
+	}
+	if err := out.Normalize(); err != nil {
+		return nil, serrors.E(op, err)
+	}
+	result, err := frame.NewFrameSet(out)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
+	return result, nil
+}
+
+func topNKey(row map[string]any, fields []string) string {
+	var key strings.Builder
+	for _, field := range fields {
+		value := fmt.Sprintf("%T:%v", row[field], row[field])
+		fmt.Fprintf(&key, "%d:%s", len(value), value)
+	}
+	return key.String()
 }
 
 func markTopNRemainder(sorted *frame.FrameSet, cfg *TopNConfig) (*frame.FrameSet, error) {

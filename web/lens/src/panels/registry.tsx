@@ -86,6 +86,7 @@ export function RegisteredPanel({ panel, registry = panelRegistry }: RegisteredP
     <PanelErrorBoundary
       fallback={translate('panel.error', 'This panel could not be rendered.')}
       panel={panel}
+      retryLabel={translate('panel.retry', 'Retry')}
     >
       <Suspense fallback={<PanelModuleFallback panel={panel} />}>
         <Component panel={panel} />
@@ -98,6 +99,7 @@ class PanelErrorBoundary extends Component<{
   children: ReactNode
   fallback: string
   panel: Panel
+  retryLabel: string
 }, { failed: boolean }> {
   state = { failed: false }
 
@@ -118,7 +120,10 @@ class PanelErrorBoundary extends Component<{
     return (
       <section aria-label={this.props.panel.title} className="lens-panel lens-panel-error">
         <header className="lens-panel-header"><h3 className="lens-panel-title">{this.props.panel.title}</h3></header>
-        <div className="lens-panel-state" role="alert">{this.props.fallback}</div>
+        <div className="lens-panel-state" role="alert">
+          <span>{this.props.fallback}</span>
+          <button onClick={() => this.setState({ failed: false })} type="button">{this.props.retryLabel}</button>
+        </div>
       </section>
     )
   }

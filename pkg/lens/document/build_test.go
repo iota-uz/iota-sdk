@@ -199,6 +199,7 @@ func TestBuild_ChoroplethCarriesBoundedGeometryAndJoin(t *testing.T) {
 	spec := lensbuild.Dashboard("map", "Map", lensbuild.Row(
 		panel.Choropleth("regions", "Regions", "regions", panel.GeoJSONSource{Inline: geometry}, "code").
 			MapLabelProperty("name").MapLabelProperties(map[string]string{"en": "name", "ru": "name_ru"}).
+			MapAttribution("© Example Maps").ComparisonUnsupported().
 			IDField("code").LabelField("name").ValueField("premium").Terminal().Build(),
 	)).Datasets(lensbuild.StaticDataset("regions", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
@@ -212,6 +213,8 @@ func TestBuild_ChoroplethCarriesBoundedGeometryAndJoin(t *testing.T) {
 	require.Equal(t, "code", doc.Panels[0].Map.FeatureProperty)
 	require.Equal(t, "name", doc.Panels[0].Map.LabelProperty)
 	require.Equal(t, map[string]string{"en": "name", "ru": "name_ru"}, doc.Panels[0].Map.LabelProperties)
+	require.Equal(t, "© Example Maps", doc.Panels[0].Map.Attribution)
+	require.True(t, doc.Panels[0].ComparisonUnsupported)
 	require.Equal(t, "north", doc.Panels[0].Map.Source.Inline.Features[0].Properties["code"])
 	require.NoError(t, doc.Validate())
 }

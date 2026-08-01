@@ -117,7 +117,8 @@ describe('MetricFlowPanel', () => {
 
     const error = container.querySelector('.lens-panel-state-error')
     expect(error).not.toBeNull()
-    expect(error?.textContent).toContain('amount_not_in_frame')
+    expect(error).toHaveTextContent('This panel could not be rendered.')
+    expect(error).not.toHaveTextContent('amount_not_in_frame')
     expect(container.querySelector('.lens-flow')).toBeNull()
   })
 
@@ -126,7 +127,8 @@ describe('MetricFlowPanel', () => {
     const frame = flowFrame([['premium', 1000]])
     const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
 
-    expect(container.querySelector('.lens-panel-state-error')?.textContent).toContain('share_pct')
+    expect(container.querySelector('.lens-panel-state-error')).toHaveTextContent('This panel could not be rendered.')
+    expect(container.querySelector('.lens-panel-state-error')).not.toHaveTextContent('share_pct')
   })
 
   it('surfaces duplicate frame keys as a panel error state', () => {
@@ -136,7 +138,8 @@ describe('MetricFlowPanel', () => {
 
     const error = container.querySelector('.lens-panel-state-error')
     expect(error).not.toBeNull()
-    expect(error?.textContent).toContain('premium')
+    expect(error).toHaveTextContent('This panel could not be rendered.')
+    expect(error).not.toHaveTextContent('premium')
   })
 
   it('renders the declared structure as all-unavailable for an empty frame, distinct from the loading skeleton', () => {
@@ -251,7 +254,7 @@ describe('MetricFlowPanel', () => {
     expect(link).toHaveAttribute('href', expect.stringContaining('/metrics/premium'))
   })
 
-  it('renders <ol role="list"> with a per-stage aria-label containing operator, label and value', () => {
+  it('renders a semantic ordered list with a per-stage aria-label containing operator, label and value', () => {
     const panel = flowPanel({
       metricFlow: {
         stages: [
@@ -264,7 +267,7 @@ describe('MetricFlowPanel', () => {
     const { container } = renderDocument(documentWith([panel], { 'flow:root': frame }), <MetricFlowPanel panel={panel} />)
 
     const list = container.querySelector('ol.lens-flow')
-    expect(list).toHaveAttribute('role', 'list')
+    expect(list?.tagName).toBe('OL')
     expect(list).toHaveAttribute('aria-label', 'Result bridge stages')
     const items = container.querySelectorAll('li.lens-flow-stage')
     expect(items[0]).toHaveAttribute('aria-label', 'plus Fees, 200')

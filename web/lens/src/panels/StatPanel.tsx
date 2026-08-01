@@ -134,25 +134,25 @@ export function StatPanel({ panel }: StatPanelProps) {
   return (
     <PanelFrame panel={panel} frame={frame} variant="stat">
       <StatLink href={href} label={panel.title} onClick={navigation.onClick(href)} prefetch={prefetch}>
-      <div className="lens-stat-content">
-        {(showLabel || panel.status) && (
-          <p className="lens-stat-label">
-            {showLabel && <span className="lens-stat-label-text" title={label}>{label}</span>}
-            {panel.status && <StatusChip status={panel.status} />}
-          </p>
-        )}
-        <div className="lens-stat-value-row">
-          {/* The abbreviated value keeps its exact grouped figure reachable
-              on hover: «106.03 млрд UZS» titles «106 034 767 694 UZS». */}
-          <p className="lens-stat-value" title={formatValueExact(value)}><StatValueTicker text={formatValue(value)} /></p>
-          {delta !== undefined && (
-            <span className={`lens-stat-delta${deltaNumber !== undefined && deltaNumber < 0 ? ' lens-stat-delta-negative' : ''}`}>
-              {deltaNumber !== undefined && deltaNumber > 0 ? '+' : ''}{formatDelta(delta)}
-            </span>
+        <div className="lens-stat-content">
+          {(showLabel || panel.status) && (
+            <p className="lens-stat-label">
+              {showLabel && <span className="lens-stat-label-text" title={label}>{label}</span>}
+              {panel.status && <StatusChip status={panel.status} />}
+            </p>
           )}
-          {panel.sparkline && <StatSparkline sparkline={panel.sparkline} />}
+          <div className="lens-stat-value-row">
+            {/* The abbreviated value keeps its exact grouped figure reachable
+              on hover: «106.03 млрд UZS» titles «106 034 767 694 UZS». */}
+            <p className="lens-stat-value" title={formatValueExact(value)}><StatValueTicker text={formatValue(value)} /></p>
+            {delta !== undefined && (
+              <span className={`lens-stat-delta${deltaNumber !== undefined && deltaNumber < 0 ? ' lens-stat-delta-negative' : ''}`}>
+                {deltaNumber !== undefined && deltaNumber > 0 ? '+' : ''}{formatDelta(delta)}
+              </span>
+            )}
+            {panel.sparkline && <StatSparkline sparkline={panel.sparkline} />}
+          </div>
         </div>
-      </div>
       </StatLink>
     </PanelFrame>
   )
@@ -172,35 +172,35 @@ export function StatMetric({ panel }: StatPanelProps) {
 
   return (
     <StatLink href={href} label={caption} onClick={navigation.onClick(href)} prefetch={prefetch}>
-    <div className="lens-stat-metric" data-panel-kind="stat" aria-busy={frame.isLoading || undefined}>
-      <p className="lens-stat-metric-label" title={caption}>
-        {panel.accent && <span aria-hidden="true" className="lens-stat-metric-bullet" style={{ background: panel.accent }} />}
-        <span className="lens-stat-metric-label-text">{caption}</span>
-        {panel.status && <StatusChip status={panel.status} />}
-        {/* The compact form drops the card header, and with it the ⓘ that
+      <div className="lens-stat-metric" data-panel-kind="stat" aria-busy={frame.isLoading || undefined}>
+        <p className="lens-stat-metric-label" title={caption}>
+          {panel.accent && <span aria-hidden="true" className="lens-stat-metric-bullet" style={{ background: panel.accent }} />}
+          <span className="lens-stat-metric-label-text">{caption}</span>
+          {panel.status && <StatusChip status={panel.status} />}
+          {/* The compact form drops the card header, and with it the ⓘ that
             explains how a figure is obtained. A metric that carries that note
             keeps it here, next to the name it belongs to; the caption below
             stays visible prose. */}
-        {panel.info && <InfoTip inline text={panel.info} />}
-      </p>
-      {/* A metric that carries a wire sparkline shows it inline to the right of
+          {panel.info && <InfoTip inline text={panel.info} />}
+        </p>
+        {/* A metric that carries a wire sparkline shows it inline to the right of
           the value, echoing the hero card's trend line; a metric without one
           keeps the bare value element so its layout stays pixel-identical. */}
-      {panel.sparkline ? (
-        <div className="lens-stat-metric-main">
+        {panel.sparkline ? (
+          <div className="lens-stat-metric-main">
+            <p className="lens-stat-metric-value" title={formatValueExact(value)}>
+              {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
+            </p>
+            <StatSparkline sparkline={panel.sparkline} />
+          </div>
+        ) : (
           <p className="lens-stat-metric-value" title={formatValueExact(value)}>
             {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
           </p>
-          <StatSparkline sparkline={panel.sparkline} />
-        </div>
-      ) : (
-        <p className="lens-stat-metric-value" title={formatValueExact(value)}>
-          {frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />}
-        </p>
-      )}
-	  {panel.trend && frame.data?.rows.length ? <TrendChip panel={panel} frame={frame.data} /> : null}
-      {panel.caption && <p className="lens-stat-metric-caption">{panel.caption}</p>}
-    </div>
+        )}
+        {panel.trend && frame.data?.rows.length ? <TrendChip panel={panel} frame={frame.data} /> : null}
+        {panel.caption && <p className="lens-stat-metric-caption">{panel.caption}</p>}
+      </div>
     </StatLink>
   )
 }

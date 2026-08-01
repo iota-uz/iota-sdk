@@ -394,6 +394,7 @@ func compileDimension(item lensspec.DimensionSpec, opts Options) (cube.Dimension
 			FeatureProperty: resolveString(item.Map.FeatureProperty, opts.Values),
 			LabelProperty:   resolveString(item.Map.LabelProperty, opts.Values),
 			LabelProperties: resolveStringMap(item.Map.LabelProperties, opts.Values),
+			Attribution:     resolveString(item.Map.Attribution, opts.Values),
 		}
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
@@ -509,34 +510,35 @@ func compileRow(item lensspec.RowSpec, opts Options) (lens.RowSpec, error) {
 
 func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 	out := panel.Spec{
-		ID:              resolveString(item.ID, opts.Values),
-		Title:           resolveText(item.Title, opts),
-		Description:     resolveText(item.Description, opts),
-		Info:            resolveText(item.Info, opts),
-		Kind:            item.Kind,
-		Dataset:         resolveString(item.Dataset, opts.Values),
-		Span:            item.Span,
-		Height:          resolveString(item.Height, opts.Values),
-		Colors:          resolveStringSlice(item.Colors, opts.Values),
-		ShowLegend:      item.ShowLegend,
-		LegendPosition:  item.LegendPosition,
-		LegendWidthPx:   item.LegendWidthPx,
-		LegendOffsetY:   item.LegendOffsetY,
-		LegendFloating:  item.LegendFloating,
-		CircularScale:   item.CircularScale,
-		CircularOffsetX: item.CircularOffsetX,
-		ShowTotalBadge:  item.ShowTotalBadge,
-		TotalBadgeValue: item.TotalBadgeValue,
-		HeadlineValue:   item.HeadlineValue,
-		DrillTree:       item.DrillTree,
-		Trend:           item.Trend,
-		Status:          item.Status,
-		Sparkline:       item.Sparkline,
-		Target:          item.Target,
-		Temporal:        item.Temporal,
-		Terminal:        item.Terminal,
-		GroupLayout:     item.GroupLayout,
-		Presentation:    item.Presentation,
+		ID:                    resolveString(item.ID, opts.Values),
+		Title:                 resolveText(item.Title, opts),
+		Description:           resolveText(item.Description, opts),
+		Info:                  resolveText(item.Info, opts),
+		Kind:                  item.Kind,
+		Dataset:               resolveString(item.Dataset, opts.Values),
+		Span:                  item.Span,
+		Height:                resolveString(item.Height, opts.Values),
+		Colors:                resolveStringSlice(item.Colors, opts.Values),
+		ShowLegend:            item.ShowLegend,
+		LegendPosition:        item.LegendPosition,
+		LegendWidthPx:         item.LegendWidthPx,
+		LegendOffsetY:         item.LegendOffsetY,
+		LegendFloating:        item.LegendFloating,
+		CircularScale:         item.CircularScale,
+		CircularOffsetX:       item.CircularOffsetX,
+		ShowTotalBadge:        item.ShowTotalBadge,
+		TotalBadgeValue:       item.TotalBadgeValue,
+		HeadlineValue:         item.HeadlineValue,
+		DrillTree:             item.DrillTree,
+		Trend:                 item.Trend,
+		Status:                item.Status,
+		Sparkline:             item.Sparkline,
+		Target:                item.Target,
+		Temporal:              item.Temporal,
+		Terminal:              item.Terminal,
+		ComparisonUnsupported: item.ComparisonUnsupported,
+		GroupLayout:           item.GroupLayout,
+		Presentation:          item.Presentation,
 		Fields: panel.FieldMapping{
 			Label:        panel.Ref(resolveString(item.Fields.Label, opts.Values)),
 			Value:        panel.Ref(resolveString(item.Fields.Value, opts.Values)),
@@ -585,6 +587,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		mapSpec.FeatureProperty = resolveString(mapSpec.FeatureProperty, opts.Values)
 		mapSpec.LabelProperty = resolveString(mapSpec.LabelProperty, opts.Values)
 		mapSpec.LabelProperties = resolveStringMap(mapSpec.LabelProperties, opts.Values)
+		mapSpec.Attribution = resolveString(mapSpec.Attribution, opts.Values)
 		out.Map = &mapSpec
 	}
 	if item.Table != nil {

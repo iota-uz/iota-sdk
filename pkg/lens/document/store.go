@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	lenstheme "github.com/iota-uz/iota-sdk/pkg/lens/theme"
 )
 
 const defaultSnapshotTTL = 30 * time.Minute
@@ -407,7 +409,10 @@ func cloneFilters(filters []Filter) []Filter {
 }
 
 func cloneTheme(theme Theme) Theme {
-	result := Theme{Palette: cloneStrings(theme.Palette), Series: cloneStrings(theme.Series)}
+	result := Theme{Palette: cloneStrings(theme.Palette), Series: cloneStrings(theme.Series), DebounceMS: theme.DebounceMS}
+	if result.DebounceMS <= 0 {
+		result.DebounceMS = lenstheme.DebounceMs
+	}
 	if result.Palette == nil {
 		result.Palette = make(map[string]string)
 	}

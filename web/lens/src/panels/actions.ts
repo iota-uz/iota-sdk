@@ -126,16 +126,16 @@ export function useElementActionResolver(): (action: Action | undefined, fields?
 
 export function useActionActivation(action: Action | undefined) {
   const drawer = useDrawer()
-	const filters = useFilters()
-	const opensDrawer = action?.kind === 'open_drawer'
-	const filtersData = action?.kind === 'cross_filter' || action?.kind === 'cube_drill'
+  const filters = useFilters()
+  const opensDrawer = action?.kind === 'open_drawer'
+  const filtersData = action?.kind === 'cross_filter' || action?.kind === 'cube_drill'
   const available = Boolean(action) && (!opensDrawer || drawer.depth === 0 || drawer.canOpen === true)
   const activate = useCallback((url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => {
     if (!url || !available) return
     if (opensDrawer) drawer.open(url, opener)
-		else if (filtersData) filters.applyURL(url, options)
+    else if (filtersData) filters.applyURL(url, options)
     else navigateTo(url)
-	}, [available, drawer, filters, filtersData, opensDrawer])
+  }, [available, drawer, filters, filtersData, opensDrawer])
   const onClick = useCallback((url: string | undefined): MouseEventHandler<HTMLAnchorElement> | undefined => {
     if (!url || !opensDrawer || !available) return undefined
     return (event) => {
@@ -154,9 +154,9 @@ export function usePanelNavigation(panel: Panel): PanelNavigation {
   const urlForRow = useCallback((frame: Frame | undefined, row: Array<unknown> | undefined) => {
     if (!action) return undefined
     const location = new URL(globalThis.location.href)
-		if ((action.kind === 'cross_filter' || action.kind === 'cube_drill') && action.filter) {
-			return filterActionURL(action, frame && row ? recordForRow(frame, row) : {}, location)?.href
-		}
+    if ((action.kind === 'cross_filter' || action.kind === 'cube_drill') && action.filter) {
+      return filterActionURL(action, frame && row ? recordForRow(frame, row) : {}, location)?.href
+    }
     return resolveActionURL(action, {
       fields: frame && row ? recordForRow(frame, row) : {},
       variables: variablesFromLocation(location),

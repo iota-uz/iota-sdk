@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLoadAssetBundleCollectsOnlyEntryStaticGraphStylesheets(t *testing.T) {
+func TestLoadAssetBundleCollectsStaticAndLazyGraphStylesheets(t *testing.T) {
 	manifest := map[string]manifestEntry{
 		"index.html":          {File: "assets/entry.js", CSS: []string{"assets/entry.css"}, Imports: []string{"src/shared.ts"}, DynamicImports: []string{"src/lazy-chart.ts"}},
 		"src/shared.ts":       {File: "assets/shared.js", CSS: []string{"assets/shared.css"}, Imports: []string{"src/cycle.ts"}},
@@ -32,7 +32,7 @@ func TestLoadAssetBundleCollectsOnlyEntryStaticGraphStylesheets(t *testing.T) {
 
 	assert.Equal(t, "assets/entry.js", assets.Entry)
 	assert.Len(t, assets.Revision, 12)
-	assert.Equal(t, []string{"assets/cycle.css", "assets/entry.css", "assets/shared.css"}, assets.Stylesheets)
+	assert.Equal(t, []string{"assets/chart.css", "assets/cycle.css", "assets/entry.css", "assets/shared.css"}, assets.Stylesheets)
 }
 
 func TestAssetRevisionChangesWhenLazyChunkGraphChanges(t *testing.T) {

@@ -92,7 +92,7 @@ describe('narrativeFact', () => {
         [['Earned', 100, false], ['Acquisition', -30, false], ['Claims', -45, false], ['Result', 25, true]],
         ['final'],
       ),
-    'en',
+      'en',
     )
 
     expect(fact).toMatchObject({

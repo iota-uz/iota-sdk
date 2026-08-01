@@ -97,8 +97,9 @@ export function ExportMenu() {
           className="lens-export-menu"
           onKeyDown={onMenuKeyDown}
           role="menu"
+          tabIndex={-1}
         >
-		  {choices.map((choice) => (
+          {choices.map((choice) => (
             <button
               className="lens-export-menu-item"
               key={choice.key}

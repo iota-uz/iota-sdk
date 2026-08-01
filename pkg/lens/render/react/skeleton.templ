@@ -16,8 +16,8 @@ templ DashboardSkeleton(spec lens.DashboardSpec) {
 				<div class="lens-panel-grid">
 					<div class="lens-grid-item" style="--lens-panel-span:12">
 						<div class="lens-skeleton-card lens-skeleton-card-plot">
-							<span class="lens-skeleton-shimmer lens-shimmer lens-shimmer-label" style="width:35%"></span>
-							<span class="lens-skeleton-shimmer lens-shimmer lens-shimmer-block"></span>
+							<span class="lens-shimmer lens-shimmer-label" style="width:35%"></span>
+							<span class="lens-shimmer lens-shimmer-block"></span>
 						</div>
 					</div>
 				</div>
@@ -27,7 +27,7 @@ templ DashboardSkeleton(spec lens.DashboardSpec) {
 			<section class="lens-dashboard-row">
 				if strings.TrimSpace(row.Heading) != "" {
 					<div class="lens-skeleton-heading">
-						<span class="lens-skeleton-shimmer lens-shimmer lens-shimmer-label" style="width:8rem"></span>
+						<span class="lens-shimmer lens-shimmer-label" style="width:8rem"></span>
 						<span class="lens-skeleton-heading-rule"></span>
 					</div>
 				}
@@ -44,13 +44,13 @@ templ DashboardSkeleton(spec lens.DashboardSpec) {
 templ dashboardSkeletonPanel(spec panel.Spec) {
 	<div class="lens-grid-item" style={ skeletonSpanStyle(spec.Span) }>
 		<div class={ skeletonCardClass(spec.Kind) }>
-			<span class="lens-skeleton-shimmer lens-shimmer lens-shimmer-label" style="width:35%"></span>
+			<span class="lens-shimmer lens-shimmer-label" style="width:35%"></span>
 			if spec.Kind == panel.KindStat || spec.Kind == panel.KindStatGroup {
-				<span class="lens-skeleton-shimmer lens-shimmer lens-shimmer-value" style="width:70%"></span>
+				<span class="lens-shimmer lens-shimmer-value" style="width:70%"></span>
 			} else if spec.Kind == panel.KindSegmentBar || spec.Kind == panel.KindCascade {
-				<span class="lens-skeleton-shimmer lens-shimmer lens-shimmer-label" style="width:100%"></span>
+				<span class="lens-shimmer lens-shimmer-label" style="width:100%"></span>
 			} else {
-				<span class="lens-skeleton-shimmer lens-shimmer lens-shimmer-block"></span>
+				<span class="lens-shimmer lens-shimmer-block"></span>
 			}
 		</div>
 	</div>

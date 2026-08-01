@@ -27,7 +27,10 @@ function mapPanel(id: string, title: string, deferred = false): Panel {
     id, kind: 'map', title, semantics: 'series', frame: `${id}:frame`, deferred,
     encoding: { id: 'code', label: 'name', value: 'policies' },
     format: { policies: { kind: 'number', minorUnits: false, precision: 0 } },
-    map: { source: { inline: geometry }, featureProperty: 'code', labelProperty: 'name' },
+    map: {
+      source: { inline: geometry }, featureProperty: 'code', labelProperty: 'name',
+      attribution: '© Example contributors · Synthetic boundaries (ODbL)',
+    },
     terminal: true, actions: [],
   }
 }

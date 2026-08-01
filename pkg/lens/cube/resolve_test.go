@@ -167,7 +167,7 @@ func TestBuildDimensionPanelCarriesChoroplethConfig(t *testing.T) {
 			panel.GeoJSONSource{URL: "/maps/regions.geojson", MaxBytes: 200_000},
 			"shapeISO",
 			"shapeName",
-		).
+		).MapAttribution("© Example Maps").
 		Measure("premium", "Premium").
 		Field("premium").
 		Sum().
@@ -188,6 +188,7 @@ func TestBuildDimensionPanelCarriesChoroplethConfig(t *testing.T) {
 	require.Equal(t, "/maps/regions.geojson", got.Map.Source.URL)
 	require.Equal(t, "shapeISO", got.Map.FeatureProperty)
 	require.Equal(t, "shapeName", got.Map.LabelProperty)
+	require.Equal(t, "© Example Maps", got.Map.Attribution)
 	require.Equal(t, action.KindCrossFilter, got.Action.Kind)
 }
 
@@ -254,6 +255,34 @@ func TestResolveComparisonBuildsPairedDatasetsAndDeltaPresentation(t *testing.T)
 		require.NotContains(t, dataset.Name, "_compared")
 	}
 	require.Nil(t, off.Rows[0].Panels[0].Children[0].Trend)
+}
+
+func TestResolveComparisonRanksTopNFromPrimaryPeriod(t *testing.T) {
+	t.Parallel()
+
+	spec := New("sales", "Sales").
+		SQL("primary", "policies p").
+		ParamVariable("period_param", "period").
+		Variable(lensbuild.DateRangeVariable("period", "Period", 30*24*time.Hour)).
+		Variable(lensbuild.CompareVariable("compare", "Compare", "period")).
+		Dimension("region", "Region").Column("p.region").
+		Transforms(transform.TopN("premium", 2, "Other")).
+		Measure("premium", "Premium").Column("p.premium").Sum().
+		Build()
+
+	compared, err := Resolve(spec, ParseDrillContext(url.Values{"compare": []string{"previous_period"}}), "/sales")
+	require.NoError(t, err)
+	datasets := make(map[string]lens.DatasetSpec, len(compared.Datasets))
+	for _, dataset := range compared.Datasets {
+		datasets[dataset.Name] = dataset
+	}
+	comparison := datasets["cube_dim_region_comparison"]
+	require.Contains(t, comparison.DependsOn, "cube_dim_region")
+	require.Len(t, comparison.Transforms, 2)
+	topN := comparison.Transforms[0].TopN
+	require.NotNil(t, topN)
+	require.Equal(t, "cube_dim_region", topN.RankByDataset)
+	require.Equal(t, []string{"filter_value", "label"}, topN.KeyFields)
 }
 
 func TestCubeRejectsDimensionKindsWhoseRequiredShapeItCannotProduce(t *testing.T) {

@@ -1106,6 +1106,7 @@
   "i18n": {},
   "theme": {
     "palette": {},
-    "series": {}
+    "series": {},
+    "debounceMs": 500
   }
 }

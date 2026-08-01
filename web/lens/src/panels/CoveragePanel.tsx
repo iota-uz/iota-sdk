@@ -34,9 +34,9 @@ export function buildCoverageSegments(
   frame: Frame,
   seriesColor: (label: string, index: number) => string | undefined,
 ): {
-  segments: CoverageSegment[]
-  total: number
-} {
+    segments: CoverageSegment[]
+    total: number
+  } {
   const labelIndex = columnIndex(frame, panelField(panel, 'label') ?? panelField(panel, 'category') ?? 'label')
   const valueIndex = columnIndex(frame, panelField(panel, 'value') ?? 'value')
   const idIndex = columnIndex(frame, panelField(panel, 'id'))
@@ -163,70 +163,70 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
   return (
     <PanelFrame panel={panel} frame={frame}>
       <StatLink href={cardHref} label={panel.title} onClick={navigation.onClick(cardHref)}>
-      <div className="lens-coverage">
-        <p className="lens-coverage-headline">
-          <span className="lens-coverage-headline-value">{formatValue(headline)}</span>
-          <span className="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
-        </p>
-        {showTrack && !panel.target && (
-          <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
-            {segments.map((segment, index) => segment.value > 0 && (
-              segmentHref(index)
-                ? (
-                  <a
-                    aria-label={tooltip(segment)}
-                    className="lens-coverage-track-segment lens-coverage-track-segment-link"
-                    href={segmentHref(index)}
-                    onClick={navigation.onClick(segmentHref(index))}
-                    key={segment.key}
-                    style={{ width: `${segment.share * 100}%`, background: segment.color }}
-                    title={tooltip(segment)}
-                  />
-                )
-                : (
-                  <span
-                    className="lens-coverage-track-segment"
-                    key={segment.key}
-                    style={{ width: `${segment.share * 100}%`, background: segment.color }}
-                    title={tooltip(segment)}
-                  />
-                )
-            ))}
-          </div>
-        )}
-        {showTrack && panel.target && (
-          <CoverageBullet
-            formatValue={formatValue}
-            navigation={navigation}
-            panel={panel}
-            segmentHref={segmentHref}
-            segments={segments}
-            target={panel.target}
-            tooltip={tooltip}
-            total={total}
-          />
-        )}
-        <ul className="lens-coverage-legend">
-          {segments.map((segment, index) => {
-            const href = segmentHref(index)
-            const content = (
-              <>
-                <span aria-hidden="true" className="lens-coverage-legend-bullet" style={{ background: segment.color }} />
-                <span className="lens-coverage-legend-label">{segment.label}</span>
-                <span className="lens-coverage-legend-value">{formatValue(segment.value)}</span>
-                <span className="lens-coverage-legend-share">{formatPercent(segment.share * 100)}</span>
-              </>
-            )
-            return (
-              <li className="lens-coverage-legend-row" key={segment.key}>
-                {href
-                  ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)} title={tooltip(segment)}>{content}</a>
-                  : content}
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+        <div className="lens-coverage">
+          <p className="lens-coverage-headline">
+            <span className="lens-coverage-headline-value">{formatValue(headline)}</span>
+            <span className="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
+          </p>
+          {showTrack && !panel.target && (
+            <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
+              {segments.map((segment, index) => segment.value > 0 && (
+                segmentHref(index)
+                  ? (
+                    <a
+                      aria-label={tooltip(segment)}
+                      className="lens-coverage-track-segment lens-coverage-track-segment-link"
+                      href={segmentHref(index)}
+                      onClick={navigation.onClick(segmentHref(index))}
+                      key={segment.key}
+                      style={{ width: `${segment.share * 100}%`, background: segment.color }}
+                      title={tooltip(segment)}
+                    />
+                  )
+                  : (
+                    <span
+                      className="lens-coverage-track-segment"
+                      key={segment.key}
+                      style={{ width: `${segment.share * 100}%`, background: segment.color }}
+                      title={tooltip(segment)}
+                    />
+                  )
+              ))}
+            </div>
+          )}
+          {showTrack && panel.target && (
+            <CoverageBullet
+              formatValue={formatValue}
+              navigation={navigation}
+              panel={panel}
+              segmentHref={segmentHref}
+              segments={segments}
+              target={panel.target}
+              tooltip={tooltip}
+              total={total}
+            />
+          )}
+          <ul className="lens-coverage-legend">
+            {segments.map((segment, index) => {
+              const href = segmentHref(index)
+              const content = (
+                <>
+                  <span aria-hidden="true" className="lens-coverage-legend-bullet" style={{ background: segment.color }} />
+                  <span className="lens-coverage-legend-label">{segment.label}</span>
+                  <span className="lens-coverage-legend-value">{formatValue(segment.value)}</span>
+                  <span className="lens-coverage-legend-share">{formatPercent(segment.share * 100)}</span>
+                </>
+              )
+              return (
+                <li className="lens-coverage-legend-row" key={segment.key}>
+                  {href
+                    ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)} title={tooltip(segment)}>{content}</a>
+                    : content}
+                </li>
+              )
+            })}
+          </ul>
+        </div>
       </StatLink>
     </PanelFrame>
   )

@@ -188,11 +188,12 @@ func TestLoadCubeResolvesMapDimension(t *testing.T) {
 			"map": {
 				"source": {"url": "{{basePath}}/regions.geojson", "maxBytes": 200000},
 				"featureProperty": "shapeISO",
-				"labelProperty": "shapeName"
+				"labelProperty": "shapeName",
+				"attribution": "© {{provider}}"
 			}
 		}],
 		"measures": [{"name": "premium", "label": "Premium", "column": "premium", "aggregation": "sum"}]
-	}`), ResolveOptions{Values: map[string]any{"basePath": "/maps"}})
+	}`), ResolveOptions{Values: map[string]any{"basePath": "/maps", "provider": "Example Maps"}})
 
 	require.NoError(t, err)
 	require.Equal(t, panel.KindMap, spec.Dimensions[0].PanelKind)
@@ -200,6 +201,7 @@ func TestLoadCubeResolvesMapDimension(t *testing.T) {
 	require.Equal(t, 200000, spec.Dimensions[0].Map.Source.MaxBytes)
 	require.Equal(t, "shapeISO", spec.Dimensions[0].Map.FeatureProperty)
 	require.Equal(t, "shapeName", spec.Dimensions[0].Map.LabelProperty)
+	require.Equal(t, "© Example Maps", spec.Dimensions[0].Map.Attribution)
 }
 
 func TestLoadCubeResolvesVariableDefaults(t *testing.T) {

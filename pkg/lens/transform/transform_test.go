@@ -229,6 +229,38 @@ func TestTopN_AggregatesOverflowIntoOtherBucket(t *testing.T) {
 	}, rows[2])
 }
 
+func TestTopN_RankDatasetKeepsPrimaryPeriodMembershipAndOrder(t *testing.T) {
+	t.Parallel()
+
+	current, err := frame.FromRows("current",
+		frame.Row{"filter_value": "a", "label": "A", "value": 100.0},
+		frame.Row{"filter_value": "b", "label": "B", "value": 90.0},
+		frame.Row{"filter_value": "", "label": "Other", "value": 10.0},
+	)
+	require.NoError(t, err)
+	previous, err := frame.FromRows("previous",
+		frame.Row{"filter_value": "c", "label": "C", "value": 1000.0},
+		frame.Row{"filter_value": "b", "label": "B", "value": 2.0},
+		frame.Row{"filter_value": "a", "label": "A", "value": 1.0},
+		frame.Row{"filter_value": "d", "label": "D", "value": 500.0},
+	)
+	require.NoError(t, err)
+
+	next, err := Apply(previous, map[string]*frame.FrameSet{"current": current}, []Spec{{
+		Kind: KindTopN,
+		TopN: &TopNConfig{
+			Field: "value", N: 2, Other: "Other", AdditiveFields: map[string]bool{"value": true},
+			RankByDataset: "current", KeyFields: []string{"filter_value", "label"},
+		},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, []map[string]any{
+		{"filter_value": "a", "label": "A", "value": 1.0},
+		{"filter_value": "b", "label": "B", "value": 2.0},
+		{"filter_value": "", "label": "Other", "value": 1500.0},
+	}, next.Primary().Rows())
+}
+
 func TestExpandableTopN_PreservesAndTagsRemainderRows(t *testing.T) {
 	t.Parallel()
 

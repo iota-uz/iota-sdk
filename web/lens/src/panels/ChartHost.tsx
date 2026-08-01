@@ -79,7 +79,6 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
       aria-label={label}
       role="img"
       data-drillable={drillable || undefined}
-      onMouseDown={drillable ? (event) => event.currentTarget.focus() : undefined}
     >
       <div ref={hostRef} className="lens-chart-canvas" />
       {loadError && (

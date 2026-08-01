@@ -283,7 +283,7 @@ func appendPanelTree(
 		MetricFlow: metricFlow, MetricHierarchy: metricHierarchy, MetricRelationship: metricRelationship,
 		Radial: radial, Map: mapConfig,
 		Confidence: Confidence(spec.Confidence), Availability: Availability(spec.Availability), Deferred: deferred,
-		Terminal: spec.Terminal,
+		Terminal: spec.Terminal, ComparisonUnsupported: spec.ComparisonUnsupported,
 	})
 	span := spec.Span
 	if span == 0 {
@@ -871,6 +871,7 @@ func buildMap(spec panel.Spec) *MapConfig {
 		FeatureProperty: spec.Map.FeatureProperty,
 		LabelProperty:   spec.Map.LabelProperty,
 		LabelProperties: cloneStringMap(spec.Map.LabelProperties),
+		Attribution:     spec.Map.Attribution,
 	}
 }
 

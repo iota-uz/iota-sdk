@@ -89,7 +89,7 @@ export interface ChartAnchor {
 }
 
 export interface ChartActivation {
-	newTab: boolean
+  newTab: boolean
 }
 
 export interface ChartEvents {
@@ -99,7 +99,7 @@ export interface ChartEvents {
 
 export interface ChartInstance {
   update(input: ChartInput): void
-	resetZoom?(): void
+  resetZoom?(): void
   dispose(): void
 }
 

@@ -364,8 +364,8 @@ function ExportStory({ mode }: { mode: 'idle' | 'pending' | 'retry' }) {
   const document = storyDocument(panel, { 'export-frame': cascadeFrame }, { export: '/story/export' })
   const fetcher: typeof fetch = () => mode === 'retry'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'snapshot_gone', message: 'snapshot expired' }), {
-        status: 410, headers: { 'Content-Type': 'application/json' },
-      }))
+      status: 410, headers: { 'Content-Type': 'application/json' },
+    }))
     : new Promise<Response>(() => undefined)
   return <Runtime document={document} fetcher={fetcher}>{mode === 'idle' ? <ExportButton panelId={panel.id} /> : <AutoExport />}</Runtime>
 }

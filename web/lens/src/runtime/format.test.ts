@@ -139,8 +139,9 @@ describe('formatFieldValueExact', () => {
 
 describe('clampedDeltaPercent', () => {
   it('clamps beyond ±999.9%', () => {
-    expect(clampedDeltaPercent(13_417.3)).toBe('>999%')
-    expect(clampedDeltaPercent(-4_641.5)).toBe('<−999%')
+    expect(clampedDeltaPercent(13_417.3, 'en')).toBe('>+999%')
+    expect(clampedDeltaPercent(-4_641.5, 'en')).toBe('<-999%')
+    expect(clampedDeltaPercent(13_417.3, 'ru')).toContain('999')
   })
 
   it('passes displayable values through', () => {

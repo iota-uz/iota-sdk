@@ -159,9 +159,12 @@ export function formatFieldValueExact(value: unknown, field: FieldFormat | undef
  * Returns undefined inside the displayable range. Mirrors the server's
  * trendPercentText clamp.
  */
-export function clampedDeltaPercent(value: number): string | undefined {
-  if (value > 999.9) return '>999%'
-  if (value < -999.9) return '<−999%'
+export function clampedDeltaPercent(value: number, locale = 'en'): string | undefined {
+  const formatLimit = (limit: number) => new Intl.NumberFormat(locale, {
+    style: 'unit', unit: 'percent', unitDisplay: 'narrow', maximumFractionDigits: 0, signDisplay: 'always',
+  }).format(limit)
+  if (value > 999.9) return `>${formatLimit(999)}`
+  if (value < -999.9) return `<${formatLimit(-999)}`
   return undefined
 }
 

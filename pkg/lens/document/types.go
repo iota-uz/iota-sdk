@@ -609,6 +609,9 @@ type Panel struct {
 	Deferred bool `json:"deferred,omitempty"`
 	// Terminal explicitly states that the panel has no deeper data action.
 	Terminal bool `json:"terminal,omitempty"`
+	// ComparisonUnsupported marks an active comparison that this panel kind
+	// cannot visualize. The client renders its localized explanatory notice.
+	ComparisonUnsupported bool `json:"comparisonUnsupported,omitempty"`
 }
 
 // RadialMode selects a radial panel's geometry.
@@ -667,6 +670,7 @@ type MapConfig struct {
 	FeatureProperty string            `json:"featureProperty"`
 	LabelProperty   string            `json:"labelProperty,omitempty"`
 	LabelProperties map[string]string `json:"labelProperties,omitempty"`
+	Attribution     string            `json:"attribution,omitempty"`
 }
 
 // StatusTone selects a status chip's color treatment.
@@ -1222,8 +1226,9 @@ type Endpoints struct {
 }
 
 type Theme struct {
-	Palette map[string]string `json:"palette"`
-	Series  map[string]string `json:"series"`
+	Palette    map[string]string `json:"palette"`
+	Series     map[string]string `json:"series"`
+	DebounceMS int               `json:"debounceMs,omitempty"`
 }
 
 type QueryRequest struct {

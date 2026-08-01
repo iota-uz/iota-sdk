@@ -378,9 +378,62 @@ describe('panel registry', () => {
     view.rerender(<RegisteredPanel panel={panel('cascade')} registry={{}} />)
     expect(screen.getByText('Unsupported panel: cascade')).toBeInTheDocument()
   })
+
+  it('lets a failed custom panel retry without taking down its siblings', () => {
+    runtime.frame = state('data')
+    let fail = true
+    const Fragile = () => {
+      if (fail) throw new Error('private renderer detail')
+      return <div>Recovered panel</div>
+    }
+    render(<RegisteredPanel panel={panel('stat')} registry={{ stat: Fragile }} />)
+
+    expect(screen.getByRole('alert')).toHaveTextContent('This panel could not be rendered.')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('private renderer detail')
+    fail = false
+    fireEvent.click(screen.getByRole('button', { name: 'Retry' }))
+    expect(screen.getByText('Recovered panel')).toBeInTheDocument()
+  })
 })
 
 describe('chart encoding and drill behavior', () => {
+  it('discloses when a panel cannot honor the active comparison', () => {
+    runtime.frame = state('data')
+    render(<StatPanel panel={panel('stat', { comparisonUnsupported: true })} />)
+
+    expect(screen.getByRole('note')).toHaveTextContent('Comparison is not available for this panel.')
+  })
+
+  it('renders the server-localized map attribution as an accessible note', async () => {
+    runtime.frame = state('data')
+    const map = panel('map')
+    map.map = { ...map.map!, attribution: '© Example contributors · Boundaries (ODbL)' }
+    render(<MapPanel panel={map} adapter={fakeAdapter()} />)
+
+    expect(await screen.findByRole('note', { name: 'Map attribution' })).toHaveTextContent('© Example contributors · Boundaries (ODbL)')
+  })
+
+  it('offers zoom reset only for a declared time category and calls the adapter', async () => {
+    const resetZoom = vi.fn()
+    const mount = vi.fn(() => ({ update: vi.fn(), dispose: vi.fn(), resetZoom }))
+    const adapter: ChartAdapter = {
+      mount,
+    }
+    const temporalFrame = { ...dataFrame, rows: [...dataFrame.rows, ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 43]] }
+    runtime.frame = { ...state('data'), data: temporalFrame }
+    const view = render(<LinePanel panel={panel('line')} adapter={adapter} />)
+    await waitFor(() => expect(mount).toHaveBeenCalledTimes(1))
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset zoom' }))
+    await waitFor(() => expect(resetZoom).toHaveBeenCalledTimes(1))
+
+    runtime.frame = {
+      ...state('data'),
+      data: { ...temporalFrame, columns: temporalFrame.columns.map((column) => column.name === 'category' ? { ...column, type: 'string' as const } : column) },
+    }
+    view.rerender(<LinePanel panel={panel('line')} adapter={adapter} />)
+    expect(screen.queryByRole('button', { name: 'Reset zoom' })).toBeNull()
+  })
+
   it('falls back to the label encoding when the preferred category column is absent', async () => {
     const frame: Frame = {
       columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],

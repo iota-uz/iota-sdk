@@ -476,6 +476,7 @@ type MapSpec struct {
 	FeatureProperty string            `json:"featureProperty"`
 	LabelProperty   string            `json:"labelProperty,omitempty"`
 	LabelProperties map[string]string `json:"labelProperties,omitempty"`
+	Attribution     string            `json:"attribution,omitempty"`
 }
 
 // RadialNodeKey returns the stable mark key emitted for a partition segment.
@@ -739,15 +740,18 @@ type Spec struct {
 	Action       *action.Spec
 	// Terminal explicitly marks a panel whose displayed value is the end of
 	// the interaction path. It is mutually exclusive with Action and drill.
-	Terminal    bool
-	Children    []Spec
-	ClassName   string
-	Chrome      chrome.Spec
-	ValueAxis   ValueAxis
-	Distributed bool
-	ColorField  FieldRef
-	ColorScale  string
-	Export      exportmeta.Spec
+	Terminal bool
+	// ComparisonUnsupported marks a panel whose declared comparison cannot be
+	// represented by its chart kind. Renderers localize the explanatory notice.
+	ComparisonUnsupported bool
+	Children              []Spec
+	ClassName             string
+	Chrome                chrome.Spec
+	ValueAxis             ValueAxis
+	Distributed           bool
+	ColorField            FieldRef
+	ColorScale            string
+	Export                exportmeta.Spec
 	// FlowStages, when set (KindMetricFlow), declares the panel's ordered
 	// operand stages.
 	FlowStages []FlowStage
@@ -1216,6 +1220,10 @@ func (b *Builder) FocusCanvas() *Builder {
 func (b *Builder) Format(spec format.Spec) *Builder { b.spec.Formatter = &spec; return b }
 func (b *Builder) Action(spec action.Spec) *Builder { b.spec.Action = &spec; return b }
 func (b *Builder) Terminal() *Builder               { b.spec.Terminal = true; return b }
+func (b *Builder) ComparisonUnsupported() *Builder {
+	b.spec.ComparisonUnsupported = true
+	return b
+}
 func (b *Builder) Description(text string) *Builder { b.spec.Description = text; return b }
 func (b *Builder) Info(text string) *Builder        { b.spec.Info = text; return b }
 func (b *Builder) Export(url string, evidenceDatasets ...string) *Builder {
@@ -1338,6 +1346,15 @@ func (b *Builder) MapLabelProperty(name string) *Builder {
 func (b *Builder) MapLabelProperties(properties map[string]string) *Builder {
 	if b.spec.Map != nil {
 		b.spec.Map.LabelProperties = cloneStringMap(properties)
+	}
+	return b
+}
+
+// MapAttribution declares the human-readable source or licence credit shown
+// with the map. The renderer must display it whenever it is non-empty.
+func (b *Builder) MapAttribution(attribution string) *Builder {
+	if b.spec.Map != nil {
+		b.spec.Map.Attribution = strings.TrimSpace(attribution)
 	}
 	return b
 }

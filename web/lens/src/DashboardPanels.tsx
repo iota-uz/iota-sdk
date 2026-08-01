@@ -15,7 +15,11 @@ import {
 } from 'react'
 import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
-import { ExportMenu, RegisteredPanel, SavedViewsMenu, ShareSliceButton, StatMetric, StatusChip, type PanelRegistry } from './panels'
+import { ExportMenu } from './panels/ExportMenu'
+import { RegisteredPanel, type PanelRegistry } from './panels/registry'
+import { SavedViewsMenu } from './panels/SavedViewsMenu'
+import { ShareSliceButton } from './panels/ShareSliceButton'
+import { StatMetric, StatusChip } from './panels/StatPanel'
 import { LegendVisibilityContext } from './panels/context'
 import { X } from './icons'
 import { ExplorePanel } from './explore'
@@ -275,53 +279,53 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   return (
     <LegendVisibilityContext.Provider value={legendVisibility}>
       <GroupCard group={group}>
-      {/* An unlabelled group would otherwise expose its raw id to a screen
+        {/* An unlabelled group would otherwise expose its raw id to a screen
           reader; a translated generic name is the honest fallback. */}
-      <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
-        {tabs.map((tab, index) => (
-          <button
-            aria-controls={panelId(index)}
-            aria-selected={tab === current}
-            className="lens-tabstrip-tab"
-            id={tabId(index)}
-            key={tab}
-            onClick={() => select(tab)}
-            onKeyDown={(event) => onTabKeyDown(event, index)}
-            ref={(node) => { tabRefs.current[index] = node }}
-            role="tab"
-            tabIndex={tab === current ? 0 : -1}
-            type="button"
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-      {/* Every tabpanel element exists so each tab's aria-controls resolves, but
+        <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
+          {tabs.map((tab, index) => (
+            <button
+              aria-controls={panelId(index)}
+              aria-selected={tab === current}
+              className="lens-tabstrip-tab"
+              id={tabId(index)}
+              key={tab}
+              onClick={() => select(tab)}
+              onKeyDown={(event) => onTabKeyDown(event, index)}
+              ref={(node) => { tabRefs.current[index] = node }}
+              role="tab"
+              tabIndex={tab === current ? 0 : -1}
+              type="button"
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+        {/* Every tabpanel element exists so each tab's aria-controls resolves, but
           only the active one mounts its content — the inactive ones are hidden
           and empty, so hidden panels never fetch. A print run is the exception:
           the report covers every tab, so the others mount to resolve their
           frames. They stay hidden while it does, or the dashboard behind the
           report flashes every tab at once. */}
-      {tabs.map((tab, index) => (
-        <div
-          aria-labelledby={tabId(index)}
-          className="lens-panel-grid lens-tab-panel"
-          hidden={tab !== current}
-          id={panelId(index)}
-          key={tab}
-          role="tabpanel"
-          tabIndex={0}
-        >
-          {(print.active || tab === current) && (
-            <GroupChain
-              depth={depth + 1}
-              items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
-              panels={panels}
-              registry={registry}
-            />
-          )}
-        </div>
-      ))}
+        {tabs.map((tab, index) => (
+          <div
+            aria-labelledby={tabId(index)}
+            className="lens-panel-grid lens-tab-panel"
+            hidden={tab !== current}
+            id={panelId(index)}
+            key={tab}
+            role="tabpanel"
+            tabIndex={0}
+          >
+            {(print.active || tab === current) && (
+              <GroupChain
+                depth={depth + 1}
+                items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
+                panels={panels}
+                registry={registry}
+              />
+            )}
+          </div>
+        ))}
       </GroupCard>
     </LegendVisibilityContext.Provider>
   )
@@ -450,9 +454,9 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const translate = useTranslate()
   const drawer = useDrawer()
   const print = usePrint()
-	const recomputeLabel = isRecomputing
-		? translate('dashboard.recomputing', 'Recomputing…')
-		: translate('dashboard.recompute', 'Recompute')
+  const recomputeLabel = isRecomputing
+    ? translate('dashboard.recomputing', 'Recomputing…')
+    : translate('dashboard.recompute', 'Recompute')
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
   // value is fixed for this mount, so drill, perspective, drawer and refetch
@@ -477,66 +481,66 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
     (document.filters?.length ?? 0) > 0 || canRecompute
   return (
     <TabStateContext.Provider value={tabState}>
-    <main className="lens-dashboard" aria-label={identityTitle}>
-      {hasHeader && (
-        <header className="lens-dashboard-header">
-          {/* The document header owns the page identity: a strong title over a
+      <main className="lens-dashboard" aria-label={identityTitle}>
+        {hasHeader && (
+          <header className="lens-dashboard-header">
+            {/* The document header owns the page identity: a strong title over a
               muted period + freshness subtitle. Without one, an empty title
               lets a host page own the heading and keeps the dashboard's own
               chrome to the action bar. */}
-          {header ? (
-            <div className="lens-dashboard-identity">
-              {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
-              <DashboardSubtitle subtitle={header.subtitle} />
-            </div>
-          ) : (
-            document.meta.title ? <h1>{document.meta.title}</h1> : <span />
-          )}
-          <div className="lens-dashboard-controls">
-            <FilterBar today={filterToday} />
-            {canRecompute && (
-              <button
-                className="lens-export-button"
-                disabled={isRecomputing}
-                onClick={recompute}
-                type="button"
-              >
-                {recomputeLabel}
-              </button>
+            {header ? (
+              <div className="lens-dashboard-identity">
+                {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
+                <DashboardSubtitle subtitle={header.subtitle} />
+              </div>
+            ) : (
+              document.meta.title ? <h1>{document.meta.title}</h1> : <span />
             )}
-            <SavedViewsMenu />
-            <ShareSliceButton />
-            <ExportMenu />
-          </div>
-        </header>
-      )}
-      {hasHeader && <DocumentRefetchError />}
-      {/* The header folds freshness into its subtitle; only the headerless
-          layout still shows the lone updated line. */}
-      {hasHeader && !header && <DashboardFreshness />}
-      <div className="lens-dashboard-rows">
-        {document.layout.rows.map((row, rowIndex) => (
-          <section
-            className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
-            id={row.anchor || undefined}
-            key={`${row.heading ?? 'row'}-${rowIndex}`}
-          >
-            {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
-            <div
-              className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
-              style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
-            >
-              <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
+            <div className="lens-dashboard-controls">
+              <FilterBar today={filterToday} />
+              {canRecompute && (
+                <button
+                  className="lens-export-button"
+                  disabled={isRecomputing}
+                  onClick={recompute}
+                  type="button"
+                >
+                  {recomputeLabel}
+                </button>
+              )}
+              <SavedViewsMenu />
+              <ShareSliceButton />
+              <ExportMenu />
             </div>
-          </section>
-        ))}
-      </div>
-      {print.active && (
-        <Suspense fallback={null}>
-          <LazyPrintReport />
-        </Suspense>
-      )}
-    </main>
+          </header>
+        )}
+        {hasHeader && <DocumentRefetchError />}
+        {/* The header folds freshness into its subtitle; only the headerless
+          layout still shows the lone updated line. */}
+        {hasHeader && !header && <DashboardFreshness />}
+        <div className="lens-dashboard-rows">
+          {document.layout.rows.map((row, rowIndex) => (
+            <section
+              className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
+              id={row.anchor || undefined}
+              key={`${row.heading ?? 'row'}-${rowIndex}`}
+            >
+              {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
+              <div
+                className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
+                style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
+              >
+                <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
+              </div>
+            </section>
+          ))}
+        </div>
+        {print.active && (
+          <Suspense fallback={null}>
+            <LazyPrintReport />
+          </Suspense>
+        )}
+      </main>
     </TabStateContext.Provider>
   )
 }

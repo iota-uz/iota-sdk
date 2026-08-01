@@ -1265,7 +1265,7 @@
     }
   }
 
-.lens-panel-actions {
+  .lens-panel-actions {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-justify-end lens-gap-2;
   }
 
@@ -1327,6 +1327,10 @@
 
   .lens-panel-caption {
     @apply lens-m-0 lens-whitespace-pre-line lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4 lens-py-3 lens-text-sm lens-leading-relaxed lens-text-muted;
+  }
+
+  .lens-panel-comparison-note {
+    @apply lens-m-0 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-px-4 lens-py-2 lens-text-xs lens-font-medium lens-text-muted;
   }
 
   .lens-export-control {
@@ -1554,15 +1558,6 @@
      right beside it, rather than pushing it to the far edge. */
   .lens-panel-group-header {
     @apply lens-justify-start;
-  }
-
-  /* A metric strip is short, so a cell's ⓘ bubble hangs well past the card's
-     bottom edge; the default clipping would cut the note in half. The templ
-     renderer settled this the same way (lens-card--overflow on stat and
-     stat_group cards) — the tooltip mounts in-tree, not portaled. Nothing in a
-     metrics group needs clipping: it holds no plots, only type. */
-  .lens-panel-group-metrics {
-    @apply lens-overflow-visible;
   }
 
   .lens-metric-row {
@@ -2037,7 +2032,10 @@
   /* A logarithmic bar is deliberately non-linear. Keep that warning on the
      reading surface instead of hiding it in an info tooltip. */
   .lens-chart-log-scale {
-    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-border-amber-200 lens-bg-amber-50 lens-px-2.5 lens-py-1 lens-text-[11px] lens-font-medium lens-text-amber-700;
+    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-[11px] lens-font-medium;
+    border-color: color-mix(in srgb, var(--lens-warn) 35%, var(--lens-border));
+    background: var(--lens-warn-soft);
+    color: var(--lens-warn);
   }
 
   .lens-chart-log-scale svg {
@@ -2058,6 +2056,10 @@
   .lens-chart-host {
     @apply lens-relative lens-flex lens-flex-1 lens-p-2;
     min-height: 19rem;
+  }
+
+  .lens-map-attribution {
+    @apply lens-m-0 lens-px-3 lens-pb-2 lens-text-right lens-text-xs lens-text-muted;
   }
 
   .lens-panel-fill .lens-chart-host {
@@ -3228,6 +3230,10 @@
 
   .lens-drill-scrim {
     @apply lens-fixed lens-inset-0;
+    appearance: none;
+    padding: 0;
+    border: 0;
+    background: transparent;
   }
 
   /* The popover is anchored to the mark, so it must never cover it: the

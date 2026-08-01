@@ -6,6 +6,7 @@ import { createPortal } from 'react-dom'
 import type { FieldFormat } from '../contract'
 import { ArrowUpRight, CaretRight, Check, Copy, X } from '../icons'
 import { useDrawer, useFormat, useTranslate } from '../runtime'
+import { useOverlayContainer } from '../runtime/overlayContainer'
 import { isVisualRegression } from '../visualRegression'
 import type { DrillTarget } from './model'
 
@@ -122,7 +123,14 @@ export function DrillOverlay({
   const translate = useTranslate()
   const formatValue = useFormat(valueFormat)
   const formatShare = useFormat({ kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' })
-  const [container, setContainer] = useState<HTMLElement>()
+  const anchorElementRef = useRef<HTMLElement | null>(anchorElement ?? null)
+  anchorElementRef.current = anchorElement ?? null
+  const container = useOverlayContainer(
+    true,
+    anchorElementRef,
+    drawer.depth > 0 ? 'lens-overlay-root-over-drawer' : '',
+    { dark, theme },
+  )
   const [position, setPosition] = useState<Position>({ left: anchor.x, top: anchor.y, placement: 'right', caret: caretInset })
   const [copied, setCopied] = useState(false)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -135,31 +143,8 @@ export function DrillOverlay({
     return !globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
   })
 
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined
-    const element = document.createElement('div')
-    // Same rule as the expanded panel: leaving the dashboard subtree means the
-    // host has to re-declare the Lens root context, and living at the end of
-    // body means no ancestor stacking context can bury it.
-    // A focus canvas can live inside the runtime drawer. Its segment overlay
-    // is another body-level portal, so the normal overlay z-index would place
-    // it underneath the drawer portal even though it belongs to the drawer's
-    // active interaction. Lift only this nested overlay one rung above the
-    // drawer; page-level overlays keep their existing stacking contract.
-    element.className = `lens-root lens-overlay-root${drawer.depth > 0 ? ' lens-overlay-root-over-drawer' : ''}${dark ? ' dark' : ''}`
-    if (theme) element.dataset.theme = theme
-    document.body.appendChild(element)
-    setContainer(element)
-    return () => {
-      element.remove()
-      setContainer(undefined)
-    }
-  }, [dark, drawer.depth, theme])
-
   const anchorRef = useRef(anchor)
   anchorRef.current = anchor
-  const anchorElementRef = useRef(anchorElement)
-  anchorElementRef.current = anchorElement
 
   const reposition = useCallback(() => {
     const dialog = dialogRef.current
@@ -328,8 +313,9 @@ export function DrillOverlay({
     <>
       {/* A transparent catcher closes on any outside press without dimming the
           chart the popover is describing. */}
-      <div className="lens-drill-scrim" onMouseDown={onClose} />
+      <button aria-label={translate('drill.close', 'Close details')} className="lens-drill-scrim" onMouseDown={onClose} tabIndex={-1} type="button" />
       <span aria-hidden="true" className="lens-drill-caret" data-placement={position.placement} style={caretStyle} />
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- focus movement is delegated from controls inside this programmatically focusable dialog. */}
       <div
         aria-label={target.label}
         aria-modal="false"

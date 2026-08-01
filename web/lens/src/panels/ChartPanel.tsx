@@ -14,6 +14,11 @@ import { useLegendVisibility, useMarkSelection } from './context'
 import { encodingRoles, rowColorResolver, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
+// Below 2% a donut label cannot fit reliably inside its arc.
+const minorDonutShare = 0.02
+// Long legends gain search before scanning them becomes slower than typing.
+const searchableLegendEntries = 8
+
 export interface ChartPanelProps {
   panel: Panel
   adapter?: ChartAdapter
@@ -221,7 +226,7 @@ export function collapseMinorDonutSlices(frame: Frame, panel: Panel, otherLabel:
   const total = frame.total ?? frame.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
   if (!Number.isFinite(total) || total <= 0) return { frame, collapsed: false }
   const minor = frame.rows.map((row, index) => ({ index, value: numericCell(row[valueIndex]) ?? 0 }))
-    .filter(({ value }) => value / total < 0.02)
+    .filter(({ value }) => value / total < minorDonutShare)
   if (minor.length === 0) return { frame, collapsed: false }
   const minorIndices = new Set(minor.map(({ index }) => index))
   const rows = frame.rows.filter((_, index) => !minorIndices.has(index)).map((row) => [...row])
@@ -341,9 +346,9 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   }, [frame.data, hidden, panel])
   const collapsedRemainder = useMemo(() => visibleFrame
     ? (() => {
-        const topN = collapseExpandableTopN(visibleFrame, panel)
-        return topN.collapsed ? topN : collapseMinorDonutSlices(visibleFrame, panel, translate('chart.other', 'Other'))
-      })()
+      const topN = collapseExpandableTopN(visibleFrame, panel)
+      return topN.collapsed ? topN : collapseMinorDonutSlices(visibleFrame, panel, translate('chart.other', 'Other'))
+    })()
     : { frame: visibleFrame, collapsed: false }, [panel, translate, visibleFrame])
   const renderFrame = remainderExpanded || !collapsedRemainder.collapsed ? visibleFrame : collapsedRemainder.frame
   // Keep the legend independent of visibility. Hidden entries must remain in
@@ -532,6 +537,9 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // the left of the body.
   const hasLegend = !compact && presentation?.legend === 'below' && Boolean(renderFrame)
   const chartInteractive = interactive || collapsedRemainder.collapsed
+  const categoryField = panel.encoding.category ?? panel.encoding.label
+  const zoomable = (kind === 'line' || kind === 'area')
+    && renderFrame?.columns.some((column) => column.name === categoryField && column.type === 'time') === true
   return (
     <PanelFrame allowEmptyContent={!distribution} panel={panel} frame={frame} headerActions={temporalControls} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
@@ -555,7 +563,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
               {translate('chart.collapseOther', 'Collapse Other')}
             </button>
           )}
-          {(kind === 'line' || kind === 'area') && input?.temporal && (
+          {zoomable && (
             <button className="lens-chart-reset-zoom" onClick={() => setResetZoomKey((value) => value + 1)} type="button">
               {translate('chart.resetZoom', 'Reset zoom')}
             </button>
@@ -690,7 +698,7 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
   const valueIndex = frame.columns.findIndex((column) => column.name === valueField)
   const formatLabel = useFormat(labelField ? panel.format[labelField] : undefined)
-	// At a drill level the rows are the level's, not the panel's own, so the
+  // At a drill level the rows are the level's, not the panel's own, so the
   // positional color pins no longer describe them.
   const atLevel = navigation.panelId === panel.id && navigation.path.length > 0
   const color = seriesColorResolver(document.theme, panel, { positional: !atLevel })
@@ -764,8 +772,8 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
       }
     })
     return { allKeys, categoryOrder, entries, entryKeys, entryPositions, rowKeys, rowsPerKey, shares, valueByKey }
-	}, [frame, idIndex, labelIndex, panel.format, panel.radial?.rings, partition, seriesIndex, seriesLegendIndex, total, valueField, valueIndex])
-	if (labelIndex < 0) return null
+  }, [frame, idIndex, labelIndex, panel.format, panel.radial?.rings, partition, seriesIndex, seriesLegendIndex, total, valueField, valueIndex])
+  if (labelIndex < 0) return null
   // The plot pins one colour per category across every ring of a partition, so
   // its palette index is the category's, not the row's (see `categoryOrder` in
   // the chart adapter). Anywhere else a row is its own category.
@@ -806,7 +814,7 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
         <button onClick={() => onSetHidden(new Set())} type="button">{translate('chart.legendShowAll', 'Show all')}</button>
         <button onClick={() => onSetHidden(new Set(model.allKeys.filter((key) => !hidden.has(key))))} type="button">{translate('chart.legendInvert', 'Invert')}</button>
       </div>
-      {model.entries.length > 8 && (
+      {model.entries.length > searchableLegendEntries && (
         <label className="lens-chart-legend-search">
           <span className="lens-sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
           <input
@@ -818,52 +826,52 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
         </label>
       )}
       <ul className="lens-chart-legend">
-      {visibleEntries.map((index) => {
-        const row = frame.rows[index]!
-        const entryIndex = model.entryPositions.get(index) ?? index
-        const raw = row[labelIndex]
-        const label = raw === null || raw === undefined ? '' : formatLabel(raw)
-        const key = model.entryKeys[index]!
-        const isHidden = hidden.has(key)
-        return (
-          <li className="lens-chart-legend-item" key={`${key}-${index}`}>
-            <button
-              aria-pressed={!isHidden}
-              className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
-              onClick={() => onToggle(key)}
-              onDoubleClick={() => solo(key)}
-              title={translate('chart.legendToggle', 'Toggle series; double-click to isolate')}
-              type="button"
-            >
-              <span
-                aria-hidden="true"
-                className="lens-chart-legend-mark"
-                style={{ background: isHidden ? undefined : swatch(label, index, entryIndex) }}
-              />
-              <span className="lens-chart-legend-label">{label}</span>
-              {suffixFor(index) !== 'none' && (
-                <>
-                  <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
-                  <span className="lens-chart-legend-value">
-                    {suffixFor(index) === 'percent'
-                      ? formatShare(model.shares.get(index), document.meta?.locale)
-                      : formatValue(model.valueByKey.get(key))}
-                  </span>
-                </>
-              )}
-            </button>
-            <button
-              aria-label={translate('chart.legendIsolate', 'Isolate series')}
-              className="lens-chart-legend-solo"
-              onClick={() => solo(key)}
-              title={translate('chart.legendIsolateName', 'Isolate {name}', { name: label })}
-              type="button"
-            >
-              ◎
-            </button>
-          </li>
-        )
-      })}
+        {visibleEntries.map((index) => {
+          const row = frame.rows[index]!
+          const entryIndex = model.entryPositions.get(index) ?? index
+          const raw = row[labelIndex]
+          const label = raw === null || raw === undefined ? '' : formatLabel(raw)
+          const key = model.entryKeys[index]!
+          const isHidden = hidden.has(key)
+          return (
+            <li className="lens-chart-legend-item" key={`${key}-${index}`}>
+              <button
+                aria-pressed={!isHidden}
+                className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+                onClick={() => onToggle(key)}
+                onDoubleClick={() => solo(key)}
+                title={translate('chart.legendToggle', 'Toggle series; double-click to isolate')}
+                type="button"
+              >
+                <span
+                  aria-hidden="true"
+                  className="lens-chart-legend-mark"
+                  style={{ background: isHidden ? undefined : swatch(label, index, entryIndex) }}
+                />
+                <span className="lens-chart-legend-label">{label}</span>
+                {suffixFor(index) !== 'none' && (
+                  <>
+                    <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+                    <span className="lens-chart-legend-value">
+                      {suffixFor(index) === 'percent'
+                        ? formatShare(model.shares.get(index), document.meta?.locale)
+                        : formatValue(model.valueByKey.get(key))}
+                    </span>
+                  </>
+                )}
+              </button>
+              <button
+                aria-label={translate('chart.legendIsolate', 'Isolate series')}
+                className="lens-chart-legend-solo"
+                onClick={() => solo(key)}
+                title={translate('chart.legendIsolateName', 'Isolate {name}', { name: label })}
+                type="button"
+              >
+                ◎
+              </button>
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

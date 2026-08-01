@@ -44,6 +44,7 @@ type fakeExecutor struct {
 	panelErrs   map[string]error
 	startOnce   sync.Once
 	cacheHit    bool
+	pageHasMore map[string]map[int]bool
 }
 
 func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
@@ -103,6 +104,12 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 		frames = pages[page]
 	}
 	result.Panels[panelID] = panelResult(target, frames, req)
+	if pages := f.pageHasMore[panelID]; pages != nil {
+		page, _ := strconv.Atoi(req.Request.Get(lensruntime.TablePaginationPageQuery))
+		result.Panels[panelID].TablePagination = &lensruntime.TablePagination{
+			Page: page, PerPage: len(frames.Primary().Rows()), HasMore: pages[page],
+		}
+	}
 	result.Panels[panelID].Error = f.panelErrs[panelID]
 	return result, nil
 }
@@ -590,23 +597,20 @@ func TestHandlers_EvidenceHasNext(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name     string
-		nextRows int
-		want     bool
+		name string
+		want bool
 	}{
-		{name: "exact final page", nextRows: 0, want: false},
-		{name: "full page with following rows", nextRows: 1, want: true},
+		{name: "exact final page", want: false},
+		{name: "full page with following rows", want: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			handlers, executor, _ := newTestHandlers(t, 0)
 			executor.pageFrames = map[string]map[int]*frame.FrameSet{
-				"evidence-panel": {
-					1: evidenceFramesWithRows(t, 17),
-					2: evidenceFramesWithRows(t, tt.nextRows),
-				},
+				"evidence-panel": {1: evidenceFramesWithRows(t, 17)},
 			}
+			executor.pageHasMore = map[string]map[int]bool{"evidence-panel": {1: tt.want}}
 			doc := requestDocument(t, handlers, "/dash/document")
 
 			response := queryLevel(t, handlers, QueryRequest{
@@ -615,9 +619,17 @@ func TestHandlers_EvidenceHasNext(t *testing.T) {
 
 			require.Equal(t, &Page{Number: 1, Size: 17, HasNext: tt.want}, response.Page)
 			require.Len(t, response.Frames[document.FrameRef("explore:metric/focus/evidence:evidence")].Rows, 17)
-			require.Equal(t, 2, executor.callCount("evidence-panel"))
+			require.Equal(t, 1, executor.callCount("evidence-panel"))
 		})
 	}
+}
+
+func TestEvidenceHasNextRejectsFullPageWithoutPaginationMetadata(t *testing.T) {
+	t.Parallel()
+	handlers, _, _ := newTestHandlers(t, 0)
+	wire := document.Frame{Rows: make([][]any, handlers.pageSize)}
+	_, err := handlers.evidenceHasNext(&lensruntime.PanelResult{}, &wire)
+	require.ErrorContains(t, err, "requires authoritative table pagination metadata")
 }
 
 func TestHandlers_DocumentSkipsErroredExplorePanelAndQueryReportsIt(t *testing.T) {

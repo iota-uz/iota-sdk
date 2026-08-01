@@ -123,12 +123,14 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
   if (!container) return null
 
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- backdrop dismissal is delegated while the nested dialog owns focus and semantics.
     <div
       className="lens-drawer-backdrop"
       // mousedown, not click: a drag that starts inside the dialog and ends on
       // the backdrop must not be read as "dismiss".
       onMouseDown={(event) => { if (event.target === event.currentTarget) onClose() }}
     >
+      {/* eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions -- keyboard trapping is delegated from controls inside this programmatically focusable dialog. */}
       <div
         aria-label={label}
         aria-modal="true"
@@ -150,7 +152,6 @@ export function LensDrawer({ children, closeLabel, dark = false, eyebrow, label,
           </div>
           <button
             aria-label={closeLabel}
-            autoFocus
             className="lens-drawer-close"
             onClick={onClose}
             ref={closeRef}

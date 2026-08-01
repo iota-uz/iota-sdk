@@ -187,17 +187,20 @@ type PanelSpec struct {
 	// Terminal explicitly declares that this leaf is an intentional end of the
 	// interaction path. Every compiled leaf must set Terminal or expose an
 	// action/drill path; the two states are mutually exclusive.
-	Terminal    bool            `json:"terminal,omitempty"`
-	Children    []PanelSpec     `json:"children,omitempty"`
-	ClassName   string          `json:"className,omitempty"`
-	Chrome      chrome.Spec     `json:"-"`
-	ChromeIcon  string          `json:"icon,omitempty"`
-	AccentColor string          `json:"accentColor,omitempty"`
-	ValueAxis   panel.ValueAxis `json:"valueAxis,omitempty"`
-	Distributed bool            `json:"distributed,omitempty"`
-	ColorField  string          `json:"colorField,omitempty"`
-	ColorScale  string          `json:"colorScale,omitempty"`
-	Export      exportmeta.Spec `json:"export,omitempty"`
+	Terminal bool `json:"terminal,omitempty"`
+	// ComparisonUnsupported tells the renderer that this panel kind cannot
+	// visualize the active comparison. The renderer owns localized messaging.
+	ComparisonUnsupported bool            `json:"comparisonUnsupported,omitempty"`
+	Children              []PanelSpec     `json:"children,omitempty"`
+	ClassName             string          `json:"className,omitempty"`
+	Chrome                chrome.Spec     `json:"-"`
+	ChromeIcon            string          `json:"icon,omitempty"`
+	AccentColor           string          `json:"accentColor,omitempty"`
+	ValueAxis             panel.ValueAxis `json:"valueAxis,omitempty"`
+	Distributed           bool            `json:"distributed,omitempty"`
+	ColorField            string          `json:"colorField,omitempty"`
+	ColorScale            string          `json:"colorScale,omitempty"`
+	Export                exportmeta.Spec `json:"export,omitempty"`
 	// FlowStages declares a metric_flow panel's ordered operand stages.
 	FlowStages []panel.FlowStage `json:"flowStages,omitempty"`
 	// FlowReconcile opts a metric_flow panel into a tolerance-based mismatch

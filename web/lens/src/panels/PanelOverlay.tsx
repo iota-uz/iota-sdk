@@ -1,11 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { useOverlayContainer } from '../runtime/overlayContainer'
 
 export interface PanelOverlayProps {
   label: string
-  /** Theme of the dashboard root the panel came from. */
-  theme?: string
-  dark?: boolean
+  sourceRef: RefObject<Element | null>
   onClose: () => void
   children: ReactNode
 }
@@ -25,25 +24,9 @@ const focusableSelector = [
  * into its own element at the end of `body`, where nothing on the page can
  * outrank it, and it carries an opaque backdrop so nothing shows through.
  */
-export function PanelOverlay({ label, theme, dark = false, onClose, children }: PanelOverlayProps) {
-  const [container, setContainer] = useState<HTMLElement>()
+export function PanelOverlay({ label, sourceRef, onClose, children }: PanelOverlayProps) {
+  const container = useOverlayContainer(true, sourceRef)
   const dialogRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    if (typeof document === 'undefined') return undefined
-    const element = document.createElement('div')
-    // The portal leaves the dashboard subtree, so it has to carry the Lens
-    // root class and theme with it or every custom property resolves to its
-    // fallback.
-    element.className = `lens-root lens-overlay-root${dark ? ' dark' : ''}`
-    if (theme) element.dataset.theme = theme
-    document.body.appendChild(element)
-    setContainer(element)
-    return () => {
-      element.remove()
-      setContainer(undefined)
-    }
-  }, [dark, theme])
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
@@ -97,6 +80,7 @@ export function PanelOverlay({ label, theme, dark = false, onClose, children }: 
   if (!container) return null
 
   return createPortal(
+    // eslint-disable-next-line jsx-a11y/no-static-element-interactions -- the backdrop delegates dismissal while the nested dialog owns focus and semantics.
     <div
       className="lens-panel-overlay"
       // mousedown, not click: a drag that starts inside the dialog and ends on

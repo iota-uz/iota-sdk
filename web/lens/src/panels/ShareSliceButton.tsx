@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Check, Copy } from '../icons'
 import { useTranslate } from '../runtime'
 
+const copiedStatusDurationMs = 1800
+
 /** Copies the canonical browser URL, which is the Lens slice state contract. */
 export function ShareSliceButton() {
   const translate = useTranslate()
@@ -12,7 +14,7 @@ export function ShareSliceButton() {
 
   useEffect(() => {
     if (status !== 'copied') return undefined
-    const timeout = globalThis.setTimeout(() => setStatus('idle'), 1800)
+    const timeout = globalThis.setTimeout(() => setStatus('idle'), copiedStatusDurationMs)
     return () => globalThis.clearTimeout(timeout)
   }, [status])
 

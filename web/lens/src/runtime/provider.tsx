@@ -13,7 +13,7 @@ import {
 import type { CompareValue, DashboardDocument, FieldFormat, Filter, Frame, NodeKey, NodePath, Panel, PanelCalculation, PeriodValue, QueryPage, QueryRequest, TableSummary } from '../contract'
 import { fetchDocument } from './document'
 import {
-	compareValues,
+  compareValues,
   declaredFilters,
   periodValues,
   readFilterValues,
@@ -261,8 +261,8 @@ export interface FiltersContextValue {
   /** URL-derived values; a control falls back to its declared value. */
   values: FilterValues
   setPeriod: (filter: Filter, value: PeriodValue) => void
-	setCompare: (filter: Filter, value: CompareValue) => void
-	applyURL: (url: string | URL, options?: { newTab?: boolean }) => void
+  setCompare: (filter: Filter, value: CompareValue) => void
+  applyURL: (url: string | URL, options?: { newTab?: boolean }) => void
 }
 
 export interface DrawerContextValue {
@@ -770,15 +770,15 @@ function RuntimeCore({
     drawerCache.current?.configure({ csrf, fetcher })
   }, [csrf, fetcher])
   const frameStore = useRef<PanelFrameStore>()
-	const [panelAttempts, setPanelAttempts] = useState<Record<string, number>>({})
-	const panelForces = useRef(new Set<string>())
-	const launchedPanelAttempts = useRef(new Map<string, number>())
-	const recomputePending = useRef(new Set<string>())
-	const [isRecomputing, setIsRecomputing] = useState(false)
-	const schedulePanel = useCallback((panelId: string, recompute = false) => {
-		if (recompute) panelForces.current.add(panelId)
-		setPanelAttempts((current) => ({ ...current, [panelId]: (current[panelId] ?? 0) + 1 }))
-	}, [])
+  const [panelAttempts, setPanelAttempts] = useState<Record<string, number>>({})
+  const panelForces = useRef(new Set<string>())
+  const launchedPanelAttempts = useRef(new Map<string, number>())
+  const recomputePending = useRef(new Set<string>())
+  const [isRecomputing, setIsRecomputing] = useState(false)
+  const schedulePanel = useCallback((panelId: string, recompute = false) => {
+    if (recompute) panelForces.current.add(panelId)
+    setPanelAttempts((current) => ({ ...current, [panelId]: (current[panelId] ?? 0) + 1 }))
+  }, [])
   const retryFrame = useCallback(() => {
     forceRetry.current = true
     setRetryToken((value) => value + 1)
@@ -806,14 +806,14 @@ function RuntimeCore({
   }
   const endpoint = document.endpoints.query
   const queryClient = useMemo(() => endpoint ? new QueryClient(endpoint, { csrf, fetcher }) : undefined, [csrf, endpoint, fetcher])
-	const panelEndpoint = sourceDocument.endpoints.panel
-	const panelClient = useMemo(
-		() => panelEndpoint ? new PanelClient(panelEndpoint, { csrf, fetcher }) : undefined,
-		[csrf, fetcher, panelEndpoint],
-	)
+  const panelEndpoint = sourceDocument.endpoints.panel
+  const panelClient = useMemo(
+    () => panelEndpoint ? new PanelClient(panelEndpoint, { csrf, fetcher }) : undefined,
+    [csrf, fetcher, panelEndpoint],
+  )
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])
-	useEffect(() => () => panelClient?.dispose(), [panelClient])
+  useEffect(() => () => panelClient?.dispose(), [panelClient])
 
   useEffect(() => {
     if (exportSnapshotId.current === document.snapshotId) return
@@ -822,12 +822,12 @@ function RuntimeCore({
   }, [document.snapshotId])
 
   useEffect(() => {
-	// A document can legitimately return to an earlier snapshot through
-	// browser Back. Panel attempts are scoped to the active document lifecycle,
-	// not to a snapshot forever: retaining the old `${snapshot}:${panel}` keys
-	// makes every deferred panel in the restored document stay on its skeleton
-	// because the runtime mistakes a previous hydration for the current one.
-	launchedPanelAttempts.current.clear()
+  // A document can legitimately return to an earlier snapshot through
+  // browser Back. Panel attempts are scoped to the active document lifecycle,
+  // not to a snapshot forever: retaining the old `${snapshot}:${panel}` keys
+  // makes every deferred panel in the restored document stay on its skeleton
+  // because the runtime mistakes a previous hydration for the current one.
+    launchedPanelAttempts.current.clear()
     for (const panel of sourceDocument.panels) {
       frames.set(panel.id, {
         data: sourceDocument.frames[panel.frame],
@@ -839,77 +839,77 @@ function RuntimeCore({
     }
   }, [frames, retryFrame, schedulePanel, sourceDocument])
 
-	useEffect(() => {
-		if (!panelClient) return
-		for (const panel of sourceDocument.panels) {
-			const attempt = panelAttempts[panel.id] ?? 0
-			const force = panelForces.current.has(panel.id)
-			if (!panel.deferred && !force) continue
-			const key = `${sourceDocument.snapshotId}:${panel.id}`
-			if (launchedPanelAttempts.current.get(key) === attempt) continue
-			launchedPanelAttempts.current.set(key, attempt)
-			panelForces.current.delete(panel.id)
-			const previous = frames.get(panel.id)?.data
-			const retry = () => schedulePanel(panel.id)
-			frames.set(panel.id, {
-				data: previous,
-				isStale: Boolean(previous),
-				isLoading: true,
-				error: null,
-				retry,
-				calculation: frames.get(panel.id)?.calculation,
-			})
-			void panelClient.load({
-				snapshotId: sourceDocument.snapshotId,
-				panelId: panel.id,
-				...(force ? { recompute: true } : {}),
-			}).then((response) => {
-				if (launchedPanelAttempts.current.get(key) !== attempt) return
-				const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
-				if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
-				frames.set(panel.id, {
-					data: loaded, isStale: false, isLoading: false, error: null, retry,
-					calculation: response.calculation,
-					summary: response.summary,
-				})
-				setRuntimeDocument((current) => {
-					if (current.snapshotId !== sourceDocument.snapshotId || current.frames[panel.frame] === loaded) return current
-					return { ...current, frames: { ...current.frames, [panel.frame]: loaded } }
-				})
-			}).catch((cause: unknown) => {
-				if (launchedPanelAttempts.current.get(key) !== attempt) return
-				if (cause instanceof SnapshotGoneError) {
-					void refreshDocument().catch(() => undefined)
-					return
-				}
-				frames.set(panel.id, {
-					data: previous,
-					isStale: Boolean(previous),
-					isLoading: false,
-					error: cause instanceof Error ? cause : new Error('panel request failed'),
-					retry,
-					calculation: frames.get(panel.id)?.calculation,
-				})
-			}).finally(() => {
-				if (!force) return
-				if (!recomputePending.current.delete(panel.id)) return
-				if (recomputePending.current.size === 0) setIsRecomputing(false)
-			})
-		}
-	}, [frames, panelAttempts, panelClient, refreshDocument, schedulePanel, setRuntimeDocument, sourceDocument])
+  useEffect(() => {
+    if (!panelClient) return
+    for (const panel of sourceDocument.panels) {
+      const attempt = panelAttempts[panel.id] ?? 0
+      const force = panelForces.current.has(panel.id)
+      if (!panel.deferred && !force) continue
+      const key = `${sourceDocument.snapshotId}:${panel.id}`
+      if (launchedPanelAttempts.current.get(key) === attempt) continue
+      launchedPanelAttempts.current.set(key, attempt)
+      panelForces.current.delete(panel.id)
+      const previous = frames.get(panel.id)?.data
+      const retry = () => schedulePanel(panel.id)
+      frames.set(panel.id, {
+        data: previous,
+        isStale: Boolean(previous),
+        isLoading: true,
+        error: null,
+        retry,
+        calculation: frames.get(panel.id)?.calculation,
+      })
+      void panelClient.load({
+        snapshotId: sourceDocument.snapshotId,
+        panelId: panel.id,
+        ...(force ? { recompute: true } : {}),
+      }).then((response) => {
+        if (launchedPanelAttempts.current.get(key) !== attempt) return
+        const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
+        if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
+        frames.set(panel.id, {
+          data: loaded, isStale: false, isLoading: false, error: null, retry,
+          calculation: response.calculation,
+          summary: response.summary,
+        })
+        setRuntimeDocument((current) => {
+          if (current.snapshotId !== sourceDocument.snapshotId || current.frames[panel.frame] === loaded) return current
+          return { ...current, frames: { ...current.frames, [panel.frame]: loaded } }
+        })
+      }).catch((cause: unknown) => {
+        if (launchedPanelAttempts.current.get(key) !== attempt) return
+        if (cause instanceof SnapshotGoneError) {
+          void refreshDocument().catch(() => undefined)
+          return
+        }
+        frames.set(panel.id, {
+          data: previous,
+          isStale: Boolean(previous),
+          isLoading: false,
+          error: cause instanceof Error ? cause : new Error('panel request failed'),
+          retry,
+          calculation: frames.get(panel.id)?.calculation,
+        })
+      }).finally(() => {
+        if (!force) return
+        if (!recomputePending.current.delete(panel.id)) return
+        if (recomputePending.current.size === 0) setIsRecomputing(false)
+      })
+    }
+  }, [frames, panelAttempts, panelClient, refreshDocument, schedulePanel, setRuntimeDocument, sourceDocument])
 
-	const recompute = useCallback(() => {
-		if (!panelClient || sourceDocument.panels.length === 0) return
-		const ids = sourceDocument.panels.map(({ id }) => id)
-		recomputePending.current = new Set(ids)
-		for (const id of ids) panelForces.current.add(id)
-		setIsRecomputing(true)
-		setPanelAttempts((current) => {
-			const next = { ...current }
-			for (const id of ids) next[id] = (next[id] ?? 0) + 1
-			return next
-		})
-	}, [panelClient, sourceDocument.panels])
+  const recompute = useCallback(() => {
+    if (!panelClient || sourceDocument.panels.length === 0) return
+    const ids = sourceDocument.panels.map(({ id }) => id)
+    recomputePending.current = new Set(ids)
+    for (const id of ids) panelForces.current.add(id)
+    setIsRecomputing(true)
+    setPanelAttempts((current) => {
+      const next = { ...current }
+      for (const id of ids) next[id] = (next[id] ?? 0) + 1
+      return next
+    })
+  }, [panelClient, sourceDocument.panels])
 
   useEffect(() => {
     if (pathResolves(document, runtimeView.path, runtimeView.perspectiveId) ||
@@ -1079,35 +1079,35 @@ function RuntimeCore({
   pageLoader.current = loadPage
 
   const searchPanel = useCallback(async (panelId: string, search: string) => {
-	if (!panelClient) return
-	const panel = sourceDocument.panels.find((candidate) => candidate.id === panelId)
-	if (!panel?.table?.searchable) return
-	const previousState = frames.get(panelId)
-	const previous = previousState?.data ?? sourceDocument.frames[panel.frame]
-	const retry = () => { void searchLoader.current?.(panelId, search) }
-	frames.set(panelId, {
-		data: previous, isStale: Boolean(previous), isLoading: !previous, error: null, retry,
-		calculation: previousState?.calculation, summary: previousState?.summary,
-	})
-	try {
-		const response = await panelClient.load({ snapshotId: sourceDocument.snapshotId, panelId, search })
-		const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
-		if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
-		frames.set(panelId, {
-			data: loaded, isStale: false, isLoading: false, error: null, retry,
-			calculation: response.calculation, summary: response.summary,
-		})
-	} catch (cause: unknown) {
-		if (cause instanceof SnapshotGoneError) {
-			await refreshDocument().catch(() => undefined)
-			return
-		}
-		frames.set(panelId, {
-			data: previous, isStale: Boolean(previous), isLoading: false,
-			error: cause instanceof Error ? cause : new Error('panel search failed'), retry,
-			calculation: previousState?.calculation, summary: previousState?.summary,
-		})
-	}
+    if (!panelClient) return
+    const panel = sourceDocument.panels.find((candidate) => candidate.id === panelId)
+    if (!panel?.table?.searchable) return
+    const previousState = frames.get(panelId)
+    const previous = previousState?.data ?? sourceDocument.frames[panel.frame]
+    const retry = () => { void searchLoader.current?.(panelId, search) }
+    frames.set(panelId, {
+      data: previous, isStale: Boolean(previous), isLoading: !previous, error: null, retry,
+      calculation: previousState?.calculation, summary: previousState?.summary,
+    })
+    try {
+      const response = await panelClient.load({ snapshotId: sourceDocument.snapshotId, panelId, search })
+      const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
+      if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
+      frames.set(panelId, {
+        data: loaded, isStale: false, isLoading: false, error: null, retry,
+        calculation: response.calculation, summary: response.summary,
+      })
+    } catch (cause: unknown) {
+      if (cause instanceof SnapshotGoneError) {
+        await refreshDocument().catch(() => undefined)
+        return
+      }
+      frames.set(panelId, {
+        data: previous, isStale: Boolean(previous), isLoading: false,
+        error: cause instanceof Error ? cause : new Error('panel search failed'), retry,
+        calculation: previousState?.calculation, summary: previousState?.summary,
+      })
+    }
   }, [frames, panelClient, refreshDocument, sourceDocument])
   searchLoader.current = searchPanel
 
@@ -1244,38 +1244,38 @@ function RuntimeCore({
     syncFiltersFromURL()
   }, [filtersEnabled, navigation, syncFiltersFromURL])
 
-	const applyFilterURL = useCallback((target: string | URL, options?: { newTab?: boolean }) => {
-		if (!filtersEnabled || typeof window === 'undefined') return
-		const next = new URL(target, window.location.href)
-		if (next.origin !== window.location.origin) return
-		if (options?.newTab) {
-			window.open(next.href, '_blank', 'noopener')
-			return
-		}
-		const current = new URL(window.location.href)
-		if (!sameNavigationURL(current, next)) {
-			window.history.pushState(browserStateFor(navigation, window.history.state), '', next)
-		}
-		syncFiltersFromURL()
-	}, [filtersEnabled, navigation, syncFiltersFromURL])
+  const applyFilterURL = useCallback((target: string | URL, options?: { newTab?: boolean }) => {
+    if (!filtersEnabled || typeof window === 'undefined') return
+    const next = new URL(target, window.location.href)
+    if (next.origin !== window.location.origin) return
+    if (options?.newTab) {
+      window.open(next.href, '_blank', 'noopener')
+      return
+    }
+    const current = new URL(window.location.href)
+    if (!sameNavigationURL(current, next)) {
+      window.history.pushState(browserStateFor(navigation, window.history.state), '', next)
+    }
+    syncFiltersFromURL()
+  }, [filtersEnabled, navigation, syncFiltersFromURL])
 
-	const setCompare = useCallback((filter: Filter, value: CompareValue) => {
-		if (!filter.compare || typeof window === 'undefined') return
-		const merged = { ...filterValuesRef.current }
-		delete merged[filter.compare.startParam]
-		delete merged[filter.compare.endParam]
-		Object.assign(merged, compareValues(filter.compare, value))
-		const next = writeFilterValues(new URL(window.location.href), documentRef.current, merged)
-		applyFilterURL(next)
-	}, [applyFilterURL])
+  const setCompare = useCallback((filter: Filter, value: CompareValue) => {
+    if (!filter.compare || typeof window === 'undefined') return
+    const merged = { ...filterValuesRef.current }
+    delete merged[filter.compare.startParam]
+    delete merged[filter.compare.endParam]
+    Object.assign(merged, compareValues(filter.compare, value))
+    const next = writeFilterValues(new URL(window.location.href), documentRef.current, merged)
+    applyFilterURL(next)
+  }, [applyFilterURL])
 
   const filters = useMemo<FiltersContextValue>(() => ({
     filters: filtersEnabled ? declaredFilters(document) : [],
     values: filterValues,
     setPeriod,
-		setCompare,
-		applyURL: applyFilterURL,
-	}), [applyFilterURL, document, filterValues, filtersEnabled, setCompare, setPeriod])
+    setCompare,
+    applyURL: applyFilterURL,
+  }), [applyFilterURL, document, filterValues, filtersEnabled, setCompare, setPeriod])
 
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
@@ -1346,63 +1346,63 @@ function RuntimeCore({
   return (
     <LocaleContext.Provider value={locale}>
       <I18nContext.Provider value={document.i18n}>
-      <DashboardContext.Provider value={dashboard}>
-        <FiltersContext.Provider value={filters}>
-        <DrawerContext.Provider value={drawer}>
-        <DrillContext.Provider value={drill}>
-          <PanelPaginationContext.Provider value={pagination}>
-            <ExportContext.Provider value={exportContext}>
-            <PrintContext.Provider value={printContext}>
-              <FramesContext.Provider value={frames}>
-                {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
-                {children}
-                {navigation.drawer && drawerDepth === 0 && (
-                  // DocumentProvider wraps the drawer so its sticky top-bar
-                  // header can read the loaded document's own identity block
-                  // (eyebrow/title/caption) and render it once — while still
-                  // mounting the close button immediately, before the document
-                  // lands, because DocumentProvider renders its children
-                  // regardless of load state.
-                  <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
-                    <LensDrawer
-                      closeLabel={translate('drawer.close', 'Close details')}
-                      dark={drawerTheme.current.dark}
-                      eyebrow={translate('drawer.eyebrow', 'Detail view')}
-                      label={translate('drawer.label', 'Drill details')}
-                      onClose={closeDrawer}
-                      restoreFocus={drawerOpener.current}
-                      theme={drawerTheme.current.theme}
-                    >
-                      <DashboardRuntimeProvider
-                        controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
-                        csrf={csrf}
-                        drawerDepth={1}
-                        // A drawer-shaped loading placeholder (headline stat +
-                        // table), not the dashboard's stat-strip + chart pair,
-                        // so the drawer body does not jump when the drill
-                        // document lands.
-                        fallback={<DashboardSkeleton rows={drawerSkeletonRows} />}
-                        fetcher={fetcher}
-                        locale={locale}
-                        onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}
-                        onDrawerNavigate={(src) => dispatch(navigationActions.replaceDrawer(
-                          src,
-                          drawerNavigationFromSource(src, new URL(window.location.href)),
-                        ))}
-                      >
+        <DashboardContext.Provider value={dashboard}>
+          <FiltersContext.Provider value={filters}>
+            <DrawerContext.Provider value={drawer}>
+              <DrillContext.Provider value={drill}>
+                <PanelPaginationContext.Provider value={pagination}>
+                  <ExportContext.Provider value={exportContext}>
+                    <PrintContext.Provider value={printContext}>
+                      <FramesContext.Provider value={frames}>
+                        {notice && <RuntimeNotice notice={notice} onDismiss={() => setNotice(undefined)} />}
                         {children}
-                      </DashboardRuntimeProvider>
-                    </LensDrawer>
-                  </DocumentProvider>
-                )}
-              </FramesContext.Provider>
-            </PrintContext.Provider>
-            </ExportContext.Provider>
-          </PanelPaginationContext.Provider>
-        </DrillContext.Provider>
-        </DrawerContext.Provider>
-        </FiltersContext.Provider>
-      </DashboardContext.Provider>
+                        {navigation.drawer && drawerDepth === 0 && (
+                        // DocumentProvider wraps the drawer so its sticky top-bar
+                        // header can read the loaded document's own identity block
+                        // (eyebrow/title/caption) and render it once — while still
+                        // mounting the close button immediately, before the document
+                        // lands, because DocumentProvider renders its children
+                        // regardless of load state.
+                          <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                            <LensDrawer
+                              closeLabel={translate('drawer.close', 'Close details')}
+                              dark={drawerTheme.current.dark}
+                              eyebrow={translate('drawer.eyebrow', 'Detail view')}
+                              label={translate('drawer.label', 'Drill details')}
+                              onClose={closeDrawer}
+                              restoreFocus={drawerOpener.current}
+                              theme={drawerTheme.current.theme}
+                            >
+                              <DashboardRuntimeProvider
+                                controlledNavigation={nestedDrawerState(navigation.drawer, navigation.history)}
+                                csrf={csrf}
+                                drawerDepth={1}
+                                // A drawer-shaped loading placeholder (headline stat +
+                                // table), not the dashboard's stat-strip + chart pair,
+                                // so the drawer body does not jump when the drill
+                                // document lands.
+                                fallback={<DashboardSkeleton rows={drawerSkeletonRows} />}
+                                fetcher={fetcher}
+                                locale={locale}
+                                onControlledNavigationChange={(view) => dispatch(navigationActions.updateDrawer(view))}
+                                onDrawerNavigate={(src) => dispatch(navigationActions.replaceDrawer(
+                                  src,
+                                  drawerNavigationFromSource(src, new URL(window.location.href)),
+                                ))}
+                              >
+                                {children}
+                              </DashboardRuntimeProvider>
+                            </LensDrawer>
+                          </DocumentProvider>
+                        )}
+                      </FramesContext.Provider>
+                    </PrintContext.Provider>
+                  </ExportContext.Provider>
+                </PanelPaginationContext.Provider>
+              </DrillContext.Provider>
+            </DrawerContext.Provider>
+          </FiltersContext.Provider>
+        </DashboardContext.Provider>
       </I18nContext.Provider>
     </LocaleContext.Provider>
   )

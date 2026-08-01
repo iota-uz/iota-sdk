@@ -17,6 +17,9 @@ var embeddedAssets embed.FS
 
 type AssetBundle struct {
 	Entry       string
+	// Revision is a deploy-scoped namespace, not a replacement for Vite's
+	// content hashes. It makes every HTML document and lazy chunk resolve within
+	// one atomic embedded manifest while old processes may still serve traffic.
 	Revision    string
 	Stylesheets []string
 }
@@ -81,6 +84,9 @@ func loadAssetBundle(data []byte) AssetBundle {
 			stylesheetSet[stylesheet] = struct{}{}
 		}
 		for _, imported := range item.Imports {
+			walk(imported)
+		}
+		for _, imported := range item.DynamicImports {
 			walk(imported)
 		}
 	}

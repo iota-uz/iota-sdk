@@ -17,7 +17,7 @@ interface RowPoint {
   series: string
   timestamp?: number
   value: ChartValue
-	previous: ChartValue
+  previous: ChartValue
 }
 
 function columnIndex(input: ChartInput, field: string | undefined): number {
@@ -55,7 +55,7 @@ function rowPoints(input: ChartInput): RowPoint[] {
   const categoryField = input.encoding.category ?? input.encoding.label
   const categoryIndex = columnIndex(input, categoryField)
   const valueIndex = columnIndex(input, input.encoding.value)
-	const previousIndex = columnIndex(input, input.encoding.previous)
+  const previousIndex = columnIndex(input, input.encoding.previous)
   const idIndex = columnIndex(input, input.encoding.id)
   const seriesIndex = columnIndex(input, input.encoding.series)
 
@@ -74,7 +74,7 @@ function rowPoints(input: ChartInput): RowPoint[] {
       series,
       timestamp: timestamp(row[categoryIndex]),
       value: chartValue(row[valueIndex]),
-			previous: chartValue(row[previousIndex]),
+      previous: chartValue(row[previousIndex]),
     }
   })
 }
@@ -256,6 +256,7 @@ function baseOption(theme: EChartsTheme): EChartsOption {
   return {
     animation: !isVisualRegression(),
     animationDuration: 250,
+    aria: { enabled: true },
     backgroundColor: 'transparent',
     color: theme.colors,
     textStyle: { color: theme.text, fontFamily: theme.fontFamily },
@@ -506,18 +507,18 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // Labels inside the slices remove the leader-line halo that shrinks the
     // plot, so the pie can fill the card.
     ? {
-        position: 'inside' as const,
-        fontWeight: 'bold' as const,
-        // Slices under 4% cannot hold a legible label; the legend below
-        // still names them.
-        formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
-      }
+      position: 'inside' as const,
+      fontWeight: 'bold' as const,
+      // Slices under 4% cannot hold a legible label; the legend below
+      // still names them.
+      formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
+    }
     : donut
       ? {
-          color: theme.text,
-          formatter: (params: unknown) => donutSliceLabel(params, input),
-          lineHeight: 16,
-        }
+        color: theme.text,
+        formatter: (params: unknown) => donutSliceLabel(params, input),
+        lineHeight: 16,
+      }
       : { color: theme.text }
   const total = partitionTotal(points, input.frame.total)
   return {
@@ -638,10 +639,10 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
       minAngle: minimumSliceAngle,
       label: insideLabels
         ? {
-            position: 'inside' as const,
-            fontWeight: 'bold' as const,
-            formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
-          }
+          position: 'inside' as const,
+          fontWeight: 'bold' as const,
+          formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
+        }
         : { show: false },
       labelLine: { show: false },
       data: ringPoints.map((point, index) => {
@@ -883,16 +884,16 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // never makes the chart less informative than its linear counterpart.
     label: (input.presentation?.dataLabels === true || logarithmic) && !lineSeries.has(name)
       ? {
-          show: true,
-          // Neighbouring line series often carry close values at the same
-          // category. Alternating sides preserves both readings instead of
-          // painting two formatted values on top of each other.
-          position: isBar
-            ? (horizontal ? 'right' as const : 'top' as const)
-            : (index % 2 === 0 ? 'top' as const : 'bottom' as const),
-          color: theme.text,
-          formatter: (params: { value?: unknown }) => compactFormatter(tooltipValue(params.value)),
-        }
+        show: true,
+        // Neighbouring line series often carry close values at the same
+        // category. Alternating sides preserves both readings instead of
+        // painting two formatted values on top of each other.
+        position: isBar
+          ? (horizontal ? 'right' as const : 'top' as const)
+          : (index % 2 === 0 ? 'top' as const : 'bottom' as const),
+        color: theme.text,
+        formatter: (params: { value?: unknown }) => compactFormatter(tooltipValue(params.value)),
+      }
       : undefined,
     labelLayout: (input.presentation?.dataLabels === true || logarithmic) && !lineSeries.has(name)
       ? { hideOverlap: true }
@@ -1090,12 +1091,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     grid: isVisualRegression()
       ? { left: 96, right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 168 : 32, top: 24, bottom: timeAxis ? 58 : 32, containLabel: false }
       : {
-          left: 16,
-          right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : horizontal && logarithmic ? 88 : 16,
-          top: 24,
-          bottom: timeAxis ? 52 : 12,
-          containLabel: true,
-        },
+        left: 16,
+        right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : horizontal && logarithmic ? 88 : 16,
+        top: 24,
+        bottom: timeAxis ? 52 : 12,
+        containLabel: true,
+      },
     dataZoom: timeAxis ? [
       { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
       { type: 'slider', xAxisIndex: 0, filterMode: 'none', height: 18, bottom: 8 },

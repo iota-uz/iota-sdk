@@ -19,6 +19,7 @@ describe('distribution chart options', () => {
     }
     const option = buildDistributionOption(input('histogram', frame, { category: 'bucket', value: 'count' }), theme) as { series: Array<{ data: number[] }> }
     expect(option.series[0]?.data).toEqual([4, 7])
+    expect(option).toMatchObject({ aria: { enabled: true }, backgroundColor: 'transparent' })
   })
 
   it('passes producer-computed five-number summaries in ECharts order', () => {

@@ -284,6 +284,7 @@ export interface MapConfig {
   featureProperty: string
   labelProperty?: string
   labelProperties?: Record<string, string>
+  attribution?: string
 }
 
 export interface Meta {
@@ -393,6 +394,7 @@ export interface Panel {
   availability?: Availability
   deferred?: boolean
   terminal?: boolean
+  comparisonUnsupported?: boolean
 }
 
 export interface PanelCalculation {
@@ -634,6 +636,7 @@ export interface TemporalSeries {
 export interface Theme {
   palette: Record<string, string>
   series: Record<string, string>
+  debounceMs?: number
 }
 
 export type TotalBadgePlacement = "header" | "none" | "plot"

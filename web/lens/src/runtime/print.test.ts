@@ -167,12 +167,12 @@ describe('buildPrintReport', () => {
     const query: PrintQuery = (request: QueryRequest): Promise<QueryResponse> => {
       perspectives.push(request.perspective)
       return Promise.resolve({
-      frames: {
-        [request.perspective ?? 'unknown']: {
-          columns: document.frames['panel:total']!.columns,
-          rows: [[request.perspective, 42]],
+        frames: {
+          [request.perspective ?? 'unknown']: {
+            columns: document.frames['panel:total']!.columns,
+            rows: [[request.perspective, 42]],
+          },
         },
-      },
       })
     }
 

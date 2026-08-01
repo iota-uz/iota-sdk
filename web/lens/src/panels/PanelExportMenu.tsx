@@ -21,7 +21,8 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
       await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
       await downloadPanelImage(panelId, title, format)
     } catch (cause: unknown) {
-      setImageError(cause instanceof Error ? cause.message : translate('export.imageError', 'Image export failed'))
+      console.error(`[lens] panel ${panelId} image export failed`, cause)
+      setImageError(translate('export.imageError', 'Image export failed'))
     } finally {
       setImagePending(undefined)
       requestAnimationFrame(() => trigger.current?.focus())
@@ -51,6 +52,7 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
           className="lens-export-menu"
           onKeyDown={onMenuKeyDown}
           role="menu"
+          tabIndex={-1}
         >
           {exportState.available && (
             <button className="lens-export-menu-item" onClick={() => { closeAndFocusTrigger(); void exportState.run() }} ref={itemRef('data')} role="menuitem" type="button">

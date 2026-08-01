@@ -40,6 +40,9 @@ describe('chart bundle boundary', () => {
     const echartsEntries = Object.keys(manifest).filter((key) => key.includes('echarts'))
 
     expect(echartsEntries.every((key) => dynamicGraph.has(key))).toBe(true)
+    const optionalInstallers = echartsEntries.filter((key) => key.endsWith('/install.js'))
+    expect(optionalInstallers).toHaveLength(4)
+    expect(new Set(optionalInstallers.map((key) => manifest[key]!.file)).size).toBe(4)
 
     const staticChunks = await Promise.all(
       [...staticGraph].map((key) => readFile(path.join(distPath, manifest[key]!.file), 'utf8')),

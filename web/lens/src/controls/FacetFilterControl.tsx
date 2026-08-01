@@ -2,11 +2,12 @@ import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from
 import { createPortal } from 'react-dom'
 import type { Filter } from '../contract'
 import { CaretDown, X } from '../icons'
-import { cubeFilterParam, useFilters, useTranslate } from '../runtime'
+import { cubeFilterParam, useDashboard, useFilters, useTranslate } from '../runtime'
 import { useFocusTrap } from '../runtime/focusTrap'
+import { useOverlayContainer } from '../runtime/overlayContainer'
 import { positionPopover } from './PeriodFilterControl'
 
-const searchDelay = 250
+const minimumFacetBarPercent = 3
 
 interface FacetOption {
   label: string
@@ -38,6 +39,7 @@ function relativeURL(target: URL): string {
 export function FacetFilterControl({ filter }: { filter: Filter }) {
   const facet = filter.facet
   const translate = useTranslate()
+  const { document: runtimeDocument } = useDashboard()
   const { applyURL } = useFilters()
   const popoverID = useId()
   const triggerRef = useRef<HTMLButtonElement>(null)
@@ -51,11 +53,11 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
   const [applyTarget, setApplyTarget] = useState('')
   const [draft, setDraft] = useState<Set<string>>()
   const [status, setStatus] = useState<'idle' | 'loading' | 'error'>('idle')
-  const [container, setContainer] = useState<HTMLElement>()
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const optionsEndpoint = facet?.optionsEndpoint ?? ''
   const searchParam = facet?.searchParam
   const closePopover = useCallback(() => setOpen(false), [])
+  const container = useOverlayContainer(open, triggerRef)
   useFocusTrap(popoverRef, open && Boolean(container), closePopover, searchRef, triggerRef)
 
   const requestOptions = useCallback((query: string): Promise<FacetOptionsResponse> => {
@@ -108,31 +110,17 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
       }).catch(() => {
         if (current) setStatus('error')
       })
-    }, search.trim() ? searchDelay : 0)
+    }, search.trim() ? (runtimeDocument.theme.debounceMs ?? 500) : 0)
     return () => {
       current = false
       globalThis.clearTimeout(timer)
     }
-  }, [open, optionsEndpoint, requestOptions, search, searchParam])
+  }, [open, optionsEndpoint, requestOptions, runtimeDocument.theme.debounceMs, search, searchParam])
 
   useEffect(() => {
     if (open) return
     setSearch('')
     setDraft(undefined)
-  }, [open])
-
-  useEffect(() => {
-    if (!open || typeof document === 'undefined') return undefined
-    const element = document.createElement('div')
-    const root = triggerRef.current?.closest('.lens-root')
-    element.className = `lens-root lens-overlay-root${root?.classList.contains('dark') ? ' dark' : ''}`
-    if (root instanceof HTMLElement && root.dataset.theme) element.dataset.theme = root.dataset.theme
-    document.body.appendChild(element)
-    setContainer(element)
-    return () => {
-      element.remove()
-      setContainer(undefined)
-    }
   }, [open])
 
   const reposition = useCallback(() => {
@@ -253,7 +241,7 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
             ) : ordered.map((option) => {
               const checked = selected.has(option.value)
               const magnitude = maxCount > 0 && (option.count ?? 0) > 0
-                ? Math.max(3, Math.floor((option.count ?? 0) * 100 / maxCount))
+                ? Math.max(minimumFacetBarPercent, Math.floor((option.count ?? 0) * 100 / maxCount))
                 : 0
               return (
                 <label className="lens-facet-option" key={`${option.value}-${option.toggleUrl}`}>

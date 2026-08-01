@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Frame, Panel } from '../contract'
-import { clampedDeltaPercent, type PanelFrameState, useFormat, useTranslate } from '../runtime'
+import { clampedDeltaPercent, type PanelFrameState, useDashboard, useFormat, useTranslate } from '../runtime'
 import { PanelExportMenu } from './PanelExportMenu'
 import { InfoTip } from './InfoTip'
 import { ArrowsIn, ArrowsOut, ChartLine, TrendDown, TrendFlat, TrendUp } from '../icons'
@@ -25,21 +25,22 @@ export interface PanelFrameProps {
 }
 
 function numericFrameValue(frame: Frame | undefined, field: string | undefined): number | undefined {
-	if (!frame || !field) return undefined
-	const index = frame.columns.findIndex((column) => column.name === field)
-	const value = index < 0 ? undefined : frame.rows[0]?.[index]
-	const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
-	return Number.isFinite(number) ? number : undefined
+  if (!frame || !field) return undefined
+  const index = frame.columns.findIndex((column) => column.name === field)
+  const value = index < 0 ? undefined : frame.rows[0]?.[index]
+  const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : NaN
+  return Number.isFinite(number) ? number : undefined
 }
 
 export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
-	const trend = panel.trend!
-	const absolute = numericFrameValue(frame, trend.absoluteField)
-	const framePercent = numericFrameValue(frame, trend.percentField)
-	const percent = framePercent ?? trend.percent
-	const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
-	const formatPercent = useFormat({ kind: 'percent', minorUnits: false, precision: 1 })
-	const translate = useTranslate()
+  const trend = panel.trend!
+  const absolute = numericFrameValue(frame, trend.absoluteField)
+  const framePercent = numericFrameValue(frame, trend.percentField)
+  const percent = framePercent ?? trend.percent
+  const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
+  const formatPercent = useFormat({ kind: 'percent', minorUnits: false, precision: 1 })
+  const translate = useTranslate()
+  const { document } = useDashboard()
   if (trend.percentField && framePercent === undefined) {
     const state = absolute !== undefined && absolute !== 0
       ? translate('panel.trend.new', 'New')
@@ -57,15 +58,15 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   // always follows the sign.
   const good = trend.invert ? !up : up
   const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
-	const sign = up ? '+' : ''
+  const sign = up ? '+' : ''
   const formattedPercent = `${sign}${formatPercent(percent)}`
   const TrendIcon = flat ? TrendFlat : up ? TrendUp : TrendDown
   return (
     <span className={`lens-trend-chip ${tone}`}>
       <TrendIcon />
-	  <strong>{clampedDeltaPercent(percent) ?? formattedPercent}</strong>
-	  {absolute !== undefined && <span className="lens-trend-chip-absolute">({absolute > 0 ? '+' : ''}{formatAbsolute(absolute)})</span>}
-	  <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
+      <strong>{clampedDeltaPercent(percent, document.meta.locale) ?? formattedPercent}</strong>
+      {absolute !== undefined && <span className="lens-trend-chip-absolute">({absolute > 0 ? '+' : ''}{formatAbsolute(absolute)})</span>}
+      <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
     </span>
   )
 }
@@ -76,9 +77,12 @@ export function PanelFrame({
   const translate = useTranslate()
   const chrome = usePanelChrome()
   const [expanded, setExpanded] = useState(false)
-  const [overlayTheme, setOverlayTheme] = useState<{ theme?: string; dark: boolean }>({ dark: false })
   const expandRef = useRef<HTMLButtonElement>(null)
+  const placeholderRef = useRef<HTMLDivElement>(null)
   const restoreFocus = useRef(false)
+  useEffect(() => {
+    if (frame.error) console.error(`[lens] panel ${panel.id} request failed`, frame.error)
+  }, [frame.error, panel.id])
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const total = totalOverride ?? panel.total
   const hasRows = Boolean(frame.data?.rows.length)
@@ -125,10 +129,6 @@ export function PanelFrame({
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => {
       if (current) return false
-      // The dialog is portaled out of the dashboard subtree, so its theme has
-      // to be read from the root it is leaving.
-      const root = expandRef.current?.closest<HTMLElement>('.lens-root')
-      setOverlayTheme({ theme: root?.dataset.theme, dark: root?.classList.contains('dark') ?? false })
       return true
     })
   }, [])
@@ -201,12 +201,17 @@ export function PanelFrame({
           )}
         </div>
       </header>
+      {panel.comparisonUnsupported && (
+        <p className="lens-panel-comparison-note" role="note">
+          {translate('panel.comparisonUnsupported', 'Comparison is not available for this panel.')}
+        </p>
+      )}
       <div className="lens-panel-body">
         {showLoading ? (
           <PanelSkeletonBody kind={panel.kind} />
         ) : frame.error && !frame.data ? (
           <div className="lens-panel-state lens-panel-state-error" role="alert">
-            <span>{frame.error.message}</span>
+            <span>{translate('panel.error', 'This panel could not be rendered.')}</span>
             <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
           </div>
         ) : !hasRows && !allowEmptyContent ? (
@@ -218,11 +223,11 @@ export function PanelFrame({
       </div>
       {captionBelow && captionNode}
       {panel.trend && hasRows && (
-		<footer className="lens-panel-footer"><TrendChip panel={panel} frame={frame.data} /></footer>
+        <footer className="lens-panel-footer"><TrendChip panel={panel} frame={frame.data} /></footer>
       )}
       {frame.error && frame.data && (
         <div className="lens-panel-error" role="alert">
-          <span>{frame.error.message}</span>
+          <span>{translate('panel.error', 'This panel could not be rendered.')}</span>
           <button type="button" onClick={frame.retry}>{translate('panel.retry', 'Retry')}</button>
         </div>
       )}
@@ -233,8 +238,8 @@ export function PanelFrame({
   return (
     <>
       {/* A placeholder keeps the grid from reflowing while the panel is away. */}
-      <div aria-hidden="true" className="lens-panel-placeholder" />
-      <PanelOverlay label={panel.title} theme={overlayTheme.theme} dark={overlayTheme.dark} onClose={collapse}>
+      <div aria-hidden="true" className="lens-panel-placeholder" ref={placeholderRef} />
+      <PanelOverlay label={panel.title} sourceRef={placeholderRef} onClose={collapse}>
         {section}
       </PanelOverlay>
     </>

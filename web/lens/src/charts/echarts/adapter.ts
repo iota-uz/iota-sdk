@@ -1,5 +1,5 @@
-import { BarChart, BoxplotChart, HeatmapChart, LineChart, MapChart, PieChart } from 'echarts/charts'
-import { DataZoomComponent, GeoComponent, GraphicComponent, GridComponent, TooltipComponent, VisualMapComponent } from 'echarts/components'
+import { BarChart, LineChart, PieChart } from 'echarts/charts'
+import { DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent } from 'echarts/components'
 import { init, registerMap, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { UniversalTransition } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
@@ -9,10 +9,29 @@ import { buildChartOption } from './options'
 import { buildEChartsTheme } from './theme'
 
 registerEChartsModules([
-  BarChart, BoxplotChart, HeatmapChart, LineChart, MapChart, PieChart,
-  DataZoomComponent, GeoComponent, GraphicComponent, GridComponent, TooltipComponent, VisualMapComponent,
+  BarChart, LineChart, PieChart,
+  DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent,
   CanvasRenderer, UniversalTransition,
 ])
+
+const optionalKinds = new Set<ChartInput['kind']>(['boxplot', 'heatmap', 'map'])
+let optionalModules: Promise<void> | undefined
+
+/** Loads distribution/map renderers only when a document actually uses one. */
+function ensureKindModules(kind: ChartInput['kind']): Promise<void> | undefined {
+  if (!optionalKinds.has(kind)) return undefined
+  optionalModules ??= Promise.all([
+    import('echarts/lib/chart/boxplot/install.js'),
+    import('echarts/lib/chart/heatmap/install.js'),
+    import('echarts/lib/chart/map/install.js'),
+    import('echarts/lib/component/visualMap/install.js'),
+  ]).then(([boxplot, heatmap, map, visualMap]) => {
+    registerEChartsModules([
+      boxplot.install, heatmap.install, map.install, visualMap.install,
+    ])
+  })
+  return optionalModules
+}
 
 type ChartInitializer = (element: HTMLElement) => ECharts
 
@@ -51,8 +70,8 @@ function anchorFromEvent(event: unknown): ChartAnchor | undefined {
 }
 
 function activationFromEvent(event: unknown) {
-	const wrapper = (event as { event?: { event?: MouseEvent } } | undefined)?.event?.event
-	return { newTab: Boolean(wrapper?.metaKey || wrapper?.ctrlKey) }
+  const wrapper = (event as { event?: { event?: MouseEvent } } | undefined)?.event?.event
+  return { newTab: Boolean(wrapper?.metaKey || wrapper?.ctrlKey) }
 }
 
 function observeTheme(element: HTMLElement, rebuild: () => void): MutationObserver | undefined {
@@ -114,11 +133,27 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
 
       const responsiveInput = (): ChartInput => ({ ...input, viewportWidth: element.clientWidth })
 
-      const render = () => {
+      let disposed = false
+      let renderGeneration = 0
+      const renderReady = () => {
+        if (disposed) return
         if (input.kind === 'map' && input.map) registerMap(input.map.name, input.map.geoJSON as unknown as Parameters<typeof registerMap>[1])
         const theme = buildEChartsTheme(element, input.theme)
         const option: EChartsCoreOption = buildChartOption(responsiveInput(), theme)
         chart.setOption(option, { notMerge: false, replaceMerge: ['series', 'xAxis', 'yAxis'] })
+      }
+      const render = () => {
+        const generation = ++renderGeneration
+        const pending = ensureKindModules(input.kind)
+        if (!pending) {
+          renderReady()
+          return
+        }
+        void pending.then(() => {
+          if (generation === renderGeneration) renderReady()
+        }).catch((error: unknown) => {
+          console.error('[lens] optional ECharts modules failed to load', error)
+        })
       }
       // Selection restyle: merge the rebuilt option in place with animation
       // forced off, so the outline appears instantly without replacing the
@@ -233,10 +268,11 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
           if (selectionOnly) restyleSelection()
           else render()
         },
-		resetZoom() {
-			chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })
-		},
+        resetZoom() {
+          chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })
+        },
         dispose() {
+          disposed = true
           for (const remove of detach) remove()
           detach.length = 0
           // Hide before disposing: a tooltip shown at teardown has already been

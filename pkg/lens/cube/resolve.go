@@ -370,7 +370,7 @@ func compareStatDatasets(spec CubeSpec, resolved statDatasetResolution, comparis
 		terminal := resolved.DatasetByMeasure[measure.Name]
 		fieldsByTerminal[terminal] = append(fieldsByTerminal[terminal], measure.Name)
 	}
-	resolved.Datasets = append(resolved.Datasets, cloneComparisonGraph(resolved.Datasets, comparison, fieldsByTerminal)...)
+	resolved.Datasets = append(resolved.Datasets, cloneComparisonGraph(resolved.Datasets, comparison, fieldsByTerminal, nil)...)
 	for terminal, fields := range fieldsByTerminal {
 		resolved.Datasets = append(resolved.Datasets, comparisonJoin(terminal, fields, nil))
 		for _, field := range fields {
@@ -387,6 +387,7 @@ func compareDimensionDataset(spec CubeSpec, resolved dimensionDatasetResolution,
 	}
 	resolved.Datasets = append(resolved.Datasets, cloneComparisonGraph(
 		resolved.Datasets, comparison, map[string][]string{resolved.Name: fields},
+		map[string][]string{resolved.Name: {"filter_value", "label"}},
 	)...)
 	resolved.Datasets = append(resolved.Datasets, comparisonJoin(resolved.Name, fields, []string{"filter_value", "label"}))
 	resolved.Name = comparedDatasetName(resolved.Name)
@@ -471,7 +472,8 @@ func panelBuilder(kind panel.Kind, id, title, dataset string, mapSpec *panel.Map
 		}
 		return panel.Choropleth(id, title, dataset, mapSpec.Source, mapSpec.FeatureProperty).
 			MapLabelProperty(mapSpec.LabelProperty).
-			MapLabelProperties(mapSpec.LabelProperties)
+			MapLabelProperties(mapSpec.LabelProperties).
+			MapAttribution(mapSpec.Attribution)
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return panel.Bar(id, title, dataset)
 	}

@@ -307,6 +307,7 @@ export const MapConfigSchema: z.ZodType<Contract.MapConfig> = z.object({
   featureProperty: z.string(),
   labelProperty: z.string().optional(),
   labelProperties: z.record(z.string(), z.string()).optional(),
+  attribution: z.string().optional(),
 }).strict()
 
 export const MetaSchema: z.ZodType<Contract.Meta> = z.object({
@@ -416,6 +417,7 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   availability: z.lazy(() => AvailabilitySchema).optional(),
   deferred: z.boolean().optional(),
   terminal: z.boolean().optional(),
+  comparisonUnsupported: z.boolean().optional(),
 }).strict())
 
 export const PanelCalculationSchema: z.ZodType<Contract.PanelCalculation> = z.object({
@@ -657,6 +659,7 @@ export const TemporalSeriesSchema: z.ZodType<Contract.TemporalSeries> = z.object
 export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
   palette: z.record(z.string(), z.string()),
   series: z.record(z.string(), z.string()),
+  debounceMs: z.number().int().optional(),
 }).strict()
 
 export const TotalBadgePlacementSchema: z.ZodType<Contract.TotalBadgePlacement> = z.enum(["header", "none", "plot"])

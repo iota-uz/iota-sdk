@@ -173,10 +173,10 @@ describe('DashboardRuntimeProvider', () => {
 
   it('loads, fails, and retries deferred siblings independently', async () => {
     const attempts: Record<string, number> = {}
-		const recomputed: string[] = []
+    const recomputed: string[] = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
-			const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panelId: string; recompute?: boolean }
-			if (request.recompute) recomputed.push(request.panelId)
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panelId: string; recompute?: boolean }
+      if (request.recompute) recomputed.push(request.panelId)
       attempts[request.panelId] = (attempts[request.panelId] ?? 0) + 1
       if (request.panelId === 'retrying' && attempts[request.panelId] === 1) {
         return Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'retrying failed' }), {
@@ -209,10 +209,11 @@ describe('DashboardRuntimeProvider', () => {
     const ready = screen.getByLabelText('Ready')
     const retrying = screen.getByLabelText('Retrying')
     expect(await within(ready).findByText('11')).toBeInTheDocument()
-    expect(await within(retrying).findByRole('alert')).toHaveTextContent('retrying failed')
+    expect(await within(retrying).findByRole('alert')).toHaveTextContent('This panel could not be rendered.')
+    expect(within(retrying).getByRole('alert')).not.toHaveTextContent('retrying failed')
     expect(within(ready).getByText('11')).toBeInTheDocument()
-		fireEvent.click(within(ready).getByRole('button', { name: 'About this metric' }))
-		expect(await screen.findByText('Calculated in 1.3 s · cache hit')).toBeInTheDocument()
+    fireEvent.click(within(ready).getByRole('button', { name: 'About this metric' }))
+    expect(await screen.findByText('Calculated in 1.3 s · cache hit')).toBeInTheDocument()
 
     fireEvent.click(within(retrying).getByRole('button', { name: 'Retry' }))
     expect(within(retrying).queryByRole('alert')).toBeNull()
@@ -220,10 +221,10 @@ describe('DashboardRuntimeProvider', () => {
     expect(await within(retrying).findByText('22')).toBeInTheDocument()
     expect(attempts).toEqual({ ready: 1, retrying: 2 })
 
-		fireEvent.click(screen.getByRole('button', { name: 'Recompute panels' }))
-		await waitFor(() => expect(attempts).toEqual({ ready: 2, retrying: 3 }))
-		expect(recomputed.sort()).toEqual(['ready', 'retrying'])
-		expect(screen.getByRole('button', { name: 'Recompute panels' })).not.toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Recompute panels' }))
+    await waitFor(() => expect(attempts).toEqual({ ready: 2, retrying: 3 }))
+    expect(recomputed.sort()).toEqual(['ready', 'retrying'])
+    expect(screen.getByRole('button', { name: 'Recompute panels' })).not.toBeDisabled()
   })
 
   it('replaces cached data with the skeleton through refresh, then exposes error and retry', async () => {
@@ -249,7 +250,8 @@ describe('DashboardRuntimeProvider', () => {
     expect(await screen.findByText('43')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Refresh frame' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('refresh failed')
+    expect(await screen.findByRole('alert')).toHaveTextContent('This panel could not be rendered.')
+    expect(screen.getByRole('alert')).not.toHaveTextContent('refresh failed')
     expect(screen.getByText('43')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }))

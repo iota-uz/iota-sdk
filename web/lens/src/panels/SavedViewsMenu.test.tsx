@@ -4,7 +4,7 @@ import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { DashboardPanels } from '../DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
-import { roleDefaultURL, SavedViewsMenu } from './SavedViewsMenu'
+import { SavedViewsMenu } from './SavedViewsMenu'
 
 afterEach(() => {
   cleanup()
@@ -15,17 +15,21 @@ afterEach(() => {
 })
 
 describe('SavedViewsMenu', () => {
-  it('applies a role default only to a clean Lens URL and guards repeat redirects', () => {
-    const document_ = parseDocument(fixture)
-    const defaultView = {
-      id: 'role-default', dashboardId: document_.meta.dashboardId, name: 'Analyst default', scope: 'team' as const,
-      stateUrl: '/analytics/claims?_f=status%3Aopen&lensHidden=%5B%22losses%22%2C%22paid%22%5D', defaultRoleId: 4,
-    }
-    const clean = new URL('https://example.com/analytics/claims?lang=en')
-    expect(roleDefaultURL(document_, clean, defaultView, sessionStorage)).toBe(defaultView.stateUrl)
-    expect(roleDefaultURL(document_, clean, defaultView, sessionStorage)).toBeUndefined()
-    expect(roleDefaultURL(document_, new URL('https://example.com/analytics/claims?path=root'), defaultView, sessionStorage)).toBeUndefined()
-    expect(roleDefaultURL(document_, new URL('https://example.com/analytics/claims?_f=status%3Aclosed'), defaultView, sessionStorage)).toBeUndefined()
+  it('does not mutate the current URL when loading a role default', async () => {
+    history.replaceState({}, '', '/analytics/claims?lang=en')
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(new Response(JSON.stringify({
+      views: [],
+      defaultView: { id: 'role-default', dashboardId: 'small', name: 'Analyst default', scope: 'team', stateUrl: '/analytics/claims?_f=status%3Aopen' },
+      capabilities: { manageTeam: false, scheduleMail: false },
+    }), { status: 200 }))))
+    const document_ = parseDocument({ ...fixture, endpoints: { ...fixture.endpoints, views: '/lens/share/views' } })
+    render(
+      <DocumentProvider initialDocument={document_}>
+        <DashboardRuntimeProvider locale="en"><SavedViewsMenu /></DashboardRuntimeProvider>
+      </DocumentProvider>,
+    )
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Views' })).toBeInTheDocument())
+    expect(`${location.pathname}${location.search}`).toBe('/analytics/claims?lang=en')
   })
 
   it('lists, saves, and schedules exact dashboard slices', async () => {
@@ -179,7 +183,7 @@ describe('SavedViewsMenu', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Views' }))
-		expect(await screen.findByRole('alert')).toHaveTextContent('Saved views could not be loaded')
+    expect(await screen.findByRole('alert')).toHaveTextContent('Saved views could not be loaded')
     expect(fetcher).not.toHaveBeenCalled()
   })
 })

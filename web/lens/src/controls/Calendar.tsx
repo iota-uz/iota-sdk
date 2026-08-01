@@ -303,6 +303,7 @@ export function Calendar({ locale, draft, min, max, today, onPick, translate }: 
 
   return (
     <div className="lens-calendar" data-panes={paneCount} data-view="days">
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions -- keyboard navigation is delegated from focusable grid cells; this wrapper must not become another tab stop. */}
       <div
         className="lens-calendar-panes"
         onKeyDown={onKeyDown}

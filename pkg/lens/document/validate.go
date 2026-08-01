@@ -370,35 +370,8 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if err := validateTemporalPanel(panel, d.Frames[panel.Frame]); err != nil {
 		return err
 	}
-	for field, format := range panel.Format {
-		if strings.TrimSpace(field) == "" {
-			return fmt.Errorf("panel %s has a format with an empty field", panel.ID)
-		}
-		if format.Kind == FormatMoney && strings.TrimSpace(format.Currency) == "" {
-			return fmt.Errorf("panel %s money field %s requires currency", panel.ID, field)
-		}
-		switch format.Kind {
-		case FormatMoney, FormatPercent, FormatDate, FormatNumber, FormatString:
-		default:
-			return fmt.Errorf("panel %s field %s has unsupported format %q", panel.ID, field, format.Kind)
-		}
-		if !panel.Deferred && !frameHasColumn(d.Frames[panel.Frame], field) {
-			return fmt.Errorf("panel %s format references missing field %q", panel.ID, field)
-		}
-	}
-	for role, field := range map[string]string{
-		"label": panel.Encoding.Label, "value": panel.Encoding.Value, "previous": panel.Encoding.Previous, "id": panel.Encoding.ID,
-		"lower": panel.Encoding.Lower, "q1": panel.Encoding.Q1, "median": panel.Encoding.Median,
-		"q3": panel.Encoding.Q3, "upper": panel.Encoding.Upper,
-		"series": panel.Encoding.Series, "category": panel.Encoding.Category, "cut": panel.Encoding.Cut,
-		"cutLabel": panel.Encoding.CutLabel, "final": panel.Encoding.Final,
-		"annotation": panel.Encoding.Annotation, "tone": panel.Encoding.Tone,
-		"share": panel.Encoding.Share, "confidence": panel.Encoding.Confidence,
-		"availability": panel.Encoding.Availability,
-	} {
-		if !panel.Deferred && field != "" && !frameHasColumn(d.Frames[panel.Frame], field) {
-			return fmt.Errorf("panel %s %s encoding references missing field %q", panel.ID, role, field)
-		}
+	if err := validatePanelFormatsAndEncodings(panel, d.Frames[panel.Frame]); err != nil {
+		return err
 	}
 	if !panel.Deferred {
 		if err := validateDistributionPanel(panel, d.Frames[panel.Frame]); err != nil {
@@ -427,9 +400,50 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 			return err
 		}
 	}
+	if err := d.validatePanelActions(panel); err != nil {
+		return err
+	}
+	return validatePanelTrendAndTable(panel, d.Frames[panel.Frame])
+}
+
+func validatePanelFormatsAndEncodings(panel Panel, frame Frame) error {
+	for field, format := range panel.Format {
+		if strings.TrimSpace(field) == "" {
+			return fmt.Errorf("panel %s has a format with an empty field", panel.ID)
+		}
+		if format.Kind == FormatMoney && strings.TrimSpace(format.Currency) == "" {
+			return fmt.Errorf("panel %s money field %s requires currency", panel.ID, field)
+		}
+		switch format.Kind {
+		case FormatMoney, FormatPercent, FormatDate, FormatNumber, FormatString:
+		default:
+			return fmt.Errorf("panel %s field %s has unsupported format %q", panel.ID, field, format.Kind)
+		}
+		if !panel.Deferred && !frameHasColumn(frame, field) {
+			return fmt.Errorf("panel %s format references missing field %q", panel.ID, field)
+		}
+	}
+	for role, field := range map[string]string{
+		"label": panel.Encoding.Label, "value": panel.Encoding.Value, "previous": panel.Encoding.Previous, "id": panel.Encoding.ID,
+		"lower": panel.Encoding.Lower, "q1": panel.Encoding.Q1, "median": panel.Encoding.Median,
+		"q3": panel.Encoding.Q3, "upper": panel.Encoding.Upper,
+		"series": panel.Encoding.Series, "category": panel.Encoding.Category, "cut": panel.Encoding.Cut,
+		"cutLabel": panel.Encoding.CutLabel, "final": panel.Encoding.Final,
+		"annotation": panel.Encoding.Annotation, "tone": panel.Encoding.Tone,
+		"share": panel.Encoding.Share, "confidence": panel.Encoding.Confidence,
+		"availability": panel.Encoding.Availability,
+	} {
+		if !panel.Deferred && field != "" && !frameHasColumn(frame, field) {
+			return fmt.Errorf("panel %s %s encoding references missing field %q", panel.ID, role, field)
+		}
+	}
+	return nil
+}
+
+func (d *DashboardDocument) validatePanelActions(panel Panel) error {
 	// A panel-level action is resolved against the rows currently on screen,
-	// which for a drillable panel are the current level's frame — not the
-	// root frame. Accept a field that exists on any frame the panel can show.
+	// which for a drillable panel are the current level's frame — not the root
+	// frame. Accept a field that exists on any frame the panel can show.
 	actionFrames := d.panelActionFrames(panel)
 	for _, action := range panel.Actions {
 		if err := validateAction(panel.ID, action); err != nil {
@@ -441,10 +455,14 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 			}
 		}
 	}
+	return nil
+}
+
+func validatePanelTrendAndTable(panel Panel, frame Frame) error {
 	if panel.Trend != nil {
 		for role, field := range map[string]string{"trend absolute": panel.Trend.AbsoluteField, "trend percent": panel.Trend.PercentField} {
 			if !panel.Deferred && field != "" {
-				if err := requireNumberFrameColumn("panel "+panel.ID, role, d.Frames[panel.Frame], field); err != nil {
+				if err := requireNumberFrameColumn("panel "+panel.ID, role, frame, field); err != nil {
 					return err
 				}
 			}
@@ -454,9 +472,7 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 		return fmt.Errorf("panel %s has table columns for kind %q", panel.ID, panel.Kind)
 	}
 	if panel.Kind == PanelKindTable && !panel.Deferred {
-		if err := validateTableColumns(panel, d.Frames[panel.Frame]); err != nil {
-			return err
-		}
+		return validateTableColumns(panel, frame)
 	}
 	return nil
 }
@@ -807,6 +823,12 @@ func validateMapConfig(panel Panel, frame Frame) error {
 	}
 	if len([]rune(featureProperty)) > 120 {
 		return fmt.Errorf("panel %s map featureProperty cannot exceed 120 characters", panel.ID)
+	}
+	if config.Attribution != "" {
+		attribution := strings.TrimSpace(config.Attribution)
+		if attribution == "" || len([]rune(attribution)) > 500 || strings.ContainsAny(attribution, "\r\n\t") {
+			return fmt.Errorf("panel %s map attribution must be a single line containing 1 to 500 characters", panel.ID)
+		}
 	}
 	labelProperties := make([]string, 0, len(config.LabelProperties)+1)
 	if fallback := strings.TrimSpace(config.LabelProperty); fallback != "" {

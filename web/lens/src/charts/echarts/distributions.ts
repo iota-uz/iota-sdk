@@ -33,10 +33,12 @@ function number(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function chrome(theme: EChartsTheme): Pick<EChartsOption, 'animation' | 'animationDuration' | 'color' | 'textStyle' | 'tooltip'> {
+function chrome(theme: EChartsTheme): Pick<EChartsOption, 'animation' | 'animationDuration' | 'aria' | 'backgroundColor' | 'color' | 'textStyle' | 'tooltip'> {
   return {
     animation: !isVisualRegression(),
     animationDuration: 220,
+    aria: { enabled: true },
+    backgroundColor: 'transparent',
     color: theme.colors,
     textStyle: { color: theme.text, fontFamily: theme.fontFamily },
     tooltip: { backgroundColor: theme.card, borderColor: theme.border, textStyle: { color: theme.text } },

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { useTranslate } from '../runtime'
+import { useOverlayContainer } from '../runtime/overlayContainer'
 import { Info } from '../icons'
 
 export interface InfoTipProps {
@@ -59,34 +60,19 @@ export function InfoTip({ text, inline }: InfoTipProps) {
   const translate = useTranslate()
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
-  const [container, setContainer] = useState<HTMLDivElement>()
   const [position, setPosition] = useState<FloatingPosition>()
   const wrapperRef = useRef<HTMLSpanElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
   const closeTimer = useRef<ReturnType<typeof globalThis.setTimeout>>()
-	const bubbleId = useId()
-	const label = translate('panel.info', 'About this metric')
-	const accessibleLabel = inline ? text : label
+  const bubbleId = useId()
+  const label = translate('panel.info', 'About this metric')
+  const accessibleLabel = inline ? text : label
   const open = pinned || hovered
+  const container = useOverlayContainer(open, wrapperRef, 'lens-info-tip-overlay-root')
 
-  // The note is a floating surface, so it belongs at body level rather than
-  // inside a card. This escapes both the card's overflow and later grid cells
-  // that would otherwise paint over it. Copy the Lens theme onto the portal
-  // root so the note keeps the dashboard's design tokens.
   useEffect(() => {
-    if (!open || typeof document === 'undefined') return undefined
-    const element = document.createElement('div')
-    const root = wrapperRef.current?.closest<HTMLElement>('.lens-root')
-    element.className = `lens-root lens-overlay-root lens-info-tip-overlay-root${root?.classList.contains('dark') ? ' dark' : ''}`
-    if (root?.dataset.theme) element.dataset.theme = root.dataset.theme
-    document.body.appendChild(element)
-    setContainer(element)
-    return () => {
-      element.remove()
-      setContainer(undefined)
-      setPosition(undefined)
-    }
+    if (!open) setPosition(undefined)
   }, [open])
 
   const reposition = useCallback(() => {
@@ -175,7 +161,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
       <button
         aria-describedby={open ? bubbleId : undefined}
         aria-expanded={pinned}
-		aria-label={accessibleLabel}
+        aria-label={accessibleLabel}
         className={inline
           ? 'lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline'
           : 'lens-export-button lens-icon-button lens-info-tip-button'}
@@ -183,7 +169,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
         onClick={() => setPinned((current) => !current)}
         onFocus={() => setHovered(true)}
         ref={buttonRef}
-		title={accessibleLabel}
+        title={accessibleLabel}
         type="button"
       >
         <Info />

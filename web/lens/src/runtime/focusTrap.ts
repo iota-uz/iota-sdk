@@ -15,6 +15,7 @@ export function useFocusTrap(
 ) {
   useEffect(() => {
     if (!active || typeof document === 'undefined') return undefined
+    const restoreTarget = restoreFocus?.current
     const focusFrame = requestAnimationFrame(() => (initialFocus?.current ?? dialog.current)?.focus())
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') {
@@ -45,7 +46,7 @@ export function useFocusTrap(
     return () => {
       cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', keydown, true)
-      restoreFocus?.current?.focus()
+      restoreTarget?.focus()
     }
   }, [active, dialog, initialFocus, onEscape, restoreFocus])
 }

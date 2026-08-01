@@ -198,6 +198,7 @@ func TestCompilePanelPreservesDistributionFieldsAndTemporalContract(t *testing.T
 		BoxFields("minimum", "q1", "median", "q3", "maximum").
 		Build()
 	item.Temporal = temporal
+	item.ComparisonUnsupported = true
 
 	compiled, err := compilePanel(item, Options{})
 	require.NoError(t, err)
@@ -209,6 +210,7 @@ func TestCompilePanelPreservesDistributionFieldsAndTemporalContract(t *testing.T
 	require.Equal(t, panel.Ref("q3"), compiled.Fields.Q3)
 	require.Equal(t, panel.Ref("maximum"), compiled.Fields.Upper)
 	require.Equal(t, temporal, compiled.Temporal)
+	require.True(t, compiled.ComparisonUnsupported)
 	require.Equal(t, panel.KindHistogram, lensspec.Histogram("hist", "Histogram", "data").Build().Kind)
 	require.Equal(t, panel.KindHeatmap, lensspec.Heatmap("heat", "Heatmap", "data").Build().Kind)
 }

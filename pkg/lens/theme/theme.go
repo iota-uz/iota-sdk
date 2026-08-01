@@ -17,6 +17,21 @@ const (
 	BgInset = "#F8FAFC"
 )
 
+// Dark surfaces and text. These mirror the runtime's dark custom-property
+// block so non-browser renderers and token tests share the same source values.
+const (
+	DarkBgPage       = "#0F172A"
+	DarkBgCard       = "#1E293B"
+	DarkBgInset      = "#334155"
+	DarkBorder       = "#475569"
+	DarkBorderStrong = "#64748B"
+	DarkDivider      = "#334155"
+	DarkTextStrong   = "#F8FAFC"
+	DarkText         = "#E2E8F0"
+	DarkTextMuted    = "#CBD5E1"
+	DarkTextFaint    = "#94A3B8"
+)
+
 // Hairlines.
 const (
 	// Border is the default hairline color for card and control borders.

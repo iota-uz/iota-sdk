@@ -376,7 +376,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "dynamic children validation failed", err)
 		return
 	}
-	hasNext, err := h.evidenceHasNext(r.Context(), base, snapshot.Params, target, page, panelResult, &wire)
+	hasNext, err := h.evidenceHasNext(panelResult, &wire)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
 		return
@@ -388,11 +388,6 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) evidenceHasNext(
-	ctx context.Context,
-	base lensruntime.Request,
-	params map[string]any,
-	target levelTarget,
-	page int,
 	result *lensruntime.PanelResult,
 	wire *document.Frame,
 ) (bool, error) {
@@ -406,15 +401,7 @@ func (h *Handlers) evidenceHasNext(
 	if len(wire.Rows) < h.pageSize {
 		return false, nil
 	}
-	next, err := h.executeLevel(ctx, base, params, target, page+1)
-	if err != nil {
-		return false, err
-	}
-	nextWire, err := wireFrame(target.ref, target.panel, target.dynamicChildren, next)
-	if err != nil {
-		return false, err
-	}
-	return len(nextWire.Rows) > 0, nil
+	return false, fmt.Errorf("full evidence page requires authoritative table pagination metadata")
 }
 
 func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req QueryRequest, snapshot *document.Snapshot, target levelTarget) {

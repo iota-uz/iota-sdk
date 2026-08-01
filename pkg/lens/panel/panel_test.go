@@ -81,10 +81,13 @@ func TestChoroplethBuilderCarriesExplicitJoin(t *testing.T) {
 		Geometry: map[string]any{"type": "Polygon", "coordinates": []any{}},
 	}}}
 	spec := Choropleth("regions", "Regions", "regional", GeoJSONSource{Inline: geometry}, "code").
+		MapAttribution("© Example Maps").ComparisonUnsupported().
 		IDField("region_code").ValueField("premium").Build()
 
 	require.Equal(t, KindMap, spec.Kind)
 	require.Equal(t, "code", spec.Map.FeatureProperty)
+	require.Equal(t, "© Example Maps", spec.Map.Attribution)
+	require.True(t, spec.ComparisonUnsupported)
 	require.Same(t, geometry, spec.Map.Source.Inline)
 }
 

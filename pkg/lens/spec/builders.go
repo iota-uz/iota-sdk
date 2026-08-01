@@ -95,6 +95,14 @@ func (b *PanelBuilder) MapLabelProperties(properties map[string]string) *PanelBu
 	return b
 }
 
+// MapAttribution declares the map source or licence credit.
+func (b *PanelBuilder) MapAttribution(attribution string) *PanelBuilder {
+	if b.panel.Map != nil {
+		b.panel.Map.Attribution = strings.TrimSpace(attribution)
+	}
+	return b
+}
+
 // MetricFlow builds a result-formula panel: an ordered sequence of signed
 // operand stages reading left-to-right to a single supplied result.
 func MetricFlow(id, title, dataset string, stages ...panel.FlowStage) *PanelBuilder {
@@ -288,6 +296,12 @@ func (b *PanelBuilder) Action(spec action.Spec) *PanelBuilder { b.panel.Action =
 
 // Terminal marks this leaf as an intentional end of the interaction path.
 func (b *PanelBuilder) Terminal() *PanelBuilder { b.panel.Terminal = true; return b }
+
+// ComparisonUnsupported marks a panel kind that cannot visualize comparison.
+func (b *PanelBuilder) ComparisonUnsupported() *PanelBuilder {
+	b.panel.ComparisonUnsupported = true
+	return b
+}
 func (b *PanelBuilder) Description(text string) *PanelBuilder {
 	b.panel.Description = LiteralText(text)
 	return b

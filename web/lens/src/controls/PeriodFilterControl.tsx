@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Filter, PeriodValue } from '../contract'
 import { CalendarBlank, CaretDown } from '../icons'
 import { currentPeriodValue, useDashboard, useFilters, useTranslate } from '../runtime'
+import { useOverlayContainer } from '../runtime/overlayContainer'
 import { isVisualRegression } from '../visualRegression'
 import { Calendar } from './Calendar'
 import {
@@ -187,10 +188,10 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
     start: fieldFromDate(undefined),
     end: fieldFromDate(undefined),
   })
-  const [container, setContainer] = useState<HTMLElement>()
   const [position, setPosition] = useState<PopoverPosition>({ left: 0, top: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const container = useOverlayContainer(open, triggerRef)
   const [animate] = useState(() => {
     if (isVisualRegression()) return false
     return !globalThis.window?.matchMedia?.('(prefers-reduced-motion: reduce)').matches
@@ -224,23 +225,6 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
       end: fieldFromDate(parseISODate(draftEndISO)),
     })
   }, [draftStartISO, draftEndISO])
-
-  // The popover portals to the end of body inside a fresh Lens root so no
-  // ancestor stacking context can bury it; the theme attribute is copied from
-  // the root the trigger lives in.
-  useEffect(() => {
-    if (!open || typeof document === 'undefined') return undefined
-    const element = document.createElement('div')
-    const root = triggerRef.current?.closest<HTMLElement>('.lens-root')
-    element.className = `lens-root lens-overlay-root${root?.classList.contains('dark') ? ' dark' : ''}`
-    if (root?.dataset.theme) element.dataset.theme = root.dataset.theme
-    document.body.appendChild(element)
-    setContainer(element)
-    return () => {
-      element.remove()
-      setContainer(undefined)
-    }
-  }, [open])
 
   const reposition = useCallback(() => {
     const dialog = dialogRef.current

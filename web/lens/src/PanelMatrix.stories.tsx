@@ -227,16 +227,16 @@ function storyPanel(kind: StoryKind): Panel {
             ? { category: 'product', lower: 'lower', q1: 'q1', median: 'median', q3: 'q3', upper: 'upper' }
             : kind === 'heatmap'
               ? { category: 'hour', series: 'weekday', value: 'count' }
-        : kind === 'radial'
-        ? { id: 'id', label: 'label', series: 'series', value: 'value' }
-        : chart
-      ? { id: 'id', label: 'label', category: 'period', series: 'series', value: 'value' }
-      : { label: 'label', value: 'value', final: 'delta' },
+              : kind === 'radial'
+                ? { id: 'id', label: 'label', series: 'series', value: 'value' }
+                : chart
+                  ? { id: 'id', label: 'label', category: 'period', series: 'series', value: 'value' }
+                  : { label: 'label', value: 'value', final: 'delta' },
     format: kind === 'cascade' || kind === 'table'
       ? { value: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 }, amount: { kind: 'money', currency: 'USD', minorUnits: false, precision: 0 } }
       : chart
-      ? { value: { kind: 'number', minorUnits: false, precision: 0 } }
-      : {
+        ? { value: { kind: 'number', minorUnits: false, precision: 0 } }
+        : {
           value: { kind: 'money', currency: 'USD', minorUnits: true, precision: 0 },
           delta: { kind: 'percent', minorUnits: false, precision: 1 },
         },
@@ -261,24 +261,24 @@ function storyDocument(kind: StoryKind, state: PanelState): DashboardDocument {
   const sourceFrame = kind === 'stat'
     ? statFrame
     : kind === 'cascade'
-    ? cascadeFrame
-    : kind === 'table'
-    ? tableFrame
-    : kind === 'metric_flow'
-    ? flowFrame
-    : kind === 'metric_hierarchy'
-    ? hierarchyFrame
-    : kind === 'metric_relationship'
-    ? relationshipFrame
-    : kind === 'radial'
-    ? radialFrame
-    : kind === 'histogram'
-    ? histogramFrame
-    : kind === 'boxplot'
-    ? boxPlotFrame
-    : kind === 'heatmap'
-    ? heatmapFrame
-    : chartFrame
+      ? cascadeFrame
+      : kind === 'table'
+        ? tableFrame
+        : kind === 'metric_flow'
+          ? flowFrame
+          : kind === 'metric_hierarchy'
+            ? hierarchyFrame
+            : kind === 'metric_relationship'
+              ? relationshipFrame
+              : kind === 'radial'
+                ? radialFrame
+                : kind === 'histogram'
+                  ? histogramFrame
+                  : kind === 'boxplot'
+                    ? boxPlotFrame
+                    : kind === 'heatmap'
+                      ? heatmapFrame
+                      : chartFrame
   const includeFrame = state === 'data' || state === 'stale' || state === 'empty'
   return {
     version: '1.0.0',
@@ -414,9 +414,9 @@ function MatrixCell({ kind, state }: { kind: StoryKind; state: PanelState }) {
   const document = storyDocument(kind, state)
   const fetcher: typeof fetch = () => state === 'error'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'Data source unavailable' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }))
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    }))
     : new Promise<Response>(() => undefined)
 
   return (
@@ -520,9 +520,9 @@ function VariantCell({ variant, state }: { variant: PanelVariant; state: PanelSt
   const document = variantDocument(variant, state)
   const fetcher: typeof fetch = () => state === 'error'
     ? Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'Data source unavailable' }), {
-        status: 500,
-        headers: { 'Content-Type': 'application/json' },
-      }))
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    }))
     : new Promise<Response>(() => undefined)
 
   return (

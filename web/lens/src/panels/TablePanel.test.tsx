@@ -129,6 +129,26 @@ const columnsDocument: DashboardDocument = {
 }
 
 describe('TablePanel columns', () => {
+  it('labels a non-zero absolute delta with a zero comparison baseline as New', () => {
+    const document = {
+      ...columnsDocument,
+      frames: {
+        'profitability:root': {
+          ...columnsDocument.frames['profitability:root']!,
+          rows: [['1', 'Orion', 1_000_000, 200_000, null, '/clients/1', 'top-secret']],
+        },
+      },
+    }
+    render(
+      <DocumentProvider initialDocument={document}>
+        <DashboardRuntimeProvider locale="en"><TablePanel panel={columnsPanel} /></DashboardRuntimeProvider>
+      </DocumentProvider>,
+    )
+
+    expect(screen.getByText('New')).toBeInTheDocument()
+    expect(screen.queryByText('—', { selector: '.lens-table-delta-pct' })).toBeNull()
+  })
+
   it('renders declared columns in order with labels, bar/delta cells, and per-column leaf links', () => {
     const { container } = render(
       <div className="lens-root">

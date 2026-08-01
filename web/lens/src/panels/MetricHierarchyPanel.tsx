@@ -51,7 +51,7 @@ export function MetricHierarchyPanel({ panel }: MetricHierarchyPanelProps) {
 
   return (
     <PanelFrame panel={panel} frame={effectiveFrame} allowEmptyContent>
-      <ul className="lens-hierarchy" role="list">
+      <ul className="lens-hierarchy">
         {views.map((view) => {
           const { row } = view
           const quality = resolveQuality({ confidence: view.confidence, availability: view.availability })

@@ -229,7 +229,7 @@ const staticStories = [
   ['panels-v2--waterfall-closing-total', 0],
   ['panels-v2--waterfall-semantic-tone', 0],
   ['panels-v2--waterfall-split-callout', 0],
-	['progressive-panels--sibling-ready-loading-and-error', 0],
+  ['progressive-panels--sibling-ready-loading-and-error', 0],
   ['temporal-overlays--forecast-confidence', 1],
   ['temporal-overlays--incomplete-period', 1],
   ['temporal-overlays--moving-average', 1],

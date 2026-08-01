@@ -220,14 +220,21 @@ export function MapPanel({ panel, adapter, fetcher }: MapPanelProps) {
   return (
     <PanelFrame panel={panel} frame={sourceFrame}>
       {input && (
-        <ChartHost
-          adapter={adapter}
-          drillable={interactive}
-          input={input}
-          label={translate('chart.label', '{name} chart', { name: panel.title })}
-          onSelect={interactive ? select : undefined}
-          panelId={panel.id}
-        />
+        <>
+          <ChartHost
+            adapter={adapter}
+            drillable={interactive}
+            input={input}
+            label={translate('chart.label', '{name} chart', { name: panel.title })}
+            onSelect={interactive ? select : undefined}
+            panelId={panel.id}
+          />
+          {config?.attribution && (
+            <p aria-label={translate('map.attribution', 'Map attribution')} className="lens-map-attribution" role="note">
+              {config.attribution}
+            </p>
+          )}
+        </>
       )}
     </PanelFrame>
   )

@@ -1,6 +1,7 @@
 package document
 
 import (
+	"math"
 	"testing"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
@@ -28,4 +29,31 @@ func TestBuildTemporalCarriesEveryOverlayAndExtendsTargetSpec(t *testing.T) {
 	require.Equal(t, TemporalPeriodYTD, temporal.Period.State)
 	require.Equal(t, "Launch", temporal.Annotations[0].Label)
 	require.Equal(t, "upper", temporal.Forecast.UpperField)
+}
+
+func TestValidateTemporalPanelRejectsInvalidOverlayContracts(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		kind     PanelKind
+		temporal *PanelTemporal
+		want     string
+	}{
+		{"unsupported panel", PanelKindBar, &PanelTemporal{Regression: &TemporalSeries{Field: "trend"}}, "only supported on line and area"},
+		{"missing regression field", PanelKindLine, &PanelTemporal{Regression: &TemporalSeries{}}, "regression field is required"},
+		{"invalid moving average", PanelKindLine, &PanelTemporal{MovingAverages: []TemporalMovingAverage{{Window: 5, Field: "sma"}}}, "must be 3, 7, or 12"},
+		{"duplicate moving average", PanelKindLine, &PanelTemporal{MovingAverages: []TemporalMovingAverage{{Window: 3, Field: "a"}, {Window: 3, Field: "b"}}}, "duplicate moving-average"},
+		{"non-finite reference", PanelKindLine, &PanelTemporal{ReferenceLines: []PanelTarget{{Value: math.Inf(1)}}}, "must be finite"},
+		{"invalid period", PanelKindLine, &PanelTemporal{Period: &TemporalPeriod{Category: "2026", State: "partial"}}, "unsupported incomplete-period state"},
+		{"empty annotation", PanelKindLine, &PanelTemporal{Annotations: []TemporalAnnotation{{At: "2026-01-01"}}}, "requires at and label"},
+		{"missing forecast start", PanelKindLine, &PanelTemporal{Forecast: &TemporalForecast{ValueField: "v", LowerField: "lo", UpperField: "hi"}}, "forecast start is required"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			err := validateTemporalPanel(Panel{ID: "trend", Kind: test.kind, Deferred: true, Temporal: test.temporal}, Frame{})
+			require.ErrorContains(t, err, test.want)
+		})
+	}
 }

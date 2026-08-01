@@ -159,12 +159,12 @@ function PrintChart({ section, height }: { section: PrintSection; height: number
   // half-page box on leader lines that clip the labels anyway.
   const presentation = panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial'
     ? {
-        ...panel.presentation,
-        sliceLabels: panel.presentation?.sliceLabels ?? ('percent' as const),
-        // A wider band on paper: the share is written inside the ring, and a
-        // thin ring cannot hold five characters.
-        fill: true,
-      }
+      ...panel.presentation,
+      sliceLabels: panel.presentation?.sliceLabels ?? ('percent' as const),
+      // A wider band on paper: the share is written inside the ring, and a
+      // thin ring cannot hold five characters.
+      fill: true,
+    }
     : panel.presentation
   return (
     <div className="lens-print-chart" style={{ height }}>
@@ -1007,9 +1007,9 @@ function DetailView({ detail }: { detail: PrintDetail }) {
   const compact = panel.semantics === 'series' && rows > seriesTableLimit
   const section = compact && detail.section.frame
     ? {
-        ...detail.section,
-        frame: { ...detail.section.frame, rows: detail.section.frame.rows.slice(-seriesTableTail) },
-      }
+      ...detail.section,
+      frame: { ...detail.section.frame, rows: detail.section.frame.rows.slice(-seriesTableTail) },
+    }
     : detail.section
   return (
     <article className="lens-print-detail">

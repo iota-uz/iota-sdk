@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { BookmarkSimple } from '../icons'
-import type { DashboardDocument } from '../contract'
-import { cubeFilterParam, cubeGroupByParam, filterParamNames, useDashboard, useFilters, useTranslate } from '../runtime'
+import { useDashboard, useTranslate } from '../runtime'
 import { useFocusTrap } from '../runtime/focusTrap'
 
 interface SavedView {
@@ -28,46 +27,6 @@ interface ShareCapabilities {
   manageTeam: boolean
   scheduleMail: boolean
   roles?: Array<{ id: number; name: string }>
-}
-
-const navigationStateParams = [
-  'path', 'perspective', 'drawer', 'drawerPath', 'drawerPerspective', 'drawerPanel', 'lensHidden', 'lensTemporal',
-]
-
-// eslint-disable-next-line react-refresh/only-export-components
-export function roleDefaultURL(
-  document_: DashboardDocument,
-  current: URL,
-  defaultView: SavedView | undefined,
-  storage: Pick<Storage, 'getItem' | 'setItem'>,
-): string | undefined {
-  if (!defaultView) return undefined
-  const stateParams = new Set([
-    ...navigationStateParams,
-    cubeFilterParam,
-    cubeGroupByParam,
-    ...filterParamNames(document_),
-  ])
-  if ([...current.searchParams.keys()].some((name) => stateParams.has(name))) return undefined
-  let target: URL
-  try {
-    target = new URL(defaultView.stateUrl, current)
-  } catch {
-    return undefined
-  }
-  if (target.origin !== current.origin) return undefined
-  const relative = `${target.pathname}${target.search}${target.hash}`
-  if (relative === `${current.pathname}${current.search}${current.hash}`) return undefined
-  const guard = `lens:role-default:${document_.meta.dashboardId}:${defaultView.id}`
-  try {
-    if (storage.getItem(guard) === relative) return undefined
-    storage.setItem(guard, relative)
-  } catch {
-    // Storage can be disabled by browser policy. The URL-state check still
-    // prevents loops for normal saved slices, so default application remains
-    // useful without making storage availability a hard requirement.
-  }
-  return relative
 }
 
 function csrfToken(node?: Node | null): string | undefined {
@@ -103,11 +62,8 @@ async function requestJSON<T>(endpoint: string, token?: string, init?: RequestIn
 
 export function SavedViewsMenu() {
   const { document: document_ } = useDashboard()
-  const documentRef = useRef(document_)
   const dialogID = useId()
-  documentRef.current = document_
   const translate = useTranslate()
-  const { applyURL } = useFilters()
   const translateRef = useRef(translate)
   translateRef.current = translate
   const endpoints = document_.endpoints
@@ -144,9 +100,9 @@ export function SavedViewsMenu() {
       const resolvedCapabilities = viewResult.capabilities ?? { manageTeam: false, scheduleMail: false }
       const scheduleResult = endpoints.schedules && resolvedCapabilities.scheduleMail
         ? await requestJSON<{ schedules: ExportSchedule[] }>(
-            `${endpoints.schedules}?dashboard=${encodeURIComponent(dashboardID)}`,
-            token,
-          )
+          `${endpoints.schedules}?dashboard=${encodeURIComponent(dashboardID)}`,
+          token,
+        )
         : { schedules: [] }
       setViews(viewResult.views)
       setCapabilities(resolvedCapabilities)
@@ -154,17 +110,13 @@ export function SavedViewsMenu() {
       setScheduleView((current) => (
         viewResult.views.some(({ id }) => id === current) ? current : viewResult.views[0]?.id || ''
       ))
-      if (typeof window !== 'undefined') {
-        const target = roleDefaultURL(documentRef.current, new URL(window.location.href), viewResult.defaultView, window.sessionStorage)
-        if (target) applyURL(target)
-      }
     } catch (cause: unknown) {
       console.error('[lens] saved views could not be loaded', cause)
       setError(translateRef.current('views.loadError', 'Saved views could not be loaded'))
     } finally {
       setPending(false)
     }
-  }, [applyURL, dashboardID, endpoints.schedules, endpoints.views])
+  }, [dashboardID, endpoints.schedules, endpoints.views])
 
   useEffect(() => { void load() }, [load])
 

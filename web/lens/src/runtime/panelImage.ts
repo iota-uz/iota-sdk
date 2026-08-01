@@ -1,5 +1,9 @@
 export type PanelImageFormat = 'png' | 'svg'
 
+const fallbackPanelWidth = 960
+const fallbackPanelHeight = 540
+const maximumExportPixelRatio = 2
+
 function panelNode(panelId: string): HTMLElement {
   const panel = Array.from(document.querySelectorAll<HTMLElement>('.lens-panel'))
     .find((candidate) => candidate.dataset.panelId === panelId)
@@ -43,8 +47,8 @@ function xmlText(value: string): string {
 export function panelSVG(panelId: string): { background: string; blob: Blob; width: number; height: number } {
   const source = panelNode(panelId)
   const bounds = source.getBoundingClientRect()
-  const width = Math.max(1, Math.ceil(bounds.width || source.offsetWidth || 960))
-  const height = Math.max(1, Math.ceil(bounds.height || source.offsetHeight || 540))
+  const width = Math.max(1, Math.ceil(bounds.width || source.offsetWidth || fallbackPanelWidth))
+  const height = Math.max(1, Math.ceil(bounds.height || source.offsetHeight || fallbackPanelHeight))
   const clone = source.cloneNode(true) as HTMLElement
   clone.querySelectorAll('.lens-panel-actions').forEach((node) => node.remove())
   clone.style.width = `${width}px`
@@ -80,7 +84,7 @@ async function panelPNG(svg: Blob, width: number, height: number, background: st
   // clean origin and is safe to encode.
   image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(await svg.text())}`
   await image.decode()
-  const ratio = Math.max(1, Math.min(2, globalThis.devicePixelRatio || 1))
+  const ratio = Math.max(1, Math.min(maximumExportPixelRatio, globalThis.devicePixelRatio || 1))
   const canvas = document.createElement('canvas')
   canvas.width = Math.ceil(width * ratio)
   canvas.height = Math.ceil(height * ratio)

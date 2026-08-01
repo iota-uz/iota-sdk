@@ -22,6 +22,7 @@ func syntheticMapDocument() *DashboardDocument {
 				},
 			}},
 			FeatureProperty: "code", LabelProperty: "name", LabelProperties: map[string]string{"en": "name_en", "ru": "name_ru"},
+			Attribution: "© Example Maps",
 		},
 	}
 	doc.Layout.Rows[0].Panels[0].PanelID = "regions"
@@ -74,6 +75,15 @@ func TestDashboardDocumentValidate_MapContract(t *testing.T) {
 		doc = syntheticMapDocument()
 		delete(doc.Panels[0].Map.Source.Inline.Features[0].Properties, "name_ru")
 		require.ErrorContains(t, doc.Validate(), "label property \"name_ru\" must be a non-empty string")
+	})
+	t.Run("bounds attribution", func(t *testing.T) {
+		doc := syntheticMapDocument()
+		doc.Panels[0].Map.Attribution = strings.Repeat("x", 501)
+		require.ErrorContains(t, doc.Validate(), "attribution must be a single line")
+
+		doc = syntheticMapDocument()
+		doc.Panels[0].Map.Attribution = "Source\nLicence"
+		require.ErrorContains(t, doc.Validate(), "attribution must be a single line")
 	})
 	t.Run("requires unique feature and frame keys", func(t *testing.T) {
 		doc := syntheticMapDocument()

@@ -1,6 +1,8 @@
 package cube
 
 import (
+	"strings"
+
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
 	"github.com/iota-uz/iota-sdk/pkg/lens/format"
@@ -162,6 +164,14 @@ func (b *DimensionBuilder) Choropleth(source panel.GeoJSONSource, featurePropert
 		Source:          source,
 		FeatureProperty: featureProperty,
 		LabelProperty:   labelProperty,
+	}
+	return b
+}
+
+// MapAttribution declares the source or licence credit for a choropleth.
+func (b *DimensionBuilder) MapAttribution(attribution string) *DimensionBuilder {
+	if b.spec.Map != nil {
+		b.spec.Map.Attribution = strings.TrimSpace(attribution)
 	}
 	return b
 }
