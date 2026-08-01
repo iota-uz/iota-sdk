@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Frame, GeoJSONFeatureCollection, GeoJSONSource, MapConfig, NodeKey, Panel } from '../contract'
 import type { ChartActivation, ChartAdapter, ChartInput, ChartFormatResolver } from '../charts/adapter'
 import { useDashboard, useDrill, useFormat, usePanelFrame, useTranslate, type PanelFrameState } from '../runtime'
+import { ChartDataEquivalent } from './ChartDataEquivalent'
 import { ChartHost } from './ChartHost'
 import { usePanelNavigation } from './actions'
 import { PanelFrame } from './PanelFrame'
@@ -223,6 +224,15 @@ export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapP
     <PanelFrame panel={panel} frame={sourceFrame}>
       {input && (
         <>
+          <ChartDataEquivalent
+            actionable={interactive}
+            format={input.format}
+            frame={input.frame}
+            label={translate('chart.data', 'Chart data for {name}', { name: panel.title })}
+            onSelect={select}
+            panel={panel}
+            translate={translate}
+          />
           <ChartHost
             adapter={adapter}
             drillable={interactive}

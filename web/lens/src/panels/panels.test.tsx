@@ -670,6 +670,9 @@ describe('chart encoding and drill behavior', () => {
     const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
     await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
+    const data = screen.getByRole('list', { name: 'Chart data for line panel' })
+    expect(data).toHaveTextContent('2025, Written premium, 100')
+    expect(data).toHaveTextContent('2025, Earned premium, 80')
     expect(screen.getByText('Written premium')).toBeInTheDocument()
     expect(screen.getByText('Earned premium')).toBeInTheDocument()
 
@@ -678,6 +681,8 @@ describe('chart encoding and drill behavior', () => {
       ['2025', 'Written premium', 100],
       ['2026', 'Written premium', 120],
     ]))
+    expect(data).not.toHaveTextContent('Earned premium')
+    expect(data).toHaveTextContent('2026, Written premium, 120')
   })
 
   it('prints period sums and supports solo, repeat-solo restore, and bulk controls', async () => {
@@ -744,7 +749,7 @@ describe('chart encoding and drill behavior', () => {
     runtime.frame = {
       data: {
         columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
-        rows: [['alpha', 'Alpha', 10], ['beta', 'Beta', 20]],
+        rows: [['root/a', 'Alpha', 10], ['beta', 'Beta', 20]],
       },
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
@@ -753,10 +758,70 @@ describe('chart encoding and drill behavior', () => {
       panel={panel('bar', { drillRoot: 'root', encoding: { id: 'id', label: 'label', value: 'value' } })}
     />)
 
-    const actions = await screen.findAllByRole('button', { name: /Open (Alpha|Beta)/ })
+    const actions = await screen.findAllByRole('button', { name: /Open (Alpha|Beta), (10|20)/ })
     expect(actions).toHaveLength(2)
     fireEvent.click(actions[1]!)
     expect(runtime.drillInto).toHaveBeenCalledWith('beta', 'panel-bar')
+
+    runtime.drillInto.mockReset()
+    const keyboardAction = actions[0]!
+    keyboardAction.focus()
+    fireEvent.keyDown(keyboardAction, { key: 'Enter', code: 'Enter' })
+    // Browsers synthesize this click as the default Enter action for a button.
+    fireEvent.click(keyboardAction)
+    fireEvent.keyUp(keyboardAction, { key: 'Enter', code: 'Enter' })
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-bar')
+
+    runtime.drillInto.mockReset()
+    fireEvent.click(screen.getByRole('button', { name: 'chart data' }))
+    expect(runtime.drillInto).toHaveBeenCalledWith('root/a', 'panel-bar')
+  })
+
+  it('exposes formatted category, series, and value for a non-actionable chart', () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows: [['January', 'Revenue', 1200], ['January', 'Cost', 500]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel
+      adapter={fakeAdapter()}
+      panel={panel('line', { encoding: { category: 'category', series: 'series', value: 'value' } })}
+    />)
+
+    const data = screen.getByRole('list', { name: 'Chart data for line panel' })
+    expect(data).toHaveTextContent('January, Revenue, 1200')
+    expect(data).toHaveTextContent('January, Cost, 500')
+    expect(data.querySelectorAll('button')).toHaveLength(0)
+  })
+
+  it('gives same-category actionable series unambiguous names with values', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows: [['January', 'Revenue', 1200], ['January', 'Cost', 500]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel
+      adapter={fakeAdapter()}
+      panel={panel('line', {
+        drillRoot: 'root',
+        encoding: { category: 'category', series: 'series', value: 'value' },
+      })}
+    />)
+
+    expect(await screen.findByRole('button', { name: 'Open January, Revenue, 1200' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Open January, Cost, 500' })).toBeInTheDocument()
   })
 
   it('shows legend search above six series and filters without changing the plot', () => {

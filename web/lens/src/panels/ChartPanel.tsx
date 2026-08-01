@@ -9,6 +9,7 @@ import { WarningTriangle } from '../icons'
 import { formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
+import { ChartDataEquivalent } from './ChartDataEquivalent'
 import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
 import { encodingRoles, rowColorResolver, seriesColorResolver } from './data'
@@ -180,20 +181,6 @@ function distinctSeriesCount(frame: Frame, panel: Panel): number {
   const index = frame.columns.findIndex((column) => column.name === panel.encoding.series)
   if (index < 0) return 1
   return new Set(frame.rows.map((row) => row[index]).filter((value) => value !== null && value !== undefined).map(String)).size
-}
-
-function chartRowKey(frame: Frame, panel: Panel, index: number): NodeKey | undefined {
-  const row = frame.rows[index]
-  if (!row) return undefined
-  const at = (field: string | undefined) => {
-    const column = frame.columns.findIndex(({ name }) => name === field)
-    return column >= 0 ? textCell(row[column]) : ''
-  }
-  const id = at(panel.encoding.id)
-  const category = at(panel.encoding.category) || at(panel.encoding.label)
-  const series = at(panel.encoding.series)
-  if (panel.radial?.mode === 'partition') return radialNodeKey(series, id || category)
-  return id || fallbackMarkKey(category, series)
 }
 
 export const donutRemainderKey = '__lens_other__'
@@ -573,20 +560,15 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             <CompactChartValue frame={input.frame} panel={panel} />
           ) : input && (
             <>
-              {chartInteractive && (
-                <div aria-label={translate('chart.keyboardActions', 'Chart data actions')} className="lens-chart-keyboard-actions" role="group">
-                  {input.frame.rows.map((_, index) => {
-                    const key = chartRowKey(input.frame, panel, index)
-                    if (key === undefined) return null
-                    const label = textCell(input.frame.rows[index]?.[input.frame.columns.findIndex(({ name }) => name === (panel.encoding.category ?? panel.encoding.label))]) || String(key)
-                    return (
-                      <button key={`${key}-${index}`} onClick={() => select(key)} type="button">
-                        {translate('chart.openMark', 'Open {name}', { name: label })}
-                      </button>
-                    )
-                  })}
-                </div>
-              )}
+              <ChartDataEquivalent
+                actionable={chartInteractive}
+                format={input.format}
+                frame={input.frame}
+                label={translate('chart.data', 'Chart data for {name}', { name: panel.title })}
+                onSelect={select}
+                panel={panel}
+                translate={translate}
+              />
               <ChartHost
                 input={input}
                 panelId={panel.id}
