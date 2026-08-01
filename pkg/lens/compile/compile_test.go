@@ -117,7 +117,12 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 		Title:       lensspec.LiteralText("Manual"),
 		Description: lensspec.LiteralText("Static"),
 		Datasets: []lensspec.DatasetSpec{
-			{Name: "stats", Kind: lens.DatasetKindStatic, StaticRef: "stats_dataset"},
+			{
+				Name:                "stats",
+				Kind:                lens.DatasetKindStatic,
+				StaticRef:           "stats_dataset",
+				ComparisonAlignment: lens.ComparisonAlignmentOrdinal,
+			},
 		},
 		Rows: []lensspec.RowSpec{
 			{
@@ -144,6 +149,7 @@ func TestDocumentCompilesManualStaticDashboard(t *testing.T) {
 	require.Len(t, compiled.Spec.Datasets, 1)
 	require.Len(t, compiled.Spec.Rows, 1)
 	require.Equal(t, "stats", compiled.Spec.Datasets[0].Name)
+	require.Equal(t, lens.ComparisonAlignmentOrdinal, compiled.Spec.Datasets[0].ComparisonAlignment)
 	require.Equal(t, "total", compiled.Spec.Rows[0].Panels[0].ID)
 }
 

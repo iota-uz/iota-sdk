@@ -479,6 +479,16 @@ func TestValidateRejectsMissingStaticFramesAndQuerySpec(t *testing.T) {
 	require.Error(t, queryErr)
 }
 
+func TestValidateRejectsUnsupportedComparisonAlignment(t *testing.T) {
+	t.Parallel()
+
+	dataset := lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset"))
+	dataset.ComparisonAlignment = lens.ComparisonAlignment("position-ish")
+	err := Validate(lensbuild.Dashboard("comparison", "Comparison").Datasets(dataset).Build())
+
+	require.ErrorContains(t, err, `dataset dataset has unsupported comparison alignment "position-ish"`)
+}
+
 func TestValidateRejectsMissingActionFieldSource(t *testing.T) {
 	t.Parallel()
 

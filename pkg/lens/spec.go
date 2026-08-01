@@ -269,6 +269,17 @@ type QuerySpec struct {
 	MaxRows int
 }
 
+// ComparisonAlignment controls how rows from a comparison period are paired
+// with the current dataset. The zero value preserves the inferred identity
+// join; ordinal alignment is an explicit opt-in for ordered datasets whose
+// category values necessarily differ between periods.
+type ComparisonAlignment string
+
+const (
+	ComparisonAlignmentInferred ComparisonAlignment = ""
+	ComparisonAlignmentOrdinal  ComparisonAlignment = "ordinal"
+)
+
 type DatasetSpec struct {
 	Name        string
 	Title       string
@@ -285,6 +296,10 @@ type DatasetSpec struct {
 	// dataset. Comparison branches use it to execute the same query against a
 	// second normalized interval.
 	TimeRangeVariable string
+	// ComparisonAlignment may explicitly opt an ordered dataset into ordinal
+	// comparison. The default remains a stable identity join and never falls
+	// back to row position implicitly.
+	ComparisonAlignment ComparisonAlignment
 }
 
 func ResolveTimeRange(value any) datasource.TimeRange {

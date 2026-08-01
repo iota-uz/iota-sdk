@@ -1028,6 +1028,10 @@ func Validate(spec lens.DashboardSpec) error {
 		if dataset.Name == "" {
 			return invalid("dataset name is required")
 		}
+		if dataset.ComparisonAlignment != lens.ComparisonAlignmentInferred &&
+			dataset.ComparisonAlignment != lens.ComparisonAlignmentOrdinal {
+			return invalid("dataset %s has unsupported comparison alignment %q", dataset.Name, dataset.ComparisonAlignment)
+		}
 		switch dataset.Kind {
 		case lens.DatasetKindStatic:
 			if dataset.Static == nil {

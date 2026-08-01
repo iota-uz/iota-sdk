@@ -111,16 +111,17 @@ type MeasureSpec struct {
 }
 
 type DatasetSpec struct {
-	Name              string           `json:"name"`
-	Title             Text             `json:"title"`
-	Kind              lens.DatasetKind `json:"kind"`
-	Source            string           `json:"source"`
-	DependsOn         []string         `json:"dependsOn"`
-	Query             *lens.QuerySpec  `json:"query"`
-	Transforms        []transform.Spec `json:"transforms"`
-	StaticRef         string           `json:"staticRef"`
-	Description       Text             `json:"description"`
-	TimeRangeVariable string           `json:"timeRangeVariable"`
+	Name                string                   `json:"name"`
+	Title               Text                     `json:"title"`
+	Kind                lens.DatasetKind         `json:"kind"`
+	Source              string                   `json:"source"`
+	DependsOn           []string                 `json:"dependsOn"`
+	Query               *lens.QuerySpec          `json:"query"`
+	Transforms          []transform.Spec         `json:"transforms"`
+	StaticRef           string                   `json:"staticRef"`
+	Description         Text                     `json:"description"`
+	TimeRangeVariable   string                   `json:"timeRangeVariable"`
+	ComparisonAlignment lens.ComparisonAlignment `json:"comparisonAlignment"`
 }
 
 func LoadCube(data []byte, opts ResolveOptions) (cube.CubeSpec, error) {
@@ -353,13 +354,14 @@ func (s MeasureSpec) resolve(opts ResolveOptions) (cube.MeasureSpec, error) {
 
 func (s DatasetSpec) resolve(opts ResolveOptions) (lens.DatasetSpec, error) {
 	dataset := lens.DatasetSpec{
-		Name:              resolveString(s.Name, opts.Values),
-		Title:             resolveText(s.Title, opts),
-		Kind:              s.Kind,
-		Source:            resolveString(s.Source, opts.Values),
-		DependsOn:         resolveStringSlice(s.DependsOn, opts.Values),
-		Description:       resolveText(s.Description, opts),
-		TimeRangeVariable: resolveString(s.TimeRangeVariable, opts.Values),
+		Name:                resolveString(s.Name, opts.Values),
+		Title:               resolveText(s.Title, opts),
+		Kind:                s.Kind,
+		Source:              resolveString(s.Source, opts.Values),
+		DependsOn:           resolveStringSlice(s.DependsOn, opts.Values),
+		Description:         resolveText(s.Description, opts),
+		TimeRangeVariable:   resolveString(s.TimeRangeVariable, opts.Values),
+		ComparisonAlignment: s.ComparisonAlignment,
 	}
 	transforms, err := resolveTransformSpecs(s.Transforms, opts.Values)
 	if err != nil {

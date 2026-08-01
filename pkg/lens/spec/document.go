@@ -119,19 +119,20 @@ type MeasureSpec struct {
 }
 
 type DatasetSpec struct {
-	Name              string           `json:"name"`
-	Title             Text             `json:"title"`
-	Kind              lens.DatasetKind `json:"kind"`
-	Source            string           `json:"source,omitempty"`
-	DependsOn         []string         `json:"dependsOn,omitempty"`
-	Query             *lens.QuerySpec  `json:"query,omitempty"`
-	Transforms        []transform.Spec `json:"transforms,omitempty"`
-	StaticRef         string           `json:"staticRef,omitempty"`
-	Static            *frame.FrameSet  `json:"-"`
-	Description       Text             `json:"description"`
-	Cache             CachePolicy      `json:"cache,omitempty"`
-	Export            exportmeta.Spec  `json:"export,omitempty"`
-	TimeRangeVariable string           `json:"timeRangeVariable,omitempty"`
+	Name                string                   `json:"name"`
+	Title               Text                     `json:"title"`
+	Kind                lens.DatasetKind         `json:"kind"`
+	Source              string                   `json:"source,omitempty"`
+	DependsOn           []string                 `json:"dependsOn,omitempty"`
+	Query               *lens.QuerySpec          `json:"query,omitempty"`
+	Transforms          []transform.Spec         `json:"transforms,omitempty"`
+	StaticRef           string                   `json:"staticRef,omitempty"`
+	Static              *frame.FrameSet          `json:"-"`
+	Description         Text                     `json:"description"`
+	Cache               CachePolicy              `json:"cache,omitempty"`
+	Export              exportmeta.Spec          `json:"export,omitempty"`
+	TimeRangeVariable   string                   `json:"timeRangeVariable,omitempty"`
+	ComparisonAlignment lens.ComparisonAlignment `json:"comparisonAlignment,omitempty"`
 }
 
 type RowSpec struct {

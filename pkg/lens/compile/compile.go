@@ -448,16 +448,17 @@ func compileMeasure(item lensspec.MeasureSpec, opts Options) (cube.MeasureSpec, 
 
 func compileDataset(item lensspec.DatasetSpec, opts Options) (lens.DatasetSpec, error) {
 	out := lens.DatasetSpec{
-		Name:              resolveString(item.Name, opts.Values),
-		Title:             resolveText(item.Title, opts),
-		Kind:              item.Kind,
-		Source:            resolveString(item.Source, opts.Values),
-		DependsOn:         resolveStringSlice(item.DependsOn, opts.Values),
-		Description:       resolveText(item.Description, opts),
-		TimeRangeVariable: resolveString(item.TimeRangeVariable, opts.Values),
-		Static:            item.Static,
-		Cache:             lens.CachePolicy{Mode: item.Cache.Mode, TTL: item.Cache.TTL.Std()},
-		Export:            item.Export,
+		Name:                resolveString(item.Name, opts.Values),
+		Title:               resolveText(item.Title, opts),
+		Kind:                item.Kind,
+		Source:              resolveString(item.Source, opts.Values),
+		DependsOn:           resolveStringSlice(item.DependsOn, opts.Values),
+		Description:         resolveText(item.Description, opts),
+		TimeRangeVariable:   resolveString(item.TimeRangeVariable, opts.Values),
+		ComparisonAlignment: item.ComparisonAlignment,
+		Static:              item.Static,
+		Cache:               lens.CachePolicy{Mode: item.Cache.Mode, TTL: item.Cache.TTL.Std()},
+		Export:              item.Export,
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
 	if err != nil {

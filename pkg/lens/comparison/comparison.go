@@ -3,6 +3,7 @@ package comparison
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"strings"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
@@ -49,7 +50,11 @@ func ApplyStatic(current, baseline *lens.DashboardSpec, options StaticOptions) e
 		if !ok || current.Datasets[index].Static == nil || base.Static == nil {
 			continue
 		}
-		merged, err := mergeFrameSet(current.Datasets[index].Static, base.Static)
+		merged, err := mergeFrameSet(
+			current.Datasets[index].Static,
+			base.Static,
+			current.Datasets[index].ComparisonAlignment,
+		)
 		if err != nil {
 			return fmt.Errorf("compare dataset %s: %w", current.Datasets[index].Name, err)
 		}
@@ -67,16 +72,28 @@ func ApplyStatic(current, baseline *lens.DashboardSpec, options StaticOptions) e
 	return nil
 }
 
-func mergeFrameSet(current, baseline *frame.FrameSet) (*frame.FrameSet, error) {
+func mergeFrameSet(current, baseline *frame.FrameSet, alignment lens.ComparisonAlignment) (*frame.FrameSet, error) {
 	merged := current.Clone()
+	if alignment != lens.ComparisonAlignmentInferred && alignment != lens.ComparisonAlignmentOrdinal {
+		return nil, fmt.Errorf("unsupported comparison alignment %q", alignment)
+	}
 	currentFrame := merged.Primary()
 	baselineFrame := baseline.Primary()
-	if currentFrame == nil || baselineFrame == nil {
+	if currentFrame == nil {
+		return merged, nil
+	}
+	if baselineFrame == nil {
+		if alignment == lens.ComparisonAlignmentOrdinal {
+			return appendComparisonMetrics(merged, currentFrame, currentFrame.Rows(), func(int, map[string]any) map[string]any { return nil })
+		}
 		return merged, nil
 	}
 	identity := identityFields(currentFrame, baselineFrame)
 	baselineRows := baselineFrame.Rows()
 	currentRows := currentFrame.Rows()
+	if alignment == lens.ComparisonAlignmentOrdinal {
+		return mergeOrdinalFrames(merged, currentFrame, baselineFrame, currentRows, baselineRows)
+	}
 	if len(identity) == 0 && (len(currentRows) > 1 || len(baselineRows) > 1) {
 		return nil, fmt.Errorf("multi-row comparison has no stable identity field")
 	}
@@ -93,7 +110,56 @@ func mergeFrameSet(current, baseline *frame.FrameSet) (*frame.FrameSet, error) {
 	if len(currentRows) > 0 && len(baselineRows) > 0 && matchedRows == 0 {
 		return nil, fmt.Errorf("comparison identity fields %v matched zero rows", identity)
 	}
-	for _, sourceField := range currentFrame.Fields {
+	return appendComparisonMetrics(merged, currentFrame, currentRows, func(_ int, row map[string]any) map[string]any {
+		return baselineByKey[rowKey(row, identity)]
+	})
+}
+
+func mergeOrdinalFrames(
+	merged *frame.FrameSet,
+	currentFrame, baselineFrame *frame.Frame,
+	currentRows, baselineRows []map[string]any,
+) (*frame.FrameSet, error) {
+	if len(baselineRows) > 0 && len(currentRows) != len(baselineRows) {
+		return nil, fmt.Errorf(
+			"ordinal comparison row count mismatch: current has %d rows, baseline has %d",
+			len(currentRows), len(baselineRows),
+		)
+	}
+
+	stableFields, err := ordinalStableFields(currentFrame, baselineFrame)
+	if err != nil {
+		return nil, err
+	}
+	for rowIndex := range baselineRows {
+		for _, field := range stableFields {
+			if !reflect.DeepEqual(currentRows[rowIndex][field], baselineRows[rowIndex][field]) {
+				return nil, fmt.Errorf(
+					"ordinal comparison field %q mismatch at row %d: current=%v baseline=%v",
+					field, rowIndex, currentRows[rowIndex][field], baselineRows[rowIndex][field],
+				)
+			}
+		}
+	}
+
+	return appendComparisonMetrics(merged, currentFrame, currentRows, func(rowIndex int, _ map[string]any) map[string]any {
+		if rowIndex >= len(baselineRows) {
+			return nil
+		}
+		return baselineRows[rowIndex]
+	})
+}
+
+func appendComparisonMetrics(
+	merged *frame.FrameSet,
+	currentFrame *frame.Frame,
+	currentRows []map[string]any,
+	baselineRow func(rowIndex int, currentRow map[string]any) map[string]any,
+) (*frame.FrameSet, error) {
+	// Capture source fields before appending derived metrics so repeated range
+	// growth can never make a derived field derive another derived field.
+	sourceFields := append([]frame.Field(nil), currentFrame.Fields...)
+	for _, sourceField := range sourceFields {
 		if sourceField.Type != frame.FieldTypeNumber {
 			continue
 		}
@@ -101,8 +167,7 @@ func mergeFrameSet(current, baseline *frame.FrameSet) (*frame.FrameSet, error) {
 		deltaValues := make([]any, len(currentRows))
 		percentValues := make([]any, len(currentRows))
 		for rowIndex, row := range currentRows {
-			baselineRow := baselineByKey[rowKey(row, identity)]
-			previous, previousOK := numericCell(baselineRow[sourceField.Name])
+			previous, previousOK := numericCell(baselineRow(rowIndex, row)[sourceField.Name])
 			currentValue, currentOK := numericCell(row[sourceField.Name])
 			if !previousOK {
 				continue
@@ -129,6 +194,85 @@ func mergeFrameSet(current, baseline *frame.FrameSet) (*frame.FrameSet, error) {
 	return merged, nil
 }
 
+// ordinalStableFields returns shared identity-bearing fields that must remain
+// equal at each position. A time field, or otherwise the first dimension, is
+// the ordered axis; remaining time/dimension fields, IDs, and series labels
+// are structural identity.
+func ordinalStableFields(current, baseline *frame.Frame) ([]string, error) {
+	type fieldContract struct {
+		fieldType frame.FieldType
+		role      frame.FieldRole
+	}
+	baselineFields := make(map[string]fieldContract, len(baseline.Fields))
+	for _, field := range baseline.Fields {
+		baselineFields[field.Name] = fieldContract{fieldType: field.Type, role: field.Role}
+	}
+	ordinalField := ""
+	for _, field := range current.Fields {
+		baselineField, ok := baselineFields[field.Name]
+		if ok && baselineField.fieldType == field.Type && baselineField.role == frame.RoleTime && field.Role == frame.RoleTime {
+			ordinalField = field.Name
+			break
+		}
+	}
+	if ordinalField == "" {
+		for _, field := range current.Fields {
+			baselineField, ok := baselineFields[field.Name]
+			if ok && baselineField.fieldType == field.Type && baselineField.role == frame.RoleDimension && field.Role == frame.RoleDimension {
+				ordinalField = field.Name
+				break
+			}
+		}
+	}
+	currentStructuralFields := make(map[string]fieldContract)
+	for _, field := range current.Fields {
+		if isComparisonStructuralRole(field.Role) {
+			currentStructuralFields[field.Name] = fieldContract{fieldType: field.Type, role: field.Role}
+		}
+	}
+	for name, contract := range currentStructuralFields {
+		baselineContract, ok := baselineFields[name]
+		if !ok || baselineContract != contract {
+			return nil, fmt.Errorf("ordinal comparison structural field %q is incompatible with baseline", name)
+		}
+	}
+	for _, field := range baseline.Fields {
+		if !isComparisonStructuralRole(field.Role) {
+			continue
+		}
+		currentContract, ok := currentStructuralFields[field.Name]
+		if !ok || currentContract != (fieldContract{fieldType: field.Type, role: field.Role}) {
+			return nil, fmt.Errorf("ordinal comparison structural field %q is incompatible with current dataset", field.Name)
+		}
+	}
+	stable := make([]string, 0)
+	for _, field := range current.Fields {
+		baselineField, ok := baselineFields[field.Name]
+		if !ok || baselineField.fieldType != field.Type || baselineField.role != field.Role {
+			continue
+		}
+		if field.Name == ordinalField {
+			continue
+		}
+		switch field.Role {
+		case frame.RoleTime, frame.RoleDimension:
+			stable = append(stable, field.Name)
+		case frame.RoleID, frame.RoleSeries, frame.RoleLinkParam:
+			stable = append(stable, field.Name)
+		}
+	}
+	return stable, nil
+}
+
+func isComparisonStructuralRole(role frame.FieldRole) bool {
+	switch role {
+	case frame.RoleTime, frame.RoleDimension, frame.RoleID, frame.RoleSeries, frame.RoleLinkParam:
+		return true
+	default:
+		return false
+	}
+}
+
 func identityFields(current, baseline *frame.Frame) []string {
 	type fieldContract struct {
 		fieldType frame.FieldType
@@ -148,7 +292,7 @@ func identityFields(current, baseline *frame.Frame) []string {
 		switch field.Role {
 		case frame.RoleID:
 			explicit = append(explicit, field.Name)
-		case frame.RoleDimension:
+		case frame.RoleDimension, frame.RoleSeries:
 			dimensions = append(dimensions, field.Name)
 		}
 	}

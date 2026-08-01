@@ -1,6 +1,7 @@
 package jsonspec
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -168,6 +169,21 @@ func TestLoadCubeSupportsDatasetRef(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, cube.DataModeDataset, spec.DataMode)
 	require.Same(t, frameSet, spec.Data)
+}
+
+func TestDatasetSpecResolvesComparisonAlignment(t *testing.T) {
+	t.Parallel()
+
+	var parsed DatasetSpec
+	require.NoError(t, json.Unmarshal([]byte(`{
+		"name":"trends",
+		"kind":"static",
+		"comparisonAlignment":"ordinal"
+	}`), &parsed))
+	resolved, err := parsed.resolve(ResolveOptions{})
+
+	require.NoError(t, err)
+	require.Equal(t, lens.ComparisonAlignmentOrdinal, resolved.ComparisonAlignment)
 }
 
 func TestLoadCubeResolvesMapDimension(t *testing.T) {

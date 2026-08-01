@@ -52,6 +52,21 @@ func TestApplyStaticUsesStableIdentityAndAbsoluteBaseline(t *testing.T) {
 	require.Equal(t, PreviousField("value"), current.Rows[0].Panels[0].Fields.Previous.Name())
 }
 
+func TestApplyStaticInferredIdentityIncludesSeries(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2025", "2025"}, []string{"premium", "claims"}, []float64{120, 80}),
+	}}
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2025", "2025"}, []string{"claims", "premium"}, []float64{70, 100}),
+	}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{100.0, 70.0}, primary.MustField(PreviousField("value")).Values)
+}
+
 func TestApplyStaticRejectsPositionalMultiRowJoin(t *testing.T) {
 	t.Parallel()
 
@@ -60,6 +75,89 @@ func TestApplyStaticRejectsPositionalMultiRowJoin(t *testing.T) {
 
 	err := ApplyStatic(&current, &baseline, StaticOptions{})
 	require.ErrorContains(t, err, "multi-row comparison has no stable identity field")
+}
+
+func TestApplyStaticOrdinalAlignsDifferentTimeCategories(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2025", "2026"}, []string{"premium", "premium"}, []float64{120, 150}),
+	}}
+	current.Datasets[0].ComparisonAlignment = lens.ComparisonAlignmentOrdinal
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2023", "2024"}, []string{"premium", "premium"}, []float64{100, 125}),
+	}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{100.0, 125.0}, primary.MustField(PreviousField("value")).Values)
+	require.Equal(t, []any{20.0, 25.0}, primary.MustField(DeltaField("value")).Values)
+}
+
+func TestApplyStaticOrdinalRejectsReorderedSeries(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2025", "2025"}, []string{"premium", "claims"}, []float64{120, 80}),
+	}}
+	current.Datasets[0].ComparisonAlignment = lens.ComparisonAlignmentOrdinal
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2024", "2024"}, []string{"claims", "premium"}, []float64{70, 100}),
+	}}
+
+	err := ApplyStatic(&current, &baseline, StaticOptions{})
+	require.ErrorContains(t, err, `ordinal comparison field "series" mismatch at row 0`)
+}
+
+func TestApplyStaticOrdinalRejectsRowCountMismatch(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2025", "2026"}, []string{"premium", "premium"}, []float64{120, 150}),
+	}}
+	current.Datasets[0].ComparisonAlignment = lens.ComparisonAlignmentOrdinal
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2024"}, []string{"premium"}, []float64{100}),
+	}}
+
+	err := ApplyStatic(&current, &baseline, StaticOptions{})
+	require.ErrorContains(t, err, "ordinal comparison row count mismatch: current has 2 rows, baseline has 1")
+}
+
+func TestApplyStaticOrdinalAllowsEmptyBaselineAsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2025", "2026"}, []string{"premium", "premium"}, []float64{120, 150}),
+	}}
+	current.Datasets[0].ComparisonAlignment = lens.ComparisonAlignmentOrdinal
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", nil, nil, nil),
+	}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{nil, nil}, primary.MustField(PreviousField("value")).Values)
+	require.Equal(t, []any{nil, nil}, primary.MustField(DeltaField("value")).Values)
+	require.Equal(t, []any{nil, nil}, primary.MustField(DeltaPercentField("value")).Values)
+}
+
+func TestApplyStaticOrdinalAllowsEmptyBaselineFrameSetAsUnavailable(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		ordinalDataset(t, "trends", []string{"2025", "2026"}, []string{"premium", "premium"}, []float64{120, 150}),
+	}}
+	current.Datasets[0].ComparisonAlignment = lens.ComparisonAlignmentOrdinal
+	empty, err := frame.NewFrameSet()
+	require.NoError(t, err)
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{{
+		Name: "trends", Kind: lens.DatasetKindStatic, Static: empty,
+	}}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{nil, nil}, primary.MustField(PreviousField("value")).Values)
 }
 
 func TestApplyStaticConfiguresPanelsWithSharedFieldContract(t *testing.T) {
@@ -121,6 +219,31 @@ func numericDataset(t *testing.T, name string, values []float64) lens.DatasetSpe
 		items[index] = values[index]
 	}
 	fr, err := frame.New(name, frame.Field{Name: "value", Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: items})
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+	return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: set}
+}
+
+func ordinalDataset(t *testing.T, name string, categories, series []string, values []float64) lens.DatasetSpec {
+	t.Helper()
+	categoryValues := make([]any, len(categories))
+	seriesValues := make([]any, len(series))
+	metricValues := make([]any, len(values))
+	for index := range categories {
+		categoryValues[index] = categories[index]
+	}
+	for index := range series {
+		seriesValues[index] = series[index]
+	}
+	for index := range values {
+		metricValues[index] = values[index]
+	}
+	fr, err := frame.New(name,
+		frame.Field{Name: "category", Type: frame.FieldTypeString, Role: frame.RoleDimension, Values: categoryValues},
+		frame.Field{Name: "series", Type: frame.FieldTypeString, Role: frame.RoleSeries, Values: seriesValues},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: metricValues},
+	)
 	require.NoError(t, err)
 	set, err := frame.NewFrameSet(fr)
 	require.NoError(t, err)
