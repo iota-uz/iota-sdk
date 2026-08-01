@@ -3,6 +3,18 @@ import type { Encoding, Frame, GeoJSONFeatureCollection, NodeKey, PanelKind, Pan
 export type ChartKind = Extract<PanelKind, 'pie' | 'donut' | 'radial' | 'bar' | 'hbar' | 'line' | 'area' | 'histogram' | 'boxplot' | 'heatmap' | 'map'>
 export type ChartFormatResolver = (field: string, value: unknown) => string
 
+export interface ChartLabels {
+  previous: string
+  trend: string
+  movingAverage: (window: number) => string
+  estimate: string
+  ytd: string
+  forecast: string
+  forecastLower: (forecast: string) => string
+  forecastConfidence: (forecast: string) => string
+  boxplot: [min: string, q1: string, median: string, q3: string, max: string]
+}
+
 /** Stable mark identity for a category within a specific partition ring. */
 export function radialNodeKey(ringKey: string, categoryKey: string): NodeKey {
   return `radial:${JSON.stringify([ringKey, categoryKey])}`
@@ -19,6 +31,8 @@ export interface ChartInput {
   locale?: string
   /** Localized label used for the sum of a stacked column in its tooltip. */
   tooltipTotalLabel?: string
+  /** Localized chart-generated labels that are not supplied by the producer. */
+  labels?: ChartLabels
   theme: Theme
   selectedKey?: NodeKey
   /** Opt-in density hints; absent hints keep the default chart treatment. */

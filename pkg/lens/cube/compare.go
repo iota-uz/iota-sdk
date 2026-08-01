@@ -1,8 +1,6 @@
 package cube
 
 import (
-	"strings"
-
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
@@ -20,12 +18,7 @@ func resolveComparison(spec CubeSpec, ctx DrillContext) comparisonConfig {
 		if variable.Kind != lens.VariableCompare {
 			continue
 		}
-		mode := lens.CompareOff
-		if raw := strings.TrimSpace(ctx.Request.Get(variable.Name)); raw != "" {
-			mode = lens.CompareMode(raw)
-		} else if value, ok := variable.Default.(lens.CompareValue); ok {
-			mode = value.Mode
-		}
+		mode := lens.ResolveCompareMode(variable, ctx.Request)
 		switch mode {
 		case lens.ComparePreviousPeriod, lens.CompareYearAgo, lens.CompareCustom:
 			return comparisonConfig{Enabled: true, Variable: variable.Name, Anchor: variable.CompareTo}

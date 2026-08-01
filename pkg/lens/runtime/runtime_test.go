@@ -145,6 +145,12 @@ func TestTablePaginationHelpers(t *testing.T) {
 	require.Empty(t, TableChunkScope(values, "policies-table").PanelIDs)
 	require.Equal(t, DefaultTablePage, tablePage(url.Values{}, DefaultTablePage))
 	require.Equal(t, DefaultTablePerPage, tablePerPage(url.Values{}, DefaultTablePerPage))
+	overflow := ParseTablePageState(url.Values{
+		TablePaginationPageQuery:  []string{"9223372036854775807"},
+		TablePaginationLimitQuery: []string{"9223372036854775807"},
+	}, DefaultTablePerPage)
+	require.GreaterOrEqual(t, overflow.Offset, 0)
+	require.LessOrEqual(t, overflow.Page, MaxTablePage)
 }
 
 func TestApplyTablePagination(t *testing.T) {
@@ -377,6 +383,46 @@ func TestCompareVariableResolvesEveryModeAgainstItsDateRange(t *testing.T) {
 	require.Equal(t, lens.CompareOff, off["compare"].(lens.CompareValue).Mode)
 }
 
+func TestCompareVariableUsesCalendarPeriodsAndRequestTimezone(t *testing.T) {
+	t.Parallel()
+
+	variables := []lens.VariableSpec{
+		lensbuild.DateRangeVariable("range", "Range", 24*time.Hour),
+		lensbuild.CompareVariable("compare", "Compare", "range"),
+	}
+
+	previous, err := resolveVariables(variables, Request{Timezone: "Asia/Tashkent", Request: url.Values{
+		"range": []string{"bounded"}, "range_start": []string{"2026-03-01"}, "range_end": []string{"2026-03-31"},
+		"compare": []string{"previous_period"},
+	}})
+	require.NoError(t, err)
+	current := previous["range"].(lens.DateRangeValue)
+	baseline := previous["compare"].(lens.CompareValue).Range
+	require.Equal(t, "Asia/Tashkent", current.Start.Location().String())
+	require.Equal(t, "2026-02-01T00:00:00+05:00", current.Start.AddDate(0, -1, 0).Format(time.RFC3339))
+	require.Equal(t, "2026-02-01", baseline.Start.Format("2006-01-02"))
+	require.Equal(t, "2026-02-28", baseline.End.Format("2006-01-02"))
+
+	yearAgo, err := resolveVariables(variables, Request{Timezone: "Asia/Tashkent", Request: url.Values{
+		"range": []string{"bounded"}, "range_start": []string{"2028-02-01"}, "range_end": []string{"2028-02-29"},
+		"compare": []string{"year_ago"},
+	}})
+	require.NoError(t, err)
+	baseline = yearAgo["compare"].(lens.CompareValue).Range
+	require.Equal(t, "2027-02-01", baseline.Start.Format("2006-01-02"))
+	require.Equal(t, "2027-02-28", baseline.End.Format("2006-01-02"))
+
+	custom, err := resolveVariables(variables, Request{Timezone: "Asia/Tashkent", Request: url.Values{
+		"range": []string{"bounded"}, "range_start": []string{"2026-03-01"}, "range_end": []string{"2026-03-31"},
+		"compare": []string{"custom"}, "compare_start": []string{"2026-01-01"}, "compare_end": []string{"2026-01-31"},
+	}})
+	require.NoError(t, err)
+	baseline = custom["compare"].(lens.CompareValue).Range
+	require.Equal(t, "Asia/Tashkent", baseline.Start.Location().String())
+	require.Equal(t, "2026-01-01T00:00:00+05:00", baseline.Start.Format(time.RFC3339))
+	require.Equal(t, "2026-01-31T23:59:59+05:00", baseline.End.Format(time.RFC3339))
+}
+
 func TestValidateRejectsDuplicatePanels(t *testing.T) {
 	t.Parallel()
 
@@ -550,7 +596,6 @@ func TestValidate_RejectsInvalidDrillTrees(t *testing.T) {
 		{name: "children and action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("/portfolio")), Children: []panel.DrillNode{{Key: "q1", Label: "Q1", Value: 1}}}}}}}, wantErr: "cannot have both children and action"},
 		{name: "cube action", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.CubeDrill("/portfolio", "source"))}}}}}, wantErr: `unsupported kind "cube_drill"`},
 		{name: "field action source", kind: panel.KindPie, tree: panel.DrillTree{Branches: []panel.DrillBranch{{TriggerKey: "earned", Label: "Earned", Children: []panel.DrillNode{{Key: "direct", Label: "Direct", Value: 1, Action: actionSpec(action.Navigate("").WithFieldURL("url"))}}}}}, wantErr: "cannot use a field source"},
-		{name: "bar hierarchy coexistence", kind: panel.KindPie, tree: validDrillTree(), mutate: func(spec *panel.Spec) { spec.DrillHierarchy = &panel.DrillHierarchy{} }, wantErr: "cannot be combined with bar drill hierarchy"},
 		{name: "missing id mapping", kind: panel.KindPie, tree: validDrillTree(), mutate: func(spec *panel.Spec) { spec.Fields.ID = "" }, wantErr: "requires id field"},
 		{name: "invalid expanded span", kind: panel.KindPie, tree: panel.DrillTree{ExpandedSpan: 13, Branches: validDrillTree().Branches}, wantErr: "expanded span must be between 1 and 12"},
 	}

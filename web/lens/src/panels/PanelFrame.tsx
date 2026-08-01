@@ -34,10 +34,23 @@ function numericFrameValue(frame: Frame | undefined, field: string | undefined):
 
 export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
 	const trend = panel.trend!
-	const percent = numericFrameValue(frame, trend.percentField) ?? trend.percent
 	const absolute = numericFrameValue(frame, trend.absoluteField)
+	const framePercent = numericFrameValue(frame, trend.percentField)
+	const percent = framePercent ?? trend.percent
 	const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
+	const formatPercent = useFormat({ kind: 'percent', minorUnits: false, precision: 1 })
 	const translate = useTranslate()
+  if (trend.percentField && framePercent === undefined) {
+    const state = absolute !== undefined && absolute !== 0
+      ? translate('panel.trend.new', 'New')
+      : translate('panel.trend.notAvailable', 'N/A')
+    return (
+      <span className="lens-trend-chip lens-trend-chip-flat">
+        <strong>{state}</strong>
+        <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
+      </span>
+    )
+  }
   const up = percent > 0
   const flat = percent === 0
   // Invert flips the good/bad mapping for down-is-good metrics; the arrow
@@ -45,11 +58,12 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   const good = trend.invert ? !up : up
   const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
 	const sign = up ? '+' : ''
+  const formattedPercent = `${sign}${formatPercent(percent)}`
   const TrendIcon = flat ? TrendFlat : up ? TrendUp : TrendDown
   return (
     <span className={`lens-trend-chip ${tone}`}>
       <TrendIcon />
-	  <strong>{clampedDeltaPercent(percent) ?? `${sign}${percent.toFixed(1)}%`}</strong>
+	  <strong>{clampedDeltaPercent(percent) ?? formattedPercent}</strong>
 	  {absolute !== undefined && <span className="lens-trend-chip-absolute">({absolute > 0 ? '+' : ''}{formatAbsolute(absolute)})</span>}
 	  <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
     </span>
@@ -174,7 +188,8 @@ export function PanelFrame({
           {expandable && (
             <button
               aria-label={expandLabel}
-              aria-pressed={expanded}
+              aria-expanded={expanded}
+              aria-haspopup="dialog"
               className="lens-export-button lens-icon-button"
               onClick={expanded ? collapse : toggleExpanded}
               ref={expandRef}

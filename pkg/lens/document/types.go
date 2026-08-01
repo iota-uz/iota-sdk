@@ -663,9 +663,10 @@ type GeoJSONSource struct {
 // Encoding.ID values match FeatureProperty values. LabelProperty optionally
 // names the human-readable feature property used on the map.
 type MapConfig struct {
-	Source          GeoJSONSource `json:"source"`
-	FeatureProperty string        `json:"featureProperty"`
-	LabelProperty   string        `json:"labelProperty,omitempty"`
+	Source          GeoJSONSource     `json:"source"`
+	FeatureProperty string            `json:"featureProperty"`
+	LabelProperty   string            `json:"labelProperty,omitempty"`
+	LabelProperties map[string]string `json:"labelProperties,omitempty"`
 }
 
 // StatusTone selects a status chip's color treatment.

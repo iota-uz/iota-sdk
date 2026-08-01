@@ -116,6 +116,9 @@ func (s CubeSpec) Validate() error {
 		if dimension.PanelKind == panel.KindMap && dimension.Map == nil {
 			return fmt.Errorf("cube %q map dimension %q requires map config", s.ID, dimension.Name)
 		}
+		if dimension.PanelKind == panel.KindBoxPlot || dimension.PanelKind == panel.KindHeatmap {
+			return fmt.Errorf("cube %q dimension %q cannot use panel kind %q because cube dimensions do not provide its required fields", s.ID, dimension.Name, dimension.PanelKind)
+		}
 	}
 	variableKinds := make(map[string]lens.VariableKind, len(s.Variables))
 	compareCount := 0

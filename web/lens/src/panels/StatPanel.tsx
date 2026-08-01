@@ -6,8 +6,7 @@ import { usePanelNavigation, usePrefetch, type PrefetchHandlers } from './action
 import { StatValueTicker } from './StatValueTicker'
 import { cell, displayText, panelField } from './data'
 import { InfoTip } from './InfoTip'
-import { PanelFrame } from './PanelFrame'
-import { TrendChip } from './PanelFrame'
+import { PanelFrame, TrendChip } from './PanelFrame'
 
 export interface StatPanelProps {
   panel: Panel

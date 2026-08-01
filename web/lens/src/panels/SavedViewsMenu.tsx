@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { BookmarkSimple } from '../icons'
 import type { DashboardDocument } from '../contract'
-import { cubeFilterParam, cubeGroupByParam, filterParamNames, useDashboard, useTranslate } from '../runtime'
+import { cubeFilterParam, cubeGroupByParam, filterParamNames, useDashboard, useFilters, useTranslate } from '../runtime'
+import { useFocusTrap } from '../runtime/focusTrap'
 
 interface SavedView {
   id: string
@@ -20,6 +21,7 @@ interface ExportSchedule {
   timezone: string
   recipients: string[]
   nextRunAt?: string
+  lastError?: string
 }
 
 interface ShareCapabilities {
@@ -29,7 +31,7 @@ interface ShareCapabilities {
 }
 
 const navigationStateParams = [
-  'path', 'perspective', 'drawer', 'drawerPath', 'drawerPerspective', 'drawerPanel', 'lensHidden',
+  'path', 'perspective', 'drawer', 'drawerPath', 'drawerPerspective', 'drawerPanel', 'lensHidden', 'lensTemporal',
 ]
 
 // eslint-disable-next-line react-refresh/only-export-components
@@ -102,8 +104,10 @@ async function requestJSON<T>(endpoint: string, token?: string, init?: RequestIn
 export function SavedViewsMenu() {
   const { document: document_ } = useDashboard()
   const documentRef = useRef(document_)
+  const dialogID = useId()
   documentRef.current = document_
   const translate = useTranslate()
+  const { applyURL } = useFilters()
   const translateRef = useRef(translate)
   translateRef.current = translate
   const endpoints = document_.endpoints
@@ -118,11 +122,14 @@ export function SavedViewsMenu() {
   const [cron, setCron] = useState('0 8 * * 1')
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string>()
+  const [popoverPosition, setPopoverPosition] = useState({ maxHeight: 620, top: 0 })
   const [capabilities, setCapabilities] = useState<ShareCapabilities>({ manageTeam: false, scheduleMail: false })
   const container = useRef<HTMLDivElement>(null)
   const dialog = useRef<HTMLDivElement>(null)
   const trigger = useRef<HTMLButtonElement>(null)
   const dashboardID = document_.meta.dashboardId
+  const closePopover = useCallback(() => setOpen(false), [])
+  useFocusTrap(dialog, open, closePopover, undefined, trigger)
 
   const load = useCallback(async () => {
     if (!endpoints.views) return
@@ -149,34 +156,50 @@ export function SavedViewsMenu() {
       ))
       if (typeof window !== 'undefined') {
         const target = roleDefaultURL(documentRef.current, new URL(window.location.href), viewResult.defaultView, window.sessionStorage)
-        if (target) window.location.replace(target)
+        if (target) applyURL(target)
       }
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : translateRef.current('views.error', 'Saved views could not be loaded'))
+      console.error('[lens] saved views could not be loaded', cause)
+      setError(translateRef.current('views.loadError', 'Saved views could not be loaded'))
     } finally {
       setPending(false)
     }
-  }, [dashboardID, endpoints.schedules, endpoints.views])
+  }, [applyURL, dashboardID, endpoints.schedules, endpoints.views])
 
   useEffect(() => { void load() }, [load])
 
   useEffect(() => {
     if (!open) return undefined
-    const focusFrame = requestAnimationFrame(() => dialog.current?.focus())
     const close = (event: PointerEvent) => {
       if (event.target instanceof Node && !container.current?.contains(event.target)) setOpen(false)
     }
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      trigger.current?.focus()
-    }
     document.addEventListener('pointerdown', close, true)
-    document.addEventListener('keydown', escape, true)
     return () => {
-      cancelAnimationFrame(focusFrame)
       document.removeEventListener('pointerdown', close, true)
-      document.removeEventListener('keydown', escape, true)
+    }
+  }, [open])
+
+  useLayoutEffect(() => {
+    if (!open) return undefined
+    const reposition = () => {
+      const bounds = trigger.current?.getBoundingClientRect()
+      if (!bounds) return
+      const height = dialog.current?.getBoundingClientRect().height ?? 0
+      const below = bounds.bottom + 8
+      const top = below + height <= window.innerHeight
+        ? below
+        : Math.max(16, bounds.top - height - 8)
+      setPopoverPosition({ maxHeight: Math.max(120, window.innerHeight - top - 16), top })
+    }
+    reposition()
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(reposition)
+    if (dialog.current) observer?.observe(dialog.current)
+    window.addEventListener('resize', reposition)
+    window.addEventListener('scroll', reposition, true)
+    return () => {
+      observer?.disconnect()
+      window.removeEventListener('resize', reposition)
+      window.removeEventListener('scroll', reposition, true)
     }
   }, [open])
 
@@ -205,18 +228,21 @@ export function SavedViewsMenu() {
       setName('')
       await load()
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : translate('views.error', 'Saved view could not be saved'))
+      console.error('[lens] saved view could not be saved', cause)
+      setError(translate('views.saveError', 'Saved view could not be saved'))
       setPending(false)
     }
   }
 
   const removeView = async (id: string) => {
+    if (!window.confirm(translate('views.confirmDelete', 'Delete this saved view?'))) return
     setPending(true)
     try {
       await requestJSON<void>(`${endpoints.views}/${encodeURIComponent(id)}`, csrfToken(container.current), { method: 'DELETE' })
       await load()
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : translate('views.error', 'Saved view could not be removed'))
+      console.error('[lens] saved view could not be removed', cause)
+      setError(translate('views.deleteError', 'Saved view could not be removed'))
       setPending(false)
     }
   }
@@ -241,19 +267,22 @@ export function SavedViewsMenu() {
       setRecipients('')
       await load()
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : translate('views.error', 'Schedule could not be saved'))
+      console.error('[lens] schedule could not be saved', cause)
+      setError(translate('views.scheduleSaveError', 'Schedule could not be saved'))
       setPending(false)
     }
   }
 
   const removeSchedule = async (id: string) => {
+    if (!window.confirm(translate('views.confirmDeleteSchedule', 'Delete this schedule?'))) return
     if (!endpoints.schedules) return
     setPending(true)
     try {
       await requestJSON<void>(`${endpoints.schedules}/${encodeURIComponent(id)}`, csrfToken(container.current), { method: 'DELETE' })
       await load()
     } catch (cause: unknown) {
-      setError(cause instanceof Error ? cause.message : translate('views.error', 'Schedule could not be removed'))
+      console.error('[lens] schedule could not be removed', cause)
+      setError(translate('views.scheduleDeleteError', 'Schedule could not be removed'))
       setPending(false)
     }
   }
@@ -261,6 +290,7 @@ export function SavedViewsMenu() {
   return (
     <div className="lens-saved-views" ref={container}>
       <button
+        aria-controls={dialogID}
         aria-expanded={open}
         aria-haspopup="dialog"
         className="lens-export-button"
@@ -269,12 +299,12 @@ export function SavedViewsMenu() {
         type="button"
       >
         <BookmarkSimple />
-        <span>{translate('views.title', 'Views')}</span>
+        <span>{translate('views.triggerTitle', 'Views')}</span>
       </button>
       {open && (
-        <div aria-label={translate('views.title', 'Saved views')} className="lens-saved-views-popover" ref={dialog} role="dialog" tabIndex={-1}>
+        <div aria-label={translate('views.dialogTitle', 'Saved views')} aria-modal="true" className="lens-saved-views-popover" id={dialogID} ref={dialog} role="dialog" style={popoverPosition} tabIndex={-1}>
           <div className="lens-saved-views-section">
-            <strong>{translate('views.saved', 'Saved views')}</strong>
+            <strong>{translate('views.savedList', 'Saved views')}</strong>
             {views.length === 0 && !pending && <span className="lens-muted">{translate('views.empty', 'No saved views')}</span>}
             {views.map((view) => (
               <div className="lens-saved-view-row" key={view.id}>
@@ -308,7 +338,7 @@ export function SavedViewsMenu() {
           {endpoints.schedules && capabilities.scheduleMail && views.length > 0 && (
             <div className="lens-saved-views-section">
               <strong>{translate('views.schedule', 'Email schedule')}</strong>
-              <select aria-label={translate('views.saved', 'Saved view')} onChange={(event) => setScheduleView(event.target.value)} value={scheduleView}>
+              <select aria-label={translate('views.savedView', 'Saved view')} onChange={(event) => setScheduleView(event.target.value)} value={scheduleView}>
                 {views.map((view) => <option key={view.id} value={view.id}>{view.name}</option>)}
               </select>
               <input aria-label={translate('views.recipients', 'Recipients')} onChange={(event) => setRecipients(event.target.value)} placeholder={translate('views.recipientsHint', 'email@example.com, team@example.com')} value={recipients} />
@@ -318,7 +348,11 @@ export function SavedViewsMenu() {
               </div>
               {schedules.map((schedule) => (
                 <div className="lens-saved-view-row" key={schedule.id}>
-                  <small className="lens-saved-view-schedule">{schedule.name} · {schedule.cron} · {schedule.recipients.join(', ')}</small>
+                  <small className="lens-saved-view-schedule">
+                    {schedule.name} · {schedule.cron} · {schedule.recipients.join(', ')}
+                    {schedule.nextRunAt && <> · {translate('views.nextRun', 'Next run: {time}', { time: schedule.nextRunAt })}</>}
+                    {schedule.lastError && <span className="lens-saved-view-error" role="alert">{schedule.lastError}</span>}
+                  </small>
                   <button aria-label={translate('views.delete', 'Delete {name}', { name: schedule.name })} className="lens-saved-view-delete" onClick={() => { void removeSchedule(schedule.id) }} type="button">×</button>
                 </div>
               ))}

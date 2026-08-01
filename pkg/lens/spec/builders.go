@@ -61,6 +61,15 @@ func Table(id, title, dataset string) *PanelBuilder {
 func Gauge(id, title, dataset string) *PanelBuilder {
 	return newPanelBuilder(panel.KindGauge, id, title, dataset)
 }
+func Histogram(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindHistogram, id, title, dataset)
+}
+func BoxPlot(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindBoxPlot, id, title, dataset)
+}
+func Heatmap(id, title, dataset string) *PanelBuilder {
+	return newPanelBuilder(panel.KindHeatmap, id, title, dataset)
+}
 func Choropleth(id, title, dataset string, source panel.GeoJSONSource, featureProperty string) *PanelBuilder {
 	builder := newPanelBuilder(panel.KindMap, id, title, dataset)
 	builder.panel.Map = &panel.MapSpec{Source: source, FeatureProperty: featureProperty}
@@ -72,6 +81,16 @@ func Choropleth(id, title, dataset string, source panel.GeoJSONSource, featurePr
 func (b *PanelBuilder) MapLabelProperty(name string) *PanelBuilder {
 	if b.panel.Map != nil {
 		b.panel.Map.LabelProperty = strings.TrimSpace(name)
+	}
+	return b
+}
+
+func (b *PanelBuilder) MapLabelProperties(properties map[string]string) *PanelBuilder {
+	if b.panel.Map != nil {
+		b.panel.Map.LabelProperties = make(map[string]string, len(properties))
+		for locale, property := range properties {
+			b.panel.Map.LabelProperties[locale] = property
+		}
 	}
 	return b
 }
@@ -213,10 +232,6 @@ func (b *PanelBuilder) HeadlineValue(v float64) *PanelBuilder {
 	b.panel.HeadlineValue = &v
 	return b
 }
-func (b *PanelBuilder) DrillHierarchy(h panel.DrillHierarchy) *PanelBuilder {
-	b.panel.DrillHierarchy = &h
-	return b
-}
 
 // DrillTree enables stable, key-based in-place navigation. Configure IDField
 // with the initial dataset field whose values match branch trigger keys.
@@ -319,6 +334,20 @@ func (b *PanelBuilder) LabelField(name string) *PanelBuilder {
 }
 func (b *PanelBuilder) ValueField(name string) *PanelBuilder {
 	b.panel.Fields.Value = name
+	return b
+}
+
+func (b *PanelBuilder) PreviousField(name string) *PanelBuilder {
+	b.panel.Fields.Previous = name
+	return b
+}
+
+func (b *PanelBuilder) BoxFields(lower, q1, median, q3, upper string) *PanelBuilder {
+	b.panel.Fields.Lower = lower
+	b.panel.Fields.Q1 = q1
+	b.panel.Fields.Median = median
+	b.panel.Fields.Q3 = q3
+	b.panel.Fields.Upper = upper
 	return b
 }
 func (b *PanelBuilder) SeriesField(name string) *PanelBuilder {

@@ -2,6 +2,8 @@
 package lens
 
 import (
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
@@ -177,6 +179,47 @@ const (
 type CompareValue struct {
 	Mode  CompareMode
 	Range DateRangeValue
+}
+
+// CompareRequestKeys returns the canonical request keys for a comparison
+// variable. Keeping this mapping on VariableSpec's owning package prevents the
+// filter model, cube planner, and runtime resolver from drifting apart.
+func CompareRequestKeys(spec VariableSpec) (mode, start, end string) {
+	mode = spec.Name
+	start = spec.Name + "_start"
+	end = spec.Name + "_end"
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[0], spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	return mode, start, end
+}
+
+// ResolveCompareMode normalizes the requested comparison mode. A custom mode
+// is active only when both boundaries are valid and ordered; callers must not
+// build or execute an unbounded comparison graph for malformed input.
+func ResolveCompareMode(spec VariableSpec, values url.Values) CompareMode {
+	modeKey, startKey, endKey := CompareRequestKeys(spec)
+	raw := strings.TrimSpace(values.Get(modeKey))
+	mode := CompareMode(raw)
+	if raw == "" {
+		if value, ok := spec.Default.(CompareValue); ok {
+			mode = value.Mode
+			if mode == CompareCustom && value.Range.Start != nil && value.Range.End != nil && !value.Range.End.Before(*value.Range.Start) {
+				return mode
+			}
+		}
+	}
+	switch mode {
+	case ComparePreviousPeriod, CompareYearAgo:
+		return mode
+	case CompareCustom:
+		start, startErr := time.Parse("2006-01-02", values.Get(startKey))
+		end, endErr := time.Parse("2006-01-02", values.Get(endKey))
+		if startErr == nil && endErr == nil && !end.Before(start) {
+			return mode
+		}
+	}
+	return CompareOff
 }
 
 type ParamValue struct {

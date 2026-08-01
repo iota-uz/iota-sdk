@@ -13,6 +13,7 @@ import (
 
 const defaultSnapshotTTL = 30 * time.Minute
 const defaultMaxEntries = 128
+const maxFramesPerSnapshot = 1024
 
 var ErrSnapshotGone = errors.New("lens document snapshot is gone")
 
@@ -74,6 +75,9 @@ func (m *memoryStore) Put(ctx context.Context, snapshot *Snapshot) error {
 		return fmt.Errorf("snapshot id is required")
 	}
 	cloned := cloneSnapshot(snapshot)
+	if len(cloned.Frames) > maxFramesPerSnapshot {
+		return fmt.Errorf("snapshot cannot exceed %d frames", maxFramesPerSnapshot)
+	}
 	cloned.ID = id
 	now := m.clock()
 	if cloned.CreatedAt.IsZero() {
@@ -138,6 +142,15 @@ func (m *memoryStore) Append(ctx context.Context, id string, frames map[FrameRef
 	}
 	if entry.snapshot.Frames == nil {
 		entry.snapshot.Frames = make(map[FrameRef]Frame)
+	}
+	newFrames := 0
+	for ref := range frames {
+		if _, materialized := entry.snapshot.Frames[ref]; !materialized {
+			newFrames++
+		}
+	}
+	if len(entry.snapshot.Frames)+newFrames > maxFramesPerSnapshot {
+		return fmt.Errorf("snapshot cannot exceed %d frames", maxFramesPerSnapshot)
 	}
 	for ref, frame := range frames {
 		if _, materialized := entry.snapshot.Frames[ref]; materialized {

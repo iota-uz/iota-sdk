@@ -27,8 +27,18 @@ describe('distribution chart options', () => {
       rows: [['OSAGO', 1, 3, 5, 8, 20]],
     }
     const encoding = { category: 'product', lower: 'min', q1: 'q1', median: 'median', q3: 'q3', upper: 'max' } as DistributionInput['encoding']
-    const option = buildDistributionOption(input('boxplot', frame, encoding), theme) as { series: Array<{ data: number[][] }> }
+    const chartInput = input('boxplot', frame, encoding)
+    chartInput.labels = {
+      previous: '', trend: '', movingAverage: () => '', estimate: '', ytd: '', forecast: '',
+      forecastLower: () => '', forecastConfidence: () => '',
+      boxplot: ['Мин', 'Квартиль 1', 'Медиана', 'Квартиль 3', 'Макс'],
+    }
+    const option = buildDistributionOption(chartInput, theme) as {
+      series: Array<{ data: number[][] }>
+      tooltip: { formatter: (raw: unknown) => string }
+    }
     expect(option.series[0]?.data).toEqual([[1, 3, 5, 8, 20]])
+    expect(option.tooltip.formatter({ name: 'OSAGO', data: [1, 3, 5, 8, 20] })).toContain('Медиана: 5')
   })
 
   it('maps category × series cells and derives a value scale', () => {

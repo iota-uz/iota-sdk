@@ -3,6 +3,7 @@ package document
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
@@ -108,6 +109,19 @@ func TestMemoryStore_PutGetAppendAreCloneSafe(t *testing.T) {
 	require.Equal(t, 4, loaded.Frames["panel:panel-a"].Rows[0][0])
 	require.Equal(t, int64(12), loaded.Panels["panel-a"].DurationMS)
 	require.Equal(t, calculatedAt, loaded.Panels["panel-a"].CalculatedAt)
+}
+
+func TestMemoryStoreBoundsFramesPerSnapshot(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore(time.Hour, 2)
+	frames := make(map[FrameRef]Frame, maxFramesPerSnapshot)
+	for index := range maxFramesPerSnapshot {
+		frames[FrameRef(fmt.Sprintf("frame:%d", index))] = testFrame(index)
+	}
+	require.NoError(t, store.Put(t.Context(), &Snapshot{ID: "bounded", Frames: frames}))
+	require.ErrorContains(t, store.Append(t.Context(), "bounded", map[FrameRef]Frame{"overflow": testFrame(1)}), "cannot exceed")
+	frames["overflow"] = testFrame(1)
+	require.ErrorContains(t, store.Put(t.Context(), &Snapshot{ID: "too-large", Frames: frames}), "cannot exceed")
 }
 
 func TestMemoryStore_ExpiryAndUnknownSnapshots(t *testing.T) {

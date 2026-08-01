@@ -807,7 +807,7 @@ func formula(primary *frame.FrameSet, cfg *Formula) (*frame.FrameSet, error) {
 			values[row] = left * right
 		case "/":
 			if right == 0 {
-				values[row] = 0.0
+				values[row] = nil
 			} else {
 				values[row] = left / right
 			}

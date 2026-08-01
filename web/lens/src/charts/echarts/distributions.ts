@@ -1,4 +1,5 @@
 import type { EChartsOption } from 'echarts'
+import { isVisualRegression } from '../../visualRegression'
 import type { ChartInput } from '../adapter'
 import type { EChartsTheme } from './theme'
 
@@ -32,8 +33,9 @@ function number(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined
 }
 
-function chrome(theme: EChartsTheme): Pick<EChartsOption, 'animationDuration' | 'color' | 'textStyle' | 'tooltip'> {
+function chrome(theme: EChartsTheme): Pick<EChartsOption, 'animation' | 'animationDuration' | 'color' | 'textStyle' | 'tooltip'> {
   return {
+    animation: !isVisualRegression(),
     animationDuration: 220,
     color: theme.colors,
     textStyle: { color: theme.text, fontFamily: theme.fontFamily },
@@ -85,7 +87,7 @@ function boxPlotOption(input: DistributionInput, theme: EChartsTheme): EChartsOp
       formatter: (raw: unknown) => {
         const params = raw as { name?: string; data?: unknown[] }
         const values = params.data ?? []
-        const labels = ['Min', 'Q1', 'Median', 'Q3', 'Max']
+        const labels = input.labels?.boxplot ?? ['Min', 'Q1', 'Median', 'Q3', 'Max']
         return [params.name ?? '', ...values.map((value, position) => `${labels[position]}: ${input.format(fields[position] ?? '', value)}`)].join('<br/>')
       },
     },

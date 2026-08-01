@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Filter } from '../contract'
 import { CaretDown, X } from '../icons'
 import { cubeFilterParam, useFilters, useTranslate } from '../runtime'
+import { useFocusTrap } from '../runtime/focusTrap'
 import { positionPopover } from './PeriodFilterControl'
 
 const searchDelay = 250
@@ -54,6 +55,8 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const optionsEndpoint = facet?.optionsEndpoint ?? ''
   const searchParam = facet?.searchParam
+  const closePopover = useCallback(() => setOpen(false), [])
+  useFocusTrap(popoverRef, open && Boolean(container), closePopover, searchRef, triggerRef)
 
   const requestOptions = useCallback((query: string): Promise<FacetOptionsResponse> => {
     const target = optionsURL(optionsEndpoint, searchParam, query)
@@ -166,33 +169,22 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
 
   useEffect(() => {
     if (!open) return undefined
-    searchRef.current?.focus()
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target
       if (!(target instanceof Node)) return
       const root = triggerRef.current?.closest('.lens-filter-facet')
       if (!root?.contains(target) && !popoverRef.current?.contains(target)) setOpen(false)
     }
-    const onKeyDown = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      setOpen(false)
-      triggerRef.current?.focus()
-    }
     globalThis.document.addEventListener('pointerdown', onPointerDown)
-    globalThis.document.addEventListener('keydown', onKeyDown)
     return () => {
       globalThis.document.removeEventListener('pointerdown', onPointerDown)
-      globalThis.document.removeEventListener('keydown', onKeyDown)
     }
   }, [container, open])
 
   if (!facet) return null
   const selectedCount = facet.selections?.length ?? 0
   const selected = draft ?? new Set(options.filter((option) => option.selected).map((option) => option.value))
-  const ordered = options.map((option, index) => ({ option, index })).sort((left, right) => {
-    const selectedOrder = Number(selected.has(right.option.value)) - Number(selected.has(left.option.value))
-    return selectedOrder || left.index - right.index
-  }).map(({ option }) => option)
+  const ordered = options
   const maxCount = Math.max(0, ...options.map(({ count }) => count ?? 0))
 
   const toggleDraft = (value: string) => {
@@ -235,6 +227,7 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
       {open && container && createPortal(
         <div
           aria-label={filter.label}
+          aria-modal="true"
           className="lens-facet-popover"
           id={popoverID}
           ref={popoverRef}
@@ -250,7 +243,7 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
             type="search"
             value={search}
           />
-          <div aria-live="polite" className="lens-facet-options">
+          <div className="lens-facet-options">
             {status === 'loading' ? (
               <div className="lens-facet-state">{translate('filter.facet.loading', 'Loading options…')}</div>
             ) : status === 'error' ? (
@@ -277,7 +270,7 @@ export function FacetFilterControl({ filter }: { filter: Filter }) {
             })}
           </div>
           <div className="lens-facet-actions">
-            <button onClick={() => applyDraft(new Set())} type="button">{translate('filter.facet.clear', 'Clear')}</button>
+            <button onClick={() => setDraft(new Set())} type="button">{translate('filter.facet.clear', 'Clear')}</button>
             <button className="lens-facet-apply" disabled={!applyTarget} onClick={() => applyDraft(selected)} type="button">
               {translate('filter.facet.apply', 'Apply')}
             </button>

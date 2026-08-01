@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -146,6 +147,15 @@ func TestHandlers_ProgressivePanelsAreIndependentCachedAndScopeIsolated(t *testi
 	require.NoError(t, json.Unmarshal(cached.Body.Bytes(), &response))
 	require.True(t, response.Calculation.CacheHit)
 
+	rateLimited := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host", Recompute: true}, "tenant:one")
+	require.Equal(t, http.StatusTooManyRequests, rateLimited.Code)
+	snapshot, err := store.Get(t.Context(), doc.SnapshotID)
+	require.NoError(t, err)
+	calculation := snapshot.Panels["host"]
+	calculation.CalculatedAt = time.Now().Add(-recomputeCooldown)
+	snapshot.Panels["host"] = calculation
+	require.NoError(t, store.Put(t.Context(), snapshot))
+
 	recomputed := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host", Recompute: true}, "tenant:one")
 	require.Equal(t, http.StatusOK, recomputed.Code)
 	require.True(t, executor.lastCall("host").request.Recompute)
@@ -153,6 +163,40 @@ func TestHandlers_ProgressivePanelsAreIndependentCachedAndScopeIsolated(t *testi
 
 	foreign := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "host"}, "tenant:two")
 	require.Equal(t, http.StatusGone, foreign.Code)
+}
+
+func TestHandlers_QueryAndExportRejectCrossScopeSnapshotsInEveryMode(t *testing.T) {
+	t.Parallel()
+
+	for _, progressive := range []bool{false, true} {
+		progressive := progressive
+		t.Run(fmt.Sprintf("progressive=%t", progressive), func(t *testing.T) {
+			t.Parallel()
+			spec, frames := testDashboard(t)
+			handlers, err := New(Config{
+				Spec: spec, Engine: &fakeExecutor{frames: frames}, Snapshots: document.NewMemoryStore(time.Minute, 8),
+				BasePath: "/dash", Progressive: progressive,
+				Request: func(r *http.Request) lensruntime.Request {
+					return lensruntime.Request{
+						Locale: "en", DataScope: requestValue(r.URL.Query(), "tenant", "tenant:one"), Request: r.URL.Query(),
+					}
+				},
+			})
+			require.NoError(t, err)
+			doc := requestDocument(t, handlers, "/dash/document?tenant=tenant:one")
+
+			queryBody := marshal(t, QueryRequest{
+				SnapshotID: doc.SnapshotID, Path: document.NodePath{"detail"}, Perspective: "composition",
+			})
+			query := httptest.NewRecorder()
+			handlers.Query(query, httptest.NewRequest(http.MethodPost, "/dash/lens/query?tenant=tenant:two", queryBody))
+			require.Equal(t, http.StatusGone, query.Code, query.Body.String())
+
+			exported := httptest.NewRecorder()
+			handlers.Export(exported, httptest.NewRequest(http.MethodGet, "/dash/export?snapshot="+url.QueryEscape(doc.SnapshotID)+"&tenant=tenant:two", nil))
+			require.Equal(t, http.StatusGone, exported.Code, exported.Body.String())
+		})
+	}
 }
 
 func TestHandlers_ProgressiveTableSearchUsesFullScopedFrameAndDoesNotReplaceBaseCache(t *testing.T) {
@@ -197,18 +241,17 @@ func TestHandlers_ProgressiveTableSearchUsesFullScopedFrameAndDoesNotReplaceBase
 	require.NoError(t, json.Unmarshal(searched.Body.Bytes(), &response))
 	require.Equal(t, 2, response.Summary.FilteredRows)
 	require.InDelta(t, 6.0, response.Summary.Values["claims"], 1e-9)
-	require.Equal(t, "motor", executor.lastCall("claims").request.Request.Get(lensruntime.TableSearchQuery))
 
 	base := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "claims"}, "tenant:test")
 	require.Equal(t, http.StatusOK, base.Code, base.Body.String())
 	require.NoError(t, json.Unmarshal(base.Body.Bytes(), &response))
 	require.Equal(t, 3, response.Summary.FilteredRows)
 	require.InDelta(t, 9.0, response.Summary.Values["claims"], 1e-9)
-	require.Equal(t, 2, executor.callCount("claims"), "search results must not replace the unfiltered panel cache")
+	require.Equal(t, 1, executor.callCount("claims"), "search must reuse and preserve the full unfiltered panel cache")
 
 	cached := requestPanel(t, handlers, PanelRequest{SnapshotID: doc.SnapshotID, PanelID: "claims"}, "tenant:test")
 	require.Equal(t, http.StatusOK, cached.Code, cached.Body.String())
-	require.Equal(t, 2, executor.callCount("claims"))
+	require.Equal(t, 1, executor.callCount("claims"))
 }
 
 type failPanelExecutor struct {
@@ -1020,4 +1063,25 @@ func TestHandlers_QueryRejectsUnknownFields(t *testing.T) {
 	handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", body))
 	require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
 	require.Contains(t, recorder.Body.String(), "unknown field")
+}
+
+func TestHandlers_QueryBoundsPathAndPage(t *testing.T) {
+	t.Parallel()
+	handlers, _, _ := newTestHandlers(t, 0)
+	doc := requestDocument(t, handlers, "/dash/document")
+	longPath := make(document.NodePath, maxQueryPathDepth+1)
+	for index := range longPath {
+		longPath[index] = document.NodeKey("x")
+	}
+
+	tests := []QueryRequest{
+		{SnapshotID: doc.SnapshotID, Path: longPath, Perspective: "composition"},
+		{SnapshotID: doc.SnapshotID, Path: document.NodePath{document.NodeKey(strings.Repeat("x", maxQueryPathEntry+1))}, Perspective: "composition"},
+		{SnapshotID: doc.SnapshotID, Path: document.NodePath{"detail"}, Perspective: "composition", Page: lensruntime.MaxTablePage + 1},
+	}
+	for _, request := range tests {
+		recorder := httptest.NewRecorder()
+		handlers.Query(recorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query", marshal(t, request)))
+		require.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	}
 }

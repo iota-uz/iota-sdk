@@ -285,7 +285,8 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
   })
   const min = values.length > 0 ? Math.min(...values) : 0
   const max = values.length > 0 ? Math.max(...values) : 0
-  const rangeMax = max === min ? min + 1 : max
+  const rangeMin = max === min && min > 0 ? 0 : min
+  const rangeMax = max === min && max <= 0 ? 0 : max
   return {
     ...baseOption(theme),
     tooltip: {
@@ -298,9 +299,9 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       },
     },
     visualMap: {
-      type: 'continuous', min, max: rangeMax, calculable: false, orient: 'horizontal',
+      type: 'continuous', min: rangeMin, max: rangeMax, calculable: false, orient: 'horizontal',
       left: 'center', bottom: 4, itemWidth: 12, itemHeight: 96,
-      text: [input.formatAxis?.(input.encoding.value ?? '', max) ?? input.format(input.encoding.value ?? '', max), input.formatAxis?.(input.encoding.value ?? '', min) ?? input.format(input.encoding.value ?? '', min)],
+      text: [input.formatAxis?.(input.encoding.value ?? '', rangeMax) ?? input.format(input.encoding.value ?? '', rangeMax), input.formatAxis?.(input.encoding.value ?? '', rangeMin) ?? input.format(input.encoding.value ?? '', rangeMin)],
       textStyle: { color: theme.mutedText, fontSize: 10 },
       inRange: { color: [theme.divider, input.theme.palette.accent ?? theme.colors[0]] },
     },
@@ -308,8 +309,7 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       type: 'map',
       map: input.map.name,
       nameProperty: input.map.featureProperty,
-      roam: true,
-      scaleLimit: { min: 1, max: 8 },
+      roam: false,
       selectedMode: 'single',
       data,
       label: {
@@ -825,7 +825,9 @@ function incompletePeriodItem<T extends Record<string, unknown>>(
 ): T & Record<string, unknown> {
   const period = input.temporal?.period
   if (!period || point.category !== period.category) return item
-  const label = period.label || (period.state === 'annualized' ? 'Estimate' : 'YTD')
+  const label = period.label || (period.state === 'annualized'
+    ? (input.labels?.estimate ?? 'Estimate')
+    : (input.labels?.ytd ?? 'YTD'))
   const itemStyle = item.itemStyle && typeof item.itemStyle === 'object'
     ? item.itemStyle as Record<string, unknown>
     : {}
@@ -925,7 +927,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   }))
   const comparisonSeries = input.encoding.previous ? seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
-    name: `${name ? `${name} · ` : ''}Previous`,
+    name: `${name ? `${name} · ` : ''}${input.labels?.previous ?? 'Previous'}`,
     silent: true,
     z: 0,
     barGap: isBar ? '-100%' : undefined,
@@ -944,7 +946,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const regression = input.temporal?.regression
   const regressionSeries = regression ? seriesNames.map((name, index) => ({
     type: 'line' as const,
-    name: `${name ? `${name} · ` : ''}${regression.label || 'Trend'}`,
+    name: `${name ? `${name} · ` : ''}${regression.label || input.labels?.trend || 'Trend'}`,
     silent: true,
     z: 4,
     showSymbol: false,
@@ -954,7 +956,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   })) : []
   const movingAverageSeries = (input.temporal?.movingAverages ?? []).flatMap((average) => seriesNames.map((name, index) => ({
     type: 'line' as const,
-    name: `${name ? `${name} · ` : ''}${average.label || `SMA ${average.window}`}`,
+    name: `${name ? `${name} · ` : ''}${average.label || input.labels?.movingAverage(average.window) || `SMA ${average.window}`}`,
     silent: true,
     z: 5,
     showSymbol: false,
@@ -964,7 +966,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   })))
   const annualizedSeries = input.temporal?.period?.annualizedField ? seriesNames.map((name) => ({
     type: 'line' as const,
-    name: input.temporal?.period?.label || 'Estimate',
+    name: input.temporal?.period?.label || input.labels?.estimate || 'Estimate',
     silent: true,
     z: 6,
     showSymbol: true,
@@ -978,10 +980,11 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     const forecast = input.temporal!.forecast!
     const color = input.seriesColor?.(name, index) ?? theme.seriesColor(name) ?? theme.colors[index % theme.colors.length]
     const stack = `lens-forecast-${index}`
+    const forecastLabel = forecast.label || input.labels?.forecast || 'Forecast'
     return [
       {
         type: 'line' as const,
-        name: `${name ? `${name} · ` : ''}${forecast.label || 'Forecast'}`,
+        name: `${name ? `${name} · ` : ''}${forecastLabel}`,
         silent: true,
         z: 5,
         showSymbol: false,
@@ -991,8 +994,9 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
       {
         type: 'line' as const,
-        name: `${forecast.label || 'Forecast'} lower`,
+        name: input.labels?.forecastLower(forecastLabel) ?? `${forecastLabel} lower`,
         silent: true,
+        tooltip: { show: false },
         stack,
         stackStrategy: 'all' as const,
         showSymbol: false,
@@ -1002,8 +1006,9 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
       {
         type: 'line' as const,
-        name: `${forecast.label || 'Forecast'} confidence`,
+        name: input.labels?.forecastConfidence(forecastLabel) ?? `${forecastLabel} confidence`,
         silent: true,
+        tooltip: { show: false },
         stack,
         stackStrategy: 'all' as const,
         showSymbol: false,
@@ -1013,67 +1018,44 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
     ]
   }) : []
-  const timestamps = points
-    .map((point) => point.timestamp)
-    .filter((value): value is number => value !== undefined)
-    .sort((left, right) => left - right)
-  const observedValues = points
-    .map((point) => point.value)
-    .filter((value): value is number => typeof value === 'number')
-  const referenceValues = (input.temporal?.referenceLines ?? []).map(({ value }) => value)
-  const extentValues = [...observedValues, ...referenceValues]
-  const extentMin = Math.min(...extentValues)
-  const extentMax = Math.max(...extentValues)
-  const extentPad = Math.max(1, (extentMax - extentMin) * 0.08)
-  const markerMin = Number.isFinite(extentMin) ? extentMin - extentPad : 0
-  const markerMax = Number.isFinite(extentMax) ? extentMax + extentPad : 1
-  const referenceSeries = (input.temporal?.referenceLines ?? []).map((reference) => ({
-    type: 'line' as const,
-    name: reference.label || input.format(input.encoding.value ?? '', reference.value),
-    silent: true,
-    z: 2,
-    showSymbol: false,
-    tooltip: { show: false },
-    lineStyle: { type: 'dashed' as const, color: theme.mutedText, width: 1.5 },
-    endLabel: {
-      show: true,
-      formatter: reference.label || input.format(input.encoding.value ?? '', reference.value),
-      color: theme.mutedText,
-      distance: 4,
-    },
-    data: timeAxis && timestamps.length > 0
-      ? [[timestamps[0], reference.value], [timestamps[timestamps.length - 1], reference.value]]
-      : categories.map(() => reference.value),
-  }))
-  const verticalMarkerSeries = [
+  const verticalMarkers = [
     ...(input.temporal?.annotations ?? []).map(({ at, label }) => ({ at, label, type: 'dotted' as const })),
     ...(input.temporal?.forecast ? [{
       at: input.temporal.forecast.start,
-      label: input.temporal.forecast.label || 'Forecast',
+      label: input.temporal.forecast.label || input.labels?.forecast || 'Forecast',
       type: 'dashed' as const,
     }] : []),
-  ].map((marker) => ({
-    type: 'line' as const,
-    name: marker.label,
-    silent: true,
-    z: 3,
-    showSymbol: false,
-    tooltip: { show: false },
-    lineStyle: { type: marker.type, color: theme.mutedText, width: marker.type === 'dashed' ? 2 : 1.5 },
-    endLabel: { show: true, formatter: marker.label, color: theme.mutedText, distance: 4 },
-    data: timeAxis
-      ? [[timestamp(marker.at) ?? marker.at, markerMin], [timestamp(marker.at) ?? marker.at, markerMax]]
-      : categories.map((category) => category === marker.at ? markerMax : null),
-  }))
+  ]
+  const markLineData = [
+    ...(input.temporal?.referenceLines ?? []).map((reference) => {
+      const label = reference.label || input.format(input.encoding.value ?? '', reference.value)
+      return {
+        name: label,
+        yAxis: reference.value,
+        lineStyle: { type: 'dashed' as const, color: theme.mutedText, width: 1.5 },
+        label: { show: true, formatter: label, color: theme.mutedText, position: 'end' as const },
+      }
+    }),
+    ...verticalMarkers.map((marker) => ({
+      name: marker.label,
+      xAxis: timeAxis ? (timestamp(marker.at) ?? marker.at) : marker.at,
+      lineStyle: { type: marker.type, color: theme.mutedText, width: marker.type === 'dashed' ? 2 : 1.5 },
+      label: { show: true, formatter: marker.label, color: theme.mutedText, position: 'end' as const },
+    })),
+  ]
+  // Mark lines annotate the axes without contributing synthetic values to the
+  // data extent. In particular, adding a vertical annotation must never
+  // rescale the values it is meant to explain.
+  const annotatedCurrentSeries = currentSeries.map((series, index) => index === 0 && markLineData.length > 0
+    ? { ...series, markLine: { silent: true, symbol: ['none', 'none'], data: markLineData } }
+    : series)
   const series = [
     ...comparisonSeries,
-    ...currentSeries,
+    ...annotatedCurrentSeries,
     ...regressionSeries,
     ...movingAverageSeries,
     ...annualizedSeries,
     ...forecastSeries,
-    ...referenceSeries,
-    ...verticalMarkerSeries,
   ]
   // A horizontal bar hangs its category names in the plot's left margin, and
   // `containLabel` gives that margin whatever the longest name asks for. A
@@ -1106,10 +1088,10 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     // canvas text measurement, which lands on a rounding boundary for the
     // variable font and shifts the whole plot by 1px between runs.
     grid: isVisualRegression()
-      ? { left: 96, right: referenceSeries.length > 0 ? 168 : 32, top: 24, bottom: timeAxis ? 58 : 32, containLabel: false }
+      ? { left: 96, right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 168 : 32, top: 24, bottom: timeAxis ? 58 : 32, containLabel: false }
       : {
           left: 16,
-          right: referenceSeries.length > 0 ? 152 : horizontal && logarithmic ? 88 : 16,
+          right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : horizontal && logarithmic ? 88 : 16,
           top: 24,
           bottom: timeAxis ? 52 : 12,
           containLabel: true,

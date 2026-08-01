@@ -82,6 +82,7 @@ func (s *MemoryStore) PutView(_ context.Context, access Access, view SavedView) 
 	now := time.Now().UTC()
 	if view.ID == uuid.Nil {
 		view.ID = uuid.New()
+		view.OwnerUserID = access.UserID
 		view.CreatedAt = now
 	} else if existing, ok := s.views[view.ID]; ok {
 		if existing.TenantID != access.TenantID ||
@@ -91,6 +92,7 @@ func (s *MemoryStore) PutView(_ context.Context, access Access, view SavedView) 
 		if existing.DashboardID != view.DashboardID {
 			return SavedView{}, invalidInput(errors.New("saved view dashboard cannot be changed"))
 		}
+		view.OwnerUserID = existing.OwnerUserID
 		view.CreatedAt = existing.CreatedAt
 	} else {
 		return SavedView{}, ErrNotFound

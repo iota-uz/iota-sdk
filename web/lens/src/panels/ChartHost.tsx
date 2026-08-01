@@ -11,7 +11,7 @@ export interface ChartHostProps {
   adapter?: ChartAdapter
   label?: string
   drillable?: boolean
-	resetZoomKey?: number
+  resetZoomKey?: number
 }
 
 export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, drillable = false, resetZoomKey = 0 }: ChartHostProps) {
@@ -69,17 +69,17 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
     }
   }, [input, reportError])
 
-	useEffect(() => {
-		if (resetZoomKey > 0) instanceRef.current?.resetZoom?.()
-	}, [resetZoomKey])
+  useEffect(() => {
+    if (resetZoomKey > 0) instanceRef.current?.resetZoom?.()
+  }, [resetZoomKey])
 
   return (
     <div
       className={`lens-chart-host${drillable ? ' lens-chart-host-drillable' : ''}`}
       aria-label={label}
+      role="img"
       data-drillable={drillable || undefined}
       onMouseDown={drillable ? (event) => event.currentTarget.focus() : undefined}
-      tabIndex={drillable ? 0 : undefined}
     >
       <div ref={hostRef} className="lens-chart-canvas" />
       {loadError && (

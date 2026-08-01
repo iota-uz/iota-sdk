@@ -283,6 +283,7 @@ export interface MapConfig {
   source: GeoJSONSource
   featureProperty: string
   labelProperty?: string
+  labelProperties?: Record<string, string>
 }
 
 export interface Meta {

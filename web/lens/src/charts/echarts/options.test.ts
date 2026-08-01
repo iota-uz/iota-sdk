@@ -67,12 +67,16 @@ interface TestSeries {
   name?: string
   stack?: string
   silent?: boolean
+  tooltip?: { show?: boolean }
   lineStyle?: { type?: string }
   endLabel?: { formatter?: string }
   areaStyle?: unknown
   radius?: string[]
   itemStyle?: { color?: string }
   data?: Array<TestDataItem | null>
+  markLine?: {
+    data?: Array<{ name?: string; xAxis?: unknown; yAxis?: number; lineStyle?: { type?: string }; label?: { formatter?: string } }>
+  }
 }
 
 interface TestAxis {
@@ -720,13 +724,46 @@ describe('buildChartOption', () => {
     ]))
     expect(chart.series.find((series) => series.name === 'Revenue · Trend')?.lineStyle).toMatchObject({ type: 'dashed' })
     expect(chart.series.find((series) => series.name === 'Revenue · SMA 3')?.lineStyle).not.toMatchObject({ type: 'dashed' })
-    expect(chart.series.find((series) => series.name === 'Threshold')).toMatchObject({
-      lineStyle: { type: 'dashed' }, endLabel: { formatter: 'Threshold' },
-    })
-    expect(chart.series.find((series) => series.name === 'Method changed')).toMatchObject({
-      lineStyle: { type: 'dotted' }, endLabel: { formatter: 'Method changed' },
-    })
+    expect(chart.series[0]?.markLine?.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Threshold', yAxis: 1400, lineStyle: { type: 'dashed', color: theme.mutedText, width: 1.5 } }),
+      expect.objectContaining({ name: 'Method changed', xAxis: 'Feb', lineStyle: { type: 'dotted', color: theme.mutedText, width: 1.5 } }),
+    ]))
+    expect(chart.series.some((series) => series.name === 'Threshold' || series.name === 'Method changed')).toBe(false)
+    expect(chart.series.find((series) => series.name === 'Projection lower')?.tooltip).toEqual({ show: false })
+    expect(chart.series.find((series) => series.name === 'Projection confidence')?.tooltip).toEqual({ show: false })
     expect(chart.series[0]?.data?.[1]).toMatchObject({ symbol: 'emptyCircle', label: { formatter: 'Estimate' } })
+  })
+
+  it('uses localized generated temporal labels when producer labels are absent', () => {
+    const chartInput = input('line')
+    chartInput.encoding.previous = 'previous'
+    chartInput.frame.columns.push(
+      { name: 'previous', type: 'number' },
+      { name: 'regression', type: 'number' },
+      { name: 'sma', type: 'number' },
+      { name: 'forecast', type: 'number' },
+      { name: 'lower', type: 'number' },
+      { name: 'upper', type: 'number' },
+      { name: 'annualized', type: 'number' },
+    )
+    chartInput.frame.rows = chartInput.frame.rows.map((row) => [...row, 1, 2, 3, 4, 3, 5, 6])
+    chartInput.labels = {
+      previous: 'Прошлый', trend: 'Тренд', movingAverage: (window) => `Сск ${window}`,
+      estimate: 'Оценка', ytd: 'С начала года', forecast: 'Прогноз',
+      forecastLower: (forecast) => `${forecast}: низ`, forecastConfidence: (forecast) => `${forecast}: интервал`,
+      boxplot: ['Мин', 'Q1', 'Медиана', 'Q3', 'Макс'],
+    }
+    chartInput.temporal = {
+      regression: { field: 'regression' }, movingAverages: [{ window: 3, field: 'sma' }],
+      period: { category: 'Feb', state: 'annualized', annualizedField: 'annualized' },
+      forecast: { start: 'Feb', valueField: 'forecast', lowerField: 'lower', upperField: 'upper' },
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    expect(chart.series.map((series) => series.name)).toEqual(expect.arrayContaining([
+      'Revenue · Прошлый', 'Revenue · Тренд', 'Revenue · Сск 3', 'Оценка',
+      'Revenue · Прогноз', 'Прогноз: низ', 'Прогноз: интервал',
+    ]))
   })
 
   it('paints pie slices from the panel resolver when the theme names no colour', () => {

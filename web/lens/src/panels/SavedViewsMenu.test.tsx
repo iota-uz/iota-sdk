@@ -179,7 +179,7 @@ describe('SavedViewsMenu', () => {
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Views' }))
-    expect(await screen.findByRole('alert')).toHaveTextContent('sharing endpoint must be site-relative')
+		expect(await screen.findByRole('alert')).toHaveTextContent('Saved views could not be loaded')
     expect(fetcher).not.toHaveBeenCalled()
   })
 })

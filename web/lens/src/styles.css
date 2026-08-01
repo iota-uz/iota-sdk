@@ -76,6 +76,10 @@
     --lens-dur-fast: 120ms;
     --lens-dur-base: 200ms;
     --lens-dur-slow: 320ms;
+    --lens-z-sticky: 10;
+    --lens-z-popover: 1100;
+    --lens-z-overlay: 1200;
+    --lens-z-tooltip: 1300;
   }
 
   lens-dashboard {
@@ -83,6 +87,7 @@
   }
 }
 
+@layer components {
 .lens-saved-views {
   position: relative;
 }
@@ -98,11 +103,10 @@
   max-height: min(620px, calc(100vh - 96px));
   overflow: auto;
   padding: 0.75rem;
-  position: absolute;
-  right: 0;
-  top: calc(100% + 0.5rem);
+  position: fixed;
+  right: 1rem;
   width: min(420px, calc(100vw - 2rem));
-  z-index: 45;
+  z-index: var(--lens-z-popover);
 }
 
 .lens-saved-views-section {
@@ -189,6 +193,7 @@
     grid-template-columns: 1fr;
   }
 }
+}
 
 @layer components {
   .lens-root {
@@ -207,6 +212,10 @@
     --lens-text: #e2e8f0;
     --lens-text-muted: #cbd5e1;
     --lens-text-faint: #94a3b8;
+    --lens-accent-700: #bfdbfe;
+    --lens-accent-600: #93c5fd;
+    --lens-accent-500: #60a5fa;
+    --lens-accent-300: #93c5fd;
     --lens-accent-100: rgba(37, 99, 235, 0.2);
     --lens-accent-50: rgba(37, 99, 235, 0.12);
     --lens-range-wash: rgb(96 165 250 / 0.2);
@@ -422,42 +431,33 @@
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-3;
   }
 
-	.lens-compare-filter,
-	.lens-compare-filter label,
-	.lens-compare-custom {
-		display: inline-flex;
-		align-items: center;
-		gap: 0.5rem;
-	}
+  .lens-compare-filter,
+  .lens-compare-filter label,
+  .lens-compare-custom {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
 
-	.lens-compare-filter select,
-	.lens-compare-custom input,
-	.lens-compare-custom button {
-		min-height: 2rem;
-		border: 1px solid var(--lens-border);
-		border-radius: 0.5rem;
-		background: var(--lens-surface);
-		color: var(--lens-text);
-		padding: 0.25rem 0.5rem;
-	}
+  .lens-compare-filter select,
+  .lens-compare-custom input,
+  .lens-compare-custom button {
+    min-height: 2rem;
+    border: 1px solid var(--lens-border);
+    border-radius: var(--lens-radius-control);
+    background: var(--lens-bg-card);
+    color: var(--lens-text);
+    padding: 0.25rem 0.5rem;
+  }
 
-	.lens-chart-reset-zoom {
-		position: absolute;
-		right: 0.5rem;
-		top: 0.25rem;
-		z-index: 2;
-		border: 1px solid var(--lens-border);
-		border-radius: 999px;
-		background: var(--lens-surface);
-		color: var(--lens-muted);
-		padding: 0.2rem 0.55rem;
-		font-size: 0.72rem;
-	}
+  .lens-chart-reset-zoom {
+    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-[11px] lens-font-medium lens-text-muted;
+  }
 
-	.lens-trend-chip-absolute {
-		font-variant-numeric: tabular-nums;
-		opacity: 0.82;
-	}
+  .lens-trend-chip-absolute {
+    font-variant-numeric: tabular-nums;
+    opacity: 0.82;
+  }
 
   .lens-filter {
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
@@ -1497,7 +1497,7 @@
   }
 
   .lens-trend-chip {
-    @apply lens-inline-flex lens-items-center lens-gap-1.5 lens-rounded-badge lens-px-2 lens-py-1 lens-text-xs lens-font-semibold;
+    @apply lens-inline-flex lens-max-w-full lens-min-w-0 lens-items-center lens-gap-1.5 lens-overflow-hidden lens-rounded-badge lens-px-2 lens-py-1 lens-text-xs lens-font-semibold;
     background: var(--lens-bg-inset);
     color: var(--lens-text-muted);
   }
@@ -1517,7 +1517,7 @@
   }
 
   .lens-trend-chip-label {
-    @apply lens-font-medium lens-opacity-80;
+    @apply lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-font-medium lens-opacity-80;
   }
 
   .lens-status-chip {
@@ -1664,6 +1664,7 @@
 
   .lens-stat-metric-value {
     @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    min-height: 3.5rem;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -1823,7 +1824,7 @@
      the pre-document and runtime placeholders are indistinguishable. */
   .lens-shimmer {
     @apply lens-block lens-rounded-full;
-    background-color: #e2e8f0;
+    background-color: var(--lens-border);
     background-image: linear-gradient(90deg, rgba(226, 232, 240, 0) 0%, rgba(148, 163, 184, .85) 50%, rgba(226, 232, 240, 0) 100%);
     background-size: 200% 100%;
     animation: lens-shimmer-sweep 1.5s ease-in-out infinite;
@@ -1949,7 +1950,7 @@
     flex-direction: column;
   }
 
-  @container lens-panel-body (min-width: 30rem) {
+  @container lens-panel-body (min-width: 35rem) {
     .lens-chart-layout-legend {
       flex-direction: row;
       align-items: stretch;
@@ -2114,6 +2115,15 @@
     @apply lens-bg-inset;
   }
 
+  .lens-chart-legend-solo {
+    @apply lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-[11px] lens-text-faint lens-opacity-0 lens-transition-opacity;
+  }
+
+  .lens-chart-legend-item:hover .lens-chart-legend-solo,
+  .lens-chart-legend-solo:focus-visible {
+    @apply lens-opacity-100;
+  }
+
   .lens-chart-legend-toggle:disabled {
     @apply lens-cursor-default;
   }
@@ -2148,7 +2158,7 @@
   }
 
   .lens-chart-compact {
-    @apply lens-m-4 lens-flex lens-min-h-24 lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-inset lens-p-4 lens-text-center;
+    @apply lens-m-4 lens-flex lens-min-h-24 lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-inset lens-p-4 lens-text-center;
   }
 
   .lens-chart-compact-label,
@@ -2288,6 +2298,29 @@
     @apply lens-bg-accent-50;
   }
 
+  .lens-chart-host-drillable:focus-visible {
+    outline: 2px solid var(--lens-accent-500);
+    outline-offset: -2px;
+  }
+
+  .lens-chart-keyboard-actions {
+    @apply lens-absolute lens-left-2 lens-top-2 lens-z-20 lens-flex lens-flex-col lens-gap-1;
+  }
+
+  .lens-chart-keyboard-actions button {
+    @apply lens-sr-only lens-rounded-control lens-border lens-border-solid lens-border-accent-500 lens-bg-card lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-accent-700 lens-shadow-card;
+  }
+
+  .lens-chart-keyboard-actions button:focus {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+  }
+
   .lens-chart-canvas {
     @apply lens-w-full lens-flex-1;
     min-height: 17rem;
@@ -2413,7 +2446,7 @@
   }
 
   .lens-waterfall {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-p-4;
+    @apply lens-flex lens-flex-1 lens-flex-col lens-overflow-x-auto lens-p-4;
   }
 
   .lens-waterfall-plot,
@@ -2432,6 +2465,8 @@
   .lens-waterfall-chart {
     @apply lens-grid lens-min-h-0 lens-flex-1;
     grid-template-columns: 96px minmax(0, 1fr);
+    min-width: calc(6rem + var(--lens-waterfall-count) * 4.5rem);
+    padding-top: 2rem;
   }
 
   .lens-waterfall-axis {
@@ -2550,10 +2585,16 @@
   }
 
   .lens-waterfall-bar strong {
-    @apply lens-absolute lens-left-1/2 lens-whitespace-nowrap lens-text-[11px] lens-font-semibold lens-text-strong;
+    @apply lens-absolute lens-left-1/2 lens-text-center lens-text-[11px] lens-font-semibold lens-leading-tight lens-text-strong;
     top: -4px;
+    width: 200%;
+    overflow-wrap: anywhere;
     transform: translate(-50%, -100%);
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-waterfall-bar[data-label-row='1'] strong {
+    top: -20px;
   }
 
   .lens-waterfall-bar[data-kind='increase'] strong {
@@ -2609,6 +2650,7 @@
   .lens-waterfall-labels {
     @apply lens-mt-2;
     margin-left: 96px;
+    min-width: calc(var(--lens-waterfall-count) * 4.5rem);
   }
 
   .lens-waterfall-label {
@@ -4749,31 +4791,25 @@
   }
 }
 
-.lens-temporal-controls {
-  @apply lens-flex lens-items-center lens-gap-1;
-}
+@layer components {
+  .lens-temporal-controls {
+    @apply lens-flex lens-items-center lens-gap-1;
+  }
 
-.lens-temporal-toggle,
-.lens-temporal-select {
-  @apply lens-h-7 lens-rounded-md lens-border lens-border-slate-200 lens-bg-white lens-px-2 lens-text-[11px] lens-font-semibold lens-text-slate-600 lens-shadow-sm lens-transition-colors;
-}
+  .lens-temporal-toggle,
+  .lens-temporal-select {
+    @apply lens-min-h-8 lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-[11px] lens-font-semibold lens-text-muted lens-transition-colors;
+  }
 
-.lens-temporal-toggle:hover,
-.lens-temporal-select:hover {
-  @apply lens-border-slate-300 lens-text-slate-900;
-}
+  .lens-temporal-toggle:hover,
+  .lens-temporal-select:hover {
+    @apply lens-border-strong lens-bg-inset lens-text-strong;
+  }
 
-.lens-temporal-toggle[aria-pressed="true"] {
-  @apply lens-border-blue-300 lens-bg-blue-50 lens-text-blue-700;
-}
-
-.dark .lens-temporal-toggle,
-.dark .lens-temporal-select {
-  @apply lens-border-slate-700 lens-bg-slate-900 lens-text-slate-300;
-}
-
-.dark .lens-temporal-toggle[aria-pressed="true"] {
-  @apply lens-border-blue-700 lens-bg-blue-950 lens-text-blue-300;
+  .lens-temporal-toggle[aria-pressed="true"] {
+    @apply lens-bg-accent-50 lens-text-accent-700;
+    border-color: var(--lens-accent-300);
+  }
 }
 
 /* -------------------------------------------------------------------------- */

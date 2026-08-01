@@ -48,7 +48,8 @@ func (s *PostgresStore) ListViews(ctx context.Context, access Access, dashboardI
 func (s *PostgresStore) PutView(ctx context.Context, access Access, view SavedView) (SavedView, error) {
 	view.TenantID = access.TenantID
 	view.OwnerUserID = access.UserID
-	if view.Scope == ViewScopeTeam && !access.ManageTeam || view.DefaultRoleID != nil && !access.ManageTeam {
+	wantsTeamManagement := view.Scope == ViewScopeTeam || view.DefaultRoleID != nil
+	if wantsTeamManagement && !access.ManageTeam {
 		return SavedView{}, ErrForbidden
 	}
 	if view.DefaultRoleID != nil && !canAssignDefaultRole(access, *view.DefaultRoleID) {
@@ -76,8 +77,9 @@ func (s *PostgresStore) PutView(ctx context.Context, access Access, view SavedVi
 			}
 			return SavedView{}, err
 		}
-		if tenantID != access.TenantID ||
-			uint(ownerID) != access.UserID && (scope != ViewScopeTeam || !access.ManageTeam) {
+		isOwner := uint(ownerID) == access.UserID
+		canManageTeamView := scope == ViewScopeTeam && access.ManageTeam
+		if tenantID != access.TenantID || (!isOwner && !canManageTeamView) {
 			return SavedView{}, ErrNotFound
 		}
 		if scope == ViewScopeTeam && !access.ManageTeam {
@@ -86,6 +88,7 @@ func (s *PostgresStore) PutView(ctx context.Context, access Access, view SavedVi
 		if dashboardID != view.DashboardID {
 			return SavedView{}, invalidInput(errors.New("saved view dashboard cannot be changed"))
 		}
+		view.OwnerUserID = uint(ownerID)
 	}
 	if view.DefaultRoleID != nil {
 		_, err = tx.Exec(ctx, `
@@ -180,11 +183,16 @@ func (s *PostgresStore) PutSchedule(ctx context.Context, access Access, schedule
 	if err := schedule.Validate(); err != nil {
 		return ExportSchedule{}, invalidInput(err)
 	}
+	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+	if err != nil {
+		return ExportSchedule{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 	if schedule.ID != uuid.Nil {
 		var tenantID uuid.UUID
 		var ownerID int64
 		var dashboardID string
-		if err := s.pool.QueryRow(ctx, `SELECT tenant_id, owner_user_id, dashboard_id FROM lens_export_schedules WHERE id = $1 AND tenant_id = $2`, schedule.ID, access.TenantID).
+		if err := tx.QueryRow(ctx, `SELECT tenant_id, owner_user_id, dashboard_id FROM lens_export_schedules WHERE id = $1 AND tenant_id = $2 FOR UPDATE`, schedule.ID, access.TenantID).
 			Scan(&tenantID, &ownerID, &dashboardID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ExportSchedule{}, ErrNotFound
@@ -199,10 +207,11 @@ func (s *PostgresStore) PutSchedule(ctx context.Context, access Access, schedule
 		}
 	}
 	var stateURL string
-	if err := s.pool.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		SELECT state_url FROM lens_saved_views
 			WHERE id = $1 AND tenant_id = $2 AND dashboard_id = $3
-			  AND (scope = 'team' OR owner_user_id = $4)`,
+			  AND (scope = 'team' OR owner_user_id = $4)
+			FOR UPDATE`,
 		schedule.ViewID, access.TenantID, schedule.DashboardID, int64(access.UserID)).Scan(&stateURL); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ExportSchedule{}, ErrNotFound
@@ -212,14 +221,18 @@ func (s *PostgresStore) PutSchedule(ctx context.Context, access Access, schedule
 	schedule.StateURL = stateURL
 	now := time.Now().UTC()
 	if schedule.Enabled {
-		schedule.NextRunAt, _ = schedule.Next(now)
+		nextRunAt, err := schedule.Next(now)
+		if err != nil {
+			return ExportSchedule{}, err
+		}
+		schedule.NextRunAt = nextRunAt
 	} else {
 		schedule.NextRunAt = time.Time{}
 	}
 	if schedule.ID == uuid.Nil {
 		schedule.ID = uuid.New()
 	}
-	stored, err := scanSchedule(s.pool.QueryRow(ctx, `
+	stored, err := scanSchedule(tx.QueryRow(ctx, `
 		INSERT INTO lens_export_schedules
 			(id, tenant_id, owner_user_id, dashboard_id, view_id, name, cron_expr, timezone, recipients, enabled, next_run_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -233,6 +246,9 @@ func (s *PostgresStore) PutSchedule(ctx context.Context, access Access, schedule
 		schedule.ID, schedule.TenantID, int64(schedule.OwnerUserID), schedule.DashboardID, schedule.ViewID,
 		schedule.Name, schedule.Cron, schedule.Timezone, schedule.Recipients, schedule.Enabled, nullableTime(schedule.NextRunAt)))
 	if err != nil {
+		return ExportSchedule{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
 		return ExportSchedule{}, err
 	}
 	stored.StateURL = stateURL

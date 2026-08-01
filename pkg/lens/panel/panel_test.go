@@ -35,31 +35,14 @@ var allKinds = []Kind{
 
 func TestKindPredicates_ClassifiesAllKnownKinds(t *testing.T) {
 	cases := []struct {
-		kind            Kind
-		isContainer     bool
-		isChart         bool
-		rendersNatively bool
+		kind        Kind
+		isContainer bool
 	}{
-		{KindStat, false, false, true},
-		{KindTimeSeries, false, true, false},
-		{KindBar, false, true, false},
-		{KindHorizontalBar, false, true, false},
-		{KindStackedBar, false, true, false},
-		{KindSegmentBar, false, false, true},
-		{KindCascade, false, false, true},
-		{KindPie, false, true, false},
-		{KindDonut, false, true, false},
-		{KindRadial, false, true, false},
-		{KindTable, false, false, true},
-		{KindGauge, false, true, false},
-		{KindHistogram, false, true, false},
-		{KindBoxPlot, false, true, false},
-		{KindHeatmap, false, true, false},
-		{KindMap, false, true, false},
-		{KindTabs, true, false, false},
-		{KindGrid, true, false, false},
-		{KindSplit, true, false, false},
-		{KindRepeat, true, false, false},
+		{KindStat, false}, {KindTimeSeries, false}, {KindBar, false}, {KindHorizontalBar, false},
+		{KindStackedBar, false}, {KindSegmentBar, false}, {KindCascade, false}, {KindPie, false},
+		{KindDonut, false}, {KindRadial, false}, {KindTable, false}, {KindGauge, false},
+		{KindHistogram, false}, {KindBoxPlot, false}, {KindHeatmap, false}, {KindMap, false},
+		{KindTabs, true}, {KindGrid, true}, {KindSplit, true}, {KindRepeat, true},
 	}
 
 	require.Len(t, cases, len(allKinds), "predicate table should cover allKinds")
@@ -74,8 +57,6 @@ func TestKindPredicates_ClassifiesAllKnownKinds(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(string(tc.kind), func(t *testing.T) {
 			assert.Equal(t, tc.isContainer, tc.kind.IsContainer())
-			assert.Equal(t, tc.isChart, tc.kind.IsChart())
-			assert.Equal(t, tc.rendersNatively, tc.kind.RendersNatively())
 		})
 	}
 }
@@ -134,30 +115,6 @@ func TestTimeSeriesTemporalBuilderCarriesGenericOverlays(t *testing.T) {
 	require.Equal(t, TemporalPeriodYTD, spec.Temporal.Period.State)
 	require.Equal(t, "Product launch", spec.Temporal.Annotations[0].Label)
 	require.Equal(t, FieldRef("upper"), spec.Temporal.Forecast.UpperField)
-}
-
-// TestKindPredicatesPartition asserts the structural invariants the predicates
-// rely on across the render/runtime code:
-//   - every kind is exactly one of: container, chart, or native leaf
-//   - containers are never charts or native leaves
-//   - "renderable leaf" == IsChart() || RendersNatively() == !IsContainer()
-func TestKindPredicatesPartition(t *testing.T) {
-	for _, k := range allKinds {
-		matches := 0
-		if k.IsContainer() {
-			matches++
-		}
-		if k.IsChart() {
-			matches++
-		}
-		if k.RendersNatively() {
-			matches++
-		}
-		assert.Equalf(t, 1, matches, "%q matched %d categories, want exactly 1 (container/chart/native)", k, matches)
-
-		leaf := k.IsChart() || k.RendersNatively()
-		assert.NotEqualf(t, leaf, k.IsContainer(), "%q: leaf=%v but IsContainer()=%v; leaf and container must be mutually exclusive and exhaustive", k, leaf, k.IsContainer())
-	}
 }
 
 // TestRadialNodeKeyMatchesJSONStringify pins the key format against the one

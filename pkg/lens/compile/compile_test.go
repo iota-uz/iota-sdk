@@ -189,6 +189,30 @@ func TestCompilePanelPreservesRadialContract(t *testing.T) {
 	}, compiled.Radial)
 }
 
+func TestCompilePanelPreservesDistributionFieldsAndTemporalContract(t *testing.T) {
+	t.Parallel()
+	temporal := &panel.TemporalSpec{RegressionField: "trend", RegressionLabel: "Trend"}
+	item := lensspec.BoxPlot("settlement", "Settlement", "summary").
+		CategoryField("product").
+		PreviousField("previous_median").
+		BoxFields("minimum", "q1", "median", "q3", "maximum").
+		Build()
+	item.Temporal = temporal
+
+	compiled, err := compilePanel(item, Options{})
+	require.NoError(t, err)
+	require.Equal(t, panel.KindBoxPlot, compiled.Kind)
+	require.Equal(t, panel.Ref("previous_median"), compiled.Fields.Previous)
+	require.Equal(t, panel.Ref("minimum"), compiled.Fields.Lower)
+	require.Equal(t, panel.Ref("q1"), compiled.Fields.Q1)
+	require.Equal(t, panel.Ref("median"), compiled.Fields.Median)
+	require.Equal(t, panel.Ref("q3"), compiled.Fields.Q3)
+	require.Equal(t, panel.Ref("maximum"), compiled.Fields.Upper)
+	require.Equal(t, temporal, compiled.Temporal)
+	require.Equal(t, panel.KindHistogram, lensspec.Histogram("hist", "Histogram", "data").Build().Kind)
+	require.Equal(t, panel.KindHeatmap, lensspec.Heatmap("heat", "Heatmap", "data").Build().Kind)
+}
+
 // Presentation hints and the rich table-column treatments are producer-side
 // contract: a document that declares them must reach panel.Spec unchanged, or
 // the wire document builder can never see them.

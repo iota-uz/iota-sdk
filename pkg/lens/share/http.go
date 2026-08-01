@@ -33,6 +33,11 @@ func WithScheduledDelivery() HTTPOption {
 	return func(handler *HTTPHandler) { handler.scheduledDeliveryEnabled = true }
 }
 
+// NewHTTPHandler constructs the saved-view and scheduled-delivery API.
+//
+// Register mounts state-changing POST and DELETE routes. The host must mount
+// the returned routes below its CSRF middleware; authentication and RBAC from
+// AccessResolver do not replace CSRF verification.
 func NewHTTPHandler(store Store, access AccessResolver, baseURL string, options ...HTTPOption) (*HTTPHandler, error) {
 	if store == nil || access == nil {
 		return nil, fmt.Errorf("store and access resolver are required")
@@ -67,9 +72,8 @@ func (h *HTTPHandler) views(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		dashboardID := strings.TrimSpace(r.URL.Query().Get("dashboard"))
-		if dashboardID == "" {
-			writeHTTPError(w, http.StatusBadRequest, "dashboard is required")
+		dashboardID, ok := readDashboardID(w, r)
+		if !ok {
 			return
 		}
 		views, err := h.store.ListViews(r.Context(), access, dashboardID)
@@ -143,9 +147,8 @@ func (h *HTTPHandler) schedules(w http.ResponseWriter, r *http.Request) {
 	}
 	switch r.Method {
 	case http.MethodGet:
-		dashboardID := strings.TrimSpace(r.URL.Query().Get("dashboard"))
-		if dashboardID == "" {
-			writeHTTPError(w, http.StatusBadRequest, "dashboard is required")
+		dashboardID, ok := readDashboardID(w, r)
+		if !ok {
 			return
 		}
 		schedules, err := h.store.ListSchedules(r.Context(), access, dashboardID)
@@ -169,6 +172,19 @@ func (h *HTTPHandler) schedules(w http.ResponseWriter, r *http.Request) {
 	default:
 		writeHTTPError(w, http.StatusMethodNotAllowed, "method not allowed")
 	}
+}
+
+func readDashboardID(w http.ResponseWriter, r *http.Request) (string, bool) {
+	dashboardID := strings.TrimSpace(r.URL.Query().Get("dashboard"))
+	if dashboardID == "" {
+		writeHTTPError(w, http.StatusBadRequest, "dashboard is required")
+		return "", false
+	}
+	if len(dashboardID) > 120 {
+		writeHTTPError(w, http.StatusBadRequest, "dashboard cannot exceed 120 characters")
+		return "", false
+	}
+	return dashboardID, true
 }
 
 func (h *HTTPHandler) schedule(w http.ResponseWriter, r *http.Request) {

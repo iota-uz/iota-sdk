@@ -65,8 +65,9 @@ export function InfoTip({ text, inline }: InfoTipProps) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
   const closeTimer = useRef<ReturnType<typeof globalThis.setTimeout>>()
-  const bubbleId = useId()
-  const label = translate('panel.info', 'About this metric')
+	const bubbleId = useId()
+	const label = translate('panel.info', 'About this metric')
+	const accessibleLabel = inline ? text : label
   const open = pinned || hovered
 
   // The note is a floating surface, so it belongs at body level rather than
@@ -174,7 +175,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
       <button
         aria-describedby={open ? bubbleId : undefined}
         aria-expanded={pinned}
-        aria-label={label}
+		aria-label={accessibleLabel}
         className={inline
           ? 'lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline'
           : 'lens-export-button lens-icon-button lens-info-tip-button'}
@@ -182,7 +183,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
         onClick={() => setPinned((current) => !current)}
         onFocus={() => setHovered(true)}
         ref={buttonRef}
-        title={label}
+		title={accessibleLabel}
         type="button"
       >
         <Info />

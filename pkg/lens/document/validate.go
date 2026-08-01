@@ -1,6 +1,7 @@
 package document
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"net/url"
@@ -363,6 +364,9 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 	if err := validatePresentation("panel "+panel.ID, panel.Presentation); err != nil {
 		return err
 	}
+	if err := validateValueAxis(panel, d.Frames[panel.Frame]); err != nil {
+		return err
+	}
 	if err := validateTemporalPanel(panel, d.Frames[panel.Frame]); err != nil {
 		return err
 	}
@@ -396,35 +400,8 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 			return fmt.Errorf("panel %s %s encoding references missing field %q", panel.ID, role, field)
 		}
 	}
-	if !panel.Deferred && panel.Kind == PanelKindBoxPlot {
-		if strings.TrimSpace(panel.Encoding.Category) == "" && strings.TrimSpace(panel.Encoding.Label) == "" {
-			return fmt.Errorf("panel %s boxplot requires category or label encoding", panel.ID)
-		}
-		for role, field := range map[string]string{
-			"lower": panel.Encoding.Lower, "q1": panel.Encoding.Q1, "median": panel.Encoding.Median,
-			"q3": panel.Encoding.Q3, "upper": panel.Encoding.Upper,
-		} {
-			if strings.TrimSpace(field) == "" {
-				return fmt.Errorf("panel %s boxplot requires %s encoding", panel.ID, role)
-			}
-			if err := requireNumberFrameColumn("panel "+panel.ID, role, d.Frames[panel.Frame], field); err != nil {
-				return err
-			}
-		}
-	}
-	if !panel.Deferred && panel.Kind == PanelKindHistogram {
-		if (strings.TrimSpace(panel.Encoding.Category) == "" && strings.TrimSpace(panel.Encoding.Label) == "") || strings.TrimSpace(panel.Encoding.Value) == "" {
-			return fmt.Errorf("panel %s histogram requires category or label and value encoding", panel.ID)
-		}
-		if err := requireNumberFrameColumn("panel "+panel.ID, "value", d.Frames[panel.Frame], panel.Encoding.Value); err != nil {
-			return err
-		}
-	}
-	if !panel.Deferred && panel.Kind == PanelKindHeatmap {
-		if strings.TrimSpace(panel.Encoding.Category) == "" || strings.TrimSpace(panel.Encoding.Series) == "" || strings.TrimSpace(panel.Encoding.Value) == "" {
-			return fmt.Errorf("panel %s heatmap requires category, series, and value encoding", panel.ID)
-		}
-		if err := requireNumberFrameColumn("panel "+panel.ID, "value", d.Frames[panel.Frame], panel.Encoding.Value); err != nil {
+	if !panel.Deferred {
+		if err := validateDistributionPanel(panel, d.Frames[panel.Frame]); err != nil {
 			return err
 		}
 	}
@@ -480,6 +457,100 @@ func (d *DashboardDocument) validatePanel(panel Panel) error {
 		if err := validateTableColumns(panel, d.Frames[panel.Frame]); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func validateDistributionPanel(panel Panel, frame Frame) error {
+	switch panel.Kind {
+	case PanelKindBoxPlot:
+		if strings.TrimSpace(panel.Encoding.Category) == "" && strings.TrimSpace(panel.Encoding.Label) == "" {
+			return fmt.Errorf("panel %s boxplot requires category or label encoding", panel.ID)
+		}
+		for role, field := range map[string]string{
+			"lower": panel.Encoding.Lower, "q1": panel.Encoding.Q1, "median": panel.Encoding.Median,
+			"q3": panel.Encoding.Q3, "upper": panel.Encoding.Upper,
+		} {
+			if strings.TrimSpace(field) == "" {
+				return fmt.Errorf("panel %s boxplot requires %s encoding", panel.ID, role)
+			}
+			if err := requireNumberFrameColumn("panel "+panel.ID, role, frame, field); err != nil {
+				return err
+			}
+		}
+	case PanelKindHistogram:
+		if (strings.TrimSpace(panel.Encoding.Category) == "" && strings.TrimSpace(panel.Encoding.Label) == "") || strings.TrimSpace(panel.Encoding.Value) == "" {
+			return fmt.Errorf("panel %s histogram requires category or label and value encoding", panel.ID)
+		}
+		return requireNumberFrameColumn("panel "+panel.ID, "value", frame, panel.Encoding.Value)
+	case PanelKindHeatmap:
+		if strings.TrimSpace(panel.Encoding.Category) == "" || strings.TrimSpace(panel.Encoding.Series) == "" || strings.TrimSpace(panel.Encoding.Value) == "" {
+			return fmt.Errorf("panel %s heatmap requires category, series, and value encoding", panel.ID)
+		}
+		return requireNumberFrameColumn("panel "+panel.ID, "value", frame, panel.Encoding.Value)
+	}
+	return nil
+}
+
+func validateValueAxis(panel Panel, frame Frame) error {
+	if panel.ValueAxis == nil {
+		return nil
+	}
+	switch panel.ValueAxis.Scale {
+	case AxisScaleLinear:
+		if panel.ValueAxis.LogBase != 0 {
+			return fmt.Errorf("panel %s linear value axis cannot set logBase", panel.ID)
+		}
+		return nil
+	case AxisScaleLogarithmic:
+		if panel.ValueAxis.LogBase != 0 && panel.ValueAxis.LogBase <= 1 {
+			return fmt.Errorf("panel %s logarithmic value axis requires logBase greater than one", panel.ID)
+		}
+	default:
+		return fmt.Errorf("panel %s has unsupported value axis scale %q", panel.ID, panel.ValueAxis.Scale)
+	}
+	switch panel.Kind {
+	case PanelKindBar, PanelKindHBar, PanelKindLine, PanelKindArea:
+	default:
+		return fmt.Errorf("panel %s logarithmic value axis is unsupported for kind %q", panel.ID, panel.Kind)
+	}
+	if panel.Deferred {
+		return nil
+	}
+	categoryField := panel.Encoding.Category
+	if strings.TrimSpace(categoryField) == "" {
+		categoryField = panel.Encoding.Label
+	}
+	categoryIndex, valueIndex := -1, -1
+	for index, column := range frame.Columns {
+		if column.Name == categoryField {
+			categoryIndex = index
+		}
+		if column.Name == panel.Encoding.Value {
+			valueIndex = index
+		}
+	}
+	if categoryIndex < 0 || valueIndex < 0 {
+		return fmt.Errorf("panel %s logarithmic value axis requires category and value columns", panel.ID)
+	}
+	categories := make(map[string]struct{})
+	minimum, maximum := math.Inf(1), math.Inf(-1)
+	for _, row := range frame.Rows {
+		if categoryIndex < len(row) && row[categoryIndex] != nil {
+			categories[fmt.Sprint(row[categoryIndex])] = struct{}{}
+		}
+		if valueIndex >= len(row) || row[valueIndex] == nil {
+			continue
+		}
+		value, ok := numericValue(row[valueIndex])
+		if !ok || math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
+			return fmt.Errorf("panel %s logarithmic value axis requires positive finite values", panel.ID)
+		}
+		minimum = min(minimum, value)
+		maximum = max(maximum, value)
+	}
+	if len(categories) < 3 || math.IsInf(minimum, 1) || maximum/minimum < 100 {
+		return fmt.Errorf("panel %s logarithmic value axis requires at least three categories spanning two orders of magnitude", panel.ID)
 	}
 	return nil
 }
@@ -734,6 +805,29 @@ func validateMapConfig(panel Panel, frame Frame) error {
 	if featureProperty == "" {
 		return fmt.Errorf("panel %s map requires featureProperty", panel.ID)
 	}
+	if len([]rune(featureProperty)) > 120 {
+		return fmt.Errorf("panel %s map featureProperty cannot exceed 120 characters", panel.ID)
+	}
+	labelProperties := make([]string, 0, len(config.LabelProperties)+1)
+	if fallback := strings.TrimSpace(config.LabelProperty); fallback != "" {
+		if len([]rune(fallback)) > 120 {
+			return fmt.Errorf("panel %s map labelProperty cannot exceed 120 characters", panel.ID)
+		}
+		labelProperties = append(labelProperties, fallback)
+	}
+	if len(config.LabelProperties) > 16 {
+		return fmt.Errorf("panel %s map labelProperties cannot exceed sixteen locales", panel.ID)
+	}
+	for locale, property := range config.LabelProperties {
+		if !validMapLocale(locale) {
+			return fmt.Errorf("panel %s map labelProperties has invalid locale %q", panel.ID, locale)
+		}
+		property = strings.TrimSpace(property)
+		if property == "" || len([]rune(property)) > 120 {
+			return fmt.Errorf("panel %s map label property for locale %q must contain 1 to 120 characters", panel.ID, locale)
+		}
+		labelProperties = append(labelProperties, property)
+	}
 	if strings.TrimSpace(panel.Encoding.ID) == "" || strings.TrimSpace(panel.Encoding.Value) == "" {
 		return fmt.Errorf("panel %s map requires id and value encoding", panel.ID)
 	}
@@ -755,8 +849,14 @@ func validateMapConfig(panel Panel, frame Frame) error {
 
 	featureKeys := map[string]struct{}{}
 	if inline {
-		var err error
-		featureKeys, err = validateGeoJSONFeatureCollection(panel.ID, *config.Source.Inline, featureProperty, strings.TrimSpace(config.LabelProperty))
+		encoded, err := json.Marshal(config.Source.Inline)
+		if err != nil {
+			return fmt.Errorf("panel %s inline map source: %w", panel.ID, err)
+		}
+		if len(encoded) > MaxMapGeoJSONBytes {
+			return fmt.Errorf("panel %s inline map source cannot exceed %d bytes", panel.ID, MaxMapGeoJSONBytes)
+		}
+		featureKeys, err = validateGeoJSONFeatureCollection(panel.ID, *config.Source.Inline, featureProperty, labelProperties)
 		if err != nil {
 			return err
 		}
@@ -797,6 +897,19 @@ func validateMapConfig(panel Panel, frame Frame) error {
 	return nil
 }
 
+func validMapLocale(locale string) bool {
+	if len(locale) < 2 || len(locale) > 16 || locale[0] == '-' || locale[len(locale)-1] == '-' {
+		return false
+	}
+	for _, char := range locale {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
 func validateMapSourceURL(raw string) error {
 	if strings.Contains(raw, "\\") || !strings.HasPrefix(raw, "/") || strings.HasPrefix(raw, "//") {
 		return fmt.Errorf("url must be a same-origin absolute path")
@@ -808,7 +921,7 @@ func validateMapSourceURL(raw string) error {
 	return nil
 }
 
-func validateGeoJSONFeatureCollection(panelID string, collection GeoJSONFeatureCollection, featureProperty, labelProperty string) (map[string]struct{}, error) {
+func validateGeoJSONFeatureCollection(panelID string, collection GeoJSONFeatureCollection, featureProperty string, labelProperties []string) (map[string]struct{}, error) {
 	if collection.Type != "FeatureCollection" || len(collection.Features) == 0 {
 		return nil, fmt.Errorf("panel %s map inline source must be a non-empty FeatureCollection", panelID)
 	}
@@ -826,7 +939,7 @@ func validateGeoJSONFeatureCollection(panelID string, collection GeoJSONFeatureC
 			return nil, fmt.Errorf("panel %s map has duplicate GeoJSON feature key %q", panelID, key)
 		}
 		keys[key] = struct{}{}
-		if labelProperty != "" {
+		for _, labelProperty := range labelProperties {
 			label, ok := feature.Properties[labelProperty].(string)
 			if !ok || strings.TrimSpace(label) == "" {
 				return nil, fmt.Errorf("panel %s map feature %q label property %q must be a non-empty string", panelID, key, labelProperty)

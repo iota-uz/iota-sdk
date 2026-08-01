@@ -244,10 +244,6 @@ func resolveDimensionDataset(spec CubeSpec, ctx DrillContext, dim DimensionSpec)
 	}
 }
 
-func buildStatPanels(spec CubeSpec, datasetByMeasure map[string]string) []panel.Spec {
-	return buildStatPanelsCompared(spec, datasetByMeasure, false)
-}
-
 func buildStatPanelsCompared(spec CubeSpec, datasetByMeasure map[string]string, compared bool) []panel.Spec {
 	panels := make([]panel.Spec, 0, len(spec.Measures))
 	span := statSpan(len(spec.Measures))
@@ -474,7 +470,8 @@ func panelBuilder(kind panel.Kind, id, title, dataset string, mapSpec *panel.Map
 			return panel.Bar(id, title, dataset)
 		}
 		return panel.Choropleth(id, title, dataset, mapSpec.Source, mapSpec.FeatureProperty).
-			MapLabelProperty(mapSpec.LabelProperty)
+			MapLabelProperty(mapSpec.LabelProperty).
+			MapLabelProperties(mapSpec.LabelProperties)
 	case panel.KindMetricFlow, panel.KindMetricHierarchy, panel.KindMetricRelationship:
 		return panel.Bar(id, title, dataset)
 	}

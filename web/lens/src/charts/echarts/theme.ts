@@ -1,7 +1,6 @@
 import type { Theme } from '../../contract'
 import { normalizeLensTheme } from '../../runtime/theme'
-
-const fallbackSeries = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#dc2626']
+import { fallbackSeries } from '../palette'
 
 export interface EChartsTheme {
   card: string
@@ -29,7 +28,7 @@ export function buildEChartsTheme(element: HTMLElement, theme: Theme): EChartsTh
   const styles = getComputedStyle(root)
   const mode = normalizeLensTheme(root.dataset.theme, root.classList.contains('dark'))
   const configuredColors = Object.values(theme.palette).filter((color) => color.trim() !== '')
-  const colors = configuredColors.length > 0 ? configuredColors : fallbackSeries
+  const colors = configuredColors.length > 0 ? configuredColors : [...fallbackSeries]
 
   return {
     card: css(styles, '--lens-bg-card', mode === 'dark' ? '#1e293b' : '#ffffff'),

@@ -1,41 +1,15 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { CaretDown, CircleNotch, DownloadSimple } from '../icons'
 import { downloadPanelImage, useExport, useTranslate, type PanelImageFormat } from '../runtime'
+import { useMenuButton } from './useMenuButton'
 
 export function PanelExportMenu({ panelId, title }: { panelId: string; title: string }) {
   const exportState = useExport(panelId)
   const translate = useTranslate()
-  const [open, setOpen] = useState(false)
   const [imagePending, setImagePending] = useState<PanelImageFormat>()
   const [imageError, setImageError] = useState<string>()
-  const container = useRef<HTMLDivElement>(null)
-  const triggerRef = useRef<HTMLButtonElement>(null)
-  const itemRefs = useRef<Array<HTMLButtonElement | null>>([])
+  const { closeAndFocusTrigger, container, itemRef, onMenuKeyDown, open, setOpen, trigger } = useMenuButton()
   const label = translate('export.panel', 'Export panel')
-
-  const closeAndFocusTrigger = useCallback(() => {
-    setOpen(false)
-    triggerRef.current?.focus()
-  }, [])
-
-  useEffect(() => {
-    if (!open) return undefined
-    itemRefs.current[0]?.focus()
-    const close = (event: PointerEvent) => {
-      if (event.target instanceof Node && !container.current?.contains(event.target)) setOpen(false)
-    }
-    const escape = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape') return
-      event.stopPropagation()
-      closeAndFocusTrigger()
-    }
-    document.addEventListener('pointerdown', close, true)
-    document.addEventListener('keydown', escape, true)
-    return () => {
-      document.removeEventListener('pointerdown', close, true)
-      document.removeEventListener('keydown', escape, true)
-    }
-  }, [closeAndFocusTrigger, open])
 
   const image = async (format: PanelImageFormat) => {
     setOpen(false)
@@ -50,7 +24,7 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
       setImageError(cause instanceof Error ? cause.message : translate('export.imageError', 'Image export failed'))
     } finally {
       setImagePending(undefined)
-      requestAnimationFrame(() => triggerRef.current?.focus())
+      requestAnimationFrame(() => trigger.current?.focus())
     }
   }
 
@@ -65,7 +39,7 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
         className="lens-export-button lens-icon-button"
         disabled={busy}
         onClick={() => setOpen((current) => !current)}
-        ref={triggerRef}
+        ref={trigger}
         title={label}
         type="button"
       >
@@ -75,32 +49,24 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
       {open && (
         <div
           className="lens-export-menu"
-          onKeyDown={(event) => {
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-            event.preventDefault()
-            const items = itemRefs.current.filter((item): item is HTMLButtonElement => item !== null)
-            if (items.length === 0) return
-            const current = items.indexOf(document.activeElement as HTMLButtonElement)
-            const delta = event.key === 'ArrowDown' ? 1 : -1
-            items[(current + delta + items.length) % items.length]?.focus()
-          }}
+          onKeyDown={onMenuKeyDown}
           role="menu"
         >
           {exportState.available && (
-            <button className="lens-export-menu-item" onClick={() => { closeAndFocusTrigger(); void exportState.run() }} ref={(element) => { itemRefs.current[0] = element }} role="menuitem" type="button">
+            <button className="lens-export-menu-item" onClick={() => { closeAndFocusTrigger(); void exportState.run() }} ref={itemRef('data')} role="menuitem" type="button">
               {translate('export.data', 'Data (XLSX)')}
             </button>
           )}
-          <button className="lens-export-menu-item" onClick={() => { void image('png') }} ref={(element) => { itemRefs.current[exportState.available ? 1 : 0] = element }} role="menuitem" type="button">
+          <button className="lens-export-menu-item" onClick={() => { void image('png') }} ref={itemRef('png')} role="menuitem" type="button">
             {translate('export.png', 'Image (PNG)')}
           </button>
-          <button className="lens-export-menu-item" onClick={() => { void image('svg') }} ref={(element) => { itemRefs.current[exportState.available ? 2 : 1] = element }} role="menuitem" type="button">
+          <button className="lens-export-menu-item" onClick={() => { void image('svg') }} ref={itemRef('svg')} role="menuitem" type="button">
             {translate('export.svg', 'Vector (SVG)')}
           </button>
         </div>
       )}
       {(imageError || exportState.message) && (
-        <span className="lens-export-message lens-export-message-error" role="status">{imageError ?? exportState.message}</span>
+        <span className="lens-export-message lens-export-message-error" role={imageError || exportState.status === 'error' ? 'alert' : 'status'}>{imageError ?? exportState.message}</span>
       )}
     </div>
   )

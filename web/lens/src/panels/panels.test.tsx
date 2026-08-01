@@ -44,7 +44,7 @@ import { GaugePanel } from './GaugePanel'
 import { MapPanel } from './MapPanel'
 import { buildCascadeStages, buildWaterfallItems, buildWaterfallModel, CascadePanel, waterfallAxisStep } from './CascadePanel'
 import { WaterfallPlot } from './WaterfallPlot'
-import { panelRegistry, RegisteredPanel, UNSUPPORTED } from './registry'
+import { panelRegistry, RegisteredPanel } from './registry'
 import { StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
 
@@ -69,6 +69,7 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
     encoding: { id: 'id', label: 'label', category: 'category', series: 'series', value: 'value' },
     format: {},
     actions: [],
+    ...(kind === 'gauge' ? { radial: { mode: 'progress' as const, max: 100 } } : {}),
     ...(kind === 'map' ? {
       map: {
         source: { inline: {
@@ -366,9 +367,7 @@ describe('panel registry', () => {
     } satisfies Record<PanelKind, true>
 
     for (const kind of Object.keys(contractKinds) as PanelKind[]) {
-      const supported = panelRegistry[kind] !== undefined
-      const unsupported = UNSUPPORTED.some((candidate) => candidate === kind)
-      expect(Number(supported) + Number(unsupported), kind).toBe(1)
+      expect(panelRegistry[kind], kind).toBeDefined()
     }
   })
 
@@ -382,6 +381,22 @@ describe('panel registry', () => {
 })
 
 describe('chart encoding and drill behavior', () => {
+  it('falls back to the label encoding when the preferred category column is absent', async () => {
+    const frame: Frame = {
+      columns: [{ name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+      rows: [['Alpha', 10], ['Beta', 20]],
+    }
+    runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
+    const inputs: ChartInput[] = []
+    render(<BarPanel
+      adapter={fakeAdapter((input) => inputs.push(input))}
+      panel={panel('hbar', { encoding: { category: 'missing', label: 'label', value: 'value' } })}
+    />)
+
+    await waitFor(() => expect(inputs).toHaveLength(1))
+    expect(document.querySelector('.lens-chart-compact')).toBeNull()
+  })
+
   it.each(['histogram', 'boxplot', 'heatmap'] as const)('passes %s through the chart runtime', async (kind) => {
     runtime.frame = state('data')
     const inputs: ChartInput[] = []
@@ -609,6 +624,50 @@ describe('chart encoding and drill behavior', () => {
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(0))
   })
 
+  it('prints the latest ratio reading instead of summing a ratio series', async () => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'category', type: 'string' },
+          { name: 'series', type: 'string' },
+          { name: 'value', type: 'number' },
+        ],
+        rows: [['2025', 'Loss ratio', 82], ['2026', 'Loss ratio', 91]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel
+      adapter={fakeAdapter()}
+      panel={panel('line', {
+        encoding: { category: 'category', series: 'series', value: 'value' },
+        format: { value: { kind: 'percent', minorUnits: false, precision: 0 } },
+        presentation: { legend: 'below' },
+      })}
+    />)
+
+    expect(await screen.findByRole('button', { name: /Loss ratio/ })).toHaveTextContent('91')
+    expect(screen.getByRole('button', { name: /Loss ratio/ })).not.toHaveTextContent('173')
+  })
+
+  it('exposes every drill mark as a keyboard action', async () => {
+    runtime.frame = {
+      data: {
+        columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['alpha', 'Alpha', 10], ['beta', 'Beta', 20]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<BarPanel
+      adapter={fakeAdapter()}
+      panel={panel('bar', { drillRoot: 'root', encoding: { id: 'id', label: 'label', value: 'value' } })}
+    />)
+
+    const actions = await screen.findAllByRole('button', { name: /Open (Alpha|Beta)/ })
+    expect(actions).toHaveLength(2)
+    fireEvent.click(actions[1]!)
+    expect(runtime.drillInto).toHaveBeenCalledWith('beta', 'panel-bar')
+  })
+
   it('shows legend search only above eight series and filters without changing the plot', () => {
     const rows = ['2025', '2026'].flatMap((year) => Array.from({ length: 9 }, (_, index) => [year, `Product ${index + 1}`, index + 1]))
     runtime.frame = {
@@ -745,6 +804,30 @@ describe('chart encoding and drill behavior', () => {
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
     expect(screen.getAllByText('stat panel')).toHaveLength(1)
     expect(screen.getByText('42')).toBeInTheDocument()
+  })
+
+  it.each([
+    { absolute: 42, expected: 'New' },
+    { absolute: 0, expected: 'N/A' },
+  ])('renders $expected when a comparison baseline cannot produce a percentage', ({ absolute, expected }) => {
+    runtime.frame = {
+      data: {
+        columns: [
+          { name: 'value', type: 'number' },
+          { name: 'delta', type: 'number' },
+          { name: 'delta_percent', type: 'number' },
+        ],
+        rows: [[42, absolute, null]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<StatPanel panel={panel('stat', {
+      encoding: { value: 'value' },
+      trend: { percent: 0, absoluteField: 'delta', percentField: 'delta_percent' },
+    })} />)
+
+    expect(screen.getByText(expected)).toBeInTheDocument()
+    expect(screen.queryByText('+0.0%')).toBeNull()
   })
 })
 
@@ -908,6 +991,7 @@ describe('cascade stages', () => {
     expect(view.container.querySelector('[data-lens-waterfall]')).not.toBeNull()
     expect(view.container.querySelectorAll('.lens-waterfall-bar')).toHaveLength(3)
     expect(view.container.querySelector('.lens-waterfall-bar[data-kind="decrease"]')).not.toBeNull()
+    expect(Array.from(view.container.querySelectorAll('.lens-waterfall-bar')).map((bar) => bar.getAttribute('data-label-row'))).toEqual(['0', '1', '0'])
     expect(view.container.querySelector('.lens-waterfall-annotation')).toHaveTextContent('12 above threshold')
   })
 

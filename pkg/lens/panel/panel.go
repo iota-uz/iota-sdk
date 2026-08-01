@@ -113,45 +113,6 @@ func (k Kind) IsContainer() bool {
 	return false
 }
 
-// IsChart reports whether the kind is a leaf panel rendered through the chart
-// adapter. Membership: KindTimeSeries, KindBar, KindHorizontalBar,
-// KindStackedBar, KindPie, KindDonut, KindGauge.
-//
-// This is the complement, among leaf panels, of RendersNatively. KindStat,
-// KindSegmentBar, KindCascade and KindTable are therefore not charts.
-func (k Kind) IsChart() bool {
-	switch k {
-	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindPie, KindDonut, KindRadial, KindGauge, KindHistogram, KindBoxPlot, KindHeatmap, KindMap:
-		return true
-	case KindStat, KindSegmentBar, KindCascade, KindTable,
-		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup,
-		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
-		return false
-	}
-	return false
-}
-
-// RendersNatively reports whether the kind is a leaf panel drawn with native
-// HTML/CSS rather than the chart adapter. Membership: KindStat,
-// KindSegmentBar, KindCascade, KindTable.
-//
-// Together, IsChart() and RendersNatively() partition the leaf (non-container)
-// panel kinds, so "this kind is a renderable leaf" is exactly
-// `k.IsChart() || k.RendersNatively()`.
-func (k Kind) RendersNatively() bool {
-	switch k {
-	case KindStat, KindSegmentBar, KindCascade, KindTable,
-		KindMetricFlow, KindMetricHierarchy, KindMetricRelationship:
-		return true
-	case KindTimeSeries, KindBar, KindHorizontalBar, KindStackedBar,
-		KindPie, KindDonut, KindRadial, KindGauge, KindHistogram, KindBoxPlot, KindHeatmap, KindMap,
-		KindTabs, KindGrid, KindSplit, KindRepeat, KindStatGroup:
-		return false
-	}
-	return false
-}
-
 // StatusTone selects the color treatment of a stat card's status chip.
 type StatusTone string
 
@@ -511,9 +472,10 @@ type GeoJSONSource struct {
 // FeatureProperty is compared to the panel's ID field; LabelProperty, when
 // set, supplies human-readable region labels from feature properties.
 type MapSpec struct {
-	Source          GeoJSONSource `json:"source"`
-	FeatureProperty string        `json:"featureProperty"`
-	LabelProperty   string        `json:"labelProperty,omitempty"`
+	Source          GeoJSONSource     `json:"source"`
+	FeatureProperty string            `json:"featureProperty"`
+	LabelProperty   string            `json:"labelProperty,omitempty"`
+	LabelProperties map[string]string `json:"labelProperties,omitempty"`
 }
 
 // RadialNodeKey returns the stable mark key emitted for a partition segment.
@@ -746,8 +708,7 @@ type Spec struct {
 	// HeadlineValue overrides the computed headline without changing the
 	// values used for chart geometry. SegmentBar uses it for a focal result
 	// whose allocation segments still sum to a different denominator.
-	HeadlineValue  *float64
-	DrillHierarchy *DrillHierarchy
+	HeadlineValue *float64
 	// DrillTree enables stable, key-based in-place navigation for Pie and
 	// Donut panels. Its branch keys match the panel's ID field in the initial
 	// dataset; nested node keys remain stable when labels or ordering change.
@@ -813,38 +774,6 @@ type Spec struct {
 	// Availability is the panel-level default availability for its elements;
 	// a frame column value or an element's own availability overrides it.
 	Availability Availability
-}
-
-// DrillHierarchy carries a pre-computed multi-level dataset that lets a Bar
-// panel "zoom" client-side (year -> quarter, and expand a trailing-years
-// "Others" bucket) with zero further server round-trips. See EAI's
-// analytics dashboards.buildPremiumBySourceYearChart for a producer.
-type DrillHierarchy struct {
-	// Sources lists the raw (untranslated) source keys in the same order as
-	// the chart's series/Colors (index i is series i). Lets the click
-	// handler resolve a numeric series index to a stable key
-	// without string-matching the locale-dependent series display name.
-	Sources []string
-	// OthersLabel is the already-localized category label for the top-level
-	// bucket bar (e.g. "Остальные"). Empty means the dataset fit within the
-	// recent-years window and there is no bucket.
-	OthersLabel string
-	// OthersYears lists, ascending, every year folded into the bucket. This
-	// is the "expand Others" view's category axis.
-	OthersYears []int
-	// Years maps "<year>|<sourceKey>" to that cell's raw (unfloored,
-	// unscaled) amount, for EVERY year in the dataset — both the recently
-	// shown years and every bucketed year.
-	Years map[string]float64
-	// Quarters maps "<year>|<sourceKey>" to that pair's Q1..Q4 breakdown,
-	// for the same full set of years as Years.
-	Quarters map[string]QuarterBreakdown
-}
-
-// QuarterBreakdown is one (year, source) pair's quarterly detail.
-type QuarterBreakdown struct {
-	Amounts      [4]float64 // Q1..Q4, index 0 = Q1; raw, unfloored
-	NavigateURLs [4]string  // Q1..Q4 navigate target; "" = not navigable
 }
 
 // DrillTree carries pre-computed, key-based branches for in-place Pie and
@@ -1147,10 +1076,6 @@ func (b *Builder) HeadlineValue(v float64) *Builder {
 	b.spec.HeadlineValue = &v
 	return b
 }
-func (b *Builder) DrillHierarchy(h DrillHierarchy) *Builder {
-	b.spec.DrillHierarchy = &h
-	return b
-}
 
 // DrillTree enables stable, key-based in-place navigation. Configure IDField
 // with the initial dataset field whose values match branch trigger keys.
@@ -1406,6 +1331,26 @@ func (b *Builder) MapLabelProperty(name string) *Builder {
 		b.spec.Map.LabelProperty = strings.TrimSpace(name)
 	}
 	return b
+}
+
+// MapLabelProperties maps document locales to localized GeoJSON feature
+// properties. The runtime falls back to MapLabelProperty for an unknown locale.
+func (b *Builder) MapLabelProperties(properties map[string]string) *Builder {
+	if b.spec.Map != nil {
+		b.spec.Map.LabelProperties = cloneStringMap(properties)
+	}
+	return b
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // FlowReconcile opts a MetricFlow panel into a tolerance-based mismatch note

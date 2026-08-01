@@ -20,7 +20,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
 )
 
-const maxQueryBodyBytes = 1 << 20
+const (
+	maxQueryBodyBytes = 1 << 20
+	maxQueryPathDepth = 64
+	maxQueryPathEntry = 256
+	recomputeCooldown = 5 * time.Second
+)
 
 type errorResponse = document.QueryErrorResponse
 type QueryRequest = document.QueryRequest
@@ -94,6 +99,7 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 	}
 	doc, err := document.Build(h.spec, result, document.BuildOptions{
 		Locale: result.Locale, InlineDepth: h.inlineDepth,
+		I18n: document.RuntimeI18nDefaults(),
 		Endpoints: document.Endpoints{
 			Query: h.endpoint("/lens/query"), Export: h.endpoint("/export"),
 			Views: h.viewsEndpoint, Schedules: h.schedulesEndpoint,
@@ -126,7 +132,6 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 type loadedPanel struct {
 	frame       document.Frame
 	calculation document.PanelCalculation
-	summary     *document.TableSummary
 }
 
 // Panel materialises one top-level panel against the immutable request frozen
@@ -147,6 +152,10 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	req.Search = strings.TrimSpace(req.Search)
 	if req.SnapshotID == "" || req.PanelID == "" {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "snapshotId and panelId are required")
+		return
+	}
+	if req.Recompute && !h.progressive {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "recompute is available only for progressive dashboards")
 		return
 	}
 	if len([]rune(req.Search)) > 200 {
@@ -173,15 +182,21 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
 		return
 	}
+	if req.Recompute {
+		if calculation, ok := snapshot.Panels[panelSpec.ID]; ok && time.Since(calculation.CalculatedAt) < recomputeCooldown {
+			writeError(w, http.StatusTooManyRequests, document.QueryErrorBadRequest, "panel was recomputed recently")
+			return
+		}
+	}
 	ref := document.FrameRef("panel:" + panelSpec.ID)
-	if !req.Recompute && req.Search == "" {
+	if !req.Recompute {
 		calculation, materialized := snapshot.Panels[panelSpec.ID]
 		if cached, exists := snapshot.Frames[ref]; exists && materialized {
 			calculation.CacheHit = true
 			if calculation.CalculatedAt.IsZero() {
 				calculation.CalculatedAt = snapshot.CreatedAt
 			}
-			view, summary := tableFrameView(panelSpec, cached, "")
+			view, summary := tableFrameView(panelSpec, cached, req.Search)
 			writeJSON(w, http.StatusOK, PanelResponse{
 				Frames: map[document.FrameRef]document.Frame{ref: view}, Calculation: calculation, Summary: summary,
 			})
@@ -205,9 +220,6 @@ func (h *Handlers) loadPanel(
 	if req.Recompute {
 		key += ":recompute"
 	}
-	if req.Search != "" {
-		key += ":search:" + req.Search
-	}
 	result := h.loads.DoChan(key, func() (any, error) {
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
 		defer cancel()
@@ -218,19 +230,15 @@ func (h *Handlers) loadPanel(
 		if !sameSnapshotScope(current, latest.Params) {
 			return nil, document.ErrSnapshotGone
 		}
-		if !req.Recompute && req.Search == "" {
+		if !req.Recompute {
 			calculation, materialized := latest.Panels[panelSpec.ID]
 			if cached, exists := latest.Frames[ref]; exists && materialized {
 				calculation.CacheHit = true
-				view, summary := tableFrameView(panelSpec, cached, "")
-				return loadedPanel{frame: view, calculation: calculation, summary: summary}, nil
+				return loadedPanel{frame: cached, calculation: calculation}, nil
 			}
 		}
 		base := thawRuntimeRequest(current, latest.Params)
 		base.Recompute = req.Recompute
-		if req.Search != "" {
-			base.Request.Set(lensruntime.TableSearchQuery, req.Search)
-		}
 		executed, err := h.engine.Execute(workCtx, h.spec, base, lensruntime.PanelScope(panelSpec.ID))
 		if err != nil {
 			return nil, err
@@ -249,16 +257,13 @@ func (h *Handlers) loadPanel(
 		if err != nil {
 			return nil, err
 		}
-		wire, summary := tableFrameView(panelSpec, wire, req.Search)
 		calculation := document.PanelCalculation{
 			DurationMS: executed.Duration.Milliseconds(), CacheHit: executed.CacheHit, CalculatedAt: time.Now().UTC(),
 		}
-		if req.Search == "" {
-			if err := h.snapshots.PutPanel(workCtx, latest.ID, panelSpec.ID, ref, wire, calculation); err != nil {
-				return nil, err
-			}
+		if err := h.snapshots.PutPanel(workCtx, latest.ID, panelSpec.ID, ref, wire, calculation); err != nil {
+			return nil, err
 		}
-		return loadedPanel{frame: wire, calculation: calculation, summary: summary}, nil
+		return loadedPanel{frame: wire, calculation: calculation}, nil
 	})
 	select {
 	case <-ctx.Done():
@@ -277,8 +282,9 @@ func (h *Handlers) loadPanel(
 			h.writeInternalError(ctx, w, "lens/serve.Panel", "panel execution failed", fmt.Errorf("panel execution returned %T", loaded.Val))
 			return
 		}
+		view, summary := tableFrameView(panelSpec, panel.frame, req.Search)
 		writeJSON(w, http.StatusOK, PanelResponse{
-			Frames: map[document.FrameRef]document.Frame{ref: panel.frame}, Calculation: panel.calculation, Summary: panel.summary,
+			Frames: map[document.FrameRef]document.Frame{ref: view}, Calculation: panel.calculation, Summary: summary,
 		})
 	}
 }
@@ -304,13 +310,32 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "path is required")
 		return
 	}
+	if len(req.Path) > maxQueryPathDepth {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "path cannot exceed 64 entries")
+		return
+	}
+	for _, entry := range req.Path {
+		if len([]rune(entry)) > maxQueryPathEntry {
+			writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "path entries cannot exceed 256 characters")
+			return
+		}
+	}
 	if req.Page < 0 {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "page cannot be negative")
+		return
+	}
+	if req.Page > lensruntime.MaxTablePage {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "page exceeds the maximum")
 		return
 	}
 	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
 	if err != nil {
 		h.writeSnapshotError(r.Context(), w, err)
+		return
+	}
+	current := h.runtimeRequest(r)
+	if !sameSnapshotScope(current, snapshot.Params) {
+		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
 		return
 	}
 	target, err := resolveTarget(h.spec, req.Path, req.Perspective)
@@ -332,7 +357,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	if page == 0 {
 		page = lensruntime.DefaultTablePage
 	}
-	base := thawRuntimeRequest(h.runtimeRequest(r), snapshot.Params)
+	base := thawRuntimeRequest(current, snapshot.Params)
 	panelResult, err := h.executeLevel(r.Context(), base, snapshot.Params, target, page)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
@@ -464,7 +489,7 @@ func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 	}
 	panelID := strings.TrimSpace(r.URL.Query().Get("panel"))
 	current := h.runtimeRequest(r)
-	if h.progressive && !sameSnapshotScope(current, snapshot.Params) {
+	if !sameSnapshotScope(current, snapshot.Params) {
 		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
 		return
 	}

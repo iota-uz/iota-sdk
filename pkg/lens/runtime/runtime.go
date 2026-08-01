@@ -802,7 +802,7 @@ func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, er
 			values[spec.Name] = override
 			continue
 		}
-		values[spec.Name] = resolveDateRange(spec, rt.Request)
+		values[spec.Name] = resolveDateRange(spec, rt.Request, rt.Timezone)
 	}
 	for _, spec := range specs {
 		if spec.Kind == lens.VariableDateRange {
@@ -845,7 +845,7 @@ func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, er
 			}
 		case lens.VariableCompare:
 			anchor, _ := values[spec.CompareTo].(lens.DateRangeValue)
-			values[spec.Name] = resolveCompare(spec, anchor, rt.Request)
+			values[spec.Name] = resolveCompare(spec, anchor, rt.Request, rt.Timezone)
 		case lens.VariableDateRange:
 			continue
 		}
@@ -853,28 +853,16 @@ func resolveVariables(specs []lens.VariableSpec, rt Request) (map[string]any, er
 	return values, nil
 }
 
-func resolveCompare(spec lens.VariableSpec, anchor lens.DateRangeValue, values url.Values) lens.CompareValue {
-	rawMode := strings.TrimSpace(values.Get(compareModeRequestKey(spec)))
-	mode := lens.CompareMode(rawMode)
-	if rawMode == "" {
-		if defaultValue, ok := spec.Default.(lens.CompareValue); ok {
-			mode = defaultValue.Mode
-			if mode == lens.CompareCustom && defaultValue.Range.Start != nil && defaultValue.Range.End != nil {
-				return defaultValue
-			}
-		}
-	}
-	switch mode {
-	case lens.ComparePreviousPeriod, lens.CompareYearAgo, lens.CompareCustom:
-	case lens.CompareOff:
-		return lens.CompareValue{Mode: lens.CompareOff}
-	default:
+func resolveCompare(spec lens.VariableSpec, anchor lens.DateRangeValue, values url.Values, timezone string) lens.CompareValue {
+	mode := lens.ResolveCompareMode(spec, values)
+	if mode == lens.CompareOff {
 		return lens.CompareValue{Mode: lens.CompareOff}
 	}
 	if mode == lens.CompareCustom {
-		startKey, endKey := compareRequestKeys(spec)
-		start, startErr := time.Parse("2006-01-02", values.Get(startKey))
-		end, endErr := time.Parse("2006-01-02", values.Get(endKey))
+		_, startKey, endKey := lens.CompareRequestKeys(spec)
+		location := requestLocation(timezone)
+		start, startErr := time.ParseInLocation("2006-01-02", values.Get(startKey), location)
+		end, endErr := time.ParseInLocation("2006-01-02", values.Get(endKey), location)
 		if startErr != nil || endErr != nil || end.Before(start) {
 			return lens.CompareValue{Mode: lens.CompareOff}
 		}
@@ -886,12 +874,10 @@ func resolveCompare(spec lens.VariableSpec, anchor lens.DateRangeValue, values u
 	}
 	start, end := *anchor.Start, *anchor.End
 	if mode == lens.CompareYearAgo {
-		start = start.AddDate(-1, 0, 0)
-		end = end.AddDate(-1, 0, 0)
+		start = addYearsClamped(start, -1)
+		end = addYearsClamped(end, -1)
 	} else {
-		duration := end.Sub(start)
-		end = start.Add(-time.Nanosecond)
-		start = end.Add(-duration)
+		start, end = previousPeriod(start, end)
 	}
 	return lens.CompareValue{Mode: mode, Range: lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end}}
 }
@@ -913,7 +899,7 @@ func splitMultiSelectValues(raw []string) []string {
 	return values
 }
 
-func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeValue {
+func resolveDateRange(spec lens.VariableSpec, values url.Values, timezone string) lens.DateRangeValue {
 	rawMode := requestValue(values, spec.Name, spec.RequestKeys...)
 	if rawMode == "all" && spec.AllowAllTime {
 		return lens.DateRangeValue{Mode: "all"}
@@ -922,8 +908,9 @@ func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeV
 	startRaw := values.Get(startKey)
 	endRaw := values.Get(endKey)
 	if startRaw != "" && endRaw != "" {
-		start, startErr := time.Parse("2006-01-02", startRaw)
-		end, endErr := time.Parse("2006-01-02", endRaw)
+		location := requestLocation(timezone)
+		start, startErr := time.ParseInLocation("2006-01-02", startRaw, location)
+		end, endErr := time.ParseInLocation("2006-01-02", endRaw, location)
 		if startErr == nil && endErr == nil {
 			end = end.Add(24*time.Hour - time.Nanosecond)
 			return lens.DateRangeValue{Mode: "bounded", Start: &start, End: &end}
@@ -935,6 +922,50 @@ func resolveDateRange(spec lens.VariableSpec, values url.Values) lens.DateRangeV
 	now := time.Now().UTC()
 	start := now.Add(-spec.DefaultDuration)
 	return lens.DateRangeValue{Mode: "default", Start: &start, End: &now}
+}
+
+func requestLocation(timezone string) *time.Location {
+	if strings.TrimSpace(timezone) == "" {
+		return time.UTC
+	}
+	location, err := time.LoadLocation(timezone)
+	if err != nil {
+		return time.UTC
+	}
+	return location
+}
+
+func previousPeriod(start, end time.Time) (time.Time, time.Time) {
+	for _, period := range []struct {
+		months int
+		valid  bool
+	}{
+		{months: 12, valid: start.Month() == time.January},
+		{months: 3, valid: (int(start.Month())-1)%3 == 0},
+		{months: 1, valid: true},
+	} {
+		if period.valid && start.Equal(startOfDay(start)) && end.Equal(start.AddDate(0, period.months, 0).Add(-time.Nanosecond)) {
+			shiftedStart := start.AddDate(0, -period.months, 0)
+			return shiftedStart, start.Add(-time.Nanosecond)
+		}
+	}
+	duration := end.Sub(start)
+	previousEnd := start.Add(-time.Nanosecond)
+	return previousEnd.Add(-duration), previousEnd
+}
+
+func startOfDay(value time.Time) time.Time {
+	return time.Date(value.Year(), value.Month(), value.Day(), 0, 0, 0, 0, value.Location())
+}
+
+func addYearsClamped(value time.Time, years int) time.Time {
+	year := value.Year() + years
+	day := value.Day()
+	lastDay := time.Date(year, value.Month()+1, 0, value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), value.Location()).Day()
+	if day > lastDay {
+		day = lastDay
+	}
+	return time.Date(year, value.Month(), day, value.Hour(), value.Minute(), value.Second(), value.Nanosecond(), value.Location())
 }
 
 func requestValue(values url.Values, name string, aliases ...string) string {
@@ -989,20 +1020,6 @@ func dateRangeRequestKeys(spec lens.VariableSpec) (string, string) {
 		return spec.RequestKeys[0], spec.RequestKeys[1]
 	}
 	return spec.Name + "_start", spec.Name + "_end"
-}
-
-func compareRequestKeys(spec lens.VariableSpec) (string, string) {
-	if len(spec.RequestKeys) >= 3 {
-		return spec.RequestKeys[1], spec.RequestKeys[2]
-	}
-	return spec.Name + "_start", spec.Name + "_end"
-}
-
-func compareModeRequestKey(spec lens.VariableSpec) string {
-	if len(spec.RequestKeys) >= 3 {
-		return spec.RequestKeys[0]
-	}
-	return spec.Name
 }
 
 func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) map[string]any {
@@ -1260,10 +1277,9 @@ func validatePanel(spec panel.Spec, datasets map[string]lens.DatasetSpec, panelI
 			}
 		}
 		return nil
-	case spec.Kind.IsChart() || spec.Kind.RendersNatively():
-		// Leaf panels continue through dataset and field validation below.
 	default:
-		return fmt.Errorf("panel %s has unsupported kind %q", spec.ID, spec.Kind)
+		// Every non-container is a leaf; renderer selection belongs to the
+		// document runtime registry, not to a second server-side partition.
 	}
 	if spec.Dataset == "" {
 		return fmt.Errorf("panel %s is missing dataset", spec.ID)
@@ -1468,9 +1484,6 @@ func validateActionValueSource(owner, name string, source action.ValueSource, op
 func validateDrillTree(spec panel.Spec) error {
 	if spec.DrillTree == nil {
 		return nil
-	}
-	if spec.DrillHierarchy != nil {
-		return fmt.Errorf("panel %s drill tree cannot be combined with bar drill hierarchy", spec.ID)
 	}
 	if spec.Kind != panel.KindPie && spec.Kind != panel.KindDonut {
 		return fmt.Errorf("panel %s drill tree is unsupported for kind %q", spec.ID, spec.Kind)

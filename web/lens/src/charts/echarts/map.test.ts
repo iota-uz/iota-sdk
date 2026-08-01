@@ -48,4 +48,50 @@ describe('choropleth option', () => {
     ])
     expect(option.series[0]!.label.formatter({ name: 'north' })).toBe('North district')
   })
+
+  it.each([
+    ['ru', 'nameRu', 'Север из фрейма', 'Юг'],
+    ['uz', 'nameUz', 'Frame shimoli', 'Janub'],
+    ['oz', 'nameOz', 'Frame шимоли', 'Жануб'],
+    ['en', 'nameEn', 'Frame north', 'South'],
+  ])('keeps present and absent %s region labels in one locale', (_locale, labelProperty, presentLabel, absentLabel) => {
+    const input: ChartInput = {
+      kind: 'map',
+      frame: {
+        columns: [{ name: 'code', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['north', presentLabel, 42]],
+      },
+      encoding: { id: 'code', label: 'label', value: 'value' },
+      format: (_field, value) => String(value),
+      theme: { palette: {}, series: {} },
+      map: {
+        name: 'localized', featureProperty: 'code', labelProperty,
+        geoJSON: {
+          type: 'FeatureCollection',
+          features: [
+            {
+              type: 'Feature',
+              properties: {
+                code: 'north', nameRu: 'Север', nameUz: 'Shimol', nameOz: 'Шимол', nameEn: 'North',
+              },
+              geometry: { type: 'Polygon', coordinates: [] },
+            },
+            {
+              type: 'Feature',
+              properties: {
+                code: 'south', nameRu: 'Юг', nameUz: 'Janub', nameOz: 'Жануб', nameEn: 'South',
+              },
+              geometry: { type: 'Polygon', coordinates: [] },
+            },
+          ],
+        },
+      },
+    }
+
+    const option = buildMapOption(input, theme) as {
+      series: Array<{ label: { formatter: (params: { name?: string }) => string } }>
+    }
+    expect(option.series[0]!.label.formatter({ name: 'north' })).toBe(presentLabel)
+    expect(option.series[0]!.label.formatter({ name: 'south' })).toBe(absentLabel)
+  })
 })

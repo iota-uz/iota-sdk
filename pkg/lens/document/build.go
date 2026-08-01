@@ -870,7 +870,19 @@ func buildMap(spec panel.Spec) *MapConfig {
 		},
 		FeatureProperty: spec.Map.FeatureProperty,
 		LabelProperty:   spec.Map.LabelProperty,
+		LabelProperties: cloneStringMap(spec.Map.LabelProperties),
 	}
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
 }
 
 // metricRelationshipSemantics resolves a metric_relationship panel's final

@@ -306,6 +306,7 @@ export const MapConfigSchema: z.ZodType<Contract.MapConfig> = z.object({
   source: z.lazy(() => GeoJSONSourceSchema),
   featureProperty: z.string(),
   labelProperty: z.string().optional(),
+  labelProperties: z.record(z.string(), z.string()).optional(),
 }).strict()
 
 export const MetaSchema: z.ZodType<Contract.Meta> = z.object({

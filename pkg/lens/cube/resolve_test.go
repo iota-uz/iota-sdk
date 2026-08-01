@@ -204,7 +204,7 @@ func TestBuildStatPanelsPreserveMeasureAction(t *testing.T) {
 		Action(measureAction).
 		Build()
 
-	panels := buildStatPanels(spec, map[string]string{"total_policies": "cube_stats"})
+	panels := buildStatPanelsCompared(spec, map[string]string{"total_policies": "cube_stats"}, false)
 	require.Len(t, panels, 1)
 	require.NotNil(t, panels[0].Action)
 	require.Equal(t, action.KindNavigate, panels[0].Action.Kind)
@@ -254,6 +254,63 @@ func TestResolveComparisonBuildsPairedDatasetsAndDeltaPresentation(t *testing.T)
 		require.NotContains(t, dataset.Name, "_compared")
 	}
 	require.Nil(t, off.Rows[0].Panels[0].Children[0].Trend)
+}
+
+func TestCubeRejectsDimensionKindsWhoseRequiredShapeItCannotProduce(t *testing.T) {
+	t.Parallel()
+	for _, kind := range []panel.Kind{panel.KindBoxPlot, panel.KindHeatmap} {
+		spec := New("sales", "Sales").Dataset(nil).
+			Dimension("region", "Region").Field("region").PanelKind(kind).
+			Measure("premium", "Premium").Field("premium").Sum().Build()
+		err := spec.Validate()
+		require.ErrorContains(t, err, "cube dimensions do not provide its required fields")
+	}
+}
+
+func TestResolveComparisonRejectsMalformedCustomRangeAndUsesDeclaredRequestKeys(t *testing.T) {
+	t.Parallel()
+
+	comparison := lensbuild.CompareVariable("compare", "Compare", "period")
+	comparison.RequestKeys = []string{"comparison_mode", "baseline_from", "baseline_to"}
+	spec := New("sales", "Sales").
+		SQL("primary", "policies p").
+		ParamVariable("period_param", "period").
+		Variable(lensbuild.DateRangeVariable("period", "Period", 30*24*time.Hour)).
+		Variable(comparison).
+		Dimension("region", "Region").Column("p.region").
+		Measure("premium", "Premium").Column("p.premium").Sum().
+		Build()
+
+	for name, values := range map[string]url.Values{
+		"missing boundaries": {"comparison_mode": []string{"custom"}},
+		"invalid start":      {"comparison_mode": []string{"custom"}, "baseline_from": []string{"not-a-date"}, "baseline_to": []string{"2026-02-28"}},
+		"reversed range":     {"comparison_mode": []string{"custom"}, "baseline_from": []string{"2026-03-01"}, "baseline_to": []string{"2026-02-28"}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			resolved, err := Resolve(spec, ParseDrillContext(values), "/sales")
+			require.NoError(t, err)
+			for _, dataset := range resolved.Datasets {
+				require.NotContains(t, dataset.Name, comparisonSuffix)
+				require.NotContains(t, dataset.Name, "_compared")
+			}
+		})
+	}
+
+	valid, err := Resolve(spec, ParseDrillContext(url.Values{
+		"comparison_mode": []string{"custom"},
+		"baseline_from":   []string{"2026-02-01"},
+		"baseline_to":     []string{"2026-02-28"},
+	}), "/sales")
+	require.NoError(t, err)
+	require.Contains(t, datasetNames(valid.Datasets), "cube_stats_comparison")
+}
+
+func datasetNames(datasets []lens.DatasetSpec) map[string]struct{} {
+	names := make(map[string]struct{}, len(datasets))
+	for _, dataset := range datasets {
+		names[dataset.Name] = struct{}{}
+	}
+	return names
 }
 
 func TestBuildComparedTableShowsBeforeAfterAndDelta(t *testing.T) {

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Frame, GeoJSONFeatureCollection, Panel } from '../contract'
-import { loadMapGeometry, mapJoinError } from './MapPanel'
+import { loadMapGeometry, mapJoinError, resolveMapLabelProperty } from './MapPanel'
 
 const geometry: GeoJSONFeatureCollection = {
   type: 'FeatureCollection',
@@ -56,5 +56,26 @@ describe('map region join', () => {
   it('rejects missing and duplicate region identities', () => {
     expect(mapJoinError(panel, { ...frame, rows: [['west', 'West', 10]] }, geometry)?.message).toContain('has no GeoJSON feature')
     expect(mapJoinError(panel, { ...frame, rows: [['north', 'North', 42], ['north', 'North again', 18]] }, geometry)?.message).toContain('duplicate region key')
+  })
+})
+
+describe('localized map labels', () => {
+  const localizedPanel = {
+    ...panel.map!,
+    labelProperties: { ru: 'nameRu', uz: 'nameUz', oz: 'nameOz', en: 'nameEn', 'ru-UZ': 'nameRuUz' },
+  }
+
+  it.each([
+    ['ru-UZ', 'nameRuUz'],
+    ['ru-RU', 'nameRu'],
+    ['uz-UZ', 'nameUz'],
+    ['oz-UZ', 'nameOz'],
+    ['en-US', 'nameEn'],
+  ])('resolves %s by exact locale and then base language', (locale, expected) => {
+    expect(resolveMapLabelProperty(localizedPanel, locale)).toBe(expected)
+  })
+
+  it('falls back to the legacy label property for an unmapped locale', () => {
+    expect(resolveMapLabelProperty(localizedPanel, 'de-DE')).toBe('name')
   })
 })

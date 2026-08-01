@@ -193,12 +193,13 @@ func TestBuild_ChoroplethCarriesBoundedGeometryAndJoin(t *testing.T) {
 	frames, err := frame.NewFrameSet(primary)
 	require.NoError(t, err)
 	geometry := &panel.GeoJSONFeatureCollection{Type: "FeatureCollection", Features: []panel.GeoJSONFeature{{
-		Type: "Feature", Properties: map[string]any{"code": "north", "name": "North"},
+		Type: "Feature", Properties: map[string]any{"code": "north", "name": "North", "name_ru": "Север"},
 		Geometry: map[string]any{"type": "Polygon", "coordinates": []any{[]any{}}},
 	}}}
 	spec := lensbuild.Dashboard("map", "Map", lensbuild.Row(
 		panel.Choropleth("regions", "Regions", "regions", panel.GeoJSONSource{Inline: geometry}, "code").
-			MapLabelProperty("name").IDField("code").LabelField("name").ValueField("premium").Terminal().Build(),
+			MapLabelProperty("name").MapLabelProperties(map[string]string{"en": "name", "ru": "name_ru"}).
+			IDField("code").LabelField("name").ValueField("premium").Terminal().Build(),
 	)).Datasets(lensbuild.StaticDataset("regions", frames)).Build()
 	executed, err := runtime.New(runtime.Options{}).Execute(
 		context.Background(), spec, runtime.Request{Locale: "en", DataScope: "tenant:1"}, runtime.DashboardScope(),
@@ -210,6 +211,7 @@ func TestBuild_ChoroplethCarriesBoundedGeometryAndJoin(t *testing.T) {
 	require.Equal(t, PanelKindMap, doc.Panels[0].Kind)
 	require.Equal(t, "code", doc.Panels[0].Map.FeatureProperty)
 	require.Equal(t, "name", doc.Panels[0].Map.LabelProperty)
+	require.Equal(t, map[string]string{"en": "name", "ru": "name_ru"}, doc.Panels[0].Map.LabelProperties)
 	require.Equal(t, "north", doc.Panels[0].Map.Source.Inline.Features[0].Properties["code"])
 	require.NoError(t, doc.Validate())
 }
@@ -557,8 +559,8 @@ func TestBuild_PreservesLogarithmicValueAxis(t *testing.T) {
 	t.Parallel()
 
 	primary, err := frame.New("products",
-		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Large", "Small"}},
-		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1000.0, 1.0}},
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Large", "Medium", "Small"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1000.0, 10.0, 1.0}},
 	)
 	require.NoError(t, err)
 	frames, err := frame.NewFrameSet(primary)

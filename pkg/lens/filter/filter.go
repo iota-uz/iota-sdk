@@ -15,6 +15,7 @@ type Model struct {
 
 type Input struct {
 	Name        string
+	ModeName    string
 	Label       string
 	Description string
 	Kind        lens.VariableKind
@@ -84,8 +85,10 @@ func defaultValue(spec lens.VariableSpec) any {
 }
 
 func buildInput(spec lens.VariableSpec, value any) Input {
+	modeName, _, _ := lens.CompareRequestKeys(spec)
 	input := Input{
 		Name:        spec.Name,
+		ModeName:    modeName,
 		Label:       spec.Label,
 		Description: spec.Description,
 		Kind:        spec.Kind,
@@ -113,18 +116,11 @@ func buildCompare(spec lens.VariableSpec, value any) Compare {
 	if !ok {
 		current = lens.CompareValue{Mode: lens.CompareOff}
 	}
-	startName, endName := compareRequestNames(spec)
+	_, startName, endName := lens.CompareRequestKeys(spec)
 	return Compare{
 		Mode: current.Mode, StartName: startName, EndName: endName,
 		Start: formatDate(current.Range.Start), End: formatDate(current.Range.End), CompareTo: spec.CompareTo,
 	}
-}
-
-func compareRequestNames(spec lens.VariableSpec) (string, string) {
-	if len(spec.RequestKeys) >= 3 {
-		return spec.RequestKeys[1], spec.RequestKeys[2]
-	}
-	return spec.Name + "_start", spec.Name + "_end"
 }
 
 func buildOptions(specs []lens.VariableOption, value any) []Option {

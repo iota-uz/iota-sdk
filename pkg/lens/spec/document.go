@@ -148,32 +148,32 @@ type RowSpec struct {
 }
 
 type PanelSpec struct {
-	ID              string                `json:"id"`
-	Title           Text                  `json:"title"`
-	Description     Text                  `json:"description"`
-	Info            Text                  `json:"info"`
-	Kind            panel.Kind            `json:"kind"`
-	Dataset         string                `json:"dataset,omitempty"`
-	Span            int                   `json:"span,omitempty"`
-	Height          string                `json:"height,omitempty"`
-	Colors          []string              `json:"colors,omitempty"`
-	ShowLegend      bool                  `json:"showLegend,omitempty"`
-	LegendPosition  panel.LegendPosition  `json:"legendPosition,omitempty"`
-	LegendWidthPx   int                   `json:"legendWidth,omitempty"`
-	LegendOffsetY   int                   `json:"legendOffsetY,omitempty"`
-	LegendFloating  bool                  `json:"legendFloating,omitempty"`
-	CircularScale   float64               `json:"circularScale,omitempty"`
-	CircularOffsetX int                   `json:"circularOffsetX,omitempty"`
-	ShowTotalBadge  bool                  `json:"showTotalBadge,omitempty"`
-	TotalBadgeValue *float64              `json:"totalBadgeValue,omitempty"`
-	HeadlineValue   *float64              `json:"headlineValue,omitempty"`
-	DrillHierarchy  *panel.DrillHierarchy `json:"drillHierarchy,omitempty"`
-	DrillTree       *panel.DrillTree      `json:"drillTree,omitempty"`
-	Trend           *panel.TrendSpec      `json:"trend,omitempty"`
-	Status          *panel.StatusSpec     `json:"status,omitempty"`
-	Sparkline       *panel.SparklineSpec  `json:"sparkline,omitempty"`
-	Target          *panel.TargetSpec     `json:"target,omitempty"`
-	GroupLayout     panel.GroupLayout     `json:"groupLayout,omitempty"`
+	ID              string               `json:"id"`
+	Title           Text                 `json:"title"`
+	Description     Text                 `json:"description"`
+	Info            Text                 `json:"info"`
+	Kind            panel.Kind           `json:"kind"`
+	Dataset         string               `json:"dataset,omitempty"`
+	Span            int                  `json:"span,omitempty"`
+	Height          string               `json:"height,omitempty"`
+	Colors          []string             `json:"colors,omitempty"`
+	ShowLegend      bool                 `json:"showLegend,omitempty"`
+	LegendPosition  panel.LegendPosition `json:"legendPosition,omitempty"`
+	LegendWidthPx   int                  `json:"legendWidth,omitempty"`
+	LegendOffsetY   int                  `json:"legendOffsetY,omitempty"`
+	LegendFloating  bool                 `json:"legendFloating,omitempty"`
+	CircularScale   float64              `json:"circularScale,omitempty"`
+	CircularOffsetX int                  `json:"circularOffsetX,omitempty"`
+	ShowTotalBadge  bool                 `json:"showTotalBadge,omitempty"`
+	TotalBadgeValue *float64             `json:"totalBadgeValue,omitempty"`
+	HeadlineValue   *float64             `json:"headlineValue,omitempty"`
+	DrillTree       *panel.DrillTree     `json:"drillTree,omitempty"`
+	Trend           *panel.TrendSpec     `json:"trend,omitempty"`
+	Status          *panel.StatusSpec    `json:"status,omitempty"`
+	Sparkline       *panel.SparklineSpec `json:"sparkline,omitempty"`
+	Target          *panel.TargetSpec    `json:"target,omitempty"`
+	Temporal        *panel.TemporalSpec  `json:"temporal,omitempty"`
+	GroupLayout     panel.GroupLayout    `json:"groupLayout,omitempty"`
 	// Presentation carries opt-in renderer density hints (legend placement,
 	// in-slice labels, total-badge placement, bar width, per-category color).
 	// The zero value keeps today's rendering.
@@ -260,6 +260,12 @@ type TableColumnSpec struct {
 type FieldMappingSpec struct {
 	Label        string `json:"label,omitempty"`
 	Value        string `json:"value,omitempty"`
+	Previous     string `json:"previous,omitempty"`
+	Lower        string `json:"lower,omitempty"`
+	Q1           string `json:"q1,omitempty"`
+	Median       string `json:"median,omitempty"`
+	Q3           string `json:"q3,omitempty"`
+	Upper        string `json:"upper,omitempty"`
 	Series       string `json:"series,omitempty"`
 	Category     string `json:"category,omitempty"`
 	ID           string `json:"id,omitempty"`

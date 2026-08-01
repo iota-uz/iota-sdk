@@ -40,12 +40,13 @@ function xmlText(value: string): string {
   return value.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 }
 
-export function panelSVG(panelId: string): { blob: Blob; width: number; height: number } {
+export function panelSVG(panelId: string): { background: string; blob: Blob; width: number; height: number } {
   const source = panelNode(panelId)
   const bounds = source.getBoundingClientRect()
   const width = Math.max(1, Math.ceil(bounds.width || source.offsetWidth || 960))
   const height = Math.max(1, Math.ceil(bounds.height || source.offsetHeight || 540))
   const clone = source.cloneNode(true) as HTMLElement
+  clone.querySelectorAll('.lens-panel-actions').forEach((node) => node.remove())
   clone.style.width = `${width}px`
   clone.style.height = `${height}px`
   const sourceCanvases = Array.from(source.querySelectorAll('canvas'))
@@ -63,10 +64,15 @@ export function panelSVG(panelId: string): { blob: Blob; width: number; height: 
   })
   const markup = new XMLSerializer().serializeToString(clone)
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml"><style>${xmlText(stylesheetText())}</style>${markup}</div></foreignObject></svg>`
-  return { blob: new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }), width, height }
+  return {
+    background: getComputedStyle(source).backgroundColor || '#ffffff',
+    blob: new Blob([svg], { type: 'image/svg+xml;charset=utf-8' }),
+    width,
+    height,
+  }
 }
 
-async function panelPNG(svg: Blob, width: number, height: number): Promise<Blob> {
+async function panelPNG(svg: Blob, width: number, height: number, background: string): Promise<Blob> {
   const image = new Image()
   // Chromium treats an SVG containing foreignObject as cross-origin when it
   // is loaded from a blob URL. It can display the image, but drawing it taints
@@ -81,6 +87,8 @@ async function panelPNG(svg: Blob, width: number, height: number): Promise<Blob>
   const context = canvas.getContext('2d')
   if (!context) throw new Error('canvas is unavailable')
   context.scale(ratio, ratio)
+  context.fillStyle = background
+  context.fillRect(0, 0, width, height)
   context.drawImage(image, 0, 0, width, height)
   return await new Promise<Blob>((resolve, reject) => canvas.toBlob(
     (blob) => blob ? resolve(blob) : reject(new Error('PNG encoding failed')),
@@ -90,7 +98,7 @@ async function panelPNG(svg: Blob, width: number, height: number): Promise<Blob>
 
 export async function downloadPanelImage(panelId: string, title: string, format: PanelImageFormat): Promise<void> {
   const exported = panelSVG(panelId)
-  const blob = format === 'svg' ? exported.blob : await panelPNG(exported.blob, exported.width, exported.height)
+  const blob = format === 'svg' ? exported.blob : await panelPNG(exported.blob, exported.width, exported.height, exported.background)
   const url = URL.createObjectURL(blob)
   try {
     const anchor = document.createElement('a')

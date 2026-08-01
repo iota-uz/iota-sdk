@@ -5,6 +5,7 @@ import { ArrowUpRight, CaretRight } from '../icons'
 import { clampedDeltaPercent, levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
 import { useActionActivation } from './actions'
+import { InfoTip } from './InfoTip'
 
 type SortDirection = 'ascending' | 'descending'
 
@@ -53,10 +54,13 @@ function compare(left: number | string, right: number | string): number {
 
 function TableCell({ column, format, value }: { column: Column; format?: FieldFormat; value: unknown }) {
   const display = useFormat(format ?? inferredFormat(column))
+  const translate = useTranslate()
   if (column.type === 'bool') {
     if (value === null || value === undefined || value === '') return <span className="lens-table-null">—</span>
     const checked = value === true || value === 1 || value === 'true'
-    return <span className="lens-table-bool" data-value={checked}>{checked ? 'Yes' : 'No'}</span>
+    return <span className="lens-table-bool" data-value={checked}>
+      {checked ? translate('table.boolean.yes', 'Yes') : translate('table.boolean.no', 'No')}
+    </span>
   }
   const text = display(value)
   if (column.type === 'time' && text !== '—') {
@@ -263,8 +267,9 @@ function ColumnCell({
     rendered = (
       <span className="lens-table-small-sample">
         {rendered}
-        <span aria-label={smallSampleLabel} className="lens-table-small-sample-marker" title={smallSampleLabel}>
-          n&lt;{minimum}
+        <span className="lens-table-small-sample-marker">
+          {translate('table.smallSampleShort', 'n<{minimum}', { minimum })}
+          <InfoTip inline text={smallSampleLabel} />
         </span>
       </span>
     )
@@ -273,7 +278,7 @@ function ColumnCell({
   return (
     <span className="lens-table-cell-badged">
       {rendered}
-      <span className="lens-table-cell-badge" title={badge}>?</span>
+		<span className="lens-table-cell-badge" title={badge}><InfoTip inline text={badge} /></span>
     </span>
   )
 }
@@ -344,7 +349,7 @@ export function TablePanel({ panel }: TablePanelProps) {
   const loadingPage = requestedSnapshotId.current === document.snapshotId ? requestedPage : 1
   // The row-count check keeps pagination working with older servers that omit hasNext.
   const hasNext = frame.page?.hasNext ?? Boolean(pageSize && (frame.data?.rows.length ?? 0) >= pageSize)
-  const location = new URL(globalThis.location.href)
+  const location = useMemo(() => new URL(globalThis.location.href), [document.snapshotId])
   const columns = panel.columns?.length ? panel.columns : undefined
   // Column maxima scale bar cells. Computing them per cell is quadratic in
   // row count, so they are derived once per frame.
@@ -596,7 +601,9 @@ export function TablePanel({ panel }: TablePanelProps) {
                       >
                         {index === 0
                           ? translate('table.total', 'Total')
-                          : <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />}
+                          : column.total === true
+                            ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />
+                            : null}
                       </td>
                     ))}
                     {rowLeafAction && <td />}

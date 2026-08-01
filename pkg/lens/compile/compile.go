@@ -393,6 +393,7 @@ func compileDimension(item lensspec.DimensionSpec, opts Options) (cube.Dimension
 			},
 			FeatureProperty: resolveString(item.Map.FeatureProperty, opts.Values),
 			LabelProperty:   resolveString(item.Map.LabelProperty, opts.Values),
+			LabelProperties: resolveStringMap(item.Map.LabelProperties, opts.Values),
 		}
 	}
 	transforms, err := resolveTransformSpecs(item.Transforms, opts.Values)
@@ -527,18 +528,24 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		ShowTotalBadge:  item.ShowTotalBadge,
 		TotalBadgeValue: item.TotalBadgeValue,
 		HeadlineValue:   item.HeadlineValue,
-		DrillHierarchy:  item.DrillHierarchy,
 		DrillTree:       item.DrillTree,
 		Trend:           item.Trend,
 		Status:          item.Status,
 		Sparkline:       item.Sparkline,
 		Target:          item.Target,
+		Temporal:        item.Temporal,
 		Terminal:        item.Terminal,
 		GroupLayout:     item.GroupLayout,
 		Presentation:    item.Presentation,
 		Fields: panel.FieldMapping{
 			Label:        panel.Ref(resolveString(item.Fields.Label, opts.Values)),
 			Value:        panel.Ref(resolveString(item.Fields.Value, opts.Values)),
+			Previous:     panel.Ref(resolveString(item.Fields.Previous, opts.Values)),
+			Lower:        panel.Ref(resolveString(item.Fields.Lower, opts.Values)),
+			Q1:           panel.Ref(resolveString(item.Fields.Q1, opts.Values)),
+			Median:       panel.Ref(resolveString(item.Fields.Median, opts.Values)),
+			Q3:           panel.Ref(resolveString(item.Fields.Q3, opts.Values)),
+			Upper:        panel.Ref(resolveString(item.Fields.Upper, opts.Values)),
 			Series:       panel.Ref(resolveString(item.Fields.Series, opts.Values)),
 			Category:     panel.Ref(resolveString(item.Fields.Category, opts.Values)),
 			ID:           panel.Ref(resolveString(item.Fields.ID, opts.Values)),
@@ -577,6 +584,7 @@ func compilePanel(item lensspec.PanelSpec, opts Options) (panel.Spec, error) {
 		mapSpec.Source.URL = resolveString(mapSpec.Source.URL, opts.Values)
 		mapSpec.FeatureProperty = resolveString(mapSpec.FeatureProperty, opts.Values)
 		mapSpec.LabelProperty = resolveString(mapSpec.LabelProperty, opts.Values)
+		mapSpec.LabelProperties = resolveStringMap(mapSpec.LabelProperties, opts.Values)
 		out.Map = &mapSpec
 	}
 	if item.Table != nil {

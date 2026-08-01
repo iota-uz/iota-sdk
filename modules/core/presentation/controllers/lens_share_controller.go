@@ -5,11 +5,14 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	"github.com/iota-uz/iota-sdk/modules/core/domain/aggregates/role"
 	"github.com/iota-uz/iota-sdk/modules/core/permissions"
+	"github.com/iota-uz/iota-sdk/modules/core/services"
 	"github.com/iota-uz/iota-sdk/pkg/application"
 	"github.com/iota-uz/iota-sdk/pkg/composables"
 	lensshare "github.com/iota-uz/iota-sdk/pkg/lens/share"
 	"github.com/iota-uz/iota-sdk/pkg/middleware"
+	"github.com/iota-uz/iota-sdk/pkg/repo"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,12 +22,15 @@ type LensShareController struct {
 
 var _ application.Controller = (*LensShareController)(nil)
 
-func NewLensShareController(pool *pgxpool.Pool, options ...lensshare.HTTPOption) (*LensShareController, error) {
+func NewLensShareController(pool *pgxpool.Pool, roleService *services.RoleService, options ...lensshare.HTTPOption) (*LensShareController, error) {
+	if roleService == nil {
+		return nil, fmt.Errorf("role service is required")
+	}
 	store, err := lensshare.NewPostgresStore(pool)
 	if err != nil {
 		return nil, err
 	}
-	handler, err := lensshare.NewHTTPHandler(store, lensShareAccess(pool), "/lens/share", options...)
+	handler, err := lensshare.NewHTTPHandler(store, lensShareAccess(roleService), "/lens/share", options...)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +50,7 @@ func (c *LensShareController) Register(router *mux.Router) {
 func (c *LensShareController) ViewsEndpoint() string     { return c.handler.ViewsEndpoint() }
 func (c *LensShareController) SchedulesEndpoint() string { return c.handler.SchedulesEndpoint() }
 
-func lensShareAccess(pool *pgxpool.Pool) lensshare.AccessResolver {
+func lensShareAccess(roleService *services.RoleService) lensshare.AccessResolver {
 	return func(r *http.Request) (lensshare.Access, error) {
 		actor, err := composables.UseUser(r.Context())
 		if err != nil {
@@ -64,20 +70,16 @@ func lensShareAccess(pool *pgxpool.Pool) lensshare.AccessResolver {
 		manageTeam := actor.Can(permissions.LensViewTeamManage)
 		roles := make([]lensshare.RoleRef, 0)
 		if manageTeam {
-			rows, queryErr := pool.Query(r.Context(), `SELECT id, name FROM roles WHERE tenant_id = $1 ORDER BY lower(name), id`, tenantID)
+			roleEntities, queryErr := roleService.GetPaginated(r.Context(), &role.FindParams{
+				Limit:   200,
+				SortBy:  role.SortBy{Fields: []repo.SortByField[role.Field]{{Field: role.NameField, Ascending: true}}},
+				Filters: []role.Filter{{Column: role.TenantIDField, Filter: repo.Eq(tenantID.String())}},
+			})
 			if queryErr != nil {
 				return lensshare.Access{}, queryErr
 			}
-			defer rows.Close()
-			for rows.Next() {
-				var role lensshare.RoleRef
-				if scanErr := rows.Scan(&role.ID, &role.Name); scanErr != nil {
-					return lensshare.Access{}, scanErr
-				}
-				roles = append(roles, role)
-			}
-			if rows.Err() != nil {
-				return lensshare.Access{}, rows.Err()
+			for _, roleEntity := range roleEntities {
+				roles = append(roles, lensshare.RoleRef{ID: roleEntity.ID(), Name: roleEntity.Name()})
 			}
 		}
 		return lensshare.Access{

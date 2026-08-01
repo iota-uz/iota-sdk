@@ -10,10 +10,10 @@ const (
 	TablePaginationPanelQuery = "_lp"
 	TablePaginationPageQuery  = "_lpage"
 	TablePaginationLimitQuery = "_llimit"
-	TableSearchQuery          = "_lsearch"
 
 	DefaultTablePage    = 1
 	DefaultTablePerPage = 50
+	MaxTablePage        = 1_000_000
 )
 
 type TablePagination struct {
@@ -48,6 +48,13 @@ func tablePerPage(values url.Values, fallback int) int {
 func ParseTablePageState(values url.Values, defaultPerPage int) TablePageState {
 	perPage := tablePerPage(values, defaultPerPage)
 	page := tablePage(values, DefaultTablePage)
+	if page > MaxTablePage {
+		page = MaxTablePage
+	}
+	maxPageForOffset := int(^uint(0)>>1)/perPage + 1
+	if page > maxPageForOffset {
+		page = maxPageForOffset
+	}
 	return TablePageState{
 		Page:    page,
 		PerPage: perPage,

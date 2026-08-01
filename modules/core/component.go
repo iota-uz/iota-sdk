@@ -272,6 +272,7 @@ func (c *component) Build(builder *composition.Builder) error {
 			authFlowService *services.AuthFlowService,
 			tenantService *services.TenantService,
 			groupService *services.GroupService,
+			roleService *services.RoleService,
 			twoFactorService *coreservices2fa.TwoFactorService,
 			httpCfg *httpconfig.Config,
 			cookiesCfg *cookies.Config,
@@ -309,7 +310,7 @@ func (c *component) Build(builder *composition.Builder) error {
 					return nil, err
 				}
 			}
-			lensShareController, err := controllers.NewLensShareController(app.DB(), lensShareOptions...)
+			lensShareController, err := controllers.NewLensShareController(app.DB(), roleService, lensShareOptions...)
 			if err != nil {
 				return nil, err
 			}

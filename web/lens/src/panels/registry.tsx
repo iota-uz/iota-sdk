@@ -1,4 +1,4 @@
-import { lazy, Suspense, type ComponentType } from 'react'
+import { Component, lazy, Suspense, type ComponentType, type ErrorInfo, type ReactNode } from 'react'
 import type { Panel, PanelKind } from '../contract'
 import { useTranslate } from '../runtime'
 import type { CascadePanelProps } from './CascadePanel'
@@ -12,10 +12,7 @@ import type { MapPanelProps } from './MapPanel'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 import type { TablePanelProps } from './TablePanel'
 
-const PiePanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).PiePanel }))
-const BarPanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).BarPanel }))
-const LinePanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).LinePanel }))
-const DistributionPanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).DistributionPanel }))
+const ChartPanel: ComponentType<ChartPanelProps> = lazy(async () => ({ default: (await import('./ChartPanel')).ChartPanel }))
 const CascadePanel: ComponentType<CascadePanelProps> = lazy(async () => ({ default: (await import('./CascadePanel')).CascadePanel }))
 const CoveragePanel: ComponentType<CoveragePanelProps> = lazy(async () => ({ default: (await import('./CoveragePanel')).CoveragePanel }))
 const GaugePanel: ComponentType<GaugePanelProps> = lazy(async () => ({ default: (await import('./GaugePanel')).GaugePanel }))
@@ -41,40 +38,27 @@ export type PanelComponent = ComponentType<
 >
 export type PanelRegistry = Partial<Record<PanelKind, PanelComponent>>
 
-export const UNSUPPORTED = [] as const satisfies readonly PanelKind[]
-type UnsupportedKind = (typeof UNSUPPORTED)[number]
-type SupportedKind = Exclude<PanelKind, UnsupportedKind>
-
 export const SUPPORTED = {
   stat: StatPanel,
-  pie: PiePanel,
-  donut: PiePanel,
-  radial: PiePanel,
-  bar: BarPanel,
-  hbar: BarPanel,
-  line: LinePanel,
-  area: LinePanel,
+  pie: ChartPanel,
+  donut: ChartPanel,
+  radial: ChartPanel,
+  bar: ChartPanel,
+  hbar: ChartPanel,
+  line: ChartPanel,
+  area: ChartPanel,
   cascade: CascadePanel,
   table: TablePanel,
   coverage: CoveragePanel,
   gauge: GaugePanel,
-  histogram: DistributionPanel,
-  boxplot: DistributionPanel,
-  heatmap: DistributionPanel,
+  histogram: ChartPanel,
+  boxplot: ChartPanel,
+  heatmap: ChartPanel,
   map: MapPanel,
   metric_flow: MetricFlowPanel,
   metric_hierarchy: MetricHierarchyPanel,
   metric_relationship: MetricRelationshipPanel,
-} satisfies Record<SupportedKind, PanelComponent>
-
-function unsupportedPartition<const Kinds extends readonly PanelKind[]>(kinds: Kinds) {
-  return Object.fromEntries(kinds.map((kind) => [kind, null])) as Record<Kinds[number], null>
-}
-
-export const PANEL_KIND_PARTITION = {
-  ...SUPPORTED,
-  ...unsupportedPartition(UNSUPPORTED),
-} satisfies Record<PanelKind, PanelComponent | null>
+} satisfies Record<PanelKind, PanelComponent>
 
 export const panelRegistry: PanelRegistry = SUPPORTED
 
@@ -96,17 +80,54 @@ export function UnsupportedPanel({ panel }: { panel: Panel }) {
 }
 
 export function RegisteredPanel({ panel, registry = panelRegistry }: RegisteredPanelProps) {
+  const translate = useTranslate()
   const Component = registry[panel.kind]
   return Component ? (
-    <Suspense fallback={<PanelModuleFallback panel={panel} />}>
-      <Component panel={panel} />
-    </Suspense>
+    <PanelErrorBoundary
+      fallback={translate('panel.error', 'This panel could not be rendered.')}
+      panel={panel}
+    >
+      <Suspense fallback={<PanelModuleFallback panel={panel} />}>
+        <Component panel={panel} />
+      </Suspense>
+    </PanelErrorBoundary>
   ) : <UnsupportedPanel panel={panel} />
+}
+
+class PanelErrorBoundary extends Component<{
+  children: ReactNode
+  fallback: string
+  panel: Panel
+}, { failed: boolean }> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error(`[lens] panel ${this.props.panel.id} failed to render`, error, info)
+  }
+
+  componentDidUpdate(previous: Readonly<{ panel: Panel }>) {
+    if (this.state.failed && previous.panel !== this.props.panel) this.setState({ failed: false })
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children
+    return (
+      <section aria-label={this.props.panel.title} className="lens-panel lens-panel-error">
+        <header className="lens-panel-header"><h3 className="lens-panel-title">{this.props.panel.title}</h3></header>
+        <div className="lens-panel-state" role="alert">{this.props.fallback}</div>
+      </section>
+    )
+  }
 }
 
 function PanelModuleFallback({ panel }: { panel: Panel }) {
   return (
     <section aria-busy="true" aria-label={panel.title} className="lens-panel lens-panel-loading">
+      <header className="lens-panel-header"><h3 className="lens-panel-title">{panel.title}</h3></header>
       <div className="lens-panel-skeleton" />
     </section>
   )

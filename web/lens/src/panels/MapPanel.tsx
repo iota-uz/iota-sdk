@@ -1,6 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { Frame, GeoJSONFeatureCollection, GeoJSONSource, NodeKey, Panel } from '../contract'
+import type { Frame, GeoJSONFeatureCollection, GeoJSONSource, MapConfig, NodeKey, Panel } from '../contract'
 import type { ChartActivation, ChartAdapter, ChartInput, ChartFormatResolver } from '../charts/adapter'
 import { useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { ChartHost } from './ChartHost'
@@ -8,6 +8,17 @@ import { usePanelNavigation } from './actions'
 import { PanelFrame } from './PanelFrame'
 
 export const MAX_MAP_GEOJSON_BYTES = 5 * 1024 * 1024
+
+/** Selects the localized GeoJSON label without ever mixing in another locale. */
+export function resolveMapLabelProperty(config: MapConfig, locale: string): string | undefined {
+  const exact = locale.trim()
+  const base = exact.split(/[-_]/, 1)[0] ?? ''
+  return config.labelProperties?.[exact]
+    ?? config.labelProperties?.[exact.toLowerCase()]
+    ?? config.labelProperties?.[base]
+    ?? config.labelProperties?.[base.toLowerCase()]
+    ?? config.labelProperty
+}
 
 function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
@@ -147,6 +158,7 @@ export function MapPanel({ panel, adapter, fetcher }: MapPanelProps) {
   const [attempt, setAttempt] = useState(0)
   const [geometry, setGeometry] = useState<GeometryState>({ loading: true })
   const config = panel.map
+  const labelProperty = config ? resolveMapLabelProperty(config, document.meta?.locale ?? '') : undefined
 
   useEffect(() => {
     const controller = new AbortController()
@@ -155,22 +167,33 @@ export function MapPanel({ panel, adapter, fetcher }: MapPanelProps) {
       setGeometry({ loading: false, error: new Error('Map panel has no map config') })
       return () => controller.abort()
     }
-    void loadMapGeometry(config.source, config.featureProperty, config.labelProperty, fetcher, controller.signal)
+    void loadMapGeometry(config.source, config.featureProperty, labelProperty, fetcher, controller.signal)
       .then((data) => setGeometry({ loading: false, data }))
       .catch((cause: unknown) => {
-        if (!controller.signal.aborted) setGeometry({ loading: false, error: cause instanceof Error ? cause : new Error('Map geometry failed') })
+        if (!controller.signal.aborted) {
+          console.error(`[lens] map ${panel.id} geometry failed`, cause)
+          setGeometry({ loading: false, error: cause instanceof Error ? cause : new Error('Map geometry failed') })
+        }
       })
     return () => controller.abort()
-  }, [attempt, config, fetcher])
+  }, [attempt, config, fetcher, labelProperty, panel.id])
 
   const joinError = useMemo(() => geometry.data && frame.data ? mapJoinError(panel, frame.data, geometry.data) : undefined, [frame.data, geometry.data, panel])
+  useEffect(() => {
+    if (joinError) console.error(`[lens] map ${panel.id} data join failed`, joinError)
+  }, [joinError, panel.id])
   const sourceFrame = useMemo(() => {
     if (frame.isLoading || (frame.error && !frame.data) || !frame.data || frame.data.rows.length === 0) return frame
     if (geometry.loading) return { ...frame, isLoading: true }
     const error = geometry.error ?? joinError
-    if (error) return { isLoading: false, isStale: false, error, retry: () => setAttempt((value) => value + 1) }
+    if (error) return {
+      isLoading: false,
+      isStale: false,
+      error: new Error(translate('chart.error', 'Unable to render chart.')),
+      retry: () => setAttempt((value) => value + 1),
+    }
     return frame
-  }, [frame, geometry, joinError])
+  }, [frame, geometry, joinError, translate])
 
   const input = useMemo<ChartInput | undefined>(() => {
     if (!frame.data || frame.data.rows.length === 0 || !geometry.data || joinError || !config) return undefined
@@ -178,9 +201,9 @@ export function MapPanel({ panel, adapter, fetcher }: MapPanelProps) {
     return {
       kind: 'map', frame: frame.data, encoding: panel.encoding, format, formatAxis: format,
       theme: document.theme,
-      map: { name: `lens-map:${panel.id}`, geoJSON: geometry.data, featureProperty: config.featureProperty, labelProperty: config.labelProperty },
+      map: { name: `lens-map:${panel.id}`, geoJSON: geometry.data, featureProperty: config.featureProperty, labelProperty },
     }
-  }, [config, document.theme, formatValue, frame.data, geometry.data, joinError, panel.encoding, panel.id])
+  }, [config, document.theme, formatValue, frame.data, geometry.data, joinError, labelProperty, panel.encoding, panel.id])
 
   const interactive = Boolean(panel.drillRoot || navigation.action)
   const select = useCallback((key: NodeKey, _anchor?: unknown, activation?: ChartActivation) => {

@@ -1,6 +1,5 @@
 import type { Availability, Confidence, Encoding, Frame, Panel, Theme } from '../contract'
-
-const fallbackSeries = ['#2563eb', '#059669', '#d97706', '#7c3aed', '#0891b2', '#dc2626']
+import { fallbackSeries, stablePaletteIndex } from '../charts/palette'
 
 /**
  * Resolves a datum's color the way the chart adapter does, so a React-rendered
@@ -24,7 +23,7 @@ export function seriesColorResolver(
   const resolve = (value: string | undefined) => (value ? theme.palette[value] ?? value : undefined)
   return (label, index) => (positional ? resolve(theme.series[`${panel.id}:${index}`]) : undefined)
     ?? resolve(theme.series[label])
-    ?? colors[index % colors.length]
+    ?? colors[stablePaletteIndex(label || String(index), colors.length)]
     ?? panel.accent
 }
 

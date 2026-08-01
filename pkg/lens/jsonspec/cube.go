@@ -298,6 +298,7 @@ func (s DimensionSpec) resolve(opts ResolveOptions) (cube.DimensionSpec, error) 
 			},
 			FeatureProperty: resolveString(s.Map.FeatureProperty, opts.Values),
 			LabelProperty:   resolveString(s.Map.LabelProperty, opts.Values),
+			LabelProperties: resolveStringMap(s.Map.LabelProperties, opts.Values),
 		}
 	}
 	transforms, err := resolveTransformSpecs(s.Transforms, opts.Values)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,8 +17,10 @@ const (
 )
 
 type Workbook struct {
-	Filename string
-	Content  []byte
+	Filename    string
+	Content     []byte
+	MailSubject string
+	MailBody    string
 }
 
 type PeriodicExportTask struct {
@@ -45,6 +48,10 @@ func (t *PeriodicExportTask) Execute(ctx context.Context) error {
 var _ periodics.PeriodicTask = (*PeriodicExportTask)(nil)
 
 type WorkbookExporter interface {
+	// AuthorizeScheduledExport re-resolves the current owner and permissions
+	// immediately before delivery. Revoked, inactive, or deleted owners must
+	// return an error; a schedule is never authorized from creation-time state.
+	AuthorizeScheduledExport(context.Context, ExportSchedule) error
 	ExportSavedView(context.Context, ExportSchedule) (Workbook, error)
 }
 
@@ -77,9 +84,11 @@ func NewScheduleRunner(store Store, exporter WorkbookExporter, mailer Mailer, ba
 	return &ScheduleRunner{store: store, exporter: exporter, mailer: mailer, batch: batch}, nil
 }
 
-// RunDue renders and mails each due workbook independently. A failed delivery
-// is recorded and advanced to the next occurrence so one bad address cannot
-// hot-loop or block another tenant's schedule.
+// RunDue renders and mails each due workbook independently. Delivery is
+// at-least-once: a process crash after Send succeeds but before FinishSchedule
+// may deliver the same occurrence again after its lease expires. A failed
+// delivery is recorded and advanced so one bad address cannot hot-loop or
+// block another tenant's schedule.
 func (r *ScheduleRunner) RunDue(ctx context.Context, now time.Time) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -120,6 +129,9 @@ func (r *ScheduleRunner) RunDue(ctx context.Context, now time.Time) error {
 }
 
 func (r *ScheduleRunner) deliver(ctx context.Context, schedule ExportSchedule) error {
+	if err := r.exporter.AuthorizeScheduledExport(ctx, schedule); err != nil {
+		return fmt.Errorf("scheduled export authorization failed: %w", err)
+	}
 	workbook, err := r.exporter.ExportSavedView(ctx, schedule)
 	if err != nil {
 		return fmt.Errorf("export workbook: %w", err)
@@ -127,10 +139,13 @@ func (r *ScheduleRunner) deliver(ctx context.Context, schedule ExportSchedule) e
 	if len(workbook.Content) == 0 || workbook.Filename == "" {
 		return fmt.Errorf("exporter returned an empty workbook")
 	}
+	if strings.TrimSpace(workbook.MailSubject) == "" || strings.TrimSpace(workbook.MailBody) == "" {
+		return fmt.Errorf("exporter returned empty localized mail content")
+	}
 	return r.mailer.Send(ctx, Mail{
 		Recipients: append([]string(nil), schedule.Recipients...),
-		Subject:    schedule.Name,
-		Body:       "Scheduled Lens dashboard export",
+		Subject:    workbook.MailSubject,
+		Body:       workbook.MailBody,
 		Attachment: workbook,
 	})
 }

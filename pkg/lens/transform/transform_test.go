@@ -148,6 +148,22 @@ func TestJoin_LeftPreservesRowsAndExpandsDuplicateMatches(t *testing.T) {
 	assert.Contains(t, rows, map[string]any{"id": "b", "label": "Beta", "right_id": nil, "score": nil})
 }
 
+func TestFormulaDivisionMarksZeroBaselineUnavailable(t *testing.T) {
+	t.Parallel()
+	set, err := frame.FromRows("metrics",
+		frame.Row{"delta": 12.0, "baseline": 0.0},
+		frame.Row{"delta": 12.0, "baseline": 4.0},
+	)
+	require.NoError(t, err)
+	next, err := Apply(set, nil, []Spec{{
+		Kind: KindFormula, Formula: &Formula{As: "ratio", Op: "/", Left: "delta", Right: "baseline"},
+	}})
+	require.NoError(t, err)
+	rows := next.Primary().Rows()
+	require.Nil(t, rows[0]["ratio"], "a zero baseline is unavailable, not an authoritative zero change")
+	require.Equal(t, 3.0, rows[1]["ratio"])
+}
+
 func TestFilterRows_ParsesNumericStrings(t *testing.T) {
 	t.Parallel()
 

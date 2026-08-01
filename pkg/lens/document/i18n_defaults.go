@@ -1,0 +1,50 @@
+package document
+
+// RuntimeI18nDefaults returns the SDK-owned English baseline for runtime
+// chrome. Hosts can overlay translated values, but a new SDK consumer no
+// longer has to redeclare these keys just to avoid component-local literals.
+func RuntimeI18nDefaults() map[string]string {
+	return map[string]string{
+		I18nFilterFacetClear:              "Clear",
+		I18nChartKeyboardActs:             "Chart data actions",
+		I18nChartOpenMark:                 "Open {name}",
+		I18nChartLabel:                    "{name}",
+		I18nChartLegendControl:            "Legend controls",
+		I18nChartLegendIsolate:            "Isolate series",
+		I18nChartLegendIsolateName:        "Isolate {name}",
+		I18nChartGaugeValue:               "{name} value",
+		I18nChartGaugeRange:               "of {maximum}",
+		I18nPanelTrendNew:                 "New",
+		I18nPanelTrendNotAvailable:        "N/A",
+		I18nPanelTrendComparison:          "Compared with the previous period",
+		I18nViewsConfirmDelete:            "Delete this saved view?",
+		I18nViewsConfirmDeleteSched:       "Delete this schedule?",
+		I18nViewsNextRun:                  "Next run: {time}",
+		I18nViewsLoadError:                "Saved views could not be loaded",
+		I18nViewsSaveError:                "Saved view could not be saved",
+		I18nViewsDeleteError:              "Saved view could not be removed",
+		I18nViewsScheduleSaveError:        "Schedule could not be saved",
+		I18nViewsScheduleDeleteError:      "Schedule could not be removed",
+		I18nViewsTriggerTitle:             "Views",
+		I18nViewsDialogTitle:              "Saved views",
+		I18nViewsSavedList:                "Saved views",
+		I18nViewsSavedView:                "Saved view",
+		I18nTableBooleanYes:               "Yes",
+		I18nTableBooleanNo:                "No",
+		I18nTableSmallSampleShort:         "n<{minimum}",
+		I18nPanelError:                    "This panel could not be rendered.",
+		I18nChartBoxplotMin:               "Minimum",
+		I18nChartBoxplotQ1:                "Q1",
+		I18nChartBoxplotMedian:            "Median",
+		I18nChartBoxplotQ3:                "Q3",
+		I18nChartBoxplotMax:               "Maximum",
+		I18nChartSeriesPrevious:           "Previous",
+		I18nChartSeriesTrend:              "Trend",
+		I18nChartSeriesMovingAverage:      "Moving average ({window})",
+		I18nChartSeriesEstimate:           "Estimate",
+		I18nChartSeriesYTD:                "YTD",
+		I18nChartSeriesForecast:           "Forecast",
+		I18nChartSeriesForecastLower:      "{forecast} lower bound",
+		I18nChartSeriesForecastConfidence: "{forecast} confidence",
+	}
+}

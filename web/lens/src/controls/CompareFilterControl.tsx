@@ -11,6 +11,8 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
   const [start, setStart] = useState(comparison?.value.start ?? '')
   const [end, setEnd] = useState(comparison?.value.end ?? '')
   useEffect(() => setMode(serverMode), [serverMode])
+  useEffect(() => setStart(comparison?.value.start ?? ''), [comparison?.value.start])
+  useEffect(() => setEnd(comparison?.value.end ?? ''), [comparison?.value.end])
   if (!comparison) return null
   const select = (mode: CompareMode) => {
     setMode(mode)

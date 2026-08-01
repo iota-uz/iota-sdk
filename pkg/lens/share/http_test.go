@@ -7,6 +7,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/google/uuid"
@@ -40,6 +41,11 @@ func TestHTTPHandlerSavedViewAndScheduleFlow(t *testing.T) {
 	router.ServeHTTP(list, httptest.NewRequest(http.MethodGet, handler.ViewsEndpoint()+"?dashboard=claims", nil))
 	require.Equal(t, http.StatusOK, list.Code, list.Body.String())
 	require.Contains(t, list.Body.String(), "My slice")
+	for _, endpoint := range []string{handler.ViewsEndpoint(), handler.SchedulesEndpoint()} {
+		oversized := httptest.NewRecorder()
+		router.ServeHTTP(oversized, httptest.NewRequest(http.MethodGet, endpoint+"?dashboard="+strings.Repeat("x", 121), nil))
+		require.Equal(t, http.StatusBadRequest, oversized.Code, oversized.Body.String())
+	}
 
 	scheduleResponse := performJSON(t, router, http.MethodPost, handler.SchedulesEndpoint(), ExportSchedule{
 		DashboardID: "claims", ViewID: view.ID, Name: "Monday claims", Cron: "0 8 * * 1", Timezone: "Asia/Tashkent",

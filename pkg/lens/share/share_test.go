@@ -3,6 +3,7 @@ package share
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -43,6 +44,13 @@ func TestMemoryStoreScopesViewsAndEnforcesRoleDefaults(t *testing.T) {
 		DashboardID: "claims", Name: "New team default", Scope: ViewScopeTeam, StateURL: "/claims?year=2024", DefaultRoleID: &role,
 	})
 	require.NoError(t, err)
+
+	editor := Access{TenantID: tenant, UserID: 12, ManageTeam: true, Roles: []RoleRef{{ID: role, Name: "Analyst"}}}
+	team.Name = "Team default renamed"
+	team.DefaultRoleID = nil
+	team, err = store.PutView(t.Context(), editor, team)
+	require.NoError(t, err)
+	require.Equal(t, owner.UserID, team.OwnerUserID, "editing a team view must preserve its original owner")
 
 	colleague := Access{TenantID: tenant, UserID: 12, RoleIDs: []uint{role}}
 	views, err := store.ListViews(t.Context(), colleague, "claims")
@@ -116,14 +124,21 @@ func TestTeamViewDowngradeRevokesOtherOwnersSchedules(t *testing.T) {
 }
 
 type recordingExporter struct {
-	calls    int
-	stateURL string
+	authorizeErr   error
+	authorizations int
+	calls          int
+	stateURL       string
+}
+
+func (e *recordingExporter) AuthorizeScheduledExport(_ context.Context, _ ExportSchedule) error {
+	e.authorizations++
+	return e.authorizeErr
 }
 
 func (e *recordingExporter) ExportSavedView(_ context.Context, schedule ExportSchedule) (Workbook, error) {
 	e.calls++
 	e.stateURL = schedule.StateURL
-	return Workbook{Filename: "claims.xlsx", Content: []byte("xlsx")}, nil
+	return Workbook{Filename: "claims.xlsx", Content: []byte("xlsx"), MailSubject: "Weekly claims report", MailBody: "Your scheduled claims report is attached."}, nil
 }
 
 type recordingMailer struct{ mails []Mail }
@@ -135,9 +150,13 @@ func (m *recordingMailer) Send(_ context.Context, mail Mail) error {
 
 type cancelingExporter struct{ cancel context.CancelFunc }
 
+func (e cancelingExporter) AuthorizeScheduledExport(context.Context, ExportSchedule) error {
+	return nil
+}
+
 func (e cancelingExporter) ExportSavedView(context.Context, ExportSchedule) (Workbook, error) {
 	e.cancel()
-	return Workbook{Filename: "claims.xlsx", Content: []byte("xlsx")}, nil
+	return Workbook{Filename: "claims.xlsx", Content: []byte("xlsx"), MailSubject: "Weekly claims report", MailBody: "Your scheduled claims report is attached."}, nil
 }
 
 type contextCheckingFinishStore struct {
@@ -182,14 +201,46 @@ func TestScheduleRunnerExportsAndMailsTheSavedSlice(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, runner.RunDue(t.Context(), dueAt))
 	require.Equal(t, 1, exporter.calls)
+	require.Equal(t, 1, exporter.authorizations)
 	require.Equal(t, "/claims?year=2026&_hidden=paid", exporter.stateURL)
 	require.Len(t, mailer.mails, 1)
 	require.Equal(t, "claims.xlsx", mailer.mails[0].Attachment.Filename)
+	require.Equal(t, "Weekly claims report", mailer.mails[0].Subject)
+	require.Equal(t, "Your scheduled claims report is attached.", mailer.mails[0].Body)
 
 	schedules, err := store.ListSchedules(t.Context(), access, "claims")
 	require.NoError(t, err)
 	require.True(t, schedules[0].LastRunAt.Equal(dueAt))
 	require.True(t, schedules[0].NextRunAt.After(dueAt))
+}
+
+func TestScheduleRunnerDoesNotExportOrMailAfterAuthorizationRevocation(t *testing.T) {
+	t.Parallel()
+	store := NewMemoryStore()
+	access := Access{TenantID: uuid.New(), UserID: 11, ScheduleMail: true}
+	view, err := store.PutView(t.Context(), access, SavedView{
+		DashboardID: "claims", Name: "Current claims", Scope: ViewScopePersonal, StateURL: "/claims",
+	})
+	require.NoError(t, err)
+	schedule, err := store.PutSchedule(t.Context(), access, ExportSchedule{
+		DashboardID: "claims", ViewID: view.ID, Name: "Weekly claims", Cron: "0 8 * * 1", Timezone: "UTC",
+		Recipients: []string{"analyst@example.com"}, Enabled: true,
+	})
+	require.NoError(t, err)
+	exporter := &recordingExporter{authorizeErr: errors.New("owner is inactive or no longer has dashboard access")}
+	mailer := &recordingMailer{}
+	runner, err := NewScheduleRunner(store, exporter, mailer, 1)
+	require.NoError(t, err)
+	err = runner.RunDue(t.Context(), schedule.NextRunAt)
+	require.ErrorContains(t, err, "scheduled export authorization failed")
+	require.Equal(t, 1, exporter.authorizations)
+	require.Zero(t, exporter.calls)
+	require.Empty(t, mailer.mails)
+
+	schedules, err := store.ListSchedules(t.Context(), access, "claims")
+	require.NoError(t, err)
+	require.Len(t, schedules, 1)
+	require.Contains(t, schedules[0].LastError, "owner is inactive or no longer has dashboard access")
 }
 
 func TestScheduleRunnerFinalizesClaimAfterDeliveryContextCancellation(t *testing.T) {

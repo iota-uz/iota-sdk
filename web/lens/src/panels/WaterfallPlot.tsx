@@ -93,6 +93,7 @@ export function WaterfallPlot({
                   className="lens-waterfall-bar"
                   data-checkpoint={item.checkpoint}
                   data-kind={item.kind}
+                  data-label-row={index % 2}
                   data-tone={item.tone}
                   style={{
                     top: `${item.top}%`,
