@@ -108,7 +108,17 @@ describe('ECharts adapter', () => {
     expect(element).not.toHaveAttribute('data-chart-ready')
     finishLoading?.([])
     await waitFor(() => expect(chart.options).toHaveLength(1))
-    expect(element).toHaveAttribute('data-chart-ready', 'true')
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    chart.emit('finished')
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    await waitFor(() => expect(element).toHaveAttribute('data-chart-ready', 'true'))
+
+    FakeResizeObserver.instances[0]?.resize()
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    chart.emit('finished')
+    expect(element).not.toHaveAttribute('data-chart-ready')
+    await waitFor(() => expect(element).toHaveAttribute('data-chart-ready', 'true'))
+
     instance.dispose()
     expect(element).not.toHaveAttribute('data-chart-ready')
   })

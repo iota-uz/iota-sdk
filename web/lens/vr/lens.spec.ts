@@ -288,6 +288,12 @@ const staticStories = [
   ['parity--tabbed-legend-state', 1, 25],
 ] as const
 
+async function waitForCharts(page: Page): Promise<void> {
+  await expect.poll(async () => page.locator('[_echarts_instance_]').evaluateAll((elements) =>
+    elements.every((element) => element.getAttribute('data-chart-ready') === 'true'),
+  )).toBe(true)
+}
+
 async function openStory(page: Page, storyId: string, canvasCount: number): Promise<void> {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   const query = new URLSearchParams({ story: storyId, mode: 'preview', 'lens-vr': '1' })
@@ -295,9 +301,7 @@ async function openStory(page: Page, storyId: string, canvasCount: number): Prom
   // An expanded panel portals a second .lens-root (its dialog host) to body.
   await expect(page.locator('.lens-root').first()).toBeVisible()
   await expect(page.locator('canvas')).toHaveCount(canvasCount)
-  await expect.poll(async () => page.locator('[_echarts_instance_]').evaluateAll((elements) =>
-    elements.every((element) => element.getAttribute('data-chart-ready') === 'true'),
-  )).toBe(true)
+  await waitForCharts(page)
   await page.evaluate(async () => {
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
@@ -324,6 +328,10 @@ async function screenshot(page: Page, name: string, { pointer = 'park', maxDiffP
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))
   })
+  // Fonts and container layout can cause a final ResizeObserver pass after the
+  // initial story wait. Re-check the finished-backed marker after those frames
+  // so the capture cannot race that resize.
+  await waitForCharts(page)
   await expect(page).toHaveScreenshot(`${name}.png`, { fullPage: true, maxDiffPixels })
 }
 

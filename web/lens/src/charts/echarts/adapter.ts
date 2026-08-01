@@ -130,20 +130,51 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
     mount(element: HTMLElement, initialInput: ChartInput, events: ChartEvents): ChartInstance {
       const chart = initialize(element)
       let input = initialInput
+      let hasRenderedOption = false
+      let disposed = false
+      let renderRevision = 0
+      let readinessFrame: number | undefined
 
       const responsiveInput = (): ChartInput => ({ ...input, viewportWidth: element.clientWidth })
 
-      let disposed = false
+      // `setOption` and `resize` only enqueue work in ECharts. In particular,
+      // ResizeObserver can fire after the first option has been accepted and
+      // move the final line endpoint by a subpixel on the following frame. A
+      // synchronous "ready" marker therefore described submitted work, not a
+      // settled canvas. ECharts' `finished` event is its public signal that the
+      // current render/animation queue has drained; keep readiness tied to that
+      // signal for the initial draw and every subsequent render or resize. Two
+      // paint frames then give ResizeObserver its specified post-layout turn;
+      // any resize invalidates the revision and starts settlement again.
+      const beginRender = () => {
+        renderRevision += 1
+        if (readinessFrame !== undefined) cancelAnimationFrame(readinessFrame)
+        readinessFrame = undefined
+        if (hasRenderedOption) delete element.dataset.chartReady
+      }
+      const finishRender = () => {
+        if (disposed || !hasRenderedOption) return
+        const revision = renderRevision
+        if (readinessFrame !== undefined) cancelAnimationFrame(readinessFrame)
+        readinessFrame = requestAnimationFrame(() => {
+          readinessFrame = requestAnimationFrame(() => {
+            readinessFrame = undefined
+            if (!disposed && revision === renderRevision) element.dataset.chartReady = 'true'
+          })
+        })
+      }
+      chart.on('finished', finishRender)
+
       const renderReady = () => {
         if (disposed) return
         if (input.kind === 'map' && input.map) registerMap(input.map.name, input.map.geoJSON as unknown as Parameters<typeof registerMap>[1])
         const theme = buildEChartsTheme(element, input.theme)
         const option: EChartsCoreOption = buildChartOption(responsiveInput(), theme)
+        hasRenderedOption = true
+        beginRender()
         chart.setOption(option, { notMerge: false, replaceMerge: ['series', 'xAxis', 'yAxis'] })
-        element.dataset.chartReady = 'true'
       }
       const render = () => {
-        delete element.dataset.chartReady
         renderReady()
       }
       // Selection restyle: merge the rebuilt option in place with animation
@@ -153,6 +184,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const theme = buildEChartsTheme(element, input.theme)
         const option = buildChartOption(responsiveInput(), theme) as EChartsCoreOption & { animation?: boolean }
         option.animation = false
+        beginRender()
         chart.setOption(option, { notMerge: false })
       }
       const select = (event: Parameters<typeof nodeKeyFromEvent>[0]) => {
@@ -245,6 +277,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
           ? (appliedBox.width < 500) !== (width < 500)
           : false
         appliedBox = { width, height }
+        beginRender()
         chart.resize({ width, height })
         if (crossedCompactLabelBoundary && (input.kind === 'donut' || input.kind === 'pie')) render()
       }
@@ -275,10 +308,12 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
           else render()
         },
         resetZoom() {
+          beginRender()
           chart.dispatchAction({ type: 'dataZoom', start: 0, end: 100 })
         },
         dispose() {
           disposed = true
+          if (readinessFrame !== undefined) cancelAnimationFrame(readinessFrame)
           for (const remove of detach) remove()
           detach.length = 0
           // Hide before disposing: a tooltip shown at teardown has already been
