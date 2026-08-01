@@ -60,6 +60,13 @@ async function requestJSON<T>(endpoint: string, token?: string, init?: RequestIn
   return response.json() as Promise<T>
 }
 
+function safeStateURL(raw: string): string | undefined {
+  if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('\\')) return undefined
+  const parsed = new URL(raw, window.location.origin)
+  if (parsed.origin !== window.location.origin) return undefined
+  return `${parsed.pathname}${parsed.search}${parsed.hash}`
+}
+
 export function SavedViewsMenu() {
   const { document: document_ } = useDashboard()
   const dialogID = useId()
@@ -260,7 +267,7 @@ export function SavedViewsMenu() {
             {views.length === 0 && !pending && <span className="lens-muted">{translate('views.empty', 'No saved views')}</span>}
             {views.map((view) => (
               <div className="lens-saved-view-row" key={view.id}>
-                <a className="lens-saved-view-open" href={view.stateUrl}>
+                <a className="lens-saved-view-open" href={safeStateURL(view.stateUrl)}>
                   <span>{view.name}</span>
                   <small>{view.scope === 'team' ? translate('views.team', 'Team') : translate('views.personal', 'Personal')}</small>
                 </a>

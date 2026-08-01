@@ -259,7 +259,22 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       }
       const resizeObserver = observeSize(element, resizeChart)
       const themeObserver = observeTheme(element, render)
-      render()
+      // Canvas text is rasterized at draw time. If the dashboard font is still
+      // loading, a first draw captures fallback-font metrics and a later redraw
+      // can change both glyphs and axis intervals. Start the first draw only
+      // after the requested face settles so there is no intermediate canvas for
+      // users or pixel-exact VR to observe.
+      const fonts = typeof document === 'undefined' ? undefined : document.fonts
+      if (fonts) {
+        const fontFamily = buildEChartsTheme(element, input.theme).fontFamily
+        // Canvas does not reliably start a web-font request merely by assigning
+        // ctx.font. FontFaceSet.load does, and its promise resolves only when a
+        // draw can use the final glyph raster instead of the fallback.
+        void fonts.load(`16px ${fontFamily}`).then(render).catch((error: unknown) => {
+          console.warn('[lens] chart font failed to load; using fallback metrics', error)
+          render()
+        })
+      } else render()
 
       return {
         update(nextInput: ChartInput) {

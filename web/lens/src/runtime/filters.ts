@@ -25,7 +25,10 @@ export function declaredFilters(document: DashboardDocument): Array<Filter> {
 }
 
 export function filterParamNames(document: DashboardDocument): Array<string> {
-  const names: Array<string> = []
+  // Facet dimensions share the validated cube `_f` representation rather than
+  // inventing one URL parameter per declaration. Keep both cube parameters in
+  // this canonical set so read, write, and stateful-URL detection agree.
+  const names: Array<string> = [cubeFilterParam, cubeGroupByParam]
   for (const filter of declaredFilters(document)) {
     if (filter.kind === 'period' && filter.period) names.push(filter.period.startParam, filter.period.endParam)
     if (filter.kind === 'compare' && filter.compare) names.push(filter.compare.modeParam, filter.compare.startParam, filter.compare.endParam)

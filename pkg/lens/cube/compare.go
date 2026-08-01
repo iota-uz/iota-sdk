@@ -2,6 +2,7 @@ package cube
 
 import (
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/comparison"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 )
 
@@ -35,17 +36,9 @@ func comparisonDatasetName(name string) string { return name + comparisonSuffix 
 
 func comparedDatasetName(name string) string { return name + "_compared" }
 
-func comparisonField(name string) string { return "previous_" + name }
-
-func deltaField(name string) string { return name + "_delta" }
-
-func deltaRatioField(name string) string { return name + "_delta_ratio" }
-
-func deltaPercentField(name string) string { return name + "_delta_percent" }
-
 func cloneComparisonGraph(
 	datasets []lens.DatasetSpec,
-	comparison comparisonConfig,
+	config comparisonConfig,
 	terminalFields map[string][]string,
 	topNRankKeys map[string][]string,
 ) []lens.DatasetSpec {
@@ -80,18 +73,18 @@ func cloneComparisonGraph(
 			query := *source.Query
 			query.Params = cloneParamValues(source.Query.Params)
 			for key, param := range query.Params {
-				if param.Variable == comparison.Anchor {
-					param.Variable = comparison.Variable
+				if param.Variable == config.Anchor {
+					param.Variable = config.Variable
 					query.Params[key] = param
 				}
 			}
 			dataset.Query = &query
-			dataset.TimeRangeVariable = comparison.Variable
+			dataset.TimeRangeVariable = config.Variable
 		}
 		if fields := terminalFields[source.Name]; len(fields) > 0 {
 			aliases := make(map[string]string, len(fields))
 			for _, field := range fields {
-				aliases[field] = comparisonField(field)
+				aliases[field] = comparison.PreviousField(field)
 			}
 			dataset.Transforms = append(dataset.Transforms, transform.Spec{Kind: transform.KindRename, Aliases: aliases})
 		}
@@ -109,13 +102,13 @@ func comparisonJoin(terminal string, fields, on []string) lens.DatasetSpec {
 	for _, field := range fields {
 		transforms = append(transforms,
 			transform.Spec{Kind: transform.KindFormula, Formula: &transform.Formula{
-				As: deltaField(field), Op: "-", Left: field, Right: comparisonField(field),
+				As: comparison.DeltaField(field), Op: "-", Left: field, Right: comparison.PreviousField(field),
 			}},
 			transform.Spec{Kind: transform.KindFormula, Formula: &transform.Formula{
-				As: deltaRatioField(field), Op: "/", Left: deltaField(field), Right: comparisonField(field),
+				As: comparison.DeltaRatioField(field), Op: "/", Left: comparison.DeltaField(field), Right: comparison.PreviousField(field), AbsoluteRight: true,
 			}},
 			transform.Spec{Kind: transform.KindFormula, Formula: &transform.Formula{
-				As: deltaPercentField(field), Op: "*", Left: deltaRatioField(field), RightValue: 100,
+				As: comparison.DeltaPercentField(field), Op: "*", Left: comparison.DeltaRatioField(field), RightValue: 100,
 			}},
 		)
 	}

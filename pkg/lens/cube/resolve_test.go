@@ -237,6 +237,8 @@ func TestResolveComparisonBuildsPairedDatasetsAndDeltaPresentation(t *testing.T)
 	require.Equal(t, []string{"cube_stats", "cube_stats_comparison"}, datasets["cube_stats_compared"].DependsOn)
 	require.Contains(t, datasets, "cube_dim_region_comparison")
 	require.Contains(t, datasets, "cube_dim_region_compared")
+	statTransforms := datasets["cube_stats_compared"].Transforms
+	require.True(t, statTransforms[2].Formula.AbsoluteRight, "percent change must use the absolute baseline")
 
 	require.Len(t, compared.Rows, 2)
 	stat := compared.Rows[0].Panels[0].Children[0]

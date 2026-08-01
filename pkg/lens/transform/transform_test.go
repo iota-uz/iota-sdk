@@ -164,6 +164,19 @@ func TestFormulaDivisionMarksZeroBaselineUnavailable(t *testing.T) {
 	require.Equal(t, 3.0, rows[1]["ratio"])
 }
 
+func TestFormulaDivisionCanUseAbsoluteBaseline(t *testing.T) {
+	t.Parallel()
+	set, err := frame.FromRows("metrics", frame.Row{"delta": 40.0, "baseline": -100.0})
+	require.NoError(t, err)
+	next, err := Apply(set, nil, []Spec{{
+		Kind: KindFormula, Formula: &Formula{
+			As: "ratio", Op: "/", Left: "delta", Right: "baseline", AbsoluteRight: true,
+		},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, 0.4, next.Primary().Rows()[0]["ratio"])
+}
+
 func TestFilterRows_ParsesNumericStrings(t *testing.T) {
 	t.Parallel()
 

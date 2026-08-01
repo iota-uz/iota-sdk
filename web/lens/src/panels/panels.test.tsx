@@ -172,8 +172,8 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       else if (kind === 'table') expect(screen.getByRole('table')).toBeInTheDocument()
       else if (kind === 'coverage') expect(panelElement.querySelector('.lens-coverage-headline')).not.toBeNull()
       else if (kind === 'gauge') expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '42')
-      else if (kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap') expect(panelElement.querySelector('.lens-chart-host')).not.toBeNull()
-      else if (kind === 'map') await waitFor(() => expect(panelElement.querySelector('.lens-chart-host')).not.toBeNull())
+      else if (kind === 'histogram' || kind === 'boxplot' || kind === 'heatmap') await screen.findByRole('button', { name: 'chart data' })
+      else if (kind === 'map') await screen.findByRole('button', { name: 'chart data' })
       else expect(panelElement.querySelector('.lens-chart-compact')).toHaveTextContent('42')
     }
     view.unmount()
@@ -235,15 +235,16 @@ describe('panel total badge', () => {
 })
 
 describe('gauge panel', () => {
-  it('renders a formatted reading against the documented zero-to-100 range', () => {
+  it('renders a formatted reading against the declared non-percent range', () => {
     runtime.frame = {
-      data: { columns: [{ name: 'value', type: 'number' }], rows: [[68.4]] },
+      data: { columns: [{ name: 'value', type: 'number' }], rows: [[125]] },
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
-    const view = render(<GaugePanel panel={panel('gauge', { encoding: { value: 'value' } })} />)
-    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '68.4')
-    expect(view.container.querySelector('.lens-gauge-reading')).toHaveTextContent('68.4of 100')
-    expect(view.container.querySelector('.lens-gauge-value-arc')).toHaveStyle({ strokeDasharray: '68.4 100' })
+    const view = render(<GaugePanel panel={panel('gauge', { encoding: { value: 'value' }, radial: { mode: 'progress', max: 250 } })} />)
+    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuenow', '125')
+    expect(screen.getByRole('meter')).toHaveAttribute('aria-valuemax', '250')
+    expect(view.container.querySelector('.lens-gauge-reading')).toHaveTextContent('125of 250')
+    expect(view.container.querySelector('.lens-gauge-value-arc')).toHaveStyle({ strokeDasharray: '50 100' })
   })
 })
 
@@ -319,6 +320,26 @@ describe('logarithmic scale warning', () => {
     runtime.frame = state('data')
     render(<BarPanel panel={panel('bar')} adapter={fakeAdapter()} />)
 
+    expect(screen.queryByRole('note')).toBeNull()
+  })
+
+  it('recomputes the warning from the same visible frame sent to the axis', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: { ...dataFrame, rows: [
+        ['a', 'A', 'A', 'Small', 1],
+        ['b', 'B', 'B', 'Middle', 100],
+        ['c', 'C', 'C', 'Outlier', 10_000],
+      ] },
+    }
+    const inputs: ChartInput[] = []
+    render(<BarPanel panel={panel('bar', {
+      valueAxis: { scale: 'logarithmic', logBase: 10 }, presentation: { legend: 'below' },
+    })} adapter={fakeAdapter((input) => inputs.push(input))} />)
+
+    expect(screen.getByRole('note')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Outlier/ }))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
     expect(screen.queryByRole('note')).toBeNull()
   })
 

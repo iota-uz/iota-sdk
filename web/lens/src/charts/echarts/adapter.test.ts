@@ -77,13 +77,37 @@ function multiSeriesInput(seriesNames: string[]): ChartInput {
 }
 
 describe('ECharts adapter', () => {
+  let originalFonts: PropertyDescriptor | undefined
+
   beforeEach(() => {
+    originalFonts = Object.getOwnPropertyDescriptor(document, 'fonts')
     FakeResizeObserver.instances = []
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
   })
 
   afterEach(() => {
+    if (originalFonts) Object.defineProperty(document, 'fonts', originalFonts)
+    else Reflect.deleteProperty(document, 'fonts')
     vi.unstubAllGlobals()
+  })
+
+  it('waits for the requested font before the first canvas draw', async () => {
+    let finishLoading: ((faces: FontFace[]) => void) | undefined
+    const load = vi.fn(() => new Promise<FontFace[]>((resolve) => { finishLoading = resolve }))
+    Object.defineProperty(document, 'fonts', { configurable: true, value: { load } })
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    document.body.append(element)
+
+    const instance = createEChartsAdapter(() => chart as never).mount(element, chartInput(), {
+      onSelect: vi.fn(), onHover: vi.fn(),
+    })
+
+    expect(load).toHaveBeenCalledOnce()
+    expect(chart.options).toHaveLength(0)
+    finishLoading?.([])
+    await waitFor(() => expect(chart.options).toHaveLength(1))
+    instance.dispose()
   })
 
   it('emits NodeKeys for selection and hover and clears hover on exit', () => {

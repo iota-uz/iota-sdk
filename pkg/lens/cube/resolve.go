@@ -7,6 +7,7 @@ import (
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
 	"github.com/iota-uz/iota-sdk/pkg/lens/action"
+	"github.com/iota-uz/iota-sdk/pkg/lens/comparison"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/iota-uz/iota-sdk/pkg/lens/transform"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
@@ -274,7 +275,7 @@ func buildStatPanelsCompared(spec CubeSpec, datasetByMeasure map[string]string, 
 		}
 		if compared {
 			builder.AutoTrend(
-				panel.Ref(deltaField(measure.Name)), panel.Ref(deltaPercentField(measure.Name)), "", measure.InvertTrend,
+				panel.Ref(comparison.DeltaField(measure.Name)), panel.Ref(comparison.DeltaPercentField(measure.Name)), "", measure.InvertTrend,
 			)
 		}
 		panels = append(panels, builder.Build())
@@ -311,7 +312,7 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 			Value:    panel.Ref(measure.Name),
 			Previous: func() panel.FieldRef {
 				if resolved.Compared {
-					return panel.Ref(comparisonField(measure.Name))
+					return panel.Ref(comparison.PreviousField(measure.Name))
 				}
 				return ""
 			}(),
@@ -350,11 +351,11 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 			Action(action.CrossFilter(actionURL, dim.Name)).
 			Columns(
 				panel.TableColumn{Field: panel.Ref("label"), Label: dim.Label},
-				panel.TableColumn{Field: panel.Ref(comparisonField(measure.Name)), Label: "Before", Formatter: measure.Formatter, Align: "right"},
+				panel.TableColumn{Field: panel.Ref(comparison.PreviousField(measure.Name)), Label: "Before", Formatter: measure.Formatter, Align: "right"},
 				panel.TableColumn{Field: panel.Ref(measure.Name), Label: "After", Formatter: measure.Formatter, Align: "right"},
 				panel.TableColumn{
-					Field: panel.Ref(deltaField(measure.Name)), Label: "Δ", Formatter: measure.Formatter, Align: "right",
-					Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.Ref(deltaPercentField(measure.Name))},
+					Field: panel.Ref(comparison.DeltaField(measure.Name)), Label: "Δ", Formatter: measure.Formatter, Align: "right",
+					Cell: &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.Ref(comparison.DeltaPercentField(measure.Name))},
 				},
 			)
 		if strings.TrimSpace(dim.Height) != "" {

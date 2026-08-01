@@ -32,6 +32,36 @@ describe('SavedViewsMenu', () => {
     expect(`${location.pathname}${location.search}`).toBe('/analytics/claims?lang=en')
   })
 
+  it('rejects unsafe stored view links and surfaces schedule delivery failures', async () => {
+    vi.stubGlobal('fetch', vi.fn((input: RequestInfo | URL) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.startsWith('/lens/share/schedules?')) {
+        return Promise.resolve(new Response(JSON.stringify({ schedules: [{
+          id: 'schedule-1', viewId: 'view-1', name: 'Weekly', cron: '0 8 * * 1', timezone: 'UTC',
+          recipients: ['analyst@example.com'], lastError: 'Delivery failed',
+        }] }), { status: 200 }))
+      }
+      return Promise.resolve(new Response(JSON.stringify({
+        views: [{ id: 'view-1', dashboardId: 'small', name: 'Unsafe view', scope: 'personal', stateUrl: 'https://evil.test/steal' }],
+        capabilities: { manageTeam: false, scheduleMail: true },
+      }), { status: 200 }))
+    }))
+    const document_ = parseDocument({
+      ...fixture,
+      endpoints: { ...fixture.endpoints, views: '/lens/share/views', schedules: '/lens/share/schedules' },
+    })
+    render(
+      <DocumentProvider initialDocument={document_}>
+        <DashboardRuntimeProvider locale="en"><SavedViewsMenu /></DashboardRuntimeProvider>
+      </DocumentProvider>,
+    )
+
+    fireEvent.click(screen.getByRole('button', { name: 'Views' }))
+    await screen.findAllByText('Unsafe view')
+    expect(screen.queryByRole('link', { name: /Unsafe view/ })).not.toBeInTheDocument()
+    expect(await screen.findByRole('alert')).toHaveTextContent('Delivery failed')
+  })
+
   it('lists, saves, and schedules exact dashboard slices', async () => {
     history.replaceState({}, '', '/analytics/claims?year=2026&lensHidden=paid#panel-losses')
     const meta = document.createElement('meta')

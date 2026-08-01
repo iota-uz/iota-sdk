@@ -1,0 +1,283 @@
+package comparison
+
+import (
+	"fmt"
+	"math"
+	"strings"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+)
+
+const defaultMaxTableMetrics = 3
+
+func PreviousField(name string) string { return "previous_" + name }
+
+func DeltaField(name string) string { return name + "_delta" }
+
+func DeltaRatioField(name string) string { return name + "_delta_ratio" }
+
+func DeltaPercentField(name string) string { return name + "_delta_percent" }
+
+type Labels struct {
+	Before string
+	After  string
+	Delta  string
+	Trend  string
+}
+
+type StaticOptions struct {
+	Labels          Labels
+	MaxTableMetrics int
+	InvertTrend     func(fieldName string) bool
+}
+
+// ApplyStatic joins a separately queried baseline into a dashboard whose
+// datasets have already been materialized as static frames.
+func ApplyStatic(current, baseline *lens.DashboardSpec, options StaticOptions) error {
+	if current == nil || baseline == nil {
+		return nil
+	}
+	baselineDatasets := make(map[string]lens.DatasetSpec, len(baseline.Datasets))
+	for _, dataset := range baseline.Datasets {
+		baselineDatasets[dataset.Name] = dataset
+	}
+	for index := range current.Datasets {
+		base, ok := baselineDatasets[current.Datasets[index].Name]
+		if !ok || current.Datasets[index].Static == nil || base.Static == nil {
+			continue
+		}
+		merged, err := mergeFrameSet(current.Datasets[index].Static, base.Static)
+		if err != nil {
+			return fmt.Errorf("compare dataset %s: %w", current.Datasets[index].Name, err)
+		}
+		current.Datasets[index].Static = merged
+	}
+	maxTableMetrics := options.MaxTableMetrics
+	if maxTableMetrics <= 0 {
+		maxTableMetrics = defaultMaxTableMetrics
+	}
+	for rowIndex := range current.Rows {
+		for panelIndex := range current.Rows[rowIndex].Panels {
+			applyPanel(&current.Rows[rowIndex].Panels[panelIndex], current, options, maxTableMetrics)
+		}
+	}
+	return nil
+}
+
+func mergeFrameSet(current, baseline *frame.FrameSet) (*frame.FrameSet, error) {
+	merged := current.Clone()
+	currentFrame := merged.Primary()
+	baselineFrame := baseline.Primary()
+	if currentFrame == nil || baselineFrame == nil {
+		return merged, nil
+	}
+	identity := identityFields(currentFrame, baselineFrame)
+	baselineRows := baselineFrame.Rows()
+	currentRows := currentFrame.Rows()
+	if len(identity) == 0 && (len(currentRows) > 1 || len(baselineRows) > 1) {
+		return nil, fmt.Errorf("multi-row comparison has no stable identity field")
+	}
+	baselineByKey := make(map[string]map[string]any, len(baselineRows))
+	for _, row := range baselineRows {
+		baselineByKey[rowKey(row, identity)] = row
+	}
+	matchedRows := 0
+	for _, row := range currentRows {
+		if _, ok := baselineByKey[rowKey(row, identity)]; ok {
+			matchedRows++
+		}
+	}
+	if len(currentRows) > 0 && len(baselineRows) > 0 && matchedRows == 0 {
+		return nil, fmt.Errorf("comparison identity fields %v matched zero rows", identity)
+	}
+	for _, sourceField := range currentFrame.Fields {
+		if sourceField.Type != frame.FieldTypeNumber {
+			continue
+		}
+		previousValues := make([]any, len(currentRows))
+		deltaValues := make([]any, len(currentRows))
+		percentValues := make([]any, len(currentRows))
+		for rowIndex, row := range currentRows {
+			baselineRow := baselineByKey[rowKey(row, identity)]
+			previous, previousOK := numericCell(baselineRow[sourceField.Name])
+			currentValue, currentOK := numericCell(row[sourceField.Name])
+			if !previousOK {
+				continue
+			}
+			previousValues[rowIndex] = previous
+			if !currentOK {
+				continue
+			}
+			delta := currentValue - previous
+			deltaValues[rowIndex] = delta
+			if previous != 0 {
+				percentValues[rowIndex] = delta / math.Abs(previous) * 100
+			}
+		}
+		currentFrame.Fields = append(currentFrame.Fields,
+			frame.Field{Name: PreviousField(sourceField.Name), Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: previousValues},
+			frame.Field{Name: DeltaField(sourceField.Name), Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: deltaValues},
+			frame.Field{Name: DeltaPercentField(sourceField.Name), Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: percentValues},
+		)
+	}
+	if err := currentFrame.Normalize(); err != nil {
+		return nil, err
+	}
+	return merged, nil
+}
+
+func identityFields(current, baseline *frame.Frame) []string {
+	type fieldContract struct {
+		fieldType frame.FieldType
+		role      frame.FieldRole
+	}
+	baselineFields := make(map[string]fieldContract, len(baseline.Fields))
+	for _, field := range baseline.Fields {
+		baselineFields[field.Name] = fieldContract{fieldType: field.Type, role: field.Role}
+	}
+	explicit := make([]string, 0)
+	dimensions := make([]string, 0)
+	for _, field := range current.Fields {
+		baselineField, ok := baselineFields[field.Name]
+		if !ok || baselineField.fieldType != field.Type || baselineField.role != field.Role {
+			continue
+		}
+		switch field.Role {
+		case frame.RoleID:
+			explicit = append(explicit, field.Name)
+		case frame.RoleDimension:
+			dimensions = append(dimensions, field.Name)
+		}
+	}
+	if len(explicit) > 0 {
+		return explicit
+	}
+	return dimensions
+}
+
+func rowKey(row map[string]any, fields []string) string {
+	if len(fields) == 0 {
+		return "singleton"
+	}
+	parts := make([]string, len(fields))
+	for index, field := range fields {
+		parts[index] = fmt.Sprint(row[field])
+	}
+	return strings.Join(parts, "\x1f")
+}
+
+func numericCell(value any) (float64, bool) {
+	switch typed := value.(type) {
+	case int:
+		return float64(typed), true
+	case int8:
+		return float64(typed), true
+	case int16:
+		return float64(typed), true
+	case int32:
+		return float64(typed), true
+	case int64:
+		return float64(typed), true
+	case uint:
+		return float64(typed), true
+	case uint8:
+		return float64(typed), true
+	case uint16:
+		return float64(typed), true
+	case uint32:
+		return float64(typed), true
+	case uint64:
+		return float64(typed), true
+	case float32:
+		return float64(typed), true
+	case float64:
+		return typed, true
+	default:
+		return 0, false
+	}
+}
+
+func applyPanel(spec *panel.Spec, dashboard *lens.DashboardSpec, options StaticOptions, maxTableMetrics int) {
+	if spec == nil {
+		return
+	}
+	for index := range spec.Children {
+		applyPanel(&spec.Children[index], dashboard, options, maxTableMetrics)
+	}
+	if spec.Kind == panel.KindTable {
+		columns := make([]panel.TableColumn, 0, len(spec.Columns)*3)
+		expandedMetrics := 0
+		for _, column := range spec.Columns {
+			fieldName := column.Field.Name()
+			if !column.ShareOf.Empty() || expandedMetrics >= maxTableMetrics ||
+				!dashboardFieldExists(dashboard, spec.Dataset, PreviousField(fieldName)) {
+				columns = append(columns, column)
+				continue
+			}
+			expandedMetrics++
+			before := column
+			before.Field = panel.Ref(PreviousField(fieldName))
+			before.Label = columnLabel(column.Label, options.Labels.Before)
+			if sampleSize := column.SampleSizeField.Name(); sampleSize != "" &&
+				dashboardFieldExists(dashboard, spec.Dataset, PreviousField(sampleSize)) {
+				before.SampleSizeField = panel.Ref(PreviousField(sampleSize))
+			}
+			after := column
+			after.Label = columnLabel(column.Label, options.Labels.After)
+			delta := column
+			delta.Field = panel.Ref(DeltaField(fieldName))
+			delta.Label = columnLabel(column.Label, options.Labels.Delta)
+			delta.Cell = &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.Ref(DeltaPercentField(fieldName))}
+			delta.SampleSizeField = ""
+			delta.MinSampleSize = 0
+			columns = append(columns, before, after, delta)
+		}
+		spec.Columns = columns
+		return
+	}
+	switch spec.Kind {
+	case panel.KindPie, panel.KindDonut, panel.KindMap, panel.KindHistogram, panel.KindBoxPlot, panel.KindHeatmap:
+		spec.ComparisonUnsupported = true
+		return
+	}
+	valueField := spec.Fields.Value.Name()
+	if valueField == "" || !dashboardFieldExists(dashboard, spec.Dataset, PreviousField(valueField)) {
+		return
+	}
+	switch spec.Kind {
+	case panel.KindStat:
+		invert := options.InvertTrend != nil && options.InvertTrend(valueField)
+		spec.Trend = &panel.TrendSpec{
+			Label: options.Labels.Trend, Invert: invert,
+			AbsoluteField: panel.Ref(DeltaField(valueField)),
+			PercentField:  panel.Ref(DeltaPercentField(valueField)),
+		}
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar:
+		spec.Fields.Previous = panel.Ref(PreviousField(valueField))
+	}
+}
+
+func columnLabel(metric, period string) string {
+	metric = strings.TrimSpace(metric)
+	period = strings.TrimSpace(period)
+	if metric == "" {
+		return period
+	}
+	if period == "" {
+		return metric
+	}
+	return metric + " · " + period
+}
+
+func dashboardFieldExists(spec *lens.DashboardSpec, datasetName, fieldName string) bool {
+	for _, dataset := range spec.Datasets {
+		if dataset.Name != datasetName || dataset.Static == nil || dataset.Static.Primary() == nil {
+			continue
+		}
+		_, ok := dataset.Static.Primary().Field(fieldName)
+		return ok
+	}
+	return false
+}

@@ -67,11 +67,12 @@ type Aggregate struct {
 }
 
 type Formula struct {
-	As         string
-	Op         string
-	Left       string
-	Right      string
-	RightValue float64
+	As            string
+	Op            string
+	Left          string
+	Right         string
+	RightValue    float64
+	AbsoluteRight bool
 }
 
 type JoinConfig struct {
@@ -802,6 +803,9 @@ func formula(primary *frame.FrameSet, cfg *Formula) (*frame.FrameSet, error) {
 		right := cfg.RightValue
 		if cfg.Right != "" {
 			right = toFloat(valueAt(fr, cfg.Right, row))
+		}
+		if cfg.AbsoluteRight {
+			right = math.Abs(right)
 		}
 		switch cfg.Op {
 		case "+":

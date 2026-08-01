@@ -282,7 +282,6 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const degenerate = frame.data
     ? distinctCategoryCount(frame.data, panel) <= 1 && distinctSeriesCount(frame.data, panel) <= 1
     : false
-  const logarithmic = frame.data ? shouldUseLogarithmicScale(frame.data, panel.encoding, panel.valueAxis) : false
 
   // A new level or perspective is new data; carrying hidden keys across would
   // silently blank out unrelated segments, and carrying the selected key would
@@ -351,6 +350,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     })()
     : { frame: visibleFrame, collapsed: false }, [panel, translate, visibleFrame])
   const renderFrame = remainderExpanded || !collapsedRemainder.collapsed ? visibleFrame : collapsedRemainder.frame
+  // The badge and axis must describe the same rows. Hidden series and a
+  // collapsed tail can change whether the rendered values span enough orders
+  // of magnitude to justify a logarithmic scale.
+  const logarithmic = renderFrame ? shouldUseLogarithmicScale(renderFrame, panel.encoding, panel.valueAxis) : false
   // Keep the legend independent of visibility. Hidden entries must remain in
   // the command surface so they can be restored one by one, and their ordinal
   // (therefore their positional colour pin) must not shift when a neighbour is

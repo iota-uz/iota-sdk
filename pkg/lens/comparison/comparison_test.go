@@ -1,0 +1,124 @@
+package comparison
+
+import (
+	"testing"
+	"time"
+
+	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
+	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
+	"github.com/stretchr/testify/require"
+)
+
+func TestResolvePeriodUsesCalendarSpansTimezoneAndLeapClamp(t *testing.T) {
+	t.Parallel()
+	location := time.FixedZone("UTC+5", 5*60*60)
+	start := time.Date(2026, time.January, 1, 0, 0, 0, 0, location)
+	end := time.Date(2026, time.March, 31, 23, 59, 59, int(time.Second-time.Nanosecond), location)
+
+	previous := ResolvePeriod(lens.ComparePreviousPeriod, lens.DateRangeValue{Start: &start, End: &end}, "", "", location)
+	require.Equal(t, time.Date(2025, time.October, 1, 0, 0, 0, 0, location), *previous.Range.Start)
+	require.Equal(t, time.Date(2025, time.December, 31, 23, 59, 59, int(time.Second-time.Nanosecond), location), *previous.Range.End)
+
+	leapStart := time.Date(2024, time.February, 1, 0, 0, 0, 0, location)
+	leapEnd := time.Date(2024, time.February, 29, 23, 59, 59, int(time.Second-time.Nanosecond), location)
+	yearAgo := ResolvePeriod(lens.CompareYearAgo, lens.DateRangeValue{Start: &leapStart, End: &leapEnd}, "", "", location)
+	require.Equal(t, time.Date(2023, time.February, 28, 23, 59, 59, int(time.Second-time.Nanosecond), location), *yearAgo.Range.End)
+
+	custom := ResolvePeriod(lens.CompareCustom, lens.DateRangeValue{}, "2024-04-01", "2024-04-30", location)
+	require.Equal(t, time.Date(2024, time.April, 1, 0, 0, 0, 0, location), *custom.Range.Start)
+	require.Equal(t, time.Date(2024, time.April, 30, 23, 59, 59, int(time.Second-time.Nanosecond), location), *custom.Range.End)
+}
+
+func TestApplyStaticUsesStableIdentityAndAbsoluteBaseline(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{
+		Datasets: []lens.DatasetSpec{staticDataset(t, "metrics", []string{"loss", "profit"}, []float64{-60, 30})},
+		Rows: []lens.RowSpec{{Panels: []panel.Spec{{
+			ID: "metrics", Kind: panel.KindHorizontalBar, Dataset: "metrics",
+			Fields: panel.FieldMapping{Category: panel.Ref("key"), Value: panel.Ref("value")},
+		}}}},
+	}
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{
+		staticDataset(t, "metrics", []string{"profit", "loss"}, []float64{20, -100}),
+	}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{}))
+	primary := current.Datasets[0].Static.Primary()
+	require.Equal(t, []any{-100.0, 20.0}, primary.MustField(PreviousField("value")).Values)
+	require.Equal(t, []any{40.0, 10.0}, primary.MustField(DeltaField("value")).Values)
+	require.Equal(t, []any{40.0, 50.0}, primary.MustField(DeltaPercentField("value")).Values)
+	require.Equal(t, PreviousField("value"), current.Rows[0].Panels[0].Fields.Previous.Name())
+}
+
+func TestApplyStaticRejectsPositionalMultiRowJoin(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{Datasets: []lens.DatasetSpec{numericDataset(t, "ranked", []float64{120, 80})}}
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{numericDataset(t, "ranked", []float64{100, 90})}}
+
+	err := ApplyStatic(&current, &baseline, StaticOptions{})
+	require.ErrorContains(t, err, "multi-row comparison has no stable identity field")
+}
+
+func TestApplyStaticConfiguresPanelsWithSharedFieldContract(t *testing.T) {
+	t.Parallel()
+
+	current := lens.DashboardSpec{
+		Datasets: []lens.DatasetSpec{staticDataset(t, "metrics", []string{"loss"}, []float64{-60})},
+		Rows: []lens.RowSpec{{Panels: []panel.Spec{
+			{ID: "stat", Kind: panel.KindStat, Dataset: "metrics", Fields: panel.FieldMapping{Value: panel.Ref("value")}},
+			{ID: "table", Kind: panel.KindTable, Dataset: "metrics", Columns: []panel.TableColumn{
+				{Field: panel.Ref("key"), Label: "Metric"}, {Field: panel.Ref("value"), Label: "Value"},
+			}},
+		}}},
+	}
+	baseline := lens.DashboardSpec{Datasets: []lens.DatasetSpec{staticDataset(t, "metrics", []string{"loss"}, []float64{-100})}}
+
+	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{
+		Labels:      Labels{Before: "Before", After: "After", Delta: "Delta", Trend: "Comparison"},
+		InvertTrend: func(fieldName string) bool { return fieldName == "value" },
+	}))
+	stat := current.Rows[0].Panels[0]
+	require.Equal(t, DeltaField("value"), stat.Trend.AbsoluteField.Name())
+	require.Equal(t, DeltaPercentField("value"), stat.Trend.PercentField.Name())
+	require.True(t, stat.Trend.Invert)
+	table := current.Rows[0].Panels[1]
+	require.Equal(t, PreviousField("value"), table.Columns[1].Field.Name())
+	require.Equal(t, DeltaField("value"), table.Columns[3].Field.Name())
+	require.Equal(t, DeltaPercentField("value"), table.Columns[3].Cell.PercentField.Name())
+}
+
+func staticDataset(t *testing.T, name string, keys []string, values []float64) lens.DatasetSpec {
+	t.Helper()
+	keyValues := make([]any, len(keys))
+	metricValues := make([]any, len(values))
+	for index := range keys {
+		keyValues[index] = keys[index]
+	}
+	for index := range values {
+		metricValues[index] = values[index]
+	}
+	fr, err := frame.New(name,
+		frame.Field{Name: "key", Type: frame.FieldTypeString, Role: frame.RoleID, Values: keyValues},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: metricValues},
+	)
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+	return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: set}
+}
+
+func numericDataset(t *testing.T, name string, values []float64) lens.DatasetSpec {
+	t.Helper()
+	items := make([]any, len(values))
+	for index := range values {
+		items[index] = values[index]
+	}
+	fr, err := frame.New(name, frame.Field{Name: "value", Type: frame.FieldTypeNumber, Role: frame.RoleMetric, Values: items})
+	require.NoError(t, err)
+	set, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+	return lens.DatasetSpec{Name: name, Kind: lens.DatasetKindStatic, Static: set}
+}
