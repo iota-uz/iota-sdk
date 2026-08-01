@@ -1143,7 +1143,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       ? { left: 96, right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 168 : 32, top: 24, bottom: timeAxis ? 58 : 32, containLabel: false }
       : {
         left: 16,
-        right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : categoryIsTime ? 64 : horizontal && logarithmic ? 88 : 16,
+        right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : horizontal ? (logarithmic ? 88 : 16) : 64,
         top: 24,
         bottom: timeAxis ? 52 : 12,
         containLabel: true,

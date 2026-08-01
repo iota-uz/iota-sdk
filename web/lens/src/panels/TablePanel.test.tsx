@@ -83,7 +83,7 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
 
 it('wraps custom comparison dates without widening narrow dashboards', () => {
   const styles = readFileSync('src/styles.css', 'utf8')
-  const responsive = styles.match(/@media \(max-width: 768px\) \{(?<rule>[\s\S]*?)\n  \}/)?.groups?.rule
+  const responsive = styles.match(/@media \(max-width: 768px\) \{(?<rule>[\s\S]*?)\n {2}\}/)?.groups?.rule
 
   expect(responsive).toContain('.lens-compare-filter,')
   expect(responsive).toContain('.lens-compare-custom')

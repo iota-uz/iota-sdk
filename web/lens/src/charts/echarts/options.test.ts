@@ -731,9 +731,8 @@ describe('buildChartOption', () => {
       .toContain('Jan 2026')
   })
 
-  it('reserves enough right inset for the final date label on categorical bars', () => {
+  it('reserves enough right inset for the final label on vertical bars', () => {
     const chartInput = input('bar')
-    chartInput.frame.columns[1] = { name: 'category', type: 'time' }
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
