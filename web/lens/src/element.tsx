@@ -1,13 +1,25 @@
 import { createRoot, type Root } from 'react-dom/client'
 import { LensDashboard } from './LensDashboard'
+import { parseDocument, type DashboardDocument } from './contract'
 import { normalizeLensTheme } from './runtime'
 
 const tagName = 'lens-dashboard'
 
 export class LensDashboardElement extends HTMLElement {
-  static readonly observedAttributes = ['src', 'locale', 'theme', 'csrf']
+  static readonly observedAttributes = ['src', 'locale', 'theme', 'csrf', 'initial-document']
   private root?: Root
   private fallbackHTML?: string
+
+  private initialDocument(): DashboardDocument | undefined {
+    const encoded = this.getAttribute('initial-document')
+    if (!encoded) return undefined
+    try {
+      return parseDocument(JSON.parse(globalThis.atob(encoded)))
+    } catch (cause) {
+      console.error('[lens] embedded initial document is invalid', cause)
+      return undefined
+    }
+  }
 
   connectedCallback() {
     // Captured before createRoot, which clears the element's children.
@@ -35,6 +47,7 @@ export class LensDashboardElement extends HTMLElement {
         theme={normalizeLensTheme(this.getAttribute('theme'))}
         csrf={this.getAttribute('csrf') ?? undefined}
         fallbackHTML={this.fallbackHTML}
+        initialDocument={this.initialDocument()}
       />,
     )
   }

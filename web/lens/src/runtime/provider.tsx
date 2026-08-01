@@ -89,9 +89,9 @@ export interface DocumentProviderProps {
 
 export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, children }: DocumentProviderProps) {
   const [document, setDocument] = useState<DashboardDocument | undefined>(
-    () => src ? cache?.get(src) : initialDocument,
+    () => src ? (cache?.get(src) ?? initialDocument) : initialDocument,
   )
-  const [isLoading, setIsLoading] = useState(Boolean(src) && !(src && cache?.get(src)))
+  const [isLoading, setIsLoading] = useState(Boolean(src) && !(src && (cache?.get(src) ?? initialDocument)))
   const [isRefreshing, setIsRefreshing] = useState(false)
   const [error, setError] = useState<Error | null>(null)
   const controllers = useRef(new Set<AbortController>())
@@ -199,9 +199,10 @@ export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, c
 
   useEffect(() => {
     const cached = src ? cache?.get(src) : undefined
-    setDocument(src ? cached : initialDocument)
+    const seeded = cached ?? initialDocument
+    setDocument(src ? seeded : initialDocument)
     setError(null)
-    if (cached) {
+    if (seeded) {
       loadedAt.current = Date.now()
       setIsLoading(false)
     } else if (src) {

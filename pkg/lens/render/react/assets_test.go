@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/iota-uz/iota-sdk/pkg/lens/build"
+	"github.com/iota-uz/iota-sdk/pkg/lens/document"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -152,4 +153,17 @@ func TestLensDashboardRendersReactOwnedSkeleton(t *testing.T) {
 	assert.Contains(t, html, `class="lens-dashboard-skeleton"`)
 	assert.Contains(t, html, `--lens-panel-span:4`)
 	assert.Contains(t, html, `lens-skeleton-card-stat`)
+}
+
+func TestLensDashboardEmbedsProgressiveFirstPaintDocument(t *testing.T) {
+	t.Parallel()
+
+	doc := &document.DashboardDocument{Version: "1.0.0", SnapshotID: "shell-snapshot"}
+	var output bytes.Buffer
+	err := LensDashboard("/lens/document", WithoutAssets(), WithInitialDocument(doc)).Render(context.Background(), &output)
+	require.NoError(t, err)
+
+	html := output.String()
+	assert.Contains(t, html, `initial-document="`)
+	assert.NotContains(t, html, "shell-snapshot", "the JSON payload must remain attribute-safe")
 }

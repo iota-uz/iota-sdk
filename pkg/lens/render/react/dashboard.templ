@@ -12,6 +12,9 @@ templ LensDashboard(src string, options ...Option) {
 		src={ src }
 		locale={ resolved.Locale }
 		theme={ string(resolved.Theme) }
+		if resolved.InitialDocument != nil {
+			initial-document={ initialDocumentAttribute(resolved.InitialDocument) }
+		}
 		if resolved.CSRF != "" {
 			csrf={ resolved.CSRF }
 		}

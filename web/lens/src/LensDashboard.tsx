@@ -24,16 +24,17 @@ export interface LensDashboardProps {
 const bundledFixture = parseDocument(fixture)
 
 export function LensDashboard({
-  src, locale = 'en', theme = 'light', csrf, fetcher, fallbackHTML, initialDocument = bundledFixture, filterToday,
+  src, locale = 'en', theme = 'light', csrf, fetcher, fallbackHTML, initialDocument, filterToday,
 }: LensDashboardProps) {
   // The fallback is this application's own server-rendered skeleton, echoed
   // back verbatim; it never carries request data.
   const fallback = fallbackHTML
     ? <div aria-hidden="true" dangerouslySetInnerHTML={{ __html: fallbackHTML }} />
     : undefined
+  const document = initialDocument ?? (src ? undefined : bundledFixture)
   return (
     <div className="lens-root" data-theme={theme} lang={locale}>
-      <DocumentProvider src={src} initialDocument={initialDocument} csrf={csrf} fetcher={fetcher}>
+      <DocumentProvider src={src} initialDocument={document} csrf={csrf} fetcher={fetcher}>
         <DashboardRuntimeProvider locale={locale} csrf={csrf} fetcher={fetcher} fallback={fallback}>
           <DashboardPanels filterToday={filterToday} />
         </DashboardRuntimeProvider>

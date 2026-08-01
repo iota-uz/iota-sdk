@@ -78,6 +78,7 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
   expect(edgeRule).toContain('width: 28px')
   expect(edgeRule).toContain('top: 50%')
   expect(markerRule).not.toContain('repeat-y')
+  expect(styles).toContain("margin-right: var(--lens-table-sticky-width, 0px)")
 })
 
 const columnsPanel: Panel = {
