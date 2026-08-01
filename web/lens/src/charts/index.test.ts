@@ -7,7 +7,7 @@ describe('chart adapter loading', () => {
     let finishPreparing: (() => void) | undefined
     const prepareEChartsKind = vi.fn(() => new Promise<void>((resolve) => { finishPreparing = resolve }))
     const echartsAdapter = { mount: vi.fn() } as unknown as ChartAdapter
-    const resolved = resolveChartAdapter('map', async () => ({ echartsAdapter, prepareEChartsKind }))
+    const resolved = resolveChartAdapter('map', () => Promise.resolve({ echartsAdapter, prepareEChartsKind }))
     let exposed = false
     void resolved.then(() => { exposed = true })
 

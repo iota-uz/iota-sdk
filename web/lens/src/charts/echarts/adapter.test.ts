@@ -105,9 +105,12 @@ describe('ECharts adapter', () => {
 
     expect(load).toHaveBeenCalledOnce()
     expect(chart.options).toHaveLength(0)
+    expect(element).not.toHaveAttribute('data-chart-ready')
     finishLoading?.([])
     await waitFor(() => expect(chart.options).toHaveLength(1))
+    expect(element).toHaveAttribute('data-chart-ready', 'true')
     instance.dispose()
+    expect(element).not.toHaveAttribute('data-chart-ready')
   })
 
   it('emits NodeKeys for selection and hover and clears hover on exit', () => {

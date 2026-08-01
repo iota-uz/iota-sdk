@@ -140,8 +140,10 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const theme = buildEChartsTheme(element, input.theme)
         const option: EChartsCoreOption = buildChartOption(responsiveInput(), theme)
         chart.setOption(option, { notMerge: false, replaceMerge: ['series', 'xAxis', 'yAxis'] })
+        element.dataset.chartReady = 'true'
       }
       const render = () => {
+        delete element.dataset.chartReady
         renderReady()
       }
       // Selection restyle: merge the rebuilt option in place with animation
@@ -287,6 +289,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
           resizeObserver?.disconnect()
           themeObserver?.disconnect()
           chart.dispose()
+          delete element.dataset.chartReady
         },
       }
     },

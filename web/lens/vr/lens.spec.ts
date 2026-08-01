@@ -132,7 +132,9 @@ const storyIds = [
 ] as const
 
 const staticStories = [
-  ['choropleth-map--state-matrix', 2],
+  // ECharts map labels can vary by a couple of antialiased edge pixels even
+  // when the rendered regions, values, and geometry are identical.
+  ['choropleth-map--state-matrix', 2, 10],
   ['comparison-interactions--previous-period', 1],
   // ECharts renders these distribution canvases with stable geometry but
   // slightly different antialiasing along dense outlines and labels.
@@ -288,6 +290,9 @@ async function openStory(page: Page, storyId: string, canvasCount: number): Prom
   // An expanded panel portals a second .lens-root (its dialog host) to body.
   await expect(page.locator('.lens-root').first()).toBeVisible()
   await expect(page.locator('canvas')).toHaveCount(canvasCount)
+  await expect.poll(async () => page.locator('[_echarts_instance_]').evaluateAll((elements) =>
+    elements.every((element) => element.getAttribute('data-chart-ready') === 'true'),
+  )).toBe(true)
   await page.evaluate(async () => {
     await document.fonts.ready
     await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))

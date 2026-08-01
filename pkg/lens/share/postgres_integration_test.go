@@ -38,6 +38,16 @@ func TestPostgresStoreOwnershipConcurrentLeaseAndClaimLoss(t *testing.T) {
 
 	manager := access
 	manager.UserID++
+	personalView, err := store.PutView(environment.Ctx, access, share.SavedView{
+		DashboardID: "audit", Name: "Personal view", Scope: share.ViewScopePersonal, StateURL: "/audit?period=week",
+	})
+	require.NoError(t, err)
+	_, err = store.PutView(environment.Ctx, manager, share.SavedView{
+		ID: personalView.ID, DashboardID: personalView.DashboardID, Name: "Unauthorized rename",
+		Scope: share.ViewScopePersonal, StateURL: personalView.StateURL,
+	})
+	require.ErrorIs(t, err, share.ErrNotFound)
+
 	updated, err := store.PutView(environment.Ctx, manager, share.SavedView{
 		ID: view.ID, DashboardID: view.DashboardID, Name: "Renamed by manager",
 		Scope: share.ViewScopeTeam, StateURL: view.StateURL,
