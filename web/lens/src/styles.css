@@ -2914,6 +2914,21 @@
     min-width: max(100%, 48rem);
   }
 
+  /* The spacer must extend the table instead of competing with data columns
+     for the existing width. Otherwise its width reflows the sticky column,
+     which changes the spacer again and creates a two-state ResizeObserver
+     loop with intermittently clipped values. */
+  .lens-table:has(.lens-table-scroll-spacer) {
+    width: calc(100% + var(--lens-table-sticky-width, 0px));
+  }
+
+  .lens-table-wide:has(.lens-table-scroll-spacer) {
+    min-width: max(
+      calc(100% + var(--lens-table-sticky-width, 0px)),
+      calc(48rem + var(--lens-table-sticky-width, 0px))
+    );
+  }
+
   .lens-table th {
     @apply lens-sticky lens-top-0 lens-z-10 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-p-0 lens-text-xs lens-font-semibold lens-text-muted;
   }
