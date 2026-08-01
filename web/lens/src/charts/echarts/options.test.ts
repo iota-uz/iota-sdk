@@ -95,6 +95,10 @@ interface TestTooltip {
   valueFormatter?: (value: unknown) => string
 }
 
+interface TestGraphic {
+  children?: Array<{ style?: { text?: string } }>
+}
+
 function testOption(option: EChartsOption) {
   return option as unknown as {
     animation: boolean
@@ -103,7 +107,7 @@ function testOption(option: EChartsOption) {
     xAxis: TestAxis
     yAxis: TestAxis
     media?: Array<{ query?: { maxWidth?: number }, option?: { series?: TestSeries[] } }>
-    graphic?: unknown[]
+    graphic?: TestGraphic[]
     dataZoom?: Array<{ type?: string }>
   }
 }
@@ -310,13 +314,7 @@ describe('slice percentages', () => {
       expect.objectContaining({ nodeKey: 'reinsurance_cost', value: 14_680_063_544.76, share: 32.2 }),
     ]))
     expect(chart.series[0]?.label?.formatter?.({ data: { share: 65.4 } })).toBe('65.4%')
-    expect(chart.graphic).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        children: expect.arrayContaining([
-          expect.objectContaining({ style: expect.objectContaining({ text: '45.56 млрд UZS' }) }),
-        ]),
-      }),
-    ]))
+    expect(chart.graphic?.[0]?.children?.[1]?.style?.text).toBe('45.56 млрд UZS')
   })
 
   it('writes the category on the slice when asked, and only when it fits', () => {
