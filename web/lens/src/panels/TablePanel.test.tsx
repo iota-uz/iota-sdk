@@ -570,7 +570,7 @@ describe('TablePanel server readability features', () => {
     Object.defineProperty(scroller.querySelector('table'), 'scrollWidth', { configurable: true, value: 893 })
     Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 1053 })
     Object.defineProperty(spacerHeader, 'offsetWidth', { configurable: true, value: 160 })
-    const lastRealHeader = Array.from(scrollFrame!.querySelectorAll('thead th:not(.lens-table-scroll-spacer)')).at(-1)!
+    const lastRealHeader = Array.from(scrollFrame!.querySelectorAll('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)')).at(-1)!
     Object.defineProperty(lastRealHeader, 'offsetLeft', { configurable: true, value: 548 })
     fireEvent.scroll(scroller)
 

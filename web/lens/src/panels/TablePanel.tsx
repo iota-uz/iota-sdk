@@ -497,14 +497,14 @@ export function TablePanel({ panel }: TablePanelProps) {
       // A translated sticky first column contributes its width to Chromium's
       // scrollWidth. Clamp against the table itself so the native scrollbar
       // cannot move past the real content and crop the sticky cells.
-      const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer)'))
-      const lastHeader = headers[headers.length - 1]
+      const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)'))
       const dataMaximum = Math.max(0, tableWidth - spacerWidth - scroller.clientWidth)
-      const alignLastColumn = Math.max(0, (lastHeader?.offsetLeft ?? 0) - stickyWidth)
-      const maximum = Math.min(
-        Math.max(0, tableWidth - scroller.clientWidth),
-        Math.max(dataMaximum, alignLastColumn),
-      )
+      const nativeMaximum = Math.max(0, tableWidth - scroller.clientWidth)
+      const reachableAlignment = headers.slice(1)
+        .map((header) => Math.max(0, header.offsetLeft - stickyWidth))
+        .filter((target) => target <= nativeMaximum + 1)
+        .at(-1) ?? 0
+      const maximum = Math.max(dataMaximum, reachableAlignment)
       if (scroller.scrollLeft > maximum) scroller.scrollLeft = maximum
       const left = scroller.scrollLeft > 1
       const right = scroller.scrollLeft < maximum - 1
@@ -537,15 +537,15 @@ export function TablePanel({ panel }: TablePanelProps) {
     if (!scroller) return
     const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
     const spacerWidth = scroller.querySelector<HTMLElement>('thead .lens-table-scroll-spacer')?.offsetWidth ?? 0
-    const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer)'))
+    const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)'))
     const stickyWidth = headers[0]?.offsetWidth ?? 0
-    const lastHeader = headers[headers.length - 1]
     const dataMaximum = Math.max(0, tableWidth - spacerWidth - scroller.clientWidth)
-    const alignLastColumn = Math.max(0, (lastHeader?.offsetLeft ?? 0) - stickyWidth)
-    const maximum = Math.min(
-      Math.max(0, tableWidth - scroller.clientWidth),
-      Math.max(dataMaximum, alignLastColumn),
-    )
+    const nativeMaximum = Math.max(0, tableWidth - scroller.clientWidth)
+    const reachableAlignment = headers.slice(1)
+      .map((header) => Math.max(0, header.offsetLeft - stickyWidth))
+      .filter((target) => target <= nativeMaximum + 1)
+      .at(-1) ?? 0
+    const maximum = Math.max(dataMaximum, reachableAlignment)
     const targets = headers.slice(1)
       .map((header) => Math.max(0, Math.min(maximum, header.offsetLeft - stickyWidth)))
       .filter((target, index, values) => target > 0 && (index === 0 || target !== values[index - 1]))
