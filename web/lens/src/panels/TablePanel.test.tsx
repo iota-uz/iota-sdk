@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Panel } from '../contract'
@@ -66,6 +67,15 @@ function pageResponse(page: number, hasNext = page === 1): Response {
 afterEach(() => {
   cleanup()
   window.history.replaceState(null, '', '/')
+})
+
+it('keeps horizontal overflow controls available throughout a tall table', () => {
+  const styles = readFileSync('src/styles.css', 'utf8')
+  const edgeRule = styles.match(/\.lens-table-overflow-edge \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const markerRule = styles.match(/\.lens-table-overflow-edge::after \{(?<rule>[^}]+)\}/)?.groups?.rule
+
+  expect(edgeRule).toContain('lens-bottom-0 lens-top-0')
+  expect(markerRule).toContain('repeat-y')
 })
 
 const columnsPanel: Panel = {
@@ -525,6 +535,25 @@ describe('TablePanel server readability features', () => {
     expect(scroller).toHaveAttribute('tabindex', '0')
     expect(scrollFrame).toHaveAttribute('data-overflow-left', 'false')
     expect(scrollFrame).toHaveAttribute('data-overflow-right', 'true')
+    const scrollLeft = screen.getByRole('button', { name: 'Scroll table left' })
+    const scrollRight = screen.getByRole('button', { name: 'Scroll table right' })
+    expect(scrollLeft).toBeDisabled()
+    expect(scrollRight).toBeEnabled()
+    expect(scrollFrame?.querySelectorAll('.lens-table-scroll')).toHaveLength(1)
+
+    fireEvent.click(scrollRight)
+    expect(scroller.scrollLeft).toBe(228)
+    expect(scroller).toHaveFocus()
+    expect(scrollLeft).toBeEnabled()
+    expect(scrollRight).toBeDisabled()
+    expect(scrollFrame).toHaveAttribute('data-overflow-left', 'true')
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
+
+    fireEvent.click(scrollLeft)
+    expect(scroller.scrollLeft).toBe(0)
+    expect(scroller).toHaveFocus()
+    expect(scrollLeft).toBeDisabled()
+    expect(scrollRight).toBeEnabled()
 
     scroller.scrollLeft = 228
     fireEvent.scroll(scroller)

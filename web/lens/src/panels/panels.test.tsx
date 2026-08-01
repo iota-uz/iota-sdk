@@ -209,8 +209,14 @@ describe('panel total badge', () => {
     expect(view.container.querySelector('.lens-panel-total')).toBeNull()
   })
 
-  it('replaces a deferred partition shell total with the hydrated frame total', () => {
-    runtime.frame = state('data')
+  it('uses the hydrated frame total instead of a deferred shell placeholder', () => {
+    runtime.frame = {
+      data: { ...dataFrame, total: 42 },
+      isLoading: false,
+      isStale: false,
+      error: null,
+      retry: vi.fn(),
+    }
     const view = render(<PiePanel
       adapter={fakeAdapter()}
       panel={panel('donut', { presentation: { totalBadge: 'plot' }, total: 3 })}

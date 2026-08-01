@@ -2774,16 +2774,32 @@
   }
 
   .lens-table-overflow-edge {
-    @apply lens-pointer-events-none lens-absolute lens-bottom-0 lens-top-0;
+    @apply lens-pointer-events-none lens-absolute lens-bottom-0 lens-top-0 lens-m-0 lens-border-0 lens-p-0;
+    appearance: none;
+    background-color: transparent;
+    color: var(--lens-text-muted);
+    cursor: pointer;
     z-index: var(--lens-z-sticky);
-    width: 28px;
+    width: 36px;
     opacity: 0;
     transition: opacity var(--lens-duration-fast) var(--lens-ease-standard);
+  }
+
+  .lens-table-overflow-edge::after {
+    @apply lens-absolute lens-inset-0;
+    background-color: currentcolor;
+    content: '';
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 64'%3E%3Cpath d='M4 26l4 6-4 6' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'/%3E%3C/svg%3E") center top / 12px 64px repeat-y;
+    opacity: 0.82;
   }
 
   .lens-table-overflow-edge-left {
     left: 0;
     background: linear-gradient(to right, color-mix(in srgb, var(--lens-bg-card) 82%, transparent), transparent);
+  }
+
+  .lens-table-overflow-edge-left::after {
+    transform: scaleX(-1);
   }
 
   .lens-table-overflow-edge-right {
@@ -2793,6 +2809,16 @@
 
   .lens-table-scroll-frame[data-overflow-left='true'] .lens-table-overflow-edge-left,
   .lens-table-scroll-frame[data-overflow-right='true'] .lens-table-overflow-edge-right {
+    @apply lens-pointer-events-auto;
+    opacity: 1;
+  }
+
+  .lens-table-overflow-edge:focus-visible {
+    outline: 2px solid var(--lens-accent-500);
+    outline-offset: -4px;
+  }
+
+  .lens-table-overflow-edge:active::after {
     opacity: 1;
   }
 
@@ -5437,6 +5463,7 @@
 }
 
 .lens-print-chart-waterfall .lens-waterfall {
+  --lens-waterfall-column-width: 4.5rem;
   padding: 0;
   height: 100%;
 }

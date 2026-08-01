@@ -493,6 +493,17 @@ export function TablePanel({ panel }: TablePanelProps) {
     }
   }, [columnCount, frame.data])
 
+  const scrollHorizontally = (direction: -1 | 1) => {
+    const scroller = scrollRef.current
+    if (!scroller) return
+    const maximum = Math.max(0, scroller.scrollWidth - scroller.clientWidth)
+    const step = Math.max(120, Math.round(scroller.clientWidth * 0.8))
+    const next = Math.max(0, Math.min(maximum, scroller.scrollLeft + direction * step))
+    scroller.scrollLeft = next
+    setScrollEdges({ left: next > 1, right: next < maximum - 1 })
+    scroller.focus({ preventScroll: true })
+  }
+
   return (
     <PanelFrame panel={panel} frame={frame} allowEmptyContent={Boolean(frame.page)}>
       {frame.data && (
@@ -683,8 +694,20 @@ export function TablePanel({ panel }: TablePanelProps) {
                 )}
               </table>
             </div>
-            <span aria-hidden="true" className="lens-table-overflow-edge lens-table-overflow-edge-left" />
-            <span aria-hidden="true" className="lens-table-overflow-edge lens-table-overflow-edge-right" />
+            <button
+              aria-label={translate('table.scrollLeft', 'Scroll table left')}
+              className="lens-table-overflow-edge lens-table-overflow-edge-left"
+              disabled={!scrollEdges.left}
+              onClick={() => scrollHorizontally(-1)}
+              type="button"
+            />
+            <button
+              aria-label={translate('table.scrollRight', 'Scroll table right')}
+              className="lens-table-overflow-edge lens-table-overflow-edge-right"
+              disabled={!scrollEdges.right}
+              onClick={() => scrollHorizontally(1)}
+              type="button"
+            />
           </div>
           <footer className="lens-table-footer">
             <span className="lens-table-footer-notes">
