@@ -69,13 +69,15 @@ afterEach(() => {
   window.history.replaceState(null, '', '/')
 })
 
-it('keeps horizontal overflow controls available throughout a tall table', () => {
+it('keeps compact horizontal overflow controls clear of table values', () => {
   const styles = readFileSync('src/styles.css', 'utf8')
   const edgeRule = styles.match(/\.lens-table-overflow-edge \{(?<rule>[^}]+)\}/)?.groups?.rule
   const markerRule = styles.match(/\.lens-table-overflow-edge::after \{(?<rule>[^}]+)\}/)?.groups?.rule
 
-  expect(edgeRule).toContain('lens-bottom-0 lens-top-0')
-  expect(markerRule).toContain('repeat-y')
+  expect(edgeRule).toContain('height: 40px')
+  expect(edgeRule).toContain('width: 28px')
+  expect(edgeRule).toContain('top: 50%')
+  expect(markerRule).not.toContain('repeat-y')
 })
 
 const columnsPanel: Panel = {

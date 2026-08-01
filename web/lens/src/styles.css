@@ -1544,6 +1544,14 @@
     @apply lens-flex lens-items-center lens-justify-end lens-px-4 lens-pb-3;
   }
 
+  .lens-panel-export-scope {
+    display: none;
+    margin: 0;
+    padding: 0.5rem 1rem 0;
+    color: var(--lens-text-muted);
+    font-size: 0.75rem;
+  }
+
   .lens-trend-chip {
     @apply lens-inline-flex lens-max-w-full lens-min-w-0 lens-items-center lens-gap-1.5 lens-overflow-hidden lens-rounded-badge lens-px-2 lens-py-1 lens-text-xs lens-font-semibold;
     background: var(--lens-bg-inset);
@@ -1596,6 +1604,10 @@
 
   .lens-panel-group {
     @apply lens-min-h-0;
+  }
+
+  .lens-panel-group-metrics {
+    container: lens-metric-group / inline-size;
   }
 
   /* A group's heading keeps its title left and sets its hoisted status chip
@@ -1674,7 +1686,40 @@
     }
   }
 
+  @container lens-metric-group (max-width: 55rem) {
+    .lens-metric-row-columns {
+      @apply lens-flex-wrap;
+    }
+
+    .lens-metric-row-columns > * {
+      flex: 1 1 50%;
+      max-width: 50%;
+      border-left-width: 0 !important;
+      border-top-width: 0 !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(even) {
+      border-left-width: 1px !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(n+3) {
+      border-top-width: 1px !important;
+    }
+  }
+
   @media (max-width: 640px) {
+    .lens-metric-row-columns > * {
+      flex: 1 1 100%;
+      max-width: 100%;
+      border-left-width: 0 !important;
+    }
+
+    .lens-metric-row-columns > :nth-child(n+2) {
+      border-top-width: 1px !important;
+    }
+  }
+
+  @container lens-metric-group (max-width: 34rem) {
     .lens-metric-row-columns > * {
       flex: 1 1 100%;
       max-width: 100%;
@@ -1722,7 +1767,8 @@
      they must survive: run together, two statements read as one broken
      sentence. */
   .lens-stat-metric-caption {
-    @apply lens-m-0 lens-whitespace-pre-line lens-text-[11px] lens-leading-tight lens-text-muted;
+    @apply lens-m-0 lens-min-w-0 lens-whitespace-pre-line lens-text-[11px] lens-leading-tight lens-text-muted;
+    overflow-wrap: anywhere;
   }
 
   /* The value and its trend line share one baseline-anchored row; the sparkline
@@ -2774,13 +2820,15 @@
   }
 
   .lens-table-overflow-edge {
-    @apply lens-pointer-events-none lens-absolute lens-bottom-0 lens-top-0 lens-m-0 lens-border-0 lens-p-0;
+    @apply lens-pointer-events-none lens-absolute lens-m-0 lens-rounded-full lens-border lens-border-solid lens-border-border lens-bg-card lens-p-0;
     appearance: none;
-    background-color: transparent;
     color: var(--lens-text-muted);
     cursor: pointer;
     z-index: var(--lens-z-sticky);
-    width: 36px;
+    height: 40px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 28px;
     opacity: 0;
     transition: opacity var(--lens-duration-fast) var(--lens-ease-standard);
   }
@@ -2789,13 +2837,12 @@
     @apply lens-absolute lens-inset-0;
     background-color: currentcolor;
     content: '';
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 64'%3E%3Cpath d='M4 26l4 6-4 6' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'/%3E%3C/svg%3E") center top / 12px 64px repeat-y;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 16'%3E%3Cpath d='M4 2l4 6-4 6' fill='none' stroke='black' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'/%3E%3C/svg%3E") center / 12px 16px no-repeat;
     opacity: 0.82;
   }
 
   .lens-table-overflow-edge-left {
-    left: 0;
-    background: linear-gradient(to right, color-mix(in srgb, var(--lens-bg-card) 82%, transparent), transparent);
+    left: var(--lens-table-sticky-width, 0px);
   }
 
   .lens-table-overflow-edge-left::after {
@@ -2804,7 +2851,6 @@
 
   .lens-table-overflow-edge-right {
     right: 0;
-    background: linear-gradient(to left, color-mix(in srgb, var(--lens-bg-card) 82%, transparent), transparent);
   }
 
   .lens-table-scroll-frame[data-overflow-left='true'] .lens-table-overflow-edge-left,
@@ -2841,7 +2887,9 @@
   }
 
   .lens-table {
-    @apply lens-w-full lens-border-collapse lens-text-left lens-text-sm;
+    @apply lens-border-collapse lens-text-left lens-text-sm;
+    min-width: 100%;
+    width: max-content;
   }
 
   .lens-table th {
@@ -2850,6 +2898,8 @@
 
   .lens-table th:first-child {
     @apply lens-left-0 lens-z-20;
+    border-right: 1px solid var(--lens-border-strong);
+    box-shadow: 8px 0 12px -10px var(--lens-text);
   }
 
   .lens-table th button {
@@ -2876,6 +2926,8 @@
 
   .lens-table td:first-child {
     @apply lens-sticky lens-left-0 lens-z-[1] lens-bg-card;
+    border-right: 1px solid var(--lens-border-strong);
+    box-shadow: 8px 0 12px -10px var(--lens-text);
   }
 
   .lens-table tbody tr:hover {

@@ -77,6 +77,19 @@ export function readFilterValues(document: DashboardDocument, url: URL): FilterV
     if (start !== null) values[filter.compare.startParam] = start
     if (end !== null) values[filter.compare.endParam] = end
   }
+  // All-time has no finite previous/custom period. Canonicalize even on the
+  // initial URL read (not only after a control click), so a bookmarked URL
+  // cannot send an impossible comparison batch to every panel executor.
+  for (const periodFilter of declaredFilters(document)) {
+    if (periodFilter.kind !== 'period' || !periodFilter.period) continue
+    if (values[periodFilter.period.startParam] !== '' || values[periodFilter.period.endParam] !== '') continue
+    for (const compareFilter of declaredFilters(document)) {
+      if (compareFilter.kind !== 'compare' || !compareFilter.compare || compareFilter.compare.compareTo !== periodFilter.id) continue
+      delete values[compareFilter.compare.startParam]
+      delete values[compareFilter.compare.endParam]
+      values[compareFilter.compare.modeParam] = 'off'
+    }
+  }
   return values
 }
 
@@ -145,6 +158,24 @@ export function compareValues(filter: NonNullable<Filter['compare']>, value: Com
     values[filter.endParam] = value.end ?? ''
   }
   return values
+}
+
+export function periodTransitionValues(
+  document: DashboardDocument,
+  filter: Filter,
+  value: PeriodValue,
+  current: FilterValues,
+): FilterValues {
+  if (!filter.period) return { ...current }
+  const merged = { ...current, ...periodValues(filter.period, value) }
+  if (value.start !== '' || value.end !== '') return merged
+  for (const candidate of declaredFilters(document)) {
+    if (candidate.kind !== 'compare' || !candidate.compare || candidate.compare.compareTo !== filter.id) continue
+    delete merged[candidate.compare.startParam]
+    delete merged[candidate.compare.endParam]
+    merged[candidate.compare.modeParam] = 'off'
+  }
+  return merged
 }
 
 export function filterActionURL(action: Action, fields: Readonly<Record<string, unknown>>, current: URL): URL | undefined {

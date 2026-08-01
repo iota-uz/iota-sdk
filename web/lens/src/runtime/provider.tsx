@@ -15,7 +15,7 @@ import { fetchDocument } from './document'
 import {
   compareValues,
   declaredFilters,
-  periodValues,
+  periodTransitionValues,
   readFilterValues,
   sameFilterValues,
   srcWithFilterParams,
@@ -1320,7 +1320,11 @@ function RuntimeCore({
 
   const setPeriod = useCallback((filter: Filter, value: PeriodValue) => {
     if (!filtersEnabled || typeof window === 'undefined' || !filter.period) return
-    const merged = { ...filterValuesRef.current, ...periodValues(filter.period, value) }
+    const merged = periodTransitionValues(documentRef.current, filter, value, filterValuesRef.current)
+    // An unbounded period has no finite span from which "previous period" or
+    // "year ago" can be derived. Canonicalize every comparison bound to this
+    // period in the same history entry so the visible off state, copied URL,
+    // refetch and export scope can never disagree.
     const current = new URL(window.location.href)
     const next = writeFilterValues(current, documentRef.current, merged)
     if (!sameNavigationURL(current, next)) {

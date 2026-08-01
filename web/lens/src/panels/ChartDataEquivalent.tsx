@@ -37,8 +37,10 @@ export function chartRowKey(frame: Frame, panel: Panel, index: number): NodeKey 
 export function chartDatumLabel(frame: Frame, panel: Panel, format: ChartFormatResolver, index: number): string {
   const row = frame.rows[index]
   if (!row) return ''
+  const categoryField = [panel.encoding.category, panel.encoding.label]
+    .find((field) => Boolean(field) && frame.columns.some(({ name }) => name === field))
   const fields = [
-    { field: panel.encoding.category ?? panel.encoding.label, formatted: false },
+    { field: categoryField, formatted: false },
     { field: panel.encoding.series, formatted: false },
     { field: panel.encoding.value, formatted: true },
   ].filter((entry): entry is { field: string; formatted: boolean } => Boolean(entry.field))

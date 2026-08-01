@@ -37,10 +37,18 @@ export function useMenuButton() {
     else items.current.delete(key)
   }, [])
   const onMenuKeyDown = useCallback((event: ReactKeyboardEvent) => {
-    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return
     event.preventDefault()
     const activeItems = [...items.current.values()].filter((item) => item.isConnected)
     if (activeItems.length === 0) return
+    if (event.key === 'Home') {
+      activeItems[0]?.focus()
+      return
+    }
+    if (event.key === 'End') {
+      activeItems[activeItems.length - 1]?.focus()
+      return
+    }
     const current = activeItems.indexOf(document.activeElement as HTMLButtonElement)
     const delta = event.key === 'ArrowDown' ? 1 : -1
     activeItems[(current + delta + activeItems.length) % activeItems.length]?.focus()

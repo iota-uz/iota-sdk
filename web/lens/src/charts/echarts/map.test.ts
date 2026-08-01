@@ -92,9 +92,12 @@ describe('choropleth option', () => {
     }
 
     const option = buildMapOption(input, theme) as {
+      tooltip: { formatter: (params: { name?: string; data?: { displayLabel?: string; value?: unknown } }) => string }
       series: Array<{ label: { formatter: (params: { name?: string }) => string } }>
     }
     expect(option.series[0]!.label.formatter({ name: 'north' })).toBe(presentLabel)
     expect(option.series[0]!.label.formatter({ name: 'south' })).toBe(absentLabel)
+    expect(option.tooltip.formatter({ name: 'south' })).toContain(absentLabel)
+    expect(option.tooltip.formatter({ name: 'south' })).not.toContain('south<br>')
   })
 })

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Action, DashboardDocument, Filter } from '../contract'
 import {
   compareValues,
+  periodTransitionValues,
   currentPeriodValue,
   declaredFilters,
   filterActionURL,
@@ -131,6 +132,38 @@ describe('value helpers', () => {
       .toEqual({ start: '2026-02-01', end: '2026-03-01' })
     expect(currentPeriodValue(periodFilter.period!, { ActualRangeStart: '', ActualRangeEnd: '' }))
       .toEqual({ start: '', end: '' })
+  })
+
+  it('canonicalizes a bound comparison off when its period becomes all-time', () => {
+    const comparison: Filter = {
+      id: 'compare', kind: 'compare', label: 'Compare',
+      compare: {
+        modeParam: 'compare', startParam: 'compare_start', endParam: 'compare_end', compareTo: 'period',
+        value: { mode: 'previous_period' },
+      },
+    }
+    expect(periodTransitionValues(
+      documentWithFilters([periodFilter, comparison]),
+      periodFilter,
+      { start: '', end: '' },
+      { compare: 'custom', compare_start: '2025-01-01', compare_end: '2025-12-31' },
+    )).toEqual({ ActualRangeStart: '', ActualRangeEnd: '', compare: 'off' })
+  })
+
+  it('canonicalizes an impossible all-time comparison from an initial URL', () => {
+    const comparison: Filter = {
+      id: 'compare', kind: 'compare', label: 'Compare',
+      compare: {
+        modeParam: 'compare', startParam: 'compare_start', endParam: 'compare_end', compareTo: 'period',
+        value: { mode: 'off' },
+      },
+    }
+    const document = documentWithFilters([periodFilter, comparison])
+    const url = new URL('https://x.test/dash?ActualRangeStart=&ActualRangeEnd=&compare=custom&compare_start=2024-01-01&compare_end=2024-08-01')
+
+    expect(readFilterValues(document, url)).toEqual({
+      ActualRangeStart: '', ActualRangeEnd: '', compare: 'off',
+    })
   })
 
   it('maps a period value to its parameters', () => {

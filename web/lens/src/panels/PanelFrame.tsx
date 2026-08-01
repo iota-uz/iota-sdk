@@ -39,7 +39,9 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   const percent = framePercent ?? trend.percent
   const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
   const formatPercentagePoints = useFormat({ kind: 'number', minorUnits: false, precision: 1 })
-  const formatPercent = useFormat({ kind: 'percent', minorUnits: false, precision: 1 })
+  const formatPercent = useFormat(trend.percentField
+    ? panel.format[trend.percentField]
+    : { kind: 'percent', minorUnits: false, precision: 1 })
   const translate = useTranslate()
   const { document } = useDashboard()
   if (trend.percentField && framePercent === undefined) {
@@ -82,6 +84,7 @@ export function PanelFrame({
   panel, frame, children, variant = 'chart', allowEmptyContent = false, total: totalOverride, headerActions,
 }: PanelFrameProps) {
   const translate = useTranslate()
+  const { document: dashboard } = useDashboard()
   const chrome = usePanelChrome()
   const [expanded, setExpanded] = useState(false)
   const expandRef = useRef<HTMLButtonElement>(null)
@@ -208,6 +211,7 @@ export function PanelFrame({
           )}
         </div>
       </header>
+      {dashboard.header?.subtitle && <p className="lens-panel-export-scope">{dashboard.header.subtitle}</p>}
       {panel.comparisonUnsupported && (
         <p className="lens-panel-comparison-note" role="note">
           {translate('panel.comparisonUnsupported', 'Comparison is not available for this panel.')}

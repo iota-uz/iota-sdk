@@ -537,6 +537,16 @@ describe('buildChartOption', () => {
     expect(chart.yAxis.triggerEvent).toBe(true)
   })
 
+  it('falls back to an available label column when the declared category is absent', () => {
+    const chartInput = input('hbar')
+    chartInput.encoding = { ...chartInput.encoding, category: 'future_category', label: 'category' }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.yAxis.data).toEqual(['Jan', 'Feb'])
+    expect(chart.series[0]?.data).toHaveLength(2)
+  })
+
   it('prints donut value and share labels and the total in its center', () => {
     const chartInput = input('donut')
     chartInput.tooltipTotalLabel = 'Итого'
@@ -603,6 +613,21 @@ describe('buildChartOption', () => {
     expect(tooltip).toContain('Jan')
     expect(tooltip).toContain('$1200')
     expect(tooltip).not.toContain('series0')
+  })
+
+  it('keeps numeric-looking categorical years literal and marks an incomplete period', () => {
+    const chartInput = input('bar')
+    chartInput.frame.rows = [['2025', '2025', 'Revenue', 1200]]
+    chartInput.temporal = { period: { category: '2025', state: 'ytd', label: 'YTD' } }
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    const tooltip = chart.tooltip.formatter?.([
+      { axisValueLabel: '2025', seriesName: 'Revenue', value: 1200 },
+    ]) ?? ''
+
+    expect(tooltip).toContain('2025 · YTD')
+    expect(tooltip).not.toContain('2,025')
+    expect(chart.series[0]?.data?.[0]?.itemStyle).toMatchObject({ borderWidth: 2 })
   })
 
   it('omits zero-valued stack entries and restores the localized column total', () => {

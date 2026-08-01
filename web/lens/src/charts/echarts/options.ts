@@ -24,6 +24,10 @@ function columnIndex(input: ChartInput, field: string | undefined): number {
   return field ? input.frame.columns.findIndex((column) => column.name === field) : -1
 }
 
+function availableEncodingField(input: ChartInput, ...fields: Array<string | undefined>): string | undefined {
+  return fields.find((field) => field !== undefined && columnIndex(input, field) >= 0)
+}
+
 function text(value: unknown): string {
   if (value === null || value === undefined) return ''
   if (typeof value === 'string') return value
@@ -52,7 +56,11 @@ function timestamp(value: unknown): number | undefined {
 }
 
 function rowPoints(input: ChartInput): RowPoint[] {
-  const categoryField = input.encoding.category ?? input.encoding.label
+  // Producers may declare the semantic category field before it is present in
+  // a progressive frame. Fall back to the first field that actually exists;
+  // otherwise every bar receives the empty category and is painted on top of
+  // the preceding one.
+  const categoryField = availableEncodingField(input, input.encoding.category, input.encoding.label)
   const categoryIndex = columnIndex(input, categoryField)
   const valueIndex = columnIndex(input, input.encoding.value)
   const previousIndex = columnIndex(input, input.encoding.previous)
@@ -198,7 +206,20 @@ function categoryTooltipFormatter(
   return (params: unknown) => {
     const records = nonZeroTooltipRecords(params)
     if (records.length === 0) return ''
-    const header = input.format(categoryField, records[0]?.axisValueLabel ?? records[0]?.axisValue)
+    const rawCategory = records[0]?.axisValueLabel ?? records[0]?.axisValue
+    // A categorical year is an identifier, not a quantity. Passing the string
+    // "2025" through a generic numeric fallback produced "2 025" in the
+    // tooltip while the axis correctly kept "2025".
+    const formattedCategory = typeof rawCategory === 'string'
+      ? rawCategory
+      : input.format(categoryField, rawCategory)
+    const period = input.temporal?.period
+    const periodLabel = period && String(rawCategory) === period.category
+      ? (period.label || (period.state === 'annualized'
+        ? (input.labels?.estimate ?? 'Estimate')
+        : (input.labels?.ytd ?? 'YTD')))
+      : ''
+    const header = periodLabel ? `${formattedCategory} · ${periodLabel}` : formattedCategory
     const lines = records.map((entry) => {
       const marker = typeof entry.marker === 'string' ? entry.marker : ''
       const seriesName = text(entry.seriesName)
@@ -297,7 +318,8 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       trigger: 'item',
       formatter: (params: unknown) => {
         const record = params as { data?: { displayLabel?: string; value?: unknown }; name?: string }
-        const label = record.data?.displayLabel || record.name || ''
+        const key = record.name ?? ''
+        const label = record.data?.displayLabel || frameLabels.get(key) || featureLabels.get(key) || key
         return `${escapeTooltipHTML(label)}<br><strong>${escapeTooltipHTML(input.format(input.encoding.value ?? '', record.data?.value))}</strong>`
       },
     },
@@ -884,7 +906,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     ? niceLogMaximum(Math.max(...numericPointValues))
     : undefined
   const showSeriesName = Boolean(input.encoding.series)
-  const categoryField = input.encoding.category ?? input.encoding.label ?? ''
+  const categoryField = availableEncodingField(input, input.encoding.category, input.encoding.label) ?? ''
   const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
   const colorByCategory = isBar && input.presentation?.colorBy === 'category'
   const barWidth = input.presentation?.barWidthPx

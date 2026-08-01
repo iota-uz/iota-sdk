@@ -800,6 +800,24 @@ describe('chart encoding and drill behavior', () => {
     expect(data.querySelectorAll('button')).toHaveLength(0)
   })
 
+  it('falls back to a present label column when the default category column is absent', () => {
+    runtime.frame = {
+      data: {
+        columns: [{ name: 'id', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['osago', 'ОСАГО', 312_200_000], ['travel', 'Путешествия', 10_000_000]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<BarPanel
+      adapter={fakeAdapter()}
+      panel={panel('hbar', { encoding: { id: 'id', category: 'category', label: 'label', value: 'value' } })}
+    />)
+
+    const equivalent = screen.getByRole('list', { name: 'Chart data for hbar panel' })
+    expect(equivalent).toHaveTextContent('ОСАГО, 312200000')
+    expect(equivalent).toHaveTextContent('Путешествия, 10000000')
+  })
+
   it('gives same-category actionable series unambiguous names with values', async () => {
     runtime.frame = {
       data: {
@@ -865,6 +883,7 @@ describe('chart encoding and drill behavior', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /Direct/ }))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([['2026', 'Inward', 50], ['2027', 'Inward', 30]]))
+    expect(inputs.at(-1)?.frame.total).toBe(80)
   })
 
   it('collapses expandable TopN and sub-two-percent donut tails without discarding their source rows', () => {

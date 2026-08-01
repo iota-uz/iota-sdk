@@ -54,6 +54,7 @@ export function panelSVG(panelId: string): { background: string; blob: Blob; wid
   const clone = source.cloneNode(true) as HTMLElement
   clone.querySelectorAll([
     '.lens-panel-actions',
+    '.lens-info-tip',
     '.lens-chart-collapse-other',
     '.lens-chart-drill-hint',
     '.lens-chart-keyboard-actions',
@@ -63,6 +64,9 @@ export function panelSVG(panelId: string): { background: string; blob: Blob; wid
     '.lens-chart-legend-tools',
     '.lens-chart-reset-zoom',
   ].join(',')).forEach((node) => node.remove())
+  clone.querySelectorAll<HTMLElement>('.lens-panel-export-scope').forEach((node) => {
+    node.style.display = 'block'
+  })
   clone.querySelectorAll('.lens-chart-legend-hidden').forEach((node) => node.closest('.lens-chart-legend-item')?.remove())
   clone.querySelectorAll<HTMLElement>('.lens-chart-legend, .lens-chart-legend-scroll-frame, .lens-chart-legend-shell').forEach((node) => {
     node.style.maxHeight = 'none'

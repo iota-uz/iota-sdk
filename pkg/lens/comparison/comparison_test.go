@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/format"
 	"github.com/iota-uz/iota-sdk/pkg/lens/frame"
 	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 	"github.com/stretchr/testify/require"
@@ -190,6 +191,50 @@ func TestApplyStaticConfiguresPanelsWithSharedFieldContract(t *testing.T) {
 	require.Equal(t, PreviousField("value"), table.Columns[1].Field.Name())
 	require.Equal(t, DeltaField("value"), table.Columns[3].Field.Name())
 	require.Equal(t, DeltaPercentField("value"), table.Columns[3].Cell.PercentField.Name())
+}
+
+func TestConfigureProgressivePresentationDeclaresDeferredComparisonContract(t *testing.T) {
+	dashboard := lens.DashboardSpec{Rows: []lens.RowSpec{{Panels: []panel.Spec{
+		{ID: "chart", Kind: panel.KindTimeSeries, Fields: panel.FieldMapping{Value: panel.Ref("value")}},
+		{ID: "stat", Kind: panel.KindStat, Fields: panel.FieldMapping{Value: panel.Ref("ratio")}},
+		{ID: "map", Kind: panel.KindMap, Fields: panel.FieldMapping{Value: panel.Ref("value")}},
+		{ID: "table", Kind: panel.KindTable, Columns: []panel.TableColumn{
+			{Field: panel.Ref("product"), Label: "Product"},
+			{Field: panel.Ref("margin"), Label: "Margin", Formatter: formatPtr(format.Money("UZS", 0))},
+		}},
+	}}}}
+
+	ConfigureProgressivePresentation(&dashboard, true, StaticOptions{
+		Labels: Labels{Trend: "vs baseline"},
+		AbsoluteDeltaUnit: func(field string) panel.TrendDeltaUnit {
+			if field == "ratio" {
+				return panel.TrendDeltaPercentagePoints
+			}
+			return panel.TrendDeltaValue
+		},
+	})
+
+	require.Equal(t, panel.Ref("previous_value"), dashboard.Rows[0].Panels[0].Fields.Previous)
+	require.Equal(t, panel.Ref("ratio_delta"), dashboard.Rows[0].Panels[1].Trend.AbsoluteField)
+	require.Equal(t, panel.TrendDeltaPercentagePoints, dashboard.Rows[0].Panels[1].Trend.AbsoluteDeltaUnit)
+	require.True(t, dashboard.Rows[0].Panels[2].ComparisonUnsupported)
+	require.Equal(t, []string{"product", "previous_margin", "margin", "margin_delta"}, tableFieldNames(dashboard.Rows[0].Panels[3].Columns))
+	require.Equal(t, panel.Ref("margin_delta_percent"), dashboard.Rows[0].Panels[3].Columns[3].Cell.PercentField)
+
+	ConfigureProgressivePresentation(&dashboard, false, StaticOptions{})
+	require.Empty(t, dashboard.Rows[0].Panels[0].Fields.Previous)
+	require.Nil(t, dashboard.Rows[0].Panels[1].Trend)
+	require.False(t, dashboard.Rows[0].Panels[2].ComparisonUnsupported)
+}
+
+func formatPtr(value format.Spec) *format.Spec { return &value }
+
+func tableFieldNames(columns []panel.TableColumn) []string {
+	fields := make([]string, len(columns))
+	for index, column := range columns {
+		fields[index] = column.Field.Name()
+	}
+	return fields
 }
 
 func staticDataset(t *testing.T, name string, keys []string, values []float64) lens.DatasetSpec {

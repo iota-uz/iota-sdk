@@ -35,6 +35,101 @@ type StaticOptions struct {
 	AbsoluteDeltaUnit func(fieldName string) panel.TrendDeltaUnit
 }
 
+// ConfigureProgressivePresentation declares the comparison fields that a
+// progressive document must expose before its deferred frames have been
+// calculated. ApplyStatic still owns the data join; this function only keeps
+// the frozen document contract in sync with the frame it will receive later.
+//
+// Tables are intentionally left to ApplyStatic because their before/current/
+// delta column expansion depends on the materialized fields. Progressive
+// callers that freeze table metadata early must declare those columns in their
+// dashboard-specific shell.
+func ConfigureProgressivePresentation(current *lens.DashboardSpec, enabled bool, options StaticOptions) {
+	if current == nil {
+		return
+	}
+	for rowIndex := range current.Rows {
+		for panelIndex := range current.Rows[rowIndex].Panels {
+			configureProgressivePanel(&current.Rows[rowIndex].Panels[panelIndex], enabled, options)
+		}
+	}
+}
+
+func configureProgressivePanel(spec *panel.Spec, enabled bool, options StaticOptions) {
+	if spec == nil {
+		return
+	}
+	for index := range spec.Children {
+		configureProgressivePanel(&spec.Children[index], enabled, options)
+	}
+	valueField := spec.Fields.Value.Name()
+	if !enabled {
+		spec.ComparisonUnsupported = false
+		if valueField != "" && spec.Fields.Previous.Name() == PreviousField(valueField) {
+			spec.Fields.Previous = ""
+		}
+		if valueField != "" && spec.Trend != nil && spec.Trend.AbsoluteField.Name() == DeltaField(valueField) {
+			spec.Trend = nil
+		}
+		return
+	}
+	if spec.Kind == panel.KindTable {
+		maxTableMetrics := options.MaxTableMetrics
+		if maxTableMetrics <= 0 {
+			maxTableMetrics = defaultMaxTableMetrics
+		}
+		columns := make([]panel.TableColumn, 0, len(spec.Columns)*3)
+		expanded := 0
+		for _, column := range spec.Columns {
+			fieldName := column.Field.Name()
+			if column.Formatter == nil || !column.ShareOf.Empty() || expanded >= maxTableMetrics ||
+				strings.HasPrefix(fieldName, "previous_") || strings.HasSuffix(fieldName, "_delta") {
+				columns = append(columns, column)
+				continue
+			}
+			expanded++
+			before := column
+			before.Field = panel.Ref(PreviousField(fieldName))
+			before.Label = columnLabel(column.Label, options.Labels.Before)
+			after := column
+			after.Label = columnLabel(column.Label, options.Labels.After)
+			delta := column
+			delta.Field = panel.Ref(DeltaField(fieldName))
+			delta.Label = columnLabel(column.Label, options.Labels.Delta)
+			delta.Cell = &panel.TableCellSpec{Kind: panel.TableCellDelta, PercentField: panel.Ref(DeltaPercentField(fieldName))}
+			delta.SampleSizeField = ""
+			delta.MinSampleSize = 0
+			columns = append(columns, before, after, delta)
+		}
+		spec.Columns = columns
+		return
+	}
+	switch spec.Kind {
+	case panel.KindPie, panel.KindDonut, panel.KindMap, panel.KindHistogram, panel.KindBoxPlot, panel.KindHeatmap:
+		spec.ComparisonUnsupported = true
+		return
+	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar:
+		if valueField != "" {
+			spec.Fields.Previous = panel.Ref(PreviousField(valueField))
+		}
+	case panel.KindStat:
+		if valueField == "" {
+			return
+		}
+		unit := panel.TrendDeltaValue
+		if options.AbsoluteDeltaUnit != nil {
+			unit = options.AbsoluteDeltaUnit(valueField)
+		}
+		spec.Trend = &panel.TrendSpec{
+			Label:             options.Labels.Trend,
+			Invert:            options.InvertTrend != nil && options.InvertTrend(valueField),
+			AbsoluteField:     panel.Ref(DeltaField(valueField)),
+			PercentField:      panel.Ref(DeltaPercentField(valueField)),
+			AbsoluteDeltaUnit: unit,
+		}
+	}
+}
+
 // ApplyStatic joins a separately queried baseline into a dashboard whose
 // datasets have already been materialized as static frames.
 func ApplyStatic(current, baseline *lens.DashboardSpec, options StaticOptions) error {

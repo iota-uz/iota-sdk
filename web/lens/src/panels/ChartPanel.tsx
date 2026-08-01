@@ -324,7 +324,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     // `colors` is positional: entry i pins row i. Dropping rows without
     // dropping their pins slides every colour onto its neighbour's slice.
     const colors = frame.data.colors?.filter((_, index) => keep[index])
-    return { ...frame.data, rows, ...(colors ? { colors } : {}) }
+    const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
+    const total = panel.radial?.mode === 'partition' || valueIndex < 0
+      ? frame.data.total
+      : rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
+    return { ...frame.data, rows, total, ...(colors ? { colors } : {}) }
   }, [frame.data, hidden, panel])
   const collapsedRemainder = useMemo(() => visibleFrame
     ? (() => {
@@ -359,21 +363,23 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // a drill level the panel is showing the level's frame, so the badge has to
   // total that frame instead — the same rows the slice percentages normalize
   // against — or it prints the root's figure over the level's chart.
-  const levelTotal = useMemo(() => {
-    if (!active || !frame.data || !panel.encoding.value) return undefined
+  const frameRowsTotal = useMemo(() => {
+    if (!frame.data || !panel.encoding.value) return undefined
     // A partition radial holds several decompositions of the same headline at
     // once, so summing its rows counts that headline once per ring.
     if (panel.radial?.mode === 'partition') return undefined
     const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
     if (valueIndex < 0) return undefined
     return frame.data.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
-  }, [active, frame.data, panel.encoding.value, panel.radial?.mode])
+  }, [frame.data, panel.encoding.value, panel.radial?.mode])
 
   // Once a slice is hidden ECharts normalises the remaining geometry to the
   // visible rows. Use that same denominator for labels and the total badge.
   const shareTotal = hidden.size > 0
     ? visibleTotal
-    : frame.data?.total ?? levelTotal ?? panel.total
+    : frame.data?.total
+      ?? (active || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal : undefined)
+      ?? panel.total
   // A served frame may carry the rendering decisions of the panel that produced
   // it. In document mode a drill level is drawn by a placeholder panel frozen
   // before anyone knew which dimension that level would render, so the frame is
@@ -605,7 +611,8 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
 
 function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
   const translate = useTranslate()
-  const labelField = panel.encoding.category ?? panel.encoding.label
+  const labelField = [panel.encoding.category, panel.encoding.label]
+    .find((field) => field !== undefined && frame.columns.some((column) => column.name === field))
   const valueField = panel.encoding.value
   const labelIndex = frame.columns.findIndex((column) => column.name === labelField)
   const valueIndex = frame.columns.findIndex((column) => column.name === valueField)
@@ -613,14 +620,19 @@ function CompactChartValue({ frame, panel }: { frame: Frame; panel: Panel }) {
   const total = valueIndex < 0 ? undefined : frame.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
   const rawLabel = labelIndex < 0 ? undefined : frame.rows[0]?.[labelIndex]
   const label = textCell(rawLabel)
+  const formattedTotal = formatValue(total)
   return (
-    <div className="lens-chart-compact" role="status">
+    <div
+      aria-label={frame.rows.length === 0 ? translate('panel.empty', 'No data') : [label, formattedTotal].filter(Boolean).join(' / ')}
+      className="lens-chart-compact"
+      role="img"
+    >
       {frame.rows.length === 0 ? (
         <span className="lens-chart-compact-empty">{translate('panel.empty', 'No data')}</span>
       ) : (
         <>
           {label && <span className="lens-chart-compact-label" title={label}>{label}</span>}
-          <strong className="lens-chart-compact-value">{formatValue(total)}</strong>
+          <strong className="lens-chart-compact-value">{formattedTotal}</strong>
         </>
       )}
     </div>

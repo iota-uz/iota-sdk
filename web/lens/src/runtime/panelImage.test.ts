@@ -50,7 +50,8 @@ describe('panelSVG', () => {
     panel.className = 'lens-panel'
     panel.dataset.panelId = 'revenue'
     panel.innerHTML = `
-      <header><h3>Revenue</h3><div class="lens-panel-actions"><button>Export</button></div></header>
+      <header><h3>Revenue</h3><span class="lens-info-tip">Info</span><div class="lens-panel-actions"><button>Export</button></div></header>
+      <p class="lens-panel-export-scope">2026-01-01 — 2026-07-22</p>
       <div class="lens-chart-reset-zoom">Reset zoom</div>
       <div class="lens-chart-keyboard-actions"><button>Open mark</button></div>
       <div class="lens-chart-legend-shell"><div class="lens-chart-legend-scroll-frame">
@@ -76,8 +77,10 @@ describe('panelSVG', () => {
     })
     expect(markup).toContain('Revenue')
     expect(markup).toContain('Resolved chart')
+    expect(markup).toContain('2026-01-01 — 2026-07-22')
     expect(markup).toContain('Visible')
     expect(markup).not.toContain('Export')
+    expect(markup).not.toContain('Info')
     expect(markup).not.toContain('Reset zoom')
     expect(markup).not.toContain('Open mark')
     expect(markup).not.toContain('Hide all')

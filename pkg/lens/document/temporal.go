@@ -116,7 +116,11 @@ func validateTemporalPanel(panel Panel, frame Frame) error {
 	if temporal == nil {
 		return nil
 	}
-	if panel.Kind != PanelKindLine && panel.Kind != PanelKindArea {
+	lineLike := panel.Kind == PanelKindLine || panel.Kind == PanelKindArea
+	barPeriodOnly := panel.Kind == PanelKindBar && temporal.Period != nil &&
+		temporal.Regression == nil && len(temporal.MovingAverages) == 0 &&
+		len(temporal.ReferenceLines) == 0 && len(temporal.Annotations) == 0 && temporal.Forecast == nil
+	if !lineLike && !barPeriodOnly {
 		return fmt.Errorf("panel %s temporal overlays are only supported on line and area kinds, got %q", panel.ID, panel.Kind)
 	}
 	requireNumber := func(role, field string) error {

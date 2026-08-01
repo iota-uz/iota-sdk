@@ -1002,7 +1002,7 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 		}
 	}
 	if spec.Trend != nil && !spec.Trend.PercentField.Empty() {
-		formats[spec.Trend.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}
+		formats[spec.Trend.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}
 	}
 	for _, column := range spec.Columns {
 		if column.Field.Empty() || column.Formatter == nil {
@@ -1019,7 +1019,7 @@ func buildFormats(spec panel.Spec) map[string]FieldFormat {
 		// Delta secondaries are percent changes by contract; default their wire
 		// format so the runtime never renders a bare unlabeled number.
 		if _, exists := formats[column.Cell.PercentField.Name()]; !exists {
-			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}
+			formats[column.Cell.PercentField.Name()] = FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}
 		}
 	}
 	return formats
@@ -1080,14 +1080,8 @@ func convertFormat(spec format.Spec) (FieldFormat, bool) {
 			result.MinorUnits = false
 		}
 		result.Compact = true
-		// The server formatter prints the mantissa with %.*f. Pin the separator
-		// so document rendering stays byte-for-byte consistent with exports.
-		result.DecimalSeparator = "."
 	case format.KindPercent:
 		result.Kind = FormatPercent
-		// The server formatter prints percents as %.*f%%. Pin the separator so
-		// document rendering does not drift to locale punctuation.
-		result.DecimalSeparator = "."
 	case format.KindDate, format.KindMonthLabel:
 		result.Kind = FormatDate
 		if spec.Kind == format.KindMonthLabel && result.Layout == "" {

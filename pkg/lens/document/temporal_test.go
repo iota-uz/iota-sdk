@@ -57,3 +57,11 @@ func TestValidateTemporalPanelRejectsInvalidOverlayContracts(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateTemporalPanelAllowsIncompletePeriodOnBar(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, validateTemporalPanel(Panel{
+		ID: "premium", Kind: PanelKindBar, Deferred: true,
+		Temporal: &PanelTemporal{Period: &TemporalPeriod{Category: "2026 · Q3", State: TemporalPeriodYTD}},
+	}, Frame{}))
+}

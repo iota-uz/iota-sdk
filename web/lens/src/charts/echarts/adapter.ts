@@ -211,7 +211,8 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         if (raw === null || raw === undefined || !input.encoding.category && !input.encoding.label) return
         const wrapper = (record.event as { event?: MouseEvent } | undefined)?.event
         if (!wrapper) return
-        const categoryField = input.encoding.category ?? input.encoding.label ?? ''
+        const categoryField = [input.encoding.category, input.encoding.label]
+          .find((field) => field !== undefined && input.frame.columns.some((column) => column.name === field)) ?? ''
         const label = input.format(categoryField, raw)
         hideAxisTooltip()
         axisTooltip = document.createElement('div')

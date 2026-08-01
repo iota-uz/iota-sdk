@@ -479,6 +479,8 @@ export function TablePanel({ panel }: TablePanelProps) {
     const scroller = scrollRef.current
     if (!scroller) return undefined
     const measure = () => {
+      const stickyWidth = scroller.querySelector<HTMLElement>('thead th:first-child')?.offsetWidth ?? 0
+      scroller.parentElement?.style.setProperty('--lens-table-sticky-width', `${stickyWidth}px`)
       const left = scroller.scrollLeft > 1
       const right = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1
       setScrollEdges((current) => current.left === left && current.right === right ? current : { left, right })
@@ -490,6 +492,7 @@ export function TablePanel({ panel }: TablePanelProps) {
     return () => {
       scroller.removeEventListener('scroll', measure)
       observer?.disconnect()
+      scroller.parentElement?.style.removeProperty('--lens-table-sticky-width')
     }
   }, [columnCount, frame.data])
 
@@ -497,8 +500,21 @@ export function TablePanel({ panel }: TablePanelProps) {
     const scroller = scrollRef.current
     if (!scroller) return
     const maximum = Math.max(0, scroller.scrollWidth - scroller.clientWidth)
-    const step = Math.max(120, Math.round(scroller.clientWidth * 0.8))
-    const next = Math.max(0, Math.min(maximum, scroller.scrollLeft + direction * step))
+    const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th'))
+    const stickyWidth = headers[0]?.offsetWidth ?? 0
+    const targets = headers.slice(1)
+      .map((header) => Math.max(0, Math.min(maximum, header.offsetLeft - stickyWidth)))
+      .filter((target, index, values) => target > 0 && (index === 0 || target !== values[index - 1]))
+    const desired = scroller.scrollLeft + direction * Math.max(120, Math.round(scroller.clientWidth * 0.8))
+    const candidates = direction > 0
+      ? targets.filter((target) => target > scroller.scrollLeft + 1)
+      : targets.filter((target) => target < scroller.scrollLeft - 1)
+    const next = candidates.length === 0
+      ? (direction > 0 ? maximum : 0)
+      : direction > 0
+        ? (candidates.find((target) => target >= desired) ?? candidates[candidates.length - 1])
+        : ([...candidates].reverse().find((target) => target <= desired) ?? candidates[0])
+    if (next === undefined) return
     scroller.scrollLeft = next
     setScrollEdges({ left: next > 1, right: next < maximum - 1 })
     scroller.focus({ preventScroll: true })

@@ -661,7 +661,7 @@ func TestBuild_TableProjectsColumnsAndCarriesMetadata(t *testing.T) {
 	}, wirePanel.Format["amount"])
 	// Delta secondaries carry percent-unit values, so the wire format defaults
 	// to percent when the column declares no formatter of its own.
-	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}, wirePanel.Format["delta_pct"])
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}, wirePanel.Format["delta_pct"])
 
 	wireFrame := doc.Frames[wirePanel.Frame]
 	require.Equal(t, []Column{
@@ -1034,7 +1034,7 @@ func TestBuild_CompactFormatterPinsSeparator(t *testing.T) {
 	doc, err := Build(spec, executed, BuildOptions{SnapshotID: "s", GeneratedAt: time.Unix(1, 0), Locale: "ru"})
 	require.NoError(t, err)
 	require.Equal(t, FieldFormat{
-		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true, DecimalSeparator: ".",
+		Kind: FormatMoney, Currency: "UZS", Precision: PrecisionOf(2), Compact: true,
 	}, doc.Panels[0].Format["value"])
 }
 
@@ -1253,7 +1253,7 @@ func TestBuild_PercentFormatPinsSeparator(t *testing.T) {
 	require.NoError(t, err)
 	// The server formatter prints "47.1%"; the wire format carries the same
 	// separator so the runtime does not drift to "47,1 %".
-	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1), DecimalSeparator: "."}, doc.Panels[0].Format["value"])
+	require.Equal(t, FieldFormat{Kind: FormatPercent, Precision: PrecisionOf(1)}, doc.Panels[0].Format["value"])
 }
 
 // TestBuild_LazyExploreLevelsCarryDeclaredEncoding pins the contract that made
