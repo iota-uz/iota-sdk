@@ -481,8 +481,14 @@ export function TablePanel({ panel }: TablePanelProps) {
     const measure = () => {
       const stickyWidth = scroller.querySelector<HTMLElement>('thead th:first-child')?.offsetWidth ?? 0
       scroller.parentElement?.style.setProperty('--lens-table-sticky-width', `${stickyWidth}px`)
+      // A translated sticky first column contributes its width to Chromium's
+      // scrollWidth. Clamp against the table itself so the native scrollbar
+      // cannot move past the real content and crop the sticky cells.
+      const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
+      const maximum = Math.max(0, tableWidth - scroller.clientWidth)
+      if (scroller.scrollLeft > maximum) scroller.scrollLeft = maximum
       const left = scroller.scrollLeft > 1
-      const right = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1
+      const right = scroller.scrollLeft < maximum - 1
       setScrollEdges((current) => current.left === left && current.right === right ? current : { left, right })
     }
     measure()
@@ -499,7 +505,8 @@ export function TablePanel({ panel }: TablePanelProps) {
   const scrollHorizontally = (direction: -1 | 1) => {
     const scroller = scrollRef.current
     if (!scroller) return
-    const maximum = Math.max(0, scroller.scrollWidth - scroller.clientWidth)
+    const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
+    const maximum = Math.max(0, tableWidth - scroller.clientWidth)
     const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th'))
     const stickyWidth = headers[0]?.offsetWidth ?? 0
     const targets = headers.slice(1)

@@ -576,6 +576,15 @@ describe('TablePanel server readability features', () => {
     expect(scrollFrame).toHaveAttribute('data-overflow-left', 'true')
     expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
 
+    // Chromium counts the translated sticky column as scrollable overflow.
+    // Scrolling to that inflated native maximum must clamp at the table edge.
+    Object.defineProperty(scroller.querySelector('table'), 'scrollWidth', { configurable: true, value: 733 })
+    Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 893 })
+    scroller.scrollLeft = 388
+    fireEvent.scroll(scroller)
+    expect(scroller.scrollLeft).toBe(228)
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
+
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: 'motor' } })
     await waitFor(() => expect(requests.at(-1)?.panels[0]?.search).toBe('motor'))
     expect(requests.at(-1)?.panels[0]?.sort).toEqual({ field: 'paid', direction: 'asc' })
