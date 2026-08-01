@@ -375,11 +375,13 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
 
   // Once a slice is hidden ECharts normalises the remaining geometry to the
   // visible rows. Use that same denominator for labels and the total badge.
-  const shareTotal = hidden.size > 0
-    ? visibleTotal
-    : frame.data?.total
-      ?? (active || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal : undefined)
-      ?? panel.total
+  const shareTotal = !frame.data || frame.data.rows.length === 0
+    ? undefined
+    : hidden.size > 0
+      ? visibleTotal
+      : frame.data.total
+        ?? (active || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal : undefined)
+        ?? panel.total
   // A served frame may carry the rendering decisions of the panel that produced
   // it. In document mode a drill level is drawn by a placeholder panel frozen
   // before anyone knew which dimension that level would render, so the frame is

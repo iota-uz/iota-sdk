@@ -226,6 +226,17 @@ describe('panel total badge', () => {
     expect(view.container.querySelector('.lens-plot-total')).not.toHaveTextContent('Total: 3')
   })
 
+  it('does not leak a deferred shell total into an empty hydrated frame', () => {
+    runtime.frame = state('empty')
+    const view = render(<PiePanel
+      adapter={fakeAdapter()}
+      panel={panel('donut', { presentation: { totalBadge: 'plot' }, total: 3 })}
+    />)
+
+    expect(view.container.querySelector('.lens-plot-total')).toBeNull()
+    expect(view.container).not.toHaveTextContent('Total: 3')
+  })
+
   it('totals the drilled level frame, not the root, in the header badge', () => {
     // The panel is showing a drill level: navigation targets this panel with a
     // non-empty path, and the frame on screen is the level's rows. `panel.total`
