@@ -86,6 +86,7 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
   expect(styles).toContain('@media (min-width: 769px)')
   expect(styles).toContain('grid-template-columns: minmax(0, 1fr)')
   expect(styles).toContain('max-width: 10rem')
+  expect(styles).toContain('min-width: 7rem')
 })
 
 it('wraps custom comparison dates without widening narrow dashboards', () => {

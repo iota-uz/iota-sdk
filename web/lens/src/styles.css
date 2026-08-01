@@ -2971,6 +2971,7 @@
   @media (max-width: 640px) {
     .lens-table-wide :is(th, td):first-child {
       max-width: 10rem;
+      min-width: 7rem;
       width: 10rem;
       overflow-wrap: anywhere;
     }
