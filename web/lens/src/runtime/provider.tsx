@@ -741,6 +741,20 @@ function RuntimeCore({
     typeof window === 'undefined' ? {} : readFilterValues(document, new URL(window.location.href))
   ))
   const filterValuesRef = useRef(filterValues)
+
+  // The first document fetch follows the host's raw deep link. Once that
+  // server-normalized document declares its filters, replace impossible URL
+  // combinations (notably all-time + comparison) with the same canonical
+  // values the controls and subsequent requests use.
+  useEffect(() => {
+    if (!filtersEnabled || typeof window === 'undefined') return
+    const current = new URL(window.location.href)
+    const canonical = writeFilterValues(current, documentRef.current, filterValuesRef.current)
+    if (!sameNavigationURL(current, canonical)) {
+      window.history.replaceState(window.history.state, '', canonical)
+    }
+  }, [document, filtersEnabled])
+
   const syncFiltersFromURL = useCallback(() => {
     if (typeof window === 'undefined') return
     const values = readFilterValues(documentRef.current, new URL(window.location.href))

@@ -283,6 +283,12 @@ function documentWithCompare(value: { mode: 'off' | 'previous_period' | 'year_ag
   })
 }
 
+function allTimeDocumentWithCompareOff(): DashboardDocument {
+  const period = documentWithPeriod({ start: '', end: '' }).filters![0]!
+  const compare = documentWithCompare({ mode: 'off' }).filters![0]!
+  return parseDocument({ ...fixture, filters: [period, compare] })
+}
+
 function compareFetcher(calls: Array<string>): typeof fetch {
   return (input: RequestInfo | URL) => {
     const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
@@ -404,6 +410,20 @@ function refetchFailureFetcher(calls: Array<string>): typeof fetch {
 }
 
 describe('FilterBar runtime integration', () => {
+
+  it('replaces an impossible all-time comparison deep link after the normalized document loads', async () => {
+    window.history.replaceState(null, '', '/dash?ActualRangeStart=&ActualRangeEnd=&compare=custom&compare_start=2025-01-01&compare_end=2025-08-01')
+    const fetcher: typeof fetch = () => Promise.resolve(new Response(
+      JSON.stringify(allTimeDocumentWithCompareOff()),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+    render(<FiltersFixture fetcher={fetcher} />)
+
+    const select = await screen.findByRole('combobox', { name: 'Compare with' })
+    await waitFor(() => expect(window.location.search).toBe('?ActualRangeStart=&ActualRangeEnd=&compare=off'))
+    expect(select).toHaveValue('off')
+  })
+
   it('stages a custom comparison interval before applying it', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
