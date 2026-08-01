@@ -43,7 +43,7 @@ func DashboardSkeleton(spec lens.DashboardSpec) templ.Component {
 			return templ_7745c5c3_Err
 		}
 		if len(spec.Rows) == 0 {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<section class=\"lens-dashboard-row\"><div class=\"lens-panel-grid\"><div class=\"lens-grid-item\" style=\"--lens-panel-span:12\"><div class=\"lens-skeleton-card lens-skeleton-card-plot\"><span class=\"lens-skeleton-shimmer lens-shimmer lens-shimmer-label\" style=\"width:35%\"></span> <span class=\"lens-skeleton-shimmer lens-shimmer lens-shimmer-block\"></span></div></div></div></section>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 2, "<section class=\"lens-dashboard-row\"><div class=\"lens-panel-grid\"><div class=\"lens-grid-item\" style=\"--lens-panel-span:12\"><div class=\"lens-skeleton-card lens-skeleton-card-plot\"><span class=\"lens-shimmer lens-shimmer-label\" style=\"width:35%\"></span> <span class=\"lens-shimmer lens-shimmer-block\"></span></div></div></div></section>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
@@ -54,7 +54,7 @@ func DashboardSkeleton(spec lens.DashboardSpec) templ.Component {
 				return templ_7745c5c3_Err
 			}
 			if strings.TrimSpace(row.Heading) != "" {
-				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"lens-skeleton-heading\"><span class=\"lens-skeleton-shimmer lens-shimmer lens-shimmer-label\" style=\"width:8rem\"></span> <span class=\"lens-skeleton-heading-rule\"></span></div>")
+				templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 4, "<div class=\"lens-skeleton-heading\"><span class=\"lens-shimmer lens-shimmer-label\" style=\"width:8rem\"></span> <span class=\"lens-skeleton-heading-rule\"></span></div>")
 				if templ_7745c5c3_Err != nil {
 					return templ_7745c5c3_Err
 				}
@@ -138,22 +138,22 @@ func dashboardSkeletonPanel(spec panel.Spec) templ.Component {
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"><span class=\"lens-skeleton-shimmer lens-shimmer lens-shimmer-label\" style=\"width:35%\"></span> ")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 11, "\"><span class=\"lens-shimmer lens-shimmer-label\" style=\"width:35%\"></span> ")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		if spec.Kind == panel.KindStat || spec.Kind == panel.KindStatGroup {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<span class=\"lens-skeleton-shimmer lens-shimmer lens-shimmer-value\" style=\"width:70%\"></span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 12, "<span class=\"lens-shimmer lens-shimmer-value\" style=\"width:70%\"></span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else if spec.Kind == panel.KindSegmentBar || spec.Kind == panel.KindCascade {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<span class=\"lens-skeleton-shimmer lens-shimmer lens-shimmer-label\" style=\"width:100%\"></span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 13, "<span class=\"lens-shimmer lens-shimmer-label\" style=\"width:100%\"></span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
 		} else {
-			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span class=\"lens-skeleton-shimmer lens-shimmer lens-shimmer-block\"></span>")
+			templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 14, "<span class=\"lens-shimmer lens-shimmer-block\"></span>")
 			if templ_7745c5c3_Err != nil {
 				return templ_7745c5c3_Err
 			}
