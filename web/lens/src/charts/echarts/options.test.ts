@@ -737,7 +737,7 @@ describe('buildChartOption', () => {
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
-    expect(chart.grid).toMatchObject({ right: 48, containLabel: true })
+    expect(chart.grid).toMatchObject({ right: 64, containLabel: true })
   })
 
   it('omits zero-valued series from time-axis tooltips too', () => {
