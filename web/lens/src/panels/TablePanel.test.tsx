@@ -80,10 +80,12 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
   expect(markerRule).not.toContain('repeat-y')
   expect(styles).not.toContain("margin-right: var(--lens-table-sticky-width, 0px)")
   expect(styles).toContain('.lens-table-scroll-spacer')
-  expect(styles).toContain('min-width: var(--lens-table-sticky-width, 0px)')
+  expect(styles).toContain('min-width: calc(var(--lens-table-sticky-width, 0px) + 2rem)')
   expect(styles).toContain('.lens-table:has(.lens-table-scroll-spacer)')
-  expect(styles).toContain('width: calc(100% + var(--lens-table-sticky-width, 0px))')
+  expect(styles).toContain('width: calc(100% + var(--lens-table-sticky-width, 0px) + 2rem)')
   expect(styles).toContain('@media (min-width: 769px)')
+  expect(styles).toContain('grid-template-columns: minmax(0, 1fr)')
+  expect(styles).toContain('max-width: 10rem')
 })
 
 it('wraps custom comparison dates without widening narrow dashboards', () => {

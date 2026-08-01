@@ -1261,6 +1261,12 @@
     @apply lens-col-span-1 lens-h-full lens-min-w-0;
   }
 
+  @media (max-width: 768px) {
+    .lens-panel-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
   @media (min-width: 769px) {
     .lens-grid-item {
       grid-column: span var(--lens-panel-span, 12) / span var(--lens-panel-span, 12);
@@ -2919,13 +2925,13 @@
      which changes the spacer again and creates a two-state ResizeObserver
      loop with intermittently clipped values. */
   .lens-table:has(.lens-table-scroll-spacer) {
-    width: calc(100% + var(--lens-table-sticky-width, 0px));
+    width: calc(100% + var(--lens-table-sticky-width, 0px) + 2rem);
   }
 
   .lens-table-wide:has(.lens-table-scroll-spacer) {
     min-width: max(
-      calc(100% + var(--lens-table-sticky-width, 0px)),
-      calc(48rem + var(--lens-table-sticky-width, 0px))
+      calc(100% + var(--lens-table-sticky-width, 0px) + 2rem),
+      calc(48rem + var(--lens-table-sticky-width, 0px) + 2rem)
     );
   }
 
@@ -2956,10 +2962,18 @@
   .lens-table :is(th, td).lens-table-scroll-spacer {
     border: 0;
     box-shadow: none;
-    min-width: var(--lens-table-sticky-width, 0px);
+    min-width: calc(var(--lens-table-sticky-width, 0px) + 2rem);
     padding: 0;
     pointer-events: none;
-    width: var(--lens-table-sticky-width, 0px);
+    width: calc(var(--lens-table-sticky-width, 0px) + 2rem);
+  }
+
+  @media (max-width: 640px) {
+    .lens-table-wide :is(th, td):first-child {
+      max-width: 10rem;
+      width: 10rem;
+      overflow-wrap: anywhere;
+    }
   }
 
   .lens-table tfoot td {
