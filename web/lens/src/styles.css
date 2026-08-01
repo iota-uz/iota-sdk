@@ -2914,14 +2914,6 @@
     min-width: max(100%, 48rem);
   }
 
-  /* At the native scroll limit, the sticky identity column would otherwise
-     still cover the leading characters of the next visible column. The
-     trailing scroll allowance lets every data column move fully past that
-     sticky boundary without adding space to tables that do not overflow. */
-  .lens-table-scroll-frame:is([data-overflow-left='true'], [data-overflow-right='true']) .lens-table {
-    margin-right: var(--lens-table-sticky-width, 0px);
-  }
-
   .lens-table th {
     @apply lens-sticky lens-top-0 lens-z-10 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-p-0 lens-text-xs lens-font-semibold lens-text-muted;
   }
@@ -2941,6 +2933,18 @@
   .lens-table td {
     @apply lens-border-0 lens-border-b lens-border-solid lens-px-3 lens-py-2.5 lens-text-text;
     border-color: var(--lens-divider);
+  }
+
+  /* This real table column supplies enough trailing scroll range for the
+     final data column to clear the sticky identity column. A table margin is
+     outside the table scroll box and lets native max-scroll crop that data. */
+  .lens-table :is(th, td).lens-table-scroll-spacer {
+    border: 0;
+    box-shadow: none;
+    min-width: var(--lens-table-sticky-width, 0px);
+    padding: 0;
+    pointer-events: none;
+    width: var(--lens-table-sticky-width, 0px);
   }
 
   .lens-table tfoot td {

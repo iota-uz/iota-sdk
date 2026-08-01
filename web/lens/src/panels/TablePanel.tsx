@@ -347,6 +347,7 @@ export function TablePanel({ panel }: TablePanelProps) {
   const [locationHref, setLocationHref] = useState(() => globalThis.location.href)
   const scrollRef = useRef<HTMLDivElement>(null)
   const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
+  const [hasHorizontalOverflow, setHasHorizontalOverflow] = useState(false)
   const searchInitialized = useRef(false)
   const [requestedPage, setRequestedPage] = useState(frame.page?.number ?? 1)
   const requestedSnapshotId = useRef(document.snapshotId)
@@ -481,10 +482,17 @@ export function TablePanel({ panel }: TablePanelProps) {
     const measure = () => {
       const stickyWidth = scroller.querySelector<HTMLElement>('thead th:first-child')?.offsetWidth ?? 0
       scroller.parentElement?.style.setProperty('--lens-table-sticky-width', `${stickyWidth}px`)
+      const table = scroller.querySelector<HTMLTableElement>('table')
+      const tableWidth = table?.scrollWidth || scroller.scrollWidth
+      // The trailing spacer is part of the table's real scroll box, but must
+      // not create overflow on a table whose data columns fit. Remove its
+      // known width when deciding whether the spacer remains necessary.
+      const contentWidth = Math.max(0, tableWidth - (hasHorizontalOverflow ? stickyWidth : 0))
+      const overflowing = contentWidth > scroller.clientWidth + 1
+      setHasHorizontalOverflow((current) => current === overflowing ? current : overflowing)
       // A translated sticky first column contributes its width to Chromium's
       // scrollWidth. Clamp against the table itself so the native scrollbar
       // cannot move past the real content and crop the sticky cells.
-      const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
       const maximum = Math.max(0, tableWidth - scroller.clientWidth)
       if (scroller.scrollLeft > maximum) scroller.scrollLeft = maximum
       const left = scroller.scrollLeft > 1
@@ -500,14 +508,14 @@ export function TablePanel({ panel }: TablePanelProps) {
       observer?.disconnect()
       scroller.parentElement?.style.removeProperty('--lens-table-sticky-width')
     }
-  }, [columnCount, frame.data])
+  }, [columnCount, frame.data, hasHorizontalOverflow])
 
   const scrollHorizontally = (direction: -1 | 1) => {
     const scroller = scrollRef.current
     if (!scroller) return
     const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
     const maximum = Math.max(0, tableWidth - scroller.clientWidth)
-    const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th'))
+    const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer)'))
     const stickyWidth = headers[0]?.offsetWidth ?? 0
     const targets = headers.slice(1)
       .map((header) => Math.max(0, Math.min(maximum, header.offsetLeft - stickyWidth)))
@@ -611,6 +619,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                         </th>
                       </>
                     )}
+                    {hasHorizontalOverflow && <th aria-hidden="true" className="lens-table-scroll-spacer" />}
                   </tr>
                 </thead>
                 <tbody>
@@ -619,6 +628,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                       <td className="lens-table-empty" colSpan={columnCount}>
                         {translate('table.emptyPage', 'No records on this page')}
                       </td>
+                      {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
                     </tr>
                   ) : renderRows.map((entry) => !columns ? (
                     <FrameRow
@@ -629,6 +639,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                       location={location}
                       level={level}
                       openRecordLabel={translate('table.openRecord', 'Open record')}
+                      trailingSpacer={hasHorizontalOverflow}
                       key={entry.index}
                     />
                   ) : entry.kind === 'toggle' ? (
@@ -642,6 +653,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                       columnRanges={columnStats.ranges}
                       expanded={entry.expanded}
                       onToggle={() => toggleGroup(entry.group)}
+                      trailingSpacer={hasHorizontalOverflow}
                       key={`toggle-${entry.group}`}
                     />
                   ) : (
@@ -677,6 +689,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                           />
                         </td>
                       )}
+                      {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
                     </tr>
                   ))}
                 </tbody>
@@ -698,6 +711,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                         </td>
                       ))}
                       {rowLeafAction && <td />}
+                      {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
                     </tr>
                     {frame.summary.fullValues && (
                       <tr className="lens-table-summary-all">
@@ -711,6 +725,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                           </td>
                         ))}
                         {rowLeafAction && <td />}
+                        {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
                       </tr>
                     )}
                   </tfoot>
@@ -776,7 +791,7 @@ export function TablePanel({ panel }: TablePanelProps) {
 // label, e.g. "Discontinued products (12)"); the remaining cells render the
 // row's aggregate values (e.g. the group's total delta) without drill chrome.
 function GroupToggleRow({
-  columns, frame, row, panel, location, columnMaxima, columnRanges, expanded, onToggle,
+  columns, frame, row, panel, location, columnMaxima, columnRanges, expanded, onToggle, trailingSpacer,
 }: {
   columns: Array<TableColumn>
   frame: Frame
@@ -787,6 +802,7 @@ function GroupToggleRow({
   columnRanges: Map<string, NumericRange>
   expanded: boolean
   onToggle: () => void
+  trailingSpacer: boolean
 }) {
   return (
     <tr className="lens-table-group-toggle">
@@ -823,6 +839,7 @@ function GroupToggleRow({
           </td>
         )
       })}
+      {trailingSpacer && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
     </tr>
   )
 }
@@ -837,7 +854,7 @@ function RowLeafAction({
 }
 
 function FrameRow({
-  frame, row, index, panel, location, level, openRecordLabel,
+  frame, row, index, panel, location, level, openRecordLabel, trailingSpacer,
 }: {
   frame: Frame
   row: Array<unknown>
@@ -846,6 +863,7 @@ function FrameRow({
   location: URL
   level?: Level
   openRecordLabel: string
+  trailingSpacer: boolean
 }) {
   const action = actionForRow(panel, frame, row, level)
   const activation = useActionActivation(action)
@@ -860,6 +878,7 @@ function FrameRow({
       <td className="lens-table-action-cell">
         {href && <a className="lens-leaf-action" href={href} onClick={activation.onClick(href)}>{openRecordLabel}</a>}
       </td>
+      {trailingSpacer && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
     </tr>
   )
 }
