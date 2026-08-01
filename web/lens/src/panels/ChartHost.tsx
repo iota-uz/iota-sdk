@@ -37,7 +37,7 @@ export function ChartHost({ input, panelId, onSelect, onHover, adapter, label, d
       onHover: (key) => eventsRef.current.onHover?.(key),
     }
 
-    void (adapter ? Promise.resolve(adapter) : import('../charts').then(({ getChartAdapter }) => getChartAdapter()))
+    void (adapter ? Promise.resolve(adapter) : import('../charts').then(({ getChartAdapter }) => getChartAdapter(inputRef.current.kind)))
       .then((resolved) => {
         if (!active || !hostRef.current) return
         setLoadError(undefined)

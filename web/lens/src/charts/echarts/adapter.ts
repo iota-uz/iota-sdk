@@ -18,8 +18,8 @@ const optionalKinds = new Set<ChartInput['kind']>(['boxplot', 'heatmap', 'map'])
 let optionalModules: Promise<void> | undefined
 
 /** Loads distribution/map renderers only when a document actually uses one. */
-function ensureKindModules(kind: ChartInput['kind']): Promise<void> | undefined {
-  if (!optionalKinds.has(kind)) return undefined
+export async function prepareEChartsKind(kind: ChartInput['kind']): Promise<void> {
+  if (!optionalKinds.has(kind)) return
   optionalModules ??= Promise.all([
     import('echarts/lib/chart/boxplot/install.js'),
     import('echarts/lib/chart/heatmap/install.js'),
@@ -30,7 +30,7 @@ function ensureKindModules(kind: ChartInput['kind']): Promise<void> | undefined 
       boxplot.install, heatmap.install, map.install, visualMap.install,
     ])
   })
-  return optionalModules
+  await optionalModules
 }
 
 type ChartInitializer = (element: HTMLElement) => ECharts
@@ -134,7 +134,6 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
       const responsiveInput = (): ChartInput => ({ ...input, viewportWidth: element.clientWidth })
 
       let disposed = false
-      let renderGeneration = 0
       const renderReady = () => {
         if (disposed) return
         if (input.kind === 'map' && input.map) registerMap(input.map.name, input.map.geoJSON as unknown as Parameters<typeof registerMap>[1])
@@ -143,17 +142,7 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         chart.setOption(option, { notMerge: false, replaceMerge: ['series', 'xAxis', 'yAxis'] })
       }
       const render = () => {
-        const generation = ++renderGeneration
-        const pending = ensureKindModules(input.kind)
-        if (!pending) {
-          renderReady()
-          return
-        }
-        void pending.then(() => {
-          if (generation === renderGeneration) renderReady()
-        }).catch((error: unknown) => {
-          console.error('[lens] optional ECharts modules failed to load', error)
-        })
+        renderReady()
       }
       // Selection restyle: merge the rebuilt option in place with animation
       // forced off, so the outline appears instantly without replacing the

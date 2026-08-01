@@ -115,7 +115,7 @@ function ChartPreview({ chartInput, onSelect }: { chartInput: ChartInput, onSele
     let active = true
     if (!element.current) return
     const target = element.current
-    void getChartAdapter().then((adapter) => {
+    void getChartAdapter(currentInput.current.kind).then((adapter) => {
       if (!active) return
       instance.current = adapter.mount(target, currentInput.current, {
         onSelect: (key) => onSelect?.(key),
