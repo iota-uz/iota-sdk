@@ -1261,7 +1261,7 @@
     @apply lens-col-span-1 lens-h-full lens-min-w-0;
   }
 
-  @media (min-width: 768px) {
+  @media (min-width: 769px) {
     .lens-grid-item {
       grid-column: span var(--lens-panel-span, 12) / span var(--lens-panel-span, 12);
     }
@@ -2978,14 +2978,6 @@
   .lens-table-scroll-frame:is([data-overflow-left='true'], [data-overflow-right='true']) .lens-table :is(th, td):first-child {
     border-right: 1px solid var(--lens-border-strong);
     box-shadow: 8px 0 12px -10px var(--lens-text);
-  }
-
-  /* At the terminal right edge, a wide identity column and the final value
-     column may be physically wider than the viewport together. Release the
-     sticky cells only in that state so the final column can use the complete
-     viewport; scrolling left makes the identity column sticky again. */
-  .lens-table-scroll-frame[data-overflow-left='true'][data-overflow-right='false'] .lens-table :is(th, td):first-child {
-    position: static;
   }
 
   .lens-table tbody tr:hover {

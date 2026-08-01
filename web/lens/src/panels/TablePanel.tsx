@@ -487,7 +487,6 @@ export function TablePanel({ panel }: TablePanelProps) {
       scroller.parentElement?.style.setProperty('--lens-table-sticky-width', `${stickyWidth}px`)
       const table = scroller.querySelector<HTMLTableElement>('table')
       const tableWidth = table?.scrollWidth || scroller.scrollWidth
-      const spacerWidth = scroller.querySelector<HTMLElement>('thead .lens-table-scroll-spacer')?.offsetWidth ?? 0
       // The trailing spacer is part of the table's real scroll box, but must
       // not create overflow on a table whose data columns fit. Remove its
       // known width when deciding whether the spacer remains necessary.
@@ -498,13 +497,13 @@ export function TablePanel({ panel }: TablePanelProps) {
       // scrollWidth. Clamp against the table itself so the native scrollbar
       // cannot move past the real content and crop the sticky cells.
       const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)'))
-      const dataMaximum = Math.max(0, tableWidth - spacerWidth - scroller.clientWidth)
       const nativeMaximum = Math.max(0, tableWidth - scroller.clientWidth)
+      const lastHeader = headers.at(-1)
+      const minimum = Math.max(0, (lastHeader?.offsetLeft ?? 0) + (lastHeader?.offsetWidth ?? 0) - scroller.clientWidth)
       const reachableAlignment = headers.slice(1)
         .map((header) => Math.max(0, header.offsetLeft - stickyWidth))
-        .filter((target) => target <= nativeMaximum + 1)
-        .at(-1) ?? 0
-      const maximum = Math.max(dataMaximum, reachableAlignment)
+        .find((target) => target >= minimum - 1 && target <= nativeMaximum + 1)
+      const maximum = reachableAlignment ?? Math.min(minimum, nativeMaximum)
       if (scroller.scrollLeft > maximum) scroller.scrollLeft = maximum
       const left = scroller.scrollLeft > 1
       const right = scroller.scrollLeft < maximum - 1
@@ -536,16 +535,15 @@ export function TablePanel({ panel }: TablePanelProps) {
     const scroller = scrollRef.current
     if (!scroller) return
     const tableWidth = scroller.querySelector<HTMLTableElement>('table')?.scrollWidth || scroller.scrollWidth
-    const spacerWidth = scroller.querySelector<HTMLElement>('thead .lens-table-scroll-spacer')?.offsetWidth ?? 0
     const headers = Array.from(scroller.querySelectorAll<HTMLElement>('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)'))
     const stickyWidth = headers[0]?.offsetWidth ?? 0
-    const dataMaximum = Math.max(0, tableWidth - spacerWidth - scroller.clientWidth)
     const nativeMaximum = Math.max(0, tableWidth - scroller.clientWidth)
+    const lastHeader = headers.at(-1)
+    const minimum = Math.max(0, (lastHeader?.offsetLeft ?? 0) + (lastHeader?.offsetWidth ?? 0) - scroller.clientWidth)
     const reachableAlignment = headers.slice(1)
       .map((header) => Math.max(0, header.offsetLeft - stickyWidth))
-      .filter((target) => target <= nativeMaximum + 1)
-      .at(-1) ?? 0
-    const maximum = Math.max(dataMaximum, reachableAlignment)
+      .find((target) => target >= minimum - 1 && target <= nativeMaximum + 1)
+    const maximum = reachableAlignment ?? Math.min(minimum, nativeMaximum)
     const targets = headers.slice(1)
       .map((header) => Math.max(0, Math.min(maximum, header.offsetLeft - stickyWidth)))
       .filter((target, index, values) => target > 0 && (index === 0 || target !== values[index - 1]))

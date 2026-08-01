@@ -83,8 +83,7 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
   expect(styles).toContain('min-width: var(--lens-table-sticky-width, 0px)')
   expect(styles).toContain('.lens-table:has(.lens-table-scroll-spacer)')
   expect(styles).toContain('width: calc(100% + var(--lens-table-sticky-width, 0px))')
-  expect(styles).toContain("[data-overflow-left='true'][data-overflow-right='false']")
-  expect(styles).toContain('position: static')
+  expect(styles).toContain('@media (min-width: 769px)')
 })
 
 it('wraps custom comparison dates without widening narrow dashboards', () => {
@@ -554,6 +553,9 @@ describe('TablePanel server readability features', () => {
     })
     Object.defineProperty(scroller.querySelector('thead th:first-child'), 'offsetWidth', { configurable: true, value: 160 })
     Object.defineProperty(scroller.querySelector('table'), 'scrollWidth', { configurable: true, value: 733 })
+    const initialRealHeaders = Array.from(scroller.querySelectorAll('thead th:not(.lens-table-scroll-spacer):not(.lens-table-action-heading)'))
+    Object.defineProperty(initialRealHeaders.at(-1)!, 'offsetLeft', { configurable: true, value: 548 })
+    Object.defineProperty(initialRealHeaders.at(-1)!, 'offsetWidth', { configurable: true, value: 80 })
     fireEvent.scroll(scroller)
     const scrollFrame = scroller.closest('.lens-table-scroll-frame')
     expect(scroller).toHaveAttribute('tabindex', '0')
