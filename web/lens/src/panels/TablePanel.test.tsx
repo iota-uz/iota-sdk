@@ -570,9 +570,12 @@ describe('TablePanel server readability features', () => {
     Object.defineProperty(scroller.querySelector('table'), 'scrollWidth', { configurable: true, value: 893 })
     Object.defineProperty(scroller, 'scrollWidth', { configurable: true, value: 1053 })
     Object.defineProperty(spacerHeader, 'offsetWidth', { configurable: true, value: 160 })
+    const lastRealHeader = Array.from(scrollFrame!.querySelectorAll('thead th:not(.lens-table-scroll-spacer)')).at(-1)!
+    Object.defineProperty(lastRealHeader, 'offsetLeft', { configurable: true, value: 548 })
+    fireEvent.scroll(scroller)
 
     fireEvent.click(scrollRight)
-    expect(scroller.scrollLeft).toBe(228)
+    expect(scroller.scrollLeft).toBe(388)
     expect(scroller).toHaveFocus()
     expect(scrollLeft).toBeEnabled()
     expect(scrollRight).toBeDisabled()
@@ -585,7 +588,7 @@ describe('TablePanel server readability features', () => {
     expect(scrollLeft).toBeDisabled()
     expect(scrollRight).toBeEnabled()
 
-    scroller.scrollLeft = 228
+    scroller.scrollLeft = 388
     fireEvent.scroll(scroller)
     expect(scrollFrame).toHaveAttribute('data-overflow-left', 'true')
     expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
@@ -594,7 +597,7 @@ describe('TablePanel server readability features', () => {
     // Scrolling to that inflated native maximum must clamp at the table edge.
     scroller.scrollLeft = 388
     fireEvent.scroll(scroller)
-    expect(scroller.scrollLeft).toBe(228)
+    expect(scroller.scrollLeft).toBe(388)
     expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
 
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: 'motor' } })
