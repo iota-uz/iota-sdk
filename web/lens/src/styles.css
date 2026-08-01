@@ -450,6 +450,26 @@
     padding: 0.25rem 0.5rem;
   }
 
+  @media (max-width: 768px) {
+    .lens-compare-filter,
+    .lens-compare-custom {
+      flex-wrap: wrap;
+      min-width: 0;
+      width: 100%;
+    }
+
+    .lens-compare-filter label {
+      min-width: 0;
+      width: 100%;
+    }
+
+    .lens-compare-custom input {
+      flex: 1 1 10rem;
+      min-width: 0;
+      max-width: 100%;
+    }
+  }
+
   .lens-chart-reset-zoom {
     @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-[11px] lens-font-medium lens-text-muted;
   }

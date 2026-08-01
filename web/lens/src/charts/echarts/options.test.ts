@@ -731,12 +731,13 @@ describe('buildChartOption', () => {
       .toContain('Jan 2026')
   })
 
-  it('reserves enough right inset for the final time-axis label', () => {
-    const chartInput = input('line')
+  it('reserves enough right inset for the final date label on categorical bars', () => {
+    const chartInput = input('bar')
     chartInput.frame.columns[1] = { name: 'category', type: 'time' }
 
     const chart = testOption(buildChartOption(chartInput, theme))
 
+    expect(chart.xAxis).toMatchObject({ type: 'category' })
     expect(chart.grid).toMatchObject({ right: 64, containLabel: true })
   })
 

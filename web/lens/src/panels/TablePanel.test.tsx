@@ -81,6 +81,19 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
   expect(styles).toContain("margin-right: var(--lens-table-sticky-width, 0px)")
 })
 
+it('wraps custom comparison dates without widening narrow dashboards', () => {
+  const styles = readFileSync('src/styles.css', 'utf8')
+  const responsive = styles.match(/@media \(max-width: 768px\) \{(?<rule>[\s\S]*?)\n  \}/)?.groups?.rule
+
+  expect(responsive).toContain('.lens-compare-filter,')
+  expect(responsive).toContain('.lens-compare-custom')
+  expect(responsive).toContain('flex-wrap: wrap')
+  expect(responsive).toContain('min-width: 0')
+  expect(responsive).toContain('width: 100%')
+  expect(responsive).toContain('flex: 1 1 10rem')
+  expect(responsive).toContain('max-width: 100%')
+})
+
 const columnsPanel: Panel = {
   id: 'profitability',
   kind: 'table',

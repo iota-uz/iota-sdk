@@ -907,7 +907,8 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     : undefined
   const showSeriesName = Boolean(input.encoding.series)
   const categoryField = availableEncodingField(input, input.encoding.category, input.encoding.label) ?? ''
-  const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
+  const categoryIsTime = input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
+  const timeAxis = !isBar && categoryIsTime
   const colorByCategory = isBar && input.presentation?.colorBy === 'category'
   const barWidth = input.presentation?.barWidthPx
   // A stack states that its segments add up to the column, so only the series
@@ -1142,7 +1143,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       ? { left: 96, right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 168 : 32, top: 24, bottom: timeAxis ? 58 : 32, containLabel: false }
       : {
         left: 16,
-        right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : timeAxis ? 64 : horizontal && logarithmic ? 88 : 16,
+        right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : categoryIsTime ? 64 : horizontal && logarithmic ? 88 : 16,
         top: 24,
         bottom: timeAxis ? 52 : 12,
         containLabel: true,
