@@ -2,7 +2,7 @@ import { waitFor } from '@testing-library/react'
 import type { EChartsOption } from 'echarts'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
-import { createEChartsAdapter } from './adapter'
+import { createEChartsAdapter, prepareEChartsKind } from './adapter'
 
 class FakeResizeObserver {
   static instances: FakeResizeObserver[] = []
@@ -73,6 +73,18 @@ function multiSeriesInput(seriesNames: string[]): ChartInput {
       rows: seriesNames.map((name, index) => [`${name}/key`, 'Localized label', name, index + 1]),
     },
     encoding: { id: 'id', label: 'label', series: 'series', value: 'value' },
+  }
+}
+
+function mapInput(): ChartInput {
+  return {
+    ...chartInput(),
+    kind: 'map',
+    map: {
+      name: 'regions',
+      featureProperty: 'id',
+      geoJSON: { type: 'FeatureCollection', features: [] },
+    },
   }
 }
 
@@ -160,6 +172,44 @@ describe('ECharts adapter', () => {
     instance.resetZoom?.()
     expect(chart.dispatchAction).toHaveBeenCalledWith({ type: 'dataZoom', start: 0, end: 100 })
     instance.dispose()
+  })
+
+  it('leaves static-map wheel scrolling to the page and releases interception on dispose', async () => {
+    await prepareEChartsKind('map')
+    const chart = new FakeChart()
+    const scroller = document.createElement('div')
+    const element = document.createElement('div')
+    scroller.append(element)
+    document.body.append(scroller)
+    const pageCapture = vi.fn()
+    const echartsWheel = vi.fn((event: WheelEvent) => event.preventDefault())
+    const onSelect = vi.fn()
+    scroller.addEventListener('wheel', pageCapture, { capture: true })
+    element.addEventListener('wheel', echartsWheel)
+    const instance = createEChartsAdapter(() => chart as never).mount(element, mapInput(), {
+      onSelect, onHover: vi.fn(),
+    })
+
+    const mapWheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })
+    expect(element.dispatchEvent(mapWheel)).toBe(true)
+    expect(pageCapture).toHaveBeenCalledOnce()
+    expect(echartsWheel).not.toHaveBeenCalled()
+    expect(mapWheel.defaultPrevented).toBe(false)
+    chart.emit('click', { data: { nodeKey: 'stable/key' } })
+    expect(onSelect).toHaveBeenCalledWith('stable/key', undefined, { newTab: false })
+
+    instance.update(chartInput())
+    const barWheel = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })
+    expect(element.dispatchEvent(barWheel)).toBe(false)
+    expect(echartsWheel).toHaveBeenCalledOnce()
+    expect(barWheel.defaultPrevented).toBe(true)
+
+    instance.update(mapInput())
+    instance.dispose()
+    const afterDispose = new WheelEvent('wheel', { bubbles: true, cancelable: true, deltaY: 120 })
+    expect(element.dispatchEvent(afterDispose)).toBe(false)
+    expect(echartsWheel).toHaveBeenCalledTimes(2)
+    expect(afterDispose.defaultPrevented).toBe(true)
   })
 
   it('shows the full axis label on hover and removes it on exit', () => {

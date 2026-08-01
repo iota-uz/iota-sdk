@@ -368,25 +368,25 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     return (visibleFrame?.rows ?? []).reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
   }, [frame.data, hidden.size, panel.encoding.value, panel.radial?.mode, visibleFrame])
 
-  // `panel.total` is the root frame's total, shipped once with the document. At
-  // a drill level the panel is showing the level's frame, so the badge has to
-  // total that frame instead — the same rows the slice percentages normalize
-  // against — or it prints the root's figure over the level's chart.
-  const levelTotal = useMemo(() => {
-    if (!active || !frame.data || !panel.encoding.value) return undefined
+  // `panel.total` can come from a lightweight document shell while a deferred
+  // partition frame is still loading. Once rows arrive, their sum is the
+  // authoritative partition whole. A drill level needs the same treatment for
+  // every chart kind because the root total no longer describes its rows.
+  const dataTotal = useMemo(() => {
+    if ((!active && panel.semantics !== 'partition') || !frame.data || !panel.encoding.value) return undefined
     // A partition radial holds several decompositions of the same headline at
     // once, so summing its rows counts that headline once per ring.
     if (panel.radial?.mode === 'partition') return undefined
     const valueIndex = frame.data.columns.findIndex((column) => column.name === panel.encoding.value)
     if (valueIndex < 0) return undefined
     return frame.data.rows.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
-  }, [active, frame.data, panel.encoding.value, panel.radial?.mode])
+  }, [active, frame.data, panel.encoding.value, panel.radial?.mode, panel.semantics])
 
   // Once a slice is hidden ECharts normalises the remaining geometry to the
   // visible rows. Use that same denominator for labels and the total badge.
   const shareTotal = hidden.size > 0
     ? visibleTotal
-    : frame.data?.total ?? levelTotal ?? panel.total
+    : frame.data?.total ?? dataTotal ?? panel.total
   // A served frame may carry the rendering decisions of the panel that produced
   // it. In document mode a drill level is drawn by a placeholder panel frozen
   // before anyone knew which dimension that level would render, so the frame is

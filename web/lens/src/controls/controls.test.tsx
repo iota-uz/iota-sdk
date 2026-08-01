@@ -4,7 +4,7 @@ import fixture from '../../fixtures/small.json'
 import { parseDocument, type DashboardDocument } from '../contract'
 import { DashboardPanels } from '../DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
-import { Calendar } from './Calendar'
+import { Calendar, stackedCalendarMediaQuery } from './Calendar'
 import { FilterBar } from './FilterBar'
 import type { RangeSelection } from './model'
 
@@ -16,6 +16,7 @@ const identityTranslate = (_key: string, fallback: string, vars?: Readonly<Recor
 afterEach(() => {
   cleanup()
   vi.restoreAllMocks()
+  vi.unstubAllGlobals()
   window.history.replaceState(null, '', '/')
 })
 
@@ -42,6 +43,22 @@ describe('Calendar', () => {
     // both panes surfaces exactly one accessible gridcell.
     expect(screen.getAllByRole('gridcell', { name: 'Jul 26, 2026' })).toHaveLength(1)
     expect(screen.getAllByRole('gridcell', { name: 'Aug 1, 2026' })).toHaveLength(1)
+  })
+
+  it('uses one pane whenever the full popover would exceed the viewport', () => {
+    const addEventListener = vi.fn()
+    const removeEventListener = vi.fn()
+    vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+      matches: query === stackedCalendarMediaQuery,
+      addEventListener,
+      removeEventListener,
+    })))
+
+    render(<Calendar {...baseProps} onPick={() => undefined} />)
+
+    expect(grids()).toHaveLength(1)
+    expect(document.querySelector('.lens-calendar')).toHaveAttribute('data-panes', '1')
+    expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function))
   })
 
   it('navigates the grid by keyboard and completes a range with Enter', () => {

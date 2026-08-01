@@ -688,7 +688,8 @@
 
   /* The picker popover: a two-pane card. The left rail lists the relative
      presets under a "quick select" heading, the main pane owns the dual-month
-     calendar, typed range entry, and the footer actions. Below ~540px the
+     calendar, typed range entry, and the footer actions. When the 640px card
+     no longer fits with its viewport gutters, the
      panes stack, the calendar drops to one month, and the preset list becomes
      a horizontally scrollable row. */
   .lens-filter-popover {
@@ -817,7 +818,7 @@
     color: var(--lens-text-faint);
   }
 
-  @media (max-width: 540px) {
+  @media (max-width: 664px) {
     .lens-filter-popover {
       @apply lens-flex-col;
       width: min(340px, calc(100vw - 24px));
@@ -2527,6 +2528,7 @@
 
   .lens-waterfall {
     @apply lens-flex lens-flex-1 lens-flex-col lens-overflow-x-auto lens-p-4;
+    --lens-waterfall-column-width: 7rem;
   }
 
   .lens-waterfall-plot,
@@ -2545,7 +2547,7 @@
   .lens-waterfall-chart {
     @apply lens-grid lens-min-h-0 lens-flex-1;
     grid-template-columns: 96px minmax(0, 1fr);
-    min-width: calc(6rem + var(--lens-waterfall-count) * 4.5rem);
+    min-width: calc(6rem + var(--lens-waterfall-count) * var(--lens-waterfall-column-width));
     padding-top: 2rem;
   }
 
@@ -2735,7 +2737,7 @@
   .lens-waterfall-labels {
     @apply lens-mt-2;
     margin-left: 96px;
-    min-width: calc(var(--lens-waterfall-count) * 4.5rem);
+    min-width: calc(var(--lens-waterfall-count) * var(--lens-waterfall-column-width));
   }
 
   .lens-waterfall-label {
@@ -2748,6 +2750,7 @@
 
   .lens-waterfall-label > span {
     @apply lens-min-w-0;
+    overflow-wrap: anywhere;
   }
 
   .lens-waterfall-annotation {

@@ -59,12 +59,14 @@ function localToday(): CalendarDate {
 }
 
 /** Matches the stylesheet's stacked-popover breakpoint: one pane below it. */
+export const stackedCalendarMediaQuery = '(max-width: 664px)'
+
 function useNarrow(): boolean {
   const [narrow, setNarrow] = useState(() => (
-    globalThis.window?.matchMedia?.('(max-width: 540px)').matches ?? false
+    globalThis.window?.matchMedia?.(stackedCalendarMediaQuery).matches ?? false
   ))
   useEffect(() => {
-    const media = globalThis.window?.matchMedia?.('(max-width: 540px)')
+    const media = globalThis.window?.matchMedia?.(stackedCalendarMediaQuery)
     if (!media?.addEventListener) return undefined
     const onChange = (event: MediaQueryListEvent) => setNarrow(event.matches)
     media.addEventListener('change', onChange)

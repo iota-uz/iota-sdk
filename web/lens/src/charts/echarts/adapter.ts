@@ -253,6 +253,17 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         target.addEventListener(type, hideTooltip, options)
         detach.push(() => target.removeEventListener(type, hideTooltip, options))
       }
+      // ZRender owns a wheel listener on its canvas even when a map's roaming
+      // option is disabled. Keep that implementation detail from turning a
+      // static map into a page-scroll trap: intercept only map wheels before
+      // they reach ZRender, without cancelling the browser's default scroll.
+      // The mutable input makes the ownership follow in-place chart updates.
+      const releaseStaticMapWheel = (event: WheelEvent) => {
+        if (input.kind === 'map') event.stopImmediatePropagation()
+      }
+      const wheelListenerOptions = { capture: true, passive: true } as const
+      element.addEventListener('wheel', releaseStaticMapWheel, wheelListenerOptions)
+      detach.push(() => element.removeEventListener('wheel', releaseStaticMapWheel, wheelListenerOptions))
       listen(element, 'mouseleave')
       for (const target of scrollTargets) listen(target, 'scroll', { passive: true })
       if (typeof window !== 'undefined') listen(window, 'blur')
