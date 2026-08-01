@@ -954,17 +954,13 @@ func sanitizedRequestValues(values url.Values) url.Values {
 	delete(cloned, TablePaginationPanelQuery)
 	delete(cloned, TablePaginationPageQuery)
 	delete(cloned, TablePaginationLimitQuery)
+	delete(cloned, TableSortFieldQuery)
+	delete(cloned, TableSortDirectionQuery)
 	return cloned
 }
 
 func dateRangeRequestKeys(spec lens.VariableSpec) (string, string) {
-	if len(spec.RequestKeys) >= 3 {
-		return spec.RequestKeys[1], spec.RequestKeys[2]
-	}
-	if len(spec.RequestKeys) >= 2 {
-		return spec.RequestKeys[0], spec.RequestKeys[1]
-	}
-	return spec.Name + "_start", spec.Name + "_end"
+	return lens.DateRangeRequestKeys(spec)
 }
 
 func resolveParams(specs map[string]lens.ParamValue, variables map[string]any) map[string]any {
@@ -1347,7 +1343,7 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 	if spec == nil {
 		return nil
 	}
-	if strings.TrimSpace(spec.URL) == "" && spec.URLSource == nil && spec.Kind != action.KindEmitEvent && spec.Kind != action.KindExplore {
+	if strings.TrimSpace(spec.URL) == "" && spec.URLSource == nil && spec.DrawerKey == nil && spec.Kind != action.KindEmitEvent && spec.Kind != action.KindExplore {
 		return fmt.Errorf("%s action requires url", owner)
 	}
 	switch spec.Kind {
@@ -1386,6 +1382,14 @@ func validateAction(owner string, spec *action.Spec, opts actionValidationOption
 	}
 	if spec.URLSource != nil {
 		if err := validateActionValueSource(owner, "url", *spec.URLSource, opts); err != nil {
+			return err
+		}
+	}
+	if spec.DrawerKey != nil {
+		if spec.Kind != action.KindOpenDrawer {
+			return fmt.Errorf("%s action metric key is only valid for a drawer", owner)
+		}
+		if err := validateActionValueSource(owner, "drawer metric key", *spec.DrawerKey, opts); err != nil {
 			return err
 		}
 	}

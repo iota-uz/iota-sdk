@@ -518,9 +518,25 @@ func TestConvertAction_PreservesDrawerAndDropsHTMX(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, ActionOpenDrawer, drawer.Kind)
 	require.Equal(t, "/drill/loss/lens/document", drawer.URLTemplate)
+	metricDrawer, ok := convertAction(action.OpenDrawerMetric(action.FieldValue("metric_key")), false)
+	require.True(t, ok)
+	require.Equal(t, ActionOpenDrawer, metricDrawer.Kind)
+	require.NotNil(t, metricDrawer.DrawerKey)
+	require.Equal(t, ValueSourceField, metricDrawer.DrawerKey.Kind)
+	require.Equal(t, "metric_key", metricDrawer.DrawerKey.Name)
+	require.Empty(t, metricDrawer.URLTemplate)
 
 	_, ok = convertAction(action.HtmxSwap("/drill/loss", "#drawer"), false)
 	require.False(t, ok)
+}
+
+func TestBuildTrendCarriesPercentagePointUnit(t *testing.T) {
+	t.Parallel()
+	trend := buildTrend(panel.Stat("ratio", "Ratio", "ratio").
+		AutoTrend("delta", "delta_percent", "Comparison", false).
+		TrendAbsoluteDeltaUnit(panel.TrendDeltaPercentagePoints).
+		Build())
+	require.Equal(t, TrendDeltaPercentagePoints, trend.AbsoluteDeltaUnit)
 }
 
 func TestBuild_PanelTotalBadgeValue(t *testing.T) {

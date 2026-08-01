@@ -28,6 +28,9 @@ func (d *DashboardDocument) Validate() error {
 	if d.Drill.InlineDepth < 0 {
 		return serrors.E(op, fmt.Errorf("inline depth cannot be negative"))
 	}
+	if d.URLState != nil && (d.URLState.Version != URLStateVersion || d.URLState.Param != URLStateParam || d.URLState.MaxBytes <= 0 || d.URLState.MaxBytes > URLStateMaxBytes) {
+		return serrors.E(op, fmt.Errorf("unsupported URL state contract"))
+	}
 	panelIDs := make(map[string]struct{}, len(d.Panels))
 	for ref, frame := range d.Frames {
 		if strings.TrimSpace(string(ref)) == "" {
@@ -460,6 +463,9 @@ func (d *DashboardDocument) validatePanelActions(panel Panel) error {
 
 func validatePanelTrendAndTable(panel Panel, frame Frame) error {
 	if panel.Trend != nil {
+		if panel.Trend.AbsoluteDeltaUnit != "" && panel.Trend.AbsoluteDeltaUnit != TrendDeltaValue && panel.Trend.AbsoluteDeltaUnit != TrendDeltaPercentagePoints {
+			return fmt.Errorf("panel %s has unsupported absolute delta unit %q", panel.ID, panel.Trend.AbsoluteDeltaUnit)
+		}
 		for role, field := range map[string]string{"trend absolute": panel.Trend.AbsoluteField, "trend percent": panel.Trend.PercentField} {
 			if !panel.Deferred && field != "" {
 				if err := requireNumberFrameColumn("panel "+panel.ID, role, frame, field); err != nil {
@@ -1602,9 +1608,18 @@ func requireNumberFrameColumn(owner, role string, frame Frame, name string) erro
 
 func validateAction(owner string, action Action) error {
 	switch action.Kind {
-	case ActionNavigate, ActionNavigateToLeaf, ActionOpenDrawer:
+	case ActionNavigate, ActionNavigateToLeaf:
 		if strings.TrimSpace(action.URLTemplate) == "" && action.URLSource == nil {
 			return fmt.Errorf("%s action requires url", owner)
+		}
+	case ActionOpenDrawer:
+		if strings.TrimSpace(action.URLTemplate) == "" && action.URLSource == nil && action.DrawerKey == nil {
+			return fmt.Errorf("%s drawer action requires url or metric key", owner)
+		}
+		if action.DrawerKey != nil {
+			if err := validateSource(owner, *action.DrawerKey); err != nil {
+				return err
+			}
 		}
 	case ActionEmitEvent:
 		if strings.TrimSpace(action.Event) == "" {

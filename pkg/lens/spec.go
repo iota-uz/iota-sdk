@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/iota-uz/iota-sdk/pkg/lens/explore"
@@ -185,13 +186,47 @@ type CompareValue struct {
 // variable. Keeping this mapping on VariableSpec's owning package prevents the
 // filter model, cube planner, and runtime resolver from drifting apart.
 func CompareRequestKeys(spec VariableSpec) (mode, start, end string) {
-	mode = spec.Name
-	start = spec.Name + "_start"
-	end = spec.Name + "_end"
+	mode = CanonicalRequestKey(spec.Name)
+	start = mode + "-start"
+	end = mode + "-end"
 	if len(spec.RequestKeys) >= 3 {
 		return spec.RequestKeys[0], spec.RequestKeys[1], spec.RequestKeys[2]
 	}
 	return mode, start, end
+}
+
+func DateRangeRequestKeys(spec VariableSpec) (start, end string) {
+	if len(spec.RequestKeys) >= 3 {
+		return spec.RequestKeys[1], spec.RequestKeys[2]
+	}
+	if len(spec.RequestKeys) >= 2 {
+		return spec.RequestKeys[0], spec.RequestKeys[1]
+	}
+	base := CanonicalRequestKey(spec.Name)
+	return base + "-start", base + "-end"
+}
+
+func CanonicalRequestKey(name string) string {
+	var result strings.Builder
+	lastHyphen := true
+	var previous rune
+	for _, current := range strings.TrimSpace(name) {
+		if unicode.IsLetter(current) || unicode.IsDigit(current) {
+			if unicode.IsUpper(current) && !lastHyphen && (unicode.IsLower(previous) || unicode.IsDigit(previous)) {
+				result.WriteByte('-')
+			}
+			result.WriteRune(unicode.ToLower(current))
+			lastHyphen = false
+			previous = current
+			continue
+		}
+		if !lastHyphen && result.Len() > 0 {
+			result.WriteByte('-')
+			lastHyphen = true
+		}
+		previous = current
+	}
+	return strings.Trim(result.String(), "-")
 }
 
 // ResolveCompareMode normalizes the requested comparison mode. A custom mode

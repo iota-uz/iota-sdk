@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { drawerNavigationFromSource, hiddenSeriesFromURL, hiddenSeriesToURL, navigationFromURL, navigationToURL, temporalStateFromURL, temporalStateToURL } from './url'
+import { clearRendererStateFromURL, drawerNavigationFromSource, hiddenSeriesFromURL, hiddenSeriesToURL, navigationFromURL, navigationToURL, temporalStateFromURL, temporalStateToURL } from './url'
 
 describe('navigation URL sync', () => {
   it('round-trips NodeKeys without treating slashes or labels as path syntax', () => {
@@ -61,7 +61,7 @@ describe('legend URL sync', () => {
     expect(hiddenSeriesFromURL(url, 'revenue')).toEqual(new Set(['A/B', 'КАСКО']))
     expect(hiddenSeriesFromURL(url, 'count')).toEqual(new Set(['ОСАГО']))
     expect(url.searchParams.get('start')).toBe('2026-07-01')
-    expect(url.searchParams.getAll('lensHidden')).toHaveLength(2)
+    expect(url.searchParams.getAll('lens-state')).toHaveLength(1)
 
     url = hiddenSeriesToURL(url, 'revenue', new Set())
     expect(hiddenSeriesFromURL(url, 'revenue').size).toBe(0)
@@ -69,7 +69,7 @@ describe('legend URL sync', () => {
   })
 
   it('ignores malformed shared URL entries', () => {
-    const url = new URL('https://example.test/dashboard?lensHidden=broken&lensHidden=%5B%22panel%22%5D')
+    const url = new URL('https://example.test/dashboard?lens-state=broken')
     expect(hiddenSeriesFromURL(url, 'panel').size).toBe(0)
   })
 })
@@ -82,5 +82,14 @@ describe('temporal control URL sync', () => {
     expect(temporalStateFromURL(url, 'ratios')).toEqual({ regression: true, movingAverage: 3 })
     expect(temporalStateFromURL(url, 'premium')).toEqual({ regression: false, movingAverage: 12 })
     expect(url.searchParams.get('period')).toBe('ytd')
+  })
+})
+
+describe('renderer URL reset', () => {
+  it('removes legend and temporal state while retaining server-owned filters', () => {
+    expect(clearRendererStateFromURL(
+      '/dashboard?region=north&lensHidden=hidden&lensTemporal=trend',
+      new URL('https://example.test/dashboard'),
+    )).toBe('/dashboard?region=north')
   })
 })

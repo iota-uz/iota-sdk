@@ -2,7 +2,7 @@ import type { EChartsOption } from 'echarts'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
 import { fallbackMarkKey } from '../keys'
-import { buildChartOption, donutSliceLabel, rawPercentPrecision, slicePercentLabel } from './options'
+import { buildChartOption, donutSliceLabel, middleEllipsis, niceLogMaximum, rawPercentPrecision, slicePercentLabel } from './options'
 import type { EChartsTheme } from './theme'
 
 const theme: EChartsTheme = {
@@ -82,6 +82,8 @@ interface TestSeries {
 interface TestAxis {
   type?: string
   logBase?: number
+  max?: number
+  show?: boolean
   data?: string[]
   axisLabel?: { formatter?: (value: unknown) => string }
   triggerEvent?: boolean
@@ -109,7 +111,7 @@ function testOption(option: EChartsOption) {
 function logarithmicInput(kind: 'bar' | 'hbar'): ChartInput {
   const chartInput = input(kind)
   chartInput.frame.rows = [
-    ['tiny', 'Tiny', 'Revenue', 1],
+    ['tiny', 'Tiny', 'Revenue', 2],
     ['middle', 'Middle', 'Revenue', 50],
     ['large', 'Large', 'Revenue', 1200],
   ]
@@ -395,10 +397,43 @@ describe('buildChartOption', () => {
 
     expect(chart.xAxis.type).toBe('log')
     expect(chart.xAxis.logBase).toBe(10)
+    expect(chart.xAxis.max).toBe(1200)
     expect(chart.yAxis.type).toBe('category')
     expect(chart.series[0]?.label).toMatchObject({ show: true, position: 'right' })
     expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
     expect(chart.series[0]?.labelLayout).toEqual({ hideOverlap: true })
+  })
+
+  it('keeps both ends of long horizontal category labels recoverable', () => {
+    expect(middleEllipsis('Группа с очень длинным уточняющим названием для отчёта', 24)).toMatch(/^Группа с оче….*отчёта$/)
+    expect(niceLogMaximum(1700)).toBe(1800)
+  })
+
+  it('does not interpret the ECharts category index as an ellipsis width', () => {
+    const chart = testOption(buildChartOption(input('hbar'), theme))
+    const formatter = chart.yAxis.axisLabel?.formatter
+    const echartsFormatter = formatter as ((value: string, index: number) => string) | undefined
+    expect(echartsFormatter?.('Apr', 0)).toBe('Apr')
+    expect(echartsFormatter?.('Mar', 1)).toBe('Mar')
+  })
+
+  it('suppresses a fabricated value axis when every value is zero', () => {
+    const chartInput = input('bar')
+    chartInput.frame.rows = chartInput.frame.rows.map((row) => [...row.slice(0, 3), 0])
+    const chart = testOption(buildChartOption(chartInput, theme))
+    expect(chart.yAxis.show).toBe(false)
+  })
+
+  it('collapses a degenerate map domain to one swatch and value', () => {
+    const chartInput = input('map')
+    chartInput.frame.rows = [['north', 'North', 'Revenue', 42]]
+    chartInput.map = {
+      name: 'regions', featureProperty: 'code',
+      geoJSON: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { code: 'north' }, geometry: { type: 'Polygon', coordinates: [] } }] },
+    }
+    const chart = buildChartOption(chartInput, theme) as Record<string, unknown>
+    expect(chart.visualMap).toMatchObject({ show: false, min: 42, max: 42 })
+    expect(chart.graphic).toBeDefined()
   })
 
   it('puts logarithmic vertical-bar values above their columns', () => {

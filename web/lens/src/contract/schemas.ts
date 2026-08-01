@@ -30,6 +30,7 @@ export const ActionSchema: z.ZodType<Contract.Action> = z.lazy(() => z.object({
   method: z.string().optional(),
   urlTemplate: z.string().optional(),
   urlSource: z.lazy(() => SourceSchema).optional(),
+  drawerKey: z.lazy(() => SourceSchema).optional(),
   event: z.string().optional(),
   params: z.array(z.lazy(() => ActionParamSchema)),
   payload: z.record(z.string(), z.lazy(() => SourceSchema)),
@@ -107,6 +108,7 @@ export const DashboardDocumentSchema: z.ZodType<Contract.DashboardDocument> = z.
   endpoints: z.lazy(() => EndpointsSchema),
   i18n: z.record(z.string(), z.string()),
   theme: z.lazy(() => ThemeSchema),
+  urlState: z.lazy(() => URLStateContractSchema).optional(),
   header: z.lazy(() => DocumentHeaderSchema).optional(),
   drawer: z.lazy(() => DrawerHeaderSchema).optional(),
 }).strict())
@@ -122,6 +124,16 @@ export const DrawerHeaderSchema: z.ZodType<Contract.DrawerHeader> = z.lazy(() =>
   caption: z.string().optional(),
   size: z.lazy(() => DrawerSizeSchema).optional(),
 }).strict())
+
+export const DrawerResolveRequestSchema: z.ZodType<Contract.DrawerResolveRequest> = z.object({
+  snapshotId: z.string(),
+  metricKey: z.string(),
+  params: z.record(z.string(), z.unknown()).optional(),
+}).strict()
+
+export const DrawerResolveResponseSchema: z.ZodType<Contract.DrawerResolveResponse> = z.object({
+  url: z.string(),
+}).strict()
 
 export const DrawerSizeSchema: z.ZodType<Contract.DrawerSize> = z.enum(["wide"])
 
@@ -164,6 +176,7 @@ export const EncodingSchema: z.ZodType<Contract.Encoding> = z.object({
 export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.object({
   query: z.string().optional(),
   panel: z.string().optional(),
+  drawer: z.string().optional(),
   export: z.string().optional(),
   views: z.string().optional(),
   schedules: z.string().optional(),
@@ -420,6 +433,29 @@ export const PanelSchema: z.ZodType<Contract.Panel> = z.lazy(() => z.object({
   comparisonUnsupported: z.boolean().optional(),
 }).strict())
 
+export const PanelBatchRequestSchema: z.ZodType<Contract.PanelBatchRequest> = z.lazy(() => z.object({
+  snapshotId: z.string(),
+  panels: z.array(z.lazy(() => PanelRequestSchema)),
+}).strict())
+
+export const PanelBatchResponseSchema: z.ZodType<Contract.PanelBatchResponse> = z.lazy(() => z.object({
+  panels: z.record(z.string(), z.lazy(() => PanelBatchResultSchema)),
+}).strict())
+
+export const PanelBatchResultSchema: z.ZodType<Contract.PanelBatchResult> = z.lazy(() => z.object({
+  frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)).optional(),
+  calculation: z.lazy(() => PanelCalculationSchema).optional(),
+  summary: z.lazy(() => TableSummarySchema).optional(),
+  page: z.lazy(() => QueryPageSchema).optional(),
+  error: z.lazy(() => QueryErrorResponseSchema).optional(),
+}).strict())
+
+export const PanelBatchStreamEventSchema: z.ZodType<Contract.PanelBatchStreamEvent> = z.object({
+  panelId: z.string().optional(),
+  result: z.lazy(() => PanelBatchResultSchema).optional(),
+  complete: z.boolean().optional(),
+}).strict()
+
 export const PanelCalculationSchema: z.ZodType<Contract.PanelCalculation> = z.object({
   durationMs: z.number().int(),
   cacheHit: z.boolean(),
@@ -428,17 +464,19 @@ export const PanelCalculationSchema: z.ZodType<Contract.PanelCalculation> = z.ob
 
 export const PanelKindSchema: z.ZodType<Contract.PanelKind> = z.enum(["area", "bar", "boxplot", "cascade", "coverage", "donut", "gauge", "hbar", "heatmap", "histogram", "line", "map", "metric_flow", "metric_hierarchy", "metric_relationship", "pie", "radial", "stat", "table"])
 
-export const PanelRequestSchema: z.ZodType<Contract.PanelRequest> = z.object({
-  snapshotId: z.string(),
+export const PanelRequestSchema: z.ZodType<Contract.PanelRequest> = z.lazy(() => z.object({
   panelId: z.string(),
   recompute: z.boolean().optional(),
   search: z.string().optional(),
-}).strict()
+  sort: z.lazy(() => TableSortSchema).optional(),
+  page: z.number().int().optional(),
+}).strict())
 
 export const PanelResponseSchema: z.ZodType<Contract.PanelResponse> = z.lazy(() => z.object({
   frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)),
   calculation: z.lazy(() => PanelCalculationSchema),
   summary: z.lazy(() => TableSummarySchema).optional(),
+  page: z.lazy(() => QueryPageSchema).optional(),
 }).strict())
 
 export const PanelStatusSchema: z.ZodType<Contract.PanelStatus> = z.lazy(() => z.object({
@@ -460,13 +498,14 @@ export const PanelTemporalSchema: z.ZodType<Contract.PanelTemporal> = z.lazy(() 
   forecast: z.lazy(() => TemporalForecastSchema).optional(),
 }).strict())
 
-export const PanelTrendSchema: z.ZodType<Contract.PanelTrend> = z.object({
+export const PanelTrendSchema: z.ZodType<Contract.PanelTrend> = z.lazy(() => z.object({
   percent: z.number(),
   label: z.string().optional(),
   invert: z.boolean().optional(),
   absoluteField: z.string().optional(),
   percentField: z.string().optional(),
-}).strict()
+  absoluteDeltaUnit: z.lazy(() => TrendDeltaUnitSchema).optional(),
+}).strict())
 
 export const PeriodFilterSchema: z.ZodType<Contract.PeriodFilter> = z.lazy(() => z.object({
   startParam: z.string(),
@@ -535,12 +574,13 @@ export const QueryPageSchema: z.ZodType<Contract.QueryPage> = z.object({
   hasNext: z.boolean().optional(),
 }).strict()
 
-export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.object({
+export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.lazy(() => z.object({
   snapshotId: z.string(),
   path: z.lazy(() => NodePathSchema),
   perspective: z.string().optional(),
   page: z.number().int().optional(),
-}).strict()
+  sort: z.lazy(() => TableSortSchema).optional(),
+}).strict())
 
 export const QueryResponseSchema: z.ZodType<Contract.QueryResponse> = z.object({
   frames: z.record(z.lazy(() => FrameRefSchema), z.lazy(() => FrameSchema)),
@@ -566,6 +606,8 @@ export const RadialRingSchema: z.ZodType<Contract.RadialRing> = z.object({
 export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.enum(["evidence", "partition", "reconciliation", "series"])
 
 export const SliceLabelsSchema: z.ZodType<Contract.SliceLabels> = z.enum(["label", "percent"])
+
+export const SortDirectionSchema: z.ZodType<Contract.SortDirection> = z.enum(["asc", "desc"])
 
 export const SourceSchema: z.ZodType<Contract.Source> = z.lazy(() => z.object({
   kind: z.lazy(() => ValueSourceKindSchema),
@@ -618,9 +660,16 @@ export const TableOptionsSchema: z.ZodType<Contract.TableOptions> = z.object({
   searchable: z.boolean().optional(),
 }).strict()
 
+export const TableSortSchema: z.ZodType<Contract.TableSort> = z.object({
+  field: z.string(),
+  direction: z.lazy(() => SortDirectionSchema),
+}).strict()
+
 export const TableSummarySchema: z.ZodType<Contract.TableSummary> = z.object({
   values: z.record(z.string(), z.unknown()),
+  fullValues: z.record(z.string(), z.unknown()).optional(),
   filteredRows: z.number().int(),
+  totalRows: z.number().int(),
 }).strict()
 
 export const TemporalAnnotationSchema: z.ZodType<Contract.TemporalAnnotation> = z.object({
@@ -663,6 +712,14 @@ export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
 }).strict()
 
 export const TotalBadgePlacementSchema: z.ZodType<Contract.TotalBadgePlacement> = z.enum(["header", "none", "plot"])
+
+export const TrendDeltaUnitSchema: z.ZodType<Contract.TrendDeltaUnit> = z.enum(["percentage_points", "value"])
+
+export const URLStateContractSchema: z.ZodType<Contract.URLStateContract> = z.object({
+  version: z.number().int(),
+  param: z.string(),
+  maxBytes: z.number().int(),
+}).strict()
 
 export const ValueAxisSchema: z.ZodType<Contract.ValueAxis> = z.object({
   scale: z.lazy(() => AxisScaleSchema),

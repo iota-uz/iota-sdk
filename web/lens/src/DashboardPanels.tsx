@@ -3,10 +3,8 @@ import {
   lazy,
   Suspense,
   useContext,
-  useCallback,
   useEffect,
   useId,
-  useMemo,
   useRef,
   useState,
   type CSSProperties,
@@ -20,7 +18,6 @@ import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { SavedViewsMenu } from './panels/SavedViewsMenu'
 import { ShareSliceButton } from './panels/ShareSliceButton'
 import { StatMetric, StatusChip } from './panels/StatPanel'
-import { LegendVisibilityContext } from './panels/context'
 import { X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
@@ -232,27 +229,13 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   const [active, setActive] = useState(() => store?.get(group.id) ?? tabs[0] ?? '')
   const current = tabs.includes(active) ? active : tabs[0] ?? ''
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([])
-  const [hiddenSeries, setHiddenSeries] = useState<ReadonlySet<string>>(() => new Set())
-  const toggleSeries = useCallback((key: string) => {
-    setHiddenSeries((currentHidden) => {
-      const next = new Set(currentHidden)
-      if (next.has(key)) next.delete(key)
-      else next.add(key)
-      return next
-    })
-  }, [])
-  const resetSeries = useCallback(() => setHiddenSeries(new Set()), [])
-  const replaceSeries = useCallback((keys: ReadonlySet<string>) => setHiddenSeries(new Set(keys)), [])
-  const legendVisibility = useMemo(() => ({
-    hidden: hiddenSeries,
-    set: replaceSeries,
-    toggle: toggleSeries,
-    reset: resetSeries,
-  }), [hiddenSeries, replaceSeries, resetSeries, toggleSeries])
+  const [focused, setFocused] = useState(current)
+  const focusCurrent = tabs.includes(focused) ? focused : current
 
   const select = (tab: string) => {
     store?.set(group.id, tab)
     setActive(tab)
+    setFocused(tab)
   }
 
   // Roving-tabindex keyboard model (WAI-ARIA tabs). The handler is on each tab
@@ -269,7 +252,7 @@ function TabsGroup({ group, items, depth, panels, registry }: {
     if (nextTab === undefined) return
     event.preventDefault()
     event.stopPropagation()
-    select(nextTab)
+    setFocused(nextTab)
     tabRefs.current[next]?.focus()
   }
 
@@ -277,57 +260,60 @@ function TabsGroup({ group, items, depth, panels, registry }: {
   const panelId = (index: number) => `${baseId}-panel-${index}`
 
   return (
-    <LegendVisibilityContext.Provider value={legendVisibility}>
-      <GroupCard group={group}>
-        {/* An unlabelled group would otherwise expose its raw id to a screen
+    <GroupCard group={group}>
+      {/* An unlabelled group would otherwise expose its raw id to a screen
           reader; a translated generic name is the honest fallback. */}
-        <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
-          {tabs.map((tab, index) => (
-            <button
-              aria-controls={panelId(index)}
-              aria-selected={tab === current}
-              className="lens-tabstrip-tab"
-              id={tabId(index)}
-              key={tab}
-              onClick={() => select(tab)}
-              onKeyDown={(event) => onTabKeyDown(event, index)}
-              ref={(node) => { tabRefs.current[index] = node }}
-              role="tab"
-              tabIndex={tab === current ? 0 : -1}
-              type="button"
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-        {/* Every tabpanel element exists so each tab's aria-controls resolves, but
+      <div className="lens-tabstrip" role="tablist" aria-label={group.label || translate('dashboard.tabs', 'Tabs')}>
+        {tabs.map((tab, index) => (
+          <button
+            aria-controls={panelId(index)}
+            aria-selected={tab === current}
+            className="lens-tabstrip-tab"
+            id={tabId(index)}
+            key={tab}
+            onClick={() => select(tab)}
+            onKeyDown={(event) => onTabKeyDown(event, index)}
+            ref={(node) => { tabRefs.current[index] = node }}
+            role="tab"
+            tabIndex={tab === focusCurrent ? 0 : -1}
+            type="button"
+            onKeyUp={(event) => {
+              if (event.key !== 'Enter' && event.key !== ' ') return
+              event.preventDefault()
+              select(tab)
+            }}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+      {/* Every tabpanel element exists so each tab's aria-controls resolves, but
           only the active one mounts its content — the inactive ones are hidden
           and empty, so hidden panels never fetch. A print run is the exception:
           the report covers every tab, so the others mount to resolve their
           frames. They stay hidden while it does, or the dashboard behind the
           report flashes every tab at once. */}
-        {tabs.map((tab, index) => (
-          <div
-            aria-labelledby={tabId(index)}
-            className="lens-panel-grid lens-tab-panel"
-            hidden={tab !== current}
-            id={panelId(index)}
-            key={tab}
-            role="tabpanel"
-            tabIndex={0}
-          >
-            {(print.active || tab === current) && (
-              <GroupChain
-                depth={depth + 1}
-                items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
-                panels={panels}
-                registry={registry}
-              />
-            )}
-          </div>
-        ))}
-      </GroupCard>
-    </LegendVisibilityContext.Provider>
+      {tabs.map((tab, index) => (
+        <div
+          aria-labelledby={tabId(index)}
+          className="lens-panel-grid lens-tab-panel"
+          hidden={tab !== current}
+          id={panelId(index)}
+          key={tab}
+          role="tabpanel"
+          tabIndex={0}
+        >
+          {(print.active || tab === current) && (
+            <GroupChain
+              depth={depth + 1}
+              items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
+              panels={panels}
+              registry={registry}
+            />
+          )}
+        </div>
+      ))}
+    </GroupCard>
   )
 }
 

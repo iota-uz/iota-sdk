@@ -260,6 +260,13 @@ func (b *PanelBuilder) TrendWithInvert(percent float64, label string, invert boo
 	return b
 }
 
+func (b *PanelBuilder) TrendAbsoluteDeltaUnit(unit panel.TrendDeltaUnit) *PanelBuilder {
+	if b.panel.Trend != nil {
+		b.panel.Trend.AbsoluteDeltaUnit = unit
+	}
+	return b
+}
+
 // Status renders a small tone-colored chip in the stat card's label row.
 func (b *PanelBuilder) Status(label string, tone panel.StatusTone) *PanelBuilder {
 	b.panel.Status = &panel.StatusSpec{Label: label, Tone: tone}

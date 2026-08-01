@@ -27,8 +27,11 @@ export interface ChartInput {
   format: ChartFormatResolver
   /** Compact, locale-aware value formatter for axis ticks. Falls back to `format`. */
   formatAxis?: ChartFormatResolver
+  formatTooltip?: (field: string, value: unknown, reference: number) => string
   /** The reader's language, for the shares the chart writes itself. */
   locale?: string
+  /** Producer-pinned separator shared by values, legend shares, and slice labels. */
+  shareDecimalSeparator?: string
   /** Localized label used for the sum of a stacked column in its tooltip. */
   tooltipTotalLabel?: string
   /** Localized chart-generated labels that are not supplied by the producer. */

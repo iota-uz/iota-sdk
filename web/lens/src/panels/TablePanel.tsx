@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
 import { ArrowUpRight, CaretRight } from '../icons'
@@ -345,6 +345,8 @@ export function TablePanel({ panel }: TablePanelProps) {
   const [sort, setSort] = useState<SortState>()
   const [search, setSearch] = useState('')
   const [locationHref, setLocationHref] = useState(() => globalThis.location.href)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const [scrollEdges, setScrollEdges] = useState({ left: false, right: false })
   const searchInitialized = useRef(false)
   const [requestedPage, setRequestedPage] = useState(frame.page?.number ?? 1)
   const requestedSnapshotId = useRef(document.snapshotId)
@@ -354,8 +356,11 @@ export function TablePanel({ panel }: TablePanelProps) {
   // A static identity table (a fixed decomposition, not a record list) declares
   // sortable:false: its rows carry an inherent order, so offering to reorder
   // them — and printing "sort applies to this page" — would be a lie.
-  const sortEnabled = panel.presentation?.sortable !== false
-  const rows = useMemo(() => frame.data ? sortedRows(frame.data, sortEnabled ? sort : undefined) : [], [frame.data, sort, sortEnabled])
+  const serverSort = Boolean(document?.endpoints?.panel && panel.table?.searchable)
+  const sortEnabled = panel.presentation?.sortable !== false && (!frame.page || serverSort)
+  // A server-searchable table is ordered by the same producer over the same
+  // result scope; only an entirely static frame is safe to reorder locally.
+  const rows = useMemo(() => frame.data ? sortedRows(frame.data, !serverSort && sortEnabled ? sort : undefined) : [], [frame.data, serverSort, sort, sortEnabled])
   const page = frame.page?.number ?? 1
   const pageSize = frame.page?.size
   const loadingPage = requestedSnapshotId.current === document.snapshotId ? requestedPage : 1
@@ -458,15 +463,35 @@ export function TablePanel({ panel }: TablePanelProps) {
   }
 
   const changeSort = (column: string) => {
-    setSort((current) => current?.column === column
-      ? { column, direction: current.direction === 'ascending' ? 'descending' : 'ascending' }
-      : { column, direction: 'ascending' })
+    const next: SortState = sort?.column === column
+      ? { column, direction: sort.direction === 'ascending' ? 'descending' : 'ascending' }
+      : { column, direction: 'ascending' as const }
+    setSort(next)
+    if (serverSort) void pagination.sort(panel.id, { field: column, direction: next.direction === 'ascending' ? 'asc' : 'desc' })
   }
 
   const sortIndicator = (name: string) => sort?.column === name
     ? sort.direction === 'ascending' ? '↑' : '↓'
     : '↕'
   const columnCount = columns ? columns.length + (rowLeafAction ? 1 : 0) : (frame.data?.columns.length ?? 0) + 1
+
+  useLayoutEffect(() => {
+    const scroller = scrollRef.current
+    if (!scroller) return undefined
+    const measure = () => {
+      const left = scroller.scrollLeft > 1
+      const right = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1
+      setScrollEdges((current) => current.left === left && current.right === right ? current : { left, right })
+    }
+    measure()
+    scroller.addEventListener('scroll', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(scroller)
+    return () => {
+      scroller.removeEventListener('scroll', measure)
+      observer?.disconnect()
+    }
+  }, [columnCount, frame.data])
 
   return (
     <PanelFrame panel={panel} frame={frame} allowEmptyContent={Boolean(frame.page)}>
@@ -484,150 +509,182 @@ export function TablePanel({ panel }: TablePanelProps) {
               />
             </label>
           )}
-          <div className="lens-table-scroll">
-            <table className="lens-table">
-              <thead>
-                <tr>
-                  {columns ? (
-                    <>
-                      {columns.map((column, columnIndex) => {
+          <div
+            className="lens-table-scroll-frame"
+            data-overflow-left={scrollEdges.left}
+            data-overflow-right={scrollEdges.right}
+          >
+            {/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
+            <div
+              aria-label={translate('table.scrollRegion', 'Scrollable table')}
+              className="lens-table-scroll"
+              ref={scrollRef}
+              role="region"
+              tabIndex={scrollEdges.left || scrollEdges.right ? 0 : undefined}
+            >
+              {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
+              <table className="lens-table">
+                <thead>
+                  <tr>
+                    {columns ? (
+                      <>
+                        {columns.map((column, columnIndex) => {
                         // An action-only column has no field to sort by, and a
                         // static table offers no sort at all; either way the
                         // heading is a plain label, not a control.
-                        const sortable = sortEnabled && Boolean(column.field.trim())
-                        return (
-                          <th
-                            aria-sort={sortable && sort?.column === column.field ? sort.direction : 'none'}
-                            className={column.align === 'right' ? 'lens-table-col-right' : undefined}
-                            key={column.field || `column-${columnIndex}`}
-                            scope="col"
-                            style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
-                          >
-                            {sortable ? (
-                              <button type="button" onClick={() => changeSort(column.field)}>
-                                <span>{column.label}</span>
-                                <span aria-hidden="true">{sortIndicator(column.field)}</span>
+                          const sortable = sortEnabled && Boolean(column.field.trim())
+                          return (
+                            <th
+                              aria-sort={sortable ? (sort?.column === column.field ? sort.direction : 'none') : undefined}
+                              className={column.align === 'right' ? 'lens-table-col-right' : undefined}
+                              key={column.field || `column-${columnIndex}`}
+                              scope="col"
+                              style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
+                            >
+                              {sortable ? (
+                                <button type="button" onClick={() => changeSort(column.field)}>
+                                  <span>{column.label}</span>
+                                  <span aria-hidden="true">{sortIndicator(column.field)}</span>
+                                </button>
+                              ) : (
+                                <span className="lens-table-heading-static">{column.label}</span>
+                              )}
+                            </th>
+                          )
+                        })}
+                        {rowLeafAction && (
+                          <th className="lens-table-action-heading" scope="col">
+                            <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                          </th>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {frame.data.columns.map((column) => (
+                          <th aria-sort={sortEnabled ? (sort?.column === column.name ? sort.direction : 'none') : undefined} key={column.name} scope="col">
+                            {sortEnabled ? (
+                              <button type="button" onClick={() => changeSort(column.name)}>
+                                <span>{column.name}</span>
+                                <span aria-hidden="true">{sortIndicator(column.name)}</span>
                               </button>
                             ) : (
-                              <span className="lens-table-heading-static">{column.label}</span>
+                              <span className="lens-table-heading-static">{column.name}</span>
                             )}
                           </th>
-                        )
-                      })}
-                      {rowLeafAction && (
+                        ))}
                         <th className="lens-table-action-heading" scope="col">
                           <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
                         </th>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      {frame.data.columns.map((column) => (
-                        <th aria-sort={sortEnabled && sort?.column === column.name ? sort.direction : 'none'} key={column.name} scope="col">
-                          {sortEnabled ? (
-                            <button type="button" onClick={() => changeSort(column.name)}>
-                              <span>{column.name}</span>
-                              <span aria-hidden="true">{sortIndicator(column.name)}</span>
-                            </button>
-                          ) : (
-                            <span className="lens-table-heading-static">{column.name}</span>
-                          )}
-                        </th>
-                      ))}
-                      <th className="lens-table-action-heading" scope="col">
-                        <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
-                      </th>
-                    </>
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {rows.length === 0 ? (
-                  <tr>
-                    <td className="lens-table-empty" colSpan={columnCount}>
-                      {translate('table.emptyPage', 'No records on this page')}
-                    </td>
-                  </tr>
-                ) : renderRows.map((entry) => !columns ? (
-                  <FrameRow
-                    frame={frame.data!}
-                    row={entry.row}
-                    index={entry.index}
-                    panel={panel}
-                    location={location}
-                    level={level}
-                    openRecordLabel={translate('table.openRecord', 'Open record')}
-                    key={entry.index}
-                  />
-                ) : entry.kind === 'toggle' ? (
-                  <GroupToggleRow
-                    columns={columns}
-                    frame={frame.data!}
-                    row={entry.row}
-                    panel={panel}
-                    location={location}
-                    columnMaxima={columnStats.maxima}
-                    columnRanges={columnStats.ranges}
-                    expanded={entry.expanded}
-                    onToggle={() => toggleGroup(entry.group)}
-                    key={`toggle-${entry.group}`}
-                  />
-                ) : (
-                  <tr className={entry.kind === 'member' ? 'lens-table-group-member' : undefined} key={entry.index}>
-                    {columns.map((column, columnIndex) => (
-                      <td
-                        className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
-                        key={column.field || `column-${columnIndex}`}
-                        style={{
-                          ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
-                          ...heatCellStyle(column, frame.data!, entry.row, columnStats.ranges),
-                        }}
-                      >
-                        <ColumnCell
-                          column={column}
-                          frame={frame.data!}
-                          row={entry.row}
-                          panel={panel}
-                          location={location}
-                          max={columnStats.maxima.get(column.field) ?? 0}
-                        />
-                      </td>
-                    ))}
-                    {rowLeafAction && (
-                      <td className="lens-table-action-cell">
-                        <RowLeafAction
-                          frame={frame.data!}
-                          row={entry.row}
-                          panel={panel}
-                          location={location}
-                          level={level}
-                          label={translate('table.openRecord', 'Open record')}
-                        />
-                      </td>
+                      </>
                     )}
                   </tr>
-                ))}
-              </tbody>
-              {columns && frame.summary && Object.keys(frame.summary.values).length > 0 && (
-                <tfoot>
-                  <tr>
-                    {columns.map((column, index) => (
-                      <td
-                        className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
-                        key={column.field || `summary-${index}`}
-                      >
-                        {index === 0
-                          ? translate('table.total', 'Total')
-                          : column.total === true
-                            ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />
-                            : null}
+                </thead>
+                <tbody>
+                  {rows.length === 0 ? (
+                    <tr>
+                      <td className="lens-table-empty" colSpan={columnCount}>
+                        {translate('table.emptyPage', 'No records on this page')}
                       </td>
-                    ))}
-                    {rowLeafAction && <td />}
-                  </tr>
-                </tfoot>
-              )}
-            </table>
+                    </tr>
+                  ) : renderRows.map((entry) => !columns ? (
+                    <FrameRow
+                      frame={frame.data!}
+                      row={entry.row}
+                      index={entry.index}
+                      panel={panel}
+                      location={location}
+                      level={level}
+                      openRecordLabel={translate('table.openRecord', 'Open record')}
+                      key={entry.index}
+                    />
+                  ) : entry.kind === 'toggle' ? (
+                    <GroupToggleRow
+                      columns={columns}
+                      frame={frame.data!}
+                      row={entry.row}
+                      panel={panel}
+                      location={location}
+                      columnMaxima={columnStats.maxima}
+                      columnRanges={columnStats.ranges}
+                      expanded={entry.expanded}
+                      onToggle={() => toggleGroup(entry.group)}
+                      key={`toggle-${entry.group}`}
+                    />
+                  ) : (
+                    <tr className={entry.kind === 'member' ? 'lens-table-group-member' : undefined} key={entry.index}>
+                      {columns.map((column, columnIndex) => (
+                        <td
+                          className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+                          key={column.field || `column-${columnIndex}`}
+                          style={{
+                            ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
+                            ...heatCellStyle(column, frame.data!, entry.row, columnStats.ranges),
+                          }}
+                        >
+                          <ColumnCell
+                            column={column}
+                            frame={frame.data!}
+                            row={entry.row}
+                            panel={panel}
+                            location={location}
+                            max={columnStats.maxima.get(column.field) ?? 0}
+                          />
+                        </td>
+                      ))}
+                      {rowLeafAction && (
+                        <td className="lens-table-action-cell">
+                          <RowLeafAction
+                            frame={frame.data!}
+                            row={entry.row}
+                            panel={panel}
+                            location={location}
+                            level={level}
+                            label={translate('table.openRecord', 'Open record')}
+                          />
+                        </td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+                {columns && frame.summary && Object.keys(frame.summary.values).length > 0 && (
+                  <tfoot>
+                    <tr>
+                      {columns.map((column, index) => (
+                        <td
+                          className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+                          key={column.field || `summary-${index}`}
+                        >
+                          {index === 0
+                            ? frame.summary?.fullValues
+                              ? translate('table.filteredTotal', 'Filtered total')
+                              : translate('table.total', 'Total')
+                            : column.total === true
+                              ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />
+                              : null}
+                        </td>
+                      ))}
+                      {rowLeafAction && <td />}
+                    </tr>
+                    {frame.summary.fullValues && (
+                      <tr className="lens-table-summary-all">
+                        {columns.map((column, index) => (
+                          <td className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`} key={column.field || `full-summary-${index}`}>
+                            {index === 0
+                              ? translate('table.allRowsTotal', 'All rows total')
+                              : column.total === true
+                                ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.fullValues?.[column.field]} />
+                                : null}
+                          </td>
+                        ))}
+                        {rowLeafAction && <td />}
+                      </tr>
+                    )}
+                  </tfoot>
+                )}
+              </table>
+            </div>
+            <span aria-hidden="true" className="lens-table-overflow-edge lens-table-overflow-edge-left" />
+            <span aria-hidden="true" className="lens-table-overflow-edge lens-table-overflow-edge-right" />
           </div>
           <footer className="lens-table-footer">
             <span className="lens-table-footer-notes">
@@ -635,11 +692,12 @@ export function TablePanel({ panel }: TablePanelProps) {
                   On a table that shows every row at once the caveat describes a
                   limit that does not exist, and reads as a warning that some of
                   the data is out of sight. */}
-              {sortEnabled && frame.page && (
-                <span className="lens-table-sort-scope">{translate('table.sortScope', 'Sort applies to this page only')}</span>
-              )}
               {(frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold && (
-                <span className="lens-table-rowcount">{translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}</span>
+                <span className="lens-table-rowcount">
+                  {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
+                    ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
+                    : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}
+                </span>
               )}
             </span>
             {frame.page && (

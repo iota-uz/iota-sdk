@@ -10,9 +10,8 @@ type SkeletonProps struct {
 
 templ Skeleton(props SkeletonProps) {
 	<div
-		role="status"
 		class={ twmerge.Merge("animate-pulse", props.ContainerClass.String()) }
-		aria-label="Loading content"
+		aria-hidden="true"
 	>
 		if props.Lines > 0 {
 			for i := 0; i < props.Lines; i++ {
@@ -33,15 +32,13 @@ templ Skeleton(props SkeletonProps) {
 				></div>
 			}
 		}
-		<span class="sr-only">Loading...</span>
 	</div>
 }
 
 templ SkeletonText(props SkeletonProps) {
 	<div
-		role="status"
 		class={ twmerge.Merge("animate-pulse space-y-2.5", props.ContainerClass.String()) }
-		aria-label="Loading text"
+		aria-hidden="true"
 	>
 		if props.Lines > 0 {
 			for i := 0; i < props.Lines; i++ {
@@ -75,15 +72,13 @@ templ SkeletonText(props SkeletonProps) {
 				) }
 			></div>
 		}
-		<span class="sr-only">Loading...</span>
 	</div>
 }
 
 templ SkeletonCard(props SkeletonProps) {
 	<div
-		role="status"
 		class={ twmerge.Merge("animate-pulse", props.ContainerClass.String()) }
-		aria-label="Loading card"
+		aria-hidden="true"
 	>
 		<div class="flex items-center space-x-3">
 			<svg class="w-10 h-10 text-gray-200" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 20 20">
@@ -94,15 +89,13 @@ templ SkeletonCard(props SkeletonProps) {
 				<div class={ twmerge.Merge("h-2 bg-gray-200 rounded-full w-48", props.SkeletonClass.String()) }></div>
 			</div>
 		</div>
-		<span class="sr-only">Loading...</span>
 	</div>
 }
 
 templ SkeletonTable(props SkeletonProps) {
 	<div
-		role="status"
 		class={ twmerge.Merge("animate-pulse", props.ContainerClass.String()) }
-		aria-label="Loading table"
+		aria-hidden="true"
 	>
 		if props.Lines > 0 {
 			for i := 0; i < props.Lines; i++ {
@@ -123,6 +116,5 @@ templ SkeletonTable(props SkeletonProps) {
 				</div>
 			}
 		}
-		<span class="sr-only">Loading...</span>
 	</div>
 }

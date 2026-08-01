@@ -10,7 +10,7 @@ import {
   useState,
   useSyncExternalStore,
 } from 'react'
-import type { CompareValue, DashboardDocument, FieldFormat, Filter, Frame, NodeKey, NodePath, Panel, PanelCalculation, PeriodValue, QueryPage, QueryRequest, TableSummary } from '../contract'
+import type { CompareValue, DashboardDocument, FieldFormat, Filter, Frame, NodeKey, NodePath, Panel, PanelBatchResult, PanelCalculation, PeriodValue, QueryPage, QueryRequest, TableSort, TableSummary } from '../contract'
 import { fetchDocument } from './document'
 import {
   compareValues,
@@ -51,7 +51,7 @@ import { QueryClient } from './query'
 import { PanelClient } from './panel'
 import { SnapshotGoneError } from './query'
 import { queryWithSnapshotRecovery } from './recovery'
-import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL } from './url'
+import { drawerNavigationFromSource, navigationFromURL, navigationToURL, sameNavigationURL, siteRelativeURL } from './url'
 import { X } from '../icons'
 
 /* eslint-disable react-refresh/only-export-components */
@@ -270,6 +270,7 @@ export interface DrawerContextValue {
   /** True when open() can open the root drawer or replace its document. */
   canOpen?: boolean
   open: (src: string, opener?: HTMLElement) => void
+  openKey: (metricKey: string, opener?: HTMLElement) => void
   close: () => void
   /** Warm a drill-drawer document on hover/focus intent before it is opened. */
   prefetch: (src: string) => void
@@ -296,6 +297,7 @@ export interface ExportState {
 export interface PanelPaginationContextValue {
   loadPage: (panelId: string, page: number) => Promise<void>
   search: (panelId: string, value: string) => Promise<void>
+  sort: (panelId: string, value: TableSort) => Promise<void>
 }
 
 export interface ExportContextValue {
@@ -758,6 +760,8 @@ function RuntimeCore({
   const forceRetry = useRef(false)
   const pageLoader = useRef<(panelId: string, page: number, force?: boolean) => Promise<void>>()
   const searchLoader = useRef<(panelId: string, search: string) => Promise<void>>()
+  const sortLoader = useRef<(panelId: string, sort: TableSort) => Promise<void>>()
+  const tableRequestState = useRef(new Map<string, { search?: string; sort?: TableSort }>())
   const replaceNextURL = useRef(true)
   const drawerOpener = useRef<HTMLElement>()
   // The drawer portals to body and stacks above an expanded panel, so it carries
@@ -841,6 +845,7 @@ function RuntimeCore({
 
   useEffect(() => {
     if (!panelClient) return
+    const pending: Array<{ panel: Panel; attempt: number; force: boolean; key: string; previous?: Frame; retry: () => void }> = []
     for (const panel of sourceDocument.panels) {
       const attempt = panelAttempts[panel.id] ?? 0
       const force = panelForces.current.has(panel.id)
@@ -859,28 +864,49 @@ function RuntimeCore({
         retry,
         calculation: frames.get(panel.id)?.calculation,
       })
-      void panelClient.load({
-        snapshotId: sourceDocument.snapshotId,
-        panelId: panel.id,
-        ...(force ? { recompute: true } : {}),
-      }).then((response) => {
-        if (launchedPanelAttempts.current.get(key) !== attempt) return
-        const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
-        if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
+      pending.push({ panel, attempt, force, key, previous, retry })
+    }
+    if (pending.length === 0) return
+    const pendingByID = new Map(pending.map((item) => [item.panel.id, item]))
+    const received = new Set<string>()
+    const applyPanelResult = (panelId: string, response: PanelBatchResult) => {
+      const item = pendingByID.get(panelId)
+      if (!item) return
+      received.add(panelId)
+      const { panel, attempt, key, previous, retry } = item
+      if (launchedPanelAttempts.current.get(key) !== attempt) return
+      if (response.error || !response.frames) {
         frames.set(panel.id, {
-          data: loaded, isStale: false, isLoading: false, error: null, retry,
-          calculation: response.calculation,
-          summary: response.summary,
+          data: previous, isStale: Boolean(previous), isLoading: false,
+          error: new Error(response.error?.message ?? `panel ${panel.id} response has no frames`),
+          retry, calculation: frames.get(panel.id)?.calculation,
         })
-        setRuntimeDocument((current) => {
-          if (current.snapshotId !== sourceDocument.snapshotId || current.frames[panel.frame] === loaded) return current
-          return { ...current, frames: { ...current.frames, [panel.frame]: loaded } }
-        })
-      }).catch((cause: unknown) => {
-        if (launchedPanelAttempts.current.get(key) !== attempt) return
+        return
+      }
+      const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
+      if (!loaded) {
+        frames.set(panel.id, { data: previous, isStale: Boolean(previous), isLoading: false, error: new Error(`panel ${panel.id} response has no frame`), retry })
+        return
+      }
+      frames.set(panel.id, {
+        data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry,
+        calculation: response.calculation,
+        summary: response.summary,
+      })
+      setRuntimeDocument((current) => {
+        if (current.snapshotId !== sourceDocument.snapshotId || current.frames[panel.frame] === loaded) return current
+        return { ...current, frames: { ...current.frames, [panel.frame]: loaded } }
+      })
+    }
+    void panelClient.loadBatch(pending.map(({ panel, force }) => ({
+      snapshotId: sourceDocument.snapshotId, panelId: panel.id, ...(force ? { recompute: true } : {}),
+    })), { onResult: applyPanelResult }).catch((cause: unknown) => {
+      for (const { panel, attempt, key, previous, retry } of pending) {
+        if (received.has(panel.id)) continue
+        if (launchedPanelAttempts.current.get(key) !== attempt) continue
         if (cause instanceof SnapshotGoneError) {
           void refreshDocument().catch(() => undefined)
-          return
+          break
         }
         frames.set(panel.id, {
           data: previous,
@@ -890,12 +916,14 @@ function RuntimeCore({
           retry,
           calculation: frames.get(panel.id)?.calculation,
         })
-      }).finally(() => {
-        if (!force) return
-        if (!recomputePending.current.delete(panel.id)) return
+      }
+    }).finally(() => {
+      for (const { panel, force } of pending) {
+        if (!force) continue
+        if (!recomputePending.current.delete(panel.id)) continue
         if (recomputePending.current.size === 0) setIsRecomputing(false)
-      })
-    }
+      }
+    })
   }, [frames, panelAttempts, panelClient, refreshDocument, schedulePanel, setRuntimeDocument, sourceDocument])
 
   const recompute = useCallback(() => {
@@ -1029,6 +1057,24 @@ function RuntimeCore({
   }, [dispatch, document, driftNotice, frames, queryClient, refreshDocument, retryFrame, retryToken, runtimeView, setRuntimeDocument])
 
   const loadPage = useCallback(async (panelId: string, page: number, force = false) => {
+    const sourcePanel = sourceDocument.panels.find((candidate) => candidate.id === panelId)
+    if (panelClient && sourcePanel?.table?.searchable && page >= 1) {
+      const previousState = frames.get(panelId)
+      const previous = previousState?.data ?? sourceDocument.frames[sourcePanel.frame]
+      const retry = () => { void pageLoader.current?.(panelId, page, true) }
+      frames.set(panelId, { ...previousState, data: previous, isStale: Boolean(previous), isLoading: true, error: null, retry })
+      try {
+        const response = await panelClient.load({
+          snapshotId: sourceDocument.snapshotId, panelId, ...tableRequestState.current.get(panelId), page,
+        })
+        const loaded = response.frames[sourcePanel.frame] ?? Object.values(response.frames)[0]
+        if (!loaded) throw new Error(`panel ${panelId} response has no frame`)
+        frames.set(panelId, { data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry, calculation: response.calculation, summary: response.summary })
+      } catch (cause: unknown) {
+        frames.set(panelId, { ...previousState, data: previous, isStale: Boolean(previous), isLoading: false, error: cause instanceof Error ? cause : new Error('panel page failed'), retry })
+      }
+      return
+    }
     const panel = panelForNavigation(document, runtimeView)
     if (!queryClient || !panel || panel.id !== panelId || runtimeView.path.length === 0 || page < 1) return
     const previousState = frames.get(panelId)
@@ -1075,7 +1121,7 @@ function RuntimeCore({
         retry: retryPage,
       })
     }
-  }, [dispatch, document, driftNotice, frames, queryClient, refreshDocument, runtimeView])
+  }, [dispatch, document, driftNotice, frames, panelClient, queryClient, refreshDocument, runtimeView, sourceDocument])
   pageLoader.current = loadPage
 
   const searchPanel = useCallback(async (panelId: string, search: string) => {
@@ -1084,17 +1130,19 @@ function RuntimeCore({
     if (!panel?.table?.searchable) return
     const previousState = frames.get(panelId)
     const previous = previousState?.data ?? sourceDocument.frames[panel.frame]
+    const requestState = { ...tableRequestState.current.get(panelId), search: search || undefined }
+    tableRequestState.current.set(panelId, requestState)
     const retry = () => { void searchLoader.current?.(panelId, search) }
     frames.set(panelId, {
       data: previous, isStale: Boolean(previous), isLoading: !previous, error: null, retry,
       calculation: previousState?.calculation, summary: previousState?.summary,
     })
     try {
-      const response = await panelClient.load({ snapshotId: sourceDocument.snapshotId, panelId, search })
+      const response = await panelClient.load({ snapshotId: sourceDocument.snapshotId, panelId, ...requestState })
       const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
       if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
       frames.set(panelId, {
-        data: loaded, isStale: false, isLoading: false, error: null, retry,
+        data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry,
         calculation: response.calculation, summary: response.summary,
       })
     } catch (cause: unknown) {
@@ -1111,10 +1159,32 @@ function RuntimeCore({
   }, [frames, panelClient, refreshDocument, sourceDocument])
   searchLoader.current = searchPanel
 
+  const sortPanel = useCallback(async (panelId: string, sort: TableSort) => {
+    if (!panelClient) return
+    const panel = sourceDocument.panels.find((candidate) => candidate.id === panelId)
+    if (!panel || panel.presentation?.sortable === false) return
+    const requestState = { ...tableRequestState.current.get(panelId), sort }
+    tableRequestState.current.set(panelId, requestState)
+    const previousState = frames.get(panelId)
+    const previous = previousState?.data ?? sourceDocument.frames[panel.frame]
+    const retry = () => { void sortLoader.current?.(panelId, sort) }
+    frames.set(panelId, { data: previous, isStale: Boolean(previous), isLoading: !previous, error: null, retry, summary: previousState?.summary })
+    try {
+      const response = await panelClient.load({ snapshotId: sourceDocument.snapshotId, panelId, ...requestState })
+      const loaded = response.frames[panel.frame] ?? Object.values(response.frames)[0]
+      if (!loaded) throw new Error(`panel ${panel.id} response has no frame`)
+      frames.set(panelId, { data: loaded, page: response.page, isStale: false, isLoading: false, error: null, retry, calculation: response.calculation, summary: response.summary })
+    } catch (cause: unknown) {
+      frames.set(panelId, { data: previous, isStale: Boolean(previous), isLoading: false, error: cause instanceof Error ? cause : new Error('panel sort failed'), retry, summary: previousState?.summary })
+    }
+  }, [frames, panelClient, sourceDocument])
+  sortLoader.current = sortPanel
+
   const pagination = useMemo<PanelPaginationContextValue>(() => ({
     loadPage: (panelId, page) => loadPage(panelId, page),
     search: (panelId, value) => searchPanel(panelId, value),
-  }), [loadPage, searchPanel])
+    sort: (panelId, value) => sortPanel(panelId, value),
+  }), [loadPage, searchPanel, sortPanel])
 
   const runExport = useCallback(async (panelId?: string) => {
     const scope = exportScope(panelId)
@@ -1332,12 +1402,34 @@ function RuntimeCore({
         drawerNavigationFromSource(src, new URL(window.location.href)),
       ))
     },
+    openKey: (metricKey, opener) => {
+      const endpoint = document.endpoints.drawer
+      if (!endpoint || !metricKey.trim()) return
+      void (fetcher ?? fetch)(endpoint, {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+        body: JSON.stringify({ snapshotId: document.snapshotId, metricKey }),
+      }).then(async (response) => {
+        if (!response.ok) throw new Error(`drawer resolver failed (${response.status})`)
+        const payload = await response.json() as { url?: unknown }
+        if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
+        const root = opener?.closest<HTMLElement>('.lens-root')
+          ?? globalThis.document.querySelector<HTMLElement>('.lens-root')
+        drawerOpener.current = opener
+        const theme = root?.dataset.theme
+        drawerTheme.current = { theme, dark: theme === 'dark' || root?.classList.contains('dark') === true }
+        const current = new URL(window.location.href)
+        const relative = siteRelativeURL(payload.url, current)
+        if (!relative) throw new Error('drawer resolver returned a cross-origin URL')
+        dispatch(navigationActions.openDrawer(relative, drawerNavigationFromSource(relative, current)))
+      }).catch((cause: unknown) => setNotice(cause instanceof Error ? cause.message : 'drawer resolver failed'))
+    },
     close: closeDrawer,
     prefetch: (src) => {
       if (drawerDepth > 0 || navigation.drawer || !isSameOriginDrawerSource(src)) return
       void drawerCache.current?.prefetch(src)
     },
-  }), [closeDrawer, dispatch, drawerDepth, navigation.drawer, onDrawerNavigate])
+  }), [closeDrawer, csrf, dispatch, document.endpoints.drawer, document.snapshotId, drawerDepth, fetcher, navigation.drawer, onDrawerNavigate])
   const dashboard = useMemo(() => ({
     document, navigation, notice, dismissNotice: () => setNotice(undefined),
     canRecompute: Boolean(panelClient), isRecomputing, recompute,

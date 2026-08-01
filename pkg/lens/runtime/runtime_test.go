@@ -327,8 +327,8 @@ func TestDateRangeVariableUsesStartAndEndRequestKeysWhenModeKeyIsPresent(t *test
 
 	values := url.Values{
 		"range":       []string{"bounded"},
-		"range_start": []string{"2026-03-01"},
-		"range_end":   []string{"2026-03-15"},
+		"range-start": []string{"2026-03-01"},
+		"range-end":   []string{"2026-03-15"},
 	}
 
 	resolved, err := resolveVariables(spec.Variables, Request{Request: values})
@@ -352,8 +352,8 @@ func TestCompareVariableResolvesEveryModeAgainstItsDateRange(t *testing.T) {
 	base := func() url.Values {
 		return url.Values{
 			"range":       []string{"bounded"},
-			"range_start": []string{"2026-03-10"},
-			"range_end":   []string{"2026-03-15"},
+			"range-start": []string{"2026-03-10"},
+			"range-end":   []string{"2026-03-15"},
 		}
 	}
 	assertRange := func(mode lens.CompareMode, start, end string) {
@@ -372,8 +372,8 @@ func TestCompareVariableResolvesEveryModeAgainstItsDateRange(t *testing.T) {
 
 	custom := base()
 	custom.Set("compare", string(lens.CompareCustom))
-	custom.Set("compare_start", "2026-02-01")
-	custom.Set("compare_end", "2026-02-28")
+	custom.Set("compare-start", "2026-02-01")
+	custom.Set("compare-end", "2026-02-28")
 	resolved, err := resolveVariables(variables, Request{Request: custom})
 	require.NoError(t, err)
 	require.Equal(t, lens.CompareCustom, resolved["compare"].(lens.CompareValue).Mode)
@@ -392,7 +392,7 @@ func TestCompareVariableUsesCalendarPeriodsAndRequestTimezone(t *testing.T) {
 	}
 
 	previous, err := resolveVariables(variables, Request{Timezone: "Asia/Tashkent", Request: url.Values{
-		"range": []string{"bounded"}, "range_start": []string{"2026-03-01"}, "range_end": []string{"2026-03-31"},
+		"range": []string{"bounded"}, "range-start": []string{"2026-03-01"}, "range-end": []string{"2026-03-31"},
 		"compare": []string{"previous_period"},
 	}})
 	require.NoError(t, err)
@@ -404,7 +404,7 @@ func TestCompareVariableUsesCalendarPeriodsAndRequestTimezone(t *testing.T) {
 	require.Equal(t, "2026-02-28", baseline.End.Format("2006-01-02"))
 
 	yearAgo, err := resolveVariables(variables, Request{Timezone: "Asia/Tashkent", Request: url.Values{
-		"range": []string{"bounded"}, "range_start": []string{"2028-02-01"}, "range_end": []string{"2028-02-29"},
+		"range": []string{"bounded"}, "range-start": []string{"2028-02-01"}, "range-end": []string{"2028-02-29"},
 		"compare": []string{"year_ago"},
 	}})
 	require.NoError(t, err)
@@ -413,8 +413,8 @@ func TestCompareVariableUsesCalendarPeriodsAndRequestTimezone(t *testing.T) {
 	require.Equal(t, "2027-02-28", baseline.End.Format("2006-01-02"))
 
 	custom, err := resolveVariables(variables, Request{Timezone: "Asia/Tashkent", Request: url.Values{
-		"range": []string{"bounded"}, "range_start": []string{"2026-03-01"}, "range_end": []string{"2026-03-31"},
-		"compare": []string{"custom"}, "compare_start": []string{"2026-01-01"}, "compare_end": []string{"2026-01-31"},
+		"range": []string{"bounded"}, "range-start": []string{"2026-03-01"}, "range-end": []string{"2026-03-31"},
+		"compare": []string{"custom"}, "compare-start": []string{"2026-01-01"}, "compare-end": []string{"2026-01-31"},
 	}})
 	require.NoError(t, err)
 	baseline = custom["compare"].(lens.CompareValue).Range
@@ -532,6 +532,28 @@ func TestValidateAcceptsOpenDrawerAction(t *testing.T) {
 	).Build()
 
 	require.NoError(t, Validate(spec))
+
+	metricSpec := lensbuild.Dashboard("metric-action", "Metric action",
+		lensbuild.Row(
+			panel.Bar("sales", "Sales", "dataset").
+				LabelField("label").
+				ValueField("value").
+				Action(action.OpenDrawerMetric(action.FieldValue("label"), action.FieldParam("product", "label"))).
+				Build(),
+		),
+	).Datasets(lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset"))).Build()
+	require.NoError(t, Validate(metricSpec))
+}
+
+func TestValidateRejectsDrawerMetricKeyOnNonDrawerAction(t *testing.T) {
+	t.Parallel()
+	actionSpec := action.Navigate("/records")
+	drawerKey := action.LiteralValue("loss-ratio")
+	actionSpec.DrawerKey = &drawerKey
+	spec := lensbuild.Dashboard("bad-action", "Bad action", lensbuild.Row(
+		panel.Bar("sales", "Sales", "dataset").LabelField("label").ValueField("value").Action(actionSpec).Build(),
+	)).Datasets(lensbuild.StaticDataset("dataset", mustFrameSet(t, "dataset"))).Build()
+	require.ErrorContains(t, Validate(spec), "metric key is only valid for a drawer")
 }
 
 func TestValidateRejectsEmptyActionURLFieldSource(t *testing.T) {

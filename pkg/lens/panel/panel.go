@@ -842,9 +842,17 @@ type TrendSpec struct {
 	Invert bool `json:"invert,omitempty"`
 	// AbsoluteField and PercentField opt into frame-backed automatic deltas.
 	// When set they take precedence over the manual Percent value.
-	AbsoluteField FieldRef `json:"-"`
-	PercentField  FieldRef `json:"-"`
+	AbsoluteField     FieldRef       `json:"-"`
+	PercentField      FieldRef       `json:"-"`
+	AbsoluteDeltaUnit TrendDeltaUnit `json:"-"`
 }
+
+type TrendDeltaUnit string
+
+const (
+	TrendDeltaValue            TrendDeltaUnit = "value"
+	TrendDeltaPercentagePoints TrendDeltaUnit = "percentage_points"
+)
 
 type FieldMapping struct {
 	Label     FieldRef
@@ -1104,6 +1112,13 @@ func (b *Builder) TrendWithInvert(percent float64, label string, invert bool) *B
 func (b *Builder) AutoTrend(absoluteField, percentField FieldRef, label string, invert bool) *Builder {
 	b.spec.Trend = &TrendSpec{
 		Label: label, Invert: invert, AbsoluteField: absoluteField, PercentField: percentField,
+	}
+	return b
+}
+
+func (b *Builder) TrendAbsoluteDeltaUnit(unit TrendDeltaUnit) *Builder {
+	if b.spec.Trend != nil {
+		b.spec.Trend.AbsoluteDeltaUnit = unit
 	}
 	return b
 }

@@ -167,9 +167,11 @@ function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeri
     const header = typeof axisValue === 'number'
       ? timeLabel(input, categoryField, axisValue)
       : input.format(categoryField, axisValue)
+    const reference = records.reduce((maximum, entry) => Math.max(maximum, Math.abs(numericTooltipValue(entry.value) ?? 0)), 0)
     const lines = records.map((entry) => {
       const seriesName = text(entry.seriesName)
-      const formatted = input.format(valueField, tooltipValue(entry.value))
+      const formatted = input.formatTooltip?.(valueField, tooltipValue(entry.value), reference)
+        ?? input.format(valueField, tooltipValue(entry.value))
       return showSeriesName && seriesName ? `${seriesName}: ${formatted}` : formatted
     })
     return [header, ...lines].join('\n')
@@ -286,7 +288,7 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
   })
   const min = values.length > 0 ? Math.min(...values) : 0
   const max = values.length > 0 ? Math.max(...values) : 0
-  const rangeMin = max === min && min > 0 ? 0 : min
+  const rangeMin = min
   const rangeMax = max === min && max <= 0 ? 0 : max
   return {
     ...baseOption(theme),
@@ -301,11 +303,20 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
     },
     visualMap: {
       type: 'continuous', min: rangeMin, max: rangeMax, calculable: false, orient: 'horizontal',
+      show: min !== max,
       left: 'center', bottom: 4, itemWidth: 12, itemHeight: 96,
       text: [input.formatAxis?.(input.encoding.value ?? '', rangeMax) ?? input.format(input.encoding.value ?? '', rangeMax), input.formatAxis?.(input.encoding.value ?? '', rangeMin) ?? input.format(input.encoding.value ?? '', rangeMin)],
       textStyle: { color: theme.mutedText, fontSize: 10 },
       inRange: { color: [theme.divider, input.theme.palette.accent ?? theme.colors[0]] },
     },
+    ...(min === max && values.length > 0 ? {
+      graphic: [{
+        type: 'group', left: 'center', bottom: 8, children: [
+          { type: 'rect', shape: { x: 0, y: 1, width: 24, height: 10 }, style: { fill: input.theme.palette.accent ?? theme.colors[0] } },
+          { type: 'text', style: { x: 31, y: 0, text: input.formatAxis?.(input.encoding.value ?? '', max) ?? input.format(input.encoding.value ?? '', max), fill: theme.mutedText, fontSize: 10 } },
+        ],
+      }],
+    } : {}),
     series: [{
       type: 'map',
       map: input.map.name,
@@ -338,9 +349,9 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
 export const rawPercentPrecision = 10
 
 /** The label a pie slice carries: one rounding, and nothing under 4%. */
-export function slicePercentLabel(percent: number | undefined, locale?: string): string {
+export function slicePercentLabel(percent: number | undefined, locale?: string, decimalSeparator?: string): string {
   const share = percent ?? 0
-  return share >= 4 ? formatShare(share, locale) : ''
+  return share >= 4 ? formatShare(share, locale, decimalSeparator) : ''
 }
 
 /**
@@ -402,9 +413,9 @@ function labelShare(params: unknown): { name: string; share: number | undefined 
   return { name: text(record.name), share }
 }
 
-function sliceLabel(mode: Presentation['sliceLabels'], params: unknown, locale?: string): string {
+function sliceLabel(mode: Presentation['sliceLabels'], params: unknown, locale?: string, decimalSeparator?: string): string {
   const { name, share } = labelShare(params)
-  return mode === 'label' ? sliceCategoryLabel(name, share) : slicePercentLabel(share, locale)
+  return mode === 'label' ? sliceCategoryLabel(name, share) : slicePercentLabel(share, locale, decimalSeparator)
 }
 
 export function donutSliceLabel(params: unknown, input: ChartInput): string {
@@ -415,7 +426,7 @@ export function donutSliceLabel(params: unknown, input: ChartInput): string {
     : (typeof record.percent === 'number' ? record.percent : undefined)
   if (input.viewportWidth !== undefined && input.viewportWidth < 500) return text(record.name)
   const value = input.format(input.encoding.value ?? '', data.value)
-  return `${text(record.name)}\n${value} · ${formatShare(share, input.locale)}`
+  return `${text(record.name)}\n${value} · ${formatShare(share, input.locale, input.shareDecimalSeparator)}`
 }
 
 function timeLabel(input: ChartInput, field: string, value: number): string {
@@ -472,7 +483,7 @@ function sliceTooltip(params: unknown, input: ChartInput, ringLabel?: string): s
   const share = typeof data.share === 'number'
     ? data.share
     : (typeof record.percent === 'number' ? record.percent : undefined)
-  const suffix = share === undefined ? '' : ` (${formatShare(share, input.locale)})`
+  const suffix = share === undefined ? '' : ` (${formatShare(share, input.locale, input.shareDecimalSeparator)})`
   // The tooltip body is parsed as HTML, so a newline collapses to a space and
   // the ring name runs into the category it heads.
   const heading = ringLabel ? `${ringLabel}<br/>` : ''
@@ -511,7 +522,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       fontWeight: 'bold' as const,
       // Slices under 4% cannot hold a legible label; the legend below
       // still names them.
-      formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
+      formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale, input.shareDecimalSeparator),
     }
     : donut
       ? {
@@ -860,6 +871,10 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const isBar = input.kind === 'bar' || input.kind === 'hbar'
   const horizontal = input.kind === 'hbar'
   const logarithmic = shouldUseLogarithmicScale(input.frame, input.encoding, input.valueAxis)
+  const numericPointValues = points.flatMap((point) => typeof point.value === 'number' ? [point.value] : [])
+  const logMaximum = logarithmic && numericPointValues.length > 0
+    ? niceLogMaximum(Math.max(...numericPointValues))
+    : undefined
   const showSeriesName = Boolean(input.encoding.series)
   const categoryField = input.encoding.category ?? input.encoding.label ?? ''
   const timeAxis = !isBar && input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
@@ -1068,7 +1083,10 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     data: categories,
     triggerEvent: true,
     ...axisStyle(theme),
-    ...(horizontal ? { axisLabel: { color: theme.mutedText, width: 260, overflow: 'truncate' as const } } : {}),
+    // ECharts passes the category index as the formatter's second argument;
+    // passing middleEllipsis directly therefore treated the index as a width
+    // and mangled already-short labels such as "Apr".
+    ...(horizontal ? { axisLabel: { color: theme.mutedText, width: 260, formatter: (value: string) => middleEllipsis(String(value)), overflow: 'truncate' as const } } : {}),
   }
   const temporalAxis = {
     type: 'time' as const,
@@ -1078,7 +1096,9 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   }
   const valueAxis = {
     type: logarithmic ? 'log' as const : 'value' as const,
+    show: points.some((point) => typeof point.value === 'number' && point.value !== 0),
     logBase: logarithmic ? (input.valueAxis?.logBase || 10) : undefined,
+    max: logMaximum,
     ...axisStyle(theme),
     axisLabel: { color: theme.mutedText, formatter: axisValueFormatter(input), hideOverlap: true },
   }
@@ -1114,6 +1134,22 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     yAxis: horizontal ? categoryAxis : valueAxis,
     series,
   }
+}
+
+/** Preserve both identifying ends of long catalogue names on narrow axes. */
+export function middleEllipsis(value: string, limit = 36): string {
+  if (value.length <= limit) return value
+  const available = limit - 1
+  const left = Math.ceil(available / 2)
+  return `${value.slice(0, left)}…${value.slice(value.length - (available - left))}`
+}
+
+/** Clamp log whitespace to the next fifth of the leading magnitude. */
+export function niceLogMaximum(maximum: number): number {
+  if (!Number.isFinite(maximum) || maximum <= 0) return maximum
+  const magnitude = 10 ** Math.floor(Math.log10(maximum))
+  const step = magnitude / 5
+  return Math.ceil(maximum / step) * step
 }
 
 export function buildChartOption(input: ChartInput, theme: EChartsTheme): EChartsOption {

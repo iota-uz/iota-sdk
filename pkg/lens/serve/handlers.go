@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -33,6 +34,9 @@ type Page = document.QueryPage
 type QueryResponse = document.QueryResponse
 type PanelRequest = document.PanelRequest
 type PanelResponse = document.PanelResponse
+type PanelBatchRequest = document.PanelBatchRequest
+type PanelBatchResponse = document.PanelBatchResponse
+type PanelBatchStreamEvent = document.PanelBatchStreamEvent
 
 // Document executes and returns a new snapshot-backed dashboard document.
 func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
@@ -109,9 +113,16 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 				}
 				return ""
 			}(),
+			Drawer: func() string {
+				if h.drawerResolver != nil {
+					return h.endpoint("/lens/drawer")
+				}
+				return ""
+			}(),
 		},
 		DeferPanels: h.progressive,
 		Filters:     wireVariableFilters(result.Filters),
+		URLState:    &document.URLStateContract{Version: document.URLStateVersion, Param: document.URLStateParam, MaxBytes: document.URLStateMaxBytes},
 	})
 	if err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Document", "document build failed", err)
@@ -134,41 +145,28 @@ type loadedPanel struct {
 	calculation document.PanelCalculation
 }
 
-// Panel materialises one top-level panel against the immutable request frozen
-// by Document. A failure is returned only to this endpoint, leaving the shell
-// and every sibling panel usable and independently retryable.
+// Panel materialises a bounded batch of top-level panels against one immutable
+// snapshot. Snapshot identity and scope reject the whole batch before response
+// headers. Each panel result is then flushed as one NDJSON event as soon as it
+// completes, so a slow sibling never delays progressive reveal. Validation and
+// execution failures stay isolated to their panel result.
 func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be POST")
 		return
 	}
-	var req PanelRequest
+	var req PanelBatchRequest
 	if err := decodeJSON(w, r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
 		return
 	}
 	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
-	req.PanelID = strings.TrimSpace(req.PanelID)
-	req.Search = strings.TrimSpace(req.Search)
-	if req.SnapshotID == "" || req.PanelID == "" {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "snapshotId and panelId are required")
+	if req.SnapshotID == "" {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "snapshotId is required")
 		return
 	}
-	if req.Recompute && !h.progressive {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "recompute is available only for progressive dashboards")
-		return
-	}
-	if len([]rune(req.Search)) > 200 {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "search cannot exceed 200 characters")
-		return
-	}
-	panelSpec, ok := lens.FindPanel(h.spec, req.PanelID)
-	if !ok || panelSpec.Kind.IsContainer() {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available")
-		return
-	}
-	if req.Search != "" && (panelSpec.Kind != panel.KindTable || panelSpec.Table == nil || !panelSpec.Table.Searchable) {
-		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not searchable")
+	if len(req.Panels) == 0 || len(req.Panels) > 64 {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panels must contain 1 to 64 entries")
 		return
 	}
 	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
@@ -182,10 +180,76 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
 		return
 	}
+	seen := make(map[string]struct{}, len(req.Panels))
+	for index := range req.Panels {
+		req.Panels[index].PanelID = strings.TrimSpace(req.Panels[index].PanelID)
+		req.Panels[index].Search = strings.TrimSpace(req.Panels[index].Search)
+		if req.Panels[index].PanelID == "" {
+			writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panelId is required")
+			return
+		}
+		if _, duplicate := seen[req.Panels[index].PanelID]; duplicate {
+			writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panelId entries must be unique")
+			return
+		}
+		seen[req.Panels[index].PanelID] = struct{}{}
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		h.writeInternalError(r.Context(), w, "lens/serve.Panel", "streaming is unavailable", fmt.Errorf("response writer does not support flushing"))
+		return
+	}
+	type completedPanel struct {
+		panelID string
+		result  document.PanelBatchResult
+	}
+	completed := make(chan completedPanel, len(req.Panels))
+	for _, panelReq := range req.Panels {
+		panelReq := panelReq
+		go func() {
+			result := h.panelResult(r.Context(), panelReq, snapshot, current)
+			select {
+			case completed <- completedPanel{panelID: panelReq.PanelID, result: result}:
+			case <-r.Context().Done():
+			}
+		}()
+	}
+	w.Header().Set("Content-Type", "application/x-ndjson")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Accel-Buffering", "no")
+	w.WriteHeader(http.StatusOK)
+	encoder := json.NewEncoder(w)
+	for range req.Panels {
+		select {
+		case item := <-completed:
+			event := PanelBatchStreamEvent{PanelID: item.panelID, Result: &item.result}
+			if err := encoder.Encode(event); err != nil {
+				return
+			}
+			flusher.Flush()
+		case <-r.Context().Done():
+			return
+		}
+	}
+	if err := encoder.Encode(PanelBatchStreamEvent{Complete: true}); err != nil {
+		return
+	}
+	flusher.Flush()
+}
+
+func (h *Handlers) panelResult(
+	ctx context.Context,
+	req PanelRequest,
+	snapshot *document.Snapshot,
+	current lensruntime.Request,
+) document.PanelBatchResult {
+	panelSpec, validationErr := h.validatePanelRequest(req)
+	if validationErr != nil {
+		return panelError(document.QueryErrorBadRequest, validationErr.Error())
+	}
 	if req.Recompute {
 		if calculation, ok := snapshot.Panels[panelSpec.ID]; ok && time.Since(calculation.CalculatedAt) < recomputeCooldown {
-			writeError(w, http.StatusTooManyRequests, document.QueryErrorBadRequest, "panel was recomputed recently")
-			return
+			return panelError(document.QueryErrorBadRequest, "panel was recomputed recently")
 		}
 	}
 	ref := document.FrameRef("panel:" + panelSpec.ID)
@@ -196,26 +260,55 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 			if calculation.CalculatedAt.IsZero() {
 				calculation.CalculatedAt = snapshot.CreatedAt
 			}
-			view, summary := tableFrameView(panelSpec, cached, req.Search)
-			writeJSON(w, http.StatusOK, PanelResponse{
-				Frames: map[document.FrameRef]document.Frame{ref: view}, Calculation: calculation, Summary: summary,
-			})
-			return
+			view, summary := tableFrameView(panelSpec, cached, req.Search, req.Sort)
+			view, page := paginatePanelFrame(panelSpec, view, req.Page, h.pageSize)
+			return successfulPanel(ref, view, calculation, summary, page)
 		}
 	}
-	h.loadPanel(w, r, req, snapshot, panelSpec, ref, current)
+	loaded, err := h.loadPanelValue(ctx, req, snapshot, panelSpec, ref, current)
+	if err != nil {
+		if errors.Is(err, document.ErrSnapshotGone) {
+			return panelError(document.QueryErrorSnapshotGone, "snapshot expired or was not found")
+		}
+		h.observer.OnError(ctx, "lens/serve.Panel", err)
+		return panelError(document.QueryErrorInternal, "panel execution failed")
+	}
+	view, summary := tableFrameView(panelSpec, loaded.frame, req.Search, req.Sort)
+	view, page := paginatePanelFrame(panelSpec, view, req.Page, h.pageSize)
+	return successfulPanel(ref, view, loaded.calculation, summary, page)
 }
 
-func (h *Handlers) loadPanel(
-	w http.ResponseWriter,
-	r *http.Request,
+func (h *Handlers) validatePanelRequest(req PanelRequest) (panel.Spec, error) {
+	if req.Recompute && !h.progressive {
+		return panel.Spec{}, fmt.Errorf("recompute is available only for progressive dashboards")
+	}
+	if len([]rune(req.Search)) > 200 {
+		return panel.Spec{}, fmt.Errorf("search cannot exceed 200 characters")
+	}
+	if req.Page < 0 || req.Page > lensruntime.MaxTablePage {
+		return panel.Spec{}, fmt.Errorf("page is outside the supported range")
+	}
+	panelSpec, ok := lens.FindPanel(h.spec, req.PanelID)
+	if !ok || panelSpec.Kind.IsContainer() {
+		return panel.Spec{}, fmt.Errorf("panel is not available")
+	}
+	if req.Search != "" && (panelSpec.Kind != panel.KindTable || panelSpec.Table == nil || !panelSpec.Table.Searchable) {
+		return panel.Spec{}, fmt.Errorf("panel is not searchable")
+	}
+	if err := validateTableSort(panelSpec, req.Sort); err != nil {
+		return panel.Spec{}, err
+	}
+	return panelSpec, nil
+}
+
+func (h *Handlers) loadPanelValue(
+	ctx context.Context,
 	req PanelRequest,
 	snapshot *document.Snapshot,
 	panelSpec panel.Spec,
 	ref document.FrameRef,
 	current lensruntime.Request,
-) {
-	ctx := r.Context()
+) (loadedPanel, error) {
 	key := "panel:" + snapshot.ID + ":" + panelSpec.ID
 	if req.Recompute {
 		key += ":recompute"
@@ -267,26 +360,146 @@ func (h *Handlers) loadPanel(
 	})
 	select {
 	case <-ctx.Done():
-		return
+		return loadedPanel{}, ctx.Err()
 	case loaded := <-result:
 		if loaded.Err != nil {
-			if errors.Is(loaded.Err, document.ErrSnapshotGone) {
-				h.writeSnapshotError(ctx, w, loaded.Err)
-				return
-			}
-			h.writeExecutionError(ctx, w, loaded.Err)
-			return
+			return loadedPanel{}, loaded.Err
 		}
 		panel, ok := loaded.Val.(loadedPanel)
 		if !ok {
-			h.writeInternalError(ctx, w, "lens/serve.Panel", "panel execution failed", fmt.Errorf("panel execution returned %T", loaded.Val))
-			return
+			return loadedPanel{}, fmt.Errorf("panel execution returned %T", loaded.Val)
 		}
-		view, summary := tableFrameView(panelSpec, panel.frame, req.Search)
-		writeJSON(w, http.StatusOK, PanelResponse{
-			Frames: map[document.FrameRef]document.Frame{ref: view}, Calculation: panel.calculation, Summary: summary,
-		})
+		return panel, nil
 	}
+}
+
+func successfulPanel(ref document.FrameRef, frame document.Frame, calculation document.PanelCalculation, summary *document.TableSummary, page *document.QueryPage) document.PanelBatchResult {
+	return document.PanelBatchResult{
+		Frames: map[document.FrameRef]document.Frame{ref: frame}, Calculation: &calculation, Summary: summary, Page: page,
+	}
+}
+
+func validateTableSort(spec panel.Spec, ordering *document.TableSort) error {
+	if ordering == nil {
+		return nil
+	}
+	if spec.Kind != panel.KindTable || spec.Presentation.NonSortable {
+		return fmt.Errorf("panel is not sortable")
+	}
+	ordering.Field = strings.TrimSpace(ordering.Field)
+	if ordering.Direction != document.SortAscending && ordering.Direction != document.SortDescending {
+		return fmt.Errorf("sort direction must be asc or desc")
+	}
+	for _, column := range spec.Columns {
+		if column.Field.Name() == ordering.Field {
+			return nil
+		}
+	}
+	return fmt.Errorf("sort field is not a declared table column")
+}
+
+func paginatePanelFrame(spec panel.Spec, source document.Frame, requested, pageSize int) (document.Frame, *document.QueryPage) {
+	if spec.Kind != panel.KindTable || (requested <= 0 && len(source.Rows) <= pageSize) {
+		return source, nil
+	}
+	page := requested
+	if page <= 0 {
+		page = lensruntime.DefaultTablePage
+	}
+	start := (page - 1) * pageSize
+	if start >= len(source.Rows) {
+		source.Rows = nil
+		return source, &document.QueryPage{Number: page, Size: pageSize}
+	}
+	end := min(start+pageSize, len(source.Rows))
+	hasNext := end < len(source.Rows)
+	source.Rows = source.Rows[start:end]
+	return source, &document.QueryPage{Number: page, Size: pageSize, HasNext: hasNext}
+}
+
+func panelError(code document.QueryErrorCode, message string) document.PanelBatchResult {
+	return document.PanelBatchResult{Error: &document.QueryErrorResponse{Error: code, Message: message}}
+}
+
+// Drawer resolves a compact metric key against frozen, scope-checked snapshot
+// state. The host mints any short-lived authorization token only at open time.
+func (h *Handlers) Drawer(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be POST")
+		return
+	}
+	if h.drawerResolver == nil {
+		writeError(w, http.StatusNotFound, document.QueryErrorBadRequest, "drawer resolver is unavailable")
+		return
+	}
+	var req document.DrawerResolveRequest
+	if err := decodeJSON(w, r, &req); err != nil {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		return
+	}
+	req.SnapshotID = strings.TrimSpace(req.SnapshotID)
+	req.MetricKey = strings.TrimSpace(req.MetricKey)
+	if req.SnapshotID == "" || req.MetricKey == "" || len(req.MetricKey) > 120 {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "bounded snapshotId and metricKey are required")
+		return
+	}
+	if len(req.Params) > 32 || !validDrawerParams(req.Params) {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "drawer params exceed the bounded scalar contract")
+		return
+	}
+	encoded, err := json.Marshal(req.Params)
+	if err != nil || len(encoded) > 8*1024 {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "drawer params cannot exceed 8192 bytes")
+		return
+	}
+	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
+	if err != nil {
+		h.writeSnapshotError(r.Context(), w, err)
+		return
+	}
+	current := h.runtimeRequest(r)
+	if !sameSnapshotScope(current, snapshot.Params) {
+		h.writeSnapshotError(r.Context(), w, document.ErrSnapshotGone)
+		return
+	}
+	target, err := h.drawerResolver(r, req, thawRuntimeRequest(current, snapshot.Params))
+	if err != nil {
+		h.writeExecutionError(r.Context(), w, err)
+		return
+	}
+	parsed, err := url.Parse(strings.TrimSpace(target))
+	if err != nil || !strings.HasPrefix(target, "/") || strings.HasPrefix(target, "//") || strings.Contains(target, `\`) || parsed.IsAbs() || parsed.Host != "" || parsed.User != nil {
+		h.writeInternalError(r.Context(), w, "lens/serve.Drawer", "drawer resolution failed", fmt.Errorf("resolver returned a non-relative URL"))
+		return
+	}
+	writeJSON(w, http.StatusOK, document.DrawerResolveResponse{URL: target})
+}
+
+func validDrawerParams(params map[string]any) bool {
+	for key, value := range params {
+		if key = strings.TrimSpace(key); key == "" || len(key) > 64 {
+			return false
+		}
+		switch typed := value.(type) {
+		case nil, string, float64, bool:
+			if text, ok := typed.(string); ok && len(text) > 512 {
+				return false
+			}
+		case []any:
+			if len(typed) > 20 {
+				return false
+			}
+			for _, item := range typed {
+				text, ok := item.(string)
+				if !ok || len(text) > 512 {
+					return false
+				}
+			}
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // Query returns a cached aggregate level or executes one level using frozen
@@ -343,10 +556,15 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
 		return
 	}
+	if err := validateTableSort(target.panel, req.Sort); err != nil {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, err.Error())
+		return
+	}
 	if !target.evidence {
 		// The cache key carries the path's point selections: a level entered
 		// through year 2024 must not be served the frame cached for 2025.
 		if cached, ok := snapshot.Frames[target.cacheRef()]; ok {
+			cached, _ = tableFrameView(target.panel, cached, "", req.Sort)
 			writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: cached}})
 			return
 		}
@@ -358,6 +576,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		page = lensruntime.DefaultTablePage
 	}
 	base := thawRuntimeRequest(current, snapshot.Params)
+	applySortRequest(&base, req.Sort)
 	panelResult, err := h.executeLevel(r.Context(), base, snapshot.Params, target, page)
 	if err != nil {
 		h.writeExecutionError(r.Context(), w, err)
@@ -368,6 +587,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "level result conversion failed", err)
 		return
 	}
+	wire, _ = tableFrameView(target.panel, wire, "", req.Sort)
 	if err := document.ResolveDynamicChildren(&wire, snapshot.Levels[target.levelKey]); err != nil {
 		h.writeInternalError(r.Context(), w, "lens/serve.Query", "dynamic children resolution failed", err)
 		return
@@ -454,8 +674,18 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 			h.writeInternalError(ctx, w, "lens/serve.Query", "level execution failed", fmt.Errorf("level execution returned %T", loaded.Val))
 			return
 		}
+		frame, _ = tableFrameView(target.panel, frame, "", req.Sort)
 		writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: frame}})
 	}
+}
+
+func applySortRequest(request *lensruntime.Request, ordering *document.TableSort) {
+	if ordering == nil {
+		return
+	}
+	request.Request = cloneValues(request.Request)
+	request.Request.Set(lensruntime.TableSortFieldQuery, ordering.Field)
+	request.Request.Set(lensruntime.TableSortDirectionQuery, string(ordering.Direction))
 }
 
 // Export writes a snapshot-keyed workbook for one panel or the full document.

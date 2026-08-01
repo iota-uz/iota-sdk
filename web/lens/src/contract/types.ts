@@ -7,6 +7,7 @@ export interface Action {
   method?: string
   urlTemplate?: string
   urlSource?: Source
+  drawerKey?: Source
   event?: string
   params: Array<ActionParam>
   payload: Record<string, Source>
@@ -84,6 +85,7 @@ export interface DashboardDocument {
   endpoints: Endpoints
   i18n: Record<string, string>
   theme: Theme
+  urlState?: URLStateContract
   header?: DocumentHeader
   drawer?: DrawerHeader
 }
@@ -98,6 +100,16 @@ export interface DrawerHeader {
   title?: string
   caption?: string
   size?: DrawerSize
+}
+
+export interface DrawerResolveRequest {
+  snapshotId: string
+  metricKey: string
+  params?: Record<string, unknown>
+}
+
+export interface DrawerResolveResponse {
+  url: string
 }
 
 export type DrawerSize = "wide"
@@ -141,6 +153,7 @@ export interface Encoding {
 export interface Endpoints {
   query?: string
   panel?: string
+  drawer?: string
   export?: string
   views?: string
   schedules?: string
@@ -397,6 +410,29 @@ export interface Panel {
   comparisonUnsupported?: boolean
 }
 
+export interface PanelBatchRequest {
+  snapshotId: string
+  panels: Array<PanelRequest>
+}
+
+export interface PanelBatchResponse {
+  panels: Record<string, PanelBatchResult>
+}
+
+export interface PanelBatchResult {
+  frames?: Record<FrameRef, Frame>
+  calculation?: PanelCalculation
+  summary?: TableSummary
+  page?: QueryPage
+  error?: QueryErrorResponse
+}
+
+export interface PanelBatchStreamEvent {
+  panelId?: string
+  result?: PanelBatchResult
+  complete?: boolean
+}
+
 export interface PanelCalculation {
   durationMs: number
   cacheHit: boolean
@@ -406,16 +442,18 @@ export interface PanelCalculation {
 export type PanelKind = "area" | "bar" | "boxplot" | "cascade" | "coverage" | "donut" | "gauge" | "hbar" | "heatmap" | "histogram" | "line" | "map" | "metric_flow" | "metric_hierarchy" | "metric_relationship" | "pie" | "radial" | "stat" | "table"
 
 export interface PanelRequest {
-  snapshotId: string
   panelId: string
   recompute?: boolean
   search?: string
+  sort?: TableSort
+  page?: number
 }
 
 export interface PanelResponse {
   frames: Record<FrameRef, Frame>
   calculation: PanelCalculation
   summary?: TableSummary
+  page?: QueryPage
 }
 
 export interface PanelStatus {
@@ -443,6 +481,7 @@ export interface PanelTrend {
   invert?: boolean
   absoluteField?: string
   percentField?: string
+  absoluteDeltaUnit?: TrendDeltaUnit
 }
 
 export interface PeriodFilter {
@@ -517,6 +556,7 @@ export interface QueryRequest {
   path: NodePath
   perspective?: string
   page?: number
+  sort?: TableSort
 }
 
 export interface QueryResponse {
@@ -543,6 +583,8 @@ export interface RadialRing {
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"
 
 export type SliceLabels = "label" | "percent"
+
+export type SortDirection = "asc" | "desc"
 
 export interface Source {
   kind: ValueSourceKind
@@ -595,9 +637,16 @@ export interface TableOptions {
   searchable?: boolean
 }
 
+export interface TableSort {
+  field: string
+  direction: SortDirection
+}
+
 export interface TableSummary {
   values: Record<string, unknown>
+  fullValues?: Record<string, unknown>
   filteredRows: number
+  totalRows: number
 }
 
 export interface TemporalAnnotation {
@@ -640,6 +689,14 @@ export interface Theme {
 }
 
 export type TotalBadgePlacement = "header" | "none" | "plot"
+
+export type TrendDeltaUnit = "percentage_points" | "value"
+
+export interface URLStateContract {
+  version: number
+  param: string
+  maxBytes: number
+}
 
 export interface ValueAxis {
   scale: AxisScale

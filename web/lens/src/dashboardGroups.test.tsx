@@ -81,7 +81,7 @@ describe('nested tabs', () => {
     expect(within(tablists[1]!).getAllByRole('tab').map((tab) => tab.textContent)).toEqual(['Detail', 'Summary'])
   })
 
-  it('ArrowRight on the inner tablist changes the inner selection but not the outer tab', () => {
+  it('ArrowRight moves inner focus without activating or touching the outer tab', () => {
     renderNestedTabs()
 
     const [outerTablist, innerTablist] = screen.getAllByRole('tablist')
@@ -94,9 +94,15 @@ describe('nested tabs', () => {
 
     // Outer selection is untouched.
     expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
-    // Inner selection moved to "Summary", and its content (Metric B) now shows.
+    // Manual activation keeps the expensive panel mounted until Enter/Space.
     const innerTabsAfter = within(screen.getAllByRole('tablist')[1]!).getAllByRole('tab')
-    expect(innerTabsAfter[0]).toHaveAttribute('aria-selected', 'false')
+    expect(innerTabsAfter[0]).toHaveAttribute('aria-selected', 'true')
+    expect(innerTabsAfter[1]).toHaveAttribute('aria-selected', 'false')
+    expect(innerTabsAfter[1]).toHaveFocus()
+    expect(screen.getByText('Metric A')).toBeVisible()
+    expect(screen.queryByText('Metric B')).toBeNull()
+
+    fireEvent.keyUp(innerTabsAfter[1]!, { key: 'Enter' })
     expect(innerTabsAfter[1]).toHaveAttribute('aria-selected', 'true')
     expect(screen.getByText('Metric B')).toBeVisible()
   })
@@ -106,10 +112,11 @@ describe('nested tabs', () => {
     const outerTabs = within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')
 
     fireEvent.keyDown(outerTabs[0]!, { key: 'ArrowLeft' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveFocus()
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.keyDown(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]!, { key: 'ArrowRight' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveFocus()
   })
 
   it('Home and End select the first and last tab', () => {
@@ -117,10 +124,11 @@ describe('nested tabs', () => {
     const outerTabs = within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')
 
     fireEvent.keyDown(outerTabs[0]!, { key: 'End' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]).toHaveFocus()
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
 
     fireEvent.keyDown(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[1]!, { key: 'Home' })
-    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
+    expect(within(screen.getAllByRole('tablist')[0]!).getAllByRole('tab')[0]).toHaveFocus()
   })
 
   it('keeps roving tabIndex: the active tab is 0, others are -1', () => {
@@ -164,7 +172,7 @@ describe('nested tabs', () => {
 })
 
 describe('legend visibility across tabs', () => {
-  it('keeps a hidden series hidden when switching between related charts', () => {
+  it('keeps hidden state panel-scoped while preserving it for the originating panel', () => {
     const group = (tab: string): LayoutGroup => ({
       id: 'daily-sales',
       kind: 'tabs',
@@ -222,7 +230,7 @@ describe('legend visibility across tabs', () => {
     expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Count' }))
-    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'true')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Revenue' }))
     expect(screen.getByRole('button', { name: /ОСАГО/ })).toHaveAttribute('aria-pressed', 'false')

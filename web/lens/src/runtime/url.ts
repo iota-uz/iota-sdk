@@ -7,40 +7,61 @@ const drawerParameter = 'drawer'
 const drawerPathParameter = 'drawerPath'
 const drawerPerspectiveParameter = 'drawerPerspective'
 const drawerPanelParameter = 'drawerPanel'
-const hiddenSeriesParameter = 'lensHidden'
-const temporalStateParameter = 'lensTemporal'
+const rendererStateParameter = 'lens-state'
+const legacyHiddenSeriesParameter = 'lensHidden'
+const legacyTemporalStateParameter = 'lensTemporal'
 
-function hiddenSeriesValue(panelId: string, keys: readonly string[]): string {
-  return JSON.stringify([panelId, keys])
+export function siteRelativeURL(value: string, current: URL): string | undefined {
+  try {
+    const target = new URL(value, current)
+    return target.origin === current.origin ? `${target.pathname}${target.search}${target.hash}` : undefined
+  } catch { return undefined }
 }
 
-function parseHiddenSeriesValue(value: string): [string, string[]] | undefined {
+interface RendererURLState {
+  v: 1
+  h?: Record<string, string[]>
+  t?: Record<string, [boolean, number?]>
+}
+
+function rendererState(url: URL): RendererURLState {
   try {
-    const parsed: unknown = JSON.parse(value)
-    if (!Array.isArray(parsed) || parsed.length !== 2 || typeof parsed[0] !== 'string' || !Array.isArray(parsed[1])) return undefined
-    if (parsed[1].some((item) => typeof item !== 'string')) return undefined
-    return parsed as [string, string[]]
-  } catch {
-    return undefined
-  }
+    const parsed = JSON.parse(url.searchParams.get(rendererStateParameter) ?? '') as Partial<RendererURLState>
+    if (parsed.v !== 1) return { v: 1 }
+    return { v: 1, ...(parsed.h && typeof parsed.h === 'object' ? { h: parsed.h } : {}), ...(parsed.t && typeof parsed.t === 'object' ? { t: parsed.t } : {}) }
+  } catch { return { v: 1 } }
+}
+
+function writeRendererState(url: URL, state: RendererURLState): URL {
+  const next = new URL(url)
+  const empty = Object.keys(state.h ?? {}).length === 0 && Object.keys(state.t ?? {}).length === 0
+  if (empty) next.searchParams.delete(rendererStateParameter)
+  else next.searchParams.set(rendererStateParameter, JSON.stringify(state))
+  next.searchParams.delete(legacyHiddenSeriesParameter)
+  next.searchParams.delete(legacyTemporalStateParameter)
+  return next
+}
+
+/** A server-provided reset link cannot know about renderer-owned state. */
+export function clearRendererStateFromURL(target: string, current: URL): string {
+  const next = new URL(target, current)
+  next.searchParams.delete(rendererStateParameter)
+  next.searchParams.delete(legacyHiddenSeriesParameter)
+  next.searchParams.delete(legacyTemporalStateParameter)
+  return next.origin === current.origin ? `${next.pathname}${next.search}${next.hash}` : next.href
 }
 
 export function hiddenSeriesFromURL(url: URL, panelId: string): ReadonlySet<string> {
-  const hidden = new Set<string>()
-  for (const value of url.searchParams.getAll(hiddenSeriesParameter)) {
-    const parsed = parseHiddenSeriesValue(value)
-    if (parsed?.[0] === panelId) parsed[1].forEach((key) => hidden.add(key))
-  }
-  return hidden
+  const keys = rendererState(url).h?.[panelId]
+  return new Set(Array.isArray(keys) ? keys.filter((key): key is string => typeof key === 'string') : [])
 }
 
 export function hiddenSeriesToURL(current: URL, panelId: string, hidden: ReadonlySet<string>): URL {
-  const next = new URL(current)
-  const retained = next.searchParams.getAll(hiddenSeriesParameter).filter((value) => parseHiddenSeriesValue(value)?.[0] !== panelId)
-  next.searchParams.delete(hiddenSeriesParameter)
-  for (const value of retained) next.searchParams.append(hiddenSeriesParameter, value)
-  if (hidden.size > 0) next.searchParams.append(hiddenSeriesParameter, hiddenSeriesValue(panelId, [...hidden].sort()))
-  return next
+  const state = rendererState(current)
+  const h = { ...state.h }
+  if (hidden.size > 0) h[panelId] = [...hidden].sort()
+  else delete h[panelId]
+  return writeRendererState(current, { ...state, h })
 }
 
 export interface TemporalURLState {
@@ -48,34 +69,18 @@ export interface TemporalURLState {
   movingAverage?: number
 }
 
-function parseTemporalState(value: string): [string, boolean, number?] | undefined {
-  try {
-    const parsed: unknown = JSON.parse(value)
-    if (!Array.isArray(parsed) || typeof parsed[0] !== 'string' || typeof parsed[1] !== 'boolean') return undefined
-    if (parsed[2] !== undefined && (typeof parsed[2] !== 'number' || !Number.isFinite(parsed[2]))) return undefined
-    return parsed as [string, boolean, number?]
-  } catch {
-    return undefined
-  }
-}
-
 export function temporalStateFromURL(url: URL, panelId: string): TemporalURLState {
-  for (const value of url.searchParams.getAll(temporalStateParameter)) {
-    const parsed = parseTemporalState(value)
-    if (parsed?.[0] === panelId) return { regression: parsed[1], ...(parsed[2] === undefined ? {} : { movingAverage: parsed[2] }) }
-  }
+  const parsed = rendererState(url).t?.[panelId]
+  if (Array.isArray(parsed) && typeof parsed[0] === 'boolean') return { regression: parsed[0], ...(typeof parsed[1] === 'number' ? { movingAverage: parsed[1] } : {}) }
   return { regression: false }
 }
 
 export function temporalStateToURL(current: URL, panelId: string, state: TemporalURLState): URL {
-  const next = new URL(current)
-  const retained = next.searchParams.getAll(temporalStateParameter).filter((value) => parseTemporalState(value)?.[0] !== panelId)
-  next.searchParams.delete(temporalStateParameter)
-  retained.forEach((value) => next.searchParams.append(temporalStateParameter, value))
-  if (state.regression || state.movingAverage !== undefined) {
-    next.searchParams.append(temporalStateParameter, JSON.stringify([panelId, state.regression, state.movingAverage]))
-  }
-  return next
+  const compact = rendererState(current)
+  const t = { ...compact.t }
+  if (state.regression || state.movingAverage !== undefined) t[panelId] = [state.regression, state.movingAverage]
+  else delete t[panelId]
+  return writeRendererState(current, { ...compact, t })
 }
 
 export function navigationFromURL(url: URL): NavigationView {
@@ -85,7 +90,7 @@ export function navigationFromURL(url: URL): NavigationView {
   let drawerSrc: string | undefined
   if (rawDrawerSrc) {
     try {
-      if (new URL(rawDrawerSrc, url).origin === url.origin) drawerSrc = rawDrawerSrc
+      drawerSrc = siteRelativeURL(rawDrawerSrc, url)
     } catch {
       drawerSrc = undefined
     }
@@ -124,7 +129,8 @@ export function navigationToURL(view: NavigationView, current: URL): URL {
   for (const key of view.path) next.searchParams.append(pathParameter, key)
   if (view.perspectiveId) next.searchParams.set(perspectiveParameter, view.perspectiveId)
   if (view.drawer) {
-    next.searchParams.set(drawerParameter, view.drawer.src)
+    const drawerSrc = siteRelativeURL(view.drawer.src, current)
+    if (drawerSrc) next.searchParams.set(drawerParameter, drawerSrc)
     for (const key of view.drawer.path) next.searchParams.append(drawerPathParameter, key)
     if (view.drawer.perspectiveId) next.searchParams.set(drawerPerspectiveParameter, view.drawer.perspectiveId)
     if (view.drawer.panelId) next.searchParams.set(drawerPanelParameter, view.drawer.panelId)

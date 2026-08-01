@@ -38,6 +38,7 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   const framePercent = numericFrameValue(frame, trend.percentField)
   const percent = framePercent ?? trend.percent
   const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
+  const formatPercentagePoints = useFormat({ kind: 'number', minorUnits: false, precision: 1 })
   const formatPercent = useFormat({ kind: 'percent', minorUnits: false, precision: 1 })
   const translate = useTranslate()
   const { document } = useDashboard()
@@ -64,8 +65,14 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   return (
     <span className={`lens-trend-chip ${tone}`}>
       <TrendIcon />
-      <strong>{clampedDeltaPercent(percent, document.meta.locale) ?? formattedPercent}</strong>
-      {absolute !== undefined && <span className="lens-trend-chip-absolute">({absolute > 0 ? '+' : ''}{formatAbsolute(absolute)})</span>}
+      <strong>{clampedDeltaPercent(percent, document?.meta?.locale) ?? formattedPercent}</strong>
+      {absolute !== undefined && (
+        <span className="lens-trend-chip-absolute">
+          ({absolute > 0 ? '+' : ''}{trend.absoluteDeltaUnit === 'percentage_points'
+            ? `${formatPercentagePoints(absolute)} ${translate('panel.trend.percentagePoints', 'pp')}`
+            : formatAbsolute(absolute)})
+        </span>
+      )}
       <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
     </span>
   )

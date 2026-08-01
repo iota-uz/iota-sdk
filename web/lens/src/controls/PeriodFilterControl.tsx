@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import type { Filter, PeriodValue } from '../contract'
-import { CalendarBlank, CaretDown } from '../icons'
+import { CalendarBlank, CaretDown, CaretRight } from '../icons'
 import { currentPeriodValue, useDashboard, useFilters, useTranslate } from '../runtime'
 import { useOverlayContainer } from '../runtime/overlayContainer'
 import { isVisualRegression } from '../visualRegression'
@@ -190,6 +190,8 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   })
   const [position, setPosition] = useState<PopoverPosition>({ left: 0, top: 0 })
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const presetsRef = useRef<HTMLDivElement>(null)
+  const [presetEdges, setPresetEdges] = useState({ left: false, right: false })
   const dialogRef = useRef<HTMLDivElement>(null)
   const container = useOverlayContainer(open, triggerRef)
   const [animate] = useState(() => {
@@ -198,6 +200,23 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   })
 
   const value = period ? currentPeriodValue(period, values) : { start: '', end: '' }
+
+  useLayoutEffect(() => {
+    const scroller = presetsRef.current
+    if (!scroller) return
+    const measure = () => setPresetEdges({
+      left: scroller.scrollLeft > 1,
+      right: scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1,
+    })
+    measure()
+    scroller.addEventListener('scroll', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(scroller)
+    return () => {
+      scroller.removeEventListener('scroll', measure)
+      observer?.disconnect()
+    }
+  }, [filter.id, value.end, value.start])
 
   const close = useCallback((restoreFocus = true) => {
     setOpen(false)
@@ -365,45 +384,55 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   const max = period.max ? parseISODate(period.max) : undefined
 
   return (
-    <div className="lens-filter" data-filter-id={filter.id}>
+    <div
+      aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')}
+      className="lens-filter"
+      data-filter-id={filter.id}
+      role="group"
+    >
       {/* One tray, one raised member: the year chips and the calendar trigger
           are segments of the same control, so the applied period is stated in
           a single visual language instead of two competing ones. The filter's
           own label names the group rather than printing a caption beside it. */}
       <div
-        aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')}
-        className="lens-filter-segments"
-        role="group"
+        className="lens-filter-presets-frame"
+        data-overflow-left={presetEdges.left || undefined}
+        data-overflow-right={presetEdges.right || undefined}
       >
-        {presets.map((preset) => (
-          <button
-            aria-pressed={sameValue(preset.value, value)}
-            className="lens-filter-chip"
-            key={preset.id}
-            onClick={() => applyValue(preset.value)}
-            type="button"
-          >
-            {preset.label}
-          </button>
-        ))}
-        <button
-          aria-expanded={open}
-          aria-haspopup="dialog"
-          aria-label={`${translate('filter.period.open', 'Change period')}: ${triggerLabel}`}
-          className="lens-filter-trigger"
-          data-active={customActive || undefined}
-          onClick={() => (open ? close(false) : openPopover())}
-          ref={triggerRef}
-          type="button"
-        >
-          <CalendarBlank className="lens-filter-trigger-icon" size={14} />
-          {/* The range is printed only when the trigger is the active source.
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
+        <div aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')} className="lens-filter-segments" ref={presetsRef} role="region" tabIndex={presetEdges.left || presetEdges.right ? 0 : undefined}>
+          {presets.map((preset) => (
+            <button
+              aria-pressed={sameValue(preset.value, value)}
+              className="lens-filter-chip"
+              key={preset.id}
+              onClick={() => applyValue(preset.value)}
+              type="button"
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <span aria-hidden="true" className="lens-filter-presets-edge lens-filter-presets-edge-left" />
+        <span aria-hidden="true" className="lens-filter-presets-edge lens-filter-presets-edge-right"><CaretRight size={12} /></span>
+      </div>
+      <button
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={`${translate('filter.period.open', 'Change period')}: ${triggerLabel}`}
+        className="lens-filter-trigger"
+        data-active={customActive || undefined}
+        onClick={() => (open ? close(false) : openPopover())}
+        ref={triggerRef}
+        type="button"
+      >
+        <CalendarBlank className="lens-filter-trigger-icon" size={14} />
+        {/* The range is printed only when the trigger is the active source.
               With a chip raised, that chip already states the period and the
               trigger is just the way into the calendar. */}
-          {customActive && <span className="lens-filter-trigger-label">{triggerLabel}</span>}
-          <CaretDown className="lens-filter-trigger-caret" size={11} />
-        </button>
-      </div>
+        {customActive && <span className="lens-filter-trigger-label">{triggerLabel}</span>}
+        <CaretDown className="lens-filter-trigger-caret" size={11} />
+      </button>
       {open && container && createPortal(
         <>
           <div aria-hidden="true" className="lens-filter-scrim" onMouseDown={() => close(false)} />

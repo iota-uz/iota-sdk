@@ -28,9 +28,10 @@ type Labels struct {
 }
 
 type StaticOptions struct {
-	Labels          Labels
-	MaxTableMetrics int
-	InvertTrend     func(fieldName string) bool
+	Labels            Labels
+	MaxTableMetrics   int
+	InvertTrend       func(fieldName string) bool
+	AbsoluteDeltaUnit func(fieldName string) panel.TrendDeltaUnit
 }
 
 // ApplyStatic joins a separately queried baseline into a dashboard whose
@@ -249,10 +250,15 @@ func applyPanel(spec *panel.Spec, dashboard *lens.DashboardSpec, options StaticO
 	switch spec.Kind {
 	case panel.KindStat:
 		invert := options.InvertTrend != nil && options.InvertTrend(valueField)
+		unit := panel.TrendDeltaValue
+		if options.AbsoluteDeltaUnit != nil {
+			unit = options.AbsoluteDeltaUnit(valueField)
+		}
 		spec.Trend = &panel.TrendSpec{
 			Label: options.Labels.Trend, Invert: invert,
-			AbsoluteField: panel.Ref(DeltaField(valueField)),
-			PercentField:  panel.Ref(DeltaPercentField(valueField)),
+			AbsoluteField:     panel.Ref(DeltaField(valueField)),
+			PercentField:      panel.Ref(DeltaPercentField(valueField)),
+			AbsoluteDeltaUnit: unit,
 		}
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar:
 		spec.Fields.Previous = panel.Ref(PreviousField(valueField))

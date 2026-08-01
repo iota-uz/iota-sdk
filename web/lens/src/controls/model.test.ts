@@ -283,8 +283,8 @@ describe('locale data', () => {
   })
 
   it('states a range compactly, collapsing a single day', () => {
-    expect(compactRangeLabel(date(2026, 1, 1), date(2026, 7, 22))).toBe('01.01.26 – 22.07.26')
-    expect(compactRangeLabel(date(2026, 3, 5), date(2026, 3, 5))).toBe('05.03.26')
+    expect(compactRangeLabel(date(2026, 1, 1), date(2026, 7, 22))).toBe('01.01.2026 – 22.07.2026')
+    expect(compactRangeLabel(date(2026, 3, 5), date(2026, 3, 5))).toBe('05.03.2026')
   })
 
   it('summarizes a draft as a day count, or the next step it needs', () => {

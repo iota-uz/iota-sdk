@@ -39,7 +39,8 @@ type BuildOptions struct {
 	// renders this identity block once in its top bar, and the document's own
 	// dashboard heading is suppressed (Meta.Title cleared) so the heading is not
 	// stated twice.
-	Drawer *DrawerHeader
+	Drawer   *DrawerHeader
+	URLState *URLStateContract
 	// DeferPanels builds panel/layout metadata without requiring primary frames.
 	// The resulting panels are loaded independently from Endpoints.Panel.
 	DeferPanels bool
@@ -91,6 +92,7 @@ func Build(spec lens.DashboardSpec, result *runtime.Result, opts BuildOptions) (
 		Endpoints:    opts.Endpoints,
 		I18n:         cloneStrings(opts.I18n),
 		Theme:        cloneTheme(opts.Theme),
+		URLState:     opts.URLState,
 	}
 	doc.ActiveFilters, doc.ResetFiltersURL = buildActiveFilters(spec.Drill)
 	if doc.I18n == nil {
@@ -543,6 +545,7 @@ func buildTrend(spec panel.Spec) *PanelTrend {
 	return &PanelTrend{
 		Percent: spec.Trend.Percent, Label: spec.Trend.Label, Invert: spec.Trend.Invert,
 		AbsoluteField: spec.Trend.AbsoluteField.Name(), PercentField: spec.Trend.PercentField.Name(),
+		AbsoluteDeltaUnit: TrendDeltaUnit(spec.Trend.AbsoluteDeltaUnit),
 	}
 }
 
@@ -1340,6 +1343,10 @@ func convertAction(spec action.Spec, leaf bool) (Action, bool) {
 	if spec.URLSource != nil {
 		converted := convertSource(*spec.URLSource)
 		result.URLSource = &converted
+	}
+	if spec.DrawerKey != nil {
+		converted := convertSource(*spec.DrawerKey)
+		result.DrawerKey = &converted
 	}
 	//nolint:exhaustive // Explore actions become drill graph state; HTMX actions have no document representation.
 	switch spec.Kind {

@@ -94,6 +94,7 @@ export function WaterfallPlot({
                   data-checkpoint={item.checkpoint}
                   data-kind={item.kind}
                   data-label-row={index % 2}
+                  data-terminal={!chrome || undefined}
                   data-tone={item.tone}
                   style={{
                     top: `${item.top}%`,

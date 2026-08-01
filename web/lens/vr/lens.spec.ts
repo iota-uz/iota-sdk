@@ -132,7 +132,7 @@ const storyIds = [
 ] as const
 
 const staticStories = [
-  ['choropleth-map--state-matrix', 1],
+  ['choropleth-map--state-matrix', 2],
   ['comparison-interactions--previous-period', 1],
   // ECharts renders these distribution canvases with stable geometry but
   // slightly different antialiasing along dense outlines and labels.
@@ -494,21 +494,27 @@ test('explore perspective switching keyframes', async ({ page }) => {
 test('nested tabs: keyboard navigation and inner-tab persistence', async ({ page }) => {
   await openStory(page, 'metric-composition--full', 0)
 
-  // The outer tablist starts on "Association"; ArrowRight moves to
-  // "Composition" and mounts its nested Stock/Movement tablist.
+  // The outer tablist starts on "Association"; ArrowRight moves focus to
+  // "Composition" without activating it. Enter then mounts its nested
+  // Stock/Movement tablist.
   await page.getByRole('tab', { name: 'Association' }).focus()
   await page.keyboard.press('ArrowRight')
-  await expect(page.getByRole('tab', { name: 'Composition', selected: true })).toBeFocused()
+  await expect(page.getByRole('tab', { name: 'Composition', selected: false })).toBeFocused()
   await screenshot(page, 'metric-composition-outer-tab-focus-visible')
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('tab', { name: 'Composition', selected: true })).toBeFocused()
 
   // Move into the inner tablist and switch it to "Movement". Its own
-  // ArrowRight must not move the outer tablist's selection.
+  // ArrowRight must not activate the inner tab or move the outer tablist's
+  // selection; Space activates the newly focused inner tab.
   const innerTabs = page.getByRole('tablist').nth(1)
   await innerTabs.getByRole('tab', { name: 'Stock' }).focus()
   await page.keyboard.press('ArrowRight')
-  await expect(innerTabs.getByRole('tab', { name: 'Movement', selected: true })).toBeFocused()
+  await expect(innerTabs.getByRole('tab', { name: 'Movement', selected: false })).toBeFocused()
   await expect(page.getByRole('tab', { name: 'Composition', selected: true })).toBeVisible()
   await screenshot(page, 'metric-composition-inner-tab-focus-visible')
+  await page.keyboard.press('Space')
+  await expect(innerTabs.getByRole('tab', { name: 'Movement', selected: true })).toBeFocused()
 
   // Switching the outer tab away and back preserves the inner selection, and
   // the parent flow's values (rendered above the tabs) never change.

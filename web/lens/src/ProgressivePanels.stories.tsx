@@ -26,18 +26,25 @@ const progressiveDocument: DashboardDocument = {
   endpoints: { panel: '/lens/panel' }, i18n: {}, theme: { palette: {}, series: {} },
 }
 
-const fetcher: typeof fetch = async (_input, init) => {
-  const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panelId?: string }
-  if (request.panelId === 'loading') return new Promise<Response>(() => undefined)
-  if (request.panelId === 'error') {
-    return new Response(JSON.stringify({ error: 'internal', message: 'Расчёт не выполнен' }), {
-      status: 500, headers: { 'Content-Type': 'application/json' },
-    })
-  }
-  return new Response(JSON.stringify({
-    frames: { 'panel:ready': { columns, rows: [['Готово', 42]] } },
-    calculation: { durationMs: 840, cacheHit: true, calculatedAt: '2026-07-31T10:00:00Z' },
-  }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+const fetcher: typeof fetch = () => {
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(`${JSON.stringify({
+        panelId: 'ready',
+        result: {
+          frames: { 'panel:ready': { columns, rows: [['Готово', 42]] } },
+          calculation: { durationMs: 840, cacheHit: true, calculatedAt: '2026-07-31T10:00:00Z' },
+        },
+      })}\n`))
+      controller.enqueue(encoder.encode(`${JSON.stringify({
+        panelId: 'error', result: { error: { error: 'internal', message: 'Расчёт не выполнен' } },
+      })}\n`))
+      // `loading` deliberately remains unfinished: the response stays open,
+      // while already-flushed siblings are visible and independently usable.
+    },
+  })
+  return Promise.resolve(new Response(stream, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
 }
 
 export const SiblingIsolation: Story = () => (

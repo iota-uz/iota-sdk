@@ -4,6 +4,7 @@ import { CompareFilterControl } from './CompareFilterControl'
 import { FacetFilterControl } from './FacetFilterControl'
 import { PeriodFilterControl } from './PeriodFilterControl'
 import type { CalendarDate } from './model'
+import { clearRendererStateFromURL } from '../runtime/url'
 
 export interface FilterBarProps {
   /** Fixed "today" for deterministic stories and visual regression. */
@@ -36,6 +37,9 @@ export function FilterBar({ today }: FilterBarProps) {
   const extraActiveFilters = document.activeFilters?.filter((filter) =>
     !representedFacetDimensions.has(filter.dimension),
   )
+  const resetURL = document.resetFiltersUrl
+    ? clearRendererStateFromURL(document.resetFiltersUrl, new URL(window.location.href))
+    : undefined
   return (
     <div aria-label={translate('filter.bar.label', 'Dashboard filters')} className="lens-filter-bar" role="group">
       {filters.map((filter) => (
@@ -52,8 +56,8 @@ export function FilterBar({ today }: FilterBarProps) {
           <span>{filter.label}</span><X aria-hidden="true" />
         </a>
       ))}
-      {document.resetFiltersUrl && (document.activeFilters?.length ?? 0) > 0 && (
-        <a className="lens-facet-clear" href={document.resetFiltersUrl} onClick={intercept(document.resetFiltersUrl)}>{translate('filter.facet.clearAll', 'Clear all')}</a>
+      {resetURL && (document.activeFilters?.length ?? 0) > 0 && (
+        <a className="lens-facet-clear" href={resetURL} onClick={intercept(resetURL)}>{translate('filter.facet.clearAll', 'Clear all')}</a>
       )}
       {clearURL && !document.resetFiltersUrl && (
         <a className="lens-facet-clear" href={clearURL}>

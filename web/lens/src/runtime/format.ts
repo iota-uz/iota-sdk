@@ -188,3 +188,21 @@ export function formatFieldValue(value: unknown, field: FieldFormat | undefined,
   const plain = new Intl.NumberFormat(locale, precisionOptions(field.precision))
   return applyDecimalSeparator(plain.formatToParts(number), field.decimalSeparator)
 }
+
+/** Format a compact tooltip group at one shared magnitude. */
+export function formatFieldValueAtReference(value: unknown, reference: number, field: FieldFormat | undefined, locale: string): string {
+  const number = numeric(value)
+  if (number === undefined || !field?.compact || (field.kind !== 'money' && field.kind !== 'number')) {
+    return formatFieldValue(value, field, locale)
+  }
+  const scaledNumber = field.kind === 'money' && field.minorUnits ? number / 100 : number
+  const scaledReference = field.kind === 'money' && field.minorUnits ? reference / 100 : reference
+  if (Math.abs(scaledReference) < COMPACT_FLOOR) return formatFieldValue(value, field, locale)
+  const exponent = Math.min(15, Math.floor(Math.log10(Math.abs(scaledReference)) / 3) * 3)
+  const divisor = 10 ** exponent
+  const compactPart = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 0 })
+    .formatToParts(divisor).find((part) => part.type === 'compact')?.value ?? ''
+  const mantissa = new Intl.NumberFormat(locale, precisionOptions(field.precision))
+  const text = `${applyDecimalSeparator(mantissa.formatToParts(scaledNumber / divisor), field.decimalSeparator)}${compactPart ? ` ${compactPart}` : ''}`
+  return field.kind === 'money' ? `${text} ${field.currency ?? 'USD'}` : text
+}

@@ -34,7 +34,10 @@ export function shouldUseLogarithmicScale(frame: Frame, encoding: Encoding, axis
     const value = finiteNumber(row[valueIndex])
     if (value !== undefined) values.push(value)
   }
-  if (categories.size < 3 || values.length === 0 || values.some((value) => value <= 0)) return false
+  // Keep the unit baseline on a linear axis. Although log(1) exists, ECharts
+  // can place that bar on the baseline with no visible height, which turns a
+  // real count into an apparent zero.
+  if (categories.size < 3 || values.length === 0 || values.some((value) => value <= 1)) return false
   const minimum = Math.min(...values)
   const maximum = Math.max(...values)
   return maximum / minimum >= 100

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { FieldFormat } from '../contract'
-import { clampedDeltaPercent, formatAxis, formatFieldValue, formatFieldValueExact } from './format'
+import { clampedDeltaPercent, formatAxis, formatFieldValue, formatFieldValueAtReference, formatFieldValueExact } from './format'
 
 describe('formatFieldValue', () => {
   it.each<{ name: string; value: unknown; field?: FieldFormat; expected: string }>([
@@ -134,6 +134,17 @@ describe('formatFieldValueExact', () => {
     const plain: FieldFormat = { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2 }
     expect(formatFieldValueExact(66_064_767_693.59, plain, 'ru-RU')).toBeUndefined()
     expect(formatFieldValueExact('n/a', compact, 'ru-RU')).toBeUndefined()
+  })
+})
+
+describe('formatFieldValueAtReference', () => {
+  it('uses one magnitude across a mixed tooltip group', () => {
+    const field: FieldFormat = { kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.' }
+    expect([
+      formatFieldValueAtReference(30_000_000, 30_000_000, field, 'ru-RU'),
+      formatFieldValueAtReference(3_000_000, 30_000_000, field, 'ru-RU'),
+      formatFieldValueAtReference(90_000, 30_000_000, field, 'ru-RU'),
+    ]).toEqual(['30.00 млн UZS', '3.00 млн UZS', '0.09 млн UZS'])
   })
 })
 

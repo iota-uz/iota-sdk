@@ -299,7 +299,7 @@ describe('logarithmic scale warning', () => {
     runtime.frame = {
       ...state('data'),
       data: { ...dataFrame, rows: [
-        ['a', 'A', 'A', 'Actual', 1],
+        ['a', 'A', 'A', 'Actual', 2],
         ['b', 'B', 'B', 'Actual', 100],
         ['c', 'C', 'C', 'Actual', 10_000],
       ] },
@@ -327,7 +327,7 @@ describe('logarithmic scale warning', () => {
     runtime.frame = {
       ...state('data'),
       data: { ...dataFrame, rows: [
-        ['a', 'A', 'A', 'Small', 1],
+        ['a', 'A', 'A', 'Small', 2],
         ['b', 'B', 'B', 'Middle', 100],
         ['c', 'C', 'C', 'Outlier', 10_000],
       ] },
@@ -686,7 +686,7 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.getByRole('button', { name: /Written/ })).toHaveTextContent('220')
     fireEvent.doubleClick(screen.getByRole('button', { name: /Earned/ }))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows.every((row) => row[1] === 'Earned')).toBe(true))
-    expect(new URL(window.location.href).searchParams.getAll('lensHidden').length).toBe(1)
+    expect(new URL(window.location.href).searchParams.getAll('lens-state').length).toBe(1)
 
     fireEvent.doubleClick(screen.getByRole('button', { name: /Earned/ }))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
@@ -742,8 +742,8 @@ describe('chart encoding and drill behavior', () => {
     expect(runtime.drillInto).toHaveBeenCalledWith('beta', 'panel-bar')
   })
 
-  it('shows legend search only above eight series and filters without changing the plot', () => {
-    const rows = ['2025', '2026'].flatMap((year) => Array.from({ length: 9 }, (_, index) => [year, `Product ${index + 1}`, index + 1]))
+  it('shows legend search above six series and filters without changing the plot', () => {
+    const rows = ['2025', '2026'].flatMap((year) => Array.from({ length: 7 }, (_, index) => [year, `Product ${index + 1}`, index + 1]))
     runtime.frame = {
       data: {
         columns: [
@@ -761,9 +761,10 @@ describe('chart encoding and drill behavior', () => {
     })
     const view = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
     const search = screen.getByRole('searchbox', { name: 'Search legend' })
-    fireEvent.change(search, { target: { value: 'Product 9' } })
+    fireEvent.change(search, { target: { value: 'Product 7' } })
     expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(1)
-    expect(screen.getByText('Product 9')).toBeInTheDocument()
+    expect(screen.getByText('Product 7')).toBeInTheDocument()
+    expect(view.container.querySelector('.lens-chart-canvas')).toBeInTheDocument()
   })
 
   it('rebuilds a hidden stack from zero by removing its rows from the chart input', async () => {
@@ -903,6 +904,22 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.getByText(expected)).toBeInTheDocument()
     expect(screen.queryByText('+0.0%')).toBeNull()
   })
+
+  it('labels an absolute ratio delta in percentage points', () => {
+    runtime.frame = {
+      data: {
+        columns: [{ name: 'value', type: 'number' }, { name: 'delta', type: 'number' }, { name: 'delta_percent', type: 'number' }],
+        rows: [[42, 2.5, 10]],
+      },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<StatPanel panel={panel('stat', {
+      encoding: { value: 'value' },
+      trend: { percent: 10, absoluteField: 'delta', percentField: 'delta_percent', absoluteDeltaUnit: 'percentage_points' },
+    })} />)
+
+    expect(screen.getByText(/\+2\.5 pp/)).toBeInTheDocument()
+  })
 })
 
 describe('coverage panel', () => {
@@ -960,7 +977,7 @@ describe('coverage panel', () => {
     expect(view.container.querySelector('.lens-coverage-bullet-marker')).not.toBeNull()
   })
 
-  it('makes each segment and legend row its own link for a row-scoped action', () => {
+  it('keeps track segments decorative and exposes one legend link per row-scoped action', () => {
     runtime.frame = {
       data: coverageFrame([['a', 'Alpha', '/drill/a', 60], ['b', 'Beta', '/drill/b', 40]]),
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
@@ -973,9 +990,11 @@ describe('coverage panel', () => {
     }
     const view = render(<CoveragePanel panel={coveragePanel({ actions: [action] })} />)
     const segmentLinks = view.container.querySelectorAll('a.lens-coverage-track-segment-link')
-    expect(segmentLinks).toHaveLength(2)
-    expect(segmentLinks[0]?.getAttribute('href')).toContain('/drill/a')
+    expect(segmentLinks).toHaveLength(0)
+    expect(view.container.querySelector('.lens-coverage-track')).toHaveAttribute('aria-hidden', 'true')
     const legendLinks = view.container.querySelectorAll('a.lens-coverage-legend-link')
+    expect(legendLinks).toHaveLength(2)
+    expect(legendLinks[0]?.getAttribute('href')).toContain('/drill/a')
     expect(legendLinks[1]?.getAttribute('href')).toContain('/drill/b')
   })
 })

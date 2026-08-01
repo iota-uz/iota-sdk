@@ -78,12 +78,14 @@ export function distributeShares(
  * language writes it that way. A report that prints «11.2%» on a chart and
  * «11,2 %» in the table beneath it is one report in two typographies.
  */
-export function formatShare(share: number | undefined, locale?: string): string {
+export function formatShare(share: number | undefined, locale?: string, decimalSeparator?: string): string {
   if (!isFiniteNumber(share)) return ''
   // Rounded exactly as the server's %.1f rounds it, then written in the
   // reader's own notation.
-  return `${new Intl.NumberFormat(locale, {
+  const parts = new Intl.NumberFormat(locale, {
     minimumFractionDigits: sharePrecision,
     maximumFractionDigits: sharePrecision,
-  }).format(Number(share.toFixed(sharePrecision)))}%`
+  }).formatToParts(Number(share.toFixed(sharePrecision)))
+  const value = parts.map((part) => part.type === 'decimal' && decimalSeparator ? decimalSeparator : part.value).join('')
+  return `${value}%`
 }

@@ -47,14 +47,19 @@ const document_: DashboardDocument = {
   drill: { inlineDepth: 0, edges: {} }, perspectives: [], endpoints: { panel: '/story/panel', export: '/story/export' }, i18n: {}, theme: { palette: {}, series: {} },
 }
 
-const fetcher: typeof fetch = () => Promise.resolve(new Response(JSON.stringify({
-  frames: { 'panel:claims-products': data },
-  calculation: { durationMs: 42, cacheHit: true, calculatedAt: '2026-07-31T00:00:00Z' },
-  summary: {
-    filteredRows: 6,
-    values: { paid: 4_670_300_000, share: 100 },
+const fetcher: typeof fetch = () => Promise.resolve(new Response(`${JSON.stringify({
+  panelId: 'claims-products',
+  result: {
+    frames: { 'panel:claims-products': data },
+    calculation: { durationMs: 42, cacheHit: true, calculatedAt: '2026-07-31T00:00:00Z' },
+    summary: {
+      filteredRows: 6,
+      totalRows: 6,
+      values: { paid: 4_670_300_000, share: 100 },
+      fullValues: { paid: 4_670_300_000, share: 100 },
+    },
   },
-}), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+})}\n${JSON.stringify({ complete: true })}\n`, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
 
 function Scene({ narrow = false }: { narrow?: boolean }) {
   return (

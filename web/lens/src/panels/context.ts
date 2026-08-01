@@ -30,16 +30,3 @@ export const MarkSelectionContext = createContext<MarkSelectionHandler | undefin
 export function useMarkSelection(): MarkSelectionHandler | undefined {
   return useContext(MarkSelectionContext)
 }
-
-export interface LegendVisibility {
-  hidden: ReadonlySet<string>
-  set(keys: ReadonlySet<string>): void
-  toggle(key: string): void
-  reset(): void
-}
-
-export const LegendVisibilityContext = createContext<LegendVisibility | undefined>(undefined)
-
-export function useLegendVisibility(): LegendVisibility | undefined {
-  return useContext(LegendVisibilityContext)
-}

@@ -172,13 +172,7 @@ func resolveComponent(spec lens.VariableSpec) lens.VariableComponent {
 }
 
 func dateRangeRequestNames(spec lens.VariableSpec) (string, string) {
-	if len(spec.RequestKeys) >= 3 {
-		return spec.RequestKeys[1], spec.RequestKeys[2]
-	}
-	if len(spec.RequestKeys) >= 2 {
-		return spec.RequestKeys[0], spec.RequestKeys[1]
-	}
-	return spec.Name + "_start", spec.Name + "_end"
+	return lens.DateRangeRequestKeys(spec)
 }
 
 func formatDate(value *time.Time) string {

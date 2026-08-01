@@ -44,6 +44,7 @@ type Spec struct {
 	Method        string
 	URL           string
 	URLSource     *ValueSource
+	DrawerKey     *ValueSource
 	Target        string
 	Event         string
 	Payload       map[string]ValueSource
@@ -79,6 +80,12 @@ func OpenDrawer(url string, params ...Param) Spec {
 		Method: "GET",
 		Params: params,
 	}
+}
+
+// OpenDrawerMetric defers the signed drawer URL to the host resolver and puts
+// only a stable metric key plus bounded parameters on the wire.
+func OpenDrawerMetric(metric ValueSource, params ...Param) Spec {
+	return Spec{Kind: KindOpenDrawer, Method: "POST", DrawerKey: &metric, Params: params}
 }
 
 func HtmxSwap(url, target string, params ...Param) Spec {

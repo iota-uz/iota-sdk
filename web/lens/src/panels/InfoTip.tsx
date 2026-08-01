@@ -106,12 +106,15 @@ export function InfoTip({ text, inline }: InfoTipProps) {
     }
   }, [container, reposition])
 
-  // A pinned bubble is dismissed the way every other transient surface in the
+  // An open bubble is dismissed the way every other transient surface in the
   // runtime is: Escape, or a click that lands anywhere else.
   useEffect(() => {
-    if (!pinned) return
+    if (!open) return
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setPinned(false)
+      if (event.key === 'Escape') {
+        setPinned(false)
+        setHovered(false)
+      }
     }
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node
@@ -123,7 +126,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
       document.removeEventListener('keydown', onKeyDown)
       document.removeEventListener('pointerdown', onPointerDown)
     }
-  }, [pinned])
+  }, [open])
 
   const paragraphs = text.split(/\n{2,}/).map((paragraph) => paragraph.trim()).filter(Boolean)
   const cancelClose = () => {
@@ -160,7 +163,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
     >
       <button
         aria-describedby={open ? bubbleId : undefined}
-        aria-expanded={pinned}
+        aria-expanded={open}
         aria-label={accessibleLabel}
         className={inline
           ? 'lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline'
@@ -169,7 +172,6 @@ export function InfoTip({ text, inline }: InfoTipProps) {
         onClick={() => setPinned((current) => !current)}
         onFocus={() => setHovered(true)}
         ref={buttonRef}
-        title={accessibleLabel}
         type="button"
       >
         <Info />

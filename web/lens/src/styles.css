@@ -460,7 +460,12 @@
   }
 
   .lens-filter {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border;
+    --lens-seg-tray: rgb(15 23 42 / 0.05);
+    --lens-seg-raised: var(--lens-bg-card);
+    background: var(--lens-seg-tray);
+    padding: 2px;
+    gap: 2px;
   }
 
   /* One segmented tray holds the declared period chips and the calendar
@@ -470,16 +475,26 @@
      surfaces are local variables because "raised" inverts in the dark theme:
      there the tray sinks below the page and the card sits above it. */
   .lens-filter-segments {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-overflow-x-auto lens-rounded-control lens-border lens-border-solid lens-border-border;
-
-    --lens-seg-tray: rgb(15 23 42 / 0.05);
-    --lens-seg-raised: var(--lens-bg-card);
-    background: var(--lens-seg-tray);
-    padding: 2px;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-overflow-x-auto;
     gap: 2px;
     overscroll-behavior-inline: contain;
     scrollbar-width: thin;
   }
+
+  .lens-filter-presets-frame {
+    @apply lens-relative lens-min-w-0 lens-flex-1 lens-overflow-hidden;
+  }
+
+  .lens-filter-presets-edge {
+    @apply lens-pointer-events-none lens-absolute lens-inset-y-0 lens-flex lens-w-7 lens-items-center lens-justify-center lens-text-muted;
+    opacity: 0;
+    transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-filter-presets-edge-left { left: 0; background: linear-gradient(90deg, var(--lens-seg-tray), transparent); }
+  .lens-filter-presets-edge-right { right: 0; background: linear-gradient(90deg, transparent, var(--lens-seg-tray)); }
+  .lens-filter-presets-frame[data-overflow-left] .lens-filter-presets-edge-left,
+  .lens-filter-presets-frame[data-overflow-right] .lens-filter-presets-edge-right { opacity: 1; }
 
   .lens-filter-facet {
     @apply lens-relative lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
@@ -594,6 +609,11 @@
     --lens-seg-raised: var(--lens-bg-inset);
   }
 
+  .lens-root[data-theme='dark'] .lens-filter {
+    --lens-seg-tray: rgb(15 23 42 / 0.5);
+    --lens-seg-raised: var(--lens-bg-inset);
+  }
+
   .lens-filter-chip,
   .lens-filter-trigger {
     @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
@@ -640,7 +660,7 @@
   }
 
   .lens-filter-trigger {
-    @apply lens-gap-1.5;
+    @apply lens-flex-none lens-gap-1.5;
     padding-inline: 8px 6px;
   }
 
@@ -1392,7 +1412,7 @@
   }
 
   .lens-card-link-affordance {
-    @apply lens-absolute lens-right-2 lens-top-2 lens-text-faint lens-opacity-0 lens-transition-opacity;
+    @apply lens-absolute lens-right-2 lens-top-2 lens-text-muted lens-opacity-100 lens-transition-opacity;
   }
 
   .lens-card-link:hover .lens-card-link-affordance,
@@ -1973,7 +1993,13 @@
       align-self: center;
     }
 
-    .lens-chart-layout-legend > .lens-chart-legend-shell > .lens-chart-legend {
+    .lens-chart-layout-legend > .lens-chart-legend-shell > .lens-chart-legend-scroll-frame {
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .lens-chart-layout-legend > .lens-chart-legend-shell > .lens-chart-legend-scroll-frame > .lens-chart-legend {
       flex-direction: column;
       flex-wrap: nowrap;
       align-items: stretch;
@@ -1983,7 +2009,23 @@
       justify-content: safe center;
       overflow-y: auto;
       padding: 0.75rem 0.5rem;
+      scrollbar-gutter: stable;
+      max-height: var(--lens-chart-legend-max, 21rem);
     }
+
+    .lens-chart-legend-edge {
+      pointer-events: none;
+      position: absolute;
+      inset-inline: 0;
+      height: 1.5rem;
+      opacity: 0;
+      transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
+    }
+
+    .lens-chart-legend-edge-top { top: 0; background: linear-gradient(var(--lens-bg-card), transparent); }
+    .lens-chart-legend-edge-bottom { bottom: 0; background: linear-gradient(transparent, var(--lens-bg-card)); }
+    .lens-chart-legend-scroll-frame[data-overflow-top] .lens-chart-legend-edge-top,
+    .lens-chart-legend-scroll-frame[data-overflow-bottom] .lens-chart-legend-edge-bottom { opacity: 1; }
 
     .lens-panel-expanded .lens-chart-layout-legend > .lens-chart-legend-shell {
       --lens-chart-legend-max: 100%;
@@ -2136,13 +2178,16 @@
     @apply lens-opacity-50;
   }
 
-  .lens-chart-legend-hidden .lens-chart-legend-label,
-  .lens-chart-legend-hidden .lens-chart-legend-value {
+  .lens-chart-legend-hidden .lens-chart-legend-label {
     @apply lens-line-through;
   }
 
   .lens-chart-legend-hidden .lens-chart-legend-mark {
-    background: var(--lens-border-strong);
+    opacity: 0.55;
+  }
+
+  .lens-chart-legend-heading {
+    @apply lens-mt-2 lens-w-full lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-1 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
   .lens-chart-legend-mark {
@@ -2524,6 +2569,11 @@
     background: var(--lens-accent-500);
   }
 
+  .lens-waterfall-bar[data-kind='end'][data-terminal] {
+    box-shadow: inset 0 0 0 2px color-mix(in srgb, currentColor 35%, transparent);
+    cursor: default;
+  }
+
 
   /* The part of the movement that differs in kind from the rest, banded at the
      top of the same bar. It is deliberately a second shade of the bar's own
@@ -2675,8 +2725,44 @@
     @apply lens-flex lens-min-h-0 lens-flex-1 lens-flex-col;
   }
 
+  .lens-table-scroll-frame {
+    @apply lens-relative lens-flex lens-min-h-0 lens-flex-1;
+  }
+
   .lens-table-scroll {
-    @apply lens-min-h-0 lens-flex-1 lens-overflow-auto;
+    @apply lens-min-h-0 lens-flex-1 lens-overflow-auto lens-outline-none;
+  }
+
+  .lens-table-scroll:focus-visible {
+    box-shadow: inset 0 0 0 2px var(--lens-accent-500);
+  }
+
+  .lens-table-overflow-edge {
+    @apply lens-pointer-events-none lens-absolute lens-bottom-0 lens-top-0;
+    z-index: var(--lens-z-sticky);
+    width: 28px;
+    opacity: 0;
+    transition: opacity var(--lens-duration-fast) var(--lens-ease-standard);
+  }
+
+  .lens-table-overflow-edge-left {
+    left: 0;
+    background: linear-gradient(to right, color-mix(in srgb, var(--lens-bg-card) 82%, transparent), transparent);
+  }
+
+  .lens-table-overflow-edge-right {
+    right: 0;
+    background: linear-gradient(to left, color-mix(in srgb, var(--lens-bg-card) 82%, transparent), transparent);
+  }
+
+  .lens-table-scroll-frame[data-overflow-left='true'] .lens-table-overflow-edge-left,
+  .lens-table-scroll-frame[data-overflow-right='true'] .lens-table-overflow-edge-right {
+    opacity: 1;
+  }
+
+  .lens-table-scroll-frame[data-overflow-left='true'] .lens-table :is(th, td):first-child {
+    border-right: 1px solid var(--lens-border-strong);
+    box-shadow: 8px 0 12px -10px var(--lens-text);
   }
 
   .lens-table-search {

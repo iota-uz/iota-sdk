@@ -397,7 +397,7 @@ describe('TablePanel pagination', () => {
     expect(screen.getByRole('button', { name: 'Next' })).toHaveProperty('disabled', disabled)
   })
 
-  it('queries and caches each server page while sorting only the fetched page', async () => {
+  it('queries and caches each server page without exposing page-local sorting as global', async () => {
     window.history.replaceState(null, '', '/?path=evidence&panel=evidence&region=north')
     const requestedPages: number[] = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
@@ -417,14 +417,14 @@ describe('TablePanel pagination', () => {
 
     expect(await screen.findByText('Alpha')).toBeInTheDocument()
     expect(requestedPages).toEqual([1])
-    expect(screen.getByText('Sort applies to this page only')).toBeInTheDocument()
+    expect(screen.queryByText('Sort applies to this page only')).not.toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Open record' })[0]).toHaveAttribute(
       'href', expect.stringContaining('/records/A%201?'),
     )
 
-    fireEvent.click(screen.getByRole('button', { name: /amount/ }))
-    const dataRows = screen.getAllByRole('row').slice(1)
-    expect(dataRows[0]).toHaveTextContent('Beta')
+    expect(screen.queryByRole('button', { name: /amount/i })).not.toBeInTheDocument()
+    expect(document.querySelectorAll('th')[2]).not.toHaveAttribute('aria-sort')
+    expect(screen.getAllByRole('row')[1]).toHaveTextContent('Alpha')
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     expect(await screen.findByText('Gamma')).toBeInTheDocument()
@@ -464,29 +464,35 @@ describe('TablePanel server readability features', () => {
       frames: { 'panel:claims-products': { columns: [], rows: [] } },
       drill: { inlineDepth: 0, edges: {} }, perspectives: [], endpoints: { panel: '/lens/panel' }, i18n: {}, theme: { palette: {}, series: {} },
     }
-    const requests: Array<{ search?: string }> = []
+    const requests: Array<{ panels: Array<{ search?: string; sort?: { field: string; direction: string } }> }> = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
-      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { search?: string }
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panels: Array<{ search?: string; sort?: { field: string; direction: string } }> }
       requests.push(request)
-      const filtered = request.search === 'motor'
-      return Promise.resolve(new Response(JSON.stringify({
-        frames: {
-          'panel:claims-products': {
-            columns: [
-              { name: 'id', type: 'string' }, { name: 'product', type: 'string' }, { name: 'claims', type: 'number' },
-              { name: 'paid', type: 'number' }, { name: 'share', type: 'number' }, { name: 'average', type: 'number' },
+      const filtered = request.panels[0]?.search === 'motor'
+      const result = { frames: {
+        'panel:claims-products': {
+          columns: [
+            { name: 'id', type: 'string' }, { name: 'product', type: 'string' }, { name: 'claims', type: 'number' },
+            { name: 'paid', type: 'number' }, { name: 'share', type: 'number' }, { name: 'average', type: 'number' },
+          ],
+          rows: filtered
+            ? [['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 100, 37.5]]
+            : [
+              ['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 75, 37.5],
+              ['2', 'Travel', 10, 25, 25, 2.5],
             ],
-            rows: filtered
-              ? [['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 100, 37.5]]
-              : [
-                ['1', 'Compulsory motor liability insurance with a deliberately long product label', 2, 75, 75, 37.5],
-                ['2', 'Travel', 10, 25, 25, 2.5],
-              ],
-          },
         },
-        calculation: { durationMs: 12, cacheHit: false, calculatedAt: '2026-07-31T00:00:00Z' },
-        summary: { values: filtered ? { claims: 2, paid: 75, share: 100 } : { claims: 12, paid: 100, share: 100 }, filteredRows: filtered ? 1 : 2 },
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      },
+      calculation: { durationMs: 12, cacheHit: false, calculatedAt: '2026-07-31T00:00:00Z' },
+      summary: {
+        values: filtered ? { claims: 2, paid: 75, share: 100 } : { claims: 12, paid: 100, share: 100 },
+        ...(filtered ? { fullValues: { claims: 12, paid: 100, share: 100 } } : {}),
+        filteredRows: filtered ? 1 : 2, totalRows: 2,
+      } }
+      return Promise.resolve(new Response(
+        `${JSON.stringify({ panelId: 'claims-products', result })}\n${JSON.stringify({ complete: true })}\n`,
+        { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } },
+      ))
     })
 
     render(
@@ -505,8 +511,29 @@ describe('TablePanel server readability features', () => {
     expect(screen.getByText('Total')).toBeInTheDocument()
     expect(screen.getAllByRole('cell').some((cell) => cell.getAttribute('style')?.includes('color-mix'))).toBe(true)
 
+    fireEvent.click(screen.getByRole('button', { name: /Paid/ }))
+    await waitFor(() => expect(requests.at(-1)?.panels[0]?.sort).toEqual({ field: 'paid', direction: 'asc' }))
+
+    const scroller = screen.getByLabelText('Scrollable table')
+    Object.defineProperties(scroller, {
+      clientWidth: { configurable: true, value: 505 },
+      scrollWidth: { configurable: true, value: 733 },
+      scrollLeft: { configurable: true, value: 0, writable: true },
+    })
+    fireEvent.scroll(scroller)
+    const scrollFrame = scroller.closest('.lens-table-scroll-frame')
+    expect(scroller).toHaveAttribute('tabindex', '0')
+    expect(scrollFrame).toHaveAttribute('data-overflow-left', 'false')
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'true')
+
+    scroller.scrollLeft = 228
+    fireEvent.scroll(scroller)
+    expect(scrollFrame).toHaveAttribute('data-overflow-left', 'true')
+    expect(scrollFrame).toHaveAttribute('data-overflow-right', 'false')
+
     fireEvent.change(screen.getByRole('searchbox', { name: 'Search table' }), { target: { value: 'motor' } })
-    await waitFor(() => expect(requests.at(-1)?.search).toBe('motor'))
+    await waitFor(() => expect(requests.at(-1)?.panels[0]?.search).toBe('motor'))
+    expect(requests.at(-1)?.panels[0]?.sort).toEqual({ field: 'paid', direction: 'asc' })
     await waitFor(() => expect(screen.queryByText('Travel')).not.toBeInTheDocument())
     expect(screen.getAllByText('$75')).toHaveLength(2)
   })

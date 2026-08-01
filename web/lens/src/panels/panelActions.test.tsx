@@ -105,7 +105,7 @@ function coveragePanel(actions: Action[]): Panel {
 }
 
 describe('coverage panels with a panel-level navigate action', () => {
-  it('links each segment and legend row when the action reads a row field', () => {
+  it('links each legend row once and keeps plotted segments decorative when the action reads a row field', () => {
     const panel = coveragePanel([navigate('/claims/{bucket}', [
       { name: 'bucket', source: { kind: 'field', name: 'id' } },
     ])])
@@ -116,7 +116,8 @@ describe('coverage panels with a panel-level navigate action', () => {
 
     const legend = [...container.querySelectorAll<HTMLAnchorElement>('.lens-coverage-legend-link')]
     expect(legend.map((link) => new URL(link.href).pathname)).toEqual(['/claims/within', '/claims/above'])
-    expect(container.querySelectorAll('.lens-coverage-track-segment-link')).toHaveLength(2)
+    expect(container.querySelectorAll('.lens-coverage-track-segment-link')).toHaveLength(0)
+    expect(container.querySelector('.lens-coverage-track')).toHaveAttribute('aria-hidden', 'true')
     // A row-scoped action belongs to the segments, never to the whole card.
     expect(container.querySelector('.lens-card-link')).toBeNull()
   })

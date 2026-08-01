@@ -91,6 +91,15 @@ func TestChoroplethBuilderCarriesExplicitJoin(t *testing.T) {
 	require.Same(t, geometry, spec.Map.Source.Inline)
 }
 
+func TestTrendDeclaresPercentagePointAbsoluteDelta(t *testing.T) {
+	t.Parallel()
+	spec := Stat("loss-ratio", "Loss ratio", "ratio").
+		AutoTrend("ratio_delta", "ratio_delta_percent", "Comparison", true).
+		TrendAbsoluteDeltaUnit(TrendDeltaPercentagePoints).
+		Build()
+	require.Equal(t, TrendDeltaPercentagePoints, spec.Trend.AbsoluteDeltaUnit)
+}
+
 func TestRadialNodeKey_ContainsRingAndCategoryIdentity(t *testing.T) {
 	require.Equal(t, `radial:["year/2026","direct"]`, RadialNodeKey("year/2026", "direct"))
 	require.NotEqual(t, RadialNodeKey("year/2026", "direct"), RadialNodeKey("year/2025", "direct"))

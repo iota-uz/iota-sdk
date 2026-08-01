@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, type FocusEventHandler, type MouseEventHandler, type PointerEventHandler } from 'react'
 import type { Action, Frame, Panel } from '../contract'
-import { recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
+import { drawerKeyFromActionURL, recordForRow, resolveActionURL, variablesFromLocation } from '../explore/actions'
 import { navigateTo } from '../runtime/navigate'
 import { useDrawer } from '../runtime'
 import { filterActionURL, useFilters } from '../runtime'
@@ -23,7 +23,7 @@ export interface PrefetchHandlers {
  */
 export function usePrefetch(url: string | undefined, action: Action | undefined): PrefetchHandlers | undefined {
   const drawer = useDrawer()
-  const enabled = action?.kind === 'open_drawer' && drawer.depth === 0 && Boolean(url)
+  const enabled = action?.kind === 'open_drawer' && !action.drawerKey && drawer.depth === 0 && Boolean(url)
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const cancel = useCallback(() => {
     if (timer.current !== undefined) {
@@ -117,7 +117,9 @@ export function useElementActionResolver(): (action: Action | undefined, fields?
     const onClick: MouseEventHandler<HTMLAnchorElement> | undefined = opensDrawer
       ? (event) => {
         event.preventDefault()
-        drawer.open(href, event.currentTarget)
+        const key = drawerKeyFromActionURL(href)
+        if (key) drawer.openKey(key, event.currentTarget)
+        else drawer.open(href, event.currentTarget)
       }
       : undefined
     return { href, onClick, opensDrawer }
@@ -132,7 +134,11 @@ export function useActionActivation(action: Action | undefined) {
   const available = Boolean(action) && (!opensDrawer || drawer.depth === 0 || drawer.canOpen === true)
   const activate = useCallback((url: string | undefined, opener?: HTMLElement, options?: { newTab?: boolean }) => {
     if (!url || !available) return
-    if (opensDrawer) drawer.open(url, opener)
+    if (opensDrawer) {
+      const key = drawerKeyFromActionURL(url)
+      if (key) drawer.openKey(key, opener)
+      else drawer.open(url, opener)
+    }
     else if (filtersData) filters.applyURL(url, options)
     else navigateTo(url)
   }, [available, drawer, filters, filtersData, opensDrawer])
@@ -140,7 +146,9 @@ export function useActionActivation(action: Action | undefined) {
     if (!url || !opensDrawer || !available) return undefined
     return (event) => {
       event.preventDefault()
-      drawer.open(url, event.currentTarget)
+      const key = drawerKeyFromActionURL(url)
+      if (key) drawer.openKey(key, event.currentTarget)
+      else drawer.open(url, event.currentTarget)
     }
   }, [available, drawer, opensDrawer])
   return { activate, available, onClick }

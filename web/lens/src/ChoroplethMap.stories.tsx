@@ -64,14 +64,20 @@ const dashboardDocument: DashboardDocument = {
   theme: { palette: { accent: '#2563eb', muted: '#dbeafe' }, series: {} },
 }
 
-const fetcher: typeof fetch = async (_input, init) => {
-  const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panelId?: string }
-  if (request.panelId === 'map-error') {
-    return new Response(JSON.stringify({ error: 'unavailable', message: 'Regional data is unavailable' }), {
-      status: 503, headers: { 'Content-Type': 'application/json' },
-    })
-  }
-  return new Promise<Response>(() => undefined)
+const fetcher: typeof fetch = () => {
+  const encoder = new TextEncoder()
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      for (const panelId of ['map-error', 'map-stale']) {
+        controller.enqueue(encoder.encode(`${JSON.stringify({
+          panelId, result: { error: { error: 'unavailable', message: 'Regional data is unavailable' } },
+        })}\n`))
+      }
+      // `map-loading` intentionally remains unfinished while its error and
+      // stale siblings have already flushed their independent results.
+    },
+  })
+  return Promise.resolve(new Response(stream, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
 }
 
 export const StateMatrix: Story = () => (

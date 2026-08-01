@@ -72,6 +72,16 @@ function response(value: number): Response {
   }), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
+function panelStream(panels: Record<string, unknown>): Response {
+  const events = [
+    ...Object.entries(panels).map(([panelId, result]) => ({ panelId, result })),
+    { complete: true },
+  ]
+  return new Response(`${events.map((event) => JSON.stringify(event)).join('\n')}\n`, {
+    status: 200, headers: { 'Content-Type': 'application/x-ndjson' },
+  })
+}
+
 function Controls() {
   const dashboard = useDashboard()
   const drawer = useDrawer()
@@ -130,13 +140,10 @@ describe('DashboardRuntimeProvider', () => {
   it('rehydrates a previously seen snapshot after browser Back restores it', async () => {
     const attempts: Record<string, number> = {}
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
-      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as {
-        snapshotId: string
-        panelId: string
-      }
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { snapshotId: string; panels: Array<{ panelId: string }> }
       attempts[request.snapshotId] = (attempts[request.snapshotId] ?? 0) + 1
       const value = request.snapshotId === 'recurring-snapshot' ? attempts[request.snapshotId] : 20
-      return Promise.resolve(new Response(JSON.stringify({
+      return Promise.resolve(panelStream({ ready: {
         frames: {
           'panel:ready': {
             columns: fixture.frames['panel:total'].columns,
@@ -144,7 +151,7 @@ describe('DashboardRuntimeProvider', () => {
           },
         },
         calculation: { durationMs: 1, cacheHit: false, calculatedAt: '2026-07-31T10:00:00Z' },
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      } }))
     })
 
     function SnapshotSwitcher() {
@@ -174,25 +181,28 @@ describe('DashboardRuntimeProvider', () => {
   it('loads, fails, and retries deferred siblings independently', async () => {
     const attempts: Record<string, number> = {}
     const recomputed: string[] = []
+    const batchBodies: Array<{ snapshotId?: string; panels: Array<{ panelId: string; recompute?: boolean }> }> = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
-      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panelId: string; recompute?: boolean }
-      if (request.recompute) recomputed.push(request.panelId)
-      attempts[request.panelId] = (attempts[request.panelId] ?? 0) + 1
-      if (request.panelId === 'retrying' && attempts[request.panelId] === 1) {
-        return Promise.resolve(new Response(JSON.stringify({ error: 'internal', message: 'retrying failed' }), {
-          status: 500, headers: { 'Content-Type': 'application/json' },
-        }))
-      }
-      const value = request.panelId === 'ready' ? 11 : 22
-      return Promise.resolve(new Response(JSON.stringify({
-        frames: {
-          [`panel:${request.panelId}`]: {
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { panels: Array<{ panelId: string; recompute?: boolean }> }
+      batchBodies.push(request)
+      const panels: Record<string, unknown> = {}
+      for (const item of request.panels) {
+        if (item.recompute) recomputed.push(item.panelId)
+        attempts[item.panelId] = (attempts[item.panelId] ?? 0) + 1
+        if (item.panelId === 'retrying' && attempts[item.panelId] === 1) {
+          panels[item.panelId] = { error: { error: 'internal', message: 'retrying failed' } }
+          continue
+        }
+        const value = item.panelId === 'ready' ? 11 : 22
+        panels[item.panelId] = { frames: {
+          [`panel:${item.panelId}`]: {
             columns: fixture.frames['panel:total'].columns,
-            rows: [[request.panelId, value]],
+            rows: [[item.panelId, value]],
           },
         },
-        calculation: { durationMs: 1250, cacheHit: request.panelId === 'ready', calculatedAt: '2026-07-31T10:00:00Z' },
-      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+        calculation: { durationMs: 1250, cacheHit: item.panelId === 'ready', calculatedAt: '2026-07-31T10:00:00Z' } }
+      }
+      return Promise.resolve(panelStream(panels))
     })
     render(
       <div className="lens-root">
@@ -209,6 +219,8 @@ describe('DashboardRuntimeProvider', () => {
     const ready = screen.getByLabelText('Ready')
     const retrying = screen.getByLabelText('Retrying')
     expect(await within(ready).findByText('11')).toBeInTheDocument()
+    expect(batchBodies).toHaveLength(1)
+    expect(batchBodies[0]?.panels.map(({ panelId }) => panelId)).toEqual(['ready', 'retrying'])
     expect(await within(retrying).findByRole('alert')).toHaveTextContent('This panel could not be rendered.')
     expect(within(retrying).getByRole('alert')).not.toHaveTextContent('retrying failed')
     expect(within(ready).getByText('11')).toBeInTheDocument()
@@ -219,12 +231,58 @@ describe('DashboardRuntimeProvider', () => {
     expect(within(retrying).queryByRole('alert')).toBeNull()
     expect(within(ready).getByText('11')).toBeInTheDocument()
     expect(await within(retrying).findByText('22')).toBeInTheDocument()
+    expect(batchBodies).toHaveLength(2)
+    expect(batchBodies[1]?.panels).toEqual([{ panelId: 'retrying' }])
     expect(attempts).toEqual({ ready: 1, retrying: 2 })
 
     fireEvent.click(screen.getByRole('button', { name: 'Recompute panels' }))
     await waitFor(() => expect(attempts).toEqual({ ready: 2, retrying: 3 }))
     expect(recomputed.sort()).toEqual(['ready', 'retrying'])
+    expect(batchBodies).toHaveLength(3)
+    expect(batchBodies[2]?.panels).toEqual([
+      { panelId: 'ready', recompute: true }, { panelId: 'retrying', recompute: true },
+    ])
     expect(screen.getByRole('button', { name: 'Recompute panels' })).not.toBeDisabled()
+  })
+
+  it('reveals streamed batch members without waiting for a slow sibling', async () => {
+    let controller: ReadableStreamDefaultController<Uint8Array> | undefined
+    const stream = new ReadableStream<Uint8Array>({ start(value) { controller = value } })
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(stream, {
+      status: 200,
+      headers: { 'Content-Type': 'application/x-ndjson' },
+    }))
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={progressiveDocument} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <StatPanel panel={progressiveDocument.panels[0]!} />
+            <StatPanel panel={progressiveDocument.panels[1]!} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    const encode = new TextEncoder()
+    act(() => {
+      controller?.enqueue(encode.encode(`${JSON.stringify({
+        panelId: 'ready',
+        result: { frames: { 'panel:ready': { columns: fixture.frames['panel:total'].columns, rows: [['Ready', 11]] } } },
+      })}\n`))
+    })
+    expect(await within(screen.getByLabelText('Ready')).findByText('11')).toBeInTheDocument()
+    expect(screen.getByLabelText('Retrying')).toHaveAttribute('aria-busy', 'true')
+
+    act(() => {
+      controller?.enqueue(encode.encode(`${JSON.stringify({
+        panelId: 'retrying', result: { error: { error: 'internal', message: 'failed independently' } },
+      })}\n${JSON.stringify({ complete: true })}\n`))
+      controller?.close()
+    })
+    expect(await within(screen.getByLabelText('Retrying')).findByRole('alert')).toBeInTheDocument()
+    expect(within(screen.getByLabelText('Ready')).getByText('11')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 
   it('replaces cached data with the skeleton through refresh, then exposes error and retry', async () => {

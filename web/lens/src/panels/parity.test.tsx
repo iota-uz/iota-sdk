@@ -189,8 +189,15 @@ describe('coverage panel', () => {
     // A chart panel's caption is not a band above the plot: it lives behind the
     // header's info affordance and appears once that is opened.
     expect(screen.queryByText('All claims covered by reserve')).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'About this metric' }))
+    const info = screen.getByRole('button', { name: 'About this metric' })
+    expect(info).not.toHaveAttribute('title')
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.mouseEnter(info.closest('.lens-info-tip')!)
+    expect(info).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('All claims covered by reserve')).toBeInTheDocument()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(info).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByText('All claims covered by reserve')).toBeNull()
     // A lone 100% segment is a meaningless full bar, so the track is dropped
     // entirely; the headline and both legend rows still state the split.
     expect(container.querySelector('.lens-coverage-track')).toBeNull()

@@ -24,7 +24,8 @@ func run() error {
 		rootType:       "DashboardDocument",
 		additionalTypes: []string{
 			"QueryRequest", "QueryResponse", "QueryErrorResponse",
-			"PanelRequest", "PanelResponse",
+			"PanelRequest", "PanelResponse", "PanelBatchRequest", "PanelBatchResponse", "PanelBatchStreamEvent",
+			"DrawerResolveRequest", "DrawerResolveResponse",
 		},
 		versionConstant: "ContractVersion",
 	})

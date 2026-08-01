@@ -79,11 +79,15 @@ func TestApplyStaticConfiguresPanelsWithSharedFieldContract(t *testing.T) {
 	require.NoError(t, ApplyStatic(&current, &baseline, StaticOptions{
 		Labels:      Labels{Before: "Before", After: "After", Delta: "Delta", Trend: "Comparison"},
 		InvertTrend: func(fieldName string) bool { return fieldName == "value" },
+		AbsoluteDeltaUnit: func(fieldName string) panel.TrendDeltaUnit {
+			return panel.TrendDeltaPercentagePoints
+		},
 	}))
 	stat := current.Rows[0].Panels[0]
 	require.Equal(t, DeltaField("value"), stat.Trend.AbsoluteField.Name())
 	require.Equal(t, DeltaPercentField("value"), stat.Trend.PercentField.Name())
 	require.True(t, stat.Trend.Invert)
+	require.Equal(t, panel.TrendDeltaPercentagePoints, stat.Trend.AbsoluteDeltaUnit)
 	table := current.Rows[0].Panels[1]
 	require.Equal(t, PreviousField("value"), table.Columns[1].Field.Name())
 	require.Equal(t, DeltaField("value"), table.Columns[3].Field.Name())

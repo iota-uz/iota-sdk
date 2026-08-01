@@ -334,6 +334,10 @@ func cloneAction(source *Action) *Action {
 		urlSource := *source.URLSource
 		result.URLSource = &urlSource
 	}
+	if source.DrawerKey != nil {
+		drawerKey := *source.DrawerKey
+		result.DrawerKey = &drawerKey
+	}
 	if source.Filter != nil {
 		filter := *source.Filter
 		result.Filter = &filter

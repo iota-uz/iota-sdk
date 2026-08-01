@@ -387,14 +387,14 @@ export function yearBlock(year: number): Array<number> {
 }
 
 /**
- * The compact numeric day form `dd.mm.yy`. The trigger wears it so the applied
+ * The compact numeric day form `dd.mm.yyyy`. The trigger wears it so the applied
  * range is stated in the same vocabulary as the typed From/To fields instead of
  * a second, locale-dependent long form.
  */
 export function formatCompactDate(date: CalendarDate): string {
   const day = String(date.day).padStart(2, '0')
   const month = String(date.month).padStart(2, '0')
-  const year = String(date.year % 100).padStart(2, '0')
+  const year = String(date.year).padStart(4, '0')
   return `${day}.${month}.${year}`
 }
 

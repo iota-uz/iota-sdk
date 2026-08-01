@@ -26,6 +26,8 @@ const (
 // tenant scope. Serve fills empty transport fields from the HTTP request.
 type RequestResolver func(*http.Request) lensruntime.Request
 
+type DrawerResolver func(*http.Request, document.DrawerResolveRequest, lensruntime.Request) (string, error)
+
 // Observer receives internal serve errors before a generic response is written.
 type Observer interface {
 	OnError(context.Context, string, error)
@@ -51,6 +53,7 @@ type Config struct {
 	Observer          Observer
 	ViewsEndpoint     string
 	SchedulesEndpoint string
+	DrawerResolver    DrawerResolver
 	// Progressive returns a layout-only document and materialises each panel
 	// independently through Handlers.Panel.
 	Progressive bool
@@ -70,6 +73,7 @@ type Handlers struct {
 	progressive       bool
 	viewsEndpoint     string
 	schedulesEndpoint string
+	drawerResolver    DrawerResolver
 	loads             singleflight.Group
 }
 
@@ -116,6 +120,7 @@ func New(cfg Config) (*Handlers, error) {
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
 		request: cfg.Request, observer: observer, progressive: cfg.Progressive,
 		viewsEndpoint: cfg.ViewsEndpoint, schedulesEndpoint: cfg.SchedulesEndpoint,
+		drawerResolver: cfg.DrawerResolver,
 	}, nil
 }
 

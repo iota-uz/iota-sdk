@@ -63,14 +63,11 @@ export function buildCoverageSegments(
  * measure-vs-goal reading (e.g. reserves against liquid assets) the plain
  * 100%-wide track cannot express.
  */
-function CoverageBullet({ panel, segments, total, target, tooltip, segmentHref, navigation, formatValue }: {
-  panel: Panel
+function CoverageBullet({ segments, total, target, tooltip, formatValue }: {
   segments: CoverageSegment[]
   total: number
   target: NonNullable<Panel['target']>
   tooltip: (segment: CoverageSegment) => string
-  segmentHref: (index: number) => string | undefined
-  navigation: ReturnType<typeof usePanelNavigation>
   formatValue: (value: unknown) => string
 }) {
   // A hair of headroom keeps a marker at the scale edge from clipping.
@@ -81,28 +78,14 @@ function CoverageBullet({ panel, segments, total, target, tooltip, segmentHref, 
   const markerLabel = [target.label?.trim(), formatValue(target.value)].filter(Boolean).join(' ')
   return (
     <div className="lens-coverage-bullet">
-      <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
-        {segments.map((segment, index) => segment.value > 0 && (
-          segmentHref(index)
-            ? (
-              <a
-                aria-label={tooltip(segment)}
-                className="lens-coverage-track-segment lens-coverage-track-segment-link"
-                href={segmentHref(index)}
-                onClick={navigation.onClick(segmentHref(index))}
-                key={segment.key}
-                style={{ width: percent(segment.value), background: segment.color }}
-                title={tooltip(segment)}
-              />
-            )
-            : (
-              <span
-                className="lens-coverage-track-segment"
-                key={segment.key}
-                style={{ width: percent(segment.value), background: segment.color }}
-                title={tooltip(segment)}
-              />
-            )
+      <div className="lens-coverage-track" aria-hidden="true">
+        {segments.map((segment) => segment.value > 0 && (
+          <span
+            className="lens-coverage-track-segment"
+            key={segment.key}
+            style={{ width: percent(segment.value), background: segment.color }}
+            title={tooltip(segment)}
+          />
         ))}
       </div>
       <span
@@ -169,37 +152,20 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
             <span className="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
           </p>
           {showTrack && !panel.target && (
-            <div className="lens-coverage-track" aria-label={panel.title} role={navigation.rowScoped ? 'group' : 'img'}>
-              {segments.map((segment, index) => segment.value > 0 && (
-                segmentHref(index)
-                  ? (
-                    <a
-                      aria-label={tooltip(segment)}
-                      className="lens-coverage-track-segment lens-coverage-track-segment-link"
-                      href={segmentHref(index)}
-                      onClick={navigation.onClick(segmentHref(index))}
-                      key={segment.key}
-                      style={{ width: `${segment.share * 100}%`, background: segment.color }}
-                      title={tooltip(segment)}
-                    />
-                  )
-                  : (
-                    <span
-                      className="lens-coverage-track-segment"
-                      key={segment.key}
-                      style={{ width: `${segment.share * 100}%`, background: segment.color }}
-                      title={tooltip(segment)}
-                    />
-                  )
+            <div className="lens-coverage-track" aria-hidden={navigation.rowScoped || undefined} aria-label={navigation.rowScoped ? undefined : panel.title} role={navigation.rowScoped ? undefined : 'img'}>
+              {segments.map((segment) => segment.value > 0 && (
+                <span
+                  className="lens-coverage-track-segment"
+                  key={segment.key}
+                  style={{ width: `${segment.share * 100}%`, background: segment.color }}
+                  title={tooltip(segment)}
+                />
               ))}
             </div>
           )}
           {showTrack && panel.target && (
             <CoverageBullet
               formatValue={formatValue}
-              navigation={navigation}
-              panel={panel}
-              segmentHref={segmentHref}
               segments={segments}
               target={panel.target}
               tooltip={tooltip}

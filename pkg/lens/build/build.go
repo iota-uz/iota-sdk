@@ -120,11 +120,12 @@ func DatasetNoCache(spec lens.DatasetSpec) lens.DatasetSpec {
 }
 
 func DateRangeVariable(name, label string, defaultDuration time.Duration) lens.VariableSpec {
+	requestKey := lens.CanonicalRequestKey(name)
 	return lens.VariableSpec{
 		Name:            name,
 		Label:           label,
 		Kind:            lens.VariableDateRange,
-		RequestKeys:     []string{name, name + "_start", name + "_end"},
+		RequestKeys:     []string{requestKey, requestKey + "-start", requestKey + "-end"},
 		AllowAllTime:    true,
 		DefaultDuration: defaultDuration,
 		Default:         lens.DateRangeValue{Mode: "default"},

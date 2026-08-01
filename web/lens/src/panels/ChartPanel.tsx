@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Frame, NodeKey, Panel } from '../contract'
 import { radialNodeKey, type ChartActivation, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartInput, type ChartKind } from '../charts/adapter'
 import { fallbackMarkKey } from '../charts/keys'
@@ -6,18 +6,18 @@ import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
 import { childForSelection } from '../explore/model'
 import { WarningTriangle } from '../icons'
-import { levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
 import { ChartHost } from './ChartHost'
-import { useLegendVisibility, useMarkSelection } from './context'
+import { useMarkSelection } from './context'
 import { encodingRoles, rowColorResolver, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
 // Below 2% a donut label cannot fit reliably inside its arc.
 const minorDonutShare = 0.02
 // Long legends gain search before scanning them becomes slower than typing.
-const searchableLegendEntries = 8
+const searchableLegendEntries = 6
 
 export interface ChartPanelProps {
   panel: Panel
@@ -259,8 +259,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const [localHidden, setLocalHidden] = useState<ReadonlySet<string>>(() => (
     typeof window === 'undefined' ? new Set() : hiddenSeriesFromURL(new URL(window.location.href), panel.id)
   ))
-  const legendVisibility = useLegendVisibility()
-  const hidden = legendVisibility?.hidden ?? localHidden
+  const hidden = localHidden
   const active = navigation.panelId === panel.id && navigation.path.length > 0
   const level = active
     ? levelForPath(document, navigation.path)
@@ -295,10 +294,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     setSelectedKey(undefined)
   }, [viewKey])
 
-  const setHiddenSeries = useCallback((keys: ReadonlySet<string>) => {
-    if (legendVisibility) legendVisibility.set(keys)
-    else setLocalHidden(new Set(keys))
-  }, [legendVisibility])
+  const setHiddenSeries = useCallback((keys: ReadonlySet<string>) => setLocalHidden(new Set(keys)), [])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -473,8 +469,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     encoding: panel.encoding,
     format,
     formatAxis,
+    formatTooltip: (field, value, reference) => formatFieldValueAtReference(value, reference, panel.format[field], document.meta.locale),
     categoryFormatDefined: Boolean(panel.encoding.category && panel.format[panel.encoding.category]),
     locale: document.meta?.locale,
+    shareDecimalSeparator: panel.encoding.value ? panel.format[panel.encoding.value]?.decimalSeparator : undefined,
     tooltipTotalLabel: translate('panel.total', 'Total'),
     labels: {
       previous: translate('chart.series.previous', 'Previous'),
@@ -694,6 +692,8 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
   const { document, navigation } = useDashboard()
   const translate = useTranslate()
   const [search, setSearch] = useState('')
+  const legendRef = useRef<HTMLUListElement>(null)
+  const [legendEdges, setLegendEdges] = useState({ top: false, bottom: false })
   const seriesLegendIndex = legendSeriesIndex(frame, panel)
   const labelField = seriesLegendIndex >= 0 ? panel.encoding.series : (panel.encoding.label ?? panel.encoding.category)
   const valueField = panel.encoding.value
@@ -774,9 +774,13 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
         valueByKey.set(key, value)
       }
     })
-    return { allKeys, categoryOrder, entries, entryKeys, entryPositions, rowKeys, rowsPerKey, shares, valueByKey }
+    const ringByIndex = new Map<number, string>()
+    if (partition && seriesIndex >= 0) entries.forEach((index) => {
+      const raw = frame.rows[index]?.[seriesIndex]
+      if (typeof raw === 'string') ringByIndex.set(index, raw)
+    })
+    return { allKeys, categoryOrder, entries, entryKeys, entryPositions, ringByIndex, rowKeys, rowsPerKey, shares, valueByKey }
   }, [frame, idIndex, labelIndex, panel.format, panel.radial?.rings, partition, seriesIndex, seriesLegendIndex, total, valueField, valueIndex])
-  if (labelIndex < 0) return null
   // The plot pins one colour per category across every ring of a partition, so
   // its palette index is the category's, not the row's (see `categoryOrder` in
   // the chart adapter). Anywhere else a row is its own category.
@@ -805,6 +809,23 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
     const raw = frame.rows[index]?.[labelIndex]
     return textCell(raw).toLocaleLowerCase().includes(normalizedSearch)
   })
+  useLayoutEffect(() => {
+    const list = legendRef.current
+    if (!list) return
+    const measure = () => setLegendEdges({
+      top: list.scrollTop > 1,
+      bottom: list.scrollTop + list.clientHeight < list.scrollHeight - 1,
+    })
+    measure()
+    list.addEventListener('scroll', measure, { passive: true })
+    const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(measure)
+    observer?.observe(list)
+    return () => {
+      list.removeEventListener('scroll', measure)
+      observer?.disconnect()
+    }
+  }, [visibleEntries.length])
+  if (labelIndex < 0) return null
   const solo = (key: string) => {
     const alreadySolo = !hidden.has(key) && model.allKeys.every((candidate) => candidate === key || hidden.has(candidate))
     onSetHidden(alreadySolo ? new Set() : new Set(model.allKeys.filter((candidate) => candidate !== key)))
@@ -828,54 +849,69 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
           />
         </label>
       )}
-      <ul className="lens-chart-legend">
-        {visibleEntries.map((index) => {
-          const row = frame.rows[index]!
-          const entryIndex = model.entryPositions.get(index) ?? index
-          const raw = row[labelIndex]
-          const label = raw === null || raw === undefined ? '' : formatLabel(raw)
-          const key = model.entryKeys[index]!
-          const isHidden = hidden.has(key)
-          return (
-            <li className="lens-chart-legend-item" key={`${key}-${index}`}>
-              <button
-                aria-pressed={!isHidden}
-                className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
-                onClick={() => onToggle(key)}
-                onDoubleClick={() => solo(key)}
-                title={translate('chart.legendToggle', 'Toggle series; double-click to isolate')}
-                type="button"
-              >
-                <span
-                  aria-hidden="true"
-                  className="lens-chart-legend-mark"
-                  style={{ background: isHidden ? undefined : swatch(label, index, entryIndex) }}
-                />
-                <span className="lens-chart-legend-label">{label}</span>
-                {suffixFor(index) !== 'none' && (
-                  <>
-                    <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
-                    <span className="lens-chart-legend-value">
-                      {suffixFor(index) === 'percent'
-                        ? formatShare(model.shares.get(index), document.meta?.locale)
-                        : formatValue(model.valueByKey.get(key))}
-                    </span>
-                  </>
-                )}
-              </button>
-              <button
-                aria-label={translate('chart.legendIsolate', 'Isolate series')}
-                className="lens-chart-legend-solo"
-                onClick={() => solo(key)}
-                title={translate('chart.legendIsolateName', 'Isolate {name}', { name: label })}
-                type="button"
-              >
-                ◎
-              </button>
-            </li>
-          )
-        })}
-      </ul>
+      <div
+        className="lens-chart-legend-scroll-frame"
+        data-overflow-bottom={legendEdges.bottom || undefined}
+        data-overflow-top={legendEdges.top || undefined}
+      >
+        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
+        <ul aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend" ref={legendRef} role="region" tabIndex={legendEdges.top || legendEdges.bottom ? 0 : undefined}>
+          {visibleEntries.map((index, visibleIndex) => {
+            const row = frame.rows[index]!
+            const entryIndex = model.entryPositions.get(index) ?? index
+            const raw = row[labelIndex]
+            const label = raw === null || raw === undefined ? '' : formatLabel(raw)
+            const key = model.entryKeys[index]!
+            const isHidden = hidden.has(key)
+            const ringKey = model.ringByIndex.get(index)
+            const previousRingKey = visibleIndex > 0 ? model.ringByIndex.get(visibleEntries[visibleIndex - 1]!) : undefined
+            const ringLabel = panel.radial?.rings?.find((ring) => ring.key === ringKey)?.label ?? ringKey
+            return (
+              <Fragment key={`${key}-${index}`}>
+                {ringKey && ringKey !== previousRingKey && <li className="lens-chart-legend-heading">{ringLabel}</li>}
+                <li className="lens-chart-legend-item" key={`${key}-${index}`}>
+                  <button
+                    aria-pressed={!isHidden}
+                    className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+                    onClick={() => onToggle(key)}
+                    onDoubleClick={() => solo(key)}
+                    title={translate('chart.legendToggle', 'Toggle series; double-click to isolate')}
+                    type="button"
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="lens-chart-legend-mark"
+                      style={{ background: swatch(label, index, entryIndex) }}
+                    />
+                    <span className="lens-chart-legend-label">{label}</span>
+                    {suffixFor(index) !== 'none' && (
+                      <>
+                        <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+                        <span className="lens-chart-legend-value">
+                          {suffixFor(index) === 'percent'
+                            ? formatShare(model.shares.get(index), document.meta?.locale, valueField ? panel.format[valueField]?.decimalSeparator : undefined)
+                            : formatValue(model.valueByKey.get(key))}
+                        </span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    aria-label={translate('chart.legendIsolate', 'Isolate series')}
+                    className="lens-chart-legend-solo"
+                    onClick={() => solo(key)}
+                    title={translate('chart.legendIsolateName', 'Isolate {name}', { name: label })}
+                    type="button"
+                  >
+                    ◎
+                  </button>
+                </li>
+              </Fragment>
+            )
+          })}
+        </ul>
+        <span aria-hidden="true" className="lens-chart-legend-edge lens-chart-legend-edge-top" />
+        <span aria-hidden="true" className="lens-chart-legend-edge lens-chart-legend-edge-bottom" />
+      </div>
     </div>
   )
 })

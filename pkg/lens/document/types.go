@@ -24,6 +24,7 @@ type DashboardDocument struct {
 	Endpoints       Endpoints         `json:"endpoints"`
 	I18n            map[string]string `json:"i18n"`
 	Theme           Theme             `json:"theme"`
+	URLState        *URLStateContract `json:"urlState,omitempty"`
 	// Header, when set, renders a document-level identity block (title + a
 	// muted subtitle) on the left of the dashboard's action bar. Optional so
 	// documents from older producers keep parsing under the same contract major.
@@ -35,6 +36,18 @@ type DashboardDocument struct {
 	// producers empty Meta.Title accordingly. Optional; absent keeps the
 	// generic drawer eyebrow.
 	Drawer *DrawerHeader `json:"drawer,omitempty"`
+}
+
+const (
+	URLStateVersion  = 1
+	URLStateParam    = "lens-state"
+	URLStateMaxBytes = 4096
+)
+
+type URLStateContract struct {
+	Version  int    `json:"version"`
+	Param    string `json:"param"`
+	MaxBytes int    `json:"maxBytes"`
 }
 
 // DrawerSize selects a host drawer's width treatment. An empty size keeps the
@@ -691,12 +704,20 @@ type PanelStatus struct {
 // percent units (12.4 renders as "+12.4%"). Invert flips the good/bad color
 // mapping for down-is-good metrics; the arrow always follows the sign.
 type PanelTrend struct {
-	Percent       float64 `json:"percent"`
-	Label         string  `json:"label,omitempty"`
-	Invert        bool    `json:"invert,omitempty"`
-	AbsoluteField string  `json:"absoluteField,omitempty"`
-	PercentField  string  `json:"percentField,omitempty"`
+	Percent           float64        `json:"percent"`
+	Label             string         `json:"label,omitempty"`
+	Invert            bool           `json:"invert,omitempty"`
+	AbsoluteField     string         `json:"absoluteField,omitempty"`
+	PercentField      string         `json:"percentField,omitempty"`
+	AbsoluteDeltaUnit TrendDeltaUnit `json:"absoluteDeltaUnit,omitempty"`
 }
+
+type TrendDeltaUnit string
+
+const (
+	TrendDeltaValue            TrendDeltaUnit = "value"
+	TrendDeltaPercentagePoints TrendDeltaUnit = "percentage_points"
+)
 
 // Sparkline is a small inline trend polyline rendered in a stat panel's footer
 // row. Values are plotted left-to-right, normalized to the sparkline viewbox;
@@ -1072,6 +1093,7 @@ type Action struct {
 	Method        string            `json:"method,omitempty"`
 	URLTemplate   string            `json:"urlTemplate,omitempty"`
 	URLSource     *Source           `json:"urlSource,omitempty"`
+	DrawerKey     *Source           `json:"drawerKey,omitempty"`
 	Event         string            `json:"event,omitempty"`
 	Params        []ActionParam     `json:"params"`
 	Payload       map[string]Source `json:"payload"`
@@ -1220,6 +1242,7 @@ type Frame struct {
 type Endpoints struct {
 	Query     string `json:"query,omitempty"`
 	Panel     string `json:"panel,omitempty"`
+	Drawer    string `json:"drawer,omitempty"`
 	Export    string `json:"export,omitempty"`
 	Views     string `json:"views,omitempty"`
 	Schedules string `json:"schedules,omitempty"`
@@ -1232,10 +1255,11 @@ type Theme struct {
 }
 
 type QueryRequest struct {
-	SnapshotID  string   `json:"snapshotId"`
-	Path        NodePath `json:"path"`
-	Perspective string   `json:"perspective,omitempty"`
-	Page        int      `json:"page,omitempty"`
+	SnapshotID  string     `json:"snapshotId"`
+	Path        NodePath   `json:"path"`
+	Perspective string     `json:"perspective,omitempty"`
+	Page        int        `json:"page,omitempty"`
+	Sort        *TableSort `json:"sort,omitempty"`
 }
 
 type QueryPage struct {
@@ -1261,10 +1285,28 @@ type QueryResponse struct {
 }
 
 type PanelRequest struct {
-	SnapshotID string `json:"snapshotId"`
-	PanelID    string `json:"panelId"`
-	Recompute  bool   `json:"recompute,omitempty"`
-	Search     string `json:"search,omitempty"`
+	PanelID   string     `json:"panelId"`
+	Recompute bool       `json:"recompute,omitempty"`
+	Search    string     `json:"search,omitempty"`
+	Sort      *TableSort `json:"sort,omitempty"`
+	Page      int        `json:"page,omitempty"`
+}
+
+type SortDirection string
+
+const (
+	SortAscending  SortDirection = "asc"
+	SortDescending SortDirection = "desc"
+)
+
+type TableSort struct {
+	Field     string        `json:"field"`
+	Direction SortDirection `json:"direction"`
+}
+
+type PanelBatchRequest struct {
+	SnapshotID string         `json:"snapshotId"`
+	Panels     []PanelRequest `json:"panels"`
 }
 
 // PanelCalculation describes the work that produced a panel frame. Duration
@@ -1279,11 +1321,46 @@ type PanelResponse struct {
 	Frames      map[FrameRef]Frame `json:"frames"`
 	Calculation PanelCalculation   `json:"calculation"`
 	Summary     *TableSummary      `json:"summary,omitempty"`
+	Page        *QueryPage         `json:"page,omitempty"`
+}
+
+type PanelBatchResult struct {
+	Frames      map[FrameRef]Frame  `json:"frames,omitempty"`
+	Calculation *PanelCalculation   `json:"calculation,omitempty"`
+	Summary     *TableSummary       `json:"summary,omitempty"`
+	Page        *QueryPage          `json:"page,omitempty"`
+	Error       *QueryErrorResponse `json:"error,omitempty"`
+}
+
+type PanelBatchResponse struct {
+	Panels map[string]PanelBatchResult `json:"panels"`
+}
+
+// PanelBatchStreamEvent is one newline-delimited event from the progressive
+// panel endpoint. A panel event carries exactly one independently completed
+// result. The final event has Complete set, which lets clients distinguish a
+// clean stream from a truncated response.
+type PanelBatchStreamEvent struct {
+	PanelID  string            `json:"panelId,omitempty"`
+	Result   *PanelBatchResult `json:"result,omitempty"`
+	Complete bool              `json:"complete,omitempty"`
+}
+
+type DrawerResolveRequest struct {
+	SnapshotID string         `json:"snapshotId"`
+	MetricKey  string         `json:"metricKey"`
+	Params     map[string]any `json:"params,omitempty"`
+}
+
+type DrawerResolveResponse struct {
+	URL string `json:"url"`
 }
 
 type TableSummary struct {
 	Values       map[string]any `json:"values"`
+	FullValues   map[string]any `json:"fullValues,omitempty"`
 	FilteredRows int            `json:"filteredRows"`
+	TotalRows    int            `json:"totalRows"`
 }
 
 type QueryErrorCode string
