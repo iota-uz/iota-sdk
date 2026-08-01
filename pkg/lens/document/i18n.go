@@ -20,7 +20,7 @@ const (
 	I18nChartError                    = "chart.error"
 	I18nChartGaugeRange               = "chart.gaugeRange"
 	I18nChartGaugeValue               = "chart.gaugeValue"
-	I18nChartKeyboardActs             = "chart.keyboardActions"
+	I18nChartData                     = "chart.data"
 	I18nChartLabel                    = "chart.label"
 	I18nChartLegendControl            = "chart.legendControls"
 	I18nChartLegendHideAll            = "chart.legendHideAll"
@@ -243,6 +243,8 @@ const (
 	I18nTableRowCount            = "table.rowCount"
 	I18nTableSearch              = "table.search"
 	I18nTableSearchPlaceholder   = "table.searchPlaceholder"
+	I18nTableScrollLeft          = "table.scrollLeft"
+	I18nTableScrollRight         = "table.scrollRight"
 	I18nTableScrollRegion        = "table.scrollRegion"
 	I18nTableFilteredTotal       = "table.filteredTotal"
 	I18nTableAllRowsTotal        = "table.allRowsTotal"
@@ -334,7 +336,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
-		I18nChartCollapseOther, I18nChartDrillHint, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartKeyboardActs, I18nChartLabel,
+		I18nChartCollapseOther, I18nChartDrillHint, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
 		I18nChartLegendControl, I18nChartLegendHideAll, I18nChartLegendInvert, I18nChartLegendIsolate, I18nChartLegendIsolateName, I18nChartLegendSearch,
 		I18nChartLegendShowAll, I18nChartLegendToggle, I18nChartLogScale, I18nChartLogScaleHint, I18nChartMovingAverage,
 		I18nChartOpenMark, I18nChartOther, I18nChartRegression, I18nChartResetZoom,
@@ -377,7 +379,7 @@ func RuntimeI18nKeys() []string {
 		I18nPrintFactSeries, I18nPrintFactSeriesBare, I18nPrintFactTable, I18nPrintFactRows,
 		I18nRuntimeDismiss, I18nRuntimeLoadError, I18nRuntimeRetry, I18nRuntimeSlowLoad,
 		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,
-		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSearch, I18nTableSearchPlaceholder,
+		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSearch, I18nTableSearchPlaceholder, I18nTableScrollLeft, I18nTableScrollRight,
 		I18nTableSmallSample, I18nTableSmallSampleShort, I18nTableTotal, I18nTableBooleanYes, I18nTableBooleanNo, I18nTableScrollRegion, I18nTableFilteredTotal, I18nTableAllRowsTotal, I18nTableFilteredRowCount,
 		I18nShareCopied, I18nShareCopy, I18nShareError,
 		I18nViewsEmpty, I18nViewsTeam, I18nViewsPersonal,
