@@ -2887,9 +2887,11 @@
   }
 
   .lens-table {
-    @apply lens-border-collapse lens-text-left lens-text-sm;
-    min-width: 100%;
-    width: max-content;
+    @apply lens-w-full lens-border-collapse lens-text-left lens-text-sm;
+  }
+
+  .lens-table-wide {
+    min-width: max(100%, 48rem);
   }
 
   .lens-table th {
@@ -2898,8 +2900,6 @@
 
   .lens-table th:first-child {
     @apply lens-left-0 lens-z-20;
-    border-right: 1px solid var(--lens-border-strong);
-    box-shadow: 8px 0 12px -10px var(--lens-text);
   }
 
   .lens-table th button {
@@ -2926,6 +2926,9 @@
 
   .lens-table td:first-child {
     @apply lens-sticky lens-left-0 lens-z-[1] lens-bg-card;
+  }
+
+  .lens-table-scroll-frame:is([data-overflow-left='true'], [data-overflow-right='true']) .lens-table :is(th, td):first-child {
     border-right: 1px solid var(--lens-border-strong);
     box-shadow: 8px 0 12px -10px var(--lens-text);
   }

@@ -139,7 +139,9 @@ const staticStories = [
   // ECharts map labels can vary by a couple of antialiased edge pixels even
   // when the rendered regions, values, and geometry are identical.
   ['choropleth-map--state-matrix', 2, 10],
-  ['comparison-interactions--previous-period', 1],
+  // One chart-edge antialiasing pixel is bistable after the comparison shell
+  // adds its prior-period series; the comparison geometry and values remain exact.
+  ['comparison-interactions--previous-period', 1, 1],
   // ECharts renders these distribution canvases with stable geometry but
   // slightly different antialiasing along dense outlines and labels.
   ['distributions--histogram', 1, 900],

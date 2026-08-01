@@ -550,7 +550,7 @@ export function TablePanel({ panel }: TablePanelProps) {
               tabIndex={scrollEdges.left || scrollEdges.right ? 0 : undefined}
             >
               {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
-              <table className="lens-table">
+              <table className={`lens-table${columnCount >= 4 ? ' lens-table-wide' : ''}`}>
                 <thead>
                   <tr>
                     {columns ? (
