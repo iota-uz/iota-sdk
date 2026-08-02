@@ -20,8 +20,17 @@ export interface PanelFrameProps {
    * The total the header badge prints. Overrides `panel.total`, which is the
    * root frame's total and is wrong once the panel is showing a drill level:
    * the badge must name the level on screen, not the panel's origin.
+   *
+   * `null` and `undefined` are different answers. `null` is the caller saying
+   * "there is no total here" — every series hidden, or a frame whose rows do
+   * not sum to a fact — and it wins. `undefined` is the caller not having an
+   * opinion, which is what falls through to the panel's own total.
+   *
+   * They used to be the same `??`, so a panel that had just decided it could
+   * state no total still printed the root figure in its header while its body
+   * said nothing was shown.
    */
-  total?: number
+  total?: number | null
 }
 
 function numericFrameValue(frame: Frame | undefined, field: string | undefined): number | undefined {
@@ -136,7 +145,7 @@ export function PanelFrame({
     if (frame.error) console.error(`[lens] panel ${panel.id} request failed`, frame.error)
   }, [frame.error, panel.id])
   const formatTotal = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
-  const total = totalOverride ?? panel.total
+  const total = totalOverride === undefined ? panel.total : totalOverride ?? undefined
   const hasRows = Boolean(frame.data?.rows.length)
   // Loading is panel-local. A sibling calculation or a background document
   // refresh must never replace this panel's usable data with a skeleton.

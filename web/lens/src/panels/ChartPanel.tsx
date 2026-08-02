@@ -463,10 +463,12 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       ?? (active || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal : undefined)
       ?? panel.total
     : undefined
-  const shareTotal = restingTotal === undefined || nothingVisible
-    ? undefined
+  // `null`, not `undefined`: this is the panel's answer, and the header badge
+  // must not fall back to the root total behind it. See PanelFrame's `total`.
+  const shareTotal: number | null = restingTotal === undefined || nothingVisible
+    ? null
     : hidden.size > 0
-      ? visibleTotal
+      ? visibleTotal ?? null
       : restingTotal
   // A served frame may carry the rendering decisions of the panel that produced
   // it. In document mode a drill level is drawn by a placeholder panel frozen
@@ -703,7 +705,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           {/* Above the plot, in flow — see PlotTotalBadge. A donut prints the
               same figure in its hub (the hole exists to carry it), so the chip
               would be the number twice, 100px apart, in two treatments. */}
-          {presentation?.totalBadge === 'plot' && kind !== 'donut' && shareTotal !== undefined && (
+          {presentation?.totalBadge === 'plot' && kind !== 'donut' && shareTotal !== null && (
             <PlotTotalBadge panel={panel} total={shareTotal} />
           )}
           {/* One row above the plot for everything the plot column carries that
@@ -805,7 +807,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             onToggle={toggleSeries}
             panel={panel}
             presentation={presentation}
-            total={shareTotal}
+            total={shareTotal ?? undefined}
           />
         )}
       </div>

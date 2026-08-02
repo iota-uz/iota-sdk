@@ -643,6 +643,29 @@ describe('chart legend series toggle', () => {
     expect(view.container.querySelector('.lens-panel-total')).toBeNull()
   })
 
+  it('drops the header total when every series is hidden, rather than falling back to the root', async () => {
+    // The body says nothing is shown; the header must not go on printing the
+    // panel's own total behind it. ChartPanel had already unified the two
+    // answers, but it said so with `undefined`, and PanelFrame's `?? panel.total`
+    // read that as "no opinion" and reprinted the root figure — the same
+    // contradiction one seam over from where it was fixed.
+    const panel: Panel = {
+      ...piePanel,
+      total: 1000,
+      presentation: { ...piePanel.presentation, totalBadge: 'header' },
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('1,000')
+    for (const name of [/Direct/, /Broker/, /Inward/]) {
+      fireEvent.click(screen.getByRole('button', { name }))
+    }
+    await waitFor(() => expect(view.container.querySelector('.lens-panel-total')).toBeNull())
+  })
+
   it('states the share of a ring category that belongs to exactly one ring', () => {
     // «Накопленная премия»: the 0.9% still receivable is too thin an arc to
     // carry a label, so the legend is the only place its share can be read.
