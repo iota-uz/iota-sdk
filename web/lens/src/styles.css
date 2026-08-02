@@ -119,6 +119,13 @@
     --lens-control-h-sm: 28px;
     --lens-control-h-md: 32px;
     --lens-control-h-lg: 36px;
+    /* The height a plot area claims, and therefore the height everything
+       standing beside or in place of the plot may claim: the legend column,
+       the all-hidden empty state. Two boxes in one row cannot each state their
+       own floor — the legend's used to be a shade over the plot's, which is
+       precisely how a 25-product column came to stand taller than the card it
+       is in and have its last entries cut off by the card's own overflow. */
+    --lens-plot-min-h: 19rem;
     /* Motion vocabulary. Every new animation and transition references these
        four easings and three durations instead of ad-hoc curves, so the whole
        runtime accelerates and settles with one voice. The focus-canvas
@@ -433,8 +440,13 @@
     }
   }
 
+  /* In the notes row, not over the plot. See `.lens-chart-notes`. */
   .lens-chart-reset-zoom {
-    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  .lens-chart-reset-zoom:hover {
+    @apply lens-border-strong lens-text-strong;
   }
 
   .lens-trend-chip-absolute {
@@ -2179,23 +2191,41 @@
       min-width: 0;
     }
 
-    /* A vertical list pinned to the right, centred against the plot; it scrolls
+    /* A vertical list pinned to the right, top-aligned with the plot; it scrolls
        inside its own column when there are more entries than height.
        The cap is stated in rem rather than as `100%`, which resolves against a
        container whose height the legend itself is setting — a 25-product legend
        stretched the card to 1856px and left the donut adrift in the middle of
-       it. It is a shade over `.lens-chart-host`'s own 19rem floor, so a legend
-       that fits beside the plot never scrolls and a longer one scrolls instead
-       of dragging the plot's height along with it. An expanded panel has a real
-       height to measure against, so there the legend follows it. */
+       it. It is the plot's own floor, not a shade over it: a column a shade
+       taller than the plot is a column taller than the card, and the card's
+       overflow — not the legend's — then cut the last entries off with no
+       scrollbar to reach them. That is what «ОСГОП sliced in half at the clip
+       edge» was. An expanded panel has a real height to measure against, so
+       there the legend follows it. */
+    /* Top-aligned, not centred. Centring is what put a 236px list in the middle
+       of a 752px expanded panel with a quarter of the card empty above it and
+       another quarter below, and it makes the first entry's position depend on
+       how many entries there are — so the same legend starts in a different
+       place on every panel of a board. The list begins where the plot begins. */
     .lens-chart-layout-legend > .lens-chart-legend-shell {
+      box-sizing: border-box;
       flex: 0 0 auto;
       width: clamp(9rem, 32%, 15rem);
-      max-height: var(--lens-chart-legend-max, 21rem);
-      align-self: center;
+      max-height: var(--lens-chart-legend-max, var(--lens-plot-min-h));
+      align-self: flex-start;
+      padding-top: 0.5rem;
     }
 
+    /* One box owns the height and one box scrolls, and they are the same box.
+       They were two: the frame took whatever height was left and hid what did
+       not fit, while the list carried a cap of its own and therefore stayed
+       taller than the frame that was hiding it — so `overflow-y: auto` was on
+       an element that never overflowed and never grew a scrollbar or a
+       scrollable range. Six of eleven products were simply not reachable. */
     .lens-chart-layout-legend > .lens-chart-legend-shell > .lens-chart-legend-scroll-frame {
+      display: flex;
+      flex-direction: column;
+      flex: 0 1 auto;
       min-height: 0;
       overflow: hidden;
       position: relative;
@@ -2208,11 +2238,12 @@
       /* `safe` so a list longer than the column starts at its first entry.
          Plain centring pushes the overflow out of both ends and opens on the
          middle of the legend, with the first products above the scroll origin. */
-      justify-content: safe center;
+      justify-content: safe start;
+      flex: 0 1 auto;
+      min-height: 0;
       overflow-y: auto;
-      padding: 0.75rem 0.5rem;
+      padding: 0.25rem 0.5rem 0.5rem;
       scrollbar-gutter: stable;
-      max-height: var(--lens-chart-legend-max, 21rem);
     }
 
     .lens-chart-legend-edge {
@@ -2233,51 +2264,12 @@
       --lens-chart-legend-max: 100%;
     }
 
-    /* Side-column rows stack label over value: mark + label on the first
-       line(s), the figure on its own line beneath. The narrow column can't fit
-       long Russian labels next to a money value without mid-word breaks, so
-       the value gets a full line instead of a squeezed right-hand cell. */
+    /* A row of the side column takes the column's whole width, so the value
+       lands under the label rather than beside it. Same three parts, same
+       order, same alignment as the strip below a narrow plot — only the wrap
+       differs, which is what a width is allowed to change. */
     .lens-chart-layout-legend .lens-chart-legend-toggle {
-      display: grid;
       width: 100%;
-      grid-template-columns: auto minmax(0, 1fr);
-      align-items: start;
-      column-gap: 0.375rem;
-      row-gap: 0.125rem;
-      text-align: left;
-      padding-block: 0.375rem;
-    }
-
-    /* Pin the swatch to the first text line rather than the row's centre so a
-       wrapped label doesn't leave it floating between lines. */
-    .lens-chart-layout-legend .lens-chart-legend-mark,
-    .lens-chart-layout-legend .lens-chart-overlay-mark {
-      margin-top: 0.25rem;
-    }
-
-    /* The overlay list sits outside the rows' scroll frame — it is short and
-       must stay visible while a long product legend scrolls above it — so it
-       needs the column arrangement stated for it too. */
-    .lens-chart-layout-legend > .lens-chart-legend-shell > .lens-chart-overlay-legend {
-      flex-direction: column;
-      flex-wrap: nowrap;
-      align-items: stretch;
-      justify-content: flex-start;
-      padding: 0 0.5rem 0.5rem;
-    }
-
-    .lens-chart-layout-legend .lens-chart-legend-label {
-      min-width: 0;
-      line-height: 1.35;
-    }
-
-    .lens-chart-layout-legend .lens-chart-legend-separator {
-      display: none;
-    }
-
-    .lens-chart-layout-legend .lens-chart-legend-value {
-      grid-column: 2;
-      white-space: nowrap;
     }
   }
 
@@ -2298,6 +2290,12 @@
      that takes its own height. */
   .lens-chart-notes {
     @apply lens-flex lens-flex-wrap lens-items-center lens-gap-1 lens-px-2 lens-pb-1 lens-pt-1;
+  }
+
+  /* The plot-local actions end the row, so notes read from the left and
+     controls sit where a toolbar is looked for — neither on the data. */
+  .lens-chart-notes-actions {
+    @apply lens-ml-auto lens-flex lens-flex-wrap lens-items-center lens-justify-end lens-gap-1;
   }
 
   .lens-chart-log-scale {
@@ -2330,7 +2328,7 @@
   }
 
   .lens-chart-collapse-other {
-    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
   }
 
   .lens-axis-label-tooltip {
@@ -2342,7 +2340,7 @@
      tight. The legend below and the in-plot badge sit outside this box. */
   .lens-chart-host {
     @apply lens-relative lens-flex lens-flex-1 lens-p-2;
-    min-height: 19rem;
+    min-height: var(--lens-plot-min-h);
   }
 
   .lens-map-attribution {
@@ -2361,52 +2359,140 @@
   }
 
   .lens-chart-legend {
-    @apply lens-m-0 lens-flex lens-list-none lens-flex-wrap lens-items-center lens-justify-center lens-gap-x-4 lens-gap-y-1 lens-px-3 lens-pb-3 lens-pt-1 lens-text-base lens-text-muted;
+    @apply lens-m-0 lens-flex lens-list-none lens-flex-wrap lens-items-start lens-justify-start lens-gap-x-4 lens-gap-y-1 lens-px-3 lens-pb-3 lens-pt-1 lens-text-base lens-text-muted;
   }
 
   .lens-chart-legend-shell {
     @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1;
   }
 
+  /* ── The legend column's control header ─────────────────────────────────
+     Every control the legend owns, in one block, on one left edge: the buttons
+     used to sit centred at x≈1153 above a search input at x≈1121, which is two
+     rules of alignment in a 240px column. One padding, stated once, and the
+     rows below inherit the same inline edge. */
+  .lens-chart-legend-controls {
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1 lens-px-2 lens-pt-1;
+  }
+
+  /* One segmented control, never three loose commands on two ragged lines.
+     «Скрыть всё» and «Показать всё» are the two states of one thing — all off,
+     all on — so they are members of a tray with a pressed member, the same
+     idiom the period filter uses. Inverting is neither state and would not fit
+     a Russian label in this column anyway, so it is the tray's icon member. */
   .lens-chart-legend-tools {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-justify-center lens-gap-1 lens-px-3 lens-pt-2;
+    @apply lens-flex lens-w-full lens-min-w-0 lens-items-center;
+    gap: 2px;
+  }
+
+  .lens-chart-legend-tools[data-members='many'] {
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-border;
+    --lens-seg-tray: rgb(15 23 42 / 0.05);
+    --lens-seg-raised: var(--lens-bg-card);
+    background: var(--lens-seg-tray);
+    padding: 2px;
+  }
+
+  .lens-root[data-theme='dark'] .lens-chart-legend-tools[data-members='many'] {
+    --lens-seg-tray: rgb(15 23 42 / 0.5);
+    --lens-seg-raised: var(--lens-bg-inset);
   }
 
   .lens-chart-legend-tools button {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-flex lens-min-w-0 lens-cursor-pointer lens-items-center lens-justify-center lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-2 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    flex: 1 1 0;
+    min-height: var(--lens-control-h-xs);
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
+      color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  /* A single switch is not a tray: it carries its own edge, like any button. */
+  .lens-chart-legend-tools[data-members='one'] button {
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card;
+    flex: 1 1 auto;
   }
 
   .lens-chart-legend-tools button:hover {
-    @apply lens-bg-inset lens-text-text;
+    @apply lens-bg-inset lens-text-strong;
   }
 
+  .lens-chart-legend-tools button[aria-pressed='true'] {
+    @apply lens-text-strong;
+    background: var(--lens-seg-raised);
+    box-shadow: var(--lens-shadow-card);
+  }
+
+  .lens-chart-legend-invert {
+    @apply lens-flex-none;
+    padding-inline: 0.375rem;
+  }
+
+  .lens-chart-legend-invert svg {
+    @apply lens-size-3;
+  }
+
+  /* The count the fade could not give. A bottom fade says "there is more";
+     six of eleven products below the fold is a different statement, and it is
+     the one that decides whether the reader scrolls. Pressing it lifts the
+     cap instead of scrolling for them, so the whole legend can be read at once
+     — which is what the reader wanted when they asked how much was missing. */
+  .lens-chart-legend-overflow {
+    @apply lens-mx-2 lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1 lens-text-left lens-font-sans lens-text-sm lens-font-medium lens-text-accent-700;
+  }
+
+  .lens-chart-legend-overflow:hover {
+    @apply lens-bg-inset;
+  }
+
+  /* One search field in this runtime, declared once with the facet popover's:
+     the legend's list and the facet's list are the same object — a list of
+     names too long to scan — and they were two lookalike inputs with different
+     type sizes and paddings sitting a few hundred pixels apart. */
   .lens-chart-legend-search {
-    @apply lens-px-3;
+    @apply lens-flex lens-min-w-0 lens-flex-col;
   }
 
-  .lens-chart-legend-search input {
-    @apply lens-box-border lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-text-text;
+  .lens-chart-legend-search .lens-facet-search {
+    @apply lens-m-0 lens-box-border lens-w-full;
   }
 
   .lens-chart-legend-item {
-    @apply lens-flex lens-items-center;
+    @apply lens-flex lens-min-w-0 lens-items-start;
   }
 
+  /* ONE row format, at every width.
+     There were two: a grid in the side column (swatch + label, value beneath)
+     and an inline flex row below a narrow plot (swatch · label · value) whose
+     `·` the other form hid — so the two did not even share punctuation, and at
+     600px the swatch pinned to the far left, the value to the far right and a
+     centred label floated 100px from the mark it belongs to. Same three parts,
+     same order, same left edge, always: the width decides how many rows fit on
+     a line, not what a row looks like. */
   .lens-chart-legend-toggle {
-    @apply lens-inline-flex lens-cursor-pointer lens-items-center lens-gap-1.5 lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-0.5 lens-font-sans lens-text-base lens-text-muted lens-transition-colors;
+    @apply lens-grid lens-min-w-0 lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1 lens-text-left lens-font-sans lens-text-base lens-text-muted lens-transition-colors;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+    column-gap: 0.375rem;
+    row-gap: 0.125rem;
   }
 
   .lens-chart-legend-toggle:hover:not(:disabled) {
     @apply lens-bg-inset;
   }
 
+  /* Isolate was reachable only by hovering the row it belongs to, which is how
+     a control stays unknown to everyone who never hovers. It is on the row at
+     rest now, quiet enough not to compete with the reading, and the row also
+     answers the double-click every charting library has taught readers to try. */
   .lens-chart-legend-solo {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-sm lens-text-faint lens-opacity-0 lens-transition-opacity;
+    @apply lens-mt-0.5 lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-sm lens-text-faint lens-transition-opacity;
+    opacity: 0.4;
   }
 
   .lens-chart-legend-item:hover .lens-chart-legend-solo,
+  .lens-chart-legend-solo:hover,
   .lens-chart-legend-solo:focus-visible {
-    @apply lens-opacity-100;
+    @apply lens-opacity-100 lens-text-strong;
   }
 
   .lens-chart-legend-toggle:disabled {
@@ -2436,16 +2522,31 @@
     background: var(--lens-accent-500);
   }
 
-  /* ── The overlay half of a legend ───────────────────────────────────────
-     Below the data rows, behind the heading's rule. A row is a slice of the
-     total and can be hidden, isolated and measured; an overlay is a mark on
-     the plot and can only be drawn or not, so it carries neither a value cell
-     nor the isolate control, and the Hide all / Show all / Invert group above
-     leaves it alone. The swatch is the mark in miniature — same ink, same
-     stroke — so a line in the plot can be matched to its name without
-     reading it. */
+  /* ── The mark key ───────────────────────────────────────────────────────
+     A strip under the plot, across the plot's own width, not a column beside
+     it. A row is a slice of the total and can be hidden, isolated, searched
+     and measured; a mark can only be drawn or not, so it carries no value
+     cell, no isolate control and no bulk group — and a handful of fixed
+     entries with none of that is a key, which is read once and then ignored,
+     never worth a fifth of the plot. The swatch is the mark in miniature —
+     same ink, same stroke — so a line in the plot can be matched to its name
+     without reading it. */
   .lens-chart-overlay-legend {
-    @apply lens-pt-0;
+    @apply lens-items-center lens-gap-x-3 lens-pb-2 lens-pt-0;
+    border-top: 1px solid var(--lens-border);
+    margin-inline: 0.75rem;
+    padding-inline: 0;
+    padding-top: 0.375rem;
+  }
+
+  .lens-chart-overlay-legend .lens-chart-legend-toggle {
+    @apply lens-inline-flex lens-items-center;
+  }
+
+  /* The strip names itself in place of a heading row: a key with its own rule
+     above it and its own label at the start of the line. */
+  .lens-chart-overlay-legend > .lens-chart-legend-heading {
+    @apply lens-m-0 lens-w-auto lens-border-0 lens-p-0;
   }
 
   .lens-chart-overlay-mark {
@@ -2496,8 +2597,46 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  /* Label and figure both sit in the grid's second column, so the figure lines
+     up under the name it belongs to rather than beside the swatch. */
+  .lens-chart-legend-toggle > .lens-chart-legend-label {
+    @apply lens-min-w-0;
+    line-height: 1.35;
+  }
+
+  .lens-chart-legend-toggle > .lens-chart-legend-value {
+    grid-column: 2;
+    white-space: nowrap;
+  }
+
+  /* Pin the swatch to the first text line rather than the row's centre so a
+     wrapped label doesn't leave it floating between lines. */
+  .lens-chart-legend-toggle > .lens-chart-legend-mark {
+    margin-top: 0.25rem;
+  }
+
   .lens-chart-legend-separator {
     @apply lens-text-faint;
+  }
+
+  /* Nothing on the plot, and the panel says which of "filtered" and "broken"
+     it is. It stands where the plot stood so the card keeps its height. */
+  .lens-chart-empty {
+    @apply lens-m-2 lens-flex lens-flex-1 lens-flex-col lens-items-center lens-justify-center lens-gap-2 lens-rounded-card lens-border lens-border-dashed lens-border-border lens-bg-inset lens-p-4 lens-text-center;
+    min-height: calc(var(--lens-plot-min-h) - 1rem);
+  }
+
+  .lens-chart-empty-note {
+    @apply lens-text-md lens-text-muted;
+  }
+
+  .lens-chart-empty-action {
+    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-base lens-font-semibold lens-text-strong;
+    min-height: var(--lens-control-h-md);
+  }
+
+  .lens-chart-empty-action:hover {
+    @apply lens-border-strong;
   }
 
   .lens-chart-compact {

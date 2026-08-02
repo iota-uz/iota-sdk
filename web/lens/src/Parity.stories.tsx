@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import type { DashboardDocument, Frame, Panel } from './contract'
 import { DashboardPanels } from './DashboardPanels'
 import {
-  ArrowClockwise, ArrowsIn, ArrowsOut, ArrowUpRight, CaretDown, CaretLeft, CaretRight,
+  ArrowClockwise, ArrowsIn, ArrowsLeftRight, ArrowsOut, ArrowUpRight, CaretDown, CaretLeft, CaretRight,
   CircleNotch, DownloadSimple, X,
 } from './icons'
 import { CoveragePanel, DashboardSkeleton, PanelSkeletonBody, TablePanel } from './panels'
@@ -627,6 +627,7 @@ const iconSet: Array<{ name: string; size: number; Glyph: (props: { size?: numbe
   { name: 'CaretRight', size: 11, Glyph: CaretRight },
   { name: 'CaretDown', size: 14, Glyph: CaretDown },
   { name: 'ArrowUpRight', size: 12, Glyph: ArrowUpRight },
+  { name: 'ArrowsLeftRight', size: 12, Glyph: ArrowsLeftRight },
 ]
 
 function IconSetStory({ theme }: { theme: 'light' | 'dark' }) {
@@ -862,6 +863,37 @@ const legendFrame: Frame = {
   columns: [{ name: 'day', type: 'string' }, { name: 'product', type: 'string' }, { name: 'value', type: 'number' }],
   rows: ['30.07', '31.07'].flatMap((day, dayIndex) => legendSeries.map((series, index) => [day, series, (index + 1) * (dayIndex + 1) * 1_000_000])),
 }
+
+function HideEverySeries() {
+  useEffect(() => runWhenReady(() => {
+    const button = window.document.querySelector<HTMLButtonElement>('.lens-chart-legend-tools button')
+    if (!button) return false
+    button.click()
+    return true
+  }), [])
+  return null
+}
+
+/**
+ * What a plot says when the reader has switched every series off.
+ *
+ * A donut with nothing in it drew a featureless grey ring and kept printing the
+ * full total in its hub while the chip above it read «Итого: 0 UZS» — a panel
+ * that looks broken and contradicts itself in the same card. Nothing shown,
+ * nothing drawn, nothing totalled, and one way back stated in words.
+ */
+export const LegendAllSeriesHidden: Story = () => {
+  const doc = storyDocument([premiumPanel], { 'premium:frame': premiumFrame }, {
+    rows: [{ heading: 'ВСЁ СКРЫТО', panels: [{ panelId: 'premium', span: 6 }] }],
+  })
+  return (
+    <Runtime doc={doc}>
+      <DashboardPanels />
+      <HideEverySeries />
+    </Runtime>
+  )
+}
+LegendAllSeriesHidden.storyName = 'Legend all series hidden'
 
 export const LegendControlsAndSearch: Story = () => {
   const doc = storyDocument([legendPanel], { 'legend-workstation:frame': legendFrame }, {

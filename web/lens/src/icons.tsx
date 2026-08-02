@@ -243,6 +243,17 @@ export const Brackets = glyph(
   12,
 )
 
+/** Invert a selection: what was on goes off and what was off comes on. */
+export const ArrowsLeftRight = glyph(
+  <>
+    <line x1="24" y1="88" x2="216" y2="88" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="176 48 216 88 176 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="232" y1="168" x2="40" y2="168" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="80 208 40 168 80 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  12,
+)
+
 /** Quality: proxy — an approximate reconstruction (≈). */
 export const Approximate = glyph(
   <>

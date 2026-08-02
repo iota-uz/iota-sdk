@@ -644,13 +644,20 @@ describe('chart legend series toggle', () => {
     expect(values).toEqual(['99.1%', '0.9%'])
   })
 
-  it('allows hiding every series and restoring them from the legend toolbar', async () => {
-    const { inputs } = renderPie()
+  it('answers hide-all with an empty state that offers the way back', async () => {
+    const { container, inputs } = renderPie()
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
-    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([]))
-    fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
+
+    // A grey featureless ring is indistinguishable from a panel that failed.
+    // Nothing is shown, so nothing is drawn — and nothing is totalled either:
+    // the hub used to keep printing the full total beside a chip reading 0.
+    await screen.findByText('All series are hidden')
+    expect(container.querySelector('.lens-chart-host')).toBeNull()
+    expect(container.querySelector('.lens-plot-total')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show all series' }))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward']))
   })
 })

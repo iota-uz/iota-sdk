@@ -9,6 +9,7 @@ import type { MetricFlowPanelProps } from './MetricFlowPanel'
 import type { MetricHierarchyPanelProps } from './MetricHierarchyPanel'
 import type { MetricRelationshipPanelProps } from './MetricRelationshipPanel'
 import type { MapPanelProps } from './MapPanel'
+import { PanelSkeletonBody } from './Skeleton'
 import { StatPanel, type StatPanelProps } from './StatPanel'
 import type { TablePanelProps } from './TablePanel'
 
@@ -129,11 +130,22 @@ class PanelErrorBoundary extends Component<{
   }
 }
 
+/**
+ * The card a panel occupies while its module is still downloading.
+ *
+ * It is the same card the data-loading state uses, because it is the same
+ * moment to the reader: a titled panel that does not have its content yet. A
+ * bare `lens-panel-skeleton` slab here meant the whole point of the skeleton
+ * design — "the same rows, the same spans and a shape per panel kind, so
+ * nothing jumps when the data lands" — was bypassed for module loading, and a
+ * table-shaped card arriving in place of a chart-shaped slab is exactly the
+ * jump the shapes exist to prevent.
+ */
 function PanelModuleFallback({ panel }: { panel: Panel }) {
   return (
     <section aria-busy="true" aria-label={panel.title} className="lens-panel lens-panel-loading">
       <header className="lens-panel-header"><h3 className="lens-panel-title">{panel.title}</h3></header>
-      <div className="lens-panel-skeleton" />
+      <PanelSkeletonBody kind={panel.kind} />
     </section>
   )
 }
