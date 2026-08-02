@@ -283,6 +283,22 @@ export const FunnelSimple = glyph(
   14,
 )
 
+/**
+ * A plot that answers a click. The notes row states the affordance at rest with
+ * this glyph rather than a sentence; what the click actually does is on the
+ * element's accessible name and title (`chart.drillHint` / `chart.filterHint`).
+ */
+export const CursorClick = glyph(
+  <>
+    <line x1="96" y1="16" x2="96" y2="24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="16" y1="96" x2="24" y2="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="128" y1="32" x2="136" y2="16" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="32" y1="128" x2="16" y2="136" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M162.35,138.35a8,8,0,0,1,2.46-13l46.41-17.82a8,8,0,0,0-.71-14.85L50.44,40.41a8,8,0,0,0-10,10L92.68,210.51a8,8,0,0,0,14.85.71l17.82-46.41a8,8,0,0,1,13-2.46l51.31,51.31a8,8,0,0,0,11.31,0L213.66,201a8,8,0,0,0,0-11.31Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
 /** Quality: configuration required — sliders to be set. */
 export const Sliders = glyph(
   <>

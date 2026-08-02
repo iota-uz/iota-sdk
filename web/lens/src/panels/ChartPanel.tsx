@@ -11,7 +11,7 @@ import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
 import { recordForRow, resolveSourceValue } from '../explore/actions'
 import { childForSelection } from '../explore/model'
-import { ArrowsLeftRight, WarningTriangle } from '../icons'
+import { ArrowsLeftRight, CursorClick, FunnelSimple, WarningTriangle } from '../icons'
 import { searchableListEntries } from '../listSearch'
 import { axisUnit, cubeFilterParam, formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFilters, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
@@ -688,6 +688,14 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // Which period is unfinished, said once, in words, over the plot — instead of
   // once per series inside it.
   const incompletePeriod = overlays.find((overlay) => overlay.kind === 'incomplete' && overlay.active)
+  // The affordance is a glyph; what the click does is the glyph's name. Eight
+  // clickable panels on one report were eight grey sentences saying it in
+  // prose, so the sentence moved to the accessible name and the tooltip — the
+  // same two keys, still in all four locales, still readable at rest and to a
+  // screen reader, without spending a line of the card on each panel.
+  const drillHint = crossFilter
+    ? translate('chart.filterHint', 'Select to filter the page')
+    : translate('chart.drillHint', 'Select to explore')
   return (
     <PanelFrame allowEmptyContent={!distribution} panel={panel} frame={frame} headerActions={temporalControls} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
@@ -717,13 +725,13 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
                   hovering a mark cannot reflow the chart under the pointer. */}
               {interactive && (
                 <span
+                  aria-label={drillHint}
                   className="lens-chart-drill-hint"
                   data-active={hoveredKey ? 'true' : undefined}
                   role="note"
+                  title={drillHint}
                 >
-                  {crossFilter
-                    ? translate('chart.filterHint', 'Select to filter the page')
-                    : translate('chart.drillHint', 'Select to explore')}
+                  {crossFilter ? <FunnelSimple /> : <CursorClick />}
                 </span>
               )}
               {activeFilterValues && (

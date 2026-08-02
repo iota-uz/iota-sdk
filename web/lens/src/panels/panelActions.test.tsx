@@ -527,7 +527,13 @@ describe('per-segment drawer drill', () => {
     // not an absolutely positioned pill parked in a corner of the data.
     const hint = container.querySelector('.lens-chart-notes .lens-chart-drill-hint')
     expect(hint).not.toBeNull()
-    expect(hint?.textContent).toBe('Select to explore')
+    // A glyph at rest, not a sentence: eight clickable panels on one report
+    // were eight grey lines of prose. What the click does is still stated —
+    // by the accessible name and the tooltip, from the same key.
+    expect(hint?.textContent).toBe('')
+    expect(hint?.querySelector('svg')).not.toBeNull()
+    expect(hint?.getAttribute('aria-label')).toBe('Select to explore')
+    expect(hint?.getAttribute('title')).toBe('Select to explore')
     expect(container.querySelector('.lens-chart-host .lens-chart-drill-hint')).toBeNull()
   })
 })
@@ -578,8 +584,10 @@ describe('cross-filter source panel', () => {
 
     expect(chartInput()?.selectedKey).toBeUndefined()
     expect(container.querySelector('.lens-chart-source-note')).toBeNull()
-    // The affordance still names what the click does on this class of panel.
-    expect(container.querySelector('.lens-chart-drill-hint')?.textContent).toBe('Select to filter the page')
+    // The affordance still names what the click does on this class of panel —
+    // now as the glyph's accessible name rather than a line of prose.
+    expect(container.querySelector('.lens-chart-drill-hint')?.getAttribute('aria-label'))
+      .toBe('Select to filter the page')
   })
 })
 

@@ -1920,18 +1920,45 @@
     @apply lens-flex lens-items-center lens-justify-end lens-px-4 lens-pb-3;
   }
 
-  /* A row stretches every card to its tallest sibling, which is right for a
-     plot — a short one must not leave a misleading hole under itself — and
-     wrong for a stat: a 3-span headline beside a 9-span table used to grow to
-     the table's height and float its delta chip at the bottom of the empty
-     card. The stat's body takes the height it needs and the slack falls below
-     the footer, so the number, its caption and its chip stay one block at the
-     top of the card whatever is beside them. */
-  .lens-panel-stat > .lens-panel-body {
+  /* ── Where the row's slack goes ──────────────────────────────────────────
+     A row stretches every card to its tallest sibling and that stays: cards
+     ending on one line are a grid virtue, and a short plot must not leave a
+     misleading hole under itself. What must not stretch with the card is the
+     CONTENT. A body hands the row's slack to content that grows with it — a
+     plot canvas, a table's scroll area — and to nothing else.
+
+     Content that keeps its size and only moves used to take the slack and
+     spread itself through it. A 3-span headline beside a 9-span table grew to
+     the table's height and floated its figure, its caption and its delta chip
+     in the middle of the empty card; the gauge dial and the relationship
+     diagram do the same thing for the same reason — `flex: 1` with a centring
+     on a content root whose parts never change size, so every extra pixel of
+     card height is spent moving them down. In an over-tall card the gauge's
+     reading even fell out of its own arc. The flow's stages are the same fault
+     painted: four inset slabs stretched from 101px to 725px, each holding one
+     line of text at the top.
+
+     Keyed on that content rather than on the panel kind, so the rule also
+     holds where the same figure is drawn inside a metrics group card, which
+     carries no kind of its own. The body takes the height its content needs,
+     the caption and the footer sit directly under it, and the slack collects
+     in one place at the bottom of the card, where it reads as margin.
+
+     Measured against every kind at 1440 and 768: chart (all plots), table,
+     histogram, boxplot, heatmap, coverage, cascade and metric_hierarchy do not
+     move — they either spend the height or already leave it at the bottom.
+     Top-aligning THEIR bodies is worse and is not what this does: a plot
+     forced back to its 19rem floor in an 800px card gives up 430px of chart to
+     a hole. A loading skeleton also still fills the card it is standing in for,
+     which is the one case where filling is the whole point. */
+  .lens-panel-body:has(.lens-stat-content),
+  .lens-panel-body:has(.lens-gauge),
+  .lens-panel-body:has(.lens-relationship),
+  .lens-panel-body:has(.lens-flow) {
     @apply lens-flex-none;
   }
 
-  .lens-panel-stat > .lens-panel-footer {
+  .lens-panel > .lens-panel-footer {
     @apply lens-mt-0;
   }
 
@@ -3243,6 +3270,21 @@
   .lens-chart-drill-hint,
   .lens-chart-source-note {
     @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-px-2 lens-py-1 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  /* A glyph, not a sentence. Eight clickable panels on the sales report were
+     eight grey lines of prose saying the same thing, which is a paragraph of
+     chrome charging rent for one bit of information. What the click does is
+     carried by the accessible name and the title instead, from the same two
+     keys the sentence used, so nothing is lost to a screen reader or to a
+     hover. The box keeps the text version's height (one control-xs, the
+     11px/16px line plus its padding) because the row's height is the whole
+     reason the affordance lives here: an icon that shrank the row — or that
+     only appeared on hover — would put back the reflow that moving it out of
+     the plot's corner was meant to end. */
+  .lens-chart-drill-hint {
+    @apply lens-justify-center lens-px-1.5;
+    min-height: var(--lens-control-h-xs);
   }
 
   .lens-chart-drill-hint[data-active='true'] {
