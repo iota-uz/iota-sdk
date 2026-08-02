@@ -7,6 +7,33 @@ export default {
     preflight: false,
   },
   theme: {
+    // The Lens type scale, reachable as `lens-text-3xs … lens-text-3xl`. It sits
+    // on `theme.fontSize` rather than `theme.extend.fontSize` on purpose: this
+    // is the *only* type vocabulary in the runtime, so Tailwind's own steps are
+    // replaced, not joined. A straggler `lens-text-xs` no longer resolves to
+    // Tailwind's 12px — it resolves to the token's 10px — and a step name that
+    // is not on this list (there are none left) fails to build at all.
+    //
+    // Each entry is a [size, line-height] tuple because a bare size drops the
+    // leading Tailwind's steps ship with, and dense text silently reflows to the
+    // inherited line-height. Sizes come from the `--lens-type-*` tokens; the
+    // leading is stated in px beside them so the ratio is readable here.
+    //
+    // These keys cannot collide with the colour keys below (page, card, inset,
+    // border, text, strong, muted, faint, neg, neg-alt, warn, accent-*) nor with
+    // Tailwind's default palette, so `lens-text-*` stays unambiguous.
+    fontSize: {
+      '3xs': ['var(--lens-type-3xs)', '12px'], // 8/12
+      '2xs': ['var(--lens-type-2xs)', '12px'], // 9/12
+      xs: ['var(--lens-type-xs)', '14px'], // 10/14
+      sm: ['var(--lens-type-sm)', '16px'], // 11/16
+      base: ['var(--lens-type-base)', '16px'], // 12/16
+      md: ['var(--lens-type-md)', '20px'], // 14/20
+      lg: ['var(--lens-type-lg)', '24px'], // 16/24
+      xl: ['var(--lens-type-xl)', '28px'], // 21/28
+      '2xl': ['var(--lens-type-2xl)', '34px'], // 28/34
+      '3xl': ['var(--lens-type-3xl)', '40px'], // 34/40
+    },
     extend: {
       colors: {
         page: 'var(--lens-bg-page)',
@@ -30,26 +57,6 @@ export default {
           600: 'var(--lens-accent-600)',
           700: 'var(--lens-accent-700)',
         },
-      },
-      // The Lens type scale, reachable as `lens-text-type-*`. The keys carry the
-      // `type-` prefix on purpose: Tailwind resolves `text-*` against fontSize
-      // and textColor from the same namespace, and the bare step names (xs, sm,
-      // base, lg, xl, 2xl, 3xl) are already Tailwind's own font sizes. Shadowing
-      // those would silently resize every existing `lens-text-xs`/`lens-text-sm`
-      // in the sheet — and drop the line-height they pair with. `type-*` cannot
-      // collide with the colour keys above (page, card, inset, border, text,
-      // strong, muted, faint, neg, neg-alt, warn, accent) nor with any default.
-      fontSize: {
-        'type-3xs': 'var(--lens-type-3xs)',
-        'type-2xs': 'var(--lens-type-2xs)',
-        'type-xs': 'var(--lens-type-xs)',
-        'type-sm': 'var(--lens-type-sm)',
-        'type-base': 'var(--lens-type-base)',
-        'type-md': 'var(--lens-type-md)',
-        'type-lg': 'var(--lens-type-lg)',
-        'type-xl': 'var(--lens-type-xl)',
-        'type-2xl': 'var(--lens-type-2xl)',
-        'type-3xl': 'var(--lens-type-3xl)',
       },
       // Hit areas for anything a pointer acts on, as `lens-min-h-control-*`.
       // Layout boxes keep the numeric spacing scale.

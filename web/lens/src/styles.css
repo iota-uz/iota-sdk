@@ -72,7 +72,10 @@
        four steps exist for the printed report, where 745px of A4 has to hold a
        dashboard's worth of figures; the screen surfaces live from `sm` up.
        Named `--lens-type-*`, not `--lens-text-*`, because the latter namespace
-       is already the text colours. */
+       is already the text colours. Each step's paired leading lives beside it in
+       tailwind.config.ts, which owns the whole `lens-text-*` vocabulary: the
+       config replaces Tailwind's own font sizes rather than extending them, so
+       there is exactly one scale and one name per size. */
     --lens-type-3xs: 8px;
     --lens-type-2xs: 9px;
     --lens-type-xs: 10px;
@@ -204,18 +207,22 @@
   }
 
   .lens-drawer-title {
-    @apply lens-truncate lens-text-base lens-font-semibold lens-text-strong;
+    @apply lens-truncate lens-text-lg lens-font-semibold lens-text-strong;
     line-height: 1.3;
   }
 
   .lens-drawer-caption {
-    @apply lens-text-xs lens-text-muted;
+    @apply lens-text-base lens-text-muted;
     white-space: pre-line;
     line-height: 1.35;
   }
 
+  /* The one 36px control that was still spelled as a raw 9/9 box. It reads the
+     large control height like every other hit area; the matching min-width keeps
+     it square, since only the height is on the scale. */
   .lens-drawer-close {
-    @apply lens-inline-flex lens-h-9 lens-w-9 lens-cursor-pointer lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-text-muted;
+    @apply lens-inline-flex lens-min-h-control-lg lens-cursor-pointer lens-items-center lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-text-muted;
+    min-width: var(--lens-control-h-lg);
   }
 
   .lens-drawer-close:hover {
@@ -296,7 +303,7 @@
   }
 
   .lens-dashboard-header h1 {
-    @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
   }
 
   /* The document's own identity block: a strong title over a muted period +
@@ -322,7 +329,7 @@
   }
 
   .lens-dashboard-updated {
-    @apply lens-m-0 lens-mb-4 lens-text-xs lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-mb-4 lens-text-base lens-font-medium lens-text-muted;
   }
 
   .lens-dashboard-controls {
@@ -397,7 +404,7 @@
   }
 
   .lens-chart-reset-zoom {
-    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-type-sm lens-font-medium lens-text-muted;
+    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
   }
 
   .lens-trend-chip-absolute {
@@ -447,7 +454,7 @@
   }
 
   .lens-facet-trigger {
-    @apply lens-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-text;
+    @apply lens-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold lens-text-text;
   }
 
   .lens-facet-trigger:hover,
@@ -456,7 +463,7 @@
   }
 
   .lens-facet-count {
-    @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-type-xs lens-text-accent-700;
+    @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-xs lens-text-accent-700;
 
     background: var(--lens-accent-100);
   }
@@ -468,7 +475,7 @@
   }
 
   .lens-facet-search {
-    @apply lens-m-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-font-sans lens-text-sm lens-text-strong lens-outline-none;
+    @apply lens-m-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-font-sans lens-text-md lens-text-strong lens-outline-none;
   }
 
   .lens-facet-search:focus {
@@ -482,7 +489,7 @@
   }
 
   .lens-facet-option {
-    @apply lens-relative lens-isolate lens-flex lens-min-h-control-lg lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-px-2 lens-py-1.5 lens-text-sm lens-text-text;
+    @apply lens-relative lens-isolate lens-flex lens-min-h-control-lg lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-px-2 lens-py-1.5 lens-text-md lens-text-text;
   }
 
   .lens-facet-option:hover {
@@ -507,7 +514,7 @@
   }
 
   .lens-facet-option-count {
-    @apply lens-relative lens-z-10 lens-flex-none lens-tabular-nums lens-text-xs lens-text-muted;
+    @apply lens-relative lens-z-10 lens-flex-none lens-tabular-nums lens-text-base lens-text-muted;
   }
 
   .lens-facet-actions {
@@ -515,7 +522,7 @@
   }
 
   .lens-facet-actions button {
-    @apply lens-min-h-control-md lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-min-h-control-md lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
   }
 
   .lens-facet-actions .lens-facet-apply {
@@ -527,7 +534,7 @@
   }
 
   .lens-facet-state {
-    @apply lens-p-4 lens-text-center lens-text-sm lens-text-muted;
+    @apply lens-p-4 lens-text-center lens-text-md lens-text-muted;
   }
 
   .lens-facet-error {
@@ -535,7 +542,7 @@
   }
 
   .lens-facet-active-chip {
-    @apply lens-flex lens-min-h-control-sm lens-min-w-0 lens-max-w-56 lens-items-center lens-gap-1 lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-text-xs lens-font-medium lens-text-accent-700 lens-no-underline;
+    @apply lens-flex lens-min-h-control-sm lens-min-w-0 lens-max-w-56 lens-items-center lens-gap-1 lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-text-base lens-font-medium lens-text-accent-700 lens-no-underline;
   }
 
   .lens-facet-active-chip span {
@@ -547,7 +554,7 @@
   }
 
   .lens-facet-clear {
-    @apply lens-whitespace-nowrap lens-px-1 lens-text-xs lens-font-medium lens-text-accent-700 lens-underline;
+    @apply lens-whitespace-nowrap lens-px-1 lens-text-base lens-font-medium lens-text-accent-700 lens-underline;
   }
 
   .lens-root[data-theme='dark'] .lens-filter-segments {
@@ -562,7 +569,7 @@
 
   .lens-filter-chip,
   .lens-filter-trigger {
-    @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
     border-radius: var(--lens-radius-badge);
     min-height: var(--lens-control-h-sm);
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
@@ -666,7 +673,7 @@
   }
 
   .lens-filter-preset {
-    @apply lens-relative lens-block lens-w-full lens-flex-none lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-xs lens-font-medium lens-text-text lens-transition-colors;
+    @apply lens-relative lens-block lens-w-full lens-flex-none lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-base lens-font-medium lens-text-text lens-transition-colors;
     border-radius: var(--lens-radius-badge);
     padding: 7px 8px;
     line-height: 1.35;
@@ -756,7 +763,7 @@
   }
 
   .lens-filter-input {
-    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-xs lens-font-medium lens-text-strong lens-outline-none;
+    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-base lens-font-medium lens-text-strong lens-outline-none;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -820,7 +827,7 @@
 
   /* The draft's state, stated where the actions are. */
   .lens-filter-summary {
-    @apply lens-mr-auto lens-text-xs lens-text-muted;
+    @apply lens-mr-auto lens-text-base lens-text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -902,7 +909,7 @@
   /* The heading is the way into the month/year panel — the only way to travel
      more than a month at a time, so it has to look pressable. */
   .lens-calendar-month {
-    @apply lens-mx-auto lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-text-center lens-font-sans lens-text-sm lens-font-semibold lens-text-strong lens-transition-colors;
+    @apply lens-mx-auto lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-text-center lens-font-sans lens-text-md lens-font-semibold lens-text-strong lens-transition-colors;
     border-radius: var(--lens-radius-badge);
     padding: 3px 8px;
   }
@@ -1078,7 +1085,7 @@
   }
 
   .lens-calendar-jump-cell {
-    @apply lens-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-medium lens-text-text lens-transition-colors;
+    @apply lens-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-font-sans lens-text-base lens-font-medium lens-text-text lens-transition-colors;
     border-radius: var(--lens-radius-sm);
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -1218,7 +1225,7 @@
      chrome absorbs the pressure. The 60% ceiling stops a very long title from
      pushing the actions out of the card. */
   .lens-panel-title {
-    @apply lens-m-0 lens-flex-none lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-flex-none lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
     max-width: 60%;
   }
 
@@ -1295,7 +1302,7 @@
   }
 
   .lens-info-tip-button-inline {
-    @apply lens-size-4 lens-text-type-base;
+    @apply lens-size-4 lens-text-base;
   }
 
   /* The portal host fills the viewport only to carry theme variables. It must
@@ -1314,19 +1321,19 @@
   }
 
   .lens-info-tip-title {
-    @apply lens-text-type-xs lens-font-bold lens-uppercase lens-tracking-wider lens-text-text;
+    @apply lens-text-xs lens-font-bold lens-uppercase lens-tracking-wider lens-text-text;
   }
 
   .lens-info-tip-text {
-    @apply lens-whitespace-pre-line lens-text-xs lens-font-medium lens-leading-relaxed lens-text-strong;
+    @apply lens-whitespace-pre-line lens-text-base lens-font-medium lens-leading-relaxed lens-text-strong;
   }
 
   .lens-panel-caption {
-    @apply lens-m-0 lens-whitespace-pre-line lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4 lens-py-3 lens-text-sm lens-leading-relaxed lens-text-muted;
+    @apply lens-m-0 lens-whitespace-pre-line lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4 lens-py-3 lens-text-md lens-leading-relaxed lens-text-muted;
   }
 
   .lens-panel-comparison-note {
-    @apply lens-m-0 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-px-4 lens-py-2 lens-text-xs lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-px-4 lens-py-2 lens-text-base lens-font-medium lens-text-muted;
   }
 
   .lens-export-control {
@@ -1334,11 +1341,11 @@
   }
 
   .lens-export-button {
-    @apply lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-icon-button {
-    @apply lens-size-7 lens-min-h-0 lens-justify-center lens-border-transparent lens-bg-transparent lens-px-0 lens-text-base lens-text-faint;
+    @apply lens-size-7 lens-min-h-0 lens-justify-center lens-border-transparent lens-bg-transparent lens-px-0 lens-text-lg lens-text-faint;
   }
 
   .lens-icon-button:hover:not(:disabled) {
@@ -1420,7 +1427,7 @@
   }
 
   .lens-icon-specimens > li {
-    @apply lens-flex lens-items-center lens-gap-2 lens-text-xs lens-text-muted;
+    @apply lens-flex lens-items-center lens-gap-2 lens-text-base lens-text-muted;
   }
 
   .lens-icon-specimen-size {
@@ -1501,7 +1508,7 @@
   }
 
   .lens-trend-chip {
-    @apply lens-inline-flex lens-max-w-full lens-min-w-0 lens-items-center lens-gap-1.5 lens-overflow-hidden lens-rounded-badge lens-px-2 lens-py-1 lens-text-xs lens-font-semibold;
+    @apply lens-inline-flex lens-max-w-full lens-min-w-0 lens-items-center lens-gap-1.5 lens-overflow-hidden lens-rounded-badge lens-px-2 lens-py-1 lens-text-base lens-font-semibold;
     background: var(--lens-bg-inset);
     color: var(--lens-text-muted);
   }
@@ -1525,7 +1532,7 @@
   }
 
   .lens-status-chip {
-    @apply lens-inline-flex lens-shrink-0 lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider;
+    @apply lens-inline-flex lens-shrink-0 lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider;
     background: var(--lens-bg-inset);
     color: var(--lens-text-muted);
   }
@@ -1684,7 +1691,7 @@
   }
 
   .lens-stat-metric-label {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
   /* Wrap to two tight lines instead of ellipsizing: the full label is worth
@@ -1705,7 +1712,7 @@
   }
 
   .lens-stat-metric-value {
-    @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
     min-height: 3.5rem;
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -1715,7 +1722,7 @@
      they must survive: run together, two statements read as one broken
      sentence. */
   .lens-stat-metric-caption {
-    @apply lens-m-0 lens-min-w-0 lens-whitespace-pre-line lens-text-type-sm lens-leading-tight lens-text-muted;
+    @apply lens-m-0 lens-min-w-0 lens-whitespace-pre-line lens-text-sm lens-leading-tight lens-text-muted;
     overflow-wrap: anywhere;
   }
 
@@ -1731,7 +1738,7 @@
   }
 
   .lens-tabstrip-tab {
-    @apply lens-min-h-control-md lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-min-h-control-md lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-md lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-tabstrip-tab[aria-selected='true'] {
@@ -1767,7 +1774,7 @@
   }
 
   .lens-export-menu-item {
-    @apply lens-w-full lens-rounded-control lens-border-0 lens-bg-transparent lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-w-full lens-rounded-control lens-border-0 lens-bg-transparent lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-base lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-export-menu-item:hover,
@@ -1776,11 +1783,11 @@
   }
 
   .lens-export-message-pending {
-    @apply lens-static lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-xs lens-font-medium lens-text-muted lens-shadow-none;
+    @apply lens-static lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-base lens-font-medium lens-text-muted lens-shadow-none;
   }
 
   .lens-export-message {
-    @apply lens-absolute lens-right-0 lens-top-full lens-z-20 lens-mt-1 lens-w-max lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-xs lens-font-medium lens-text-accent-700 lens-shadow-card;
+    @apply lens-absolute lens-right-0 lens-top-full lens-z-20 lens-mt-1 lens-w-max lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-base lens-font-medium lens-text-accent-700 lens-shadow-card;
   }
 
   .lens-export-message-error {
@@ -1788,7 +1795,7 @@
   }
 
   .lens-panel-status {
-    @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-muted;
   }
 
   .lens-panel-total-label {
@@ -1799,7 +1806,7 @@
      room it ellipsizes (its title attribute carries the full number) instead
      of squeezing the panel title. */
   .lens-panel-total {
-    @apply lens-block lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-strong;
+    @apply lens-block lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-strong;
   }
 
   .lens-panel-body {
@@ -1810,17 +1817,17 @@
   }
 
   .lens-placeholder-state {
-    @apply lens-box-border lens-flex lens-flex-wrap lens-items-center lens-justify-between lens-gap-3 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-sm lens-text-muted lens-shadow-card;
+    @apply lens-box-border lens-flex lens-flex-wrap lens-items-center lens-justify-between lens-gap-3 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-5 lens-font-sans lens-text-md lens-text-muted lens-shadow-card;
   }
 
   .lens-placeholder-retry {
-    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-sans lens-text-sm lens-font-semibold lens-text-text;
+    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-strong lens-bg-card lens-px-3 lens-py-1 lens-font-sans lens-text-md lens-font-semibold lens-text-text;
   }
 
   /* Sits above the skeleton rather than replacing it: the layout stays put and
      only gains a line explaining why it is still empty. */
   .lens-loading-notice {
-    @apply lens-m-0 lens-mb-3 lens-font-sans lens-text-sm lens-text-muted;
+    @apply lens-m-0 lens-mb-3 lens-font-sans lens-text-md lens-text-muted;
   }
 
   .lens-panel-stale {
@@ -1828,7 +1835,7 @@
   }
 
   .lens-panel-error {
-    @apply lens-flex lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-bg-inset lens-p-3 lens-text-sm lens-text-neg;
+    @apply lens-flex lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-bg-inset lens-p-3 lens-text-md lens-text-neg;
   }
 
   .lens-panel-error button {
@@ -1836,7 +1843,7 @@
   }
 
   .lens-panel-state {
-    @apply lens-flex lens-min-h-32 lens-flex-1 lens-items-center lens-justify-center lens-gap-3 lens-p-5 lens-text-center lens-text-sm lens-text-muted;
+    @apply lens-flex lens-min-h-32 lens-flex-1 lens-items-center lens-justify-center lens-gap-3 lens-p-5 lens-text-center lens-text-md lens-text-muted;
   }
 
   .lens-panel-state-error {
@@ -1945,7 +1952,7 @@
   }
 
   .lens-stat-label {
-    @apply lens-m-0 lens-flex lens-items-center lens-gap-1.5 lens-text-sm lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-flex lens-items-center lens-gap-1.5 lens-text-md lens-font-medium lens-text-muted;
   }
 
   /* Wrap the label to two tight lines rather than letting a long KPI name run
@@ -1964,12 +1971,12 @@
   }
 
   .lens-stat-value {
-    @apply lens-m-0 lens-text-3xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-stat-delta {
-    @apply lens-rounded-badge lens-px-2 lens-py-1 lens-text-xs lens-font-semibold;
+    @apply lens-rounded-badge lens-px-2 lens-py-1 lens-text-base lens-font-semibold;
     background: var(--lens-pos-soft);
     color: var(--lens-pos);
   }
@@ -2102,7 +2109,7 @@
   /* A logarithmic bar is deliberately non-linear. Keep that warning on the
      reading surface instead of hiding it in an info tooltip. */
   .lens-chart-log-scale {
-    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-type-sm lens-font-medium;
+    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-sm lens-font-medium;
     border-color: color-mix(in srgb, var(--lens-warn) 35%, var(--lens-border));
     background: var(--lens-warn-soft);
     color: var(--lens-warn);
@@ -2113,11 +2120,11 @@
   }
 
   .lens-chart-collapse-other {
-    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-type-sm lens-font-medium lens-text-muted;
+    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
   }
 
   .lens-axis-label-tooltip {
-    @apply lens-pointer-events-none lens-fixed lens-z-50 lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-xs lens-text-text lens-shadow-card;
+    @apply lens-pointer-events-none lens-fixed lens-z-50 lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-text-text lens-shadow-card;
   }
 
   /* Plot presence: the chart is the panel's content, so the box gives it the
@@ -2129,7 +2136,7 @@
   }
 
   .lens-map-attribution {
-    @apply lens-m-0 lens-px-3 lens-pb-2 lens-text-right lens-text-xs lens-text-muted;
+    @apply lens-m-0 lens-px-3 lens-pb-2 lens-text-right lens-text-base lens-text-muted;
   }
 
   .lens-panel-fill .lens-chart-host {
@@ -2139,12 +2146,12 @@
   /* In flow at the top of the plot column, aligned right. Never absolute: an
      overlay only ever moves the collision somewhere else. */
   .lens-plot-total {
-    @apply lens-pointer-events-none lens-mr-3 lens-mt-3 lens-self-end lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-pointer-events-none lens-mr-3 lens-mt-3 lens-self-end lens-rounded-badge lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-chart-legend {
-    @apply lens-m-0 lens-flex lens-list-none lens-flex-wrap lens-items-center lens-justify-center lens-gap-x-4 lens-gap-y-1 lens-px-3 lens-pb-3 lens-pt-1 lens-text-xs lens-text-muted;
+    @apply lens-m-0 lens-flex lens-list-none lens-flex-wrap lens-items-center lens-justify-center lens-gap-x-4 lens-gap-y-1 lens-px-3 lens-pb-3 lens-pt-1 lens-text-base lens-text-muted;
   }
 
   .lens-chart-legend-shell {
@@ -2156,7 +2163,7 @@
   }
 
   .lens-chart-legend-tools button {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-type-sm lens-font-medium lens-text-muted;
+    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
   }
 
   .lens-chart-legend-tools button:hover {
@@ -2168,7 +2175,7 @@
   }
 
   .lens-chart-legend-search input {
-    @apply lens-box-border lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-xs lens-text-text lens-outline-none;
+    @apply lens-box-border lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-text-text lens-outline-none;
   }
 
   .lens-chart-legend-search input:focus {
@@ -2180,7 +2187,7 @@
   }
 
   .lens-chart-legend-toggle {
-    @apply lens-inline-flex lens-cursor-pointer lens-items-center lens-gap-1.5 lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-0.5 lens-font-sans lens-text-xs lens-text-muted lens-transition-colors;
+    @apply lens-inline-flex lens-cursor-pointer lens-items-center lens-gap-1.5 lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-0.5 lens-font-sans lens-text-base lens-text-muted lens-transition-colors;
   }
 
   .lens-chart-legend-toggle:hover:not(:disabled) {
@@ -2188,7 +2195,7 @@
   }
 
   .lens-chart-legend-solo {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-type-sm lens-text-faint lens-opacity-0 lens-transition-opacity;
+    @apply lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-sm lens-text-faint lens-opacity-0 lens-transition-opacity;
   }
 
   .lens-chart-legend-item:hover .lens-chart-legend-solo,
@@ -2215,7 +2222,7 @@
   }
 
   .lens-chart-legend-heading {
-    @apply lens-mt-2 lens-w-full lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-1 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-mt-2 lens-w-full lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-1 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
   .lens-chart-legend-mark {
@@ -2238,11 +2245,11 @@
 
   .lens-chart-compact-label,
   .lens-chart-compact-empty {
-    @apply lens-max-w-full lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-sm lens-text-muted;
+    @apply lens-max-w-full lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-md lens-text-muted;
   }
 
   .lens-chart-compact-value {
-    @apply lens-text-2xl lens-font-semibold lens-text-strong;
+    @apply lens-text-xl lens-font-semibold lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -2277,13 +2284,13 @@
   }
 
   .lens-gauge-reading strong {
-    @apply lens-text-3xl lens-font-semibold lens-text-strong;
+    @apply lens-text-2xl lens-font-semibold lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-gauge-reading span,
   .lens-gauge-scale {
-    @apply lens-text-xs lens-text-muted;
+    @apply lens-text-base lens-text-muted;
   }
 
   .lens-gauge-scale {
@@ -2314,7 +2321,7 @@
   }
 
   .lens-coverage-headline-label {
-    @apply lens-text-xs lens-font-medium lens-uppercase lens-tracking-wide lens-text-faint;
+    @apply lens-text-base lens-font-medium lens-uppercase lens-tracking-wide lens-text-faint;
   }
 
   .lens-coverage-track {
@@ -2338,7 +2345,7 @@
   }
 
   .lens-coverage-legend-row {
-    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-sm;
+    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-md;
     border-color: var(--lens-divider);
   }
 
@@ -2361,7 +2368,7 @@
   }
 
   .lens-coverage-legend-share {
-    @apply lens-w-12 lens-shrink-0 lens-text-right lens-text-xs lens-font-semibold lens-text-faint;
+    @apply lens-w-12 lens-shrink-0 lens-text-right lens-text-base lens-font-semibold lens-text-faint;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -2383,7 +2390,7 @@
   }
 
   .lens-chart-keyboard-actions button {
-    @apply lens-sr-only lens-rounded-control lens-border lens-border-solid lens-border-accent-500 lens-bg-card lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-accent-700 lens-shadow-card;
+    @apply lens-sr-only lens-rounded-control lens-border lens-border-solid lens-border-accent-500 lens-bg-card lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-accent-700 lens-shadow-card;
   }
 
   .lens-chart-keyboard-actions button:focus {
@@ -2402,16 +2409,16 @@
   }
 
   .lens-chart-load-error {
-    @apply lens-absolute lens-inset-3 lens-flex lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-control lens-bg-inset lens-p-3 lens-text-center lens-text-sm lens-text-neg;
+    @apply lens-absolute lens-inset-3 lens-flex lens-flex-col lens-items-center lens-justify-center lens-gap-1 lens-rounded-control lens-bg-inset lens-p-3 lens-text-center lens-text-md lens-text-neg;
   }
 
   .lens-chart-load-error-detail {
-    @apply lens-max-w-full lens-truncate lens-text-xs lens-text-muted;
+    @apply lens-max-w-full lens-truncate lens-text-base lens-text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-chart-drill-hint {
-    @apply lens-pointer-events-none lens-absolute lens-bottom-3 lens-right-3 lens-rounded-badge lens-bg-card lens-px-2 lens-py-1 lens-text-xs lens-font-semibold lens-text-accent-700 lens-shadow-card;
+    @apply lens-pointer-events-none lens-absolute lens-bottom-3 lens-right-3 lens-rounded-badge lens-bg-card lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-accent-700 lens-shadow-card;
   }
 
   .lens-cascade {
@@ -2423,7 +2430,7 @@
   }
 
   .lens-cascade-connector {
-    @apply lens-ml-1.5 lens-flex lens-items-baseline lens-justify-between lens-gap-3 lens-border-0 lens-border-l-2 lens-border-solid lens-border-border lens-py-1.5 lens-pl-4 lens-text-xs lens-font-medium lens-text-muted;
+    @apply lens-ml-1.5 lens-flex lens-items-baseline lens-justify-between lens-gap-3 lens-border-0 lens-border-l-2 lens-border-solid lens-border-border lens-py-1.5 lens-pl-4 lens-text-base lens-font-medium lens-text-muted;
   }
 
   .lens-cascade-connector strong {
@@ -2448,7 +2455,7 @@
   }
 
   .lens-cascade-stage-label {
-    @apply lens-flex lens-items-baseline lens-justify-between lens-gap-4 lens-text-sm lens-font-medium lens-text-text;
+    @apply lens-flex lens-items-baseline lens-justify-between lens-gap-4 lens-text-md lens-font-medium lens-text-text;
   }
 
   .lens-cascade-stage-label strong {
@@ -2466,7 +2473,7 @@
 
   .lens-cascade-stage-annotation,
   .lens-waterfall-annotation {
-    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-type-xs lens-font-semibold lens-leading-3;
+    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-leading-3;
     border-color: #fecaca;
     background: #fef2f2;
     color: #b91c1c;
@@ -2551,7 +2558,7 @@
   }
 
   .lens-waterfall-axis span {
-    @apply lens-absolute lens-right-3 lens-whitespace-nowrap lens-text-type-sm lens-text-muted;
+    @apply lens-absolute lens-right-3 lens-whitespace-nowrap lens-text-sm lens-text-muted;
     transform: translateY(-50%);
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -2625,7 +2632,7 @@
      two collide in the gutter between columns; a few pixels lower it clears
      that band and lands against the neighbour's empty plot area instead. */
   .lens-waterfall-split-callout {
-    @apply lens-pointer-events-none lens-absolute lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-type-xs lens-font-semibold;
+    @apply lens-pointer-events-none lens-absolute lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-xs lens-font-semibold;
     top: calc(100% + 3px);
     color: var(--lens-neg-alt);
     font-variant-numeric: tabular-nums lining-nums;
@@ -2666,7 +2673,7 @@
   }
 
   .lens-waterfall-bar strong {
-    @apply lens-absolute lens-left-1/2 lens-text-center lens-text-type-sm lens-font-semibold lens-leading-tight lens-text-strong;
+    @apply lens-absolute lens-left-1/2 lens-text-center lens-text-sm lens-font-semibold lens-leading-tight lens-text-strong;
     top: -4px;
     width: 200%;
     overflow-wrap: anywhere;
@@ -2735,7 +2742,7 @@
   }
 
   .lens-waterfall-label {
-    @apply lens-min-w-0 lens-text-center lens-text-xs lens-font-medium lens-leading-4 lens-text-muted;
+    @apply lens-min-w-0 lens-text-center lens-text-base lens-font-medium lens-leading-4 lens-text-muted;
   }
 
   .lens-waterfall-label {
@@ -2778,7 +2785,7 @@
     transform: translateY(-50%);
     width: 28px;
     opacity: 0;
-    transition: opacity var(--lens-duration-fast) var(--lens-ease-standard);
+    transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
   }
 
   .lens-table-overflow-edge::after {
@@ -2826,7 +2833,7 @@
   }
 
   .lens-table-search input {
-    @apply lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-font-sans lens-text-sm lens-text-strong lens-outline-none;
+    @apply lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-font-sans lens-text-md lens-text-strong lens-outline-none;
   }
 
   .lens-table-search input:focus {
@@ -2835,7 +2842,7 @@
   }
 
   .lens-table {
-    @apply lens-w-full lens-border-collapse lens-text-left lens-text-sm;
+    @apply lens-w-full lens-border-collapse lens-text-left lens-text-md;
   }
 
   .lens-table-wide {
@@ -2858,7 +2865,7 @@
   }
 
   .lens-table th {
-    @apply lens-sticky lens-top-0 lens-z-10 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-p-0 lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-sticky lens-top-0 lens-z-10 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-p-0 lens-text-base lens-font-semibold lens-text-muted;
   }
 
   .lens-table th:first-child {
@@ -2866,7 +2873,7 @@
   }
 
   .lens-table th button {
-    @apply lens-flex lens-w-full lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-bg-transparent lens-px-3 lens-py-2.5 lens-text-left lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-w-full lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-bg-transparent lens-px-3 lens-py-2.5 lens-text-left lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
   }
 
   .lens-table th button:hover {
@@ -2936,7 +2943,7 @@
   }
 
   .lens-table-bool {
-    @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-0.5 lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-inline-flex lens-rounded-badge lens-bg-inset lens-px-2 lens-py-0.5 lens-text-base lens-font-semibold lens-text-muted;
   }
 
   .lens-table-bool[data-value='true'] {
@@ -3022,12 +3029,12 @@
   }
 
   .lens-table-small-sample-marker {
-    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-1.5 lens-py-0.5 lens-text-type-xs lens-font-semibold lens-leading-none lens-text-faint;
+    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-leading-none lens-text-faint;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-table-heading-static {
-    @apply lens-block lens-px-3 lens-py-2.5 lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-block lens-px-3 lens-py-2.5 lens-text-base lens-font-semibold lens-text-muted;
   }
 
   .lens-table-bar-value {
@@ -3045,7 +3052,7 @@
   }
 
   .lens-table-delta-pct {
-    @apply lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold;
+    @apply lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-base lens-font-semibold;
     background: var(--lens-pos-soft);
     color: var(--lens-pos);
     font-variant-numeric: tabular-nums lining-nums;
@@ -3063,11 +3070,11 @@
   /* Stacked deltas lead with the percent, so the chip background would fight
      the row; the color alone carries the sign. */
   .lens-table-delta-stacked .lens-table-delta-pct {
-    @apply lens-bg-transparent lens-p-0 lens-text-sm;
+    @apply lens-bg-transparent lens-p-0 lens-text-md;
   }
 
   .lens-table-delta-stacked .lens-table-delta-value {
-    @apply lens-text-xs lens-font-normal lens-text-muted;
+    @apply lens-text-base lens-font-normal lens-text-muted;
   }
 
   .lens-table .lens-table-cell-pill {
@@ -3083,7 +3090,7 @@
   }
 
   .lens-table-cell-link-arrow {
-    @apply lens-text-xs lens-text-accent-700;
+    @apply lens-text-base lens-text-accent-700;
   }
 
   /* Quiet drill cell: the whole cell is the target, but it reads as a plain
@@ -3102,7 +3109,7 @@
   }
 
   .lens-table-cell-quiet-arrow {
-    @apply lens-flex-none lens-text-xs lens-text-accent-700;
+    @apply lens-flex-none lens-text-base lens-text-accent-700;
     opacity: 0;
     transition: opacity 120ms ease;
   }
@@ -3135,7 +3142,7 @@
   }
 
   .lens-table-cell-badge {
-    @apply lens-inline-flex lens-h-4 lens-w-4 lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-inline-flex lens-h-4 lens-w-4 lens-flex-none lens-items-center lens-justify-center lens-rounded-full lens-bg-inset lens-text-base lens-font-semibold lens-text-muted;
     cursor: help;
   }
 
@@ -3146,7 +3153,7 @@
   }
 
   .lens-table-group-toggle-btn {
-    @apply lens-flex lens-w-full lens-items-center lens-gap-2 lens-bg-transparent lens-text-left lens-font-sans lens-text-sm lens-font-medium lens-text-strong;
+    @apply lens-flex lens-w-full lens-items-center lens-gap-2 lens-bg-transparent lens-text-left lens-font-sans lens-text-md lens-font-medium lens-text-strong;
   }
 
   .lens-table-group-chevron {
@@ -3159,7 +3166,7 @@
   }
 
   .lens-table-rowcount {
-    @apply lens-text-xs lens-text-muted;
+    @apply lens-text-base lens-text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -3173,11 +3180,11 @@
   }
 
   .lens-table .lens-leaf-action {
-    @apply lens-bg-transparent lens-px-2 lens-py-1 lens-text-xs lens-text-accent-700;
+    @apply lens-bg-transparent lens-px-2 lens-py-1 lens-text-base lens-text-accent-700;
   }
 
   .lens-table-empty {
-    @apply lens-h-28 lens-text-center lens-text-sm lens-text-muted;
+    @apply lens-h-28 lens-text-center lens-text-md lens-text-muted;
   }
 
   .lens-table-footer {
@@ -3185,11 +3192,11 @@
   }
 
   .lens-table-pagination {
-    @apply lens-flex lens-items-center lens-gap-2 lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-flex lens-items-center lens-gap-2 lens-text-base lens-font-semibold lens-text-muted;
   }
 
   .lens-table-pagination button {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-text;
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-font-semibold lens-text-text;
   }
 
   /* There is no page to go to: the fade says so, and the cursor must not keep
@@ -3224,7 +3231,7 @@
   }
 
   .lens-story-matrix-grid > strong {
-    @apply lens-pb-1 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-pb-1 lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
   .lens-story-row-label {
@@ -3236,7 +3243,7 @@
   }
 
   .lens-story-cell-label {
-    @apply lens-text-xs lens-text-faint;
+    @apply lens-text-base lens-text-faint;
   }
 
   .lens-explore-story {
@@ -3244,7 +3251,7 @@
   }
 
   .lens-story-guide {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-sm lens-leading-6 lens-text-muted lens-shadow-card;
+    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-md lens-leading-6 lens-text-muted lens-shadow-card;
   }
 
   .lens-story-guide strong {
@@ -3260,7 +3267,7 @@
   }
 
   .lens-fake-chart-mark {
-    @apply lens-flex lens-min-h-8 lens-flex-1 lens-items-start lens-justify-center lens-rounded-badge lens-border-0 lens-bg-accent-500 lens-p-1 lens-text-xs lens-font-semibold lens-text-white lens-opacity-80;
+    @apply lens-flex lens-min-h-8 lens-flex-1 lens-items-start lens-justify-center lens-rounded-badge lens-border-0 lens-bg-accent-500 lens-p-1 lens-text-base lens-font-semibold lens-text-white lens-opacity-80;
     height: var(--lens-mark-size);
   }
 
@@ -3283,7 +3290,7 @@
   }
 
   .lens-fake-chart-footer {
-    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-text-xs lens-text-muted;
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-text-base lens-text-muted;
   }
 
   .lens-fake-chart-footer > span {
@@ -3291,7 +3298,7 @@
   }
 
   .lens-fake-chart-footer button {
-    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-text-muted;
+    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-base lens-text-muted;
   }
 
   .lens-fake-chart-footer button[aria-pressed='false'] {
@@ -3299,7 +3306,7 @@
   }
 
   .lens-runtime-notice {
-    @apply lens-mb-3 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-bg-accent-50 lens-p-3 lens-text-sm lens-text-accent-700;
+    @apply lens-mb-3 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-bg-accent-50 lens-p-3 lens-text-md lens-text-accent-700;
   }
 
   .lens-runtime-notice button {
@@ -3307,7 +3314,7 @@
   }
 
   .lens-document-refetch-error {
-    @apply lens-mb-4 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-border lens-border-solid lens-border-border-strong lens-px-3 lens-py-2 lens-font-mono lens-text-xs lens-font-medium lens-text-strong;
+    @apply lens-mb-4 lens-flex lens-items-center lens-justify-between lens-gap-3 lens-rounded-control lens-border lens-border-solid lens-border-border-strong lens-px-3 lens-py-2 lens-font-mono lens-text-base lens-font-medium lens-text-strong;
     background: var(--lens-neg-soft);
     box-shadow: inset 3px 0 0 var(--lens-neg);
   }
@@ -3317,7 +3324,7 @@
   }
 
   .lens-document-refetch-error-actions button {
-    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border-strong lens-bg-card lens-px-2 lens-py-1 lens-font-mono lens-text-xs lens-font-semibold lens-text-text;
+    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border-strong lens-bg-card lens-px-2 lens-py-1 lens-font-mono lens-text-base lens-font-semibold lens-text-text;
   }
 
   .lens-document-refetch-error-actions button:hover {
@@ -3326,7 +3333,7 @@
   }
 
   .lens-document-refetch-error-actions .lens-document-refetch-error-dismiss {
-    @apply lens-border-transparent lens-bg-transparent lens-text-base lens-leading-none lens-text-muted;
+    @apply lens-border-transparent lens-bg-transparent lens-text-lg lens-leading-none lens-text-muted;
   }
 
   .lens-explore {
@@ -3344,7 +3351,7 @@
      label steps aside entirely, leaving the back button — never a one-letter
      stump. The full path stays one click away in the overlay. */
   .lens-trail-current {
-    @apply lens-min-w-0 lens-max-w-full lens-truncate lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-font-sans lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-strong;
+    @apply lens-min-w-0 lens-max-w-full lens-truncate lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-font-sans lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-strong;
     min-width: 5rem;
   }
 
@@ -3378,11 +3385,11 @@
   }
 
   .lens-explore-awaiting-text {
-    @apply lens-m-0 lens-font-sans lens-text-sm lens-text-muted;
+    @apply lens-m-0 lens-font-sans lens-text-md lens-text-muted;
   }
 
   .lens-explore-awaiting-action {
-    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-3 lens-py-1.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-strong;
+    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-3 lens-py-1.5 lens-font-sans lens-text-base lens-font-semibold lens-text-strong;
   }
 
   .lens-explore-awaiting-action:hover {
@@ -3394,7 +3401,7 @@
   }
 
   .lens-drill-path-step {
-    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-rounded-md lens-border-0 lens-bg-transparent lens-px-1 lens-py-1 lens-text-left lens-font-sans lens-text-xs lens-text-muted;
+    @apply lens-flex lens-w-full lens-items-center lens-gap-1 lens-rounded-md lens-border-0 lens-bg-transparent lens-px-1 lens-py-1 lens-text-left lens-font-sans lens-text-base lens-text-muted;
   }
 
   .lens-drill-path-step:hover:not(:disabled) {
@@ -3464,12 +3471,12 @@
   /* Small-caps eyebrow naming what the card describes, above the segment
      title and its figure. */
   .lens-drill-eyebrow {
-    @apply lens-m-0 lens-text-type-xs lens-font-semibold lens-uppercase lens-text-faint;
+    @apply lens-m-0 lens-text-xs lens-font-semibold lens-uppercase lens-text-faint;
     letter-spacing: 0.14em;
   }
 
   .lens-drill-title {
-    @apply lens-m-0 lens-mt-0.5 lens-truncate lens-text-sm lens-font-semibold lens-text-strong;
+    @apply lens-m-0 lens-mt-0.5 lens-truncate lens-text-md lens-font-semibold lens-text-strong;
   }
 
   /* The figure the click asked for: a swatch tying it to the slice's color,
@@ -3490,7 +3497,7 @@
   }
 
   .lens-drill-share {
-    @apply lens-m-0 lens-mt-1 lens-text-xs lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-mt-1 lens-text-base lens-font-medium lens-text-muted;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -3500,7 +3507,7 @@
   }
 
   .lens-drill-section-label {
-    @apply lens-m-0 lens-mb-1 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
+    @apply lens-m-0 lens-mb-1 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
   }
 
   .lens-drill-rows {
@@ -3508,7 +3515,7 @@
   }
 
   .lens-drill-row {
-    @apply lens-relative lens-flex lens-w-full lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-text-left lens-font-sans lens-text-sm lens-text-text lens-transition-colors;
+    @apply lens-relative lens-flex lens-w-full lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-text-left lens-font-sans lens-text-md lens-text-text lens-transition-colors;
   }
 
   .lens-drill-row:hover {
@@ -3525,7 +3532,7 @@
   }
 
   .lens-drill-row-share {
-    @apply lens-w-10 lens-shrink-0 lens-text-right lens-text-xs lens-text-faint;
+    @apply lens-w-10 lens-shrink-0 lens-text-right lens-text-base lens-text-faint;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -3551,7 +3558,7 @@
   }
 
   .lens-drill-perspective {
-    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-base lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-drill-perspective:hover {
@@ -3567,7 +3574,7 @@
   }
 
   .lens-drill-action {
-    @apply lens-flex lens-cursor-pointer lens-items-center lens-justify-between lens-gap-2 lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-font-sans lens-text-sm lens-font-semibold lens-text-accent-700 lens-no-underline lens-transition-colors;
+    @apply lens-flex lens-cursor-pointer lens-items-center lens-justify-between lens-gap-2 lens-rounded-control lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1.5 lens-font-sans lens-text-md lens-font-semibold lens-text-accent-700 lens-no-underline lens-transition-colors;
   }
 
   .lens-drill-action:hover {
@@ -3589,7 +3596,7 @@
      value stays the headline. It flips to the positive color while the
      "copied" confirmation is showing. */
   .lens-drill-copy {
-    @apply lens-size-6 lens-shrink-0 lens-text-sm;
+    @apply lens-size-6 lens-shrink-0 lens-text-md;
   }
 
   .lens-drill-copy[data-copied='true'],
@@ -3599,7 +3606,7 @@
   }
 
   .lens-drill-empty {
-    @apply lens-m-0 lens-px-1.5 lens-py-1 lens-text-sm lens-text-faint;
+    @apply lens-m-0 lens-px-1.5 lens-py-1 lens-text-md lens-text-faint;
   }
 
   .lens-icon {
@@ -3644,7 +3651,7 @@
   }
 
   .lens-leaf-action {
-    @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-sm lens-font-semibold lens-text-white lens-no-underline;
+    @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-md lens-font-semibold lens-text-white lens-no-underline;
   }
 
   /* Shared keyboard-focus ring for every interactive element in the runtime.
@@ -4892,7 +4899,7 @@
 
   .lens-temporal-toggle,
   .lens-temporal-select {
-    @apply lens-min-h-control-md lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-type-sm lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-min-h-control-md lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-temporal-toggle:hover,

@@ -141,7 +141,7 @@ function Family({ kinds, mode }: { kinds: [ChartKind, ChartKind], mode: 'light' 
     <div className="lens-root" data-theme={mode} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
       {kinds.map((kind) => (
         <section key={kind} className="lens-stat-card">
-          <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">{kind}</h2>
+          <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">{kind}</h2>
           <ChartPreview chartInput={input(kind)} />
         </section>
       ))}
@@ -160,11 +160,11 @@ function RadialFamily({ mode }: { mode: 'light' | 'dark' }) {
   return (
     <div className="lens-root" data-theme={mode} style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
       <section className="lens-stat-card">
-        <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Multi-ring partition</h2>
+        <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring partition</h2>
         <ChartPreview chartInput={radialInput('partition')} />
       </section>
       <section className="lens-stat-card">
-        <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Radial progress</h2>
+        <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Radial progress</h2>
         <ChartPreview chartInput={radialInput('progress')} />
       </section>
     </div>
@@ -200,11 +200,11 @@ function receivableRingInput(): ChartInput {
 export const RadialMicroSlice: Story = () => (
   <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
     <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Sub-1% share, called out</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
     <section className="lens-stat-card lens-root" data-theme="dark">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Dark</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
       <ChartPreview chartInput={receivableRingInput()} />
     </section>
   </div>
@@ -253,11 +253,11 @@ export const RadialDark: Story = () => <RadialFamily mode="dark" />
 export const RadialThreeRings: Story = () => (
   <div className="lens-root" data-theme="light" style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 16 }}>
     <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Three rings, one whole</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Three rings, one whole</h2>
       <ChartPreview chartInput={threeRingInput()} />
     </section>
     <section className="lens-stat-card lens-root" data-theme="dark">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Dark</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Dark</h2>
       <ChartPreview chartInput={threeRingInput()} />
     </section>
   </div>
@@ -265,7 +265,7 @@ export const RadialThreeRings: Story = () => (
 export const RadialNarrow: Story = () => (
   <div className="lens-root" data-theme="light" style={{ width: 420 }}>
     <section className="lens-stat-card">
-      <h2 className="lens-m-0 lens-text-sm lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
+      <h2 className="lens-m-0 lens-text-md lens-font-semibold lens-text-strong">Multi-ring on compact cards</h2>
       <ChartPreview chartInput={radialInput('partition')} />
     </section>
   </div>
@@ -277,7 +277,7 @@ export const ControlledSelection: Story = () => {
   return (
     <div className="lens-root" data-theme="light">
       <section className="lens-stat-card" style={{ maxWidth: 640 }}>
-        <p className="lens-m-0 lens-text-sm lens-text-muted">Selected NodeKey: {selectedKey ?? 'none'}</p>
+        <p className="lens-m-0 lens-text-md lens-text-muted">Selected NodeKey: {selectedKey ?? 'none'}</p>
         <ChartPreview chartInput={chartInput} onSelect={setSelectedKey} />
       </section>
     </div>
