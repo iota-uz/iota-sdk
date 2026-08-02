@@ -1,7 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
-import type { ChartAdapter } from '../charts/adapter'
+import type { ChartAdapter, ChartInput } from '../charts/adapter'
 import { fallbackMarkKey } from '../charts/keys'
 import { CoveragePanel, ChartPanel, MarkSelectionContext, StatMetric, StatPanel } from './index'
 import { CascadePanel } from './CascadePanel'
@@ -445,6 +445,141 @@ describe('chart tooltips', () => {
     // Living outside the chart container, a tooltip needs a name of its own to
     // be findable — by a test, and by anyone chasing one that outlived its chart.
     expect(chrome.className).toBe(tooltipClassName)
+  })
+})
+
+/**
+ * A drill is per-segment or it is not a drill.
+ *
+ * The audit's blocker was a donut whose every arc opened the same whole-panel
+ * drawer: the segment was discarded between the click and the URL, so a chart
+ * that highlights each arc on hover answered every one of them identically.
+ * The document now carries one drawer key per row; these guard the runtime half
+ * — that the clicked mark, not the panel or its first row, is what resolves.
+ */
+describe('per-segment drawer drill', () => {
+  const openDrawerPerRow: Action = {
+    kind: 'open_drawer', method: 'POST',
+    drawerKey: { kind: 'field', name: 'drawer_key' },
+    params: [], payload: {},
+  }
+  const segmentFrame: Frame = {
+    columns: [
+      { name: 'id', type: 'string' },
+      { name: 'label', type: 'string' },
+      { name: 'drawer_key', type: 'string' },
+      { name: 'amount', type: 'number' },
+    ],
+    rows: [
+      ['direct', 'Direct', 'family:expenses?branch=direct', 600],
+      ['broker', 'Broker', 'family:expenses?branch=broker', 400],
+    ],
+  }
+
+  function renderDonut() {
+    const panel: Panel = { ...chartPanel([openDrawerPerRow]), kind: 'donut', frame: 'chart:root' }
+    const document = documentWith([panel], { 'chart:root': segmentFrame })
+    document.endpoints = { drawer: '/lens/drawer' }
+    const fetcher = vi.fn<typeof fetch>(() => Promise.resolve(
+      new Response(JSON.stringify({ url: '/lens/document' }), { status: 200 }),
+    ))
+    let select: ((key: string) => void) | undefined
+    const adapter: ChartAdapter = {
+      mount: (_element, _input, events) => {
+        select = (key) => events.onSelect(key)
+        return { update: () => {}, dispose: () => {} }
+      },
+    }
+    const view = render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document}>
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+            <ChartPanel adapter={adapter} panel={panel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    return { ...view, fetcher, activate: (key: string) => select?.(key) }
+  }
+
+  it('asks for the clicked segment’s drawer, not the panel’s', async () => {
+    const { container, fetcher, activate } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+    // The resolver call, not the document fetch the opened drawer makes after it.
+    const resolved = () => fetcher.mock.calls
+      .filter(([url]) => url === '/lens/drawer')
+      .map(([, init]) => typeof init?.body === 'string' ? init.body : '')
+
+    activate('broker')
+    await waitFor(() => expect(resolved()).toHaveLength(1))
+    expect(resolved()[0]).toContain('family:expenses?branch=broker')
+
+    activate('direct')
+    await waitFor(() => expect(resolved()).toHaveLength(2))
+    expect(resolved()[1]).toContain('family:expenses?branch=direct')
+  })
+
+  it('keeps the drill hint in the notes row instead of over the plot', async () => {
+    const { container } = renderDonut()
+    await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
+
+    // In flow, inside the notes row, present whenever the plot is clickable —
+    // not an absolutely positioned pill parked in a corner of the data.
+    const hint = container.querySelector('.lens-chart-notes .lens-chart-drill-hint')
+    expect(hint).not.toBeNull()
+    expect(hint?.textContent).toBe('Select to explore')
+    expect(container.querySelector('.lens-chart-host .lens-chart-drill-hint')).toBeNull()
+  })
+})
+
+/**
+ * The panel a cross-filter was taken from is deliberately excluded from it —
+ * filtering the control by its own answer would delete the other options. That
+ * is only defensible if the panel says so and marks the choice; otherwise a
+ * full distribution beside filtered neighbours reads as a panel that failed.
+ */
+describe('cross-filter source panel', () => {
+  const crossFilter: Action = {
+    kind: 'cross_filter', method: 'GET', params: [], payload: {},
+    filter: { dimension: 'segment', value: { kind: 'field', name: 'id' } },
+  }
+
+  function renderSource(search: string) {
+    window.history.replaceState({}, '', `/sales${search}`)
+    const panel: Panel = { ...chartPanel([crossFilter]), kind: 'hbar' }
+    let input: ChartInput | undefined
+    const adapter: ChartAdapter = {
+      mount: (_element, initial) => {
+        input = initial
+        return { update: (next) => { input = next }, dispose: () => {} }
+      },
+    }
+    const view = renderPanel(
+      documentWith([panel], { 'chart:root': chartFrame }),
+      <ChartPanel adapter={adapter} panel={panel} />,
+    )
+    return { ...view, chartInput: () => input }
+  }
+
+  afterEach(() => window.history.replaceState({}, '', '/'))
+
+  it('marks the filtering mark and explains why the panel is unfiltered', async () => {
+    const { container, chartInput } = renderSource('?_f=segment%3Abroker')
+    await waitFor(() => expect(chartInput()).not.toBeUndefined())
+
+    expect(chartInput()?.selectedKey).toBe('broker')
+    expect(container.querySelector('.lens-chart-source-note')?.textContent)
+      .toBe('All categories shown — the filter applies to the other panels')
+  })
+
+  it('says nothing when the page is filtered by another dimension', async () => {
+    const { container, chartInput } = renderSource('?_f=region%3Anorth')
+    await waitFor(() => expect(chartInput()).not.toBeUndefined())
+
+    expect(chartInput()?.selectedKey).toBeUndefined()
+    expect(container.querySelector('.lens-chart-source-note')).toBeNull()
+    // The affordance still names what the click does on this class of panel.
+    expect(container.querySelector('.lens-chart-drill-hint')?.textContent).toBe('Select to filter the page')
   })
 })
 

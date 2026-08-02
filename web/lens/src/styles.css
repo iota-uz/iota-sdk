@@ -3172,12 +3172,25 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  /* What says "this chart goes somewhere" is the labelled hint in the notes row
+     above the plot (`.lens-chart-drill-hint`), not a mark on the plot itself.
+     This used to paint a permanent 2px accent rule down the LEFT EDGE OF THE
+     PLOT: an unlabelled coloured line, present on one panel and absent on its
+     row-neighbour, that read as a stray axis or a rendering inconsistency
+     rather than as an affordance. A signifier that cannot say what it does is
+     decoration. What is left is the pointer, and — while the plot is under the
+     pointer or holds focus — a quiet ring on the chart's own frame: an edge
+     treatment, so nothing repaints the data or shifts its perceived colours. */
   .lens-chart-host-drillable {
-    @apply lens-cursor-pointer lens-border-0 lens-border-l-2 lens-border-solid lens-border-accent-500 lens-transition-colors;
+    @apply lens-cursor-pointer lens-rounded-control;
+    outline: 1px solid transparent;
+    outline-offset: -1px;
+    transition: outline-color var(--lens-dur-fast) var(--lens-ease-standard);
   }
 
-  .lens-chart-host-drillable:hover {
-    box-shadow: inset 2px 0 0 var(--lens-accent-500);
+  .lens-chart-host-drillable:hover,
+  .lens-chart-host-drillable:focus-within {
+    outline-color: color-mix(in srgb, var(--lens-accent-500) 45%, transparent);
   }
 
   .lens-chart-keyboard-actions {
@@ -3212,8 +3225,30 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
-  .lens-chart-drill-hint {
-    @apply lens-pointer-events-none lens-absolute lens-bottom-3 lens-right-3 lens-rounded-badge lens-bg-card lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-accent-700 lens-shadow-card;
+  /* In the notes row, in flow — never over the plot. It was `absolute
+     bottom-3 right-3`, which put it on the x-axis ticks of a horizontal bar
+     chart, inside the legend column of a wide panel (clipping a value), and
+     past the panel's own right edge on a donut. An overlay has to be told what
+     to avoid and that list only ever grows; a row that takes its own height
+     cannot have anything under it. It is also the drillable plot's only
+     signifier now (see `.lens-chart-host-drillable`), so it is legible at rest
+     and strengthens while a mark is under the pointer. */
+  .lens-chart-drill-hint,
+  .lens-chart-source-note {
+    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-px-2 lens-py-1 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  .lens-chart-drill-hint[data-active='true'] {
+    @apply lens-bg-inset lens-text-accent-700;
+  }
+
+  /* A panel that is the SOURCE of the page's cross-filter keeps every category
+     — it is the control the filter is chosen from, so filtering it by its own
+     answer would delete the other options. Said out loud, next to the marked
+     category, because an unmarked full distribution beside filtered neighbours
+     otherwise reads as a panel that failed to update. */
+  .lens-chart-source-note {
+    @apply lens-text-faint;
   }
 
   .lens-cascade {

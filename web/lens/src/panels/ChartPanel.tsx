@@ -9,10 +9,11 @@ import {
 import { remainderColor } from '../charts/palette'
 import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
+import { recordForRow, resolveSourceValue } from '../explore/actions'
 import { childForSelection } from '../explore/model'
 import { ArrowsLeftRight, WarningTriangle } from '../icons'
 import { searchableListEntries } from '../listSearch'
-import { axisUnit, formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { axisUnit, cubeFilterParam, formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFilters, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
 import { ChartDataEquivalent } from './ChartDataEquivalent'
@@ -295,6 +296,45 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     const index = rowIndexForKey(frame.data, panel, key)
     return panelNavigation.urlForRow(frame.data, index >= 0 ? frame.data.rows[index] : undefined)
   }, [frame.data, hasTree, panelNavigation, panel])
+  // A cross-filter panel is the control the page's filter is chosen from, so
+  // the server deliberately leaves it out of its own filter — filtering the
+  // age histogram by «65+» would delete the other bars and with them the way
+  // back. What was missing is any sign of that: the source panel went on
+  // drawing its full distribution while every neighbour dropped to the filtered
+  // subset, so the page looked filtered by nothing and the panel looked stale.
+  // The mark that is doing the filtering is named here, and the panel says why
+  // it is showing all of them (see `.lens-chart-source-note`).
+  const filters = useFilters()
+  const crossFilter = panelNavigation.action?.kind === 'cross_filter' || panelNavigation.action?.kind === 'cube_drill'
+    ? panelNavigation.action.filter
+    : undefined
+  const activeFilterValues = useMemo(() => {
+    if (!crossFilter?.dimension) return undefined
+    const raw = filters.values[cubeFilterParam]
+    const entries = Array.isArray(raw) ? raw : raw ? [raw] : []
+    const prefix = `${crossFilter.dimension}:`
+    const values = new Set(entries.filter((entry) => entry.startsWith(prefix)).map((entry) => entry.slice(prefix.length)))
+    return values.size > 0 ? values : undefined
+  }, [crossFilter?.dimension, filters.values])
+  // The mark key of the row the active filter was taken from, resolved through
+  // the same source the click resolved (`action.filter.value`) and keyed the
+  // same way the chart keys its marks, so the outline lands on the very mark
+  // that was clicked rather than on whichever row happens to share its label.
+  const filteredKey = useMemo<NodeKey | undefined>(() => {
+    if (!activeFilterValues || !crossFilter || !frame.data) return undefined
+    const location = new URL(globalThis.location.href)
+    const data = frame.data
+    for (let index = 0; index < data.rows.length; index += 1) {
+      const value = resolveSourceValue(crossFilter.value, {
+        fields: recordForRow(data, data.rows[index]!),
+        variables: {},
+        location,
+      })
+      const text = textCell(value)
+      if (text !== '' && activeFilterValues.has(text)) return legendKey(data, panel, index)
+    }
+    return undefined
+  }, [activeFilterValues, crossFilter, frame.data, panel])
   const kind = panel.kind as ChartKind
   const degenerate = frame.data
     ? distinctCategoryCount(frame.data, panel) <= 1 && distinctSeriesCount(frame.data, panel) <= 1
@@ -561,7 +601,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     tooltipTotalLabel: translate('panel.total', 'Total'),
     labels: chartLabels,
     theme: document.theme,
-    selectedKey,
+    // An explicit pick wins; otherwise the mark the page is currently filtered
+    // by carries the same outline, so the source panel states its own selection
+    // across a reload or a shared URL, not only in the click that made it.
+    selectedKey: selectedKey ?? filteredKey,
     presentation,
     seriesColor,
     rowColor,
@@ -571,7 +614,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     valueAxis: panel.valueAxis,
     valueUnit: axisUnit(panel.encoding.value ? panel.format[panel.encoding.value] : undefined),
     expandable,
-  }) : undefined, [chartLabels, document.meta?.locale, document.theme, expandable, format, formatAxis, hiddenOverlays, kind, panel.encoding, panel.format, panel.radial, panel.temporal, panel.valueAxis, presentation, renderFrame, rowColor, selectedKey, seriesColor, translate])
+  }) : undefined, [chartLabels, document.meta?.locale, document.theme, expandable, format, formatAxis, filteredKey, hiddenOverlays, kind, panel.encoding, panel.format, panel.radial, panel.temporal, panel.valueAxis, presentation, renderFrame, rowColor, selectedKey, seriesColor, translate])
 
   // The overlays the legend prints, built from the same list the plot draws
   // from and with the same formatters, so a threshold reads "100%" in both.
@@ -663,8 +706,31 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
               was expanded on a zoomable chart. A row that takes its own height
               cannot have anything under it, and the note beside the button
               stops competing with the data for the same pixels. */}
-          {(logarithmic || incompletePeriod || zoomable || (remainderExpanded && collapsedRemainder.collapsed)) && (
+          {(logarithmic || incompletePeriod || zoomable || interactive || activeFilterValues
+            || (remainderExpanded && collapsedRemainder.collapsed)) && (
             <div className="lens-chart-notes">
+              {/* The drillable affordance itself, in the row rather than on the
+                  data — it used to be an absolutely positioned pill in the
+                  plot's bottom-right corner, on the axis ticks / inside the
+                  legend / clipped by the panel edge. Rendered whenever the plot
+                  is clickable so the row's height is reserved either way and
+                  hovering a mark cannot reflow the chart under the pointer. */}
+              {interactive && (
+                <span
+                  className="lens-chart-drill-hint"
+                  data-active={hoveredKey ? 'true' : undefined}
+                  role="note"
+                >
+                  {crossFilter
+                    ? translate('chart.filterHint', 'Select to filter the page')
+                    : translate('chart.drillHint', 'Select to explore')}
+                </span>
+              )}
+              {activeFilterValues && (
+                <span className="lens-chart-source-note" role="note">
+                  {translate('chart.crossFilterSource', 'All categories shown — the filter applies to the other panels')}
+                </span>
+              )}
               {logarithmic && (
                 <span
                   className="lens-chart-log-scale"
@@ -735,11 +801,6 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           />
         )}
       </div>
-      {interactive && hoveredKey && (
-        <span className="lens-chart-drill-hint" role="status">
-          {translate('chart.drillHint', 'Select to explore')}
-        </span>
-      )}
     </PanelFrame>
   )
 }

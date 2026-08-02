@@ -19,6 +19,8 @@ const (
 	I18nChartBoxplotMax               = "chart.boxplot.max"
 	I18nChartCollapseOther            = "chart.collapseOther"
 	I18nChartDrillHint                = "chart.drillHint"
+	I18nChartFilterHint               = "chart.filterHint"
+	I18nChartCrossFilterSource        = "chart.crossFilterSource"
 	I18nChartError                    = "chart.error"
 	I18nChartGaugeRange               = "chart.gaugeRange"
 	I18nChartGaugeValue               = "chart.gaugeValue"
@@ -262,6 +264,7 @@ const (
 	I18nTableSmallSample       = "table.smallSample"
 	I18nTableSmallSampleShort  = "table.smallSampleShort"
 	I18nTableTotal             = "table.total"
+	I18nTableNotSummable       = "table.notSummable"
 	I18nTableBooleanYes        = "table.boolean.yes"
 	I18nTableBooleanNo         = "table.boolean.no"
 	I18nShareCopied            = "share.copied"
@@ -319,7 +322,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
-		I18nChartCollapseOther, I18nChartDrillHint, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
+		I18nChartCollapseOther, I18nChartDrillHint, I18nChartFilterHint, I18nChartCrossFilterSource, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
 		I18nChartAllSeriesHidden, I18nChartShowAllSeries,
 		I18nChartLegendControl, I18nChartLegendHideAll, I18nChartLegendInvert, I18nChartLegendIsolate, I18nChartLegendIsolateName,
 		I18nChartLegendMore, I18nChartLegendCollapse,
@@ -367,7 +370,7 @@ func RuntimeI18nKeys() []string {
 		I18nRuntimeDismiss, I18nRuntimeLoadError, I18nRuntimeRetry, I18nRuntimeSlowLoad,
 		I18nTableActions, I18nTableEmptyPage, I18nTableLoadingPage, I18nTableNext, I18nTableOpenRecord,
 		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSearch, I18nTableSearchPlaceholder, I18nTableScrollLeft, I18nTableScrollRight,
-		I18nTableSmallSample, I18nTableSmallSampleShort, I18nTableTotal, I18nTableBooleanYes, I18nTableBooleanNo, I18nTableScrollRegion, I18nTableFilteredTotal, I18nTableAllRowsTotal, I18nTableFilteredRowCount,
+		I18nTableSmallSample, I18nTableSmallSampleShort, I18nTableTotal, I18nTableNotSummable, I18nTableBooleanYes, I18nTableBooleanNo, I18nTableScrollRegion, I18nTableFilteredTotal, I18nTableAllRowsTotal, I18nTableFilteredRowCount,
 		I18nShareCopied, I18nShareCopy, I18nShareError,
 		I18nSemanticsEvidence, I18nSemanticsPartn, I18nSemanticsRecon, I18nSemanticsSeries,
 		I18nAvailConfig, I18nAvailEmptySource, I18nAvailUnavailable,

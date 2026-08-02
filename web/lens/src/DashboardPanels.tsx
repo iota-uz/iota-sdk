@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from 'react'
 import type { LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
-import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
+import { useDashboard, useDocumentState, useDrawer, useDrawerHeader, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { ShareSliceButton } from './panels/ShareSliceButton'
@@ -611,6 +611,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const { document, canRecompute } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
+  const drawerHeader = useDrawerHeader()
   const print = usePrint()
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
@@ -631,7 +632,19 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   }
 
   const header = document.header
-  const identityTitle = header?.title || document.meta.title
+  // A drawer whose document carries a `drawer` block states its own identity in
+  // the chrome — eyebrow, title, caption and period. The document then printed
+  // its own title and subtitle directly underneath, so «Детализация /
+  // Бухгалтерские страховые выплаты / Период: 1 янв. — 2 авг. 2026» was followed
+  // by the same metric and the same period again. Where the chrome speaks, the
+  // contents do not: the identity belongs to the frame.
+  //
+  // Gated on the chrome actually carrying a title, not merely on being in a
+  // drawer. A document opened without a `drawer` block leaves the chrome's
+  // identity line empty, and suppressing the document's own heading there would
+  // take the drawer's only name away rather than de-duplicate it.
+  const inDrawer = drawer.depth > 0 && Boolean(drawerHeader?.title?.trim())
+  const identityTitle = inDrawer ? '' : (header?.title || document.meta.title)
   const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) || print.available ||
     (document.filters?.length ?? 0) > 0 || canRecompute
   const columns = metricColumnCount(document.layout.rows)
@@ -644,7 +657,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   return (
     <TabStateContext.Provider value={tabState}>
       <main
-        aria-label={identityTitle}
+        aria-label={identityTitle || undefined}
         className={`lens-dashboard${comparing ? ' lens-dashboard-comparing' : ''}`}
         style={{ '--lens-metric-columns': columns } as CSSProperties}
       >
@@ -654,7 +667,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
               muted period + freshness subtitle. Without one, an empty title
               lets a host page own the heading and keeps the dashboard's own
               chrome to the action bar. */}
-            {header ? (
+            {inDrawer ? <span /> : header ? (
               <div className="lens-dashboard-identity">
                 {identityTitle ? <h1 className="lens-dashboard-title">{identityTitle}</h1> : <span />}
                 <DashboardSubtitle subtitle={header.subtitle} />
