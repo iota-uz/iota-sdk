@@ -1,4 +1,4 @@
-import type { Action, CompareValue, DashboardDocument, Filter, PeriodFilter, PeriodValue } from '../contract'
+import type { Action, CompareValue, DashboardDocument, Filter, PeriodFilter, PeriodValue, SegmentedFilter } from '../contract'
 import { parseISODate } from '../controls/model'
 import { resolveSourceValue, variablesFromLocation } from '../explore/actions'
 
@@ -20,7 +20,10 @@ export const cubeGroupByParam = '_groupby'
 
 export function declaredFilters(document: DashboardDocument): Array<Filter> {
   return (document.filters ?? []).filter((filter) =>
-    filter.kind === 'period' && filter.period || filter.kind === 'facet' && filter.facet || filter.kind === 'compare' && filter.compare,
+    filter.kind === 'period' && filter.period
+    || filter.kind === 'facet' && filter.facet
+    || filter.kind === 'compare' && filter.compare
+    || filter.kind === 'segmented' && filter.segmented,
   )
 }
 
@@ -32,6 +35,7 @@ export function filterParamNames(document: DashboardDocument): Array<string> {
   for (const filter of declaredFilters(document)) {
     if (filter.kind === 'period' && filter.period) names.push(filter.period.startParam, filter.period.endParam)
     if (filter.kind === 'compare' && filter.compare) names.push(filter.compare.modeParam, filter.compare.startParam, filter.compare.endParam)
+    if (filter.kind === 'segmented' && filter.segmented) names.push(filter.segmented.param)
   }
   return names
 }
@@ -63,6 +67,16 @@ export function readFilterValues(document: DashboardDocument, url: URL): FilterV
     if (start !== '' && end !== '' && end < start) continue
     values[period.startParam] = start
     values[period.endParam] = end
+  }
+  for (const filter of declaredFilters(document)) {
+    if (filter.kind !== 'segmented' || !filter.segmented) continue
+    const raw = url.searchParams.get(filter.segmented.param)
+    if (raw === null) continue
+    // Same contract as a period boundary: a value the declaration does not
+    // offer is not passed on to the endpoint, it drops the filter back to the
+    // server-normalized selection the document was built with.
+    if (!filter.segmented.options.some((option) => option.value === raw)) continue
+    values[filter.segmented.param] = raw
   }
   const cubeFilters = url.searchParams.getAll(cubeFilterParam)
   if (cubeFilters.length > 0) values[cubeFilterParam] = cubeFilters
@@ -131,6 +145,22 @@ export function currentPeriodValue(period: PeriodFilter, values: FilterValues): 
 
 export function periodValues(period: PeriodFilter, value: PeriodValue): FilterValues {
   return { [period.startParam]: value.start, [period.endParam]: value.end }
+}
+
+/**
+ * The selection a segmented control renders: the URL's validated value when
+ * one is present, otherwise the server-normalized value the document declared.
+ * Exactly the fallback `currentPeriodValue` applies, for the same reason — the
+ * document, not the browser, is the authority on what is currently displayed.
+ */
+export function currentSegmentedValue(segmented: SegmentedFilter, values: FilterValues): string {
+  const value = values[segmented.param]
+  if (typeof value !== 'string') return segmented.value
+  return segmented.options.some((option) => option.value === value) ? value : segmented.value
+}
+
+export function segmentedValues(segmented: SegmentedFilter, value: string): FilterValues {
+  return { [segmented.param]: value }
 }
 
 /**

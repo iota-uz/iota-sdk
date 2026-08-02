@@ -957,3 +957,87 @@ describe('facet filter menu', () => {
     expect(screen.getByRole('searchbox')).toBeInTheDocument()
   })
 })
+
+/** Period + granularity, the shape /analytics/trends declares. */
+function documentWithGranularity(grain: string): DashboardDocument {
+  const period = documentWithPeriod({ start: '2022-01-01', end: '2026-07-22' }).filters![0]!
+  return parseDocument({
+    ...fixture,
+    filters: [period, {
+      id: 'grain',
+      kind: 'segmented',
+      label: 'Periodicity',
+      segmented: {
+        param: 'PeriodGrain',
+        value: grain,
+        options: [
+          { value: 'year', label: 'By year' },
+          { value: 'quarter', label: 'By quarter' },
+        ],
+      },
+    }],
+  })
+}
+
+function granularityFetcher(calls: Array<string>): typeof fetch {
+  return (input: RequestInfo | URL) => {
+    const raw = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+    const url = new URL(raw, 'http://localhost/')
+    calls.push(`${url.pathname}${url.search}`)
+    // The server echoes its own normalization, as the document endpoint does.
+    const grain = url.searchParams.get('PeriodGrain') === 'year' ? 'year' : 'quarter'
+    return Promise.resolve(new Response(
+      JSON.stringify(documentWithGranularity(grain)),
+      { status: 200, headers: { 'Content-Type': 'application/json' } },
+    ))
+  }
+}
+
+describe('SegmentedFilterControl', () => {
+  const segment = (name: string) => screen.getByRole('button', { name })
+
+  it('writes the choice to the URL and refetches the document', async () => {
+    window.history.replaceState(null, '', '/trends')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={granularityFetcher(calls)} />)
+
+    await screen.findByRole('group', { name: 'Periodicity' })
+    expect(segment('By quarter')).toHaveAttribute('aria-pressed', 'true')
+    expect(segment('By year')).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(segment('By year'))
+
+    await waitFor(() => expect(segment('By year')).toHaveAttribute('aria-pressed', 'true'))
+    expect(new URL(window.location.href).searchParams.get('PeriodGrain')).toBe('year')
+    // The document is re-requested through the same funnel as every other
+    // filter, so the panels below are rebuilt by the server, not the browser.
+    expect(calls).toEqual(['/lens/document', '/lens/document?PeriodGrain=year'])
+  })
+
+  it('restores a shared link, and ignores a value the declaration does not offer', async () => {
+    window.history.replaceState(null, '', '/trends?PeriodGrain=year')
+    render(<FiltersFixture fetcher={granularityFetcher([])} />)
+    await screen.findByRole('group', { name: 'Periodicity' })
+    expect(segment('By year')).toHaveAttribute('aria-pressed', 'true')
+
+    cleanup()
+    window.history.replaceState(null, '', '/trends?PeriodGrain=decade')
+    render(<FiltersFixture fetcher={granularityFetcher([])} />)
+    await screen.findByRole('group', { name: 'Periodicity' })
+    expect(segment('By quarter')).toHaveAttribute('aria-pressed', 'true')
+  })
+
+  it('keeps the period beside it untouched', async () => {
+    window.history.replaceState(null, '', '/trends?ActualRangeStart=2025-01-01&ActualRangeEnd=2025-12-31')
+    render(<FiltersFixture fetcher={granularityFetcher([])} />)
+
+    await screen.findByRole('group', { name: 'Periodicity' })
+    fireEvent.click(segment('By year'))
+
+    await waitFor(() => expect(segment('By year')).toHaveAttribute('aria-pressed', 'true'))
+    const params = new URL(window.location.href).searchParams
+    expect(params.get('ActualRangeStart')).toBe('2025-01-01')
+    expect(params.get('ActualRangeEnd')).toBe('2025-12-31')
+    expect(params.get('PeriodGrain')).toBe('year')
+  })
+})

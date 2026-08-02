@@ -467,6 +467,27 @@
     @apply lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-strong;
   }
 
+  /* The labelled segmented control. It owns no chrome of its own: the track is
+     the period control's tray (.lens-filter) and the segments are its chips,
+     so a closed single choice is stated in the one language the header already
+     speaks. Only the leading name is new, and it borrows the comparison
+     trigger's small-caps voice — for the same reason: «По кварталам» does not
+     say what it is a choice about. */
+  .lens-segmented-filter {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-items-center lens-gap-2;
+  }
+
+  .lens-segmented-label {
+    @apply lens-flex-none lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    font-size: var(--lens-type-xs);
+  }
+
+  /* Two or three permanent segments never overflow, so the track does not
+     carry the period tray's scroll affordances. */
+  .lens-segmented-track {
+    @apply lens-flex-none;
+  }
+
   .lens-compare-option-mark {
     @apply lens-flex lens-size-4 lens-flex-none lens-items-center lens-justify-center lens-text-accent-700;
   }

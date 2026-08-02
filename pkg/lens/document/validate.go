@@ -137,7 +137,7 @@ func validateFilters(filters []Filter) error {
 			if filter.Period == nil {
 				return fmt.Errorf("filter %s requires a period payload", filter.ID)
 			}
-			if filter.Facet != nil || filter.Compare != nil {
+			if filter.Facet != nil || filter.Compare != nil || filter.Segmented != nil {
 				return fmt.Errorf("filter %s cannot carry both period and facet payloads", filter.ID)
 			}
 			if err := validatePeriodFilter(filter.ID, *filter.Period); err != nil {
@@ -147,7 +147,7 @@ func validateFilters(filters []Filter) error {
 			if filter.Facet == nil {
 				return fmt.Errorf("filter %s requires a facet payload", filter.ID)
 			}
-			if filter.Period != nil || filter.Compare != nil {
+			if filter.Period != nil || filter.Compare != nil || filter.Segmented != nil {
 				return fmt.Errorf("filter %s cannot carry both period and facet payloads", filter.ID)
 			}
 			if err := validateFacetFilter(filter.ID, *filter.Facet); err != nil {
@@ -157,10 +157,20 @@ func validateFilters(filters []Filter) error {
 			if filter.Compare == nil {
 				return fmt.Errorf("filter %s requires a comparison payload", filter.ID)
 			}
-			if filter.Period != nil || filter.Facet != nil {
+			if filter.Period != nil || filter.Facet != nil || filter.Segmented != nil {
 				return fmt.Errorf("filter %s cannot mix comparison with another payload", filter.ID)
 			}
 			if err := validateCompareFilter(filter.ID, *filter.Compare); err != nil {
+				return err
+			}
+		case FilterKindSegmented:
+			if filter.Segmented == nil {
+				return fmt.Errorf("filter %s requires a segmented payload", filter.ID)
+			}
+			if filter.Period != nil || filter.Facet != nil || filter.Compare != nil {
+				return fmt.Errorf("filter %s cannot mix segmented with another payload", filter.ID)
+			}
+			if err := validateSegmentedFilter(filter.ID, *filter.Segmented); err != nil {
 				return err
 			}
 		default:
@@ -185,6 +195,42 @@ func validateCompareFilter(id string, comparison CompareFilter) error {
 	default:
 		return fmt.Errorf("filter %s comparison has unsupported mode %q", id, comparison.Value.Mode)
 	}
+}
+
+// validateSegmentedFilter enforces what makes the control renderable at all:
+// one parameter to write, at least two distinct labelled options to choose
+// between, and a current value that is one of them. A single-option segmented
+// filter is a caption, not a control, and an out-of-set value would leave the
+// tray with no raised member — the state that made the old tabs group
+// ambiguous on a shared link.
+func validateSegmentedFilter(id string, segmented SegmentedFilter) error {
+	if strings.TrimSpace(segmented.Param) == "" {
+		return fmt.Errorf("filter %s segmented requires a param", id)
+	}
+	if len(segmented.Options) < 2 {
+		return fmt.Errorf("filter %s segmented requires at least two options", id)
+	}
+	seen := make(map[string]struct{}, len(segmented.Options))
+	matched := false
+	for _, option := range segmented.Options {
+		if strings.TrimSpace(option.Value) == "" {
+			return fmt.Errorf("filter %s segmented option requires a value", id)
+		}
+		if strings.TrimSpace(option.Label) == "" {
+			return fmt.Errorf("filter %s segmented option %q requires a label", id, option.Value)
+		}
+		if _, duplicate := seen[option.Value]; duplicate {
+			return fmt.Errorf("filter %s segmented has duplicate option %q", id, option.Value)
+		}
+		seen[option.Value] = struct{}{}
+		if option.Value == segmented.Value {
+			matched = true
+		}
+	}
+	if !matched {
+		return fmt.Errorf("filter %s segmented value %q is not one of its options", id, segmented.Value)
+	}
+	return nil
 }
 
 func validateFacetFilter(id string, facet FacetFilter) error {

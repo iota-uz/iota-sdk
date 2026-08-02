@@ -175,6 +175,17 @@ const (
 	// producer-owned options endpoint.
 	FilterKindFacet   FilterKind = "facet"
 	FilterKindCompare FilterKind = "compare"
+	// FilterKindSegmented is a small closed set of mutually exclusive values
+	// rendered inline — the shape a dashboard reaches for when a choice is
+	// short, permanent and cheap enough that hiding it behind a popover costs
+	// more than showing it. It exists so that such a choice can be a *filter*:
+	// URL state that survives reload and sharing, re-entering through
+	// syncFiltersFromURL like every other control. Before it, the only way to
+	// express "one of two/three modes" was a Tabs panel group, which is a
+	// layout container — its selection is renderer state, it is invisible to
+	// the URL, and it forces every branch of the choice to be materialized as
+	// a nested panel inside a panel.
+	FilterKindSegmented FilterKind = "segmented"
 )
 
 // Filter declares one dashboard-level control. The document owns the
@@ -193,8 +204,26 @@ type Filter struct {
 	// payload field must be set.
 	Period *PeriodFilter `json:"period,omitempty"`
 	// Facet carries the payload of a searchable multi-select filter.
-	Facet   *FacetFilter   `json:"facet,omitempty"`
-	Compare *CompareFilter `json:"compare,omitempty"`
+	Facet     *FacetFilter     `json:"facet,omitempty"`
+	Compare   *CompareFilter   `json:"compare,omitempty"`
+	Segmented *SegmentedFilter `json:"segmented,omitempty"`
+}
+
+// SegmentedFilter declares a single-choice control over a closed option set.
+// Param is the one query parameter the choice is written to; Value is the
+// server-normalized current selection and must be one of Options.
+type SegmentedFilter struct {
+	Param   string            `json:"param"`
+	Value   string            `json:"value"`
+	Options []SegmentedOption `json:"options"`
+}
+
+// SegmentedOption is one segment. Label is already localized by the producer:
+// a segmented filter's vocabulary is business vocabulary («По кварталам»), not
+// runtime chrome, so it is not part of the SDK i18n catalogue.
+type SegmentedOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
 }
 
 type CompareMode string

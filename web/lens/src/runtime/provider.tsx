@@ -18,6 +18,7 @@ import {
   periodTransitionValues,
   readFilterValues,
   sameFilterValues,
+  segmentedValues,
   srcWithFilterParams,
   writeFilterValues,
   type FilterValues,
@@ -263,6 +264,7 @@ export interface FiltersContextValue {
   values: FilterValues
   setPeriod: (filter: Filter, value: PeriodValue) => void
   setCompare: (filter: Filter, value: CompareValue) => void
+  setSegmented: (filter: Filter, value: string) => void
   applyURL: (url: string | URL, options?: { newTab?: boolean }) => void
 }
 
@@ -1394,13 +1396,25 @@ function RuntimeCore({
     applyFilterURL(next)
   }, [applyFilterURL])
 
+  // A segmented choice is a single parameter with a closed option set, so it
+  // needs no staging step and no cross-filter canonicalization: it merges into
+  // the current values and goes through the same applyFilterURL funnel every
+  // other control ends in.
+  const setSegmented = useCallback((filter: Filter, value: string) => {
+    if (!filter.segmented || typeof window === 'undefined') return
+    if (!filter.segmented.options.some((option) => option.value === value)) return
+    const merged = { ...filterValuesRef.current, ...segmentedValues(filter.segmented, value) }
+    applyFilterURL(writeFilterValues(new URL(window.location.href), documentRef.current, merged))
+  }, [applyFilterURL])
+
   const filters = useMemo<FiltersContextValue>(() => ({
     filters: filtersEnabled ? declaredFilters(document) : [],
     values: filterValues,
     setPeriod,
     setCompare,
+    setSegmented,
     applyURL: applyFilterURL,
-  }), [applyFilterURL, document, filterValues, filtersEnabled, setCompare, setPeriod])
+  }), [applyFilterURL, document, filterValues, filtersEnabled, setCompare, setPeriod, setSegmented])
 
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),

@@ -407,6 +407,11 @@ func cloneFilters(filters []Filter) []Filter {
 			comparison := *filter.Compare
 			cloned.Compare = &comparison
 		}
+		if filter.Segmented != nil {
+			segmented := *filter.Segmented
+			segmented.Options = slices.Clone(filter.Segmented.Options)
+			cloned.Segmented = &segmented
+		}
 		result[index] = cloned
 	}
 	return result

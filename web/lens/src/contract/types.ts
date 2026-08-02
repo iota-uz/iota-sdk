@@ -188,9 +188,10 @@ export interface Filter {
   period?: PeriodFilter
   facet?: FacetFilter
   compare?: CompareFilter
+  segmented?: SegmentedFilter
 }
 
-export type FilterKind = "compare" | "facet" | "period"
+export type FilterKind = "compare" | "facet" | "period" | "segmented"
 
 export interface FlowReconciliation {
   tolerance?: number
@@ -577,6 +578,17 @@ export interface RadialRing {
   label: string
   order?: number
   total: number
+}
+
+export interface SegmentedFilter {
+  param: string
+  value: string
+  options: Array<SegmentedOption>
+}
+
+export interface SegmentedOption {
+  value: string
+  label: string
 }
 
 export type Semantics = "evidence" | "partition" | "reconciliation" | "series"

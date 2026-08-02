@@ -4,12 +4,14 @@ import {
   compareValues,
   periodTransitionValues,
   currentPeriodValue,
+  currentSegmentedValue,
   declaredFilters,
   filterActionURL,
   filterParamNames,
   periodValues,
   readFilterValues,
   sameFilterValues,
+  segmentedValues,
   srcWithFilterParams,
   writeFilterValues,
 } from './filters'
@@ -231,5 +233,59 @@ describe('comparison and cube interaction state', () => {
     const next = filterActionURL(action, { product_id: 'osago' }, new URL('https://x.test/sales?_f=channel%3Aagent'))!
     expect(next.searchParams.getAll('_f')).toEqual(['channel:agent', 'product:osago'])
     expect(next.searchParams.get('_groupby')).toBe('region')
+  })
+})
+
+const segmentedFilter: Filter = {
+  id: 'grain',
+  kind: 'segmented',
+  label: 'Periodicity',
+  segmented: {
+    param: 'PeriodGrain',
+    value: 'quarter',
+    options: [
+      { value: 'year', label: 'By year' },
+      { value: 'quarter', label: 'By quarter' },
+    ],
+  },
+}
+
+const segmentedDoc = documentWithFilters([periodFilter, segmentedFilter])
+
+describe('segmented filters', () => {
+  it('is a declared filter whose param joins the driven set', () => {
+    expect(declaredFilters(segmentedDoc)).toHaveLength(2)
+    expect(filterParamNames(segmentedDoc)).toContain('PeriodGrain')
+  })
+
+  it('reads only a value the declaration offers', () => {
+    expect(readFilterValues(segmentedDoc, new URL('https://x.test/dash?PeriodGrain=year')))
+      .toEqual({ PeriodGrain: 'year' })
+    // Anything else drops back to the document's own normalized selection,
+    // exactly as an out-of-range period boundary does.
+    expect(readFilterValues(segmentedDoc, new URL('https://x.test/dash?PeriodGrain=month'))).toEqual({})
+    expect(readFilterValues(segmentedDoc, new URL('https://x.test/dash'))).toEqual({})
+  })
+
+  it('falls back to the declared value, and rejects an unknown one', () => {
+    const segmented = segmentedFilter.segmented!
+    expect(currentSegmentedValue(segmented, {})).toBe('quarter')
+    expect(currentSegmentedValue(segmented, { PeriodGrain: 'year' })).toBe('year')
+    expect(currentSegmentedValue(segmented, { PeriodGrain: 'month' })).toBe('quarter')
+    expect(currentSegmentedValue(segmented, { PeriodGrain: ['year'] })).toBe('quarter')
+  })
+
+  it('round-trips through the URL beside every other declared filter', () => {
+    const url = new URL('https://x.test/dash?ActualRangeStart=2026-01-01&ActualRangeEnd=2026-07-22&keep=1')
+    const next = writeFilterValues(url, segmentedDoc, {
+      ActualRangeStart: '2026-01-01',
+      ActualRangeEnd: '2026-07-22',
+      ...segmentedValues(segmentedFilter.segmented!, 'year'),
+    })
+    expect(next.searchParams.get('PeriodGrain')).toBe('year')
+    expect(next.searchParams.get('keep')).toBe('1')
+    expect(readFilterValues(segmentedDoc, next)).toEqual({
+      ActualRangeStart: '2026-01-01', ActualRangeEnd: '2026-07-22', PeriodGrain: 'year',
+    })
   })
 })

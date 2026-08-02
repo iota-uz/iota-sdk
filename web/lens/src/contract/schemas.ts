@@ -211,9 +211,10 @@ export const FilterSchema: z.ZodType<Contract.Filter> = z.lazy(() => z.object({
   period: z.lazy(() => PeriodFilterSchema).optional(),
   facet: z.lazy(() => FacetFilterSchema).optional(),
   compare: z.lazy(() => CompareFilterSchema).optional(),
+  segmented: z.lazy(() => SegmentedFilterSchema).optional(),
 }).strict())
 
-export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["compare", "facet", "period"])
+export const FilterKindSchema: z.ZodType<Contract.FilterKind> = z.enum(["compare", "facet", "period", "segmented"])
 
 export const FlowReconciliationSchema: z.ZodType<Contract.FlowReconciliation> = z.object({
   tolerance: z.number().optional(),
@@ -600,6 +601,17 @@ export const RadialRingSchema: z.ZodType<Contract.RadialRing> = z.object({
   label: z.string(),
   order: z.number().int().optional(),
   total: z.number(),
+}).strict()
+
+export const SegmentedFilterSchema: z.ZodType<Contract.SegmentedFilter> = z.lazy(() => z.object({
+  param: z.string(),
+  value: z.string(),
+  options: z.array(z.lazy(() => SegmentedOptionSchema)),
+}).strict())
+
+export const SegmentedOptionSchema: z.ZodType<Contract.SegmentedOption> = z.object({
+  value: z.string(),
+  label: z.string(),
 }).strict()
 
 export const SemanticsSchema: z.ZodType<Contract.Semantics> = z.enum(["evidence", "partition", "reconciliation", "series"])

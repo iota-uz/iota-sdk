@@ -486,3 +486,43 @@ export const ComparisonCustomInterval: Story = () => (
   />
 )
 ComparisonCustomInterval.storyName = 'Comparison custom interval'
+
+const granularityFilter: Filter = {
+  id: 'grain',
+  kind: 'segmented',
+  label: 'Periodicity',
+  segmented: {
+    param: 'PeriodGrain',
+    value: 'quarter',
+    options: [
+      { value: 'year', label: 'By year' },
+      { value: 'quarter', label: 'By quarter' },
+    ],
+  },
+}
+
+/* Fluid, not a fixed-width box: the point of the story is that the three
+   controls keep one order and one baseline as the header row wraps. */
+function GranularityScene({ theme }: { theme: LensThemeMode }) {
+  const base = filteredDocument()
+  return (
+    <LensDashboard
+      filterToday={storyToday}
+      initialDocument={{ ...base, filters: [periodFilter, granularityFilter, compareFilter] }}
+      theme={theme}
+    />
+  )
+}
+
+/**
+ * The segmented filter in the row it was built for: a closed choice standing
+ * between the period it grains and the comparison it applies to. It reuses the
+ * period control's tray and chips, so the header carries one recessed-track
+ * idiom rather than a second control that merely resembles it — and the choice
+ * it holds is URL state, not the renderer-local selection a Tabs group keeps.
+ */
+export const GranularitySegmented: Story = () => <GranularityScene theme="light" />
+GranularitySegmented.storyName = 'Granularity segmented'
+
+export const GranularitySegmentedDark: Story = () => <GranularityScene theme="dark" />
+GranularitySegmentedDark.storyName = 'Granularity segmented dark'

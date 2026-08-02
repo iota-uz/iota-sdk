@@ -3,6 +3,7 @@ import { X } from '../icons'
 import { CompareFilterControl } from './CompareFilterControl'
 import { FacetFilterMenu } from './FacetFilterMenu'
 import { PeriodFilterControl } from './PeriodFilterControl'
+import { SegmentedFilterControl } from './SegmentedFilterControl'
 import type { CalendarDate } from './model'
 import { clearRendererStateFromURL } from '../runtime/url'
 
@@ -72,12 +73,16 @@ export function FilterBar({ today }: FilterBarProps) {
   return (
     <div aria-label={translate('filter.bar.label', 'Dashboard filters')} className="lens-filter-bar" role="group">
       <div className="lens-filter-bar-controls">
+        {/* Declaration order is render order, and the row only wraps — it never
+            reorders — so a control keeps the same neighbours at every width. */}
         {filters.map((filter) => (
           filter.kind === 'period' && filter.period
             ? <PeriodFilterControl filter={filter} key={filter.id} today={today} />
             : filter.kind === 'compare' && filter.compare
               ? <CompareFilterControl filter={filter} key={filter.id} />
-              : null
+              : filter.kind === 'segmented' && filter.segmented
+                ? <SegmentedFilterControl filter={filter} key={filter.id} />
+                : null
         ))}
         {facets.length > 0 && <FacetFilterMenu filters={facets} />}
       </div>
