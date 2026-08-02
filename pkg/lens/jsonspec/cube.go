@@ -73,25 +73,26 @@ type VariableOption struct {
 }
 
 type DimensionSpec struct {
-	Name         string             `json:"name"`
-	Label        Text               `json:"label"`
-	Type         cube.DimensionType `json:"type"`
-	Column       string             `json:"column"`
-	LabelColumn  string             `json:"labelColumn"`
-	ColorColumn  string             `json:"colorColumn"`
-	Field        string             `json:"field"`
-	LabelField   string             `json:"labelField"`
-	ColorField   string             `json:"colorField"`
-	PanelKind    panel.Kind         `json:"panelKind"`
-	Height       string             `json:"height"`
-	Description  Text               `json:"description"`
-	RequiresJoin []string           `json:"requiresJoin"`
-	Override     *DatasetSpec       `json:"override"`
-	Transforms   []transform.Spec   `json:"transforms"`
-	Colors       []string           `json:"colors"`
-	ValueAxis    panel.ValueAxis    `json:"valueAxis"`
-	ColorScale   string             `json:"colorScale"`
-	Map          *panel.MapSpec     `json:"map"`
+	Name         string                  `json:"name"`
+	Label        Text                    `json:"label"`
+	Type         cube.DimensionType      `json:"type"`
+	Column       string                  `json:"column"`
+	LabelColumn  string                  `json:"labelColumn"`
+	ColorColumn  string                  `json:"colorColumn"`
+	Field        string                  `json:"field"`
+	LabelField   string                  `json:"labelField"`
+	ColorField   string                  `json:"colorField"`
+	PanelKind    panel.Kind              `json:"panelKind"`
+	Height       string                  `json:"height"`
+	Description  Text                    `json:"description"`
+	RequiresJoin []string                `json:"requiresJoin"`
+	Override     *DatasetSpec            `json:"override"`
+	Transforms   []transform.Spec        `json:"transforms"`
+	Colors       []string                `json:"colors"`
+	ValueAxis    panel.ValueAxis         `json:"valueAxis"`
+	ColorScale   string                  `json:"colorScale"`
+	Presentation panel.PresentationHints `json:"presentation"`
+	Map          *panel.MapSpec          `json:"map"`
 }
 
 type MeasureSpec struct {
@@ -289,6 +290,7 @@ func (s DimensionSpec) resolve(opts ResolveOptions) (cube.DimensionSpec, error) 
 		Colors:       resolveStringSlice(s.Colors, opts.Values),
 		ValueAxis:    s.ValueAxis,
 		ColorScale:   resolveString(s.ColorScale, opts.Values),
+		Presentation: s.Presentation,
 	}
 	if s.Map != nil {
 		resolved.Map = &panel.MapSpec{

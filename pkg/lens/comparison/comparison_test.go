@@ -213,6 +213,28 @@ func TestApplyStaticOrdinalAllowsEmptyBaselineFrameSetAsUnavailable(t *testing.T
 	require.Equal(t, []any{nil, nil}, primary.MustField(PreviousField("value")).Values)
 }
 
+// A producer that supplies the tri-state hook owns its silences: a field the
+// hook does not name is neutral, rather than falling through to "higher is
+// better" as the two-state InvertTrend forced it to.
+func TestTrendPolarityHookOwnsItsSilences(t *testing.T) {
+	options := StaticOptions{
+		InvertTrend: func(string) bool { return true },
+		TrendPolarity: func(fieldName string) panel.TrendPolarity {
+			if fieldName == "earned_premium" {
+				return panel.TrendHigherBetter
+			}
+			return panel.TrendNeutral
+		},
+	}
+	require.Equal(t, panel.TrendHigherBetter, options.trendPolarity("earned_premium"))
+	require.Equal(t, panel.TrendNeutral, options.trendPolarity("active_liability"),
+		"the tri-state hook wins over InvertTrend even when it declines to judge")
+
+	legacy := StaticOptions{InvertTrend: func(fieldName string) bool { return fieldName == "loss_ratio" }}
+	require.Equal(t, panel.TrendLowerBetter, legacy.trendPolarity("loss_ratio"))
+	require.Equal(t, panel.TrendNeutral, legacy.trendPolarity("earned_premium"))
+}
+
 func TestApplyStaticConfiguresPanelsWithSharedFieldContract(t *testing.T) {
 	t.Parallel()
 
@@ -237,7 +259,8 @@ func TestApplyStaticConfiguresPanelsWithSharedFieldContract(t *testing.T) {
 	stat := current.Rows[0].Panels[0]
 	require.Equal(t, DeltaField("value"), stat.Trend.AbsoluteField.Name())
 	require.Equal(t, DeltaPercentField("value"), stat.Trend.PercentField.Name())
-	require.True(t, stat.Trend.Invert)
+	require.Equal(t, panel.TrendLowerBetter, stat.Trend.Polarity,
+		"a producer that only declares the legacy InvertTrend hook keeps the colours it had")
 	require.Equal(t, panel.TrendDeltaPercentagePoints, stat.Trend.AbsoluteDeltaUnit)
 	table := current.Rows[0].Panels[1]
 	require.Equal(t, PreviousField("value"), table.Columns[1].Field.Name())

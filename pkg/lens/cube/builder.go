@@ -211,6 +211,12 @@ func (b *DimensionBuilder) ColorScale(scale string) *DimensionBuilder {
 	return b
 }
 
+// Presentation carries renderer-level hints onto the dimension's panel.
+func (b *DimensionBuilder) Presentation(hints panel.PresentationHints) *DimensionBuilder {
+	b.spec.Presentation = hints
+	return b
+}
+
 func (b *DimensionBuilder) ValueAxisScale(scale panel.AxisScale, base int) *DimensionBuilder {
 	b.spec.ValueAxis.Scale = scale
 	if base > 1 {

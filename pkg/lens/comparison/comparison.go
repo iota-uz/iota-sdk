@@ -29,10 +29,37 @@ type Labels struct {
 }
 
 type StaticOptions struct {
-	Labels            Labels
-	MaxTableMetrics   int
-	InvertTrend       func(fieldName string) bool
+	Labels          Labels
+	MaxTableMetrics int
+	// InvertTrend is the legacy two-state direction hook: true means a fall is
+	// the good news. It cannot say "no opinion", so a producer that answers
+	// false for a metric nobody has judged gets it coloured as though higher
+	// were better. Prefer TrendPolarity.
+	InvertTrend func(fieldName string) bool
+	// TrendPolarity is the tri-state form and wins wherever it answers. Return
+	// panel.TrendNeutral — or leave the field nil — for a metric with no
+	// verdict attached, such as sum insured, where a rise is exposure rather
+	// than good or bad news.
+	TrendPolarity     func(fieldName string) panel.TrendPolarity
 	AbsoluteDeltaUnit func(fieldName string) panel.TrendDeltaUnit
+}
+
+// trendPolarity resolves the two hooks into the single value a TrendSpec
+// carries. A producer that supplies TrendPolarity owns the answer completely,
+// including its silences: an unnamed field is neutral, which is the point of
+// the tri-state. InvertTrend is consulted only when no tri-state hook exists,
+// so producers that have not migrated keep the colours they had.
+func (o StaticOptions) trendPolarity(fieldName string) panel.TrendPolarity {
+	if o.TrendPolarity != nil {
+		if polarity := o.TrendPolarity(fieldName); polarity != "" {
+			return polarity
+		}
+		return panel.TrendNeutral
+	}
+	if o.InvertTrend != nil && o.InvertTrend(fieldName) {
+		return panel.TrendLowerBetter
+	}
+	return panel.TrendNeutral
 }
 
 // ConfigureProgressivePresentation declares the comparison fields that a
@@ -122,7 +149,7 @@ func configureProgressivePanel(spec *panel.Spec, enabled bool, options StaticOpt
 		}
 		spec.Trend = &panel.TrendSpec{
 			Label:             options.Labels.Trend,
-			Invert:            options.InvertTrend != nil && options.InvertTrend(valueField),
+			Polarity:          options.trendPolarity(valueField),
 			AbsoluteField:     panel.Ref(DeltaField(valueField)),
 			PercentField:      panel.Ref(DeltaPercentField(valueField)),
 			AbsoluteDeltaUnit: unit,
@@ -481,13 +508,12 @@ func applyPanel(spec *panel.Spec, dashboard *lens.DashboardSpec, options StaticO
 	}
 	switch spec.Kind {
 	case panel.KindStat:
-		invert := options.InvertTrend != nil && options.InvertTrend(valueField)
 		unit := panel.TrendDeltaValue
 		if options.AbsoluteDeltaUnit != nil {
 			unit = options.AbsoluteDeltaUnit(valueField)
 		}
 		spec.Trend = &panel.TrendSpec{
-			Label: options.Labels.Trend, Invert: invert,
+			Label: options.Labels.Trend, Polarity: options.trendPolarity(valueField),
 			AbsoluteField:     panel.Ref(DeltaField(valueField)),
 			PercentField:      panel.Ref(DeltaPercentField(valueField)),
 			AbsoluteDeltaUnit: unit,

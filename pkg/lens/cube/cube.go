@@ -76,6 +76,12 @@ type DimensionSpec struct {
 	Colors       []string
 	ValueAxis    panel.ValueAxis
 	ColorScale   string
+	// Presentation carries renderer-level density choices onto the dimension's
+	// panel. A cube dimension is a panel like any other, and some of these are
+	// statements about the data rather than about density — ColorBySequence
+	// says the categories are ranked, which a hand-written palette can only
+	// imitate for as many steps as it happens to list.
+	Presentation panel.PresentationHints
 	Map          *panel.MapSpec
 }
 

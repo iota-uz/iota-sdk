@@ -328,6 +328,9 @@ func buildDimensionPanel(spec CubeSpec, dim DimensionSpec, resolved dimensionDat
 	if dim.ValueAxis.Scale != "" {
 		builder.ValueAxisScale(dim.ValueAxis.Scale, dim.ValueAxis.LogBase)
 	}
+	if !dim.Presentation.IsZero() {
+		builder.Presentation(dim.Presentation)
+	}
 	if strings.TrimSpace(dim.ColorScale) != "" {
 		colorField := panel.Ref("filter_value")
 		if resolved.HasColorValue {
