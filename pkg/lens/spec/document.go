@@ -81,25 +81,26 @@ type VariableOption struct {
 }
 
 type DimensionSpec struct {
-	Name         string             `json:"name"`
-	Label        Text               `json:"label"`
-	Type         cube.DimensionType `json:"type,omitempty"`
-	Column       string             `json:"column,omitempty"`
-	LabelColumn  string             `json:"labelColumn,omitempty"`
-	ColorColumn  string             `json:"colorColumn,omitempty"`
-	Field        string             `json:"field,omitempty"`
-	LabelField   string             `json:"labelField,omitempty"`
-	ColorField   string             `json:"colorField,omitempty"`
-	PanelKind    panel.Kind         `json:"panelKind,omitempty"`
-	Height       string             `json:"height,omitempty"`
-	Description  Text               `json:"description"`
-	RequiresJoin []string           `json:"requiresJoin,omitempty"`
-	Override     *DatasetSpec       `json:"override,omitempty"`
-	Transforms   []transform.Spec   `json:"transforms,omitempty"`
-	Colors       []string           `json:"colors,omitempty"`
-	ValueAxis    panel.ValueAxis    `json:"valueAxis,omitempty"`
-	ColorScale   string             `json:"colorScale,omitempty"`
-	Map          *panel.MapSpec     `json:"map,omitempty"`
+	Name         string                  `json:"name"`
+	Label        Text                    `json:"label"`
+	Type         cube.DimensionType      `json:"type,omitempty"`
+	Column       string                  `json:"column,omitempty"`
+	LabelColumn  string                  `json:"labelColumn,omitempty"`
+	ColorColumn  string                  `json:"colorColumn,omitempty"`
+	Field        string                  `json:"field,omitempty"`
+	LabelField   string                  `json:"labelField,omitempty"`
+	ColorField   string                  `json:"colorField,omitempty"`
+	PanelKind    panel.Kind              `json:"panelKind,omitempty"`
+	Height       string                  `json:"height,omitempty"`
+	Description  Text                    `json:"description"`
+	RequiresJoin []string                `json:"requiresJoin,omitempty"`
+	Override     *DatasetSpec            `json:"override,omitempty"`
+	Transforms   []transform.Spec        `json:"transforms,omitempty"`
+	Colors       []string                `json:"colors,omitempty"`
+	ValueAxis    panel.ValueAxis         `json:"valueAxis,omitempty"`
+	ColorScale   string                  `json:"colorScale,omitempty"`
+	Presentation panel.PresentationHints `json:"presentation,omitempty"`
+	Map          *panel.MapSpec          `json:"map,omitempty"`
 }
 
 type MeasureSpec struct {

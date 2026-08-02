@@ -383,6 +383,7 @@ func compileDimension(item lensspec.DimensionSpec, opts Options) (cube.Dimension
 		Colors:       resolveStringSlice(item.Colors, opts.Values),
 		ValueAxis:    item.ValueAxis,
 		ColorScale:   resolveString(item.ColorScale, opts.Values),
+		Presentation: item.Presentation,
 	}
 	if item.Map != nil {
 		out.Map = &panel.MapSpec{
