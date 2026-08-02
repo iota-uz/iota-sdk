@@ -3794,12 +3794,60 @@
     @apply lens-left-0 lens-z-20;
   }
 
+  /* A header is a control, so it takes a control height from the token layer:
+     12/16 type plus py-2.5 already measures the lg step exactly, and stating it
+     keeps the mark inside from being what decides how tall a header is. */
   .lens-table th button {
     @apply lens-flex lens-w-full lens-items-center lens-justify-between lens-gap-2 lens-border-0 lens-bg-transparent lens-px-3 lens-py-2.5 lens-text-left lens-font-sans lens-text-base lens-font-semibold lens-text-muted;
+    min-height: var(--lens-control-h-lg);
   }
 
   .lens-table th button:hover {
     @apply lens-text-strong;
+  }
+
+  /* The sort affordance. One box of a fixed width per sortable header whatever
+     the state, so revealing the neutral mark on hover cannot move the label
+     beside it — a moving label in a right-aligned header would undo the
+     alignment it was placed there for. */
+  .lens-table-sort {
+    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-text-faint;
+    width: var(--lens-type-md);
+    opacity: 0;
+    transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  /* The neutral mark is the double arrow stood upright: one glyph saying "this
+     column can be ordered", which is what the ↕ it replaces was drawing. */
+  .lens-table-sort-neutral {
+    transform: rotate(90deg);
+  }
+
+  /* A caret is symmetric, so ascending is the same drawing turned over. */
+  .lens-table-sort-up {
+    transform: rotate(180deg);
+  }
+
+  /* The column that is sorted says so permanently; the columns that merely
+     could be say it when the reader comes near them. */
+  .lens-table-sort-ascending,
+  .lens-table-sort-descending,
+  .lens-table th button:hover .lens-table-sort,
+  .lens-table th button:focus-visible .lens-table-sort {
+    opacity: 1;
+  }
+
+  .lens-table-sort-ascending,
+  .lens-table-sort-descending {
+    color: var(--lens-accent-600);
+  }
+
+  /* Without hover there is no "comes near", and an affordance nothing can
+     reveal is not an affordance. */
+  @media (hover: none) {
+    .lens-table-sort {
+      opacity: 1;
+    }
   }
 
   .lens-table td {
@@ -3881,8 +3929,26 @@
     @apply lens-text-right;
   }
 
-  .lens-table-col-right button {
+  /* `th` is in this selector because without it the rule was dead. Its job is
+     to override `.lens-table th button`, which sets `justify-between`, and
+     `.lens-table-col-right button` scores (0,1,1) against that rule's (0,1,2) —
+     one class and one element against one class and two. So a right-aligned
+     header kept spreading its contents across the full column: on «Убытки по
+     продуктам» the «Выплачено» label ended 161px short of its own digits and
+     the sort glyph sat 138px from the label it belonged to, with a
+     `text-align: right` above it that a flex container never consults. Adding
+     the element takes this rule to (0,2,2), which is what an override has to
+     do — the same lesson the focus-ring block records further down. */
+  .lens-table th.lens-table-col-right button {
     @apply lens-justify-end;
+  }
+
+  /* In a right-aligned column the label's *right* edge is what has to line up
+     with the digits under it, so the sort mark moves to the label's left rather
+     than sitting between the label and the column edge and pushing the label
+     out of alignment by its own width. */
+  .lens-table-col-right button .lens-table-sort {
+    order: -1;
   }
 
   /* A compact number that wraps doubles the row height and stops reading as
@@ -3976,6 +4042,13 @@
   .lens-table-small-sample-marker {
     @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-leading-none lens-text-faint;
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* A totals cell for a column that does not total: the em dash is the
+     statement, so it takes the muted ink of a stated absence rather than the
+     bold of the figures beside it. */
+  .lens-table tfoot td .lens-table-summary-void {
+    @apply lens-font-normal lens-text-faint;
   }
 
   .lens-table-heading-static {

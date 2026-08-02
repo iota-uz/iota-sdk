@@ -628,6 +628,102 @@ describe('TablePanel server readability features', () => {
   })
 })
 
+describe('TablePanel column reading', () => {
+  // A table whose spec declares no alignment at all, so what the header does is
+  // decided by the frame's own column types — plus a compact column holding a
+  // zero beside a value three magnitudes above it, and a column the producer
+  // does not total.
+  const panel: Panel = {
+    id: 'claims-products', kind: 'table', title: 'Claims by product', semantics: 'series', frame: 'panel:claims-products',
+    encoding: { id: 'product', label: 'product', value: 'paid' }, deferred: true,
+    format: {
+      paid: { kind: 'number', minorUnits: false, compact: true, precision: 2 },
+      average: { kind: 'number', minorUnits: false, precision: 0 },
+    },
+    columns: [
+      { field: 'product', label: 'Product', cell: { kind: 'plain' } },
+      { field: 'paid', label: 'Paid', cell: { kind: 'plain' }, total: true },
+      { field: 'average', label: 'Average severity', cell: { kind: 'plain' } },
+    ],
+    actions: [],
+  }
+  const document_: DashboardDocument = {
+    version: '1.0.0', snapshotId: 'reading-snapshot',
+    meta: { dashboardId: 'claims', title: 'Claims', generatedAt: '2026-07-31T00:00:00Z', locale: 'en' },
+    layout: { rows: [{ panels: [{ panelId: panel.id, span: 12 }] }] }, panels: [panel],
+    frames: { 'panel:claims-products': { columns: [], rows: [] } },
+    drill: { inlineDepth: 0, edges: {} }, perspectives: [], endpoints: { panel: '/lens/panel' }, i18n: {},
+    theme: { palette: {}, series: {} },
+  }
+  const fetcher: typeof fetch = () => Promise.resolve(new Response(`${JSON.stringify({
+    panelId: 'claims-products',
+    result: {
+      frames: {
+        'panel:claims-products': {
+          columns: [{ name: 'product', type: 'string' }, { name: 'paid', type: 'number' }, { name: 'average', type: 'number' }],
+          rows: [['Motor', 111_130_000, 9_280_000], ['Travel', 0, 0], ['Cargo', 1_000, 1_000]],
+        },
+      },
+      calculation: { durationMs: 4, cacheHit: false, calculatedAt: '2026-07-31T00:00:00Z' },
+      summary: { values: { paid: 111_175_000 }, filteredRows: 3, totalRows: 3 },
+    },
+  })}\n${JSON.stringify({ complete: true })}\n`, { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } }))
+
+  async function renderPanel() {
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document_}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <TablePanel panel={panel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    await screen.findByText('Motor')
+  }
+
+  it('aligns a numeric column\'s header over its own digits without being told to', async () => {
+    await renderPanel()
+    const headers = Array.from(document.querySelectorAll('thead th'))
+
+    expect(headers[0]).not.toHaveClass('lens-table-col-right')
+    expect(headers[1]).toHaveClass('lens-table-col-right')
+    expect(headers[2]).toHaveClass('lens-table-col-right')
+    const body = Array.from(document.querySelectorAll('tbody tr')[0]?.querySelectorAll('td') ?? [])
+    expect(body[1]).toHaveClass('lens-table-col-right')
+    expect(document.querySelectorAll('tfoot td')[2]).toHaveClass('lens-table-col-right')
+  })
+
+  it('draws sort state instead of typing it, and says it to a screen reader', async () => {
+    await renderPanel()
+    const header = document.querySelectorAll('thead th')[1]!
+
+    expect(document.body.textContent).not.toMatch(/[↑↓↕]/)
+    expect(header).toHaveAttribute('aria-sort', 'none')
+    expect(header.querySelector('.lens-table-sort')).toBeInTheDocument()
+    expect(header.querySelectorAll('.lens-table-sort svg')).toHaveLength(1)
+
+    fireEvent.click(screen.getByRole('button', { name: /Paid/ }))
+    expect(header).toHaveAttribute('aria-sort', 'ascending')
+    expect(header.querySelector('.lens-table-sort-ascending .lens-table-sort-up')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Paid/ }))
+    expect(header).toHaveAttribute('aria-sort', 'descending')
+    expect(header.querySelector('.lens-table-sort-descending')).toBeInTheDocument()
+    expect(header.querySelector('.lens-table-sort-up')).not.toBeInTheDocument()
+  })
+
+  it('says that a column does not total instead of leaving the cell blank', async () => {
+    await renderPanel()
+    const footer = document.querySelectorAll('tfoot td')
+
+    expect(footer[1]).toHaveTextContent('111.18M')
+    expect(footer[2]?.querySelector('.lens-table-summary-void')).toBeInTheDocument()
+    expect(footer[2]).toHaveTextContent('—')
+    expect(screen.getByText('Not summable')).toHaveClass('lens-sr-only')
+  })
+})
+
 describe('column heat', () => {
   it('shades by rank, so one outlier cannot flatten the rest of the column', () => {
     // «Выплачено»: 4,04 млрд against 312 млн against seven rows under 100 млн.

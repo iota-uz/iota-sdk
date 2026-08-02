@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
-import { ArrowUpRight, CaretRight } from '../icons'
+import { ArrowUpRight, ArrowsLeftRight, CaretDown, CaretRight } from '../icons'
 import { clampedDeltaPercent, levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
 import { useActionActivation } from './actions'
@@ -57,6 +57,84 @@ function compare(left: number | string, right: number | string): number {
   return String(left).localeCompare(String(right), undefined, { numeric: true, sensitivity: 'base' })
 }
 
+/**
+ * The sort state of one column, drawn rather than typed.
+ *
+ * `↑ ↓ ↕` were Unicode text: three glyphs whose shape, weight and baseline came
+ * from whatever font the host page happened to load, in a runtime that inlined a
+ * Phosphor set precisely so its marks would not do that (`icons.tsx`). The
+ * caret is `CaretDown`, rotated for the ascending state — a caret is
+ * symmetric, so a rotation is the same drawing, and the runtime already turns
+ * this glyph for the group-row chevron.
+ *
+ * The unsorted state is a different mark, not a fainter caret — the double
+ * arrow, which is what `↕` was drawing — and it is held back until the header is
+ * hovered or focused: a dense table otherwise repeats "you may sort this" on
+ * every column at once, which is noise beside the one column that says which way
+ * it is sorted. It still occupies its box in every state, because revealing it
+ * must not move the label beside it, least of all in a right-aligned header
+ * whose whole point is that the label ends where the digits do.
+ *
+ * The element is decorative; `aria-sort` on the `th` carries the state.
+ */
+function SortIndicator({ direction }: { direction?: SortDirection }) {
+  return (
+    <span
+      aria-hidden="true"
+      className={`lens-table-sort${direction ? ` lens-table-sort-${direction}` : ''}`}
+    >
+      {direction === 'ascending' && <CaretDown className="lens-table-sort-up" />}
+      {direction === 'descending' && <CaretDown />}
+      {!direction && <ArrowsLeftRight className="lens-table-sort-neutral" />}
+    </span>
+  )
+}
+
+/**
+ * Whether a column's contents sit against its right edge.
+ *
+ * Alignment is a property of what the column holds, not of whether a producer
+ * remembered to declare it: digits are read by their place values, so they line
+ * up on the right, and the header that names them has to sit over the same edge
+ * or it heads the column beside it. Reading the frame's own column type is what
+ * makes that true for every table at once — the previous rule consulted
+ * `align` alone, so a numeric column whose spec omitted it printed a
+ * left-aligned label and sort control 160px away from its own values.
+ *
+ * A declared `align` still wins: a producer that says "left" over a numeric
+ * column has a reason (an identifier that happens to be numeric, say).
+ */
+function isRightAligned(column: TableColumn, frame: Frame): boolean {
+  if (column.align) return column.align === 'right'
+  // Bars, underlines and deltas are magnitude cells: their own layout already
+  // packs to the right, so the column reads as numeric whatever the frame says.
+  if (column.cell.kind === 'bar' || column.cell.kind === 'underline' || column.cell.kind === 'delta') return true
+  if (!column.field.trim()) return false
+  return frame.columns.find((candidate) => candidate.name === column.field)?.type === 'number'
+}
+
+/* One notation per column — not done, and here is why.
+ *
+ * A column of numbers is read downwards, so it should carry one notation, and
+ * a compact field does not: it abbreviates each value on its own and stops
+ * abbreviating altogether below the compact floor, so «Выплачено» printed
+ * «111,13 млн», «45 000» and a bare «0» in the same column of digits.
+ *
+ * The rule that fixes that is one shared magnitude per column, which
+ * `formatFieldValueAtReference` already computes for a chart tooltip group.
+ * Routing table cells through it as-is is *not* correct yet: that function
+ * glues the magnitude with a no-break space unconditionally, so it writes
+ * «9.36 B» where the server formatter — and therefore every other cell in a
+ * document that pins its decimal separator to match that formatter — writes
+ * «9.36B», and «111,13 млн» with U+00A0 where the pinned path writes U+0020.
+ * The join has to consult the locale (`pkg/lens/format` marks ru/uz spaced and
+ * en unspaced) before a column can adopt it. That is a change to
+ * `runtime/format.ts`, which is outside this package's scope.
+ *
+ * TODO(lens): make `formatFieldValueAtReference` join like the locale, then
+ * format compact table columns at the column's largest value — excluding
+ * values the shared magnitude would round away, and never excluding zero.
+ */
 function TableCell({ column, format, value }: { column: Column; format?: FieldFormat; value: unknown }) {
   const display = useFormat(format ?? inferredFormat(column))
   const translate = useTranslate()
@@ -381,7 +459,35 @@ export interface TablePanelProps {
 
 function TableSummaryCell({ panel, field, value }: { panel: Panel; field: string; value: unknown }) {
   const display = useFormat(panel.format[field])
-  return <>{value === undefined ? '' : display(value)}</>
+  return <>{value === undefined ? <SummaryVoid /> : display(value)}</>
+}
+
+/**
+ * What a totals row says about a column it cannot total.
+ *
+ * «Средняя тяжесть» left its Итого cell empty, which reads as data that failed
+ * to arrive rather than as a quantity that does not sum — and the two are
+ * indistinguishable from the outside, so the reader has to guess which table
+ * they are looking at. The em dash states the second one on purpose.
+ *
+ * It is a dash and not a computed average deliberately: the runtime is handed a
+ * map of producer-computed totals, and the columns without one are ratios and
+ * per-unit figures whose set-level value is a *weighted* average of inputs this
+ * component never sees. Averaging the visible rows would print a number that is
+ * arithmetically wrong (the mean of nine products' severities is not the
+ * portfolio's severity), and being wrong is worse than being blank. A column
+ * that does have a meaningful set-level value belongs in `summary.values` with
+ * `total: true` — that is the producer's call, and the runtime honours it.
+ */
+function SummaryVoid() {
+  const translate = useTranslate()
+  return (
+    <span className="lens-table-summary-void">
+      <span aria-hidden="true">—</span>
+      {/* TODO(i18n): register `table.notSummable` (en «Not summable», ru «Не суммируется»). */}
+      <span className="lens-sr-only">{translate('table.notSummable', 'Not summable')}</span>
+    </span>
+  )
 }
 
 type RenderRow =
@@ -528,9 +634,7 @@ export function TablePanel({ panel }: TablePanelProps) {
     if (serverSort) void pagination.sort(panel.id, { field: column, direction: next.direction === 'ascending' ? 'asc' : 'desc' })
   }
 
-  const sortIndicator = (name: string) => sort?.column === name
-    ? sort.direction === 'ascending' ? '↑' : '↓'
-    : '↕'
+  const sortDirection = (name: string) => sortEnabled && sort?.column === name ? sort.direction : undefined
   const columnCount = columns ? columns.length + (rowLeafAction ? 1 : 0) : (frame.data?.columns.length ?? 0) + 1
 
   useLayoutEffect(() => {
@@ -662,7 +766,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                           return (
                             <th
                               aria-sort={sortable ? (sort?.column === column.field ? sort.direction : 'none') : undefined}
-                              className={column.align === 'right' ? 'lens-table-col-right' : undefined}
+                              className={isRightAligned(column, frame.data!) ? 'lens-table-col-right' : undefined}
                               key={column.field || `column-${columnIndex}`}
                               scope="col"
                               style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
@@ -670,7 +774,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                               {sortable ? (
                                 <button type="button" onClick={() => changeSort(column.field)}>
                                   <span>{column.label}</span>
-                                  <span aria-hidden="true">{sortIndicator(column.field)}</span>
+                                  <SortIndicator direction={sortDirection(column.field)} />
                                 </button>
                               ) : (
                                 <span className="lens-table-heading-static">{column.label}</span>
@@ -687,11 +791,19 @@ export function TablePanel({ panel }: TablePanelProps) {
                     ) : (
                       <>
                         {frame.data.columns.map((column) => (
-                          <th aria-sort={sortEnabled ? (sort?.column === column.name ? sort.direction : 'none') : undefined} key={column.name} scope="col">
+                          <th
+                            aria-sort={sortEnabled ? (sort?.column === column.name ? sort.direction : 'none') : undefined}
+                            /* The body cell for these types is right-aligned
+                               (`.lens-table-cell-number`, `-time`); the header
+                               follows the data it heads. */
+                            className={column.type === 'number' || column.type === 'time' ? 'lens-table-col-right' : undefined}
+                            key={column.name}
+                            scope="col"
+                          >
                             {sortEnabled ? (
                               <button type="button" onClick={() => changeSort(column.name)}>
                                 <span>{column.name}</span>
-                                <span aria-hidden="true">{sortIndicator(column.name)}</span>
+                                <SortIndicator direction={sortDirection(column.name)} />
                               </button>
                             ) : (
                               <span className="lens-table-heading-static">{column.name}</span>
@@ -744,7 +856,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                     <tr className={entry.kind === 'member' ? 'lens-table-group-member' : undefined} key={entry.index}>
                       {columns.map((column, columnIndex) => (
                         <td
-                          className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+                          className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
                           key={column.field || `column-${columnIndex}`}
                           style={{
                             ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
@@ -782,7 +894,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                     <tr>
                       {columns.map((column, index) => (
                         <td
-                          className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+                          className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
                           key={column.field || `summary-${index}`}
                         >
                           {index === 0
@@ -791,7 +903,7 @@ export function TablePanel({ panel }: TablePanelProps) {
                               : translate('table.total', 'Total')
                             : column.total === true
                               ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />
-                              : null}
+                              : <SummaryVoid />}
                         </td>
                       ))}
                       {rowLeafAction && <td />}
@@ -800,12 +912,12 @@ export function TablePanel({ panel }: TablePanelProps) {
                     {frame.summary.fullValues && (
                       <tr className="lens-table-summary-all">
                         {columns.map((column, index) => (
-                          <td className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`} key={column.field || `full-summary-${index}`}>
+                          <td className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`} key={column.field || `full-summary-${index}`}>
                             {index === 0
                               ? translate('table.allRowsTotal', 'All rows total')
                               : column.total === true
                                 ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.fullValues?.[column.field]} />
-                                : null}
+                                : <SummaryVoid />}
                           </td>
                         ))}
                         {rowLeafAction && <td />}
@@ -896,7 +1008,7 @@ function GroupToggleRow({
         const label = typeof rawLabel === 'string' ? rawLabel : ''
         return (
           <td
-            className={`lens-table-cell${column.align === 'right' ? ' lens-table-col-right' : ''}`}
+            className={`lens-table-cell${isRightAligned(column, frame) ? ' lens-table-col-right' : ''}`}
             key={column.field || `column-${columnIndex}`}
             style={{
               ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
