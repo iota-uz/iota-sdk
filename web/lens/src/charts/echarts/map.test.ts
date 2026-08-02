@@ -44,13 +44,16 @@ describe('choropleth option', () => {
         labelLayout: { hideOverlap: boolean }
       }>
     }
-    expect(option.visualMap).toMatchObject({ min: 18, max: 42 })
+    // The colour domain is the rank the series carries, not the amount: one
+    // region three orders of magnitude above the rest would otherwise flatten
+    // every other region onto the pale end of a linear ramp.
+    expect(option.visualMap).toMatchObject({ min: 0, max: 1 })
     expect(option.series[0]).toMatchObject({ map: 'synthetic', nameProperty: 'code' })
     expect(option.series[0]!.labelLayout).toEqual({ hideOverlap: true })
     expect(option.series[0]!.label.padding).toEqual([4, 8])
     expect(option.series[0]!.data).toEqual([
-      { name: 'north', value: 42, nodeKey: 'north', displayLabel: 'North district' },
-      { name: 'south', value: 18, nodeKey: 'south', displayLabel: 'South district' },
+      { name: 'north', value: 1, amount: 42, nodeKey: 'north', displayLabel: 'North district' },
+      { name: 'south', value: 0, amount: 18, nodeKey: 'south', displayLabel: 'South district' },
     ])
     expect(option.series[0]!.label.formatter({ name: 'north' })).toBe('North district')
   })
@@ -146,12 +149,38 @@ describe('choropleth chrome', () => {
     expect(emphasis.borderWidth).toBe(1.5)
   })
 
+  // Прод-форма данных: Ташкент 31 415 полисов, следующий регион — 10.
+  it('keeps regions distinguishable when one dwarfs the rest', () => {
+    const input: ChartInput = {
+      kind: 'map',
+      frame: {
+        columns: [{ name: 'code', type: 'string' }, { name: 'label', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['north', 'North', 31_415], ['south', 'South', 10], ['east', 'East', 5], ['west', 'West', 1]],
+      },
+      encoding: { id: 'code', label: 'label', value: 'value' },
+      format: (_field, value) => `${String(value)} policies`,
+      theme: { palette: { accent: '#2563eb' }, series: {} },
+      map: {
+        name: 'synthetic', featureProperty: 'code', labelProperty: 'name',
+        geoJSON: { type: 'FeatureCollection', features: [] },
+      },
+    }
+    const option = buildMapOption(input, theme) as {
+      series: Array<{ data: Array<{ value: number }> }>
+    }
+    const shades = option.series[0]!.data.map((item) => item.value)
+
+    // Linear in the amount these were 1, 0.0003, 0.0001, 0 — one region shaded
+    // and three indistinguishable from each other and from "no data".
+    expect(shades).toEqual([1, 2 / 3, 1 / 3, 0])
+  })
+
   it('says a region has no reading rather than formatting one it never had', () => {
     const option = buildMapOption(mapInput(), theme) as {
-      tooltip: { formatter: (params: { name?: string; data?: { value?: unknown } }) => string }
+      tooltip: { formatter: (params: { name?: string; data?: { amount?: unknown } }) => string }
     }
 
     expect(option.tooltip.formatter({ name: 'south' })).toContain('Нет данных')
-    expect(option.tooltip.formatter({ name: 'north', data: { value: 42 } })).toContain('$42')
+    expect(option.tooltip.formatter({ name: 'north', data: { amount: 42 } })).toContain('$42')
   })
 })

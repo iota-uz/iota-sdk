@@ -509,7 +509,9 @@ describe('buildChartOption', () => {
       geoJSON: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { code: 'north' }, geometry: { type: 'Polygon', coordinates: [] } }] },
     }
     const chart = buildChartOption(chartInput, theme) as Record<string, unknown>
-    expect(chart.visualMap).toMatchObject({ show: false, min: 42, max: 42 })
+    // A single region has no rank to spread, so the ramp is hidden and the one
+    // swatch below carries the amount.
+    expect(chart.visualMap).toMatchObject({ show: false, min: 0, max: 1 })
     expect(chart.graphic).toBeDefined()
   })
 

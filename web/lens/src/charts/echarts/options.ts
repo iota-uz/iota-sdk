@@ -325,13 +325,38 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
   }
   const frameLabels = new Map<string, string>()
   const values: number[] = []
+  for (const row of input.frame.rows) {
+    const raw = chartValue(row[valueIndex])
+    if (typeof raw === 'number') values.push(raw)
+  }
+  // Shade by rank, not by amount — the same rule the shaded table column
+  // follows. On this map one region carries 31 415 policies and the next
+  // carries 10: linear in the value, thirteen of fourteen regions land on the
+  // palest end and the map says nothing the numeral had not. Ranking answers
+  // what a reader actually asks of a choropleth — which are the big ones, in
+  // order — whatever the distances between them.
+  const sorted = [...values].sort((left, right) => left - right)
+  const rank = (value: number): number => {
+    if (sorted.length <= 1) return 1
+    const first = sorted.indexOf(value)
+    if (first < 0) return 0
+    const last = sorted.lastIndexOf(value)
+    return ((first + last) / 2) / (sorted.length - 1)
+  }
   const data = input.frame.rows.map((row) => {
     const key = text(row[idIndex])
     const raw = chartValue(row[valueIndex])
-    if (typeof raw === 'number') values.push(raw)
     const frameLabel = labelIndex >= 0 ? text(row[labelIndex]) : ''
     if (key && frameLabel) frameLabels.set(key, frameLabel)
-    return { name: key, value: raw, nodeKey: key, displayLabel: frameLabel || featureLabels.get(key) || key }
+    return {
+      name: key,
+      // `value` is the number the visual mapping reads; the amount it stands
+      // for travels beside it and is what the tooltip prints.
+      value: typeof raw === 'number' ? rank(raw) : raw,
+      amount: raw,
+      nodeKey: key,
+      displayLabel: frameLabel || featureLabels.get(key) || key,
+    }
   })
   const min = values.length > 0 ? Math.min(...values) : 0
   const max = values.length > 0 ? Math.max(...values) : 0
@@ -343,13 +368,13 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       ...tooltipChrome(theme),
       trigger: 'item',
       formatter: (params: unknown) => {
-        const record = params as { data?: { displayLabel?: string; value?: unknown }; name?: string }
+        const record = params as { data?: { displayLabel?: string; amount?: unknown }; name?: string }
         const key = record.name ?? ''
         const label = record.data?.displayLabel || frameLabels.get(key) || featureLabels.get(key) || key
         // A region the frame never joined has no reading, and an em-dash cannot
         // say whether that means "nothing happened here" or "this row did not
         // arrive". Only a value that exists is formatted; the rest say so.
-        const raw = record.data?.value
+        const raw = record.data?.amount
         const value = raw === undefined || raw === null || raw === '-'
           ? (input.labels?.noData ?? 'No data')
           : input.format(input.encoding.value ?? '', raw)
@@ -357,7 +382,9 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       },
     },
     visualMap: {
-      type: 'continuous', min: rangeMin, max: rangeMax, calculable: false, orient: 'horizontal',
+      // The domain is the rank the series now carries; the two ends are still
+      // labelled with the real amounts they stand for.
+      type: 'continuous', min: 0, max: 1, calculable: false, orient: 'horizontal',
       show: min !== max,
       left: 'center', bottom: 4, itemWidth: 12, itemHeight: 96,
       text: [input.formatAxis?.(input.encoding.value ?? '', rangeMax) ?? input.format(input.encoding.value ?? '', rangeMax), input.formatAxis?.(input.encoding.value ?? '', rangeMin) ?? input.format(input.encoding.value ?? '', rangeMin)],
@@ -1642,6 +1669,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     type: 'category' as const,
     data: categories,
     triggerEvent: true,
+    // A category axis puts index 0 at the origin, which on a vertical axis is
+    // the bottom — so a frame sorted largest-first was drawn smallest-first
+    // and a ranked breakdown read backwards to anyone scanning it top-down.
+    // Rows arrive in the order the producer meant them to be read; on a
+    // horizontal bar that order runs downwards.
+    ...(horizontal ? { inverse: true } : {}),
     ...axisStyle(theme),
     // One stride for a given number of categories, so two panels over the same
     // domain print the same grid.
