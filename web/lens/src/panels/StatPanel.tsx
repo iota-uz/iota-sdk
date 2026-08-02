@@ -6,7 +6,7 @@ import { usePanelNavigation, usePrefetch, type PrefetchHandlers } from './action
 import { StatValueTicker } from './StatValueTicker'
 import { cell, displayText, panelField } from './data'
 import { InfoTip } from './InfoTip'
-import { PanelFrame, TrendChip } from './PanelFrame'
+import { PanelFrame, TrendChip, trendTone } from './PanelFrame'
 
 export interface StatPanelProps {
   panel: Panel
@@ -26,7 +26,7 @@ function numeric(value: unknown): number | undefined {
  * legacy KPI-strip sparkline: a 1px polyline with a dot on the latest point.
  * Decorative by contract (`aria-hidden`); the trend chip carries the words.
  */
-export function StatSparkline({ sparkline }: { sparkline: Sparkline }) {
+export function StatSparkline({ sparkline, tone }: { sparkline: Sparkline; tone?: 'positive' | 'negative' }) {
   const width = 44
   const height = 18
   const values = sparkline.values.filter((value) => Number.isFinite(value))
@@ -40,7 +40,11 @@ export function StatSparkline({ sparkline }: { sparkline: Sparkline }) {
     return `${x.toFixed(1)},${y.toFixed(1)}`
   })
   const [lastX, lastY] = points[points.length - 1]!.split(',')
-  const color = sparkline.color?.trim() || 'var(--lens-accent-500)'
+  // A producer colour wins; otherwise the line carries the same verdict its
+  // delta chip carries, so the strip reads at a glance rather than only after
+  // the chips are parsed one by one. No verdict keeps the neutral accent.
+  const toneColor = tone === 'positive' ? 'var(--lens-pos)' : tone === 'negative' ? 'var(--lens-neg)' : undefined
+  const color = sparkline.color?.trim() || toneColor || 'var(--lens-accent-500)'
   return (
     <svg
       aria-hidden="true"
@@ -159,7 +163,7 @@ export function StatPanel({ panel }: StatPanelProps) {
                 {deltaNumber !== undefined && deltaNumber > 0 ? '+' : ''}{formatDelta(delta)}
               </span>
             )}
-            {panel.sparkline && <StatSparkline sparkline={panel.sparkline} />}
+            {panel.sparkline && <StatSparkline sparkline={panel.sparkline} tone={trendTone(panel, frame.data)} />}
           </div>
         </div>
       </StatLink>
@@ -227,7 +231,7 @@ export function StatMetric({ panel }: StatPanelProps) {
           {href && <StatDrillMark />}
           {/* A metric that carries a wire sparkline shows it inline to the right
             of the value, echoing the hero card's trend line. */}
-          {panel.sparkline && <StatSparkline sparkline={panel.sparkline} />}
+          {panel.sparkline && <StatSparkline sparkline={panel.sparkline} tone={trendTone(panel, frame.data)} />}
         </div>
         <div className="lens-stat-metric-delta">
           {panel.trend && frame.data?.rows.length ? <TrendChip panel={panel} frame={frame.data} /> : null}

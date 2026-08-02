@@ -55,6 +55,26 @@ function trendPolarity(trend: NonNullable<Panel['trend']>): 'higher_better' | 'l
   return trend.invert ? 'lower_better' : 'neutral'
 }
 
+/**
+ * The verdict a metric's movement earns, or nothing when it has not earned one.
+ *
+ * The strip has exactly one colour channel and this is it: a figure is tinted
+ * when — and only when — the producer has said which direction is good news and
+ * the reading actually moved that way. Everything else stays ink, which is what
+ * keeps the tint worth reading.
+ */
+export function trendTone(panel: Panel, frame: Frame | undefined): 'positive' | 'negative' | undefined {
+  const trend = panel.trend
+  if (!trend) return undefined
+  const percent = numericFrameValue(frame, trend.percentField) ?? trend.percent
+  if (!Number.isFinite(percent) || percent === 0) return undefined
+  if (trend.percentField && numericFrameValue(frame, trend.percentField) === undefined) return undefined
+  const polarity = trendPolarity(trend)
+  if (polarity === 'neutral') return undefined
+  const up = percent > 0
+  return (polarity === 'lower_better' ? !up : up) ? 'positive' : 'negative'
+}
+
 export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   const trend = panel.trend!
   const absolute = numericFrameValue(frame, trend.absoluteField)
