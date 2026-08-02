@@ -239,8 +239,11 @@ describe('DashboardRuntimeProvider', () => {
     expect(await within(retrying).findByRole('alert')).toHaveTextContent('This panel could not be rendered.')
     expect(within(retrying).getByRole('alert')).not.toHaveTextContent('retrying failed')
     expect(within(ready).getByText('11')).toBeInTheDocument()
-    fireEvent.click(within(ready).getByRole('button', { name: 'About this metric' }))
-    expect(await screen.findByText('Calculated in 1.3 s · cache hit')).toBeInTheDocument()
+    // Calculation telemetry is a developer's question and is answered on the
+    // panel element, not inside the reader-facing note.
+    expect(ready).toHaveAttribute('data-calculation-ms', '1250')
+    expect(ready).toHaveAttribute('data-calculation-cache', 'hit')
+    expect(within(ready).queryByRole('button', { name: 'About this metric' })).toBeNull()
 
     fireEvent.click(within(retrying).getByRole('button', { name: 'Retry' }))
     expect(within(retrying).queryByRole('alert')).toBeNull()

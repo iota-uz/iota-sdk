@@ -6,7 +6,7 @@ import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
 import { ChartPanel } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
-import { positionInfoTip } from './InfoTip'
+import { infoTipTailOffset, positionInfoTip } from './InfoTip'
 import { StatMetric, StatPanel } from './StatPanel'
 import { PanelSkeletonBody } from './Skeleton'
 import { TablePanel } from './TablePanel'
@@ -154,7 +154,7 @@ describe('info tip placement', () => {
       { left: 1140, top: 380, bottom: 408 },
       { width: 320, height: 160 },
       { width: 1280, height: 720 },
-    )).toEqual({ left: 952, top: 414 })
+    )).toEqual({ left: 952, top: 414, side: 'below' })
   })
 
   it('flips a tooltip above its trigger when there is no room below', () => {
@@ -162,7 +162,13 @@ describe('info tip placement', () => {
       { left: 400, top: 680, bottom: 708 },
       { width: 320, height: 160 },
       { width: 1280, height: 720 },
-    )).toEqual({ left: 400, top: 514 })
+    )).toEqual({ left: 400, top: 514, side: 'above' })
+  })
+
+  it('points the tail at its trigger, and never past the bubble corners', () => {
+    expect(infoTipTailOffset(600, 560, 320)).toBe(40)
+    expect(infoTipTailOffset(561, 560, 320)).toBe(14)
+    expect(infoTipTailOffset(1000, 560, 320)).toBe(306)
   })
 })
 

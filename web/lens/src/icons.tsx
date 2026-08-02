@@ -314,3 +314,16 @@ export const Info = glyph(
   </>,
   14,
 )
+
+/**
+ * How old the figures are. The freshness stamp is the one fact a reader checks
+ * before trusting a number, so it carries a mark of its own instead of hiding
+ * at the end of a sentence of prose.
+ */
+export const Clock = glyph(
+  <>
+    <circle cx="128" cy="128" r="96" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <polyline points="128 72 128 128 184 128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)

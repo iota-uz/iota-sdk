@@ -137,6 +137,16 @@
     --lens-dur-fast: 120ms;
     --lens-dur-base: 200ms;
     --lens-dur-slow: 320ms;
+    /* The scrim, and what may be drawn on it. A modal's backdrop is not a
+       surface from the palette — it is the absence of one — so the ink and fill
+       of a control that rides it (an expanded panel's Close) cannot come from
+       the text/border tokens, which are chosen against a card. Three names, so
+       the scrim and everything standing on it are stated once. */
+    --lens-scrim: rgba(15, 23, 42, .92);
+    --lens-on-scrim: #ffffff;
+    --lens-on-scrim-fill: rgba(255, 255, 255, .12);
+    --lens-on-scrim-fill-hover: rgba(255, 255, 255, .22);
+    --lens-on-scrim-border: rgba(255, 255, 255, .28);
     --lens-z-sticky: 10;
     --lens-z-popover: 1100;
     --lens-z-overlay: 1200;
@@ -343,9 +353,14 @@
     @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-0.5;
   }
 
+  /* The page's typographic anchor. At the `lg` step the h1 was smaller than
+     every KPI value on the board and four pixels from its own subtitle, so the
+     eye landed on the filter chrome first and nothing said what was being
+     looked at. `xl` is the step below a KPI reading: the page names itself
+     without competing with the figures it introduces. */
   .lens-dashboard-header .lens-dashboard-title {
     @apply lens-m-0 lens-font-semibold lens-tracking-tight lens-text-strong;
-    font-size: var(--lens-type-lg);
+    font-size: var(--lens-type-xl);
     line-height: 1.2;
   }
 
@@ -359,8 +374,17 @@
     @apply lens-text-faint;
   }
 
+  /* A stamp in the action bar, on the control baseline, not a sentence: the
+     age of the data belongs beside Recompute, which is what a reader does
+     about it. */
   .lens-dashboard-updated {
-    @apply lens-m-0 lens-mb-4 lens-text-base lens-font-medium lens-text-muted;
+    @apply lens-m-0 lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-text-base lens-font-medium lens-text-muted;
+  }
+
+  /* Escalation, and only past the threshold: colouring every reading would make
+     the colour mean "this dashboard has a timestamp". */
+  .lens-dashboard-updated[data-stale] {
+    @apply lens-text-warn;
   }
 
   .lens-dashboard-controls {
@@ -1298,32 +1322,50 @@
     container: lens-panel-header / inline-size;
   }
 
-  /* The title names the panel, so it keeps its width and the header's summary
-     chrome absorbs the pressure. The 60% ceiling stops a very long title from
-     pushing the actions out of the card. */
+  /* The panel's identity: its name and the note that explains it, one item so
+     the ⓘ cannot be separated from what it annotates and reparented into the
+     action cluster, where it reads as a fourth button.
+
+     The minimum is what makes the header honest. A title whose min-content is
+     one syllable lets flexbox squeeze the identity to nothing and hand the row
+     to whatever fixed-width control the panel happens to carry; a floor states
+     that the name comes first, and a control cluster that cannot fit beside it
+     wraps to its own line instead of painting over the last word. */
+  .lens-panel-heading {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-gap-1.5 lens-py-1;
+    min-width: 12rem;
+  }
+
+  /* Two lines, then an ellipsis, with the full text on the `title` attribute.
+     A single nowrap line ellipsized at 60% of the header lost three panel
+     names on a 1440px board while 300px of header sat empty beside them; the
+     name of the card is the first thing scanned and it is worth a second
+     line. */
+  /* Shrinks, never grows: a title that took the whole row pushed the ⓘ to the
+     far edge of the card, where it annotates nothing. */
   .lens-panel-title {
-    @apply lens-m-0 lens-flex-none lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
-    max-width: 60%;
+    @apply lens-m-0 lens-min-w-0 lens-shrink lens-grow-0 lens-basis-auto lens-overflow-hidden lens-text-base lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
   }
 
   @media (max-width: 1100px) {
     .lens-panel-header {
       @apply lens-min-h-12;
     }
-
-    .lens-panel-title {
-      @apply lens-min-w-0 lens-flex-1 lens-whitespace-normal lens-py-2;
-      max-width: none;
-      display: -webkit-box;
-      -webkit-box-orient: vertical;
-      -webkit-line-clamp: 2;
-      line-clamp: 2;
-      line-height: 1.2;
-    }
   }
 
+  /* Controls take the width they need and no more; a cluster that no longer
+     fits beside the identity wraps onto its own row. Nothing in this row may
+     overflow its box: `justify-end` sends an overflowing cluster leftwards,
+     across the title and the ⓘ, which is how the trends panels ended up
+     reading «СТРАХОВЫЕ ВЫПЛАТ|Регрессия». */
   .lens-panel-actions {
-    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center lens-justify-end lens-gap-2;
+    @apply lens-flex lens-min-w-0 lens-flex-none lens-flex-wrap lens-items-center lens-justify-end lens-gap-2 lens-py-1;
   }
 
   /* Four-up KPI cards are narrow even on a desktop viewport, so viewport
@@ -1331,27 +1373,22 @@
      and its fixed-size action chrome separate rows based on the card itself.
      The title stays complete; export/expand controls remain reachable. */
   @container lens-panel-header (max-width: 320px) {
-    .lens-panel-title {
-      @apply lens-flex-none lens-whitespace-normal lens-py-2;
+    .lens-panel-heading {
+      @apply lens-flex-none;
       flex-basis: 100%;
-      max-width: none;
+      min-width: 0;
+    }
+
+    .lens-panel-title {
       overflow: visible;
-      text-overflow: clip;
       display: block;
       -webkit-line-clamp: unset;
       line-clamp: unset;
-      line-height: 1.2;
     }
 
     .lens-panel-actions {
-      @apply lens-flex-none lens-pb-1;
+      @apply lens-pb-1;
       flex-basis: 100%;
-    }
-  }
-
-  @media (max-width: 1100px) {
-    .lens-panel-actions {
-      @apply lens-flex-none;
     }
   }
 
@@ -1391,10 +1428,35 @@
   }
 
   .lens-info-tip-bubble {
-    @apply lens-fixed lens-z-50 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-gap-1.5 lens-overflow-y-auto lens-rounded-card lens-border lens-border-solid lens-border-strong lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+    @apply lens-fixed lens-z-50 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-strong lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
 
     max-height: calc(100vh - 1rem);
     box-shadow: var(--lens-shadow-popover);
+  }
+
+  .lens-info-tip-body {
+    @apply lens-flex lens-min-h-0 lens-flex-col lens-gap-1.5 lens-overflow-y-auto;
+  }
+
+  /* The note points back at the glyph that opened it. A floating rectangle
+     with nothing tying it to a trigger is unattributed on a strip of four
+     metrics with four ⓘ; the tail and the trigger's own open state are the two
+     halves of that attribution. */
+  .lens-info-tip-tail {
+    @apply lens-absolute lens-size-2 lens-rotate-45 lens-border lens-border-solid lens-border-strong lens-bg-card;
+    left: calc(var(--lens-info-tip-tail, 14px) - 4px);
+  }
+
+  .lens-info-tip-bubble[data-side="below"] > .lens-info-tip-tail {
+    top: -5px;
+    border-right: 0;
+    border-bottom: 0;
+  }
+
+  .lens-info-tip-bubble[data-side="above"] > .lens-info-tip-tail {
+    bottom: -5px;
+    border-top: 0;
+    border-left: 0;
   }
 
   .lens-info-tip-title {
@@ -1465,6 +1527,13 @@
 
   .lens-icon-button:hover:not(:disabled) {
     @apply lens-border-transparent lens-bg-inset lens-text-strong;
+  }
+
+  /* A pressed ⓘ. Declared after the icon-only weight it overrides, so the open
+     glyph is visibly the one the floating note belongs to — four metrics in a
+     strip carry four of these, and only the tail and this fill say which. */
+  .lens-info-tip-button-open {
+    @apply lens-bg-inset lens-text-strong;
   }
 
   /* Preflight is off, so a <button> keeps the UA's arrow cursor and only
@@ -1570,7 +1639,7 @@
   .lens-panel-overlay {
     @apply lens-fixed lens-inset-0 lens-flex lens-items-center lens-justify-center lens-p-6;
     /* Near-opaque: a sibling card behind the dialog must not read as content. */
-    background: rgba(15, 23, 42, .92);
+    background: var(--lens-scrim);
   }
 
   .lens-panel-overlay-frame {
@@ -1581,6 +1650,20 @@
 
   .lens-panel-overlay-frame > .lens-panel {
     @apply lens-max-h-full lens-min-h-0 lens-flex-1 lens-shadow-lg;
+  }
+
+  /* On the scrim, above the card: the way out of the dialog is the one control
+     that does not belong to the panel being read. It is inside the dialog
+     element, so the focus trap still holds it. */
+  .lens-panel-overlay-close {
+    @apply lens-fixed lens-right-3 lens-top-3 lens-z-10 lens-inline-flex lens-min-h-control-md lens-cursor-pointer lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold;
+    border-color: var(--lens-on-scrim-border);
+    background: var(--lens-on-scrim-fill);
+    color: var(--lens-on-scrim);
+  }
+
+  .lens-panel-overlay-close:hover {
+    background: var(--lens-on-scrim-fill-hover);
   }
 
   /* Long content scrolls inside the dialog instead of overflowing the
@@ -1948,8 +2031,35 @@
     @apply lens-text-faint;
   }
 
+  /* Anchored to its trigger on both axes: one edge is flush with the trigger's
+     (which edge is the trigger's business — see useMenuButton) and it never
+     runs past the fold, because an item a reader cannot see is an item the
+     menu does not have. */
   .lens-export-menu {
-    @apply lens-absolute lens-right-0 lens-top-full lens-z-30 lens-mt-1 lens-flex lens-w-max lens-min-w-40 lens-flex-col lens-gap-0.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-1 lens-shadow-card;
+    @apply lens-absolute lens-z-30 lens-flex lens-w-max lens-min-w-40 lens-flex-col lens-gap-0.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-1 lens-shadow-card;
+    min-width: max(10rem, 100%);
+  }
+
+  .lens-export-menu[data-align="end"] {
+    right: 0;
+    left: auto;
+  }
+
+  .lens-export-menu[data-align="start"] {
+    left: 0;
+    right: auto;
+  }
+
+  .lens-export-menu[data-side="down"] {
+    @apply lens-mt-1;
+    top: 100%;
+    bottom: auto;
+  }
+
+  .lens-export-menu[data-side="up"] {
+    @apply lens-mb-1;
+    bottom: 100%;
+    top: auto;
   }
 
   .lens-export-menu-item {
@@ -1981,11 +2091,14 @@
     @apply lens-font-medium lens-text-muted;
   }
 
-  /* The badge is a summary, not an identifier: when the header runs out of
-     room it ellipsizes (its title attribute carries the full number) instead
-     of squeezing the panel title. */
+  /* The badge is a number, and half a number is not a smaller number — it is a
+     different one. Ellipsizing it ate the label first and then the figure
+     («Итого…», then «И» at 16px of 89), so the one useful part of the badge
+     was the first thing thrown away. It never shrinks now: under pressure it
+     wraps with the rest of the action cluster, and where even that will not fit
+     it steps out of the header entirely (below). */
   .lens-panel-total {
-    @apply lens-block lens-min-w-0 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-strong;
+    @apply lens-block lens-flex-none lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-strong;
   }
 
   .lens-panel-body {
@@ -5449,13 +5562,16 @@
 }
 
 @layer components {
+  /* Two reader controls in a panel header, on a card that may be a third of a
+     board wide. They are content-sized, so they wrap with the cluster around
+     them rather than driving it past the header's left edge. */
   .lens-temporal-controls {
-    @apply lens-flex lens-items-center lens-gap-1;
+    @apply lens-flex lens-min-w-0 lens-flex-wrap lens-items-center lens-justify-end lens-gap-1;
   }
 
   .lens-temporal-toggle,
   .lens-temporal-select {
-    @apply lens-min-h-control-md lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-min-h-control-md lens-max-w-full lens-truncate lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-temporal-toggle:hover,

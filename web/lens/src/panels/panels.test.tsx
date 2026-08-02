@@ -220,11 +220,27 @@ describe('panel total badge', () => {
     }
     const view = render(<PiePanel
       adapter={fakeAdapter()}
-      panel={panel('donut', { presentation: { totalBadge: 'plot' }, total: 3 })}
+      panel={panel('pie', { presentation: { totalBadge: 'plot' }, total: 3 })}
     />)
 
     expect(view.container.querySelector('.lens-plot-total')).toHaveTextContent('Total: 42')
     expect(view.container.querySelector('.lens-plot-total')).not.toHaveTextContent('Total: 3')
+  })
+
+  it('leaves the plot total to the donut hub, which already prints it', () => {
+    runtime.frame = {
+      data: { ...dataFrame, total: 42 },
+      isLoading: false,
+      isStale: false,
+      error: null,
+      retry: vi.fn(),
+    }
+    const view = render(<PiePanel
+      adapter={fakeAdapter()}
+      panel={panel('donut', { presentation: { totalBadge: 'plot' }, total: 42 })}
+    />)
+
+    expect(view.container.querySelector('.lens-plot-total')).toBeNull()
   })
 
   it('does not leak a deferred shell total into an empty hydrated frame', () => {

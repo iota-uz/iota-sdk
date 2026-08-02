@@ -415,7 +415,12 @@ export function rangeHint(
   translate: (key: string, fallback: string, vars?: Record<string, string | number>) => string,
 ): string {
   if (draft.start && draft.end && compareDates(draft.start, draft.end) <= 0) {
-    return translate('filter.period.dayCount', '{count} d.', {
+    // A bare «30 дн.» in a popover footer is a number with no subject: the
+    // reader has to infer that the calendar is telling them how long the range
+    // they just drew is. The label says it.
+    // The abbreviated unit survives every count; a host catalogue can spell it
+    // out with its own plural rules.
+    return translate('filter.period.duration', 'Duration: {count} d.', {
       count: rangeDayCount(draft.start, draft.end),
     })
   }

@@ -8,6 +8,13 @@ export interface InfoTipProps {
   /** Already-localized note. Newlines separate paragraphs. */
   text: string
   /**
+   * What the note is about — the metric's own name. It becomes the bubble's
+   * heading, which otherwise spent its first line restating the three words
+   * the trigger's label already said («About this metric» under a button
+   * labelled «About this metric»), on every panel of every dashboard.
+   */
+  subject?: string
+  /**
    * Compact form for a metric strip cell, whose label is 10px type: the
    * header glyph's 28px hit box would tower over it. Also lifts the control
    * above a card-wide navigate anchor, which otherwise swallows the click.
@@ -18,11 +25,15 @@ export interface InfoTipProps {
 interface FloatingPosition {
   left: number
   top: number
+  /** Which side of the trigger the bubble took, so the tail can point back. */
+  side: 'above' | 'below'
 }
 
 const popoverGap = 6
 const viewportGutter = 8
 const hoverBridgeDelay = 120
+/** Half the tail's width plus the bubble's corner radius. */
+const tailInset = 14
 
 /**
  * Keeps a note inside the viewport while preferring the familiar
@@ -38,10 +49,16 @@ export function positionInfoTip(
   const left = Math.min(Math.max(anchor.left, viewportGutter), maxLeft)
   const below = anchor.bottom + popoverGap
   const above = anchor.top - bubble.height - popoverGap
-  const top = below + bubble.height <= viewport.height - viewportGutter || above < viewportGutter
+  const fitsBelow = below + bubble.height <= viewport.height - viewportGutter || above < viewportGutter
+  const top = fitsBelow
     ? Math.min(Math.max(below, viewportGutter), Math.max(viewportGutter, viewport.height - bubble.height - viewportGutter))
     : above
-  return { left, top }
+  return { left, top, side: fitsBelow ? 'below' : 'above' }
+}
+
+/** Where the tail sits along the bubble's edge, so it points at its trigger. */
+export function infoTipTailOffset(anchorCenter: number, bubbleLeft: number, bubbleWidth: number): number {
+  return Math.min(Math.max(anchorCenter - bubbleLeft, tailInset), Math.max(tailInset, bubbleWidth - tailInset))
 }
 
 /**
@@ -56,11 +73,12 @@ export function positionInfoTip(
  * Hover and focus open it; a click pins it open so the text can be read on a
  * touch screen and selected with the pointer.
  */
-export function InfoTip({ text, inline }: InfoTipProps) {
+export function InfoTip({ text, subject, inline }: InfoTipProps) {
   const translate = useTranslate()
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
   const [position, setPosition] = useState<FloatingPosition>()
+  const [tailOffset, setTailOffset] = useState(tailInset)
   const wrapperRef = useRef<HTMLSpanElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
   const bubbleRef = useRef<HTMLSpanElement>(null)
@@ -84,7 +102,10 @@ export function InfoTip({ text, inline }: InfoTipProps) {
       bubble,
       { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 },
     )
-    setPosition((current) => current?.left === next.left && current.top === next.top ? current : next)
+    setPosition((current) => current?.left === next.left && current.top === next.top && current.side === next.side
+      ? current
+      : next)
+    setTailOffset(infoTipTailOffset((anchor.left + anchor.right) / 2, next.left, bubble.width))
   }, [])
 
   useLayoutEffect(() => {
@@ -150,7 +171,8 @@ export function InfoTip({ text, inline }: InfoTipProps) {
     top: position?.top ?? 0,
     pointerEvents: 'auto',
     visibility: position ? 'visible' : 'hidden',
-  }
+    '--lens-info-tip-tail': `${tailOffset}px`,
+  } as CSSProperties
 
   return (
     <span
@@ -165,9 +187,12 @@ export function InfoTip({ text, inline }: InfoTipProps) {
         aria-describedby={open ? bubbleId : undefined}
         aria-expanded={open}
         aria-label={accessibleLabel}
+        // An open bubble has to say which glyph opened it: a strip of four
+        // metrics with four ⓘ and one floating note left nothing on screen
+        // tying the two together. Class names stay literal for Tailwind's scan.
         className={inline
-          ? 'lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline'
-          : 'lens-export-button lens-icon-button lens-info-tip-button'}
+          ? `lens-export-button lens-icon-button lens-info-tip-button lens-info-tip-button-inline${open ? ' lens-info-tip-button-open' : ''}`
+          : `lens-export-button lens-icon-button lens-info-tip-button${open ? ' lens-info-tip-button-open' : ''}`}
         onBlur={() => setHovered(false)}
         onClick={() => setPinned((current) => !current)}
         onFocus={() => setHovered(true)}
@@ -179,6 +204,7 @@ export function InfoTip({ text, inline }: InfoTipProps) {
       {open && container && createPortal(
         <span
           className="lens-info-tip-bubble"
+          data-side={position?.side ?? 'below'}
           id={bubbleId}
           onMouseEnter={() => { cancelClose(); setHovered(true) }}
           onMouseLeave={(event) => leavingSurface(event, wrapperRef.current)}
@@ -186,10 +212,16 @@ export function InfoTip({ text, inline }: InfoTipProps) {
           role="tooltip"
           style={bubbleStyle}
         >
-          <span className="lens-info-tip-title">{label}</span>
-          {paragraphs.map((paragraph, index) => (
-            <span className="lens-info-tip-text" key={index}>{paragraph}</span>
-          ))}
+          <span aria-hidden="true" className="lens-info-tip-tail" />
+          {/* The scroll box is inside the bubble, not the bubble itself: a
+              scroll container clips on both axes, and the tail hangs over the
+              edge it points from. */}
+          <span className="lens-info-tip-body">
+            <span className="lens-info-tip-title">{subject || label}</span>
+            {paragraphs.map((paragraph, index) => (
+              <span className="lens-info-tip-text" key={index}>{paragraph}</span>
+            ))}
+          </span>
         </span>,
         container,
       )}

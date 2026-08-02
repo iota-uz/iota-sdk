@@ -386,3 +386,37 @@ describe('metric strip grid', () => {
     expect(narrow).toEqual(['1', '1', '2'])
   })
 })
+
+describe('a tab that names its only panel', () => {
+  const revenue = (tab: string): LayoutGroup => ({ id: 'daily', kind: 'tabs', span: 12, label: 'Daily revenue', tab })
+
+  function renderRevenueTabs() {
+    const panels = [statPanel('revenue', 'Revenue'), statPanel('count', 'Policies sold')]
+    const frames = { 'revenue:root': statFrame(1), 'count:root': statFrame(2) }
+    return renderDocument(documentWith(panels, frames, {
+      rows: [{
+        panels: [
+          { panelId: 'revenue', span: 12, groups: [revenue('Revenue')] },
+          { panelId: 'count', span: 12, groups: [revenue('Count')] },
+        ],
+      }],
+    }))
+  }
+
+  it('prints that name once, on the tab, not again on the card inside it', () => {
+    const { container } = renderRevenueTabs()
+
+    // The tab is selected and named «Revenue»; the card behind it drops its
+    // duplicate title but keeps its accessible name.
+    expect(screen.getByRole('tab', { name: 'Revenue' })).toHaveAttribute('aria-selected', 'true')
+    expect(container.querySelector('.lens-panel-stat .lens-panel-title')).toBeNull()
+    expect(screen.getAllByText('Revenue')).toHaveLength(1)
+  })
+
+  it('leaves the card title alone when the tab says something else', () => {
+    renderRevenueTabs()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Count' }))
+    expect(screen.getByRole('heading', { name: 'Policies sold' })).toBeInTheDocument()
+  })
+})

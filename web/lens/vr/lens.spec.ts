@@ -91,6 +91,7 @@ const storyIds = [
   'progressive-panels--sibling-ready-loading-and-error',
   'temporal-overlays--category-axis-overlays',
   'temporal-overlays--comparison-ghost',
+  'temporal-overlays--crowded-panel-header',
   'temporal-overlays--forecast-confidence',
   'temporal-overlays--incomplete-period',
   'temporal-overlays--moving-average',
@@ -251,6 +252,7 @@ const staticStories = [
   // single-category band needs a bar's sense of the band's edges.
   ['temporal-overlays--category-axis-overlays', 1],
   ['temporal-overlays--comparison-ghost', 1],
+  ['temporal-overlays--crowded-panel-header', 1],
   ['temporal-overlays--forecast-confidence', 1],
   ['temporal-overlays--incomplete-period', 1],
   ['temporal-overlays--moving-average', 1],

@@ -26,7 +26,11 @@ export function ExportMenu() {
   const exportState = useExport()
   const print = usePrint()
   const translate = useTranslate()
-  const { closeAndFocusTrigger, container, itemRef, onMenuKeyDown, open, setOpen, trigger } = useMenuButton()
+  // A labelled trigger sits in the middle of the action bar and reads
+  // left-to-right, so its menu hangs from the edge the eye is already on.
+  const {
+    closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, setOpen, trigger,
+  } = useMenuButton('start')
 
   const choices: ExportChoice[] = []
   if (exportState.available) {
@@ -96,8 +100,10 @@ export function ExportMenu() {
         <div
           className="lens-export-menu"
           onKeyDown={onMenuKeyDown}
+          ref={menu}
           role="menu"
           tabIndex={-1}
+          {...menuPlacementProps}
         >
           {choices.map((choice) => (
             <button

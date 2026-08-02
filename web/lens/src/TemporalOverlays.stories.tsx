@@ -261,3 +261,39 @@ export const ForecastConfidence: Story = () => (
   />
 )
 ForecastConfidence.storyName = 'Forecast confidence'
+
+/**
+ * The header under pressure, which is where it used to break.
+ *
+ * A half-width card carrying a long name, a total badge and both temporal
+ * controls: the cluster is wider than the space left beside the title, so it
+ * wraps to its own row. Before, `justify-end` sent the overflow leftwards
+ * instead — the controls painted over the last characters of the title and
+ * completely over the ⓘ («СТРАХОВЫЕ ВЫПЛАТ|Регрессия»), the badge ellipsized to
+ * a single letter, and the ⓘ was reparented into the icon cluster where it read
+ * as another button.
+ */
+export const CrowdedPanelHeader: Story = () => {
+  const storyPanel: Panel = {
+    ...panel({
+      regression: { field: 'regression', label: 'Trend' },
+      movingAverages: [{ window: 3, field: 'sma_3', label: 'SMA 3' }],
+    }, 'Insurance claims paid on motor third-party liability'),
+    caption: 'Claims settled in the period, gross of reinsurance recoveries.',
+    total: 1_842_500,
+  }
+  const crowded: DashboardDocument = {
+    ...storyDocument(storyPanel),
+    layout: { rows: [{ panels: [{ panelId: storyPanel.id, span: 6 }] }] },
+  }
+  return (
+    <div className="lens-root" data-theme="light">
+      <DocumentProvider initialDocument={crowded}>
+        <DashboardRuntimeProvider locale="en">
+          <DashboardPanels />
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+CrowdedPanelHeader.storyName = 'Crowded panel header'

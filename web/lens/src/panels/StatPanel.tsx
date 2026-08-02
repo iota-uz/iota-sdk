@@ -209,7 +209,7 @@ export function StatMetric({ panel }: StatPanelProps) {
             explains how a figure is obtained. A metric that carries that note
             keeps it here, next to the name it belongs to; the caption below
             stays visible prose. */}
-          {note && <InfoTip inline text={note} />}
+          {note && <InfoTip inline subject={caption} text={note} />}
         </p>
         <div className="lens-stat-metric-main">
           <p className="lens-stat-metric-value" title={formatValueExact(value)}>{figure}</p>

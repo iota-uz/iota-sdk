@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useOverlayContainer } from '../runtime/overlayContainer'
+import { useTranslate } from '../runtime'
+import { X } from '../icons'
 
 export interface PanelOverlayProps {
   label: string
@@ -27,6 +29,7 @@ const focusableSelector = [
 export function PanelOverlay({ label, sourceRef, onClose, children }: PanelOverlayProps) {
   const container = useOverlayContainer(true, sourceRef)
   const dialogRef = useRef<HTMLDivElement>(null)
+  const translate = useTranslate()
 
   useEffect(() => {
     if (typeof document === 'undefined') return undefined
@@ -95,6 +98,20 @@ export function PanelOverlay({ label, sourceRef, onClose, children }: PanelOverl
         role="dialog"
         tabIndex={-1}
       >
+        {/* A dialog states how to leave it. The collapse glyph in the panel's
+            own header is the inverse of the control that opened it — it reads
+            as "make smaller", not "close" — and Escape and the scrim are both
+            invisible. A named × on the dialog's own chrome says it once. */}
+        <button
+          aria-label={translate('drawer.close', 'Close')}
+          className="lens-panel-overlay-close"
+          onClick={onClose}
+          title={translate('drawer.close', 'Close')}
+          type="button"
+        >
+          <X />
+          <span>{translate('drawer.close', 'Close')}</span>
+        </button>
         {children}
       </div>
     </div>,

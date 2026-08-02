@@ -159,24 +159,22 @@ export function PanelFrame({
   // which is what the templ runtime already does for stat descriptions.
   const captionBelow = variant === 'stat'
   const captionNode = captionBelow && panel.caption ? <p className="lens-panel-caption">{panel.caption}</p> : null
-  const calculationText = frame.calculation
-    ? translate(
-      'panel.calculation',
-      'Calculated in {duration} · {cache}',
-      {
-        duration: frame.calculation.durationMs < 1000
-          ? `${frame.calculation.durationMs} ms`
-          : `${(frame.calculation.durationMs / 1000).toFixed(1)} s`,
-        cache: frame.calculation.cacheHit
-          ? translate('panel.cacheHit', 'cache hit')
-          : translate('panel.cacheMiss', 'computed'),
-      },
-    )
-    : ''
-  const infoText = [variant === 'chart' ? panel.caption : '', panel.info, calculationText]
+  // What the ⓘ is for: the definition of the figure, and nothing else. It used
+  // to append «Calculated in 0 ms · cache hit» to every panel, which made the
+  // affordance unconditional — a glyph promising an explanation and paying out
+  // query telemetry, on cards that had no explanation to give. Cache state and
+  // millisecond timings are a developer's question, so they are answered where
+  // a developer asks it: on the panel element, readable from the console and
+  // from an automated check, invisible to a reader.
+  const infoText = [variant === 'chart' ? panel.caption : '', panel.info]
     .map((part) => part?.trim() ?? '')
     .filter(Boolean)
     .join('\n\n')
+  // A drill trail replaces the static title: it says where the panel is and how
+  // to get back without spending a row of the grid. A host that already prints
+  // the name (a tab label naming its only panel) suppresses it entirely.
+  const titleNode = chrome?.trail
+    ?? (chrome?.titleIsRedundant ? undefined : <h3 className="lens-panel-title" title={panel.title}>{panel.title}</h3>)
 
   const toggleExpanded = useCallback(() => {
     setExpanded((current) => {
@@ -213,18 +211,25 @@ export function PanelFrame({
       data-expanded={expanded || undefined}
       aria-label={panel.title}
       aria-busy={showLoading}
+      data-calculation-cache={frame.calculation ? (frame.calculation.cacheHit ? 'hit' : 'miss') : undefined}
+      data-calculation-ms={frame.calculation?.durationMs}
       data-panel-kind={panel.kind}
       data-panel-id={panel.id}
       data-stale={frame.isStale || undefined}
     >
       <header className="lens-panel-header">
-        {/* A drill trail replaces the static title: it says where the panel is
-            and how to get back without spending a row of the grid. */}
-        {chrome?.trail ?? <h3 className="lens-panel-title" title={panel.title}>{panel.title}</h3>}
-        {/* The note explains the panel's subject, so it hangs off the title
-            rather than joining the controls: export and expand are things you
-            do to the panel, this is something the panel says. */}
-        {infoText && <InfoTip text={infoText} />}
+        {/* The panel's identity travels as one item. The note explains the
+            panel's subject, so it hangs off the title rather than joining the
+            controls: export and expand are things you do to the panel, this is
+            something the panel says — and when the header wrapped, a loose ⓘ
+            was reparented next to download/expand, where it read as a third
+            action rather than an annotation. */}
+        {(titleNode || infoText) && (
+          <div className="lens-panel-heading">
+            {titleNode}
+            {infoText && <InfoTip subject={panel.title} text={infoText} />}
+          </div>
+        )}
         {chrome?.explore}
         <div className="lens-panel-actions">
           {headerActions}

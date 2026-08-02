@@ -17,7 +17,8 @@ import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { ShareSliceButton } from './panels/ShareSliceButton'
 import { StatMetric, StatusChip } from './panels/StatPanel'
-import { X } from './icons'
+import { PanelChromeContext, type PanelChrome } from './panels/context'
+import { Clock, X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
@@ -288,6 +289,40 @@ function MetricsGroup({ group, items, panels, registry }: {
   )
 }
 
+/** One `PanelChrome` value, so the provider does not remount its subtree. */
+const redundantTitle: PanelChrome = { titleIsRedundant: true }
+
+function comparableTitle(value: string): string {
+  return value.trim().replace(/\s+/gu, ' ').toLocaleLowerCase()
+}
+
+/**
+ * Whether the tab's label already names the one panel behind it.
+ *
+ * A tab group is itself a card: heading, border, radius. A single panel inside
+ * it brings a second set, and when the tab label and the panel title are the
+ * same words the reader is shown one name twice, forty pixels apart, in two
+ * typographic treatments. Only the exact-match, single-panel case is silenced —
+ * a tab holding several panels needs every one of them named, and a tab label
+ * that says something different from the panel title is not a duplicate.
+ */
+function namesItsOnlyPanel(
+  tab: string,
+  items: LayoutItem[],
+  depth: number,
+  panels: Map<string, Panel>,
+): boolean {
+  if (!tab.trim()) return false
+  const members = items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)
+  if (members.length !== 1) return false
+  const only = members[0]
+  // A member that is itself grouped deeper renders its own container; the tab
+  // label is not naming a card in that case.
+  if (only && chainOf(only).length > depth + 1) return false
+  const title = only ? panels.get(only.panelId)?.title : undefined
+  return Boolean(title) && comparableTitle(title!) === comparableTitle(tab)
+}
+
 function TabsGroup({ group, items, depth, panels, registry }: {
   group: LayoutGroup
   items: LayoutItem[]
@@ -380,12 +415,14 @@ function TabsGroup({ group, items, depth, panels, registry }: {
           tabIndex={0}
         >
           {(print.active || tab === current) && (
-            <GroupChain
-              depth={depth + 1}
-              items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
-              panels={panels}
-              registry={registry}
-            />
+            <PanelChromeContext.Provider value={namesItsOnlyPanel(tab, items, depth, panels) ? redundantTitle : undefined}>
+              <GroupChain
+                depth={depth + 1}
+                items={items.filter((item) => (groupAt(item, depth)?.tab ?? '') === tab)}
+                panels={panels}
+                registry={registry}
+              />
+            </PanelChromeContext.Provider>
           )}
         </div>
       ))}
@@ -407,12 +444,18 @@ function relativeTime(timestamp: number, locale: string): string {
 }
 
 /**
+ * Past this age the stamp stops being a detail and becomes a caveat on every
+ * figure below it.
+ */
+const stalenessThresholdMs = 60 * 60_000
+
+/**
  * The document's live "updated X ago" read, or null when it cannot be shown
  * (inside a drawer, under visual regression, or without a parseable timestamp).
  * Ticks once a minute so the relative label stays current. Shared by the lone
  * freshness line and the header subtitle that folds it in.
  */
-function useFreshness(): { label: string; isRefreshing: boolean } | null {
+function useFreshness(): { label: string; isRefreshing: boolean; absolute: string; stale: boolean } | null {
   const { document } = useDashboard()
   const { isRefreshing } = useDocumentState()
   const drawer = useDrawer()
@@ -431,41 +474,45 @@ function useFreshness(): { label: string; isRefreshing: boolean } | null {
   const label = isRefreshing
     ? translate('panel.updating', 'Updating')
     : translate('dashboard.updated', 'Updated {time}', { time: relativeTime(generatedAt, document.meta.locale) })
-  return { label, isRefreshing }
+  const absolute = new Intl.DateTimeFormat(document.meta.locale, { dateStyle: 'medium', timeStyle: 'short' })
+    .format(generatedAt)
+  return { label, isRefreshing, absolute, stale: Date.now() - generatedAt > stalenessThresholdMs }
 }
 
 /**
- * A subtle "updated X ago" line under the dashboard header. It is hidden inside
- * drawers (the host dashboard already carries it) and under visual regression,
- * where a live timestamp would make the screenshot nondeterministic.
+ * How old the figures on screen are.
+ *
+ * It used to be the tail of the identity paragraph, joined to a static blurb by
+ * a middot: «Аналитика продуктового портфеля… · Рассчитано 20 минут назад» —
+ * one 12px grey sentence carrying a marketing line and the single fact a report
+ * reader checks before trusting a number, with the run-on wrapping at 600px so
+ * the age landed mid-line. It is its own control-height stamp now, beside
+ * Recompute — the action it invites — with a mark, the absolute timestamp on
+ * hover, and an escalation once the reading is old enough to matter. A relative
+ * label alone reads as uptime: it ticks up with wall-clock time whether or not
+ * anything went stale, so the timestamp is what it actually claims.
  */
-function DashboardFreshness() {
+function FreshnessStamp() {
   const freshness = useFreshness()
   if (!freshness) return null
   return (
-    <p className="lens-dashboard-updated" aria-live="polite" data-refreshing={freshness.isRefreshing || undefined}>
-      {freshness.label}
+    <p
+      aria-live="polite"
+      className="lens-dashboard-updated"
+      data-refreshing={freshness.isRefreshing || undefined}
+      data-stale={freshness.stale || undefined}
+      title={freshness.absolute}
+    >
+      <Clock />
+      <span>{freshness.label}</span>
     </p>
   )
 }
 
-/**
- * The document's identity subtitle: a producer-localized period line with the
- * live freshness read folded in (« … · updated 5 min ago »). The freshness
- * fragment keeps its own aria-live so a refresh is still announced.
- */
+/** The document's identity subtitle: the producer's period/scope line. */
 function DashboardSubtitle({ subtitle }: { subtitle?: string }) {
-  const freshness = useFreshness()
-  if (!subtitle && !freshness) return null
-  return (
-    <p className="lens-dashboard-subtitle">
-      {subtitle && <span>{subtitle}</span>}
-      {subtitle && freshness && <span aria-hidden="true" className="lens-dashboard-subtitle-sep"> · </span>}
-      {freshness && (
-        <span aria-live="polite" data-refreshing={freshness.isRefreshing || undefined}>{freshness.label}</span>
-      )}
-    </p>
-  )
+  if (!subtitle) return null
+  return <p className="lens-dashboard-subtitle">{subtitle}</p>
 }
 
 function DocumentRefetchError() {
@@ -571,6 +618,7 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
             )}
             <div className="lens-dashboard-controls">
               <FilterBar today={filterToday} />
+              <FreshnessStamp />
               {canRecompute && (
                 <button
                   className="lens-export-button"
@@ -587,9 +635,6 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
           </header>
         )}
         {hasHeader && <DocumentRefetchError />}
-        {/* The header folds freshness into its subtitle; only the headerless
-          layout still shows the lone updated line. */}
-        {hasHeader && !header && <DashboardFreshness />}
         <MetricColumnsContext.Provider value={columns}>
           <div className="lens-dashboard-rows">
             {document.layout.rows.map((row, rowIndex) => (

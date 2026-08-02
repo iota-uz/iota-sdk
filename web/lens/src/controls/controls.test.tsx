@@ -624,7 +624,7 @@ describe('FilterBar runtime integration', () => {
     fireEvent.click(screen.getByRole('gridcell', { name: 'Jan 3, 2026' }))
     fireEvent.click(screen.getByRole('gridcell', { name: 'Jan 9, 2026' }))
     expect(window.location.search).toBe('')
-    expect(within(dialog).getByText('7 d.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Duration: 7 d.')).toBeInTheDocument()
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Apply' }))
     expect(window.location.search).toBe('?ActualRangeStart=2026-01-03&ActualRangeEnd=2026-01-09')
@@ -806,7 +806,7 @@ describe('FilterBar runtime integration', () => {
 
     expect(within(dialog).getByText('Quick select')).toBeInTheDocument()
     // 2026-01-01 .. 2026-07-22 inclusive.
-    expect(within(dialog).getByText('203 d.')).toBeInTheDocument()
+    expect(within(dialog).getByText('Duration: 203 d.')).toBeInTheDocument()
   })
 
   it('ignores URL values the declaration cannot have produced', async () => {

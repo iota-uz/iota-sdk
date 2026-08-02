@@ -123,14 +123,43 @@ async function panelPNG(svg: Blob, width: number, height: number, background: st
   ))
 }
 
-export async function downloadPanelImage(panelId: string, title: string, format: PanelImageFormat): Promise<void> {
+/**
+ * What the file is a picture of: the dashboard, the panel, and the period.
+ *
+ * `доход.png` names one of ten panels and none of the state that produced it,
+ * so two exports of two periods overwrite each other in the download folder and
+ * neither can be told apart afterwards. The rendered image already carries the
+ * dashboard's scope line (`.lens-panel-export-scope`); the name now carries the
+ * same facts.
+ */
+export function panelImageFilename(
+  panelTitle: string,
+  format: PanelImageFormat,
+  scope?: { dashboard?: string; start?: string; end?: string },
+): string {
+  const parts = [scope?.dashboard, panelTitle, scope?.start, scope?.end]
+    .map((part) => part ? safeFilename(part) : '')
+    .filter((part) => part && part !== 'lens-panel')
+  const stem = parts.length > 0 ? parts.join('_') : safeFilename(panelTitle)
+  return `${stem}.${format}`
+}
+
+export interface PanelImageScope {
+  dashboard?: string
+  start?: string
+  end?: string
+}
+
+export async function downloadPanelImage(
+  panelId: string, title: string, format: PanelImageFormat, scope?: PanelImageScope,
+): Promise<void> {
   const exported = panelSVG(panelId)
   const blob = format === 'svg' ? exported.blob : await panelPNG(exported.blob, exported.width, exported.height, exported.background)
   const url = URL.createObjectURL(blob)
   try {
     const anchor = document.createElement('a')
     anchor.href = url
-    anchor.download = `${safeFilename(title)}.${format}`
+    anchor.download = panelImageFilename(title, format, scope)
     anchor.click()
   } finally {
     URL.revokeObjectURL(url)

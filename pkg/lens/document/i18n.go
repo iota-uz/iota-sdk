@@ -137,7 +137,7 @@ const (
 	I18nFilterCompleted            = "filter.period.completed"
 	I18nFilterCustom               = "filter.period.custom"
 	I18nFilterDateFormat           = "filter.period.dateFormat"
-	I18nFilterDayCount             = "filter.period.dayCount"
+	I18nFilterDuration             = "filter.period.duration"
 	I18nFilterFrom                 = "filter.period.from"
 	I18nFilterOpen                 = "filter.period.open"
 	I18nFilterQuickSelect          = "filter.period.quickSelect"
@@ -165,9 +165,6 @@ const (
 	I18nPanelTotal                 = "panel.total"
 	I18nPanelUnsupported           = "panel.unsupported"
 	I18nPanelUpdating              = "panel.updating"
-	I18nPanelCalculation           = "panel.calculation"
-	I18nPanelCacheHit              = "panel.cacheHit"
-	I18nPanelCacheMiss             = "panel.cacheMiss"
 	I18nPanelTrendNew              = "panel.trend.new"
 	I18nPanelTrendNotAvailable     = "panel.trend.notAvailable"
 	I18nPanelTrendBaseline         = "panel.trend.baseline"
@@ -312,7 +309,7 @@ func RuntimeI18nKeys() []string {
 		I18nFilterCompareOff, I18nFilterComparePrevious, I18nFilterCompareYearAgo,
 		I18nFilterCompareCustom, I18nFilterCompareStart, I18nFilterCompareEnd,
 		I18nFilterCompleted, I18nFilterCustom,
-		I18nFilterDateFormat, I18nFilterDayCount,
+		I18nFilterDateFormat, I18nFilterDuration,
 		I18nFilterFrom, I18nFilterOpen, I18nFilterQuickSelect, I18nFilterTo,
 		I18nFilterPresetThisMonth, I18nFilterPresetLast30Days, I18nFilterPresetLast12Months,
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
@@ -343,7 +340,7 @@ func RuntimeI18nKeys() []string {
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelExpand, I18nPanelInfo, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
-		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss, I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
+		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
 		I18nPanelTrendBaseline,
 		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintBreakdown, I18nPrintCategory,
 		I18nPrintContents, I18nPrintFailed, I18nPrintFigure,

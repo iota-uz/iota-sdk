@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { panelSVG } from './panelImage'
+import { panelImageFilename, panelSVG } from './panelImage'
 
 afterEach(() => {
   document.body.replaceChildren()
@@ -87,5 +87,18 @@ describe('panelSVG', () => {
     expect(markup).not.toContain('Search legend')
     expect(markup).not.toContain('Solo')
     expect(markup).not.toContain('Hidden')
+  })
+})
+
+describe('panelImageFilename', () => {
+  it('names the dashboard, the panel and the period it was taken over', () => {
+    expect(panelImageFilename('Доход', 'png', {
+      dashboard: 'sales-report', start: '2026-07-03', end: '2026-08-01',
+    })).toBe('sales-report_доход_2026-07-03_2026-08-01.png')
+  })
+
+  it('falls back to the panel name alone when there is no scope to state', () => {
+    expect(panelImageFilename('Доход', 'svg')).toBe('доход.svg')
+    expect(panelImageFilename('', 'png')).toBe('lens-panel.png')
   })
 })

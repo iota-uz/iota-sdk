@@ -293,9 +293,9 @@ describe('locale data', () => {
     )
     expect(rangeHint({}, translate)).toBe('Select a start date')
     expect(rangeHint({ start: date(2026, 7, 3) }, translate)).toBe('Select an end date')
-    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 18) }, translate)).toBe('16 d.')
+    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 18) }, translate)).toBe('Duration: 16 d.')
     // A single-day range counts one, and an inverted draft is not a range yet.
-    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 3) }, translate)).toBe('1 d.')
+    expect(rangeHint({ start: date(2026, 7, 3), end: date(2026, 7, 3) }, translate)).toBe('Duration: 1 d.')
     expect(rangeHint({ start: date(2026, 7, 18), end: date(2026, 7, 3) }, translate)).toBe('Select an end date')
   })
 })
