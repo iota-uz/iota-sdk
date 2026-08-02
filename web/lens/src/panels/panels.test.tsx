@@ -87,12 +87,16 @@ function panel(kind: PanelKind, overrides: Partial<Panel> = {}): Panel {
   }
 }
 
-function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'data'): PanelFrameState {
+function state(name: 'loading' | 'empty' | 'error' | 'stale' | 'superseded' | 'data'): PanelFrameState {
   const retry = vi.fn()
   if (name === 'loading') return { isLoading: true, isStale: false, error: null, retry }
   if (name === 'empty') return { data: { ...dataFrame, rows: [] }, isLoading: false, isStale: false, error: null, retry }
   if (name === 'error') return { isLoading: false, isStale: false, error: new Error('Frame failed'), retry }
   if (name === 'stale') return { data: dataFrame, isLoading: true, isStale: true, error: null, retry }
+  // What a filter change produces across the whole board: the previous
+  // period's data still drawn, dimmed and marked, with no panel-local request
+  // of its own in flight.
+  if (name === 'superseded') return { data: dataFrame, isLoading: false, isStale: true, error: null, retry }
   return { data: dataFrame, isLoading: false, isStale: false, error: null, retry }
 }
 
@@ -138,7 +142,7 @@ afterEach(() => {
 })
 
 describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line', 'area', 'gauge', 'histogram', 'boxplot', 'heatmap', 'map', 'cascade', 'coverage', 'table'])('%s panel states', (kind) => {
-  it.each(['loading', 'empty', 'error', 'stale', 'data'] as const)('renders %s', async (stateName) => {
+  it.each(['loading', 'empty', 'error', 'stale', 'superseded', 'data'] as const)('renders %s', async (stateName) => {
     runtime.frame = state(stateName)
     const view = renderKind(kind)
     const panelElement = screen.getByLabelText(`${kind} panel`)
@@ -166,6 +170,21 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       expect(panelElement).toHaveAttribute('aria-busy', 'true')
       expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
       expect(screen.queryByText('Updating')).toBeNull()
+    }
+    if (stateName === 'superseded') {
+      // Dimmed data being replaced is as busy as an empty skeleton is, and it
+      // says so where a reader and a screen reader can both find it. The data
+      // itself stays: losing every figure for the seconds a period change takes
+      // costs more than it protects.
+      expect(panelElement).toHaveAttribute('data-stale', 'true')
+      expect(panelElement).toHaveAttribute('aria-busy', 'true')
+      // A map is loading in its own right until its geometry arrives, so it
+      // keeps the skeleton; every other kind dims the data it already has.
+      if (kind !== 'map') {
+        expect(panelElement).toHaveClass('lens-panel-stale')
+        expect(view.container.querySelector('.lens-panel-skeleton')).toBeNull()
+        expect(screen.getByText('Updating')).toBeInTheDocument()
+      }
     }
     if (stateName === 'data') {
       if (kind === 'stat') expect(screen.getByText('42')).toBeInTheDocument()

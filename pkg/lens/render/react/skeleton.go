@@ -16,8 +16,12 @@ func skeletonSpanStyle(span int) templ.SafeCSS {
 
 func skeletonCardClass(kind panel.Kind) string {
 	switch kind {
-	case panel.KindStat, panel.KindStatGroup:
+	case panel.KindStat:
 		return "lens-skeleton-card lens-skeleton-card-stat"
+	// A strip of metric cells is much taller than one stat card; reserving a
+	// stat card for it left the whole first row short by ~150px.
+	case panel.KindStatGroup:
+		return "lens-skeleton-card lens-skeleton-card-metrics"
 	case panel.KindSegmentBar, panel.KindCascade:
 		return "lens-skeleton-card lens-skeleton-card-compact"
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar,

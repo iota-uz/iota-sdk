@@ -141,6 +141,11 @@ export function PanelFrame({
   // Loading is panel-local. A sibling calculation or a background document
   // refresh must never replace this panel's usable data with a skeleton.
   const showLoading = frame.isLoading
+  // Dimmed data being replaced is as busy as an empty skeleton is: the figures
+  // under the cursor are not the answer to the question that was just asked.
+  // An error left the panel stale with no request in flight, so that state is
+  // idle — the retry control beside it is the thing to act on.
+  const busy = showLoading || (frame.isStale && !frame.error)
   const badgePlacement = panel.presentation?.totalBadge ?? 'header'
   const showTotal = variant === 'chart' && total !== undefined && badgePlacement === 'header'
   const totalLabel = translate('panel.total', 'Total')
@@ -210,7 +215,7 @@ export function PanelFrame({
       ].filter(Boolean).join(' ')}
       data-expanded={expanded || undefined}
       aria-label={panel.title}
-      aria-busy={showLoading}
+      aria-busy={busy}
       data-calculation-cache={frame.calculation ? (frame.calculation.cacheHit ? 'hit' : 'miss') : undefined}
       data-calculation-ms={frame.calculation?.durationMs}
       data-panel-kind={panel.kind}
@@ -240,7 +245,7 @@ export function PanelFrame({
               {formatTotal(total)}
             </span>
           )}
-          {frame.isStale && !showLoading && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
+          {busy && !showLoading && <span className="lens-panel-status" role="status">{translate('panel.updating', 'Updating')}</span>}
           {exportable && <PanelExportMenu panelId={panel.id} title={panel.title} />}
           {expandable && (
             <button

@@ -161,6 +161,7 @@ function MissingPanel({ panelId }: { panelId: string }) {
 }
 
 function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNode }) {
+  const { isRefreshing } = useDocumentState()
   return (
     <div className="lens-grid-item" style={spanStyle(group.span)}>
       <section
@@ -176,8 +177,14 @@ function GroupCard({ group, children }: { group: LayoutGroup; children: ReactNod
           </header>
         )}
         {/* A group's caption reads for the whole strip, so it sits under the
-            heading rather than inside any one member's card. */}
-        {group.caption && <p className="lens-panel-caption">{group.caption}</p>}
+            heading rather than inside any one member's card. It is a
+            server-produced string that names the period the figures below are
+            for, so while a new document is in flight it describes the previous
+            one — it dims with them rather than standing at full strength over
+            superseded numbers. */}
+        {group.caption && (
+          <p className="lens-panel-caption" data-stale={isRefreshing || undefined}>{group.caption}</p>
+        )}
         {children}
       </section>
     </div>

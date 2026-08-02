@@ -756,14 +756,6 @@ function RuntimeCore({
     }
   }, [document, filtersEnabled])
 
-  const syncFiltersFromURL = useCallback(() => {
-    if (typeof window === 'undefined') return
-    const values = readFilterValues(documentRef.current, new URL(window.location.href))
-    if (sameFilterValues(values, filterValuesRef.current)) return
-    filterValuesRef.current = values
-    setFilterValuesState(values)
-    applyFilters?.(values)
-  }, [applyFilters])
   const [exportStates, setExportStates] = useState<Record<string, ExportState>>({})
   const [printState, setPrintState] = useState<Omit<PrintContextValue, 'available' | 'run'>>({
     active: false,
@@ -804,18 +796,47 @@ function RuntimeCore({
   }, [])
   if (!frameStore.current) frameStore.current = new PanelFrameStore()
   const frames = frameStore.current
+  /**
+   * A filter change invalidates the whole board at once.
+   *
+   * Every figure on screen belongs to the period the reader just left, and it
+   * says so before the first request resolves rather than after: on production
+   * volume the document alone takes seconds, and for that whole time the old
+   * numbers used to sit there at full strength under the new chip. The set also
+   * has to move together — a board that dims in eight staggered steps, one per
+   * response, is worse than one that never dims at all.
+   *
+   * A panel with data keeps it, dimmed and marked stale, so the reader keeps
+   * their bearings; only a panel with nothing to dim falls back to a skeleton.
+   */
   const markPanelFramesPending = useCallback(() => {
     for (const panel of sourceDocument.panels) {
       const current = frames.get(panel.id)
       if (!current) continue
       frames.set(panel.id, {
         ...current,
-        isStale: Boolean(current.data),
-        isLoading: true,
+        isStale: true,
+        isLoading: !current.data,
         error: null,
       })
     }
   }, [frames, sourceDocument.panels])
+  const syncFiltersFromURL = useCallback(() => {
+    if (typeof window === 'undefined') return
+    const values = readFilterValues(documentRef.current, new URL(window.location.href))
+    if (sameFilterValues(values, filterValuesRef.current)) return
+    filterValuesRef.current = values
+    setFilterValuesState(values)
+    // The single funnel every filter action passes through — a period chip, a
+    // comparison mode, a facet apply, browser Back — so the staleness of the
+    // board is decided in one place and cannot depend on which control moved.
+    // Only a host that can actually refetch may dim: marking panels stale with
+    // nothing in flight to clear them would leave the board dim for good.
+    if (applyFilters) {
+      markPanelFramesPending()
+      applyFilters(values)
+    }
+  }, [applyFilters, markPanelFramesPending])
   const translate = useCallback(
     (key: string, fallback: string) => translation(document.i18n, key, fallback),
     [document.i18n],
@@ -993,14 +1014,14 @@ function RuntimeCore({
       const url = new URL(window.location.href)
       const view = navigationFromURL(url)
       const restored = navigationFromBrowserState(document, view, event.state)
-      const values = readFilterValues(documentRef.current, url)
-      if (!sameFilterValues(values, filterValuesRef.current)) markPanelFramesPending()
       dispatch(navigationActions.restore(restored, restored.history))
+      // Marking the panels stale is `syncFiltersFromURL`'s job now: Back is one
+      // more way of changing the filter values, not a case of its own.
       syncFiltersFromURL()
     }
     window.addEventListener('popstate', onPopState)
     return () => window.removeEventListener('popstate', onPopState)
-  }, [controlledNavigation, dispatch, document, markPanelFramesPending, syncFiltersFromURL])
+  }, [controlledNavigation, dispatch, document, syncFiltersFromURL])
 
   useEffect(() => {
     const pendingPath = dynamicParentPath(document, runtimeView.path)

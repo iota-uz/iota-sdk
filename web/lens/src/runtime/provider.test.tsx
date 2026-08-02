@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
-import { DashboardRuntimeProvider, DocumentProvider, useDashboard, useDrawer, useDrill, usePanelFrame } from './provider'
+import { DashboardRuntimeProvider, DocumentProvider, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
 import { QueryClient } from './query'
 
 const document = parseDocument({
@@ -56,6 +56,30 @@ const popstateFilteredDocument = parseDocument({
       selections: [{ label: '65+', removeUrl: '/' }],
       clearUrl: '/',
     },
+  }],
+})
+const periodPanelIDs = ['alpha', 'beta', 'gamma'] as const
+const periodDocument = parseDocument({
+  ...fixture,
+  snapshotId: 'period-2026',
+  panels: periodPanelIDs.map((id, index) => ({
+    ...fixture.panels[0], id, title: id, frame: `panel:${id}`,
+    // The mixed set is the point: a deferred panel resolves through the panel
+    // endpoint and a plain one arrives with the document, and a filter change
+    // has to invalidate both in the same commit.
+    deferred: index === 2,
+  })),
+  frames: Object.fromEntries(periodPanelIDs.slice(0, 2).map((id, index) => [`panel:${id}`, {
+    columns: fixture.frames['panel:total'].columns,
+    rows: [[id, 100 + index]],
+  }])),
+  layout: { rows: [{ panels: periodPanelIDs.map((panelId) => ({ panelId, span: 4 })) }] },
+  endpoints: { ...fixture.endpoints, panel: '/lens/panel' },
+  filters: [{
+    id: 'period',
+    kind: 'period',
+    label: 'Period',
+    period: { startParam: 'from', endParam: 'to', value: { start: '2026-01-01', end: '2026-12-31' } },
   }],
 })
 const dynamicDocument = parseDocument({
@@ -369,6 +393,68 @@ describe('DashboardRuntimeProvider', () => {
     expect(screen.getByTestId('can-go-back')).toHaveTextContent('true')
   })
 
+  it('marks every panel stale in the same commit as a period change', async () => {
+    window.history.replaceState(null, '', '/?from=2026-01-01&to=2026-12-31')
+    let resolveDocument: ((value: Response) => void) | undefined
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.startsWith('/lens/panel')) {
+        return Promise.resolve(panelStream({
+          gamma: {
+            frames: {
+              'panel:gamma': { columns: fixture.frames['panel:total'].columns, rows: [['gamma', 102]] },
+            },
+          },
+        }))
+      }
+      return new Promise<Response>((resolve) => { resolveDocument = resolve })
+    })
+
+    function PeriodControl() {
+      const { filters, setPeriod } = useFilters()
+      return (
+        <button type="button" onClick={() => setPeriod(filters[0]!, { start: '2022-01-01', end: '2022-12-31' })}>
+          2022
+        </button>
+      )
+    }
+
+    const view = render(
+      <div className="lens-root">
+        <DocumentProvider src="/lens/document" initialDocument={periodDocument} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <PeriodControl />
+            {periodDocument.panels.map((panel) => <StatPanel key={panel.id} panel={panel} />)}
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+    expect(await screen.findByText('102')).toBeInTheDocument()
+    expect(view.container.querySelectorAll('[data-stale="true"]')).toHaveLength(0)
+
+    fireEvent.click(screen.getByRole('button', { name: '2022' }))
+
+    // The whole set, in the same commit as the click: not one panel at a time
+    // as each response lands, and not only once the document returns — which on
+    // production volume is twenty seconds of authoritative-looking wrong
+    // numbers under a chip that says otherwise.
+    expect(view.container.querySelectorAll('[data-stale="true"]')).toHaveLength(periodPanelIDs.length)
+    expect(view.container.querySelectorAll('[aria-busy="true"]')).toHaveLength(periodPanelIDs.length)
+    expect(resolveDocument).toBeDefined()
+
+    act(() => resolveDocument?.(new Response(JSON.stringify({
+      ...periodDocument,
+      snapshotId: 'period-2022',
+      frames: {
+        'panel:alpha': { columns: fixture.frames['panel:total'].columns, rows: [['alpha', 200]] },
+        'panel:beta': { columns: fixture.frames['panel:total'].columns, rows: [['beta', 201]] },
+      },
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } })))
+
+    expect(await screen.findByText('200')).toBeInTheDocument()
+    await waitFor(() => expect(view.container.querySelectorAll('[data-stale="true"]')).toHaveLength(0))
+  })
+
   it('marks panels stale immediately and refetches once when popstate changes filters', async () => {
     window.history.replaceState(null, '', '/?_f=age_group%3A65%2B')
     let resolvePopstate: ((response: Response) => void) | undefined
@@ -398,8 +484,13 @@ describe('DashboardRuntimeProvider', () => {
 
     expect(screen.getByLabelText('Total')).toHaveAttribute('data-stale', 'true')
     expect(screen.getByLabelText('Total')).toHaveAttribute('aria-busy', 'true')
-    expect(screen.queryByText('42')).toBeNull()
-    expect(view.container.querySelector('.lens-panel-skeleton')).not.toBeNull()
+    // The figure it is replacing stays on screen, dimmed and marked, rather
+    // than collapsing into a skeleton: the reader keeps their bearings for the
+    // seconds the document takes, and the number cannot be mistaken for the
+    // answer to the question they just asked.
+    expect(screen.getByText('42')).toBeInTheDocument()
+    expect(view.container.querySelector('.lens-panel-stale')).not.toBeNull()
+    expect(view.container.querySelector('.lens-panel-skeleton')).toBeNull()
     expect(fetcher).toHaveBeenCalledTimes(2)
     expect(fetcher.mock.calls[1]?.[0]).toBe('/lens/document')
 

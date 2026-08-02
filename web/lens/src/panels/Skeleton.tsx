@@ -18,16 +18,34 @@ function spanStyle(span: number): CSSProperties {
   return { '--lens-panel-span': bounded } as CSSProperties
 }
 
-export function PanelSkeletonCard({ kind }: { kind: PanelKind }) {
-  if (kind === 'stat') {
+/**
+ * The shape a placeholder takes, which is not quite the panel kind: a layout
+ * item carrying a metric group is a strip of cells in one card and is far
+ * taller than the single stat card its kind would suggest. Mirrors
+ * `skeletonCardClass` in pkg/lens/render/react/skeleton.go — the two emit the
+ * same class for the same shape, or the server placeholder and the runtime one
+ * reserve different heights and the grid moves at handoff.
+ */
+export type SkeletonShape = 'stat' | 'metrics' | 'compact' | 'plot'
+
+export function skeletonShape(kind: PanelKind, metrics = false): SkeletonShape {
+  if (metrics) return 'metrics'
+  if (kind === 'stat') return 'stat'
+  if (kind === 'cascade' || kind === 'coverage') return 'compact'
+  return 'plot'
+}
+
+export function PanelSkeletonCard({ kind, metrics }: { kind: PanelKind; metrics?: boolean }) {
+  const shape = skeletonShape(kind, metrics)
+  if (shape === 'stat' || shape === 'metrics') {
     return (
-      <div className="lens-skeleton-card lens-skeleton-card-stat">
+      <div className={`lens-skeleton-card lens-skeleton-card-${shape}`}>
         <ShimmerBar className="lens-shimmer-label" style={{ width: '60%' }} />
         <ShimmerBar className="lens-shimmer-value" style={{ width: '70%' }} />
       </div>
     )
   }
-  if (kind === 'cascade' || kind === 'coverage') {
+  if (shape === 'compact') {
     return (
       <div className="lens-skeleton-card lens-skeleton-card-compact">
         <ShimmerBar className="lens-shimmer-label" style={{ width: '35%' }} />
@@ -54,7 +72,7 @@ export function PanelSkeletonBody({ kind }: { kind: PanelKind }) {
 
 export interface SkeletonRow {
   heading?: boolean
-  items: Array<{ span: number; kind: PanelKind }>
+  items: Array<{ span: number; kind: PanelKind; metrics?: boolean }>
 }
 
 /**
@@ -76,7 +94,7 @@ export function DashboardSkeleton({ rows }: { rows: SkeletonRow[] }) {
           <div className="lens-panel-grid">
             {row.items.map((item, itemIndex) => (
               <div className="lens-grid-item" key={itemIndex} style={spanStyle(item.span)}>
-                <PanelSkeletonCard kind={item.kind} />
+                <PanelSkeletonCard kind={item.kind} metrics={item.metrics} />
               </div>
             ))}
           </div>
@@ -95,6 +113,7 @@ export function skeletonRowsFromLayout(
     items: row.panels.map((item) => ({
       span: item.span,
       kind: panels.get(item.panelId)?.kind ?? 'bar',
+      metrics: item.groups?.some((group) => group.kind === 'metrics'),
     })),
   }))
 }

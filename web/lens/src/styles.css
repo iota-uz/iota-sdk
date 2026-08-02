@@ -126,6 +126,11 @@
        precisely how a 25-product column came to stand taller than the card it
        is in and have its last entries cut off by the card's own overflow. */
     --lens-plot-min-h: 19rem;
+    /* The panel header's floor, declared once because two boxes depend on it:
+       the header itself, and the placeholder that has to reserve the panel's
+       height before the panel exists. A skeleton that guessed this is how a
+       board grew hundreds of pixels the moment its data landed. */
+    --lens-panel-header-h: 2.5rem;
     /* Motion vocabulary. Every new animation and transition references these
        four easings and three durations instead of ad-hoc curves, so the whole
        runtime accelerates and settles with one voice. The focus-canvas
@@ -301,10 +306,20 @@
   }
 
   /* The wide variant hosts cross-metric detail views (a full focus canvas
-     inside the drawer); same chrome, same slide, roomier slab. It starts where
-     the default tier stops so the two stay distinguishable at every width. */
+     inside the drawer); same chrome, same slide, roomier slab.
+     The tier used to open at a 1040px FLOOR, which is more than a 1440px
+     viewport can give away: the slab landed at x=400, i.e. 120px to the right
+     of a 280px host sidebar, and that sliver of live dashboard is both a
+     failure of common region (the drawer stops reading as a separate plane)
+     and a click target that dismisses the drawer by accident. The gutter, not
+     the slab, is the quantity that has to hold: the drawer takes the width its
+     canvas needs and never more than the viewport can spare, so ~240px of the
+     host's content area survives beside it at every width. That is also the
+     honest size for what is inside — a single-column focus canvas (lens rail,
+     context header with the parent mini-chart, the level chart, the source
+     disclosure) never filled 1040px of column. */
   .lens-drawer-wide {
-    max-width: min(clamp(1040px, 68vw, 1280px), calc(100vw - 24px));
+    max-width: min(clamp(880px, 60vw, 1120px), max(60vw, calc(100vw - 520px)), calc(100vw - 24px));
   }
 
   /* A drawer is a column, not a page. Authored spans assume a dashboard's
@@ -1522,7 +1537,8 @@
   }
 
   .lens-panel-header {
-    @apply lens-flex lens-min-h-10 lens-flex-wrap lens-items-center lens-justify-between lens-gap-x-3 lens-gap-y-1 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
+    @apply lens-flex lens-flex-wrap lens-items-center lens-justify-between lens-gap-x-3 lens-gap-y-1 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-px-4;
+    min-height: var(--lens-panel-header-h);
     /* Named container so the drill trail can decide whether its label still
        fits, which no amount of flex shrinking can express. */
     container: lens-panel-header / inline-size;
@@ -1560,8 +1576,9 @@
   }
 
   @media (max-width: 1100px) {
-    .lens-panel-header {
-      @apply lens-min-h-12;
+    .lens-root,
+    .lens-print-report {
+      --lens-panel-header-h: 3rem;
     }
   }
 
@@ -2356,6 +2373,14 @@
     @apply lens-opacity-60 lens-transition-opacity;
   }
 
+  /* Superseded figures are readable but not interrogable: a tooltip, a legend
+     toggle or a drill taken from them would answer the previous period's
+     question while the new one is in flight. The panel's own chrome (export,
+     expand, the drill trail) stays live — the body is what went out of date. */
+  .lens-panel-stale > .lens-panel-body {
+    pointer-events: none;
+  }
+
   /* The same treatment for the chrome-free metric form: a figure being replaced
      says so wherever it is drawn. */
   .lens-stat-metric-stale {
@@ -2420,26 +2445,52 @@
     @apply lens-min-h-32 lens-flex-1 lens-rounded-lg;
   }
 
+  /* A placeholder reserves what the panel it stands in for will occupy, and it
+     derives that from the same floors the panel does rather than from a
+     hand-picked slab height. The heights below were the mechanism behind the
+     board that grew 706px on load: each variant had its own invented minimum,
+     none of which was the settled panel's.
+
+     The base is `.lens-panel`'s own floor, so no placeholder can ever be
+     shorter than the card that replaces it. */
   .lens-skeleton-card {
-    @apply lens-box-border lens-flex lens-h-full lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-card;
+    @apply lens-box-border lens-flex lens-h-full lens-min-h-44 lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-card;
   }
 
+  /* `.lens-panel-stat`'s floor. */
   .lens-skeleton-card-stat {
-    @apply lens-min-h-24 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
+    @apply lens-min-h-40 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
   }
 
+  /* A metric strip is several stat cells in one card: two reserved label lines
+     over a two-line figure slot, plus the group's own caption row. */
+  .lens-skeleton-card-metrics {
+    @apply lens-min-h-60 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
+  }
+
+  /* Cascade and coverage keep the base floor: their settled panels are exactly
+     `.lens-panel` tall, so the base is the whole statement. */
   .lens-skeleton-card-compact {
     @apply lens-gap-3 lens-p-4;
-    min-height: 88px;
   }
 
+  /* Header row plus the plot's floor plus the header's hairline: what a chart
+     panel is before a single row of data exists. */
   .lens-skeleton-card-plot {
-    @apply lens-min-h-64 lens-gap-4 lens-p-4;
+    @apply lens-gap-4 lens-p-4;
+    min-height: calc(var(--lens-panel-header-h) + var(--lens-plot-min-h) + 1px);
   }
 
   /* Inside a real panel the card chrome already exists. */
   .lens-panel-skeleton .lens-skeleton-card {
-    @apply lens-border-0 lens-shadow-none;
+    @apply lens-min-h-0 lens-border-0 lens-shadow-none;
+  }
+
+  /* …and so does the header, so the body placeholder reserves the plot area
+     alone, padded like `.lens-chart-host` rather than like a card. */
+  .lens-panel-skeleton .lens-skeleton-card-plot {
+    @apply lens-p-2;
+    min-height: var(--lens-plot-min-h);
   }
 
   .lens-dashboard-skeleton {

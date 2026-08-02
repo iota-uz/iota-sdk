@@ -208,7 +208,7 @@ export function StatMetric({ panel }: StatPanelProps) {
           likely to act on — sat at full opacity with values that were about to
           change. */}
       <div
-        aria-busy={frame.isLoading || undefined}
+        aria-busy={frame.isLoading || (frame.isStale && !frame.error) || undefined}
         className={`lens-stat-metric${frame.isStale && !loading ? ' lens-stat-metric-stale' : ''}`}
         data-panel-kind="stat"
         data-stale={frame.isStale || undefined}
