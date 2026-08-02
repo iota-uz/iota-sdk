@@ -65,6 +65,32 @@
     --lens-shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04);
     --lens-shadow-popover: 0 4px 12px rgba(15, 23, 42, 0.08), 0 16px 40px rgba(15, 23, 42, 0.14);
     --lens-font: 'Inter', ui-sans-serif, system-ui, 'Helvetica Neue', Arial, sans-serif;
+    /* Type scale. Ten steps, no half-pixels: a half-pixel step is invisible on
+       screen, so a sheet that carries both 8px and 8.5px is spending two sizes
+       to say one thing. Every font-size in this sheet snaps to a step, which is
+       what makes a size legible as a rank rather than an accident. The bottom
+       four steps exist for the printed report, where 745px of A4 has to hold a
+       dashboard's worth of figures; the screen surfaces live from `sm` up.
+       Named `--lens-type-*`, not `--lens-text-*`, because the latter namespace
+       is already the text colours. */
+    --lens-type-3xs: 8px;
+    --lens-type-2xs: 9px;
+    --lens-type-xs: 10px;
+    --lens-type-sm: 11px;
+    --lens-type-base: 12px;
+    --lens-type-md: 14px;
+    --lens-type-lg: 16px;
+    --lens-type-xl: 21px;
+    --lens-type-2xl: 28px;
+    --lens-type-3xl: 34px;
+    /* Control heights. Three sizes for everything a pointer acts on — button,
+       input, select, chip, trigger, toggle, tab, menu item — so a row of mixed
+       controls lines up on one baseline instead of stepping by two pixels per
+       component. Layout boxes, panel bodies, plot areas and skeleton slabs keep
+       their own min-heights: those are composition, not hit area. */
+    --lens-control-h-sm: 28px;
+    --lens-control-h-md: 32px;
+    --lens-control-h-lg: 36px;
     /* Motion vocabulary. Every new animation and transition references these
        four easings and three durations instead of ad-hoc curves, so the whole
        runtime accelerates and settles with one voice. The focus-canvas
@@ -82,17 +108,15 @@
     --lens-z-tooltip: 1300;
   }
 
-  lens-dashboard {
-    display: block;
-  }
-}
-
-@layer components {
   .lens-root {
-    @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
     color-scheme: light;
   }
 
+  /* The dark palette is the light block's override, so it lives beside it in
+     the same cascade layer. Parked in @layer components it was overriding a
+     @layer base rule from a later layer, which worked only because nothing else
+     ever re-declared these names — a definition site that reads as one thing
+     should behave as one thing. */
   .lens-root[data-theme='dark'] {
     --lens-bg-page: #0f172a;
     --lens-bg-card: #1e293b;
@@ -119,6 +143,16 @@
     --lens-neg-alt: #f87171;
     --lens-warn-soft: rgba(217, 119, 6, 0.16);
     color-scheme: dark;
+  }
+
+  lens-dashboard {
+    display: block;
+  }
+}
+
+@layer components {
+  .lens-root {
+    @apply lens-box-border lens-min-h-32 lens-min-w-0 lens-bg-page lens-p-4 lens-font-sans lens-text-text;
   }
 
   .lens-dashboard {
@@ -165,7 +199,7 @@
 
   .lens-drawer-eyebrow {
     @apply lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
-    font-size: 11px;
+    font-size: var(--lens-type-sm);
     line-height: 1.3;
   }
 
@@ -273,13 +307,13 @@
 
   .lens-dashboard-header .lens-dashboard-title {
     @apply lens-m-0 lens-font-semibold lens-tracking-tight lens-text-strong;
-    font-size: 15px;
+    font-size: var(--lens-type-lg);
     line-height: 1.2;
   }
 
   .lens-dashboard-subtitle {
     @apply lens-m-0 lens-text-muted;
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     line-height: 1.3;
   }
 
@@ -334,7 +368,7 @@
   .lens-compare-filter select,
   .lens-compare-custom input,
   .lens-compare-custom button {
-    min-height: 2rem;
+    min-height: var(--lens-control-h-md);
     border: 1px solid var(--lens-border);
     border-radius: var(--lens-radius-control);
     background: var(--lens-bg-card);
@@ -363,7 +397,7 @@
   }
 
   .lens-chart-reset-zoom {
-    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-[11px] lens-font-medium lens-text-muted;
+    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-type-sm lens-font-medium lens-text-muted;
   }
 
   .lens-trend-chip-absolute {
@@ -413,7 +447,7 @@
   }
 
   .lens-facet-trigger {
-    @apply lens-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-text;
+    @apply lens-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-text;
   }
 
   .lens-facet-trigger:hover,
@@ -422,7 +456,7 @@
   }
 
   .lens-facet-count {
-    @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-[10px] lens-text-accent-700;
+    @apply lens-flex lens-min-w-4 lens-items-center lens-justify-center lens-rounded-full lens-px-1 lens-text-type-xs lens-text-accent-700;
 
     background: var(--lens-accent-100);
   }
@@ -448,7 +482,7 @@
   }
 
   .lens-facet-option {
-    @apply lens-relative lens-isolate lens-flex lens-min-h-9 lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-px-2 lens-py-1.5 lens-text-sm lens-text-text;
+    @apply lens-relative lens-isolate lens-flex lens-min-h-control-lg lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-px-2 lens-py-1.5 lens-text-sm lens-text-text;
   }
 
   .lens-facet-option:hover {
@@ -481,7 +515,7 @@
   }
 
   .lens-facet-actions button {
-    @apply lens-min-h-8 lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
+    @apply lens-min-h-control-md lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
   }
 
   .lens-facet-actions .lens-facet-apply {
@@ -501,7 +535,7 @@
   }
 
   .lens-facet-active-chip {
-    @apply lens-flex lens-min-h-7 lens-min-w-0 lens-max-w-56 lens-items-center lens-gap-1 lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-text-xs lens-font-medium lens-text-accent-700 lens-no-underline;
+    @apply lens-flex lens-min-h-control-sm lens-min-w-0 lens-max-w-56 lens-items-center lens-gap-1 lens-rounded-badge lens-bg-accent-50 lens-px-2 lens-text-xs lens-font-medium lens-text-accent-700 lens-no-underline;
   }
 
   .lens-facet-active-chip span {
@@ -530,7 +564,7 @@
   .lens-filter-trigger {
     @apply lens-flex lens-flex-none lens-items-center lens-whitespace-nowrap lens-border-0 lens-bg-transparent lens-font-sans lens-text-xs lens-font-semibold lens-text-muted;
     border-radius: var(--lens-radius-badge);
-    min-height: 26px;
+    min-height: var(--lens-control-h-sm);
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
       color var(--lens-dur-fast) var(--lens-ease-standard);
   }
@@ -622,7 +656,7 @@
 
   .lens-filter-preset-heading {
     @apply lens-flex-none lens-font-semibold lens-uppercase lens-text-faint;
-    font-size: 10px;
+    font-size: var(--lens-type-xs);
     letter-spacing: 0.06em;
     padding: 6px 8px 4px;
   }
@@ -693,7 +727,7 @@
      voice, not a second smaller one. */
   .lens-filter-range-caption {
     @apply lens-font-semibold lens-uppercase lens-text-faint;
-    font-size: 10px;
+    font-size: var(--lens-type-xs);
     letter-spacing: 0.06em;
   }
 
@@ -716,7 +750,7 @@
      nudged by a magic offset. */
   .lens-filter-range-sep {
     @apply lens-flex lens-flex-none lens-flex-col lens-justify-end lens-self-stretch lens-text-faint;
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     line-height: 1;
     padding-block: 2px 4px;
   }
@@ -799,7 +833,7 @@
   .lens-filter-cancel,
   .lens-filter-apply {
     @apply lens-justify-center;
-    min-height: 30px;
+    min-height: var(--lens-control-h-md);
     border-radius: var(--lens-radius-control);
   }
 
@@ -901,7 +935,7 @@
 
   .lens-calendar-weekday {
     @apply lens-py-1 lens-text-center lens-font-semibold lens-uppercase lens-text-faint;
-    font-size: 10px;
+    font-size: var(--lens-type-xs);
     letter-spacing: 0.06em;
   }
 
@@ -912,7 +946,7 @@
   .lens-calendar-day {
     @apply lens-relative lens-inline-flex lens-items-center lens-justify-center lens-border-0 lens-bg-transparent lens-p-0 lens-text-center lens-font-sans lens-font-medium lens-text-text;
     height: 32px;
-    font-size: 12.5px;
+    font-size: var(--lens-type-base);
     border-radius: 0;
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -1128,7 +1162,7 @@
      reads as sections-of-panels rather than a flat wall of small caps. */
   .lens-row-heading {
     @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-font-bold lens-uppercase lens-text-strong;
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     letter-spacing: 0.08em;
     line-height: 1.1;
   }
@@ -1261,7 +1295,7 @@
   }
 
   .lens-info-tip-button-inline {
-    @apply lens-size-4 lens-text-[13px];
+    @apply lens-size-4 lens-text-type-base;
   }
 
   /* The portal host fills the viewport only to carry theme variables. It must
@@ -1280,7 +1314,7 @@
   }
 
   .lens-info-tip-title {
-    @apply lens-text-[10px] lens-font-bold lens-uppercase lens-tracking-wider lens-text-text;
+    @apply lens-text-type-xs lens-font-bold lens-uppercase lens-tracking-wider lens-text-text;
   }
 
   .lens-info-tip-text {
@@ -1300,7 +1334,7 @@
   }
 
   .lens-export-button {
-    @apply lens-inline-flex lens-min-h-8 lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-xs lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-icon-button {
@@ -1326,10 +1360,6 @@
   .lens-trail-current,
   .lens-explore-awaiting-action,
   .lens-drill-path-step,
-  .lens-crumb,
-  .lens-explore-back,
-  .lens-perspective-set button,
-  .lens-segment,
   .lens-runtime-notice button,
   .lens-document-refetch-error button,
   .lens-fake-chart-footer button,
@@ -1467,7 +1497,7 @@
     margin: 0;
     padding: 0.5rem 1rem 0;
     color: var(--lens-text-muted);
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
   }
 
   .lens-trend-chip {
@@ -1495,7 +1525,7 @@
   }
 
   .lens-status-chip {
-    @apply lens-inline-flex lens-shrink-0 lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider;
+    @apply lens-inline-flex lens-shrink-0 lens-rounded-badge lens-px-1.5 lens-py-0.5 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider;
     background: var(--lens-bg-inset);
     color: var(--lens-text-muted);
   }
@@ -1654,7 +1684,7 @@
   }
 
   .lens-stat-metric-label {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
   /* Wrap to two tight lines instead of ellipsizing: the full label is worth
@@ -1685,7 +1715,7 @@
      they must survive: run together, two statements read as one broken
      sentence. */
   .lens-stat-metric-caption {
-    @apply lens-m-0 lens-min-w-0 lens-whitespace-pre-line lens-text-[11px] lens-leading-tight lens-text-muted;
+    @apply lens-m-0 lens-min-w-0 lens-whitespace-pre-line lens-text-type-sm lens-leading-tight lens-text-muted;
     overflow-wrap: anywhere;
   }
 
@@ -1701,7 +1731,7 @@
   }
 
   .lens-tabstrip-tab {
-    @apply lens-min-h-8 lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-min-h-control-md lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-sm lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-tabstrip-tab[aria-selected='true'] {
@@ -2072,7 +2102,7 @@
   /* A logarithmic bar is deliberately non-linear. Keep that warning on the
      reading surface instead of hiding it in an info tooltip. */
   .lens-chart-log-scale {
-    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-[11px] lens-font-medium;
+    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-type-sm lens-font-medium;
     border-color: color-mix(in srgb, var(--lens-warn) 35%, var(--lens-border));
     background: var(--lens-warn-soft);
     color: var(--lens-warn);
@@ -2083,7 +2113,7 @@
   }
 
   .lens-chart-collapse-other {
-    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-[11px] lens-font-medium lens-text-muted;
+    @apply lens-absolute lens-right-2 lens-top-1 lens-z-10 lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-font-sans lens-text-type-sm lens-font-medium lens-text-muted;
   }
 
   .lens-axis-label-tooltip {
@@ -2126,7 +2156,7 @@
   }
 
   .lens-chart-legend-tools button {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-[11px] lens-font-medium lens-text-muted;
+    @apply lens-cursor-pointer lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-py-1 lens-font-sans lens-text-type-sm lens-font-medium lens-text-muted;
   }
 
   .lens-chart-legend-tools button:hover {
@@ -2158,7 +2188,7 @@
   }
 
   .lens-chart-legend-solo {
-    @apply lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-[11px] lens-text-faint lens-opacity-0 lens-transition-opacity;
+    @apply lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-type-sm lens-text-faint lens-opacity-0 lens-transition-opacity;
   }
 
   .lens-chart-legend-item:hover .lens-chart-legend-solo,
@@ -2185,7 +2215,7 @@
   }
 
   .lens-chart-legend-heading {
-    @apply lens-mt-2 lens-w-full lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-1 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    @apply lens-mt-2 lens-w-full lens-border-0 lens-border-b lens-border-solid lens-border-border lens-pb-1 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
   }
 
   .lens-chart-legend-mark {
@@ -2436,7 +2466,7 @@
 
   .lens-cascade-stage-annotation,
   .lens-waterfall-annotation {
-    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-[10px] lens-font-semibold lens-leading-3;
+    @apply lens-inline-flex lens-w-fit lens-max-w-full lens-items-center lens-rounded lens-border lens-border-solid lens-px-1.5 lens-py-0.5 lens-text-type-xs lens-font-semibold lens-leading-3;
     border-color: #fecaca;
     background: #fef2f2;
     color: #b91c1c;
@@ -2521,7 +2551,7 @@
   }
 
   .lens-waterfall-axis span {
-    @apply lens-absolute lens-right-3 lens-whitespace-nowrap lens-text-[11px] lens-text-muted;
+    @apply lens-absolute lens-right-3 lens-whitespace-nowrap lens-text-type-sm lens-text-muted;
     transform: translateY(-50%);
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -2595,7 +2625,7 @@
      two collide in the gutter between columns; a few pixels lower it clears
      that band and lands against the neighbour's empty plot area instead. */
   .lens-waterfall-split-callout {
-    @apply lens-pointer-events-none lens-absolute lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-[10px] lens-font-semibold;
+    @apply lens-pointer-events-none lens-absolute lens-z-[3] lens-whitespace-nowrap lens-rounded lens-border lens-border-solid lens-border-border lens-bg-card lens-px-1 lens-py-px lens-text-type-xs lens-font-semibold;
     top: calc(100% + 3px);
     color: var(--lens-neg-alt);
     font-variant-numeric: tabular-nums lining-nums;
@@ -2636,7 +2666,7 @@
   }
 
   .lens-waterfall-bar strong {
-    @apply lens-absolute lens-left-1/2 lens-text-center lens-text-[11px] lens-font-semibold lens-leading-tight lens-text-strong;
+    @apply lens-absolute lens-left-1/2 lens-text-center lens-text-type-sm lens-font-semibold lens-leading-tight lens-text-strong;
     top: -4px;
     width: 200%;
     overflow-wrap: anywhere;
@@ -2992,7 +3022,7 @@
   }
 
   .lens-table-small-sample-marker {
-    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-1.5 lens-py-0.5 lens-text-[10px] lens-font-semibold lens-leading-none lens-text-faint;
+    @apply lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-1.5 lens-py-0.5 lens-text-type-xs lens-font-semibold lens-leading-none lens-text-faint;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -3152,10 +3182,6 @@
 
   .lens-table-footer {
     @apply lens-flex lens-min-h-11 lens-flex-wrap lens-items-center lens-justify-between lens-gap-3 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-bg-inset lens-px-3 lens-py-2;
-  }
-
-  .lens-table-sort-scope {
-    @apply lens-text-xs lens-text-muted;
   }
 
   .lens-table-pagination {
@@ -3438,7 +3464,7 @@
   /* Small-caps eyebrow naming what the card describes, above the segment
      title and its figure. */
   .lens-drill-eyebrow {
-    @apply lens-m-0 lens-text-[10px] lens-font-semibold lens-uppercase lens-text-faint;
+    @apply lens-m-0 lens-text-type-xs lens-font-semibold lens-uppercase lens-text-faint;
     letter-spacing: 0.14em;
   }
 
@@ -3474,7 +3500,7 @@
   }
 
   .lens-drill-section-label {
-    @apply lens-m-0 lens-mb-1 lens-text-[10px] lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
+    @apply lens-m-0 lens-mb-1 lens-text-type-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-faint;
   }
 
   .lens-drill-rows {
@@ -3596,74 +3622,6 @@
     }
   }
 
-  .lens-explore-path {
-    @apply lens-flex lens-min-h-10 lens-items-center lens-justify-between lens-gap-3;
-  }
-
-  .lens-explore-path ol {
-    @apply lens-m-0 lens-flex lens-min-w-0 lens-list-none lens-items-center lens-overflow-x-auto lens-p-0;
-  }
-
-  .lens-explore-path li {
-    @apply lens-flex lens-shrink-0 lens-items-center;
-  }
-
-  .lens-explore-path li + li::before {
-    content: '';
-    @apply lens-mx-1 lens-h-px lens-w-4 lens-bg-border-strong;
-  }
-
-  .lens-crumb,
-  .lens-explore-back {
-    @apply lens-min-h-9 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-2 lens-font-sans lens-text-sm lens-font-medium lens-text-muted lens-transition-colors;
-  }
-
-  .lens-crumb {
-    @apply lens-flex lens-items-center lens-gap-2;
-  }
-
-  .lens-crumb:hover,
-  .lens-explore-back:hover {
-    @apply lens-bg-inset lens-text-strong;
-  }
-
-  .lens-crumb[aria-current='page'] {
-    @apply lens-border-border lens-bg-card lens-text-strong lens-shadow-card;
-  }
-
-  .lens-crumb-perspective,
-  .lens-perspective-affordance {
-    @apply lens-rounded-badge lens-bg-accent-50 lens-px-1.5 lens-py-0.5 lens-text-xs lens-font-semibold lens-text-accent-700;
-  }
-
-  .lens-explore-back {
-    @apply lens-shrink-0;
-  }
-
-  .lens-perspective-set {
-    @apply lens-flex lens-flex-wrap lens-items-stretch lens-gap-1 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-inset lens-p-1;
-  }
-
-  .lens-perspective-label {
-    @apply lens-flex lens-items-center lens-px-3 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
-  }
-
-  .lens-perspective-set button {
-    @apply lens-flex lens-min-h-11 lens-min-w-32 lens-flex-col lens-items-start lens-justify-center lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-py-1 lens-font-sans lens-text-sm lens-font-semibold lens-text-text lens-transition-colors;
-  }
-
-  .lens-perspective-set button:hover {
-    @apply lens-bg-card;
-  }
-
-  .lens-perspective-set button[aria-selected='true'] {
-    @apply lens-border-border lens-bg-card lens-text-accent-700 lens-shadow-card;
-  }
-
-  .lens-perspective-set small {
-    @apply lens-text-xs lens-font-normal lens-capitalize lens-text-muted;
-  }
-
   /* The level fills the card `.lens-explore` was given, so a state that
      replaces the panel — a fork asking for a view, an unavailable level —
      keeps the row's height instead of collapsing to its own text and leaving
@@ -3683,26 +3641,6 @@
   .lens-explore-level:focus {
     outline: 2px solid var(--lens-accent-300);
     outline-offset: 3px;
-  }
-
-  .lens-segment-tree {
-    @apply lens-grid lens-grid-cols-1 lens-gap-2 sm:lens-grid-cols-2 lg:lens-grid-cols-3;
-  }
-
-  .lens-segment {
-    @apply lens-box-border lens-flex lens-min-h-11 lens-w-full lens-items-center lens-gap-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-text-left lens-font-sans lens-text-sm lens-font-semibold lens-text-strong lens-no-underline lens-shadow-card lens-transition-colors;
-  }
-
-  .lens-segment:hover {
-    @apply lens-border-strong lens-bg-accent-50;
-  }
-
-  .lens-segment > :first-child {
-    @apply lens-mr-auto;
-  }
-
-  .lens-segment-arrow {
-    @apply lens-text-accent-700;
   }
 
   .lens-leaf-action {
@@ -3790,13 +3728,6 @@
     .lens-explore-level-enter {
       animation: none;
     }
-
-    .lens-crumb,
-    .lens-explore-back,
-    .lens-perspective-set button,
-    .lens-segment {
-      transition: none;
-    }
   }
 
   /* ---------------------------------------------------------------------- */
@@ -3821,7 +3752,7 @@
     gap: 4px;
     border-radius: var(--lens-radius-badge);
     padding: 1px 6px;
-    font-size: 10px;
+    font-size: var(--lens-type-xs);
     font-weight: 600;
     letter-spacing: 0.01em;
     text-transform: none;
@@ -3894,7 +3825,7 @@
     flex-shrink: 0;
     width: 16px;
     text-align: center;
-    font-size: 0.875rem;
+    font-size: var(--lens-type-md);
     font-weight: 600;
     color: var(--lens-text-faint);
     font-variant-numeric: tabular-nums lining-nums;
@@ -3915,14 +3846,14 @@
   .lens-flow-stage-label {
     margin-inline-end: auto;
     min-width: 0;
-    font-size: 0.875rem;
+    font-size: var(--lens-type-md);
     font-weight: 500;
     color: var(--lens-text);
   }
 
   .lens-flow-stage-value {
     flex-shrink: 0;
-    font-size: 0.875rem;
+    font-size: var(--lens-type-md);
     font-weight: 600;
     color: var(--lens-text-strong);
     font-variant-numeric: tabular-nums lining-nums;
@@ -3934,7 +3865,7 @@
 
   .lens-flow-stage-caption {
     flex-basis: 100%;
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-muted);
   }
 
@@ -3954,13 +3885,13 @@
   }
 
   .lens-flow-stage-result .lens-flow-stage-value {
-    font-size: 1rem;
+    font-size: var(--lens-type-lg);
   }
 
   .lens-flow-reconcile {
     margin: 0;
     padding: 0 16px 12px;
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-muted);
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -4090,7 +4021,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.875rem;
+    font-size: var(--lens-type-md);
     color: var(--lens-text);
   }
 
@@ -4109,7 +4040,7 @@
     padding: 1px 6px;
     background: var(--lens-bg-inset);
     color: var(--lens-text-faint);
-    font-size: 10px;
+    font-size: var(--lens-type-xs);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -4120,7 +4051,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-faint);
   }
 
@@ -4131,7 +4062,7 @@
     gap: 8px;
     justify-self: end;
     text-align: end;
-    font-size: 0.875rem;
+    font-size: var(--lens-type-md);
     font-weight: 600;
     color: var(--lens-text-strong);
     font-variant-numeric: tabular-nums lining-nums;
@@ -4145,7 +4076,7 @@
     flex-shrink: 0;
     justify-self: end;
     text-align: end;
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     font-weight: 500;
     color: var(--lens-text-muted);
     font-variant-numeric: tabular-nums lining-nums;
@@ -4155,7 +4086,7 @@
     margin: 0;
     padding: 0 8px 6px;
     padding-inline-start: calc(var(--lens-depth, 0) * 14px + 8px);
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -4244,7 +4175,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -4255,7 +4186,7 @@
     display: flex;
     align-items: baseline;
     gap: 8px;
-    font-size: 1.125rem;
+    font-size: var(--lens-type-lg);
     font-weight: 600;
     color: var(--lens-text-strong);
     font-variant-numeric: tabular-nums lining-nums;
@@ -4279,7 +4210,7 @@
   }
 
   .lens-relationship-glyph {
-    font-size: 1.25rem;
+    font-size: var(--lens-type-xl);
     line-height: 1;
     color: var(--lens-text-faint);
   }
@@ -4289,7 +4220,7 @@
   }
 
   .lens-relationship-type {
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.04em;
@@ -4299,7 +4230,7 @@
   .lens-relationship-note {
     max-width: 16rem;
     overflow-wrap: anywhere;
-    font-size: 0.75rem;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-faint);
   }
 
@@ -4464,7 +4395,7 @@
     padding: 2px var(--lens-space-1);
     border-radius: var(--lens-radius-badge);
     font-family: var(--lens-font);
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     line-height: 1.35;
     color: var(--lens-accent-700);
     max-width: 18rem;
@@ -4531,7 +4462,7 @@
   .lens-focus-breadcrumb .lens-focus-crumb-gap {
     display: none;
     color: var(--lens-text-faint);
-    font-size: 12px;
+    font-size: var(--lens-type-base);
   }
 
   /* -- context line ------------------------------------------------------- */
@@ -4553,13 +4484,13 @@
   }
 
   .lens-focus-name {
-    font-size: 13px;
+    font-size: var(--lens-type-base);
     font-weight: 600;
     color: var(--lens-text-strong);
   }
 
   .lens-focus-value {
-    font-size: 26px;
+    font-size: var(--lens-type-2xl);
     font-weight: 650;
     letter-spacing: -0.015em;
     line-height: 1.1;
@@ -4569,7 +4500,7 @@
 
   .lens-focus-share,
   .lens-focus-period {
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-muted);
     font-variant-numeric: tabular-nums lining-nums;
   }
@@ -4598,7 +4529,7 @@
   }
 
   .lens-focus-mini-caption {
-    font-size: 10px;
+    font-size: var(--lens-type-xs);
     color: var(--lens-text-faint);
   }
 
@@ -4622,7 +4553,7 @@
   }
 
   .lens-focus-lens-label {
-    font-size: 11.5px;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-muted);
     flex: none;
   }
@@ -4647,7 +4578,7 @@
     border: 0;
     background: transparent;
     font-family: var(--lens-font);
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     font-weight: 550;
     color: var(--lens-text-muted);
     padding: 4px 12px;
@@ -4733,7 +4664,7 @@
     border-radius: var(--lens-radius-control);
     padding: 6px 10px;
     font-family: var(--lens-font);
-    font-size: 12.5px;
+    font-size: var(--lens-type-base);
     text-align: left;
     color: var(--lens-text);
     cursor: pointer;
@@ -4774,7 +4705,7 @@
     background: transparent;
     padding: 7px var(--lens-space-3);
     font-family: var(--lens-font);
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-muted);
     text-align: left;
     cursor: pointer;
@@ -4823,7 +4754,7 @@
 
   .lens-focus-source-state {
     margin: 0;
-    font-size: 12px;
+    font-size: var(--lens-type-base);
     color: var(--lens-text-faint);
   }
 
@@ -4849,7 +4780,7 @@
 
   @container lens-focus (max-width: 32.5rem) {
     .lens-focus-value {
-      font-size: 21px;
+      font-size: var(--lens-type-xl);
     }
 
     .lens-focus-lens-label {
@@ -4904,7 +4835,7 @@
   .lens-coverage-bullet-label {
     position: absolute;
     top: 27px;
-    font-size: 10.5px;
+    font-size: var(--lens-type-sm);
     line-height: 1.3;
     color: var(--lens-text-muted);
     white-space: nowrap;
@@ -4961,7 +4892,7 @@
 
   .lens-temporal-toggle,
   .lens-temporal-select {
-    @apply lens-min-h-8 lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-[11px] lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-min-h-control-md lens-rounded-control lens-border lens-border-border lens-bg-card lens-px-2 lens-text-type-sm lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-temporal-toggle:hover,
@@ -5002,7 +4933,7 @@
   background: #fff;
   color: var(--lens-text-strong);
   font-family: var(--lens-font);
-  font-size: 10px;
+  font-size: var(--lens-type-xs);
   line-height: 1.5;
 }
 
@@ -5052,7 +4983,7 @@
 .lens-print-kicker {
   margin-bottom: 14px !important;
   color: var(--lens-accent-500);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
   font-weight: 700;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -5061,7 +4992,7 @@
 .lens-print-cover h1 {
   max-width: 620px;
   color: var(--lens-text-strong);
-  font-size: 34px;
+  font-size: var(--lens-type-3xl);
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.1;
@@ -5071,7 +5002,7 @@
   max-width: 560px;
   margin-top: 10px !important;
   color: var(--lens-text-muted);
-  font-size: 11px;
+  font-size: var(--lens-type-sm);
   line-height: 1.5;
 }
 
@@ -5086,7 +5017,7 @@
 
 .lens-print-cover-meta dt {
   color: var(--lens-text-muted);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
@@ -5095,7 +5026,7 @@
 .lens-print-cover-meta dd {
   margin-top: 3px !important;
   color: var(--lens-text-strong);
-  font-size: 11px;
+  font-size: var(--lens-type-sm);
   font-weight: 600;
   font-variant-numeric: tabular-nums lining-nums;
 }
@@ -5120,7 +5051,7 @@
 
 .lens-print-kpi-label {
   color: var(--lens-text-muted);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5135,7 +5066,7 @@
   color: var(--lens-text-strong);
   /* «199.89 млрд UZS» broken across two lines reads as two numbers, so the
      headline is sized to hold an abbreviated amount on one line. */
-  font-size: 14px;
+  font-size: var(--lens-type-md);
   white-space: nowrap;
   font-weight: 700;
   font-variant-numeric: tabular-nums lining-nums;
@@ -5144,7 +5075,7 @@
 
 .lens-print-kpi-caption {
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   line-height: 1.35;
 }
 
@@ -5153,7 +5084,7 @@
 .lens-print-kpi-delta {
   margin-left: 6px;
   color: var(--lens-pos);
-  font-size: 10px;
+  font-size: var(--lens-type-xs);
   font-weight: 600;
 }
 
@@ -5175,7 +5106,7 @@
 
 .lens-print-kpi-trend {
   color: var(--lens-pos);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   font-weight: 600;
 }
 
@@ -5185,7 +5116,7 @@
 
 .lens-print-kpi-target {
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   font-variant-numeric: tabular-nums lining-nums;
 }
 
@@ -5204,7 +5135,7 @@
   padding-left: 10px;
   border-left: 2px solid var(--lens-warn);
   color: var(--lens-text-muted);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
 }
 
 /* -- Contents -------------------------------------------------------------- */
@@ -5216,7 +5147,7 @@
 .lens-print-contents h2 {
   padding-bottom: 8px;
   border-bottom: 2px solid var(--lens-text-strong);
-  font-size: 15px;
+  font-size: var(--lens-type-lg);
   font-weight: 700;
 }
 
@@ -5235,27 +5166,27 @@
 
 .lens-print-contents-number {
   color: var(--lens-accent-500);
-  font-size: 10px;
+  font-size: var(--lens-type-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .lens-print-contents-title {
-  font-size: 11px;
+  font-size: var(--lens-type-sm);
   font-weight: 600;
 }
 
 .lens-print-contents-caption {
   grid-column: 2;
   color: var(--lens-text-muted);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
   line-height: 1.4;
 }
 
 .lens-print-contents-note {
   max-width: 620px;
   color: var(--lens-text-muted);
-  font-size: 9.5px;
+  font-size: var(--lens-type-xs);
   line-height: 1.55;
 }
 
@@ -5269,7 +5200,7 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--lens-border);
   color: var(--lens-text-faint);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5281,14 +5212,14 @@
   gap: 10px;
   margin-top: 12px !important;
   color: var(--lens-text-strong);
-  font-size: 21px;
+  font-size: var(--lens-type-xl);
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .lens-print-chapter-number {
   color: var(--lens-accent-500);
-  font-size: 21px;
+  font-size: var(--lens-type-xl);
   font-variant-numeric: tabular-nums;
 }
 
@@ -5296,7 +5227,7 @@
   max-width: 600px;
   margin-top: 6px !important;
   color: var(--lens-text);
-  font-size: 10.5px;
+  font-size: var(--lens-type-sm);
   line-height: 1.55;
 }
 
@@ -5309,7 +5240,7 @@
   padding-top: 7px;
   border-top: 1px solid var(--lens-divider);
   color: var(--lens-text-strong);
-  font-size: 9.5px;
+  font-size: var(--lens-type-xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums lining-nums;
 }
@@ -5317,7 +5248,7 @@
 .lens-print-chapter-headline-label {
   margin-right: 5px;
   color: var(--lens-text-muted);
-  font-size: 7.5px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -5374,7 +5305,7 @@
 
 .lens-print-strip h3 {
   color: var(--lens-text-strong);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5384,7 +5315,7 @@
   max-width: 600px;
   margin-top: 3px !important;
   color: var(--lens-text-muted);
-  font-size: 9.5px;
+  font-size: var(--lens-type-xs);
   line-height: 1.5;
 }
 
@@ -5411,7 +5342,7 @@
 
 .lens-print-figure-number {
   color: var(--lens-accent-500);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5420,7 +5351,7 @@
 .lens-print-figure-head h3 {
   flex: 1 1 auto;
   color: var(--lens-text-strong);
-  font-size: 12px;
+  font-size: var(--lens-type-base);
   font-weight: 700;
   line-height: 1.3;
 }
@@ -5430,7 +5361,7 @@
   border: 1px solid var(--lens-border-strong);
   border-radius: var(--lens-radius-badge);
   color: var(--lens-text-muted);
-  font-size: 7.5px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -5495,13 +5426,13 @@
 
 .lens-print-chart-waterfall .lens-waterfall-axis span,
 .lens-print-chart-waterfall .lens-waterfall-label {
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
 }
 
 /* The value над столбцом is set smaller than its axis: at 8px two adjacent
    labels — «170.10 млрд UZS» and «−119.28 млрд UZS» — ran into each other. */
 .lens-print-chart-waterfall .lens-waterfall-bar strong {
-  font-size: 7px;
+  font-size: var(--lens-type-3xs);
   letter-spacing: -0.01em;
 }
 
@@ -5512,7 +5443,7 @@
   gap: 10px;
   margin-top: 4px !important;
   color: var(--lens-text-muted);
-  font-size: 7.5px;
+  font-size: var(--lens-type-3xs);
   letter-spacing: 0.02em;
 }
 
@@ -5540,7 +5471,7 @@
 .lens-print-figure-note {
   margin-bottom: 8px !important;
   color: var(--lens-text);
-  font-size: 9.5px;
+  font-size: var(--lens-type-xs);
   line-height: 1.5;
 }
 
@@ -5558,7 +5489,7 @@
 .lens-print-figure-total {
   margin-left: auto;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap;
 }
@@ -5585,7 +5516,7 @@
 .lens-print-footnote-marker {
   margin-left: 2px;
   color: var(--lens-accent-500);
-  font-size: 7px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   vertical-align: super;
 }
@@ -5598,7 +5529,7 @@
   border-top: 1px dotted var(--lens-border);
   padding-top: 5px;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   line-height: 1.45;
   list-style: none;
   padding-left: 0;
@@ -5609,14 +5540,14 @@
   color: var(--lens-accent-500);
   font-weight: 700;
   vertical-align: super;
-  font-size: 7px;
+  font-size: var(--lens-type-3xs);
 }
 
 .lens-print-truncated,
 .lens-print-detail-note {
   margin-top: 4px !important;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   font-style: italic;
 }
 
@@ -5640,7 +5571,7 @@
   gap: 6px;
   padding: 3px 0;
   border-bottom: 1px solid var(--lens-border);
-  font-size: 9.5px;
+  font-size: var(--lens-type-xs);
 }
 
 /* The result is the line the formula walks towards; it reads as a total. */
@@ -5653,7 +5584,7 @@
 
 .lens-print-flow-op {
   color: var(--lens-text-muted);
-  font-size: 11px;
+  font-size: var(--lens-type-sm);
   font-weight: 700;
   text-align: center;
 }
@@ -5661,7 +5592,7 @@
 .lens-print-flow-label small {
   display: block;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   line-height: 1.4;
 }
 
@@ -5677,7 +5608,7 @@
 /* The magnitude every line of the calculation is stated in, said once. */
 .lens-print-formula-unit {
   color: var(--lens-text-muted);
-  font-size: 7.5px;
+  font-size: var(--lens-type-3xs);
   letter-spacing: 0.02em;
   text-align: right;
 }
@@ -5685,7 +5616,7 @@
 .lens-print-formula-note {
   margin-top: 5px !important;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
 }
 
 .lens-print-hierarchy {
@@ -5701,7 +5632,7 @@
   gap: 6px;
   padding: 3px 0 3px calc(var(--lens-depth, 0) * 12px);
   border-bottom: 1px solid var(--lens-border);
-  font-size: 9.5px;
+  font-size: var(--lens-type-xs);
 }
 
 .lens-print-hierarchy-row[data-parent] {
@@ -5712,7 +5643,7 @@
 .lens-print-hierarchy-label em {
   margin-left: 5px;
   color: var(--lens-text-muted);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-style: normal;
   text-transform: uppercase;
 }
@@ -5720,7 +5651,7 @@
 .lens-print-hierarchy-label small {
   display: block;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   font-weight: 400;
   line-height: 1.4;
 }
@@ -5734,13 +5665,13 @@
 .lens-print-hierarchy-reconcile {
   grid-column: 1 / -1;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   font-weight: 400;
 }
 
 .lens-print-relationship-claim {
   color: var(--lens-text-strong);
-  font-size: 10px;
+  font-size: var(--lens-type-xs);
   font-weight: 600;
   margin-bottom: 6px !important;
 }
@@ -5760,7 +5691,7 @@
 .lens-print-relationship-label {
   display: block;
   color: var(--lens-text-muted);
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
 }
 
 .lens-print-relationship-value {
@@ -5768,7 +5699,7 @@
   align-items: baseline;
   gap: 5px;
   color: var(--lens-text-strong);
-  font-size: 13px;
+  font-size: var(--lens-type-base);
   font-weight: 700;
   font-variant-numeric: tabular-nums lining-nums;
 }
@@ -5780,7 +5711,7 @@
   transform: translateY(-50%);
   background: #fff;
   color: var(--lens-text-muted);
-  font-size: 11px;
+  font-size: var(--lens-type-sm);
   line-height: 1;
 }
 
@@ -5795,7 +5726,7 @@
 .lens-print-breakdown-head,
 .lens-print-breakdown-title {
   color: var(--lens-text-muted);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5812,7 +5743,7 @@
   gap: 8px;
   padding: 2px 0;
   border-bottom: 1px solid var(--lens-border);
-  font-size: 9.5px;
+  font-size: var(--lens-type-xs);
   font-variant-numeric: tabular-nums lining-nums;
 }
 
@@ -5822,7 +5753,7 @@
   width: 100%;
   border-collapse: collapse;
   color: var(--lens-text);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
   font-variant-numeric: tabular-nums lining-nums;
   line-height: 1.35;
 }
@@ -5831,7 +5762,7 @@
   padding: 4px 6px 4px 0;
   border-bottom: 1px solid var(--lens-border-strong);
   color: var(--lens-text-muted);
-  font-size: 7.5px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.06em;
   text-align: left;
@@ -5904,12 +5835,12 @@
   display: block;
   margin-top: 1px;
   color: var(--lens-text-faint);
-  font-size: 7.5px;
+  font-size: var(--lens-type-3xs);
   white-space: nowrap;
 }
 
 .lens-print-data-dense {
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
 }
 
 .lens-print-data-dense th,
@@ -5918,7 +5849,7 @@
 }
 
 .lens-print-data-wide {
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
 }
 
 .lens-print-data-wide th,
@@ -5963,7 +5894,7 @@
 .lens-print-cell-secondary {
   display: block;
   color: var(--lens-pos);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-style: normal;
   font-weight: 600;
 }
@@ -6021,7 +5952,7 @@
 
 .lens-print-empty {
   color: var(--lens-text-muted);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
 }
 
 /* -- Appendices ------------------------------------------------------------ */
@@ -6035,7 +5966,7 @@
   padding-bottom: 4px;
   border-bottom: 1px solid var(--lens-border);
   color: var(--lens-text-strong);
-  font-size: 12px;
+  font-size: var(--lens-type-base);
   font-weight: 700;
 }
 
@@ -6057,21 +5988,21 @@
 
 .lens-print-detail-number {
   color: var(--lens-accent-500);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
 
 .lens-print-detail h4 {
   flex: 1 1 auto;
-  font-size: 10px;
+  font-size: var(--lens-type-xs);
   font-weight: 700;
 }
 
 .lens-print-detail-trail {
   flex: 1 1 100%;
   color: var(--lens-text-faint);
-  font-size: 7.5px;
+  font-size: var(--lens-type-3xs);
   line-height: 1.3;
 }
 
@@ -6083,7 +6014,7 @@
 .lens-print-glossary h3 {
   margin: 0 0 6px;
   color: var(--lens-text-muted);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -6104,7 +6035,7 @@
 
 .lens-print-glossary dd {
   color: var(--lens-text);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
   line-height: 1.45;
 }
 
@@ -6125,13 +6056,13 @@
 
 .lens-print-notes dt {
   color: var(--lens-text-strong);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
   font-weight: 700;
 }
 
 .lens-print-notes dd {
   color: var(--lens-text);
-  font-size: 9px;
+  font-size: var(--lens-type-2xs);
   line-height: 1.45;
 }
 
@@ -6144,14 +6075,14 @@
 }
 
 .lens-print-limits h3 {
-  font-size: 10px;
+  font-size: var(--lens-type-xs);
   font-weight: 700;
 }
 
 .lens-print-limits p,
 .lens-print-limits li {
   color: #78350f;
-  font-size: 8.5px;
+  font-size: var(--lens-type-2xs);
   line-height: 1.45;
 }
 
@@ -6173,7 +6104,7 @@
   padding-top: 6px;
   border-top: 1px solid var(--lens-border);
   color: var(--lens-text-faint);
-  font-size: 8px;
+  font-size: var(--lens-type-3xs);
   font-variant-numeric: tabular-nums;
 }
 
