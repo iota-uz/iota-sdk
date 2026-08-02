@@ -286,7 +286,18 @@ func appendPanelTree(
 				return declaredEncoding(spec.Fields)
 			}
 			return buildEncoding(spec.Fields, wireFrame)
-		}(), Format: buildFormats(spec), Total: spec.TotalBadgeValue, Columns: columns, Table: buildTableOptions(spec),
+		}(), Format: buildFormats(spec), Total: func() *float64 {
+			// Same reasoning as the ring totals below: a badge total is computed
+			// from rows, a deferred panel has none yet, and the figure standing
+			// here came from the layout skeleton — «Итого: 10 UZS» over a donut
+			// whose slices add up to 92 млрд. The frame carries the real total
+			// when the panel arrives and the runtime prefers it, so the honest
+			// shell states no total rather than a placeholder one.
+			if deferred {
+				return nil
+			}
+			return spec.TotalBadgeValue
+		}(), Columns: columns, Table: buildTableOptions(spec),
 		DrillRoot: drillRoot, Actions: actions,
 		Accent: panelAccent(spec), Status: buildStatus(spec), Caption: strings.TrimSpace(spec.Description),
 		Info:     strings.TrimSpace(spec.Info),
