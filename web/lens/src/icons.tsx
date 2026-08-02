@@ -273,6 +273,16 @@ export const WarningTriangle = glyph(
   12,
 )
 
+/** The filter menu's trigger: a funnel narrowing what the page shows. */
+export const FunnelSimple = glyph(
+  <>
+    <line x1="32" y1="72" x2="224" y2="72" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="64" y1="128" x2="192" y2="128" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <line x1="104" y1="184" x2="152" y2="184" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
 /** Quality: configuration required — sliders to be set. */
 export const Sliders = glyph(
   <>

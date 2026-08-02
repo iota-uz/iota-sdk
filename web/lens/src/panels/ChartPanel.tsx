@@ -11,6 +11,7 @@ import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
 import { childForSelection } from '../explore/model'
 import { ArrowsLeftRight, WarningTriangle } from '../icons'
+import { searchableListEntries } from '../listSearch'
 import { axisUnit, formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
@@ -31,7 +32,7 @@ const minorDonutShare = 0.02
  * the same legend that is long enough to need bulk selection; below it a reader
  * clicks the rows, which are right there.
  */
-const legendControlEntries = 6
+const legendControlEntries = searchableListEntries
 /** Below two entries there is nothing to select in bulk. */
 const legendBulkEntries = 2
 
@@ -412,13 +413,21 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // card went on printing 45,55 млрд in its hub: one panel, two totals,
   // contradicting each other. Nothing shown, nothing totalled, one owner.
   const nothingVisible = hidden.size > 0 && (visibleFrame?.rows.length ?? 0) === 0
-  const shareTotal = !frame.data || frame.data.rows.length === 0 || nothingVisible
+  // The total the panel states at rest. A chart that cannot state one — a series
+  // whose rows are ratios, say, where a sum is not a fact — states none, and
+  // hiding a series does not conjure one either. The badge used to *appear* on
+  // the first legend click, which shifted the export/expand icons under the
+  // pointer and gave the recomputed figure no baseline to be compared against.
+  const restingTotal = frame.data && frame.data.rows.length > 0
+    ? frame.data.total
+      ?? (active || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal : undefined)
+      ?? panel.total
+    : undefined
+  const shareTotal = restingTotal === undefined || nothingVisible
     ? undefined
     : hidden.size > 0
       ? visibleTotal
-      : frame.data.total
-        ?? (active || panel.kind === 'pie' || panel.kind === 'donut' || panel.kind === 'radial' ? frameRowsTotal : undefined)
-        ?? panel.total
+      : restingTotal
   // A served frame may carry the rendering decisions of the panel that produced
   // it. In document mode a drill level is drawn by a placeholder panel frozen
   // before anyone knew which dimension that level would render, so the frame is

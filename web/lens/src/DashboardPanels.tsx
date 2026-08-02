@@ -18,7 +18,7 @@ import { RegisteredPanel, type PanelRegistry } from './panels/registry'
 import { ShareSliceButton } from './panels/ShareSliceButton'
 import { StatMetric, StatusChip } from './panels/StatPanel'
 import { PanelChromeContext, type PanelChrome } from './panels/context'
-import { Clock, X } from './icons'
+import { ArrowClockwise, CircleNotch, Clock, X } from './icons'
 import { ExplorePanel } from './explore'
 import { FilterBar, type CalendarDate } from './controls'
 import { isVisualRegression } from './visualRegression'
@@ -509,6 +509,48 @@ function FreshnessStamp() {
   )
 }
 
+/**
+ * Force every panel past the server cache.
+ *
+ * Three things it did not say before. What it does: "Recompute" names the
+ * machine's activity, not the reader's question, so the explanation rides on the
+ * control. Whether it is worth doing: the button is quiet while the reading is
+ * fresh and takes the warning tone once the figures are old enough for the
+ * freshness stamp beside it to escalate — a control with no resting state is one
+ * readers learn to click superstitiously. And that it is running: a spinner in
+ * place of the arrow, with the label unchanged, because swapping the label to
+ * «Пересчитывается…» widened the button by 40px and moved Экспорт out from under
+ * the pointer mid-gesture.
+ */
+function RecomputeButton() {
+  const { isRecomputing, recompute } = useDashboard()
+  const translate = useTranslate()
+  const freshness = useFreshness()
+  const hintID = useId()
+  const label = translate('dashboard.recompute', 'Recompute')
+  const hint = isRecomputing
+    ? translate('dashboard.recomputing', 'Recomputing…')
+    : translate('dashboard.recomputeHint', 'Refresh every figure, ignoring the cached results')
+  return (
+    <>
+      <button
+        aria-busy={isRecomputing}
+        aria-describedby={hintID}
+        className="lens-export-button lens-recompute"
+        data-stale={freshness?.stale || undefined}
+        disabled={isRecomputing}
+        onClick={recompute}
+        title={hint}
+        type="button"
+      >
+        {isRecomputing ? <CircleNotch className="lens-icon-spin" /> : <ArrowClockwise />}
+        <span>{label}</span>
+      </button>
+      <span className="lens-sr-only" id={hintID}>{hint}</span>
+    </>
+  )
+}
+
 /** The document's identity subtitle: the producer's period/scope line. */
 function DashboardSubtitle({ subtitle }: { subtitle?: string }) {
   if (!subtitle) return null
@@ -559,13 +601,10 @@ function usePrintPreview(): void {
 }
 
 export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps) {
-  const { document, canRecompute, isRecomputing, recompute } = useDashboard()
+  const { document, canRecompute } = useDashboard()
   const translate = useTranslate()
   const drawer = useDrawer()
   const print = usePrint()
-  const recomputeLabel = isRecomputing
-    ? translate('dashboard.recomputing', 'Recomputing…')
-    : translate('dashboard.recompute', 'Recompute')
   const panels = new Map(document.panels.map((panel) => [panel.id, panel]))
   // First paint only: panels rise/fade in with a small per-panel stagger. The
   // value is fixed for this mount, so drill, perspective, drawer and refetch
@@ -618,19 +657,15 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
             )}
             <div className="lens-dashboard-controls">
               <FilterBar today={filterToday} />
-              <FreshnessStamp />
-              {canRecompute && (
-                <button
-                  className="lens-export-button"
-                  disabled={isRecomputing}
-                  onClick={recompute}
-                  type="button"
-                >
-                  {recomputeLabel}
-                </button>
-              )}
-              <ShareSliceButton />
-              <ExportMenu />
+              {/* The actions travel as one block. Loose in the controls row they
+                  re-ordered themselves against the filters at every wrap, so the
+                  fourth control at 1440px was the second one at 1000px. */}
+              <div className="lens-dashboard-actions">
+                <FreshnessStamp />
+                {canRecompute && <RecomputeButton />}
+                <ShareSliceButton />
+                <ExportMenu />
+              </div>
             </div>
           </header>
         )}

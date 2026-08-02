@@ -93,19 +93,19 @@ function catalogPresets(
 }
 
 /**
- * The top-row chips: the document's server-declared presets when it has them
- * (server authority — e.g. the profitability year chips), otherwise the
- * built-in relative catalog.
+ * The top-row chips: only the document's own declared presets — the
+ * profitability year chips, i.e. a scope the producer decided this dashboard is
+ * read by.
+ *
+ * The built-in relative catalog is deliberately NOT here. Rendering it inline
+ * put the same seven presets in two places with two different groupings (a flat
+ * row, and the popover's headed rail), and the row was the one that could not
+ * hold them: at 1440px it clipped mid-word at x=1164 behind a 5%-black gradient
+ * on an already-grey tray. One preset list, in the surface that has room for it.
  */
-function topRowPresets(
-  period: NonNullable<Filter['period']>,
-  today: CalendarDate,
-  translate: (key: string, fallback: string) => string,
-): Array<RenderablePreset> {
-  if (period.presets && period.presets.length > 0) {
-    return period.presets.map((preset) => ({ id: preset.id, label: preset.label, value: preset.value }))
-  }
-  return catalogPresets(period, today, translate)
+function topRowPresets(period: NonNullable<Filter['period']>): Array<RenderablePreset> {
+  if (!period.presets || period.presets.length === 0) return []
+  return period.presets.map((preset) => ({ id: preset.id, label: preset.label, value: preset.value }))
 }
 
 /**
@@ -362,7 +362,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
   }
 
   const resolvedToday = today ?? localToday()
-  const presets = topRowPresets(period, resolvedToday, translate)
+  const presets = topRowPresets(period)
   const relativePresets = popoverPresets(period, resolvedToday, translate)
   const toDatePresets = relativePresets.filter((preset) => !preset.past)
   const pastPresets = relativePresets.filter((preset) => preset.past)
@@ -387,6 +387,7 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
     <div
       aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')}
       className="lens-filter"
+      data-bare={presets.length === 0 || undefined}
       data-filter-id={filter.id}
       role="group"
     >
@@ -394,28 +395,30 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
           are segments of the same control, so the applied period is stated in
           a single visual language instead of two competing ones. The filter's
           own label names the group rather than printing a caption beside it. */}
-      <div
-        className="lens-filter-presets-frame"
-        data-overflow-left={presetEdges.left || undefined}
-        data-overflow-right={presetEdges.right || undefined}
-      >
-        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
-        <div aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')} className="lens-filter-segments" ref={presetsRef} role="region" tabIndex={presetEdges.left || presetEdges.right ? 0 : undefined}>
-          {presets.map((preset) => (
-            <button
-              aria-pressed={sameValue(preset.value, value)}
-              className="lens-filter-chip"
-              key={preset.id}
-              onClick={() => applyValue(preset.value)}
-              type="button"
-            >
-              {preset.label}
-            </button>
-          ))}
+      {presets.length > 0 && (
+        <div
+          className="lens-filter-presets-frame"
+          data-overflow-left={presetEdges.left || undefined}
+          data-overflow-right={presetEdges.right || undefined}
+        >
+          {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
+          <div aria-label={filter.label || translate('filter.bar.label', 'Dashboard filters')} className="lens-filter-segments" ref={presetsRef} role="region" tabIndex={presetEdges.left || presetEdges.right ? 0 : undefined}>
+            {presets.map((preset) => (
+              <button
+                aria-pressed={sameValue(preset.value, value)}
+                className="lens-filter-chip"
+                key={preset.id}
+                onClick={() => applyValue(preset.value)}
+                type="button"
+              >
+                {preset.label}
+              </button>
+            ))}
+          </div>
+          <span aria-hidden="true" className="lens-filter-presets-edge lens-filter-presets-edge-left" />
+          <span aria-hidden="true" className="lens-filter-presets-edge lens-filter-presets-edge-right"><CaretRight size={12} /></span>
         </div>
-        <span aria-hidden="true" className="lens-filter-presets-edge lens-filter-presets-edge-left" />
-        <span aria-hidden="true" className="lens-filter-presets-edge lens-filter-presets-edge-right"><CaretRight size={12} /></span>
-      </div>
+      )}
       <button
         aria-expanded={open}
         aria-haspopup="dialog"
@@ -427,10 +430,12 @@ export function PeriodFilterControl({ filter, today }: PeriodFilterControlProps)
         type="button"
       >
         <CalendarBlank className="lens-filter-trigger-icon" size={14} />
-        {/* The range is printed only when the trigger is the active source.
-              With a chip raised, that chip already states the period and the
-              trigger is just the way into the calendar. */}
-        {customActive && <span className="lens-filter-trigger-label">{triggerLabel}</span>}
+        {/* The resolved range is always printed. It used to appear only for a
+            custom range, so with a preset applied the one fact a report reader
+            checks before quoting a number — which days these are — lived in the
+            trigger's aria-label. «30 дней» is not a period; 03.07.2026 –
+            01.08.2026 is. */}
+        <span className="lens-filter-trigger-label">{triggerLabel}</span>
         <CaretDown className="lens-filter-trigger-caret" size={11} />
       </button>
       {open && container && createPortal(

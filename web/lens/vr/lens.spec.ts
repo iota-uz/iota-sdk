@@ -61,6 +61,7 @@ const storyIds = [
   'filter-controls--dashboard-filter-light',
   'filter-controls--dashboard-facet-active',
   'filter-controls--facet-options-open',
+  'filter-controls--filters-menu-open',
   'filter-controls--popover-open-dark',
   'filter-controls--popover-open-light',
   'filter-controls--refetch-error',

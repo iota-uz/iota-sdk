@@ -69,6 +69,7 @@ const (
 	I18nDashboardTabs              = "dashboard.tabs"
 	I18nDashboardUpdated           = "dashboard.updated"
 	I18nDashboardRecompute         = "dashboard.recompute"
+	I18nDashboardRecomputeHint     = "dashboard.recomputeHint"
 	I18nDashboardRecomputing       = "dashboard.recomputing"
 	I18nDocumentRefetch            = "document.refetchFailed"
 	I18nDocumentRetry              = "document.retry"
@@ -123,8 +124,11 @@ const (
 	I18nFilterFacetEmpty           = "filter.facet.empty"
 	I18nFilterFacetError           = "filter.facet.error"
 	I18nFilterFacetLoading         = "filter.facet.loading"
+	I18nFilterFacetFilters         = "filter.facet.filters"
 	I18nFilterFacetRemove          = "filter.facet.remove"
 	I18nFilterFacetSearch          = "filter.facet.search"
+	I18nFilterFacetSearchIn        = "filter.facet.searchIn"
+	I18nFilterFacetStaged          = "filter.facet.staged"
 	I18nFilterCompareOff           = "filter.compare.off"
 	I18nFilterComparePrevious      = "filter.compare.previous"
 	I18nFilterCompareYearAgo       = "filter.compare.yearAgo"
@@ -305,7 +309,8 @@ func RuntimeI18nKeys() []string {
 		I18nCascadeCheckpoint, I18nCascadeOpenStage, I18nCascadeResult, I18nCascadeStages,
 		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterApply, I18nFilterCancel,
 		I18nFilterFacetApply, I18nFilterFacetClear, I18nFilterFacetClearAll, I18nFilterFacetEmpty, I18nFilterFacetError,
-		I18nFilterFacetLoading, I18nFilterFacetRemove, I18nFilterFacetSearch,
+		I18nFilterFacetFilters, I18nFilterFacetLoading, I18nFilterFacetRemove, I18nFilterFacetSearch,
+		I18nFilterFacetSearchIn, I18nFilterFacetStaged,
 		I18nFilterCompareOff, I18nFilterComparePrevious, I18nFilterCompareYearAgo,
 		I18nFilterCompareCustom, I18nFilterCompareStart, I18nFilterCompareEnd,
 		I18nFilterCompleted, I18nFilterCustom,
@@ -323,7 +328,7 @@ func RuntimeI18nKeys() []string {
 		I18nChartOpenMark, I18nChartOther, I18nChartRegression, I18nChartResetZoom,
 		I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,
 		I18nChartSeriesYTD, I18nChartSeriesForecast, I18nChartSeriesForecastLower, I18nChartSeriesForecastConfidence,
-		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDashboardRecompute, I18nDashboardRecomputing, I18nDrillClose, I18nDrillReset,
+		I18nDashboardEmpty, I18nDashboardTabs, I18nDashboardUpdated, I18nDashboardRecompute, I18nDashboardRecomputeHint, I18nDashboardRecomputing, I18nDrillClose, I18nDrillReset,
 		I18nDocumentRefetch, I18nDocumentRetry,
 		I18nDrawerClose, I18nDrawerEyebrow, I18nDrawerLabel,
 		I18nExploreBack, I18nExploreBreakdown, I18nExploreChooseView, I18nExploreClose,

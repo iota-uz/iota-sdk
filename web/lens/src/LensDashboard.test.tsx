@@ -98,12 +98,17 @@ describe('LensDashboard', () => {
     expect(screen.getByRole('link', { name: /Remove filter: Tashkent/ })).toHaveAttribute(
       'href', '/report?_f=product%3Aone',
     )
-    expect(screen.getAllByRole('link', { name: 'Clear all' })).toHaveLength(1)
-    const trigger = screen.getByRole('button', { name: /Region/ })
-    fireEvent.pointerEnter(trigger)
-    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // "Clear all" is a command, not a destination: a button on the chip row.
+    expect(screen.getAllByRole('button', { name: 'Clear all' })).toHaveLength(1)
+    // Both facets live behind one trigger, which counts what is applied.
+    const trigger = screen.getByRole('button', { name: /Filters/ })
+    expect(trigger).toHaveTextContent('2')
+    expect(fetchMock).not.toHaveBeenCalled()
     fireEvent.click(trigger)
 
+    // The rail names every dimension; the first one's options are the pane.
+    expect(screen.getByRole('tab', { name: /Region/ })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: /Product/ })).toBeInTheDocument()
     const samarkand = await screen.findByRole('checkbox', { name: /Samarkand/ })
     expect(screen.getByRole('checkbox', { name: /Tashkent/ })).toBeChecked()
     expect(globalThis.document.body.querySelector('.lens-facet-option-bar')).toHaveStyle({ width: '100%' })
@@ -211,6 +216,28 @@ describe('LensDashboard', () => {
 
     expect(screen.getByRole('button', { name: 'Recompute' })).toBeInTheDocument()
     expect(screen.getByText(/Updated/)).toBeInTheDocument()
+  })
+
+  it('keeps the recompute button one width and explains what it does', () => {
+    const recomputable = parseDocument({
+      ...fixture,
+      panels: [{ ...fixture.panels[0], deferred: true }],
+      frames: {},
+      endpoints: { panel: '/lens/panel' },
+    })
+    const view = render(<LensDashboard initialDocument={recomputable} />)
+
+    const button = screen.getByRole('button', { name: 'Recompute' })
+    // The word is the machine's, so the control carries the reader's version.
+    expect(button).toHaveAccessibleDescription(/ignoring the cached results/)
+    const before = button.textContent
+    fireEvent.click(button)
+
+    // In flight it spins in place: swapping the label to «Recomputing…» widened
+    // the button and moved Export out from under the pointer mid-gesture.
+    expect(button).toHaveAttribute('aria-busy', 'true')
+    expect(button.textContent).toBe(before)
+    expect(view.container.querySelector('.lens-recompute .lens-icon-spin')).not.toBeNull()
   })
 
   it('wires dashboard and panel exports when the document exposes an endpoint', () => {

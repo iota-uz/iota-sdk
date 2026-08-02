@@ -7,6 +7,7 @@ import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import { stackedCalendarMediaQuery } from '../breakpoints'
 import { Calendar } from './Calendar'
 import { FilterBar } from './FilterBar'
+import { stagedFilterURL } from './FacetFilterMenu'
 import type { RangeSelection } from './model'
 
 const identityTranslate = (_key: string, fallback: string, vars?: Readonly<Record<string, string | number>>) => {
@@ -444,8 +445,15 @@ describe('FilterBar runtime integration', () => {
     expect(screen.getByLabelText('Comparison end')).toBeInTheDocument()
     expect(calls).toEqual(['/lens/document'])
 
-    fireEvent.change(screen.getByLabelText('Comparison start'), { target: { value: '2026-06-01' } })
-    fireEvent.change(screen.getByLabelText('Comparison end'), { target: { value: '2026-06-30' } })
+    // The boundaries are the runtime's own masked dd.mm.yyyy fields, not the
+    // platform's date widget: they commit on blur, like the period picker's.
+    const start = screen.getByLabelText('Comparison start')
+    const end = screen.getByLabelText('Comparison end')
+    fireEvent.change(start, { target: { value: '01062026' } })
+    expect(start).toHaveValue('01.06.2026')
+    fireEvent.blur(start)
+    fireEvent.change(end, { target: { value: '30.06.2026' } })
+    fireEvent.blur(end)
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => expect(calls).toContain('/lens/document?compare=custom&compare_start=2026-06-01&compare_end=2026-06-30'))
@@ -676,21 +684,30 @@ describe('FilterBar runtime integration', () => {
     expect(raised()[0]).toHaveTextContent('2025')
   })
 
-  it('falls back to built-in presets and resolves them against today', async () => {
+  it('keeps the built-in catalog in the popover instead of a second preset row', async () => {
     window.history.replaceState(null, '', '/dash')
     const calls: Array<string> = []
     render(<FiltersFixture fetcher={presetlessFetcher(calls)} />)
 
-    // The legacy quick-range catalog is present even though the document
-    // declared none: DefaultQuickRanges parity.
-    await screen.findByRole('button', { name: 'Current month' })
-    expect(screen.getByRole('button', { name: '30 days' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '12 months' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Current fiscal year' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Last month' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Last fiscal year' })).toBeInTheDocument()
+    // A document that declares no presets gets no preset row: the relative
+    // catalog is the popover's, and the bar carries the trigger alone. The row
+    // used to repeat the same seven presets the popover lists, in a different
+    // grouping, in a tray too narrow to hold them.
+    const trigger = await screen.findByRole('button', { name: /Change period/ })
+    expect(screen.queryByRole('button', { name: 'Current month' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Last fiscal year' })).toBeNull()
+    // The applied range is on the trigger whether or not it came from a preset.
+    expect(trigger).toHaveTextContent('01.01.2026 – 22.07.2026')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Current month' }))
+    fireEvent.click(trigger)
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByRole('button', { name: '30 days' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: '12 months' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Current fiscal year' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Last month' })).toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: 'Last fiscal year' })).toBeInTheDocument()
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Current month' }))
     // today = 2026-07-22 → this month resolves to 2026-07-01..2026-07-22.
     expect(window.location.search).toBe('?ActualRangeStart=2026-07-01&ActualRangeEnd=2026-07-22')
     await waitFor(() => {
@@ -816,5 +833,127 @@ describe('FilterBar runtime integration', () => {
     await screen.findByRole('button', { name: '2025' })
     // The invalid pair is dropped: only the plain document fetch happened.
     expect(calls).toEqual(['/lens/document'])
+  })
+})
+
+function facetDocument(): DashboardDocument {
+  return parseDocument({
+    ...fixture,
+    filters: [{
+      id: 'facet-product',
+      kind: 'facet',
+      label: 'Product',
+      facet: {
+        dimension: 'product',
+        optionsEndpoint: '/lens/facets?_facet=product',
+        selections: [{ label: 'OSAGO', removeUrl: '/report?_f=region%3Atashkent' }],
+        clearUrl: '/report',
+      },
+    }, {
+      id: 'facet-region',
+      kind: 'facet',
+      label: 'Region',
+      facet: {
+        dimension: 'region',
+        optionsEndpoint: '/lens/facets?_facet=region',
+        selections: [],
+        clearUrl: '/report',
+      },
+    }],
+    activeFilters: [
+      { dimension: 'product', value: 'osago', label: 'OSAGO', removeUrl: '/report?_f=region%3Atashkent' },
+    ],
+    resetFiltersUrl: '/report',
+  })
+}
+
+function optionsResponse(count: number): Response {
+  return new Response(JSON.stringify({
+    applyUrl: '/report?_f=region%3Atashkent',
+    options: Array.from({ length: count }, (_, index) => ({
+      label: `Option ${index + 1}`,
+      value: `option-${index + 1}`,
+      count: 10 - index,
+      toggleUrl: '/report',
+    })),
+  }), { status: 200, headers: { 'Content-Type': 'application/json' } })
+}
+
+function FacetFixture() {
+  return (
+    <div className="lens-root" data-theme="light">
+      <DocumentProvider initialDocument={facetDocument()}>
+        <DashboardRuntimeProvider locale="en">
+          <FilterBar today={{ year: 2026, month: 7, day: 22 }} />
+        </DashboardRuntimeProvider>
+      </DocumentProvider>
+    </div>
+  )
+}
+
+describe('facet filter menu', () => {
+  it('restates only the dimensions the reader staged', () => {
+    window.history.replaceState(null, '', '/report')
+    const url = stagedFilterURL(
+      '/report?page=2&_f=region%3Atashkent&_f=channel%3Aagent',
+      new Map<string, ReadonlySet<string>>([
+        ['region', new Set(['samarkand', 'bukhara'])],
+        ['product', new Set(['osago'])],
+      ]),
+    )
+    const applied = new URL(url, 'http://localhost/')
+    // The untouched dimension keeps its value, the staged ones are replaced,
+    // and every unrelated parameter survives.
+    expect(applied.searchParams.getAll('_f')).toEqual([
+      'channel:agent', 'region:samarkand', 'region:bukhara', 'product:osago',
+    ])
+    expect(applied.searchParams.get('page')).toBe('2')
+  })
+
+  it('collapses every facet behind one trigger and keeps the chips off the trigger row', async () => {
+    window.history.replaceState(null, '', '/report')
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(optionsResponse(8))))
+    const view = render(<FacetFixture />)
+
+    const trigger = screen.getByRole('button', { name: /Filters/ })
+    // One trigger, whatever the dashboard declares, and it counts what is on.
+    expect(view.container.querySelectorAll('.lens-filter-bar-controls button')).toHaveLength(1)
+    expect(trigger).toHaveTextContent('1')
+    // Applied selections are a row of their own, so applying one never reflows
+    // the row of triggers above it.
+    const chips = view.container.querySelector('.lens-filter-bar-chips')!
+    expect(within(chips as HTMLElement).getByRole('link', { name: /Remove filter: OSAGO/ })).toBeInTheDocument()
+    expect(within(chips as HTMLElement).getByRole('button', { name: 'Clear all' })).toBeInTheDocument()
+
+    fireEvent.click(trigger)
+    await screen.findByRole('checkbox', { name: /Option 1/ })
+    // A staged selection is counted before it is applied, not after.
+    expect(screen.getByText('Selected: 1')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('checkbox', { name: /Option 1/ }))
+    fireEvent.click(screen.getByRole('checkbox', { name: /Option 2/ }))
+    expect(screen.getByText('Selected: 2')).toBeInTheDocument()
+    expect(window.location.search).toBe('')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
+    expect(new URL(window.location.href).searchParams.getAll('_f')).toEqual([
+      'region:tashkent', 'product:option-1', 'product:option-2',
+    ])
+  })
+
+  it('drops the search box from a list too short to search', async () => {
+    window.history.replaceState(null, '', '/report')
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(optionsResponse(3))))
+    render(<FacetFixture />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Filters/ }))
+    await screen.findByRole('checkbox', { name: /Option 1/ })
+    expect(screen.queryByRole('searchbox')).toBeNull()
+
+    cleanup()
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(optionsResponse(9))))
+    render(<FacetFixture />)
+    fireEvent.click(screen.getByRole('button', { name: /Filters/ }))
+    await screen.findByRole('checkbox', { name: /Option 9/ })
+    expect(screen.getByRole('searchbox')).toBeInTheDocument()
   })
 })

@@ -98,7 +98,7 @@ it('wraps custom comparison dates without widening narrow dashboards', () => {
   const popover = [...styles.matchAll(/\.lens-compare-popover \{(?<rule>[^}]+)\}/g)]
     .map((match) => match.groups?.rule ?? '')
     .join('\n')
-  const shared = styles.match(/\.lens-facet-popover,\n {2}\.lens-compare-popover \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const shared = styles.match(/\.lens-filter-menu-popover,\n {2}\.lens-compare-popover \{(?<rule>[^}]+)\}/)?.groups?.rule
   const custom = styles.match(/\.lens-compare-custom \{(?<rule>[^}]+)\}/)?.groups?.rule
   const field = styles.match(/\.lens-compare-custom input \{(?<rule>[^}]+)\}/)?.groups?.rule
   const responsive = styles.match(/@media \(max-width: 768px\) \{(?<rule>[\s\S]*?)\n {2}\}/)?.groups?.rule

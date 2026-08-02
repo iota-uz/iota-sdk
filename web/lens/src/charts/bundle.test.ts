@@ -55,9 +55,11 @@ describe('chart bundle boundary', () => {
     // listeners, the waterfall axis search, and the document retry/slow-load
     // states, and from 410k for the info tips and the panel-scoped series
     // order that pins a series' colour across a legend toggle: the core entry
-    // measured 410,462 bytes after those intentional additions. The cap still
-    // catches accidental bloat — it is a tripwire for a chart library
-    // wandering into the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(420_000)
+    // measured 410,462 bytes after those intentional additions, and 422,622
+    // once the nine facet dropdowns collapsed into one filter menu (a rail, a
+    // staged multi-dimension apply, and the chip row). The cap still catches
+    // accidental bloat — it is a tripwire for a chart library wandering into
+    // the core entry, not a per-byte budget.
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(432_000)
   })
 })

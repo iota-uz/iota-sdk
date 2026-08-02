@@ -1086,6 +1086,20 @@ describe('chart encoding and drill behavior', () => {
     expect(container.querySelector('.lens-stat-metric')).toHaveAttribute('aria-busy', 'true')
   })
 
+  it('marks a strip cell whose figure is being replaced', () => {
+    // A recompute keeps the old numbers on screen while the request is open.
+    // The card form said so («Updating» plus the stale dim) and the strip cell —
+    // which is what a KPI actually is — said nothing, so the figures a reader is
+    // most likely to act on were the ones that looked settled.
+    runtime.frame = state('stale')
+    const { container } = render(<StatMetric panel={panel('stat', { encoding: { value: 'value' } })} />)
+
+    const cell = container.querySelector('.lens-stat-metric')
+    expect(cell).toHaveAttribute('data-stale', 'true')
+    expect(cell).toHaveClass('lens-stat-metric-stale')
+    expect(container.querySelector('.lens-stat-metric-value')?.textContent).toBe('42')
+  })
+
   it('renders the panel title once when the stat label would duplicate it', () => {
     runtime.frame = state('data')
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)

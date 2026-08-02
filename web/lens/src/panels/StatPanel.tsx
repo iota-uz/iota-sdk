@@ -201,7 +201,18 @@ export function StatMetric({ panel }: StatPanelProps) {
 
   return (
     <StatLink href={href} label={caption} onClick={navigation.onClick(href)} prefetch={prefetch}>
-      <div className="lens-stat-metric" data-panel-kind="stat" aria-busy={frame.isLoading || undefined}>
+      {/* A refetch in flight is stated on the figures, not only on the button
+          that started it. The card form learned this (`.lens-panel-stale` plus
+          an «Updating» chip) and the chrome-free metric form did not, so during
+          a recompute every KPI in the strip — the numbers a reader is most
+          likely to act on — sat at full opacity with values that were about to
+          change. */}
+      <div
+        aria-busy={frame.isLoading || undefined}
+        className={`lens-stat-metric${frame.isStale && !loading ? ' lens-stat-metric-stale' : ''}`}
+        data-panel-kind="stat"
+        data-stale={frame.isStale || undefined}
+      >
         <p className="lens-stat-metric-label" title={caption}>
           <span className="lens-stat-metric-label-text">{caption}</span>
           {panel.status && <StatusChip status={panel.status} />}

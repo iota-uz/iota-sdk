@@ -415,8 +415,24 @@
     }
   }
 
+  /* Two rows with one job each: what you can open, then what is currently on.
+     The trigger row never moves when a chip is added or dropped. */
   .lens-filter-bar {
-    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-3;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-col lens-items-start lens-gap-1.5;
+  }
+
+  .lens-filter-bar-controls {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-2;
+  }
+
+  .lens-filter-bar-chips {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
+  }
+
+  /* The actions cluster wraps as one unit, so its members keep one order at
+     every width. */
+  .lens-dashboard-actions {
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-justify-end lens-gap-2;
   }
 
   .lens-compare-filter {
@@ -442,6 +458,21 @@
 
   .lens-compare-custom {
     @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-2;
+  }
+
+  /* The masked date field that replaced <input type="date">: the wrapper only
+     carries the invalid ring, the box itself is the shared field rule below. */
+  .lens-compare-date {
+    @apply lens-flex lens-min-w-0 lens-flex-1 lens-items-center;
+    border-radius: var(--lens-radius-control);
+  }
+
+  .lens-compare-date[data-invalid] {
+    box-shadow: 0 0 0 1px var(--lens-neg), 0 0 0 3px var(--lens-neg-soft);
+  }
+
+  .lens-compare-date[data-invalid] input {
+    color: var(--lens-neg);
   }
 
   .lens-compare-custom input {
@@ -487,6 +518,34 @@
     gap: 2px;
   }
 
+  /* With no declared presets there is no tray to be a segment of: the trigger
+     stands alone and wears the header's ordinary control chrome, instead of a
+     recessed track drawn around a single button. */
+  .lens-filter[data-bare] {
+    @apply lens-border-0 lens-p-0;
+    background: transparent;
+  }
+
+  .lens-filter[data-bare] .lens-filter-trigger {
+    @apply lens-min-h-control-md lens-border lens-border-solid lens-border-border lens-text-text;
+    background: var(--lens-bg-card);
+    border-radius: var(--lens-radius-control);
+    padding-inline: 10px 8px;
+  }
+
+  .lens-filter[data-bare] .lens-filter-trigger:hover,
+  .lens-filter[data-bare] .lens-filter-trigger[data-active]:hover {
+    @apply lens-border-strong lens-text-strong;
+    background: var(--lens-bg-card);
+    box-shadow: none;
+  }
+
+  .lens-filter[data-bare] .lens-filter-trigger[data-active] {
+    @apply lens-text-strong;
+    background: var(--lens-bg-card);
+    box-shadow: none;
+  }
+
   /* One segmented tray holds the declared period chips and the calendar
      trigger. The tray is a recessed track and the active member the only
      raised card in it, so the applied period is always stated once, in one
@@ -515,8 +574,12 @@
   .lens-filter-presets-frame[data-overflow-left] .lens-filter-presets-edge-left,
   .lens-filter-presets-frame[data-overflow-right] .lens-filter-presets-edge-right { opacity: 1; }
 
-  .lens-filter-facet {
-    @apply lens-relative lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
+  /* Every declared facet lives behind this one trigger, so the popover is
+     anchored to it in the flow (see useMenuButton's measured placement) instead
+     of being a portalled card positioned against a trigger somewhere in a
+     wrapped row of nine. */
+  .lens-filter-menu {
+    @apply lens-relative lens-flex lens-min-w-0 lens-items-center;
   }
 
   /* SECONDARY. One trigger implementation for every popover-menu control in the
@@ -541,21 +604,100 @@
     background: var(--lens-accent-100);
   }
 
-  .lens-facet-popover,
+  .lens-filter-menu-popover,
   .lens-compare-popover {
-    @apply lens-fixed lens-z-[1100] lens-flex lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+    @apply lens-z-[1100] lens-flex lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
 
     box-shadow: var(--lens-shadow-popover);
   }
 
-  /* The facet list holds a search field and count bars, so it is sized; the
-     comparison list is four fixed labels and takes the width of the longest. */
-  .lens-facet-popover {
-    @apply lens-w-72;
+  .lens-compare-popover {
+    @apply lens-fixed lens-w-max lens-min-w-52;
   }
 
-  .lens-compare-popover {
-    @apply lens-w-max lens-min-w-52;
+  /* Anchored to the trigger on both axes, by the same measured rule the export
+     and panel menus use: one edge flush with the trigger's, flipped only when
+     the viewport demands it. */
+  .lens-filter-menu-popover {
+    @apply lens-absolute lens-w-max;
+  }
+
+  /* The last step of the placement rule: alignment picks an edge, the shift
+     keeps the box inside the viewport when neither edge can. */
+  .lens-filter-menu-popover,
+  .lens-export-menu {
+    transform: translateX(var(--lens-menu-shift, 0px));
+  }
+
+  .lens-filter-menu-popover[data-align='end'] { right: 0; left: auto; }
+  .lens-filter-menu-popover[data-align='start'] { left: 0; right: auto; }
+  .lens-filter-menu-popover[data-side='down'] { @apply lens-mt-1; top: 100%; bottom: auto; }
+  .lens-filter-menu-popover[data-side='up'] { @apply lens-mb-1; bottom: 100%; top: auto; }
+
+  .lens-filter-menu-body {
+    @apply lens-flex lens-min-h-0 lens-items-stretch;
+  }
+
+  /* The dimensions, listed. The rail is what replaced nine sibling triggers:
+     the reader picks the dimension here and edits it beside, so the header row
+     carries one control instead of a Hick's-law problem. */
+  .lens-filter-menu-rail {
+    @apply lens-flex lens-flex-col lens-gap-px lens-overflow-y-auto lens-border-0 lens-border-r lens-border-solid lens-bg-inset;
+    flex: 0 0 176px;
+    max-height: 320px;
+    padding: 6px;
+    border-color: var(--lens-border);
+  }
+
+  .lens-filter-menu-rail-item {
+    @apply lens-flex lens-w-full lens-min-h-control-md lens-items-center lens-gap-1.5 lens-border-0 lens-bg-transparent lens-text-left lens-font-sans lens-text-base lens-font-medium lens-text-text lens-transition-colors;
+    border-radius: var(--lens-radius-badge);
+    padding: 6px 8px;
+  }
+
+  .lens-filter-menu-rail-item:hover {
+    @apply lens-text-strong;
+    background: var(--lens-bg-card);
+  }
+
+  .lens-filter-menu-rail-item[aria-selected='true'] {
+    @apply lens-font-semibold lens-text-strong;
+    background: var(--lens-bg-card);
+    box-shadow: inset 2px 0 0 var(--lens-accent-500);
+  }
+
+  .lens-filter-menu-rail-label {
+    @apply lens-min-w-0 lens-flex-1 lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap;
+  }
+
+  .lens-filter-menu-pane-host {
+    @apply lens-flex lens-min-w-0 lens-flex-col;
+  }
+
+  /* One width for every dimension, wide enough that an option label is a label
+     and not a five-line paragraph with its count floating against the middle
+     of it. */
+  .lens-filter-menu-pane {
+    @apply lens-flex lens-min-w-0 lens-flex-col;
+    width: 360px;
+    max-width: 100%;
+  }
+
+  .lens-filter-menu-pane-title {
+    @apply lens-m-0 lens-font-semibold lens-uppercase lens-text-faint;
+    font-size: var(--lens-type-xs);
+    letter-spacing: 0.06em;
+    padding: 10px 12px 0;
+  }
+
+  /* The staged size of what Apply will do, stated before it is done. */
+  .lens-facet-staged {
+    @apply lens-mr-auto lens-text-base lens-text-muted;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  .lens-facet-staged[data-staged] {
+    @apply lens-font-medium lens-text-strong;
   }
 
   .lens-compare-options {
@@ -592,12 +734,22 @@
     transition: width var(--lens-dur-base) var(--lens-ease-standard);
   }
 
+  /* Two lines, then an ellipsis, with the full text on the element's title. A
+     long product name used to wrap to six lines in a 288px popover and leave
+     its count optically centred against a 112px row. */
   .lens-facet-option-label {
-    @apply lens-relative lens-z-10 lens-min-w-0 lens-flex-1 lens-break-words;
+    @apply lens-relative lens-z-10 lens-min-w-0 lens-flex-1 lens-overflow-hidden lens-break-words;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
   }
 
+  /* A column, not a trailing word: every count in the list starts on the same
+     line and keeps a gutter from the label beside it. */
   .lens-facet-option-count {
-    @apply lens-relative lens-z-10 lens-flex-none lens-tabular-nums lens-text-base lens-text-muted;
+    @apply lens-relative lens-z-10 lens-flex-none lens-self-start lens-pl-3 lens-text-right lens-tabular-nums lens-text-base lens-text-muted;
+    min-width: 3.5rem;
   }
 
   .lens-facet-actions {
@@ -636,16 +788,18 @@
     @apply lens-size-3.5 lens-flex-none;
   }
 
-  /* CHIP. "Clear all" dismisses the chips it sits beside, so it is one of them —
-     quiet rather than tinted, because it removes state instead of carrying any.
-     It was the header's fifth treatment: the only underlined link in a row of
-     boxes, which read as body copy that had wandered into the toolbar. */
+  /* CHIP, and now a <button>. It dismisses the chips it sits beside — it does
+     not navigate anywhere a reader could bookmark — so it keeps their height and
+     radius but takes a hairline of its own: among filled chips, an unbordered
+     quiet one read as the last chip in the row rather than the command that
+     clears them. It also sits at the end of the chip row, so it stops relocating
+     every time a chip is added. */
   .lens-facet-clear {
-    @apply lens-flex lens-min-h-control-sm lens-items-center lens-whitespace-nowrap lens-rounded-badge lens-px-2 lens-text-base lens-font-medium lens-text-muted lens-no-underline;
+    @apply lens-flex lens-min-h-control-sm lens-cursor-pointer lens-items-center lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-transparent lens-px-2 lens-font-sans lens-text-base lens-font-medium lens-text-muted lens-no-underline;
   }
 
   .lens-facet-clear:hover {
-    @apply lens-bg-inset lens-text-strong;
+    @apply lens-border-strong lens-bg-inset lens-text-strong;
   }
 
   .lens-root[data-theme='dark'] .lens-filter-segments {
@@ -783,13 +937,16 @@
     box-shadow: inset 2px 0 0 var(--lens-accent-500);
   }
 
-  /* All time clears the period rather than choosing one: it sits at the foot
-     of the rail, under a divider, away from the relative catalog. */
+  /* All time clears the period rather than choosing one: it sits under a
+     divider, away from the relative catalog — directly under its siblings, not
+     pinned to the column's floor. Pinning it there opened a ~70px hole in the
+     middle of the rail whose only message was that the calendar beside it is
+     taller than the list. */
   .lens-filter-preset-clear {
     @apply lens-border-0 lens-border-t lens-border-solid lens-text-muted;
     border-color: var(--lens-border);
     border-radius: 0;
-    margin-top: auto;
+    margin-top: 6px;
     padding-top: 10px;
   }
 
@@ -798,31 +955,33 @@
     padding: 12px 14px;
   }
 
-  /* Typed range entry: From and To read as one joined control — a single
-     bordered field with an em-dash between the two halves. Each half is a
-     masked dd.mm.yyyy text input under its caption; an invalid half carries
-     its own red ring. No glyphs inside: the calendar is right above. */
+  /* Typed range entry: From and To, an em-dash between them, each half a masked
+     dd.mm.yyyy input in a field box of its own under its caption. The pair used
+     to share one outer border with nothing but text inside it, which reads as a
+     printed summary of the applied range rather than as two editable fields.
+     An invalid half carries its own red ring. No glyphs inside: the calendar is
+     right above. */
   .lens-filter-range {
-    @apply lens-flex lens-items-center lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card;
-    padding: 3px 6px;
-  }
-
-  .lens-filter-range:hover {
-    @apply lens-border-strong;
-  }
-
-  /* The group reports that one of its halves is active by taking the accent
-     border, the same way it reports hover on the line above. It does NOT draw a
-     ring: the ring belongs to the focused input itself and comes from the one
-     `:focus-visible` rule at the end of this sheet. Two rings for one focus is
-     how the runtime ended up with four different ones. */
-  .lens-filter-range:focus-within {
-    border-color: var(--lens-accent-500);
+    @apply lens-flex lens-items-center;
+    padding: 3px 0;
   }
 
   .lens-filter-range-field {
     @apply lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
     padding: 2px 6px;
+  }
+
+  /* Each half wears its own field box. Two captions over two bare texts inside
+     one outer border read as a printed summary of the range, not as two places
+     a date can be typed — which is what they are. */
+  .lens-filter-range-field .lens-filter-range-input {
+    @apply lens-border lens-border-solid lens-border-border lens-bg-card;
+    padding: 2px 6px;
+    border-radius: var(--lens-radius-control);
+  }
+
+  .lens-filter-range-field .lens-filter-range-input:hover {
+    @apply lens-border-strong;
   }
 
   /* Same size and tracking as the weekday headers: the picker has one caption
@@ -864,6 +1023,53 @@
 
   .lens-filter-input::placeholder {
     color: var(--lens-text-faint);
+  }
+
+  /* Below the two-pane width the filter menu stops being a popover hanging off
+     a trigger and becomes a sheet: the rail runs across the top, the pane fills
+     the width, and the whole card is pinned to the bottom of the viewport where
+     a thumb is. A 528px card anchored to a trigger on a 600px screen is a card
+     with no room to open. */
+  @media (max-width: 664px) {
+    /* Qualified with both placement attributes so it outranks the anchored
+       rules above rather than relying on source order. A sheet has no anchor,
+       so the measured shift is switched off with them. */
+    .lens-filter-menu-popover[data-side][data-align] {
+      @apply lens-fixed lens-w-auto;
+      top: auto;
+      right: 12px;
+      bottom: 12px;
+      left: 12px;
+      max-width: none;
+      max-height: 78vh;
+      transform: none;
+    }
+
+    .lens-filter-menu-body {
+      @apply lens-min-h-0 lens-flex-col;
+    }
+
+    .lens-filter-menu-rail {
+      @apply lens-flex-row lens-overflow-x-auto lens-overflow-y-hidden lens-border-r-0 lens-border-b;
+      flex: none;
+      max-height: none;
+    }
+
+    .lens-filter-menu-rail-item {
+      @apply lens-w-auto lens-flex-none;
+    }
+
+    .lens-filter-menu-pane-host {
+      @apply lens-min-h-0 lens-flex-1;
+    }
+
+    .lens-filter-menu-pane {
+      @apply lens-min-h-0 lens-w-full;
+    }
+
+    .lens-filter-menu-pane .lens-facet-options {
+      @apply lens-max-h-none lens-flex-1;
+    }
   }
 
   @media (max-width: 664px) {
@@ -1995,12 +2201,17 @@
     color: var(--lens-accent-500);
   }
 
+  /* A tabstrip is as wide as its tabs. Stretching it to the card meant a binary
+     switch («По годам / По кварталам») spent a whole dashboard section on two
+     416px targets, and a reader could not tell a two-option control from a
+     two-option navigation. It scrolls rather than stretches when the tabs
+     outgrow the card. */
   .lens-tabstrip {
-    @apply lens-m-3 lens-mb-0 lens-flex lens-gap-1 lens-rounded-control lens-bg-inset lens-p-1;
+    @apply lens-m-3 lens-mb-0 lens-flex lens-w-max lens-max-w-[calc(100%-1.5rem)] lens-gap-1 lens-overflow-x-auto lens-rounded-control lens-bg-inset lens-p-1;
   }
 
   .lens-tabstrip-tab {
-    @apply lens-min-h-control-md lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-md lens-font-semibold lens-text-muted lens-transition-colors;
+    @apply lens-min-h-control-md lens-flex-none lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-transparent lens-bg-transparent lens-px-3 lens-font-sans lens-text-md lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
   .lens-tabstrip-tab[aria-selected='true'] {
@@ -2021,6 +2232,17 @@
 
   .lens-export-button-retry {
     @apply lens-border-accent-500 lens-bg-accent-50 lens-text-accent-700;
+  }
+
+  /* Recompute has a resting state and a raised one. It escalates only once the
+     freshness stamp beside it does — colouring it permanently would make the
+     colour mean "this dashboard can be recomputed", which every dashboard can. */
+  .lens-recompute[data-stale] {
+    @apply lens-border-warn lens-text-warn;
+  }
+
+  .lens-recompute:disabled {
+    @apply lens-cursor-wait;
   }
 
   /* The pending note is a quiet inline chip, not the bordered card an error
@@ -2079,6 +2301,14 @@
     @apply lens-absolute lens-right-0 lens-top-full lens-z-20 lens-mt-1 lens-w-max lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-base lens-font-medium lens-text-accent-700 lens-shadow-card;
   }
 
+  /* The copy confirmation is the width of the button that produced it, so it
+     can only ever cover that button's own column. It used to be a 148px card
+     under a 28px icon button, i.e. a note that reached 119px across the control
+     next to it. */
+  .lens-share-control .lens-export-message {
+    @apply lens-w-full lens-max-w-none lens-text-center;
+  }
+
   .lens-export-message-error {
     @apply lens-text-neg;
   }
@@ -2123,6 +2353,12 @@
   }
 
   .lens-panel-stale {
+    @apply lens-opacity-60 lens-transition-opacity;
+  }
+
+  /* The same treatment for the chrome-free metric form: a figure being replaced
+     says so wherever it is drawn. */
+  .lens-stat-metric-stale {
     @apply lens-opacity-60 lens-transition-opacity;
   }
 

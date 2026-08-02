@@ -123,6 +123,47 @@ export const DashboardFacetActive: Story = () => {
 }
 DashboardFacetActive.storyName = 'Dashboard facet active'
 
+const productFacet: Filter = {
+  id: 'facet-product',
+  kind: 'facet',
+  label: 'Product',
+  facet: {
+    dimension: 'product',
+    optionsEndpoint: '/lens/facet-options?_facet=product',
+    searchParam: '_facet_search',
+    selections: [
+      { label: '18-11. Insurance of persons travelling abroad', removeUrl: '/reports/sales' },
+    ],
+    clearUrl: '/reports/sales',
+  },
+}
+
+const channelFacet: Filter = {
+  id: 'facet-channel',
+  kind: 'facet',
+  label: 'Contract source',
+  facet: {
+    dimension: 'channel',
+    optionsEndpoint: '/lens/facet-options?_facet=channel',
+    searchParam: '_facet_search',
+    selections: [],
+    clearUrl: '/reports/sales',
+  },
+}
+
+const genderFacet: Filter = {
+  id: 'facet-gender',
+  kind: 'facet',
+  label: 'Gender',
+  facet: {
+    dimension: 'gender',
+    optionsEndpoint: '/lens/facet-options?_facet=gender',
+    searchParam: '_facet_search',
+    selections: [],
+    clearUrl: '/reports/sales',
+  },
+}
+
 function FacetOptionsScene() {
   const [ready, setReady] = useState(false)
   useEffect(() => {
@@ -165,6 +206,64 @@ function FacetOptionsScene() {
 /** Historical staged multi-select: checkboxes, count bars, and one Apply. */
 export const FacetOptionsOpen: Story = () => <FacetOptionsScene />
 FacetOptionsOpen.storyName = 'Facet options open'
+
+function FiltersMenuScene() {
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    const original = globalThis.fetch
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      const target = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (target.startsWith('/lens/facet-options')) {
+        return Promise.resolve(new Response(JSON.stringify({
+          applyUrl: '/reports/sales',
+          options: [
+            { label: '18-11. Insurance of persons travelling abroad the Republic of Uzbekistan', value: 'travel', count: 1644, selected: true, toggleUrl: '/reports/sales' },
+            { label: '11-01. Compulsory motor third-party liability', value: 'osago', count: 1204, toggleUrl: '/reports/sales' },
+            { label: '13-02. Property of legal entities', value: 'property', count: 812, toggleUrl: '/reports/sales' },
+            { label: '16-04. Cargo in transit', value: 'cargo', count: 455, toggleUrl: '/reports/sales' },
+            { label: '12-03. Accident and illness', value: 'accident', count: 301, toggleUrl: '/reports/sales' },
+            { label: '15-08. Contractor all risks', value: 'car', count: 96, toggleUrl: '/reports/sales' },
+          ],
+        }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      }
+      return original(input, init)
+    }) as typeof fetch
+    setReady(true)
+    return () => { globalThis.fetch = original }
+  }, [])
+  if (!ready) return null
+  const base = filteredDocument()
+  return (
+    <AutoClick selector=".lens-filter-menu .lens-facet-trigger">
+      <div style={{ width: 1100 }}>
+        <LensDashboard
+          filterToday={storyToday}
+          initialDocument={{
+            ...base,
+            activeFilters: [{
+              dimension: 'product',
+              value: 'travel',
+              label: '18-11. Insurance of persons travelling abroad',
+              removeUrl: '/reports/sales',
+            }],
+            filters: [periodFilter, productFacet, regionFacet, channelFacet, genderFacet],
+            resetFiltersUrl: '/reports/sales',
+          }}
+          theme="light"
+        />
+      </div>
+    </AutoClick>
+  )
+}
+
+/**
+ * The headline composition: every facet behind one «Filters (n)» trigger, the
+ * dimensions in a rail beside their options, applied selections as chips on a
+ * row of their own. This replaced nine sibling dropdowns wrapping into three
+ * ragged rows above the first number.
+ */
+export const FiltersMenuOpen: Story = () => <FiltersMenuScene />
+FiltersMenuOpen.storyName = 'Filters menu open'
 
 function RefetchErrorScene() {
   const requests = useRef(0)

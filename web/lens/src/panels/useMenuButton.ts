@@ -1,5 +1,6 @@
 import {
-  useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent,
+  useCallback, useEffect, useLayoutEffect, useRef, useState,
+  type CSSProperties, type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
 
 export interface MenuPlacement {
@@ -38,6 +39,29 @@ export function menuPlacement(
   return { side: fitsBelow || !fitsAbove ? 'down' : 'up', align }
 }
 
+/**
+ * How far the aligned menu has to slide to stay on screen.
+ *
+ * Alignment alone cannot always answer the question: a menu wider than the
+ * distance from its trigger to either edge fits neither way, and the flush edge
+ * then hangs off the viewport — a 551px filter menu whose trigger's right edge
+ * sits at 500px opened at x = −51. The shift is the last step of the same rule,
+ * so a menu is bound to its trigger *and* to the viewport instead of one or the
+ * other.
+ */
+export function menuShift(
+  trigger: Pick<DOMRect, 'left' | 'right'>,
+  menu: Pick<DOMRect, 'width'>,
+  viewport: { width: number },
+  align: MenuPlacement['align'],
+): number {
+  const left = align === 'start' ? trigger.left : trigger.right - menu.width
+  const right = left + menu.width
+  if (left < viewportGutter) return Math.round(viewportGutter - left)
+  if (right > viewport.width - viewportGutter) return Math.round(viewport.width - viewportGutter - right)
+  return 0
+}
+
 /** Shared focus, dismissal, placement, and arrow navigation for Lens menu buttons. */
 export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
   const [open, setOpen] = useState(false)
@@ -45,6 +69,7 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const [placement, setPlacement] = useState<MenuPlacement>({ side: 'down', align: preferredAlign })
+  const [shift, setShift] = useState(0)
   const items = useRef(new Map<string, HTMLButtonElement>())
   const close = useCallback(() => setOpen(false), [])
   const closeAndFocusTrigger = useCallback(() => {
@@ -78,13 +103,13 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     const anchor = trigger.current?.getBoundingClientRect()
     const box = menu.current?.getBoundingClientRect()
     if (!anchor || !box) return
-    const next = menuPlacement(
-      anchor,
-      box,
-      { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 },
-      preferredAlign,
-    )
+    const viewport = { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 }
+    const next = menuPlacement(anchor, box, viewport, preferredAlign)
     setPlacement((current) => current.side === next.side && current.align === next.align ? current : next)
+    // Computed from the anchor and the box width, i.e. from where the menu
+    // *would* sit unshifted: its own rect already carries the current offset.
+    const offset = menuShift(anchor, box, viewport, next.align)
+    setShift((current) => (current === offset ? current : offset))
   }, [preferredAlign])
 
   useLayoutEffect(() => {
@@ -129,7 +154,11 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     container,
     itemRef,
     menu,
-    menuPlacementProps: { 'data-align': placement.align, 'data-side': placement.side },
+    menuPlacementProps: {
+      'data-align': placement.align,
+      'data-side': placement.side,
+      style: { '--lens-menu-shift': `${shift}px` } as CSSProperties,
+    },
     onMenuKeyDown,
     open,
     setOpen,

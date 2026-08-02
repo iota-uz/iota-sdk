@@ -5,10 +5,72 @@ import { CaretDown, Check } from '../icons'
 import { useFilters, useTranslate } from '../runtime'
 import { useFocusTrap } from '../runtime/focusTrap'
 import { useOverlayContainer } from '../runtime/overlayContainer'
-import { positionPopover } from './PeriodFilterControl'
+import { formatDisplayDate, maskDisplayInput, parseDisplayDate, positionPopover } from './PeriodFilterControl'
+import { formatISODate, parseISODate } from './model'
 
 /** How long a type-ahead buffer keeps collecting before it starts a new word. */
 const typeAheadResetMs = 500
+
+/**
+ * A comparison boundary, typed in the runtime's own masked `dd.mm.yyyy` field.
+ *
+ * It used to be `<input type="date">`: the one native widget left inside a Lens
+ * popover, bringing the OS date picker (its own calendar, its own week start,
+ * its own locale format, its own focus ring) into a surface that already has a
+ * calendar of its own three controls away. The value on the wire is unchanged —
+ * ISO, or empty while the text does not parse.
+ */
+function CompareDateField({ label, value, onChange }: {
+  label: string
+  value: string
+  onChange: (iso: string) => void
+}) {
+  const translate = useTranslate()
+  const parsed = parseISODate(value)
+  const [text, setText] = useState(parsed ? formatDisplayDate(parsed) : '')
+  const [invalid, setInvalid] = useState(false)
+  useEffect(() => {
+    const next = parseISODate(value)
+    setText(next ? formatDisplayDate(next) : '')
+    setInvalid(false)
+  }, [value])
+  const commit = () => {
+    const trimmed = text.trim()
+    if (trimmed === '') {
+      setInvalid(false)
+      onChange('')
+      return
+    }
+    const date = parseDisplayDate(trimmed)
+    if (!date) {
+      setInvalid(true)
+      return
+    }
+    setInvalid(false)
+    onChange(formatISODate(date))
+  }
+  return (
+    <span className="lens-compare-date" data-invalid={invalid || undefined}>
+      <input
+        aria-label={label}
+        inputMode="numeric"
+        onBlur={commit}
+        onChange={(event) => {
+          setText(maskDisplayInput(event.currentTarget.value))
+          setInvalid(false)
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== 'Enter') return
+          event.preventDefault()
+          commit()
+        }}
+        placeholder={translate('filter.period.dateFormat', 'dd.mm.yyyy')}
+        type="text"
+        value={text}
+      />
+    </span>
+  )
+}
 
 interface CompareOption {
   value: CompareMode
@@ -241,16 +303,14 @@ export function CompareFilterControl({ filter }: { filter: Filter }) {
           </div>
           {mode === 'custom' && (
             <div className="lens-compare-custom">
-              <input
-                aria-label={translate('filter.compare.start', 'Comparison start')}
-                onChange={(event) => setStart(event.currentTarget.value)}
-                type="date"
+              <CompareDateField
+                label={translate('filter.compare.start', 'Comparison start')}
+                onChange={setStart}
                 value={start}
               />
-              <input
-                aria-label={translate('filter.compare.end', 'Comparison end')}
-                onChange={(event) => setEnd(event.currentTarget.value)}
-                type="date"
+              <CompareDateField
+                label={translate('filter.compare.end', 'Comparison end')}
+                onChange={setEnd}
                 value={end}
               />
               <button

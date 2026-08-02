@@ -620,6 +620,29 @@ describe('chart legend series toggle', () => {
     await waitFor(() => expect(view.container.querySelector('.lens-panel-total')?.textContent).toContain('700'))
   })
 
+  it('does not conjure a header total on a chart that states none at rest', async () => {
+    // A bar/line panel whose rows are not summable states no total, and hiding
+    // a series must not change that: the badge used to appear on the first
+    // legend click, shifting the export/expand icons under the pointer and
+    // giving the recomputed figure nothing to be compared against.
+    const panel: Panel = {
+      id: 'mix', kind: 'bar', title: 'Premium by channel', semantics: 'series', frame: 'mix:root',
+      encoding: { id: 'id', label: 'label', series: 'label', value: 'amount' },
+      format: { amount: { kind: 'number', minorUnits: false, precision: 0 } },
+      presentation: { legend: 'below' },
+      actions: [],
+    }
+    const view = renderDocument(
+      documentWith([panel], { 'mix:root': pieFrame }),
+      <ChartPanel panel={panel} adapter={{ mount: () => ({ update: () => {}, dispose: () => {} }) }} />,
+    )
+
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: /Broker/ }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /Broker/ })).toHaveAttribute('aria-pressed', 'false'))
+    expect(view.container.querySelector('.lens-panel-total')).toBeNull()
+  })
+
   it('states the share of a ring category that belongs to exactly one ring', () => {
     // «Накопленная премия»: the 0.9% still receivable is too thin an arc to
     // carry a label, so the legend is the only place its share can be read.
