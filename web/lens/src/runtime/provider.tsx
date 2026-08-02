@@ -37,7 +37,7 @@ import {
 } from './drill'
 import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows, drawerSkeletonRows } from '../panels/Skeleton'
-import { formatAxis, formatFieldValue, formatFieldValueExact } from './format'
+import { formatAxis, formatFieldValue, formatFieldValueAtReference, formatFieldValueExact } from './format'
 import {
   createNavigationState,
   navigationActions,
@@ -1688,6 +1688,22 @@ export function usePrint(): PrintContextValue {
 export function useFormat(field?: FieldFormat): (value: unknown) => string {
   const locale = useContext(LocaleContext)
   return useCallback((value: unknown) => formatFieldValue(value, field, locale), [field, locale])
+}
+
+/**
+ * useFormat for a group of values read together — a table column, a tooltip
+ * group — that must share one magnitude. A compact field abbreviates each
+ * value on its own and stops abbreviating below the compact floor, so a column
+ * read downwards printed «111,13 млн», «45 000» and a bare «0» in the same
+ * stack of digits. With a reference every cell is written at the magnitude
+ * that reference implies. An undefined reference means "no shared magnitude",
+ * and the values format exactly as useFormat writes them.
+ */
+export function useFormatAtReference(field: FieldFormat | undefined, reference: number | undefined): (value: unknown) => string {
+  const locale = useContext(LocaleContext)
+  return useCallback((value: unknown) => (reference === undefined
+    ? formatFieldValue(value, field, locale)
+    : formatFieldValueAtReference(value, reference, field, locale)), [field, locale, reference])
 }
 
 /**

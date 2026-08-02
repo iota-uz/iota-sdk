@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import type { Column, FieldFormat, Frame, Level, Panel, TableColumn } from '../contract'
 import { actionForRow, resolveColumnActionURL, resolveRowLeafActionURL } from '../explore/actions'
 import { ArrowUpRight, ArrowsLeftRight, CaretDown, CaretRight } from '../icons'
-import { clampedDeltaPercent, levelForPath, useDashboard, useFormat, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
+import { clampedDeltaPercent, compactReference, levelForPath, useDashboard, useFormat, useFormatAtReference, usePanelFrame, usePanelPagination, useTranslate } from '../runtime'
 import { PanelFrame } from './PanelFrame'
 import { useActionActivation } from './actions'
 import { InfoTip } from './InfoTip'
@@ -17,6 +17,24 @@ const rowCountDisclosureThreshold = 10
 interface SortState {
   column: string
   direction: SortDirection
+}
+
+/**
+ * One magnitude per numeric column.
+ *
+ * A column of numbers is read downwards, so it carries one notation; a compact
+ * field on its own does not — it abbreviates each value independently and stops
+ * abbreviating below the compact floor, which is how «Выплачено» came to print
+ * «111,13 млн», «45 000» and a bare «0» in one stack of digits. The reference
+ * is the column's largest magnitude, and every cell in it is written against
+ * that. Columns with no shared magnitude are simply absent from the map, and
+ * their cells format exactly as they did.
+ */
+const ColumnReferences = createContext<ReadonlyMap<string, number> | null>(null)
+
+function useCellFormat(field: string | undefined, format?: FieldFormat): (value: unknown) => string {
+  const references = useContext(ColumnReferences)
+  return useFormatAtReference(format, field ? references?.get(field) : undefined)
 }
 
 function inferredFormat(column: Column): FieldFormat | undefined {
@@ -113,30 +131,8 @@ function isRightAligned(column: TableColumn, frame: Frame): boolean {
   return frame.columns.find((candidate) => candidate.name === column.field)?.type === 'number'
 }
 
-/* One notation per column — not done, and here is why.
- *
- * A column of numbers is read downwards, so it should carry one notation, and
- * a compact field does not: it abbreviates each value on its own and stops
- * abbreviating altogether below the compact floor, so «Выплачено» printed
- * «111,13 млн», «45 000» and a bare «0» in the same column of digits.
- *
- * The rule that fixes that is one shared magnitude per column, which
- * `formatFieldValueAtReference` already computes for a chart tooltip group.
- * Routing table cells through it as-is is *not* correct yet: that function
- * glues the magnitude with a no-break space unconditionally, so it writes
- * «9.36 B» where the server formatter — and therefore every other cell in a
- * document that pins its decimal separator to match that formatter — writes
- * «9.36B», and «111,13 млн» with U+00A0 where the pinned path writes U+0020.
- * The join has to consult the locale (`pkg/lens/format` marks ru/uz spaced and
- * en unspaced) before a column can adopt it. That is a change to
- * `runtime/format.ts`, which is outside this package's scope.
- *
- * TODO(lens): make `formatFieldValueAtReference` join like the locale, then
- * format compact table columns at the column's largest value — excluding
- * values the shared magnitude would round away, and never excluding zero.
- */
 function TableCell({ column, format, value }: { column: Column; format?: FieldFormat; value: unknown }) {
-  const display = useFormat(format ?? inferredFormat(column))
+  const display = useCellFormat(column.name, format ?? inferredFormat(column))
   const translate = useTranslate()
   if (column.type === 'bool') {
     if (value === null || value === undefined || value === '') return <span className="lens-table-null">—</span>
@@ -152,8 +148,8 @@ function TableCell({ column, format, value }: { column: Column; format?: FieldFo
   return <>{text}</>
 }
 
-function BarCell({ format, value, max }: { format?: FieldFormat; value: unknown; max: number }) {
-  const display = useFormat(format)
+function BarCell({ field, format, value, max }: { field?: string; format?: FieldFormat; value: unknown; max: number }) {
+  const display = useCellFormat(field, format)
   const number = numericValue(value)
   const ratio = max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / max)) : 0
   const negative = number !== undefined && number < 0
@@ -185,8 +181,8 @@ function BarCell({ format, value, max }: { format?: FieldFormat; value: unknown;
  * into something indistinguishable from a stray hyphen as soon as one row
  * dominates the column, which is exactly what the legacy treatment avoids.
  */
-function UnderlineCell({ format, value }: { format?: FieldFormat; value: unknown }) {
-  const display = useFormat(format)
+function UnderlineCell({ field, format, value }: { field?: string; format?: FieldFormat; value: unknown }) {
+  const display = useCellFormat(field, format)
   const number = numericValue(value)
   const negative = number !== undefined && number < 0
   const blank = number === undefined
@@ -276,9 +272,9 @@ function ColumnCell({
     // to read and no value to format.
     content = <span className="lens-table-cell-text">{column.text}</span>
   } else if (column.cell.kind === 'bar') {
-    content = <BarCell format={format} value={value} max={max} />
+    content = <BarCell field={column.field} format={format} value={value} max={max} />
   } else if (column.cell.kind === 'underline') {
-    content = <UnderlineCell format={format} value={value} />
+    content = <UnderlineCell field={column.field} format={format} value={value} />
   } else if (column.cell.kind === 'delta') {
     const secondaryField = column.cell.secondaryField
     const secondaryIndex = secondaryField ? frame.columns.findIndex((candidate) => candidate.name === secondaryField) : -1
@@ -536,7 +532,19 @@ export function TablePanel({ panel }: TablePanelProps) {
   const columnStats = useMemo(() => {
     const maxima = new Map<string, number>()
     const ranges = new Map<string, NumericRange>()
-    if (!frame.data || !columns) return { maxima, ranges }
+    // References are keyed off the frame, not the column specs: a table
+    // rendered straight from its frame has no specs at all and its columns
+    // read downwards just the same.
+    const references = new Map<string, number>()
+    if (!frame.data) return { maxima, ranges, references }
+    for (const [index, dataColumn] of frame.data.columns.entries()) {
+      const values = frame.data.rows
+        .map((row) => numericValue(row[index]))
+        .filter((value): value is number => value !== undefined)
+      const reference = compactReference(values, panel.format[dataColumn.name])
+      if (reference !== undefined) references.set(dataColumn.name, reference)
+    }
+    if (!columns) return { maxima, ranges, references }
     for (const column of columns) {
       if (column.cell.kind !== 'bar' && !column.heat) continue
       const index = frame.data.columns.findIndex((candidate) => candidate.name === column.field)
@@ -551,8 +559,8 @@ export function TablePanel({ panel }: TablePanelProps) {
         })
       }
     }
-    return { maxima, ranges }
-  }, [columns, frame.data])
+    return { maxima, ranges, references }
+  }, [columns, frame.data, panel.format])
   // A panel-level leaf action applies to whole rows. In columns mode it has
   // no column of its own, so the table appends one; otherwise the action the
   // document declares would never reach the DOM.
@@ -726,257 +734,259 @@ export function TablePanel({ panel }: TablePanelProps) {
   return (
     <PanelFrame panel={panel} frame={frame} allowEmptyContent={Boolean(frame.page)}>
       {frame.data && (
-        <div className="lens-table-view">
-          {panel.table?.searchable && (
-            <label className="lens-table-search">
-              <span className="lens-sr-only">{translate('table.search', 'Search table')}</span>
-              <input
-                aria-label={translate('table.search', 'Search table')}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder={translate('table.searchPlaceholder', 'Search all rows…')}
-                type="search"
-                value={search}
-              />
-            </label>
-          )}
-          <div
-            className="lens-table-scroll-frame"
-            data-overflow-left={scrollEdges.left}
-            data-overflow-right={scrollEdges.right}
-          >
-            {/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
+        <ColumnReferences.Provider value={columnStats.references}>
+          <div className="lens-table-view">
+            {panel.table?.searchable && (
+              <label className="lens-table-search">
+                <span className="lens-sr-only">{translate('table.search', 'Search table')}</span>
+                <input
+                  aria-label={translate('table.search', 'Search table')}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder={translate('table.searchPlaceholder', 'Search all rows…')}
+                  type="search"
+                  value={search}
+                />
+              </label>
+            )}
             <div
-              aria-label={translate('table.scrollRegion', 'Scrollable table')}
-              className="lens-table-scroll"
-              ref={scrollRef}
-              role="region"
-              tabIndex={scrollEdges.left || scrollEdges.right ? 0 : undefined}
+              className="lens-table-scroll-frame"
+              data-overflow-left={scrollEdges.left}
+              data-overflow-right={scrollEdges.right}
             >
-              {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
-              <table className={`lens-table${columnCount >= 4 ? ' lens-table-wide' : ''}`}>
-                <thead>
-                  <tr>
-                    {columns ? (
-                      <>
-                        {columns.map((column, columnIndex) => {
-                        // An action-only column has no field to sort by, and a
-                        // static table offers no sort at all; either way the
-                        // heading is a plain label, not a control.
-                          const sortable = sortEnabled && Boolean(column.field.trim())
-                          return (
+              {/* eslint-disable jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
+              <div
+                aria-label={translate('table.scrollRegion', 'Scrollable table')}
+                className="lens-table-scroll"
+                ref={scrollRef}
+                role="region"
+                tabIndex={scrollEdges.left || scrollEdges.right ? 0 : undefined}
+              >
+                {/* eslint-enable jsx-a11y/no-noninteractive-tabindex */}
+                <table className={`lens-table${columnCount >= 4 ? ' lens-table-wide' : ''}`}>
+                  <thead>
+                    <tr>
+                      {columns ? (
+                        <>
+                          {columns.map((column, columnIndex) => {
+                            // An action-only column has no field to sort by, and a
+                            // static table offers no sort at all; either way the
+                            // heading is a plain label, not a control.
+                            const sortable = sortEnabled && Boolean(column.field.trim())
+                            return (
+                              <th
+                                aria-sort={sortable ? (sort?.column === column.field ? sort.direction : 'none') : undefined}
+                                className={isRightAligned(column, frame.data!) ? 'lens-table-col-right' : undefined}
+                                key={column.field || `column-${columnIndex}`}
+                                scope="col"
+                                style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
+                              >
+                                {sortable ? (
+                                  <button type="button" onClick={() => changeSort(column.field)}>
+                                    <span>{column.label}</span>
+                                    <SortIndicator direction={sortDirection(column.field)} />
+                                  </button>
+                                ) : (
+                                  <span className="lens-table-heading-static">{column.label}</span>
+                                )}
+                              </th>
+                            )
+                          })}
+                          {rowLeafAction && (
+                            <th className="lens-table-action-heading" scope="col">
+                              <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
+                            </th>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          {frame.data.columns.map((column) => (
                             <th
-                              aria-sort={sortable ? (sort?.column === column.field ? sort.direction : 'none') : undefined}
-                              className={isRightAligned(column, frame.data!) ? 'lens-table-col-right' : undefined}
-                              key={column.field || `column-${columnIndex}`}
+                              aria-sort={sortEnabled ? (sort?.column === column.name ? sort.direction : 'none') : undefined}
+                              /* The body cell for these types is right-aligned
+                               (`.lens-table-cell-number`, `-time`); the header
+                               follows the data it heads. */
+                              className={column.type === 'number' || column.type === 'time' ? 'lens-table-col-right' : undefined}
+                              key={column.name}
                               scope="col"
-                              style={column.widthPx ? { minWidth: `${column.widthPx}px` } : undefined}
                             >
-                              {sortable ? (
-                                <button type="button" onClick={() => changeSort(column.field)}>
-                                  <span>{column.label}</span>
-                                  <SortIndicator direction={sortDirection(column.field)} />
+                              {sortEnabled ? (
+                                <button type="button" onClick={() => changeSort(column.name)}>
+                                  <span>{column.name}</span>
+                                  <SortIndicator direction={sortDirection(column.name)} />
                                 </button>
                               ) : (
-                                <span className="lens-table-heading-static">{column.label}</span>
+                                <span className="lens-table-heading-static">{column.name}</span>
                               )}
                             </th>
-                          )
-                        })}
-                        {rowLeafAction && (
+                          ))}
                           <th className="lens-table-action-heading" scope="col">
                             <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
                           </th>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        {frame.data.columns.map((column) => (
-                          <th
-                            aria-sort={sortEnabled ? (sort?.column === column.name ? sort.direction : 'none') : undefined}
-                            /* The body cell for these types is right-aligned
-                               (`.lens-table-cell-number`, `-time`); the header
-                               follows the data it heads. */
-                            className={column.type === 'number' || column.type === 'time' ? 'lens-table-col-right' : undefined}
-                            key={column.name}
-                            scope="col"
-                          >
-                            {sortEnabled ? (
-                              <button type="button" onClick={() => changeSort(column.name)}>
-                                <span>{column.name}</span>
-                                <SortIndicator direction={sortDirection(column.name)} />
-                              </button>
-                            ) : (
-                              <span className="lens-table-heading-static">{column.name}</span>
-                            )}
-                          </th>
-                        ))}
-                        <th className="lens-table-action-heading" scope="col">
-                          <span className="lens-sr-only">{translate('table.actions', 'Actions')}</span>
-                        </th>
-                      </>
-                    )}
-                    {hasHorizontalOverflow && <th aria-hidden="true" className="lens-table-scroll-spacer" />}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.length === 0 ? (
-                    <tr>
-                      <td className="lens-table-empty" colSpan={columnCount}>
-                        {translate('table.emptyPage', 'No records on this page')}
-                      </td>
-                      {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
-                    </tr>
-                  ) : renderRows.map((entry) => !columns ? (
-                    <FrameRow
-                      frame={frame.data!}
-                      row={entry.row}
-                      index={entry.index}
-                      panel={panel}
-                      location={location}
-                      level={level}
-                      openRecordLabel={translate('table.openRecord', 'Open record')}
-                      trailingSpacer={hasHorizontalOverflow}
-                      key={entry.index}
-                    />
-                  ) : entry.kind === 'toggle' ? (
-                    <GroupToggleRow
-                      columns={columns}
-                      frame={frame.data!}
-                      row={entry.row}
-                      panel={panel}
-                      location={location}
-                      columnMaxima={columnStats.maxima}
-                      columnRanges={columnStats.ranges}
-                      expanded={entry.expanded}
-                      onToggle={() => toggleGroup(entry.group)}
-                      trailingSpacer={hasHorizontalOverflow}
-                      key={`toggle-${entry.group}`}
-                    />
-                  ) : (
-                    <tr className={entry.kind === 'member' ? 'lens-table-group-member' : undefined} key={entry.index}>
-                      {columns.map((column, columnIndex) => (
-                        <td
-                          className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
-                          key={column.field || `column-${columnIndex}`}
-                          style={{
-                            ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
-                            ...heatCellStyle(column, frame.data!, entry.row, columnStats.ranges),
-                          }}
-                        >
-                          <ColumnCell
-                            column={column}
-                            frame={frame.data!}
-                            row={entry.row}
-                            panel={panel}
-                            location={location}
-                            max={columnStats.maxima.get(column.field) ?? 0}
-                          />
-                        </td>
-                      ))}
-                      {rowLeafAction && (
-                        <td className="lens-table-action-cell">
-                          <RowLeafAction
-                            frame={frame.data!}
-                            row={entry.row}
-                            panel={panel}
-                            location={location}
-                            level={level}
-                            label={translate('table.openRecord', 'Open record')}
-                          />
-                        </td>
+                        </>
                       )}
-                      {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+                      {hasHorizontalOverflow && <th aria-hidden="true" className="lens-table-scroll-spacer" />}
                     </tr>
-                  ))}
-                </tbody>
-                {columns && frame.summary && Object.keys(frame.summary.values).length > 0 && (
-                  <tfoot>
-                    <tr>
-                      {columns.map((column, index) => (
-                        <td
-                          className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
-                          key={column.field || `summary-${index}`}
-                        >
-                          {index === 0
-                            ? frame.summary?.fullValues
-                              ? translate('table.filteredTotal', 'Filtered total')
-                              : translate('table.total', 'Total')
-                            : column.total === true
-                              ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />
-                              : <SummaryVoid />}
+                  </thead>
+                  <tbody>
+                    {rows.length === 0 ? (
+                      <tr>
+                        <td className="lens-table-empty" colSpan={columnCount}>
+                          {translate('table.emptyPage', 'No records on this page')}
                         </td>
-                      ))}
-                      {rowLeafAction && <td />}
-                      {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
-                    </tr>
-                    {frame.summary.fullValues && (
-                      <tr className="lens-table-summary-all">
+                        {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+                      </tr>
+                    ) : renderRows.map((entry) => !columns ? (
+                      <FrameRow
+                        frame={frame.data!}
+                        row={entry.row}
+                        index={entry.index}
+                        panel={panel}
+                        location={location}
+                        level={level}
+                        openRecordLabel={translate('table.openRecord', 'Open record')}
+                        trailingSpacer={hasHorizontalOverflow}
+                        key={entry.index}
+                      />
+                    ) : entry.kind === 'toggle' ? (
+                      <GroupToggleRow
+                        columns={columns}
+                        frame={frame.data!}
+                        row={entry.row}
+                        panel={panel}
+                        location={location}
+                        columnMaxima={columnStats.maxima}
+                        columnRanges={columnStats.ranges}
+                        expanded={entry.expanded}
+                        onToggle={() => toggleGroup(entry.group)}
+                        trailingSpacer={hasHorizontalOverflow}
+                        key={`toggle-${entry.group}`}
+                      />
+                    ) : (
+                      <tr className={entry.kind === 'member' ? 'lens-table-group-member' : undefined} key={entry.index}>
+                        {columns.map((column, columnIndex) => (
+                          <td
+                            className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
+                            key={column.field || `column-${columnIndex}`}
+                            style={{
+                              ...(column.widthPx ? { minWidth: `${column.widthPx}px` } : {}),
+                              ...heatCellStyle(column, frame.data!, entry.row, columnStats.ranges),
+                            }}
+                          >
+                            <ColumnCell
+                              column={column}
+                              frame={frame.data!}
+                              row={entry.row}
+                              panel={panel}
+                              location={location}
+                              max={columnStats.maxima.get(column.field) ?? 0}
+                            />
+                          </td>
+                        ))}
+                        {rowLeafAction && (
+                          <td className="lens-table-action-cell">
+                            <RowLeafAction
+                              frame={frame.data!}
+                              row={entry.row}
+                              panel={panel}
+                              location={location}
+                              level={level}
+                              label={translate('table.openRecord', 'Open record')}
+                            />
+                          </td>
+                        )}
+                        {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+                      </tr>
+                    ))}
+                  </tbody>
+                  {columns && frame.summary && Object.keys(frame.summary.values).length > 0 && (
+                    <tfoot>
+                      <tr>
                         {columns.map((column, index) => (
-                          <td className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`} key={column.field || `full-summary-${index}`}>
+                          <td
+                            className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`}
+                            key={column.field || `summary-${index}`}
+                          >
                             {index === 0
-                              ? translate('table.allRowsTotal', 'All rows total')
+                              ? frame.summary?.fullValues
+                                ? translate('table.filteredTotal', 'Filtered total')
+                                : translate('table.total', 'Total')
                               : column.total === true
-                                ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.fullValues?.[column.field]} />
+                                ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.values[column.field]} />
                                 : <SummaryVoid />}
                           </td>
                         ))}
                         {rowLeafAction && <td />}
                         {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
                       </tr>
-                    )}
-                  </tfoot>
-                )}
-              </table>
+                      {frame.summary.fullValues && (
+                        <tr className="lens-table-summary-all">
+                          {columns.map((column, index) => (
+                            <td className={`lens-table-cell${isRightAligned(column, frame.data!) ? ' lens-table-col-right' : ''}`} key={column.field || `full-summary-${index}`}>
+                              {index === 0
+                                ? translate('table.allRowsTotal', 'All rows total')
+                                : column.total === true
+                                  ? <TableSummaryCell panel={panel} field={column.field} value={frame.summary?.fullValues?.[column.field]} />
+                                  : <SummaryVoid />}
+                            </td>
+                          ))}
+                          {rowLeafAction && <td />}
+                          {hasHorizontalOverflow && <td aria-hidden="true" className="lens-table-scroll-spacer" />}
+                        </tr>
+                      )}
+                    </tfoot>
+                  )}
+                </table>
+              </div>
+              <button
+                aria-label={translate('table.scrollLeft', 'Scroll table left')}
+                className="lens-table-overflow-edge lens-table-overflow-edge-left"
+                disabled={!scrollEdges.left}
+                onClick={() => scrollHorizontally(-1)}
+                type="button"
+              />
+              <button
+                aria-label={translate('table.scrollRight', 'Scroll table right')}
+                className="lens-table-overflow-edge lens-table-overflow-edge-right"
+                disabled={!scrollEdges.right}
+                onClick={() => scrollHorizontally(1)}
+                type="button"
+              />
             </div>
-            <button
-              aria-label={translate('table.scrollLeft', 'Scroll table left')}
-              className="lens-table-overflow-edge lens-table-overflow-edge-left"
-              disabled={!scrollEdges.left}
-              onClick={() => scrollHorizontally(-1)}
-              type="button"
-            />
-            <button
-              aria-label={translate('table.scrollRight', 'Scroll table right')}
-              className="lens-table-overflow-edge lens-table-overflow-edge-right"
-              disabled={!scrollEdges.right}
-              onClick={() => scrollHorizontally(1)}
-              type="button"
-            />
-          </div>
-          <footer className="lens-table-footer">
-            <span className="lens-table-footer-notes">
-              {/* Only a paginated table has a "this page" to scope sorting to.
+            <footer className="lens-table-footer">
+              <span className="lens-table-footer-notes">
+                {/* Only a paginated table has a "this page" to scope sorting to.
                   On a table that shows every row at once the caveat describes a
                   limit that does not exist, and reads as a warning that some of
                   the data is out of sight. */}
-              {(frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold && (
-                <span className="lens-table-rowcount">
-                  {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
-                    ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
-                    : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}
-                </span>
+                {(frame.summary?.filteredRows ?? dataRowCount) > rowCountDisclosureThreshold && (
+                  <span className="lens-table-rowcount">
+                    {frame.summary && frame.summary.totalRows > frame.summary.filteredRows
+                      ? translate('table.filteredRowCount', '{filtered} of {total} rows', { filtered: frame.summary.filteredRows, total: frame.summary.totalRows })
+                      : translate('table.rowCount', '{count} rows', { count: frame.summary?.filteredRows ?? dataRowCount })}
+                  </span>
+                )}
+              </span>
+              {frame.page && (
+                <nav
+                  aria-label={translate('table.pages', '{name} pages', { name: panel.title })}
+                  className="lens-table-pagination"
+                >
+                  <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">
+                    {translate('table.previous', 'Previous')}
+                  </button>
+                  <span aria-live="polite">
+                    {frame.isLoading && loadingPage !== page
+                      ? translate('table.loadingPage', 'Loading page {n}', { n: loadingPage })
+                      : translate('table.page', 'Page {n}', { n: page })}
+                  </span>
+                  <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">
+                    {translate('table.next', 'Next')}
+                  </button>
+                </nav>
               )}
-            </span>
-            {frame.page && (
-              <nav
-                aria-label={translate('table.pages', '{name} pages', { name: panel.title })}
-                className="lens-table-pagination"
-              >
-                <button disabled={frame.isLoading || page <= 1} onClick={() => changePage(page - 1)} type="button">
-                  {translate('table.previous', 'Previous')}
-                </button>
-                <span aria-live="polite">
-                  {frame.isLoading && loadingPage !== page
-                    ? translate('table.loadingPage', 'Loading page {n}', { n: loadingPage })
-                    : translate('table.page', 'Page {n}', { n: page })}
-                </span>
-                <button disabled={frame.isLoading || !hasNext} onClick={() => changePage(page + 1)} type="button">
-                  {translate('table.next', 'Next')}
-                </button>
-              </nav>
-            )}
-          </footer>
-        </div>
+            </footer>
+          </div>
+        </ColumnReferences.Provider>
       )}
     </PanelFrame>
   )

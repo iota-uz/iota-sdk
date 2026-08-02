@@ -248,6 +248,40 @@ export function formatFieldValue(value: unknown, field: FieldFormat | undefined,
   return writeNumberParts(plain.formatToParts(number), field.decimalSeparator)
 }
 
+/**
+ * The one magnitude a group of compact values should share.
+ *
+ * The largest value sets the notation — that is the number the group is read
+ * against. But a magnitude that rounds a real value down to «0.00» prints a
+ * lie next to the real zeros, so when the smallest non-zero member cannot
+ * survive the largest member's magnitude, the group steps down to the
+ * smaller one. One notation either way; nothing that exists reads as nothing.
+ *
+ * Returns undefined when there is nothing to share a magnitude across — an
+ * empty group, or one that is entirely zero.
+ */
+export function compactReference(values: Iterable<number>, field: FieldFormat | undefined): number | undefined {
+  if (!field?.compact || (field.kind !== 'money' && field.kind !== 'number')) return undefined
+  let largest = 0
+  let smallest = Infinity
+  for (const value of values) {
+    const magnitude = Math.abs(value)
+    if (magnitude === 0) continue
+    if (magnitude > largest) largest = magnitude
+    if (magnitude < smallest) smallest = magnitude
+  }
+  if (largest === 0) return undefined
+  const scale = field.kind === 'money' && field.minorUnits ? 100 : 1
+  if (largest / scale < COMPACT_FLOOR) return undefined
+  const exponent = Math.min(15, Math.floor(Math.log10(largest / scale) / 3) * 3)
+  const smallestAtLargest = (smallest / scale) / 10 ** exponent
+  if (smallestAtLargest >= 0.5 * 10 ** -(field.precision ?? 2)) return largest
+  // Stepping down stops at the abbreviation floor: below it there is no
+  // magnitude word to share, and the group would fall back to per-value
+  // formatting — the very thing a shared magnitude exists to prevent.
+  return Math.max(smallest, COMPACT_FLOOR * scale)
+}
+
 /** Format a compact tooltip group at one shared magnitude. */
 export function formatFieldValueAtReference(value: unknown, reference: number, field: FieldFormat | undefined, locale: string): string {
   const number = numeric(value)
@@ -259,9 +293,21 @@ export function formatFieldValueAtReference(value: unknown, reference: number, f
   if (Math.abs(scaledReference) < COMPACT_FLOOR) return formatFieldValue(value, field, locale)
   const exponent = Math.min(15, Math.floor(Math.log10(Math.abs(scaledReference)) / 3) * 3)
   const divisor = 10 ** exponent
-  const compactPart = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 0 })
-    .formatToParts(divisor).find((part) => part.type === 'compact')?.value ?? ''
+  // Whether a magnitude is glued to its mantissa is the locale's call, not
+  // ours: en writes «9.36B», ru writes «9,36 млрд». Reading the glue off the
+  // same parts array that produced the magnitude keeps this formatter writing
+  // what the server writes, instead of inserting a space en never has.
+  const compactParts = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 0 })
+    .formatToParts(divisor)
+  const compactIndex = compactParts.findIndex((part) => part.type === 'compact')
+  const compactPart = compactIndex < 0 ? '' : compactParts[compactIndex]!.value
+  // Whether there is a space at all is the locale's call; that it cannot break
+  // is this runtime's, the same deal joinUnit strikes for a currency suffix.
+  const compactGlue = compactIndex > 0 && compactParts[compactIndex - 1]!.type === 'literal'
+    ? compactParts[compactIndex - 1]!.value.replace(/\s+/g, noBreakSpace)
+    : ''
   const mantissa = new Intl.NumberFormat(locale, precisionOptions(field.precision))
-  const text = joinUnit(writeNumberParts(mantissa.formatToParts(scaledNumber / divisor), field.decimalSeparator), compactPart)
+  const numeral = writeNumberParts(mantissa.formatToParts(scaledNumber / divisor), field.decimalSeparator)
+  const text = compactPart ? `${numeral}${compactGlue}${compactPart}` : numeral
   return field.kind === 'money' ? joinUnit(text, field.currency ?? 'USD') : text
 }

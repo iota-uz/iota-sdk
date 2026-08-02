@@ -713,6 +713,18 @@ describe('TablePanel column reading', () => {
     expect(header.querySelector('.lens-table-sort-up')).not.toBeInTheDocument()
   })
 
+  // 111 130 000 / 0 / 1 000 in one column: read downwards, per-value compact
+  // notation printed «111.13M», «0» and «1,000» — three notations in a stack of
+  // digits. The magnitude that carries the column is the largest value's, and
+  // 1 000 survives it as 0.00M only by rounding to nothing, so the column steps
+  // down to the magnitude its smallest real value can be written in.
+  it('reads the whole numeric column at one magnitude', async () => {
+    await renderPanel()
+    const cells = Array.from(document.querySelectorAll('tbody tr')).map((row) => row.querySelectorAll('td')[1]?.textContent)
+
+    expect(cells).toEqual(['111,130.00K', '0.00K', '1.00K'])
+  })
+
   it('says that a column does not total instead of leaving the cell blank', async () => {
     await renderPanel()
     const footer = document.querySelectorAll('tfoot td')

@@ -26,6 +26,14 @@ vi.mock('../runtime', () => ({
     return '—'
   },
   useFormatExact: () => () => undefined,
+  useFormatAtReference: () => (value: unknown) => {
+    if (value === null || value === undefined) return '—'
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' || typeof value === 'bigint') {
+      return String(value)
+    }
+    return '—'
+  },
+  compactReference: () => undefined,
   useAxisFormat: () => (value: unknown) => String(value),
   axisUnit: () => '',
   clampedDeltaPercent: () => undefined,

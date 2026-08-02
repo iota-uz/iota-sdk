@@ -186,6 +186,15 @@ describe('formatFieldValueAtReference', () => {
       formatFieldValueAtReference(90_000, 30_000_000, field, 'ru-RU'),
     ]).toEqual([`30.00\u00A0млн\u00A0UZS`, `3.00\u00A0млн\u00A0UZS`, `0.09\u00A0млн\u00A0UZS`])
   })
+
+  // Whether the magnitude is glued to its mantissa is the locale's call: en
+  // writes «9.36B», ru writes «9,36 млрд». Inserting a space en never has made
+  // this formatter disagree with every other cell in the same document.
+  it('glues the magnitude the way the locale does', () => {
+    const field: FieldFormat = { kind: 'number', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.' }
+    expect(formatFieldValueAtReference(9_360_000_000, 9_360_000_000, field, 'en-US')).toBe('9.36B')
+    expect(formatFieldValueAtReference(9_360_000_000, 9_360_000_000, field, 'ru-RU')).toBe('9.36\u00A0млрд')
+  })
 })
 
 describe('clampedDeltaPercent', () => {
