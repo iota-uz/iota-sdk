@@ -1021,3 +1021,59 @@ export const ClickablePanels: Story = () => {
   return <Runtime doc={doc}><DashboardPanels /></Runtime>
 }
 ClickablePanels.storyName = 'Clickable panels'
+
+/**
+ * A stat panel sharing a row with a table long enough to set the row's height.
+ *
+ * The row stretches every card to its tallest sibling, which is right for a
+ * plot and wrong for a stat: the stat used to grow to the table's height and
+ * float its delta chip at the bottom of the resulting gap. The figure, its
+ * caption and its chip stay one block at the top of the card here, and the
+ * slack falls below them.
+ */
+const stretchStatPanel: Panel = {
+  id: 'stretch-stat', kind: 'stat', title: 'Комбинированный коэффициент', semantics: 'series',
+  frame: 'stretch-stat:frame',
+  encoding: { label: 'label', value: 'value', final: 'delta' },
+  format: {
+    value: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' },
+    delta: { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' },
+  },
+  caption: 'Убытки и расходы к заработанной премии',
+  trend: { percent: -4.2, polarity: 'lower_better', absoluteField: 'delta', percentField: 'deltaPercent' },
+  terminal: true, actions: [],
+}
+
+const stretchStatFrame: Frame = {
+  columns: [
+    { name: 'label', type: 'string' }, { name: 'value', type: 'number' },
+    { name: 'delta', type: 'number' }, { name: 'deltaPercent', type: 'number' },
+  ],
+  rows: [['Комбинированный коэффициент', 44.8, -2, -4.2]],
+}
+
+const stretchTablePanel: Panel = {
+  id: 'stretch-table', kind: 'table', title: 'Продукты', semantics: 'partition', frame: 'stretch-table:frame',
+  encoding: { label: 'product', value: 'amount' },
+  format: { amount: money },
+  columns: [
+    { field: 'product', label: 'Продукт', cell: { kind: 'plain' } },
+    { field: 'amount', label: 'Премия', align: 'right', cell: { kind: 'plain' } },
+  ],
+  terminal: true, actions: [],
+}
+
+const stretchTableFrame: Frame = {
+  columns: [{ name: 'product', type: 'string' }, { name: 'amount', type: 'number' }],
+  rows: Array.from({ length: 25 }, (_, index) => [`Продукт ${index + 1}`, (25 - index) * 41_000_000]),
+}
+
+export const StatBesideTallTable: Story = () => {
+  const doc = storyDocument(
+    [stretchStatPanel, stretchTablePanel],
+    { 'stretch-stat:frame': stretchStatFrame, 'stretch-table:frame': stretchTableFrame },
+    { rows: [{ panels: [{ panelId: 'stretch-stat', span: 3 }, { panelId: 'stretch-table', span: 9 }] }] },
+  )
+  return <Runtime doc={doc}><DashboardPanels /></Runtime>
+}
+StatBesideTallTable.storyName = 'Stat beside a tall table'

@@ -46,7 +46,7 @@ import { MapPanel } from './MapPanel'
 import { buildCascadeStages, buildWaterfallItems, buildWaterfallModel, CascadePanel, waterfallAxisStep } from './CascadePanel'
 import { WaterfallPlot } from './WaterfallPlot'
 import { panelRegistry, RegisteredPanel } from './registry'
-import { StatPanel } from './StatPanel'
+import { StatMetric, StatPanel } from './StatPanel'
 import { TablePanel } from './TablePanel'
 
 const dataFrame: Frame = {
@@ -1022,6 +1022,18 @@ describe('chart encoding and drill behavior', () => {
     expect(marks.at(-1)?.style.background).toBe('rgb(217, 119, 6)')
   })
 
+  it('shows the figure\'s own shape while a strip cell is loading, not the empty-value dash', () => {
+    runtime.frame = state('loading')
+    const { container } = render(<StatMetric panel={panel('stat', { encoding: { value: 'value' } })} />)
+
+    // «—» is what this product prints for a value that is genuinely absent, so
+    // a loading cell that printed it made a slow strip and an empty one look
+    // the same.
+    expect(container.querySelector('.lens-stat-metric-value-shimmer')).not.toBeNull()
+    expect(container.querySelector('.lens-stat-metric-value')?.textContent).toBe('')
+    expect(container.querySelector('.lens-stat-metric')).toHaveAttribute('aria-busy', 'true')
+  })
+
   it('renders the panel title once when the stat label would duplicate it', () => {
     runtime.frame = state('data')
     render(<StatPanel panel={panel('stat', { encoding: { value: 'value' } })} />)
@@ -1053,7 +1065,7 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.queryByText('+0.0%')).toBeNull()
   })
 
-  it('labels an absolute ratio delta in percentage points', () => {
+  it('names the baseline a ratio moved from, keeping the point delta on the chip itself', () => {
     runtime.frame = {
       data: {
         columns: [{ name: 'value', type: 'number' }, { name: 'delta', type: 'number' }, { name: 'delta_percent', type: 'number' }],
@@ -1066,7 +1078,10 @@ describe('chart encoding and drill behavior', () => {
       trend: { percent: 10, absoluteField: 'delta', percentField: 'delta_percent', absoluteDeltaUnit: 'percentage_points' },
     })} />)
 
-    expect(screen.getByText(/\+2\.5 pp/)).toBeInTheDocument()
+    // 42 today after a +2.5 point move: the chip names the 39.5 it moved from
+    // rather than repeating a magnitude the two figures on screen already give.
+    expect(screen.getByText(/was 39\.5/)).toBeInTheDocument()
+    expect(document.querySelector('.lens-trend-chip')).toHaveAttribute('title', expect.stringContaining('+2.5 pp'))
   })
 })
 

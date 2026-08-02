@@ -11,7 +11,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from 'react'
-import type { LayoutGroup, LayoutItem, Panel } from './contract'
+import type { LayoutGroup, LayoutItem, LayoutRow, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
@@ -80,6 +80,61 @@ function clusterAtDepth(items: LayoutItem[], depth: number): LayoutCluster[] {
 export function clusterRow(items: LayoutItem[]): LayoutCluster[] {
   return clusterAtDepth(items, 0)
 }
+
+/** Beyond this, a strip's cells are slivers whatever the viewport. */
+const metricColumnCap = 6
+
+/**
+ * The widest strip on the dashboard, which is how many columns every strip on
+ * it is drawn on.
+ *
+ * A strip is identified by its group id, which is stable per strip, so counting
+ * members by id is the same partition the renderer clusters into.
+ */
+export function metricColumnCount(rows: LayoutRow[]): number {
+  const sizes = new Map<string, number>()
+  for (const row of rows) {
+    for (const item of row.panels) {
+      for (const group of chainOf(item)) {
+        if (group.kind !== 'metrics') continue
+        sizes.set(group.id, (sizes.get(group.id) ?? 0) + 1)
+      }
+    }
+  }
+  const widest = Math.max(1, ...sizes.values())
+  return Math.min(metricColumnCap, widest)
+}
+
+/**
+ * How many of the strip's columns each member occupies.
+ *
+ * Every strip on a dashboard is drawn on one column grid — that is what makes
+ * the vertical rules of a three-member strip and a four-member strip meet
+ * instead of zig-zagging past each other. A strip whose member count does not
+ * fill its last row hands the leftover columns to the cells that are there, so
+ * the row still reaches the card's edge (no half-row of white reading as a card
+ * that failed to load) while every seam still lands on a column line.
+ */
+export function metricSpans(count: number, columns: number): number[] {
+  const cols = Math.max(1, Math.floor(columns))
+  if (count <= 0) return []
+  const spans = new Array<number>(count).fill(1)
+  const tail = count % cols
+  if (tail === 0) return spans
+  const base = Math.floor(cols / tail)
+  const extra = cols % tail
+  for (let index = 0; index < tail; index += 1) {
+    spans[count - tail + index] = base + (index < extra ? 1 : 0)
+  }
+  return spans
+}
+
+/**
+ * The strip's column count. Set once per document from the widest strip so a
+ * member can compute its span; 4 is the shape a producer chunks strips into
+ * when nothing else is known.
+ */
+const MetricColumnsContext = createContext(4)
 
 /**
  * Per-group active-tab memory keyed by group id, held for the dashboard's
@@ -189,22 +244,44 @@ function MetricsGroup({ group, items, panels, registry }: {
   panels: Map<string, Panel>
   registry?: PanelRegistry
 }) {
+  const columns = useContext(MetricColumnsContext)
+  // One span per breakpoint: the document's own column count on a wide card,
+  // two columns on a narrow one. The cell carries both, and the sheet picks
+  // which one applies — a container query cannot compute an integer.
+  const spans = metricSpans(items.length, columns)
+  const spansNarrow = metricSpans(items.length, 2)
   return (
     <GroupCard group={group}>
       {/* Class names stay literal: Tailwind's content scan cannot see an
           interpolated modifier and would drop the rule. */}
       <div className={`lens-metric-row ${group.layout === 'rows' ? 'lens-metric-row-rows' : 'lens-metric-row-columns'}`}>
-        {items.map((item) => {
+        {items.map((item, index) => {
           const panel = panels.get(item.panelId)
-          if (!panel) return <MissingPanel key={item.panelId} panelId={item.panelId} />
-          // Only stat panels have a chrome-free metric form; anything else
-          // keeps its own card so the group degrades instead of breaking.
-          // A stat that hosts a drill root needs its card chrome (the trail and
-          // the breakdown affordance live there), so it opts out of the compact
-          // metric form rather than losing its exploration.
-          return panel.kind === 'stat' && !panel.drillRoot
-            ? <StatMetric key={panel.id} panel={panel} />
-            : <PanelSlot key={panel.id} panel={panel} registry={registry} />
+          // Every member sits in the same kind of box, whatever it contains.
+          // A cell that wrapped its own content (a navigable stat used to) sized
+          // itself differently from one that did not, which is how one strip
+          // ended up with 447px and 480px cells side by side.
+          return (
+            <div
+              className="lens-metric-cell"
+              style={{
+                '--lens-metric-span': spans[index] ?? 1,
+                '--lens-metric-span-2': spansNarrow[index] ?? 1,
+              } as CSSProperties}
+              key={item.panelId}
+            >
+              {!panel
+                ? <MissingPanel panelId={item.panelId} />
+                // Only stat panels have a chrome-free metric form; anything else
+                // keeps its own card so the group degrades instead of breaking.
+                // A stat that hosts a drill root needs its card chrome (the trail
+                // and the breakdown affordance live there), so it opts out of the
+                // compact metric form rather than losing its exploration.
+                : panel.kind === 'stat' && !panel.drillRoot
+                  ? <StatMetric panel={panel} />
+                  : <PanelSlot panel={panel} registry={registry} />}
+            </div>
+          )
         })}
       </div>
     </GroupCard>
@@ -464,9 +541,20 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
   const identityTitle = header?.title || document.meta.title
   const hasHeader = Boolean(identityTitle) || Boolean(document.endpoints.export) || print.available ||
     (document.filters?.length ?? 0) > 0 || canRecompute
+  const columns = metricColumnCount(document.layout.rows)
+  // Comparison is a property of the dashboard, not of the panels that happen to
+  // carry a delta: with it on, every strip reserves the chip's row. Otherwise
+  // turning it on grows one strip by 26px and leaves the strip beneath it where
+  // it was, so two rows of the same component stop matching.
+  const comparing = (document.filters ?? []).some((filter) =>
+    filter.kind === 'compare' && filter.compare !== undefined && filter.compare.value.mode !== 'off')
   return (
     <TabStateContext.Provider value={tabState}>
-      <main className="lens-dashboard" aria-label={identityTitle}>
+      <main
+        aria-label={identityTitle}
+        className={`lens-dashboard${comparing ? ' lens-dashboard-comparing' : ''}`}
+        style={{ '--lens-metric-columns': columns } as CSSProperties}
+      >
         {hasHeader && (
           <header className="lens-dashboard-header">
             {/* The document header owns the page identity: a strong title over a
@@ -502,23 +590,25 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
         {/* The header folds freshness into its subtitle; only the headerless
           layout still shows the lone updated line. */}
         {hasHeader && !header && <DashboardFreshness />}
-        <div className="lens-dashboard-rows">
-          {document.layout.rows.map((row, rowIndex) => (
-            <section
-              className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
-              id={row.anchor || undefined}
-              key={`${row.heading ?? 'row'}-${rowIndex}`}
-            >
-              {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
-              <div
-                className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
-                style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
+        <MetricColumnsContext.Provider value={columns}>
+          <div className="lens-dashboard-rows">
+            {document.layout.rows.map((row, rowIndex) => (
+              <section
+                className={`lens-dashboard-row${row.class ? ` ${row.class}` : ''}`}
+                id={row.anchor || undefined}
+                key={`${row.heading ?? 'row'}-${rowIndex}`}
               >
-                <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
-              </div>
-            </section>
-          ))}
-        </div>
+                {row.heading && <h2 className="lens-row-heading"><span>{row.heading}</span></h2>}
+                <div
+                  className={`lens-panel-grid${entrance.current ? ' lens-entrance' : ''}`}
+                  style={entrance.current ? ({ '--lens-row-delay': `${Math.min(rowIndex * 60, 180)}ms` } as CSSProperties) : undefined}
+                >
+                  <GroupChain depth={0} items={row.panels} panels={panels} registry={registry} />
+                </div>
+              </section>
+            ))}
+          </div>
+        </MetricColumnsContext.Provider>
         {print.active && (
           <Suspense fallback={null}>
             <LazyPrintReport />

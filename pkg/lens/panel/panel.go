@@ -835,14 +835,38 @@ type DrillNode struct {
 	Children []DrillNode     `json:"children,omitempty"`
 }
 
+// TrendPolarity says whether a movement in this metric is good news, bad news,
+// or neither. It is the producer's judgement, not the renderer's: growth in
+// premium earned is good, growth in loss ratio is bad, and growth in sum
+// insured is exposure — more of a thing, with no verdict attached.
+//
+// Unset means TrendNeutral. A tri-state exists because Invert could only ever
+// say "up is bad instead of good"; it had no way to say "no opinion", so every
+// metric nobody had thought about was coloured as though higher were better.
+type TrendPolarity string
+
+const (
+	// TrendNeutral prints the movement without a good/bad colour. The arrow and
+	// the sign still say which way it went.
+	TrendNeutral TrendPolarity = "neutral"
+	// TrendHigherBetter colours a rise positive and a fall negative.
+	TrendHigherBetter TrendPolarity = "higher_better"
+	// TrendLowerBetter colours a fall positive and a rise negative.
+	TrendLowerBetter TrendPolarity = "lower_better"
+)
+
 // TrendSpec renders a small colored chip in a panel's header showing a signed
 // percent change alongside a comparison label (e.g. "vs last month").
 type TrendSpec struct {
 	Percent float64 `json:"percent"`
 	Label   string  `json:"label,omitempty"`
-	// Invert flips the good/bad color mapping for down-is-good metrics
-	// (e.g. loss ratio): a negative percent renders with the positive
-	// (green) treatment and vice versa. The arrow always follows the sign.
+	// Polarity decides the chip's colour. Unset reads as TrendNeutral, except
+	// when Invert is set — see below.
+	Polarity TrendPolarity `json:"polarity,omitempty"`
+	// Invert is the legacy two-state form of Polarity, kept because producers
+	// already declare it: true means TrendLowerBetter. It cannot express
+	// "higher is better" distinctly from "no opinion", so new producers should
+	// set Polarity instead.
 	Invert bool `json:"invert,omitempty"`
 	// AbsoluteField and PercentField opt into frame-backed automatic deltas.
 	// When set they take precedence over the manual Percent value.
@@ -1116,6 +1140,15 @@ func (b *Builder) TrendWithInvert(percent float64, label string, invert bool) *B
 func (b *Builder) AutoTrend(absoluteField, percentField FieldRef, label string, invert bool) *Builder {
 	b.spec.Trend = &TrendSpec{
 		Label: label, Invert: invert, AbsoluteField: absoluteField, PercentField: percentField,
+	}
+	return b
+}
+
+// TrendPolarity declares whether a rise in this metric is good, bad or neither.
+// Without it a chip is neutral: it shows the direction and withholds the verdict.
+func (b *Builder) TrendPolarity(polarity TrendPolarity) *Builder {
+	if b.spec.Trend != nil {
+		b.spec.Trend.Polarity = polarity
 	}
 	return b
 }

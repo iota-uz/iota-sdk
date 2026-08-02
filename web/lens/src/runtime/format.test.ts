@@ -78,21 +78,21 @@ describe('compact formatting', () => {
     const field: FieldFormat = {
       kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.',
     }
-    expect(formatFieldValue(230_310_000_000, field, 'ru-RU')).toBe('230.31 млрд UZS')
+    expect(formatFieldValue(230_310_000_000, field, 'ru-RU')).toBe(`230.31 млрд\u00A0UZS`)
   })
 
   it('renders the pinned currency grapheme instead of the ISO code', () => {
     const field: FieldFormat = {
       kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, symbol: 'so’m', decimalSeparator: '.',
     }
-    expect(formatFieldValue(66_856_663_843.68, field, 'ru-RU')).toBe('66 856 663 843.68 so’m')
+    expect(formatFieldValue(66_856_663_843.68, field, 'ru-RU')).toBe(`66 856 663 843.68\u00A0so’m`)
   })
 
   it('scales minor units before compacting', () => {
     const field: FieldFormat = {
       kind: 'money', currency: 'UZS', minorUnits: true, precision: 2, compact: true, decimalSeparator: '.',
     }
-    expect(formatFieldValue(150_530_000_00, field, 'ru-RU')).toBe('150.53 млн UZS')
+    expect(formatFieldValue(150_530_000_00, field, 'ru-RU')).toBe(`150.53 млн\u00A0UZS`)
   })
 
   it('pins the separator for percents too', () => {
@@ -147,13 +147,13 @@ describe('compact floor', () => {
   }
 
   it('renders values below 100 000 as the exact grouped integer', () => {
-    expect(formatFieldValue(12_500, field, 'ru-RU')).toBe('12 500 UZS')
-    expect(formatFieldValue(12_500, field, 'en-US')).toBe('12,500 UZS')
-    expect(formatFieldValue(-72_400.6, field, 'ru-RU')).toBe('−72 401 UZS')
+    expect(formatFieldValue(12_500, field, 'ru-RU')).toBe(`12 500\u00A0UZS`)
+    expect(formatFieldValue(12_500, field, 'en-US')).toBe(`12,500\u00A0UZS`)
+    expect(formatFieldValue(-72_400.6, field, 'ru-RU')).toBe(`−72 401\u00A0UZS`)
   })
 
   it('keeps compact notation from 100 000 upwards', () => {
-    expect(formatFieldValue(125_000, field, 'ru-RU')).toBe('125.00 тыс. UZS')
+    expect(formatFieldValue(125_000, field, 'ru-RU')).toBe(`125.00 тыс.\u00A0UZS`)
   })
 })
 
@@ -162,8 +162,8 @@ describe('formatFieldValueExact', () => {
     const field: FieldFormat = {
       kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.',
     }
-    expect(formatFieldValueExact(66_064_767_693.59, field, 'ru-RU')).toBe('66 064 767 694 UZS')
-    expect(formatFieldValueExact(66_064_767_693.59, field, 'en-US')).toBe('66,064,767,694 UZS')
+    expect(formatFieldValueExact(66_064_767_693.59, field, 'ru-RU')).toBe(`66 064 767 694\u00A0UZS`)
+    expect(formatFieldValueExact(66_064_767_693.59, field, 'en-US')).toBe(`66,064,767,694\u00A0UZS`)
   })
 
   it('returns undefined when nothing was abbreviated away', () => {
@@ -184,7 +184,7 @@ describe('formatFieldValueAtReference', () => {
       formatFieldValueAtReference(30_000_000, 30_000_000, field, 'ru-RU'),
       formatFieldValueAtReference(3_000_000, 30_000_000, field, 'ru-RU'),
       formatFieldValueAtReference(90_000, 30_000_000, field, 'ru-RU'),
-    ]).toEqual(['30.00 млн UZS', '3.00 млн UZS', '0.09 млн UZS'])
+    ]).toEqual([`30.00\u00A0млн\u00A0UZS`, `3.00\u00A0млн\u00A0UZS`, `0.09\u00A0млн\u00A0UZS`])
   })
 })
 
@@ -209,7 +209,7 @@ describe('zero precision is a value, not an absence', () => {
     }
     // Dropping the 0 leaves Intl at its default fraction digits, which is how
     // "51 522 007 533,993 so’m" reached a headline that asked for whole units.
-    expect(formatFieldValue(51_522_007_533.993, field, 'ru')).toBe('51 522 007 534 so’m')
+    expect(formatFieldValue(51_522_007_533.993, field, 'ru')).toBe(`51 522 007 534\u00A0so’m`)
   })
 
   it('keeps whole units for plain numbers and percentages', () => {

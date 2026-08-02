@@ -312,3 +312,77 @@ describe('mixed grouped and ungrouped items in one row', () => {
     expect(screen.getByRole('tablist')).toBeInTheDocument()
   })
 })
+
+/* -------------------------------------------------------------------------- */
+/* One grid per dashboard, shared by every strip on it                        */
+/* -------------------------------------------------------------------------- */
+
+const metricsGroup = (id: string): LayoutGroup => ({ id, kind: 'metrics', span: 12, layout: 'columns' })
+
+function stripLayout(...sizes: number[]): DashboardDocument['layout'] {
+  const rows = sizes.map((size, stripIndex) => ({
+    panels: Array.from({ length: size }, (_, index) => ({
+      panelId: `strip-${stripIndex}-${index}`,
+      span: 6,
+      groups: [metricsGroup(`strip-${stripIndex}`)],
+    })),
+  }))
+  return { rows }
+}
+
+function renderStrips(...sizes: number[]) {
+  const items = stripLayout(...sizes).rows.flatMap((row) => row.panels)
+  const panels = items.map((item) => statPanel(item.panelId, item.panelId))
+  const frames = Object.fromEntries(items.map((item, index) => [`${item.panelId}:root`, statFrame(index)]))
+  return renderDocument(documentWith(panels, frames, stripLayout(...sizes)))
+}
+
+function spansOf(container: HTMLElement, strip: number): Array<string | null> {
+  const row = container.querySelectorAll('.lens-metric-row')[strip]!
+  return [...row.querySelectorAll('.lens-metric-cell')]
+    .map((cell) => (cell as HTMLElement).style.getPropertyValue('--lens-metric-span'))
+}
+
+describe('metric strip grid', () => {
+  it('draws every strip on the widest strip\'s column count', () => {
+    const { container } = renderStrips(3, 4)
+
+    expect(container.querySelector('.lens-dashboard')).toHaveStyle({ '--lens-metric-columns': '4' })
+    // Four cells, one column each; the seams land at 1/4, 2/4 and 3/4.
+    expect(spansOf(container, 1)).toEqual(['1', '1', '1', '1'])
+  })
+
+  it('spreads a short last row across the leftover columns', () => {
+    const { container } = renderStrips(3, 4)
+
+    // Three cells on a four-column grid: the row still reaches the card's edge
+    // and its one seam falls on a column line the four-cell strip also uses.
+    expect(spansOf(container, 0)).toEqual(['2', '1', '1'])
+  })
+
+  it('sizes the grid to the widest strip, so that strip never wraps', () => {
+    const { container } = renderStrips(4, 5)
+
+    expect(container.querySelector('.lens-dashboard')).toHaveStyle({ '--lens-metric-columns': '5' })
+    expect(spansOf(container, 1)).toEqual(['1', '1', '1', '1', '1'])
+    // The four-member strip above it spreads over the same five columns rather
+    // than dividing its own width by four and missing every seam.
+    expect(spansOf(container, 0)).toEqual(['2', '1', '1', '1'])
+  })
+
+  it('gives a lone trailing cell the whole row rather than half a row of white', () => {
+    const { container } = renderStrips(6, 7)
+
+    expect(spansOf(container, 1)).toEqual(['1', '1', '1', '1', '1', '1', '6'])
+  })
+
+  it('carries a second span for the two-column breakpoint', () => {
+    const { container } = renderStrips(3)
+    const row = container.querySelectorAll('.lens-metric-row')[0]!
+    const narrow = [...row.querySelectorAll('.lens-metric-cell')]
+      .map((cell) => (cell as HTMLElement).style.getPropertyValue('--lens-metric-span-2'))
+
+    // Two per row, then the third alone across both columns.
+    expect(narrow).toEqual(['1', '1', '2'])
+  })
+})

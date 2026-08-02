@@ -32,6 +32,24 @@ function precisionOptions(precision: number | undefined): Intl.NumberFormatOptio
 export const minusSign = '−'
 
 /**
+ * A number and its unit are one reading, so the space between them is a
+ * no-break space (U+00A0) and never an ASCII one.
+ *
+ * Intl already glues a compact magnitude to its mantissa this way («201,16 млрд»
+ * arrives with U+00A0 inside it), but every currency and symbol this runtime
+ * appended did so with a plain space — which is why a narrow strip cell printed
+ * «201,16 млрд» on one line and «UZS» on the next, an amount split from its
+ * unit. Half the glue was there; this is the other half.
+ */
+const noBreakSpace = '\u00A0'
+
+/** Joins a formatted numeral to its unit so the pair cannot break across lines. */
+export function joinUnit(text: string, unit: string | undefined): string {
+  const suffix = unit?.trim()
+  return suffix ? `${text}${noBreakSpace}${suffix}` : text
+}
+
+/**
  * The single writer for a formatted numeral: it joins Intl's parts, pins the
  * decimal separator when the document asked for one, and normalizes the sign.
  *
@@ -68,7 +86,7 @@ function formatCompactNumber(value: number, field: FieldFormat, locale: string, 
   if (Math.abs(value) < COMPACT_FLOOR) {
     const grouped = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
     const text = writeNumberParts(grouped.formatToParts(value), field.decimalSeparator)
-    return currency ? `${text} ${currency}` : text
+    return joinUnit(text, currency)
   }
   const precision = field.precision ?? 2
   const formatter = new Intl.NumberFormat(locale, {
@@ -78,7 +96,7 @@ function formatCompactNumber(value: number, field: FieldFormat, locale: string, 
     maximumFractionDigits: precision,
   })
   const compact = writeNumberParts(formatter.formatToParts(value), field.decimalSeparator)
-  return currency ? `${compact} ${currency}` : compact
+  return joinUnit(compact, currency)
 }
 
 function formatMoney(value: number, field: FieldFormat, locale: string): string {
@@ -90,7 +108,7 @@ function formatMoney(value: number, field: FieldFormat, locale: string): string 
   // display for the ISO code.
   if (field.symbol) {
     const decimal = new Intl.NumberFormat(locale, precisionOptions(field.precision))
-    return `${writeNumberParts(decimal.formatToParts(scaled), field.decimalSeparator)} ${field.symbol}`
+    return joinUnit(writeNumberParts(decimal.formatToParts(scaled), field.decimalSeparator), field.symbol)
   }
   const base = new Intl.NumberFormat(locale, { style: 'currency', currency, ...precisionOptions(field.precision) })
   return writeNumberParts(base.formatToParts(scaled), field.decimalSeparator)
@@ -190,7 +208,7 @@ export function formatFieldValueExact(value: unknown, field: FieldFormat | undef
   if (Math.abs(scaled) < COMPACT_FLOOR) return undefined
   const grouped = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
   const text = writeNumberParts(grouped.formatToParts(scaled), field.decimalSeparator)
-  return field.kind === 'money' ? `${text} ${field.currency ?? ''}`.trim() : text
+  return field.kind === 'money' ? joinUnit(text, field.currency) : text
 }
 
 /**
@@ -244,6 +262,6 @@ export function formatFieldValueAtReference(value: unknown, reference: number, f
   const compactPart = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 0 })
     .formatToParts(divisor).find((part) => part.type === 'compact')?.value ?? ''
   const mantissa = new Intl.NumberFormat(locale, precisionOptions(field.precision))
-  const text = `${writeNumberParts(mantissa.formatToParts(scaledNumber / divisor), field.decimalSeparator)}${compactPart ? ` ${compactPart}` : ''}`
-  return field.kind === 'money' ? `${text} ${field.currency ?? 'USD'}` : text
+  const text = joinUnit(writeNumberParts(mantissa.formatToParts(scaledNumber / divisor), field.decimalSeparator), compactPart)
+  return field.kind === 'money' ? joinUnit(text, field.currency ?? 'USD') : text
 }

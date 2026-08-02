@@ -543,7 +543,8 @@ func buildTrend(spec panel.Spec) *PanelTrend {
 		return nil
 	}
 	return &PanelTrend{
-		Percent: spec.Trend.Percent, Label: spec.Trend.Label, Invert: spec.Trend.Invert,
+		Percent: spec.Trend.Percent, Label: spec.Trend.Label,
+		Polarity: TrendPolarity(spec.Trend.Polarity), Invert: spec.Trend.Invert,
 		AbsoluteField: spec.Trend.AbsoluteField.Name(), PercentField: spec.Trend.PercentField.Name(),
 		AbsoluteDeltaUnit: TrendDeltaUnit(spec.Trend.AbsoluteDeltaUnit),
 	}

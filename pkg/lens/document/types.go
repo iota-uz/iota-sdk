@@ -700,12 +700,25 @@ type PanelStatus struct {
 	Tone  StatusTone `json:"tone,omitempty"`
 }
 
+// TrendPolarity says whether a movement in a metric is good news, bad news or
+// neither; see panel.TrendPolarity. Unset reads as neutral, which prints the
+// direction without a verdict.
+type TrendPolarity string
+
+const (
+	TrendPolarityNeutral      TrendPolarity = "neutral"
+	TrendPolarityHigherBetter TrendPolarity = "higher_better"
+	TrendPolarityLowerBetter  TrendPolarity = "lower_better"
+)
+
 // PanelTrend is a period-over-period change chip. Percent is already in
-// percent units (12.4 renders as "+12.4%"). Invert flips the good/bad color
-// mapping for down-is-good metrics; the arrow always follows the sign.
+// percent units (12.4 renders as "+12.4%"). Polarity decides the chip's colour;
+// Invert is its legacy two-state form (true = lower is better). The arrow always
+// follows the sign.
 type PanelTrend struct {
 	Percent           float64        `json:"percent"`
 	Label             string         `json:"label,omitempty"`
+	Polarity          TrendPolarity  `json:"polarity,omitempty"`
 	Invert            bool           `json:"invert,omitempty"`
 	AbsoluteField     string         `json:"absoluteField,omitempty"`
 	PercentField      string         `json:"percentField,omitempty"`

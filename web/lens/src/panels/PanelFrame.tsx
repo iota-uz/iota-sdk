@@ -32,18 +32,43 @@ function numericFrameValue(frame: Frame | undefined, field: string | undefined):
   return Number.isFinite(number) ? number : undefined
 }
 
+/**
+ * Whether a rise in this metric is good, bad or neither.
+ *
+ * Unset is neutral. The renderer cannot know: a rise in earned premium is good,
+ * a rise in loss ratio is bad, and a rise in sum insured is exposure — more of a
+ * thing, with no verdict. Colouring by sign alone painted the third case green
+ * on every board. `invert` is the producers' existing two-state declaration and
+ * still means "lower is better"; anything else has to say so explicitly.
+ */
+function trendPolarity(trend: NonNullable<Panel['trend']>): 'higher_better' | 'lower_better' | 'neutral' {
+  if (trend.polarity) return trend.polarity
+  return trend.invert ? 'lower_better' : 'neutral'
+}
+
 export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   const trend = panel.trend!
   const absolute = numericFrameValue(frame, trend.absoluteField)
   const framePercent = numericFrameValue(frame, trend.percentField)
   const percent = framePercent ?? trend.percent
   const formatAbsolute = useFormat(trend.absoluteField ? panel.format[trend.absoluteField] : undefined)
+  const formatValue = useFormat(panel.encoding.value ? panel.format[panel.encoding.value] : undefined)
   const formatPercentagePoints = useFormat({ kind: 'number', minorUnits: false, precision: 1 })
   const formatPercent = useFormat(trend.percentField
     ? panel.format[trend.percentField]
     : { kind: 'percent', minorUnits: false, precision: 1 })
   const translate = useTranslate()
   const { document } = useDashboard()
+  // What the metric is being compared against, which the chip never said. A
+  // delta without its baseline is half a fact, and the baseline is derivable:
+  // the reading on screen minus the absolute change that produced it.
+  // A percentage-point delta is stated in the same units as the ratio it moved
+  // («3,0 %» after «−21,1 pp» was «24,1 %»), so one subtraction covers both
+  // kinds of delta.
+  const current = numericFrameValue(frame, panel.encoding.value)
+  const baseline = current !== undefined && absolute !== undefined
+    ? formatValue(current - absolute)
+    : undefined
   if (trend.percentField && framePercent === undefined) {
     const state = absolute !== undefined && absolute !== 0
       ? translate('panel.trend.new', 'New')
@@ -57,25 +82,42 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
   }
   const up = percent > 0
   const flat = percent === 0
-  // Invert flips the good/bad mapping for down-is-good metrics; the arrow
-  // always follows the sign.
-  const good = trend.invert ? !up : up
-  const tone = flat ? 'lens-trend-chip-flat' : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
+  // The polarity is the producer's; the arrow is always the sign's.
+  const polarity = trendPolarity(trend)
+  const good = polarity === 'lower_better' ? !up : up
+  const tone = flat || polarity === 'neutral'
+    ? 'lens-trend-chip-flat'
+    : good ? 'lens-trend-chip-positive' : 'lens-trend-chip-negative'
   const sign = up ? '+' : ''
   const formattedPercent = `${sign}${formatPercent(percent)}`
   const TrendIcon = flat ? TrendFlat : up ? TrendUp : TrendDown
+  // A change, and the figure it is a change from — which is what the chip never
+  // said: «−49,8 %» against nothing named is half a fact, and «Сравнение
+  // тренда» beside it named the comparison without ever giving its value. Three
+  // numbers would not fit a strip cell and the third is redundant anyway: the
+  // reading sits directly above the chip, so the absolute delta is the
+  // difference between the two figures already on screen. A trend with no
+  // absolute delta to subtract keeps the producer's label.
+  const detail = baseline !== undefined
+    ? translate('panel.trend.baseline', 'was {value}', { value: baseline })
+    : undefined
+  const absoluteText = absolute === undefined
+    ? undefined
+    : `${absolute > 0 ? '+' : ''}${trend.absoluteDeltaUnit === 'percentage_points'
+      ? `${formatPercentagePoints(absolute)} ${translate('panel.trend.percentagePoints', 'pp')}`
+      : formatAbsolute(absolute)}`
+  const label = trend.label || translate('panel.trend.comparison', 'vs comparison')
   return (
-    <span className={`lens-trend-chip ${tone}`}>
+    <span
+      className={`lens-trend-chip ${tone}`}
+      title={[formattedPercent, absoluteText, detail ?? label].filter(Boolean).join(' · ')}
+    >
       <TrendIcon />
       <strong>{clampedDeltaPercent(percent, document?.meta?.locale) ?? formattedPercent}</strong>
-      {absolute !== undefined && (
-        <span className="lens-trend-chip-absolute">
-          ({absolute > 0 ? '+' : ''}{trend.absoluteDeltaUnit === 'percentage_points'
-            ? `${formatPercentagePoints(absolute)} ${translate('panel.trend.percentagePoints', 'pp')}`
-            : formatAbsolute(absolute)})
-        </span>
+      {detail === undefined && absoluteText !== undefined && (
+        <span className="lens-trend-chip-absolute">({absoluteText})</span>
       )}
-      <span className="lens-trend-chip-label">{trend.label || translate('panel.trend.comparison', 'vs comparison')}</span>
+      <span className="lens-trend-chip-label">{detail ?? label}</span>
     </span>
   )
 }

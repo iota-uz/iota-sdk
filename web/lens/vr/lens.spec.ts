@@ -123,6 +123,7 @@ const storyIds = [
   'parity--line-with-series-legend',
   'parity--logarithmic-horizontal-bar',
   'parity--stacked-composition-with-a-line',
+  'parity--stat-beside-a-tall-table',
   'parity--metric-group',
   'parity--metric-group-info',
   'parity--metric-group-responsive',
@@ -454,7 +455,7 @@ test('calendar keyboard focus ring walks the grid', async ({ page }) => {
 test('panel-level actions expose their affordance on hover', async ({ page }) => {
   await openStory(page, 'parity--clickable-panels', 0)
   await page.getByRole('link', { name: /Открыть|Open/ }).first().hover()
-  await expect(page.locator('.lens-card-link-affordance').first()).toBeVisible()
+  await expect(page.locator('.lens-stat-drill-mark').first()).toBeVisible()
   await screenshot(page, 'parity-clickable-panels-hover', { pointer: 'keep' })
 })
 

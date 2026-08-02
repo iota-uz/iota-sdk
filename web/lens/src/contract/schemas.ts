@@ -499,6 +499,7 @@ export const PanelTemporalSchema: z.ZodType<Contract.PanelTemporal> = z.lazy(() 
 export const PanelTrendSchema: z.ZodType<Contract.PanelTrend> = z.lazy(() => z.object({
   percent: z.number(),
   label: z.string().optional(),
+  polarity: z.lazy(() => TrendPolaritySchema).optional(),
   invert: z.boolean().optional(),
   absoluteField: z.string().optional(),
   percentField: z.string().optional(),
@@ -712,6 +713,8 @@ export const ThemeSchema: z.ZodType<Contract.Theme> = z.object({
 export const TotalBadgePlacementSchema: z.ZodType<Contract.TotalBadgePlacement> = z.enum(["header", "none", "plot"])
 
 export const TrendDeltaUnitSchema: z.ZodType<Contract.TrendDeltaUnit> = z.enum(["percentage_points", "value"])
+
+export const TrendPolaritySchema: z.ZodType<Contract.TrendPolarity> = z.enum(["higher_better", "lower_better", "neutral"])
 
 export const URLStateContractSchema: z.ZodType<Contract.URLStateContract> = z.object({
   version: z.number().int(),

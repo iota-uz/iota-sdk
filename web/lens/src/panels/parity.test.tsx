@@ -57,13 +57,15 @@ const statFrame: Frame = {
 }
 
 describe('stat panels', () => {
-  it('renders the metric form with a bullet, uppercase label and status chip', () => {
+  it('renders the metric form with an uppercase label and status chip, and no accent bullet', () => {
     const { container } = renderDocument(
       documentWith([statPanel], { 'stat:root': statFrame }),
       <StatMetric panel={statPanel} />,
     )
 
-    expect(container.querySelector('.lens-stat-metric-bullet')).toHaveStyle({ background: '#2f56d9' })
+    // The accent square said nothing a reader could look up, and said different
+    // things on different boards; a strip cell carries no colour of its own.
+    expect(container.querySelector('.lens-stat-metric-bullet')).toBeNull()
     expect(screen.getByText('Estimate')).toHaveClass('lens-status-chip-warning')
     expect(screen.getByText('3.1%')).toHaveClass('lens-stat-metric-value')
   })

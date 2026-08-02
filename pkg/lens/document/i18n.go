@@ -166,6 +166,7 @@ const (
 	I18nPanelCacheMiss             = "panel.cacheMiss"
 	I18nPanelTrendNew              = "panel.trend.new"
 	I18nPanelTrendNotAvailable     = "panel.trend.notAvailable"
+	I18nPanelTrendBaseline         = "panel.trend.baseline"
 	I18nPanelTrendPercentagePoints = "panel.trend.percentagePoints"
 	I18nPrintAppendix              = "print.appendix"
 	I18nPrintAppendixNote          = "print.appendixNote"
@@ -337,6 +338,7 @@ func RuntimeI18nKeys() []string {
 		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelExpand, I18nPanelInfo, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelCalculation, I18nPanelCacheHit, I18nPanelCacheMiss, I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
+		I18nPanelTrendBaseline,
 		I18nPrintAppendix, I18nPrintAppendixNote, I18nPrintBreakdown, I18nPrintCategory,
 		I18nPrintContents, I18nPrintFailed, I18nPrintFigure,
 		I18nPrintDefCalculated, I18nPrintDefConfigRequired, I18nPrintDefEmptySource,

@@ -111,6 +111,11 @@
        controls lines up on one baseline instead of stepping by two pixels per
        component. Layout boxes, panel bodies, plot areas and skeleton slabs keep
        their own min-heights: those are composition, not hit area. */
+    /* A chip is not a control you press, but it shares the control scale so a
+       reserved chip row and the chip that lands in it are provably one height:
+       the delta slot in a stat cell reserves this, and .lens-trend-chip is
+       this tall. */
+    --lens-control-h-xs: 24px;
     --lens-control-h-sm: 28px;
     --lens-control-h-md: 32px;
     --lens-control-h-lg: 36px;
@@ -1478,23 +1483,16 @@
     @apply lens-cursor-pointer;
   }
 
-  /* A card-wide navigate action: a transparent anchor covers the card, and a
-     corner glyph shows the affordance on hover/focus. */
+  /* A card-wide navigate action: a transparent anchor covers the card, and the
+     glyph that says so rides beside the value (.lens-stat-drill-mark) rather
+     than in the corner, where it was a 10px arrow far from the figure it
+     opened and overlapping the ⓘ button's hit area. */
   .lens-stat-linked {
     @apply lens-relative lens-flex lens-min-w-0 lens-flex-1 lens-flex-col;
   }
 
   .lens-card-link {
     @apply lens-absolute lens-inset-0 lens-z-10 lens-block lens-rounded-card;
-  }
-
-  .lens-card-link-affordance {
-    @apply lens-absolute lens-right-2 lens-top-2 lens-text-muted lens-opacity-100 lens-transition-opacity;
-  }
-
-  .lens-card-link:hover .lens-card-link-affordance,
-  .lens-card-link:focus-visible .lens-card-link-affordance {
-    @apply lens-opacity-100;
   }
 
   .lens-stat-linked:hover {
@@ -1597,6 +1595,21 @@
     @apply lens-flex lens-items-center lens-justify-end lens-px-4 lens-pb-3;
   }
 
+  /* A row stretches every card to its tallest sibling, which is right for a
+     plot — a short one must not leave a misleading hole under itself — and
+     wrong for a stat: a 3-span headline beside a 9-span table used to grow to
+     the table's height and float its delta chip at the bottom of the empty
+     card. The stat's body takes the height it needs and the slack falls below
+     the footer, so the number, its caption and its chip stay one block at the
+     top of the card whatever is beside them. */
+  .lens-panel-stat > .lens-panel-body {
+    @apply lens-flex-none;
+  }
+
+  .lens-panel-stat > .lens-panel-footer {
+    @apply lens-mt-0;
+  }
+
   .lens-panel-export-scope {
     display: none;
     margin: 0;
@@ -1605,10 +1618,21 @@
     font-size: var(--lens-type-base);
   }
 
+  /* One line, always. A chip whose absolute delta wrapped («(−130,82 млрд UZS)»
+     on its own second line) was 40px tall beside 24px siblings, so one card in
+     a strip stood 16px taller than the two next to it. The figures keep their
+     width; the comparison label is what gives ground. */
   .lens-trend-chip {
-    @apply lens-inline-flex lens-max-w-full lens-min-w-0 lens-items-center lens-gap-1.5 lens-overflow-hidden lens-rounded-badge lens-px-2 lens-py-1 lens-text-base lens-font-semibold;
+    @apply lens-box-border lens-inline-flex lens-max-w-full lens-min-w-0 lens-items-center lens-gap-1.5 lens-overflow-hidden lens-whitespace-nowrap lens-rounded-badge lens-px-2 lens-py-1 lens-text-base lens-font-semibold;
     background: var(--lens-bg-inset);
     color: var(--lens-text-muted);
+    min-height: var(--lens-control-h-xs);
+  }
+
+  .lens-trend-chip > svg,
+  .lens-trend-chip strong,
+  .lens-trend-chip-absolute {
+    @apply lens-flex-none;
   }
 
   .lens-trend-chip strong {
@@ -1670,126 +1694,115 @@
   }
 
   .lens-metric-row {
-    @apply lens-flex lens-flex-1 lens-flex-col lens-divide-y lens-divide-solid lens-divide-border;
-  }
-
-  /* With the card no longer clipping, an end cell's hover fill would paint
-     over the card's rounded corners and square them off. The row relays the
-     card radius so only the cells at the strip's ends round, on the sides that
-     actually meet the card edge. */
-  .lens-metric-row {
+    @apply lens-flex lens-flex-1 lens-flex-col;
     border-radius: inherit;
   }
 
-  /* The row owns child sizing, regardless of whether a metric renders as the
-     direct metric node or as a linked wrapper around it. Keeping flex-basis
-     off the child component prevents its internal layout from overriding the
-     responsive 2×2 / single-column contract below. */
-  .lens-metric-row > * {
-    box-sizing: border-box;
-    flex: 1 1 0%;
-    min-width: 0;
+  .lens-metric-row-rows > * + * {
+    border-top: 1px solid var(--lens-border);
   }
 
-  .lens-metric-row-columns > :first-child {
-    border-top-left-radius: inherit;
-    border-bottom-left-radius: inherit;
-  }
-
-  .lens-metric-row-columns > :last-child {
-    border-top-right-radius: inherit;
-    border-bottom-right-radius: inherit;
-  }
-
-  .lens-metric-row-rows > :first-child {
-    border-top-left-radius: inherit;
-    border-top-right-radius: inherit;
-  }
-
-  .lens-metric-row-rows > :last-child {
-    border-bottom-left-radius: inherit;
-    border-bottom-right-radius: inherit;
-  }
-
+  /*
+   * A strip is one grid, not one grid per row.
+   *
+   * Every row used to divide the width it had by the number of cells that
+   * happened to land on it, so a three-cell strip and the four-cell strip under
+   * it drew their rules in different places, and a wrapped strip zig-zagged
+   * down its own card. Worse, the division was a `flex: 1 1 0%` whose
+   * percentage basis resolved against an indefinite size here, so it behaved
+   * like `auto`: cells were sized by their content after all, and a navigable
+   * metric — which carries one extra wrapper — came out 33px narrower than the
+   * cell beside it.
+   *
+   * Now the columns are declared once for the whole dashboard, from its widest
+   * strip (`metricColumnCount`), and every strip on the page is laid on them. A
+   * strip that does not fill its last row spreads the leftover columns across
+   * the cells that are there (`metricSpans`), so the row still reaches the
+   * card's edge and every seam still falls on a column line.
+   *
+   * The dividers are the grid's own 1px gaps showing the card's border colour
+   * through, which is why they cannot drift out of line with the cells.
+   */
   .lens-metric-row-columns {
-    @apply lens-flex-row lens-divide-x lens-divide-y-0;
+    display: grid;
+    grid-template-columns: repeat(var(--lens-metric-columns, 4), minmax(0, 1fr));
+    gap: 1px;
+    background: var(--lens-border);
+  }
+
+  .lens-metric-cell {
+    @apply lens-relative lens-flex lens-min-w-0;
+    background: var(--lens-bg-card);
+    grid-column: span var(--lens-metric-span, 1);
+  }
+
+  .lens-metric-cell > * {
+    @apply lens-min-w-0 lens-flex-1;
   }
 
   /* Four board KPIs need room for their full business labels. At tablet-sized
      dashboard widths a 2×2 scorecard is easier to scan than four compressed
-     columns with clipped names; phones fall back to one metric per row. */
+     columns with clipped names; phones fall back to one metric per row. Each
+     of those column counts has its own span, because how a short last row
+     spreads across two columns is not how it spreads across five. */
   @media (max-width: 1100px) {
     .lens-metric-row-columns {
-      @apply lens-flex-wrap;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .lens-metric-row-columns > * {
-      flex: 1 1 50%;
-      max-width: 50%;
-      border-left-width: 0 !important;
-      border-top-width: 0 !important;
-    }
-
-    .lens-metric-row-columns > :nth-child(even) {
-      border-left-width: 1px !important;
-    }
-
-    .lens-metric-row-columns > :nth-child(n+3) {
-      border-top-width: 1px !important;
+    .lens-metric-cell {
+      grid-column: span var(--lens-metric-span-2, 1);
     }
   }
 
   @container lens-metric-group (max-width: 55rem) {
     .lens-metric-row-columns {
-      @apply lens-flex-wrap;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .lens-metric-row-columns > * {
-      flex: 1 1 50%;
-      max-width: 50%;
-      border-left-width: 0 !important;
-      border-top-width: 0 !important;
-    }
-
-    .lens-metric-row-columns > :nth-child(even) {
-      border-left-width: 1px !important;
-    }
-
-    .lens-metric-row-columns > :nth-child(n+3) {
-      border-top-width: 1px !important;
+    .lens-metric-cell {
+      grid-column: span var(--lens-metric-span-2, 1);
     }
   }
 
   @media (max-width: 640px) {
-    .lens-metric-row-columns > * {
-      flex: 1 1 100%;
-      max-width: 100%;
-      border-left-width: 0 !important;
+    .lens-metric-row-columns {
+      grid-template-columns: minmax(0, 1fr);
     }
 
-    .lens-metric-row-columns > :nth-child(n+2) {
-      border-top-width: 1px !important;
+    .lens-metric-cell {
+      grid-column: span 1;
     }
   }
 
   @container lens-metric-group (max-width: 34rem) {
-    .lens-metric-row-columns > * {
-      flex: 1 1 100%;
-      max-width: 100%;
-      border-left-width: 0 !important;
+    .lens-metric-row-columns {
+      grid-template-columns: minmax(0, 1fr);
     }
 
-    .lens-metric-row-columns > :nth-child(n+2) {
-      border-top-width: 1px !important;
+    .lens-metric-cell {
+      grid-column: span 1;
     }
   }
 
+  /*
+   * One anatomy, in fixed slots: name, figure, change, note.
+   *
+   * The cell used to be a plain stack, so its parts moved whenever any of them
+   * changed size — a two-line name pushed its figure 20px below its
+   * neighbours', a one-line note lifted a card off the strip's baseline, and
+   * turning comparison on grew one strip and not the one beneath it. Each slot
+   * reserves its own height instead, so a reader scanning the row of figures
+   * scans a straight line.
+   */
   .lens-stat-metric {
-    @apply lens-flex lens-min-w-0 lens-flex-col lens-justify-center lens-gap-2 lens-px-4 lens-py-3;
+    @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-2 lens-px-4 lens-py-3;
   }
 
   .lens-stat-metric-label {
     @apply lens-m-0 lens-flex lens-min-w-0 lens-items-start lens-gap-1.5 lens-text-xs lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    /* Two lines, reserved whether this name needs them or not. */
+    min-height: calc(var(--lens-type-xs) * 2.4);
   }
 
   /* Wrap to two tight lines instead of ellipsizing: the full label is worth
@@ -1804,31 +1817,87 @@
     line-height: 1.2;
   }
 
-  .lens-stat-metric-bullet {
-    @apply lens-size-2 lens-shrink-0 lens-rounded-sm;
-    background: var(--lens-accent-500);
-  }
-
   .lens-stat-metric-value {
-    @apply lens-m-0 lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    @apply lens-m-0 lens-min-w-0 lens-shrink lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    /* Two lines of the figure's own type: a wrapped amount cannot then push the
+       delta chip below the chips beside it. */
     min-height: 3.5rem;
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* The loading figure is the figure's own shape, not the «—» this product
+     prints for a value that is genuinely absent: a slow strip and an empty one
+     must not look the same. */
+  .lens-stat-metric-value-shimmer {
+    height: var(--lens-type-xl);
+    width: 60%;
+    max-width: 8rem;
+    border-radius: var(--lens-radius-badge);
   }
 
   /* A caption may carry more than one statement (the formula, then a variant
      of the same figure). Newlines in the producer's text are the separator, so
      they must survive: run together, two statements read as one broken
-     sentence. */
+     sentence. Two lines is the slot; the ⓘ beside the name carries the note in
+     full, which is where anything the clamp cut can be read. */
   .lens-stat-metric-caption {
-    @apply lens-m-0 lens-min-w-0 lens-whitespace-pre-line lens-text-sm lens-leading-tight lens-text-muted;
+    @apply lens-m-0 lens-min-w-0 lens-overflow-hidden lens-whitespace-pre-line lens-text-sm lens-leading-tight lens-text-muted;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    min-height: calc(var(--lens-type-sm) * 2.5);
     overflow-wrap: anywhere;
   }
 
-  /* The value and its trend line share one baseline-anchored row; the sparkline
-     rides the right edge (its own margin-left:auto) without displacing the
-     value. Only present when the metric carries a wire sparkline. */
+  /* Both trailing slots collapse when the strip has nothing to put in them, and
+     are reserved for every cell in the strip as soon as one of them does — a
+     card is never left 26px shorter than the card beside it. Comparison is a
+     property of the dashboard, so it reserves the delta row on every strip,
+     including the ones whose metrics carry no delta of their own. */
+  .lens-stat-metric-delta:empty,
+  .lens-stat-metric-caption:empty {
+    display: none;
+  }
+
+  .lens-stat-metric-delta {
+    @apply lens-min-w-0;
+  }
+
+  .lens-metric-row:has(.lens-trend-chip) .lens-stat-metric-delta:empty,
+  .lens-dashboard-comparing .lens-stat-metric-delta:empty {
+    @apply lens-block;
+    min-height: var(--lens-control-h-xs);
+  }
+
+  .lens-metric-row:has(.lens-stat-metric-caption:not(:empty)) .lens-stat-metric-caption:empty {
+    display: block;
+  }
+
+  /* The value, its trend line and its drill mark share one row, aligned on the
+     figure's first baseline so a wrapped amount cannot drag them down with its
+     second line. */
   .lens-stat-metric-main {
-    @apply lens-flex lens-min-w-0 lens-items-end lens-gap-3;
+    @apply lens-flex lens-min-w-0 lens-gap-3;
+    align-items: baseline;
+  }
+
+  .lens-stat-metric-main > .lens-stat-sparkline,
+  .lens-stat-metric-main > .lens-stat-drill-mark {
+    @apply lens-flex-none;
+  }
+
+  /* The mark that says this figure opens: beside the value, where the reader is
+     already looking, rather than in the card's corner sharing a hit area with
+     the ⓘ. It sits above the card-wide anchor so it cannot swallow its own
+     click target. */
+  .lens-stat-drill-mark {
+    @apply lens-inline-flex lens-items-center lens-text-faint lens-transition-colors;
+  }
+
+  .lens-stat-linked:hover .lens-stat-drill-mark,
+  .lens-card-link:focus-visible ~ .lens-stat-metric .lens-stat-drill-mark {
+    color: var(--lens-accent-500);
   }
 
   .lens-tabstrip {

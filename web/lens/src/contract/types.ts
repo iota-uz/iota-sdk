@@ -476,6 +476,7 @@ export interface PanelTemporal {
 export interface PanelTrend {
   percent: number
   label?: string
+  polarity?: TrendPolarity
   invert?: boolean
   absoluteField?: string
   percentField?: string
@@ -689,6 +690,8 @@ export interface Theme {
 export type TotalBadgePlacement = "header" | "none" | "plot"
 
 export type TrendDeltaUnit = "percentage_points" | "value"
+
+export type TrendPolarity = "higher_better" | "lower_better" | "neutral"
 
 export interface URLStateContract {
   version: number
