@@ -34,8 +34,8 @@ const minorDonutShare = 0.02
  * clicks the rows, which are right there.
  */
 const legendControlEntries = searchableListEntries
-/** Below two entries there is nothing to select in bulk. */
-const legendBulkEntries = 2
+/** Fewer than four entries are quicker to manage individually. */
+const legendBulkEntries = 4
 
 export interface ChartPanelProps {
   panel: Panel
@@ -1082,9 +1082,8 @@ const ChartLegend = memo(function ChartLegend({
   const allHidden = model.allKeys.length > 0 && model.allKeys.every((key) => hidden.has(key))
   const noneHidden = model.allKeys.every((key) => !hidden.has(key))
   const bulk = model.allKeys.length >= legendBulkEntries
-  // A legend long enough to be worth searching is the one that earns the full
-  // control header; a short one gets the single switch its two or three rows
-  // justify. One threshold, so the column has two compositions instead of four.
+  // A legend long enough to be worth searching earns the full control header;
+  // a shorter bulk legend gets a single switch.
   const long = model.entries.length >= legendControlEntries
 
   return (

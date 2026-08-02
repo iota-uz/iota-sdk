@@ -775,7 +775,7 @@ describe('chart encoding and drill behavior', () => {
     expect(data).toHaveTextContent('2026, Written premium, 120')
   })
 
-  it('prints period sums and supports solo, repeat-solo restore, and one bulk switch on a short legend', async () => {
+  it('prints period sums and supports solo and repeat-solo restore without bulk controls for two series', async () => {
     const frame: Frame = {
       columns: [
         { name: 'category', type: 'string' },
@@ -803,16 +803,13 @@ describe('chart encoding and drill behavior', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'Isolate series' })[1]!)
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
 
-    // Two series do not need three commands: the group is one switch that says
-    // which way it goes, and the plot stops being drawn when it goes off.
+    // With only two series, the per-series controls are enough.
     expect(screen.queryByRole('button', { name: 'Invert' })).toBeNull()
-    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
-    await screen.findByText('All series are hidden')
-    fireEvent.click(screen.getByRole('button', { name: 'Show all' }))
-    await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
+    expect(screen.queryByRole('button', { name: 'Hide all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
   })
 
-  it('gives a legend long enough to search the full control group, and hides it entirely below two entries', () => {
+  it('shows bulk legend controls from four entries and hides them below that threshold', async () => {
     const columns: Frame['columns'] = [
       { name: 'category', type: 'string' },
       { name: 'series', type: 'string' },
@@ -836,14 +833,25 @@ describe('chart encoding and drill behavior', () => {
     long.unmount()
 
     runtime.frame = {
-      data: { columns, rows: [['2026', 'Only series', 1]] },
+      data: { columns, rows: Array.from({ length: 3 }, (_, index) => ['2026', `Short ${index + 1}`, index + 1]) },
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
-    const single = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
-    // One entry: nothing to select in bulk, so no group at all — «Скрыть всё»
-    // above a single row would only blank the panel.
-    expect(single.container.querySelector('.lens-chart-legend-tools')).toBeNull()
+    const short = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    expect(short.container.querySelector('.lens-chart-legend-tools')).toBeNull()
     expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
+    short.unmount()
+
+    runtime.frame = {
+      data: { columns, rows: Array.from({ length: 4 }, (_, index) => ['2026', `Bulk ${index + 1}`, index + 1]) },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    expect(screen.getByRole('button', { name: 'Hide all' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Invert' })).toBeNull()
+    expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
+    await screen.findByRole('button', { name: 'Show all' })
   })
 
   it('prints the latest ratio reading instead of summing a ratio series', async () => {

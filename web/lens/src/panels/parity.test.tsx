@@ -557,7 +557,7 @@ describe('panel header pressure', () => {
 })
 
 describe('chart legend series toggle', () => {
-  function renderPie() {
+  function renderPie(frame = pieFrame) {
     const inputs: Array<ChartInput> = []
     const adapter: ChartAdapter = {
       mount: (_element, initial) => {
@@ -566,7 +566,7 @@ describe('chart legend series toggle', () => {
       },
     }
     const view = renderDocument(
-      documentWith([piePanel], { 'mix:root': pieFrame }),
+      documentWith([piePanel], { 'mix:root': frame }),
       <ChartPanel panel={piePanel} adapter={adapter} />,
     )
     return { ...view, inputs }
@@ -697,7 +697,11 @@ describe('chart legend series toggle', () => {
   })
 
   it('answers hide-all with an empty state that offers the way back', async () => {
-    const { container, inputs } = renderPie()
+    const frame: Frame = {
+      ...pieFrame,
+      rows: [['direct', 'Direct', 550], ['broker', 'Broker', 300], ['inward', 'Inward', 100], ['partner', 'Partner', 50]],
+    }
+    const { container, inputs } = renderPie(frame)
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
 
     fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
@@ -710,6 +714,6 @@ describe('chart legend series toggle', () => {
     expect(container.querySelector('.lens-plot-total')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show all series' }))
-    await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward']))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward', 'partner']))
   })
 })
