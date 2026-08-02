@@ -22,14 +22,35 @@ function precisionOptions(precision: number | undefined): Intl.NumberFormatOptio
 }
 
 /**
+ * The typographic minus (U+2212). Every numeral this runtime writes carries it,
+ * so a negative figure reads the same whether Intl produced the sign (en-US
+ * emits an ASCII hyphen, ru-RU already emits U+2212), a panel prepended it
+ * (`metricViews`, `CascadePanel`), or the sheet drew it into a formula. A
+ * hyphen is also narrower than the `+` it has to line up with under
+ * `tabular-nums`, which shows up as a wobbling sign column in a table of deltas.
+ */
+export const minusSign = '−'
+
+/**
+ * The single writer for a formatted numeral: it joins Intl's parts, pins the
+ * decimal separator when the document asked for one, and normalizes the sign.
+ *
  * Compact magnitudes come from the locale's own CLDR data (ru → «млрд», uz →
  * «mlrd», en → «B»), never from a hardcoded suffix table. Only the decimal
  * separator can be pinned: `decimalSeparator` exists because the server
  * formatter prints the mantissa with `%.*f`, so a document
  * that must match it byte for byte asks for ".".
+ *
+ * The sign is deliberately outside that byte-for-byte deal: a separator is
+ * notation the producer chose, a minus is typography this runtime owns, and two
+ * glyphs for one operator on one dashboard is the defect being fixed.
  */
-function applyDecimalSeparator(parts: Intl.NumberFormatPart[], separator: string | undefined): string {
-  const text = parts.map((part) => (part.type === 'decimal' && separator ? separator : part.value)).join('')
+export function writeNumberParts(parts: Intl.NumberFormatPart[], separator: string | undefined): string {
+  const text = parts
+    .map((part) => (part.type === 'minusSign'
+      ? minusSign
+      : part.type === 'decimal' && separator ? separator : part.value))
+    .join('')
   if (!separator) return text
   // Pinning the separator means "match the server formatter", which also prints an
   // ASCII space before magnitude words and no space before the percent sign.
@@ -46,7 +67,7 @@ const COMPACT_FLOOR = 100_000
 function formatCompactNumber(value: number, field: FieldFormat, locale: string, currency?: string): string {
   if (Math.abs(value) < COMPACT_FLOOR) {
     const grouped = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
-    const text = applyDecimalSeparator(grouped.formatToParts(value), field.decimalSeparator)
+    const text = writeNumberParts(grouped.formatToParts(value), field.decimalSeparator)
     return currency ? `${text} ${currency}` : text
   }
   const precision = field.precision ?? 2
@@ -56,7 +77,7 @@ function formatCompactNumber(value: number, field: FieldFormat, locale: string, 
     minimumFractionDigits: precision,
     maximumFractionDigits: precision,
   })
-  const compact = applyDecimalSeparator(formatter.formatToParts(value), field.decimalSeparator)
+  const compact = writeNumberParts(formatter.formatToParts(value), field.decimalSeparator)
   return currency ? `${compact} ${currency}` : compact
 }
 
@@ -69,10 +90,10 @@ function formatMoney(value: number, field: FieldFormat, locale: string): string 
   // display for the ISO code.
   if (field.symbol) {
     const decimal = new Intl.NumberFormat(locale, precisionOptions(field.precision))
-    return `${applyDecimalSeparator(decimal.formatToParts(scaled), field.decimalSeparator)} ${field.symbol}`
+    return `${writeNumberParts(decimal.formatToParts(scaled), field.decimalSeparator)} ${field.symbol}`
   }
   const base = new Intl.NumberFormat(locale, { style: 'currency', currency, ...precisionOptions(field.precision) })
-  return base.format(scaled)
+  return writeNumberParts(base.formatToParts(scaled), field.decimalSeparator)
 }
 
 const goDateTokens = [
@@ -133,7 +154,8 @@ export function formatAxis(value: unknown, field: FieldFormat | undefined, local
     // letters on every gridline and crowds the plot; the magnitude alone is
     // what an axis needs, the unit stays legible from the tooltip and title.
     const scaled = field.kind === 'money' && field.minorUnits ? number / 100 : number
-    return new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 }).format(scaled)
+    const compact = new Intl.NumberFormat(locale, { notation: 'compact', maximumFractionDigits: 1 })
+    return writeNumberParts(compact.formatToParts(scaled), field.decimalSeparator)
   }
   return formatFieldValue(value, field, locale)
 }
@@ -150,7 +172,7 @@ export function formatFieldValueExact(value: unknown, field: FieldFormat | undef
   const scaled = field.kind === 'money' && field.minorUnits ? number / 100 : number
   if (Math.abs(scaled) < COMPACT_FLOOR) return undefined
   const grouped = new Intl.NumberFormat(locale, { maximumFractionDigits: 0 })
-  const text = applyDecimalSeparator(grouped.formatToParts(scaled), field.decimalSeparator)
+  const text = writeNumberParts(grouped.formatToParts(scaled), field.decimalSeparator)
   return field.kind === 'money' ? `${text} ${field.currency ?? ''}`.trim() : text
 }
 
@@ -160,9 +182,9 @@ export function formatFieldValueExact(value: unknown, field: FieldFormat | undef
  * trendPercentText clamp.
  */
 export function clampedDeltaPercent(value: number, locale = 'en'): string | undefined {
-  const formatLimit = (limit: number) => new Intl.NumberFormat(locale, {
+  const formatLimit = (limit: number) => writeNumberParts(new Intl.NumberFormat(locale, {
     style: 'unit', unit: 'percent', unitDisplay: 'narrow', maximumFractionDigits: 0, signDisplay: 'always',
-  }).format(limit)
+  }).formatToParts(limit), undefined)
   if (value > 999.9) return `>${formatLimit(999)}`
   if (value < -999.9) return `<${formatLimit(-999)}`
   return undefined
@@ -171,7 +193,9 @@ export function clampedDeltaPercent(value: number, locale = 'en'): string | unde
 export function formatFieldValue(value: unknown, field: FieldFormat | undefined, locale: string): string {
   if (!field) {
     const number = numeric(value)
-    return number === undefined ? fallback(value) : new Intl.NumberFormat(locale).format(number)
+    return number === undefined
+      ? fallback(value)
+      : writeNumberParts(new Intl.NumberFormat(locale).formatToParts(number), undefined)
   }
   if (field.kind === 'string') return fallback(value)
   if (field.kind === 'date') return formatDate(value, field.layout, locale) ?? fallback(value)
@@ -182,11 +206,11 @@ export function formatFieldValue(value: unknown, field: FieldFormat | undefined,
     const percent = new Intl.NumberFormat(locale, {
       style: 'unit', unit: 'percent', unitDisplay: 'narrow', ...precisionOptions(field.precision),
     })
-    return applyDecimalSeparator(percent.formatToParts(number), field.decimalSeparator)
+    return writeNumberParts(percent.formatToParts(number), field.decimalSeparator)
   }
   if (field.compact) return formatCompactNumber(number, field, locale)
   const plain = new Intl.NumberFormat(locale, precisionOptions(field.precision))
-  return applyDecimalSeparator(plain.formatToParts(number), field.decimalSeparator)
+  return writeNumberParts(plain.formatToParts(number), field.decimalSeparator)
 }
 
 /** Format a compact tooltip group at one shared magnitude. */
@@ -203,6 +227,6 @@ export function formatFieldValueAtReference(value: unknown, reference: number, f
   const compactPart = new Intl.NumberFormat(locale, { notation: 'compact', compactDisplay: 'short', maximumFractionDigits: 0 })
     .formatToParts(divisor).find((part) => part.type === 'compact')?.value ?? ''
   const mantissa = new Intl.NumberFormat(locale, precisionOptions(field.precision))
-  const text = `${applyDecimalSeparator(mantissa.formatToParts(scaledNumber / divisor), field.decimalSeparator)}${compactPart ? ` ${compactPart}` : ''}`
+  const text = `${writeNumberParts(mantissa.formatToParts(scaledNumber / divisor), field.decimalSeparator)}${compactPart ? ` ${compactPart}` : ''}`
   return field.kind === 'money' ? `${text} ${field.currency ?? 'USD'}` : text
 }

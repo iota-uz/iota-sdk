@@ -24,6 +24,17 @@
     --lens-accent-300: #93c5fd;
     --lens-accent-100: #dbeafe;
     --lens-accent-50: #eff6ff;
+    /* Ink for text and glyphs sitting ON an accent fill (a primary action, a
+       selected segment). Not "white": the accent inverts between themes — it is
+       a deep blue on light and a pale blue on dark — so a fixed white would be
+       legible in one theme and 2:1 in the other. */
+    --lens-text-on-accent: #ffffff;
+    /* The one keyboard-focus ring. Stated as tokens rather than repeated in
+       twenty rules because "can a keyboard user see where they are" is a single
+       decision; see the ring rules near the end of this sheet. */
+    --lens-focus-ring-color: var(--lens-accent-600);
+    --lens-focus-ring-width: 2px;
+    --lens-focus-ring-offset: 2px;
     /* The date range band. A selected range can cover two whole month panes,
        so its wash has to stay a wash: light enough that the solid endpoints,
        not the band, read as the selection. The preview is half of it. */
@@ -137,6 +148,9 @@
     --lens-accent-300: #93c5fd;
     --lens-accent-100: rgba(37, 99, 235, 0.2);
     --lens-accent-50: rgba(37, 99, 235, 0.12);
+    /* The dark accents are pale blues, so the ink on top of them is the page's
+       darkest, not its lightest. */
+    --lens-text-on-accent: #0f172a;
     --lens-range-wash: rgb(96 165 250 / 0.2);
     --lens-range-wash-soft: rgb(96 165 250 / 0.1);
     --lens-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -227,11 +241,6 @@
 
   .lens-drawer-close:hover {
     @apply lens-border-strong lens-bg-inset lens-text-strong;
-  }
-
-  .lens-drawer-close:focus-visible {
-    @apply lens-outline-none;
-    box-shadow: 0 0 0 2px var(--lens-bg-card), 0 0 0 4px var(--lens-accent-300);
   }
 
   .lens-drawer-document {
@@ -364,42 +373,48 @@
     @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-3;
   }
 
-  .lens-compare-filter,
-  .lens-compare-filter label,
-  .lens-compare-custom {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.5rem;
+  .lens-compare-filter {
+    @apply lens-relative lens-flex lens-min-w-0 lens-max-w-full lens-items-center;
   }
 
-  .lens-compare-filter select,
-  .lens-compare-custom input,
-  .lens-compare-custom button {
-    min-height: var(--lens-control-h-md);
-    border: 1px solid var(--lens-border);
-    border-radius: var(--lens-radius-control);
-    background: var(--lens-bg-card);
-    color: var(--lens-text);
-    padding: 0.25rem 0.5rem;
+  /* The comparison trigger prints its own label because, unlike a facet, the
+     mode it holds ("Year ago") does not name the thing being compared. Label and
+     value are the panel-title and stat voices, so the pair reads as one control
+     rather than two words. */
+  .lens-compare-trigger-label {
+    @apply lens-font-semibold lens-uppercase lens-tracking-wider lens-text-muted;
+    font-size: var(--lens-type-xs);
+  }
+
+  .lens-compare-trigger-value {
+    @apply lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-text-strong;
+  }
+
+  .lens-compare-option-mark {
+    @apply lens-flex lens-size-4 lens-flex-none lens-items-center lens-justify-center lens-text-accent-700;
+  }
+
+  .lens-compare-custom {
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-2 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-p-2;
+  }
+
+  .lens-compare-custom input {
+    @apply lens-min-h-control-md lens-min-w-0 lens-flex-1 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2 lens-font-sans lens-text-base lens-text-text;
+  }
+
+  /* PRIMARY: the popover's one commit path, same weight as the facet's Apply. */
+  .lens-compare-apply {
+    @apply lens-min-h-control-md lens-cursor-pointer lens-rounded-control lens-border lens-border-solid lens-border-accent-600 lens-bg-accent-600 lens-px-3 lens-font-sans lens-text-base lens-font-semibold lens-text-on-accent;
+  }
+
+  .lens-compare-apply:disabled {
+    @apply lens-cursor-not-allowed lens-opacity-50;
   }
 
   @media (max-width: 768px) {
-    .lens-compare-filter,
-    .lens-compare-custom {
-      flex-wrap: wrap;
+    .lens-compare-filter {
       min-width: 0;
       width: 100%;
-    }
-
-    .lens-compare-filter label {
-      min-width: 0;
-      width: 100%;
-    }
-
-    .lens-compare-custom input {
-      flex: 1 1 10rem;
-      min-width: 0;
-      max-width: 100%;
     }
   }
 
@@ -453,12 +468,19 @@
     @apply lens-relative lens-flex lens-min-w-0 lens-max-w-full lens-flex-wrap lens-items-center lens-gap-1.5;
   }
 
-  .lens-facet-trigger {
+  /* SECONDARY. One trigger implementation for every popover-menu control in the
+     runtime: the facet filter and the comparison filter are the same object —
+     a button that opens a list — and they are declared together so they cannot
+     drift into two lookalike controls again. */
+  .lens-facet-trigger,
+  .lens-compare-trigger {
     @apply lens-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-whitespace-nowrap lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold lens-text-text;
   }
 
   .lens-facet-trigger:hover,
-  .lens-facet-trigger[aria-expanded='true'] {
+  .lens-facet-trigger[aria-expanded='true'],
+  .lens-compare-trigger:hover,
+  .lens-compare-trigger[aria-expanded='true'] {
     @apply lens-border-strong lens-text-strong;
   }
 
@@ -468,20 +490,29 @@
     background: var(--lens-accent-100);
   }
 
-  .lens-facet-popover {
-    @apply lens-fixed lens-z-[1100] lens-flex lens-w-72 lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
+  .lens-facet-popover,
+  .lens-compare-popover {
+    @apply lens-fixed lens-z-[1100] lens-flex lens-max-w-[calc(100vw-24px)] lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card;
 
     box-shadow: var(--lens-shadow-popover);
   }
 
-  .lens-facet-search {
-    @apply lens-m-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-font-sans lens-text-md lens-text-strong lens-outline-none;
+  /* The facet list holds a search field and count bars, so it is sized; the
+     comparison list is four fixed labels and takes the width of the longest. */
+  .lens-facet-popover {
+    @apply lens-w-72;
   }
 
-  .lens-facet-search:focus {
-    @apply lens-border-accent-500;
+  .lens-compare-popover {
+    @apply lens-w-max lens-min-w-52;
+  }
 
-    box-shadow: 0 0 0 2px var(--lens-accent-100);
+  .lens-compare-options {
+    @apply lens-flex lens-flex-col lens-p-1;
+  }
+
+  .lens-facet-search {
+    @apply lens-m-2 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-font-sans lens-text-md lens-text-strong;
   }
 
   .lens-facet-options {
@@ -492,7 +523,8 @@
     @apply lens-relative lens-isolate lens-flex lens-min-h-control-lg lens-cursor-pointer lens-items-center lens-gap-2 lens-overflow-hidden lens-rounded-control lens-px-2 lens-py-1.5 lens-text-md lens-text-text;
   }
 
-  .lens-facet-option:hover {
+  .lens-facet-option:hover,
+  .lens-compare-option[aria-selected='true'] {
     @apply lens-bg-accent-50 lens-text-strong;
   }
 
@@ -526,7 +558,7 @@
   }
 
   .lens-facet-actions .lens-facet-apply {
-    @apply lens-border-accent-600 lens-bg-accent-600 lens-text-white;
+    @apply lens-border-accent-600 lens-bg-accent-600 lens-text-on-accent;
   }
 
   .lens-facet-actions button:disabled {
@@ -553,8 +585,16 @@
     @apply lens-size-3.5 lens-flex-none;
   }
 
+  /* CHIP. "Clear all" dismisses the chips it sits beside, so it is one of them —
+     quiet rather than tinted, because it removes state instead of carrying any.
+     It was the header's fifth treatment: the only underlined link in a row of
+     boxes, which read as body copy that had wandered into the toolbar. */
   .lens-facet-clear {
-    @apply lens-whitespace-nowrap lens-px-1 lens-text-base lens-font-medium lens-text-accent-700 lens-underline;
+    @apply lens-flex lens-min-h-control-sm lens-items-center lens-whitespace-nowrap lens-rounded-badge lens-px-2 lens-text-base lens-font-medium lens-text-muted lens-no-underline;
+  }
+
+  .lens-facet-clear:hover {
+    @apply lens-bg-inset lens-text-strong;
   }
 
   .lens-root[data-theme='dark'] .lens-filter-segments {
@@ -720,9 +760,13 @@
     @apply lens-border-strong;
   }
 
+  /* The group reports that one of its halves is active by taking the accent
+     border, the same way it reports hover on the line above. It does NOT draw a
+     ring: the ring belongs to the focused input itself and comes from the one
+     `:focus-visible` rule at the end of this sheet. Two rings for one focus is
+     how the runtime ended up with four different ones. */
   .lens-filter-range:focus-within {
     border-color: var(--lens-accent-500);
-    box-shadow: 0 0 0 2px var(--lens-accent-100);
   }
 
   .lens-filter-range-field {
@@ -763,7 +807,7 @@
   }
 
   .lens-filter-input {
-    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-base lens-font-medium lens-text-strong lens-outline-none;
+    @apply lens-w-full lens-border-0 lens-bg-transparent lens-p-0 lens-font-sans lens-text-base lens-font-medium lens-text-strong;
     font-variant-numeric: tabular-nums lining-nums;
   }
 
@@ -859,13 +903,13 @@
      colours because the base chip's hover otherwise repaints the text dark. */
   .lens-filter-apply {
     background: var(--lens-accent-600);
-    color: #ffffff;
+    color: var(--lens-text-on-accent);
     padding-inline: 0.875rem;
   }
 
   .lens-filter-apply:hover:not(:disabled) {
     background: var(--lens-accent-500);
-    color: #ffffff;
+    color: var(--lens-text-on-accent);
   }
 
   .lens-filter-apply:disabled {
@@ -1025,7 +1069,7 @@
   .lens-calendar-day[data-state='start'],
   .lens-calendar-day[data-state='end'],
   .lens-calendar-day[data-state='previewEdge'] {
-    color: #ffffff;
+    color: var(--lens-text-on-accent);
   }
 
   .lens-calendar-day[data-state='start']::before,
@@ -1060,7 +1104,7 @@
   .lens-calendar-day[data-today][data-state='start']::after,
   .lens-calendar-day[data-today][data-state='end']::after,
   .lens-calendar-day[data-today][data-state='previewEdge']::after {
-    background: #ffffff;
+    background: var(--lens-text-on-accent);
   }
 
   .lens-calendar-day:disabled {
@@ -1164,14 +1208,20 @@
     scroll-margin-top: 5rem;
   }
 
-  /* Section headings sit a tier above panel titles: same uppercase family, but
-     bolder, higher-contrast, wider-tracked and over a heavier rule so the page
-     reads as sections-of-panels rather than a flat wall of small caps. */
+  /* A section heading is a different LEVEL from a panel title, not a heavier
+     weight of the same one. Both used to be 12px uppercase small caps, differing
+     only in weight and colour, so a section read as one more card label and the
+     page had no visible outline — three panels under "Portfolio" looked like
+     four panels.
+     The heading takes the sentence-case 14px step; a panel title keeps 12px
+     uppercase muted. Case and size both change, which is what makes the rank
+     legible at a glance rather than on comparison. The rule to the edge stays:
+     it is what turns the heading into a band instead of a floating label. */
   .lens-row-heading {
-    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-font-bold lens-uppercase lens-text-strong;
-    font-size: var(--lens-type-base);
-    letter-spacing: 0.08em;
-    line-height: 1.1;
+    @apply lens-m-0 lens-mb-3 lens-flex lens-items-center lens-gap-3 lens-font-semibold lens-text-strong;
+    font-size: var(--lens-type-md);
+    letter-spacing: -0.01em;
+    line-height: 1.2;
   }
 
   /* A rule running to the edge turns the heading into a section band instead of
@@ -1336,14 +1386,52 @@
     @apply lens-m-0 lens-border-0 lens-border-b lens-border-solid lens-border-border lens-bg-inset lens-px-4 lens-py-2 lens-text-base lens-font-medium lens-text-muted;
   }
 
+  /* ── The control vocabulary ─────────────────────────────────────────────
+     Four weights, and nothing else, for anything a pointer acts on. A control
+     picks one; it does not invent a fifth. The dashboard header used to carry
+     five at once — a bordered button, a bare glyph, a chip, an underlined link
+     and a native <select> — which left a reader no way to tell which of them
+     mattered, because every possible answer was on screen at the same time.
+
+     1. PRIMARY — accent fill, on-accent ink. The one action that commits what
+        the surface was opened to do. At most one per surface.
+        .lens-facet-apply · .lens-filter-apply · .lens-leaf-action
+     2. SECONDARY — card fill, hairline border, control-md box. Every other
+        action and every popover trigger. The header's default weight.
+        .lens-export-button (+ .lens-action-square for its icon-only member)
+        .lens-facet-trigger · .lens-filter-trigger · .lens-compare-trigger
+        .lens-facet-actions button
+     3. ICON-ONLY — no border, no fill, faint glyph that gains a wash on hover.
+        For an affordance repeated per panel/row, where borders would tile the
+        page. Never for a header action: bare beside bordered reads as disabled.
+        .lens-icon-button
+     4. CHIP — badge radius, quiet or tinted fill, no border. State the reader
+        can toggle or dismiss (a selected facet, a period preset, "clear all"),
+        not an action on the document.
+        .lens-filter-chip · .lens-filter-preset · .lens-facet-active-chip
+        .lens-facet-clear
+
+     Height comes from --lens-control-h-*, ink and fill from the semantic
+     tokens, the focus ring from the one rule at the end of the sheet. */
+
   .lens-export-control {
     @apply lens-relative lens-flex lens-items-center;
   }
 
+  /* SECONDARY */
   .lens-export-button {
     @apply lens-inline-flex lens-min-h-control-md lens-items-center lens-gap-1.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-font-sans lens-text-base lens-font-semibold lens-text-muted lens-transition-colors;
   }
 
+  /* The icon-only member of the secondary weight: same box, same border, no
+     label. A header action that carries only a glyph (copy link) is still a
+     peer of the labelled ones beside it, so it keeps their frame instead of
+     dropping to the icon-only weight and reading as half-disabled. */
+  .lens-action-square {
+    @apply lens-w-8 lens-justify-center lens-gap-0 lens-px-0 lens-text-lg;
+  }
+
+  /* ICON-ONLY */
   .lens-icon-button {
     @apply lens-size-7 lens-min-h-0 lens-justify-center lens-border-transparent lens-bg-transparent lens-px-0 lens-text-lg lens-text-faint;
   }
@@ -2175,11 +2263,7 @@
   }
 
   .lens-chart-legend-search input {
-    @apply lens-box-border lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-text-text lens-outline-none;
-  }
-
-  .lens-chart-legend-search input:focus {
-    box-shadow: 0 0 0 2px var(--lens-accent-100);
+    @apply lens-box-border lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-text-text;
   }
 
   .lens-chart-legend-item {
@@ -2378,11 +2462,6 @@
 
   .lens-chart-host-drillable:hover {
     box-shadow: inset 2px 0 0 var(--lens-accent-500);
-  }
-
-  .lens-chart-host-drillable:focus-visible {
-    outline: 2px solid var(--lens-accent-500);
-    outline-offset: -2px;
   }
 
   .lens-chart-keyboard-actions {
@@ -2766,12 +2845,12 @@
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1;
   }
 
+  /* No `outline-none` here: it left a transparent 2px outline on the resting
+     region, which is the shape the missing focus ring used to hide in. The
+     browser's own ring is a `:focus-visible` ring too, so the rule below simply
+     replaces it — there is nothing to suppress. */
   .lens-table-scroll {
-    @apply lens-min-h-0 lens-flex-1 lens-overflow-auto lens-outline-none;
-  }
-
-  .lens-table-scroll:focus-visible {
-    box-shadow: inset 0 0 0 2px var(--lens-accent-500);
+    @apply lens-min-h-0 lens-flex-1 lens-overflow-auto;
   }
 
   .lens-table-overflow-edge {
@@ -2814,11 +2893,6 @@
     opacity: 1;
   }
 
-  .lens-table-overflow-edge:focus-visible {
-    outline: 2px solid var(--lens-accent-500);
-    outline-offset: -4px;
-  }
-
   .lens-table-overflow-edge:active::after {
     opacity: 1;
   }
@@ -2833,12 +2907,15 @@
   }
 
   .lens-table-search input {
-    @apply lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-font-sans lens-text-md lens-text-strong lens-outline-none;
+    @apply lens-w-full lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-3 lens-py-2 lens-font-sans lens-text-md lens-text-strong;
   }
 
-  .lens-table-search input:focus {
+  /* Focus is the shared ring, not a border swap. This field used to suppress the
+     outline (`outline-none` leaves a *transparent* 2px outline behind) and stand
+     an #eff6ff halo in for it — 1.03:1 against the card it sits on, i.e. a
+     keyboard user could not tell they were in the search box at all. */
+  .lens-table-search input:focus-visible {
     border-color: var(--lens-accent-500);
-    box-shadow: 0 0 0 2px var(--lens-accent-50);
   }
 
   .lens-table {
@@ -3267,7 +3344,7 @@
   }
 
   .lens-fake-chart-mark {
-    @apply lens-flex lens-min-h-8 lens-flex-1 lens-items-start lens-justify-center lens-rounded-badge lens-border-0 lens-bg-accent-500 lens-p-1 lens-text-base lens-font-semibold lens-text-white lens-opacity-80;
+    @apply lens-flex lens-min-h-8 lens-flex-1 lens-items-start lens-justify-center lens-rounded-badge lens-border-0 lens-bg-accent-500 lens-p-1 lens-text-base lens-font-semibold lens-text-on-accent lens-opacity-80;
     height: var(--lens-mark-size);
   }
 
@@ -3584,11 +3661,11 @@
   /* The one action the segment resolves to leads: a filled brand button that
      outranks the perspective pills and the quiet copy control beneath it. */
   .lens-drill-action-primary {
-    @apply lens-bg-accent-500 lens-px-2.5 lens-py-2 lens-text-white;
+    @apply lens-bg-accent-500 lens-px-2.5 lens-py-2 lens-text-on-accent;
   }
 
   .lens-drill-action-primary:hover {
-    @apply lens-bg-accent-600 lens-text-white;
+    @apply lens-bg-accent-600 lens-text-on-accent;
   }
 
   /* Copy is a utility, not a destination: an icon-only button riding beside
@@ -3645,30 +3722,76 @@
     animation: lens-level-enter 180ms ease-out;
   }
 
+  /* Not a control ring. A drill level takes focus programmatically after a
+     level swap so the next Tab starts inside the new content; that is a "you
+     are here" mark on a region, and wearing the control ring would claim the
+     whole card is operable. Softer accent, `:focus` (there is no pointer path
+     to it), wider offset — deliberately unlike the control ring below. */
   .lens-explore-level:focus {
     outline: 2px solid var(--lens-accent-300);
     outline-offset: 3px;
   }
 
   .lens-leaf-action {
-    @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-md lens-font-semibold lens-text-white lens-no-underline;
+    @apply lens-shrink-0 lens-rounded-control lens-bg-accent-600 lens-px-3 lens-py-2 lens-text-md lens-font-semibold lens-text-on-accent lens-no-underline;
   }
 
-  /* Shared keyboard-focus ring for every interactive element in the runtime.
-     Scoped to .lens-root so a host page's own focus styling elsewhere on the
-     page is untouched. A few elements keep their own rule instead of this one
-     (.lens-drawer, .lens-drawer-close and .lens-filter-popover suppress the
-     ring outright — the picker card takes focus programmatically on open, and
-     ringing the whole surface reads as chrome, not as focus; the controls
-     inside it keep their own rings —
-     .lens-explore-level uses :focus for a 3px programmatic-focus ring): the
-     `:is()` argument list determines this selector's specificity by its most
+  /* ── The keyboard-focus ring ────────────────────────────────────────────
+     One ring, one colour, one width, for everything a keyboard can land on:
+     buttons, links, inputs, selects, textareas, options, and anything the
+     runtime made tabbable (chart hosts, scroll regions). Before this rule was
+     the only one, seven controls each answered "where am I?" differently —
+     two accent-100 halos, an accent-50 halo at 1.03:1 against the card it sat
+     on, an inset box-shadow, a double-shadow cutout, and two outlines in a
+     colour nothing else used. Form controls were not covered at all, which is
+     why they each grew their own.
+
+     `outline`, never `box-shadow`: an outline follows the element's border
+     radius, is never clipped by a sibling's stacking context, and survives
+     forced-colors mode, where a box-shadow simply disappears.
+
+     Adding a control here is nothing; removing one needs a reason in the
+     `:not()` list below.
+
+     The exceptions, and why each is not a control:
+     - .lens-drawer, .lens-filter-popover: surfaces that take focus
+       programmatically when they open. Ringing the whole card reads as chrome,
+       not as focus; the controls inside them ring normally.
+     - .lens-explore-level: a region marked after a programmatic focus move,
+       with its own softer treatment above.
+     Inset variants (chart host, table scroll, overflow pill) keep the tokens
+     and only flip the offset, each stating why beside itself.
+
+     The `:is()` argument list takes this selector's specificity from its most
      specific member (`[tabindex]`, a class-level match), which would outrank
-     those single-class exception rules regardless of source order, so they
-     are excluded here rather than relying on cascade position. */
-  .lens-root :is(button, a, [role='option'], [tabindex]):not(.lens-drawer, .lens-drawer-close, .lens-filter-popover, .lens-explore-level):focus-visible {
-    outline: 2px solid var(--lens-accent-500);
-    outline-offset: 2px;
+     those single-class exception rules regardless of source order — hence the
+     explicit `:not()` rather than a bet on cascade position. */
+  .lens-root :is(button, a, input, select, textarea, summary, [role='option'], [tabindex]):not(.lens-drawer, .lens-filter-popover, .lens-explore-level):focus-visible {
+    outline: var(--lens-focus-ring-width) solid var(--lens-focus-ring-color);
+    outline-offset: var(--lens-focus-ring-offset);
+  }
+
+  /* The inset variant: same ring, drawn inside the box instead of around it, for
+     the three surfaces whose outset ring would be clipped or would smear over
+     content — a chart host filling a clipping card, a scroll region flush with
+     the panel edge, and the overflow pill that floats half off that edge.
+     Only the offset changes; colour and width still come from the tokens above.
+
+     It repeats the ring rule's shape rather than reading `.lens-table-scroll:
+     focus-visible`, because that is what these rules used to be and they were
+     dead: the ring rule scores (0,4,0) — `.lens-root`, `:is()` taking
+     `[tabindex]`, `:not()` taking a class, `:focus-visible` — and a two-class
+     rule cannot outrank it. They sat in the sheet for months describing a ring
+     nobody ever saw. Matching that score and following it in source order is
+     what makes an override an override.
+
+     The chart host is listed ahead of need: today it is a `role="img"` div with
+     no tab stop, so its inset ring is latent — the keyboard path into a
+     drillable chart is the `.lens-chart-keyboard-actions` buttons, which take
+     the normal ring. If the host ever becomes focusable, its ring must be inset
+     or the card will clip it. */
+  .lens-root :is(.lens-chart-host-drillable, .lens-table-scroll, .lens-table-overflow-edge):is(button, a, [tabindex]):focus-visible {
+    outline-offset: calc(-1 * var(--lens-focus-ring-width));
   }
 
   @keyframes lens-level-enter {

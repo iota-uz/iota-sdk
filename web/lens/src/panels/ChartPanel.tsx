@@ -2,6 +2,7 @@ import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { Frame, NodeKey, Panel } from '../contract'
 import { radialNodeKey, type ChartActivation, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartInput, type ChartKind } from '../charts/adapter'
 import { fallbackMarkKey } from '../charts/keys'
+import { remainderColor } from '../charts/palette'
 import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
 import { childForSelection } from '../explore/model'
@@ -223,7 +224,7 @@ export function collapseMinorDonutSlices(frame: Frame, panel: Panel, otherLabel:
   remainder[valueIndex] = minor.reduce((sum, item) => sum + item.value, 0)
   rows.push(remainder)
   const colors = frame.colors
-    ? [...frame.colors.filter((_, index) => !minorIndices.has(index)), '#94a3b8']
+    ? [...frame.colors.filter((_, index) => !minorIndices.has(index)), remainderColor()]
     : undefined
   return { frame: { ...frame, rows, ...(colors ? { colors } : {}) }, collapsed: true }
 }

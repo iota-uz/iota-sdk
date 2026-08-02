@@ -31,7 +31,7 @@ export function ShareSliceButton() {
     <div className="lens-export-control">
       <button
         aria-label={label}
-        className="lens-export-button lens-icon-button"
+        className="lens-export-button lens-action-square"
         onClick={() => { void copy() }}
         title={label}
         type="button"

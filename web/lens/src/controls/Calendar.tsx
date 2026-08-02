@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { stackedCalendarMediaQuery } from '../breakpoints'
 import { CaretLeft, CaretRight } from '../icons'
 import type { TranslationVars } from '../runtime'
 import {
@@ -57,9 +58,6 @@ function localToday(): CalendarDate {
   const now = new Date()
   return { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() }
 }
-
-/** Matches the stylesheet's stacked-popover breakpoint: one pane below it. */
-export const stackedCalendarMediaQuery = '(max-width: 664px)'
 
 function useNarrow(): boolean {
   const [narrow, setNarrow] = useState(() => (

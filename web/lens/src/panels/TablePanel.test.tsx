@@ -91,15 +91,26 @@ it('keeps compact horizontal overflow controls clear of table values', () => {
 
 it('wraps custom comparison dates without widening narrow dashboards', () => {
   const styles = readFileSync('src/styles.css', 'utf8')
+  // The custom-interval fields moved inside the comparison popover, so the
+  // width they must not exceed is the popover's, not the header row's: the
+  // shared popover box is clamped to the viewport and the two date fields wrap
+  // and shrink inside it at every width, instead of only below 768px.
+  const popover = [...styles.matchAll(/\.lens-compare-popover \{(?<rule>[^}]+)\}/g)]
+    .map((match) => match.groups?.rule ?? '')
+    .join('\n')
+  const shared = styles.match(/\.lens-facet-popover,\n {2}\.lens-compare-popover \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const custom = styles.match(/\.lens-compare-custom \{(?<rule>[^}]+)\}/)?.groups?.rule
+  const field = styles.match(/\.lens-compare-custom input \{(?<rule>[^}]+)\}/)?.groups?.rule
   const responsive = styles.match(/@media \(max-width: 768px\) \{(?<rule>[\s\S]*?)\n {2}\}/)?.groups?.rule
 
-  expect(responsive).toContain('.lens-compare-filter,')
-  expect(responsive).toContain('.lens-compare-custom')
-  expect(responsive).toContain('flex-wrap: wrap')
+  expect(shared).toContain('lens-max-w-[calc(100vw-24px)]')
+  expect(popover).toContain('lens-w-max')
+  expect(custom).toContain('lens-flex-wrap')
+  expect(field).toContain('lens-min-w-0')
+  expect(field).toContain('lens-flex-1')
+  expect(responsive).toContain('.lens-compare-filter')
   expect(responsive).toContain('min-width: 0')
   expect(responsive).toContain('width: 100%')
-  expect(responsive).toContain('flex: 1 1 10rem')
-  expect(responsive).toContain('max-width: 100%')
 })
 
 const columnsPanel: Panel = {

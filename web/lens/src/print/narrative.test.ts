@@ -97,7 +97,7 @@ describe('narrativeFact', () => {
 
     expect(fact).toMatchObject({
       labelKey: 'print.factBridge',
-      vars: { start: '100', end: '25', label: 'Claims', amount: '-45', share: '45%' },
+      vars: { start: '100', end: '25', label: 'Claims', amount: '−45', share: '45%' },
     })
   })
 

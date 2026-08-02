@@ -335,3 +335,55 @@ export const CalendarLocales: Story = () => (
   </div>
 )
 CalendarLocales.storyName = 'Calendar locales'
+
+const compareFilter: Filter = {
+  id: 'compare',
+  kind: 'compare',
+  label: 'Compare with',
+  compare: {
+    modeParam: 'compare',
+    startParam: 'compare_start',
+    endParam: 'compare_end',
+    compareTo: 'period',
+    value: { mode: 'previous_period' },
+  },
+}
+
+function ComparisonScene({ compare }: { compare: Filter }) {
+  const base = filteredDocument()
+  return (
+    <AutoClick selector=".lens-compare-trigger">
+      <div style={{ width: 960 }}>
+        <LensDashboard
+          filterToday={storyToday}
+          initialDocument={{ ...base, filters: [periodFilter, compare] }}
+          theme="light"
+        />
+      </div>
+    </AutoClick>
+  )
+}
+
+/**
+ * The comparison control open. It is the facet control's popover primitive, not
+ * a native `<select>`: same trigger box, same option rows, same ring — which is
+ * the whole point of the story, since the header row is where a stray control
+ * treatment is most visible.
+ */
+export const ComparisonMenuOpen: Story = () => <ComparisonScene compare={compareFilter} />
+ComparisonMenuOpen.storyName = 'Comparison menu open'
+
+/**
+ * The custom interval: its two date fields live inside the popover, under the
+ * mode that needs them, with one Apply. They used to sit in the header row,
+ * appearing and disappearing beside the filters as the mode changed.
+ */
+export const ComparisonCustomInterval: Story = () => (
+  <ComparisonScene
+    compare={{
+      ...compareFilter,
+      compare: { ...compareFilter.compare!, value: { mode: 'custom', start: '2025-01-01', end: '2025-06-30' } },
+    }}
+  />
+)
+ComparisonCustomInterval.storyName = 'Comparison custom interval'

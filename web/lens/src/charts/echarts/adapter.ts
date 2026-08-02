@@ -3,6 +3,7 @@ import { DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent } 
 import { init, registerMap, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { LabelLayout, UniversalTransition } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
+import { compactChartLabelWidth } from '../../breakpoints'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
 import { buildChartOption } from './options'
@@ -13,6 +14,16 @@ registerEChartsModules([
   DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent,
   CanvasRenderer, LabelLayout, UniversalTransition,
 ])
+
+/**
+ * Clearance between the pointer and the axis-label bubble it explains: far
+ * enough that the bubble never sits under the cursor, close enough that it
+ * still reads as attached to it.
+ */
+const axisTooltipGap = 12
+
+/** Clearance the bubble keeps from every viewport edge. */
+const axisTooltipViewportPadding = 8
 
 const optionalKinds = new Set<ChartInput['kind']>(['boxplot', 'heatmap', 'map'])
 let optionalModules: Promise<void> | undefined
@@ -219,9 +230,25 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         axisTooltip.className = 'lens-axis-label-tooltip'
         axisTooltip.setAttribute('role', 'tooltip')
         axisTooltip.textContent = label
-        axisTooltip.style.left = `${Math.min(wrapper.clientX + 12, window.innerWidth - 280)}px`
-        axisTooltip.style.top = `${Math.max(8, wrapper.clientY - 36)}px`
+        // Placed off the pointer, then clamped against the bubble's own measured
+        // box. The previous constants (a 280px right margin, a 36px lift)
+        // encoded a guess at that box: 280 was the sheet's `max-w-64` plus its
+        // padding, 36 a one-line height plus the gap. Both were wrong for any
+        // other text — a wrapped two-line label overflowed the top of the
+        // viewport, and a short one floated 30px from the right edge it was
+        // supposed to be pinned against. The element is appended first because a
+        // bubble that has never been in the document has no width to read.
+        axisTooltip.style.left = '0px'
+        axisTooltip.style.top = '0px'
         document.body.append(axisTooltip)
+        const bubble = axisTooltip.getBoundingClientRect()
+        const left = Math.max(
+          axisTooltipViewportPadding,
+          Math.min(wrapper.clientX + axisTooltipGap, window.innerWidth - bubble.width - axisTooltipViewportPadding),
+        )
+        const top = Math.max(axisTooltipViewportPadding, wrapper.clientY - bubble.height - axisTooltipGap)
+        axisTooltip.style.left = `${left}px`
+        axisTooltip.style.top = `${top}px`
       }
 
       chart.on('click', select)
@@ -285,9 +312,8 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const { width, height } = readBox(element, entries)
         if (width <= 0 || height <= 0) return
         if (appliedBox && width === appliedBox.width && height >= appliedBox.height) return
-        const crossedCompactLabelBoundary = appliedBox
-          ? (appliedBox.width < 500) !== (width < 500)
-          : false
+        const compact = (box: number) => box < compactChartLabelWidth
+        const crossedCompactLabelBoundary = appliedBox ? compact(appliedBox.width) !== compact(width) : false
         appliedBox = { width, height }
         beginRender()
         chart.resize({ width, height })

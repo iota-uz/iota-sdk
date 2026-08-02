@@ -101,6 +101,46 @@ describe('compact formatting', () => {
   })
 })
 
+describe('one minus glyph', () => {
+  // en-US emits U+002D and ru-RU emits U+2212 for the same number. A dashboard
+  // that renders both prints two different operators for one meaning.
+  it('writes U+2212 for every negative numeral, whatever the locale emits', () => {
+    const money: FieldFormat = { kind: 'money', currency: 'UZS', minorUnits: false, precision: 0, symbol: 'so’m' }
+    const number: FieldFormat = { kind: 'number', minorUnits: false, precision: 1 }
+    const percent: FieldFormat = { kind: 'percent', minorUnits: false, precision: 1 }
+    for (const locale of ['en-US', 'ru-RU', 'uz-UZ']) {
+      expect(formatFieldValue(-1_250, money, locale)).toContain('−')
+      expect(formatFieldValue(-1_250, money, locale)).not.toContain('-')
+      expect(formatFieldValue(-12.5, number, locale)).toContain('−')
+      expect(formatFieldValue(-12.5, number, locale)).not.toContain('-')
+      expect(formatFieldValue(-12.5, percent, locale)).toContain('−')
+      expect(formatFieldValue(-12.5, percent, locale)).not.toContain('-')
+      expect(formatFieldValue(-1_250, undefined, locale)).not.toContain('-')
+      expect(formatAxis(-1_250_000, { kind: 'number', minorUnits: false }, locale)).not.toContain('-')
+    }
+  })
+
+  it('keeps the typographic minus even when the document pins the separator', () => {
+    // Separator pinning buys server parity for notation; the sign is typography.
+    const field: FieldFormat = { kind: 'number', minorUnits: false, precision: 1, decimalSeparator: '.' }
+    expect(formatFieldValue(-12.5, field, 'ru-RU')).toBe('−12.5')
+  })
+})
+
+describe('percent spacing follows the reader, not the call site', () => {
+  it('spaces the sign the way the locale writes it', () => {
+    const field: FieldFormat = { kind: 'percent', minorUnits: false, precision: 1 }
+    expect(formatFieldValue(32.2, field, 'en-US')).toBe('32.2%')
+    // ru-RU (CLDR) puts a no-break space before the sign.
+    expect(formatFieldValue(32.2, field, 'ru-RU')).toBe('32,2 %')
+  })
+
+  it('drops the space only where the document asked to match the server', () => {
+    const field: FieldFormat = { kind: 'percent', minorUnits: false, precision: 1, decimalSeparator: '.' }
+    expect(formatFieldValue(32.2, field, 'ru-RU')).toBe('32.2%')
+  })
+})
+
 describe('compact floor', () => {
   const field: FieldFormat = {
     kind: 'money', currency: 'UZS', minorUnits: false, precision: 2, compact: true, decimalSeparator: '.',
@@ -109,7 +149,7 @@ describe('compact floor', () => {
   it('renders values below 100 000 as the exact grouped integer', () => {
     expect(formatFieldValue(12_500, field, 'ru-RU')).toBe('12 500 UZS')
     expect(formatFieldValue(12_500, field, 'en-US')).toBe('12,500 UZS')
-    expect(formatFieldValue(-72_400.6, field, 'ru-RU')).toBe('-72 401 UZS')
+    expect(formatFieldValue(-72_400.6, field, 'ru-RU')).toBe('−72 401 UZS')
   })
 
   it('keeps compact notation from 100 000 upwards', () => {
@@ -151,7 +191,7 @@ describe('formatFieldValueAtReference', () => {
 describe('clampedDeltaPercent', () => {
   it('clamps beyond ±999.9%', () => {
     expect(clampedDeltaPercent(13_417.3, 'en')).toBe('>+999%')
-    expect(clampedDeltaPercent(-4_641.5, 'en')).toBe('<-999%')
+    expect(clampedDeltaPercent(-4_641.5, 'en')).toBe('<−999%')
     expect(clampedDeltaPercent(13_417.3, 'ru')).toContain('999')
   })
 

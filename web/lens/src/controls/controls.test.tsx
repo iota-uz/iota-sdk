@@ -4,7 +4,8 @@ import fixture from '../../fixtures/small.json'
 import { parseDocument, type DashboardDocument } from '../contract'
 import { DashboardPanels } from '../DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
-import { Calendar, stackedCalendarMediaQuery } from './Calendar'
+import { stackedCalendarMediaQuery } from '../breakpoints'
+import { Calendar } from './Calendar'
 import { FilterBar } from './FilterBar'
 import type { RangeSelection } from './model'
 
@@ -411,6 +412,11 @@ function refetchFailureFetcher(calls: Array<string>): typeof fetch {
 
 describe('FilterBar runtime integration', () => {
 
+  // The comparison control is a trigger + listbox (see CompareFilterControl):
+  // the trigger names the applied mode, the options live in a portalled popover.
+  const compareTrigger = () => screen.findByRole('button', { name: /Compare with/ })
+  const compareOption = (name: string) => screen.getByRole('option', { name })
+
   it('replaces an impossible all-time comparison deep link after the normalized document loads', async () => {
     window.history.replaceState(null, '', '/dash?ActualRangeStart=&ActualRangeEnd=&compare=custom&compare_start=2025-01-01&compare_end=2025-08-01')
     const fetcher: typeof fetch = () => Promise.resolve(new Response(
@@ -419,9 +425,9 @@ describe('FilterBar runtime integration', () => {
     ))
     render(<FiltersFixture fetcher={fetcher} />)
 
-    const select = await screen.findByRole('combobox', { name: 'Compare with' })
+    const trigger = await compareTrigger()
     await waitFor(() => expect(window.location.search).toBe('?ActualRangeStart=&ActualRangeEnd=&compare=off'))
-    expect(select).toHaveValue('off')
+    expect(trigger).toHaveTextContent('Comparison off')
   })
 
   it('stages a custom comparison interval before applying it', async () => {
@@ -429,9 +435,11 @@ describe('FilterBar runtime integration', () => {
     const calls: Array<string> = []
     render(<FiltersFixture fetcher={compareFetcher(calls)} />)
 
-    const select = await screen.findByRole('combobox', { name: 'Compare with' })
-    fireEvent.change(select, { target: { value: 'custom' } })
+    fireEvent.click(await compareTrigger())
+    fireEvent.click(compareOption('Custom interval'))
 
+    // Selecting "custom" only stages: the fields it needs appear inside the
+    // popover and nothing is requested until Apply.
     expect(screen.getByLabelText('Comparison start')).toBeInTheDocument()
     expect(screen.getByLabelText('Comparison end')).toBeInTheDocument()
     expect(calls).toEqual(['/lens/document'])
@@ -441,11 +449,49 @@ describe('FilterBar runtime integration', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Apply' }))
 
     await waitFor(() => expect(calls).toContain('/lens/document?compare=custom&compare_start=2026-06-01&compare_end=2026-06-30'))
-    expect(select).toHaveValue('custom')
+    await waitFor(() => expect(screen.getByRole('button', { name: /Compare with/ })).toHaveTextContent('Custom interval'))
 
-    fireEvent.change(select, { target: { value: 'off' } })
+    fireEvent.click(await compareTrigger())
+    fireEvent.click(compareOption('Comparison off'))
     await waitFor(() => expect(calls).toContain('/lens/document?compare=off'))
     expect(window.location.search).toBe('?compare=off')
+  })
+
+  it('operates the comparison listbox from the keyboard and leaves it unchanged on Escape', async () => {
+    window.history.replaceState(null, '', '/dash')
+    const calls: Array<string> = []
+    render(<FiltersFixture fetcher={compareFetcher(calls)} />)
+
+    const trigger = await compareTrigger()
+    trigger.focus()
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+
+    const listbox = await screen.findByRole('listbox', { name: 'Compare with' })
+    // The applied mode is where the roving tabindex starts.
+    await waitFor(() => expect(compareOption('Comparison off')).toHaveFocus())
+
+    fireEvent.keyDown(compareOption('Comparison off'), { key: 'ArrowDown' })
+    expect(compareOption('Previous period')).toHaveFocus()
+    // Focus moved; nothing was selected, and nothing was requested.
+    expect(compareOption('Comparison off')).toHaveAttribute('aria-selected', 'true')
+    expect(calls).toEqual(['/lens/document'])
+
+    // Type-ahead jumps to the first option matching what was typed.
+    fireEvent.keyDown(compareOption('Previous period'), { key: 'y' })
+    expect(compareOption('Year ago')).toHaveFocus()
+
+    fireEvent.keyDown(compareOption('Year ago'), { key: 'Escape' })
+    await waitFor(() => expect(listbox).not.toBeInTheDocument())
+    expect(trigger).toHaveFocus()
+    expect(trigger).toHaveTextContent('Comparison off')
+    expect(calls).toEqual(['/lens/document'])
+
+    // Enter on a focused option is what commits it.
+    fireEvent.keyDown(trigger, { key: 'ArrowDown' })
+    await waitFor(() => expect(compareOption('Comparison off')).toHaveFocus())
+    fireEvent.keyDown(compareOption('Comparison off'), { key: 'ArrowDown' })
+    fireEvent.keyDown(compareOption('Previous period'), { key: 'Enter' })
+    await waitFor(() => expect(calls).toContain('/lens/document?compare=previous_period'))
   })
 
   it('keeps the previous document visible and shows a dismissable refetch error', async () => {

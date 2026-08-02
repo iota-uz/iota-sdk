@@ -45,6 +45,10 @@ export default {
         strong: 'var(--lens-text-strong)',
         muted: 'var(--lens-text-muted)',
         faint: 'var(--lens-text-faint)',
+        // `lens-text-on-accent` / `lens-bg-on-accent`: the ink that sits on an
+        // accent fill. It replaces `lens-text-white`, which said "this colour"
+        // where the sheet means "the readable one for this surface".
+        'on-accent': 'var(--lens-text-on-accent)',
         neg: 'var(--lens-neg)',
         'neg-alt': 'var(--lens-neg-alt)',
         warn: 'var(--lens-warn)',
