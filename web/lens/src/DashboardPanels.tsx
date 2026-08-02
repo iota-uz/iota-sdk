@@ -15,7 +15,6 @@ import type { LayoutGroup, LayoutItem, Panel } from './contract'
 import { useDashboard, useDocumentState, useDrawer, usePrint, useTranslate } from './runtime'
 import { ExportMenu } from './panels/ExportMenu'
 import { RegisteredPanel, type PanelRegistry } from './panels/registry'
-import { SavedViewsMenu } from './panels/SavedViewsMenu'
 import { ShareSliceButton } from './panels/ShareSliceButton'
 import { StatMetric, StatusChip } from './panels/StatPanel'
 import { X } from './icons'
@@ -494,7 +493,6 @@ export function DashboardPanels({ registry, filterToday }: DashboardPanelsProps)
                   {recomputeLabel}
                 </button>
               )}
-              <SavedViewsMenu />
               <ShareSliceButton />
               <ExportMenu />
             </div>

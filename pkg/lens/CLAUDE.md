@@ -231,14 +231,6 @@ Use `runtime.PanelScope(panelID)` only inside a generic document/query mechanism
 when one panel can be executed independently. Do not add renderer-specific panel
 URLs or reintroduce `PanelBasePath`.
 
-## Share-store migrations
-
-The PostgreSQL share store requires the schema in
-`migrations/changes-1785498000.sql`. Applications that maintain their own
-migration directory must copy that migration into it and keep the DDL in sync
-when the store contract changes; `pkg/lens/share/schema_contract_test.go`
-guards the SDK-side query contract.
-
 ## Performance Profiling
 
 Cube SQL is generated dynamically, so profiling is part of the implementation work for production-facing dashboards.

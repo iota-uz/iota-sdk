@@ -267,13 +267,11 @@ func (c *DashboardController) lensHandlers(r *http.Request) (*lensserve.Handlers
 	}
 	spec := c.createFinanceDashboard(tenantID)
 	return lensserve.New(lensserve.Config{
-		Spec:              spec,
-		Engine:            c.runtime,
-		Snapshots:         c.snapshots,
-		BasePath:          dashboardLensBasePath,
-		InlineDepth:       1,
-		ViewsEndpoint:     "/lens/share/views",
-		SchedulesEndpoint: "/lens/share/schedules",
+		Spec:        spec,
+		Engine:      c.runtime,
+		Snapshots:   c.snapshots,
+		BasePath:    dashboardLensBasePath,
+		InlineDepth: 1,
 		Request: func(*http.Request) runtime.Request {
 			return runtime.Request{
 				DataSources:          map[string]datasource.DataSource{"primary": c.ds},

@@ -1240,12 +1240,10 @@ type Frame struct {
 }
 
 type Endpoints struct {
-	Query     string `json:"query,omitempty"`
-	Panel     string `json:"panel,omitempty"`
-	Drawer    string `json:"drawer,omitempty"`
-	Export    string `json:"export,omitempty"`
-	Views     string `json:"views,omitempty"`
-	Schedules string `json:"schedules,omitempty"`
+	Query  string `json:"query,omitempty"`
+	Panel  string `json:"panel,omitempty"`
+	Drawer string `json:"drawer,omitempty"`
+	Export string `json:"export,omitempty"`
 }
 
 type Theme struct {

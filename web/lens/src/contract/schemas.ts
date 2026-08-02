@@ -178,8 +178,6 @@ export const EndpointsSchema: z.ZodType<Contract.Endpoints> = z.object({
   panel: z.string().optional(),
   drawer: z.string().optional(),
   export: z.string().optional(),
-  views: z.string().optional(),
-  schedules: z.string().optional(),
 }).strict()
 
 export const FacetFilterSchema: z.ZodType<Contract.FacetFilter> = z.lazy(() => z.object({

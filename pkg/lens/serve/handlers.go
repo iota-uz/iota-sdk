@@ -106,7 +106,6 @@ func (h *Handlers) Document(w http.ResponseWriter, r *http.Request) {
 		I18n: document.RuntimeI18nDefaults(),
 		Endpoints: document.Endpoints{
 			Query: h.endpoint("/lens/query"), Export: h.endpoint("/export"),
-			Views: h.viewsEndpoint, Schedules: h.schedulesEndpoint,
 			Panel: func() string {
 				if h.progressive {
 					return h.endpoint("/lens/panel")

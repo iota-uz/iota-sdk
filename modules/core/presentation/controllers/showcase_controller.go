@@ -335,7 +335,6 @@ func (c *ShowcaseController) lensHandlers(r *http.Request) (*lensserve.Handlers,
 	return lensserve.New(lensserve.Config{
 		Spec: spec, Engine: c.runtime, Snapshots: c.snapshots,
 		BasePath: c.basePath + "/lens", InlineDepth: 1,
-		ViewsEndpoint: "/lens/share/views", SchedulesEndpoint: "/lens/share/schedules",
 		Request: func(*http.Request) runtime.Request {
 			return runtime.Request{
 				DataSources:          map[string]datasource.DataSource{"primary": c.ds},

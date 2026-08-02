@@ -230,96 +230,63 @@ const (
 	I18nRuntimeLoadError      = "runtime.loadError"
 	// Shown before a document exists, so the runtime falls back to its own
 	// bundled wording; a host that translates them wins once the document lands.
-	I18nRuntimeRetry             = "runtime.retry"
-	I18nRuntimeSlowLoad          = "runtime.slowLoad"
-	I18nTableActions             = "table.actions"
-	I18nTableEmptyPage           = "table.emptyPage"
-	I18nTableLoadingPage         = "table.loadingPage"
-	I18nTableNext                = "table.next"
-	I18nTableOpenRecord          = "table.openRecord"
-	I18nTablePage                = "table.page"
-	I18nTablePages               = "table.pages"
-	I18nTablePrevious            = "table.previous"
-	I18nTableRowCount            = "table.rowCount"
-	I18nTableSearch              = "table.search"
-	I18nTableSearchPlaceholder   = "table.searchPlaceholder"
-	I18nTableScrollLeft          = "table.scrollLeft"
-	I18nTableScrollRight         = "table.scrollRight"
-	I18nTableScrollRegion        = "table.scrollRegion"
-	I18nTableFilteredTotal       = "table.filteredTotal"
-	I18nTableAllRowsTotal        = "table.allRowsTotal"
-	I18nTableFilteredRowCount    = "table.filteredRowCount"
-	I18nTableSmallSample         = "table.smallSample"
-	I18nTableSmallSampleShort    = "table.smallSampleShort"
-	I18nTableTotal               = "table.total"
-	I18nTableBooleanYes          = "table.boolean.yes"
-	I18nTableBooleanNo           = "table.boolean.no"
-	I18nShareCopied              = "share.copied"
-	I18nShareCopy                = "share.copy"
-	I18nShareError               = "share.error"
-	I18nViewsEmpty               = "views.empty"
-	I18nViewsTeam                = "views.team"
-	I18nViewsPersonal            = "views.personal"
-	I18nViewsDelete              = "views.delete"
-	I18nViewsSaveCurrent         = "views.saveCurrent"
-	I18nViewsName                = "views.name"
-	I18nViewsScope               = "views.scope"
-	I18nViewsDefaultRole         = "views.defaultRole"
-	I18nViewsNoDefaultRole       = "views.noDefaultRole"
-	I18nViewsSave                = "views.save"
-	I18nViewsSchedule            = "views.schedule"
-	I18nViewsRecipients          = "views.recipients"
-	I18nViewsRecipientsHint      = "views.recipientsHint"
-	I18nViewsCron                = "views.cron"
-	I18nViewsScheduleSave        = "views.scheduleSave"
-	I18nViewsLoading             = "views.loading"
-	I18nViewsConfirmDelete       = "views.confirmDelete"
-	I18nViewsConfirmDeleteSched  = "views.confirmDeleteSchedule"
-	I18nViewsNextRun             = "views.nextRun"
-	I18nViewsScheduleDisabled    = "views.scheduleDisabled"
-	I18nViewsScheduleReenable    = "views.scheduleReenable"
-	I18nViewsReenable            = "views.reenable"
-	I18nViewsScheduleReenabled   = "views.scheduleReenabled"
-	I18nViewsLoadError           = "views.loadError"
-	I18nViewsSaveError           = "views.saveError"
-	I18nViewsDeleteError         = "views.deleteError"
-	I18nViewsScheduleSaveError   = "views.scheduleSaveError"
-	I18nViewsScheduleDeleteError = "views.scheduleDeleteError"
-	I18nViewsScheduleReenableErr = "views.scheduleReenableError"
-	I18nViewsTriggerTitle        = "views.triggerTitle"
-	I18nViewsDialogTitle         = "views.dialogTitle"
-	I18nViewsSavedList           = "views.savedList"
-	I18nViewsSavedView           = "views.savedView"
-	I18nAvailConfig              = "availability.config_required"
-	I18nAvailEmptySource         = "availability.empty_source"
-	I18nAvailUnavailable         = "availability.unavailable"
-	I18nConfCalculated           = "confidence.calculated"
-	I18nConfProxy                = "confidence.proxy"
-	I18nConfRequiresRecon        = "confidence.requires_reconciliation"
-	I18nConfVerified             = "confidence.verified"
-	I18nFlowDifference           = "flow.difference"
-	I18nFlowEquals               = "flow.equals"
-	I18nFlowMinus                = "flow.minus"
-	I18nFlowPlus                 = "flow.plus"
-	I18nFlowStages               = "flow.stages"
-	I18nHierAllocated            = "hierarchy.allocated"
-	I18nHierDifference           = "hierarchy.difference"
-	I18nHierUnallocated          = "hierarchy.unallocated"
-	I18nPanelDuplicateKey        = "panel.duplicateKey"
-	I18nPanelTrendComparison     = "panel.trend.comparison"
-	I18nPanelMissingCol          = "panel.missingColumn"
-	I18nRelAssociation           = "relationship.association"
-	I18nRelDerivation            = "relationship.derivation"
-	I18nRelReconciliation        = "relationship.reconciliation"
-	I18nRelTypePrefix            = "relationship.type."
-	I18nRelTypeAssociation       = I18nRelTypePrefix + string(MetricRelationshipAssociation)
-	I18nRelTypeDerivation        = I18nRelTypePrefix + string(MetricRelationshipDerivation)
-	I18nRelTypeReconciliation    = I18nRelTypePrefix + string(MetricRelationshipReconciliation)
-	I18nSemanticsPrefix          = "explore.semantics."
-	I18nSemanticsEvidence        = I18nSemanticsPrefix + string(SemanticsEvidence)
-	I18nSemanticsPartn           = I18nSemanticsPrefix + string(SemanticsPartition)
-	I18nSemanticsRecon           = I18nSemanticsPrefix + string(SemanticsReconciliation)
-	I18nSemanticsSeries          = I18nSemanticsPrefix + string(SemanticsSeries)
+	I18nRuntimeRetry           = "runtime.retry"
+	I18nRuntimeSlowLoad        = "runtime.slowLoad"
+	I18nTableActions           = "table.actions"
+	I18nTableEmptyPage         = "table.emptyPage"
+	I18nTableLoadingPage       = "table.loadingPage"
+	I18nTableNext              = "table.next"
+	I18nTableOpenRecord        = "table.openRecord"
+	I18nTablePage              = "table.page"
+	I18nTablePages             = "table.pages"
+	I18nTablePrevious          = "table.previous"
+	I18nTableRowCount          = "table.rowCount"
+	I18nTableSearch            = "table.search"
+	I18nTableSearchPlaceholder = "table.searchPlaceholder"
+	I18nTableScrollLeft        = "table.scrollLeft"
+	I18nTableScrollRight       = "table.scrollRight"
+	I18nTableScrollRegion      = "table.scrollRegion"
+	I18nTableFilteredTotal     = "table.filteredTotal"
+	I18nTableAllRowsTotal      = "table.allRowsTotal"
+	I18nTableFilteredRowCount  = "table.filteredRowCount"
+	I18nTableSmallSample       = "table.smallSample"
+	I18nTableSmallSampleShort  = "table.smallSampleShort"
+	I18nTableTotal             = "table.total"
+	I18nTableBooleanYes        = "table.boolean.yes"
+	I18nTableBooleanNo         = "table.boolean.no"
+	I18nShareCopied            = "share.copied"
+	I18nShareCopy              = "share.copy"
+	I18nShareError             = "share.error"
+	I18nAvailConfig            = "availability.config_required"
+	I18nAvailEmptySource       = "availability.empty_source"
+	I18nAvailUnavailable       = "availability.unavailable"
+	I18nConfCalculated         = "confidence.calculated"
+	I18nConfProxy              = "confidence.proxy"
+	I18nConfRequiresRecon      = "confidence.requires_reconciliation"
+	I18nConfVerified           = "confidence.verified"
+	I18nFlowDifference         = "flow.difference"
+	I18nFlowEquals             = "flow.equals"
+	I18nFlowMinus              = "flow.minus"
+	I18nFlowPlus               = "flow.plus"
+	I18nFlowStages             = "flow.stages"
+	I18nHierAllocated          = "hierarchy.allocated"
+	I18nHierDifference         = "hierarchy.difference"
+	I18nHierUnallocated        = "hierarchy.unallocated"
+	I18nPanelDuplicateKey      = "panel.duplicateKey"
+	I18nPanelTrendComparison   = "panel.trend.comparison"
+	I18nPanelMissingCol        = "panel.missingColumn"
+	I18nRelAssociation         = "relationship.association"
+	I18nRelDerivation          = "relationship.derivation"
+	I18nRelReconciliation      = "relationship.reconciliation"
+	I18nRelTypePrefix          = "relationship.type."
+	I18nRelTypeAssociation     = I18nRelTypePrefix + string(MetricRelationshipAssociation)
+	I18nRelTypeDerivation      = I18nRelTypePrefix + string(MetricRelationshipDerivation)
+	I18nRelTypeReconciliation  = I18nRelTypePrefix + string(MetricRelationshipReconciliation)
+	I18nSemanticsPrefix        = "explore.semantics."
+	I18nSemanticsEvidence      = I18nSemanticsPrefix + string(SemanticsEvidence)
+	I18nSemanticsPartn         = I18nSemanticsPrefix + string(SemanticsPartition)
+	I18nSemanticsRecon         = I18nSemanticsPrefix + string(SemanticsReconciliation)
+	I18nSemanticsSeries        = I18nSemanticsPrefix + string(SemanticsSeries)
 )
 
 // RuntimeI18nKeys lists every translation key the runtime resolves, sorted.
@@ -387,15 +354,6 @@ func RuntimeI18nKeys() []string {
 		I18nTablePage, I18nTablePages, I18nTablePrevious, I18nTableRowCount, I18nTableSearch, I18nTableSearchPlaceholder, I18nTableScrollLeft, I18nTableScrollRight,
 		I18nTableSmallSample, I18nTableSmallSampleShort, I18nTableTotal, I18nTableBooleanYes, I18nTableBooleanNo, I18nTableScrollRegion, I18nTableFilteredTotal, I18nTableAllRowsTotal, I18nTableFilteredRowCount,
 		I18nShareCopied, I18nShareCopy, I18nShareError,
-		I18nViewsEmpty, I18nViewsTeam, I18nViewsPersonal,
-		I18nViewsDelete, I18nViewsSaveCurrent, I18nViewsName, I18nViewsScope, I18nViewsDefaultRole, I18nViewsNoDefaultRole,
-		I18nViewsSave, I18nViewsSchedule, I18nViewsRecipients, I18nViewsRecipientsHint,
-		I18nViewsCron, I18nViewsScheduleSave, I18nViewsLoading,
-		I18nViewsConfirmDelete, I18nViewsConfirmDeleteSched, I18nViewsNextRun,
-		I18nViewsScheduleDisabled, I18nViewsScheduleReenable, I18nViewsReenable, I18nViewsScheduleReenabled,
-		I18nViewsLoadError, I18nViewsSaveError, I18nViewsDeleteError,
-		I18nViewsScheduleSaveError, I18nViewsScheduleDeleteError, I18nViewsScheduleReenableErr,
-		I18nViewsTriggerTitle, I18nViewsDialogTitle, I18nViewsSavedList, I18nViewsSavedView,
 		I18nSemanticsEvidence, I18nSemanticsPartn, I18nSemanticsRecon, I18nSemanticsSeries,
 		I18nAvailConfig, I18nAvailEmptySource, I18nAvailUnavailable,
 		I18nConfCalculated, I18nConfProxy, I18nConfRequiresRecon, I18nConfVerified,
