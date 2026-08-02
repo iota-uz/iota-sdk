@@ -44,8 +44,19 @@ export interface ChartInput {
   valueAxis?: ValueAxis
   /** Required geometry contract for radial charts. */
   radial?: RadialConfig
-  /** Opt-in readability overlays for line and area time series. */
+  /**
+   * Opt-in readability overlays for line and area time series, as the panel
+   * declared them. Every overlay stays here whether or not it is currently
+   * drawn: `hiddenOverlays` decides that, so the legend can list an overlay
+   * the reader has switched off and offer it back.
+   */
   temporal?: PanelTemporal
+  /**
+   * Overlay ids (see `charts/overlays`) the reader has switched off. Filtering
+   * happens here rather than in the panel so that one list of overlays governs
+   * both what is drawn and what the legend prints.
+   */
+  hiddenOverlays?: ReadonlySet<string>
   /** Registered geometry and exact feature-property join for a map panel. */
   map?: {
     name: string

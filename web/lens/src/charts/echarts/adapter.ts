@@ -1,17 +1,24 @@
 import { BarChart, LineChart, PieChart } from 'echarts/charts'
-import { DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent } from 'echarts/components'
+import {
+  DataZoomComponent, GraphicComponent, GridComponent, MarkAreaComponent, MarkLineComponent, TooltipComponent,
+} from 'echarts/components'
 import { init, registerMap, use as registerEChartsModules, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { LabelLayout, UniversalTransition } from 'echarts/features'
 import { CanvasRenderer } from 'echarts/renderers'
 import { compactChartLabelWidth } from '../../breakpoints'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
-import { buildChartOption } from './options'
+import { annotationsAtAxisValue, buildChartOption } from './options'
 import { buildEChartsTheme } from './theme'
 
+// The mark components are what draw `markLine` and `markArea`. Without them
+// ECharts accepts both silently and renders neither: every reference line this
+// runtime has ever declared — including the 100% break-even threshold on the
+// combined-ratio panel — was built into the option and then dropped on the
+// floor, while the grid went on reserving width for the label it never drew.
 registerEChartsModules([
   BarChart, LineChart, PieChart,
-  DataZoomComponent, GraphicComponent, GridComponent, TooltipComponent,
+  DataZoomComponent, GraphicComponent, GridComponent, MarkAreaComponent, MarkLineComponent, TooltipComponent,
   CanvasRenderer, LabelLayout, UniversalTransition,
 ])
 
@@ -225,11 +232,14 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const categoryField = [input.encoding.category, input.encoding.label]
           .find((field) => field !== undefined && input.frame.columns.some((column) => column.name === field)) ?? ''
         const label = input.format(categoryField, raw)
+        // The tick is where an annotated event is marked, so it is also where
+        // the event is named: the plot carries the band, not the text.
+        const annotations = annotationsAtAxisValue(input, raw)
         hideAxisTooltip()
         axisTooltip = document.createElement('div')
         axisTooltip.className = 'lens-axis-label-tooltip'
         axisTooltip.setAttribute('role', 'tooltip')
-        axisTooltip.textContent = label
+        axisTooltip.textContent = [label, ...annotations].join(' · ')
         // Placed off the pointer, then clamped against the bubble's own measured
         // box. The previous constants (a 280px right margin, a 36px lift)
         // encoded a guess at that box: 280 was the sheet's `max-w-64` plus its

@@ -5,6 +5,7 @@ import type { EChartsTheme } from './theme'
 
 const theme: EChartsTheme = {
   card: '#ffffff', text: '#334155', mutedText: '#64748b', border: '#e2e8f0', divider: '#f1f5f9',
+  faintText: '#94a3b8', warn: '#d97706', warnSoft: '#fffbeb', accent: '#2563eb', trend: '#7c3aed',
   selectedBorder: '#0f172a', fontFamily: 'sans-serif', colors: ['#2563eb'], seriesColor: () => undefined,
 }
 

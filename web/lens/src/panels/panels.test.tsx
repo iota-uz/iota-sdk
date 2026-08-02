@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Frame, Panel, PanelKind } from '../contract'
 import type { PanelFrameState } from '../runtime'
@@ -305,20 +305,55 @@ describe('temporal overlay controls', () => {
         referenceLines: [{ value: 50, label: 'Threshold' }],
       },
     })
-    render(<LinePanel panel={temporal} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    const view = render(<LinePanel panel={temporal} adapter={fakeAdapter((input) => inputs.push(input))} />)
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
+    // The header control and the legend entry are two switches on one state,
+    // so the header one is addressed through its own group.
+    const controls = within(view.container.querySelector<HTMLElement>('.lens-temporal-controls')!)
+    // The panel hands the chart every overlay the document declared and says
+    // separately which of them the reader has switched off, so the legend can
+    // list an overlay that is not currently drawn and offer it back.
     expect(inputs.at(-1)?.temporal).toMatchObject({ referenceLines: [{ value: 50, label: 'Threshold' }] })
-    expect(inputs.at(-1)?.temporal?.regression).toBeUndefined()
-    expect(inputs.at(-1)?.temporal?.movingAverages).toEqual([])
+    expect(inputs.at(-1)?.temporal?.regression?.field).toBe('regression')
+    expect([...(inputs.at(-1)?.hiddenOverlays ?? [])].sort()).toEqual(['average:3', 'average:7', 'trend'])
 
-    fireEvent.click(screen.getByRole('button', { name: 'Trend' }))
-    await waitFor(() => expect(inputs.at(-1)?.temporal?.regression?.field).toBe('regression'))
-    expect(screen.getByRole('button', { name: 'Trend' })).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(controls.getByRole('button', { name: 'Trend' }))
+    await waitFor(() => expect(inputs.at(-1)?.hiddenOverlays?.has('trend')).toBe(false))
+    expect(controls.getByRole('button', { name: 'Trend' })).toHaveAttribute('aria-pressed', 'true')
 
-    fireEvent.change(screen.getByRole('combobox', { name: 'Moving average' }), { target: { value: '7' } })
-    await waitFor(() => expect(inputs.at(-1)?.temporal?.movingAverages).toEqual([
-      { window: 7, field: 'sma_7', label: 'SMA 7' },
-    ]))
+    fireEvent.change(controls.getByRole('combobox', { name: 'Moving average' }), { target: { value: '7' } })
+    await waitFor(() => expect([...(inputs.at(-1)?.hiddenOverlays ?? [])].sort()).toEqual(['average:3']))
+  })
+
+  it('lists every overlay in the legend, including the ones no data row can name', async () => {
+    runtime.frame = {
+      ...state('data'),
+      data: {
+        columns: [...dataFrame.columns, { name: 'regression', type: 'number' }],
+        rows: [
+          ['root/a', 'Alpha', '2026-07-01T00:00:00Z', 'Actual', 42, 40],
+          ['root/b', 'Beta', '2026-07-02T00:00:00Z', 'Actual', 45, 43],
+        ],
+      },
+    }
+    const temporal = panel('line', {
+      temporal: {
+        regression: { field: 'regression', label: 'Trend' },
+        referenceLines: [{ value: 50, label: 'Threshold' }],
+        annotations: [{ at: '2026-07-02T00:00:00Z', label: 'Method changed' }],
+      },
+    })
+    render(<LinePanel panel={temporal} adapter={fakeAdapter()} />)
+
+    const marks = await screen.findByRole('list', { name: 'Chart marks' })
+    expect(within(marks).getByRole('button', { name: /Threshold/ })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(marks).getByRole('button', { name: /Method changed/ })).toHaveAttribute('aria-pressed', 'true')
+    // The trend is off until the header control turns it on, and the legend
+    // says so rather than omitting it.
+    expect(within(marks).getByRole('button', { name: /Trend/ })).toHaveAttribute('aria-pressed', 'false')
+
+    fireEvent.click(within(marks).getByRole('button', { name: /Threshold/ }))
+    await waitFor(() => expect(within(marks).getByRole('button', { name: /Threshold/ })).toHaveAttribute('aria-pressed', 'false'))
   })
 })
 

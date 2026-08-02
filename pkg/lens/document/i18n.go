@@ -27,6 +27,8 @@ const (
 	I18nChartLegendInvert             = "chart.legendInvert"
 	I18nChartLegendIsolate            = "chart.legendIsolate"
 	I18nChartLegendIsolateName        = "chart.legendIsolateName"
+	I18nChartLegendOverlays           = "chart.legendOverlays"
+	I18nChartLegendToggleOverlay      = "chart.legendToggleOverlay"
 	I18nChartLegendSearch             = "chart.legendSearch"
 	I18nChartLegendShowAll            = "chart.legendShowAll"
 	I18nChartLegendToggle             = "chart.legendToggle"
@@ -309,7 +311,8 @@ func RuntimeI18nKeys() []string {
 		I18nFilterPresetYearToDate, I18nFilterPresetLastMonth, I18nFilterPresetLastYear,
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
 		I18nChartCollapseOther, I18nChartDrillHint, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
-		I18nChartLegendControl, I18nChartLegendHideAll, I18nChartLegendInvert, I18nChartLegendIsolate, I18nChartLegendIsolateName, I18nChartLegendSearch,
+		I18nChartLegendControl, I18nChartLegendHideAll, I18nChartLegendInvert, I18nChartLegendIsolate, I18nChartLegendIsolateName,
+		I18nChartLegendOverlays, I18nChartLegendToggleOverlay, I18nChartLegendSearch,
 		I18nChartLegendShowAll, I18nChartLegendToggle, I18nChartLogScale, I18nChartLogScaleHint, I18nChartMovingAverage,
 		I18nChartOpenMark, I18nChartOther, I18nChartRegression, I18nChartResetZoom,
 		I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,

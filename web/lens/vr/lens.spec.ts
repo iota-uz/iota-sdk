@@ -89,9 +89,13 @@ const storyIds = [
   'panels-v2--waterfall-split-callout',
   'print-report--composed-report',
   'progressive-panels--sibling-ready-loading-and-error',
+  'temporal-overlays--category-axis-overlays',
+  'temporal-overlays--comparison-ghost',
   'temporal-overlays--forecast-confidence',
   'temporal-overlays--incomplete-period',
   'temporal-overlays--moving-average',
+  'temporal-overlays--overlay-switched-off',
+  'temporal-overlays--overlay-vocabulary',
   'temporal-overlays--reference-lines',
   'temporal-overlays--regression',
   'temporal-overlays--time-annotations',
@@ -241,9 +245,17 @@ const staticStories = [
   ['panels-v2--waterfall-semantic-tone', 0],
   ['panels-v2--waterfall-split-callout', 0],
   ['progressive-panels--sibling-ready-loading-and-error', 0],
+  // A category axis: the shape /analytics/trends draws, and the one where a
+  // single-category band needs a bar's sense of the band's edges.
+  ['temporal-overlays--category-axis-overlays', 1],
+  ['temporal-overlays--comparison-ghost', 1],
   ['temporal-overlays--forecast-confidence', 1],
   ['temporal-overlays--incomplete-period', 1],
   ['temporal-overlays--moving-average', 1],
+  // Every overlay treatment on one plot, with the legend that names them.
+  ['temporal-overlays--overlay-vocabulary', 1],
+  // The same panel with one mark switched off from that legend.
+  ['temporal-overlays--overlay-switched-off', 1],
   ['temporal-overlays--reference-lines', 1],
   ['temporal-overlays--regression', 1],
   ['temporal-overlays--time-annotations', 1],

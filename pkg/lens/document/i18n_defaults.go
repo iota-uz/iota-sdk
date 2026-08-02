@@ -15,6 +15,8 @@ func RuntimeI18nDefaults() map[string]string {
 		I18nChartLegendControl:            "Legend controls",
 		I18nChartLegendIsolate:            "Isolate series",
 		I18nChartLegendIsolateName:        "Isolate {name}",
+		I18nChartLegendOverlays:           "Chart marks",
+		I18nChartLegendToggleOverlay:      "Show or hide this mark",
 		I18nChartGaugeValue:               "{name} value",
 		I18nChartGaugeRange:               "of {maximum}",
 		I18nPanelTrendNew:                 "New",

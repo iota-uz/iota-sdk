@@ -36,6 +36,12 @@ const frame: Frame = {
   }),
 }
 
+/** The same readings with the year before them, for the comparison ghost. */
+const comparisonFrame: Frame = {
+  columns: [...frame.columns, { name: 'previous', type: 'number' }],
+  rows: frame.rows.map((row, index) => [...row, values[index]! - 9 - (index % 3)]),
+}
+
 function panel(temporal: PanelTemporal, title: string): Panel {
   return {
     id: 'temporal', kind: 'line', title, semantics: 'series', frame: 'temporal:frame',
@@ -47,6 +53,41 @@ function panel(temporal: PanelTemporal, title: string): Panel {
     temporal,
     actions: [], terminal: true,
   }
+}
+
+/**
+ * The shape /analytics/trends actually draws: a *category* axis of year keys
+ * with three ratio series, a break-even threshold and a year still running.
+ *
+ * A category axis resolves both ends of a one-category band to the same point,
+ * so a band there is drawn through a bar's sense of where a category starts and
+ * ends. This is the story that proves it — the time-axis stories cannot.
+ */
+const ratioYears = ['2022', '2023', '2024', '2025', '2026']
+const ratioSeries: Array<[string, number[]]> = [
+  ['Loss ratio', [23.7, 53.4, 14.7, 18.9, 2.8]],
+  ['Expense ratio', [44.0, 87.1, 68.3, 44.0, 30.1]],
+  ['Combined ratio', [67.7, 140.4, 83.0, 62.9, 32.9]],
+]
+const ratioFrame: Frame = {
+  columns: [
+    { name: 'year', type: 'string' },
+    { name: 'series', type: 'string' },
+    { name: 'value', type: 'number' },
+  ],
+  rows: ratioYears.flatMap((year, index) => ratioSeries.map(([name, readings]) => [year, name, readings[index]!])),
+}
+
+const ratioPanel: Panel = {
+  id: 'temporal', kind: 'line', title: 'Key ratios', semantics: 'series', frame: 'temporal:frame',
+  encoding: { category: 'year', series: 'series', value: 'value' },
+  format: { value: { kind: 'percent', minorUnits: false, precision: 1 } },
+  presentation: { legend: 'below' },
+  temporal: {
+    referenceLines: [{ value: 100, label: 'Combined-ratio break-even' }],
+    period: { category: '2026', state: 'ytd', label: 'Year to date' },
+  },
+  actions: [], terminal: true,
 }
 
 function storyDocument(storyPanel: Panel, storyFrame: Frame = frame): DashboardDocument {
@@ -61,12 +102,18 @@ function storyDocument(storyPanel: Panel, storyFrame: Frame = frame): DashboardD
   }
 }
 
-function ActivateControl({ kind }: { kind: 'regression' | 'average' }) {
+function ActivateControl({ kind }: { kind: 'regression' | 'average' | 'dismiss-overlay' }) {
   useEffect(() => runWhenReady(() => {
     if (kind === 'regression') {
       const button = document.querySelector<HTMLButtonElement>('.lens-temporal-toggle')
       if (!button) return false
       button.click()
+      return true
+    }
+    if (kind === 'dismiss-overlay') {
+      const entry = document.querySelector<HTMLButtonElement>('.lens-chart-overlay-legend .lens-chart-legend-toggle')
+      if (!entry) return false
+      entry.click()
       return true
     }
     const select = document.querySelector<HTMLSelectElement>('.lens-temporal-select')
@@ -88,7 +135,7 @@ function runWhenReady(action: () => boolean): () => void {
   return () => { cancelled = true }
 }
 
-function TemporalStory({ storyPanel, storyFrame, control }: { storyPanel: Panel; storyFrame?: Frame; control?: 'regression' | 'average' }) {
+function TemporalStory({ storyPanel, storyFrame, control }: { storyPanel: Panel; storyFrame?: Frame; control?: 'regression' | 'average' | 'dismiss-overlay' }) {
   const temporalDocument = storyDocument(storyPanel, storyFrame)
   return (
     <div className="lens-root" data-theme="light">
@@ -132,7 +179,7 @@ ReferenceLines.storyName = 'Reference lines'
 
 export const IncompletePeriod: Story = () => (
   <TemporalStory storyPanel={panel({
-    period: { category: '2026-12-01T00:00:00Z', state: 'annualized', label: 'Estimate', annualizedField: 'annualized' },
+    period: { category: '2026-12-01T00:00:00Z', state: 'annualized', annualizedField: 'annualized' },
   }, 'Incomplete period')} />
 )
 IncompletePeriod.storyName = 'Incomplete period'
@@ -144,6 +191,66 @@ export const TimeAnnotations: Story = () => (
   ] }, 'Time annotations')} />
 )
 TimeAnnotations.storyName = 'Time annotations'
+
+/**
+ * Every treatment at once, with the legend that names them.
+ *
+ * This is the story the vocabulary is judged on: a threshold, an event, a
+ * projection, an unfinished period and a fitted line all on one plot, each in
+ * its own idiom, each with an entry beneath the data rows of the legend. Before
+ * this they were four grey dashes and a stack of repeated labels.
+ */
+export const OverlayVocabulary: Story = () => (
+  <TemporalStory
+    control="regression"
+    storyPanel={panel({
+      regression: { field: 'regression', label: 'Trend' },
+      referenceLines: [{ value: 100, label: 'Operating threshold' }],
+      annotations: [{ at: '2026-04-01T00:00:00Z', label: 'Method changed' }],
+      period: { category: '2026-12-01T00:00:00Z', state: 'annualized', annualizedField: 'annualized' },
+    }, 'Overlay vocabulary')}
+  />
+)
+OverlayVocabulary.storyName = 'Overlay vocabulary'
+
+/**
+ * The same panel with the threshold switched off from the legend.
+ *
+ * An overlay entry is not a series toggle: the plot loses the mark and nothing
+ * else moves — no denominator changes, no other entry restyles — and the entry
+ * stays listed so the mark can be brought back.
+ */
+export const OverlayDismissed: Story = () => (
+  <TemporalStory
+    control="dismiss-overlay"
+    storyPanel={panel({
+      referenceLines: [{ value: 100, label: 'Operating threshold' }],
+      annotations: [{ at: '2026-04-01T00:00:00Z', label: 'Method changed' }],
+    }, 'Overlay switched off')}
+  />
+)
+OverlayDismissed.storyName = 'Overlay switched off'
+
+/**
+ * The combined-ratio panel: a category axis, three series, one threshold and a
+ * year that has not finished. Its 100% line is the one that never drew.
+ */
+export const CategoryAxisOverlays: Story = () => (
+  <TemporalStory storyFrame={ratioFrame} storyPanel={ratioPanel} />
+)
+CategoryAxisOverlays.storyName = 'Category-axis overlays'
+
+/** The comparison ghost, named in the legend instead of drifting unlabelled. */
+export const ComparisonGhost: Story = () => (
+  <TemporalStory
+    storyFrame={comparisonFrame}
+    storyPanel={{
+      ...panel({}, 'Comparison ghost'),
+      encoding: { category: 'month', series: 'series', value: 'value', previous: 'previous' },
+    }}
+  />
+)
+ComparisonGhost.storyName = 'Comparison ghost'
 
 export const ForecastConfidence: Story = () => (
   <TemporalStory

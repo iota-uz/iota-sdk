@@ -11,6 +11,11 @@ const theme: EChartsTheme = {
   mutedText: '#64748b',
   border: '#e2e8f0',
   divider: '#f1f5f9',
+  faintText: '#94a3b8',
+  warn: '#d97706',
+  warnSoft: '#fffbeb',
+  accent: '#2563eb',
+  trend: '#7c3aed',
   selectedBorder: '#0f172a',
   fontFamily: 'Inter',
   colors: ['#2563eb', '#059669'],
@@ -51,6 +56,7 @@ interface TestDataItem {
   share?: number
   remainder?: boolean
   symbol?: string
+  label?: unknown
 }
 
 interface TestSeries {
@@ -68,14 +74,23 @@ interface TestSeries {
   stack?: string
   silent?: boolean
   tooltip?: { show?: boolean }
-  lineStyle?: { type?: string }
+  lineStyle?: { type?: string | number[]; width?: number; color?: string }
   endLabel?: { formatter?: string }
   areaStyle?: unknown
   radius?: string[]
   itemStyle?: { color?: string }
   data?: Array<TestDataItem | null>
   markLine?: {
-    data?: Array<{ name?: string; xAxis?: unknown; yAxis?: number; lineStyle?: { type?: string }; label?: { formatter?: string } }>
+    data?: Array<{
+      name?: string
+      xAxis?: unknown
+      yAxis?: number
+      lineStyle?: { type?: string; color?: string; width?: number }
+      label?: { formatter?: string; position?: string; backgroundColor?: string }
+    }>
+  }
+  markArea?: {
+    data?: Array<Array<{ xAxis?: unknown; itemStyle?: { color?: string; opacity?: number } }>>
   }
 }
 
@@ -83,6 +98,7 @@ interface TestAxis {
   type?: string
   logBase?: number
   max?: number
+  min?: number
   show?: boolean
   data?: string[]
   axisLabel?: { formatter?: (value: unknown) => string }
@@ -106,7 +122,7 @@ function testOption(option: EChartsOption) {
     tooltip: TestTooltip
     xAxis: TestAxis
     yAxis: TestAxis
-    grid?: { right?: number; containLabel?: boolean }
+    grid?: { left?: number; right?: number; bottom?: number; containLabel?: boolean }
     media?: Array<{ query?: { maxWidth?: number }, option?: { series?: TestSeries[] } }>
     graphic?: TestGraphic[]
     dataZoom?: Array<{ type?: string }>
@@ -830,16 +846,119 @@ describe('buildChartOption', () => {
     expect(chart.series.map((series) => series.name)).toEqual(expect.arrayContaining([
       'Revenue · Trend', 'Revenue · SMA 3', 'Estimate', 'Revenue · Projection', 'Projection confidence',
     ]))
-    expect(chart.series.find((series) => series.name === 'Revenue · Trend')?.lineStyle).toMatchObject({ type: 'dashed' })
-    expect(chart.series.find((series) => series.name === 'Revenue · SMA 3')?.lineStyle).not.toMatchObject({ type: 'dashed' })
-    expect(chart.series[0]?.markLine?.data).toEqual(expect.arrayContaining([
-      expect.objectContaining({ name: 'Threshold', yAxis: 1400, lineStyle: { type: 'dashed', color: theme.mutedText, width: 1.5 } }),
-      expect.objectContaining({ name: 'Method changed', xAxis: 'Feb', lineStyle: { type: 'dotted', color: theme.mutedText, width: 1.5 } }),
+    // Each derived overlay has a stroke of its own: a fitted line is a wide
+    // dash, an estimate a dot, a smoothed reading an unbroken line.
+    expect(chart.series.find((series) => series.name === 'Revenue · Trend')?.lineStyle).toMatchObject({ type: [10, 5] })
+    expect(chart.series.find((series) => series.name === 'Estimate')?.lineStyle).toMatchObject({ type: 'dotted' })
+    expect(chart.series.find((series) => series.name === 'Revenue · SMA 3')?.lineStyle?.type).toBeUndefined()
+    // A stated threshold is the one solid hairline, in the warning ink, with
+    // the value on a chip at the axis end instead of its name in the plot.
+    const marked = chart.series.find((series) => series.markLine)
+    expect(marked?.markLine?.data).toEqual([
+      expect.objectContaining({
+        name: 'Threshold',
+        yAxis: 1400,
+        lineStyle: { type: 'solid', color: theme.warn, width: 1 },
+      }),
+    ])
+    // The plot keeps the number on a chip at the axis end; the name is the
+    // legend's business now.
+    expect(marked?.markLine?.data?.[0]?.label).toMatchObject({
+      formatter: '$1400', position: 'insideStartTop', backgroundColor: theme.warnSoft,
+    })
+    // An event and a projection are regions of the axis, not more lines.
+    const bands = chart.series.find((series) => series.markArea)?.markArea?.data ?? []
+    expect(bands).toEqual(expect.arrayContaining([
+      [expect.objectContaining({ xAxis: 'Feb', itemStyle: { color: theme.faintText, opacity: 0.12 } }), { xAxis: 'Feb' }],
+      [expect.objectContaining({ xAxis: 'Feb', itemStyle: { color: theme.accent, opacity: 0.09 } }), { xAxis: 'Feb' }],
+      [expect.objectContaining({ xAxis: 'Feb', itemStyle: { color: theme.faintText, opacity: 0.08 } }), { xAxis: 'Feb' }],
     ]))
     expect(chart.series.some((series) => series.name === 'Threshold' || series.name === 'Method changed')).toBe(false)
     expect(chart.series.find((series) => series.name === 'Projection lower')?.tooltip).toEqual({ show: false })
     expect(chart.series.find((series) => series.name === 'Projection confidence')?.tooltip).toEqual({ show: false })
-    expect(chart.series[0]?.data?.[1]).toMatchObject({ symbol: 'emptyCircle', label: { formatter: 'Estimate' } })
+    // The unfinished period is marked on its own datapoint but never named
+    // there: one panel's worth of text, printed once by the legend.
+    const revenue = chart.series.filter((series) => series.name === 'Revenue').at(-1)
+    expect(revenue?.data?.[1]).toMatchObject({ symbol: 'emptyCircle' })
+    expect(revenue?.data?.[1]?.label).toBeUndefined()
+  })
+
+  it('lets a reference line run edge to edge instead of reserving width for a label it no longer prints', () => {
+    const chartInput = input('line')
+    chartInput.temporal = { referenceLines: [{ value: 1400, label: 'Threshold' }] }
+
+    const withReference = testOption(buildChartOption(chartInput, theme))
+    const without = testOption(buildChartOption(input('line'), theme))
+
+    expect(withReference.grid?.right).toBe(without.grid?.right)
+    expect(withReference.grid?.containLabel).toBe(true)
+  })
+
+  it('keeps an extrapolation from redefining the axis the measurements are read on', () => {
+    // «Поступления денежных средств»: the fitted line runs below zero and the
+    // axis used to grow to accommodate it, flattening the series it explains.
+    const chartInput = input('line')
+    chartInput.frame.columns.push({ name: 'regression', type: 'number' })
+    chartInput.frame.rows = chartInput.frame.rows.map((row, index) => [...row, 900 - index * 900])
+    chartInput.temporal = { regression: { field: 'regression', label: 'Trend' } }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // Readings that never go negative keep their zero baseline; the fitted
+    // line runs off the bottom of the plot instead of moving it.
+    expect(chart.yAxis.min).toBe(0)
+    // Nothing pushed the top, so the top stays ECharts' own.
+    expect(chart.yAxis.max).toBeUndefined()
+  })
+
+  it('draws the unfinished end of a line as a dashed tail of the same series', () => {
+    const chartInput = input('line')
+    chartInput.temporal = { period: { category: 'Feb', state: 'ytd', label: 'YTD' } }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+    const body = chart.series.filter((series) => series.name === 'Revenue')
+
+    // The body stops one point short; the tail carries the boundary point and
+    // the partial one, dashed.
+    expect(body).toHaveLength(2)
+    expect(body[0]?.data?.at(-1)).toBeNull()
+    expect(body[1]?.lineStyle).toMatchObject({ type: 'dashed' })
+    expect(body[1]?.data?.filter((item) => item !== null)).toHaveLength(2)
+  })
+
+  it('hangs the incomplete band on a stacked column without disturbing the stack', () => {
+    // A band on a category axis needs a bar's sense of where a category starts
+    // and ends. A bar panel already has one, so the band rides on its first
+    // column series rather than on a host of its own — nothing is added to the
+    // chart that could take a column slot away from the stack.
+    const chartInput = input('bar')
+    chartInput.presentation = { stack: true }
+    chartInput.temporal = { period: { category: 'Feb', state: 'ytd', label: 'YTD' } }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.map((series) => series.type)).toEqual(['bar', 'bar'])
+    expect(chart.series.every((series) => series.stack === 'total')).toBe(true)
+    expect(chart.series[0]?.markArea?.data).toEqual([
+      [expect.objectContaining({ xAxis: 'Feb' }), { xAxis: 'Feb' }],
+    ])
+    // The partial column is hatched; it is not labelled once per series.
+    expect(chart.series[0]?.data?.[1]?.itemStyle).toMatchObject({ borderWidth: 2 })
+    expect(chart.series[0]?.data?.[1]?.label).toBeUndefined()
+  })
+
+  it('draws nothing for an overlay the reader switched off', () => {
+    const chartInput = input('line')
+    chartInput.temporal = {
+      referenceLines: [{ value: 1400, label: 'Threshold' }],
+      annotations: [{ at: 'Feb', label: 'Method changed' }],
+    }
+    chartInput.hiddenOverlays = new Set(['reference:0', 'annotation:0'])
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series.some((series) => series.markLine)).toBe(false)
+    expect(chart.series.some((series) => series.markArea)).toBe(false)
   })
 
   it('uses localized generated temporal labels when producer labels are absent', () => {

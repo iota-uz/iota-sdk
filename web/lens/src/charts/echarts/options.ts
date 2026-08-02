@@ -4,6 +4,7 @@ import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
 import { fallbackMarkKey } from '../keys'
+import { activeOverlayIds, categoryDisplayFormatter, chartOverlays, overlayId } from '../overlays'
 import { shouldUseLogarithmicScale } from '../scales'
 import { distributeShares, formatShare } from '../shares'
 import type { EChartsTheme } from './theme'
@@ -159,12 +160,26 @@ function numericTooltipValue(value: unknown): number | undefined {
 
 function nonZeroTooltipRecords(params: unknown): Record<string, unknown>[] {
   const entries = Array.isArray(params) ? params : [params]
+  const seen = new Set<string>()
   return entries
     .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
     // A sparse stack can contain dozens of declared series at a given
     // category. Zero rows add no information and used to be omitted by the
     // server source; printing them turns a useful tooltip into a catalogue.
     .filter((entry) => numericTooltipValue(entry.value) !== 0)
+    // A series with a gap at this category has nothing to say about it. The
+    // incomplete-period tail deliberately creates such a gap — the final
+    // segment is drawn by its own dashed series — and a "—" beside the name
+    // states only that the runtime split the line.
+    .filter((entry) => numericTooltipValue(entry.value) !== undefined)
+    // That split leaves the boundary point in two series at once, under the
+    // same name and with the same value. It is one reading, so it prints once.
+    .filter((entry) => {
+      const key = `${text(entry.seriesName)} ${String(numericTooltipValue(entry.value))}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 function timeTooltipFormatter(input: ChartInput, categoryField: string, showSeriesName: boolean) {
@@ -860,25 +875,32 @@ function confidenceBandData(
   })
 }
 
+/**
+ * The mark for the period that has not finished yet.
+ *
+ * It used to print the period's name beside the mark, once per series: on a
+ * three-series panel that is three copies of "с начала года" stacked on each
+ * other and on the data markers. The name is now stated once, by the panel —
+ * in the legend and in the caption over the plot — and the mark itself only
+ * says "this value is partial": a hatched fill on a column, an open ring on a
+ * line, with the tinted band behind them covering the whole period.
+ */
 function incompletePeriodItem<T extends Record<string, unknown>>(
   item: T,
   point: RowPoint,
   input: ChartInput,
   theme: EChartsTheme,
+  active: boolean,
 ): T & Record<string, unknown> {
   const period = input.temporal?.period
-  if (!period || point.category !== period.category) return item
-  const label = period.label || (period.state === 'annualized'
-    ? (input.labels?.estimate ?? 'Estimate')
-    : (input.labels?.ytd ?? 'YTD'))
+  if (!active || !period || point.category !== period.category) return item
   const itemStyle = item.itemStyle && typeof item.itemStyle === 'object'
     ? item.itemStyle as Record<string, unknown>
     : {}
   return {
     ...item,
     symbol: 'emptyCircle',
-    symbolSize: 12,
-    label: { show: true, formatter: label, color: theme.text, position: 'top' },
+    symbolSize: 10,
     itemStyle: {
       ...itemStyle,
       borderWidth: 2,
@@ -891,6 +913,126 @@ function incompletePeriodItem<T extends Record<string, unknown>>(
       },
     },
   }
+}
+
+/**
+ * The plot's inset from the card edge, before axis labels are measured.
+ *
+ * One object, read twice. The runtime hands the left and bottom insets to
+ * `containLabel`, which grows them by whatever the axis labels measure; the
+ * visual-regression profile cannot use that measurement, because canvas text
+ * metrics for a variable font land on a rounding boundary and shift the whole
+ * plot by a pixel between otherwise identical runs. So VR pins the same grid
+ * with the measurement replaced by a fixed allowance.
+ *
+ * The two used to be separate literals, and three commits edited only the
+ * runtime one: visual regression was guarding a geometry no reader ever saw.
+ */
+const pinnedAxisLabelBox = { width: 80, height: 22 }
+
+/** The fill of a tinted region. */
+interface BandStyle {
+  color: string
+  opacity: number
+}
+
+/** Both ends of one `markArea` region; ECharts requires exactly two. */
+type MarkAreaBand = [{ xAxis: string | number; itemStyle: BandStyle }, { xAxis: string | number }]
+
+/**
+ * The value bounds a chart should hold when a derived overlay leaves the range
+ * of the data it was derived from.
+ *
+ * A linear regression over «Поступления денежных средств» extrapolates below
+ * zero. Left to itself the axis grows to −20bn to keep the fitted line whole,
+ * and the measured series — the reason the panel exists — collapses into the
+ * top third of the plot. The data (and any stated threshold, which the reader
+ * must be able to see) defines the frame; an extrapolation that leaves it is
+ * clipped at the edge, where it visibly runs out of the plot.
+ *
+ * Only the side an overlay would have pushed is pinned, and never tighter than
+ * the baseline ECharts would have chosen anyway: pinning both ends would turn a
+ * zero-based axis into one that starts at the data's floor, and a non-zero
+ * baseline exaggerates every movement on the plot. An ordinary chart, and the
+ * end no overlay reaches, keep ECharts' own axis.
+ */
+export function clampedValueBounds(
+  data: readonly number[],
+  overlay: readonly number[],
+): { min?: number; max?: number } | undefined {
+  if (data.length === 0 || overlay.length === 0) return undefined
+  const dataMin = Math.min(...data)
+  const dataMax = Math.max(...data)
+  const overlayMin = Math.min(...overlay)
+  const overlayMax = Math.max(...overlay)
+  if (overlayMin >= dataMin && overlayMax <= dataMax) return undefined
+  const span = dataMax - dataMin
+  if (!Number.isFinite(span) || span <= 0) return undefined
+  const step = 10 ** Math.floor(Math.log10(span)) / 2
+  const pad = span * 0.05
+  const floor = (value: number) => Math.floor(value / step) * step
+  const ceil = (value: number) => Math.ceil(value / step) * step
+  return {
+    // Readings that never go negative keep the zero baseline they are read
+    // against, whatever the fitted line does below it.
+    ...(overlayMin < dataMin ? { min: dataMin >= 0 ? 0 : floor(dataMin - pad) } : {}),
+    ...(overlayMax > dataMax ? { max: ceil(dataMax + pad) } : {}),
+  }
+}
+
+/** Every finite number in one frame column. */
+function columnValues(input: ChartInput, field: string | undefined): number[] {
+  const index = columnIndex(input, field)
+  if (index < 0) return []
+  return input.frame.rows.flatMap((row) => {
+    const value = chartValue(row[index])
+    return typeof value === 'number' ? [value] : []
+  })
+}
+
+/**
+ * The typical distance between two categories on a time axis, used to give a
+ * band around a single instant the same width one category occupies.
+ */
+function medianTimeStep(timestamps: readonly number[]): number {
+  const sorted = [...new Set(timestamps)].sort((left, right) => left - right)
+  if (sorted.length < 2) return 0
+  const steps = sorted.slice(1).map((value, index) => value - sorted[index]!).sort((left, right) => left - right)
+  return steps[Math.floor(steps.length / 2)] ?? 0
+}
+
+/**
+ * The axis labels that carry an annotation, as the axis prints them.
+ *
+ * The mark for an event is a dot on its own tick, and hovering that tick names
+ * it — so the adapter, which owns the axis hover bubble, needs the same
+ * mapping the axis formatter uses.
+ */
+export function annotatedAxisValues(input: ChartInput, shown?: ReadonlySet<string>): string[] {
+  const categoryField = availableEncodingField(input, input.encoding.category, input.encoding.label) ?? ''
+  const categoryIsTime = input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
+  const timeAxis = input.kind !== 'bar' && input.kind !== 'hbar' && categoryIsTime
+  return (input.temporal?.annotations ?? [])
+    .filter((_, index) => !shown || shown.has(overlayId.annotation(index)))
+    .map(({ at }) => {
+      const parsed = timestamp(at)
+      return timeAxis && parsed !== undefined ? timeLabel(input, categoryField, parsed) : at
+    })
+}
+
+/**
+ * The annotations standing at one axis value, for the tick's hover bubble.
+ * The value arrives as ECharts hands it over: a category string on a category
+ * axis, a timestamp on a time one.
+ */
+export function annotationsAtAxisValue(input: ChartInput, raw: unknown): string[] {
+  return (input.temporal?.annotations ?? [])
+    .filter(({ at }) => {
+      if (String(raw) === at) return true
+      const parsed = timestamp(at)
+      return parsed !== undefined && typeof raw === 'number' && parsed === raw
+    })
+    .map(({ label }) => label)
 }
 
 function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
@@ -920,6 +1062,55 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const stacked = isBar && input.presentation?.stack === true
   const categoryColor = (category: string, index: number) =>
     input.seriesColor?.(category, index) ?? theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
+  // One list of overlays, shared with the panel's legend, so a mark cannot be
+  // drawn here under a vocabulary the legend does not print.
+  const overlays = chartOverlays({
+    temporal: input.temporal,
+    hasComparison: Boolean(input.encoding.previous),
+    labels: input.labels,
+    formatValue: (value) => input.format(input.encoding.value ?? '', value),
+    formatCategory: categoryDisplayFormatter({
+      format: (value) => input.format(categoryField, value),
+      isTime: categoryIsTime,
+      hasDeclaredFormat: Boolean(input.categoryFormatDefined),
+      locale: input.locale,
+    }),
+    hidden: input.hiddenOverlays,
+  })
+  const shown = activeOverlayIds(overlays)
+  const period = input.temporal?.period
+  const periodShown = Boolean(period) && shown.has(overlayId.incomplete)
+  // The final segment of a line is drawn dashed when the last category is the
+  // one that has not finished. That means the body of the line stops one point
+  // short and a dashed tail carries the last two points, which is only possible
+  // when the incomplete period really is at the end of the axis.
+  const lastTimestamp = Math.max(...points.flatMap((point) => point.timestamp === undefined ? [] : [point.timestamp]))
+  const incompleteIsLast = periodShown && !isBar && (timeAxis
+    ? timestamp(period!.category) === lastTimestamp
+    : categories[categories.length - 1] === period!.category)
+  const seriesData = seriesNames.map((name) => (timeAxis
+    ? points
+      .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
+      .sort((left, right) => left.timestamp - right.timestamp)
+      .map((point) => incompletePeriodItem(
+        { ...dataItem(point, input, theme), value: [point.timestamp, point.value] },
+        point,
+        input,
+        theme,
+        periodShown,
+      ))
+    : categories.map((category, categoryIndex) => {
+      const point = points.find((candidate) => candidate.category === category && candidate.series === name)
+      if (!point) return null
+      const item = dataItem(point, input, theme)
+      return incompletePeriodItem(
+        colorByCategory ? { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, categoryIndex) } } : item,
+        point,
+        input,
+        theme,
+        periodShown,
+      )
+    })))
   const currentSeries = seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
     name: name || undefined,
@@ -951,29 +1142,38 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name) },
     areaStyle: input.kind === 'area' ? { opacity: 0.18 } : undefined,
     showSymbol: !isBar || lineSeries.has(name),
-    data: timeAxis
-      ? points
-        .filter((point): point is RowPoint & { timestamp: number } => point.series === name && point.timestamp !== undefined)
-        .sort((left, right) => left.timestamp - right.timestamp)
-        .map((point) => incompletePeriodItem(
-          { ...dataItem(point, input, theme), value: [point.timestamp, point.value] },
-          point,
-          input,
-          theme,
-        ))
-      : categories.map((category, index) => {
-        const point = points.find((candidate) => candidate.category === category && candidate.series === name)
-        if (!point) return null
-        const item = dataItem(point, input, theme)
-        return incompletePeriodItem(
-          colorByCategory ? { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, index) } } : item,
-          point,
-          input,
-          theme,
-        )
-      }),
+    // The body of the line stops one point short when the last period is
+    // unfinished; the dashed tail below carries that final segment. The
+    // boundary point belongs to both, and the tooltip prints it once.
+    data: incompleteIsLast
+      ? [...(seriesData[index] ?? []).slice(0, -1), null]
+      : seriesData[index] ?? [],
   }))
-  const comparisonSeries = input.encoding.previous ? seriesNames.map((name, index) => ({
+  /**
+   * The unfinished end of a line, drawn dashed so the segment that is still
+   * being filled in cannot be read as a completed movement.
+   *
+   * It carries the same name as the series it continues: the two are one
+   * reading, and the axis tooltip deduplicates the point they share.
+   */
+  const incompleteTailSeries = incompleteIsLast ? seriesNames.flatMap((name, index) => {
+    const data = seriesData[index] ?? []
+    const color = input.seriesColor?.(name, index) ?? theme.seriesColor(name) ?? theme.colors[index % theme.colors.length]
+    const tail = data.slice(-2)
+    if (tail.length < 2) return []
+    return [{
+      type: 'line' as const,
+      name: name || undefined,
+      id: `lens-incomplete-tail-${index}`,
+      z: 3,
+      showSymbol: true,
+      itemStyle: { color },
+      lineStyle: { type: 'dashed' as const, width: 2, color },
+      areaStyle: input.kind === 'area' ? { opacity: 0.18, color } : undefined,
+      data: timeAxis ? tail : categories.map((_, position) => position >= data.length - 2 ? data[position] : null),
+    }]
+  }) : []
+  const comparisonSeries = input.encoding.previous && shown.has(overlayId.comparison) ? seriesNames.map((name, index) => ({
     type: isBar && !lineSeries.has(name) ? 'bar' as const : 'line' as const,
     name: `${name ? `${name} · ` : ''}${input.labels?.previous ?? 'Previous'}`,
     silent: true,
@@ -991,40 +1191,55 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         .map((point) => [point.timestamp, point.previous])
       : categories.map((category) => points.find((point) => point.category === category && point.series === name)?.previous ?? null),
   })) : []
-  const regression = input.temporal?.regression
+  const regression = shown.has(overlayId.trend) ? input.temporal?.regression : undefined
+  // A fitted line is not a measurement, and it used to say so only by being
+  // dashed — in the measured series' own colour, which is the strongest claim
+  // a chart can make that two lines are the same quantity. The wide dash is
+  // now the fitted idiom everywhere. The ink is the trend ink when the panel
+  // draws a single series, because then the hue carries no identity to lose;
+  // with several series the hue is the only thing that says which trend
+  // belongs to which line, so it is kept and the dash carries the meaning.
+  const trendColor = (name: string, index: number) => seriesNames.length > 1
+    ? (input.seriesColor?.(name, index) ?? theme.seriesColor(name) ?? theme.colors[index % theme.colors.length])
+    : theme.trend
   const regressionSeries = regression ? seriesNames.map((name, index) => ({
     type: 'line' as const,
     name: `${name ? `${name} · ` : ''}${regression.label || input.labels?.trend || 'Trend'}`,
     silent: true,
     z: 4,
     showSymbol: false,
-    itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name) },
-    lineStyle: { type: 'dashed' as const, width: 2.5, opacity: 0.9 },
+    itemStyle: { color: trendColor(name, index) },
+    lineStyle: { type: [10, 5] as [number, number], width: 2, color: trendColor(name, index), opacity: 0.95 },
     data: temporalFieldData(input, points, regression.field, name, categories, timeAxis),
   })) : []
-  const movingAverageSeries = (input.temporal?.movingAverages ?? []).flatMap((average) => seriesNames.map((name, index) => ({
+  const movingAverageSeries = (input.temporal?.movingAverages ?? [])
+    .filter((average) => shown.has(overlayId.average(average.window)))
+    .flatMap((average) => seriesNames.map((name, index) => ({
+      type: 'line' as const,
+      name: `${name ? `${name} · ` : ''}${average.label || input.labels?.movingAverage(average.window) || `SMA ${average.window}`}`,
+      silent: true,
+      z: 5,
+      showSymbol: false,
+      itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name) },
+      lineStyle: { width: 3, opacity: 0.95 },
+      data: temporalFieldData(input, points, average.field, name, categories, timeAxis),
+    })))
+  const annualized = shown.has(overlayId.estimate) ? input.temporal?.period?.annualizedField : undefined
+  const annualizedSeries = annualized ? seriesNames.map((name) => ({
     type: 'line' as const,
-    name: `${name ? `${name} · ` : ''}${average.label || input.labels?.movingAverage(average.window) || `SMA ${average.window}`}`,
-    silent: true,
-    z: 5,
-    showSymbol: false,
-    itemStyle: { color: input.seriesColor?.(name, index) ?? theme.seriesColor(name) },
-    lineStyle: { width: 3, opacity: 0.95 },
-    data: temporalFieldData(input, points, average.field, name, categories, timeAxis),
-  })))
-  const annualizedSeries = input.temporal?.period?.annualizedField ? seriesNames.map((name) => ({
-    type: 'line' as const,
-    name: input.temporal?.period?.label || input.labels?.estimate || 'Estimate',
+    name: input.labels?.estimate || 'Estimate',
     silent: true,
     z: 6,
     showSymbol: true,
     symbol: 'diamond',
     symbolSize: 11,
     itemStyle: { color: theme.mutedText },
+    // A dot, against the fitted line's wide dash: both are derived, and this
+    // one is derived from a period that has not happened yet.
     lineStyle: { type: 'dotted' as const, width: 2, color: theme.mutedText },
-    data: temporalFieldData(input, points, input.temporal!.period!.annualizedField!, name, categories, timeAxis),
+    data: temporalFieldData(input, points, annualized, name, categories, timeAxis),
   })) : []
-  const forecastSeries = input.temporal?.forecast ? seriesNames.flatMap((name, index) => {
+  const forecastSeries = input.temporal?.forecast && shown.has(overlayId.forecast) ? seriesNames.flatMap((name, index) => {
     const forecast = input.temporal!.forecast!
     const color = input.seriesColor?.(name, index) ?? theme.seriesColor(name) ?? theme.colors[index % theme.colors.length]
     const stack = `lens-forecast-${index}`
@@ -1066,40 +1281,109 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       },
     ]
   }) : []
-  const verticalMarkers = [
-    ...(input.temporal?.annotations ?? []).map(({ at, label }) => ({ at, label, type: 'dotted' as const })),
-    ...(input.temporal?.forecast ? [{
-      at: input.temporal.forecast.start,
-      label: input.temporal.forecast.label || input.labels?.forecast || 'Forecast',
-      type: 'dashed' as const,
-    }] : []),
-  ]
-  const markLineData = [
-    ...(input.temporal?.referenceLines ?? []).map((reference) => {
-      const label = reference.label || input.format(input.encoding.value ?? '', reference.value)
+  /**
+   * A stated threshold: one warning-coloured hairline running the width of the
+   * plot, with the value on a chip at the axis end of it.
+   *
+   * It used to be a grey dash indistinguishable from the four derived overlays
+   * around it, and it printed its whole name inside the plot at the right-hand
+   * end — for which the grid reserved 152px of width whether or not anything
+   * was ever drawn there. The name belongs to the legend; the plot keeps the
+   * number.
+   */
+  const markLineData = (input.temporal?.referenceLines ?? [])
+    .filter((_, index) => shown.has(overlayId.reference(index)))
+    .map((reference) => {
+      const value = input.format(input.encoding.value ?? '', reference.value)
       return {
-        name: label,
+        name: reference.label || value,
         yAxis: reference.value,
-        lineStyle: { type: 'dashed' as const, color: theme.mutedText, width: 1.5 },
-        label: { show: true, formatter: label, color: theme.mutedText, position: 'end' as const },
+        lineStyle: { type: 'solid' as const, color: theme.warn, width: 1 },
+        label: {
+          show: true,
+          position: 'insideStartTop' as const,
+          formatter: value,
+          color: theme.warn,
+          backgroundColor: theme.warnSoft,
+          borderColor: theme.warn,
+          borderWidth: 1,
+          borderRadius: 4,
+          padding: [2, 5] as [number, number],
+          fontSize: 10,
+          fontWeight: 600 as const,
+        },
       }
-    }),
-    ...verticalMarkers.map((marker) => ({
-      name: marker.label,
-      xAxis: timeAxis ? (timestamp(marker.at) ?? marker.at) : marker.at,
-      lineStyle: { type: marker.type, color: theme.mutedText, width: marker.type === 'dashed' ? 2 : 1.5 },
-      label: { show: true, formatter: marker.label, color: theme.mutedText, position: 'end' as const },
-    })),
+    })
+  const axisValue = (raw: string): string | number => timeAxis ? (timestamp(raw) ?? raw) : raw
+  const halfStep = timeAxis
+    ? medianTimeStep(points.flatMap((point) => point.timestamp === undefined ? [] : [point.timestamp])) / 2
+    : 0
+  const bandAt = (raw: string, style: BandStyle): MarkAreaBand => {
+    const value = axisValue(raw)
+    return typeof value === 'number'
+      ? [{ xAxis: value - halfStep, itemStyle: style }, { xAxis: value + halfStep }]
+      // On a category axis a single category is both ends of the band; the
+      // host series below is a bar, and a bar's marker positioning resolves
+      // those ends to the band's own edges rather than to its centre twice.
+      : [{ xAxis: value, itemStyle: style }, { xAxis: value }]
+  }
+  const bandFrom = (raw: string, style: BandStyle): MarkAreaBand => {
+    const start = axisValue(raw)
+    const last = timeAxis
+      ? lastTimestamp + halfStep
+      : categories[categories.length - 1] ?? start
+    return typeof start === 'number'
+      ? [{ xAxis: start - halfStep, itemStyle: style }, { xAxis: last }]
+      : [{ xAxis: start, itemStyle: style }, { xAxis: last }]
+  }
+  /**
+   * The regions. An event and a projection are true of a span of the axis, not
+   * of a value, so each is a tinted band rather than another full-height line
+   * competing with the data for the reader's attention.
+   */
+  const markAreaData = [
+    ...(periodShown ? [bandAt(period!.category, { color: theme.faintText, opacity: 0.12 })] : []),
+    ...(input.temporal?.annotations ?? [])
+      .filter((_, index) => shown.has(overlayId.annotation(index)))
+      .map((annotation) => bandAt(annotation.at, { color: theme.accent, opacity: 0.09 })),
+    ...(input.temporal?.forecast && shown.has(overlayId.forecast)
+      ? [bandFrom(input.temporal.forecast.start, { color: theme.faintText, opacity: 0.08 })]
+      : []),
   ]
-  // Mark lines annotate the axes without contributing synthetic values to the
-  // data extent. In particular, adding a vertical annotation must never
-  // rescale the values it is meant to explain.
-  const annotatedCurrentSeries = currentSeries.map((series, index) => index === 0 && markLineData.length > 0
-    ? { ...series, markLine: { silent: true, symbol: ['none', 'none'], data: markLineData } }
+  // Mark lines and areas annotate the axes without contributing synthetic
+  // values to the data extent. In particular, adding a vertical annotation
+  // must never rescale the values it is meant to explain.
+  const markLine = markLineData.length > 0
+    ? { silent: true, symbol: ['none', 'none'], data: markLineData }
+    : undefined
+  const markArea = markAreaData.length > 0 ? { silent: true, data: markAreaData } : undefined
+  const annotatedCurrentSeries = currentSeries.map((series, index) => index === 0 && (markLine || (markArea && isBar))
+    ? { ...series, ...(markLine ? { markLine } : {}), ...(markArea && isBar ? { markArea } : {}) }
     : series)
+  /**
+   * A band on a category axis needs a bar's sense of where a category starts
+   * and ends; a line series resolves both ends of a one-category band to the
+   * same point and draws nothing. A bar panel already has a bar to hang the
+   * band on. A line panel gets this: an empty, silent bar series that exists
+   * only to own the regions. It carries no data, so it cannot take a column
+   * slot away from anything — and a line panel has no columns to share.
+   */
+  const bandHostSeries = markArea && !isBar ? [{
+    type: 'bar' as const,
+    id: 'lens-overlay-bands',
+    silent: true,
+    z: 0,
+    animation: false,
+    tooltip: { show: false },
+    itemStyle: { opacity: 0 },
+    data: [],
+    markArea,
+  }] : []
   const series = [
+    ...bandHostSeries,
     ...comparisonSeries,
     ...annotatedCurrentSeries,
+    ...incompleteTailSeries,
     ...regressionSeries,
     ...movingAverageSeries,
     ...annualizedSeries,
@@ -1110,11 +1394,20 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   // catalogue product name asks for the whole width, leaving the bars a sliver
   // — the chart then states nothing at all. Names are capped and the reading
   // stays with the bars; the full name is in the tooltip and in the table.
+  // An annotated category is marked on the axis itself — a dot before its
+  // name, in the annotation's own colour — and hovering that tick names the
+  // event. The plot keeps the band and stays free of text.
+  const annotatedTicks = new Set(annotatedAxisValues(input, shown).map((value) => String(value)))
+  const tickLabel = (value: string) => annotatedTicks.has(value) ? `{annotated|●} ${value}` : value
+  const annotatedRich = { annotated: { color: theme.accent, fontSize: 9 } }
   const categoryAxis = {
     type: 'category' as const,
     data: categories,
     triggerEvent: true,
     ...axisStyle(theme),
+    ...(annotatedTicks.size > 0 && !horizontal
+      ? { axisLabel: { color: theme.mutedText, formatter: (value: string) => tickLabel(String(value)), rich: annotatedRich } }
+      : {}),
     // ECharts passes the category index as the formatter's second argument;
     // passing middleEllipsis directly therefore treated the index as a width
     // and mangled already-short labels such as "Apr".
@@ -1124,31 +1417,65 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     type: 'time' as const,
     triggerEvent: true,
     ...axisStyle(theme),
-    axisLabel: { color: theme.mutedText, formatter: (value: number) => timeLabel(input, categoryField, value) },
+    axisLabel: {
+      color: theme.mutedText,
+      formatter: (value: number) => tickLabel(timeLabel(input, categoryField, value)),
+      ...(annotatedTicks.size > 0 ? { rich: annotatedRich } : {}),
+    },
   }
+  // An extrapolation may not redefine the frame the measurements are read in.
+  const clamped = logarithmic ? undefined : clampedValueBounds(
+    [
+      ...numericPointValues,
+      ...(input.encoding.previous && shown.has(overlayId.comparison) ? columnValues(input, input.encoding.previous) : []),
+      // A threshold is a stated fact about the same axis, so the frame has to
+      // hold it even when no reading comes near it.
+      ...(input.temporal?.referenceLines ?? [])
+        .filter((_, index) => shown.has(overlayId.reference(index)))
+        .map((reference) => reference.value),
+    ],
+    [
+      ...(regression ? columnValues(input, regression.field) : []),
+      ...(annualized ? columnValues(input, annualized) : []),
+      ...(input.temporal?.forecast && shown.has(overlayId.forecast)
+        ? [input.temporal.forecast.valueField, input.temporal.forecast.lowerField, input.temporal.forecast.upperField]
+          .flatMap((field) => columnValues(input, field))
+        : []),
+    ],
+  )
   const valueAxis = {
     type: logarithmic ? 'log' as const : 'value' as const,
     show: points.some((point) => typeof point.value === 'number' && point.value !== 0),
     logBase: logarithmic ? (input.valueAxis?.logBase || 10) : undefined,
-    max: logMaximum,
+    min: clamped?.min,
+    max: logMaximum ?? clamped?.max,
     ...axisStyle(theme),
     axisLabel: { color: theme.mutedText, formatter: axisValueFormatter(input), hideOverlap: true },
   }
 
+  // One grid, described once. A reference line no longer reserves width for a
+  // name it prints in the legend, so the line runs edge to edge.
+  const gridInset = {
+    left: 16,
+    right: horizontal ? (logarithmic ? 88 : 16) : 64,
+    top: 24,
+    bottom: timeAxis ? 52 : horizontal ? 12 : 32,
+  }
   return {
     ...baseOption(theme),
-    // In VR mode the grid inset is pinned: containLabel derives it from
+    // The VR profile cannot use `containLabel`: it derives the inset from
     // canvas text measurement, which lands on a rounding boundary for the
-    // variable font and shifts the whole plot by 1px between runs.
+    // variable font and shifts the whole plot by 1px between runs. It pins
+    // *this* grid with a fixed allowance in place of that measurement, rather
+    // than describing a second geometry that no reader ever sees.
     grid: isVisualRegression()
-      ? { left: 96, right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 168 : 32, top: 24, bottom: timeAxis ? 58 : 32, containLabel: false }
-      : {
-        left: 16,
-        right: (input.temporal?.referenceLines?.length ?? 0) > 0 ? 152 : horizontal ? (logarithmic ? 88 : 16) : 64,
-        top: 24,
-        bottom: timeAxis ? 52 : horizontal ? 12 : 32,
-        containLabel: true,
-      },
+      ? {
+        ...gridInset,
+        left: gridInset.left + pinnedAxisLabelBox.width,
+        bottom: gridInset.bottom + pinnedAxisLabelBox.height,
+        containLabel: false,
+      }
+      : { ...gridInset, containLabel: true },
     dataZoom: timeAxis ? [
       { type: 'inside', xAxisIndex: 0, filterMode: 'none' },
       { type: 'slider', xAxisIndex: 0, filterMode: 'none', height: 18, bottom: 8 },

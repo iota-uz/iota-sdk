@@ -2,6 +2,10 @@ import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import type { Frame, NodeKey, Panel } from '../contract'
 import { radialNodeKey, type ChartActivation, type ChartAdapter, type ChartAnchor, type ChartFormatResolver, type ChartInput, type ChartKind } from '../charts/adapter'
 import { fallbackMarkKey } from '../charts/keys'
+import {
+  categoryDisplayFormatter, chartOverlays, overlayId, overlayToneProperty,
+  type ChartOverlay,
+} from '../charts/overlays'
 import { remainderColor } from '../charts/palette'
 import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
@@ -244,6 +248,10 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     : temporalStateFromURL(new URL(window.location.href), panel.id)
   const [showRegression, setShowRegression] = useState(initialTemporalState.regression)
   const [movingAverageWindow, setMovingAverageWindow] = useState<number | undefined>(initialTemporalState.movingAverage)
+  // Overlays the reader switched off from the legend. The trend and the moving
+  // average are not held here: they already have state of their own behind the
+  // header controls, and one mark must not have two switches that disagree.
+  const [dismissedOverlays, setDismissedOverlays] = useState<ReadonlySet<string>>(() => new Set())
   const [localHidden, setLocalHidden] = useState<ReadonlySet<string>>(() => (
     typeof window === 'undefined' ? new Set() : hiddenSeriesFromURL(new URL(window.location.href), panel.id)
   ))
@@ -425,11 +433,35 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     [active, document.theme, frameColors, panel],
   )
 
-  const temporal = useMemo(() => panel.temporal ? {
-    ...panel.temporal,
-    regression: showRegression ? panel.temporal.regression : undefined,
-    movingAverages: panel.temporal.movingAverages?.filter(({ window }) => window === movingAverageWindow),
-  } : undefined, [movingAverageWindow, panel.temporal, showRegression])
+  // Every overlay the panel declares stays in the input; this set decides which
+  // of them are drawn. The chart and the legend then read one list, so an
+  // overlay cannot be drawn under a name the legend never prints — or, as
+  // before, drawn with no name available anywhere.
+  const hiddenOverlays = useMemo(() => {
+    const hiddenSet = new Set(dismissedOverlays)
+    if (!showRegression) hiddenSet.add(overlayId.trend)
+    for (const { window } of panel.temporal?.movingAverages ?? []) {
+      if (window !== movingAverageWindow) hiddenSet.add(overlayId.average(window))
+    }
+    return hiddenSet as ReadonlySet<string>
+  }, [dismissedOverlays, movingAverageWindow, panel.temporal?.movingAverages, showRegression])
+  const toggleOverlay = useCallback((id: string) => {
+    if (id === overlayId.trend) {
+      setShowRegression((current) => !current)
+      return
+    }
+    const average = panel.temporal?.movingAverages?.find(({ window }) => overlayId.average(window) === id)
+    if (average) {
+      setMovingAverageWindow((current) => current === average.window ? undefined : average.window)
+      return
+    }
+    setDismissedOverlays((current) => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }, [panel.temporal?.movingAverages])
   const temporalControls = (kind === 'line' || kind === 'area') && panel.temporal
     && (panel.temporal.regression || panel.temporal.movingAverages?.length) ? (
       <div className="lens-temporal-controls">
@@ -459,6 +491,24 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       </div>
     ) : undefined
 
+  const chartLabels = useMemo(() => ({
+    previous: translate('chart.series.previous', 'Previous'),
+    trend: translate('chart.series.trend', 'Trend'),
+    movingAverage: (window: number) => translate('chart.series.movingAverage', 'SMA {window}', { window: String(window) }),
+    estimate: translate('chart.series.estimate', 'Estimate'),
+    ytd: translate('chart.series.ytd', 'YTD'),
+    forecast: translate('chart.series.forecast', 'Forecast'),
+    forecastLower: (forecast: string) => translate('chart.series.forecastLower', '{forecast} lower', { forecast }),
+    forecastConfidence: (forecast: string) => translate('chart.series.forecastConfidence', '{forecast} confidence', { forecast }),
+    boxplot: [
+      translate('chart.boxplot.min', 'Min'),
+      translate('chart.boxplot.q1', 'Q1'),
+      translate('chart.boxplot.median', 'Median'),
+      translate('chart.boxplot.q3', 'Q3'),
+      translate('chart.boxplot.max', 'Max'),
+    ] as [string, string, string, string, string],
+  }), [translate])
+
   const input = useMemo<ChartInput | undefined>(() => renderFrame ? ({
     kind,
     frame: renderFrame,
@@ -470,33 +520,38 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     locale: document.meta?.locale,
     shareDecimalSeparator: panel.encoding.value ? panel.format[panel.encoding.value]?.decimalSeparator : undefined,
     tooltipTotalLabel: translate('panel.total', 'Total'),
-    labels: {
-      previous: translate('chart.series.previous', 'Previous'),
-      trend: translate('chart.series.trend', 'Trend'),
-      movingAverage: (window: number) => translate('chart.series.movingAverage', 'SMA {window}', { window: String(window) }),
-      estimate: translate('chart.series.estimate', 'Estimate'),
-      ytd: translate('chart.series.ytd', 'YTD'),
-      forecast: translate('chart.series.forecast', 'Forecast'),
-      forecastLower: (forecast: string) => translate('chart.series.forecastLower', '{forecast} lower', { forecast }),
-      forecastConfidence: (forecast: string) => translate('chart.series.forecastConfidence', '{forecast} confidence', { forecast }),
-      boxplot: [
-        translate('chart.boxplot.min', 'Min'),
-        translate('chart.boxplot.q1', 'Q1'),
-        translate('chart.boxplot.median', 'Median'),
-        translate('chart.boxplot.q3', 'Q3'),
-        translate('chart.boxplot.max', 'Max'),
-      ],
-    },
+    labels: chartLabels,
     theme: document.theme,
     selectedKey,
     presentation,
     seriesColor,
     rowColor,
     radial: panel.radial,
-    temporal,
+    temporal: panel.temporal,
+    hiddenOverlays,
     valueAxis: panel.valueAxis,
     expandable,
-  }) : undefined, [document.meta?.locale, document.theme, expandable, format, formatAxis, kind, panel.encoding, panel.format, panel.radial, panel.valueAxis, presentation, renderFrame, rowColor, selectedKey, seriesColor, temporal, translate])
+  }) : undefined, [chartLabels, document.meta?.locale, document.theme, expandable, format, formatAxis, hiddenOverlays, kind, panel.encoding, panel.format, panel.radial, panel.temporal, panel.valueAxis, presentation, renderFrame, rowColor, selectedKey, seriesColor, translate])
+
+  // The overlays the legend prints, built from the same list the plot draws
+  // from and with the same formatters, so a threshold reads "100%" in both.
+  const overlays = useMemo<ChartOverlay[]>(() => {
+    if (!panel.temporal && !panel.encoding.previous) return []
+    const categoryField = panel.encoding.category ?? panel.encoding.label
+    return chartOverlays({
+      temporal: panel.temporal,
+      hasComparison: Boolean(panel.encoding.previous),
+      labels: chartLabels,
+      formatValue: (value) => format(panel.encoding.value ?? '', value),
+      formatCategory: categoryDisplayFormatter({
+        format: (value) => format(categoryField ?? '', value),
+        isTime: frame.data?.columns.some((column) => column.name === categoryField && column.type === 'time') === true,
+        hasDeclaredFormat: Boolean(categoryField && panel.format[categoryField]),
+        locale: document.meta?.locale,
+      }),
+      hidden: hiddenOverlays,
+    })
+  }, [chartLabels, document.meta?.locale, format, frame.data?.columns, hiddenOverlays, panel.encoding, panel.format, panel.temporal])
   const onMarkSelect = useMarkSelection()
   // Explore hosts can open the overlay for any segment that has something to
   // show; a standalone tree panel can only drill where a target exists.
@@ -532,11 +587,18 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // when the panel is too narrow (handled in CSS by a container query). Moving
   // it out of the plot's footer hands the freed width to the chart, which fills
   // the left of the body.
-  const hasLegend = !compact && presentation?.legend === 'below' && Boolean(renderFrame)
+  // An overlay is a mark the reader has to be able to look up, and the legend
+  // is where a chart's marks are looked up. A panel that draws overlays
+  // therefore gets a legend column whether or not it asked for one — otherwise
+  // its thresholds and estimates are, as before, named nowhere at all.
+  const hasLegend = !compact && (presentation?.legend === 'below' || overlays.length > 0) && Boolean(renderFrame)
   const chartInteractive = interactive || collapsedRemainder.collapsed
   const categoryField = panel.encoding.category ?? panel.encoding.label
   const zoomable = (kind === 'line' || kind === 'area')
     && renderFrame?.columns.some((column) => column.name === categoryField && column.type === 'time') === true
+  // Which period is unfinished, said once, in words, over the plot — instead of
+  // once per series inside it.
+  const incompletePeriod = overlays.find((overlay) => overlay.kind === 'incomplete' && overlay.active)
   return (
     <PanelFrame allowEmptyContent={!distribution} panel={panel} frame={frame} headerActions={temporalControls} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
@@ -545,14 +607,23 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           {presentation?.totalBadge === 'plot' && shareTotal !== undefined && (
             <PlotTotalBadge panel={panel} total={shareTotal} />
           )}
-          {logarithmic && (
-            <div
-              className="lens-chart-log-scale"
-              role="note"
-              title={translate('chart.logScaleHint', 'Values are shown on a logarithmic scale')}
-            >
-              <WarningTriangle aria-hidden="true" />
-              <span>{translate('chart.logScale', 'Logarithmic scale')}</span>
+          {(logarithmic || incompletePeriod) && (
+            <div className="lens-chart-notes">
+              {logarithmic && (
+                <span
+                  className="lens-chart-log-scale"
+                  role="note"
+                  title={translate('chart.logScaleHint', 'Values are shown on a logarithmic scale')}
+                >
+                  <WarningTriangle aria-hidden="true" />
+                  <span>{translate('chart.logScale', 'Logarithmic scale')}</span>
+                </span>
+              )}
+              {incompletePeriod && (
+                <span className="lens-chart-period-note" role="note">
+                  {[incompletePeriod.detail, incompletePeriod.label].filter(Boolean).join(' · ')}
+                </span>
+              )}
             </div>
           )}
           {remainderExpanded && collapsedRemainder.collapsed && (
@@ -597,8 +668,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
             hidden={hidden}
             onSetHidden={setHiddenSeries}
             onToggle={toggleSeries}
+            onToggleOverlay={toggleOverlay}
+            overlays={overlays}
             panel={panel}
             presentation={presentation}
+            showRows={presentation?.legend === 'below'}
             total={shareTotal}
           />
         )}
@@ -676,15 +750,22 @@ function PlotTotalBadge({ panel, total }: { panel: Panel; total: number }) {
  * are measured against `total` — the same authoritative whole the plot uses —
  * so hiding an entry no longer moves the numbers on the entries left behind.
  */
-const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidden, onToggle, total, presentation }: {
+const ChartLegend = memo(function ChartLegend({
+  panel, frame, hidden, onSetHidden, onToggle, onToggleOverlay, overlays, total, presentation, showRows,
+}: {
   panel: Panel
   frame: Frame
   hidden: ReadonlySet<string>
   onSetHidden: (keys: ReadonlySet<string>) => void
   onToggle: (key: string) => void
+  onToggleOverlay: (id: string) => void
+  /** The marks that are not rows of the frame; see `charts/overlays`. */
+  overlays: readonly ChartOverlay[]
   total?: number
   // The served frame's decisions when it carries any; see ChartPanel.
   presentation?: Panel['presentation']
+  /** False when the panel grew a legend only to hold its overlays. */
+  showRows: boolean
 }) {
   const { document, navigation } = useDashboard()
   const translate = useTranslate()
@@ -822,7 +903,10 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
       observer?.disconnect()
     }
   }, [visibleEntries.length])
-  if (labelIndex < 0) return null
+  // A panel with no label column, or one that never asked for a row legend,
+  // can still have overlays to name.
+  const showDataRows = showRows && labelIndex >= 0
+  if (!showDataRows && overlays.length === 0) return null
   const solo = (key: string) => {
     const alreadySolo = !hidden.has(key) && model.allKeys.every((candidate) => candidate === key || hidden.has(candidate))
     onSetHidden(alreadySolo ? new Set() : new Set(model.allKeys.filter((candidate) => candidate !== key)))
@@ -830,85 +914,147 @@ const ChartLegend = memo(function ChartLegend({ panel, frame, hidden, onSetHidde
 
   return (
     <div className="lens-chart-legend-shell">
-      <div aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend-tools" role="group">
-        <button onClick={() => onSetHidden(new Set(model.allKeys))} type="button">{translate('chart.legendHideAll', 'Hide all')}</button>
-        <button onClick={() => onSetHidden(new Set())} type="button">{translate('chart.legendShowAll', 'Show all')}</button>
-        <button onClick={() => onSetHidden(new Set(model.allKeys.filter((key) => !hidden.has(key))))} type="button">{translate('chart.legendInvert', 'Invert')}</button>
-      </div>
-      {model.entries.length > searchableLegendEntries && (
-        <label className="lens-chart-legend-search">
-          <span className="lens-sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
-          <input
-            onChange={(event) => setSearch(event.currentTarget.value)}
-            placeholder={translate('chart.legendSearch', 'Search legend')}
-            type="search"
-            value={search}
-          />
-        </label>
+      {showDataRows && (
+        <>
+          <div aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend-tools" role="group">
+            <button onClick={() => onSetHidden(new Set(model.allKeys))} type="button">{translate('chart.legendHideAll', 'Hide all')}</button>
+            <button onClick={() => onSetHidden(new Set())} type="button">{translate('chart.legendShowAll', 'Show all')}</button>
+            <button onClick={() => onSetHidden(new Set(model.allKeys.filter((key) => !hidden.has(key))))} type="button">{translate('chart.legendInvert', 'Invert')}</button>
+          </div>
+          {model.entries.length > searchableLegendEntries && (
+            <label className="lens-chart-legend-search">
+              <span className="lens-sr-only">{translate('chart.legendSearch', 'Search legend')}</span>
+              <input
+                onChange={(event) => setSearch(event.currentTarget.value)}
+                placeholder={translate('chart.legendSearch', 'Search legend')}
+                type="search"
+                value={search}
+              />
+            </label>
+          )}
+          <div
+            className="lens-chart-legend-scroll-frame"
+            data-overflow-bottom={legendEdges.bottom || undefined}
+            data-overflow-top={legendEdges.top || undefined}
+          >
+            {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
+            <ul aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend" ref={legendRef} role="region" tabIndex={legendEdges.top || legendEdges.bottom ? 0 : undefined}>
+              {visibleEntries.map((index, visibleIndex) => {
+                const row = frame.rows[index]!
+                const entryIndex = model.entryPositions.get(index) ?? index
+                const raw = row[labelIndex]
+                const label = raw === null || raw === undefined ? '' : formatLabel(raw)
+                const key = model.entryKeys[index]!
+                const isHidden = hidden.has(key)
+                const ringKey = model.ringByIndex.get(index)
+                const previousRingKey = visibleIndex > 0 ? model.ringByIndex.get(visibleEntries[visibleIndex - 1]!) : undefined
+                const ringLabel = panel.radial?.rings?.find((ring) => ring.key === ringKey)?.label ?? ringKey
+                return (
+                  <Fragment key={`${key}-${index}`}>
+                    {ringKey && ringKey !== previousRingKey && <li className="lens-chart-legend-heading">{ringLabel}</li>}
+                    <li className="lens-chart-legend-item" key={`${key}-${index}`}>
+                      <button
+                        aria-pressed={!isHidden}
+                        className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
+                        onClick={() => onToggle(key)}
+                        title={translate('chart.legendToggle', 'Toggle series')}
+                        type="button"
+                      >
+                        <span
+                          aria-hidden="true"
+                          className="lens-chart-legend-mark"
+                          style={{ background: swatch(label, index, entryIndex) }}
+                        />
+                        <span className="lens-chart-legend-label">{label}</span>
+                        {suffixFor(index) !== 'none' && (
+                          <>
+                            <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+                            <span className="lens-chart-legend-value">
+                              {suffixFor(index) === 'percent'
+                                ? formatShare(model.shares.get(index), document.meta?.locale, valueField ? panel.format[valueField]?.decimalSeparator : undefined)
+                                : formatValue(model.valueByKey.get(key))}
+                            </span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        aria-label={translate('chart.legendIsolate', 'Isolate series')}
+                        className="lens-chart-legend-solo"
+                        onClick={() => solo(key)}
+                        title={translate('chart.legendIsolateName', 'Isolate {name}', { name: label })}
+                        type="button"
+                      >
+                        ◎
+                      </button>
+                    </li>
+                  </Fragment>
+                )
+              })}
+            </ul>
+            <span aria-hidden="true" className="lens-chart-legend-edge lens-chart-legend-edge-top" />
+            <span aria-hidden="true" className="lens-chart-legend-edge lens-chart-legend-edge-bottom" />
+          </div>
+        </>
       )}
-      <div
-        className="lens-chart-legend-scroll-frame"
-        data-overflow-bottom={legendEdges.bottom || undefined}
-        data-overflow-top={legendEdges.top || undefined}
-      >
-        {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- overflowing native scroll regions must be keyboard-focusable. */}
-        <ul aria-label={translate('chart.legendControls', 'Legend controls')} className="lens-chart-legend" ref={legendRef} role="region" tabIndex={legendEdges.top || legendEdges.bottom ? 0 : undefined}>
-          {visibleEntries.map((index, visibleIndex) => {
-            const row = frame.rows[index]!
-            const entryIndex = model.entryPositions.get(index) ?? index
-            const raw = row[labelIndex]
-            const label = raw === null || raw === undefined ? '' : formatLabel(raw)
-            const key = model.entryKeys[index]!
-            const isHidden = hidden.has(key)
-            const ringKey = model.ringByIndex.get(index)
-            const previousRingKey = visibleIndex > 0 ? model.ringByIndex.get(visibleEntries[visibleIndex - 1]!) : undefined
-            const ringLabel = panel.radial?.rings?.find((ring) => ring.key === ringKey)?.label ?? ringKey
-            return (
-              <Fragment key={`${key}-${index}`}>
-                {ringKey && ringKey !== previousRingKey && <li className="lens-chart-legend-heading">{ringLabel}</li>}
-                <li className="lens-chart-legend-item" key={`${key}-${index}`}>
-                  <button
-                    aria-pressed={!isHidden}
-                    className={`lens-chart-legend-toggle${isHidden ? ' lens-chart-legend-hidden' : ''}`}
-                    onClick={() => onToggle(key)}
-                    title={translate('chart.legendToggle', 'Toggle series')}
-                    type="button"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="lens-chart-legend-mark"
-                      style={{ background: swatch(label, index, entryIndex) }}
-                    />
-                    <span className="lens-chart-legend-label">{label}</span>
-                    {suffixFor(index) !== 'none' && (
-                      <>
-                        <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
-                        <span className="lens-chart-legend-value">
-                          {suffixFor(index) === 'percent'
-                            ? formatShare(model.shares.get(index), document.meta?.locale, valueField ? panel.format[valueField]?.decimalSeparator : undefined)
-                            : formatValue(model.valueByKey.get(key))}
-                        </span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    aria-label={translate('chart.legendIsolate', 'Isolate series')}
-                    className="lens-chart-legend-solo"
-                    onClick={() => solo(key)}
-                    title={translate('chart.legendIsolateName', 'Isolate {name}', { name: label })}
-                    type="button"
-                  >
-                    ◎
-                  </button>
-                </li>
-              </Fragment>
-            )
-          })}
-        </ul>
-        <span aria-hidden="true" className="lens-chart-legend-edge lens-chart-legend-edge-top" />
-        <span aria-hidden="true" className="lens-chart-legend-edge lens-chart-legend-edge-bottom" />
-      </div>
+      {overlays.length > 0 && <OverlayLegend onToggle={onToggleOverlay} overlays={overlays} />}
     </div>
+  )
+})
+
+/**
+ * The marks that are not rows of the frame: thresholds, events, forecasts, the
+ * unfinished period, the fitted line, the comparison ghost.
+ *
+ * They sit under the data rows, behind a rule and a heading, because they are
+ * a different kind of thing and the reader has to be able to tell which half of
+ * the legend a name came from. They also behave differently, and the difference
+ * is deliberate:
+ *
+ *  - a data row can be hidden, isolated, or measured as a share of the total;
+ *  - an overlay has no share of anything — it is not part of the sum — so it
+ *    carries no value column, no isolate control, and the Hide all / Show all /
+ *    Invert group above does not reach it.
+ *
+ * Clicking one draws or removes that mark, and nothing else on the plot moves:
+ * removing a threshold cannot change a percentage the way hiding a series does.
+ * The swatch is a miniature of the mark itself — the same stroke, the same ink —
+ * so it can be matched to the plot without reading the name.
+ */
+const OverlayLegend = memo(function OverlayLegend({ overlays, onToggle }: {
+  overlays: readonly ChartOverlay[]
+  onToggle: (id: string) => void
+}) {
+  const translate = useTranslate()
+  const heading = translate('chart.legendOverlays', 'Chart marks')
+  return (
+    <ul aria-label={heading} className="lens-chart-legend lens-chart-overlay-legend">
+      <li className="lens-chart-legend-heading">{heading}</li>
+      {overlays.map((overlay) => (
+        <li className="lens-chart-legend-item" key={overlay.id}>
+          <button
+            aria-pressed={overlay.active}
+            className={`lens-chart-legend-toggle${overlay.active ? '' : ' lens-chart-legend-hidden'}`}
+            onClick={() => onToggle(overlay.id)}
+            title={translate('chart.legendToggleOverlay', 'Show or hide this mark')}
+            type="button"
+          >
+            <span
+              aria-hidden="true"
+              className="lens-chart-overlay-mark"
+              data-stroke={overlay.stroke}
+              style={{ '--lens-overlay-ink': `var(${overlayToneProperty(overlay.tone)})` } as React.CSSProperties}
+            />
+            <span className="lens-chart-legend-label">{overlay.label}</span>
+            {overlay.detail && (
+              <>
+                <span aria-hidden="true" className="lens-chart-legend-separator">·</span>
+                <span className="lens-chart-legend-value">{overlay.detail}</span>
+              </>
+            )}
+          </button>
+        </li>
+      ))}
+    </ul>
   )
 })
 

@@ -52,6 +52,15 @@
     --lens-pos-soft: #ecfdf5;
     --lens-neg-soft: #fef2f2;
     --lens-warn-soft: #fffbeb;
+    /* A fitted line is not one of the measurements it was fitted to, and until
+       now it was drawn in the measured series' own colour with a dash — which
+       reads as the same quantity, differently styled. It gets an ink of its
+       own, outside the categorical palette so it cannot be confused with a
+       category, and outside the warning family so it cannot be confused with a
+       threshold. Every other derived mark is grey or the series' own hue at low
+       opacity; this one is the only line the reader must never mistake for
+       data. */
+    --lens-overlay-trend: #7c3aed;
     /* 4px-base spacing scale. The dense-terminal grid rhythm (gaps, paddings,
        margins) references these instead of ad-hoc px literals so a single edit
        retunes the whole sheet. The half-step covers the tightest 2px gaps
@@ -159,6 +168,7 @@
     --lens-neg-soft: rgba(220, 38, 38, 0.16);
     --lens-neg-alt: #f87171;
     --lens-warn-soft: rgba(217, 119, 6, 0.16);
+    --lens-overlay-trend: #c4b5fd;
     color-scheme: dark;
   }
 
@@ -2171,8 +2181,20 @@
 
     /* Pin the swatch to the first text line rather than the row's centre so a
        wrapped label doesn't leave it floating between lines. */
-    .lens-chart-layout-legend .lens-chart-legend-mark {
+    .lens-chart-layout-legend .lens-chart-legend-mark,
+    .lens-chart-layout-legend .lens-chart-overlay-mark {
       margin-top: 0.25rem;
+    }
+
+    /* The overlay list sits outside the rows' scroll frame — it is short and
+       must stay visible while a long product legend scrolls above it — so it
+       needs the column arrangement stated for it too. */
+    .lens-chart-layout-legend > .lens-chart-legend-shell > .lens-chart-overlay-legend {
+      flex-direction: column;
+      flex-wrap: nowrap;
+      align-items: stretch;
+      justify-content: flex-start;
+      padding: 0 0.5rem 0.5rem;
     }
 
     .lens-chart-layout-legend .lens-chart-legend-label {
@@ -2196,11 +2218,37 @@
 
   /* A logarithmic bar is deliberately non-linear. Keep that warning on the
      reading surface instead of hiding it in an info tooltip. */
+  /* The notes over the plot — a scale warning, the name of the period that has
+     not finished — share one row so a second note cannot land on the first.
+     They were separately positioned overlays, which is how the incomplete
+     period ended up naming itself once per series inside the plot instead. */
+  .lens-chart-notes {
+    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-flex lens-flex-wrap lens-items-center lens-gap-1;
+  }
+
   .lens-chart-log-scale {
-    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-sm lens-font-medium;
+    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-px-2.5 lens-py-1 lens-text-sm lens-font-medium;
     border-color: color-mix(in srgb, var(--lens-warn) 35%, var(--lens-border));
     background: var(--lens-warn-soft);
     color: var(--lens-warn);
+  }
+
+  /* Which period is still filling in, stated once for the whole panel. The
+     hatch repeats the band drawn behind that period on the plot. */
+  .lens-chart-period-note {
+    @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-full lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1 lens-text-sm lens-font-medium lens-text-muted;
+  }
+
+  .lens-chart-period-note::before {
+    @apply lens-h-3 lens-w-2 lens-flex-none lens-rounded-badge;
+    content: '';
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--lens-text-faint) 55%, transparent),
+      color-mix(in srgb, var(--lens-text-faint) 55%, transparent) 1px,
+      transparent 1px,
+      transparent 4px
+    );
   }
 
   .lens-chart-log-scale svg {
@@ -2312,6 +2360,61 @@
   .lens-chart-legend-mark {
     @apply lens-size-2 lens-shrink-0 lens-rounded-sm;
     background: var(--lens-accent-500);
+  }
+
+  /* ── The overlay half of a legend ───────────────────────────────────────
+     Below the data rows, behind the heading's rule. A row is a slice of the
+     total and can be hidden, isolated and measured; an overlay is a mark on
+     the plot and can only be drawn or not, so it carries neither a value cell
+     nor the isolate control, and the Hide all / Show all / Invert group above
+     leaves it alone. The swatch is the mark in miniature — same ink, same
+     stroke — so a line in the plot can be matched to its name without
+     reading it. */
+  .lens-chart-overlay-legend {
+    @apply lens-pt-0;
+  }
+
+  .lens-chart-overlay-mark {
+    @apply lens-relative lens-h-2 lens-w-4 lens-shrink-0;
+    color: var(--lens-overlay-ink, var(--lens-text-faint));
+  }
+
+  .lens-chart-overlay-mark::before {
+    @apply lens-absolute lens-inset-x-0 lens-top-1/2 lens-block lens-h-0;
+    content: '';
+    border-top: 2px solid currentcolor;
+  }
+
+  /* A stated threshold is the one unbroken hairline in the vocabulary. */
+  .lens-chart-overlay-mark[data-stroke='hairline']::before {
+    border-top-width: 1px;
+  }
+
+  /* Wide dash: fitted. Fine dot: estimated. */
+  .lens-chart-overlay-mark[data-stroke='dashed']::before {
+    border-top-style: dashed;
+  }
+
+  .lens-chart-overlay-mark[data-stroke='dotted']::before {
+    border-top-style: dotted;
+  }
+
+  /* A region, not a value: the swatch is filled rather than stroked. */
+  .lens-chart-overlay-mark[data-stroke='band']::before,
+  .lens-chart-overlay-mark[data-stroke='hatch']::before {
+    @apply lens-inset-y-0 lens-h-auto lens-rounded-badge;
+    border: 0;
+    background: color-mix(in srgb, currentcolor 22%, transparent);
+  }
+
+  .lens-chart-overlay-mark[data-stroke='hatch']::before {
+    background: repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, currentcolor 55%, transparent),
+      color-mix(in srgb, currentcolor 55%, transparent) 1px,
+      transparent 1px,
+      transparent 4px
+    );
   }
 
   .lens-chart-legend-value {

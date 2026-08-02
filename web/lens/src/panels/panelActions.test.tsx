@@ -431,6 +431,7 @@ describe('chart tooltips', () => {
     const { tooltipChrome, tooltipZIndex, tooltipClassName } = await import('../charts/echarts/options')
     const chrome = tooltipChrome({
       card: '#fff', text: '#111', mutedText: '#666', border: '#eee', divider: '#eee',
+      faintText: '#94a3b8', warn: '#d97706', warnSoft: '#fffbeb', accent: '#2563eb', trend: '#7c3aed',
       selectedBorder: '#000', fontFamily: 'Inter', colors: [], seriesColor: () => undefined,
     })
 
