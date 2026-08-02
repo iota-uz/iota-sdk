@@ -1,4 +1,5 @@
 import type { EChartsOption } from 'echarts'
+import { compactChartLabelWidth } from '../../breakpoints'
 import type { Presentation } from '../../contract'
 import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
@@ -454,7 +455,7 @@ export function donutSliceLabel(params: unknown, input: ChartInput): string {
   const share = typeof data.share === 'number'
     ? data.share
     : (typeof record.percent === 'number' ? record.percent : undefined)
-  if (input.viewportWidth !== undefined && input.viewportWidth < 500) return text(record.name)
+  if (input.viewportWidth !== undefined && input.viewportWidth < compactChartLabelWidth) return text(record.name)
   const value = input.format(input.encoding.value ?? '', data.value)
   return `${text(record.name)}\n${value} · ${formatShare(share, input.locale, input.shareDecimalSeparator)}`
 }
