@@ -25,7 +25,7 @@ function object(value: unknown): Record<string, unknown> | undefined {
   return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : undefined
 }
 
-function validateGeometry(input: unknown, featureProperty: string, labelProperty?: string): GeoJSONFeatureCollection {
+function validateGeometry(input: unknown, featureProperty: string): GeoJSONFeatureCollection {
   const collection = object(input)
   if (collection?.type !== 'FeatureCollection' || !Array.isArray(collection.features) || collection.features.length === 0) {
     throw new Error('Map geometry must be a non-empty GeoJSON FeatureCollection')
@@ -40,9 +40,12 @@ function validateGeometry(input: unknown, featureProperty: string, labelProperty
     if (typeof key !== 'string' || key.trim() === '') throw new Error(`Map feature ${index} has no string ${featureProperty} key`)
     if (keys.has(key)) throw new Error(`Map geometry has duplicate region key ${key}`)
     keys.add(key)
-    if (labelProperty && (typeof properties[labelProperty] !== 'string' || String(properties[labelProperty]).trim() === '')) {
-      throw new Error(`Map feature ${key} has no string ${labelProperty} label`)
-    }
+
+    // A missing name is not invalid geometry. This used to throw, so a boundary
+    // file translated into three languages out of four took the whole panel
+    // down in the fourth — «Не удалось отобразить панель» where the honest
+    // outcome is one region labelled in another language. Keys and shapes are
+    // what this function is for; naming falls back at render time.
     if ((geometry.type !== 'Polygon' && geometry.type !== 'MultiPolygon') || geometry.coordinates === undefined) {
       throw new Error(`Map feature ${key} must use Polygon or MultiPolygon geometry`)
     }
@@ -84,14 +87,13 @@ async function readBounded(response: Response, maxBytes: number): Promise<string
 export async function loadMapGeometry(
   source: GeoJSONSource,
   featureProperty: string,
-  labelProperty?: string,
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
 ): Promise<GeoJSONFeatureCollection> {
   const inline = source.inline !== undefined
   const remote = typeof source.url === 'string' && source.url.trim() !== ''
   if (inline === remote) throw new Error('Map source requires exactly one of inline or URL')
-  if (inline) return validateGeometry(source.inline, featureProperty, labelProperty)
+  if (inline) return validateGeometry(source.inline, featureProperty)
 
   const maxBytes = source.maxBytes ?? 0
   if (!Number.isInteger(maxBytes) || maxBytes <= 0 || maxBytes > MAX_MAP_GEOJSON_BYTES) {
@@ -116,7 +118,7 @@ export async function loadMapGeometry(
   } catch {
     throw new Error('Map geometry response is not valid JSON')
   }
-  return validateGeometry(parsed, featureProperty, labelProperty)
+  return validateGeometry(parsed, featureProperty)
 }
 
 export function mapJoinError(panel: Panel, frame: Frame, geometry: GeoJSONFeatureCollection): Error | undefined {
@@ -170,7 +172,7 @@ export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapP
       setGeometry({ loading: false, error: new Error('Map panel has no map config') })
       return () => controller.abort()
     }
-    void loadMapGeometry(config.source, config.featureProperty, labelProperty, fetcher, controller.signal)
+    void loadMapGeometry(config.source, config.featureProperty, fetcher, controller.signal)
       .then((data) => setGeometry({ loading: false, data }))
       .catch((cause: unknown) => {
         if (!controller.signal.aborted) {
@@ -204,7 +206,10 @@ export function MapPanel({ panel, adapter, fetcher, frame: frameOverride }: MapP
     return {
       kind: 'map', frame: frame.data, encoding: panel.encoding, format, formatAxis: format,
       theme: document.theme,
-      map: { name: `lens-map:${panel.id}`, geoJSON: geometry.data, featureProperty: config.featureProperty, labelProperty },
+      map: {
+        name: `lens-map:${panel.id}`, geoJSON: geometry.data, featureProperty: config.featureProperty,
+        labelProperty, fallbackLabelProperty: config.labelProperty,
+      },
     }
   }, [config, document.theme, formatValue, frame.data, geometry.data, joinError, labelProperty, panel.encoding, panel.id])
 

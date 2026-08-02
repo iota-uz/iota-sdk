@@ -320,7 +320,12 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
   const featureLabels = new Map<string, string>()
   for (const feature of input.map.geoJSON.features) {
     const key = text(feature.properties[input.map.featureProperty])
-    const label = input.map.labelProperty ? text(feature.properties[input.map.labelProperty]) : key
+    // Locale name, then the geometry's own default name, then the join key. A
+    // region the boundary file never translated is named in whatever language
+    // it does carry rather than shown as «UZ-AN».
+    const label = (input.map.labelProperty ? text(feature.properties[input.map.labelProperty]) : '')
+      || (input.map.fallbackLabelProperty ? text(feature.properties[input.map.fallbackLabelProperty]) : '')
+      || key
     if (key) featureLabels.set(key, label || key)
   }
   const frameLabels = new Map<string, string>()

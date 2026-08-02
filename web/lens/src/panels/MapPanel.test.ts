@@ -23,28 +23,28 @@ const frame: Frame = {
 
 describe('map geometry source', () => {
   it('accepts a synthetic inline Polygon collection', async () => {
-    await expect(loadMapGeometry({ inline: geometry }, 'code', 'name')).resolves.toEqual(geometry)
+    await expect(loadMapGeometry({ inline: geometry }, 'code')).resolves.toEqual(geometry)
   })
 
   it('fetches only a bounded same-origin JSON response', async () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify(geometry), {
       status: 200, headers: { 'Content-Type': 'application/geo+json' },
     }))
-    await expect(loadMapGeometry({ url: '/maps/synthetic.geojson', maxBytes: 4096 }, 'code', 'name', fetcher)).resolves.toEqual(geometry)
+    await expect(loadMapGeometry({ url: '/maps/synthetic.geojson', maxBytes: 4096 }, 'code', fetcher)).resolves.toEqual(geometry)
     expect(fetcher).toHaveBeenCalledWith('/maps/synthetic.geojson', expect.objectContaining({ credentials: 'same-origin' }))
   })
 
   it('rejects cross-origin, oversized, and malformed geometry', async () => {
     const fetcher = vi.fn<typeof fetch>()
-    await expect(loadMapGeometry({ url: 'https://example.com/map.geojson', maxBytes: 4096 }, 'code', 'name', fetcher)).rejects.toThrow('same-origin')
+    await expect(loadMapGeometry({ url: 'https://example.com/map.geojson', maxBytes: 4096 }, 'code', fetcher)).rejects.toThrow('same-origin')
     expect(fetcher).not.toHaveBeenCalled()
 
     const oversized = vi.fn<typeof fetch>().mockResolvedValue(new Response('{}', {
       status: 200, headers: { 'Content-Type': 'application/json', 'Content-Length': '5000' },
     }))
-    await expect(loadMapGeometry({ url: '/map.geojson', maxBytes: 100 }, 'code', 'name', oversized)).rejects.toThrow('exceeds 100 bytes')
+    await expect(loadMapGeometry({ url: '/map.geojson', maxBytes: 100 }, 'code', oversized)).rejects.toThrow('exceeds 100 bytes')
 
-    await expect(loadMapGeometry({ inline: { ...geometry, features: [{ ...geometry.features[0]!, geometry: { type: 'Point', coordinates: [0, 0] } }] } }, 'code', 'name')).rejects.toThrow('Polygon or MultiPolygon')
+    await expect(loadMapGeometry({ inline: { ...geometry, features: [{ ...geometry.features[0]!, geometry: { type: 'Point', coordinates: [0, 0] } }] } }, 'code')).rejects.toThrow('Polygon or MultiPolygon')
   })
 })
 

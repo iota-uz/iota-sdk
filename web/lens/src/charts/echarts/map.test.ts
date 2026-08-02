@@ -184,3 +184,37 @@ describe('choropleth chrome', () => {
     expect(option.tooltip.formatter({ name: 'north', data: { amount: 42 } })).toContain('$42')
   })
 })
+
+describe('choropleth naming', () => {
+  it('names a feature the locale never translated from the geometry default', () => {
+    const input: ChartInput = {
+      kind: 'map',
+      frame: {
+        columns: [{ name: 'code', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['north', 42], ['south', 18]],
+      },
+      encoding: { id: 'code', value: 'value' },
+      format: (_field, value) => `${String(value)} policies`,
+      theme: { palette: { accent: '#2563eb' }, series: {} },
+      map: {
+        name: 'synthetic', featureProperty: 'code', labelProperty: 'nameRu', fallbackLabelProperty: 'nameEn',
+        geoJSON: {
+          type: 'FeatureCollection',
+          features: [
+            { type: 'Feature', properties: { code: 'north', nameEn: 'North', nameRu: 'Север' }, geometry: { type: 'Polygon', coordinates: [] } },
+            // The boundary file carries no Russian name for this one. Before
+            // the fallback existed that was fatal to the whole panel.
+            { type: 'Feature', properties: { code: 'south', nameEn: 'South' }, geometry: { type: 'Polygon', coordinates: [] } },
+          ],
+        },
+      },
+    }
+
+    const option = buildMapOption(input, theme) as {
+      series: Array<{ label: { formatter: (params: { name?: string }) => string } }>
+    }
+    const formatter = option.series[0]!.label.formatter
+    expect(formatter({ name: 'north' })).toBe('Север')
+    expect(formatter({ name: 'south' })).toBe('South')
+  })
+})

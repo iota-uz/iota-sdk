@@ -71,6 +71,14 @@ export interface ChartInput {
     geoJSON: GeoJSONFeatureCollection
     featureProperty: string
     labelProperty?: string
+    /**
+     * The property to read a feature's name from when `labelProperty` — the
+     * locale-specific one — is absent on that feature. A boundary file that
+     * carries English names for every region and Russian names for most is the
+     * normal state of external geometry, and it must cost that one region its
+     * translation, not the whole map.
+     */
+    fallbackLabelProperty?: string
   }
   /**
    * Whether a point expands into a further level, keyed by its id (falling
