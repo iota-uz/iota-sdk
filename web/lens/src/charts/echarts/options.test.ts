@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
 import { fallbackMarkKey } from '../keys'
 import {
-  buildChartOption, categoryLabelWidth, categoryTickInterval, donutSliceLabel, middleEllipsis,
+  buildChartOption, categoryLabelLimit, categoryLabelWidth, categoryTickInterval, donutSliceLabel, middleEllipsis,
   niceLogMaximum, rawPercentPrecision, slicePercentLabel,
 } from './options'
 import type { EChartsTheme } from './theme'
@@ -571,6 +571,20 @@ describe('buildChartOption', () => {
     expect(categoryLabelWidth(1200)).toBe(260)
     expect(categoryLabelWidth(407)).toBe(155)
     expect(categoryLabelWidth(undefined)).toBe(260)
+  })
+
+  it('shortens the name to the same allowance that clips it', () => {
+    // The drawn width and the string length are one decision, so the ellipsis
+    // cannot land somewhere other than the clip.
+    expect(categoryLabelLimit(407)).toBe(Math.round(categoryLabelWidth(407) / 6.5))
+    expect(categoryLabelLimit(1200)).toBe(40)
+    // Narrow enough that a proportional share would leave no readable name.
+    expect(categoryLabelLimit(120)).toBe(11)
+    // The decision is stable across the pixels between two allowances, which is
+    // what keeps the mounted adapter off a rebuild-per-pixel resize path, and
+    // changes once the reader would actually see a different string.
+    expect(categoryLabelLimit(1000)).toBe(categoryLabelLimit(1010))
+    expect(categoryLabelLimit(407)).not.toBe(categoryLabelLimit(900))
   })
 
   it('states the value unit once on the axis instead of on every tick', () => {

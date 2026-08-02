@@ -1587,8 +1587,15 @@
      overflow its box: `justify-end` sends an overflowing cluster leftwards,
      across the title and the ⓘ, which is how the trends panels ended up
      reading «СТРАХОВЫЕ ВЫПЛАТ|Регрессия». */
+  /* `flex-none` states that the cluster is content-sized, which is right until
+     the content is wider than the header: flex:0 0 auto resolves to max-content
+     and nothing then bounds it, so between the container query below (320px)
+     and roughly 440px the cluster drew 422px wide in a 378px card and its last
+     control hung 60px outside the panel. `max-width:100%` gives it the header
+     as a ceiling; it already wraps, so it spends that ceiling on a second row
+     of its own instead of on the card's edge. */
   .lens-panel-actions {
-    @apply lens-flex lens-min-w-0 lens-flex-none lens-flex-wrap lens-items-center lens-justify-end lens-gap-2 lens-py-1;
+    @apply lens-flex lens-min-w-0 lens-max-w-full lens-flex-none lens-flex-wrap lens-items-center lens-justify-end lens-gap-2 lens-py-1;
   }
 
   /* Four-up KPI cards are narrow even on a desktop viewport, so viewport

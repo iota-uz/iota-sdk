@@ -1225,6 +1225,22 @@ export function categoryLabelWidth(plotWidth: number | undefined): number {
   return Math.max(72, Math.min(260, Math.round(plotWidth * 0.38)))
 }
 
+/**
+ * The same allowance expressed as the string length that fits in it.
+ *
+ * `axisLabel.width` clips the drawn glyphs; this shortens the string before it
+ * is drawn, so a name that does not fit loses its middle rather than its end
+ * and keeps both identifying halves. The two have to be derived from one
+ * number or the ellipsis lands somewhere other than the clip.
+ *
+ * It is also the honest test for "the label decision changed": the allowance
+ * moves with every pixel of the box, but what a reader sees only changes when
+ * this does. The mounted adapter rebuilds on that, not on the raw width.
+ */
+export function categoryLabelLimit(plotWidth: number | undefined): number {
+  return Math.max(8, Math.round(categoryLabelWidth(plotWidth) / 6.5))
+}
+
 function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const points = rowPoints(input)
   const categories = [...new Set(points.map((point) => point.category))]
@@ -1648,7 +1664,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         axisLabel: {
           color: theme.mutedText,
           width: nameWidth,
-          formatter: (value: string) => middleEllipsis(String(value), Math.max(8, Math.round(nameWidth / 6.5))),
+          formatter: (value: string) => middleEllipsis(String(value), categoryLabelLimit(input.viewportWidth)),
           overflow: 'truncate' as const,
         },
       }

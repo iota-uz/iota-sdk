@@ -8,7 +8,7 @@ import { CanvasRenderer } from 'echarts/renderers'
 import { compactChartLabelWidth } from '../../breakpoints'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
-import { annotationsAtAxisValue, buildChartOption } from './options'
+import { annotationsAtAxisValue, buildChartOption, categoryLabelLimit } from './options'
 import { buildEChartsTheme } from './theme'
 
 // The mark components are what draw `markLine` and `markArea`. Without them
@@ -322,12 +322,24 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
         const { width, height } = readBox(element, entries)
         if (width <= 0 || height <= 0) return
         if (appliedBox && width === appliedBox.width && height >= appliedBox.height) return
-        const compact = (box: number) => box < compactChartLabelWidth
-        const crossedCompactLabelBoundary = appliedBox ? compact(appliedBox.width) !== compact(width) : false
+        // Every label decision this chart takes from its own box width, as one
+        // value. ECharts settles label layout when the option is built, so
+        // `chart.resize` alone re-fits the plot while leaving those decisions at
+        // the width the chart happened to be built at. A horizontal bar built
+        // full-width and then narrowed — a sidebar toggle, a collapsed expand, a
+        // window drag — kept a 260px name allowance in a 438px canvas: the names
+        // took the plot, nine of eleven bars drew at zero width and the zero tick
+        // was gone, which is the same picture the fixed 260px cap used to
+        // produce. Rebuilding when the decision changes, rather than when the
+        // width changes, keeps that off the per-pixel resize path.
+        const labelDecision = (box: number) => input.kind === 'donut' || input.kind === 'pie'
+          ? String(box < compactChartLabelWidth)
+          : input.kind === 'hbar' ? String(categoryLabelLimit(box)) : ''
+        const labelsChanged = appliedBox ? labelDecision(appliedBox.width) !== labelDecision(width) : false
         appliedBox = { width, height }
         beginRender()
         chart.resize({ width, height })
-        if (crossedCompactLabelBoundary && (input.kind === 'donut' || input.kind === 'pie')) render()
+        if (labelsChanged) render()
       }
       const resizeObserver = observeSize(element, resizeChart)
       const themeObserver = observeTheme(element, render)

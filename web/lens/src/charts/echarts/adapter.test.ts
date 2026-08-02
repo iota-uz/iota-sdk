@@ -265,6 +265,44 @@ describe('ECharts adapter', () => {
     instance.dispose()
   })
 
+  it('rebuilds a bar chart\'s name column when the box stops affording the old one', () => {
+    // ECharts settles axis-label layout when the option is built, so resizing
+    // alone re-fits the plot while the name allowance stays at the width the
+    // chart was built at. A horizontal bar built full-width and then narrowed
+    // kept a 260px name column in a 438px canvas: the names took the plot and
+    // the bars drew at zero width — the picture the flat cap used to produce.
+    const chart = new FakeChart()
+    const element = document.createElement('div')
+    let clientWidth = 960
+    Object.defineProperty(element, 'clientWidth', { get: () => clientWidth })
+    document.body.append(element)
+    const input = { ...chartInput(), kind: 'hbar' as const }
+    const instance = createEChartsAdapter(() => chart as never).mount(element, input, {
+      onSelect: vi.fn(),
+      onHover: vi.fn(),
+    })
+    const observer = FakeResizeObserver.instances[0]!
+    const nameColumn = () => {
+      const option = chart.options.at(-1) as unknown as { yAxis?: { axisLabel?: { width?: number } } }
+      return option.yAxis?.axisLabel?.width
+    }
+    const built = chart.options.length
+    expect(nameColumn()).toBe(260)
+
+    // Same allowance either side: a resize that changes no label decision must
+    // not put a rebuild on the per-pixel resize path.
+    clientWidth = 950
+    observer.resize({ width: 950, height: 320 })
+    expect(chart.options).toHaveLength(built)
+
+    clientWidth = 438
+    observer.resize({ width: 438, height: 320 })
+    expect(chart.options.length).toBeGreaterThan(built)
+    expect(nameColumn()).toBe(166)
+
+    instance.dispose()
+  })
+
   it('rebuilds centralized theme options when CSS variables change', async () => {
     const chart = new FakeChart()
     const root = document.createElement('div')
