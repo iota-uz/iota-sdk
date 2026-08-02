@@ -109,8 +109,9 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
       </span>
     )
   }
-  const up = percent > 0
-  const flat = percent === 0
+  const movement = trend.absoluteDeltaUnit === 'percentage_points' && absolute !== undefined ? absolute : percent
+  const up = movement > 0
+  const flat = movement === 0
   // The polarity is the producer's; the arrow is always the sign's.
   const polarity = trendPolarity(trend)
   const good = polarity === 'lower_better' ? !up : up
@@ -135,14 +136,17 @@ export function TrendChip({ panel, frame }: { panel: Panel; frame?: Frame }) {
     : `${absolute > 0 ? '+' : ''}${trend.absoluteDeltaUnit === 'percentage_points'
       ? `${formatPercentagePoints(absolute)} ${translate('panel.trend.percentagePoints', 'pp')}`
       : formatAbsolute(absolute)}`
+  const deltaText = trend.absoluteDeltaUnit === 'percentage_points' && absoluteText !== undefined
+    ? absoluteText
+    : clampedDeltaPercent(percent, document?.meta?.locale) ?? formattedPercent
   const label = trend.label || translate('panel.trend.comparison', 'vs comparison')
   return (
     <span
       className={`lens-trend-chip ${tone}`}
-      title={[formattedPercent, absoluteText, detail ?? label].filter(Boolean).join(' · ')}
+      title={[deltaText, trend.absoluteDeltaUnit === 'percentage_points' ? undefined : absoluteText, detail ?? label].filter(Boolean).join(' · ')}
     >
       <TrendIcon />
-      <strong>{clampedDeltaPercent(percent, document?.meta?.locale) ?? formattedPercent}</strong>
+      <strong>{deltaText}</strong>
       {detail === undefined && absoluteText !== undefined && (
         <span className="lens-trend-chip-absolute">({absoluteText})</span>
       )}

@@ -1166,23 +1166,23 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.queryByText('+0.0%')).toBeNull()
   })
 
-  it('names the baseline a ratio moved from, keeping the point delta on the chip itself', () => {
+  it('shows percentage KPI comparisons in points instead of relative percent change', () => {
     runtime.frame = {
       data: {
         columns: [{ name: 'value', type: 'number' }, { name: 'delta', type: 'number' }, { name: 'delta_percent', type: 'number' }],
-        rows: [[42, 2.5, 10]],
+        rows: [[3, -11, -78.4]],
       },
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
     render(<StatPanel panel={panel('stat', {
       encoding: { value: 'value' },
-      trend: { percent: 10, absoluteField: 'delta', percentField: 'delta_percent', absoluteDeltaUnit: 'percentage_points' },
+      trend: { percent: -78.4, absoluteField: 'delta', percentField: 'delta_percent', absoluteDeltaUnit: 'percentage_points' },
     })} />)
 
-    // 42 today after a +2.5 point move: the chip names the 39.5 it moved from
-    // rather than repeating a magnitude the two figures on screen already give.
-    expect(screen.getByText(/was 39\.5/)).toBeInTheDocument()
-    expect(document.querySelector('.lens-trend-chip')).toHaveAttribute('title', expect.stringContaining('+2.5 pp'))
+    expect(screen.getByText('-11 pp')).toBeInTheDocument()
+    expect(screen.getByText(/was 14/)).toBeInTheDocument()
+    expect(screen.queryByText('-78.4%')).toBeNull()
+    expect(document.querySelector('.lens-trend-chip')).toHaveAttribute('title', '-11 pp · was 14')
   })
 })
 
