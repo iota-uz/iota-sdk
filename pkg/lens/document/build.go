@@ -243,6 +243,17 @@ func appendPanelTree(
 		radial = buildRadial(spec)
 		if radial != nil && radial.Mode == RadialModePartition {
 			semantics = SemanticsPartition
+			if deferred {
+				// A ring's Total is the whole its rows reconcile against, and a
+				// deferred panel has no rows yet — the figure here came from the
+				// layout skeleton, so every slice would print its amount as a
+				// percentage of a placeholder. Zero means "reconcile against the
+				// rows", which is what the runtime does until the real whole
+				// arrives with the panel.
+				for index := range radial.Rings {
+					radial.Rings[index].Total = 0
+				}
+			}
 		}
 	case PanelKindMap:
 		mapConfig = buildMap(spec)

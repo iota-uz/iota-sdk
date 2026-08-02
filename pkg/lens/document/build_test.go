@@ -117,6 +117,20 @@ func TestBuild_RadialPanelsCarryExplicitGeometry(t *testing.T) {
 		Tolerance: 0.01,
 	}, wire.Radial)
 	require.Equal(t, &Presentation{Legend: LegendBelow, SliceLabels: SliceLabelsPercent}, wire.Presentation)
+
+	// A deferred panel has no rows yet, so a declared ring total can only be the
+	// layout skeleton's placeholder. Left in place it made every slice print its
+	// own amount as a percentage of that placeholder; zero tells the runtime to
+	// reconcile against the rows it is actually given.
+	deferredDoc, err := Build(spec, executed, BuildOptions{
+		SnapshotID: "radial-deferred", GeneratedAt: time.Unix(1, 0).UTC(), Locale: "en", DeferPanels: true,
+	})
+	require.NoError(t, err)
+	require.Len(t, deferredDoc.Panels, 1)
+	require.NotNil(t, deferredDoc.Panels[0].Radial)
+	for _, ring := range deferredDoc.Panels[0].Radial.Rings {
+		require.Zero(t, ring.Total, ring.Key)
+	}
 }
 
 func TestBuildPresentation_ShowLegendFallsBackToBelow(t *testing.T) {

@@ -390,6 +390,26 @@ func progressiveProjectionSpec(frozen panel.Spec, executed panel.Spec) (panel.Sp
 	result.TotalBadgeValue = executed.TotalBadgeValue
 	result.Presentation = executed.Presentation
 	result.Colors = append([]string(nil), executed.Colors...)
+	// A ring's Total is the whole its rows reconcile against — the same kind of
+	// figure as TotalBadgeValue, and knowable only once the panel has run. Left
+	// frozen it came from the layout skeleton, so every slice printed its own
+	// amount against a placeholder whole: «874 936 990 251,0 %» where the ring
+	// carried 92,01 млрд. The ring set itself stays structural; only the
+	// executed totals are adopted, and only for rings the frozen spec declares.
+	if result.Radial != nil && executed.Radial != nil {
+		radial := *result.Radial
+		radial.Rings = append([]panel.RadialRing(nil), result.Radial.Rings...)
+		totals := make(map[string]float64, len(executed.Radial.Rings))
+		for _, ring := range executed.Radial.Rings {
+			totals[ring.Key] = ring.Total
+		}
+		for index := range radial.Rings {
+			if total, ok := totals[radial.Rings[index].Key]; ok {
+				radial.Rings[index].Total = total
+			}
+		}
+		result.Radial = &radial
+	}
 	return result, nil
 }
 
