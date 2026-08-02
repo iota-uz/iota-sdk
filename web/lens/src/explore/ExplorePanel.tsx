@@ -14,7 +14,7 @@ import type { Encoding, FieldFormat, Frame, Level, Node, NodeKey, Panel } from '
 import { CaretDown, CaretLeft, CaretRight } from '../icons'
 import { MarkSelectionContext, PanelChromeContext } from '../panels/context'
 import { RegisteredPanel, type PanelRegistry } from '../panels/registry'
-import { seriesColorResolver } from '../panels/data'
+import { colorLabels, seriesColorResolver } from '../panels/data'
 import {
   isPerspectiveFork,
   levelForPath,
@@ -259,7 +259,9 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
     const labelIndex = labelField ? frame.data.columns.findIndex((column) => column.name === labelField) : -1
     const raw = labelIndex >= 0 ? row[labelIndex] : undefined
     const label = typeof raw === 'string' ? raw : labelForNode(node, level, document, frame.data, viewPanel.encoding)
-    return seriesColorResolver(document.theme, viewPanel, { positional: !active })(label, index)
+    return seriesColorResolver(document.theme, viewPanel, {
+      positional: !active, labels: colorLabels(frame.data, viewPanel),
+    })(label, index)
   }, [active, document, frame.data, level, viewPanel])
 
   const drillTo = useCallback((...keys: Array<NodeKey>) => {
@@ -454,8 +456,10 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
   // Mini-chart colors resolve by label, never positionally: the parent is a
   // drill level, and its slices must keep the colors the plot drew for them.
   const miniColorFor = useCallback((label: string, index: number) => (
-    seriesColorResolver(document.theme, panel, { positional: false })(label, index)
-  ), [document.theme, panel])
+    seriesColorResolver(document.theme, panel, {
+      positional: false, labels: colorLabels(frame.data, panel),
+    })(label, index)
+  ), [document.theme, frame.data, panel])
   const switchLens = useCallback((perspectiveId: string) => {
     runViewTransition(() => drill.switchPerspective(perspectiveId))
   }, [drill])

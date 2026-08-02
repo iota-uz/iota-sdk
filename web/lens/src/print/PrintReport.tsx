@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import type { DashboardDocument, Panel, Theme } from '../contract'
 import { buildCascadeStages, buildWaterfallModel } from '../panels/CascadePanel'
 import { ChartHost } from '../panels/ChartHost'
-import { seriesColorResolver } from '../panels/data'
+import { colorLabels, seriesColorResolver } from '../panels/data'
 import { WaterfallPlot } from '../panels/WaterfallPlot'
 import {
   clampedDeltaPercent,
@@ -103,7 +103,7 @@ function auditRows(section: PrintSection, locale: string, theme: Theme): AuditTa
     return current - previous
   }
 
-  const resolveColor = seriesColorResolver(theme, panel, { positional: section.root })
+  const resolveColor = seriesColorResolver(theme, panel, { positional: section.root, labels: colorLabels(frame, panel) })
   // The value column is stated in one unit, so a bridge step and a portfolio
   // total are read against each other rather than digit by digit.
   const unit = columnUnit(frame.rows.map((row, rowIndex) => stepValue(row, rowIndex)), valueFormat, locale)

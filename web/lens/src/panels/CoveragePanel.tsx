@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { Frame, Panel } from '../contract'
 import { useDashboard, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
-import { columnIndex, displayText, panelField, seriesColorResolver } from './data'
+import { colorLabels, columnIndex, displayText, panelField, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 import { StatLink } from './StatPanel'
 
@@ -124,7 +124,7 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
   const { document } = useDashboard()
   const { segments, total } = useMemo(
     () => frame.data
-      ? buildCoverageSegments(panel, frame.data, seriesColorResolver(document.theme, panel))
+      ? buildCoverageSegments(panel, frame.data, seriesColorResolver(document.theme, panel, { labels: colorLabels(frame.data, panel) }))
       : { segments: [], total: 0 },
     [document.theme, frame.data, panel],
   )

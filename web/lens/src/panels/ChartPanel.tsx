@@ -17,7 +17,7 @@ import { usePanelNavigation } from './actions'
 import { ChartDataEquivalent } from './ChartDataEquivalent'
 import { ChartHost } from './ChartHost'
 import { useMarkSelection } from './context'
-import { encodingRoles, rowColorResolver, seriesColorResolver } from './data'
+import { colorLabels, encodingRoles, rowColorResolver, seriesColorResolver } from './data'
 import { PanelFrame } from './PanelFrame'
 
 // Below 2% a donut label cannot fit reliably inside its arc.
@@ -447,18 +447,19 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   // same positional rule, so a panel's declared palette reaches both or
   // neither. Resolving them separately is how the legend came to print one
   // colour beside a line drawn in another.
+  const paletteLabels = useMemo(() => colorLabels(frame.data, panel), [frame.data, panel])
   const seriesColor = useMemo(() => {
-    const resolve = seriesColorResolver(document.theme, panel, { positional: !active })
+    const resolve = seriesColorResolver(document.theme, panel, { positional: !active, labels: paletteLabels })
     const order = seriesOrder(frame.data, panel)
     if (order.size === 0) return resolve
     return (label: string, index: number) => resolve(label, order.get(label) ?? index)
-  }, [active, document.theme, frame.data, panel])
+  }, [active, document.theme, frame.data, paletteLabels, panel])
   // The row-indexed half of the same rule. It is handed the *visible* palette
   // because the plot draws the visible rows; the legend builds its own over the
   // full frame, and the two agree row for row either way.
   const rowColor = useMemo(
-    () => rowColorResolver(document.theme, panel, { colors: frameColors, positional: !active }),
-    [active, document.theme, frameColors, panel],
+    () => rowColorResolver(document.theme, panel, { colors: frameColors, positional: !active, labels: paletteLabels }),
+    [active, document.theme, frameColors, paletteLabels, panel],
   )
 
   // Every overlay the panel declares stays in the input; this set decides which
@@ -851,11 +852,14 @@ const ChartLegend = memo(function ChartLegend({
   // At a drill level the rows are the level's, not the panel's own, so the
   // positional color pins no longer describe them.
   const atLevel = navigation.panelId === panel.id && navigation.path.length > 0
-  const color = seriesColorResolver(document.theme, panel, { positional: !atLevel })
+  const legendLabels = colorLabels(frame, panel)
+  const color = seriesColorResolver(document.theme, panel, { positional: !atLevel, labels: legendLabels })
   // Part-to-whole entries stand for rows, and a row's colour can come off the
   // frame the level served — which `color` cannot see. Same resolver the plot
   // is built with, over the whole frame rather than the visible part of it.
-  const rowColor = rowColorResolver(document.theme, panel, { colors: frame.colors, positional: !atLevel })
+  const rowColor = rowColorResolver(document.theme, panel, {
+    colors: frame.colors, positional: !atLevel, labels: legendLabels,
+  })
   const idIndex = panel.encoding.id ? frame.columns.findIndex((column) => column.name === panel.encoding.id) : -1
   const seriesIndex = panel.encoding.series
     ? frame.columns.findIndex((column) => column.name === panel.encoding.series)

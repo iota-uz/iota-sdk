@@ -42,3 +42,43 @@ export function stablePaletteIndex(key: string, size: number): number {
   }
   return (hash >>> 0) % size
 }
+
+/**
+ * Palette index per label for one chart, with collisions inside that chart
+ * resolved.
+ *
+ * `stablePaletteIndex` alone buys stability across panels — a product keeps its
+ * colour wherever it appears — but a hash makes no promise that two *different*
+ * labels land on different slots, and with ten colours three categories collide
+ * about a quarter of the time. On the profitability cost donut «Операционные
+ * расходы» and «Исходящее перестрахование» both hashed to `#dc2626` and are
+ * adjacent in the ring, so 97.6% of the figure drew as one unbroken red arc and
+ * the two legend swatches were identical: a three-category donut reading as two.
+ *
+ * Distinctness within one figure is the property a categorical palette exists
+ * for, so it wins. Each label still asks for its hashed slot first and almost
+ * always gets it; a label that finds its slot taken by an earlier one probes
+ * forward to the next free slot. Stability therefore yields only where it must,
+ * and only for the later of the two labels. Once every slot is spoken for the
+ * hash resolves alone again — more categories than colours is a producer
+ * problem no assignment can fix.
+ *
+ * Order matters and is the frame's own: the same rows in the same order give
+ * the same assignment on every render, on the plot and in the legend alike.
+ */
+export function paletteAssignment(labels: readonly string[], size: number): Map<string, number> {
+  const assignment = new Map<string, number>()
+  if (size <= 0) return assignment
+  const taken = new Set<number>()
+  for (const label of labels) {
+    if (assignment.has(label)) continue
+    const preferred = stablePaletteIndex(label, size)
+    let index = preferred
+    for (let probe = 0; probe < size && taken.has(index); probe += 1) {
+      index = (preferred + probe + 1) % size
+    }
+    assignment.set(label, index)
+    taken.add(index)
+  }
+  return assignment
+}

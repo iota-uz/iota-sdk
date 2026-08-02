@@ -1,5 +1,5 @@
 import type { Availability, Confidence, Encoding, Frame, Panel, Theme } from '../contract'
-import { fallbackSeries, stablePaletteIndex } from '../charts/palette'
+import { fallbackSeries, paletteAssignment, stablePaletteIndex } from '../charts/palette'
 
 /**
  * Resolves a datum's color the way the chart adapter does, so a React-rendered
@@ -16,14 +16,20 @@ import { fallbackSeries, stablePaletteIndex } from '../charts/palette'
 export function seriesColorResolver(
   theme: Theme,
   panel: Panel,
-  { positional = true }: { positional?: boolean } = {},
+  { positional = true, labels }: { positional?: boolean; labels?: readonly string[] } = {},
 ): (label: string, index: number) => string | undefined {
   const palette = Object.values(theme.palette).filter((color) => color.trim() !== '')
   const colors = palette.length > 0 ? palette : fallbackSeries
   const resolve = (value: string | undefined) => (value ? theme.palette[value] ?? value : undefined)
+  // Given the labels this figure will draw, the hash is de-collided across them
+  // (see `paletteAssignment`). Without them each label is resolved on its own,
+  // which is the old behaviour and the only thing possible for a caller that
+  // colours one datum at a time.
+  const assigned = labels ? paletteAssignment(labels, colors.length) : undefined
+  const paletteIndex = (key: string) => assigned?.get(key) ?? stablePaletteIndex(key, colors.length)
   return (label, index) => (positional ? resolve(theme.series[`${panel.id}:${index}`]) : undefined)
     ?? resolve(theme.series[label])
-    ?? colors[stablePaletteIndex(label || String(index), colors.length)]
+    ?? colors[paletteIndex(label || String(index))]
     ?? panel.accent
 }
 
@@ -43,9 +49,13 @@ export function seriesColorResolver(
 export function rowColorResolver(
   theme: Theme,
   panel: Panel,
-  { colors, positional = true }: { colors?: readonly string[]; positional?: boolean } = {},
+  { colors, positional = true, labels }: {
+    colors?: readonly string[]
+    positional?: boolean
+    labels?: readonly string[]
+  } = {},
 ): (label: string, index: number, nodeKey?: string) => string | undefined {
-  const series = seriesColorResolver(theme, panel, { positional })
+  const series = seriesColorResolver(theme, panel, { positional, labels })
   // A blank pin is an absent one. The document copies a producer's colour list
   // verbatim onto the frame, holes included, and `??` would hand ECharts an
   // empty string to paint with.
@@ -56,6 +66,34 @@ export function rowColorResolver(
   return (label, index, nodeKey) => resolve(colors?.[index])
     ?? resolve(nodeKey ? theme.series[nodeKey] : undefined)
     ?? series(label, index)
+}
+
+/**
+ * The labels this panel will colour, in the frame's own order.
+ *
+ * The palette de-collides across this list, so it has to be the *whole* frame
+ * rather than the visible part: built from the visible rows, hiding one entry
+ * would free its slot and recolour a neighbour, and the plot and the legend —
+ * which are handed different row sets on purpose — would disagree.
+ */
+export function colorLabels(frame: Frame | undefined, panel: Panel): string[] {
+  if (!frame) return []
+  const seriesIndex = frame.columns.findIndex((column) => column.name === panel.encoding.series)
+  const labelIndex = seriesIndex >= 0
+    ? seriesIndex
+    : frame.columns.findIndex((column) => column.name === (panel.encoding.label ?? panel.encoding.category))
+  if (labelIndex < 0) return []
+  const labels: string[] = []
+  const seen = new Set<string>()
+  for (const row of frame.rows) {
+    const raw = row[labelIndex]
+    if (typeof raw !== 'string' && typeof raw !== 'number' && typeof raw !== 'bigint') continue
+    const name = String(raw)
+    if (seen.has(name)) continue
+    seen.add(name)
+    labels.push(name)
+  }
+  return labels
 }
 
 export function columnIndex(frame: Frame | undefined, field: string | undefined): number {
