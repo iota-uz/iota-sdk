@@ -369,6 +369,10 @@ type PresentationHints struct {
 	BarWidthPx int
 	// ColorByCategory gives every category its own palette color.
 	ColorByCategory bool
+	// ColorBySequence shades an ordered dimension along one hue. Use it where
+	// the categories are ranked — age bands, tenure buckets, rating grades —
+	// and a categorical palette would claim they are unrelated.
+	ColorBySequence bool
 	// HideTotalBadge suppresses the total badge, e.g. when a trend chip
 	// already carries the panel's summary.
 	HideTotalBadge bool

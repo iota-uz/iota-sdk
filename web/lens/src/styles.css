@@ -2222,8 +2222,13 @@
      not finished — share one row so a second note cannot land on the first.
      They were separately positioned overlays, which is how the incomplete
      period ended up naming itself once per series inside the plot instead. */
+  /* In flow above the plot, not floating over it. Parked inside the plot area
+     the scale warning sat on the top-left gridlines and, on «Источник
+     договора», directly over the first bar's own data label — a note about how
+     to read the chart, printed on top of the chart. Nothing can be under a row
+     that takes its own height. */
   .lens-chart-notes {
-    @apply lens-absolute lens-left-2 lens-top-1 lens-z-10 lens-flex lens-flex-wrap lens-items-center lens-gap-1;
+    @apply lens-flex lens-flex-wrap lens-items-center lens-gap-1 lens-px-2 lens-pb-1 lens-pt-1;
   }
 
   .lens-chart-log-scale {
@@ -2709,9 +2714,24 @@
     color: var(--lens-warn);
   }
 
+  /* The cascade used to reserve 7rem per step whatever the panel measured, and
+     then hide the overflow behind `overflow-x: auto` — which on this platform
+     draws no scrollbar at all. A ten-step P&L bridge therefore showed eight
+     steps at 1440×900, and the closing «Результат до налогообложения», the one
+     number the panel exists to deliver, was reachable only by a horizontal
+     scroll with no affordance anywhere on screen. The reservation is now a
+     floor the columns may compress to, so ten steps fit any panel over ~820px;
+     the scroll remains for the genuinely unfittable case and says so with a
+     scrollbar that is always drawn. */
   .lens-waterfall {
     @apply lens-flex lens-flex-1 lens-flex-col lens-overflow-x-auto lens-p-4;
-    --lens-waterfall-column-width: 7rem;
+    --lens-waterfall-column-width: 4.5rem;
+    /* Widest a single column's bar may be drawn. A three-step reconciliation
+       shared the plot between three bars 148px wide — wider than tall, and no
+       longer reading as columns on an axis at all. Width encodes nothing here;
+       height does. */
+    --lens-waterfall-bar-width: min(50%, 96px);
+    scrollbar-width: thin;
   }
 
   .lens-waterfall-plot,
@@ -2745,6 +2765,13 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
+  /* The unit the ticks stopped repeating, stated once above the topmost one. */
+  .lens-waterfall-axis-unit {
+    @apply lens-text-xs lens-font-medium lens-text-faint;
+    top: -1.25rem;
+    transform: none;
+  }
+
   .lens-waterfall-plot {
     @apply lens-relative lens-h-full;
     min-height: 288px;
@@ -2763,24 +2790,33 @@
     @apply lens-relative lens-min-w-0;
   }
 
+  /* Runs from this column's bar to the next one's, so it follows the cap
+     above rather than assuming the bar fills half the column. */
   .lens-waterfall-connector {
     @apply lens-absolute lens-z-[1] lens-border-0 lens-border-t lens-border-dashed lens-border-border;
-    left: 75%;
-    width: calc(50% + 12px);
+    left: calc(50% + var(--lens-waterfall-bar-width) / 2);
+    width: calc(100% + 12px - var(--lens-waterfall-bar-width));
   }
 
   .lens-waterfall-bar {
-    @apply lens-absolute lens-left-1/4 lens-right-1/4 lens-z-[2] lens-rounded-t-sm;
+    @apply lens-absolute lens-z-[2] lens-rounded-t-sm;
+    left: 50%;
+    width: var(--lens-waterfall-bar-width);
+    margin-left: calc(var(--lens-waterfall-bar-width) / -2);
     min-height: 3px;
     background: var(--lens-accent-500);
   }
 
+  /* Direction defaults resolve to the tone palette. They used to be an orange
+     and a green of their own — the orange being the very hue the tone palette
+     reserves for an inflow — so a cascade that declared no tones rendered in a
+     second colour system that contradicted the first. */
   .lens-waterfall-bar[data-kind='increase'] {
-    background: #f97316;
+    background: var(--lens-pos);
   }
 
   .lens-waterfall-bar[data-kind='decrease'] {
-    background: #55c76a;
+    background: var(--lens-neg);
   }
 
   .lens-waterfall-bar[data-kind='end'] {
@@ -2848,10 +2884,18 @@
   /* The balance a floating deduction leaves standing. Drawing it makes the
      arithmetic visible: the opening total is eaten down, step by step, to the
      closing one. Behind the bar and the connector, never in front. */
+  /* Scaffolding, and it has to look like scaffolding. At 0.12 over the full
+     column height it was heavier than the data: on a period whose movements are
+     small the eye met six tall pale columns and five coloured hairlines, and
+     read the connectors as the chart. Figure and ground are the right way round
+     at an alpha well under the lightest bar's. */
   .lens-waterfall-underlay {
-    @apply lens-absolute lens-left-1/4 lens-right-1/4 lens-z-0;
+    @apply lens-absolute lens-z-0;
+    left: 50%;
+    width: var(--lens-waterfall-bar-width);
+    margin-left: calc(var(--lens-waterfall-bar-width) / -2);
     background: var(--lens-accent-500);
-    opacity: 0.12;
+    opacity: 0.06;
   }
 
   .lens-waterfall-bar strong {
@@ -2868,11 +2912,11 @@
   }
 
   .lens-waterfall-bar[data-kind='increase'] strong {
-    color: #c2410c;
+    color: var(--lens-pos);
   }
 
   .lens-waterfall-bar[data-kind='decrease'] strong {
-    color: #15803d;
+    color: var(--lens-neg);
   }
 
   /* Explicit per-stage semantic tone overrides the direction default bar and
@@ -2905,6 +2949,51 @@
     box-shadow: inset 0 0 0 1.5px var(--lens-accent-500);
   }
 
+  /* A step that did not move. It carried the bar's 3px `min-height` and the
+     bar's colour, so «Аквизиционные расходы 0 UZS» drew the same solid coloured
+     rule as a genuine −1,74 млн: on a P&L bridge "not applicable" and "a real
+     small number" looked the same. A neutral hairline on the running total,
+     with the zero printed in muted type, says the second thing and not the
+     first. Placed after the tone and checkpoint rules so it wins at equal
+     specificity whatever the producer declared. */
+  .lens-waterfall-bar[data-no-movement='true'] {
+    min-height: 1px;
+    background: var(--lens-text-faint);
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .lens-waterfall-bar[data-no-movement='true'] strong {
+    @apply lens-font-normal;
+    color: var(--lens-text-faint);
+  }
+
+  /* What the hollow column and the solid one mean. The distinction was real and
+     good and stated nowhere on a panel that had no legend, caption or footer of
+     any kind — an unexplained encoding is decoration. */
+  .lens-waterfall-key {
+    @apply lens-m-0 lens-mt-3 lens-flex lens-flex-wrap lens-items-center lens-gap-4 lens-text-sm lens-text-muted;
+    margin-left: 96px;
+  }
+
+  .lens-waterfall-key-item {
+    @apply lens-inline-flex lens-items-center lens-gap-1.5;
+  }
+
+  .lens-waterfall-key-item::before {
+    @apply lens-h-3 lens-w-2.5 lens-flex-none lens-rounded-badge;
+    content: '';
+  }
+
+  .lens-waterfall-key-item[data-mark='checkpoint']::before {
+    background: color-mix(in srgb, var(--lens-accent-500) 16%, transparent);
+    box-shadow: inset 0 0 0 1.5px var(--lens-accent-500);
+  }
+
+  .lens-waterfall-key-item[data-mark='result']::before {
+    background: var(--lens-accent-500);
+  }
+
   .lens-waterfall-bar[data-tone='negative'] strong {
     color: var(--lens-neg);
   }
@@ -2931,9 +3020,19 @@
     @apply lens-flex lens-flex-col lens-items-center lens-gap-1;
   }
 
+  /* `overflow-wrap: anywhere` broke every label at whatever character reached
+     the column edge: «Исходящее перестрахование» came out as three lines ending
+     in an orphaned «е», and «Андеррайтинговый результат» split its first word in
+     half. Words break only when a single word cannot fit at all, and the band is
+     two lines for every column, so the row stays flush without being made flush
+     by mutilating the words. */
   .lens-waterfall-label > span {
-    @apply lens-min-w-0;
-    overflow-wrap: anywhere;
+    @apply lens-min-w-0 lens-overflow-hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    overflow-wrap: break-word;
   }
 
   .lens-waterfall-annotation {
@@ -3198,10 +3297,33 @@
     background: var(--lens-neg);
   }
 
+  .lens-table-clamp-host {
+    @apply lens-relative lens-block lens-w-full lens-min-w-0 lens-border-0 lens-bg-transparent lens-p-0 lens-text-left lens-font-sans lens-text-base lens-text-inherit;
+  }
+
+  button.lens-table-clamp-host {
+    @apply lens-cursor-pointer;
+  }
+
   .lens-table-clamp {
     @apply lens-block lens-overflow-hidden;
     display: -webkit-box;
     -webkit-box-orient: vertical;
+  }
+
+  /* What the clamp cut, on the runtime's own popover chrome rather than the
+     browser's tooltip: reachable by keyboard, instant, and legible. */
+  .lens-table-clamp-full {
+    @apply lens-pointer-events-none lens-invisible lens-absolute lens-left-0 lens-top-0 lens-w-max lens-max-w-80 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-2 lens-text-base lens-text-text lens-opacity-0;
+    box-shadow: var(--lens-shadow-popover);
+    transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
+    z-index: var(--lens-z-popover);
+  }
+
+  .lens-table-clamp-host:hover .lens-table-clamp-full,
+  .lens-table-clamp-host:focus-visible .lens-table-clamp-full,
+  .lens-table-clamp-host:focus-within .lens-table-clamp-full {
+    @apply lens-visible lens-opacity-100;
   }
 
   .lens-table-small-sample {

@@ -2,7 +2,10 @@ import type { EChartsOption } from 'echarts'
 import { describe, expect, it, vi } from 'vitest'
 import type { ChartInput } from '../adapter'
 import { fallbackMarkKey } from '../keys'
-import { buildChartOption, donutSliceLabel, middleEllipsis, niceLogMaximum, rawPercentPrecision, slicePercentLabel } from './options'
+import {
+  buildChartOption, categoryLabelWidth, categoryTickInterval, donutSliceLabel, middleEllipsis,
+  niceLogMaximum, rawPercentPrecision, slicePercentLabel,
+} from './options'
 import type { EChartsTheme } from './theme'
 
 const theme: EChartsTheme = {
@@ -19,6 +22,7 @@ const theme: EChartsTheme = {
   selectedBorder: '#0f172a',
   fontFamily: 'Inter',
   colors: ['#2563eb', '#059669'],
+  popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', cardRadius: 8, type: { xs: 10, sm: 11, base: 12, md: 14 },
   seriesColor: (name) => name === 'Revenue' ? '#059669' : undefined,
 }
 
@@ -344,8 +348,24 @@ describe('slice percentages', () => {
     expect(formatter?.({ name: '2024', data: { share: 28.6 } })).toBe('2024')
     // Too narrow an arc to hold any label at all.
     expect(formatter?.({ name: '2024', data: { share: 1.2 } })).toBe('')
-    // Wide enough for a year, nowhere near enough for a product name.
-    expect(formatter?.({ name: 'Обязательное страхование гражданской ответственности', data: { share: 5 } })).toBe('')
+  })
+
+  it('measures the label against the chord it has to fit, not its character count', () => {
+    const chartInput = { ...input('pie'), presentation: { sliceLabels: 'label' as const }, viewportWidth: 400 }
+    const formatter = testOption(buildChartOption(chartInput, theme)).series[0]?.label?.formatter
+    const product = 'Обязательное страхование гражданской ответственности'
+
+    // Wide enough for a year, nowhere near enough for a product name — and the
+    // difference is decided by the measured width at the ring's own radius.
+    expect(formatter?.({ name: '2024', data: { share: 28.6 } })).toBe('2024')
+    expect(formatter?.({ name: product, data: { share: 5 } })).toBe('')
+  })
+
+  it('keeps a label it could not measure rather than dropping data on a guess', () => {
+    const chartInput = { ...input('pie'), presentation: { sliceLabels: 'label' as const } }
+    const formatter = testOption(buildChartOption(chartInput, theme)).series[0]?.label?.formatter
+
+    expect(formatter?.({ name: 'Обязательное страхование', data: { share: 28.6 } })).toBe('Обязательное страхование')
   })
 
   it('picks readable ink for the slice label from the slice fill', () => {
@@ -401,9 +421,11 @@ describe('buildChartOption', () => {
     expect(chart.animation).toBe(false)
   })
 
+  // Callouts buy their room from the ring once, instead of being truncated to
+  // whatever the ring left them.
   it.each([
-    ['pie', ['0%', '82%']],
-    ['donut', ['50%', '82%']],
+    ['pie', ['0%', '64%']],
+    ['donut', ['40%', '64%']],
   ] as const)('maps %s labels, values, stable keys, and radius', (kind, radius) => {
     const chart = testOption(buildChartOption(input(kind), theme))
     const series = chart.series[0]
@@ -498,10 +520,66 @@ describe('buildChartOption', () => {
     expect(chart.series[0]?.label?.formatter?.({ value: 1200 })).toBe('$1200')
   })
 
-  it('keeps data labels off ordinary linear bars', () => {
+  it('prints values on a bar chart small enough to hold them', () => {
     const chart = testOption(buildChartOption(input('bar'), theme))
 
+    expect(chart.series.every((series) => series.label?.show === true)).toBe(true)
+  })
+
+  it('drops the labels once there are more marks than a plot can label reliably', () => {
+    const chartInput = input('bar')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: Array.from({ length: 40 }, (_, index) => ['Revenue', `M${index}`, 100 + index, 0]),
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    // All of them or none: a subset dropped by collision reads as missing data.
     expect(chart.series.every((series) => series.label === undefined)).toBe(true)
+  })
+
+  it('prints values when a linear axis cannot show the small readings', () => {
+    const chartInput = input('bar')
+    chartInput.frame = {
+      columns: chartInput.frame.columns,
+      rows: [['Revenue', 'Jan', 25_000_000_000, 0], ['Revenue', 'Feb', 41_000, 0], ['Revenue', 'Mar', 60_000, 0]],
+    }
+
+    const chart = testOption(buildChartOption(chartInput, theme))
+
+    expect(chart.series[0]?.label?.show).toBe(true)
+  })
+
+  it('caps bar width and keeps a gap between categories', () => {
+    const chart = testOption(buildChartOption(input('bar'), theme)) as unknown as {
+      series: Array<{ barMaxWidth?: number; barCategoryGap?: string }>
+    }
+
+    expect(chart.series[0]?.barMaxWidth).toBe(96)
+    expect(chart.series[0]?.barCategoryGap).toBe('28%')
+  })
+
+  it('derives the category tick stride from the domain, not from label widths', () => {
+    expect(categoryTickInterval(8)).toBe(0)
+    expect(categoryTickInterval(24)).toBe(2)
+    // Two panels over the same domain therefore agree, whatever they label.
+    expect(categoryTickInterval(24)).toBe(categoryTickInterval(24))
+  })
+
+  it('sizes the horizontal-bar name column off the plot instead of a constant', () => {
+    expect(categoryLabelWidth(1200)).toBe(260)
+    expect(categoryLabelWidth(407)).toBe(155)
+    expect(categoryLabelWidth(undefined)).toBe(260)
+  })
+
+  it('states the value unit once on the axis instead of on every tick', () => {
+    const chartInput = input('bar')
+    chartInput.valueUnit = 'UZS'
+
+    const chart = testOption(buildChartOption(chartInput, theme)) as unknown as { yAxis: { name?: string } }
+
+    expect(chart.yAxis.name).toBe('UZS')
   })
 
   it.each(['bar', 'line'] as const)('enables formatted data labels for %s only when requested', (kind) => {
@@ -572,16 +650,18 @@ describe('buildChartOption', () => {
 
     expect(donutSliceLabel({ name: first?.name, data: first }, chartInput)).toBe('Jan\n$1200 · 28.6%')
     expect(chart.graphic).toHaveLength(1)
-    expect(chart.tooltip.formatter?.({ name: 'Jan', data: first })).toContain('$1200 (28.6%)')
+    expect(chart.tooltip.formatter?.({ name: 'Jan', data: first })).toContain('$1200 · 28.6%')
   })
 
-  it('keeps outside donut labels readable in a narrow plot', () => {
+  it('keeps the share on outside donut labels in a narrow plot, and drops the amount', () => {
     const chartInput = input('donut')
     chartInput.viewportWidth = 480
     const chart = testOption(buildChartOption(chartInput, theme))
     const first = chart.series[0]?.data?.[0]
 
-    expect(donutSliceLabel({ name: first?.name, data: first }, chartInput)).toBe('Jan')
+    // A screenshot of a compact donut has to carry a quantity; the share is the
+    // one that fits, and the amount is the one that truncated the name.
+    expect(donutSliceLabel({ name: first?.name, data: first }, chartInput)).toBe('Jan\n28.6%')
   })
 
   it.each(['bar', 'line'] as const)('applies configured series brand colors to %s series', (kind) => {
@@ -979,6 +1059,7 @@ describe('buildChartOption', () => {
       estimate: 'Оценка', ytd: 'С начала года', forecast: 'Прогноз',
       forecastLower: (forecast) => `${forecast}: низ`, forecastConfidence: (forecast) => `${forecast}: интервал`,
       boxplot: ['Мин', 'Q1', 'Медиана', 'Q3', 'Макс'],
+      noData: 'No data',
     }
     chartInput.temporal = {
       regression: { field: 'regression' }, movingAverages: [{ window: 3, field: 'sma' }],

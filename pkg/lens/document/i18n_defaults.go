@@ -5,6 +5,8 @@ package document
 // longer has to redeclare these keys just to avoid component-local literals.
 func RuntimeI18nDefaults() map[string]string {
 	return map[string]string{
+		I18nCascadeCheckpoint:             "Interim total",
+		I18nCascadeResult:                 "Closing total",
 		I18nDrillClose:                    "Close details",
 		I18nMapAttribution:                "Map attribution",
 		I18nPanelComparisonUnsupported:    "Comparison is not available for this visualization.",

@@ -8,7 +8,9 @@ import "sort"
 // runtime looks up; RuntimeI18nKeys keeps them in sync with the TSX call
 // sites.
 const (
+	I18nCascadeCheckpoint             = "cascade.checkpoint"
 	I18nCascadeOpenStage              = "cascade.openStage"
+	I18nCascadeResult                 = "cascade.result"
 	I18nCascadeStages                 = "cascade.stages"
 	I18nChartBoxplotMin               = "chart.boxplot.min"
 	I18nChartBoxplotQ1                = "chart.boxplot.q1"
@@ -298,7 +300,7 @@ func RuntimeI18nKeys() []string {
 		I18nCalendarAnnRange, I18nCalendarAnnStart, I18nCalendarHintEnd, I18nCalendarHintStart,
 		I18nCalendarLabel, I18nCalendarNextMonth, I18nCalendarPrevMonth,
 		I18nCalendarChooseMonth, I18nCalendarNextPage, I18nCalendarPrevPage,
-		I18nCascadeOpenStage, I18nCascadeStages,
+		I18nCascadeCheckpoint, I18nCascadeOpenStage, I18nCascadeResult, I18nCascadeStages,
 		I18nFilterBarLabel, I18nFilterAllTime, I18nFilterApply, I18nFilterCancel,
 		I18nFilterFacetApply, I18nFilterFacetClear, I18nFilterFacetClearAll, I18nFilterFacetEmpty, I18nFilterFacetError,
 		I18nFilterFacetLoading, I18nFilterFacetRemove, I18nFilterFacetSearch,

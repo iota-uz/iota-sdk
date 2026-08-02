@@ -27,6 +27,7 @@ vi.mock('../runtime', () => ({
   },
   useFormatExact: () => () => undefined,
   useAxisFormat: () => (value: unknown) => String(value),
+  axisUnit: () => '',
   clampedDeltaPercent: () => undefined,
   useTranslate: () => (_key: string, fallback: string, vars?: Record<string, string | number>) => (
     vars ? fallback.replace(/\{(\w+)\}/g, (match, name: string) => (name in vars ? String(vars[name]) : match)) : fallback
@@ -1309,6 +1310,68 @@ describe('cascade stages', () => {
     ])
     // Both totals stand on zero and carry their absolute value, not a delta.
     expect(items.filter((item) => item.kind === 'end').map((item) => item.value)).toEqual([190, 170])
+  })
+
+  it('tells a step that did not happen from the smallest step that did', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [
+        ['Earned premium', 200, 0, '', false],
+        // Not applicable in this period — no acquisition cost was booked.
+        ['Acquisition', 200, 0, 'Acquisition', false],
+        // A real, tiny movement. The two used to render identically.
+        ['Operating', 199.9, 0.1, 'Operating', false],
+        ['Result', 199.9, 0, '', true],
+      ],
+    }
+    const format = (value: unknown) => String(value)
+    const items = buildWaterfallItems(buildCascadeStages(cascade, frame, format, format), format)
+    const byLabel = (label: string) => items.find((item) => item.label === label)
+
+    expect(byLabel('Acquisition')?.noMovement).toBe(true)
+    expect(byLabel('Acquisition')?.height).toBe(0)
+    expect(byLabel('Operating')?.noMovement).toBeUndefined()
+    expect(byLabel('Operating')?.height).toBeGreaterThan(0)
+    // The opening and closing totals are not movements and cannot be zero ones.
+    expect(byLabel('Earned premium')?.noMovement).toBeUndefined()
+    expect(byLabel('Result')?.noMovement).toBeUndefined()
+  })
+
+  it('prints the gridlines in the axis form and the columns in the exact one', () => {
+    const cascade = panel('cascade', {
+      encoding: { label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final' },
+      presentation: { bridgeLayout: 'waterfall' },
+    })
+    const frame: Frame = {
+      columns: [
+        { name: 'label', type: 'string' },
+        { name: 'value', type: 'number' },
+        { name: 'cut', type: 'number' },
+        { name: 'cutLabel', type: 'string' },
+        { name: 'final', type: 'bool' },
+      ],
+      rows: [['Premium', 200, 0, '', false], ['Result', 150, 50, 'Claims', true]],
+    }
+    const model = buildWaterfallModel(
+      buildCascadeStages(cascade, frame, (value) => `${String(value)} UZS`, (value) => String(value)),
+      (value) => `${String(value)} UZS`,
+      (value) => String(value),
+    )
+
+    // Eight gridlines repeating «UZS» is a column of noise; the unit is stated
+    // once by the plot instead.
+    expect(model.ticks.every((tick) => !tick.label.includes('UZS'))).toBe(true)
+    expect(model.items[0]?.formattedValue).toBe('200 UZS')
   })
 
   it('keeps a genuine sub-unit movement on a small-scale waterfall', () => {

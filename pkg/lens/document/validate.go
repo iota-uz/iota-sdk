@@ -604,7 +604,7 @@ func validatePresentation(owner string, presentation *Presentation) error {
 		return fmt.Errorf("%s has unsupported total badge placement %q", owner, presentation.TotalBadge)
 	}
 	switch presentation.ColorBy {
-	case "", ColorByCategory:
+	case "", ColorByCategory, ColorBySequence:
 	default:
 		return fmt.Errorf("%s has unsupported color mode %q", owner, presentation.ColorBy)
 	}

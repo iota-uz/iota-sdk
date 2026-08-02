@@ -5,9 +5,11 @@ import { isVisualRegression } from '../../visualRegression'
 import { radialNodeKey, type ChartInput } from '../adapter'
 import { fallbackMarkKey } from '../keys'
 import { activeOverlayIds, categoryDisplayFormatter, chartOverlays, overlayId } from '../overlays'
-import { shouldUseLogarithmicScale } from '../scales'
+import { linearScaleObscuresValues, shouldUseLogarithmicScale } from '../scales'
 import { distributeShares, formatShare } from '../shares'
+import { measureTextWidth } from '../text'
 import type { EChartsTheme } from './theme'
+import { tooltipChrome } from './tooltip'
 import { buildDistributionOption, type DistributionInput } from './distributions'
 
 type ChartValue = number | '-'
@@ -211,6 +213,25 @@ function escapeTooltipHTML(value: string): string {
     .replaceAll("'", '&#39;')
 }
 
+/**
+ * One tooltip row: a swatch and a name on the left, the amount hard right.
+ *
+ * Three formats used to coexist on one dashboard — the map's `name<br><b>value
+ * </b>`, the donut's `Click: 908 (50,7%)`, and the axis tooltip's aligned
+ * table — so the same act of hovering produced three different objects
+ * depending on which panel was under the pointer. This is the row all three
+ * print now; only what they put in it differs.
+ */
+function tooltipRow(label: string, value: string, marker = ''): string {
+  return `<div>${marker}${escapeTooltipHTML(label)}<span style="float:right;margin-left:24px;font-weight:600">${escapeTooltipHTML(value)}</span></div>`
+}
+
+/** A heading and its rows, as one tooltip body. */
+function tooltipCard(header: string, rows: string[]): string {
+  const heading = header ? `<div style="margin-bottom:6px">${escapeTooltipHTML(header)}</div>` : ''
+  return `<div>${heading}${rows.join('')}</div>`
+}
+
 function categoryTooltipFormatter(
   input: ChartInput,
   categoryField: string,
@@ -240,8 +261,7 @@ function categoryTooltipFormatter(
       const marker = typeof entry.marker === 'string' ? entry.marker : ''
       const seriesName = text(entry.seriesName)
       const formatted = input.format(valueField, tooltipValue(entry.value))
-      const label = showSeriesName ? escapeTooltipHTML(seriesName) : ''
-      return `<div>${marker}${label}<span style="float:right;margin-left:24px;font-weight:600">${escapeTooltipHTML(formatted)}</span></div>`
+      return tooltipRow(showSeriesName ? seriesName : '', formatted, marker)
     })
     if (stacked) {
       const total = records.reduce((sum, entry) => {
@@ -251,45 +271,11 @@ function categoryTooltipFormatter(
       const label = input.tooltipTotalLabel ?? 'Total'
       lines.push(`<div style="margin-top:6px;padding-top:6px;border-top:1px solid currentColor;font-weight:600">${escapeTooltipHTML(label)}<span style="float:right;margin-left:24px">${escapeTooltipHTML(input.format(valueField, total))}</span></div>`)
     }
-    return `<div><div style="margin-bottom:6px">${escapeTooltipHTML(header)}</div>${lines.join('')}</div>`
+    return tooltipCard(header, lines)
   }
 }
 
-/**
- * Tooltips render at `body` level, not inside the chart container: a panel
- * card clips its own overflow, so a tooltip anchored near the card edge was
- * cut off. From `body` ECharts flips it against the viewport instead, and the
- * pinned z-index keeps it above the expanded-panel dialog, which portals to
- * `body` too.
- */
-export const tooltipZIndex = 2147483600
-
-/**
- * Marks every tooltip node this runtime creates. Living outside the chart
- * container, a tooltip is no longer torn down with it — the adapter needs a way
- * to find the nodes it is responsible for without touching anything else the
- * host page appended to `body`.
- */
-export const tooltipClassName = 'lens-echarts-tooltip'
-
-/** Tooltip settings shared by every chart kind. */
-export function tooltipChrome(theme: EChartsTheme) {
-  return {
-    backgroundColor: theme.card,
-    borderColor: theme.border,
-    textStyle: { color: theme.text },
-    appendTo: 'body',
-    className: tooltipClassName,
-    // Rendered at body level the tooltip escapes the card's clip, but it must
-    // still stay on screen: confine clamps it to the window viewport so a wide
-    // tooltip on a left-edge slice no longer overflows behind the sidebar
-    // instead of merely flipping.
-    confine: true,
-    extraCssText: `z-index: ${tooltipZIndex};`,
-    // A moving tooltip is unscreenshotable; VR pins it in place.
-    transitionDuration: isVisualRegression() ? 0 : undefined,
-  }
-}
+export { tooltipChrome, tooltipClassName, tooltipZIndex } from './tooltip'
 
 function baseOption(theme: EChartsTheme): EChartsOption {
   return {
@@ -300,6 +286,30 @@ function baseOption(theme: EChartsTheme): EChartsOption {
     color: theme.colors,
     textStyle: { color: theme.text, fontFamily: theme.fontFamily },
   }
+}
+
+/** `#rgb`/`#rrggbb` as three channels, or nothing when it is neither. */
+function channels(color: string | undefined): [number, number, number] | undefined {
+  const hex = (color ?? '').trim().replace(/^#/, '')
+  const expanded = hex.length === 3 ? hex.split('').map((digit) => digit + digit).join('') : hex
+  if (!/^[0-9a-fA-F]{6}$/.test(expanded)) return undefined
+  return [0, 2, 4].map((offset) => parseInt(expanded.slice(offset, offset + 2), 16)) as [number, number, number]
+}
+
+/**
+ * `ratio` of `color` over `over`, resolved to a literal.
+ *
+ * Canvas takes a colour, not an expression: `color-mix()` reaches the
+ * stylesheet but never the plot, and ECharts' own colour parser would refuse
+ * it. Tints a chart paints are therefore mixed here, from the same tokens the
+ * sheet mixes from.
+ */
+export function mixColor(color: string | undefined, over: string | undefined, ratio: number): string | undefined {
+  const front = channels(color)
+  const back = channels(over)
+  if (!front || !back) return color
+  const blend = front.map((value, index) => Math.round(value * ratio + back[index]! * (1 - ratio)))
+  return `#${blend.map((value) => value.toString(16).padStart(2, '0')).join('')}`
 }
 
 export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
@@ -336,7 +346,14 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
         const record = params as { data?: { displayLabel?: string; value?: unknown }; name?: string }
         const key = record.name ?? ''
         const label = record.data?.displayLabel || frameLabels.get(key) || featureLabels.get(key) || key
-        return `${escapeTooltipHTML(label)}<br><strong>${escapeTooltipHTML(input.format(input.encoding.value ?? '', record.data?.value))}</strong>`
+        // A region the frame never joined has no reading, and an em-dash cannot
+        // say whether that means "nothing happened here" or "this row did not
+        // arrive". Only a value that exists is formatted; the rest say so.
+        const raw = record.data?.value
+        const value = raw === undefined || raw === null || raw === '-'
+          ? (input.labels?.noData ?? 'No data')
+          : input.format(input.encoding.value ?? '', raw)
+        return tooltipCard('', [tooltipRow(label, value)])
       },
     },
     visualMap: {
@@ -378,9 +395,17 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
       // region name and value remain available from the item tooltip.
       labelLayout: { hideOverlap: true },
       itemStyle: { areaColor: theme.divider, borderColor: theme.card, borderWidth: 1.5 },
+      // Hover had no `areaColor`, so ECharts painted its factory default —
+      // bright amber inside a 2px black outline — on a blue dashboard, which
+      // reads as a warning state on whichever region the pointer crossed. The
+      // accent tint is the same one selection uses, one step lighter.
       emphasis: {
         label: { show: true, color: theme.selectedBorder, fontWeight: 600 },
-        itemStyle: { borderColor: theme.selectedBorder, borderWidth: 2 },
+        itemStyle: {
+          areaColor: mixColor(input.theme.palette.accent ?? theme.colors[0] ?? theme.accent, theme.card, 0.28),
+          borderColor: input.theme.palette.accent ?? theme.accent,
+          borderWidth: 1.5,
+        },
       },
       select: { itemStyle: { borderColor: theme.selectedBorder, borderWidth: 3 } },
     }],
@@ -408,20 +433,51 @@ export function slicePercentLabel(percent: number | undefined, locale?: string, 
 const labelledSliceMinShare = 4
 
 /**
+ * The geometry a slice label has to fit inside, for the ring it is drawn on.
+ *
+ * A label sits at the middle of the ring's band, written horizontally, so what
+ * limits it is the chord the slice spans at that radius. Both terms of that
+ * chord were previously ignored: the old rule compared a *character count*
+ * against the slice's share of the circle, which is the same test on a 240px
+ * donut and a 900px one, and on «Ш» and «і».
+ */
+interface RingGeometry {
+  /** Plot box width, in pixels; the radii below are fractions of half of it. */
+  plotWidth: number
+  /** Inner and outer radius of the ring, as fractions of the plot radius. */
+  band: [number, number]
+  fontSize: number
+  fontFamily: string
+}
+
+/** Chord length in pixels at the middle of `band` for a slice of `share`. */
+function sliceChordWidth(share: number, geometry: RingGeometry): number {
+  const radius = geometry.plotWidth / 2 * ((geometry.band[0] + geometry.band[1]) / 2)
+  const angle = (share / 100) * 2 * Math.PI
+  return 2 * radius * Math.sin(Math.min(angle, Math.PI) / 2)
+}
+
+/**
  * A category label on the slice instead of a percent, for dimensions whose
  * labels are guaranteed short — a year, a quarter. The producer opts in; a
  * product name on a slice would be clipped to meaninglessness.
  *
  * Long labels are still possible (a producer can mislabel a dimension), so the
- * label is dropped rather than clipped once it cannot plausibly fit the arc.
+ * label is dropped rather than clipped once it cannot fit the arc. Without a
+ * measurable geometry — a plot box of zero width, a server render — the label
+ * is kept: dropping it would hide data on the strength of a measurement that
+ * was never taken.
  */
-export function sliceCategoryLabel(name: string | undefined, share: number | undefined): string {
+export function sliceCategoryLabel(
+  name: string | undefined,
+  share: number | undefined,
+  geometry?: RingGeometry,
+): string {
   const label = (name ?? '').trim()
   if (!label || (share ?? 0) < labelledSliceMinShare) return ''
-  // One character needs roughly a degree of arc to stay legible at the radii
-  // these rings are drawn at; a slice narrower than its own label reads as
-  // corruption, so it goes to the legend instead.
-  return label.length <= Math.max(2, Math.round(((share ?? 0) / 100) * 360)) ? label : ''
+  if (!geometry || !(geometry.plotWidth > 0)) return label
+  const available = sliceChordWidth(share ?? 0, geometry)
+  return measureTextWidth(label, geometry.fontSize, geometry.fontFamily) <= available ? label : ''
 }
 
 /**
@@ -459,20 +515,38 @@ function labelShare(params: unknown): { name: string; share: number | undefined 
   return { name: text(record.name), share }
 }
 
-function sliceLabel(mode: Presentation['sliceLabels'], params: unknown, locale?: string, decimalSeparator?: string): string {
+function sliceLabel(
+  mode: Presentation['sliceLabels'],
+  params: unknown,
+  locale?: string,
+  decimalSeparator?: string,
+  geometry?: RingGeometry,
+): string {
   const { name, share } = labelShare(params)
-  return mode === 'label' ? sliceCategoryLabel(name, share) : slicePercentLabel(share, locale, decimalSeparator)
+  return mode === 'label' ? sliceCategoryLabel(name, share, geometry) : slicePercentLabel(share, locale, decimalSeparator)
 }
 
+/**
+ * The callout beside a slice: what it is, and how much of the whole it is.
+ *
+ * The share used to be dropped on a narrow plot, which is where the name alone
+ * says least — a screenshot of a compact donut carried no quantity at all, and
+ * the only place the percentage existed was a hover the picture cannot record.
+ * The amount is the part that goes: it is the longest of the three, the legend
+ * and the centre total both carry it, and it is what pushed «Payme» to «Pa…».
+ */
 export function donutSliceLabel(params: unknown, input: ChartInput): string {
   const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
   const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
   const share = typeof data.share === 'number'
     ? data.share
     : (typeof record.percent === 'number' ? record.percent : undefined)
-  if (input.viewportWidth !== undefined && input.viewportWidth < compactChartLabelWidth) return text(record.name)
+  const formattedShare = formatShare(share, input.locale, input.shareDecimalSeparator)
+  if (input.viewportWidth !== undefined && input.viewportWidth < compactChartLabelWidth) {
+    return `${text(record.name)}\n${formattedShare}`
+  }
   const value = input.format(input.encoding.value ?? '', data.value)
-  return `${text(record.name)}\n${value} · ${formatShare(share, input.locale, input.shareDecimalSeparator)}`
+  return `${text(record.name)}\n${value} · ${formattedShare}`
 }
 
 function timeLabel(input: ChartInput, field: string, value: number): string {
@@ -529,11 +603,10 @@ function sliceTooltip(params: unknown, input: ChartInput, ringLabel?: string): s
   const share = typeof data.share === 'number'
     ? data.share
     : (typeof record.percent === 'number' ? record.percent : undefined)
-  const suffix = share === undefined ? '' : ` (${formatShare(share, input.locale, input.shareDecimalSeparator)})`
-  // The tooltip body is parsed as HTML, so a newline collapses to a space and
-  // the ring name runs into the category it heads.
-  const heading = ringLabel ? `${ringLabel}<br/>` : ''
-  return `${heading}${label}: ${value}${suffix}`
+  const suffix = share === undefined ? '' : ` · ${formatShare(share, input.locale, input.shareDecimalSeparator)}`
+  // The same row every other tooltip prints: the ring, if there is one, heads
+  // the card; the category and its amount are the row.
+  return tooltipCard(ringLabel ?? '', [tooltipRow(label, `${value}${suffix}`)])
 }
 
 function sliceLabelColor(fill: string | undefined, theme: EChartsTheme): string {
@@ -557,9 +630,23 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   // The legacy pie filled roughly 300px of card; these radii plus the taller
   // plot box below recover that presence without letting the circle touch the
   // legend or the total badge.
+  //
+  // A ring that hangs its labels outside itself cannot also fill the card. At
+  // 82% the callouts had 9% of the box a side to live in, and ECharts, which
+  // clips a callout to the container rather than dropping it, cut «Payme» to
+  // «Pa…» on every panel under ~1100px. Labels outside therefore buy their room
+  // from the ring, once, instead of being truncated to fit what is left.
   const radius: [string, string] = donut
-    ? (fill ? ['54%', '92%'] : ['50%', '82%'])
-    : (fill ? ['0%', '92%'] : ['0%', '82%'])
+    ? (fill ? ['54%', '92%'] : insideLabels ? ['50%', '82%'] : ['40%', '64%'])
+    : (fill ? ['0%', '92%'] : insideLabels ? ['0%', '82%'] : ['0%', '64%'])
+  const geometry: RingGeometry | undefined = input.viewportWidth
+    ? {
+      plotWidth: input.viewportWidth,
+      band: [Number.parseFloat(radius[0]) / 100, Number.parseFloat(radius[1]) / 100],
+      fontSize: theme.type.base,
+      fontFamily: theme.fontFamily,
+    }
+    : undefined
   const label = insideLabels
     // Labels inside the slices remove the leader-line halo that shrinks the
     // plot, so the pie can fill the card.
@@ -568,7 +655,7 @@ function pieOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       fontWeight: 'bold' as const,
       // Slices under 4% cannot hold a legible label; the legend below
       // still names them.
-      formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale, input.shareDecimalSeparator),
+      formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale, input.shareDecimalSeparator, geometry),
     }
     : donut
       ? {
@@ -684,11 +771,20 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
     // so it is a better denominator than the rows, and the only one that keeps
     // the two rings of a donut comparable.
     const ringShares = pointShares(ringPoints, partitionTotal(ringPoints, ring.total))
+    const band = ringRadius(ringIndex, rings.length)
+    const geometry: RingGeometry | undefined = input.viewportWidth
+      ? {
+        plotWidth: input.viewportWidth,
+        band: [Number.parseFloat(band[0]) / 100, Number.parseFloat(band[1]) / 100],
+        fontSize: theme.type.base,
+        fontFamily: theme.fontFamily,
+      }
+      : undefined
     return {
       type: 'pie' as const,
       name: ring.label,
       id: ring.key,
-      radius: ringRadius(ringIndex, rings.length),
+      radius: band,
       center: ['50%', '50%'],
       selectedMode: false,
       universalTransition: { enabled: morphEnabled() },
@@ -698,7 +794,7 @@ function radialPartitionOption(input: ChartInput, theme: EChartsTheme, points: R
         ? {
           position: 'inside' as const,
           fontWeight: 'bold' as const,
-          formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale),
+          formatter: (params: unknown) => sliceLabel(sliceLabels, params, input.locale, input.shareDecimalSeparator, geometry),
         }
         : { show: false },
       labelLine: { show: false },
@@ -1035,6 +1131,100 @@ export function annotationsAtAxisValue(input: ChartInput, raw: unknown): string[
     .map(({ label }) => label)
 }
 
+/**
+ * Widest a single bar may be drawn.
+ *
+ * A bar's width encodes nothing — its length does — so a chart with one or two
+ * categories was handing each of them a third of the card and painting a
+ * 330×190px slab that says exactly what a number says. Capped, a one-category
+ * result reads as one bar on an axis instead of as a filled panel.
+ */
+const maximumBarWidth = 96
+
+/**
+ * Clear space between two neighbouring categories, as a share of the slot.
+ *
+ * ECharts' own default is computed from the series count and collapses towards
+ * zero as categories multiply: four quarters of one colour merged into a single
+ * continuous green block with no quarter boundaries visible anywhere in it.
+ */
+const barCategoryGap = '28%'
+
+/**
+ * The most marks that can carry a printed value.
+ *
+ * Above it `labelLayout: { hideOverlap: true }` starts dropping labels by
+ * collision, which is non-deterministic in reading order: the chart then shows
+ * figures for an arbitrary subset of its bars, which reads as missing data
+ * rather than as a layout decision. Below it every mark gets its value or none
+ * does. Twelve is where a 500px panel stops being able to hold a formatted
+ * money label per bar without them touching.
+ */
+export const maximumLabelledMarks = 12
+
+/**
+ * Whether this panel prints its values on the marks.
+ *
+ * One rule, three reasons for it. A producer can ask (`dataLabels`). A
+ * logarithmic axis has to, because a log bar's length states an order of
+ * magnitude and not a value. And a linear axis whose spread it cannot show has
+ * to, because the alternative is eleven months drawn as eleven baselines — the
+ * same diagnosis as the log case, on a panel whose producer never asked for a
+ * log axis and should not have to.
+ *
+ * All three are then subject to the same ceiling: a label the reader cannot
+ * rely on being there is worse than no label at all.
+ */
+export function shouldPrintDataLabels(options: {
+  explicit?: boolean
+  logarithmic: boolean
+  obscured: boolean
+  isBar: boolean
+  stacked: boolean
+  markCount: number
+}): boolean {
+  // A stacked segment is bounded by its neighbours, not by the plot; its label
+  // has nowhere to go but on top of the segment above it.
+  if (options.stacked) return options.explicit === true
+  const wanted = options.explicit === true
+    || options.logarithmic
+    || (options.isBar && options.obscured)
+    // A handful of bars can always afford their own figures, and a policy of
+    // "labels when they fit" is the only one under which a reader can tell the
+    // absence of a label from the absence of a value.
+    || (options.isBar && options.markCount <= maximumLabelledMarks)
+  return wanted && options.markCount <= maximumLabelledMarks
+}
+
+/**
+ * The stride at which a category axis prints its ticks.
+ *
+ * ECharts decides this from measured label widths, which is why two panels
+ * stacked over the same quarters — the premium bars and the ratio line beneath
+ * them — labelled every third quarter and every second one respectively, and
+ * could not be read against each other at all. Deriving the stride from the
+ * category count alone makes it a property of the domain, so two panels sharing
+ * a domain share a grid whatever their labels happen to measure.
+ */
+export function categoryTickInterval(count: number, maximumTicks = 8): number {
+  if (count <= maximumTicks) return 0
+  return Math.ceil(count / maximumTicks) - 1
+}
+
+/**
+ * How much of a horizontal bar chart's width its category names may take.
+ *
+ * The cap was a flat 260px. In a 407px panel that is two thirds of the canvas:
+ * the zero tick disappeared, nine of eleven bars drew at zero width, and the
+ * longest bar ended exactly at the plot edge — a chart stating nothing, on a
+ * panel whose neighbour at the same width was fine. What differed was label
+ * length, so the allowance is now a share of the plot rather than a constant.
+ */
+export function categoryLabelWidth(plotWidth: number | undefined): number {
+  if (!plotWidth || plotWidth <= 0) return 260
+  return Math.max(72, Math.min(260, Math.round(plotWidth * 0.38)))
+}
+
 function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const points = rowPoints(input)
   const categories = [...new Set(points.map((point) => point.category))]
@@ -1053,6 +1243,7 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const categoryIsTime = input.frame.columns.find((column) => column.name === categoryField)?.type === 'time'
   const timeAxis = !isBar && categoryIsTime
   const colorByCategory = isBar && input.presentation?.colorBy === 'category'
+  const colorBySequence = isBar && input.presentation?.colorBy === 'sequence'
   const barWidth = input.presentation?.barWidthPx
   // A stack states that its segments add up to the column, so only the series
   // that really are parts of the whole may join it: anything the producer
@@ -1060,8 +1251,30 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   // outside the sum.
   const lineSeries = new Set(input.presentation?.lineSeries ?? [])
   const stacked = isBar && input.presentation?.stack === true
+  const dataLabels = shouldPrintDataLabels({
+    explicit: input.presentation?.dataLabels,
+    logarithmic,
+    obscured: linearScaleObscuresValues(input.frame, input.encoding),
+    isBar,
+    stacked,
+    markCount: points.filter((point) => typeof point.value === 'number').length,
+  })
   const categoryColor = (category: string, index: number) =>
     input.seriesColor?.(category, index) ?? theme.seriesColor(category) ?? theme.colors[index % theme.colors.length]
+  /**
+   * One hue, stepped in lightness along the order of the categories.
+   *
+   * An ordered dimension drawn in the categorical palette — ten age bands in
+   * teal, cyan, sky, red, orange, purple — says the bands are unrelated, and
+   * makes the shape of the distribution harder to read than the bar lengths
+   * alone. The ramp runs from a light tint of the accent to the accent itself,
+   * so the sequence is visible and its direction is unambiguous.
+   */
+  const sequenceColor = (index: number, count: number) => {
+    const accent = input.theme.palette.accent ?? theme.colors[0] ?? theme.accent
+    const step = count <= 1 ? 1 : index / (count - 1)
+    return mixColor(accent, theme.card, 0.25 + step * 0.75) ?? accent
+  }
   // One list of overlays, shared with the panel's legend, so a mark cannot be
   // drawn here under a vocabulary the legend does not print.
   const overlays = chartOverlays({
@@ -1103,8 +1316,11 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
       const point = points.find((candidate) => candidate.category === category && candidate.series === name)
       if (!point) return null
       const item = dataItem(point, input, theme)
+      const distributed = colorByCategory
+        ? categoryColor(category, categoryIndex)
+        : colorBySequence ? sequenceColor(categoryIndex, categories.length) : undefined
       return incompletePeriodItem(
-        colorByCategory ? { ...item, itemStyle: { ...item.itemStyle, color: categoryColor(category, categoryIndex) } } : item,
+        distributed ? { ...item, itemStyle: { ...item.itemStyle, color: distributed } } : item,
         point,
         input,
         theme,
@@ -1117,10 +1333,12 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
     universalTransition: { enabled: morphEnabled() },
     stack: stacked && !lineSeries.has(name) ? 'total' : undefined,
     barWidth: isBar && !lineSeries.has(name) && barWidth ? barWidth : undefined,
+    barMaxWidth: isBar && !lineSeries.has(name) && !barWidth ? maximumBarWidth : undefined,
+    barCategoryGap: isBar && !lineSeries.has(name) ? barCategoryGap : undefined,
     // Bar length on a logarithmic axis communicates order of magnitude, not
     // the literal value. Print that value on the mark so restoring the scale
     // never makes the chart less informative than its linear counterpart.
-    label: (input.presentation?.dataLabels === true || logarithmic) && !lineSeries.has(name)
+    label: dataLabels && !lineSeries.has(name)
       ? {
         show: true,
         // Neighbouring line series often carry close values at the same
@@ -1133,9 +1351,10 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         formatter: (params: { value?: unknown }) => compactFormatter(tooltipValue(params.value)),
       }
       : undefined,
-    labelLayout: (input.presentation?.dataLabels === true || logarithmic) && !lineSeries.has(name)
-      ? { hideOverlap: true }
-      : undefined,
+    // With the mark count capped above, `hideOverlap` is a last resort against
+    // two labels that still touch rather than the rule that decides which
+    // values the reader is shown.
+    labelLayout: dataLabels && !lineSeries.has(name) ? { hideOverlap: true } : undefined,
     // The panel's resolver knows about colours pinned to the n-th series of
     // this panel; ECharts' own palette does not, and left to itself it walks a
     // default sequence that has nothing to do with the legend beside it.
@@ -1400,18 +1619,40 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
   const annotatedTicks = new Set(annotatedAxisValues(input, shown).map((value) => String(value)))
   const tickLabel = (value: string) => annotatedTicks.has(value) ? `{annotated|●} ${value}` : value
   const annotatedRich = { annotated: { color: theme.accent, fontSize: 9 } }
+  // The names a horizontal bar hangs in the plot's left margin get a share of
+  // the plot, not a constant, and the string is shortened to that share.
+  const nameWidth = categoryLabelWidth(input.viewportWidth)
   const categoryAxis = {
     type: 'category' as const,
     data: categories,
     triggerEvent: true,
     ...axisStyle(theme),
+    // One stride for a given number of categories, so two panels over the same
+    // domain print the same grid.
+    ...(horizontal ? {} : { axisLabel: { color: theme.mutedText, interval: categoryTickInterval(categories.length) } }),
     ...(annotatedTicks.size > 0 && !horizontal
-      ? { axisLabel: { color: theme.mutedText, formatter: (value: string) => tickLabel(String(value)), rich: annotatedRich } }
+      ? {
+        axisLabel: {
+          color: theme.mutedText,
+          interval: categoryTickInterval(categories.length),
+          formatter: (value: string) => tickLabel(String(value)),
+          rich: annotatedRich,
+        },
+      }
       : {}),
     // ECharts passes the category index as the formatter's second argument;
     // passing middleEllipsis directly therefore treated the index as a width
     // and mangled already-short labels such as "Apr".
-    ...(horizontal ? { axisLabel: { color: theme.mutedText, width: 260, formatter: (value: string) => middleEllipsis(String(value)), overflow: 'truncate' as const } } : {}),
+    ...(horizontal
+      ? {
+        axisLabel: {
+          color: theme.mutedText,
+          width: nameWidth,
+          formatter: (value: string) => middleEllipsis(String(value), Math.max(8, Math.round(nameWidth / 6.5))),
+          overflow: 'truncate' as const,
+        },
+      }
+      : {}),
   }
   const temporalAxis = {
     type: 'time' as const,
@@ -1443,12 +1684,28 @@ function axisOption(input: ChartInput, theme: EChartsTheme): EChartsOption {
         : []),
     ],
   )
+  // The ticks dropped the currency so that eight gridlines would not repeat it;
+  // nothing was ever given it in exchange, which is how a revenue axis came to
+  // read «35 млн» with the unit findable only by hovering a mark. It is stated
+  // once, at the end of the axis, where a unit belongs.
   const valueAxis = {
     type: logarithmic ? 'log' as const : 'value' as const,
     show: points.some((point) => typeof point.value === 'number' && point.value !== 0),
     logBase: logarithmic ? (input.valueAxis?.logBase || 10) : undefined,
     min: clamped?.min,
     max: logMaximum ?? clamped?.max,
+    ...(input.valueUnit
+      ? {
+        name: input.valueUnit,
+        nameLocation: 'end' as const,
+        nameGap: horizontal ? 16 : 10,
+        nameTextStyle: {
+          color: theme.mutedText,
+          fontSize: theme.type.xs,
+          align: horizontal ? ('center' as const) : ('right' as const),
+        },
+      }
+      : {}),
     ...axisStyle(theme),
     axisLabel: { color: theme.mutedText, formatter: axisValueFormatter(input), hideOverlap: true },
   }

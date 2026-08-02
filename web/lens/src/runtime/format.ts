@@ -161,6 +161,23 @@ export function formatAxis(value: unknown, field: FieldFormat | undefined, local
 }
 
 /**
+ * The unit `formatAxis` took off the ticks, so an axis can state it once.
+ *
+ * Dropping the currency from every gridline was right — eight repetitions of
+ * «млрд UZS» is a column of noise — but the other half of that decision was
+ * never built: the ticks lost the unit and nothing gained it, so «35 млн» sat
+ * on a revenue axis with the currency findable only by hovering a mark. The
+ * axis name is where a unit belongs; this is what goes in it.
+ *
+ * A percentage is excluded: the glyph is already on every tick, is one
+ * character wide, and reads as part of the number rather than as a unit.
+ */
+export function axisUnit(field: FieldFormat | undefined): string {
+  if (!field || field.kind !== 'money') return ''
+  return field.symbol ?? field.currency ?? ''
+}
+
+/**
  * The full-precision companion to a compact field: «106.03 млрд UZS» carries
  * «106 034 767 694 UZS» in its tooltip. Returns undefined when the field is
  * not compact (nothing was abbreviated away) or the value is not numeric.

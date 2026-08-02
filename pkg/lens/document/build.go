@@ -628,6 +628,9 @@ func convertPresentation(hints panel.PresentationHints) *Presentation {
 	if hints.ColorByCategory {
 		presentation.ColorBy = ColorByCategory
 	}
+	if hints.ColorBySequence {
+		presentation.ColorBy = ColorBySequence
+	}
 	if hints.Waterfall {
 		presentation.BridgeLayout = BridgeLayoutWaterfall
 	}

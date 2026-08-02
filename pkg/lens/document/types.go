@@ -791,6 +791,13 @@ const (
 	// ColorByCategory gives every category its own palette color instead of
 	// one color for the whole series.
 	ColorByCategory ColorBy = "category"
+	// ColorBySequence shades an *ordered* dimension along one hue instead of
+	// giving each step an unrelated one. Age bands, tenure buckets and rating
+	// grades are ranked, and a categorical palette says the opposite: a rainbow
+	// across 0-24 … 65+ claims the buckets are unrelated and hides the shape of
+	// the distribution behind ten competing hues. Only the producer knows a
+	// dimension is ordered, so only the producer can ask for this.
+	ColorBySequence ColorBy = "sequence"
 )
 
 // BridgeLayout selects the visual projection of a cascade/bridge panel.

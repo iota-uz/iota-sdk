@@ -66,7 +66,7 @@ export const BridgeLayoutSchema: z.ZodType<Contract.BridgeLayout> = z.enum(["wat
 
 export const CascadeToneSchema: z.ZodType<Contract.CascadeTone> = z.enum(["inflow", "negative", "neutral", "positive"])
 
-export const ColorBySchema: z.ZodType<Contract.ColorBy> = z.enum(["category"])
+export const ColorBySchema: z.ZodType<Contract.ColorBy> = z.enum(["category", "sequence"])
 
 export const ColumnSchema: z.ZodType<Contract.Column> = z.lazy(() => z.object({
   name: z.string(),

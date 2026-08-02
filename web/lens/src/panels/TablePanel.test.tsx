@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/re
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument, Panel } from '../contract'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
-import { TablePanel } from './TablePanel'
+import { heatRank, TablePanel } from './TablePanel'
 
 const tablePanel: Panel = {
   id: 'evidence',
@@ -625,5 +625,24 @@ describe('TablePanel server readability features', () => {
     expect(requests.at(-1)?.panels[0]?.sort).toEqual({ field: 'paid', direction: 'asc' })
     await waitFor(() => expect(screen.queryByText('Travel')).not.toBeInTheDocument())
     expect(screen.getAllByText('$75')).toHaveLength(2)
+  })
+})
+
+describe('column heat', () => {
+  it('shades by rank, so one outlier cannot flatten the rest of the column', () => {
+    // «Выплачено»: 4,04 млрд against 312 млн against seven rows under 100 млн.
+    // Linear in the value, six of the nine landed on exactly one lightness.
+    const values = [4_040_000_000, 312_200_000, 111_130_000, 81_780_000, 40_000_000, 12_000_000, 5_000_000, 2_000_000, 1_490_000]
+    const sorted = [...values].sort((left, right) => left - right)
+    const ranks = values.map((value) => heatRank(value, sorted))
+
+    expect(new Set(ranks).size).toBe(values.length)
+    expect(ranks[0]).toBe(1)
+    expect(ranks.at(-1)).toBe(0)
+  })
+
+  it('gives two equal amounts the same shade', () => {
+    expect(heatRank(5, [1, 5, 5, 9])).toBe(heatRank(5, [1, 5, 5, 9]))
+    expect(heatRank(5, [1, 5, 5, 9])).toBe(0.5)
   })
 })

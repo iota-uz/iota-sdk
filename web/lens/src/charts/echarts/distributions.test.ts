@@ -6,7 +6,9 @@ import type { EChartsTheme } from './theme'
 const theme: EChartsTheme = {
   card: '#fff', text: '#111', mutedText: '#666', border: '#ddd', divider: '#eee', selectedBorder: '#000',
   faintText: '#94a3b8', warn: '#d97706', warnSoft: '#fffbeb', accent: '#2563eb', trend: '#7c3aed',
-  fontFamily: 'sans-serif', colors: ['#2563eb'], seriesColor: () => undefined,
+  fontFamily: 'sans-serif', popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', cardRadius: 8,
+  type: { xs: 10, sm: 11, base: 12, md: 14 },
+  colors: ['#2563eb'], seriesColor: () => undefined,
 }
 
 function input(kind: DistributionKind, frame: Frame, encoding: DistributionInput['encoding']): DistributionInput {
@@ -34,6 +36,7 @@ describe('distribution chart options', () => {
       previous: '', trend: '', movingAverage: () => '', estimate: '', ytd: '', forecast: '',
       forecastLower: () => '', forecastConfidence: () => '',
       boxplot: ['Мин', 'Квартиль 1', 'Медиана', 'Квартиль 3', 'Макс'],
+      noData: 'No data',
     }
     const option = buildDistributionOption(chartInput, theme) as {
       series: Array<{ data: number[][] }>
@@ -53,5 +56,59 @@ describe('distribution chart options', () => {
     }
     expect(option.series[0]?.data).toEqual([[0, 0, 12], [1, 0, 7], [0, 1, 4]])
     expect(option.visualMap.max).toBe(12)
+  })
+})
+
+describe('distribution chrome', () => {
+  const frame: Frame = {
+    columns: [{ name: 'x', type: 'string' }, { name: 'y', type: 'string' }, { name: 'value', type: 'number' }],
+    rows: [['Q1', 'North', 4], ['Q2', 'North', 9], ['Q1', 'South', 1]],
+  }
+
+  it('renders its tooltip through the shared chrome, at body level', () => {
+    const option = buildDistributionOption(
+      input('heatmap', frame, { category: 'x', series: 'y', value: 'value' }),
+      theme,
+    ) as { tooltip: { appendTo?: string; className?: string; confine?: boolean; extraCssText?: string } }
+
+    expect(option.tooltip.appendTo).toBe('body')
+    expect(option.tooltip.className).toBe('lens-echarts-tooltip')
+    expect(option.tooltip.confine).toBe(true)
+    expect(option.tooltip.extraCssText).toContain('z-index')
+  })
+
+  it('never ramps a heat cell down to the card it is drawn on', () => {
+    const option = buildDistributionOption(
+      input('heatmap', frame, { category: 'x', series: 'y', value: 'value' }),
+      theme,
+    ) as {
+      visualMap: { inRange: { color: string[] }; text?: string[]; orient?: string; bottom?: number }
+      series: Array<{ itemStyle?: { borderColor?: string; borderWidth?: number } }>
+    }
+
+    expect(option.visualMap.inRange.color[0]).toBe(theme.divider)
+    expect(option.visualMap.inRange.color[0]).not.toBe(theme.card)
+    // The legend states what a colour is worth, and stands under the plot
+    // rather than over it.
+    expect(option.visualMap.text).toEqual(['9', '0'])
+    expect(option.visualMap.orient).toBe('horizontal')
+    expect(option.series[0]?.itemStyle).toMatchObject({ borderColor: theme.card, borderWidth: 1 })
+  })
+
+  it('draws histogram bins adjacent, with their edges shown', () => {
+    const bins: Frame = {
+      columns: [{ name: 'bucket', type: 'string' }, { name: 'count', type: 'number' }],
+      rows: Array.from({ length: 40 }, (_, index) => [`${index}–${index + 1}`, index]),
+    }
+    const option = buildDistributionOption(input('histogram', bins, { category: 'bucket', value: 'count' }), theme) as {
+      xAxis: { axisLabel: { rotate?: number; interval?: number } }
+      series: Array<{ barCategoryGap?: number; itemStyle?: { borderColor?: string } }>
+    }
+
+    expect(option.series[0]?.barCategoryGap).toBe(0)
+    expect(option.series[0]?.itemStyle?.borderColor).toBe(theme.card)
+    // Forty bins cannot print forty upright labels.
+    expect(option.xAxis.axisLabel.rotate).toBe(45)
+    expect(option.xAxis.axisLabel.interval).toBe(3)
   })
 })

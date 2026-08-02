@@ -11,7 +11,7 @@ import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
 import { childForSelection } from '../explore/model'
 import { WarningTriangle } from '../icons'
-import { formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { axisUnit, formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
 import { ChartDataEquivalent } from './ChartDataEquivalent'
@@ -206,7 +206,11 @@ export function collapseExpandableTopN(frame: Frame, panel: Panel): { frame: Fra
   if (idIndex >= 0) remainder[idIndex] = donutRemainderKey
   remainder[valueIndex] = tail.reduce((sum, row) => sum + (numericCell(row[valueIndex]) ?? 0), 0)
   rows.push(remainder)
-  return { frame: { ...frame, rows }, collapsed: true }
+  // A folded tail is not a category either — same rule, same reserved neutral.
+  const colors = frame.colors
+    ? [...frame.colors.filter((_, index) => !tail.includes(frame.rows[index]!)), remainderColor()]
+    : [...rows.slice(0, -1).map(() => ''), remainderColor()]
+  return { frame: { ...frame, rows, colors }, collapsed: true }
 }
 
 export function collapseMinorDonutSlices(frame: Frame, panel: Panel, otherLabel: string): { frame: Frame; collapsed: boolean } {
@@ -227,10 +231,17 @@ export function collapseMinorDonutSlices(frame: Frame, panel: Panel, otherLabel:
   if (idIndex >= 0) remainder[idIndex] = donutRemainderKey
   remainder[valueIndex] = minor.reduce((sum, item) => sum + item.value, 0)
   rows.push(remainder)
+  // The remainder's neutral was pinned only when the frame already shipped a
+  // palette. On every other frame the aggregate took the next categorical
+  // colour in the walk and was painted as if it were one more real category —
+  // the one thing a residual must never look like. A frame with no palette gets
+  // one here: the rows keep the colours they would have had, and the remainder
+  // gets the reserved neutral.
+  const kept = frame.rows.map((_, index) => index).filter((index) => !minorIndices.has(index))
   const colors = frame.colors
     ? [...frame.colors.filter((_, index) => !minorIndices.has(index)), remainderColor()]
-    : undefined
-  return { frame: { ...frame, rows, ...(colors ? { colors } : {}) }, collapsed: true }
+    : [...kept.map(() => ''), remainderColor()]
+  return { frame: { ...frame, rows, colors }, collapsed: true }
 }
 
 export function ChartPanel({ panel, adapter }: ChartPanelProps) {
@@ -384,7 +395,14 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
 
   // Once a slice is hidden ECharts normalises the remaining geometry to the
   // visible rows. Use that same denominator for labels and the total badge.
-  const shareTotal = !frame.data || frame.data.rows.length === 0
+  //
+  // With every row hidden there is no denominator and therefore no total —
+  // «Итого: 0 UZS» is a claim about the data, and the data did not change. The
+  // panel used to print exactly that in its header while the donut in the same
+  // card went on printing 45,55 млрд in its hub: one panel, two totals,
+  // contradicting each other. Nothing shown, nothing totalled, one owner.
+  const nothingVisible = hidden.size > 0 && (visibleFrame?.rows.length ?? 0) === 0
+  const shareTotal = !frame.data || frame.data.rows.length === 0 || nothingVisible
     ? undefined
     : hidden.size > 0
       ? visibleTotal
@@ -507,6 +525,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       translate('chart.boxplot.q3', 'Q3'),
       translate('chart.boxplot.max', 'Max'),
     ] as [string, string, string, string, string],
+    noData: translate('panel.empty', 'No data'),
   }), [translate])
 
   const input = useMemo<ChartInput | undefined>(() => renderFrame ? ({
@@ -530,6 +549,7 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     temporal: panel.temporal,
     hiddenOverlays,
     valueAxis: panel.valueAxis,
+    valueUnit: axisUnit(panel.encoding.value ? panel.format[panel.encoding.value] : undefined),
     expandable,
   }) : undefined, [chartLabels, document.meta?.locale, document.theme, expandable, format, formatAxis, hiddenOverlays, kind, panel.encoding, panel.format, panel.radial, panel.temporal, panel.valueAxis, presentation, renderFrame, rowColor, selectedKey, seriesColor, translate])
 

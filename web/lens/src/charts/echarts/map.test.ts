@@ -6,7 +6,9 @@ import type { EChartsTheme } from './theme'
 const theme: EChartsTheme = {
   card: '#ffffff', text: '#334155', mutedText: '#64748b', border: '#e2e8f0', divider: '#f1f5f9',
   faintText: '#94a3b8', warn: '#d97706', warnSoft: '#fffbeb', accent: '#2563eb', trend: '#7c3aed',
-  selectedBorder: '#0f172a', fontFamily: 'sans-serif', colors: ['#2563eb'], seriesColor: () => undefined,
+  selectedBorder: '#0f172a', fontFamily: 'sans-serif',
+  popoverShadow: '0 1px 2px rgba(0,0,0,0.1)', cardRadius: 8, type: { xs: 10, sm: 11, base: 12, md: 14 },
+  colors: ['#2563eb'], seriesColor: () => undefined,
 }
 
 describe('choropleth option', () => {
@@ -100,5 +102,56 @@ describe('choropleth option', () => {
     expect(option.series[0]!.label.formatter({ name: 'south' })).toBe(absentLabel)
     expect(option.tooltip.formatter({ name: 'south' })).toContain(absentLabel)
     expect(option.tooltip.formatter({ name: 'south' })).not.toContain('south<br>')
+  })
+})
+
+describe('choropleth chrome', () => {
+  const geo = {
+    type: 'FeatureCollection',
+    features: [
+      { type: 'Feature', properties: { code: 'north', name: 'North' }, geometry: { type: 'Polygon', coordinates: [] } },
+      { type: 'Feature', properties: { code: 'south', name: 'South' }, geometry: { type: 'Polygon', coordinates: [] } },
+    ],
+  }
+
+  function mapInput(): ChartInput {
+    return {
+      kind: 'map',
+      frame: {
+        columns: [{ name: 'code', type: 'string' }, { name: 'value', type: 'number' }],
+        rows: [['north', 42]],
+      },
+      encoding: { id: 'code', value: 'value' },
+      format: (_field, value) => typeof value === 'number' ? `$${value}` : '—',
+      theme: { palette: { accent: '#2563eb' }, series: {} },
+      labels: {
+        previous: '', trend: '', movingAverage: () => '', estimate: '', ytd: '', forecast: '',
+        forecastLower: () => '', forecastConfidence: () => '',
+        boxplot: ['', '', '', '', ''],
+        noData: 'Нет данных',
+      },
+      map: { name: 'regions', geoJSON: geo as never, featureProperty: 'code', labelProperty: 'name' },
+    }
+  }
+
+  it('paints hover in the accent instead of ECharts’ amber default', () => {
+    const option = buildMapOption(mapInput(), theme) as {
+      series: Array<{ emphasis: { itemStyle: { areaColor?: string; borderColor?: string; borderWidth?: number } } }>
+    }
+    const emphasis = option.series[0]!.emphasis.itemStyle
+
+    expect(emphasis.areaColor).toMatch(/^#[0-9a-f]{6}$/)
+    expect(emphasis.areaColor).not.toBe(theme.card)
+    expect(emphasis.borderColor).toBe('#2563eb')
+    expect(emphasis.borderWidth).toBe(1.5)
+  })
+
+  it('says a region has no reading rather than formatting one it never had', () => {
+    const option = buildMapOption(mapInput(), theme) as {
+      tooltip: { formatter: (params: { name?: string; data?: { value?: unknown } }) => string }
+    }
+
+    expect(option.tooltip.formatter({ name: 'south' })).toContain('Нет данных')
+    expect(option.tooltip.formatter({ name: 'north', data: { value: 42 } })).toContain('$42')
   })
 })

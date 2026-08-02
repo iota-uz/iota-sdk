@@ -79,16 +79,23 @@ function BarCell({ format, value, max }: { format?: FieldFormat; value: unknown;
   const number = numericValue(value)
   const ratio = max > 0 && number !== undefined ? Math.max(0, Math.min(1, Math.abs(number) / max)) : 0
   const negative = number !== undefined && number < 0
+  // An empty track is a bar that is loading, not a bar that is zero: five rows
+  // of «0 / 0.0%» drew five full-width grey rails with nothing in them, which is
+  // the runtime's own skeleton shape. A zero has no magnitude to draw, so it
+  // draws none and the numeral carries the row.
+  const drawn = number !== undefined && number !== 0
   return (
     <div className="lens-table-bar">
-      <span className="lens-table-bar-track" aria-hidden="true">
-        {/* The magnitude is drawn from the track's midpoint outwards so a
-            negative value cannot look identical to its positive twin. */}
-        <span
-          className={`lens-table-bar-fill${negative ? ' lens-table-bar-fill-negative' : ''}`}
-          style={{ width: `${ratio * 50}%`, [negative ? 'right' : 'left']: '50%' }}
-        />
-      </span>
+      {drawn && (
+        <span className="lens-table-bar-track" aria-hidden="true">
+          {/* The magnitude is drawn from the track's midpoint outwards so a
+              negative value cannot look identical to its positive twin. */}
+          <span
+            className={`lens-table-bar-fill${negative ? ' lens-table-bar-fill-negative' : ''}`}
+            style={{ width: `${ratio * 50}%`, [negative ? 'right' : 'left']: '50%' }}
+          />
+        </span>
+      )}
       <span className="lens-table-bar-value">{display(value)}</span>
     </div>
   )
@@ -217,20 +224,43 @@ function ColumnCell({
     content = <span className={`lens-table-tone lens-table-tone-${tone}`}>{content}</span>
   }
 
+  const href = column.action && activation.available ? resolveColumnActionURL(column.action, frame, row, location) : undefined
+
   if (column.clamp) {
     const fullText = typeof value === 'string' ? value : undefined
-    content = (
-      <span
-        className="lens-table-clamp"
-        style={{ WebkitLineClamp: column.clamp } as CSSProperties}
-        title={fullText}
-      >
-        {content}
-      </span>
+    // A clamp with no way to see what it cut is the defect, not the clamp. Two
+    // lines of a 160px column hold about 21 of the 92 characters of «ОБ-10-1.
+    // Обязательное…», and six of the nine products in that table are
+    // indistinguishable from their prefixes — so the reader has to be able to
+    // read the rest, and a native `title` cannot be reached from a keyboard, is
+    // not reached at all by touch, and takes a second of hover to appear.
+    // The full name is a real element now: it belongs to the runtime, it takes
+    // the runtime's popover chrome, and it appears on focus as readily as on
+    // hover.
+    const clamped = (
+      <>
+        <span
+          className="lens-table-clamp"
+          style={{ WebkitLineClamp: column.clamp } as CSSProperties}
+          title={fullText}
+        >
+          {content}
+        </span>
+        {fullText && <span className="lens-table-clamp-full">{fullText}</span>}
+      </>
     )
+    // A cell that drills already has something focusable in it, and revealing
+    // on `:focus-within` costs the reader no extra tab stop. A cell that does
+    // not is given a real control — a disclosure — rather than a focusable
+    // `span`, which is a tab stop that announces nothing.
+    content = href || !fullText
+      ? <span className="lens-table-clamp-host">{clamped}</span>
+      : (
+        <button className="lens-table-clamp-host" type="button">
+          {clamped}
+        </button>
+      )
   }
-
-  const href = column.action && activation.available ? resolveColumnActionURL(column.action, frame, row, location) : undefined
   const pill = column.affordance === 'pill'
   const quiet = column.affordance === 'quiet'
   let rendered
@@ -297,6 +327,28 @@ function ColumnCell({
 interface NumericRange {
   min: number
   max: number
+  /** Every value in the column, ascending — the ranking the shade reads off. */
+  sorted: number[]
+}
+
+/**
+ * Where `value` sits among the column's other values, from 0 to 1.
+ *
+ * The shade used to be linear in the value, which on a column whose top row is
+ * 4,04 млрд and whose next is 312 млн meant one cell at L 0.76 and six of the
+ * remaining eight at *exactly* L 0.94 — a 55× spread rendered as one colour.
+ * The heat then encoded nothing the numeral had not already said. Ranking is
+ * what a reader is actually looking for in a shaded column: which rows are the
+ * big ones, in order, whatever the distances between them.
+ *
+ * Ties share a rank, so two equal amounts cannot take different shades.
+ */
+export function heatRank(value: number, sorted: readonly number[]): number {
+  if (sorted.length <= 1) return 0.5
+  const first = sorted.indexOf(value)
+  if (first < 0) return 0.5
+  const last = sorted.lastIndexOf(value)
+  return ((first + last) / 2) / (sorted.length - 1)
 }
 
 function heatCellStyle(column: TableColumn, frame: Frame, row: Array<unknown>, ranges: Map<string, NumericRange>): CSSProperties | undefined {
@@ -305,8 +357,7 @@ function heatCellStyle(column: TableColumn, frame: Frame, row: Array<unknown>, r
   const value = index >= 0 ? numericValue(row[index]) : undefined
   const range = ranges.get(column.field)
   if (value === undefined || !range) return undefined
-  const spread = range.max - range.min
-  const intensity = spread > 0 ? (value - range.min) / spread : 0.5
+  const intensity = heatRank(value, range.sorted)
   const percentage = Math.round(heatMinimumMixPercent + Math.max(0, Math.min(1, intensity)) * heatMixRangePercent)
   return { backgroundColor: `color-mix(in srgb, var(--lens-accent-500) ${percentage}%, var(--lens-bg-card))` }
 }
@@ -386,7 +437,13 @@ export function TablePanel({ panel }: TablePanelProps) {
       if (index < 0) continue
       const values = frame.data.rows.map((row) => numericValue(row[index])).filter((value): value is number => value !== undefined)
       if (column.cell.kind === 'bar') maxima.set(column.field, values.reduce((maximum, value) => Math.max(maximum, Math.abs(value)), 0))
-      if (column.heat && values.length > 0) ranges.set(column.field, { min: Math.min(...values), max: Math.max(...values) })
+      if (column.heat && values.length > 0) {
+        ranges.set(column.field, {
+          min: Math.min(...values),
+          max: Math.max(...values),
+          sorted: [...values].sort((left, right) => left - right),
+        })
+      }
     }
     return { maxima, ranges }
   }, [columns, frame.data])

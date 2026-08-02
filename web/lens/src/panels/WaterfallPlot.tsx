@@ -23,6 +23,8 @@ export interface WaterfallPlotProps {
   role?: 'group' | 'img'
   /** Defaults to `hover`; a static rendering must pass `always`. */
   splitCallout?: WaterfallSplitCallout
+  /** The unit the ticks no longer repeat, stated once at the head of the axis. */
+  axisUnit?: string
   children?: ReactNode
 }
 
@@ -38,6 +40,7 @@ export function WaterfallPlot({
   interaction,
   role = 'img',
   splitCallout = 'hover',
+  axisUnit,
   children,
 }: WaterfallPlotProps) {
   return (
@@ -53,6 +56,9 @@ export function WaterfallPlot({
     >
       <div className="lens-waterfall-chart">
         <div className="lens-waterfall-axis" aria-hidden="true">
+          {/* Stated once, at the head of the axis, rather than on all eight
+              gridlines — the same convention every ECharts axis here follows. */}
+          {axisUnit && <span className="lens-waterfall-axis-unit">{axisUnit}</span>}
           {model.ticks.map((tick) => (
             <span key={tick.value} style={{ top: `${tick.top}%` }}>{tick.label}</span>
           ))}
@@ -94,6 +100,7 @@ export function WaterfallPlot({
                   data-checkpoint={item.checkpoint}
                   data-kind={item.kind}
                   data-label-row={index % 2}
+                  data-no-movement={item.noMovement}
                   data-terminal={!chrome || undefined}
                   data-tone={item.tone}
                   style={{
@@ -128,7 +135,12 @@ export function WaterfallPlot({
       <div className="lens-waterfall-labels">
         {model.items.map((item, index) => (
           <span className="lens-waterfall-label" key={`${item.label}-label-${index}`}>
-            <span>{item.label}</span>
+            {/* Clamped to two lines rather than wrapped at any character: the
+                band was uniform because every label broke mid-word, so
+                «Исходящее перестрахование» read as three lines ending in an
+                orphaned «е». The full name is on the element, for the readers
+                the clamp costs it. */}
+            <span title={item.label}>{item.label}</span>
             {item.annotation && (
               <small className="lens-waterfall-annotation">{item.annotation}</small>
             )}

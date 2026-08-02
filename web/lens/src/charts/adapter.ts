@@ -13,6 +13,8 @@ export interface ChartLabels {
   forecastLower: (forecast: string) => string
   forecastConfidence: (forecast: string) => string
   boxplot: [min: string, q1: string, median: string, q3: string, max: string]
+  /** What a mark with no reading behind it says instead of a formatted zero. */
+  noData: string
 }
 
 /** Stable mark identity for a category within a specific partition ring. */
@@ -42,6 +44,12 @@ export interface ChartInput {
   presentation?: Presentation
   /** Numeric-axis scale requested by the dashboard producer. */
   valueAxis?: ValueAxis
+  /**
+   * The unit the axis ticks no longer carry — a currency, normally — so the
+   * axis can state it once in its name instead of on every gridline or, as
+   * before, nowhere at all.
+   */
+  valueUnit?: string
   /** Required geometry contract for radial charts. */
   radial?: RadialConfig
   /**

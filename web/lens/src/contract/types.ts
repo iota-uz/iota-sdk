@@ -43,7 +43,7 @@ export type BridgeLayout = "waterfall"
 
 export type CascadeTone = "inflow" | "negative" | "neutral" | "positive"
 
-export type ColorBy = "category"
+export type ColorBy = "category" | "sequence"
 
 export interface Column {
   name: string

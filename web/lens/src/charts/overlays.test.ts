@@ -13,6 +13,7 @@ const labels: ChartLabels = {
   forecastLower: (forecast) => `${forecast} lower`,
   forecastConfidence: (forecast) => `${forecast} confidence`,
   boxplot: ['Min', 'Q1', 'Median', 'Q3', 'Max'],
+  noData: 'No data',
 }
 
 const temporal: PanelTemporal = {
