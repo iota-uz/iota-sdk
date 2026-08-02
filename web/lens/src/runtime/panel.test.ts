@@ -37,3 +37,20 @@ describe('PanelClient NDJSON protocol', () => {
     await expect(panelClient.loadBatch([{ snapshotId: 'snapshot', panelId: 'a' }])).rejects.toThrow()
   })
 })
+
+describe('a cancelled batch is not a failed one', () => {
+  it.each([
+    ['a bare fetch abort', new DOMException('The operation was aborted', 'AbortError')],
+    ['an abort reason carrying the name', Object.assign(new Error('aborted'), { name: 'AbortError' })],
+  ])('recognises %s', (_name, cause) => {
+    expect(PanelClient.isAbort(cause)).toBe(true)
+  })
+
+  it.each([
+    ['a server failure', new Error('panel execution failed')],
+    ['a DOMException that is not an abort', new DOMException('boom', 'NotFoundError')],
+    ['a non-Error rejection', 'nope'],
+  ])('does not mistake %s for one', (_name, cause) => {
+    expect(PanelClient.isAbort(cause)).toBe(false)
+  })
+})

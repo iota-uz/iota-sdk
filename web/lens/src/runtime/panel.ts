@@ -44,6 +44,20 @@ export class PanelClient {
     private readonly options: PanelClientOptions = {},
   ) {}
 
+  /**
+   * Whether a rejection is "the request was cancelled" rather than "the request
+   * failed". A cancelled panel has nothing to report: its caller moved on, and
+   * showing the user an error for work nobody is waiting for reads as a broken
+   * panel beside working ones.
+   *
+   * `fetch` rejects an aborted request with a DOMException named AbortError;
+   * an abort with an explicit reason rejects with that reason instead.
+   */
+  static isAbort(cause: unknown): boolean {
+    if (cause instanceof DOMException) return cause.name === 'AbortError'
+    return cause instanceof Error && cause.name === 'AbortError'
+  }
+
   load(input: SnapshotPanelRequest, options: PanelLoadOptions = {}): Promise<PanelLoadResult> {
     const { snapshotId, ...panelInput } = input
     const request = { ...PanelRequestSchema.parse(panelInput), snapshotId }

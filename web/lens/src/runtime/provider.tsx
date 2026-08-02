@@ -951,6 +951,14 @@ function RuntimeCore({
     void panelClient.loadBatch(pending.map(({ panel, force }) => ({
       snapshotId: sourceDocument.snapshotId, panelId: panel.id, ...(force ? { recompute: true } : {}),
     })), { onResult: applyPanelResult }).catch((cause: unknown) => {
+      // A cancelled batch is not a failed one. Every other rejection path in
+      // this file checks its signal first; this one did not, so unmounting the
+      // runtime — or any refetch that disposes the client while a slow panel is
+      // still in flight — painted «Не удалось отобразить панель» on whichever
+      // panels had not answered yet. On the sales report that is reliably the
+      // region map, which takes ~10s uncached while its siblings return in
+      // under one, so it alone showed an error beside nine working panels.
+      if (PanelClient.isAbort(cause)) return
       for (const { panel, attempt, key, previous, retry } of pending) {
         if (received.has(panel.id)) continue
         if (launchedPanelAttempts.current.get(key) !== attempt) continue
