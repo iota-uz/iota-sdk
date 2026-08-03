@@ -12,6 +12,7 @@ import (
 
 const (
 	priorityInteractive  = 0
+	priorityExport       = 50
 	priorityRootBase     = 100
 	priorityIntent       = 2000
 	priorityIdlePrefetch = 3000
@@ -425,6 +426,8 @@ func priorityClass(priority int) string {
 	switch {
 	case priority == priorityInteractive:
 		return "interactive"
+	case priority == priorityExport:
+		return "export"
 	case priority < priorityIntent:
 		return "root"
 	case priority < priorityIdlePrefetch:
@@ -479,6 +482,33 @@ func (h *Handlers) releaseSession(snapshotID string) {
 	h.sessionsMu.Unlock()
 	if session != nil {
 		session.cancelBackground()
+	}
+}
+
+// ExecuteExportSurface runs a snapshot export in the same execution graph as
+// root panels, explorations and derived documents. Export is user-visible
+// foreground work, but unlike viewport-driven root rendering it deliberately
+// submits one throughput-oriented scope to the engine: the engine may resolve
+// all required datasets concurrently while its runtime memo reuses dependency
+// work already completed by panel requests from this snapshot.
+func (h *Handlers) ExecuteExportSurface(
+	ctx context.Context,
+	snapshotID string,
+	key string,
+	run func(context.Context) (any, error),
+) (any, error) {
+	snapshotID = strings.TrimSpace(snapshotID)
+	key = strings.TrimSpace(key)
+	if snapshotID == "" || key == "" || run == nil {
+		return nil, fmt.Errorf("export surface requires snapshot, key and executor")
+	}
+	call := h.session(snapshotID).submit(ctx, "export:"+snapshotID+":"+key, priorityExport, 0, run)
+	defer call.Cancel()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-call.result:
+		return result.value, result.err
 	}
 }
 

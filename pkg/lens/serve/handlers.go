@@ -944,18 +944,24 @@ func (h *Handlers) Export(w http.ResponseWriter, r *http.Request) {
 	var result *lensruntime.DashboardResult
 	if h.progressive {
 		scope := lensruntime.DashboardExportScope()
+		exportKey := "dashboard"
 		if panelID != "" {
 			if spec, ok := lens.FindPanel(h.spec, panelID); !ok || spec.Kind.IsContainer() {
 				writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panel is not available in the snapshot")
 				return
 			}
 			scope = lensruntime.PanelExportScope(panelID)
+			exportKey = "panel:" + panelID
 		}
-		result, err = h.engine.Execute(r.Context(), h.spec, request, scope)
+		loaded, executeErr := h.ExecuteExportSurface(r.Context(), snapshot.ID, exportKey, func(workCtx context.Context) (any, error) {
+			return h.engine.Execute(workCtx, h.spec, request, scope)
+		})
+		err = executeErr
 		if err != nil {
 			h.writeExecutionError(r.Context(), w, err)
 			return
 		}
+		result, _ = loaded.(*lensruntime.DashboardResult)
 		if result == nil {
 			h.writeInternalError(r.Context(), w, "lens/serve.Export", "export execution failed", fmt.Errorf("executor returned a nil dashboard result"))
 			return

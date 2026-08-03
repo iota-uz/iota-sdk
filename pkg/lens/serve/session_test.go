@@ -175,6 +175,49 @@ func TestExecuteDerivedSurfacePromotesIntentInsteadOfDuplicatingDrawerWork(t *te
 	require.Equal(t, 1, runs)
 }
 
+func TestExecuteExportSurfaceJoinsSameSnapshotThroughputWork(t *testing.T) {
+	handlers := &Handlers{sessions: make(map[string]*executionSession), workTimeout: time.Second, observer: noopObserver{}}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var runs int
+	run := func(context.Context) (any, error) {
+		runs++
+		close(started)
+		<-release
+		return "workbook-source", nil
+	}
+	firstResult := make(chan any, 1)
+	go func() {
+		value, _ := handlers.ExecuteExportSurface(t.Context(), "snapshot", "dashboard", run)
+		firstResult <- value
+	}()
+	<-started
+	secondResult := make(chan any, 1)
+	go func() {
+		value, _ := handlers.ExecuteExportSurface(t.Context(), "snapshot", "dashboard", run)
+		secondResult <- value
+	}()
+
+	session := handlers.session("snapshot")
+	deadline := time.Now().Add(time.Second)
+	for {
+		session.mu.Lock()
+		joined := len(session.jobs["export:snapshot:dashboard"].waiters) == 2
+		session.mu.Unlock()
+		if joined {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("second export did not join the snapshot export graph")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	require.Equal(t, "workbook-source", <-firstResult)
+	require.Equal(t, "workbook-source", <-secondResult)
+	require.Equal(t, 1, runs)
+}
+
 func TestExecutionSessionKeepsPromotedWorkForInteractiveConsumer(t *testing.T) {
 	session := newExecutionSession(2, time.Second)
 	started := make(chan struct{})
