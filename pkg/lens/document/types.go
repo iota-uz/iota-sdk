@@ -1336,11 +1336,12 @@ type QueryResponse struct {
 }
 
 type PanelRequest struct {
-	PanelID   string     `json:"panelId"`
-	Recompute bool       `json:"recompute,omitempty"`
-	Search    string     `json:"search,omitempty"`
-	Sort      *TableSort `json:"sort,omitempty"`
-	Page      int        `json:"page,omitempty"`
+	PanelID      string     `json:"panelId"`
+	Recompute    bool       `json:"recompute,omitempty"`
+	Search       string     `json:"search,omitempty"`
+	Sort         *TableSort `json:"sort,omitempty"`
+	Page         int        `json:"page,omitempty"`
+	ViewportRank *int       `json:"viewportRank,omitempty"`
 }
 
 type SortDirection string

@@ -225,6 +225,10 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 			writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "panelId entries must be unique")
 			return
 		}
+		if rank := req.Panels[index].ViewportRank; rank != nil && (*rank < 0 || *rank > 2) {
+			writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "viewportRank must be between 0 and 2")
+			return
+		}
 		seen[req.Panels[index].PanelID] = struct{}{}
 	}
 	flusher, ok := w.(http.Flusher)
@@ -244,10 +248,15 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	session := h.session(req.SnapshotID)
 	priorities := panelExecutionPriorities(h.plan)
 	slices.SortStableFunc(req.Panels, func(left, right PanelRequest) int {
-		return priorities.compare(left.PanelID, right.PanelID)
+		leftPriority, leftOrder := priorities.forRequest(left)
+		rightPriority, rightOrder := priorities.forRequest(right)
+		if leftPriority != rightPriority {
+			return leftPriority - rightPriority
+		}
+		return leftOrder - rightOrder
 	})
 	for _, panelReq := range req.Panels {
-		priority, order := priorities.forPanel(panelReq.PanelID)
+		priority, order := priorities.forRequest(panelReq)
 		if priorityCounts[priority] == 0 {
 			priorityOrder = append(priorityOrder, priority)
 		}

@@ -332,3 +332,21 @@ func TestAgedPriorityAdvancesWithinItsClassWithoutCrossingForegroundBoundary(t *
 	require.Equal(t, priorityIntent, agedPriority(intent, now, false))
 	require.Equal(t, priorityIdlePrefetch, agedPriority(idle, now, false))
 }
+
+func TestPanelViewportRankReordersOnlyRowsBelowColdHero(t *testing.T) {
+	priorities := panelPriorities{
+		"hero":   {priority: priorityRootBase, order: 0},
+		"second": {priority: priorityRootBase + 1, order: 1},
+		"third":  {priority: priorityRootBase + 2, order: 2},
+	}
+	visible := 0
+	offscreen := 2
+
+	heroPriority, _ := priorities.forRequest(PanelRequest{PanelID: "hero", ViewportRank: &offscreen})
+	secondPriority, _ := priorities.forRequest(PanelRequest{PanelID: "second", ViewportRank: &offscreen})
+	thirdPriority, _ := priorities.forRequest(PanelRequest{PanelID: "third", ViewportRank: &visible})
+
+	require.Equal(t, priorityRootBase, heroPriority, "viewport must not weaken cold first-row exclusivity")
+	require.Equal(t, priorityRootBase+3, secondPriority)
+	require.Equal(t, priorityRootBase+1, thirdPriority, "visible lower content should precede offscreen siblings")
+}

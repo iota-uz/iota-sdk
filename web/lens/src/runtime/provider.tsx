@@ -88,6 +88,23 @@ export interface DocumentProviderProps {
   children: ReactNode
 }
 
+/**
+ * Classifies a rendered panel into a bounded transport-only viewport band.
+ * Layout remains the source of truth for the first wave; this only reorders
+ * later rows according to what a reader can already see or will reach next.
+ */
+export function panelViewportRank(panelId: string): number | undefined {
+  if (typeof document === 'undefined' || typeof window === 'undefined') return undefined
+  const escaped = typeof CSS !== 'undefined' && typeof CSS.escape === 'function' ? CSS.escape(panelId) : panelId.replace(/["\\]/g, '\\$&')
+  const element = document.querySelector<HTMLElement>(`[data-panel-id="${escaped}"]`)
+  if (!element) return undefined
+  const bounds = element.getBoundingClientRect()
+  const height = Math.max(1, window.innerHeight || document.documentElement.clientHeight)
+  if (bounds.bottom >= 0 && bounds.top <= height) return 0
+  if (bounds.bottom >= -height && bounds.top <= height * 2) return 1
+  return 2
+}
+
 export function DocumentProvider({ src, initialDocument, csrf, fetcher, cache, children }: DocumentProviderProps) {
   const [document, setDocument] = useState<DashboardDocument | undefined>(
     () => src ? (cache?.get(src) ?? initialDocument) : initialDocument,
@@ -1138,6 +1155,7 @@ function RuntimeCore({
     }
     void panelClient.loadBatch(pending.map(({ panel, force }) => ({
       snapshotId: sourceDocument.snapshotId, panelId: panel.id, ...(force ? { recompute: true } : {}),
+      viewportRank: panelViewportRank(panel.id),
     })), { onResult: applyPanelResult }).catch((cause: unknown) => {
       // A cancelled batch is not a failed one. Every other rejection path in
       // this file checks its signal first; this one did not, so unmounting the

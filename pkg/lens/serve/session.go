@@ -569,6 +569,17 @@ func (p panelPriorities) forPanel(panelID string) (int, int) {
 	return priorityRootBase + len(p), len(p)
 }
 
+func (p panelPriorities) forRequest(request PanelRequest) (int, int) {
+	priority, order := p.forPanel(request.PanelID)
+	// The first content row remains exclusive on a cold document. Once a
+	// panel is below it, a browser-measured viewport band may bring useful
+	// work forward without letting host dashboard code declare priorities.
+	if request.ViewportRank != nil && priority > priorityRootBase {
+		priority = priorityRootBase + 1 + *request.ViewportRank
+	}
+	return priority, order
+}
+
 func (p panelPriorities) compare(left, right string) int {
 	leftPriority, leftOrder := p.forPanel(left)
 	rightPriority, rightOrder := p.forPanel(right)

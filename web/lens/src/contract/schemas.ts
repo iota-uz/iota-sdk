@@ -470,6 +470,7 @@ export const PanelRequestSchema: z.ZodType<Contract.PanelRequest> = z.lazy(() =>
   search: z.string().optional(),
   sort: z.lazy(() => TableSortSchema).optional(),
   page: z.number().int().optional(),
+  viewportRank: z.number().int().min(0).max(2).optional(),
 }).strict())
 
 export const PanelResponseSchema: z.ZodType<Contract.PanelResponse> = z.lazy(() => z.object({

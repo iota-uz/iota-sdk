@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
-import { DashboardRuntimeProvider, DocumentProvider, idleDrillPrefetchRoots, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
+import { DashboardRuntimeProvider, DocumentProvider, idleDrillPrefetchRoots, panelViewportRank, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
 import { QueryClient } from './query'
 
 const document = parseDocument({
@@ -20,6 +20,26 @@ const document = parseDocument({
       detail: { path: ['root', 'detail'], label: 'Detail', children: [], perspectives: [] },
     },
   },
+})
+
+describe('panelViewportRank', () => {
+  it('classifies visible, nearby and distant panels from rendered geometry', () => {
+    const element = globalThis.document.createElement('section')
+    element.dataset.panelId = 'measured-panel'
+    globalThis.document.body.append(element)
+    vi.spyOn(globalThis.window, 'innerHeight', 'get').mockReturnValue(800)
+    const bounds = vi.spyOn(element, 'getBoundingClientRect')
+
+    bounds.mockReturnValue({ top: 100, bottom: 300 } as DOMRect)
+    expect(panelViewportRank('measured-panel')).toBe(0)
+    bounds.mockReturnValue({ top: 900, bottom: 1100 } as DOMRect)
+    expect(panelViewportRank('measured-panel')).toBe(1)
+    bounds.mockReturnValue({ top: 2000, bottom: 2200 } as DOMRect)
+    expect(panelViewportRank('measured-panel')).toBe(2)
+
+    element.remove()
+    vi.restoreAllMocks()
+  })
 })
 const statPanel = document.panels[0]!
 const idlePrefetchDocument = parseDocument({
@@ -388,7 +408,7 @@ describe('DashboardRuntimeProvider', () => {
     expect(within(ready).getByText('11')).toBeInTheDocument()
     expect(await within(retrying).findByText('22')).toBeInTheDocument()
     expect(batchBodies).toHaveLength(2)
-    expect(batchBodies[1]?.panels).toEqual([{ panelId: 'retrying' }])
+    expect(batchBodies[1]?.panels).toEqual([{ panelId: 'retrying', viewportRank: 0 }])
     expect(attempts).toEqual({ ready: 1, retrying: 2 })
 
     fireEvent.click(screen.getByRole('button', { name: 'Recompute panels' }))
@@ -396,7 +416,8 @@ describe('DashboardRuntimeProvider', () => {
     expect(recomputed.sort()).toEqual(['ready', 'retrying'])
     expect(batchBodies).toHaveLength(3)
     expect(batchBodies[2]?.panels).toEqual([
-      { panelId: 'ready', recompute: true }, { panelId: 'retrying', recompute: true },
+      { panelId: 'ready', recompute: true, viewportRank: 0 },
+      { panelId: 'retrying', recompute: true, viewportRank: 0 },
     ])
     expect(screen.getByRole('button', { name: 'Recompute panels' })).not.toBeDisabled()
   })
