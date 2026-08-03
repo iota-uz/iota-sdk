@@ -133,6 +133,7 @@ function Controls() {
       <output data-testid="can-go-back">{String(drill.canGoBack)}</output>
       <button type="button" onClick={() => drill.drillInto('root', 'total')}>Root</button>
       <button type="button" onClick={() => drill.drillInto('detail')}>Detail</button>
+      <button type="button" onClick={() => drill.prefetch(['root', 'detail'], 'total')}>Prefetch detail</button>
       <button type="button" onClick={() => drill.switchPerspective('missing')}>Missing perspective</button>
       <button type="button" onClick={frame.retry}>Refresh frame</button>
       <button type="button" onClick={(event) => drawer.open('/lens/drawer', event.currentTarget)}>Open drawer</button>
@@ -176,6 +177,21 @@ afterEach(() => {
 })
 
 describe('DashboardRuntimeProvider', () => {
+  it('prefetches a concrete child without changing navigation', async () => {
+    const requests: Array<{ path: Array<string>; prefetch?: boolean }> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      requests.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { path: Array<string>; prefetch?: boolean })
+      return Promise.resolve(response(43))
+    })
+    render(<RuntimeFixture fetcher={fetcher} />)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Prefetch detail' }))
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
+    expect(requests).toEqual([{ snapshotId: document.snapshotId, path: ['root', 'detail'], prefetch: true }])
+    expect(screen.getByTestId('path')).toHaveTextContent('')
+  })
+
   it('rehydrates a previously seen snapshot after browser Back restores it', async () => {
     const attempts: Record<string, number> = {}
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {

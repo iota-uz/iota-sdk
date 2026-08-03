@@ -44,7 +44,8 @@ type TimeRange struct {
 type QueryKind string
 
 const (
-	QueryKindRaw QueryKind = "raw"
+	QueryKindRaw   QueryKind = "raw"
+	QueryKindNamed QueryKind = "named"
 )
 
 type QueryRequest struct {

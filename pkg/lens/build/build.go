@@ -85,6 +85,16 @@ func QueryDataset(name, source, text string, transforms ...transform.Spec) lens.
 	}
 }
 
+func NamedQueryDataset(name, source, query string, transforms ...transform.Spec) lens.DatasetSpec {
+	return lens.DatasetSpec{
+		Name:       name,
+		Kind:       lens.DatasetKindQuery,
+		Source:     source,
+		Query:      &lens.QuerySpec{Text: query, Kind: datasource.QueryKindNamed},
+		Transforms: transforms,
+	}
+}
+
 func TransformDataset(name string, dependsOn []string, transforms ...transform.Spec) lens.DatasetSpec {
 	return lens.DatasetSpec{
 		Name:       name,

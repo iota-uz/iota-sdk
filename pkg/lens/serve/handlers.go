@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -199,33 +200,77 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	type completedPanel struct {
-		panelID string
-		result  document.PanelBatchResult
+		panelID  string
+		priority int
+		order    int
+		result   document.PanelBatchResult
 	}
 	completed := make(chan completedPanel, len(req.Panels))
+	priorityCounts := make(map[int]int)
+	priorityOrder := make([]int, 0)
+	session := h.session(req.SnapshotID)
+	priorities := panelExecutionPriorities(h.spec)
+	slices.SortStableFunc(req.Panels, func(left, right PanelRequest) int {
+		return priorities.compare(left.PanelID, right.PanelID)
+	})
 	for _, panelReq := range req.Panels {
-		panelReq := panelReq
+		priority, order := priorities.forPanel(panelReq.PanelID)
+		if priorityCounts[priority] == 0 {
+			priorityOrder = append(priorityOrder, priority)
+		}
+		priorityCounts[priority]++
+		queued := h.queuePanelResult(r.Context(), session, priority, order, panelReq, snapshot, current)
+		panelID := panelReq.PanelID
 		go func() {
-			result := h.panelResult(r.Context(), panelReq, snapshot, current)
 			select {
-			case completed <- completedPanel{panelID: panelReq.PanelID, result: result}:
+			case result := <-queued:
+				select {
+				case completed <- completedPanel{panelID: panelID, priority: priority, order: order, result: result}:
+				case <-r.Context().Done():
+				}
 			case <-r.Context().Done():
 			}
 		}()
 	}
+	session.prefetchOnce.Do(func() {
+		h.startBackgroundPrefetch(r.Context(), session, snapshot, current)
+	})
 	w.Header().Set("Content-Type", "application/x-ndjson")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("X-Accel-Buffering", "no")
 	w.WriteHeader(http.StatusOK)
 	encoder := json.NewEncoder(w)
-	for range req.Panels {
+	buffered := make(map[int][]completedPanel)
+	emittedByPriority := make(map[int]int)
+	emitted := 0
+	priorityIndex := 0
+	for emitted < len(req.Panels) {
 		select {
 		case item := <-completed:
-			event := PanelBatchStreamEvent{PanelID: item.panelID, Result: &item.result}
-			if err := encoder.Encode(event); err != nil {
-				return
+			buffered[item.priority] = append(buffered[item.priority], item)
+			for priorityIndex < len(priorityOrder) {
+				priority := priorityOrder[priorityIndex]
+				items := buffered[priority]
+				if len(items) == 0 {
+					break
+				}
+				slices.SortStableFunc(items, func(left, right completedPanel) int { return left.order - right.order })
+				for _, ready := range items {
+					event := PanelBatchStreamEvent{PanelID: ready.panelID, Result: &ready.result}
+					if err := encoder.Encode(event); err != nil {
+						return
+					}
+					flusher.Flush()
+					session.enableBackground()
+					emitted++
+					emittedByPriority[priority]++
+				}
+				delete(buffered, priority)
+				if emittedByPriority[priority] < priorityCounts[priority] {
+					break
+				}
+				priorityIndex++
 			}
-			flusher.Flush()
 		case <-r.Context().Done():
 			return
 		}
@@ -236,19 +281,22 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	flusher.Flush()
 }
 
-func (h *Handlers) panelResult(
+func (h *Handlers) queuePanelResult(
 	ctx context.Context,
+	session *executionSession,
+	priority int,
+	order int,
 	req PanelRequest,
 	snapshot *document.Snapshot,
 	current lensruntime.Request,
-) document.PanelBatchResult {
+) <-chan document.PanelBatchResult {
 	panelSpec, validationErr := h.validatePanelRequest(req)
 	if validationErr != nil {
-		return panelError(document.QueryErrorBadRequest, validationErr.Error())
+		return immediatePanelResult(panelError(document.QueryErrorBadRequest, validationErr.Error()))
 	}
 	if req.Recompute {
 		if calculation, ok := snapshot.Panels[panelSpec.ID]; ok && time.Since(calculation.CalculatedAt) < recomputeCooldown {
-			return panelError(document.QueryErrorBadRequest, "panel was recomputed recently")
+			return immediatePanelResult(panelError(document.QueryErrorBadRequest, "panel was recomputed recently"))
 		}
 	}
 	ref := document.FrameRef("panel:" + panelSpec.ID)
@@ -261,20 +309,45 @@ func (h *Handlers) panelResult(
 			}
 			view, summary := tableFrameView(panelSpec, cached, req.Search, req.Sort)
 			view, page := paginatePanelFrame(panelSpec, view, req.Page, h.pageSize)
-			return successfulPanel(ref, view, calculation, summary, page)
+			return immediatePanelResult(successfulPanel(ref, view, calculation, summary, page))
 		}
 	}
-	loaded, err := h.loadPanelValue(ctx, req, snapshot, panelSpec, ref, current)
-	if err != nil {
-		if errors.Is(err, document.ErrSnapshotGone) {
-			return panelError(document.QueryErrorSnapshotGone, "snapshot expired or was not found")
+	loaded := h.queuePanelValue(ctx, session, priority, order, req, snapshot, panelSpec, ref, current)
+	result := make(chan document.PanelBatchResult, 1)
+	go func() {
+		defer close(result)
+		select {
+		case <-ctx.Done():
+			return
+		case scheduled := <-loaded:
+			if scheduled.err != nil {
+				if errors.Is(scheduled.err, document.ErrSnapshotGone) {
+					result <- panelError(document.QueryErrorSnapshotGone, "snapshot expired or was not found")
+					return
+				}
+				h.observer.OnError(ctx, "lens/serve.Panel", scheduled.err)
+				result <- panelError(document.QueryErrorInternal, "panel execution failed")
+				return
+			}
+			panel, ok := scheduled.value.(loadedPanel)
+			if !ok {
+				h.observer.OnError(ctx, "lens/serve.Panel", fmt.Errorf("panel execution returned %T", scheduled.value))
+				result <- panelError(document.QueryErrorInternal, "panel execution failed")
+				return
+			}
+			view, summary := tableFrameView(panelSpec, panel.frame, req.Search, req.Sort)
+			view, page := paginatePanelFrame(panelSpec, view, req.Page, h.pageSize)
+			result <- successfulPanel(ref, view, panel.calculation, summary, page)
 		}
-		h.observer.OnError(ctx, "lens/serve.Panel", err)
-		return panelError(document.QueryErrorInternal, "panel execution failed")
-	}
-	view, summary := tableFrameView(panelSpec, loaded.frame, req.Search, req.Sort)
-	view, page := paginatePanelFrame(panelSpec, view, req.Page, h.pageSize)
-	return successfulPanel(ref, view, loaded.calculation, summary, page)
+	}()
+	return result
+}
+
+func immediatePanelResult(value document.PanelBatchResult) <-chan document.PanelBatchResult {
+	result := make(chan document.PanelBatchResult, 1)
+	result <- value
+	close(result)
+	return result
 }
 
 func (h *Handlers) validatePanelRequest(req PanelRequest) (panel.Spec, error) {
@@ -300,21 +373,22 @@ func (h *Handlers) validatePanelRequest(req PanelRequest) (panel.Spec, error) {
 	return panelSpec, nil
 }
 
-func (h *Handlers) loadPanelValue(
-	ctx context.Context,
+func (h *Handlers) queuePanelValue(
+	base context.Context,
+	session *executionSession,
+	priority int,
+	order int,
 	req PanelRequest,
 	snapshot *document.Snapshot,
 	panelSpec panel.Spec,
 	ref document.FrameRef,
 	current lensruntime.Request,
-) (loadedPanel, error) {
+) <-chan scheduledResult {
 	key := "panel:" + snapshot.ID + ":" + panelSpec.ID
 	if req.Recompute {
 		key += ":recompute"
 	}
-	result := h.loads.DoChan(key, func() (any, error) {
-		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
-		defer cancel()
+	return session.submit(base, key, priority, order, func(workCtx context.Context) (any, error) {
 		latest, err := h.snapshots.Get(workCtx, snapshot.ID)
 		if err != nil {
 			return nil, err
@@ -361,19 +435,6 @@ func (h *Handlers) loadPanelValue(
 		}
 		return loadedPanel{frame: wire, calculation: calculation}, nil
 	})
-	select {
-	case <-ctx.Done():
-		return loadedPanel{}, ctx.Err()
-	case loaded := <-result:
-		if loaded.Err != nil {
-			return loadedPanel{}, loaded.Err
-		}
-		panel, ok := loaded.Val.(loadedPanel)
-		if !ok {
-			return loadedPanel{}, fmt.Errorf("panel execution returned %T", loaded.Val)
-		}
-		return panel, nil
-	}
 }
 
 // progressiveProjectionSpec keeps the document's structural panel contract
@@ -667,55 +728,91 @@ func (h *Handlers) evidenceHasNext(
 func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req QueryRequest, snapshot *document.Snapshot, target levelTarget) {
 	ctx := r.Context()
 	base := h.runtimeRequest(r)
-	key := snapshot.ID + ":" + string(target.cacheRef())
-	result := h.loads.DoChan(key, func() (any, error) {
-		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), h.workTimeout)
-		defer cancel()
-		latest, err := h.snapshots.Get(workCtx, snapshot.ID)
-		if err != nil {
-			return nil, err
-		}
-		if cached, ok := latest.Frames[target.cacheRef()]; ok {
-			return cached, nil
-		}
-		panelResult, err := h.executeLevel(workCtx, thawRuntimeRequest(base, latest.Params), latest.Params, target, 0)
-		if err != nil {
-			return nil, err
-		}
-		wire, err := wireFrame(target.ref, target.panel, target.dynamicChildren, panelResult)
-		if err != nil {
-			return nil, err
-		}
-		if err := document.ResolveDynamicChildren(&wire, latest.Levels[target.levelKey]); err != nil {
-			return nil, err
-		}
-		if err := document.ValidateResolvedChildren(latest.Levels[target.levelKey], wire, latest.Levels); err != nil {
-			return nil, err
-		}
-		if err := h.snapshots.Append(workCtx, snapshot.ID, map[document.FrameRef]document.Frame{target.cacheRef(): wire}); err != nil {
-			return nil, err
-		}
-		return wire, nil
+	key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
+	priority := priorityInteractive
+	if req.Prefetch {
+		priority = priorityIntent
+	}
+	result := h.session(snapshot.ID).submit(ctx, key, priority, 0, func(workCtx context.Context) (any, error) {
+		return h.materializeAggregate(workCtx, snapshot.ID, base, target)
 	})
 	select {
 	case <-ctx.Done():
 		return
 	case loaded := <-result:
-		if loaded.Err != nil {
-			if errors.Is(loaded.Err, document.ErrSnapshotGone) {
-				h.writeSnapshotError(ctx, w, loaded.Err)
+		if loaded.err != nil {
+			if errors.Is(loaded.err, document.ErrSnapshotGone) {
+				h.writeSnapshotError(ctx, w, loaded.err)
 				return
 			}
-			h.writeExecutionError(ctx, w, loaded.Err)
+			h.writeExecutionError(ctx, w, loaded.err)
 			return
 		}
-		frame, ok := loaded.Val.(document.Frame)
+		frame, ok := loaded.value.(document.Frame)
 		if !ok {
-			h.writeInternalError(ctx, w, "lens/serve.Query", "level execution failed", fmt.Errorf("level execution returned %T", loaded.Val))
+			h.writeInternalError(ctx, w, "lens/serve.Query", "level execution failed", fmt.Errorf("level execution returned %T", loaded.value))
 			return
 		}
 		frame, _ = tableFrameView(target.panel, frame, "", req.Sort)
 		writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: frame}})
+	}
+}
+
+func (h *Handlers) materializeAggregate(
+	ctx context.Context,
+	snapshotID string,
+	current lensruntime.Request,
+	target levelTarget,
+) (document.Frame, error) {
+	latest, err := h.snapshots.Get(ctx, snapshotID)
+	if err != nil {
+		return document.Frame{}, err
+	}
+	if !sameSnapshotScope(current, latest.Params) {
+		return document.Frame{}, document.ErrSnapshotGone
+	}
+	if cached, ok := latest.Frames[target.cacheRef()]; ok {
+		return cached, nil
+	}
+	panelResult, err := h.executeLevel(ctx, thawRuntimeRequest(current, latest.Params), latest.Params, target, 0)
+	if err != nil {
+		return document.Frame{}, err
+	}
+	wire, err := wireFrame(target.ref, target.panel, target.dynamicChildren, panelResult)
+	if err != nil {
+		return document.Frame{}, err
+	}
+	level := latest.Levels[target.levelKey]
+	if err := document.ResolveDynamicChildren(&wire, level); err != nil {
+		return document.Frame{}, err
+	}
+	if err := document.ValidateResolvedChildren(level, wire, latest.Levels); err != nil {
+		return document.Frame{}, err
+	}
+	if err := h.snapshots.Append(ctx, snapshotID, map[document.FrameRef]document.Frame{target.cacheRef(): wire}); err != nil {
+		return document.Frame{}, err
+	}
+	return wire, nil
+}
+
+func (h *Handlers) startBackgroundPrefetch(
+	base context.Context,
+	session *executionSession,
+	snapshot *document.Snapshot,
+	current lensruntime.Request,
+) {
+	for order, target := range backgroundPrefetchTargets(h.spec) {
+		target := target
+		key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
+		result := session.submit(base, key, priorityIdlePrefetch, order, func(ctx context.Context) (any, error) {
+			return h.materializeAggregate(ctx, snapshot.ID, current, target)
+		})
+		go func() {
+			loaded := <-result
+			if loaded.err != nil && !errors.Is(loaded.err, document.ErrSnapshotGone) {
+				h.observer.OnError(context.Background(), "lens/serve.Prefetch", loaded.err)
+			}
+		}()
 	}
 }
 

@@ -555,6 +555,7 @@ export interface QueryRequest {
   snapshotId: string
   path: NodePath
   perspective?: string
+  prefetch?: boolean
   page?: number
   sort?: TableSort
 }

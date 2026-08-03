@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"path"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/intl"
@@ -14,12 +15,12 @@ import (
 	"github.com/iota-uz/iota-sdk/pkg/lens/engine"
 	lensruntime "github.com/iota-uz/iota-sdk/pkg/lens/runtime"
 	"github.com/iota-uz/iota-sdk/pkg/serrors"
-	"golang.org/x/sync/singleflight"
 )
 
 const (
 	defaultPageSize    = 50
 	defaultWorkTimeout = 2 * time.Minute
+	defaultConcurrency = 4
 )
 
 // RequestResolver supplies host-owned runtime inputs such as data sources and
@@ -70,7 +71,8 @@ type Handlers struct {
 	observer       Observer
 	progressive    bool
 	drawerResolver DrawerResolver
-	loads          singleflight.Group
+	sessionsMu     sync.Mutex
+	sessions       map[string]*executionSession
 }
 
 type noopObserver struct{}
@@ -116,6 +118,7 @@ func New(cfg Config) (*Handlers, error) {
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
 		request: cfg.Request, observer: observer, progressive: cfg.Progressive,
 		drawerResolver: cfg.DrawerResolver,
+		sessions:       make(map[string]*executionSession),
 	}, nil
 }
 

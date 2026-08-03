@@ -101,6 +101,54 @@ func inlineTargets(spec lens.DashboardSpec, inlineDepth int) []levelTarget {
 	return targets
 }
 
+func backgroundPrefetchTargets(spec lens.DashboardSpec) []levelTarget {
+	const maxConcreteTargets = 8
+	targets := make([]levelTarget, 0)
+	for _, explorerSpec := range spec.Explorers {
+		for _, branch := range explorerSpec.Branches {
+			if len(targets) >= maxConcreteTargets {
+				return targets
+			}
+			perspective, ok := branch.Perspective(branch.DefaultPerspective)
+			if !ok || perspective.Semantics == explore.SemanticsEvidence {
+				continue
+			}
+			root, ok := perspective.Node(perspective.RootNode)
+			if !ok || root.Panel == nil || isEvidence(perspective, root) {
+				continue
+			}
+			rootTarget := makeTarget(explorerSpec.ID, branch.Key, perspective, root)
+			rootTarget.path = []string{
+				qualified(explorerSpec.ID),
+				qualified(explorerSpec.ID, branch.Key),
+				qualified(explorerSpec.ID, branch.Key, perspective.Key),
+				qualified(explorerSpec.ID, branch.Key, perspective.Key, root.Key),
+			}
+			targets = append(targets, rootTarget)
+			if root.DynamicEdges {
+				continue
+			}
+			for _, edge := range root.Edges {
+				if len(targets) >= maxConcreteTargets || edge.ToNode == "" {
+					break
+				}
+				child, found := perspective.Node(edge.ToNode)
+				if !found || child.Panel == nil || isEvidence(perspective, child) {
+					continue
+				}
+				childTarget := makeTarget(explorerSpec.ID, branch.Key, perspective, child)
+				childTarget.path = append(append([]string(nil), rootTarget.path...),
+					qualified(explorerSpec.ID, branch.Key, perspective.Key, root.Key, edge.PointKey),
+					qualified(explorerSpec.ID, branch.Key, perspective.Key, child.Key),
+				)
+				childTarget.points = selectionPoints(childTarget.path, perspective)
+				targets = append(targets, childTarget)
+			}
+		}
+	}
+	return targets
+}
+
 // sourceDataTargets lists the declared audit tables of every node within the
 // inline depth. They execute at document time like inline level panels — a
 // declaration whose panel never executes is dropped by document.Build — but

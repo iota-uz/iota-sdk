@@ -246,6 +246,7 @@ export interface DashboardContextValue {
 
 export interface DrillContextValue {
   drillInto: (nodeKey: string, panelId?: string) => void
+  prefetch: (nodeKeys: string | Array<string>, panelId?: string) => void
   back: () => void
   jumpTo: (breadcrumbIndex: number) => void
   /**
@@ -865,6 +866,33 @@ function RuntimeCore({
     () => panelEndpoint ? new PanelClient(panelEndpoint, { csrf, fetcher }) : undefined,
     [csrf, fetcher, panelEndpoint],
   )
+  const prefetchDrill = useCallback((nodeKeys: string | Array<string>, panelId?: string) => {
+    if (!queryClient) return
+    const source = documentRef.current
+    let next = navigationRef.current
+    for (const nodeKey of Array.isArray(nodeKeys) ? nodeKeys : [nodeKeys]) {
+      const resolved = runtimeNavigationReducer(source, next, navigationActions.drillInto(nodeKey, panelId))
+      if (resolved === next) return
+      next = resolved
+      panelId = undefined
+    }
+    const pendingPath = dynamicParentPath(source, next.path)
+    const queryView = pendingPath ? { ...next, path: pendingPath } : next
+    const targetPanel = panelForNavigation(source, queryView)
+    if (!targetPanel || !frameForPanel(source, queryView, targetPanel, new Map()).shouldQuery) return
+    const perspective = source.perspectives.find(({ id }) => id === queryView.perspectiveId)
+    const request: QueryRequest = {
+      ...requestFor(source, queryView),
+      prefetch: true,
+      ...(targetPanel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
+    }
+    void queryClient.query(request).then((response) => {
+      const frame = Object.values(response.frames)[0]
+      if (frame?.children) {
+        setRuntimeDocument((current) => withFrameChildren(current, queryView.path, frame))
+      }
+    }).catch(() => undefined)
+  }, [queryClient, setRuntimeDocument])
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])
   useEffect(() => () => panelClient?.dispose(), [panelClient])
@@ -1426,6 +1454,7 @@ function RuntimeCore({
 
   const drill = useMemo<DrillContextValue>(() => ({
     drillInto: (nodeKey, panelId) => dispatch(navigationActions.drillInto(nodeKey, panelId)),
+    prefetch: prefetchDrill,
     back: () => dispatch(navigationActions.back()),
     jumpTo: (breadcrumbIndex) => dispatch(navigationActions.jumpTo(breadcrumbIndex)),
     switchPerspective: (id, options) => {
@@ -1434,7 +1463,7 @@ function RuntimeCore({
     },
     reset: () => dispatch(navigationActions.reset()),
     canGoBack: navigation.history.length > 0,
-  }), [dispatch, navigation.history.length])
+  }), [dispatch, navigation.history.length, prefetchDrill])
   const closeDrawer = useCallback(() => {
     if (!navigation.drawer || controlledNavigation) return
     if (drawerOpener.current && typeof window !== 'undefined') {

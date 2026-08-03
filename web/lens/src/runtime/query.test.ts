@@ -51,6 +51,28 @@ describe('QueryClient', () => {
       { ...request, page: 3 },
     ].map(queryCacheKey)
     expect(new Set(keys)).toHaveLength(keys.length)
+    expect(queryCacheKey({ ...request, prefetch: true })).toBe(queryCacheKey(request))
+  })
+
+  it('sends interactive activation while the same path is being prefetched', async () => {
+    const resolvers: Array<(value: Response) => void> = []
+    const bodies: Array<QueryRequest> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      bodies.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as QueryRequest)
+      return new Promise<Response>((resolve) => resolvers.push(resolve))
+    })
+    const client = new QueryClient('/lens/query', { fetcher })
+
+    const prefetch = client.query({ ...request, prefetch: true })
+    const interactive = client.query(request)
+
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(bodies.map(({ prefetch }) => prefetch ?? false)).toEqual([true, false])
+    for (const resolve of resolvers) resolve(new Response(JSON.stringify(response), { status: 200 }))
+    await expect(prefetch).resolves.toEqual(response)
+    await expect(interactive).resolves.toEqual(response)
+    await client.query(request)
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
   it('evicts cached responses from prior snapshots', async () => {

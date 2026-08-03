@@ -344,6 +344,83 @@ func TestHandlers_PanelBatchFlushesFastResultBeforeSlowPanelCompletes(t *testing
 	}
 }
 
+func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T) {
+	spec, frames := testDashboard(t)
+	slow := panel.Pie("slow", "Slow", "slow-data").IDField("id").Terminal().Build()
+	spec.Rows = append(spec.Rows, lens.RowSpec{Panels: []panel.Spec{slow}})
+	frames["slow"] = testFrames(t, "slow", 50)
+	spec.Datasets = append(spec.Datasets, staticDataset("slow-data", frames["slow"]))
+	releaseSlow := make(chan struct{})
+	slowStarted := make(chan struct{})
+	executor := &fakeExecutor{frames: frames, blockPanel: "slow", blockStart: slowStarted, blockDone: releaseSlow}
+	store := document.NewMemoryStore(time.Minute, 8)
+	handlers, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: store, BasePath: "/dash", Progressive: true,
+		Request: func(r *http.Request) lensruntime.Request {
+			return lensruntime.Request{Locale: "en", DataScope: r.URL.Query().Get("tenant"), Request: r.URL.Query()}
+		},
+	})
+	require.NoError(t, err)
+	doc := requestDocument(t, handlers, "/dash/document?tenant=tenant:one")
+	server := httptest.NewServer(http.HandlerFunc(handlers.Panel))
+	defer server.Close()
+	request := PanelBatchRequest{SnapshotID: doc.SnapshotID, Panels: []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}}}
+	httpRequest, err := http.NewRequest(http.MethodPost, server.URL+"?tenant=tenant:one", marshal(t, request))
+	require.NoError(t, err)
+	httpRequest.Header.Set("Content-Type", "application/json")
+	response, err := http.DefaultClient.Do(httpRequest)
+	require.NoError(t, err)
+	defer response.Body.Close()
+	scanner := bufio.NewScanner(response.Body)
+	require.True(t, scanner.Scan(), scanner.Err())
+	var first PanelBatchStreamEvent
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &first))
+	require.Equal(t, "host", first.PanelID, "the first visual row must be revealed before lower rows")
+	select {
+	case <-slowStarted:
+	case <-time.After(time.Second):
+		close(releaseSlow)
+		t.Fatal("lower root row did not continue loading")
+	}
+
+	rootRef := document.FrameRef("explore:metric/focus/composition:root")
+	require.Eventually(t, func() bool {
+		snapshot, getErr := store.Get(t.Context(), doc.SnapshotID)
+		if getErr != nil {
+			return false
+		}
+		_, materialized := snapshot.Frames[rootRef]
+		return materialized
+	}, time.Second, 10*time.Millisecond, "the default drill root must materialize in the background")
+	require.Equal(t, 1, executor.callCount("root-panel"))
+	queryRequest := QueryRequest{SnapshotID: doc.SnapshotID, Path: document.NodePath{"root"}, Perspective: "composition"}
+	queryRecorder := httptest.NewRecorder()
+	handlers.Query(queryRecorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query?tenant=tenant:one", marshal(t, queryRequest)))
+	require.Equal(t, http.StatusOK, queryRecorder.Code, queryRecorder.Body.String())
+	require.Equal(t, 1, executor.callCount("root-panel"), "opening a prefetched drill state must reuse its snapshot frame")
+
+	close(releaseSlow)
+	for scanner.Scan() {
+	}
+	require.NoError(t, scanner.Err())
+}
+
+func TestBackgroundPrefetchTargetsBoundsDynamicCardinality(t *testing.T) {
+	spec, _ := testDashboard(t)
+	targets := backgroundPrefetchTargets(spec)
+	require.Len(t, targets, 2, "the default root and its concrete first child are safe to prefetch")
+	require.Empty(t, targets[0].points)
+	require.Equal(t, []string{"a"}, targets[1].points)
+
+	root := &spec.Explorers[0].Branches[0].Perspectives[0].Nodes[0]
+	root.Edges = nil
+	root.DynamicEdges = true
+	root.DynamicTargets = []string{"detail"}
+	targets = backgroundPrefetchTargets(spec)
+	require.Len(t, targets, 1, "dynamic selections must not fan out before user intent identifies a concrete path")
+	require.Equal(t, "root", targets[0].nodeKey)
+}
+
 func TestHandlers_DrawerMintsRelativeURLFromScopedSnapshotOnOpen(t *testing.T) {
 	t.Parallel()
 	spec, frames := testDashboard(t)

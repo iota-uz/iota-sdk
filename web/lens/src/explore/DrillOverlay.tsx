@@ -48,22 +48,44 @@ export interface DrillOverlayProps {
   selectedPerspectiveId?: string
   onDrillInto: (target: DrillTarget) => void
   onDrillChild: (childKey: string) => void
+  onPrefetchChild?: (childKey: string) => void
   onPerspective: (perspectiveId: string) => void
   onClose: () => void
 }
 
-function RowContent({ href, onActivate, children }: {
+function RowContent({ href, onActivate, onIntent, children }: {
   href?: string
   onActivate: () => void
+  onIntent?: () => void
   children: ReactNode
 }) {
+  const timer = useRef<ReturnType<typeof setTimeout>>()
+  const cancel = () => {
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = undefined
+  }
+  const intent = () => {
+    cancel()
+    timer.current = setTimeout(() => onIntent?.(), 120)
+  }
+  const activate = () => {
+    cancel()
+    onActivate()
+  }
+  useEffect(() => cancel, [])
+  const intentProps = {
+    onBlur: cancel,
+    onFocus: intent,
+    onPointerEnter: intent,
+    onPointerLeave: cancel,
+  }
   if (href) {
     return (
-      <a className="lens-drill-row" href={href}>{children}</a>
+      <a className="lens-drill-row" href={href} {...intentProps}>{children}</a>
     )
   }
   return (
-    <button className="lens-drill-row" onClick={onActivate} type="button">
+    <button className="lens-drill-row" onClick={activate} type="button" {...intentProps}>
       {children}
     </button>
   )
@@ -119,7 +141,7 @@ export function positionOverlay(
 
 export function DrillOverlay({
   target, path = [], anchor, anchorElement, valueFormat, accentColor, theme, dark = false, selectedPerspectiveId,
-  onDrillInto, onDrillChild, onPerspective, onClose,
+  onDrillInto, onDrillChild, onPrefetchChild, onPerspective, onClose,
 }: DrillOverlayProps) {
   const drawer = useDrawer()
   const translate = useTranslate()
@@ -380,6 +402,7 @@ export function DrillOverlay({
                   <RowContent
                     href={row.href}
                     onActivate={() => onDrillChild(row.node.key)}
+                    onIntent={row.href || !onPrefetchChild ? undefined : () => onPrefetchChild(row.node.key)}
                   >
                     <span className="lens-drill-row-label">{row.label}</span>
                     {row.value !== undefined && <span className="lens-drill-row-value">{formatValue(row.value)}</span>}
