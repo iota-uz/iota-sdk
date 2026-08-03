@@ -329,11 +329,13 @@ test('create user via page object', async ({ page }) => {
 3. **Run in Headed Mode**:
 
    ```bash
-   cd e2e && npx playwright test --headed --slowmo=1000
+   cd e2e && npx playwright test --headed
+   cd e2e && npx playwright test --debug        # step through with the Inspector
    ```
 
    - Watch browser interactions in real-time
-   - Slow down execution for debugging
+   - `--slowmo` is not a test-CLI flag; set `use.launchOptions.slowMo` in
+     `playwright.config.ts` if you want every action delayed
 
 4. **Use Playwright Inspector**:
 

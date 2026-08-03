@@ -17,7 +17,9 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 - **Parts that never need to see each other's work**: one agent each
 - **Read-heavy survey** (where is this used, what breaks): fan out freely; the results come back small
 
-**Agent Selection:**
+**Agent Selection:** applies after the split, and picks which agent each piece
+goes to. It never splits a piece — a change that touches both a repository and a
+template is still one owner.
 
 - Errors/Failures → `debugger` first
 - Go code → `auditor` last (always)
