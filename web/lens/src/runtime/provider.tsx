@@ -844,6 +844,8 @@ function RuntimeCore({
   // the theme of the root it opened from — captured from the opener when the
   // drawer opens, mirroring PanelFrame's overlay theme capture.
   const drawerTheme = useRef<{ theme?: string; dark: boolean }>({ dark: false })
+  const drawerKeySources = useRef(new Map<string, string>())
+  const drawerKeyResolvers = useRef(new Map<string, Promise<string>>())
   const drawerCache = useMemo<Pick<DocumentCache, 'configure' | 'get' | 'load' | 'prefetch'>>(() => {
     let resolved: DocumentCache | undefined
     let options: { csrf?: string; fetcher?: typeof fetch } = {}
@@ -858,13 +860,17 @@ function RuntimeCore({
       },
       get: (src) => resolved?.get(src),
       load: async (src) => (await ready).load(src),
-      prefetch: async (src) => (await ready).prefetch(src),
+      prefetch: async (src, signal) => (await ready).prefetch(src, signal),
     }
   }, [])
   const [drawerIdleQueue, setDrawerIdleQueue] = useState<IdlePrefetchQueue>()
   useEffect(() => {
     drawerCache.configure({ csrf, fetcher })
   }, [csrf, drawerCache, fetcher])
+  useEffect(() => {
+    drawerKeySources.current.clear()
+    drawerKeyResolvers.current.clear()
+  }, [document.endpoints.drawer, document.snapshotId])
   useEffect(() => {
     // Idle speculation is deliberately a dynamic feature chunk: it is not on
     // the first-paint path, and panels re-register when the queue becomes
@@ -1608,21 +1614,39 @@ function RuntimeCore({
     if (!isSameOriginDrawerSource(src) || signal?.aborted) return
     await drawerCache?.prefetch(src, signal)
   }, [drawerCache])
-  const warmDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
+  const resolveDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
     const endpoint = document.endpoints.drawer
-    if (!endpoint || !metricKey.trim() || signal?.aborted) return
-    const response = await (fetcher ?? fetch)(endpoint, {
-      method: 'POST', credentials: 'same-origin', signal,
-      headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
-      body: JSON.stringify({ snapshotId: document.snapshotId, metricKey }),
+    const normalizedKey = metricKey.trim()
+    if (!endpoint || !normalizedKey || signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    const cacheKey = `${document.snapshotId}\u0000${endpoint}\u0000${normalizedKey}`
+    const cached = drawerKeySources.current.get(cacheKey)
+    if (cached) return cached
+    const existing = drawerKeyResolvers.current.get(cacheKey)
+    if (existing) return existing
+    const pending = (async () => {
+      const response = await (fetcher ?? fetch)(endpoint, {
+        method: 'POST', credentials: 'same-origin', signal,
+        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+        body: JSON.stringify({ snapshotId: document.snapshotId, metricKey: normalizedKey }),
+      })
+      if (!response.ok) throw new Error(`drawer resolver failed (${response.status})`)
+      const payload = await response.json() as { url?: unknown }
+      if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      const relative = siteRelativeURL(payload.url, new URL(window.location.href))
+      if (!relative) throw new Error('drawer resolver returned a cross-origin URL')
+      drawerKeySources.current.set(cacheKey, relative)
+      return relative
+    })().finally(() => {
+      if (drawerKeyResolvers.current.get(cacheKey) === pending) drawerKeyResolvers.current.delete(cacheKey)
     })
-    if (!response.ok) throw new Error(`drawer resolver failed (${response.status})`)
-    const payload = await response.json() as { url?: unknown }
-    if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
-    if (signal?.aborted) return
-    const relative = siteRelativeURL(payload.url, new URL(window.location.href))
-    if (relative) await drawerCache?.prefetch(relative)
-  }, [csrf, document.endpoints.drawer, document.snapshotId, drawerCache, fetcher])
+    drawerKeyResolvers.current.set(cacheKey, pending)
+    return pending
+  }, [csrf, document.endpoints.drawer, document.snapshotId, fetcher])
+  const warmDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
+    const relative = await resolveDrawerKey(metricKey, signal)
+    if (!signal?.aborted) await drawerCache?.prefetch(relative, signal)
+  }, [drawerCache, resolveDrawerKey])
   const drawer = useMemo<DrawerContextValue>(() => ({
     depth: drawerDepth,
     canOpen: drawerDepth === 0 || Boolean(onDrawerNavigate),
@@ -1656,22 +1680,13 @@ function RuntimeCore({
     openKey: (metricKey, opener) => {
       const endpoint = document.endpoints.drawer
       if (!endpoint || !metricKey.trim()) return
-      void (fetcher ?? fetch)(endpoint, {
-        method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
-        body: JSON.stringify({ snapshotId: document.snapshotId, metricKey }),
-      }).then(async (response) => {
-        if (!response.ok) throw new Error(`drawer resolver failed (${response.status})`)
-        const payload = await response.json() as { url?: unknown }
-        if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
+      void resolveDrawerKey(metricKey).then((relative) => {
         const root = opener?.closest<HTMLElement>('.lens-root')
           ?? globalThis.document.querySelector<HTMLElement>('.lens-root')
         drawerOpener.current = opener
         const theme = root?.dataset.theme
         drawerTheme.current = { theme, dark: theme === 'dark' || root?.classList.contains('dark') === true }
         const current = new URL(window.location.href)
-        const relative = siteRelativeURL(payload.url, current)
-        if (!relative) throw new Error('drawer resolver returned a cross-origin URL')
         dispatch(navigationActions.openDrawer(relative, drawerNavigationFromSource(relative, current)))
       }).catch((cause: unknown) => setNotice(cause instanceof Error ? cause.message : 'drawer resolver failed'))
     },
@@ -1699,7 +1714,7 @@ function RuntimeCore({
       if (drawerDepth > 0 || !document.endpoints.drawer || !metricKey.trim()) return () => undefined
       return drawerIdleQueue?.register(`key:${metricKey}`, (signal) => warmDrawerKey(metricKey, signal)) ?? (() => undefined)
     },
-  }), [closeDrawer, csrf, dispatch, document.endpoints.drawer, document.snapshotId, drawerDepth, drawerIdleQueue, fetcher, navigation.drawer, onDrawerNavigate, warmDrawerKey, warmDrawerSource])
+  }), [closeDrawer, dispatch, document.endpoints.drawer, drawerDepth, drawerIdleQueue, navigation.drawer, onDrawerNavigate, resolveDrawerKey, warmDrawerKey, warmDrawerSource])
   const dashboard = useMemo(() => ({
     document, navigation, notice, dismissNotice: () => setNotice(undefined),
     canRecompute: Boolean(panelClient), isRecomputing, recompute,

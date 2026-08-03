@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
@@ -89,7 +89,7 @@ describe('stat panels with a panel-level navigate action', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
-  it('warms a ready stat drawer through the bounded idle queue', async () => {
+  it('warms a ready stat drawer through the bounded idle queue and reuses it on click', async () => {
     window.history.replaceState(null, '', '/')
     const action: Action = {
       kind: 'open_drawer', method: 'POST',
@@ -99,11 +99,18 @@ describe('stat panels with a panel-level navigate action', () => {
     const panel = statPanel([action])
     const document = documentWith([panel], { 'stat:root': statFrame })
     document.endpoints = { drawer: '/lens/drawer' }
-    const child = { ...document, snapshotId: 'loss-ratio-child', endpoints: {} }
+    const child = {
+      ...document,
+      snapshotId: 'loss-ratio-child',
+      meta: { ...document.meta, title: 'Loss ratio detail' },
+      endpoints: {},
+    }
+    let resolverCalls = 0
     const fetcher = vi.fn<typeof fetch>((input) => {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
       if (url.endsWith('/lens/drawer')) {
-        return Promise.resolve(new Response(JSON.stringify({ url: '/lens/document' }), { status: 200 }))
+        resolverCalls += 1
+        return Promise.resolve(new Response(JSON.stringify({ url: `/lens/document?ticket=${resolverCalls}` }), { status: 200 }))
       }
       return Promise.resolve(new Response(JSON.stringify(child), { status: 200 }))
     })
@@ -120,7 +127,12 @@ describe('stat panels with a panel-level navigate action', () => {
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2), { timeout: 2_000 })
     expect(fetcher.mock.calls.map(([input]) => typeof input === 'string' ? input : input instanceof URL ? input.href : input.url))
-      .toEqual(['/lens/drawer', '/lens/document'])
+      .toEqual(['/lens/drawer', '/lens/document?ticket=1'])
+
+    fireEvent.click(screen.getByRole('link', { name: 'Open Loss ratio' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('3.1%')).toBeInTheDocument()
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 })
 
