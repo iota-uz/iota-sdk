@@ -520,7 +520,7 @@ func TestHandlers_DrawerMintsRelativeURLFromScopedSnapshotOnOpen(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	var response document.DrawerResolveResponse
 	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &response))
-	require.Equal(t, "/analytics/drill/approval-rate/lens/document?token=minted-now", response.URL)
+	require.Equal(t, "/analytics/drill/approval-rate/lens/document?_lens_snapshot="+url.QueryEscape(doc.SnapshotID)+"&token=minted-now", response.URL)
 	require.Equal(t, "approval-rate", resolved.MetricKey)
 
 	foreign := httptest.NewRecorder()

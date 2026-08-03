@@ -84,6 +84,7 @@ type Config struct {
 // Handlers serves one dashboard registration.
 type Handlers struct {
 	spec           lens.DashboardSpec
+	plan           lens.ExecutionPlan
 	engine         engine.Executor
 	snapshots      document.SnapshotStore
 	basePath       string
@@ -127,6 +128,10 @@ func New(cfg Config) (*Handlers, error) {
 	if err := lensruntime.Validate(cfg.Spec); err != nil {
 		return nil, serrors.E(op, err)
 	}
+	plan, err := lens.CompileExecutionPlan(cfg.Spec)
+	if err != nil {
+		return nil, serrors.E(op, err)
+	}
 	basePath, err := normalizeBasePath(cfg.BasePath)
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -144,7 +149,7 @@ func New(cfg Config) (*Handlers, error) {
 		observer = noopObserver{}
 	}
 	return &Handlers{
-		spec: cfg.Spec, engine: cfg.Engine, snapshots: cfg.Snapshots,
+		spec: cfg.Spec, plan: plan, engine: cfg.Engine, snapshots: cfg.Snapshots,
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
 		request: cfg.Request, observer: observer, progressive: cfg.Progressive,
 		drawerResolver: cfg.DrawerResolver,

@@ -242,7 +242,7 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	priorityCounts := make(map[int]int)
 	priorityOrder := make([]int, 0)
 	session := h.session(req.SnapshotID)
-	priorities := panelExecutionPriorities(h.spec)
+	priorities := panelExecutionPriorities(h.plan)
 	slices.SortStableFunc(req.Panels, func(left, right PanelRequest) int {
 		return priorities.compare(left.PanelID, right.PanelID)
 	})
@@ -610,7 +610,10 @@ func (h *Handlers) Drawer(w http.ResponseWriter, r *http.Request) {
 		h.writeInternalError(r.Context(), w, "lens/serve.Drawer", "drawer resolution failed", fmt.Errorf("resolver returned a non-relative URL"))
 		return
 	}
-	writeJSON(w, http.StatusOK, document.DrawerResolveResponse{URL: target})
+	query := parsed.Query()
+	query.Set("_lens_snapshot", snapshot.ID)
+	parsed.RawQuery = query.Encode()
+	writeJSON(w, http.StatusOK, document.DrawerResolveResponse{URL: parsed.String()})
 }
 
 func validDrawerParams(params map[string]any) bool {
@@ -860,22 +863,40 @@ func (h *Handlers) startBackgroundPrefetch(
 	snapshot *document.Snapshot,
 	current lensruntime.Request,
 ) {
-	for order, target := range backgroundPrefetchTargets(h.spec) {
-		target := target
-		key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
-		result := session.submit(context.WithoutCancel(base), key, priorityIdlePrefetch, order, func(ctx context.Context) (any, error) {
-			return h.materializeAggregate(ctx, snapshot.ID, current, target)
-		})
-		go func() {
+	// Materialize a child only after its parent root completed successfully.
+	// Besides enforcing the graph activation gate, the sequential producer keeps
+	// speculative fan-out bounded even when the session has spare foreground
+	// capacity; the scheduler still owns the single background slot and can
+	// promote a queued target when an interactive request joins it.
+	go func() {
+		parentReady := false
+		for order, target := range backgroundPrefetchTargets(h.spec) {
+			isRoot := len(target.points) == 0
+			if isRoot {
+				parentReady = false
+			} else if !parentReady {
+				continue
+			}
+			key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
+			result := session.submit(context.WithoutCancel(base), key, priorityIdlePrefetch, order, func(ctx context.Context) (any, error) {
+				return h.materializeAggregate(ctx, snapshot.ID, current, target)
+			})
 			loaded := <-result.result
 			if loaded.err == nil {
 				session.markPrefetched(key)
+				if isRoot {
+					parentReady = true
+				}
+				continue
 			}
-			if loaded.err != nil && !errors.Is(loaded.err, document.ErrSnapshotGone) {
+			if isRoot {
+				parentReady = false
+			}
+			if !errors.Is(loaded.err, document.ErrSnapshotGone) && !errors.Is(loaded.err, context.Canceled) {
 				h.observer.OnError(context.Background(), "lens/serve.Prefetch", loaded.err)
 			}
-		}()
-	}
+		}
+	}()
 }
 
 func applySortRequest(request *lensruntime.Request, ordering *document.TableSort) {

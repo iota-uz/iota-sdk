@@ -100,6 +100,81 @@ func TestExecutionSessionCancelsSpeculationAfterItsLastConsumerDetaches(t *testi
 	}
 }
 
+func TestExecutionSessionPreemptsRunningSpeculationForVisibleWork(t *testing.T) {
+	session := newExecutionSession(2, time.Second)
+	rootRelease := make(chan struct{})
+	root := session.submit(t.Context(), "root", priorityRootBase, 0, func(context.Context) (any, error) {
+		<-rootRelease
+		return "root", nil
+	})
+	backgroundStarted := make(chan struct{})
+	background := session.submit(t.Context(), "prefetch", priorityIdlePrefetch, 0, func(ctx context.Context) (any, error) {
+		close(backgroundStarted)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	})
+	session.enableBackground()
+	<-backgroundStarted
+
+	visibleStarted := make(chan struct{})
+	visible := session.submit(t.Context(), "visible", priorityRootBase, 1, func(context.Context) (any, error) {
+		close(visibleStarted)
+		return "visible", nil
+	})
+	require.ErrorIs(t, (<-background.result).err, context.Canceled)
+	select {
+	case <-visibleStarted:
+	case <-time.After(time.Second):
+		t.Fatal("visible work did not take the speculative slot")
+	}
+	require.Equal(t, "visible", (<-visible.result).value)
+	close(rootRelease)
+	require.Equal(t, "root", (<-root.result).value)
+}
+
+func TestExecuteDerivedSurfacePromotesIntentInsteadOfDuplicatingDrawerWork(t *testing.T) {
+	handlers := &Handlers{sessions: make(map[string]*executionSession), workTimeout: time.Second, observer: noopObserver{}}
+	started := make(chan struct{})
+	release := make(chan struct{})
+	var runs int
+	run := func(context.Context) (any, error) {
+		runs++
+		close(started)
+		<-release
+		return "drawer", nil
+	}
+	session := handlers.session("snapshot")
+	session.enableBackground()
+	intentResult := make(chan any, 1)
+	go func() {
+		value, _ := handlers.ExecuteDerivedSurface(t.Context(), "snapshot", "metric:loss", DerivedSurfaceIntent, run)
+		intentResult <- value
+	}()
+	<-started
+	interactiveResult := make(chan any, 1)
+	go func() {
+		value, _ := handlers.ExecuteDerivedSurface(t.Context(), "snapshot", "metric:loss", DerivedSurfaceInteractive, run)
+		interactiveResult <- value
+	}()
+	deadline := time.Now().Add(time.Second)
+	for {
+		session.mu.Lock()
+		joined := len(session.jobs["derived:snapshot:metric:loss"].waiters) == 2
+		session.mu.Unlock()
+		if joined {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("interactive drawer did not join intent work")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	close(release)
+	require.Equal(t, "drawer", <-intentResult)
+	require.Equal(t, "drawer", <-interactiveResult)
+	require.Equal(t, 1, runs)
+}
+
 func TestExecutionSessionKeepsPromotedWorkForInteractiveConsumer(t *testing.T) {
 	session := newExecutionSession(2, time.Second)
 	started := make(chan struct{})

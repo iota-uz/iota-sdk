@@ -2,11 +2,12 @@ package serve
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
-	"github.com/iota-uz/iota-sdk/pkg/lens/panel"
 )
 
 const (
@@ -41,6 +42,17 @@ type scheduledCall struct {
 	result <-chan scheduledResult
 	cancel func()
 }
+
+// DerivedSurfaceClass selects the SDK-owned dynamic priority for host-rendered
+// child documents. Applications identify whether an HTTP request is an
+// interactive activation or speculative intent; they never provide a numeric
+// priority, wave, or concurrency budget.
+type DerivedSurfaceClass string
+
+const (
+	DerivedSurfaceInteractive DerivedSurfaceClass = "interactive"
+	DerivedSurfaceIntent      DerivedSurfaceClass = "intent"
+)
 
 func (c scheduledCall) Cancel() {
 	if c.cancel != nil {
@@ -224,6 +236,13 @@ func (s *executionSession) detach(key string, waiterID uint64) {
 }
 
 func (s *executionSession) dispatchLocked() {
+	// Visible/interactive work must never sit behind a speculative query merely
+	// because the latter claimed the last slot a moment earlier. Cancellation
+	// is cooperative at the datasource boundary; once the background job exits,
+	// dispatch immediately fills the released slot with foreground work.
+	if s.running >= s.maxConcurrency && s.bestQueuedLocked(false) >= 0 {
+		s.preemptBackgroundLocked()
+	}
 	for s.running < s.maxConcurrency {
 		index := s.nextJobLocked()
 		if index < 0 {
@@ -241,6 +260,25 @@ func (s *executionSession) dispatchLocked() {
 		}
 		go s.execute(job)
 	}
+}
+
+func (s *executionSession) preemptBackgroundLocked() {
+	var candidate *scheduledJob
+	for _, job := range s.jobs {
+		if !job.running || !job.background || job.cancel == nil {
+			continue
+		}
+		if candidate == nil || job.priority > candidate.priority ||
+			(job.priority == candidate.priority && job.sequence > candidate.sequence) {
+			candidate = job
+		}
+	}
+	if candidate == nil {
+		return
+	}
+	s.reportLocked(Metric{Name: MetricCancelledSpeculation, Value: 1, Labels: map[string]string{"class": priorityClass(candidate.priority), "reason": "foreground_preemption"}})
+	candidate.cancel()
+	candidate.cancel = nil
 }
 
 func (s *executionSession) nextJobLocked() int {
@@ -444,6 +482,35 @@ func (h *Handlers) releaseSession(snapshotID string) {
 	}
 }
 
+// ExecuteDerivedSurface joins a host-rendered child document to the snapshot's
+// scheduler and singleflight namespace. A click promotes an in-flight intent
+// request with the same key instead of starting a second calculation.
+func (h *Handlers) ExecuteDerivedSurface(
+	ctx context.Context,
+	snapshotID string,
+	key string,
+	class DerivedSurfaceClass,
+	run func(context.Context) (any, error),
+) (any, error) {
+	snapshotID = strings.TrimSpace(snapshotID)
+	key = strings.TrimSpace(key)
+	if snapshotID == "" || key == "" || run == nil {
+		return nil, fmt.Errorf("derived surface requires snapshot, key and executor")
+	}
+	priority := priorityInteractive
+	if class == DerivedSurfaceIntent {
+		priority = priorityIntent
+	}
+	call := h.session(snapshotID).submit(ctx, "derived:"+snapshotID+":"+key, priority, 0, run)
+	defer call.Cancel()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case result := <-call.result:
+		return result.value, result.err
+	}
+}
+
 type panelPriority struct {
 	priority int
 	order    int
@@ -451,22 +518,15 @@ type panelPriority struct {
 
 type panelPriorities map[string]panelPriority
 
-func panelExecutionPriorities(spec lens.DashboardSpec) panelPriorities {
+func panelExecutionPriorities(plan lens.ExecutionPlan) panelPriorities {
 	result := make(panelPriorities)
-	order := 0
-	var add func(panel.Spec, int)
-	add = func(candidate panel.Spec, row int) {
-		if !candidate.Kind.IsContainer() {
-			result[candidate.ID] = panelPriority{priority: priorityRootBase + row, order: order}
-			order++
+	for _, surface := range plan.Surfaces {
+		if surface.Kind != lens.ExecutionSurfaceRoot {
+			continue
 		}
-		for _, child := range candidate.Children {
-			add(child, row)
-		}
-	}
-	for row, layout := range spec.Rows {
-		for _, candidate := range layout.Panels {
-			add(candidate, row)
+		result[surface.PanelID] = panelPriority{
+			priority: priorityRootBase + surface.Depth,
+			order:    surface.VisualOrder,
 		}
 	}
 	return result

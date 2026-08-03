@@ -94,36 +94,42 @@ describe('DocumentCache', () => {
     expect(cache.get('/a')).toBeDefined()
   })
 
-  it('joins an interactive load to an in-flight prefetch and surfaces its result', async () => {
-    let resolveResponse: ((response: Response) => void) | undefined
-    const fetcher = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => { resolveResponse = resolve }))
+  it('sends an interactive activation to promote an in-flight prefetch', async () => {
+    const resolvers: Array<(response: Response) => void> = []
+    const fetcher = vi.fn<typeof fetch>((_input, init) => new Promise<Response>((resolve) => {
+      resolvers.push(resolve)
+      if (resolvers.length === 1) expect(new Headers(init?.headers).get('X-Lens-Prefetch')).toBe('intent')
+      if (resolvers.length === 2) expect(new Headers(init?.headers).get('X-Lens-Prefetch')).toBeNull()
+    }))
     const cache = new DocumentCache({ fetcher })
 
     const prefetch = cache.prefetch('/a')
     const load = cache.load('/a')
-    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledTimes(2)
 
-    resolveResponse?.(documentResponse('/a'))
+    resolvers[0]?.(documentResponse('/a'))
+    resolvers[1]?.(documentResponse('/a'))
     const loaded = await load
     await prefetch
 
     expect(loaded.meta.dashboardId).toBe('/a')
     expect(cache.get('/a')).toBe(loaded)
-    expect(fetcher).toHaveBeenCalledTimes(1)
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
-  it('surfaces a failed shared prefetch to an interactive load', async () => {
-    let resolveResponse: ((response: Response) => void) | undefined
-    const fetcher = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => { resolveResponse = resolve }))
+  it('keeps an interactive activation independent from a failed prefetch transport', async () => {
+    const resolvers: Array<(response: Response) => void> = []
+    const fetcher = vi.fn<typeof fetch>(() => new Promise<Response>((resolve) => { resolvers.push(resolve) }))
     const cache = new DocumentCache({ fetcher })
 
     const prefetch = cache.prefetch('/a')
     const load = cache.load('/a')
-    resolveResponse?.(new Response('boom', { status: 503 }))
+    resolvers[0]?.(new Response('boom', { status: 503 }))
+    resolvers[1]?.(documentResponse('/a'))
 
     await expect(prefetch).resolves.toBeUndefined()
-    await expect(load).rejects.toThrow('503')
-    expect(fetcher).toHaveBeenCalledTimes(1)
+    await expect(load).resolves.toMatchObject({ meta: { dashboardId: '/a' } })
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
   it('does not refetch a URL that is already cached', async () => {

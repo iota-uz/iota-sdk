@@ -13,16 +13,16 @@ export interface DocumentCacheOptions {
  *
  * The drawer used to fetch its document only on click. Prefetch warms the same
  * URL on hover/focus intent so the drawer opens against a document that is
- * already in hand. The cache is deliberately dumb: it never revalidates, a hit
- * is authoritative, a failed prefetch leaves no entry (the click path refetches
- * and keeps its own error handling), and only one fetch per URL is ever in
- * flight at a time.
+ * already in hand. The cache never revalidates, a hit is authoritative, and a
+ * failed prefetch leaves no entry. An interactive activation may overlap one
+ * intent transport request so the shared server job can be promoted; it does
+ * not duplicate datasource execution.
  */
 export class DocumentCache {
   private readonly capacity: number
   // Insertion order is age order, so the first key is always the oldest.
   private readonly entries = new Map<string, DashboardDocument>()
-  private readonly inflight = new Map<string, Promise<DashboardDocument>>()
+  private readonly inflight = new Map<string, { promise: Promise<DashboardDocument>; speculative: boolean }>()
   private fetcher?: typeof fetch
   private csrf?: string
 
@@ -47,23 +47,26 @@ export class DocumentCache {
    * Load a document through the shared cache/singleflight path.
    *
    * Unlike prefetch(), failures stay visible to the interactive caller. If a
-   * speculative request is already running, opening the drawer joins that
-   * exact promise instead of starting a second document calculation.
+   * speculative request is already running, opening the drawer promotes the
+   * same server calculation through a separate activation request.
    */
   load(url: string): Promise<DashboardDocument> {
     const cached = this.entries.get(url)
     if (cached) return Promise.resolve(cached)
     const existing = this.inflight.get(url)
-    if (existing) return existing
+    if (existing && !existing.speculative) return existing.promise
+    // A click sends a second transport activation while an intent request is
+    // running. Both requests join the same server-side snapshot job; the
+    // activation exists solely to promote that job to InteractiveCritical.
     const pending = fetchDocument(url, { fetcher: this.fetcher, csrf: this.csrf })
       .then((document) => {
         this.store(url, document)
         return document
       })
       .finally(() => {
-        if (this.inflight.get(url) === pending) this.inflight.delete(url)
+        if (this.inflight.get(url)?.promise === pending) this.inflight.delete(url)
       })
-    this.inflight.set(url, pending)
+    this.inflight.set(url, { promise: pending, speculative: false })
     return pending
   }
 
@@ -73,7 +76,17 @@ export class DocumentCache {
    * is already cached or already in flight is not fetched again.
    */
   prefetch(url: string): Promise<void> {
-    return this.load(url).then(() => undefined, () => undefined)
+    if (this.entries.has(url) || this.inflight.has(url)) return Promise.resolve()
+    const pending = fetchDocument(url, { fetcher: this.fetcher, csrf: this.csrf, prefetch: true })
+      .then((document) => {
+        this.store(url, document)
+        return document
+      })
+      .finally(() => {
+        if (this.inflight.get(url)?.promise === pending) this.inflight.delete(url)
+      })
+    this.inflight.set(url, { promise: pending, speculative: true })
+    return pending.then(() => undefined, () => undefined)
   }
 
   private store(url: string, document: DashboardDocument): void {
