@@ -354,8 +354,10 @@ func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T)
 	slowStarted := make(chan struct{})
 	executor := &fakeExecutor{frames: frames, blockPanel: "slow", blockStart: slowStarted, blockDone: releaseSlow}
 	store := document.NewMemoryStore(time.Minute, 8)
+	observer := &recordingObserver{}
 	handlers, err := New(Config{
 		Spec: spec, Engine: executor, Snapshots: store, BasePath: "/dash", Progressive: true,
+		Observer: observer,
 		Request: func(r *http.Request) lensruntime.Request {
 			return lensruntime.Request{Locale: "en", DataScope: r.URL.Query().Get("tenant"), Request: r.URL.Query()}
 		},
@@ -398,6 +400,13 @@ func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T)
 	handlers.Query(queryRecorder, httptest.NewRequest(http.MethodPost, "/dash/lens/query?tenant=tenant:one", marshal(t, queryRequest)))
 	require.Equal(t, http.StatusOK, queryRecorder.Code, queryRecorder.Body.String())
 	require.Equal(t, 1, executor.callCount("root-panel"), "opening a prefetched drill state must reuse its snapshot frame")
+	require.Eventually(t, func() bool {
+		names := make(map[MetricName]bool)
+		for _, metric := range observer.recordedMetrics() {
+			names[metric.Name] = true
+		}
+		return names[MetricTimeToFirstUsefulKPI] && names[MetricTimeToFirstChild] && names[MetricPrefetchHit] && names[MetricSchedulerSaturation]
+	}, time.Second, 10*time.Millisecond)
 
 	close(releaseSlow)
 	for scanner.Scan() {
@@ -678,8 +687,9 @@ type observedError struct {
 }
 
 type recordingObserver struct {
-	mu     sync.Mutex
-	errors []observedError
+	mu      sync.Mutex
+	errors  []observedError
+	metrics []Metric
 }
 
 func (o *recordingObserver) OnError(_ context.Context, op string, err error) {
@@ -688,10 +698,22 @@ func (o *recordingObserver) OnError(_ context.Context, op string, err error) {
 	o.errors = append(o.errors, observedError{op: op, err: err})
 }
 
+func (o *recordingObserver) OnMetric(_ context.Context, metric Metric) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.metrics = append(o.metrics, metric)
+}
+
 func (o *recordingObserver) recorded() []observedError {
 	o.mu.Lock()
 	defer o.mu.Unlock()
 	return append([]observedError(nil), o.errors...)
+}
+
+func (o *recordingObserver) recordedMetrics() []Metric {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	return append([]Metric(nil), o.metrics...)
 }
 
 func (f *fakeExecutor) callCount(panelID string) int {

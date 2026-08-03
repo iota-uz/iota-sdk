@@ -59,19 +59,26 @@ type executionSession struct {
 	nextWaiter        uint64
 	lastUsed          time.Time
 	prefetchOnce      sync.Once
+	prefetched        map[string]struct{}
+	metric            func(Metric)
 }
 
-func newExecutionSession(maxConcurrency int, workTimeout time.Duration) *executionSession {
+func newExecutionSession(maxConcurrency int, workTimeout time.Duration, metrics ...func(Metric)) *executionSession {
 	if maxConcurrency < 2 {
 		maxConcurrency = 2
 	}
-	return &executionSession{
+	created := &executionSession{
 		jobs:              make(map[string]*scheduledJob),
 		runningForeground: make(map[int]int),
+		prefetched:        make(map[string]struct{}),
 		maxConcurrency:    maxConcurrency,
 		workTimeout:       workTimeout,
 		lastUsed:          time.Now(),
 	}
+	if len(metrics) > 0 {
+		created.metric = metrics[0]
+	}
+	return created
 }
 
 func (s *executionSession) submit(
@@ -87,6 +94,7 @@ func (s *executionSession) submit(
 	waiterID := s.nextWaiter
 	s.lastUsed = time.Now()
 	if existing := s.jobs[key]; existing != nil {
+		s.reportLocked(Metric{Name: MetricRedundantWork, Value: 1, Labels: map[string]string{"class": priorityClass(priority)}})
 		existing.waiters[waiterID] = result
 		if !existing.running && priority < existing.priority {
 			existing.priority = priority
@@ -125,6 +133,9 @@ func (s *executionSession) detach(key string, waiterID uint64) {
 	}
 	if job.running {
 		if job.cancel != nil {
+			if job.background {
+				s.reportLocked(Metric{Name: MetricCancelledSpeculation, Value: 1, Labels: map[string]string{"class": priorityClass(job.priority)}})
+			}
 			job.cancel()
 		}
 		return
@@ -136,6 +147,9 @@ func (s *executionSession) detach(key string, waiterID uint64) {
 		}
 	}
 	delete(s.jobs, key)
+	if job.background {
+		s.reportLocked(Metric{Name: MetricCancelledSpeculation, Value: 1, Labels: map[string]string{"class": priorityClass(job.priority)}})
+	}
 }
 
 func (s *executionSession) dispatchLocked() {
@@ -148,6 +162,7 @@ func (s *executionSession) dispatchLocked() {
 		s.queue = append(s.queue[:index], s.queue[index+1:]...)
 		job.running = true
 		s.running++
+		s.reportLocked(Metric{Name: MetricSchedulerSaturation, Value: float64(s.running) / float64(s.maxConcurrency)})
 		if job.background {
 			s.backgroundRunning++
 		} else {
@@ -238,6 +253,38 @@ func (s *executionSession) idleBefore(cutoff time.Time) bool {
 	return s.running == 0 && len(s.queue) == 0 && s.lastUsed.Before(cutoff)
 }
 
+func priorityClass(priority int) string {
+	switch {
+	case priority == priorityInteractive:
+		return "interactive"
+	case priority < priorityIntent:
+		return "root"
+	case priority < priorityIdlePrefetch:
+		return "intent_prefetch"
+	default:
+		return "idle_prefetch"
+	}
+}
+
+func (s *executionSession) reportLocked(metric Metric) {
+	if s.metric != nil {
+		s.metric(metric)
+	}
+}
+
+func (s *executionSession) markPrefetched(key string) {
+	s.mu.Lock()
+	s.prefetched[key] = struct{}{}
+	s.mu.Unlock()
+}
+
+func (s *executionSession) wasPrefetched(key string) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.prefetched[key]
+	return ok
+}
+
 func (h *Handlers) session(snapshotID string) *executionSession {
 	h.sessionsMu.Lock()
 	defer h.sessionsMu.Unlock()
@@ -250,7 +297,9 @@ func (h *Handlers) session(snapshotID string) *executionSession {
 	if existing := h.sessions[snapshotID]; existing != nil {
 		return existing
 	}
-	created := newExecutionSession(defaultConcurrency, h.workTimeout)
+	created := newExecutionSession(defaultConcurrency, h.workTimeout, func(metric Metric) {
+		h.observeMetric(context.Background(), metric)
+	})
 	h.sessions[snapshotID] = created
 	return created
 }

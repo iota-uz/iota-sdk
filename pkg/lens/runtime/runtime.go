@@ -122,15 +122,21 @@ type Observer interface {
 	DatasetExecuted(string, time.Duration)
 }
 
+type DatasourceObserver interface {
+	DatasourceSaturation(string, int)
+}
+
 // Runtime is a long-lived Lens execution service. A process should normally
 // construct one instance and share it across render, fragment and export paths.
 type Runtime struct {
-	store       SnapshotStore
-	ttl         time.Duration
-	version     string
-	observer    Observer
-	flights     singleflight.Group
-	workTimeout time.Duration
+	store          SnapshotStore
+	ttl            time.Duration
+	version        string
+	observer       Observer
+	flights        singleflight.Group
+	workTimeout    time.Duration
+	activityMu     sync.Mutex
+	activeBySource map[string]int
 }
 
 func New(opts Options) *Runtime {
@@ -146,7 +152,10 @@ func New(opts Options) *Runtime {
 	if opts.WorkTimeout <= 0 {
 		opts.WorkTimeout = 2 * time.Minute
 	}
-	return &Runtime{store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout}
+	return &Runtime{
+		store: opts.Store, ttl: opts.DefaultTTL, version: opts.CacheVersion, observer: opts.Observer, workTimeout: opts.WorkTimeout,
+		activeBySource: make(map[string]int),
+	}
 }
 
 func (r *Runtime) Store() SnapshotStore { return r.store }
@@ -556,6 +565,8 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		workCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), s.executor.workTimeout)
 		defer cancel()
 		started := time.Now()
+		s.executor.changeDatasourceActivity(workCtx, spec.Source, 1)
+		defer s.executor.changeDatasourceActivity(workCtx, spec.Source, -1)
 		frames, err := ds.Run(workCtx, request)
 		if err == nil && s.executor.observer != nil {
 			s.executor.observer.DatasetExecuted(spec.Name, time.Since(started))

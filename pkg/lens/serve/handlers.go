@@ -151,6 +151,7 @@ type loadedPanel struct {
 // completes, so a slow sibling never delays progressive reveal. Validation and
 // execution failures stay isolated to their panel result.
 func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be POST")
 		return
@@ -270,6 +271,7 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 				}
 				if priorityIndex == 0 {
 					session.enableBackground()
+					h.observeMetric(r.Context(), Metric{Name: MetricTimeToFirstUsefulKPI, Value: float64(time.Since(started).Microseconds()) / 1000})
 				}
 				priorityIndex++
 			}
@@ -609,6 +611,7 @@ func validDrawerParams(params map[string]any) bool {
 // Query returns a cached aggregate level or executes one level using frozen
 // snapshot parameters. Evidence levels are always executed live.
 func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
+	started := time.Now()
 	if r.Method != http.MethodPost {
 		writeError(w, http.StatusMethodNotAllowed, document.QueryErrorBadRequest, "method must be POST")
 		return
@@ -665,14 +668,20 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !target.evidence {
+		key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
+		session := h.session(snapshot.ID)
 		// The cache key carries the path's point selections: a level entered
 		// through year 2024 must not be served the frame cached for 2025.
 		if cached, ok := snapshot.Frames[target.cacheRef()]; ok {
 			cached, _ = tableFrameView(target.panel, cached, "", req.Sort)
 			writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: cached}})
+			if !req.Prefetch {
+				h.observeMetric(r.Context(), Metric{Name: MetricPrefetchHit, Value: boolMetric(session.wasPrefetched(key))})
+				h.observeMetric(r.Context(), Metric{Name: MetricTimeToFirstChild, Value: float64(time.Since(started).Microseconds()) / 1000})
+			}
 			return
 		}
-		h.queryAggregate(w, r, req, snapshot, target)
+		h.queryAggregate(w, r, req, snapshot, target, started)
 		return
 	}
 	page := req.Page
@@ -728,7 +737,7 @@ func (h *Handlers) evidenceHasNext(
 	return false, fmt.Errorf("full evidence page requires authoritative table pagination metadata")
 }
 
-func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req QueryRequest, snapshot *document.Snapshot, target levelTarget) {
+func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req QueryRequest, snapshot *document.Snapshot, target levelTarget, started time.Time) {
 	ctx := r.Context()
 	base := h.runtimeRequest(r)
 	key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
@@ -759,7 +768,18 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 		}
 		frame, _ = tableFrameView(target.panel, frame, "", req.Sort)
 		writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: frame}})
+		if !req.Prefetch {
+			h.observeMetric(ctx, Metric{Name: MetricPrefetchHit, Value: boolMetric(h.session(snapshot.ID).wasPrefetched(key))})
+			h.observeMetric(ctx, Metric{Name: MetricTimeToFirstChild, Value: float64(time.Since(started).Microseconds()) / 1000})
+		}
 	}
+}
+
+func boolMetric(value bool) float64 {
+	if value {
+		return 1
+	}
+	return 0
 }
 
 func (h *Handlers) materializeAggregate(
@@ -813,6 +833,9 @@ func (h *Handlers) startBackgroundPrefetch(
 		})
 		go func() {
 			loaded := <-result.result
+			if loaded.err == nil {
+				session.markPrefetched(key)
+			}
 			if loaded.err != nil && !errors.Is(loaded.err, document.ErrSnapshotGone) {
 				h.observer.OnError(context.Background(), "lens/serve.Prefetch", loaded.err)
 			}

@@ -34,6 +34,29 @@ type Observer interface {
 	OnError(context.Context, string, error)
 }
 
+type MetricName string
+
+const (
+	MetricTimeToFirstUsefulKPI MetricName = "time_to_first_useful_kpi_ms"
+	MetricTimeToFirstChild     MetricName = "time_to_first_child_frame_ms"
+	MetricPrefetchHit          MetricName = "prefetch_hit"
+	MetricCancelledSpeculation MetricName = "cancelled_speculative_work"
+	MetricRedundantWork        MetricName = "redundant_work"
+	MetricSchedulerSaturation  MetricName = "scheduler_saturation"
+)
+
+type Metric struct {
+	Name   MetricName
+	Value  float64
+	Labels map[string]string
+}
+
+// MetricsObserver is an optional extension implemented by Observer values
+// that consume execution-session telemetry.
+type MetricsObserver interface {
+	OnMetric(context.Context, Metric)
+}
+
 // ObserverFunc adapts a function to Observer.
 type ObserverFunc func(context.Context, string, error)
 
@@ -78,6 +101,13 @@ type Handlers struct {
 type noopObserver struct{}
 
 func (noopObserver) OnError(context.Context, string, error) {}
+
+func (h *Handlers) observeMetric(ctx context.Context, metric Metric) {
+	recordMetric(ctx, metric)
+	if observer, ok := h.observer.(MetricsObserver); ok {
+		observer.OnMetric(ctx, metric)
+	}
+}
 
 // New validates cfg and constructs the dashboard handlers.
 func New(cfg Config) (*Handlers, error) {
