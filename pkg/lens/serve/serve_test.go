@@ -61,12 +61,14 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 	}
 	f.mu.Lock()
 	f.calls = append(f.calls, executorCall{panelID: panelID, request: cloneRuntimeRequest(req)})
+	executeErr := f.executeErrs[panelID]
+	panelErr := f.panelErrs[panelID]
 	f.mu.Unlock()
 	if f.started != nil && panelID != "" {
 		f.startOnce.Do(func() { close(f.started) })
 	}
-	if err := f.executeErrs[panelID]; err != nil {
-		return nil, err
+	if executeErr != nil {
+		return nil, executeErr
 	}
 	if f.cancelPanel != "" && panelID == f.cancelPanel {
 		<-ctx.Done()
@@ -130,7 +132,7 @@ func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req
 			Page: page, PerPage: len(frames.Primary().Rows()), HasMore: pages[page],
 		}
 	}
-	result.Panels[panelID].Error = f.panelErrs[panelID]
+	result.Panels[panelID].Error = panelErr
 	return result, nil
 }
 
@@ -158,7 +160,9 @@ func TestHandlers_ProgressivePanelsAreIndependentCachedAndScopeIsolated(t *testi
 	require.Equal(t, http.StatusInternalServerError, failed.Code)
 	require.NoError(t, doc.Validate(), "a panel failure must not invalidate the shell")
 
+	executor.mu.Lock()
 	delete(executor.panelErrs, "host")
+	executor.mu.Unlock()
 	loaded := requestPanel(t, handlers, doc.SnapshotID, PanelRequest{PanelID: "host"}, "tenant:one")
 	require.Equal(t, http.StatusOK, loaded.Code)
 	var response PanelResponse
