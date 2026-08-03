@@ -1305,6 +1305,7 @@ type QueryRequest struct {
 	SnapshotID  string     `json:"snapshotId"`
 	Path        NodePath   `json:"path"`
 	Perspective string     `json:"perspective,omitempty"`
+	Revision    int        `json:"revision,omitempty"`
 	Prefetch    bool       `json:"prefetch,omitempty"`
 	Page        int        `json:"page,omitempty"`
 	Sort        *TableSort `json:"sort,omitempty"`

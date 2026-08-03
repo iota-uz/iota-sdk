@@ -121,3 +121,28 @@ func TestExecutionSessionKeepsPromotedWorkForInteractiveConsumer(t *testing.T) {
 	close(release)
 	require.Equal(t, "child", (<-interactive.result).value)
 }
+
+func TestExecutionSessionRevisionCancelsOnlyStaleNavigationWork(t *testing.T) {
+	session := newExecutionSession(3, time.Second)
+	staleStarted := make(chan struct{})
+	idleRelease := make(chan struct{})
+	idle := session.submit(t.Context(), "idle", priorityIdlePrefetch, 0, func(ctx context.Context) (any, error) {
+		select {
+		case <-idleRelease:
+			return "idle", nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	})
+	stale := session.submit(t.Context(), "path-a", priorityInteractive, 0, func(ctx context.Context) (any, error) {
+		close(staleStarted)
+		<-ctx.Done()
+		return nil, ctx.Err()
+	}, 1)
+	<-staleStarted
+	session.advanceRevision(2)
+	require.ErrorIs(t, (<-stale.result).err, context.Canceled)
+	close(idleRelease)
+	session.enableBackground()
+	require.Equal(t, "idle", (<-idle.result).value, "parent idle warm-up must survive a sibling navigation change")
+}

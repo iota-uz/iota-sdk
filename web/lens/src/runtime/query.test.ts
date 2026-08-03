@@ -75,6 +75,20 @@ describe('QueryClient', () => {
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
+  it('does not attach a revisited path to an obsolete navigation flight', async () => {
+    const resolvers: Array<(value: Response) => void> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(() =>
+      new Promise<Response>((resolve) => resolvers.push(resolve)))
+    const client = new QueryClient('/lens/query', { fetcher })
+
+    const obsolete = client.query({ ...request, revision: 1 })
+    const revisited = client.query({ ...request, revision: 3 })
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    for (const resolve of resolvers) resolve(new Response(JSON.stringify(response), { status: 200 }))
+    await expect(obsolete).resolves.toEqual(response)
+    await expect(revisited).resolves.toEqual(response)
+  })
+
   it('evicts cached responses from prior snapshots', async () => {
     const fetcher = vi.fn<typeof fetch>().mockImplementation(() =>
       Promise.resolve(new Response(JSON.stringify(response), { status: 200 })))

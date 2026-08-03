@@ -178,9 +178,9 @@ afterEach(() => {
 
 describe('DashboardRuntimeProvider', () => {
   it('prefetches a concrete child without changing navigation', async () => {
-    const requests: Array<{ path: Array<string>; prefetch?: boolean }> = []
+    const requests: Array<{ path: Array<string>; prefetch?: boolean; revision?: number }> = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
-      requests.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { path: Array<string>; prefetch?: boolean })
+      requests.push(JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { path: Array<string>; prefetch?: boolean; revision?: number })
       return Promise.resolve(response(43))
     })
     render(<RuntimeFixture fetcher={fetcher} />)
@@ -188,7 +188,7 @@ describe('DashboardRuntimeProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Prefetch detail' }))
 
     await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(1))
-    expect(requests).toEqual([{ snapshotId: document.snapshotId, path: ['root', 'detail'], prefetch: true }])
+    expect(requests).toEqual([{ snapshotId: document.snapshotId, path: ['root', 'detail'], revision: 2, prefetch: true }])
     expect(screen.getByTestId('path')).toHaveTextContent('')
   })
 

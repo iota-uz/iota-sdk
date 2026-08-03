@@ -670,6 +670,7 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 	if !target.evidence {
 		key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
 		session := h.session(snapshot.ID)
+		session.advanceRevision(req.Revision)
 		// The cache key carries the path's point selections: a level entered
 		// through year 2024 must not be served the frame cached for 2025.
 		if cached, ok := snapshot.Frames[target.cacheRef()]; ok {
@@ -741,13 +742,15 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 	ctx := r.Context()
 	base := h.runtimeRequest(r)
 	key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
+	session := h.session(snapshot.ID)
+	session.advanceRevision(req.Revision)
 	priority := priorityInteractive
 	if req.Prefetch {
 		priority = priorityIntent
 	}
-	result := h.session(snapshot.ID).submit(ctx, key, priority, 0, func(workCtx context.Context) (any, error) {
+	result := session.submit(ctx, key, priority, 0, func(workCtx context.Context) (any, error) {
 		return h.materializeAggregate(workCtx, snapshot.ID, base, target)
-	})
+	}, req.Revision)
 	defer result.Cancel()
 	select {
 	case <-ctx.Done():
@@ -769,7 +772,7 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 		frame, _ = tableFrameView(target.panel, frame, "", req.Sort)
 		writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: frame}})
 		if !req.Prefetch {
-			h.observeMetric(ctx, Metric{Name: MetricPrefetchHit, Value: boolMetric(h.session(snapshot.ID).wasPrefetched(key))})
+			h.observeMetric(ctx, Metric{Name: MetricPrefetchHit, Value: boolMetric(session.wasPrefetched(key))})
 			h.observeMetric(ctx, Metric{Name: MetricTimeToFirstChild, Value: float64(time.Since(started).Microseconds()) / 1000})
 		}
 	}

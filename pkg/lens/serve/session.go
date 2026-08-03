@@ -28,6 +28,7 @@ type scheduledJob struct {
 	sequence   uint64
 	background bool
 	running    bool
+	revision   int
 	base       context.Context
 	cancel     context.CancelFunc
 	run        func(context.Context) (any, error)
@@ -61,6 +62,7 @@ type executionSession struct {
 	prefetchOnce      sync.Once
 	prefetched        map[string]struct{}
 	metric            func(Metric)
+	activeRevision    int
 }
 
 func newExecutionSession(maxConcurrency int, workTimeout time.Duration, metrics ...func(Metric)) *executionSession {
@@ -87,12 +89,17 @@ func (s *executionSession) submit(
 	priority int,
 	order int,
 	run func(context.Context) (any, error),
+	revisions ...int,
 ) scheduledCall {
 	result := make(chan scheduledResult, 1)
 	s.mu.Lock()
 	s.nextWaiter++
 	waiterID := s.nextWaiter
 	s.lastUsed = time.Now()
+	revision := 0
+	if len(revisions) > 0 {
+		revision = revisions[0]
+	}
 	if existing := s.jobs[key]; existing != nil {
 		s.reportLocked(Metric{Name: MetricRedundantWork, Value: 1, Labels: map[string]string{"class": priorityClass(priority)}})
 		existing.waiters[waiterID] = result
@@ -110,6 +117,7 @@ func (s *executionSession) submit(
 		key: key, priority: priority, order: order, sequence: s.nextSequence,
 		background: priority >= priorityIntent,
 		base:       base,
+		revision:   revision,
 		run:        run,
 		waiters:    map[uint64]chan scheduledResult{waiterID: result},
 	}
@@ -118,6 +126,42 @@ func (s *executionSession) submit(
 	s.dispatchLocked()
 	s.mu.Unlock()
 	return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }}
+}
+
+func (s *executionSession) advanceRevision(revision int) {
+	if revision <= 0 {
+		return
+	}
+	s.mu.Lock()
+	if revision <= s.activeRevision {
+		s.mu.Unlock()
+		return
+	}
+	s.activeRevision = revision
+	queuedWaiters := make([]chan scheduledResult, 0)
+	kept := s.queue[:0]
+	for _, job := range s.queue {
+		if job.revision > 0 && job.revision < revision && job.priority <= priorityIntent {
+			delete(s.jobs, job.key)
+			for _, waiter := range job.waiters {
+				queuedWaiters = append(queuedWaiters, waiter)
+			}
+			continue
+		}
+		kept = append(kept, job)
+	}
+	s.queue = kept
+	for _, job := range s.jobs {
+		if job.running && job.revision > 0 && job.revision < revision && job.priority <= priorityIntent && job.cancel != nil {
+			delete(s.jobs, job.key)
+			job.cancel()
+		}
+	}
+	s.mu.Unlock()
+	for _, waiter := range queuedWaiters {
+		waiter <- scheduledResult{err: context.Canceled}
+		close(waiter)
+	}
 }
 
 func (s *executionSession) detach(key string, waiterID uint64) {
@@ -217,7 +261,9 @@ func (s *executionSession) execute(job *scheduledJob) {
 	cancel()
 
 	s.mu.Lock()
-	delete(s.jobs, job.key)
+	if s.jobs[job.key] == job {
+		delete(s.jobs, job.key)
+	}
 	s.running--
 	if job.background {
 		s.backgroundRunning--

@@ -578,6 +578,7 @@ export const QueryRequestSchema: z.ZodType<Contract.QueryRequest> = z.lazy(() =>
   snapshotId: z.string(),
   path: z.lazy(() => NodePathSchema),
   perspective: z.string().optional(),
+  revision: z.number().int().optional(),
   prefetch: z.boolean().optional(),
   page: z.number().int().optional(),
   sort: z.lazy(() => TableSortSchema).optional(),

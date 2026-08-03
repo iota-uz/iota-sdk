@@ -550,6 +550,7 @@ function requestFor(document: DashboardDocument, navigation: NavigationView): Qu
     // rather than for the node's unparameterised aggregate.
     path: queryPathForNavigation(document, navigation.path),
     ...(navigation.perspectiveId ? { perspective: navigation.perspectiveId } : {}),
+    ...(navigation.revision ? { revision: navigation.revision } : {}),
   }
 }
 
