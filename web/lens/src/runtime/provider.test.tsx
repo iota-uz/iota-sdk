@@ -4,7 +4,8 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
-import { DashboardRuntimeProvider, DocumentProvider, idleDrillPrefetchRoots, panelViewportRank, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
+import { DashboardRuntimeProvider, DocumentProvider, panelViewportRank, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
+import { idleDrillPrefetchRoots } from './drillPrefetch'
 import { QueryClient } from './query'
 
 const document = parseDocument({

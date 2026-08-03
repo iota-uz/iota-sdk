@@ -1336,12 +1336,14 @@ type QueryResponse struct {
 }
 
 type PanelRequest struct {
-	PanelID      string     `json:"panelId"`
-	Recompute    bool       `json:"recompute,omitempty"`
-	Search       string     `json:"search,omitempty"`
-	Sort         *TableSort `json:"sort,omitempty"`
-	Page         int        `json:"page,omitempty"`
-	ViewportRank *int       `json:"viewportRank,omitempty"`
+	PanelID   string     `json:"panelId"`
+	Recompute bool       `json:"recompute,omitempty"`
+	Search    string     `json:"search,omitempty"`
+	Sort      *TableSort `json:"sort,omitempty"`
+	Page      int        `json:"page,omitempty"`
+	// ViewportRank is an SDK-measured viewport band; dashboard declarations
+	// never set it.
+	ViewportRank *int `json:"viewportRank,omitempty" lens:"min=0,max=2"`
 }
 
 type SortDirection string

@@ -585,33 +585,6 @@ function requestFor(document: DashboardDocument, navigation: NavigationView): Qu
   }
 }
 
-interface IdleDrillPrefetchRoot {
-  panelId: string
-  path: NodePath
-  perspective: string
-}
-
-export function idleDrillPrefetchRoots(document: DashboardDocument): Array<IdleDrillPrefetchRoot> {
-  const result: Array<IdleDrillPrefetchRoot> = []
-  const seen = new Set<string>()
-  for (const row of document.layout.rows) {
-    for (const item of row.panels) {
-      const panel = document.panels.find((candidate) => candidate.id === item.panelId)
-      const host = panel?.drillRoot ? document.drill.edges[panel.drillRoot] : undefined
-      if (!panel || !host) continue
-      for (const perspective of document.perspectives) {
-        if (perspective.semantics === 'evidence' || seen.has(perspective.id)) continue
-        const root = document.drill.edges[perspective.root]
-        if (!root || !host.path.every((key, index) => root.path[index] === key)) continue
-        seen.add(perspective.id)
-        result.push({ panelId: panel.id, path: [...root.path], perspective: perspective.id })
-        if (result.length === 8) return result
-      }
-    }
-  }
-  return result
-}
-
 function firstContentRowReady(document: DashboardDocument): boolean {
   const row = document.layout.rows.find((candidate) => candidate.panels.length > 0)
   if (!row) return false
@@ -1033,41 +1006,14 @@ function RuntimeCore({
   useEffect(() => {
     if (!queryClient || drawerDepth !== 0 || !firstContentRowReady(document)) return
     const controller = new AbortController()
-    const run = async () => {
-      for (const candidate of idleDrillPrefetchRoots(document)) {
-        if (controller.signal.aborted) return
-        const rootRequest: QueryRequest = {
-          snapshotId: document.snapshotId,
-          path: candidate.path,
-          perspective: candidate.perspective,
-          prefetch: true,
-          idlePrefetch: true,
-        }
-        try {
-          const response = await queryClient.query(rootRequest, { signal: controller.signal })
-          const frame = Object.values(response.frames)[0]
-          if (!frame) continue
-          if (frame.children) {
-            setRuntimeDocument((current) => withFrameChildren(current, candidate.path, frame))
-          }
-          const children = frame.children?.filter(({ target }) => Boolean(target)) ?? []
-          if (children.length === 0 || children.length > 4) continue
-          for (const child of children) {
-            if (!child.target || controller.signal.aborted) return
-            await queryClient.query({
-              snapshotId: document.snapshotId,
-              path: [...candidate.path, child.key, child.target],
-              perspective: candidate.perspective,
-              prefetch: true,
-              idlePrefetch: true,
-            }, { signal: controller.signal })
-          }
-        } catch {
-          if (controller.signal.aborted) return
-        }
-      }
-    }
-    void run()
+    void import('./drillPrefetch').then(({ prefetchIdleDrillStates }) => prefetchIdleDrillStates({
+      document,
+      queryClient,
+      signal: controller.signal,
+      onChildren: (path, frame) => {
+        setRuntimeDocument((current) => withFrameChildren(current, path, frame))
+      },
+    })).catch(() => undefined)
     return () => controller.abort(new DOMException('idle drill prefetch scope changed', 'AbortError'))
   }, [document, drawerDepth, queryClient, setRuntimeDocument])
 

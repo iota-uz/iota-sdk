@@ -60,6 +60,69 @@ type fakeExecutor struct {
 	panelSpecs  map[string]panel.Spec
 }
 
+type latencyGuardrailExecutor struct {
+	mu          sync.Mutex
+	frames      map[string]*frame.FrameSet
+	legacyDelay time.Duration
+	panelDelays map[string]time.Duration
+	startedAt   map[string]time.Time
+}
+
+func (e *latencyGuardrailExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
+	panelID := ""
+	if len(scope.PanelIDs) > 0 {
+		panelID = scope.PanelIDs[0]
+	}
+	delay := e.legacyDelay
+	if panelID != "" {
+		delay = e.panelDelays[panelID]
+	}
+	e.mu.Lock()
+	if e.startedAt == nil {
+		e.startedAt = make(map[string]time.Time)
+	}
+	e.startedAt[panelID] = time.Now()
+	e.mu.Unlock()
+	if !scope.MetadataOnly && delay > 0 {
+		timer := time.NewTimer(delay)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-timer.C:
+		}
+	}
+	result := &lensruntime.DashboardResult{
+		Spec: spec, Variables: map[string]any{}, Panels: make(map[string]*lensruntime.PanelResult),
+		Datasets: make(map[string]*lensruntime.DatasetResult), Locale: req.Locale, Request: req.Request,
+		StartedAt: time.Now().UTC(), Duration: delay,
+	}
+	if scope.MetadataOnly {
+		return result, nil
+	}
+	if panelID != "" {
+		candidate, ok := lens.FindPanel(spec, panelID)
+		if !ok {
+			return nil, fmt.Errorf("latency panel %q is missing", panelID)
+		}
+		result.Panels[panelID] = panelResult(candidate, e.frames[panelID], req)
+		return result, nil
+	}
+	for _, candidate := range lens.FlattenPanels(spec) {
+		if candidate.Kind.IsContainer() || e.frames[candidate.ID] == nil {
+			continue
+		}
+		result.Panels[candidate.ID] = panelResult(candidate, e.frames[candidate.ID], req)
+	}
+	return result, nil
+}
+
+func (e *latencyGuardrailExecutor) started(panelID string) bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return !e.startedAt[panelID].IsZero()
+}
+
 func (f *fakeExecutor) Execute(ctx context.Context, spec lens.DashboardSpec, req lensruntime.Request, scope lensruntime.Scope) (*lensruntime.DashboardResult, error) {
 	panelID := ""
 	if len(scope.PanelIDs) > 0 {
@@ -476,6 +539,68 @@ func TestHandlers_PrefetchesFirstDrillStatesWhileLowerRootRowsLoad(t *testing.T)
 	for scanner.Scan() {
 	}
 	require.NoError(t, scanner.Err())
+}
+
+func TestHandlers_ProgressiveLatencyMeetsRecordedAtomicGuardrails(t *testing.T) {
+	spec, frames := testDashboard(t)
+	slow := panel.Pie("slow", "Slow", "slow-data").IDField("id").Terminal().Build()
+	spec.Rows = append(spec.Rows, lens.RowSpec{Panels: []panel.Spec{slow}})
+	frames["slow"] = testFrames(t, "slow", 50)
+	spec.Datasets = append(spec.Datasets, staticDataset("slow-data", frames["slow"]))
+	executor := &latencyGuardrailExecutor{
+		frames: frames, legacyDelay: 240 * time.Millisecond,
+		panelDelays: map[string]time.Duration{
+			"host": 20 * time.Millisecond, "slow": 180 * time.Millisecond,
+			"root-panel": 30 * time.Millisecond, "detail-panel": 30 * time.Millisecond,
+		},
+	}
+	requestFor := func(r *http.Request) lensruntime.Request {
+		return lensruntime.Request{Locale: "en", DataScope: "tenant:one", Request: r.URL.Query()}
+	}
+	legacy, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: document.NewMemoryStore(time.Minute, 8), BasePath: "/legacy",
+		Request: requestFor,
+	})
+	require.NoError(t, err)
+	legacyStarted := time.Now()
+	requestDocument(t, legacy, "/legacy/document")
+	legacyFirstUseful := time.Since(legacyStarted)
+
+	progressive, err := New(Config{
+		Spec: spec, Engine: executor, Snapshots: document.NewMemoryStore(time.Minute, 8), BasePath: "/progressive",
+		Progressive: true, Request: requestFor,
+	})
+	require.NoError(t, err)
+	progressiveStarted := time.Now()
+	doc := requestDocument(t, progressive, "/progressive/document")
+	server := httptest.NewServer(http.HandlerFunc(progressive.Panel))
+	defer server.Close()
+	response, err := http.Post(server.URL, "application/json", marshal(t, PanelBatchRequest{
+		SnapshotID: doc.SnapshotID,
+		Panels:     []PanelRequest{{PanelID: "slow"}, {PanelID: "host"}},
+	})) //nolint:noctx // Test server lifecycle bounds the request.
+	require.NoError(t, err)
+	defer response.Body.Close()
+	scanner := bufio.NewScanner(response.Body)
+	require.True(t, scanner.Scan(), scanner.Err())
+	firstUseful := time.Since(progressiveStarted)
+	var first PanelBatchStreamEvent
+	require.NoError(t, json.Unmarshal(scanner.Bytes(), &first))
+	require.Equal(t, "host", first.PanelID)
+	for scanner.Scan() {
+	}
+	require.NoError(t, scanner.Err())
+	fullRoot := time.Since(progressiveStarted)
+	t.Logf("latency guardrail: atomic=%s first_kpi=%s (%.1f%% faster) full_root=%s (%.1f%% of atomic)",
+		legacyFirstUseful, firstUseful, 100*(1-float64(firstUseful)/float64(legacyFirstUseful)),
+		fullRoot, 100*float64(fullRoot)/float64(legacyFirstUseful))
+
+	require.LessOrEqual(t, firstUseful, legacyFirstUseful*70/100,
+		"cold time-to-first-useful-KPI must improve by at least 30%%")
+	require.LessOrEqual(t, fullRoot, legacyFirstUseful*110/100,
+		"progressive root completion with child prefetch must stay within 10%% of atomic load")
+	require.Eventually(t, func() bool { return executor.started("root-panel") }, time.Second, 10*time.Millisecond,
+		"the guardrail must include real first-level child prefetch work")
 }
 
 func TestHandlers_DoesNotPrefetchUntilTheFirstUsefulRowIsComplete(t *testing.T) {

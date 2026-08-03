@@ -447,7 +447,6 @@ export interface PanelRequest {
   search?: string
   sort?: TableSort
   page?: number
-  /** SDK-measured viewport band; dashboard declarations never set this. */
   viewportRank?: number
 }
 

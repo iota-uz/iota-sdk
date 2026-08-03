@@ -107,7 +107,8 @@ describe('DocumentCache', () => {
       }
       expect(url).toBe('/drawer/lens/panel')
       expect(new Headers(init?.headers).get('X-Lens-Prefetch')).toBe('intent')
-      expect(JSON.parse(String(init?.body))).toMatchObject({
+      expect(typeof init?.body).toBe('string')
+      expect(JSON.parse(init?.body as string)).toMatchObject({
         snapshotId: 'snapshot-drawer', panels: [{ panelId: 'hero' }],
       })
       return Promise.resolve(progressivePanelResponse())
