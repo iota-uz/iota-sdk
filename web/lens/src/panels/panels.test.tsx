@@ -809,7 +809,7 @@ describe('chart encoding and drill behavior', () => {
     expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
   })
 
-  it('shows bulk legend controls from four entries and hides them below that threshold', async () => {
+  it('shows bulk legend controls above four entries and hides them at or below that threshold', async () => {
     const columns: Frame['columns'] = [
       { name: 'category', type: 'string' },
       { name: 'series', type: 'string' },
@@ -843,6 +843,17 @@ describe('chart encoding and drill behavior', () => {
 
     runtime.frame = {
       data: { columns, rows: Array.from({ length: 4 }, (_, index) => ['2026', `Bulk ${index + 1}`, index + 1]) },
+      isLoading: false, isStale: false, error: null, retry: vi.fn(),
+    }
+    render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    expect(screen.queryByRole('button', { name: 'Hide all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Invert' })).toBeNull()
+    expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
+    cleanup()
+
+    runtime.frame = {
+      data: { columns, rows: Array.from({ length: 5 }, (_, index) => ['2026', `Bulk ${index + 1}`, index + 1]) },
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
     render(<LinePanel panel={line} adapter={fakeAdapter()} />)

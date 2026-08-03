@@ -34,8 +34,8 @@ const minorDonutShare = 0.02
  * clicks the rows, which are right there.
  */
 const legendControlEntries = searchableListEntries
-/** Fewer than four entries are quicker to manage individually. */
-const legendBulkEntries = 4
+/** Four or fewer entries are quicker to manage individually. */
+const legendBulkThreshold = 4
 
 export interface ChartPanelProps {
   panel: Panel
@@ -1081,7 +1081,7 @@ const ChartLegend = memo(function ChartLegend({
   // control says which: a two-state segmented control, not two loose commands.
   const allHidden = model.allKeys.length > 0 && model.allKeys.every((key) => hidden.has(key))
   const noneHidden = model.allKeys.every((key) => !hidden.has(key))
-  const bulk = model.allKeys.length >= legendBulkEntries
+  const bulk = model.allKeys.length > legendBulkThreshold
   // A legend long enough to be worth searching earns the full control header;
   // a shorter bulk legend gets a single switch.
   const long = model.entries.length >= legendControlEntries
