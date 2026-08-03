@@ -57,6 +57,9 @@ func selectionPoints(path []string, perspective explore.Perspective) []string {
 		if part == "" {
 			continue
 		}
+		if _, ok := perspective.Node(part); ok {
+			continue
+		}
 		structural := false
 		for next := index + 1; next < len(path); next++ {
 			if strings.HasPrefix(path[next], entry+"/") {
@@ -65,9 +68,6 @@ func selectionPoints(path []string, perspective explore.Perspective) []string {
 			}
 		}
 		if structural {
-			continue
-		}
-		if _, ok := perspective.Node(part); ok {
 			continue
 		}
 		points = append(points, part)
@@ -361,16 +361,6 @@ func explorationPathSteps(target levelTarget) []explore.PathStep {
 		if part == "" {
 			continue
 		}
-		structural := false
-		for next := index + 1; next < len(target.path); next++ {
-			if strings.HasPrefix(target.path[next], entry+"/") {
-				structural = true
-				break
-			}
-		}
-		if structural {
-			continue
-		}
 		if _, ok := target.perspective.Node(part); ok {
 			if len(steps) == 0 && part != target.perspective.RootNode {
 				steps = append(steps, explore.PathStep{NodeKey: target.perspective.RootNode})
@@ -379,6 +369,16 @@ func explorationPathSteps(target levelTarget) []explore.PathStep {
 				steps = append(steps, explore.PathStep{NodeKey: part, PointKey: pendingPoint})
 			}
 			pendingPoint = ""
+			continue
+		}
+		structural := false
+		for next := index + 1; next < len(target.path); next++ {
+			if strings.HasPrefix(target.path[next], entry+"/") {
+				structural = true
+				break
+			}
+		}
+		if structural {
 			continue
 		}
 		pendingPoint = part

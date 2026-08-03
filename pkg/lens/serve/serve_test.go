@@ -207,7 +207,8 @@ func TestExplorationPathStepsPreservePointSelections(t *testing.T) {
 	spec, _ := testDashboard(t)
 	target, err := resolveTarget(spec, document.NodePath{
 		"metric", "metric/focus", "metric/focus/composition", "metric/focus/composition/root",
-		"a", "metric/focus/composition/detail", "b", "metric/focus/composition/end",
+		"metric/focus/composition/root/a", "metric/focus/composition/detail",
+		"metric/focus/composition/detail/b", "metric/focus/composition/end",
 	}, "composition")
 	require.NoError(t, err)
 	require.Equal(t, []explore.PathStep{
