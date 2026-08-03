@@ -1,5 +1,6 @@
 import type { DashboardDocument } from '../contract'
 import { fetchDocument } from './document'
+import { PanelClient } from './panel'
 
 export interface DocumentCacheOptions {
   /** Maximum resolved documents kept before the oldest is evicted. */
@@ -75,9 +76,10 @@ export class DocumentCache {
    * rejects) so a prefetch can never surface an error to the caller. A URL that
    * is already cached or already in flight is not fetched again.
    */
-  prefetch(url: string): Promise<void> {
+  prefetch(url: string, signal?: AbortSignal): Promise<void> {
     if (this.entries.has(url) || this.inflight.has(url)) return Promise.resolve()
-    const pending = fetchDocument(url, { fetcher: this.fetcher, csrf: this.csrf, prefetch: true })
+    const pending = fetchDocument(url, { fetcher: this.fetcher, csrf: this.csrf, prefetch: true, signal })
+      .then((document) => this.prefetchFirstRow(document, signal))
       .then((document) => {
         this.store(url, document)
         return document
@@ -87,6 +89,48 @@ export class DocumentCache {
       })
     this.inflight.set(url, { promise: pending, speculative: true })
     return pending.then(() => undefined, () => undefined)
+  }
+
+  /**
+   * Carry useful child data all the way into the browser cache. A prefetched
+   * drawer document used to contain only its layout, so opening it still
+   * triggered the same first-row panel request as a cold click. Warming just
+   * the first content row gives the user immediate figures while preserving a
+   * bounded one-surface budget; lower rows remain progressive after open.
+   */
+  private async prefetchFirstRow(document: DashboardDocument, signal?: AbortSignal): Promise<DashboardDocument> {
+    const endpoint = document.endpoints.panel
+    const firstRow = document.layout.rows.find(({ panels }) => panels.length > 0)
+    if (!endpoint || !firstRow || signal?.aborted) return document
+    const ids = new Set(firstRow.panels.map(({ panelId }) => panelId))
+    const candidates = document.panels.filter(({ id, deferred }) => deferred === true && ids.has(id))
+    if (candidates.length === 0) return document
+
+    const client = new PanelClient(endpoint, { csrf: this.csrf, fetcher: this.fetcher, prefetch: true })
+    try {
+      const results = await client.loadBatch(candidates.map(({ id }) => ({
+        snapshotId: document.snapshotId,
+        panelId: id,
+      })), { signal })
+      const frames = { ...document.frames }
+      const hydrated = new Set<string>()
+      for (const panel of candidates) {
+        const result = results[panel.id]
+        if (!result?.frames || result.error) continue
+        const loaded = result.frames[panel.frame] ?? Object.values(result.frames)[0]
+        if (!loaded) continue
+        frames[panel.frame] = loaded
+        hydrated.add(panel.id)
+      }
+      if (hydrated.size === 0) return document
+      return {
+        ...document,
+        frames,
+        panels: document.panels.map((panel) => hydrated.has(panel.id) ? { ...panel, deferred: false } : panel),
+      }
+    } finally {
+      client.dispose()
+    }
   }
 
   private store(url: string, document: DashboardDocument): void {

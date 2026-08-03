@@ -106,6 +106,9 @@ type Request struct {
 	// execution identity. Serve uses it for an explicit user-requested panel
 	// recalculation; ordinary document and query requests leave it false.
 	Recompute bool
+	// ExecutionClass is supplied by Lens serve after the scheduler derives it
+	// from the active surface. Hosts should leave it empty.
+	ExecutionClass datasource.ExecutionClass
 }
 
 type Options struct {
@@ -581,14 +584,15 @@ func (s *plannedExecutor) runQueryDataset(ctx context.Context, spec lens.Dataset
 		return nil, fmt.Errorf("datasource %q not configured", spec.Source)
 	}
 	request := datasource.QueryRequest{
-		Source:    spec.Source,
-		Text:      spec.Query.Text,
-		Params:    resolveParams(spec.Query.Params, s.variables),
-		Timezone:  s.runtime.Timezone,
-		Locale:    s.runtime.Locale,
-		TimeRange: resolveDatasetTimeRangeFor(spec, s.spec.Variables, s.variables),
-		MaxRows:   spec.Query.MaxRows,
-		Kind:      spec.Query.Kind,
+		Source:         spec.Source,
+		Text:           spec.Query.Text,
+		Params:         resolveParams(spec.Query.Params, s.variables),
+		Timezone:       s.runtime.Timezone,
+		Locale:         s.runtime.Locale,
+		TimeRange:      resolveDatasetTimeRangeFor(spec, s.spec.Variables, s.variables),
+		MaxRows:        spec.Query.MaxRows,
+		Kind:           spec.Query.Kind,
+		ExecutionClass: s.runtime.ExecutionClass,
 	}
 	flightKey := s.snapshotKey + ":dataset:" + spec.Name + ":" + queryCacheKey(request)
 	result := s.executor.flights.DoChan(flightKey, func() (any, error) {
@@ -1044,6 +1048,9 @@ func resolveDatasetTimeRangeFor(dataset lens.DatasetSpec, specs []lens.VariableS
 }
 
 func queryCacheKey(req datasource.QueryRequest) string {
+	// Scheduling metadata may change while a speculative job is promoted. It
+	// must not split singleflight/cache identity for the same semantic query.
+	req.ExecutionClass = ""
 	payload, err := json.Marshal(req)
 	if err != nil {
 		sum := sha256.Sum256([]byte(fmt.Sprintf("%#v", req)))

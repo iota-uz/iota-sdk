@@ -20,7 +20,8 @@ import (
 )
 
 type stubDataSource struct {
-	calls atomic.Int32
+	calls     atomic.Int32
+	lastClass atomic.Value
 }
 
 func execute(ctx context.Context, spec lens.DashboardSpec, req Request) (*DashboardResult, error) {
@@ -57,6 +58,7 @@ func TestExecute_FailsClosedForUnserializableIdentity(t *testing.T) {
 
 func (s *stubDataSource) Run(_ context.Context, req datasource.QueryRequest) (*frame.FrameSet, error) {
 	s.calls.Add(1)
+	s.lastClass.Store(req.ExecutionClass)
 	fr, err := frame.New(req.Source,
 		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"a", "b"}},
 		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{1.0, 2.0}},
@@ -65,6 +67,26 @@ func (s *stubDataSource) Run(_ context.Context, req datasource.QueryRequest) (*f
 		return nil, err
 	}
 	return frame.NewFrameSet(fr)
+}
+
+func TestRunForwardsSchedulerExecutionClassWithoutChangingQueryIdentity(t *testing.T) {
+	t.Parallel()
+	ds := &stubDataSource{}
+	spec := lensbuild.Dashboard("class", "Class",
+		lensbuild.Row(panel.Bar("chart", "Chart", "data").Terminal().Build()),
+	).Datasets(lensbuild.QueryDataset("data", "primary", "select 1")).Build()
+
+	_, err := execute(t.Context(), spec, Request{
+		ExecutionClass: datasource.ExecutionClassRootCritical,
+		DataSources:    map[string]datasource.DataSource{"primary": ds},
+	})
+	require.NoError(t, err)
+	require.Equal(t, datasource.ExecutionClassRootCritical, ds.lastClass.Load())
+
+	base := datasource.QueryRequest{Source: "primary", Text: "select 1", ExecutionClass: datasource.ExecutionClassRootCritical}
+	promoted := base
+	promoted.ExecutionClass = datasource.ExecutionClassInteractiveCritical
+	require.Equal(t, queryCacheKey(base), queryCacheKey(promoted), "priority promotion must join the same semantic query")
 }
 
 func (s *stubDataSource) Capabilities() datasource.CapabilitySet {

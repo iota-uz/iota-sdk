@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 	"github.com/stretchr/testify/require"
 )
 
@@ -173,6 +174,19 @@ func TestExecuteDerivedSurfacePromotesIntentInsteadOfDuplicatingDrawerWork(t *te
 	require.Equal(t, "drawer", <-intentResult)
 	require.Equal(t, "drawer", <-interactiveResult)
 	require.Equal(t, 1, runs)
+}
+
+func TestEffectivePanelPriorityKeepsPrefetchSpeculativeAndDerivedClicksInteractive(t *testing.T) {
+	t.Parallel()
+	handlers := &Handlers{sessions: NewSessionRegistry()}
+	require.NoError(t, handlers.sessions.bind("child", "parent"))
+
+	require.Equal(t, priorityIntent, handlers.effectivePanelPriority("child", "intent", priorityRootBase))
+	require.Equal(t, priorityInteractive, handlers.effectivePanelPriority("child", "", priorityRootBase+4))
+	require.Equal(t, priorityRootBase+4, handlers.effectivePanelPriority("root", "", priorityRootBase+4))
+	require.Equal(t, datasource.ExecutionClassInteractiveCritical, datasourceExecutionClass(priorityInteractive))
+	require.Equal(t, datasource.ExecutionClassRootCritical, datasourceExecutionClass(priorityRootBase))
+	require.Equal(t, datasource.ExecutionClassIntentPrefetch, datasourceExecutionClass(priorityIntent))
 }
 
 func TestExecuteExportSurfaceJoinsSameSnapshotThroughputWork(t *testing.T) {

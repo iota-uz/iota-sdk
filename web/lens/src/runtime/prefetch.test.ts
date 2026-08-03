@@ -29,6 +29,32 @@ function documentResponse(id: string): Response {
   return new Response(JSON.stringify(document), { status: 200, headers: { 'Content-Type': 'application/json' } })
 }
 
+function progressiveDocumentResponse(id: string): Response {
+  const document: DashboardDocument = {
+    version: '1.0.0', snapshotId: `snapshot-${id}`,
+    meta: { dashboardId: id, title: id, generatedAt: '2026-07-22T00:00:00Z', locale: 'en' },
+    layout: { rows: [
+      { panels: [{ panelId: 'hero', span: 12 }] },
+      { panels: [{ panelId: 'lower', span: 12 }] },
+    ] },
+    panels: [
+      { id: 'hero', kind: 'stat', semantics: 'series', title: 'Hero', frame: 'hero-frame', encoding: { value: 'value' }, format: {}, actions: [], terminal: true, deferred: true },
+      { id: 'lower', kind: 'stat', semantics: 'series', title: 'Lower', frame: 'lower-frame', encoding: { value: 'value' }, format: {}, actions: [], terminal: true, deferred: true },
+    ],
+    frames: {}, drill: { inlineDepth: 0, edges: {} }, perspectives: [],
+    endpoints: { panel: '/drawer/lens/panel' }, i18n: {}, theme: { palette: {}, series: {} },
+  }
+  return new Response(JSON.stringify(document), { status: 200, headers: { 'Content-Type': 'application/json' } })
+}
+
+function progressivePanelResponse(): Response {
+  return new Response([
+    JSON.stringify({ panelId: 'hero', result: { frames: { 'hero-frame': { columns: [{ name: 'value', type: 'number' }], rows: [[42]] } } } }),
+    JSON.stringify({ complete: true }),
+    '',
+  ].join('\n'), { status: 200, headers: { 'Content-Type': 'application/x-ndjson' } })
+}
+
 afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
@@ -72,6 +98,54 @@ describe('IdlePrefetchQueue', () => {
 })
 
 describe('DocumentCache', () => {
+  it('prefetches the first drawer row into the browser cache without loading lower rows', async () => {
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      const url = requestUrl(input)
+      if (url === '/drawer') {
+        expect(new Headers(init?.headers).get('X-Lens-Prefetch')).toBe('intent')
+        return Promise.resolve(progressiveDocumentResponse('drawer'))
+      }
+      expect(url).toBe('/drawer/lens/panel')
+      expect(new Headers(init?.headers).get('X-Lens-Prefetch')).toBe('intent')
+      expect(JSON.parse(String(init?.body))).toMatchObject({
+        snapshotId: 'snapshot-drawer', panels: [{ panelId: 'hero' }],
+      })
+      return Promise.resolve(progressivePanelResponse())
+    })
+    const cache = new DocumentCache({ fetcher })
+
+    await cache.prefetch('/drawer')
+
+    const cached = cache.get('/drawer')
+    expect(cached?.frames['hero-frame']?.rows).toEqual([[42]])
+    expect(cached?.panels.find(({ id }) => id === 'hero')?.deferred).toBe(false)
+    expect(cached?.panels.find(({ id }) => id === 'lower')?.deferred).toBe(true)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('cancels document and first-row data warm-up with the speculative scope', async () => {
+    const controller = new AbortController()
+    let panelAborted = false
+    const fetcher = vi.fn<typeof fetch>((input, init) => {
+      if (requestUrl(input) === '/drawer') return Promise.resolve(progressiveDocumentResponse('drawer'))
+      return new Promise<Response>((resolve) => {
+        init?.signal?.addEventListener('abort', () => {
+          panelAborted = true
+          resolve(new Response('', { status: 499 }))
+        }, { once: true })
+      })
+    })
+    const cache = new DocumentCache({ fetcher })
+
+    const pending = cache.prefetch('/drawer', controller.signal)
+    await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+    controller.abort()
+    await pending
+
+    expect(panelAborted).toBe(true)
+    expect(cache.get('/drawer')).toBeUndefined()
+  })
+
   it('returns undefined on a miss and the document after a hit', async () => {
     const fetcher = vi.fn<typeof fetch>((input) => Promise.resolve(documentResponse(requestUrl(input))))
     const cache = new DocumentCache({ fetcher })
@@ -113,7 +187,7 @@ describe('DocumentCache', () => {
     await prefetch
 
     expect(loaded.meta.dashboardId).toBe('/a')
-    expect(cache.get('/a')).toBe(loaded)
+    expect(cache.get('/a')).toStrictEqual(loaded)
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 

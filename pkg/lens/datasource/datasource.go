@@ -48,6 +48,22 @@ const (
 	QueryKindNamed QueryKind = "named"
 )
 
+// ExecutionClass describes why Lens is executing a datasource query. It is
+// derived by the SDK scheduler from the active surface and layout; dashboard
+// authors never declare it. Datasources may use it to select an equivalent
+// lower-latency implementation for critical work, but it is not part of query
+// result identity.
+type ExecutionClass string
+
+const (
+	ExecutionClassInteractiveCritical ExecutionClass = "interactive_critical"
+	ExecutionClassRootCritical        ExecutionClass = "root_critical"
+	ExecutionClassActiveBelowFold     ExecutionClass = "active_below_fold"
+	ExecutionClassIntentPrefetch      ExecutionClass = "intent_prefetch"
+	ExecutionClassIdlePrefetch        ExecutionClass = "idle_prefetch"
+	ExecutionClassExport              ExecutionClass = "export"
+)
+
 type QueryRequest struct {
 	Source    string            `json:"source"`
 	Text      string            `json:"text"`
@@ -58,6 +74,8 @@ type QueryRequest struct {
 	MaxRows   int               `json:"max_rows,omitempty"`
 	Kind      QueryKind         `json:"kind,omitempty"`
 	Labels    map[string]string `json:"labels,omitempty"`
+	// ExecutionClass is scheduling metadata, not a semantic query parameter.
+	ExecutionClass ExecutionClass `json:"execution_class,omitempty"`
 }
 
 type DataSource interface {

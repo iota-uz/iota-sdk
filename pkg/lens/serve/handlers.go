@@ -257,6 +257,7 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	})
 	for _, panelReq := range req.Panels {
 		priority, order := priorities.forRequest(panelReq)
+		priority = h.effectivePanelPriority(req.SnapshotID, r.Header.Get("X-Lens-Prefetch"), priority)
 		if priorityCounts[priority] == 0 {
 			priorityOrder = append(priorityOrder, priority)
 		}
@@ -451,6 +452,7 @@ func (h *Handlers) queuePanelValue(
 		}
 		base := thawRuntimeRequest(current, latest.Params)
 		base.Recompute = req.Recompute
+		base.ExecutionClass = datasourceExecutionClass(priority)
 		executed, err := h.engine.Execute(workCtx, h.spec, base, lensruntime.PanelScope(panelSpec.ID))
 		if err != nil {
 			return nil, err

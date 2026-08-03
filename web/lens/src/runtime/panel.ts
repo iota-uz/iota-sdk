@@ -12,6 +12,8 @@ import { QueryError, SnapshotGoneError } from './query'
 export interface PanelClientOptions {
   csrf?: string
   fetcher?: typeof fetch
+  /** Marks this client as speculative work in the shared snapshot scheduler. */
+  prefetch?: boolean
 }
 
 export interface PanelLoadOptions {
@@ -128,6 +130,7 @@ export class PanelClient {
       headers: {
         'Content-Type': 'application/json',
         ...(this.options.csrf ? { 'X-CSRF-Token': this.options.csrf } : {}),
+        ...(this.options.prefetch ? { 'X-Lens-Prefetch': 'intent' } : {}),
       },
       body: JSON.stringify(PanelBatchRequestSchema.parse({ snapshotId, panels })),
       signal,

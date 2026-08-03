@@ -1660,7 +1660,7 @@ function RuntimeCore({
   }, [controlledNavigation, dispatch, navigation.drawer, navigation.history])
   const warmDrawerSource = useCallback(async (src: string, signal?: AbortSignal) => {
     if (!isSameOriginDrawerSource(src) || signal?.aborted) return
-    await drawerCache?.prefetch(src)
+    await drawerCache?.prefetch(src, signal)
   }, [drawerCache])
   const warmDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
     const endpoint = document.endpoints.drawer

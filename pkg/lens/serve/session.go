@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/iota-uz/iota-sdk/pkg/lens"
+	"github.com/iota-uz/iota-sdk/pkg/lens/datasource"
 )
 
 const (
@@ -88,6 +89,16 @@ type SessionRegistry struct {
 	mu       sync.Mutex
 	sessions map[string]*executionSession
 	aliases  map[string]string
+}
+
+func (r *SessionRegistry) isDerived(snapshotID string) bool {
+	if r == nil {
+		return false
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	_, ok := r.aliases[strings.TrimSpace(snapshotID)]
+	return ok
 }
 
 func NewSessionRegistry() *SessionRegistry {
@@ -483,6 +494,33 @@ func priorityClass(priority int) string {
 	default:
 		return "idle_prefetch"
 	}
+}
+
+func datasourceExecutionClass(priority int) datasource.ExecutionClass {
+	switch {
+	case priority == priorityInteractive:
+		return datasource.ExecutionClassInteractiveCritical
+	case priority == priorityExport:
+		return datasource.ExecutionClassExport
+	case priority == priorityRootBase:
+		return datasource.ExecutionClassRootCritical
+	case priority < priorityIntent:
+		return datasource.ExecutionClassActiveBelowFold
+	case priority < priorityIdlePrefetch:
+		return datasource.ExecutionClassIntentPrefetch
+	default:
+		return datasource.ExecutionClassIdlePrefetch
+	}
+}
+
+func (h *Handlers) effectivePanelPriority(snapshotID, prefetchHeader string, layoutPriority int) int {
+	if strings.EqualFold(strings.TrimSpace(prefetchHeader), "intent") {
+		return priorityIntent
+	}
+	if h.sessions != nil && h.sessions.isDerived(snapshotID) {
+		return priorityInteractive
+	}
+	return layoutPriority
 }
 
 func (s *executionSession) reportLocked(metric Metric) {
