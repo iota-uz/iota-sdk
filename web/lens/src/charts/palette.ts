@@ -1,3 +1,5 @@
+import { PALETTE_NEUTRAL, PALETTE_SERIES } from '../contract/palette'
+
 /**
  * The token every collapsed remainder ("Other", the folded tail of a top-N) is
  * painted with. A remainder is not a category, so it must not draw a categorical
@@ -8,11 +10,12 @@ export const remainderColorToken = '--lens-text-faint'
 
 /**
  * Value of `remainderColorToken` when no mounted `.lens-root` can be read
- * (server render, a detached frame transform in a test). Kept equal to the
- * token's own declaration in `styles.css`, where both themes state the same
- * neutral — a remainder is grey on paper, on a light card and on a dark one.
+ * (server render, a detached frame transform in a test). Generated from
+ * `pkg/lens/color.Neutral`, which is also what `styles.css` declares for the
+ * token in both themes — a remainder is grey on paper, on a light card and on
+ * a dark one.
  */
-export const remainderColorFallback = '#94a3b8'
+export const remainderColorFallback = PALETTE_NEUTRAL
 
 /**
  * Resolves the reserved remainder neutral from the live token, so a host that
@@ -28,10 +31,14 @@ export function remainderColor(source?: Element | null): string {
   return getComputedStyle(root).getPropertyValue(remainderColorToken).trim() || remainderColorFallback
 }
 
-export const fallbackSeries = [
-  '#2563eb', '#0d9488', '#d97706', '#7c3aed', '#dc2626',
-  '#0284c7', '#db2777', '#65a30d', '#9333ea', '#64748b',
-] as const
+/**
+ * The palette drawn when the document carries no `theme.palette` of its own,
+ * which is every document today: no host populates it. Generated from
+ * `pkg/lens/color`, so the colours are declared once, in Go — assignment stays
+ * here (see `paletteAssignment`) because the two hashes are not the same
+ * function and moving it would repaint existing dashboards.
+ */
+export const fallbackSeries = PALETTE_SERIES
 
 export function stablePaletteIndex(key: string, size: number): number {
   if (size <= 0) return 0

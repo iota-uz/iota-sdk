@@ -22,6 +22,19 @@ type config struct {
 	rootType        string
 	additionalTypes []string
 	versionConstant string
+	palette         paletteConfig
+}
+
+// paletteConfig carries Go-owned colour *values*. Types can be reflected out of
+// the contract package; values cannot, so the generator's caller imports the
+// package that declares them and hands them over here. The runtime renders
+// these, which is why they are generated rather than restated in TypeScript.
+type paletteConfig struct {
+	// series is the categorical palette in its declared order. Order is the
+	// contract: index n means the same colour on both sides.
+	series []string
+	// neutral is the colour reserved for collapsed remainders.
+	neutral string
 }
 
 type contractModel struct {
@@ -51,11 +64,76 @@ func generate(cfg config) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	paletteFile, err := emitPalette(cfg.palette)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]string{
-		"index.ts":   generatedHeader + "\nexport * from './schemas'\nexport * from './types'\n",
+		"index.ts":   generatedHeader + "\nexport * from './palette'\nexport * from './schemas'\nexport * from './types'\n",
+		"palette.ts": paletteFile,
 		"schemas.ts": schemasFile,
 		"types.ts":   typesFile,
 	}, nil
+}
+
+// emitPalette writes the Go palette out as the runtime's own module. Only the
+// colour *values* cross over: which colour a category gets is decided in
+// TypeScript, by a hash the Go side deliberately does not reproduce.
+func emitPalette(cfg paletteConfig) (string, error) {
+	if len(cfg.series) == 0 {
+		return "", fmt.Errorf("palette has no series colors")
+	}
+	var output strings.Builder
+	output.WriteString(generatedHeader)
+	output.WriteString(`
+/**
+ * The Lens categorical palette, in the order Go declares it (pkg/lens/color).
+ *
+ * Values only. Which colour a given category is painted with is decided by
+ * ` + "`charts/palette.ts`" + `, whose hash is not the Go one, so nothing
+ * generated here says anything about assignment.
+ */
+export const PALETTE_SERIES = [
+`)
+	for _, value := range cfg.series {
+		normalized, err := normalizeHexColor(value)
+		if err != nil {
+			return "", fmt.Errorf("palette series: %w", err)
+		}
+		output.WriteString("  '")
+		output.WriteString(normalized)
+		output.WriteString("',\n")
+	}
+	output.WriteString("] as const\n\n")
+	neutral, err := normalizeHexColor(cfg.neutral)
+	if err != nil {
+		return "", fmt.Errorf("palette neutral: %w", err)
+	}
+	output.WriteString(`/**
+ * The colour reserved for a collapsed remainder, so an aggregated tail reads as
+ * de-emphasized rather than as one more category.
+ */
+export const PALETTE_NEUTRAL = '`)
+	output.WriteString(neutral)
+	output.WriteString("'\n")
+	return output.String(), nil
+}
+
+// normalizeHexColor lowercases a #rrggbb value and rejects anything else. The
+// case is cosmetic — CSS does not care — but a generated file that changes case
+// between runs would fail the drift check, and a malformed colour would
+// otherwise ship as a silently unpaintable string.
+func normalizeHexColor(value string) (string, error) {
+	if len(value) != 7 || value[0] != '#' {
+		return "", fmt.Errorf("color %q is not a #rrggbb hex value", value)
+	}
+	for _, digit := range value[1:] {
+		isHex := (digit >= '0' && digit <= '9') || (digit >= 'a' && digit <= 'f') || (digit >= 'A' && digit <= 'F')
+		if !isHex {
+			return "", fmt.Errorf("color %q is not a #rrggbb hex value", value)
+		}
+	}
+	return strings.ToLower(value), nil
 }
 
 func loadContract(cfg config) (*contractModel, error) {

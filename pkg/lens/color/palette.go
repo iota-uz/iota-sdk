@@ -2,6 +2,7 @@
 package color
 
 import (
+	"slices"
 	"strings"
 )
 
@@ -37,9 +38,12 @@ var paymentMethodPalette = map[string]string{
 	"CASH":   "#475569",
 }
 
-// genericPalette is the Lens design system v2 categorical palette. The lead
-// hex intentionally matches pkg/lens/theme.Accent500 (theme must not import
-// color and vice versa, so the literal is duplicated here; keep in sync).
+// genericPalette is the Lens design system v2 categorical palette, and the only
+// place it is written down. cmd/lens-typegen reads it through Series and emits
+// web/lens/src/contract/palette.ts, which is what the React runtime actually
+// paints with, so a colour changes here and is regenerated — never mirrored.
+// The lead hex intentionally matches the runtime's --lens-accent-500 token in
+// web/lens/src/styles.css, which is chrome rather than series colour.
 var genericPalette = []string{
 	"#2563EB",
 	"#0D9488",
@@ -54,12 +58,22 @@ var genericPalette = []string{
 }
 
 // Neutral is reserved for "Others" buckets so aggregated remainders read as
-// de-emphasized rather than as another category.
+// de-emphasized rather than as another category. It is generated into the
+// runtime as PALETTE_NEUTRAL and equals the --lens-text-faint token both themes
+// declare in web/lens/src/styles.css: a remainder is grey in either theme.
 const Neutral = "#94A3B8"
 
-// Accent returns the primary Lens accent color (pkg/lens/theme.Accent500;
-// literal duplicated to avoid a theme<->color import cycle).
-func Accent() string { return "#2563EB" }
+// Series returns the categorical palette in its declared order. It exists so
+// cmd/lens-typegen can hand the values to the React runtime without a second
+// copy of the literal; callers that only need colours should use Categorical or
+// Semantic.
+func Series() []string {
+	return slices.Clone(genericPalette)
+}
+
+// Accent returns the primary Lens accent color: the palette's own lead, which
+// also matches the runtime's --lens-accent-500 token in web/lens/src/styles.css.
+func Accent() string { return genericPalette[0] }
 
 var productAliases = map[string]string{
 	"3":               "OSAGO",
