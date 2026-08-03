@@ -300,6 +300,9 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 		if err != nil {
 			return nil, serrors.E(op, err)
 		}
+		if node, ok := target.perspective.Node(target.nodeKey); ok && !node.DynamicEdges {
+			loader = fixedTopologyLoader{ExplorationLoader: loader}
+		}
 		explored, err := h.exploration.ExecuteExploration(ctx, h.spec, loader, load, req)
 		if err != nil {
 			return nil, serrors.E(op, err)
@@ -326,6 +329,19 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 		return panelResult, serrors.E(op, panelResult.Error)
 	}
 	return panelResult, nil
+}
+
+type fixedTopologyLoader struct {
+	lensruntime.ExplorationLoader
+}
+
+func (l fixedTopologyLoader) LoadExploration(
+	ctx context.Context,
+	request lensruntime.ExplorationLoadRequest,
+) (lensruntime.ExplorationDefinition, error) {
+	definition, err := l.ExplorationLoader.LoadExploration(ctx, request)
+	definition.ResolvedEdges = nil
+	return definition, err
 }
 
 func explorationNodePath(target levelTarget) []string {
