@@ -556,7 +556,7 @@ export function ExplorePanel({ panel, registry }: ExplorePanelProps) {
           }}
           onPrefetchChild={(childKey) => {
             const node = overlay.target.node
-            drill.prefetch(node ? [node.key, childKey] : childKey, panel.id)
+            return drill.prefetch(node ? [node.key, childKey] : childKey, panel.id)
           }}
           onDrillInto={(target) => {
             if (!target.node) return

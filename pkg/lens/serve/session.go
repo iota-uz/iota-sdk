@@ -29,8 +29,20 @@ type scheduledJob struct {
 	background bool
 	running    bool
 	base       context.Context
+	cancel     context.CancelFunc
 	run        func(context.Context) (any, error)
-	waiters    []chan scheduledResult
+	waiters    map[uint64]chan scheduledResult
+}
+
+type scheduledCall struct {
+	result <-chan scheduledResult
+	cancel func()
+}
+
+func (c scheduledCall) Cancel() {
+	if c.cancel != nil {
+		c.cancel()
+	}
 }
 
 type executionSession struct {
@@ -44,6 +56,7 @@ type executionSession struct {
 	maxConcurrency    int
 	workTimeout       time.Duration
 	nextSequence      uint64
+	nextWaiter        uint64
 	lastUsed          time.Time
 	prefetchOnce      sync.Once
 }
@@ -67,12 +80,14 @@ func (s *executionSession) submit(
 	priority int,
 	order int,
 	run func(context.Context) (any, error),
-) <-chan scheduledResult {
+) scheduledCall {
 	result := make(chan scheduledResult, 1)
 	s.mu.Lock()
+	s.nextWaiter++
+	waiterID := s.nextWaiter
 	s.lastUsed = time.Now()
 	if existing := s.jobs[key]; existing != nil {
-		existing.waiters = append(existing.waiters, result)
+		existing.waiters[waiterID] = result
 		if !existing.running && priority < existing.priority {
 			existing.priority = priority
 			existing.order = order
@@ -80,7 +95,7 @@ func (s *executionSession) submit(
 		}
 		s.dispatchLocked()
 		s.mu.Unlock()
-		return result
+		return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }}
 	}
 	s.nextSequence++
 	job := &scheduledJob{
@@ -88,13 +103,39 @@ func (s *executionSession) submit(
 		background: priority >= priorityIntent,
 		base:       base,
 		run:        run,
-		waiters:    []chan scheduledResult{result},
+		waiters:    map[uint64]chan scheduledResult{waiterID: result},
 	}
 	s.jobs[key] = job
 	s.queue = append(s.queue, job)
 	s.dispatchLocked()
 	s.mu.Unlock()
-	return result
+	return scheduledCall{result: result, cancel: func() { s.detach(key, waiterID) }}
+}
+
+func (s *executionSession) detach(key string, waiterID uint64) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	job := s.jobs[key]
+	if job == nil {
+		return
+	}
+	delete(job.waiters, waiterID)
+	if len(job.waiters) > 0 {
+		return
+	}
+	if job.running {
+		if job.cancel != nil {
+			job.cancel()
+		}
+		return
+	}
+	for index, queued := range s.queue {
+		if queued == job {
+			s.queue = append(s.queue[:index], s.queue[index+1:]...)
+			break
+		}
+	}
+	delete(s.jobs, key)
 }
 
 func (s *executionSession) dispatchLocked() {
@@ -151,6 +192,12 @@ func (s *executionSession) bestQueuedLocked(background bool) int {
 
 func (s *executionSession) execute(job *scheduledJob) {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(job.base), s.workTimeout)
+	s.mu.Lock()
+	job.cancel = cancel
+	if len(job.waiters) == 0 {
+		cancel()
+	}
+	s.mu.Unlock()
 	value, err := job.run(ctx)
 	cancel()
 
@@ -167,7 +214,10 @@ func (s *executionSession) execute(job *scheduledJob) {
 		s.runningForeground[job.priority]--
 	}
 	s.lastUsed = time.Now()
-	waiters := append([]chan scheduledResult(nil), job.waiters...)
+	waiters := make([]chan scheduledResult, 0, len(job.waiters))
+	for _, waiter := range job.waiters {
+		waiters = append(waiters, waiter)
+	}
 	s.dispatchLocked()
 	s.mu.Unlock()
 

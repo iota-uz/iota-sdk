@@ -246,7 +246,7 @@ export interface DashboardContextValue {
 
 export interface DrillContextValue {
   drillInto: (nodeKey: string, panelId?: string) => void
-  prefetch: (nodeKeys: string | Array<string>, panelId?: string) => void
+  prefetch: (nodeKeys: string | Array<string>, panelId?: string) => () => void
   back: () => void
   jumpTo: (breadcrumbIndex: number) => void
   /**
@@ -867,31 +867,33 @@ function RuntimeCore({
     [csrf, fetcher, panelEndpoint],
   )
   const prefetchDrill = useCallback((nodeKeys: string | Array<string>, panelId?: string) => {
-    if (!queryClient) return
+    if (!queryClient) return () => undefined
     const source = documentRef.current
     let next = navigationRef.current
     for (const nodeKey of Array.isArray(nodeKeys) ? nodeKeys : [nodeKeys]) {
       const resolved = runtimeNavigationReducer(source, next, navigationActions.drillInto(nodeKey, panelId))
-      if (resolved === next) return
+      if (resolved === next) return () => undefined
       next = resolved
       panelId = undefined
     }
     const pendingPath = dynamicParentPath(source, next.path)
     const queryView = pendingPath ? { ...next, path: pendingPath } : next
     const targetPanel = panelForNavigation(source, queryView)
-    if (!targetPanel || !frameForPanel(source, queryView, targetPanel, new Map()).shouldQuery) return
+    if (!targetPanel || !frameForPanel(source, queryView, targetPanel, new Map()).shouldQuery) return () => undefined
     const perspective = source.perspectives.find(({ id }) => id === queryView.perspectiveId)
     const request: QueryRequest = {
       ...requestFor(source, queryView),
       prefetch: true,
       ...(targetPanel.kind === 'table' || perspective?.semantics === 'evidence' ? { page: 1 } : {}),
     }
-    void queryClient.query(request).then((response) => {
+    const controller = new AbortController()
+    void queryClient.query(request, { signal: controller.signal }).then((response) => {
       const frame = Object.values(response.frames)[0]
       if (frame?.children) {
         setRuntimeDocument((current) => withFrameChildren(current, queryView.path, frame))
       }
     }).catch(() => undefined)
+    return () => controller.abort(new DOMException('drill intent ended', 'AbortError'))
   }, [queryClient, setRuntimeDocument])
 
   useEffect(() => () => queryClient?.dispose(), [queryClient])

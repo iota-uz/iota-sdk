@@ -48,7 +48,7 @@ export interface DrillOverlayProps {
   selectedPerspectiveId?: string
   onDrillInto: (target: DrillTarget) => void
   onDrillChild: (childKey: string) => void
-  onPrefetchChild?: (childKey: string) => void
+  onPrefetchChild?: (childKey: string) => () => void
   onPerspective: (perspectiveId: string) => void
   onClose: () => void
 }
@@ -56,20 +56,32 @@ export interface DrillOverlayProps {
 function RowContent({ href, onActivate, onIntent, children }: {
   href?: string
   onActivate: () => void
-  onIntent?: () => void
+  onIntent?: () => void | (() => void)
   children: ReactNode
 }) {
   const timer = useRef<ReturnType<typeof setTimeout>>()
+  const cancelIntent = useRef<(() => void) | undefined>()
+  const committed = useRef(false)
   const cancel = () => {
     if (timer.current) clearTimeout(timer.current)
     timer.current = undefined
+    if (!committed.current) cancelIntent.current?.()
+    cancelIntent.current = undefined
   }
   const intent = () => {
     cancel()
-    timer.current = setTimeout(() => onIntent?.(), 120)
+    committed.current = false
+    timer.current = setTimeout(() => {
+      const cleanup = onIntent?.()
+      cancelIntent.current = typeof cleanup === 'function' ? cleanup : undefined
+    }, 120)
   }
   const activate = () => {
-    cancel()
+    if (timer.current) clearTimeout(timer.current)
+    timer.current = undefined
+    // Once intent turns into navigation, keep the speculative request alive so
+    // the interactive activation can join and promote the same server job.
+    committed.current = true
     onActivate()
   }
   useEffect(() => cancel, [])

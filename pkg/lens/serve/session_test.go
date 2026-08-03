@@ -31,13 +31,13 @@ func TestExecutionSessionStartsIdlePrefetchOnlyAfterUsefulForeground(t *testing.
 	case <-time.After(30 * time.Millisecond):
 	}
 	close(releaseForeground)
-	require.Equal(t, "foreground", (<-foreground).value)
+	require.Equal(t, "foreground", (<-foreground.result).value)
 	select {
 	case <-backgroundStarted:
 	case <-time.After(time.Second):
 		t.Fatal("idle prefetch did not start after foreground completion")
 	}
-	require.Equal(t, "background", (<-background).value)
+	require.Equal(t, "background", (<-background.result).value)
 }
 
 func TestExecutionSessionPromotesQueuedPrefetchOnInteractiveActivation(t *testing.T) {
@@ -70,6 +70,48 @@ func TestExecutionSessionPromotesQueuedPrefetchOnInteractiveActivation(t *testin
 	case <-time.After(time.Second):
 		t.Fatal("interactive activation did not promote the queued child")
 	}
-	require.Equal(t, "child", (<-prefetch).value)
-	require.Equal(t, "child", (<-interactive).value)
+	require.Equal(t, "child", (<-prefetch.result).value)
+	require.Equal(t, "child", (<-interactive.result).value)
+}
+
+func TestExecutionSessionCancelsSpeculationAfterItsLastConsumerDetaches(t *testing.T) {
+	session := newExecutionSession(2, time.Second)
+	started := make(chan struct{})
+	cancelled := make(chan struct{})
+	call := session.submit(t.Context(), "intent", priorityIntent, 0, func(ctx context.Context) (any, error) {
+		close(started)
+		<-ctx.Done()
+		close(cancelled)
+		return nil, ctx.Err()
+	})
+	session.enableBackground()
+	<-started
+	call.Cancel()
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("detached intent work was not cancelled")
+	}
+}
+
+func TestExecutionSessionKeepsPromotedWorkForInteractiveConsumer(t *testing.T) {
+	session := newExecutionSession(2, time.Second)
+	started := make(chan struct{})
+	release := make(chan struct{})
+	run := func(ctx context.Context) (any, error) {
+		close(started)
+		select {
+		case <-release:
+			return "child", nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	prefetch := session.submit(t.Context(), "child", priorityIntent, 0, run)
+	session.enableBackground()
+	<-started
+	interactive := session.submit(t.Context(), "child", priorityInteractive, 0, run)
+	prefetch.Cancel()
+	close(release)
+	require.Equal(t, "child", (<-interactive.result).value)
 }

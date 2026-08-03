@@ -316,10 +316,11 @@ func (h *Handlers) queuePanelResult(
 	result := make(chan document.PanelBatchResult, 1)
 	go func() {
 		defer close(result)
+		defer loaded.Cancel()
 		select {
 		case <-ctx.Done():
 			return
-		case scheduled := <-loaded:
+		case scheduled := <-loaded.result:
 			if scheduled.err != nil {
 				if errors.Is(scheduled.err, document.ErrSnapshotGone) {
 					result <- panelError(document.QueryErrorSnapshotGone, "snapshot expired or was not found")
@@ -383,7 +384,7 @@ func (h *Handlers) queuePanelValue(
 	panelSpec panel.Spec,
 	ref document.FrameRef,
 	current lensruntime.Request,
-) <-chan scheduledResult {
+) scheduledCall {
 	key := "panel:" + snapshot.ID + ":" + panelSpec.ID
 	if req.Recompute {
 		key += ":recompute"
@@ -736,10 +737,11 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 	result := h.session(snapshot.ID).submit(ctx, key, priority, 0, func(workCtx context.Context) (any, error) {
 		return h.materializeAggregate(workCtx, snapshot.ID, base, target)
 	})
+	defer result.Cancel()
 	select {
 	case <-ctx.Done():
 		return
-	case loaded := <-result:
+	case loaded := <-result.result:
 		if loaded.err != nil {
 			if errors.Is(loaded.err, document.ErrSnapshotGone) {
 				h.writeSnapshotError(ctx, w, loaded.err)
@@ -804,11 +806,11 @@ func (h *Handlers) startBackgroundPrefetch(
 	for order, target := range backgroundPrefetchTargets(h.spec) {
 		target := target
 		key := "level:" + snapshot.ID + ":" + string(target.cacheRef())
-		result := session.submit(base, key, priorityIdlePrefetch, order, func(ctx context.Context) (any, error) {
+		result := session.submit(context.WithoutCancel(base), key, priorityIdlePrefetch, order, func(ctx context.Context) (any, error) {
 			return h.materializeAggregate(ctx, snapshot.ID, current, target)
 		})
 		go func() {
-			loaded := <-result
+			loaded := <-result.result
 			if loaded.err != nil && !errors.Is(loaded.err, document.ErrSnapshotGone) {
 				h.observer.OnError(context.Background(), "lens/serve.Prefetch", loaded.err)
 			}
