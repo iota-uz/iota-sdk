@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import type { Frame, Panel } from '../contract'
 import { useDashboard, useFormat, usePanelFrame, useTranslate } from '../runtime'
 import { usePanelNavigation } from './actions'
@@ -63,12 +63,15 @@ export function buildCoverageSegments(
  * measure-vs-goal reading (e.g. reserves against liquid assets) the plain
  * 100%-wide track cannot express.
  */
-function CoverageBullet({ segments, total, target, tooltip, formatValue }: {
+function CoverageBullet({ activeSegment, formatValue, onSegmentEnter, onSegmentLeave, segments, total, target, tooltip }: {
+  activeSegment?: string
   segments: CoverageSegment[]
   total: number
   target: NonNullable<Panel['target']>
   tooltip: (segment: CoverageSegment) => string
   formatValue: (value: unknown) => string
+  onSegmentEnter: (key: string) => void
+  onSegmentLeave: (key: string) => void
 }) {
   // A hair of headroom keeps a marker at the scale edge from clipping.
   const scaleMax = Math.max(total, target.value) * 1.04
@@ -82,7 +85,10 @@ function CoverageBullet({ segments, total, target, tooltip, formatValue }: {
         {segments.map((segment) => segment.value > 0 && (
           <span
             className="lens-coverage-track-segment"
+            data-highlighted={activeSegment === segment.key || undefined}
             key={segment.key}
+            onPointerEnter={() => onSegmentEnter(segment.key)}
+            onPointerLeave={() => onSegmentLeave(segment.key)}
             style={{ width: percent(segment.value), background: segment.color }}
             title={tooltip(segment)}
           />
@@ -142,11 +148,14 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
     navigation.rowScoped ? navigation.urlForRow(frame.data, frame.data?.rows[index]) : undefined
   )
   const tooltip = (segment: CoverageSegment) => `${segment.label}: ${formatValue(segment.value)}`
+  const [activeSegment, setActiveSegment] = useState<string>()
+  const highlightSegment = (key: string) => setActiveSegment(key)
+  const clearSegment = (key: string) => setActiveSegment((current) => current === key ? undefined : current)
 
   return (
     <PanelFrame panel={panel} frame={frame}>
       <StatLink href={cardHref} label={panel.title} onClick={navigation.onClick(cardHref)}>
-        <div className="lens-coverage">
+        <div className="lens-coverage" data-segment-active={activeSegment ? 'true' : undefined}>
           <p className="lens-coverage-headline">
             <span className="lens-coverage-headline-value">{formatValue(headline)}</span>
             <span className="lens-coverage-headline-label">{translate('panel.total', 'Total')}</span>
@@ -156,7 +165,10 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
               {segments.map((segment) => segment.value > 0 && (
                 <span
                   className="lens-coverage-track-segment"
+                  data-highlighted={activeSegment === segment.key || undefined}
                   key={segment.key}
+                  onPointerEnter={() => highlightSegment(segment.key)}
+                  onPointerLeave={() => clearSegment(segment.key)}
                   style={{ width: `${segment.share * 100}%`, background: segment.color }}
                   title={tooltip(segment)}
                 />
@@ -165,7 +177,10 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
           )}
           {showTrack && panel.target && (
             <CoverageBullet
+              activeSegment={activeSegment}
               formatValue={formatValue}
+              onSegmentEnter={highlightSegment}
+              onSegmentLeave={clearSegment}
               segments={segments}
               target={panel.target}
               tooltip={tooltip}
@@ -184,7 +199,15 @@ export function CoveragePanel({ panel }: CoveragePanelProps) {
                 </>
               )
               return (
-                <li className="lens-coverage-legend-row" key={segment.key}>
+                <li
+                  className="lens-coverage-legend-row"
+                  data-highlighted={activeSegment === segment.key || undefined}
+                  key={segment.key}
+                  onBlur={() => clearSegment(segment.key)}
+                  onFocus={() => highlightSegment(segment.key)}
+                  onPointerEnter={() => highlightSegment(segment.key)}
+                  onPointerLeave={() => clearSegment(segment.key)}
+                >
                   {href
                     ? <a className="lens-coverage-legend-link" href={href} onClick={navigation.onClick(href)} title={tooltip(segment)}>{content}</a>
                     : content}

@@ -1843,6 +1843,13 @@
     @apply lens-border-transparent lens-bg-inset lens-text-strong;
   }
 
+  /* The panel export trigger contains two glyphs (download + disclosure), so
+     it is a compact oblong rather than an icon square. Keeping both inside the
+     trigger's box makes its hover/focus boundary describe the whole action. */
+  .lens-panel-export-button {
+    @apply lens-w-9 lens-gap-0.5;
+  }
+
   /* A pressed ⓘ. Declared after the icon-only weight it overrides, so the open
      glyph is visibly the one the floating note belongs to — four metrics in a
      strip carry four of these, and only the tail and this fill say which. */
@@ -2401,6 +2408,12 @@
 
   .lens-export-button:hover:not(:disabled) {
     @apply lens-border-strong lens-bg-inset lens-text-strong;
+  }
+
+  /* Panel chrome is deliberately quieter than a header-level secondary
+     action. The local selector also wins over the generic export hover above. */
+  .lens-panel-export-button:hover:not(:disabled) {
+    @apply lens-border-border;
   }
 
   .lens-export-button:disabled {
@@ -3346,7 +3359,7 @@
   }
 
   .lens-coverage-track-segment {
-    @apply lens-block lens-h-full lens-transition-[filter];
+    @apply lens-block lens-h-full lens-transition-[filter,opacity,box-shadow];
     background: var(--lens-accent-500);
     /* Guarantee a thin slice (e.g. a 0.3% remainder) stays visible and
        hoverable; flexbox lets the larger segments absorb the difference. */
@@ -3357,13 +3370,35 @@
     filter: brightness(1.12);
   }
 
+  /* Hover is a preview of the drill target: quiet the siblings, reinforce the
+     selected colour, and carry the same state into its labelled row. This is
+     intentionally stronger than a small brightness shift, which disappeared
+     on already-saturated series colours. */
+  .lens-coverage[data-segment-active='true'] .lens-coverage-track-segment:not([data-highlighted='true']) {
+    filter: saturate(0.55);
+    opacity: 0.38;
+  }
+
+  .lens-coverage-track-segment[data-highlighted='true'] {
+    filter: brightness(1.08) saturate(1.08);
+    box-shadow: inset 0 0 0 1px rgb(255 255 255 / 80%);
+  }
+
   .lens-coverage-legend {
     @apply lens-m-0 lens-mt-2 lens-list-none lens-p-0;
   }
 
   .lens-coverage-legend-row {
-    @apply lens-flex lens-items-center lens-gap-3 lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-md;
+    @apply lens-flex lens-items-center lens-gap-3 lens-rounded-md lens-border-0 lens-border-b lens-border-solid lens-py-1.5 lens-text-md lens-transition-colors;
     border-color: var(--lens-divider);
+  }
+
+  .lens-coverage-legend-row[data-highlighted='true'] {
+    @apply lens-bg-inset;
+  }
+
+  .lens-coverage-legend-row[data-highlighted='true'] .lens-coverage-legend-label {
+    @apply lens-text-strong;
   }
 
   .lens-coverage-legend-row:last-child {

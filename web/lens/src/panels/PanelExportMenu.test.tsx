@@ -24,6 +24,7 @@ describe('PanelExportMenu', () => {
     )
 
     fireEvent.click((await screen.findAllByRole('button', { name: 'Export panel' }))[0]!)
+    expect(screen.getAllByRole('button', { name: 'Export panel' })[0]).toHaveClass('lens-panel-export-button')
     expect(screen.getByRole('menuitem', { name: 'Data (XLSX)' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Image (PNG)' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Image (SVG)' })).toBeInTheDocument()

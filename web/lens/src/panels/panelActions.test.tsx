@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Action, DashboardDocument, Frame, Panel } from '../contract'
 import type { ChartAdapter, ChartInput } from '../charts/adapter'
@@ -120,6 +120,29 @@ describe('coverage panels with a panel-level navigate action', () => {
     expect(container.querySelector('.lens-coverage-track')).toHaveAttribute('aria-hidden', 'true')
     // A row-scoped action belongs to the segments, never to the whole card.
     expect(container.querySelector('.lens-card-link')).toBeNull()
+  })
+
+  it('links a hovered or focused segment to the legend row its drill will open', () => {
+    const panel = coveragePanel([navigate('/claims/{bucket}', [
+      { name: 'bucket', source: { kind: 'field', name: 'id' } },
+    ])])
+    const { container } = renderPanel(
+      documentWith([panel], { 'coverage:root': coverageFrame }),
+      <CoveragePanel panel={panel} />,
+    )
+
+    const segments = container.querySelectorAll('.lens-coverage-track-segment')
+    const rows = container.querySelectorAll('.lens-coverage-legend-row')
+    fireEvent.pointerEnter(segments[0]!)
+    expect(segments[0]).toHaveAttribute('data-highlighted', 'true')
+    expect(rows[0]).toHaveAttribute('data-highlighted', 'true')
+    expect(segments[1]).not.toHaveAttribute('data-highlighted')
+    expect(rows[1]).not.toHaveAttribute('data-highlighted')
+
+    fireEvent.pointerLeave(segments[0]!)
+    fireEvent.focus(rows[1]!.querySelector('a')!)
+    expect(segments[1]).toHaveAttribute('data-highlighted', 'true')
+    expect(rows[1]).toHaveAttribute('data-highlighted', 'true')
   })
 
   it('links the whole card when the action does not depend on a row', () => {

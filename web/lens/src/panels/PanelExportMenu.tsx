@@ -52,7 +52,7 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
         aria-expanded={open}
         aria-haspopup="menu"
         aria-label={label}
-        className="lens-export-button lens-icon-button"
+        className="lens-export-button lens-icon-button lens-panel-export-button"
         disabled={busy}
         onClick={() => setOpen((current) => !current)}
         ref={trigger}
