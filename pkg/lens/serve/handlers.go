@@ -204,7 +204,6 @@ func (h *Handlers) Panel(w http.ResponseWriter, r *http.Request) {
 	}
 	completed := make(chan completedPanel, len(req.Panels))
 	for _, panelReq := range req.Panels {
-		panelReq := panelReq
 		go func() {
 			result := h.panelResult(r.Context(), panelReq, snapshot, current)
 			select {

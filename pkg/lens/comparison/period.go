@@ -19,6 +19,7 @@ func ResolvePeriod(
 	if location == nil {
 		location = time.UTC
 	}
+	//nolint:exhaustive // CompareOff needs no range; default covers it.
 	switch mode {
 	case lens.CompareCustom:
 		start, startErr := time.ParseInLocation("2006-01-02", strings.TrimSpace(customStart), location)

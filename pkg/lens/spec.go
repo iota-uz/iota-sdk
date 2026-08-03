@@ -185,17 +185,17 @@ type CompareValue struct {
 // CompareRequestKeys returns the canonical request keys for a comparison
 // variable. Keeping this mapping on VariableSpec's owning package prevents the
 // filter model, cube planner, and runtime resolver from drifting apart.
-func CompareRequestKeys(spec VariableSpec) (mode, start, end string) {
-	mode = CanonicalRequestKey(spec.Name)
-	start = mode + "-start"
-	end = mode + "-end"
+// The three results are the mode, start and end request keys, in that order.
+func CompareRequestKeys(spec VariableSpec) (string, string, string) {
 	if len(spec.RequestKeys) >= 3 {
 		return spec.RequestKeys[0], spec.RequestKeys[1], spec.RequestKeys[2]
 	}
-	return mode, start, end
+	mode := CanonicalRequestKey(spec.Name)
+	return mode, mode + "-start", mode + "-end"
 }
 
-func DateRangeRequestKeys(spec VariableSpec) (start, end string) {
+// DateRangeRequestKeys returns the start and end request keys, in that order.
+func DateRangeRequestKeys(spec VariableSpec) (string, string) {
 	if len(spec.RequestKeys) >= 3 {
 		return spec.RequestKeys[1], spec.RequestKeys[2]
 	}
@@ -253,6 +253,7 @@ func ResolveCompareMode(spec VariableSpec, values url.Values) CompareMode {
 		if startErr == nil && endErr == nil && !end.Before(start) {
 			return mode
 		}
+	case CompareOff:
 	}
 	return CompareOff
 }

@@ -179,7 +179,7 @@ func TestDatasetSpecResolvesComparisonAlignment(t *testing.T) {
 		"name":"trends",
 		"kind":"static",
 		"comparisonAlignment":"ordinal"
-	}`), &parsed))
+	}`), &parsed)) //nolint:musttag // DatasetSpec is the canonical Lens JSON payload under test.
 	resolved, err := parsed.resolve(ResolveOptions{})
 
 	require.NoError(t, err)

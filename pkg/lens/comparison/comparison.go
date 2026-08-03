@@ -1,3 +1,5 @@
+// Package comparison joins a baseline period into a dashboard so panels can
+// render deltas against it.
 package comparison
 
 import (
@@ -131,6 +133,7 @@ func configureProgressivePanel(spec *panel.Spec, enabled bool, options StaticOpt
 		spec.Columns = columns
 		return
 	}
+	//nolint:exhaustive // Kinds that support comparison are handled below or via default.
 	switch spec.Kind {
 	case panel.KindPie, panel.KindDonut, panel.KindMap, panel.KindHistogram, panel.KindBoxPlot, panel.KindHeatmap:
 		spec.ComparisonUnsupported = true
@@ -154,6 +157,10 @@ func configureProgressivePanel(spec *panel.Spec, enabled bool, options StaticOpt
 			PercentField:      panel.Ref(DeltaPercentField(valueField)),
 			AbsoluteDeltaUnit: unit,
 		}
+	default:
+		// Containers and the remaining leaf kinds carry no comparison of their
+		// own: a container compares through its children, and a kind that never
+		// declares a value field has nothing to compare.
 	}
 }
 
@@ -371,15 +378,21 @@ func ordinalStableFields(current, baseline *frame.Frame) ([]string, error) {
 		if field.Name == ordinalField {
 			continue
 		}
+		//nolint:exhaustive // Only structural roles can hold a row in place; default covers the rest.
 		switch field.Role {
 		case frame.RoleTime, frame.RoleDimension, frame.RoleSeries:
 			stable = append(stable, field.Name)
+		default:
+			// Metrics move between periods by definition, and ids and link
+			// params address rows rather than describe them, so none of them
+			// can hold a row in place across the join.
 		}
 	}
 	return stable, nil
 }
 
 func isComparisonStructuralRole(role frame.FieldRole) bool {
+	//nolint:exhaustive // Metrics are the values being compared, never structure; default covers them.
 	switch role {
 	case frame.RoleTime, frame.RoleDimension, frame.RoleID, frame.RoleSeries, frame.RoleLinkParam:
 		return true
@@ -404,11 +417,14 @@ func identityFields(current, baseline *frame.Frame) []string {
 		if !ok || baselineField.fieldType != field.Type || baselineField.role != field.Role {
 			continue
 		}
+		//nolint:exhaustive // Only ids and dimensions identify a row; default covers the rest.
 		switch field.Role {
 		case frame.RoleID:
 			explicit = append(explicit, field.Name)
 		case frame.RoleDimension, frame.RoleSeries:
 			dimensions = append(dimensions, field.Name)
+		default:
+			// Time, metrics and link params never identify a row on their own.
 		}
 	}
 	if len(explicit) > 0 {
@@ -497,15 +513,19 @@ func applyPanel(spec *panel.Spec, dashboard *lens.DashboardSpec, options StaticO
 		spec.Columns = columns
 		return
 	}
+	//nolint:exhaustive // Kinds that support comparison are handled below or via default.
 	switch spec.Kind {
 	case panel.KindPie, panel.KindDonut, panel.KindMap, panel.KindHistogram, panel.KindBoxPlot, panel.KindHeatmap:
 		spec.ComparisonUnsupported = true
 		return
+	default:
+		// Every other kind either supports comparison below or ignores it.
 	}
 	valueField := spec.Fields.Value.Name()
 	if valueField == "" || !dashboardFieldExists(dashboard, spec.Dataset, PreviousField(valueField)) {
 		return
 	}
+	//nolint:exhaustive // Only stat and series kinds carry a comparison; default covers the rest.
 	switch spec.Kind {
 	case panel.KindStat:
 		unit := panel.TrendDeltaValue
@@ -520,6 +540,8 @@ func applyPanel(spec *panel.Spec, dashboard *lens.DashboardSpec, options StaticO
 		}
 	case panel.KindTimeSeries, panel.KindBar, panel.KindHorizontalBar, panel.KindStackedBar:
 		spec.Fields.Previous = panel.Ref(PreviousField(valueField))
+	default:
+		// Containers compare through their children; the rest opt out above.
 	}
 }
 

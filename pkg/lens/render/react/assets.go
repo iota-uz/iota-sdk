@@ -120,7 +120,7 @@ func parseAssetBundle(data []byte) (AssetBundle, error) {
 
 	entry, ok := manifest["index.html"]
 	if !ok || entry.File == "" {
-		return AssetBundle{}, errors.New("Vite manifest has no index.html entry")
+		return AssetBundle{}, errors.New("no index.html entry in the Vite manifest")
 	}
 
 	stylesheetSet := make(map[string]struct{})
