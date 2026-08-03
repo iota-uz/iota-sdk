@@ -2665,14 +2665,14 @@
   }
 
   /* `.lens-panel-stat`'s floor. */
-  .lens-skeleton-card[data-kind="stat"] {
+  .lens-skeleton-card:where([data-kind="stat"]) {
     @apply lens-min-h-40 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
   }
 
   /* Cascade and coverage keep `.lens-panel`'s own floor: their settled panels
      are exactly that tall, so the floor is the whole statement. */
-  .lens-skeleton-card[data-kind="cascade"],
-  .lens-skeleton-card[data-kind="coverage"] {
+  .lens-skeleton-card:where([data-kind="cascade"]),
+  .lens-skeleton-card:where([data-kind="coverage"]) {
     @apply lens-min-h-44 lens-gap-3 lens-p-4;
   }
 
@@ -2680,7 +2680,7 @@
      over a two-line figure slot, plus the group's own caption row. It is not a
      kind of its own — it arrives as stat panels under a layout group — so it
      comes last and outranks whichever kind carries it. */
-  .lens-skeleton-card[data-metrics] {
+  .lens-skeleton-card:where([data-metrics]) {
     @apply lens-min-h-60 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
   }
 
@@ -2714,7 +2714,9 @@
   /* …and so does the header, so a plot-shaped body placeholder reserves the plot
      area alone, padded like `.lens-chart-host` rather than like a card. The
      shapes that opted out of the plot default keep their own padding.
-     `:not(:where(…))` so this stays as specific as the rule above it. */
+     The shape rules above wrap their attribute in `:where()` so they stay one
+     class specific and these two, being two, win here whatever the source
+     order. `:not(:where(…))` keeps this one level with the rule above it. */
   .lens-panel-skeleton .lens-skeleton-card:not(:where([data-kind="stat"], [data-kind="cascade"], [data-kind="coverage"], [data-metrics])) {
     @apply lens-p-2;
     min-height: var(--lens-plot-min-h);

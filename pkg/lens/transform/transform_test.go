@@ -161,6 +161,7 @@ func TestFormulaDivisionMarksZeroBaselineUnavailable(t *testing.T) {
 	require.NoError(t, err)
 	rows := next.Primary().Rows()
 	require.Nil(t, rows[0]["ratio"], "a zero baseline is unavailable, not an authoritative zero change")
+	require.IsType(t, float64(0), rows[1]["ratio"])
 	require.InDelta(t, 3.0, rows[1]["ratio"], 1e-9)
 }
 
@@ -174,7 +175,9 @@ func TestFormulaDivisionCanUseAbsoluteBaseline(t *testing.T) {
 		},
 	}})
 	require.NoError(t, err)
-	require.InDelta(t, 0.4, next.Primary().Rows()[0]["ratio"], 1e-9)
+	ratio := next.Primary().Rows()[0]["ratio"]
+	require.IsType(t, float64(0), ratio)
+	require.InDelta(t, 0.4, ratio, 1e-9)
 }
 
 func TestFilterRows_ParsesNumericStrings(t *testing.T) {

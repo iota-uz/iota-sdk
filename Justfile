@@ -48,7 +48,7 @@ docs cmd="help" *args="":
   esac
 
 [group("lens")]
-[doc("Lens React runtime commands (dev|build|watch|serve-from-disk|fixture|check|typegen|ladle|vr|vr-update|install)")]
+[doc("Lens React runtime commands (dev|build|watch|serve-from-disk|smoke|fixture|check|typegen|ladle|vr|vr-update|install)")]
 lens cmd="help" *args="":
   case "{{cmd}}" in \
     dev|build|ladle|install) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
@@ -56,7 +56,11 @@ lens cmd="help" *args="":
     serve-from-disk) echo "export LENS_ASSETS_DIR={{justfile_directory()}}/web/lens/dist" ;; \
     smoke) \
       if [ -z "{{args}}" ]; then echo "Usage: just lens smoke <test file | -t 'test name'>" ; exit 2 ; fi ; \
-      (cd web/lens && pnpm exec tsc --noEmit && pnpm exec vitest run {{args}}) ;; \
+      smoke_args='{{args}}' ; \
+      case "$smoke_args" in \
+        -t\ *) (cd web/lens && pnpm exec tsc --noEmit && pnpm exec vitest run -t "${smoke_args#-t }") ;; \
+        *)     (cd web/lens && pnpm exec tsc --noEmit && pnpm exec vitest run $smoke_args) ;; \
+      esac ;; \
     fixture) (cd web/lens && pnpm fixture {{args}}) ;; \
     vr|vr-update) (cd web/lens && pnpm {{cmd}} {{args}}) ;; \
     typegen) go run ./cmd/lens-typegen ;; \

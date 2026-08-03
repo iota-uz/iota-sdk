@@ -67,6 +67,9 @@ jobs:
             lens:
               - 'cmd/lens-typegen/**'
               - 'pkg/lens/document/**'
+              # The palette is declared here and generated into web/lens/src/contract,
+              # so a change to it has to reach the typegen drift check below.
+              - 'pkg/lens/color/**'
               - 'web/lens/**'
               - 'pkg/lens/render/react/**'
               - 'go.mod'
