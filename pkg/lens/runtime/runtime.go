@@ -480,6 +480,9 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 				if panelResult.Error == nil {
 					panelResult.Error = validatePanelFrames(panelSpec, panelResult.Frames)
 				}
+				if panelResult.Error == nil {
+					panelResult.Panel = applyFrameOutputMetadata(panelSpec, panelResult.Frames)
+				}
 			}
 			panelResult.Duration = time.Since(start)
 			if panelResult.Error != nil {
@@ -495,6 +498,33 @@ func (s *plannedExecutor) executePanels(ctx context.Context, panels []panel.Spec
 		})
 	}
 	return group.Wait()
+}
+
+// applyFrameOutputMetadata promotes semantic facts supplied by a datasource
+// into the executed panel. This lets a structural dashboard stay frozen while
+// totals that genuinely require data are resolved by the deferred query. The
+// scheduler remains the sole owner of when that query runs.
+func applyFrameOutputMetadata(spec panel.Spec, frames *frame.FrameSet) panel.Spec {
+	primary := frames.Primary()
+	if primary == nil {
+		return spec
+	}
+	if primary.Meta.AuthoritativeTotal != nil {
+		value := *primary.Meta.AuthoritativeTotal
+		spec.TotalBadgeValue = &value
+	}
+	if spec.Radial == nil || len(primary.Meta.SeriesTotals) == 0 {
+		return spec
+	}
+	radial := *spec.Radial
+	radial.Rings = append([]panel.RadialRing(nil), spec.Radial.Rings...)
+	for index := range radial.Rings {
+		if total, ok := primary.Meta.SeriesTotals[radial.Rings[index].Key]; ok {
+			radial.Rings[index].Total = total
+		}
+	}
+	spec.Radial = &radial
+	return spec
 }
 
 func logPanelFailure(spec panel.Spec, req Request, err error) {

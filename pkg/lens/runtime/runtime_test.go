@@ -92,6 +92,34 @@ func TestRunReusesDatasetAcrossPanels(t *testing.T) {
 	require.Equal(t, int32(1), ds.calls.Load())
 }
 
+func TestApplyFrameOutputMetadataPromotesDeferredTotals(t *testing.T) {
+	t.Parallel()
+
+	placeholder := 5.0
+	actual := 210.0
+	fr, err := frame.New("expenses",
+		frame.Field{Name: "label", Type: frame.FieldTypeString, Values: []any{"Acquisition", "Operations"}},
+		frame.Field{Name: "value", Type: frame.FieldTypeNumber, Values: []any{150.0, 60.0}},
+	)
+	require.NoError(t, err)
+	fr.Meta.AuthoritativeTotal = &actual
+	fr.Meta.SeriesTotals = map[string]float64{"actual": 210, "plan": 240}
+	frames, err := frame.NewFrameSet(fr)
+	require.NoError(t, err)
+
+	spec := panel.MultiRingDonut("expenses", "Expenses", "expenses",
+		panel.RadialRing{Key: "actual", Total: placeholder},
+		panel.RadialRing{Key: "plan", Total: placeholder},
+	).TotalBadgeValue(placeholder).Terminal().Build()
+	result := applyFrameOutputMetadata(spec, frames)
+
+	require.NotNil(t, result.TotalBadgeValue)
+	require.InDelta(t, actual, *result.TotalBadgeValue, 1e-9)
+	require.Equal(t, 210.0, result.Radial.Rings[0].Total)
+	require.Equal(t, 240.0, result.Radial.Rings[1].Total)
+	require.Equal(t, placeholder, spec.Radial.Rings[0].Total, "the frozen structural panel must not be mutated")
+}
+
 func TestRunSanitizesInternalPaginationParamsAndPreservesPath(t *testing.T) {
 	t.Parallel()
 
