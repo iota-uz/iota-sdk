@@ -683,6 +683,10 @@ func (h *Handlers) Query(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "page exceeds the maximum")
 		return
 	}
+	if req.IdlePrefetch && !req.Prefetch {
+		writeError(w, http.StatusBadRequest, document.QueryErrorBadRequest, "idlePrefetch requires prefetch")
+		return
+	}
 	snapshot, err := h.snapshots.Get(r.Context(), req.SnapshotID)
 	if err != nil {
 		h.writeSnapshotError(r.Context(), w, err)
@@ -782,6 +786,9 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 	priority := priorityInteractive
 	if req.Prefetch {
 		priority = priorityIntent
+		if req.IdlePrefetch {
+			priority = priorityIdlePrefetch
+		}
 	}
 	result := session.submit(ctx, key, priority, 0, func(workCtx context.Context) (any, error) {
 		return h.materializeAggregate(workCtx, snapshot.ID, base, target)
@@ -805,6 +812,9 @@ func (h *Handlers) queryAggregate(w http.ResponseWriter, r *http.Request, req Qu
 			return
 		}
 		frame, _ = tableFrameView(target.panel, frame, "", req.Sort)
+		if req.Prefetch {
+			session.markPrefetched(key)
+		}
 		writeJSON(w, http.StatusOK, QueryResponse{Frames: map[document.FrameRef]document.Frame{target.ref: frame}})
 		if !req.Prefetch {
 			h.observeMetric(ctx, Metric{Name: MetricPrefetchHit, Value: boolMetric(session.wasPrefetched(key))})

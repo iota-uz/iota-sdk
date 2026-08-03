@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import fixture from '../../fixtures/small.json'
 import { parseDocument } from '../contract'
 import { StatPanel } from '../panels'
-import { DashboardRuntimeProvider, DocumentProvider, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
+import { DashboardRuntimeProvider, DocumentProvider, idleDrillPrefetchRoots, useDashboard, useDrawer, useDrill, useFilters, usePanelFrame } from './provider'
 import { QueryClient } from './query'
 
 const document = parseDocument({
@@ -22,6 +22,21 @@ const document = parseDocument({
   },
 })
 const statPanel = document.panels[0]!
+const idlePrefetchDocument = parseDocument({
+  ...fixture,
+  panels: [{ ...fixture.panels[0], drillRoot: 'root', terminal: false }],
+  drill: {
+    inlineDepth: 0,
+    edges: {
+      root: { path: ['root'], label: 'Root', children: [], perspectives: [{ id: 'metric/focus/composition' }] },
+      detail: { path: ['root', 'detail'], label: 'Detail', children: [], perspectives: [] },
+    },
+  },
+  perspectives: [{
+    id: 'metric/focus/composition', explorerId: 'metric', branchKey: 'focus', key: 'composition',
+    label: 'Composition', semantics: 'partition', root: 'root',
+  }],
+})
 const progressiveDocument = parseDocument({
   ...fixture,
   snapshotId: 'progressive-snapshot',
@@ -177,6 +192,49 @@ afterEach(() => {
 })
 
 describe('DashboardRuntimeProvider', () => {
+  it('derives idle drill roots from visual panel order', () => {
+    expect(idleDrillPrefetchRoots(idlePrefetchDocument)).toEqual([{
+      panelId: 'total', path: ['root'], perspective: 'metric/focus/composition',
+    }])
+  })
+
+  it('downloads bounded first-level drill frames after the first row is ready', async () => {
+    const requests: Array<{ path: Array<string>; prefetch?: boolean; idlePrefetch?: boolean }> = []
+    const fetcher = vi.fn<typeof fetch>().mockImplementation((_input, init) => {
+      const request = JSON.parse(typeof init?.body === 'string' ? init.body : '{}') as { path: Array<string>; prefetch?: boolean; idlePrefetch?: boolean }
+      requests.push(request)
+      const root = request.path.length === 1
+      return Promise.resolve(new Response(JSON.stringify({
+        frames: {
+          level: {
+            columns: idlePrefetchDocument.frames['panel:total']!.columns,
+            rows: [['Total', 42]],
+            ...(root ? { children: [
+              { key: 'a', path: ['root', 'a'], label: 'A', target: 'detail' },
+              { key: 'b', path: ['root', 'b'], label: 'B', target: 'detail' },
+            ] } : {}),
+          },
+        },
+      }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    })
+
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={idlePrefetchDocument} fetcher={fetcher}>
+          <DashboardRuntimeProvider locale="en" fetcher={fetcher}>
+            <StatPanel panel={idlePrefetchDocument.panels[0]!} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    await waitFor(() => expect(requests).toHaveLength(3))
+    expect(requests.map(({ path }) => path)).toEqual([
+      ['root'], ['root', 'a', 'detail'], ['root', 'b', 'detail'],
+    ])
+    expect(requests.every(({ prefetch, idlePrefetch }) => prefetch && idlePrefetch)).toBe(true)
+  })
+
   it('releases the previous snapshot session when the document changes', async () => {
     const first = parseDocument({
       ...fixture,

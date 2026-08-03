@@ -45,7 +45,7 @@ export function queryCacheKey(request: QueryRequest): string {
 }
 
 function queryFlightKey(request: QueryRequest): string {
-  return JSON.stringify([queryCacheKey(request), request.prefetch === true, request.revision ?? 0])
+  return JSON.stringify([queryCacheKey(request), request.prefetch === true, request.idlePrefetch === true, request.revision ?? 0])
 }
 
 export class QueryClient {

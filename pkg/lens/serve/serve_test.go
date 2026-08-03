@@ -1628,6 +1628,7 @@ func TestHandlers_QueryBoundsPathAndPage(t *testing.T) {
 		{SnapshotID: doc.SnapshotID, Path: longPath, Perspective: "composition"},
 		{SnapshotID: doc.SnapshotID, Path: document.NodePath{document.NodeKey(strings.Repeat("x", maxQueryPathEntry+1))}, Perspective: "composition"},
 		{SnapshotID: doc.SnapshotID, Path: document.NodePath{"detail"}, Perspective: "composition", Page: lensruntime.MaxTablePage + 1},
+		{SnapshotID: doc.SnapshotID, Path: document.NodePath{"detail"}, Perspective: "composition", IdlePrefetch: true},
 	}
 	for _, request := range tests {
 		recorder := httptest.NewRecorder()

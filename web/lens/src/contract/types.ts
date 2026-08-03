@@ -558,6 +558,7 @@ export interface QueryRequest {
   perspective?: string
   revision?: number
   prefetch?: boolean
+  idlePrefetch?: boolean
   page?: number
   sort?: TableSort
 }
@@ -720,4 +721,3 @@ export interface ValueAxis {
 }
 
 export type ValueSourceKind = "field" | "literal" | "variable"
-
