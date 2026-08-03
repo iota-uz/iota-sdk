@@ -9,11 +9,10 @@ iota-sdk is a general purpose ERP building engine/solution. When designing anyth
 
 ## Quick Decision Tree
 
-**Task Classification:**
-- **1-3 files**: No agents needed - use Read/Edit/Bash directly
-- **4-15 files**: 1-2 agents (small-medium features)
-- **16-30 files**: 3-4 agents parallel (large features)
-- **30+ files**: 5-7+ agents (cross-module)
+**Task Classification:** split on independence, not on size.
+- **One dependent change**: one agent, or do it yourself — however many files it spans
+- **Parts that never need to see each other's work**: one agent each
+- **Read-heavy survey** (where is this used, what breaks): fan out freely; the results come back small
 
 **Agent Selection:**
 - Errors/Failures → `debugger` first
@@ -95,8 +94,10 @@ general-purpose && editor && auditor
 
 **Workflow Rules:**
 - Always analyze scope first: `go vet ./...`, `find . -name "*.templ"`
-- Divide work evenly between agents of same type
-- Scale: 1-5 files → 1 agent, 6-15 → 3 agents, 16-30 → 5 agents, 31+ → 7-10 agents
+- Divide work along seams, not evenly — an even split that cuts through a
+  dependency costs more than it saves, because neither half can see the other
+- Pass every agent the paths and symbols you already have, and keep the ones it
+  returns. An agent starts with an empty context and re-derives the rest.
 - **>10 agents degrades coordination** - avoid
 
 **Critical coordination rule:**

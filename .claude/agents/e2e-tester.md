@@ -1,7 +1,7 @@
 ---
 name: e2e-tester
 description: E2E testing specialist using Playwright for IOTA SDK. Use PROACTIVELY for writing, editing, and debugging Playwright E2E tests. Expert in test fixtures, page objects, realtime testing patterns, and database seeding strategies. MUST BE USED for any E2E test work including test creation, modification, debugging, and test infrastructure improvements.
-tools: Read, Write, Edit, MultiEdit, Grep, Glob, Bash(cd e2e:*), Bash(npx playwright:*), Bash(make e2e:*), Bash(npm:*), Bash(node:*), Bash(cat:*), Bash(ls:*), Bash(git diff:*), Bash(git status:*)
+tools: Read, Write, Edit, Grep, Glob, Bash(cd e2e:*), Bash(npx playwright:*), Bash(make e2e:*), Bash(npm:*), Bash(node:*), Bash(cat:*), Bash(ls:*), Bash(git diff:*), Bash(git status:*)
 model: sonnet
 color: cyan
 ---
