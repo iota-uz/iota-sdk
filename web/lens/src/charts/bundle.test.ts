@@ -57,9 +57,10 @@ describe('chart bundle boundary', () => {
     // order that pins a series' colour across a legend toggle: the core entry
     // measured 410,462 bytes after those intentional additions, and 422,622
     // once the nine facet dropdowns collapsed into one filter menu (a rail, a
-    // staged multi-dimension apply, and the chip row). The cap still catches
+    // staged multi-dimension apply, and the chip row), and 432,039 after stat
+    // drawers joined the bounded idle child-prefetch queue. The cap still catches
     // accidental bloat — it is a tripwire for a chart library wandering into
     // the core entry, not a per-byte budget.
-    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(432_000)
+    expect(staticChunks.reduce((size, chunk) => size + Buffer.byteLength(chunk), 0)).toBeLessThan(433_000)
   })
 })

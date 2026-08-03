@@ -16,15 +16,16 @@ export interface PrefetchHandlers {
 }
 
 /**
- * Hover/focus prefetch for a drawer-opening target. After a short intent delay
- * (cancelled if the pointer leaves first) the drawer document is warmed into
- * the shared cache, so a subsequent click opens against a document in hand.
- * Returns undefined when the action does not open a drawer or has no URL.
+ * Bounded idle plus hover/focus prefetch for a stat drawer target. The idle
+ * registration supplies the automatic first-level warm-up; concrete intent
+ * promotes the same target after a short cancellable dwell.
  */
-export function usePrefetch(url: string | undefined, action: Action | undefined): PrefetchHandlers | undefined {
+export function usePrefetch(
+  url: string | undefined,
+  action: Action | undefined,
+  prefetchIdle?: (urls: ReadonlyArray<string>) => () => void,
+): PrefetchHandlers | undefined {
   const drawer = useDrawer()
-  const drawerKey = url ? drawerKeyFromActionURL(url) : undefined
-  const enabled = action?.kind === 'open_drawer' && drawer.depth === 0 && Boolean(url)
   const timer = useRef<ReturnType<typeof setTimeout>>()
   const cancelActive = useRef<() => void>()
   const cancel = useCallback(() => {
@@ -36,8 +37,10 @@ export function usePrefetch(url: string | undefined, action: Action | undefined)
     cancelActive.current = undefined
   }, [])
   useEffect(() => cancel, [cancel])
+  useEffect(() => prefetchIdle?.(url ? [url] : []), [prefetchIdle, url])
   return useMemo(() => {
-    if (!enabled || !url) return undefined
+    if (action?.kind !== 'open_drawer' || drawer.depth !== 0 || !url) return undefined
+    const drawerKey = drawerKeyFromActionURL(url)
     const schedule = () => {
       cancel()
       timer.current = setTimeout(() => {
@@ -46,7 +49,7 @@ export function usePrefetch(url: string | undefined, action: Action | undefined)
       }, prefetchIntentDelayMs)
     }
     return { onPointerEnter: schedule, onFocus: schedule, onPointerLeave: cancel, onBlur: cancel }
-  }, [cancel, drawer, drawerKey, enabled, url])
+  }, [action?.kind, cancel, drawer, url])
 }
 
 /**

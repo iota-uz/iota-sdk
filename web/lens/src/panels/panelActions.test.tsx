@@ -88,6 +88,40 @@ describe('stat panels with a panel-level navigate action', () => {
 
     expect(screen.queryByRole('link')).toBeNull()
   })
+
+  it('warms a ready stat drawer through the bounded idle queue', async () => {
+    window.history.replaceState(null, '', '/')
+    const action: Action = {
+      kind: 'open_drawer', method: 'POST',
+      drawerKey: { kind: 'literal', value: 'loss_ratio' },
+      params: [], payload: {},
+    }
+    const panel = statPanel([action])
+    const document = documentWith([panel], { 'stat:root': statFrame })
+    document.endpoints = { drawer: '/lens/drawer' }
+    const child = { ...document, snapshotId: 'loss-ratio-child', endpoints: {} }
+    const fetcher = vi.fn<typeof fetch>((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url
+      if (url.endsWith('/lens/drawer')) {
+        return Promise.resolve(new Response(JSON.stringify({ url: '/lens/document' }), { status: 200 }))
+      }
+      return Promise.resolve(new Response(JSON.stringify(child), { status: 200 }))
+    })
+
+    render(
+      <div className="lens-root">
+        <DocumentProvider initialDocument={document}>
+          <DashboardRuntimeProvider fetcher={fetcher} locale="en">
+            <StatMetric panel={panel} />
+          </DashboardRuntimeProvider>
+        </DocumentProvider>
+      </div>,
+    )
+
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2), { timeout: 2_000 })
+    expect(fetcher.mock.calls.map(([input]) => typeof input === 'string' ? input : input instanceof URL ? input.href : input.url))
+      .toEqual(['/lens/drawer', '/lens/document'])
+  })
 })
 
 const coverageFrame: Frame = {
