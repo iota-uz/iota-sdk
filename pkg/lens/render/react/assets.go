@@ -5,12 +5,24 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
+	"log/slog"
+	"os"
 	"sort"
+	"strings"
 )
 
 const DefaultAssetBasePath = "/assets/lens"
+
+// AssetsDirEnv points the runtime at a Vite build directory on disk instead of
+// the embedded bundle. The bundle is embedded into the binary, so without this
+// a rebuilt runtime is invisible until the Go binary itself is rebuilt and
+// restarted. Set it to <sdk>/web/lens/dist while iterating on the runtime; the
+// manifest is then re-read per request, so a page reload is enough to see a
+// fresh `vite build`. Leave it unset in production.
+const AssetsDirEnv = "LENS_ASSETS_DIR"
 
 //go:embed all:dist
 var embeddedAssets embed.FS
@@ -31,21 +43,56 @@ type manifestEntry struct {
 	DynamicImports []string `json:"dynamicImports"`
 }
 
-var productionAssets = mustLoadAssetBundle()
+// assetSource resolves the runtime bundle. The embedded source resolves once at
+// init and fails loudly there, which is what catches a binary built without a
+// bundle. The on-disk source resolves per call so a rebuild is picked up by a
+// page reload.
+type assetSource struct {
+	fsys   fs.FS
+	live   bool
+	bundle AssetBundle
+}
 
-func DistFS() fs.FS {
+var source = newAssetSource(os.Getenv(AssetsDirEnv))
+
+func newAssetSource(dir string) *assetSource {
+	if dir = strings.TrimSpace(dir); dir != "" {
+		return &assetSource{fsys: os.DirFS(dir), live: true}
+	}
 	dist, err := fs.Sub(embeddedAssets, "dist")
 	if err != nil {
 		panic(fmt.Sprintf("lens react: open embedded dist: %v", err))
 	}
-	return dist
+	return &assetSource{fsys: dist, bundle: mustLoadAssetBundle()}
+}
+
+func (s *assetSource) assets() AssetBundle {
+	if !s.live {
+		return s.bundle
+	}
+	data, err := fs.ReadFile(s.fsys, ".vite/manifest.json")
+	if err == nil {
+		var bundle AssetBundle
+		if bundle, err = parseAssetBundle(data); err == nil {
+			return bundle
+		}
+	}
+	// Dev only: a missing or half-written manifest means "run just lens build",
+	// not "take the process down".
+	slog.Error("lens react: reading the on-disk Vite manifest", "dir", os.Getenv(AssetsDirEnv), "error", err)
+	return AssetBundle{}
+}
+
+func DistFS() fs.FS {
+	return source.fsys
 }
 
 func Assets() AssetBundle {
+	bundle := source.assets()
 	return AssetBundle{
-		Entry:       productionAssets.Entry,
-		Revision:    productionAssets.Revision,
-		Stylesheets: append([]string(nil), productionAssets.Stylesheets...),
+		Entry:       bundle.Entry,
+		Revision:    bundle.Revision,
+		Stylesheets: append([]string(nil), bundle.Stylesheets...),
 	}
 }
 
@@ -58,14 +105,22 @@ func mustLoadAssetBundle() AssetBundle {
 }
 
 func loadAssetBundle(data []byte) AssetBundle {
+	bundle, err := parseAssetBundle(data)
+	if err != nil {
+		panic(fmt.Sprintf("lens react: %v", err))
+	}
+	return bundle
+}
+
+func parseAssetBundle(data []byte) (AssetBundle, error) {
 	manifest := map[string]manifestEntry{}
 	if err := json.Unmarshal(data, &manifest); err != nil {
-		panic(fmt.Sprintf("lens react: decode Vite manifest: %v", err))
+		return AssetBundle{}, fmt.Errorf("decode Vite manifest: %w", err)
 	}
 
 	entry, ok := manifest["index.html"]
 	if !ok || entry.File == "" {
-		panic("lens react: Vite manifest has no index.html entry")
+		return AssetBundle{}, errors.New("Vite manifest has no index.html entry")
 	}
 
 	stylesheetSet := make(map[string]struct{})
@@ -103,5 +158,5 @@ func loadAssetBundle(data []byte) AssetBundle {
 		Entry:       entry.File,
 		Revision:    fmt.Sprintf("%x", digest[:6]),
 		Stylesheets: stylesheets,
-	}
+	}, nil
 }

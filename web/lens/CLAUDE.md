@@ -32,8 +32,25 @@ just lens check       # regenerate contract, reject drift, typecheck, lint, test
 just lens ladle       # interactive story grid
 just lens vr          # compare, or bootstrap ignored local OS baselines
 just lens vr-update   # intentionally replace current-OS baselines
-just lens build       # rebuild the embedded runtime distribution
+just lens build       # rebuild the runtime distribution
+just lens watch       # rebuild it on every source change
 ```
+
+## Seeing a change in a real host
+
+The distribution is embedded into the host's Go binary, so a rebuilt bundle is
+invisible to a running server until that binary is rebuilt and restarted. To
+skip that, point the host at the build directory:
+
+```sh
+just lens watch &                    # keep the bundle current
+eval "$(just lens serve-from-disk)"  # export LENS_ASSETS_DIR=<repo>/web/lens/dist
+# start the host in that shell; a page reload now shows the current bundle
+```
+
+`LENS_ASSETS_DIR` re-reads the Vite manifest per request, so the asset revision
+follows every rebuild. Leave it unset everywhere else: without it the bundle
+comes from the binary and a missing one still fails loudly at startup.
 
 The VR profile builds the Ladle story bundle and starts a fresh static preview
 for each run. It uses Chromium only, a 1600×1000 CSS viewport, device scale 1,

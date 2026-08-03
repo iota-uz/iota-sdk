@@ -7,6 +7,8 @@ import (
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -94,6 +96,95 @@ func TestStaticControllerRejectsUnknownAssetRevision(t *testing.T) {
 	router.ServeHTTP(response, request)
 
 	assert.Equal(t, http.StatusNotFound, response.Code)
+}
+
+func writeManifest(t *testing.T, dir, entryFile string) {
+	t.Helper()
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, ".vite"), 0o755))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "assets"), 0o755))
+	payload, err := json.Marshal(map[string]manifestEntry{
+		"index.html": {File: "assets/" + entryFile},
+	})
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, ".vite", "manifest.json"), payload, 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "assets", entryFile), []byte("export default 1\n"), 0o644))
+}
+
+// useAssetSource swaps the package-level source for the duration of one test.
+// The source is process-wide because it mirrors a deployment decision, so tests
+// that touch it cannot run in parallel.
+func useAssetSource(t *testing.T, dir string) {
+	t.Helper()
+	previous := source
+	source = newAssetSource(dir)
+	t.Cleanup(func() { source = previous })
+}
+
+func TestAssetsFollowTheDiskBundleWhenAssetsDirIsSet(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry-old.js")
+	useAssetSource(t, dir)
+
+	before := Assets()
+	require.Equal(t, "assets/entry-old.js", before.Entry)
+	require.Len(t, before.Revision, 12)
+	_, err := fs.Stat(DistFS(), before.Entry)
+	require.NoError(t, err)
+
+	// A rebuild must be visible without restarting the process.
+	writeManifest(t, dir, "entry-new.js")
+	after := Assets()
+	assert.Equal(t, "assets/entry-new.js", after.Entry)
+	assert.NotEqual(t, before.Revision, after.Revision)
+}
+
+func TestAssetsDegradeToEmptyBundleWhenDiskBundleIsMissing(t *testing.T) {
+	useAssetSource(t, t.TempDir())
+
+	assets := Assets()
+
+	assert.Empty(t, assets.Entry, "a missing dev bundle must not take the process down")
+	assert.Empty(t, assets.Revision)
+}
+
+func TestLensDashboardPointsAtTheRebuiltBundleWithoutRestart(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry-old.js")
+	useAssetSource(t, dir)
+
+	render := func() string {
+		var output bytes.Buffer
+		require.NoError(t, LensDashboard("/lens/document").Render(context.Background(), &output))
+		return output.String()
+	}
+
+	before := render()
+	assert.Contains(t, before, "assets/entry-old.js")
+
+	writeManifest(t, dir, "entry-new.js")
+
+	after := render()
+	assert.Contains(t, after, "assets/entry-new.js")
+	assert.NotContains(t, after, "assets/entry-old.js")
+	assert.Contains(t, after, versionedAssetURL(DefaultAssetBasePath, Assets().Revision, "assets/entry-new.js"))
+}
+
+func TestStaticControllerServesTheRebuiltRevisionFromDisk(t *testing.T) {
+	dir := t.TempDir()
+	writeManifest(t, dir, "entry-old.js")
+	useAssetSource(t, dir)
+
+	router := mux.NewRouter()
+	NewStaticController().Register(router)
+	writeManifest(t, dir, "entry-new.js")
+
+	assets := Assets()
+	request := httptest.NewRequest(http.MethodGet, versionedAssetURL(DefaultAssetBasePath, assets.Revision, assets.Entry), nil)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, request)
+
+	assert.Equal(t, http.StatusOK, response.Code)
+	assert.Equal(t, immutableCacheControl, response.Header().Get("Cache-Control"))
 }
 
 func TestStaticControllerRegistrationIsIdempotent(t *testing.T) {
