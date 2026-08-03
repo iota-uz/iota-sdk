@@ -121,6 +121,10 @@ describe('DocumentCache', () => {
     expect(cached?.panels.find(({ id }) => id === 'hero')?.deferred).toBe(false)
     expect(cached?.panels.find(({ id }) => id === 'lower')?.deferred).toBe(true)
     expect(fetcher).toHaveBeenCalledTimes(2)
+
+    const opened = await cache.load('/drawer')
+    expect(opened.frames['hero-frame']?.rows).toEqual([[42]])
+    expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
   it('cancels document and first-row data warm-up with the speculative scope', async () => {
