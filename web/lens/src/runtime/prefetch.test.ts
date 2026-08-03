@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { DashboardDocument } from '../contract'
-import { DocumentCache, IdlePrefetchQueue } from './prefetch'
+import { IdlePrefetchQueue } from './idlePrefetch'
+import { DocumentCache } from './prefetch'
 
 function requestUrl(input: RequestInfo | URL): string {
   if (typeof input === 'string') return input

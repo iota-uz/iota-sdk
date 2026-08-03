@@ -35,7 +35,6 @@ import {
   withFrameChildren,
   withInlineFrameChildren,
 } from './drill'
-import { downloadWorkbook, ExportSnapshotGoneError, exportWorkbook } from './export'
 import { DashboardSkeleton, defaultSkeletonRows, drawerSkeletonRows } from '../panels/Skeleton'
 import { formatAxis, formatFieldValue, formatFieldValueAtReference, formatFieldValueExact } from './format'
 import {
@@ -46,7 +45,8 @@ import {
   type NavigationView,
 } from './navigation'
 import { LensDrawer } from './drawer'
-import { DocumentCache, IdlePrefetchQueue } from './prefetch'
+import type { IdlePrefetchQueue } from './idlePrefetch'
+import type { DocumentCache } from './prefetch'
 import type { PrintReport } from './print'
 import { QueryClient } from './query'
 import { PanelClient } from './panel'
@@ -78,45 +78,13 @@ const DocumentContext = createContext<DocumentContextValue | undefined>(undefine
 /** A document older than this is refetched when the window regains focus. */
 const staleDocumentAgeMs = 5 * 60 * 1000
 
-interface SnapshotLease {
-  consumers: number
-  release: () => void
-  timer?: ReturnType<typeof setTimeout>
-}
-
-// React StrictMode mounts an effect, cleans it up, and mounts it again. A
-// module-level refcount with a one-task grace period prevents that probe (or a
-// second runtime sharing the document) from releasing a live snapshot.
-const snapshotLeases = new Map<string, SnapshotLease>()
-
-function acquireSnapshotLease(key: string, release: () => void): () => void {
-  const current = snapshotLeases.get(key) ?? { consumers: 0, release }
-  if (current.timer !== undefined) clearTimeout(current.timer)
-  current.timer = undefined
-  current.consumers += 1
-  current.release = release
-  snapshotLeases.set(key, current)
-  return () => {
-    const active = snapshotLeases.get(key)
-    if (!active) return
-    active.consumers = Math.max(0, active.consumers - 1)
-    if (active.consumers > 0) return
-    active.timer = setTimeout(() => {
-      const pending = snapshotLeases.get(key)
-      if (!pending || pending.consumers > 0) return
-      snapshotLeases.delete(key)
-      pending.release()
-    }, 0)
-  }
-}
-
 export interface DocumentProviderProps {
   src?: string
   initialDocument?: DashboardDocument
   csrf?: string
   fetcher?: typeof fetch
   /** Warmed drill documents; a hit seeds the initial document and skips fetch. */
-  cache?: DocumentCache
+  cache?: Pick<DocumentCache, 'configure' | 'get' | 'load'>
   children: ReactNode
 }
 
@@ -788,15 +756,26 @@ function RuntimeCore({
     const endpoint = document.endpoints.release
     if (!endpoint) return
     const key = `${endpoint}\n${document.snapshotId}`
-    return acquireSnapshotLease(key, () => {
-      void (fetcher ?? fetch)(endpoint, {
-        method: 'POST',
-        credentials: 'same-origin',
-        keepalive: true,
-        headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
-        body: JSON.stringify({ snapshotId: document.snapshotId }),
-      }).catch(() => undefined)
+    let active = true
+    let dispose: (() => void) | undefined
+    void import('./snapshotLease').then(({ acquireSnapshotLease }) => {
+      const acquired = acquireSnapshotLease(key, () => {
+        void (fetcher ?? fetch)(endpoint, {
+          method: 'POST', credentials: 'same-origin', keepalive: true,
+          headers: { 'Content-Type': 'application/json', ...(csrf ? { 'X-CSRF-Token': csrf } : {}) },
+          body: JSON.stringify({ snapshotId: document.snapshotId }),
+        }).catch(() => undefined)
+      })
+      if (!active) {
+        acquired()
+        return
+      }
+      dispose = acquired
     })
+    return () => {
+      active = false
+      dispose?.()
+    }
   }, [csrf, document.endpoints.release, document.snapshotId, fetcher])
   const filtersEnabled = !controlledNavigation && drawerDepth === 0
   // Filter state derives from the URL alone: user actions write the URL, the
@@ -839,21 +818,49 @@ function RuntimeCore({
   // the theme of the root it opened from — captured from the opener when the
   // drawer opens, mirroring PanelFrame's overlay theme capture.
   const drawerTheme = useRef<{ theme?: string; dark: boolean }>({ dark: false })
-  const drawerCache = useRef<DocumentCache>()
-  const drawerIdleQueue = useMemo(
-    () => {
-      // Reading the identity is intentional: each immutable snapshot owns a
-      // fresh queue even when the surrounding RuntimeCore instance survives.
-      if (!document.snapshotId || drawerDepth !== 0) return undefined
-      return new IdlePrefetchQueue({ capacity: 8 })
-    },
-    [document.snapshotId, drawerDepth],
-  )
-  if (drawerDepth === 0 && !drawerCache.current) drawerCache.current = new DocumentCache({ capacity: 8, csrf, fetcher })
+  const drawerCache = useMemo<Pick<DocumentCache, 'configure' | 'get' | 'load' | 'prefetch'>>(() => {
+    let resolved: DocumentCache | undefined
+    let options: { csrf?: string; fetcher?: typeof fetch } = {}
+    const ready = import('./prefetch').then(({ DocumentCache: Cache }) => {
+      resolved = new Cache({ capacity: 8, ...options })
+      return resolved
+    })
+    return {
+      configure: (next) => {
+        options = next
+        resolved?.configure(next)
+      },
+      get: (src) => resolved?.get(src),
+      load: async (src) => (await ready).load(src),
+      prefetch: async (src) => (await ready).prefetch(src),
+    }
+  }, [])
+  const [drawerIdleQueue, setDrawerIdleQueue] = useState<IdlePrefetchQueue>()
   useEffect(() => {
-    drawerCache.current?.configure({ csrf, fetcher })
-  }, [csrf, fetcher])
-  useEffect(() => () => drawerIdleQueue?.reset(), [drawerIdleQueue])
+    drawerCache.configure({ csrf, fetcher })
+  }, [csrf, drawerCache, fetcher])
+  useEffect(() => {
+    // Idle speculation is deliberately a dynamic feature chunk: it is not on
+    // the first-paint path, and panels re-register when the queue becomes
+    // available. Snapshot changes dispose the old queue before importing the
+    // next one, so no candidate can cross scopes.
+    if (!document.snapshotId || drawerDepth !== 0) {
+      setDrawerIdleQueue(undefined)
+      return
+    }
+    let active = true
+    let queue: IdlePrefetchQueue | undefined
+    void import('./idlePrefetch').then(({ IdlePrefetchQueue: Queue }) => {
+      if (!active) return
+      queue = new Queue({ capacity: 8 })
+      setDrawerIdleQueue(queue)
+    })
+    return () => {
+      active = false
+      queue?.reset()
+      setDrawerIdleQueue(undefined)
+    }
+  }, [document.snapshotId, drawerDepth])
   useEffect(() => {
     drawerIdleQueue?.setPaused(Boolean(navigation.drawer))
   }, [drawerIdleQueue, navigation.drawer])
@@ -1357,16 +1364,18 @@ function RuntimeCore({
     if (!exportEndpoint) return
     setExportStates((states) => ({ ...states, [scope]: { status: 'pending' } }))
     try {
-      const workbook = await exportWorkbook({
+      const exporter = await import('./export')
+      const workbook = await exporter.exportWorkbook({
         endpoint: exportEndpoint,
         snapshotId: document.snapshotId,
         panelId,
         csrf,
         fetcher,
       })
-      downloadWorkbook(workbook)
+      exporter.downloadWorkbook(workbook)
       setExportStates((states) => ({ ...states, [scope]: { status: 'idle' } }))
     } catch (cause: unknown) {
+      const { ExportSnapshotGoneError } = await import('./export')
       if (cause instanceof ExportSnapshotGoneError) {
         try {
           await refreshDocument()
@@ -1556,8 +1565,8 @@ function RuntimeCore({
   }, [controlledNavigation, dispatch, navigation.drawer, navigation.history])
   const warmDrawerSource = useCallback(async (src: string, signal?: AbortSignal) => {
     if (!isSameOriginDrawerSource(src) || signal?.aborted) return
-    await drawerCache.current?.prefetch(src)
-  }, [])
+    await drawerCache?.prefetch(src)
+  }, [drawerCache])
   const warmDrawerKey = useCallback(async (metricKey: string, signal?: AbortSignal) => {
     const endpoint = document.endpoints.drawer
     if (!endpoint || !metricKey.trim() || signal?.aborted) return
@@ -1571,8 +1580,8 @@ function RuntimeCore({
     if (typeof payload.url !== 'string' || !isSameOriginDrawerSource(payload.url)) throw new Error('drawer resolver returned an invalid URL')
     if (signal?.aborted) return
     const relative = siteRelativeURL(payload.url, new URL(window.location.href))
-    if (relative) await drawerCache.current?.prefetch(relative)
-  }, [csrf, document.endpoints.drawer, document.snapshotId, fetcher])
+    if (relative) await drawerCache?.prefetch(relative)
+  }, [csrf, document.endpoints.drawer, document.snapshotId, drawerCache, fetcher])
   const drawer = useMemo<DrawerContextValue>(() => ({
     depth: drawerDepth,
     canOpen: drawerDepth === 0 || Boolean(onDrawerNavigate),
@@ -1675,7 +1684,7 @@ function RuntimeCore({
                         // mounting the close button immediately, before the document
                         // lands, because DocumentProvider renders its children
                         // regardless of load state.
-                          <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache.current}>
+                          <DocumentProvider src={navigation.drawer.src} csrf={csrf} fetcher={fetcher} cache={drawerCache}>
                             <LensDrawer
                               closeLabel={translate('drawer.close', 'Close details')}
                               dark={drawerTheme.current.dark}
