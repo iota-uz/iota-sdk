@@ -291,6 +291,29 @@ func perspectiveDepths(perspective explore.Perspective) map[string]int {
 func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, params map[string]any, target levelTarget, page int) (*lensruntime.PanelResult, error) {
 	const op serrors.Op = "lens/serve.executeLevel"
 	req := scopedRuntimeRequest(base, params, target, page, h.pageSize)
+	if h.exploration != nil {
+		load := lensruntime.ExplorationLoadRequest{
+			ExplorerID: target.explorerID, BranchKey: target.branchKey, PerspectiveKey: target.perspectiveKey,
+			Path: explorationNodePath(target), Steps: explorationPathSteps(target), Variables: cloneParams(params),
+		}
+		loader, err := h.resolveLoader(ctx, load, req)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		explored, err := h.exploration.ExecuteExploration(ctx, h.spec, loader, load, req)
+		if err != nil {
+			return nil, serrors.E(op, err)
+		}
+		if explored == nil || explored.Panel == nil {
+			return nil, serrors.E(op, fmt.Errorf("exploration loader did not execute panel %q", target.panel.ID))
+		}
+		result := *explored.Panel
+		resolved := result.Panel
+		result.Panel = target.panel
+		result.Panel.Presentation = resolved.Presentation
+		result.Panel.Colors = resolved.Colors
+		return &result, nil
+	}
 	result, err := h.engine.Execute(ctx, levelSpec(h.spec, target.panel), req, lensruntime.PanelScope(target.panel.ID))
 	if err != nil {
 		return nil, serrors.E(op, err)
@@ -303,6 +326,54 @@ func (h *Handlers) executeLevel(ctx context.Context, base lensruntime.Request, p
 		return panelResult, serrors.E(op, panelResult.Error)
 	}
 	return panelResult, nil
+}
+
+func explorationNodePath(target levelTarget) []string {
+	steps := explorationPathSteps(target)
+	path := make([]string, 0, len(steps))
+	for _, step := range steps {
+		path = append(path, step.NodeKey)
+	}
+	return path
+}
+
+func explorationPathSteps(target levelTarget) []explore.PathStep {
+	steps := make([]explore.PathStep, 0)
+	pendingPoint := ""
+	for index, entry := range target.path {
+		part := lastPathSegment(entry)
+		if part == "" {
+			continue
+		}
+		structural := false
+		for next := index + 1; next < len(target.path); next++ {
+			if strings.HasPrefix(target.path[next], entry+"/") {
+				structural = true
+				break
+			}
+		}
+		if structural {
+			continue
+		}
+		if _, ok := target.perspective.Node(part); ok {
+			if len(steps) == 0 && part != target.perspective.RootNode {
+				steps = append(steps, explore.PathStep{NodeKey: target.perspective.RootNode})
+			}
+			if len(steps) == 0 || steps[len(steps)-1].NodeKey != part {
+				steps = append(steps, explore.PathStep{NodeKey: part, PointKey: pendingPoint})
+			}
+			pendingPoint = ""
+			continue
+		}
+		pendingPoint = part
+	}
+	if len(steps) == 0 {
+		steps = append(steps, explore.PathStep{NodeKey: target.perspective.RootNode})
+	}
+	if steps[len(steps)-1].NodeKey != target.nodeKey {
+		steps = append(steps, explore.PathStep{NodeKey: target.nodeKey, PointKey: pendingPoint})
+	}
+	return steps
 }
 
 // executeSourcePanel executes one declared audit table. Unlike executeLevel it

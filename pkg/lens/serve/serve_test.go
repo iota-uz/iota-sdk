@@ -33,6 +33,12 @@ type executorCall struct {
 	request lensruntime.Request
 }
 
+type explorationLoaderFunc func(context.Context, lensruntime.ExplorationLoadRequest) (lensruntime.ExplorationDefinition, error)
+
+func (f explorationLoaderFunc) LoadExploration(ctx context.Context, req lensruntime.ExplorationLoadRequest) (lensruntime.ExplorationDefinition, error) {
+	return f(ctx, req)
+}
+
 type fakeExecutor struct {
 	mu          sync.Mutex
 	calls       []executorCall
@@ -194,6 +200,56 @@ func TestHandlers_ProgressivePanelsAreIndependentCachedAndScopeIsolated(t *testi
 
 	foreign := requestPanel(t, handlers, doc.SnapshotID, PanelRequest{PanelID: "host"}, "tenant:two")
 	require.Equal(t, http.StatusGone, foreign.Code)
+}
+
+func TestExplorationPathStepsPreservePointSelections(t *testing.T) {
+	t.Parallel()
+	spec, _ := testDashboard(t)
+	target, err := resolveTarget(spec, document.NodePath{
+		"metric", "metric/focus", "metric/focus/composition", "metric/focus/composition/root",
+		"a", "metric/focus/composition/detail", "b", "metric/focus/composition/end",
+	}, "composition")
+	require.NoError(t, err)
+	require.Equal(t, []explore.PathStep{
+		{NodeKey: "root"},
+		{NodeKey: "detail", PointKey: "a"},
+		{NodeKey: "end", PointKey: "b"},
+	}, explorationPathSteps(target))
+}
+
+func TestExecuteLevelUsesGenericExplorationRuntime(t *testing.T) {
+	t.Parallel()
+	spec, frames := testDashboard(t)
+	runtime := lensruntime.New(lensruntime.Options{})
+	var loaded lensruntime.ExplorationLoadRequest
+	computed := panel.Pie("computed-end", "Computed", "computed-data").IDField("id").Terminal().Build()
+	handlers, err := New(Config{
+		Spec: spec, Engine: runtime, Snapshots: document.NewMemoryStore(time.Minute, 8),
+		Exploration: runtime,
+		ResolveLoader: func(_ context.Context, request lensruntime.ExplorationLoadRequest, _ lensruntime.Request) (lensruntime.ExplorationLoader, error) {
+			return explorationLoaderFunc(func(_ context.Context, request lensruntime.ExplorationLoadRequest) (lensruntime.ExplorationDefinition, error) {
+				loaded = request
+				return lensruntime.ExplorationDefinition{
+					Dashboard: lens.DashboardSpec{
+						ID: "computed", Title: "Computed", Rows: []lens.RowSpec{{Panels: []panel.Spec{computed}}},
+						Datasets: []lens.DatasetSpec{staticDataset("computed-data", frames["end-panel"])},
+					},
+					PanelID: computed.ID,
+				}, nil
+			}), nil
+		},
+	})
+	require.NoError(t, err)
+	target, err := resolveTarget(spec, document.NodePath{"root", "a", "detail", "b", "end"}, "composition")
+	require.NoError(t, err)
+	result, err := handlers.executeLevel(context.Background(), lensruntime.Request{DataScope: "tenant:one"}, nil, target, 0)
+	require.NoError(t, err)
+	require.Equal(t, "end-panel", result.Panel.ID)
+	require.Equal(t, []explore.PathStep{
+		{NodeKey: "root"},
+		{NodeKey: "detail", PointKey: "a"},
+		{NodeKey: "end", PointKey: "b"},
+	}, loaded.Steps)
 }
 
 func TestHandlers_PanelBatchPreservesPerPanelResultsAndRejectsForeignScope(t *testing.T) {

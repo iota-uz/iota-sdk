@@ -29,6 +29,22 @@ type RequestResolver func(*http.Request) lensruntime.Request
 
 type DrawerResolver func(*http.Request, document.DrawerResolveRequest, lensruntime.Request) (string, error)
 
+type ExplorationExecutor interface {
+	ExecuteExploration(
+		context.Context,
+		lens.DashboardSpec,
+		lensruntime.ExplorationLoader,
+		lensruntime.ExplorationLoadRequest,
+		lensruntime.Request,
+	) (*lensruntime.ExplorationResult, error)
+}
+
+type ExplorationLoaderResolver func(
+	context.Context,
+	lensruntime.ExplorationLoadRequest,
+	lensruntime.Request,
+) (lensruntime.ExplorationLoader, error)
+
 // Observer receives internal serve errors before a generic response is written.
 type Observer interface {
 	OnError(context.Context, string, error)
@@ -76,6 +92,8 @@ type Config struct {
 	Request        RequestResolver
 	Observer       Observer
 	DrawerResolver DrawerResolver
+	Exploration    ExplorationExecutor
+	ResolveLoader  ExplorationLoaderResolver
 	// Progressive returns a layout-only document and materialises each panel
 	// independently through Handlers.Panel.
 	Progressive bool
@@ -95,6 +113,8 @@ type Handlers struct {
 	observer       Observer
 	progressive    bool
 	drawerResolver DrawerResolver
+	exploration    ExplorationExecutor
+	resolveLoader  ExplorationLoaderResolver
 	sessionsMu     sync.Mutex
 	sessions       map[string]*executionSession
 }
@@ -125,6 +145,9 @@ func New(cfg Config) (*Handlers, error) {
 	if cfg.PageSize < 0 {
 		return nil, serrors.E(op, fmt.Errorf("page size cannot be negative"))
 	}
+	if (cfg.Exploration == nil) != (cfg.ResolveLoader == nil) {
+		return nil, serrors.E(op, fmt.Errorf("exploration executor and loader resolver must be configured together"))
+	}
 	if err := lensruntime.Validate(cfg.Spec); err != nil {
 		return nil, serrors.E(op, err)
 	}
@@ -152,8 +175,8 @@ func New(cfg Config) (*Handlers, error) {
 		spec: cfg.Spec, plan: plan, engine: cfg.Engine, snapshots: cfg.Snapshots,
 		basePath: basePath, inlineDepth: cfg.InlineDepth, pageSize: pageSize, workTimeout: workTimeout,
 		request: cfg.Request, observer: observer, progressive: cfg.Progressive,
-		drawerResolver: cfg.DrawerResolver,
-		sessions:       make(map[string]*executionSession),
+		drawerResolver: cfg.DrawerResolver, exploration: cfg.Exploration, resolveLoader: cfg.ResolveLoader,
+		sessions: make(map[string]*executionSession),
 	}, nil
 }
 
