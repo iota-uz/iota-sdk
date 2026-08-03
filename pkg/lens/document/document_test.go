@@ -2,6 +2,7 @@ package document
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"math"
 	"os"
@@ -222,7 +223,7 @@ func TestDashboardDocumentJSON_IsDeterministicAndPinsVersion(t *testing.T) {
 		require.Equal(t, first, next)
 	}
 	require.Contains(t, string(first), `"version": "1.0.0"`)
-	require.Equal(t, golden(t, "small.json"), string(first)+"\n")
+	requireGolden(t, "small.json", string(first)+"\n")
 }
 
 func TestDashboardDocumentValidate_DetectsVersionMismatch(t *testing.T) {
@@ -891,11 +892,24 @@ func testDocument() *DashboardDocument {
 	}
 }
 
-func golden(t *testing.T, name string) string {
+// updateGolden regenerates the testdata fixtures from the actual output.
+// Usage: go test ./pkg/lens/document/ -update
+var updateGolden = flag.Bool("update", false, "regenerate golden fixture files")
+
+// requireGolden compares actual against the committed testdata/<name> fixture,
+// or rewrites the fixture from actual when -update is passed. Fixtures are read
+// with CRLF normalization and written with LF endings.
+func requireGolden(t *testing.T, name, actual string) {
 	t.Helper()
-	payload, err := os.ReadFile(filepath.Join("testdata", name))
+	path := filepath.Join("testdata", name)
+	if *updateGolden {
+		require.NoError(t, os.WriteFile(path, []byte(actual), 0o600))
+		t.Logf("golden fixture updated: %s", path)
+		return
+	}
+	payload, err := os.ReadFile(path)
 	require.NoError(t, err)
-	return strings.ReplaceAll(string(payload), "\r\n", "\n")
+	require.Equal(t, strings.ReplaceAll(string(payload), "\r\n", "\n"), actual)
 }
 
 func TestDashboardDocumentValidate_PanelActionFieldsResolveAgainstLevelFrames(t *testing.T) {

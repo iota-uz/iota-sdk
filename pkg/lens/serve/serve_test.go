@@ -366,7 +366,10 @@ func TestHandlers_PanelBatchFlushesFastResultBeforeSlowPanelCompletes(t *testing
 	}
 	observed := make(chan firstLine, 1)
 	go func() {
-		response, requestErr := http.DefaultClient.Do(httpRequest)
+		// The body stays open on purpose: this test reads the first streamed
+		// line while the slow panel is still running, and the receiver below
+		// closes the response once it has asserted on it.
+		response, requestErr := http.DefaultClient.Do(httpRequest) //nolint:bodyclose // closed by the receiving select below
 		if requestErr != nil {
 			observed <- firstLine{err: requestErr}
 			return
@@ -639,7 +642,6 @@ func TestHandlers_QueryAndExportRejectCrossScopeSnapshotsInEveryMode(t *testing.
 	t.Parallel()
 
 	for _, progressive := range []bool{false, true} {
-		progressive := progressive
 		t.Run(fmt.Sprintf("progressive=%t", progressive), func(t *testing.T) {
 			t.Parallel()
 			spec, frames := testDashboard(t)

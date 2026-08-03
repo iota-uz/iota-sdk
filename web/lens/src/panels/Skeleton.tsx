@@ -5,8 +5,9 @@ import type { LayoutItem, Panel, PanelKind } from '../contract'
 /**
  * Loading placeholders mirror the layout they replace instead of showing a
  * spinner: the same rows, the same 12-column spans and a shape per panel kind,
- * so nothing jumps when the data lands. Shapes match the server fallback in
- * pkg/lens/render/react so the handoff does not shift the grid.
+ * so nothing jumps when the data lands. The shape is styles.css's answer to the
+ * kind each card states, which is the same answer the server fallback in
+ * pkg/lens/render/react gets, so the handoff does not shift the grid.
  */
 
 export function ShimmerBar({ className, style }: { className?: string; style?: CSSProperties }) {
@@ -19,44 +20,23 @@ function spanStyle(span: number): CSSProperties {
 }
 
 /**
- * The shape a placeholder takes, which is not quite the panel kind: a layout
- * item carrying a metric group is a strip of cells in one card and is far
- * taller than the single stat card its kind would suggest. Mirrors
- * `skeletonCardClass` in pkg/lens/render/react/skeleton.go — the two emit the
- * same class for the same shape, or the server placeholder and the runtime one
- * reserve different heights and the grid moves at handoff.
+ * A placeholder states the kind it stands in for and lets the stylesheet decide
+ * what that kind reserves. The server fallback in
+ * pkg/lens/render/react/skeleton.go emits the same `data-kind` — the runtime
+ * replaces that markup in place on the first paint, so the two must reserve the
+ * same height or the grid moves at the handoff. One rule in styles.css now
+ * answers for both, instead of a Go switch and this one agreeing by hand.
+ *
+ * `metrics` is the one thing the kind cannot say: a layout item carrying a
+ * metric group is a strip of cells in one card, far taller than the single stat
+ * card its kind suggests, and it reaches the runtime as stat panels under a
+ * group rather than as a kind of its own.
  */
-export type SkeletonShape = 'stat' | 'metrics' | 'compact' | 'plot'
-
-export function skeletonShape(kind: PanelKind, metrics = false): SkeletonShape {
-  if (metrics) return 'metrics'
-  if (kind === 'stat') return 'stat'
-  if (kind === 'cascade' || kind === 'coverage') return 'compact'
-  return 'plot'
-}
-
 export function PanelSkeletonCard({ kind, metrics }: { kind: PanelKind; metrics?: boolean }) {
-  const shape = skeletonShape(kind, metrics)
-  if (shape === 'stat' || shape === 'metrics') {
-    return (
-      <div className={`lens-skeleton-card lens-skeleton-card-${shape}`}>
-        <ShimmerBar className="lens-shimmer-label" style={{ width: '60%' }} />
-        <ShimmerBar className="lens-shimmer-value" style={{ width: '70%' }} />
-      </div>
-    )
-  }
-  if (shape === 'compact') {
-    return (
-      <div className="lens-skeleton-card lens-skeleton-card-compact">
-        <ShimmerBar className="lens-shimmer-label" style={{ width: '35%' }} />
-        <ShimmerBar className="lens-shimmer-label" style={{ width: '100%' }} />
-      </div>
-    )
-  }
   return (
-    <div className="lens-skeleton-card lens-skeleton-card-plot">
-      <ShimmerBar className="lens-shimmer-label" style={{ width: '35%' }} />
-      <ShimmerBar className="lens-shimmer-block" />
+    <div className="lens-skeleton-card" data-kind={kind} data-metrics={metrics ? 'true' : undefined}>
+      <ShimmerBar className="lens-shimmer-label" />
+      <ShimmerBar className="lens-shimmer-body" />
     </div>
   )
 }

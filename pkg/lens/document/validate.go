@@ -530,6 +530,7 @@ func validatePanelTrendAndTable(panel Panel, frame Frame) error {
 }
 
 func validateDistributionPanel(panel Panel, frame Frame) error {
+	//nolint:exhaustive // Only the distribution kinds have distribution encodings to validate.
 	switch panel.Kind {
 	case PanelKindBoxPlot:
 		if strings.TrimSpace(panel.Encoding.Category) == "" && strings.TrimSpace(panel.Encoding.Label) == "" {
@@ -556,6 +557,8 @@ func validateDistributionPanel(panel Panel, frame Frame) error {
 			return fmt.Errorf("panel %s heatmap requires category, series, and value encoding", panel.ID)
 		}
 		return requireNumberFrameColumn("panel "+panel.ID, "value", frame, panel.Encoding.Value)
+	default:
+		// Only the distribution kinds have distribution encodings to validate.
 	}
 	return nil
 }
@@ -577,6 +580,7 @@ func validateValueAxis(panel Panel, frame Frame) error {
 	default:
 		return fmt.Errorf("panel %s has unsupported value axis scale %q", panel.ID, panel.ValueAxis.Scale)
 	}
+	//nolint:exhaustive // Only cartesian kinds may carry a logarithmic axis; default rejects the rest.
 	switch panel.Kind {
 	case PanelKindBar, PanelKindHBar, PanelKindLine, PanelKindArea:
 	default:

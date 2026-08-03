@@ -62,7 +62,7 @@ func TestChoroplethBuilderCarriesGenericMapContract(t *testing.T) {
 
 func TestPanelSpecJSONCarriesComparisonUnsupported(t *testing.T) {
 	t.Parallel()
-	payload, err := json.Marshal(PanelSpec{ID: "map", Kind: panel.KindMap, ComparisonUnsupported: true})
+	payload, err := json.Marshal(PanelSpec{ID: "map", Kind: panel.KindMap, ComparisonUnsupported: true}) //nolint:musttag // PanelSpec is the canonical Lens JSON payload under test.
 	require.NoError(t, err)
 	require.Contains(t, string(payload), `"comparisonUnsupported":true`)
 }

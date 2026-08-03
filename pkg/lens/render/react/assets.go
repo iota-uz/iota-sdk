@@ -12,6 +12,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 )
 
 const DefaultAssetBasePath = "/assets/lens"
@@ -50,14 +51,22 @@ type manifestEntry struct {
 type assetSource struct {
 	fsys   fs.FS
 	live   bool
+	dir    string
 	bundle AssetBundle
+
+	mu         sync.Mutex
+	lastReport string
 }
 
 var source = newAssetSource(os.Getenv(AssetsDirEnv))
 
 func newAssetSource(dir string) *assetSource {
 	if dir = strings.TrimSpace(dir); dir != "" {
-		return &assetSource{fsys: os.DirFS(dir), live: true}
+		live := &assetSource{fsys: os.DirFS(dir), live: true, dir: dir}
+		// Say at startup that the directory is wrong, rather than once per
+		// request after every dashboard has already rendered empty.
+		live.assets()
+		return live
 	}
 	dist, err := fs.Sub(embeddedAssets, "dist")
 	if err != nil {
@@ -74,13 +83,32 @@ func (s *assetSource) assets() AssetBundle {
 	if err == nil {
 		var bundle AssetBundle
 		if bundle, err = parseAssetBundle(data); err == nil {
+			s.report("")
 			return bundle
 		}
 	}
 	// Dev only: a missing or half-written manifest means "run just lens build",
-	// not "take the process down".
-	slog.Error("lens react: reading the on-disk Vite manifest", "dir", os.Getenv(AssetsDirEnv), "error", err)
+	// not "take the process down". The page will render without a runtime, which
+	// is why this says out loud what to do about it.
+	s.report(err.Error())
 	return AssetBundle{}
+}
+
+// report logs a dev-source problem once per distinct message. Without this a
+// broken LENS_ASSETS_DIR logs on every asset request, which buries the line
+// that says how to fix it.
+func (s *assetSource) report(message string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if message == s.lastReport {
+		return
+	}
+	s.lastReport = message
+	if message == "" {
+		return
+	}
+	slog.Error("lens react: no runtime bundle at "+AssetsDirEnv+" — run `just lens build`",
+		"dir", s.dir, "error", message)
 }
 
 func DistFS() fs.FS {
@@ -120,7 +148,7 @@ func parseAssetBundle(data []byte) (AssetBundle, error) {
 
 	entry, ok := manifest["index.html"]
 	if !ok || entry.File == "" {
-		return AssetBundle{}, errors.New("Vite manifest has no index.html entry")
+		return AssetBundle{}, errors.New("no index.html entry in the Vite manifest")
 	}
 
 	stylesheetSet := make(map[string]struct{})

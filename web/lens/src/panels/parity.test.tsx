@@ -392,11 +392,11 @@ describe('loading placeholders', () => {
 
   it('shapes the panel placeholder from the panel kind', () => {
     const { container } = render(<PanelSkeletonBody kind="stat" />)
-    expect(container.querySelector('.lens-skeleton-card-stat')).not.toBeNull()
+    expect(container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'stat')
 
     cleanup()
     const table = render(<PanelSkeletonBody kind="table" />)
-    expect(table.container.querySelector('.lens-skeleton-card-plot')).not.toBeNull()
+    expect(table.container.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'table')
   })
 })
 

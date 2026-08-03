@@ -1,105 +1,13 @@
-// Package theme is the single source of truth for the Lens design system v2
-// tokens. Renderers and any consumer that needs a Lens color, radius, or
-// typography value should read it from here rather than hardcoding hexes.
+// Package theme holds the Lens behavior defaults that the Go side owns and
+// ships to the runtime inside the document contract.
 //
-// The React runtime's CSS custom properties mirror these constants one-to-one;
-// keep the two in sync when changing a token.
+// Lens design tokens (colors, hairlines, radii, typography, shadows) are not
+// declared here: they live in web/lens/src/styles.css as --lens-* custom
+// properties, which is what actually renders. There is no Go mirror of them to
+// keep in sync.
 package theme
 
-// Surfaces.
-const (
-	// BgPage is the page background behind cards.
-	BgPage = "#F6F7F9"
-	// BgCard is the card surface background.
-	BgCard = "#FFFFFF"
-	// BgInset is the recessed surface used for insets (segmented controls,
-	// chips, hover rows).
-	BgInset = "#F8FAFC"
-)
-
-// Dark surfaces and text. These mirror the runtime's dark custom-property
-// block so non-browser renderers and token tests share the same source values.
-const (
-	DarkBgPage       = "#0F172A"
-	DarkBgCard       = "#1E293B"
-	DarkBgInset      = "#334155"
-	DarkBorder       = "#475569"
-	DarkBorderStrong = "#64748B"
-	DarkDivider      = "#334155"
-	DarkTextStrong   = "#F8FAFC"
-	DarkText         = "#E2E8F0"
-	DarkTextMuted    = "#CBD5E1"
-	DarkTextFaint    = "#94A3B8"
-)
-
-// Hairlines.
-const (
-	// Border is the default hairline color for card and control borders.
-	Border = "#E2E8F0"
-	// BorderStrong is a higher-contrast hairline (tooltips, emphasis).
-	BorderStrong = "#CBD5E1"
-	// Divider is the faintest hairline, used inside cards (header rules,
-	// table row separators).
-	Divider = "#F1F5F9"
-)
-
-// Text.
-const (
-	// TextStrong is the highest-emphasis text color (headline values).
-	TextStrong = "#0F172A"
-	// Text is the default body text color.
-	Text = "#334155"
-	// TextMuted is secondary text (labels, captions).
-	TextMuted = "#64748B"
-	// TextFaint is the lowest-emphasis text (hints, zero states, table
-	// headers).
-	TextFaint = "#94A3B8"
-)
-
-// Accent ramp (blue).
-const (
-	Accent700 = "#1D4ED8"
-	Accent600 = "#2255D6"
-	Accent500 = "#2563EB"
-	Accent300 = "#93C5FD"
-	Accent100 = "#DBEAFE"
-	Accent50  = "#EFF6FF"
-)
-
-// Status colors.
-const (
-	// Positive marks favorable deltas and success states.
-	Positive = "#059669"
-	// Negative marks unfavorable deltas and error states.
-	Negative = "#DC2626"
-	// Warning marks caution states.
-	Warning = "#D97706"
-)
-
-// Geometry (px).
-const (
-	// RadiusCard is the border radius of cards.
-	RadiusCard = 8
-	// RadiusControl is the border radius of controls (segmented controls,
-	// inputs).
-	RadiusControl = 6
-	// RadiusBadge is the border radius of badges and chips.
-	RadiusBadge = 4
-)
-
-// Typography.
-const (
-	// FontFamily is the Lens font stack.
-	FontFamily = "'Inter',ui-sans-serif,system-ui,'Helvetica Neue',Arial,sans-serif"
-	// AxisFontSizePx is the font size for chart axis labels.
-	AxisFontSizePx = 11
-)
-
-// Behavior.
-const (
-	// DebounceMs is the standard debounce for filter inputs.
-	DebounceMs = 500
-)
-
-// ShadowCard is the resting card shadow.
-const ShadowCard = "0 1px 2px rgba(15,23,42,.04)"
+// DebounceMs is the default debounce, in milliseconds, for Lens filter and
+// search inputs. It is emitted as the document's theme.debounceMs so the React
+// runtime and any other renderer share one value.
+const DebounceMs = 500

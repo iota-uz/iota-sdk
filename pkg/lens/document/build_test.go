@@ -41,7 +41,7 @@ func TestBuild_ExistingExploreSpec(t *testing.T) {
 
 	payload, err := json.MarshalIndent(doc, "", "  ")
 	require.NoError(t, err)
-	require.Equal(t, golden(t, "generated_explore.json"), string(payload)+"\n")
+	requireGolden(t, "generated_explore.json", string(payload)+"\n")
 }
 
 func TestBuild_DeferredPanelsKeepLayoutAndStructuralValidation(t *testing.T) {
@@ -933,7 +933,7 @@ func TestBuild_MetricKinds(t *testing.T) {
 
 	payload, err := json.MarshalIndent(doc, "", "  ")
 	require.NoError(t, err)
-	require.Equal(t, golden(t, "metric_kinds.json"), string(payload)+"\n")
+	requireGolden(t, "metric_kinds.json", string(payload)+"\n")
 }
 
 func columnNames(columns []Column) []string {

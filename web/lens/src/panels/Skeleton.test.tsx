@@ -1,26 +1,17 @@
 import { render } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 import type { LayoutItem, Panel, PanelKind } from '../contract'
-import { DashboardSkeleton, PanelSkeletonCard, skeletonRowsFromLayout, skeletonShape } from './Skeleton'
+import { DashboardSkeleton, PanelSkeletonCard, skeletonRowsFromLayout } from './Skeleton'
 
 /**
  * The placeholder's geometry is a contract with the server, not a local
- * decision: `pkg/lens/render/react/skeleton.go` emits the same classes for the
- * same panel kinds, and the runtime replaces that server markup in place on the
- * very first paint. If the two ever disagree the grid moves at the handoff, and
- * nothing but this table and its Go counterpart says they must not.
+ * decision: the runtime replaces the server's markup in place on the very first
+ * paint, so a kind that reserves one height there and another here moves the
+ * grid at the handoff. Neither side decides the shape now — both state the kind
+ * and styles.css answers — so what these tests hold is that the card says which
+ * kind it stands in for, which is the whole input the stylesheet gets.
  */
-const shapeByKind: Array<[PanelKind, string]> = [
-  ['stat', 'stat'],
-  ['cascade', 'compact'],
-  ['coverage', 'compact'],
-  ['bar', 'plot'],
-  ['line', 'plot'],
-  ['pie', 'plot'],
-  ['table', 'plot'],
-  ['map', 'plot'],
-  ['metric_hierarchy', 'plot'],
-]
+const kinds: PanelKind[] = ['stat', 'cascade', 'coverage', 'bar', 'line', 'pie', 'table', 'map', 'metric_hierarchy']
 
 function panel(id: string, kind: PanelKind): Panel {
   return {
@@ -30,20 +21,22 @@ function panel(id: string, kind: PanelKind): Panel {
 }
 
 describe('skeleton shapes', () => {
-  it.each(shapeByKind)('maps %s to the %s card', (kind, shape) => {
-    expect(skeletonShape(kind)).toBe(shape)
+  it.each(kinds)('labels the %s placeholder with its kind', (kind) => {
     const view = render(<PanelSkeletonCard kind={kind} />)
-    expect(view.container.querySelector(`.lens-skeleton-card-${shape}`)).not.toBeNull()
+    const card = view.container.querySelector('.lens-skeleton-card')
+    expect(card).toHaveAttribute('data-kind', kind)
+    expect(card).not.toHaveAttribute('data-metrics')
     view.unmount()
   })
 
   it('gives a metric group its own taller card, not a single stat card', () => {
     // A stat_group is several cells in one card: reserving a stat card for it
-    // left the first row of every board short by ~150px.
-    expect(skeletonShape('stat', true)).toBe('metrics')
+    // left the first row of every board short by ~150px. It is not a kind of
+    // its own, so the card has to say so alongside the kind carrying it.
     const view = render(<PanelSkeletonCard kind="stat" metrics />)
-    expect(view.container.querySelector('.lens-skeleton-card-metrics')).not.toBeNull()
-    expect(view.container.querySelector('.lens-skeleton-card-stat')).toBeNull()
+    const card = view.container.querySelector('.lens-skeleton-card')
+    expect(card).toHaveAttribute('data-kind', 'stat')
+    expect(card).toHaveAttribute('data-metrics', 'true')
   })
 
   it('takes spans and metric groups from the layout the document declared', () => {
@@ -64,7 +57,7 @@ describe('skeleton shapes', () => {
     const cards = view.container.querySelectorAll('.lens-grid-item')
     expect(cards).toHaveLength(2)
     expect(cards[0]).toHaveStyle({ '--lens-panel-span': '8' })
-    expect(cards[0]?.querySelector('.lens-skeleton-card-metrics')).not.toBeNull()
-    expect(cards[1]?.querySelector('.lens-skeleton-card-plot')).not.toBeNull()
+    expect(cards[0]?.querySelector('.lens-skeleton-card')).toHaveAttribute('data-metrics', 'true')
+    expect(cards[1]?.querySelector('.lens-skeleton-card')).toHaveAttribute('data-kind', 'pie')
   })
 })

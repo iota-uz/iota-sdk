@@ -1,2 +1,0 @@
-const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["./adapter-DvMr0QJD.js","./lens-dashboard-k9nmNMh3.js","./index-COiNzN_1.css","./keys-HcFt__Wh.js","./scales-DiUp5du3.js"])))=>i.map(i=>d[i]);
-import{ab as a}from"./lens-dashboard-k9nmNMh3.js";async function o(r,e=()=>a(()=>import("./adapter-DvMr0QJD.js").then(t=>t.bT),__vite__mapDeps([0,1,2,3,4]),import.meta.url)){const t=await e();return await t.prepareEChartsKind(r),t.echartsAdapter}function n(r){return o(r)}export{n as getChartAdapter,o as resolveChartAdapter};
