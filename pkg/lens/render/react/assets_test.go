@@ -243,7 +243,7 @@ func TestLensDashboardRendersReactOwnedSkeleton(t *testing.T) {
 	html := output.String()
 	assert.Contains(t, html, `class="lens-dashboard-skeleton"`)
 	assert.Contains(t, html, `--lens-panel-span:4`)
-	assert.Contains(t, html, `lens-skeleton-card-stat`)
+	assert.Contains(t, html, `class="lens-skeleton-card" data-kind="stat"`)
 }
 
 func TestLensDashboardEmbedsProgressiveFirstPaintDocument(t *testing.T) {

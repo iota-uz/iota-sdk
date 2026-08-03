@@ -189,7 +189,7 @@ func appendPanelTree(
 			return nil
 		}
 	}
-	kind, err := panelKind(spec.Kind)
+	kind, err := PanelKindOf(spec.Kind)
 	if err != nil {
 		return fmt.Errorf("panel %s: %w", spec.ID, err)
 	}
@@ -790,7 +790,14 @@ func convertRelationshipEnd(end panel.RelationshipEnd) MetricRelationshipEnd {
 	return result
 }
 
-func panelKind(kind panel.Kind) (PanelKind, error) {
+// PanelKindOf reports the kind a spec is published to the runtime as. It is the
+// only place the several Go kinds that share one runtime representation are
+// folded together, so anything outside the builder that has to name the kind the
+// runtime will see — server-rendered markup labelled for the runtime's
+// stylesheet, for one — asks here instead of restating the mapping.
+//
+// Container kinds are not part of the wire contract and return an error.
+func PanelKindOf(kind panel.Kind) (PanelKind, error) {
 	//nolint:exhaustive // Container kinds are not part of the wire contract; default rejects them.
 	switch kind {
 	case panel.KindStat:
@@ -1474,7 +1481,7 @@ func buildExplorer(doc *DashboardDocument, spec explore.Spec, result *runtime.Re
 				nodePath := appendPath(branchPath, qualifiedKey(spec.ID, branch.Key, view.Key), nodeKey)
 				level := Level{Path: nodePath, Label: nodeSpec.Label, Children: make([]Node, 0, len(nodeSpec.Edges)), Perspectives: []PerspectiveRef{{ID: perspectiveID}}}
 				if nodeSpec.View != "" {
-					viewKind, err := panelKind(nodeSpec.View)
+					viewKind, err := PanelKindOf(nodeSpec.View)
 					if err != nil {
 						return fmt.Errorf("explorer %s node %s view: %w", spec.ID, nodeSpec.Key, err)
 					}

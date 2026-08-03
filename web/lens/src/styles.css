@@ -2641,48 +2641,69 @@
     @apply lens-h-3;
   }
 
-  .lens-shimmer-value {
-    @apply lens-h-7 lens-rounded-md;
-  }
-
-  .lens-shimmer-block {
-    @apply lens-min-h-32 lens-flex-1 lens-rounded-lg;
-  }
-
   /* A placeholder reserves what the panel it stands in for will occupy, and it
      derives that from the same floors the panel does rather than from a
      hand-picked slab height. The heights below were the mechanism behind the
-     board that grew 706px on load: each variant had its own invented minimum,
+     board that grew 706px on load: each shape had its own invented minimum,
      none of which was the settled panel's.
 
-     The base is `.lens-panel`'s own floor, so no placeholder can ever be
-     shorter than the card that replaces it. */
+     Which shape a panel gets is stated as data, not as code: the server
+     fallback (pkg/lens/render/react/skeleton.go) and the runtime
+     (src/panels/Skeleton.tsx) both label the card with the panel kind the
+     runtime sees — `data-kind`, plus `data-metrics` for a metric strip — and
+     the rules below are the only place a kind's reserved height is decided. The
+     runtime replaces the server's markup in place on the first paint, so a kind
+     that reserved one height there and another here would move the grid at the
+     handoff; there is now nothing to keep in sync for it to disagree about.
+
+     The default is the plot shape — a header row plus the plot's floor plus the
+     header's hairline, what a chart, table or map is before a single row of
+     data exists — and a kind earns another shape by having a rule of its own. */
   .lens-skeleton-card {
-    @apply lens-box-border lens-flex lens-h-full lens-min-h-44 lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-card;
+    @apply lens-box-border lens-flex lens-h-full lens-flex-col lens-gap-4 lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-4 lens-shadow-card;
+    min-height: calc(var(--lens-panel-header-h) + var(--lens-plot-min-h) + 1px);
   }
 
   /* `.lens-panel-stat`'s floor. */
-  .lens-skeleton-card-stat {
+  .lens-skeleton-card[data-kind="stat"] {
     @apply lens-min-h-40 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
   }
 
+  /* Cascade and coverage keep `.lens-panel`'s own floor: their settled panels
+     are exactly that tall, so the floor is the whole statement. */
+  .lens-skeleton-card[data-kind="cascade"],
+  .lens-skeleton-card[data-kind="coverage"] {
+    @apply lens-min-h-44 lens-gap-3 lens-p-4;
+  }
+
   /* A metric strip is several stat cells in one card: two reserved label lines
-     over a two-line figure slot, plus the group's own caption row. */
-  .lens-skeleton-card-metrics {
+     over a two-line figure slot, plus the group's own caption row. It is not a
+     kind of its own — it arrives as stat panels under a layout group — so it
+     comes last and outranks whichever kind carries it. */
+  .lens-skeleton-card[data-metrics] {
     @apply lens-min-h-60 lens-justify-between lens-gap-2.5 lens-px-3.5 lens-py-3;
   }
 
-  /* Cascade and coverage keep the base floor: their settled panels are exactly
-     `.lens-panel` tall, so the base is the whole statement. */
-  .lens-skeleton-card-compact {
-    @apply lens-gap-3 lens-p-4;
+  /* The two bars inside follow the same shape: a caption line over a body that
+     is a plot block by default, a figure slot for a stat, and a full-width line
+     for the compact kinds. */
+  .lens-skeleton-card > .lens-shimmer-label {
+    width: 35%;
   }
 
-  /* Header row plus the plot's floor plus the header's hairline: what a chart
-     panel is before a single row of data exists. */
-  .lens-skeleton-card-plot {
-    @apply lens-gap-4 lens-p-4;
-    min-height: calc(var(--lens-panel-header-h) + var(--lens-plot-min-h) + 1px);
+  .lens-skeleton-card > .lens-shimmer-body {
+    @apply lens-min-h-32 lens-flex-1 lens-rounded-lg;
+  }
+
+  .lens-skeleton-card[data-kind="stat"] > .lens-shimmer-body,
+  .lens-skeleton-card[data-metrics] > .lens-shimmer-body {
+    @apply lens-h-7 lens-min-h-0 lens-flex-initial lens-rounded-md;
+    width: 70%;
+  }
+
+  .lens-skeleton-card[data-kind="cascade"] > .lens-shimmer-body,
+  .lens-skeleton-card[data-kind="coverage"] > .lens-shimmer-body {
+    @apply lens-h-3 lens-min-h-0 lens-w-full lens-flex-initial lens-rounded-full;
   }
 
   /* Inside a real panel the card chrome already exists. */
@@ -2690,9 +2711,11 @@
     @apply lens-min-h-0 lens-border-0 lens-shadow-none;
   }
 
-  /* …and so does the header, so the body placeholder reserves the plot area
-     alone, padded like `.lens-chart-host` rather than like a card. */
-  .lens-panel-skeleton .lens-skeleton-card-plot {
+  /* …and so does the header, so a plot-shaped body placeholder reserves the plot
+     area alone, padded like `.lens-chart-host` rather than like a card. The
+     shapes that opted out of the plot default keep their own padding.
+     `:not(:where(…))` so this stays as specific as the rule above it. */
+  .lens-panel-skeleton .lens-skeleton-card:not(:where([data-kind="stat"], [data-kind="cascade"], [data-kind="coverage"], [data-metrics])) {
     @apply lens-p-2;
     min-height: var(--lens-plot-min-h);
   }
