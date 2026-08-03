@@ -267,7 +267,9 @@ describe('DashboardRuntimeProvider', () => {
     // panel element, not inside the reader-facing note.
     expect(ready).toHaveAttribute('data-calculation-ms', '1250')
     expect(ready).toHaveAttribute('data-calculation-cache', 'hit')
-    expect(within(ready).queryByRole('button', { name: 'About this metric' })).toBeNull()
+    // Any ⓘ at all, not one particular label: an assertion of absence that
+    // names a string stops proving anything the moment the string changes.
+    expect(within(ready).queryByRole('button', { name: /^About\b/ })).toBeNull()
 
     fireEvent.click(within(retrying).getByRole('button', { name: 'Retry' }))
     expect(within(retrying).queryByRole('alert')).toBeNull()

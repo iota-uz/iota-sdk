@@ -15,6 +15,9 @@ export interface ChartLabels {
   boxplot: [min: string, q1: string, median: string, q3: string, max: string]
   /** What a mark with no reading behind it says instead of a formatted zero. */
   noData: string
+  /** The tooltip's copy button, at rest and for the moment after it is used. */
+  copyValue?: string
+  copied?: string
 }
 
 /** Stable mark identity for a category within a specific partition ring. */
@@ -30,12 +33,38 @@ export interface ChartInput {
   /** Compact, locale-aware value formatter for axis ticks. Falls back to `format`. */
   formatAxis?: ChartFormatResolver
   formatTooltip?: (field: string, value: unknown, reference: number) => string
+  /**
+   * The unabbreviated figure behind a compact one, for tooltips. A plot label
+   * has to fit beside a mark and abbreviates to «53,89 млрд UZS»; a reader who
+   * has stopped to point at that mark is asking for the whole number.
+   * Undefined when the field is not compact — nothing was abbreviated away.
+   */
+  formatExact?: (field: string, value: unknown) => string | undefined
+  /**
+   * The machine value behind a formatted one — plain digits in the unit the
+   * figure is drawn in — for the tooltip's copy button. Resolved here rather
+   * than in the adapter because the scaling is a property of the field format,
+   * which is the runtime's knowledge, not the chart library's.
+   */
+  rawValue?: (field: string, value: unknown) => string | undefined
   /** The reader's language, for the shares the chart writes itself. */
   locale?: string
   /** Producer-pinned separator shared by values, legend shares, and slice labels. */
   shareDecimalSeparator?: string
   /** Localized label used for the sum of a stacked column in its tooltip. */
   tooltipTotalLabel?: string
+  /**
+   * What a click on a mark does, when it does anything — printed at the foot of
+   * every tooltip this chart draws.
+   *
+   * It used to be a glyph in the notes row above the plot, which is the corner
+   * of the card furthest from wherever the reader is actually pointing. An
+   * affordance belongs where the act it describes is available: the tooltip is
+   * already open, already under the cursor, and already naming the mark that
+   * the click would open. Absent when the plot is inert, so a tooltip never
+   * offers something that will not happen.
+   */
+  actionHint?: string
   /** Localized chart-generated labels that are not supplied by the producer. */
   labels?: ChartLabels
   theme: Theme

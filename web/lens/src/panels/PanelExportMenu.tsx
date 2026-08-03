@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createPortal } from 'react-dom'
 import { CaretDown, CircleNotch, DownloadSimple } from '../icons'
 import { downloadPanelImage, useDashboard, useExport, useTranslate, type PanelImageFormat } from '../runtime'
 import { useMenuButton } from './useMenuButton'
@@ -21,7 +22,7 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
   // An icon trigger rides the card's right edge, so its menu hangs from that
   // edge; a start-aligned menu would leave the card.
   const {
-    closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, setOpen, trigger,
+    closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, overlay, setOpen, trigger,
   } = useMenuButton('end')
   const label = translate('export.panel', 'Export panel')
 
@@ -61,7 +62,7 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
         {busy ? <CircleNotch className="lens-icon-spin" /> : <DownloadSimple />}
         {!busy && <CaretDown className="lens-export-caret" />}
       </button>
-      {open && (
+      {open && overlay && createPortal(
         <div
           className="lens-export-menu"
           onKeyDown={onMenuKeyDown}
@@ -85,7 +86,8 @@ export function PanelExportMenu({ panelId, title }: { panelId: string; title: st
                 thing. */}
             {translate('export.svg', 'Image (SVG)')}
           </button>
-        </div>
+        </div>,
+        overlay,
       )}
       {(imageError || exportState.message) && (
         <span className="lens-export-message lens-export-message-error" role={imageError || exportState.status === 'error' ? 'alert' : 'status'}>{imageError ?? exportState.message}</span>

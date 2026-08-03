@@ -33,13 +33,11 @@ const (
 	I18nChartLegendMore               = "chart.legendMore"
 	I18nChartLegendCollapse           = "chart.legendCollapse"
 	I18nChartLegendInvert             = "chart.legendInvert"
-	I18nChartLegendIsolate            = "chart.legendIsolate"
-	I18nChartLegendIsolateName        = "chart.legendIsolateName"
+	I18nChartLegendToggleHint         = "chart.legendToggleHint"
 	I18nChartLegendOverlays           = "chart.legendOverlays"
 	I18nChartLegendToggleOverlay      = "chart.legendToggleOverlay"
 	I18nChartLegendSearch             = "chart.legendSearch"
 	I18nChartLegendShowAll            = "chart.legendShowAll"
-	I18nChartLegendToggle             = "chart.legendToggle"
 	I18nChartLogScale                 = "chart.logScale"
 	I18nChartLogScaleHint             = "chart.logScaleHint"
 	I18nChartMovingAverage            = "chart.movingAverage"
@@ -165,6 +163,7 @@ const (
 	I18nPanelEmpty                 = "panel.empty"
 	I18nPanelExpand                = "panel.expand"
 	I18nPanelInfo                  = "panel.info"
+	I18nPanelInfoAbout             = "panel.infoAbout"
 	I18nPanelMissing               = "panel.missing"
 	I18nPanelOpenMetric            = "panel.openMetric"
 	I18nPanelRetry                 = "panel.retry"
@@ -324,10 +323,11 @@ func RuntimeI18nKeys() []string {
 		I18nChartBoxplotMin, I18nChartBoxplotQ1, I18nChartBoxplotMedian, I18nChartBoxplotQ3, I18nChartBoxplotMax,
 		I18nChartCollapseOther, I18nChartDrillHint, I18nChartFilterHint, I18nChartCrossFilterSource, I18nChartError, I18nChartGaugeRange, I18nChartGaugeValue, I18nChartData, I18nChartLabel,
 		I18nChartAllSeriesHidden, I18nChartShowAllSeries,
-		I18nChartLegendControl, I18nChartLegendHideAll, I18nChartLegendInvert, I18nChartLegendIsolate, I18nChartLegendIsolateName,
+		I18nChartLegendControl, I18nChartLegendHideAll, I18nChartLegendInvert,
 		I18nChartLegendMore, I18nChartLegendCollapse,
 		I18nChartLegendOverlays, I18nChartLegendToggleOverlay, I18nChartLegendSearch,
-		I18nChartLegendShowAll, I18nChartLegendToggle, I18nChartLogScale, I18nChartLogScaleHint, I18nChartMovingAverage,
+		I18nChartLegendToggleHint,
+		I18nChartLegendShowAll, I18nChartLogScale, I18nChartLogScaleHint, I18nChartMovingAverage,
 		I18nChartOpenMark, I18nChartOther, I18nChartRegression, I18nChartResetZoom,
 		I18nChartSeriesPrevious, I18nChartSeriesTrend, I18nChartSeriesMovingAverage, I18nChartSeriesEstimate,
 		I18nChartSeriesYTD, I18nChartSeriesForecast, I18nChartSeriesForecastLower, I18nChartSeriesForecastConfidence,
@@ -346,7 +346,7 @@ func RuntimeI18nKeys() []string {
 		I18nFocusToParent, I18nFocusViewAs,
 		I18nExportDashboard, I18nExportData, I18nExportMenu, I18nExportPanel, I18nExportReport,
 		I18nExportPending, I18nExportRetry, I18nExportRetryHint, I18nExportPNG, I18nExportSVG, I18nExportImageError,
-		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelExpand, I18nPanelInfo, I18nPanelMissing, I18nPanelOpenMetric,
+		I18nPanelCollapse, I18nPanelEmpty, I18nPanelError, I18nPanelExpand, I18nPanelInfo, I18nPanelInfoAbout, I18nPanelMissing, I18nPanelOpenMetric,
 		I18nPanelRetry, I18nPanelTotal, I18nPanelUnsupported, I18nPanelUpdating,
 		I18nPanelTrendNew, I18nPanelTrendNotAvailable, I18nPanelTrendPercentagePoints,
 		I18nPanelTrendBaseline,

@@ -11,9 +11,10 @@ import { distributeShares, formatShare } from '../charts/shares'
 import { shouldUseLogarithmicScale } from '../charts/scales'
 import { recordForRow, resolveSourceValue } from '../explore/actions'
 import { childForSelection } from '../explore/model'
-import { ArrowsLeftRight, CursorClick, FunnelSimple, WarningTriangle } from '../icons'
+import { ArrowsLeftRight, Eye, EyeSlash, WarningTriangle } from '../icons'
 import { searchableListEntries } from '../listSearch'
 import { axisUnit, cubeFilterParam, formatFieldValueAtReference, levelForPath, useAxisFormat, useDashboard, useDrill, useFilters, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { formatFieldValueExact, rawValueText } from '../runtime/format'
 import { hiddenSeriesFromURL, hiddenSeriesToURL, temporalStateFromURL, temporalStateToURL } from '../runtime/url'
 import { usePanelNavigation } from './actions'
 import { ChartDataEquivalent } from './ChartDataEquivalent'
@@ -263,7 +264,6 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const { drillInto } = useDrill()
   const { format, formatAxis } = useChartFormat(panel)
   const [selectedKey, setSelectedKey] = useState<NodeKey>()
-  const [hoveredKey, setHoveredKey] = useState<NodeKey | null>(null)
   const [remainderExpanded, setRemainderExpanded] = useState(false)
   const [resetZoomKey, setResetZoomKey] = useState(0)
   const initialTemporalState = typeof window === 'undefined'
@@ -588,6 +588,8 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
       translate('chart.boxplot.max', 'Max'),
     ] as [string, string, string, string, string],
     noData: translate('panel.empty', 'No data'),
+    copyValue: translate('explore.copyValue', 'Copy value'),
+    copied: translate('explore.copied', 'Copied'),
   }), [translate])
 
   const input = useMemo<ChartInput | undefined>(() => renderFrame ? ({
@@ -597,6 +599,11 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
     format,
     formatAxis,
     formatTooltip: (field, value, reference) => formatFieldValueAtReference(value, reference, panel.format[field], document.meta.locale),
+    // The plot abbreviates because a label has to fit beside a mark; the
+    // tooltip is where a reader who stopped to point gets the whole number, and
+    // the clipboard gets the machine value behind it.
+    formatExact: (field, value) => formatFieldValueExact(value, panel.format[field], document.meta?.locale ?? 'en'),
+    rawValue: (field, value) => rawValueText(value, panel.format[field]),
     categoryFormatDefined: Boolean(panel.encoding.category && panel.format[panel.encoding.category]),
     locale: document.meta?.locale,
     shareDecimalSeparator: panel.encoding.value ? panel.format[panel.encoding.value]?.decimalSeparator : undefined,
@@ -698,6 +705,15 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
   const drillHint = crossFilter
     ? translate('chart.filterHint', 'Select to filter the page')
     : translate('chart.drillHint', 'Select to explore')
+  // The affordance travels with the pointer. As a glyph in the notes row it sat
+  // in the corner of the card furthest from wherever the reader was actually
+  // pointing — a mark that answers "what happens if I click this" parked where
+  // nobody clicks. The tooltip is already open, already under the cursor, and
+  // already naming the mark the click would open, so the sentence goes there.
+  const hostInput = useMemo(
+    () => (input && interactive ? { ...input, actionHint: drillHint } : input),
+    [drillHint, input, interactive],
+  )
   return (
     <PanelFrame allowEmptyContent={!distribution} panel={panel} frame={frame} headerActions={temporalControls} total={shareTotal}>
       <div className={`lens-chart-layout${hasLegend ? ' lens-chart-layout-legend' : ''}`}>
@@ -715,27 +731,15 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
               series' final points, and over each other when a collapsed tail
               was expanded on a zoomable chart. A row that takes its own height
               cannot have anything under it, and the note beside the button
-              stops competing with the data for the same pixels. */}
-          {(logarithmic || incompletePeriod || zoomable || interactive || activeFilterValues
+              stops competing with the data for the same pixels.
+
+              What the row no longer carries is the drillable glyph: an
+              affordance belongs where the act is available, which is under the
+              pointer, not in the card's far corner. It rides the tooltip now
+              (`ChartInput.actionHint`). */}
+          {(logarithmic || incompletePeriod || zoomable || activeFilterValues
             || (remainderExpanded && collapsedRemainder.collapsed)) && (
             <div className="lens-chart-notes">
-              {/* The drillable affordance itself, in the row rather than on the
-                  data — it used to be an absolutely positioned pill in the
-                  plot's bottom-right corner, on the axis ticks / inside the
-                  legend / clipped by the panel edge. Rendered whenever the plot
-                  is clickable so the row's height is reserved either way and
-                  hovering a mark cannot reflow the chart under the pointer. */}
-              {interactive && (
-                <span
-                  aria-label={drillHint}
-                  className="lens-chart-drill-hint"
-                  data-active={hoveredKey ? 'true' : undefined}
-                  role="note"
-                  title={drillHint}
-                >
-                  {crossFilter ? <FunnelSimple /> : <CursorClick />}
-                </span>
-              )}
               {activeFilterValues && (
                 <span className="lens-chart-source-note" role="note">
                   {translate('chart.crossFilterSource', 'All categories shown — the filter applies to the other panels')}
@@ -772,27 +776,26 @@ export function ChartPanel({ panel, adapter }: ChartPanelProps) {
           )}
           {nothingVisible ? (
             <AllSeriesHidden onShowAll={() => setHiddenSeries(new Set())} />
-          ) : input && compact ? (
-            <CompactChartValue frame={input.frame} panel={panel} />
-          ) : input && (
+          ) : hostInput && compact ? (
+            <CompactChartValue frame={hostInput.frame} panel={panel} />
+          ) : hostInput && (
             <>
               <ChartDataEquivalent
                 actionable={chartInteractive}
-                format={input.format}
-                frame={input.frame}
+                format={hostInput.format}
+                frame={hostInput.frame}
                 label={translate('chart.data', 'Chart data for {name}', { name: panel.title })}
                 onSelect={select}
                 panel={panel}
                 translate={translate}
               />
               <ChartHost
-                input={input}
+                input={hostInput}
                 panelId={panel.id}
                 adapter={adapter}
                 label={translate('chart.label', '{name} chart', { name: panel.title })}
                 drillable={chartInteractive}
                 onSelect={chartInteractive ? select : undefined}
-                onHover={chartInteractive ? setHoveredKey : undefined}
                 resetZoomKey={resetZoomKey}
               />
             </>
@@ -1175,7 +1178,7 @@ const ChartLegend = memo(function ChartLegend({
                     // reach: double-clicking a row leaves that row alone on
                     // the plot. The two clicks that precede it cancel out.
                     onDoubleClick={() => solo(key)}
-                    title={translate('chart.legendToggle', 'Toggle series')}
+                    title={translate('chart.legendToggleHint', 'Click to toggle · double-click to isolate')}
                     type="button"
                   >
                     <span
@@ -1191,15 +1194,18 @@ const ChartLegend = memo(function ChartLegend({
                           : formatValue(model.valueByKey.get(key))}
                       </span>
                     )}
-                  </button>
-                  <button
-                    aria-label={translate('chart.legendIsolate', 'Isolate series')}
-                    className="lens-chart-legend-solo"
-                    onClick={() => solo(key)}
-                    title={translate('chart.legendIsolateName', 'Isolate {name}', { name: label })}
-                    type="button"
-                  >
-                    ◎
+                    {/* The row's state, drawn as the thing it is. This corner
+                        used to hold a `◎` in a button of its own, which
+                        isolated the series: an unlabelled shape for an action
+                        no reader could guess, and a second tab stop repeating
+                        the name of the row it sat in. The glyph now says only
+                        what the row already carries in `aria-pressed`, so it
+                        is the row's mark rather than a control beside it.
+                        Isolating is the idiom every charting library has
+                        taught instead — double-click the row. */}
+                    <span aria-hidden="true" className="lens-chart-legend-visibility">
+                      {isHidden ? <EyeSlash /> : <Eye />}
+                    </span>
                   </button>
                 </li>
               </Fragment>

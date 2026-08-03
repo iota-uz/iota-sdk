@@ -300,15 +300,18 @@ describe('cascade stages with a row-scoped action', () => {
       <CascadePanel panel={panel} />,
     )
 
-    const bars = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-bar')]
+    // The whole column is the target, not the bar: a step worth a percent of
+    // the opening total draws a few pixels tall.
+    const columns = [...container.querySelectorAll<HTMLElement>('.lens-waterfall-column')]
     // start + 2 deltas + synthetic closing total.
-    expect(bars).toHaveLength(4)
-    const stages = bars.filter((bar) => bar.getAttribute('role') === 'button')
+    expect(columns).toHaveLength(4)
+    expect(container.querySelector('.lens-waterfall-bar[role="button"]')).toBeNull()
+    const stages = columns.filter((column) => column.getAttribute('role') === 'button')
     expect(stages).toHaveLength(3)
     stages[1]!.click()
     expect(assign).toHaveBeenCalledWith(expect.stringContaining('/analytics/families/claims'))
     // The synthetic closing total repeats the final stage and stays inert.
-    expect(bars.at(-1)!.getAttribute('role')).toBeNull()
+    expect(columns.at(-1)!.getAttribute('role')).toBeNull()
   })
 
   it('activates a stacked cascade stage and leaves url-less rows inert', () => {
@@ -335,7 +338,7 @@ describe('cascade stages with a row-scoped action', () => {
       <CascadePanel panel={panel} />,
     )
     expect(container.querySelector('.lens-waterfall')?.getAttribute('role')).toBe('img')
-    expect(container.querySelector('.lens-waterfall-bar[role="button"]')).toBeNull()
+    expect(container.querySelector('.lens-waterfall-column[role="button"]')).toBeNull()
   })
 })
 
@@ -484,10 +487,12 @@ describe('per-segment drawer drill', () => {
       new Response(JSON.stringify({ url: '/lens/document' }), { status: 200 }),
     ))
     let select: ((key: string) => void) | undefined
+    let input: ChartInput | undefined
     const adapter: ChartAdapter = {
-      mount: (_element, _input, events) => {
+      mount: (_element, initial, events) => {
         select = (key) => events.onSelect(key)
-        return { update: () => {}, dispose: () => {} }
+        input = initial
+        return { update: (next) => { input = next }, dispose: () => {} }
       },
     }
     const view = render(
@@ -499,7 +504,7 @@ describe('per-segment drawer drill', () => {
         </DocumentProvider>
       </div>,
     )
-    return { ...view, fetcher, activate: (key: string) => select?.(key) }
+    return { ...view, fetcher, activate: (key: string) => select?.(key), chartInput: () => input }
   }
 
   it('asks for the clicked segment’s drawer, not the panel’s', async () => {
@@ -519,22 +524,14 @@ describe('per-segment drawer drill', () => {
     expect(resolved()[1]).toContain('family:expenses?branch=direct')
   })
 
-  it('keeps the drill hint in the notes row instead of over the plot', async () => {
-    const { container } = renderDonut()
+  it('carries the drill hint on the tooltip rather than in a corner of the card', async () => {
+    const { container, chartInput } = renderDonut()
     await waitFor(() => expect(container.querySelector('[data-drillable]')).not.toBeNull())
 
-    // In flow, inside the notes row, present whenever the plot is clickable —
-    // not an absolutely positioned pill parked in a corner of the data.
-    const hint = container.querySelector('.lens-chart-notes .lens-chart-drill-hint')
-    expect(hint).not.toBeNull()
-    // A glyph at rest, not a sentence: eight clickable panels on one report
-    // were eight grey lines of prose. What the click does is still stated —
-    // by the accessible name and the tooltip, from the same key.
-    expect(hint?.textContent).toBe('')
-    expect(hint?.querySelector('svg')).not.toBeNull()
-    expect(hint?.getAttribute('aria-label')).toBe('Select to explore')
-    expect(hint?.getAttribute('title')).toBe('Select to explore')
-    expect(container.querySelector('.lens-chart-host .lens-chart-drill-hint')).toBeNull()
+    // Under the pointer, on the card that already names the mark the click
+    // would open — not a glyph parked in the corner furthest from it.
+    expect(chartInput()?.actionHint).toBe('Select to explore')
+    expect(container.querySelector('.lens-chart-drill-hint')).toBeNull()
   })
 })
 
@@ -585,9 +582,8 @@ describe('cross-filter source panel', () => {
     expect(chartInput()?.selectedKey).toBeUndefined()
     expect(container.querySelector('.lens-chart-source-note')).toBeNull()
     // The affordance still names what the click does on this class of panel —
-    // now as the glyph's accessible name rather than a line of prose.
-    expect(container.querySelector('.lens-chart-drill-hint')?.getAttribute('aria-label'))
-      .toBe('Select to filter the page')
+    // now at the foot of the tooltip, where the pointer already is.
+    expect(chartInput()?.actionHint).toBe('Select to filter the page')
   })
 })
 

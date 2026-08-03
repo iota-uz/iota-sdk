@@ -1,4 +1,4 @@
-import type { MouseEventHandler, ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEventHandler, type ReactNode, type RefObject } from 'react'
 import type { Panel, Sparkline } from '../contract'
 import { useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
 import { ArrowUpRight } from '../icons'
@@ -63,6 +63,30 @@ export function StatSparkline({ sparkline, tone }: { sparkline: Sparkline; tone?
       <circle cx={lastX} cy={lastY} r={1.8} style={{ fill: color }} />
     </svg>
   )
+}
+
+/**
+ * Whether an element's own box is hiding some of its text.
+ *
+ * The note behind the ⓘ exists to carry what the reader cannot otherwise read.
+ * Appending a caption that is printed in full two lines below turned the note
+ * into an echo of the card, so the caption joins it only when the strip's
+ * two-line slot actually cut it — which is a question about the rendered box,
+ * not about the string.
+ */
+function useIsClamped(target: RefObject<HTMLElement | null>): boolean {
+  const [clamped, setClamped] = useState(false)
+  useEffect(() => {
+    const element = target.current
+    if (!element) return undefined
+    const measure = () => setClamped(element.scrollHeight - element.clientHeight > 1)
+    measure()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    return () => observer.disconnect()
+  })
+  return clamped
 }
 
 export function StatusChip({ status }: { status: NonNullable<Panel['status']> }) {
@@ -194,11 +218,17 @@ export function StatMetric({ panel }: StatPanelProps) {
   const href = navigation.cardURL(frame.data)
   const prefetch = usePrefetch(href, navigation.action)
   const loading = frame.isLoading && !frame.data
-  // The note the ⓘ carries is the metric's whole explanation: the producer's
-  // note plus the caption in full. The caption line below is clamped to the
-  // strip's two-line slot, so what the clamp cuts has to be readable somewhere,
-  // and this affordance is already here, keyboard-reachable and portalled.
-  const note = [panel.info, panel.caption].map((part) => part?.trim() ?? '').filter(Boolean).join('\n\n')
+  const captionRef = useRef<HTMLParagraphElement>(null)
+  const captionClamped = useIsClamped(captionRef)
+  // The note the ⓘ carries is the producer's explanation, plus the caption when
+  // — and only when — the strip's two-line slot cut it. What the clamp hides
+  // has to be readable somewhere, and this affordance is already here,
+  // keyboard-reachable and portalled; what the clamp did *not* hide is on the
+  // card already and does not need saying twice.
+  const note = [panel.info, captionClamped ? panel.caption : undefined]
+    .map((part) => part?.trim() ?? '')
+    .filter(Boolean)
+    .join('\n\n')
   const figure = loading
     ? <span aria-hidden="true" className="lens-shimmer lens-stat-metric-value-shimmer" />
     : frame.error && !frame.data ? '—' : <StatValueTicker text={formatValue(value)} />
@@ -240,7 +270,7 @@ export function StatMetric({ panel }: StatPanelProps) {
           A strip where one card carries a note and its neighbour does not used
           to end up two different heights; now the slot is reserved for the
           whole strip or for none of it (see the `:has` rules in the sheet). */}
-        <p className="lens-stat-metric-caption">{panel.caption}</p>
+        <p className="lens-stat-metric-caption" ref={captionRef}>{panel.caption}</p>
       </div>
     </StatLink>
   )

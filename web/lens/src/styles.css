@@ -1553,6 +1553,28 @@
     @apply lens-box-border lens-flex lens-h-full lens-min-h-44 lens-flex-col lens-overflow-hidden lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-shadow-card;
   }
 
+  /* A board arrives one panel at a time — the progressive shell hydrates them
+     as their queries return — and each one used to appear by replacing its
+     placeholder in a single frame. The stagger is the loading order itself;
+     this only gives each panel the two hundred milliseconds it takes to read
+     as arriving rather than as a repaint. No keyframes and no state: the
+     entry style applies to the panel's first rendered frame and to nothing
+     else, so a panel already on screen never animates. */
+  @media (prefers-reduced-motion: no-preference) {
+    .lens-panel {
+      transition:
+        opacity var(--lens-dur-base) var(--lens-ease-out),
+        translate var(--lens-dur-base) var(--lens-ease-out);
+    }
+
+    @starting-style {
+      .lens-panel {
+        opacity: 0;
+        translate: 0 4px;
+      }
+    }
+  }
+
   .lens-panel-stat {
     @apply lens-min-h-40;
   }
@@ -1650,6 +1672,35 @@
     @apply lens-flex-none;
   }
 
+  /* Export and fullscreen answer a question a reader has already decided to
+     ask; drawn at rest they put two glyphs on every card of a fourteen-panel
+     board — twenty-eight controls competing with the figures they belong to.
+     They fade in on the card that is being read. Only where a pointer can
+     hover: on a touch screen there is no such card, so they stay drawn. */
+  @media (hover: hover) and (pointer: fine) {
+    .lens-panel-actions > .lens-icon-button,
+    .lens-panel-actions > .lens-export-control > .lens-export-button {
+      opacity: 0;
+      transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
+    }
+
+    .lens-panel:hover .lens-panel-actions > .lens-icon-button,
+    .lens-panel:hover .lens-panel-actions > .lens-export-control > .lens-export-button,
+    .lens-panel:focus-within .lens-panel-actions > .lens-icon-button,
+    .lens-panel:focus-within .lens-panel-actions > .lens-export-control > .lens-export-button,
+    .lens-panel-actions > .lens-icon-button:focus-visible,
+    .lens-panel-actions > .lens-export-control > .lens-export-button[aria-expanded='true'] {
+      opacity: 1;
+    }
+  }
+
+  /* Never on the ⓘ: it is an annotation the panel offers, not an action, and
+     a note that has to be found by hovering is a note nobody reads. */
+  .lens-panel-actions .lens-info-tip-button,
+  .lens-panel-heading .lens-info-tip-button {
+    opacity: 1;
+  }
+
   /* The ⓘ affordance and its bubble. It sits next to the title, because the
      note explains the panel's subject rather than being a control you apply to
      it. The wrapper is the positioning context, so the bubble hangs off the
@@ -1661,13 +1712,24 @@
   /* Inside a metric strip the glyph rides a 10px label, so it shrinks to match
      the type it annotates. It also has to out-rank the card-wide navigate
      anchor (.lens-card-link, z-10) stretched across the cell — otherwise the
-     anchor takes the click and the note can never be opened. */
+     anchor takes the click and the note can never be opened.
+
+     The wrapper is one line of the type it annotates, pinned to the top of a
+     label slot that reserves two. Stretched to the full slot instead, the
+     glyph centred itself on a box the text does not fill: beside a two-line
+     name it happened to look right, and beside a one-line name it floated 8px
+     below the words it belongs to. `em` resolves against the annotated label's
+     own font size, so the rule holds in a 10px strip label and a 12px table
+     cell alike. */
   .lens-info-tip-inline {
-    @apply lens-z-20;
+    @apply lens-z-20 lens-items-center lens-self-start;
+    height: var(--lens-info-tip-line, 1.2em);
   }
 
-  .lens-info-tip-button-inline {
-    @apply lens-size-4 lens-text-base;
+  /* Higher specificity than .lens-icon-button, which is declared later in this
+     sheet and would otherwise keep the glyph at its 28px header size. */
+  .lens-icon-button.lens-info-tip-button-inline {
+    @apply lens-size-4 lens-min-h-0 lens-flex-none lens-text-base;
   }
 
   /* The portal host fills the viewport only to carry theme variables. It must
@@ -1679,7 +1741,12 @@
   }
 
   .lens-info-tip-bubble {
-    @apply lens-fixed lens-z-50 lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-strong lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
+    /* The same hairline every other popover in the runtime draws. It used to
+       take `border-strong`, which is the weight a *control* outlines itself
+       with — on a floating card carrying the popover shadow it read as a
+       drawn-on frame rather than an edge. The shadow is what separates a
+       popover from the page; the border only has to close it. */
+    @apply lens-fixed lens-z-tooltip lens-flex lens-w-80 lens-max-w-[min(20rem,80vw)] lens-flex-col lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-p-3 lens-text-left lens-font-sans lens-normal-case lens-tracking-normal;
 
     max-height: calc(100vh - 1rem);
     box-shadow: var(--lens-shadow-popover);
@@ -1694,7 +1761,7 @@
      metrics with four ⓘ; the tail and the trigger's own open state are the two
      halves of that attribution. */
   .lens-info-tip-tail {
-    @apply lens-absolute lens-size-2 lens-rotate-45 lens-border lens-border-solid lens-border-strong lens-bg-card;
+    @apply lens-absolute lens-size-2 lens-rotate-45 lens-border lens-border-solid lens-border-border lens-bg-card;
     left: calc(var(--lens-info-tip-tail, 14px) - 4px);
   }
 
@@ -1708,10 +1775,6 @@
     bottom: -5px;
     border-top: 0;
     border-left: 0;
-  }
-
-  .lens-info-tip-title {
-    @apply lens-text-xs lens-font-bold lens-uppercase lens-tracking-wider lens-text-text;
   }
 
   .lens-info-tip-text {
@@ -1807,6 +1870,10 @@
   .lens-fake-chart-footer button,
   .lens-filter-chip,
   .lens-filter-trigger,
+  .lens-facet-trigger,
+  .lens-compare-trigger,
+  .lens-chart-keyboard-actions button,
+  .lens-waterfall-column[role='button'],
   .lens-filter-preset,
   .lens-calendar-nav,
   .lens-calendar-month,
@@ -1827,7 +1894,15 @@
     @apply lens-absolute lens-inset-0 lens-z-10 lens-block lens-rounded-card;
   }
 
-  .lens-stat-linked:hover {
+  /* A cell that opens something should answer the pointer. It used to change
+     nothing but its own background, instantly, which is the same amount of
+     feedback a table row gives and less than the figure deserves. */
+  .lens-stat-linked {
+    transition: background-color var(--lens-dur-fast) var(--lens-ease-standard);
+  }
+
+  .lens-stat-linked:hover,
+  .lens-stat-linked:has(.lens-card-link:focus-visible) {
     @apply lens-bg-inset;
   }
 
@@ -2190,19 +2265,37 @@
     line-height: 1.2;
   }
 
+  /*
+   * The figure is the reason the cell exists, so it is sized like it.
+   *
+   * The slot used to reserve two lines of type against the chance that some
+   * amount somewhere wrapped — 56px of box around a 25px number, on every card
+   * of every dashboard, which is most of why a KPI strip read as an empty
+   * table rather than a row of numbers. It reserves one line now. A figure that
+   * genuinely wraps drops its own cell's caption a line; that is a rare cell,
+   * and the figures themselves — the thing a reader scans across — still share
+   * a top edge either way.
+   */
   .lens-stat-metric-value {
-    @apply lens-m-0 lens-min-w-0 lens-shrink lens-text-xl lens-font-semibold lens-tracking-tight lens-text-strong;
-    /* Two lines of the figure's own type: a wrapped amount cannot then push the
-       delta chip below the chips beside it. */
-    min-height: 3.5rem;
+    @apply lens-m-0 lens-min-w-0 lens-shrink lens-text-2xl lens-font-semibold lens-tracking-tight lens-text-strong;
+    min-height: calc(var(--lens-type-2xl) * 1.25);
     font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* One metric to a row is the phone layout, where 28px of figure crowds the
+     label beside it and there is no neighbouring cell to line up with. */
+  @container lens-metric-group (max-width: 34rem) {
+    .lens-stat-metric-value {
+      @apply lens-text-xl;
+      min-height: calc(var(--lens-type-xl) * 1.25);
+    }
   }
 
   /* The loading figure is the figure's own shape, not the «—» this product
      prints for a value that is genuinely absent: a slow strip and an empty one
      must not look the same. */
   .lens-stat-metric-value-shimmer {
-    height: var(--lens-type-xl);
+    height: var(--lens-type-2xl);
     width: 60%;
     max-width: 8rem;
     border-radius: var(--lens-radius-badge);
@@ -2265,12 +2358,19 @@
      the ⓘ. It sits above the card-wide anchor so it cannot swallow its own
      click target. */
   .lens-stat-drill-mark {
-    @apply lens-inline-flex lens-items-center lens-text-faint lens-transition-colors;
+    @apply lens-inline-flex lens-items-center lens-text-faint;
+    transition:
+      color var(--lens-dur-fast) var(--lens-ease-standard),
+      transform var(--lens-dur-fast) var(--lens-ease-out);
   }
 
+  /* It stays drawn at rest — a figure that opens has to say so before it is
+     pointed at — and leans a pixel in the direction it goes when it is. */
   .lens-stat-linked:hover .lens-stat-drill-mark,
-  .lens-card-link:focus-visible ~ .lens-stat-metric .lens-stat-drill-mark {
+  .lens-card-link:focus-visible ~ .lens-stat-metric .lens-stat-drill-mark,
+  .lens-stat-linked:has(.lens-card-link:focus-visible) .lens-stat-drill-mark {
     color: var(--lens-accent-500);
+    transform: translate(1px, -1px);
   }
 
   /* A tabstrip is as wide as its tabs. Stretching it to the card meant a binary
@@ -2290,8 +2390,13 @@
     @apply lens-border-border lens-bg-card lens-text-strong lens-shadow-card;
   }
 
+  /* The selected tab's content takes the whole card, not the height its plot
+     asks for. Cards in a row are stretched to their tallest member, so a chart
+     that only claimed its minimum left a 150px band of empty card under it
+     while the panel beside it was full — the plot grows into the height its
+     own card was already given. */
   .lens-tab-panel {
-    @apply lens-p-3;
+    @apply lens-min-h-0 lens-flex-1 lens-p-3;
   }
 
   .lens-export-button:hover:not(:disabled) {
@@ -2328,32 +2433,51 @@
   /* Anchored to its trigger on both axes: one edge is flush with the trigger's
      (which edge is the trigger's business — see useMenuButton) and it never
      runs past the fold, because an item a reader cannot see is an item the
-     menu does not have. */
+     menu does not have.
+
+     Drawn in a body portal at viewport coordinates rather than in the flow:
+     every Lens panel hides its overflow, so a menu anchored inside one was
+     sliced by the card the moment it reached past its edge. `data-side` and
+     `data-align` survive as the animation's origin — the numbers now come from
+     useMenuButton. */
+  /* The host is a full-viewport fixed layer; only the menu inside it is a
+     target, so a click meant for the page beneath still reaches the page. */
+  .lens-menu-overlay-root {
+    pointer-events: none;
+  }
+
   .lens-export-menu {
-    @apply lens-absolute lens-z-30 lens-flex lens-w-max lens-min-w-40 lens-flex-col lens-gap-0.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-1 lens-shadow-card;
-    min-width: max(10rem, 100%);
+    @apply lens-pointer-events-auto lens-fixed lens-z-popover lens-flex lens-w-max lens-min-w-40 lens-flex-col lens-gap-0.5 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-p-1 lens-shadow-popover;
+    animation: lens-menu-in var(--lens-dur-fast) var(--lens-ease-out);
+    transform-origin: var(--lens-menu-origin-x, left) var(--lens-menu-origin-y, top);
   }
 
   .lens-export-menu[data-align="end"] {
-    right: 0;
-    left: auto;
+    --lens-menu-origin-x: right;
   }
 
   .lens-export-menu[data-align="start"] {
-    left: 0;
-    right: auto;
+    --lens-menu-origin-x: left;
   }
 
   .lens-export-menu[data-side="down"] {
-    @apply lens-mt-1;
-    top: 100%;
-    bottom: auto;
+    --lens-menu-origin-y: top;
   }
 
   .lens-export-menu[data-side="up"] {
-    @apply lens-mb-1;
-    bottom: 100%;
-    top: auto;
+    --lens-menu-origin-y: bottom;
+  }
+
+  @keyframes lens-menu-in {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 
   .lens-export-menu-item {
@@ -2365,12 +2489,19 @@
     @apply lens-bg-inset lens-text-strong;
   }
 
-  .lens-export-message-pending {
-    @apply lens-static lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-base lens-font-medium lens-text-muted lens-shadow-none;
+  /* In the flow, not hung below the trigger. Every Lens panel hides its
+     overflow, so an absolutely positioned note on a panel's own toolbar was
+     sliced by the card — and a note a reader cannot read is not a note. A
+     transient line that widens the action row for a second is the cheaper cost.
+     The share confirmation below keeps the floating form: it lives in the
+     dashboard header, where nothing clips and a reflow would shove the whole
+     control bar. */
+  .lens-export-message {
+    @apply lens-mt-1 lens-block lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-base lens-font-medium lens-text-accent-700 lens-shadow-card;
   }
 
-  .lens-export-message {
-    @apply lens-absolute lens-right-0 lens-top-full lens-z-20 lens-mt-1 lens-w-max lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-base lens-font-medium lens-text-accent-700 lens-shadow-card;
+  .lens-export-message-pending {
+    @apply lens-mt-0 lens-border-0 lens-bg-transparent lens-px-0 lens-py-0 lens-text-base lens-font-medium lens-text-muted lens-shadow-none;
   }
 
   /* The copy confirmation is the width of the button that produced it, so it
@@ -2378,7 +2509,7 @@
      under a 28px icon button, i.e. a note that reached 119px across the control
      next to it. */
   .lens-share-control .lens-export-message {
-    @apply lens-w-full lens-max-w-none lens-text-center;
+    @apply lens-absolute lens-right-0 lens-top-full lens-z-sticky lens-w-full lens-max-w-none lens-text-center;
   }
 
   .lens-export-message-error {
@@ -2399,8 +2530,13 @@
      was the first thing thrown away. It never shrinks now: under pressure it
      wraps with the rest of the action cluster, and where even that will not fit
      it steps out of the header entirely (below). */
+  /* A figure the panel states, not a control it offers. Boxed in a filled,
+     bordered pill it carried a button's weight and sat in a row of buttons
+     reading as one — «Итого: 88» is neither pressable nor pending. It is type
+     now: a muted label and a strong number on the header's own baseline. */
   .lens-panel-total {
-    @apply lens-block lens-flex-none lens-whitespace-nowrap lens-rounded-badge lens-border lens-border-solid lens-border-border lens-bg-inset lens-px-2 lens-py-1 lens-text-base lens-font-semibold lens-text-strong;
+    @apply lens-block lens-flex-none lens-whitespace-nowrap lens-px-1 lens-py-1 lens-text-base lens-font-semibold lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
   .lens-panel-body {
@@ -2790,6 +2926,32 @@
     @apply lens-pointer-events-none lens-fixed lens-z-50 lens-max-w-64 lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-1.5 lens-font-sans lens-text-base lens-text-text lens-shadow-card;
   }
 
+  /* The copy affordance both tooltip families share — the React one over the
+     waterfall and the HTML one ECharts writes for every chart. It is
+     deliberately styled in ink the surface already carries rather than in
+     tokens: the ECharts node is appended to `body`, outside `.lens-root`, where
+     none of this runtime's custom properties resolve. `currentColor` does. */
+  .lens-tooltip-copy {
+    @apply lens-inline-flex lens-size-5 lens-min-h-0 lens-flex-none lens-cursor-pointer lens-items-center lens-justify-center lens-rounded-control lens-border-0 lens-p-0 lens-opacity-50;
+    background: transparent;
+    color: inherit;
+    transition: opacity var(--lens-dur-fast, 120ms) ease-out, background-color var(--lens-dur-fast, 120ms) ease-out;
+  }
+
+  .lens-tooltip-copy:hover,
+  .lens-tooltip-copy:focus-visible {
+    @apply lens-opacity-100;
+    background: color-mix(in srgb, currentColor 12%, transparent);
+  }
+
+  /* Confirmation is the whole payoff: nothing else on screen changes when a
+     copy succeeds, so the tick holds full strength for its second and a half. */
+  .lens-tooltip-copy[data-copied='true'] {
+    @apply lens-opacity-100;
+    color: var(--lens-pos, #16a34a);
+    background: transparent;
+  }
+
   /* Plot presence: the chart is the panel's content, so the box gives it the
      room a full chart card needs (~300px tall pies) and keeps the padding
      tight. The legend below and the in-plot badge sit outside this box. */
@@ -2830,51 +2992,41 @@
     @apply lens-flex lens-min-w-0 lens-flex-col lens-gap-1 lens-px-2 lens-pt-1;
   }
 
-  /* One segmented control, never three loose commands on two ragged lines.
-     «Скрыть всё» and «Показать всё» are the two states of one thing — all off,
-     all on — so they are members of a tray with a pressed member, the same
-     idiom the period filter uses. Inverting is neither state and would not fit
-     a Russian label in this column anyway, so it is the tray's icon member. */
+  /* Utilities over a list, not a control bar above a chart.
+     These were a raised segmented tray — a bordered, filled, shadowed box the
+     same weight as the period filter — sitting on top of the plot's own legend
+     to offer «all off» and «all on». That is the loudest object in the panel
+     spent on its least consequential action, which is what made it read as
+     bolted on. They are quiet text now: the type the legend rows use, no fill
+     and no edge until pointed at, and a pressed member simply goes strong. */
   .lens-chart-legend-tools {
     @apply lens-flex lens-w-full lens-min-w-0 lens-items-center;
     gap: 2px;
   }
 
-  .lens-chart-legend-tools[data-members='many'] {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-border;
-    --lens-seg-tray: rgb(15 23 42 / 0.05);
-    --lens-seg-raised: var(--lens-bg-card);
-    background: var(--lens-seg-tray);
-    padding: 2px;
-  }
-
-  .lens-root[data-theme='dark'] .lens-chart-legend-tools[data-members='many'] {
-    --lens-seg-tray: rgb(15 23 42 / 0.5);
-    --lens-seg-raised: var(--lens-bg-inset);
-  }
-
   .lens-chart-legend-tools button {
-    @apply lens-flex lens-min-w-0 lens-cursor-pointer lens-items-center lens-justify-center lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-2 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
-    flex: 1 1 0;
+    @apply lens-flex lens-min-w-0 lens-cursor-pointer lens-items-center lens-justify-center lens-overflow-hidden lens-text-ellipsis lens-whitespace-nowrap lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-font-sans lens-text-sm lens-font-medium lens-text-muted;
+    flex: 0 1 auto;
     min-height: var(--lens-control-h-xs);
     transition: background-color var(--lens-dur-fast) var(--lens-ease-standard),
       color var(--lens-dur-fast) var(--lens-ease-standard);
-  }
-
-  /* A single switch is not a tray: it carries its own edge, like any button. */
-  .lens-chart-legend-tools[data-members='one'] button {
-    @apply lens-rounded-control lens-border lens-border-solid lens-border-border lens-bg-card;
-    flex: 1 1 auto;
   }
 
   .lens-chart-legend-tools button:hover {
     @apply lens-bg-inset lens-text-strong;
   }
 
+  /* «All shown» is the resting state of most legends, so a pressed member is
+     stated by ink alone. A filled chip here would put a permanent highlight on
+     the panel for saying nothing has been touched. */
   .lens-chart-legend-tools button[aria-pressed='true'] {
     @apply lens-text-strong;
-    background: var(--lens-seg-raised);
-    box-shadow: var(--lens-shadow-card);
+  }
+
+  /* Invert is neither of the two states, so it keeps to the far end of the
+     line, away from the pair it does not belong to. */
+  .lens-chart-legend-tools .lens-chart-legend-invert {
+    @apply lens-ml-auto;
   }
 
   .lens-chart-legend-invert {
@@ -2925,7 +3077,7 @@
      a line, not what a row looks like. */
   .lens-chart-legend-toggle {
     @apply lens-grid lens-min-w-0 lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1.5 lens-py-1 lens-text-left lens-font-sans lens-text-base lens-text-muted lens-transition-colors;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: start;
     column-gap: 0.375rem;
     row-gap: 0.125rem;
@@ -2935,19 +3087,29 @@
     @apply lens-bg-inset;
   }
 
-  /* Isolate was reachable only by hovering the row it belongs to, which is how
-     a control stays unknown to everyone who never hovers. It is on the row at
-     rest now, quiet enough not to compete with the reading, and the row also
-     answers the double-click every charting library has taught readers to try. */
-  .lens-chart-legend-solo {
-    @apply lens-mt-0.5 lens-cursor-pointer lens-rounded-badge lens-border-0 lens-bg-transparent lens-px-1 lens-py-0.5 lens-text-sm lens-text-faint lens-transition-opacity;
+  /* The row's own state, in the row's last column, spanning its lines so a
+     wrapped name does not leave it stranded on one of them. Quiet at rest —
+     it must not compete with the names being read — and full strength once
+     the series is off the plot, because that glyph is not decoration then: it
+     is the reason the series is missing from the chart. */
+  .lens-chart-legend-toggle > .lens-chart-legend-visibility {
+    @apply lens-flex lens-flex-none lens-items-center lens-justify-center lens-self-start lens-text-faint;
+    grid-column: 3;
+    grid-row: 1 / -1;
+    margin-top: 0.125rem;
     opacity: 0.4;
+    transition:
+      opacity var(--lens-dur-fast) var(--lens-ease-standard),
+      color var(--lens-dur-fast) var(--lens-ease-standard);
   }
 
-  .lens-chart-legend-item:hover .lens-chart-legend-solo,
-  .lens-chart-legend-solo:hover,
-  .lens-chart-legend-solo:focus-visible {
-    @apply lens-opacity-100 lens-text-strong;
+  .lens-chart-legend-toggle:hover > .lens-chart-legend-visibility,
+  .lens-chart-legend-toggle:focus-visible > .lens-chart-legend-visibility {
+    @apply lens-text-muted lens-opacity-100;
+  }
+
+  .lens-chart-legend-hidden > .lens-chart-legend-visibility {
+    @apply lens-text-muted lens-opacity-100;
   }
 
   .lens-chart-legend-toggle:disabled {
@@ -3227,10 +3389,10 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
-  /* What says "this chart goes somewhere" is the labelled hint in the notes row
-     above the plot (`.lens-chart-drill-hint`), not a mark on the plot itself.
-     This used to paint a permanent 2px accent rule down the LEFT EDGE OF THE
-     PLOT: an unlabelled coloured line, present on one panel and absent on its
+  /* What says "this chart goes somewhere" is the sentence at the foot of the
+     tooltip, under the pointer, not a mark on the plot itself. This used to
+     paint a permanent 2px accent rule down the LEFT EDGE OF THE PLOT: an
+     unlabelled coloured line, present on one panel and absent on its
      row-neighbour, that read as a stray axis or a rendering inconsistency
      rather than as an affordance. A signifier that cannot say what it does is
      decoration. What is left is the pointer, and — while the plot is under the
@@ -3280,36 +3442,14 @@
     font-variant-numeric: tabular-nums lining-nums;
   }
 
-  /* In the notes row, in flow — never over the plot. It was `absolute
-     bottom-3 right-3`, which put it on the x-axis ticks of a horizontal bar
-     chart, inside the legend column of a wide panel (clipping a value), and
-     past the panel's own right edge on a donut. An overlay has to be told what
-     to avoid and that list only ever grows; a row that takes its own height
-     cannot have anything under it. It is also the drillable plot's only
-     signifier now (see `.lens-chart-host-drillable`), so it is legible at rest
-     and strengthens while a mark is under the pointer. */
-  .lens-chart-drill-hint,
+  /* In the notes row, in flow — never over the plot. Notes used to be
+     `absolute bottom-3 right-3`, which put them on the x-axis ticks of a
+     horizontal bar chart, inside the legend column of a wide panel (clipping a
+     value), and past the panel's own right edge on a donut. An overlay has to
+     be told what to avoid and that list only ever grows; a row that takes its
+     own height cannot have anything under it. */
   .lens-chart-source-note {
     @apply lens-inline-flex lens-items-center lens-gap-1 lens-rounded-badge lens-px-2 lens-py-1 lens-text-sm lens-font-medium lens-text-muted;
-  }
-
-  /* A glyph, not a sentence. Eight clickable panels on the sales report were
-     eight grey lines of prose saying the same thing, which is a paragraph of
-     chrome charging rent for one bit of information. What the click does is
-     carried by the accessible name and the title instead, from the same two
-     keys the sentence used, so nothing is lost to a screen reader or to a
-     hover. The box keeps the text version's height (one control-xs, the
-     11px/16px line plus its padding) because the row's height is the whole
-     reason the affordance lives here: an icon that shrank the row — or that
-     only appeared on hover — would put back the reflow that moving it out of
-     the plot's corner was meant to end. */
-  .lens-chart-drill-hint {
-    @apply lens-justify-center lens-px-1.5;
-    min-height: var(--lens-control-h-xs);
-  }
-
-  .lens-chart-drill-hint[data-active='true'] {
-    @apply lens-bg-inset lens-text-accent-700;
   }
 
   /* A panel that is the SOURCE of the page's cross-filter keeps every category
@@ -3503,6 +3643,30 @@
     @apply lens-relative lens-min-w-0;
   }
 
+  /* A step worth 1,07 of a 201 opening is four pixels of bar. The column is the
+     target instead, and it has to look like one: at rest the plot said nothing
+     about which of its ten steps could be opened, and a pointer that only
+     changed shape over four pixels was a promise the reader had to hunt for. */
+  .lens-waterfall-column[role='button']::before {
+    @apply lens-pointer-events-none lens-absolute lens-inset-0 lens-z-0 lens-rounded-control lens-opacity-0;
+    /* A band, not a fill: the column's own underlay is the lightest thing on
+       the plot, so a hover state has to be lighter still and earn its read from
+       covering the full height rather than from weight. */
+    background: color-mix(in srgb, var(--lens-accent-500) 7%, transparent);
+    content: '';
+    transition: opacity var(--lens-dur-fast) var(--lens-ease-out);
+  }
+
+  .lens-waterfall-column[role='button']:hover::before,
+  .lens-waterfall-column[role='button']:focus-visible::before {
+    @apply lens-opacity-100;
+  }
+
+  .lens-waterfall-column[role='button']:hover .lens-waterfall-bar,
+  .lens-waterfall-column[role='button']:focus-visible .lens-waterfall-bar {
+    filter: saturate(1.08) brightness(1.06);
+  }
+
   /* Runs from this column's bar to the next one's, so it follows the cap
      above rather than assuming the bar fills half the column. */
   .lens-waterfall-connector {
@@ -3555,9 +3719,11 @@
     border-bottom: 1px solid rgb(255 255 255 / 55%);
   }
 
-  /* Carried on a chip rather than bare text: the callout leans into whichever
-     side has room, which on a crowded plot is often over a neighbouring column
-     or its underlay, and bare 10px type does not survive that. */
+  /* The printed form of the split's name and amount — a sheet of paper has no
+     pointer to answer, so the chip stands in-plot there. Carried on a chip
+     rather than bare text: it leans into whichever side has room, which on a
+     crowded plot is often over a neighbouring column or its underlay, and bare
+     10px type does not survive that. */
   /* Hangs just below the band rather than centred on it. Centred, the chip sits
      at the height every neighbouring column prints its own value at, and the
      two collide in the gutter between columns; a few pixels lower it clears
@@ -3577,38 +3743,82 @@
     right: calc(100% + 6px);
   }
 
-  /* Held back until the reader points at the column it belongs to. The chip has
-     nowhere to sit that is not over a neighbour, and standing there permanently
-     it costs the plot more than the number is worth at a glance — the band's own
-     colour already says a part of this cost is different in kind. Faded rather
-     than removed, so the amount stays in the accessibility tree and is read out
-     with the bar whether or not a pointer exists. The whole column is the target:
-     the band is a few pixels tall on a short bar, and no one should have to aim
-     at it. */
-  .lens-waterfall-split-callout[data-reveal='hover'] {
-    @apply lens-opacity-0 lens-transition-opacity;
+  /* The same answer floated over the plot instead of parked in it, for the
+     reader who has a pointer. In-plot the chip had nowhere to stand that was not
+     over a neighbouring column, and leaning away from the nearer edge it read as
+     a stray label loose on the chart rather than as an answer to the column
+     under the cursor. This is the shape every other panel on the board answers a
+     pointer with, and being a body-level portal no card can clip it. */
+  .lens-waterfall-tip {
+    @apply lens-fixed lens-z-tooltip lens-flex lens-flex-col lens-gap-0.5 lens-whitespace-nowrap lens-rounded-card lens-border lens-border-solid lens-border-border lens-bg-card lens-px-2.5 lens-py-2 lens-text-left lens-font-sans lens-text-base lens-normal-case lens-tracking-normal;
+    box-shadow: var(--lens-shadow-popover);
   }
 
-  .lens-waterfall-column:hover .lens-waterfall-split-callout[data-reveal='hover'],
-  .lens-waterfall-column:focus-within .lens-waterfall-split-callout[data-reveal='hover'] {
-    @apply lens-opacity-100;
+  .lens-waterfall-tip-head {
+    @apply lens-text-base lens-font-medium lens-text-muted;
+  }
+
+  /* The figure and its copy button on one line, the button hard right of the
+     number it takes — never between the number and the next line of the card. */
+  .lens-waterfall-tip-amount {
+    @apply lens-flex lens-items-center lens-gap-1.5;
+  }
+
+  .lens-waterfall-tip-amount > strong {
+    @apply lens-text-lg lens-font-semibold lens-text-strong;
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* The split is a part OF the amount above it, so it is drawn as the smaller
+     thing it is and keeps the band's own ink. */
+  .lens-waterfall-tip-amount[data-split='true'] > strong {
+    @apply lens-text-base;
+    color: var(--lens-neg-alt);
+  }
+
+  .lens-waterfall-tip-label {
+    @apply lens-mt-1 lens-text-sm lens-text-muted;
+  }
+
+  .lens-waterfall-tip-foot {
+    @apply lens-mt-1.5 lens-border-0 lens-border-t lens-border-solid lens-border-border lens-pt-1.5 lens-text-sm lens-text-faint;
+  }
+
+  /* The tip points back at the band it explains; a rectangle floating over a
+     ten-column plot names no column on its own. */
+  .lens-waterfall-tip-tail {
+    @apply lens-absolute lens-left-1/2 lens-size-2 lens-rotate-45 lens-border lens-border-solid lens-border-border lens-bg-card;
+    margin-left: -4px;
+  }
+
+  .lens-waterfall-tip[data-side='above'] > .lens-waterfall-tip-tail {
+    bottom: -5px;
+    border-top: 0;
+    border-left: 0;
+  }
+
+  .lens-waterfall-tip[data-side='below'] > .lens-waterfall-tip-tail {
+    top: -5px;
+    border-right: 0;
+    border-bottom: 0;
   }
 
   /* The balance a floating deduction leaves standing. Drawing it makes the
      arithmetic visible: the opening total is eaten down, step by step, to the
      closing one. Behind the bar and the connector, never in front. */
-  /* Scaffolding, and it has to look like scaffolding. At 0.12 over the full
-     column height it was heavier than the data: on a period whose movements are
-     small the eye met six tall pale columns and five coloured hairlines, and
-     read the connectors as the chart. Figure and ground are the right way round
-     at an alpha well under the lightest bar's. */
+  /* Scaffolding, and it has to look like scaffolding — but scaffolding nobody
+     can see is not scaffolding. At 0.12 over the full column height it was
+     heavier than the data on a period of small movements; at 0.06 it had faded
+     into the card, and with it the one thing the ghost is for: showing that each
+     red column eats into the blue premium standing under it. 0.1 is the alpha
+     that reads as a column and still sits under the lightest bar. */
   .lens-waterfall-underlay {
     @apply lens-absolute lens-z-0;
     left: 50%;
     width: var(--lens-waterfall-bar-width);
     margin-left: calc(var(--lens-waterfall-bar-width) / -2);
     background: var(--lens-accent-500);
-    opacity: 0.06;
+    opacity: 0.1;
   }
 
   .lens-waterfall-bar strong {
@@ -3760,6 +3970,35 @@
     @apply lens-relative lens-flex lens-min-h-0 lens-flex-1;
   }
 
+  /* A column cut mid-glyph («74 357 UZ») reads as a rendering fault, not as a
+     table that continues. The chevron says there is more to the side; the wash
+     under it says the same thing about the character it is standing on, so the
+     cut lands on a fade instead of on a letter. */
+  .lens-table-scroll-frame::before,
+  .lens-table-scroll-frame::after {
+    @apply lens-pointer-events-none lens-absolute lens-inset-y-0;
+    content: '';
+    opacity: 0;
+    transition: opacity var(--lens-dur-fast) var(--lens-ease-standard);
+    width: 4rem;
+    z-index: var(--lens-z-sticky);
+  }
+
+  .lens-table-scroll-frame::before {
+    left: var(--lens-table-sticky-width, 0px);
+    background: linear-gradient(to right, var(--lens-bg-card) 30%, transparent);
+  }
+
+  .lens-table-scroll-frame::after {
+    right: 0;
+    background: linear-gradient(to left, var(--lens-bg-card) 30%, transparent);
+  }
+
+  .lens-table-scroll-frame[data-overflow-left='true']::before,
+  .lens-table-scroll-frame[data-overflow-right='true']::after {
+    opacity: 1;
+  }
+
   /* No `outline-none` here: it left a transparent 2px outline on the resting
      region, which is the shape the missing focus ring used to hide in. The
      browser's own ring is a `:focus-visible` ring too, so the rule below simply
@@ -3773,7 +4012,8 @@
     appearance: none;
     color: var(--lens-text-muted);
     cursor: pointer;
-    z-index: var(--lens-z-sticky);
+    /* One rung above the frame's edge washes, which paint after it. */
+    z-index: calc(var(--lens-z-sticky) + 1);
     height: 40px;
     top: 50%;
     transform: translateY(-50%);

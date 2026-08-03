@@ -342,6 +342,32 @@ export const Info = glyph(
 )
 
 /**
+ * A legend row that is on the plot.
+ *
+ * The pair below replaces a `◎` — the one glyph in the runtime that was a
+ * Unicode character rather than a Phosphor path, and which said nothing about
+ * what it did or what state the row was in.
+ */
+export const Eye = glyph(
+  <>
+    <path d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <circle cx="128" cy="128" r="40" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
+/** A legend row that is currently off the plot. */
+export const EyeSlash = glyph(
+  <>
+    <line x1="48" y1="40" x2="208" y2="216" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M154.9,157.6A40,40,0,0,1,101.1,98.4" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M73.8,69.7C33.2,89.6,16,128,16,128s32,72,112,72a118.1,118.1,0,0,0,54.2-12.3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+    <path d="M208.6,169.1C230.4,149.6,240,128,240,128S208,56,128,56a125.2,125.2,0,0,0-16.4,1.1" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="16" />
+  </>,
+  14,
+)
+
+/**
  * How old the figures are. The freshness stamp is the one fact a reader checks
  * before trusting a number, so it carries a mark of its own instead of hiding
  * at the end of a sentence of prose.

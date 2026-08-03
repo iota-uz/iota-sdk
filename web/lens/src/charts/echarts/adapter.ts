@@ -9,6 +9,7 @@ import { compactChartLabelWidth } from '../../breakpoints'
 import type { ChartAdapter, ChartAnchor, ChartEvents, ChartInput, ChartInstance } from '../adapter'
 import { nodeKeyFromEvent } from './events'
 import { annotationsAtAxisValue, buildChartOption, categoryLabelLimit } from './options'
+import { installTooltipCopyDelegate } from './tooltip'
 import { buildEChartsTheme } from './theme'
 
 // The mark components are what draw `markLine` and `markArea`. Without them
@@ -148,6 +149,11 @@ export function createEChartsAdapter(initialize: ChartInitializer = init): Chart
     mount(element: HTMLElement, initialInput: ChartInput, events: ChartEvents): ChartInstance {
       const chart = initialize(element)
       let input = initialInput
+      // The tooltip's copy button is markup ECharts owns, so its click is
+      // answered by one page-level delegate rather than by anything the chart
+      // can hold. Reading the label through a closure keeps it current when the
+      // reader switches language without a reload.
+      installTooltipCopyDelegate(() => input.labels?.copied ?? 'Copied')
       let hasRenderedOption = false
       let disposed = false
       let renderRevision = 0

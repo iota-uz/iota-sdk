@@ -56,7 +56,6 @@ export function panelSVG(panelId: string): { background: string; blob: Blob; wid
     '.lens-panel-actions',
     '.lens-info-tip',
     '.lens-chart-collapse-other',
-    '.lens-chart-drill-hint',
     '.lens-chart-keyboard-actions',
     '.lens-chart-legend-edge',
     '.lens-chart-legend-controls',

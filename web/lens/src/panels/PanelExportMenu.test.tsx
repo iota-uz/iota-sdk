@@ -5,7 +5,7 @@ import { parseDocument } from '../contract'
 import { DashboardPanels } from '../DashboardPanels'
 import { DashboardRuntimeProvider, DocumentProvider } from '../runtime'
 import * as runtime from '../runtime'
-import { menuPlacement } from './useMenuButton'
+import { menuOffset, menuPlacement, menuShift } from './useMenuButton'
 
 afterEach(() => {
   cleanup()
@@ -94,5 +94,23 @@ describe('menu placement', () => {
       .toBe('end')
     expect(menuPlacement({ left: 20, right: 60, top: 100, bottom: 128 }, menu, viewport, 'end').align)
       .toBe('start')
+  })
+
+  it('resolves the placement to viewport coordinates the portal can use', () => {
+    const trigger = { left: 600, right: 640, top: 100, bottom: 128 }
+    expect(menuOffset(trigger, menu, { side: 'down', align: 'end' }, 0)).toEqual({ left: 440, top: 132 })
+    expect(menuOffset(trigger, menu, { side: 'down', align: 'start' }, 0)).toEqual({ left: 600, top: 132 })
+    expect(menuOffset(trigger, menu, { side: 'up', align: 'start' }, 0)).toEqual({ left: 600, top: -24 })
+  })
+
+  it('places a chart toolbar menu inside the viewport, not inside the card that clipped it', () => {
+    // The reported case: a chart panel's own toolbar sits 16px inside a card
+    // whose left edge is at 143. The menu is right-aligned to that trigger, so
+    // in the flow it started 116px outside the card and the card sliced it.
+    const trigger = { left: 159, right: 187, top: 743, bottom: 771 }
+    const placement = menuPlacement(trigger, menu, viewport, 'end')
+    const offset = menuOffset(trigger, menu, placement, menuShift(trigger, menu, viewport, placement.align))
+    expect(offset.left).toBeGreaterThanOrEqual(8)
+    expect(offset.left + menu.width).toBeLessThanOrEqual(viewport.width - 8)
   })
 })

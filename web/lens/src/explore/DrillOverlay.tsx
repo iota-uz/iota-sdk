@@ -6,6 +6,8 @@ import { createPortal } from 'react-dom'
 import type { FieldFormat } from '../contract'
 import { ArrowUpRight, CaretRight, Check, Copy, X } from '../icons'
 import { useDrawer, useFormat, useTranslate } from '../runtime'
+import { copyText } from '../runtime/clipboard'
+import { rawValueText } from '../runtime/format'
 import { useOverlayContainer } from '../runtime/overlayContainer'
 import { isVisualRegression } from '../visualRegression'
 import type { DrillTarget } from './model'
@@ -252,44 +254,16 @@ export function DrillOverlay({
   }, [])
 
   const copyValue = useCallback(async () => {
-    if (target.value === undefined) return
-    // Copy the raw machine value (plain digits, no thousands separators, no unit
-    // or compact abbreviation) so it pastes straight into a spreadsheet — not the
-    // formatted display string («13.02 млрд UZS»). The on-screen figure keeps its
-    // formatting.
-    const text = String(target.value)
-    const clipboard = globalThis.navigator?.clipboard
-    let done = false
-    try {
-      if (clipboard?.writeText) {
-        await clipboard.writeText(text)
-        done = true
-      }
-    } catch {
-      done = false
-    }
-    if (!done) {
-      // No async clipboard (insecure context) or a rejected write: fall back to
-      // the legacy selection copy, and if even that is unavailable stay silent
-      // rather than throw out of an event handler.
-      try {
-        const field = document.createElement('textarea')
-        field.value = text
-        field.setAttribute('readonly', '')
-        field.style.position = 'fixed'
-        field.style.opacity = '0'
-        document.body.appendChild(field)
-        field.select()
-        document.execCommand('copy')
-        field.remove()
-      } catch {
-        // Silent no-op: the value is still on screen to read.
-      }
-    }
+    // The raw machine value, so it pastes straight into a spreadsheet — not the
+    // formatted display string («13.02 млрд UZS»). The on-screen figure keeps
+    // its formatting.
+    const text = rawValueText(target.value, valueFormat)
+    if (text === undefined) return
+    await copyText(text)
     setCopied(true)
     if (copiedTimer.current) clearTimeout(copiedTimer.current)
     copiedTimer.current = setTimeout(() => setCopied(false), 1500)
-  }, [target.value])
+  }, [target.value, valueFormat])
 
   if (!container) return null
 

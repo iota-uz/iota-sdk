@@ -9,7 +9,7 @@ import { linearScaleObscuresValues, shouldUseLogarithmicScale } from '../scales'
 import { distributeShares, formatShare } from '../shares'
 import { measureTextWidth } from '../text'
 import type { EChartsTheme } from './theme'
-import { tooltipChrome } from './tooltip'
+import { tooltipActionFooter, tooltipChrome, tooltipCopyButton } from './tooltip'
 import { buildDistributionOption, type DistributionInput } from './distributions'
 
 type ChartValue = number | '-'
@@ -222,14 +222,30 @@ function escapeTooltipHTML(value: string): string {
  * depending on which panel was under the pointer. This is the row all three
  * print now; only what they put in it differs.
  */
-function tooltipRow(label: string, value: string, marker = ''): string {
-  return `<div>${marker}${escapeTooltipHTML(label)}<span style="float:right;margin-left:24px;font-weight:600">${escapeTooltipHTML(value)}</span></div>`
+function tooltipRow(label: string, value: string, marker = '', copy = ''): string {
+  return `<div style="display:flex;align-items:center;gap:6px"><span>${marker}${escapeTooltipHTML(label)}</span><span style="margin-left:auto;font-weight:600">${escapeTooltipHTML(value)}</span>${copy}</div>`
 }
 
-/** A heading and its rows, as one tooltip body. */
-function tooltipCard(header: string, rows: string[]): string {
+/**
+ * A tooltip's figure and the button that takes it, from one field and one raw
+ * reading. Compact fields print their whole number here: the plot label is what
+ * had to fit beside a mark, and a reader pointing at that mark has stopped to
+ * look closer.
+ */
+function tooltipAmount(input: ChartInput, field: string, value: unknown): { text: string; copy: string } {
+  return {
+    text: input.formatExact?.(field, value) ?? input.format(field, value),
+    copy: tooltipCopyButton(input.rawValue?.(field, value), input.labels?.copyValue ?? 'Copy value'),
+  }
+}
+
+/**
+ * A heading and its rows, as one tooltip body. The footer, when the plot is
+ * clickable, says so where the reader is already looking.
+ */
+function tooltipCard(header: string, rows: string[], footer = ''): string {
   const heading = header ? `<div style="margin-bottom:6px">${escapeTooltipHTML(header)}</div>` : ''
-  return `<div>${heading}${rows.join('')}</div>`
+  return `<div>${heading}${rows.join('')}${footer}</div>`
 }
 
 function categoryTooltipFormatter(
@@ -260,8 +276,8 @@ function categoryTooltipFormatter(
     const lines = records.map((entry) => {
       const marker = typeof entry.marker === 'string' ? entry.marker : ''
       const seriesName = text(entry.seriesName)
-      const formatted = input.format(valueField, tooltipValue(entry.value))
-      return tooltipRow(showSeriesName ? seriesName : '', formatted, marker)
+      const amount = tooltipAmount(input, valueField, tooltipValue(entry.value))
+      return tooltipRow(showSeriesName ? seriesName : '', amount.text, marker, amount.copy)
     })
     if (stacked) {
       const total = records.reduce((sum, entry) => {
@@ -269,13 +285,14 @@ function categoryTooltipFormatter(
         return sum + (numericTooltipValue(entry.value) ?? 0)
       }, 0)
       const label = input.tooltipTotalLabel ?? 'Total'
-      lines.push(`<div style="margin-top:6px;padding-top:6px;border-top:1px solid currentColor;font-weight:600">${escapeTooltipHTML(label)}<span style="float:right;margin-left:24px">${escapeTooltipHTML(input.format(valueField, total))}</span></div>`)
+      const amount = tooltipAmount(input, valueField, total)
+      lines.push(`<div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid currentColor;font-weight:600"><span>${escapeTooltipHTML(label)}</span><span style="margin-left:auto">${escapeTooltipHTML(amount.text)}</span>${amount.copy}</div>`)
     }
-    return tooltipCard(header, lines)
+    return tooltipCard(header, lines, tooltipActionFooter(input.actionHint))
   }
 }
 
-export { tooltipChrome, tooltipClassName, tooltipZIndex } from './tooltip'
+export { installTooltipCopyDelegate, tooltipActionFooter, tooltipChrome, tooltipClassName, tooltipCopyButton, tooltipZIndex } from './tooltip'
 
 function baseOption(theme: EChartsTheme): EChartsOption {
   return {
@@ -380,10 +397,11 @@ export function buildMapOption(input: ChartInput, theme: EChartsTheme): EChartsO
         // say whether that means "nothing happened here" or "this row did not
         // arrive". Only a value that exists is formatted; the rest say so.
         const raw = record.data?.amount
-        const value = raw === undefined || raw === null || raw === '-'
-          ? (input.labels?.noData ?? 'No data')
-          : input.format(input.encoding.value ?? '', raw)
-        return tooltipCard('', [tooltipRow(label, value)])
+        const missing = raw === undefined || raw === null || raw === '-'
+        const amount = missing
+          ? { text: input.labels?.noData ?? 'No data', copy: '' }
+          : tooltipAmount(input, input.encoding.value ?? '', raw)
+        return tooltipCard('', [tooltipRow(label, amount.text, '', amount.copy)], tooltipActionFooter(input.actionHint))
       },
     },
     visualMap: {
@@ -631,14 +649,14 @@ function sliceTooltip(params: unknown, input: ChartInput, ringLabel?: string): s
   const record = params && typeof params === 'object' ? params as Record<string, unknown> : {}
   const data = record.data && typeof record.data === 'object' ? record.data as Record<string, unknown> : {}
   const label = text(record.name)
-  const value = input.format(input.encoding.value ?? '', data.value)
+  const amount = tooltipAmount(input, input.encoding.value ?? '', data.value)
   const share = typeof data.share === 'number'
     ? data.share
     : (typeof record.percent === 'number' ? record.percent : undefined)
   const suffix = share === undefined ? '' : ` · ${formatShare(share, input.locale, input.shareDecimalSeparator)}`
   // The same row every other tooltip prints: the ring, if there is one, heads
   // the card; the category and its amount are the row.
-  return tooltipCard(ringLabel ?? '', [tooltipRow(label, `${value}${suffix}`)])
+  return tooltipCard(ringLabel ?? '', [tooltipRow(label, `${amount.text}${suffix}`, '', amount.copy)], tooltipActionFooter(input.actionHint))
 }
 
 function sliceLabelColor(fill: string | undefined, theme: EChartsTheme): string {

@@ -2,6 +2,7 @@ import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
   type CSSProperties, type KeyboardEvent as ReactKeyboardEvent,
 } from 'react'
+import { useOverlayContainer } from '../runtime/overlayContainer'
 
 export interface MenuPlacement {
   /** Which side of the trigger the menu opens on. */
@@ -11,6 +12,8 @@ export interface MenuPlacement {
 }
 
 const viewportGutter = 8
+/** The breathing room between a trigger and the menu it opens. */
+const menuGap = 4
 
 /**
  * Where a menu of this size fits, given its trigger.
@@ -62,6 +65,33 @@ export function menuShift(
   return 0
 }
 
+/** Where the menu is drawn, in viewport coordinates. */
+export interface MenuOffset {
+  left: number
+  top: number
+}
+
+/**
+ * Where the placed menu's own box starts.
+ *
+ * The menu is drawn in a body portal, so the answer has to be absolute rather
+ * than «flush with whichever edge of my offset parent». It is the same rule the
+ * flow-anchored version expressed in CSS — flush with the aligned edge, nudged
+ * by the viewport shift, gapped from the trigger — just resolved to numbers.
+ */
+export function menuOffset(
+  trigger: Pick<DOMRect, 'left' | 'right' | 'top' | 'bottom'>,
+  menu: Pick<DOMRect, 'width' | 'height'>,
+  placement: MenuPlacement,
+  shift: number,
+): MenuOffset {
+  const left = (placement.align === 'start' ? trigger.left : trigger.right - menu.width) + shift
+  const top = placement.side === 'down'
+    ? trigger.bottom + menuGap
+    : trigger.top - menu.height - menuGap
+  return { left: Math.round(left), top: Math.round(top) }
+}
+
 /** Shared focus, dismissal, placement, and arrow navigation for Lens menu buttons. */
 export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
   const [open, setOpen] = useState(false)
@@ -69,8 +99,14 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const [placement, setPlacement] = useState<MenuPlacement>({ side: 'down', align: preferredAlign })
-  const [shift, setShift] = useState(0)
+  const [offset, setOffset] = useState<MenuOffset>()
   const items = useRef(new Map<string, HTMLButtonElement>())
+  // A menu anchored in the flow is clipped by the first ancestor that hides its
+  // overflow, and every Lens panel does — a chart panel's own toolbar opened its
+  // menu 116px outside the card and the card sliced it in half. The placement
+  // maths was already right; only the containing block was wrong, so the menu
+  // moves to a body portal and keeps the same rule.
+  const overlay = useOverlayContainer(open, container, 'lens-menu-overlay-root')
   const close = useCallback(() => setOpen(false), [])
   const closeAndFocusTrigger = useCallback(() => {
     close()
@@ -81,7 +117,12 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     if (!open || typeof document === 'undefined') return undefined
     const focusFrame = requestAnimationFrame(() => [...items.current.values()][0]?.focus())
     const pointerdown = (event: PointerEvent) => {
-      if (event.target instanceof Node && !container.current?.contains(event.target)) close()
+      if (!(event.target instanceof Node)) return
+      // The menu is no longer a descendant of the trigger's container: a
+      // portalled item would otherwise be dismissed on pointerdown and never
+      // live long enough to receive the click that chose it.
+      if (container.current?.contains(event.target) || menu.current?.contains(event.target)) return
+      close()
     }
     const keydown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return
@@ -104,27 +145,41 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     const box = menu.current?.getBoundingClientRect()
     if (!anchor || !box) return
     const viewport = { width: globalThis.innerWidth || 1024, height: globalThis.innerHeight || 768 }
-    const next = menuPlacement(anchor, box, viewport, preferredAlign)
+    // The card the trigger belongs to, when it has one. A panel's toolbar is
+    // not always on the right of its card — a chart inside a tab group carries
+    // its controls at the left — and a menu that hangs from the trigger's right
+    // edge there reaches back across the card and out over the application's
+    // own chrome. It is still bound to the viewport; the card only decides
+    // which of the trigger's two edges it prefers.
+    const card = trigger.current?.closest<HTMLElement>('.lens-panel')?.getBoundingClientRect()
+    const preferred = card && preferredAlign === 'end' && anchor.right - box.width < card.left
+      ? 'start'
+      : preferredAlign
+    const next = menuPlacement(anchor, box, viewport, preferred)
     setPlacement((current) => current.side === next.side && current.align === next.align ? current : next)
     // Computed from the anchor and the box width, i.e. from where the menu
     // *would* sit unshifted: its own rect already carries the current offset.
-    const offset = menuShift(anchor, box, viewport, next.align)
-    setShift((current) => (current === offset ? current : offset))
+    const nextOffset = menuOffset(anchor, box, next, menuShift(anchor, box, viewport, next.align))
+    setOffset((current) => current?.left === nextOffset.left && current.top === nextOffset.top ? current : nextOffset)
   }, [preferredAlign])
 
   useLayoutEffect(() => {
-    if (open) place()
-  }, [open, place])
+    if (open && overlay) place()
+  }, [open, overlay, place])
 
   useEffect(() => {
-    if (!open) return undefined
+    if (!open) setOffset(undefined)
+  }, [open])
+
+  useEffect(() => {
+    if (!open || !overlay) return undefined
     globalThis.addEventListener('resize', place)
     globalThis.addEventListener('scroll', place, true)
     return () => {
       globalThis.removeEventListener('resize', place)
       globalThis.removeEventListener('scroll', place, true)
     }
-  }, [open, place])
+  }, [open, overlay, place])
 
   const itemRef = useCallback((key: string) => (element: HTMLButtonElement | null) => {
     if (element) items.current.set(key, element)
@@ -157,10 +212,18 @@ export function useMenuButton(preferredAlign: MenuPlacement['align'] = 'end') {
     menuPlacementProps: {
       'data-align': placement.align,
       'data-side': placement.side,
-      style: { '--lens-menu-shift': `${shift}px` } as CSSProperties,
+      style: {
+        left: offset?.left ?? 0,
+        top: offset?.top ?? 0,
+        // The first paint is the measurement pass: the menu has to have a box
+        // before it can be told where its box goes. Hidden rather than
+        // unmounted, so that measurement is of the real thing.
+        visibility: offset ? 'visible' : 'hidden',
+      } as CSSProperties,
     },
     onMenuKeyDown,
     open,
+    overlay,
     setOpen,
     trigger,
   }

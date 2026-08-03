@@ -1,6 +1,7 @@
-import type { KeyboardEvent, MouseEvent } from 'react'
+import { useCallback, type KeyboardEvent, type MouseEvent } from 'react'
 import type { Frame, Panel } from '../contract'
-import { axisUnit, useAxisFormat, useFormat, usePanelFrame, useTranslate } from '../runtime'
+import { axisUnit, useAxisFormat, useFormat, useFormatExact, usePanelFrame, useTranslate } from '../runtime'
+import { rawValueText } from '../runtime/format'
 import { usePanelNavigation } from './actions'
 import { columnIndex, displayText, panelField } from './data'
 import { PanelFrame } from './PanelFrame'
@@ -51,6 +52,13 @@ function signedChange(value: number, format: (value: unknown) => string): string
   if (value > 0) return `+${format(value)}`
   if (value < 0) return `−${format(-value)}`
   return format(0)
+}
+
+/** The same sign convention over a formatter that may have nothing to say. */
+function signedChangeExact(value: number, format: (value: unknown) => string | undefined): string | undefined {
+  const magnitude = format(Math.abs(value))
+  if (magnitude === undefined) return undefined
+  return value === 0 ? magnitude : `${value > 0 ? '+' : '−'}${magnitude}`
 }
 
 export interface CascadeStage {
@@ -126,6 +134,21 @@ export interface WaterfallItem {
   label: string
   value: number
   formattedValue: string
+  /**
+   * The unabbreviated figure, when the field is compact and the plot's own
+   * label is «−41,20 млрд UZS». The tooltip is the surface a reader opens to
+   * look closer, so it is where the whole number belongs. Absent when nothing
+   * was abbreviated away — then `formattedValue` already is the whole number.
+   */
+  exactValue?: string
+  /** The same, for the split band. */
+  exactSplit?: string
+  /**
+   * This column's machine value — plain digits in the unit the figure is drawn
+   * in, for the clipboard. The reader copies the number they can see, not the
+   * tiyin behind it.
+   */
+  rawValue?: string
   top: number
   height: number
   connectorTop: number
@@ -160,6 +183,8 @@ export interface WaterfallItem {
   splitHeight?: number
   /** Already-formatted amount of that band. */
   formattedSplit?: string
+  /** The band's own machine value, ready for the clipboard. */
+  rawSplit?: string
   /** What the band is called; may be empty even when the band is drawn. */
   splitLabel?: string
   /**
@@ -247,6 +272,14 @@ export function buildWaterfallModel(
   stages: CascadeStage[],
   formatValue: (value: unknown) => string,
   formatTick: (value: unknown) => string = formatValue,
+  // Two optional companions to `formatValue`, both for the tooltip: the
+  // unabbreviated figure a compact plot label hides, and the machine value the
+  // copy button puts on the clipboard. Grouped rather than trailing positional
+  // so the printed report keeps calling this with three arguments.
+  { formatExact = () => undefined, rawValue = () => undefined }: {
+    formatExact?: (value: unknown) => string | undefined
+    rawValue?: (value: unknown) => string | undefined
+  } = {},
 ): WaterfallModel {
   const first = stages[0]
   if (!first) return { items: [], ticks: [], zero: 100 }
@@ -380,6 +413,10 @@ export function buildWaterfallModel(
       formattedValue: item.kind === 'start' || item.kind === 'end'
         ? formatValue(item.value)
         : signedChange(item.value, formatValue),
+      exactValue: item.kind === 'start' || item.kind === 'end'
+        ? formatExact(item.value)
+        : signedChangeExact(item.value, formatExact),
+      rawValue: rawValue(item.value),
       top,
       height,
       // Share of the bar, not of the plot: the band is painted inside the bar,
@@ -388,6 +425,8 @@ export function buildWaterfallModel(
       // share of a bar 18% tall drew as 4.5% of it.
       splitHeight: splittable ? 100 * (splitMagnitude / magnitude) : undefined,
       formattedSplit: splittable ? formatValue(splitMagnitude) : undefined,
+      exactSplit: splittable ? formatExact(splitMagnitude) : undefined,
+      rawSplit: splittable ? rawValue(splitMagnitude) : undefined,
       splitLabel: splittable ? item.splitLabel : undefined,
       // Only a floating bar leaves a balance under it; the totals stand on zero
       // already. A bar dipping below zero leaves nothing, hence the clamp.
@@ -430,10 +469,17 @@ export function CascadePanel({ panel }: CascadePanelProps) {
   const formatValue = useFormat(panel.format[valueField])
   const formatCut = useFormat(panel.format[cutField] ?? panel.format[valueField])
   const formatTick = useAxisFormat(panel.format[valueField])
+  // The plot draws compact figures and the tooltip un-abbreviates them; the
+  // clipboard gets the machine value behind both.
+  const formatExact = useFormatExact(panel.format[valueField])
+  const rawValue = useCallback(
+    (value: unknown) => rawValueText(value, panel.format[valueField]),
+    [panel.format, valueField],
+  )
   const unit = axisUnit(panel.format[valueField])
   const stages = frame.data ? buildCascadeStages(panel, frame.data, formatValue, formatCut) : []
   const waterfall = panel.presentation?.bridgeLayout === 'waterfall'
-    ? buildWaterfallModel(stages, formatValue, formatTick)
+    ? buildWaterfallModel(stages, formatValue, formatTick, { formatExact, rawValue })
     : { items: [], ticks: [], zero: 100 }
   // The hollow column and the solid one are a real distinction — a total the
   // cascade carries on past, and the one it stops at — stated nowhere on the
@@ -474,6 +520,7 @@ export function CascadePanel({ panel }: CascadePanelProps) {
     <PanelFrame panel={panel} frame={frame}>
       {panel.presentation?.bridgeLayout === 'waterfall' ? (
         <WaterfallPlot
+          actionHint={translate('chart.drillHint', 'Select to explore')}
           axisUnit={unit}
           interaction={(item) => stageInteraction(item.rowIndex, item.label)}
           label={translate('cascade.stages', '{name} stages', { name: panel.title })}

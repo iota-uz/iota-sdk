@@ -8,10 +8,11 @@ export interface InfoTipProps {
   /** Already-localized note. Newlines separate paragraphs. */
   text: string
   /**
-   * What the note is about — the metric's own name. It becomes the bubble's
-   * heading, which otherwise spent its first line restating the three words
-   * the trigger's label already said («About this metric» under a button
-   * labelled «About this metric»), on every panel of every dashboard.
+   * What the note is about — the metric's own name. It names the trigger for a
+   * reader who cannot see what it sits beside; it is deliberately *not* drawn
+   * in the bubble. A heading there restated, in bold caps, the label rendered
+   * four pixels above it, on every panel of every dashboard — the tail already
+   * says which glyph the note belongs to.
    */
   subject?: string
   /**
@@ -85,7 +86,9 @@ export function InfoTip({ text, subject, inline }: InfoTipProps) {
   const closeTimer = useRef<ReturnType<typeof globalThis.setTimeout>>()
   const bubbleId = useId()
   const label = translate('panel.info', 'About this metric')
-  const accessibleLabel = inline ? text : label
+  const accessibleLabel = inline
+    ? text
+    : subject ? translate('panel.infoAbout', 'About {name}', { name: subject }) : label
   const open = pinned || hovered
   const container = useOverlayContainer(open, wrapperRef, 'lens-info-tip-overlay-root')
 
@@ -217,7 +220,6 @@ export function InfoTip({ text, subject, inline }: InfoTipProps) {
               scroll container clips on both axes, and the tail hangs over the
               edge it points from. */}
           <span className="lens-info-tip-body">
-            <span className="lens-info-tip-title">{subject || label}</span>
             {paragraphs.map((paragraph, index) => (
               <span className="lens-info-tip-text" key={index}>{paragraph}</span>
             ))}

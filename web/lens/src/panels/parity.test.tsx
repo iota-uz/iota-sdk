@@ -197,7 +197,10 @@ describe('coverage panel', () => {
     // A chart panel's caption is not a band above the plot: it lives behind the
     // header's info affordance and appears once that is opened.
     expect(screen.queryByText('All claims covered by reserve')).toBeNull()
-    const info = screen.getByRole('button', { name: 'About this metric' })
+    // The trigger names its own subject: a board carries a dozen ⓘ, and
+    // "About this metric" told a screen reader which of them it had landed on
+    // exactly as well as no label at all would have.
+    const info = screen.getByRole('button', { name: 'About Claims paid' })
     expect(info).not.toHaveAttribute('title')
     expect(info).toHaveAttribute('aria-expanded', 'false')
     fireEvent.mouseEnter(info.closest('.lens-info-tip')!)
@@ -699,7 +702,12 @@ describe('chart legend series toggle', () => {
   it('answers hide-all with an empty state that offers the way back', async () => {
     const frame: Frame = {
       ...pieFrame,
-      rows: [['direct', 'Direct', 550], ['broker', 'Broker', 300], ['inward', 'Inward', 100], ['partner', 'Partner', 50]],
+      // Five rows, because bulk controls only appear past four: at four the
+      // legend is short enough to switch one row at a time.
+      rows: [
+        ['direct', 'Direct', 550], ['broker', 'Broker', 300], ['inward', 'Inward', 100],
+        ['partner', 'Partner', 50], ['other', 'Other', 25],
+      ],
     }
     const { container, inputs } = renderPie(frame)
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
@@ -714,6 +722,6 @@ describe('chart legend series toggle', () => {
     expect(container.querySelector('.lens-plot-total')).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show all series' }))
-    await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward', 'partner']))
+    await waitFor(() => expect(inputs.at(-1)?.frame.rows.map((row) => row[0])).toEqual(['direct', 'broker', 'inward', 'partner', 'other']))
   })
 })

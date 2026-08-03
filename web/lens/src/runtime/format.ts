@@ -212,6 +212,29 @@ export function formatFieldValueExact(value: unknown, field: FieldFormat | undef
 }
 
 /**
+ * The clipboard companion to every formatted figure: the same quantity with
+ * nothing done to it a spreadsheet would have to undo — no thousands
+ * separators, no unit, no compact abbreviation, a dot decimal.
+ *
+ * It is scaled the way the display is. A money field in minor units draws
+ * «41,20 млрд UZS» from 4 120 000 000 000 tiyin, and a reader who copies that
+ * figure means the som they can see, not the tiyin behind it. Undefined when
+ * there is no number to copy.
+ */
+export function rawValueText(value: unknown, field?: FieldFormat): string | undefined {
+  const number = numeric(value)
+  if (number === undefined) return undefined
+  const scaled = field?.kind === 'money' && field.minorUnits ? number / 100 : number
+  // Rounded to the significance the producer declared for the field. A bridge
+  // step is a difference of running totals, so it arrives carrying the binary
+  // noise of that subtraction — «−5626024042.350006» for a figure the panel
+  // draws, correctly, as −5 626 024 042. Pasting the noise into a spreadsheet
+  // is pasting an artefact of IEEE-754, not a number anyone reported.
+  const rounded = field?.precision === undefined ? scaled : Number(scaled.toFixed(field.precision))
+  return String(rounded)
+}
+
+/**
  * Delta chips clamp beyond ±999.9%: «+13 417.3%» is noise, «>999%» is honest.
  * Returns undefined inside the displayable range. Mirrors the server's
  * trendPercentText clamp.

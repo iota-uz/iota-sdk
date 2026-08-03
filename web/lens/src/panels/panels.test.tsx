@@ -47,6 +47,7 @@ vi.mock('../runtime', () => ({
   levelForPath: () => runtime.level,
 }))
 
+import { legendLabels, legendRow, legendSwatches, legendValues, markRow } from './legend.test-utils'
 import { BarPanel, collapseExpandableTopN, collapseMinorDonutSlices, DistributionPanel, donutRemainderKey, LinePanel, PiePanel, rowIndexForKey } from './ChartPanel'
 import { CoveragePanel } from './CoveragePanel'
 import { GaugePanel } from './GaugePanel'
@@ -189,7 +190,6 @@ describe.each<PanelKind>(['stat', 'pie', 'donut', 'radial', 'bar', 'hbar', 'line
       // A map is loading in its own right until its geometry arrives, so it
       // keeps the skeleton; every other kind dims the data it already has.
       if (kind !== 'map') {
-        expect(panelElement).toHaveClass('lens-panel-stale')
         expect(view.container.querySelector('.lens-panel-skeleton')).toBeNull()
         expect(screen.getByText('Updating')).toBeInTheDocument()
       }
@@ -387,17 +387,17 @@ describe('temporal overlay controls', () => {
         annotations: [{ at: '2026-07-02T00:00:00Z', label: 'Method changed' }],
       },
     })
-    render(<LinePanel panel={temporal} adapter={fakeAdapter()} />)
+    const view = render(<LinePanel panel={temporal} adapter={fakeAdapter()} />)
 
-    const marks = await screen.findByRole('list', { name: 'Chart marks' })
-    expect(within(marks).getByRole('button', { name: /Threshold/ })).toHaveAttribute('aria-pressed', 'true')
-    expect(within(marks).getByRole('button', { name: /Method changed/ })).toHaveAttribute('aria-pressed', 'true')
+    await screen.findByRole('list', { name: 'Chart marks' })
+    expect(markRow(view.container, 'Threshold')).toHaveAttribute('aria-pressed', 'true')
+    expect(markRow(view.container, 'Method changed')).toHaveAttribute('aria-pressed', 'true')
     // The trend is off until the header control turns it on, and the legend
     // says so rather than omitting it.
-    expect(within(marks).getByRole('button', { name: /Trend/ })).toHaveAttribute('aria-pressed', 'false')
+    expect(markRow(view.container, 'Trend')).toHaveAttribute('aria-pressed', 'false')
 
-    fireEvent.click(within(marks).getByRole('button', { name: /Threshold/ }))
-    await waitFor(() => expect(within(marks).getByRole('button', { name: /Threshold/ })).toHaveAttribute('aria-pressed', 'false'))
+    fireEvent.click(markRow(view.container, 'Threshold'))
+    await waitFor(() => expect(markRow(view.container, 'Threshold')).toHaveAttribute('aria-pressed', 'false'))
   })
 })
 
@@ -440,12 +440,12 @@ describe('logarithmic scale warning', () => {
       ] },
     }
     const inputs: ChartInput[] = []
-    render(<BarPanel panel={panel('bar', {
+    const view = render(<BarPanel panel={panel('bar', {
       valueAxis: { scale: 'logarithmic', logBase: 10 }, presentation: { legend: 'below' },
     })} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
     expect(screen.getByRole('note')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: /Outlier/ }))
+    fireEvent.click(legendRow(view.container, 'Outlier'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
     expect(screen.queryByRole('note')).toBeNull()
   })
@@ -685,12 +685,11 @@ describe('chart encoding and drill behavior', () => {
       },
     })
     const view = render(<PiePanel panel={radial} adapter={fakeAdapter()} />)
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item').length).toBe(6))
-    const shares = Array.from(view.container.querySelectorAll('.lens-chart-legend-value')).map((node) => node.textContent)
+    await waitFor(() => expect(legendLabels(view.container)).toHaveLength(6))
     // Both rings declare 100. Grouped by that denominator the six rows sum to
     // 200%, so nothing reconciles and each ring prints 99.9%. Grouped by ring,
     // each thirds-decomposition adds up to exactly 100.0%.
-    expect(shares).toEqual(['33.4%', '33.3%', '33.3%', '33.4%', '33.3%', '33.3%'])
+    expect(legendValues(view.container)).toEqual(['33.4%', '33.3%', '33.3%', '33.4%', '33.3%', '33.3%'])
   })
 
   it('drops the colour pins of the rows a legend toggle hid', async () => {
@@ -705,9 +704,9 @@ describe('chart encoding and drill behavior', () => {
     runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
     const inputs: ChartInput[] = []
     const pie = panel('pie', { presentation: { legend: 'below' } })
-    render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    const view = render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
     await waitFor(() => expect(inputs.length).toBeGreaterThan(0))
-    fireEvent.click(screen.getByText('Alpha'))
+    fireEvent.click(legendRow(view.container, 'Alpha'))
     // The pins are positional: keeping Alpha's after dropping Alpha's row
     // would paint Beta's slice with Alpha's colour.
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(1))
@@ -730,9 +729,8 @@ describe('chart encoding and drill behavior', () => {
     const inputs: ChartInput[] = []
     const pie = panel('pie', { presentation: { legend: 'below' } })
     const view = render(<PiePanel panel={pie} adapter={fakeAdapter((input) => inputs.push(input))} />)
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-mark').length).toBe(2))
-    const marks = Array.from(view.container.querySelectorAll<HTMLElement>('.lens-chart-legend-mark'))
-    expect(marks.map((mark) => mark.style.background)).toEqual(['rgb(17, 17, 17)', 'rgb(34, 34, 34)'])
+    await waitFor(() => expect(legendSwatches(view.container)).toHaveLength(2))
+    expect(legendSwatches(view.container)).toEqual(['rgb(17, 17, 17)', 'rgb(34, 34, 34)'])
     expect(inputs.at(-1)?.rowColor?.('Alpha', 0, 'alpha')).toBe('#111111')
     expect(inputs.at(-1)?.rowColor?.('Beta', 1, 'beta')).toBe('#222222')
   })
@@ -759,14 +757,12 @@ describe('chart encoding and drill behavior', () => {
     })
     const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
+    await waitFor(() => expect(legendLabels(view.container)).toEqual(['Written premium', 'Earned premium']))
     const data = screen.getByRole('list', { name: 'Chart data for line panel' })
     expect(data).toHaveTextContent('2025, Written premium, 100')
     expect(data).toHaveTextContent('2025, Earned premium, 80')
-    expect(screen.getByText('Written premium')).toBeInTheDocument()
-    expect(screen.getByText('Earned premium')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: /Earned premium/ }))
+    fireEvent.click(legendRow(view.container, 'Earned premium'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([
       ['2025', 'Written premium', 100],
       ['2026', 'Written premium', 120],
@@ -793,14 +789,16 @@ describe('chart encoding and drill behavior', () => {
       encoding: { category: 'category', series: 'series', value: 'value' },
       presentation: { legend: 'below' },
     })
-    render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
+    const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
-    expect(screen.getByRole('button', { name: /Written/ })).toHaveTextContent('220')
-    fireEvent.click(screen.getAllByRole('button', { name: 'Isolate series' })[1]!)
+    expect(legendRow(view.container, 'Written')).toHaveTextContent('220')
+    // Isolating is the row's double-click — the charting idiom — rather than a
+    // second button beside it.
+    fireEvent.doubleClick(legendRow(view.container, 'Earned'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows.every((row) => row[1] === 'Earned')).toBe(true))
     expect(new URL(window.location.href).searchParams.getAll('lens-state').length).toBe(1)
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'Isolate series' })[1]!)
+    fireEvent.doubleClick(legendRow(view.container, 'Earned'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(4))
 
     // With only two series, the per-series controls are enough.
@@ -827,9 +825,16 @@ describe('chart encoding and drill behavior', () => {
     // One threshold: the entry count that earns a search box is the same one
     // that earns bulk selection, so the column has two compositions, not four.
     expect(screen.getByRole('searchbox', { name: 'Search legend' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Hide all' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show all' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Invert' })).toBeInTheDocument()
+    // The pair is one two-state control, not two loose commands: with every
+    // series plotted, "Show all" is the state the legend is already in.
+    expect(screen.getByRole('button', { name: 'Show all' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('button', { name: 'Hide all' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Hide all' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Hide all' })).toHaveAttribute('aria-pressed', 'true'))
+    expect(screen.getByRole('button', { name: 'Show all' })).toHaveAttribute('aria-pressed', 'false')
+    // Invert takes it back to the state it started in rather than to a third one.
+    fireEvent.click(screen.getByRole('button', { name: 'Invert' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Show all' })).toHaveAttribute('aria-pressed', 'true'))
     long.unmount()
 
     runtime.frame = {
@@ -837,7 +842,8 @@ describe('chart encoding and drill behavior', () => {
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
     const short = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
-    expect(short.container.querySelector('.lens-chart-legend-tools')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Hide all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
     expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
     short.unmount()
 
@@ -845,12 +851,12 @@ describe('chart encoding and drill behavior', () => {
       data: { columns, rows: Array.from({ length: 4 }, (_, index) => ['2026', `Bulk ${index + 1}`, index + 1]) },
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
-    render(<LinePanel panel={line} adapter={fakeAdapter()} />)
+    const threshold = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
     expect(screen.queryByRole('button', { name: 'Hide all' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Show all' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Invert' })).toBeNull()
     expect(screen.queryByRole('searchbox', { name: 'Search legend' })).toBeNull()
-    cleanup()
+    threshold.unmount()
 
     runtime.frame = {
       data: { columns, rows: Array.from({ length: 5 }, (_, index) => ['2026', `Bulk ${index + 1}`, index + 1]) },
@@ -865,7 +871,7 @@ describe('chart encoding and drill behavior', () => {
     await screen.findByRole('button', { name: 'Show all' })
   })
 
-  it('prints the latest ratio reading instead of summing a ratio series', async () => {
+  it('prints the latest ratio reading instead of summing a ratio series', () => {
     runtime.frame = {
       data: {
         columns: [
@@ -877,7 +883,7 @@ describe('chart encoding and drill behavior', () => {
       },
       isLoading: false, isStale: false, error: null, retry: vi.fn(),
     }
-    render(<LinePanel
+    const view = render(<LinePanel
       adapter={fakeAdapter()}
       panel={panel('line', {
         encoding: { category: 'category', series: 'series', value: 'value' },
@@ -886,8 +892,8 @@ describe('chart encoding and drill behavior', () => {
       })}
     />)
 
-    expect(await screen.findByRole('button', { name: /Loss ratio/ })).toHaveTextContent('91')
-    expect(screen.getByRole('button', { name: /Loss ratio/ })).not.toHaveTextContent('173')
+    expect(legendRow(view.container, 'Loss ratio')).toHaveTextContent('91')
+    expect(legendRow(view.container, 'Loss ratio')).not.toHaveTextContent('173')
   })
 
   it('exposes every drill mark as a keyboard action', async () => {
@@ -1007,8 +1013,9 @@ describe('chart encoding and drill behavior', () => {
     const view = render(<LinePanel panel={line} adapter={fakeAdapter()} />)
     const search = screen.getByRole('searchbox', { name: 'Search legend' })
     fireEvent.change(search, { target: { value: 'Product 7' } })
-    expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(1)
-    expect(screen.getByText('Product 7')).toBeInTheDocument()
+    // The search narrows the list a reader reads; it must not narrow the plot,
+    // which still has to draw the series the reader filtered out of view.
+    expect(legendLabels(view.container)).toEqual(['Product 7'])
     expect(view.container.querySelector('.lens-chart-canvas')).toBeInTheDocument()
   })
 
@@ -1021,12 +1028,12 @@ describe('chart encoding and drill behavior', () => {
     }
     runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
     const inputs: ChartInput[] = []
-    render(<BarPanel panel={panel('bar', {
+    const view = render(<BarPanel panel={panel('bar', {
       encoding: { category: 'category', series: 'series', value: 'value' },
       presentation: { legend: 'below', stack: true },
     })} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
-    fireEvent.click(screen.getByRole('button', { name: /Direct/ }))
+    fireEvent.click(legendRow(view.container, 'Direct'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toEqual([['2026', 'Inward', 50], ['2027', 'Inward', 30]]))
     expect(inputs.at(-1)?.frame.total).toBe(80)
   })
@@ -1108,16 +1115,15 @@ describe('chart encoding and drill behavior', () => {
     })
     const view = render(<LinePanel panel={line} adapter={fakeAdapter((input) => inputs.push(input))} />)
 
-    await waitFor(() => expect(view.container.querySelectorAll('.lens-chart-legend-item')).toHaveLength(2))
+    await waitFor(() => expect(legendLabels(view.container)).toEqual(['Claimed', 'Paid']))
     expect(inputs.at(-1)?.seriesColor?.('Paid', 1)).toBe('#d97706')
 
-    fireEvent.click(screen.getByRole('button', { name: /Claimed/ }))
+    fireEvent.click(legendRow(view.container, 'Claimed'))
     await waitFor(() => expect(inputs.at(-1)?.frame.rows).toHaveLength(2))
     // The chart now hands index 0 — the only series it can see — and must
     // still be told amber, the colour the legend beside it is still printing.
     expect(inputs.at(-1)?.seriesColor?.('Paid', 0)).toBe('#d97706')
-    const marks = Array.from(view.container.querySelectorAll<HTMLElement>('.lens-chart-legend-mark'))
-    expect(marks.at(-1)?.style.background).toBe('rgb(217, 119, 6)')
+    expect(legendSwatches(view.container).at(-1)).toBe('rgb(217, 119, 6)')
   })
 
   it('shows the figure\'s own shape while a strip cell is loading, not the empty-value dash', () => {
@@ -1142,7 +1148,6 @@ describe('chart encoding and drill behavior', () => {
 
     const cell = container.querySelector('.lens-stat-metric')
     expect(cell).toHaveAttribute('data-stale', 'true')
-    expect(cell).toHaveClass('lens-stat-metric-stale')
     expect(container.querySelector('.lens-stat-metric-value')?.textContent).toBe('42')
   })
 
@@ -1575,7 +1580,7 @@ describe('cascade stages', () => {
     expect(byLabel('Result')?.underlayHeight).toBeUndefined()
   })
 
-  it('keeps a split callout in the document but holds it for the pointer', () => {
+  it('answers a pointer with a floating split tip and keeps the amount readable without one', async () => {
     const cascade = panel('cascade', {
       encoding: {
         label: 'label', value: 'value', cut: 'cut', cutLabel: 'cutLabel', final: 'final',
@@ -1603,12 +1608,25 @@ describe('cascade stages', () => {
 
     runtime.frame = { data: frame, isLoading: false, isStale: false, error: null, retry: vi.fn() }
     const view = render(<CascadePanel panel={cascade} />)
-    const callout = view.container.querySelector('.lens-waterfall-split-callout')
-    // The chip stays in the DOM — assistive tech reads the amount out with the
-    // bar whether or not the reader has a pointer. Only the paint waits, and
-    // the stylesheet keys that on this attribute.
-    expect(callout).toHaveTextContent('above reserve 10')
-    expect(callout?.getAttribute('data-reveal')).toBe('hover')
+    // The amount is in the accessibility tree with the bar whether or not the
+    // reader has a pointer; only the visible tip waits for one.
+    const band = view.container.querySelector('.lens-waterfall-bar-split')
+    expect(band?.querySelector('.lens-sr-only')).toHaveTextContent('above reserve 10')
+    expect(document.querySelector('.lens-waterfall-tip')).toBeNull()
+
+    const column = band!.closest('.lens-waterfall-column')!
+    fireEvent.mouseEnter(column)
+    // Floated over the plot in a body-level portal, so no card can clip it.
+    const tip = document.querySelector('.lens-waterfall-tip')
+    expect(tip).not.toBeNull()
+    expect(tip).toHaveTextContent('above reserve')
+    expect(tip).toHaveTextContent('10')
+    expect(tip?.closest('.lens-root')).not.toBe(view.container.closest('.lens-root'))
+
+    // The card carries buttons, so it outlives the pointer leaving the column
+    // by the time it takes to reach them.
+    fireEvent.mouseLeave(column)
+    await waitFor(() => expect(document.querySelector('.lens-waterfall-tip')).toBeNull())
 
     const printed = render(
       <WaterfallPlot

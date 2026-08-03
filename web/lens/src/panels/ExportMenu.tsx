@@ -1,3 +1,4 @@
+import { createPortal } from 'react-dom'
 import { ArrowClockwise, CaretDown, CircleNotch, DownloadSimple } from '../icons'
 import { useExport, usePrint, useTranslate } from '../runtime'
 import { useMenuButton } from './useMenuButton'
@@ -29,7 +30,7 @@ export function ExportMenu() {
   // A labelled trigger sits in the middle of the action bar and reads
   // left-to-right, so its menu hangs from the edge the eye is already on.
   const {
-    closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, setOpen, trigger,
+    closeAndFocusTrigger, container, itemRef, menu, menuPlacementProps, onMenuKeyDown, open, overlay, setOpen, trigger,
   } = useMenuButton('start')
 
   const choices: ExportChoice[] = []
@@ -96,7 +97,7 @@ export function ExportMenu() {
         <span>{label}</span>
         {!single && !busy && <CaretDown className="lens-export-caret" />}
       </button>
-      {open && !single && (
+      {open && !single && overlay && createPortal(
         <div
           className="lens-export-menu"
           onKeyDown={onMenuKeyDown}
@@ -120,7 +121,8 @@ export function ExportMenu() {
               {choice.label}
             </button>
           ))}
-        </div>
+        </div>,
+        overlay,
       )}
       {(busy || status?.message) && (
         <span
